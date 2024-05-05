@@ -2300,15 +2300,14 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType)) {
           return failure();
         }
+
+        Location loc = binder.getLoc();
         Value a0 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), 0.42));
+            loc, rewriter.getF64FloatAttr(0.42));
         Value a1 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), -0.5));
+            loc, rewriter.getF64FloatAttr(-0.5));
         Value a2 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), 0.08));
+            loc, rewriter.getF64FloatAttr(0.08));
 
         auto windowFunctionResult =
             windowFunctionImpl(binder, rewriter, size, a0, a1, a2, resultType,
@@ -2332,13 +2331,14 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType)) {
           return failure();
         }
+
+        Location loc = binder.getLoc();
         Value a0 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getFloatAttr(rewriter.getF64Type(), 0.5));
+            loc, rewriter.getF64FloatAttr(0.5));
         Value a1 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), -0.5));
+            loc, rewriter.getF64FloatAttr(-0.5));
         Value a2 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getFloatAttr(rewriter.getF64Type(), 0.0));
+            loc, rewriter.getF64FloatAttr(0.0));
 
         auto windowFunctionResult =
             windowFunctionImpl(binder, rewriter, size, a0, a1, a2, resultType,
@@ -2362,14 +2362,14 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType)) {
           return failure();
         }
+
+        Location loc = binder.getLoc();
         Value a0 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), 0.543478));
+            loc, rewriter.getF64FloatAttr(0.543478));
         Value a1 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), -0.456522));
+            loc, rewriter.getF64FloatAttr(-0.456522));
         Value a2 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getFloatAttr(rewriter.getF64Type(), 0.0));
+            loc, rewriter.getF64FloatAttr(0.0));
 
         auto windowFunctionResult =
             windowFunctionImpl(binder, rewriter, size, a0, a1, a2, resultType,
