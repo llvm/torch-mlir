@@ -724,6 +724,10 @@ def aten〇numpy_T〡shape(self: List[int]) -> List[int]:
         result_shape.insert(0, i)
     return result_shape
 
+@check_shape_function([Invocation(TensorOfShape(3), TensorOfShape(3))])
+def aten〇dot〡shape(self: List[int], tensor: List[int]) -> List[int]:
+    return []
+
 def aten〇matmul〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.matmul(self, other)
 
@@ -3302,6 +3306,13 @@ def aten〇div〇Scalar_mode〡dtype(self_rank_dtype: Tuple[int, int], other: Un
         return promoted_dtype
     else:
         return torch.float32
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(4,), (4,)]))
+def aten〇dot〡dtype(self_rank_dtype: Tuple[int, int], tensor_rank_dtype: Tuple[int, int]) -> int:
+    other_rank, other_dtype = tensor_rank_dtype
+    self_rank, self_dtype = self_rank_dtype
+    assert self_dtype == other_dtype
+    return self_dtype
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 4), (2, 4, 3)]) +
