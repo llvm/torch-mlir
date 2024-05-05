@@ -1468,8 +1468,69 @@ def aten〇conv2d〡shape(input: List[int], weight: List[int], bias: Optional[Li
 def aten〇conv3d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1, 1,), padding: List[int] = (0, 0, 0,), dilation: List[int] = (1, 1, 1,), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv3d(input, weight, bias, stride, padding, dilation, groups)
 
+def aten〇conv_transpose1d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1,), padding: List[int] = (0,), output_padding: List[int] = (0,), groups: int = 1, dilation: List[int] = (1,)) -> List[int]:
+    if stride is None:
+        stride = [1]
+    if padding is None:
+        padding = [0]
+    if output_padding is None:
+        output_padding = [0]
+    if dilation is None:
+        dilation = [1]
+    has_dilation = len(dilation) > 0
+    dim = len(input)
+    output_size: List[int] = []
+    input_batch_size_dim = 0
+    weight_output_channels_dim = 1
+    output_size.append(input[input_batch_size_dim])
+    output_size.append(weight[weight_output_channels_dim])
+
+    for d in range(2, dim):
+        dilation_ = dilation[d - 2] if has_dilation else 1
+        kernel = dilation_ * (weight[d] - 1)
+        output_size.append(
+            (input[d] - 1) * stride[d - 2]
+            - 2 * padding[d - 2]
+            + kernel
+            + output_padding[d - 2]
+            + 1
+        )
+    return output_size
+
+
 def aten〇conv_transpose2d〇input〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1,), padding: List[int] = (0, 0,), output_padding: List[int] = (0, 0,), groups: int = 1, dilation: List[int] = (1, 1,)) -> List[int]:
     return upstream_shape_functions.conv_transpose2d_input(input, weight, bias, stride, padding, output_padding, groups, dilation)
+
+
+def aten〇conv_transpose3d〇input〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1, 1,), padding: List[int] = (0, 0, 0,), output_padding: List[int] = (0, 0, 0,), groups: int = 1, dilation: List[int] = (1, 1, 1,)) -> List[int]:
+    if stride is None:
+        stride = [1, 1, 1]
+    if padding is None:
+        padding = [0, 0, 0]
+    if output_padding is None:
+        output_padding = [0, 0, 0]
+    if dilation is None:
+        dilation = [1, 1, 1]
+    has_dilation = len(dilation) > 0
+    dim = len(input)
+    output_size: List[int] = []
+    input_batch_size_dim = 0
+    weight_output_channels_dim = 1
+    output_size.append(input[input_batch_size_dim])
+    output_size.append(weight[weight_output_channels_dim])
+
+    for d in range(2, dim):
+        dilation_ = dilation[d - 2] if has_dilation else 1
+        kernel = dilation_ * (weight[d] - 1)
+        output_size.append(
+            (input[d] - 1) * stride[d - 2]
+            - 2 * padding[d - 2]
+            + kernel
+            + output_padding[d - 2]
+            + 1
+        )
+    return output_size
+
 
 def aten〇conv_tbc〡shape(self: List[int], weight: List[int], bias: List[int], pad: int = 0) -> List[int]:
     assert len(self) == 3 # only 1d is supported by tbc
@@ -3466,6 +3527,10 @@ def aten〇conv3d〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: 
     input_rank, input_dtype = input_rank_dtype
     return input_dtype
 
+def aten〇conv_transpose1d〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, stride: List[int] = (1,), padding: List[int] = (0,), output_padding: List[int] = (0,), groups: int = 1, dilation: List[int] = (1,)) -> int:
+    input_rank, input_dtype = input_rank_dtype
+    return input_dtype
+
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1, 1, 1), (1, 1, 1, 1)]) +
     [Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.bool), TensorOfShape(1, 1, 1, 1, dtype=torch.float32)),
@@ -3474,6 +3539,10 @@ def aten〇conv3d〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: 
      Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float16))
 ])
 def aten〇conv_transpose2d〇input〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, stride: List[int] = (1, 1,), padding: List[int] = (0, 0,), output_padding: List[int] = (0, 0,), groups: int = 1, dilation: List[int] = (1, 1,)) -> int:
+    input_rank, input_dtype = input_rank_dtype
+    return input_dtype
+
+def aten〇conv_transpose3d〇input〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, stride: List[int] = (1, 1, 1,), padding: List[int] = (0, 0, 0,), output_padding: List[int] = (0, 0, 0,), groups: int = 1, dilation: List[int] = (1, 1, 1,)) -> int:
     input_rank, input_dtype = input_rank_dtype
     return input_dtype
 

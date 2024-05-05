@@ -3389,10 +3389,10 @@ public:
 // Decompose aten.conv_transpose1d to aten.convolution
 namespace {
 class DecomposeAtenConvTranspose1dOp
-    : public OpRewritePattern<AtenConvTranspose1dInputOp> {
+    : public OpRewritePattern<AtenConvTranspose1dOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenConvTranspose1dInputOp op,
+  LogicalResult matchAndRewrite(AtenConvTranspose1dOp op,
                                 PatternRewriter &rewriter) const override {
 
     Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), true);
@@ -3430,7 +3430,7 @@ class DecomposeAtenConvTranspose3dOp
     : public OpRewritePattern<AtenConvTranspose3dInputOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenConvTranspose1dInputOp op,
+  LogicalResult matchAndRewrite(AtenConvTranspose3dInputOp op,
                                 PatternRewriter &rewriter) const override {
 
     Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), true);
