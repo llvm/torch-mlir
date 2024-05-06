@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Support/LogicalResult.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -1303,33 +1304,28 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             outputSize);
-        Value outputTensor;
+
         Type returnIndicesType = torch::Torch::ValueTensorType::get(
             binder.op->getContext(), resultShape,
             rewriter.getIntegerType(64, true));
         if (inputRank == 3) {
-          outputTensor = rewriter
-                             .create<Torch::AtenAdaptiveMaxPool1dOp>(
-                                 binder.getLoc(), resultType, returnIndicesType,
-                                 operand, outputSizeList)
-                             .getResult(0);
+          rewriter.replaceOpWithNewOp<Torch::AtenAdaptiveMaxPool1dOp>(
+              binder.op, resultType, returnIndicesType, operand,
+              outputSizeList);
+          return success();
         } else if (inputRank == 4) {
-          outputTensor = rewriter
-                             .create<Torch::AtenAdaptiveMaxPool2dOp>(
-                                 binder.getLoc(), resultType, returnIndicesType,
-                                 operand, outputSizeList)
-                             .getResult(0);
+          rewriter.replaceOpWithNewOp<Torch::AtenAdaptiveMaxPool2dOp>(
+              binder.op, resultType, returnIndicesType, operand,
+              outputSizeList);
+          return success();
         } else if (inputRank == 5) {
-          outputTensor = rewriter
-                             .create<Torch::AtenAdaptiveMaxPool3dOp>(
-                                 binder.getLoc(), resultType, returnIndicesType,
-                                 operand, outputSizeList)
-                             .getResult(0);
-        } else {
-          return failure();
+          rewriter.replaceOpWithNewOp<Torch::AtenAdaptiveMaxPool3dOp>(
+              binder.op, resultType, returnIndicesType, operand,
+              outputSizeList);
+          return success();
         }
-        rewriter.replaceOp(binder.op, outputTensor);
-        return success();
+
+        return failure();
       });
   patterns.onOp(
       "LayerNormalization", 17,
