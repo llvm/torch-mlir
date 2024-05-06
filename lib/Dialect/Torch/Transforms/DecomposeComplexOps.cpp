@@ -1974,6 +1974,59 @@ public:
 };
 } // namespace
 
+// HardShrink(x, lambda) function:
+// Applies a shrinkage function where:
+// - If x > lambda, returns x
+// - If x < -lambda, returns x
+// - Otherwise, returns 0
+namespace {
+class DecomposeAtenHardshrinkOp : public OpRewritePattern<AtenHardshrinkOp> {
+public:
+  using OpRewritePattern<AtenHardshrinkOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenHardshrinkOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value lambdValue = op.getLambd();
+
+    auto resTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!resTy || !resTy.hasDtype() || !resTy.hasSizes()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "result should have dtype and size");
+    }
+
+    double lambd;
+    if (!matchPattern(lambdValue, m_TorchConstantFloat(&lambd))) {
+      return rewriter.notifyMatchFailure(
+          op, "expected lambd to be a constant float");
+    }
+
+    Value zero =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+    Value neglambd = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(-lambd));
+    Value poslambd = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(lambd));
+
+    auto boolResType =
+        resTy.getWithSizesAndDtype(resTy.getSizes(), rewriter.getI1Type());
+
+    Value posMask =
+        rewriter.create<AtenGtScalarOp>(loc, boolResType, self, poslambd);
+    Value negMask =
+        rewriter.create<AtenLtScalarOp>(loc, boolResType, self, neglambd);
+
+    Value result = rewriter.create<AtenWhereScalarOtherOp>(loc, resTy, posMask,
+                                                           self, zero);
+    result =
+        rewriter.create<AtenWhereSelfOp>(loc, resTy, negMask, self, result);
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.matmul into: aten.mm and aten.bmm according to ranks.
 namespace {
 class DecomposeAtenMatmulOp : public OpRewritePattern<AtenMatmulOp> {
@@ -7725,6 +7778,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSoftmaxIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSigmoidOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenHardshrinkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftshrinkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<

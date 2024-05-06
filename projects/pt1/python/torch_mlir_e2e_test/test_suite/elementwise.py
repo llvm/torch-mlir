@@ -2251,6 +2251,52 @@ def ElementwiseSoftshrinkStaticModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseHardshrinkModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.hardshrink(a, 1.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseHardshrinkModule())
+def ElementwiseHardshrinkModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class ElementwiseHardshrinkStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.hardshrink(a, 2.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseHardshrinkStaticModule())
+def ElementwiseHardshrinkStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6))
+
+
+# ==============================================================================
+
+
 class ElementwiseErfModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
