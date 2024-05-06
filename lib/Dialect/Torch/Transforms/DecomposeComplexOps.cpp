@@ -1059,44 +1059,44 @@ public:
   LogicalResult matchAndRewrite(AtenEyeMOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    int64_t n;
-
-    if (!matchPattern(op.getN(), m_TorchConstantInt(&n)))
-      return rewriter.notifyMatchFailure(op,
-                                         "unimplemented: n must be constant");
-    int64_t m;
-    if (!matchPattern(op.getM(), m_TorchConstantInt(&m)))
-      return rewriter.notifyMatchFailure(op,
-                                         "unimplemented: m must be constant");
-    Value none = rewriter.create<ConstantNoneOp>(loc);
-    auto outType = dyn_cast<BaseTensorType>(op.getType());
+    auto outType = op.getType().dyn_cast<BaseTensorType>();
     if (!outType)
       return rewriter.notifyMatchFailure(
           op, "Only tensor types input are currently supported");
     if (!outType.hasDtype()) {
       return rewriter.notifyMatchFailure(op, "result should have dtype");
     }
-    if (n < 0) {
-      return rewriter.notifyMatchFailure(op, "n must be greater or equal to 0");
-    }
-    if (m < 0) {
-      return rewriter.notifyMatchFailure(op, "m must be greater or equal to 0");
-    }
-
+    Value none = rewriter.create<ConstantNoneOp>(loc);
     auto context = op.getContext();
     auto int64Dtype = getDtypeIntValueForType(
         rewriter, loc,
         rewriter.getIntegerType(/*width=*/64, /*isSigned=*/true));
     auto si64Type = IntegerType::get(context, 64, IntegerType::Signed);
-    auto arangeType = outType.getWithSizesAndDtype(llvm::ArrayRef(n), si64Type);
+
+    int64_t n = kUnknownSize;
+    int64_t m = kUnknownSize;
+    // prioritize getting shape from output shape
+    if (outType.hasSizes() && outType.getSizes().size() == 2) {
+      n = outType.getSizes().front();
+      m = outType.getSizes().back();
+    }
+    // if output shape is not available, try to get shape from input
+    if (n == kUnknownSize)
+      matchPattern(op.getN(), m_TorchConstantInt(&n));
+    if (m == kUnknownSize)
+      matchPattern(op.getM(), m_TorchConstantInt(&m));
+
+    // prepare two unsqueezed ranges that are equal on and only on the diagonal
+    auto rangeNSize = llvm::SmallVector<int64_t, 1>({n});
+    Type rangeNType = outType.getWithSizesAndDtype(rangeNSize, si64Type);
     Value rangeN = rewriter.create<AtenArangeOp>(
-        loc, arangeType, op.getN(), /*dtype=*/int64Dtype, /*layout=*/none,
+        loc, rangeNType, op.getN(), /*dtype=*/int64Dtype, /*layout=*/none,
         /*device=*/op.getDevice(), /*pin_memory=*/none);
 
-    auto arangeType1 =
-        outType.getWithSizesAndDtype(llvm::ArrayRef(m), si64Type);
+    auto rangeMSize = llvm::SmallVector<int64_t, 1>({m});
+    Type rangeMType = outType.getWithSizesAndDtype(rangeMSize, si64Type);
     Value rangeM = rewriter.create<AtenArangeOp>(
-        loc, arangeType1, op.getM(), /*dtype=*/int64Dtype, /*layout=*/none,
+        loc, rangeMType, op.getM(), /*dtype=*/int64Dtype, /*layout=*/none,
         /*device=*/none, /*pin_memory=*/none);
 
     Value constMinusOne = rewriter.create<Torch::ConstantIntOp>(
@@ -1109,7 +1109,6 @@ public:
     }
     Value unsqzRangeN = *unsqzTensorInfo;
 
-    // compare unsqueezed input with boundaries
     auto eqType = ValueTensorType::get(
         context, cast<BaseTensorType>(op.getType()).getSizes(),
         IntegerType::get(context, 1));
@@ -2413,6 +2412,50 @@ public:
   }
 };
 
+} // namespace
+
+// CELU(x)=max(0,x)+min(0,alpha∗(exp(x/alpha)−1))
+namespace {
+class DecomposeAtenCeluOp : public OpRewritePattern<AtenCeluOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCeluOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Value alpha = op.getAlpha();
+    auto resType = cast<BaseTensorType>(op.getType());
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+
+    Value constantZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value constantOne =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+
+    // positiveOutput = max(0,x)
+    Value zeroTensor = createRank0Tensor(rewriter, loc, resType, constantZero);
+    Value positiveOutput =
+        rewriter.create<AtenMaximumOp>(loc, resType, zeroTensor, input);
+
+    // negativeOutput = min(0,alpha∗(exp(x/alpha)−1))
+    Value scaledInput =
+        rewriter.create<AtenDivScalarOp>(loc, resType, input, alpha);
+    Value expX = rewriter.create<AtenExpOp>(loc, resType, scaledInput);
+    Value expXM1 = rewriter.create<AtenSubScalarOp>(loc, resType, expX,
+                                                    constantOne, constantOne);
+    Value scaledExpXM1 =
+        rewriter.create<AtenMulScalarOp>(loc, resType, expXM1, alpha);
+    Value negativeOutput =
+        rewriter.create<AtenMinimumOp>(loc, resType, zeroTensor, scaledExpXM1);
+    Value celuOutput = rewriter.create<AtenAddTensorOp>(
+        loc, resType, positiveOutput, negativeOutput, constantOne);
+
+    rewriter.replaceOp(op, celuOutput);
+    return success();
+  }
+};
 } // namespace
 
 namespace {
@@ -7705,6 +7748,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPreluOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenCeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);

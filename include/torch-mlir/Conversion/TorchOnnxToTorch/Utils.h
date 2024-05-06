@@ -38,6 +38,13 @@ Value createConstantIntList(OpBinder binder,
 
 Type getQTorchTypeFromTorchIntType(Type ty);
 
+template <typename T>
+Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
+                Value &ofItem) {
+  return rewriter.create<Torch::AtenItemOp>(binder.getLoc(),
+                                            rewriter.getType<T>(), ofItem);
+}
+
 LogicalResult OnnxLstmExpander(OpBinder binder,
                                ConversionPatternRewriter &rewriter);
 

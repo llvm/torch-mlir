@@ -12,6 +12,7 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 # CHECK-LABEL: torch.class_type @__torch__.TestModule {
 class TestModule(torch.nn.Module):
     def __init__(self):

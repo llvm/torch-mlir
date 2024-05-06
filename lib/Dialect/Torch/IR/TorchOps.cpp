@@ -140,7 +140,7 @@ static Value getScalarIntValue(Value input, Location loc,
     return nullptr;
 
   Type inputDtype = inputTensorType.getOptionalDtype();
-  if (!inputDtype || !inputDtype.isInteger(64))
+  if (!inputDtype || !(inputDtype.isInteger(64) || inputDtype.isInteger(1)))
     return nullptr;
 
   std::optional<unsigned> inputRank = getTensorRank(input);
@@ -148,10 +148,19 @@ static Value getScalarIntValue(Value input, Location loc,
     return nullptr;
 
   if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
-    auto val = cast<DenseIntElementsAttr>(valueTensorLiteralOp.getValue())
-                   .getSplatValue<int64_t>();
-    return rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(val));
+    if (inputDtype.isInteger(64)) {
+      auto val = valueTensorLiteralOp.getValue()
+                     .cast<DenseIntElementsAttr>()
+                     .getSplatValue<int64_t>();
+      return rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(val));
+    } else {
+      auto val = valueTensorLiteralOp.getValue()
+                     .cast<DenseIntElementsAttr>()
+                     .getSplatValue<bool>();
+      return rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(val));
+    }
   } else if (auto primNumToTensorScalarOp =
                  input.getDefiningOp<PrimNumToTensorScalarOp>()) {
     return primNumToTensorScalarOp.getA();
@@ -2382,6 +2391,30 @@ OpFoldResult AtenNeStrOp::fold(FoldAdaptor adaptor) {
   auto bStr = adaptor.getB();
   if (aStr && bStr)
     return getI1IntegerAttr(getContext(), aStr != bStr);
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__Contains__StrListOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__Contains__StrListOp::fold(FoldAdaptor adaptor) {
+  StringAttr item = dyn_cast<StringAttr>(adaptor.getItem());
+  if (!item)
+    return nullptr;
+
+  if (auto listConstruct = getL().getDefiningOp<Torch::PrimListConstructOp>()) {
+    if (isListPotentiallyMutated(listConstruct))
+      return nullptr;
+  }
+  llvm::SmallVector<std::string> strs;
+  if (matchPattern(getL(), m_TorchListOfConstantStrs(strs))) {
+    for (const auto &str : strs) {
+      if (item.getValue().str() == str)
+        return getI1IntegerAttr(getContext(), true);
+    }
+    return getI1IntegerAttr(getContext(), false);
+  }
   return nullptr;
 }
 
@@ -4680,6 +4713,45 @@ LogicalResult AtenPermuteOp::verify() {
   }
 
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// PrimsConvertElementTypeOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult PrimsConvertElementTypeOp::fold(FoldAdaptor adaptor) {
+  auto inputType = cast<BaseTensorType>(getA().getType());
+  auto outputType = cast<BaseTensorType>(getResult().getType());
+  if (inputType != outputType)
+    return nullptr;
+  if (!inputType.hasDtype() || !outputType.hasDtype())
+    return nullptr;
+  if (inputType.getDtype() != outputType.getDtype())
+    return nullptr;
+  return getA();
+}
+
+//===----------------------------------------------------------------------===//
+// AtenMaxPool2dWithIndicesOp
+//===----------------------------------------------------------------------===//
+
+void AtenMaxPool2dWithIndicesOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](AtenMaxPool2dWithIndicesOp op, PatternRewriter &rewriter) {
+    if (!op.getResult1().use_empty()) {
+      return rewriter.notifyMatchFailure(
+          op, "result1 of MaxPool2dWithIndices should be unused");
+    }
+
+    Value result = rewriter.create<Torch::AtenMaxPool2dOp>(
+        op->getLoc(), op.getResult0().getType(), op.getSelf(),
+        op.getKernelSize(), op.getStride(), op.getPadding(), op.getDilation(),
+        op.getCeilMode());
+
+    op.getResult0().replaceAllUsesWith(result);
+    rewriter.eraseOp(op);
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//

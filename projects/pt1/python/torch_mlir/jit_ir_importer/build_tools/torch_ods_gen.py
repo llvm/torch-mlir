@@ -285,9 +285,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
                 (ns, unqual + "_", overload if not is_functional_op else "")
             ),
             emitter_td,
-            traits=["IsTrailingUnderscoreInplaceVariant"]
-            if not is_functional_op
-            else [],
+            traits=(
+                ["IsTrailingUnderscoreInplaceVariant"] if not is_functional_op else []
+            ),
         )
 
     # ==========================================================================
@@ -472,6 +472,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::floor_divide : (Tensor, Tensor) -> (Tensor)")
     emit("aten::softplus : (Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::prelu : (Tensor, Tensor) -> (Tensor)")
+    emit_with_mutating_variants("aten::celu : (Tensor, Scalar) -> (Tensor)")
     emit("aten::real : (Tensor) -> (Tensor)")
     emit("aten::imag : (Tensor) -> (Tensor)")
     emit("aten::view_as_complex : (Tensor) -> (Tensor)")
@@ -590,9 +591,11 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::native_layer_norm : (Tensor, int[], Tensor?, Tensor?, float) -> (Tensor, Tensor, Tensor)"
     )
+    emit("aten::max_pool1d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)")
     emit("aten::max_pool2d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)")
     emit(
-        "aten::max_pool2d_with_indices : (Tensor, int[], int[], int[], int[], bool) -> (Tensor, Tensor)"
+        "aten::max_pool2d_with_indices : (Tensor, int[], int[], int[], int[], bool) -> (Tensor, Tensor)",
+        has_canonicalizer=True,
     )
     emit(
         "aten::max_pool2d_with_indices_backward : (Tensor, Tensor, int[], int[], int[], int[], bool, Tensor) -> (Tensor)"
@@ -973,6 +976,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::format : (...) -> (str)")
     emit("aten::join : (str, str[]) -> (str)")
     emit("aten::warn : (str, int) -> ()")
+    emit("aten::__contains__.str_list : (str[], str) -> (bool)", has_folder=True)
 
     # Type conversion ops.
     emit("aten::Float.Scalar : (Scalar) -> (float)", has_folder=True)
@@ -1101,7 +1105,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # `prims::` namespace.
     # ==========================================================================
 
-    emit("prims::convert_element_type : (Tensor, int) -> (Tensor)")
+    emit("prims::convert_element_type : (Tensor, int) -> (Tensor)", has_folder=True)
     emit("prims::var : (Tensor, int[]?, float, int?) -> (Tensor)")
     emit("prims::sqrt : (Tensor) -> (Tensor)")
     emit("prims::collapse : (Tensor, int, int) -> (Tensor)")

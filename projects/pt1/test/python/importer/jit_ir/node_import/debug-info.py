@@ -9,6 +9,7 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 # CHECK-LABEL: func.func @__torch__.add3
 # Note that line-level debug information for parts unannotated in the Torch
 # graph are ascribed to the first op that carries source information. Presently

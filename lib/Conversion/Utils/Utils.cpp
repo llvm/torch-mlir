@@ -10,6 +10,7 @@
 #include "torch-mlir/Conversion/Utils/Utils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -347,6 +348,26 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
     // It's safe to use ExtSIOp here because ui8/si8 are the only ones where
     // unsigned handling is needed, and we checked for that case above.
     return b.create<arith::ExtSIOp>(loc, dtype, scalar);
+  }
+
+  if (auto dtypeComplex = dyn_cast<mlir::ComplexType>(dtype)) {
+    if (auto scalarComplex = dyn_cast<mlir::ComplexType>(scalarType)) {
+      auto dtypeElemType = dtypeComplex.getElementType();
+
+      // Extract the real and imaginary parts of the scalar.
+      // Cast them to the target element type, and create a new complex
+      // value with the target complex type.
+      Value realVal = b.create<complex::ReOp>(loc, scalar);
+      Value imgVal = b.create<complex::ImOp>(loc, scalar);
+
+      realVal = convertScalarToDtype(b, loc, realVal, dtypeElemType);
+      imgVal = convertScalarToDtype(b, loc, imgVal, dtypeElemType);
+
+      return b.create<complex::CreateOp>(loc, dtypeComplex, realVal, imgVal);
+    }
+    mlir::emitError(loc) << "unsupported scalar type for convertScalarToDtype "
+                         << scalarType << "(scalar type) -> " << dtype
+                         << "(dtype)";
   }
 
   llvm_unreachable("convertScalarToDtype should handle all the types");

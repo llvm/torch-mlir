@@ -504,8 +504,8 @@ func.func @torch.aten.eq.str$different_value() -> !torch.bool {
 
 // CHECK-LABEL:   func.func @torch.aten.eq.str$same_operand(
 // CHECK-SAME:                                       %{{.*}}: !torch.str) -> !torch.bool {
-// CHECK-NEXT:       %[[F:.*]] = torch.constant.bool true
-// CHECK-NEXT:       return %[[F]] : !torch.bool
+// CHECK-NEXT:       %[[TRUE:.*]] = torch.constant.bool true
+// CHECK-NEXT:       return %[[TRUE]] : !torch.bool
 func.func @torch.aten.eq.str$same_operand(%arg0: !torch.str) -> !torch.bool {
   %0 = torch.aten.eq.str %arg0, %arg0 : !torch.str, !torch.str -> !torch.bool
   return %0 : !torch.bool
@@ -522,8 +522,8 @@ func.func @torch.aten.eq.str$same_value() -> !torch.bool {
 }
 
 // CHECK-LABEL:   func.func @torch.aten.ne.str$different_value() -> !torch.bool {
-// CHECK:           %[[FALSE:.*]] = torch.constant.bool true
-// CHECK:           return %[[FALSE]] : !torch.bool
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
 func.func @torch.aten.ne.str$different_value() -> !torch.bool {
   %str4 = torch.constant.str "4"
   %str5 = torch.constant.str "5"
@@ -533,16 +533,16 @@ func.func @torch.aten.ne.str$different_value() -> !torch.bool {
 
 // CHECK-LABEL:   func.func @torch.aten.ne.str$same_operand(
 // CHECK-SAME:                                       %{{.*}}: !torch.str) -> !torch.bool {
-// CHECK-NEXT:       %[[F:.*]] = torch.constant.bool false
-// CHECK-NEXT:       return %[[F]] : !torch.bool
+// CHECK-NEXT:       %[[FALSE:.*]] = torch.constant.bool false
+// CHECK-NEXT:       return %[[FALSE]] : !torch.bool
 func.func @torch.aten.ne.str$same_operand(%arg0: !torch.str) -> !torch.bool {
   %0 = torch.aten.ne.str %arg0, %arg0 : !torch.str, !torch.str -> !torch.bool
   return %0 : !torch.bool
 }
 
 // CHECK-LABEL:   func.func @torch.aten.ne.str$same_value() -> !torch.bool {
-// CHECK:           %[[TRUE:.*]] = torch.constant.bool false
-// CHECK:           return %[[TRUE]] : !torch.bool
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
 func.func @torch.aten.ne.str$same_value() -> !torch.bool {
   %str4 = torch.constant.str "4"
   %str4_0 = torch.constant.str "4"
@@ -566,6 +566,30 @@ func.func @torch.aten.len.str$empty() -> !torch.int {
   %str = torch.constant.str ""
   %2 = torch.aten.len.str %str : !torch.str -> !torch.int
   return %2 : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.__contains__.str_list$false() -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func.func @torch.aten.__contains__.str_list$false() -> !torch.bool {
+  %str = torch.constant.str "c"
+  %str_0 = torch.constant.str "b"
+  %str_1 = torch.constant.str "a"
+  %1 = torch.prim.ListConstruct %str_1, %str_0 : (!torch.str, !torch.str) -> !torch.list<str>
+  %2 = torch.aten.__contains__.str_list %1, %str : !torch.list<str>, !torch.str -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.__contains__.str_list$true() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func.func @torch.aten.__contains__.str_list$true() -> !torch.bool {
+  %str = torch.constant.str "aa"
+  %str_0 = torch.constant.str "aa"
+  %str_1 = torch.constant.str "ccc"
+  %1 = torch.prim.ListConstruct %str_1, %str_0 : (!torch.str, !torch.str) -> !torch.list<str>
+  %2 = torch.aten.__contains__.str_list %1, %str : !torch.list<str>, !torch.str -> !torch.bool
+  return %2 : !torch.bool
 }
 
 // CHECK-LABEL:   func.func @torch.aten.__not__
@@ -2949,4 +2973,45 @@ func.func @aten_log$fold_splat_f32() -> !torch.vtensor<[4], f32> {
   %cst = torch.vtensor.literal(dense<3.0> : tensor<4xf32>) : !torch.vtensor<[4], f32>
   %result = torch.aten.log %cst : !torch.vtensor<[4], f32> -> !torch.vtensor<[4], f32>
   return %result : !torch.vtensor<[4], f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.prims.convert_element_type$fold(
+// CHECK:            %[[ARG:.*]]: !torch.vtensor<[64],f32>) -> !torch.vtensor<[64],f32> {
+// CHECK:      return %[[ARG]] : !torch.vtensor<[64],f32>
+func.func @torch.prims.convert_element_type$fold(%arg0: !torch.vtensor<[64],f32>) -> !torch.vtensor<[64],f32> {
+  %int6 = torch.constant.int 6
+  %0 = torch.prims.convert_element_type %arg0, %int6 : !torch.vtensor<[64],f32>, !torch.int -> !torch.vtensor<[64],f32>
+  return %0 : !torch.vtensor<[64],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.prims.convert_element_type$no_fold(
+// CHECK:            %[[ARG:.*]]: !torch.vtensor<[64],f32>) -> !torch.vtensor<[64],si32> {
+// CHECK:      %[[RET:.*]] = torch.prims.convert_element_type %[[ARG]], %{{.*}} : !torch.vtensor<[64],f32>, !torch.int -> !torch.vtensor<[64],si32>
+// CHECK:      return %[[RET]] : !torch.vtensor<[64],si32>
+func.func @torch.prims.convert_element_type$no_fold(%arg0: !torch.vtensor<[64],f32>) -> !torch.vtensor<[64],si32> {
+  %int6 = torch.constant.int 6
+  %0 = torch.prims.convert_element_type %arg0, %int6 : !torch.vtensor<[64],f32>, !torch.int -> !torch.vtensor<[64],si32>
+  return %0 : !torch.vtensor<[64],si32>
+}
+
+// -----
+
+// CHECK-LABEL:   @torch.aten.max_pool2d_with_indices$canonicalize(
+// CHECK:            %[[ARG:.*]]: !torch.vtensor<[10,64,112,112],f32>) -> !torch.vtensor<[10,64,56,56],f32> {
+// CHECK:      %[[RET:.*]] = torch.aten.max_pool2d %[[ARG]]
+// CHECK:      return %[[RET]] : !torch.vtensor<[10,64,56,56],f32>
+func.func @torch.aten.max_pool2d_with_indices$canonicalize(%arg0: !torch.vtensor<[10,64,112,112],f32>) -> !torch.vtensor<[10,64,56,56],f32> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %29 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %30 = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %31 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %result0, %result1 = torch.aten.max_pool2d_with_indices %arg0, %29, %30, %31, %31, %false : !torch.vtensor<[10,64,112,112],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[10,64,56,56],f32>, !torch.vtensor<[10,64,56,56],si64>
+  return %result0 : !torch.vtensor<[10,64,56,56],f32>
 }

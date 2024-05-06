@@ -803,9 +803,7 @@ class QuantizedReluInt32(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: QuantizedReluInt32())
 def QuantizedReluInt32_basic(module, tu: TestUtils):
-    module.forward(
-        tu.randint(7, 4, low=(-(2**31)), high=(2**31 - 1)).to(torch.int32)
-    )
+    module.forward(tu.randint(7, 4, low=(-(2**31)), high=(2**31 - 1)).to(torch.int32))
 
 
 # ==============================================================================
@@ -1011,6 +1009,52 @@ class ElementwisePreluStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwisePreluStaticModule())
 def ElementwisePreluStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 4, 3, 2, 1, low=-1, high=1), tu.rand(1))
+
+
+# ==============================================================================
+
+
+class ElementwiseCeluModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.celu(x, 0.5)
+
+
+@register_test_case(module_factory=lambda: ElementwiseCeluModule())
+def ElementwiseCeluModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, low=-1, high=1))
+
+
+# ==============================================================================
+
+
+class ElementwiseCeluStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.celu(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseCeluStaticModule())
+def ElementwiseCeluStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, low=-1, high=1))
 
 
 # ==============================================================================
@@ -1789,6 +1833,34 @@ def ElementwiseMulTensorComplexModule_basic(module, tu: TestUtils):
     module.forward(
         tu.randint(4, high=10).type(torch.complex64),
         tu.randint(4, high=10).type(torch.complex64),
+    )
+
+
+# ==============================================================================
+
+
+# torch.complex32 is not supported by the refbackend.
+class ElementwiseMulTensorComplexDiffModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.complex64, True),
+            ([-1], torch.complex128, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.mul(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMulTensorComplexDiffModule())
+def ElementwiseMulTensorComplexDiffModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, high=10).type(torch.complex64),
+        tu.randint(4, high=10).type(torch.complex128),
     )
 
 
