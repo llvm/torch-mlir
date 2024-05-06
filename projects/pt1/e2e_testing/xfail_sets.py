@@ -2654,12 +2654,6 @@ ONNX_XFAIL_SET = {
     "ReduceMinAlongDimUnsignedInt_basic",
 }
 
-if torch_version_for_comparison() >= version.parse("2.4.0.dev"):
-    ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
-        # ERROR: Found dtype (torch.float64) but expected (torch.float32)
-        "ReduceL1NormWithDTypeModule_basic",
-    }
-
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
     ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
         # ERROR: shape (torch.Size([6, 4, 5])) is not equal to golden shape (torch.Size([120]))
