@@ -1202,21 +1202,6 @@ class DecomposeAtenIsposinfOp : public OpRewritePattern<AtenIsposinfOp> {
 } // namespace
 
 namespace {
-class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
-public:
-  using OpRewritePattern<AtenNonzeroOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenNonzeroOp op,
-                                PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
-    Value zeroScalar =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
-    rewriter.replaceOpWithNewOp<AtenNeScalarOp>(op, op.getType(), op.getSelf(),
-                                                zeroScalar);
-    return success();
-  }
-};
-} // namespace
-namespace {
 class DecomposeAtenReshapeOp : public OpRewritePattern<AtenReshapeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -7755,13 +7740,10 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenZeroOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEyeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEyeMOp>(patterns);
-    // is-xxx ops
     addPatternIfTargetOpIsIllegal<DecomposeAtenIsnanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIsinfOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIsneginfOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIsposinfOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenNonzeroOp>(patterns);
-
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
