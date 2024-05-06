@@ -2300,15 +2300,14 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType)) {
           return failure();
         }
+
+        Location loc = binder.getLoc();
         Value a0 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), 0.42));
+            loc, rewriter.getF64FloatAttr(0.42));
         Value a1 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), -0.5));
+            loc, rewriter.getF64FloatAttr(-0.5));
         Value a2 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), 0.08));
+            loc, rewriter.getF64FloatAttr(0.08));
 
         auto windowFunctionResult =
             windowFunctionImpl(binder, rewriter, size, a0, a1, a2, resultType,
@@ -2332,13 +2331,45 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType)) {
           return failure();
         }
+
+        Location loc = binder.getLoc();
         Value a0 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getFloatAttr(rewriter.getF64Type(), 0.5));
+            loc, rewriter.getF64FloatAttr(0.5));
         Value a1 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), -0.5));
+            loc, rewriter.getF64FloatAttr(-0.5));
         Value a2 = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getFloatAttr(rewriter.getF64Type(), 0.0));
+            loc, rewriter.getF64FloatAttr(0.0));
+
+        auto windowFunctionResult =
+            windowFunctionImpl(binder, rewriter, size, a0, a1, a2, resultType,
+                               output_datatype, periodic);
+
+        if (failed(windowFunctionResult))
+          return failure();
+
+        return success();
+      });
+
+  patterns.onOp(
+      "HammingWindow", 17,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value size;
+        Torch::ValueTensorType resultType;
+        int64_t periodic, output_datatype;
+        if (binder.tensorOperand(size) ||
+            binder.s64IntegerAttr(output_datatype, "output_datatype", 1) ||
+            binder.s64IntegerAttr(periodic, "periodic", 1) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+
+        Location loc = binder.getLoc();
+        Value a0 = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getF64FloatAttr(0.543478));
+        Value a1 = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getF64FloatAttr(-0.456522));
+        Value a2 = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getF64FloatAttr(0.0));
 
         auto windowFunctionResult =
             windowFunctionImpl(binder, rewriter, size, a0, a1, a2, resultType,
