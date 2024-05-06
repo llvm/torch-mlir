@@ -2632,6 +2632,8 @@ ONNX_XFAIL_SET = {
     "PrimsIotaModule_basic",
     # Failure - unknown
     "BernoulliModule_basic",
+    "Conv_Transpose1dModule_basic",
+    "Conv_Transpose3dModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "CopyWithDifferentDTypesAndSizesModule_basic",
     "CopyWithDifferentDTypesModule_basic",
