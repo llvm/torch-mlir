@@ -6,6 +6,9 @@
 Utilities for reporting the results of the test framework.
 """
 
+from logging import getLogger
+logger = getLogger()
+
 from typing import Any, List, Optional, Set
 
 import collections
@@ -310,6 +313,20 @@ def report_results(
         expected_failure = result.unique_name in expected_failures
         if expected_failure:
             if report.failed:
+<<<<<<< HEAD
+                logger.info(f'XFAIL - "{result.unique_name}"')
+                results_by_outcome['XFAIL'].append((result, report))
+            else:
+                logger.info(f'XPASS - "{result.unique_name}"')
+                results_by_outcome['XPASS'].append((result, report))
+        else:
+            if not report.failed:
+                logger.info(f'PASS - "{result.unique_name}"')
+                results_by_outcome['PASS'].append((result, report))
+            else:
+                logger.info(f'FAIL - "{result.unique_name}"')
+                results_by_outcome['FAIL'].append((result, report))
+=======
                 print(f'XFAIL - "{result.unique_name}"')
                 results_by_outcome["XFAIL"].append((result, report))
             else:
@@ -322,6 +339,7 @@ def report_results(
             else:
                 print(f'FAIL - "{result.unique_name}"')
                 results_by_outcome["FAIL"].append((result, report))
+>>>>>>> 0a2d21b108602d2b11c208ca1a713a72f483f6c1
 
     OUTCOME_MEANINGS = collections.OrderedDict()
     OUTCOME_MEANINGS["PASS"] = "Passed"
@@ -348,8 +366,13 @@ def report_results(
         for result, report in results:
             print(f'    {outcome} - "{result.unique_name}"')
             # If the test failed, print the error message.
+<<<<<<< HEAD
+            if outcome == 'FAIL':
+                logger.info(textwrap.indent(report.error_str(), ' ' * 8))
+=======
             if outcome == "FAIL" and verbose:
                 print(textwrap.indent(report.error_str(), " " * 8))
+>>>>>>> 0a2d21b108602d2b11c208ca1a713a72f483f6c1
 
     # Print a summary for easy scanning.
     print("\nSummary:")

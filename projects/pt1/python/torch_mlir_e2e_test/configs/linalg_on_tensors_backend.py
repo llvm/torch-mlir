@@ -2,6 +2,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
+import logging
+logger = logging.getLogger()
 
 from typing import Any
 
@@ -32,9 +34,14 @@ class LinalgOnTensorsBackendTestConfig(TestConfig):
     def compile(self, program: torch.nn.Module) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         module = torchscript.compile(
+<<<<<<< HEAD
+            program, example_args, output_type="linalg-on-tensors")
+        logger.debug("MLIR produced by LinalgOnTensorsBackendTestConfig:\n" + str(module))
+=======
             program, example_args, output_type="linalg-on-tensors"
         )
 
+>>>>>>> 0a2d21b108602d2b11c208ca1a713a72f483f6c1
         return self.backend.compile(module)
 
     def run(self, artifact: Any, trace: Trace) -> Trace:
