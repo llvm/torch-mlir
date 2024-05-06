@@ -2580,4 +2580,61 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             /*generator=*/cstNone);
         return success();
       });
+  patterns.onOp(
+      "SoftmaxCrossEntropyLoss", 12,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        int64_t ignoreIndex;
+        std::string reduction;
+        SmallVector<int64_t> shape;
+        Value scores, labels, weight;
+        if (binder.tensorOperandAtIndex(scores, 0) ||
+            binder.tensorOperandAtIndex(labels, 1) ||
+            binder.s64IntegerAttr(ignoreIndex, "ignore_index ", -100) ||
+            binder.customOpNameStringAttr(reduction, "reduction", "mean") ||
+            binder.tensorResultTypeAtIndex(resultType, 0)) {
+          return failure();
+        }
+
+        if (binder.tensorOperandAtIndex(weight, 2))
+          weight = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+
+        Value cstIgnoreIndex = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(ignoreIndex));
+
+        int64_t reductionInt = reduction == "none"   ? 0
+                               : reduction == "mean" ? 1
+                                                     : 2;
+        Value cstReductionInt = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(reductionInt));
+
+        // The default PyTorch value for label smoothing is "0.0".
+        // Refer:
+        // https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html
+        Value cstLabelSmoothing = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getFloatAttr(rewriter.getF64Type(), 0.0));
+
+        Value loss = rewriter.create<Torch::AtenCrossEntropyLossOp>(
+            binder.getLoc(), resultType, scores, labels, weight,
+            cstReductionInt, cstIgnoreIndex, cstLabelSmoothing);
+
+        if (binder.op->getNumResults() == 1) {
+          rewriter.replaceOp(binder.op, loss);
+          return success();
+        }
+
+        Torch::ValueTensorType resultTypeLogProb;
+        if (binder.tensorResultTypeAtIndex(resultTypeLogProb, 1))
+          return failure();
+
+        Value dim = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value logProb = rewriter.create<Torch::AtenLogSoftmaxIntOp>(
+            binder.getLoc(), resultTypeLogProb, scores, dim, /*dtype=*/cstNone);
+
+        rewriter.replaceOp(binder.op, {loss, logProb});
+        return success();
+      });
 }
