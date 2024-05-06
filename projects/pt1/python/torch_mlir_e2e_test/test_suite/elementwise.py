@@ -1839,6 +1839,34 @@ def ElementwiseMulTensorComplexModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+# torch.complex32 is not supported by the refbackend.
+class ElementwiseMulTensorComplexDiffModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.complex64, True),
+            ([-1], torch.complex128, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.mul(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMulTensorComplexDiffModule())
+def ElementwiseMulTensorComplexDiffModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, high=10).type(torch.complex64),
+        tu.randint(4, high=10).type(torch.complex128),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseMishModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

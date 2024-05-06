@@ -964,14 +964,14 @@ def avg_pool2d(input: List[int], kernel_size: List[int], stride: List[int], padd
 
 # TODO: This should be upstreamed.
 # See https://github.com/pytorch/pytorch/pull/76889 for an example.
-def avg_pool1d(input: List[int], kernel_size: List[int], stride: List[int], padding: List[int], ceil_mode: bool, count_include_pad: bool):
-  assert len(kernel_size) == 1, "avg_pool1d: kernel_size must be a single int"
+def pool1d(input: List[int], kernel_size: List[int], stride: List[int], padding: List[int], ceil_mode: bool):
+  assert len(kernel_size) == 1, "pool1d: kernel_size must be a single int"
   kL = kernel_size[0]
 
-  assert len(stride) == 0 or len(stride) == 1, "avg_pool1d: stride must either be omitted, or a single int"
+  assert len(stride) == 0 or len(stride) == 1, "pool1d: stride must either be omitted, or a single int"
   dL = kL if len(stride) == 0 else stride[0]
 
-  assert len(padding) == 1, "avg_pool1d: padding must be a single int"
+  assert len(padding) == 1, "pool1d: padding must be a single int"
   padL = padding[0]
 
   dilationL = 1
@@ -1007,7 +1007,10 @@ def adaptive_avg_pool1d(self: List[int], out: List[int]):
     return shape
 
 def aten〇avg_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> List[int]:
-    return avg_pool1d(self, kernel_size, stride, padding, ceil_mode, count_include_pad)
+    return pool1d(self, kernel_size, stride, padding, ceil_mode)
+
+def aten〇max_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), dilation: List[int] = (1,), ceil_mode: bool = False) -> List[int]:
+    return pool1d(self, kernel_size, stride, padding, ceil_mode)
 
 def aten〇adaptive_avg_pool1d〡shape(self: List[int], output_size: List[int]) -> List[int]:
     return adaptive_avg_pool1d(self, output_size)

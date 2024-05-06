@@ -1046,3 +1046,56 @@ def Conv2dQInt8Module_basic(module, tu: TestUtils):
     weight = tu.randint(3, 4, 3, 2, low=-128, high=127).to(torch.int8)
     bias = torch.rand(3)
     module.forward(inputVec, weight, bias)
+
+
+N = 10
+Cin = 5
+Cout = 7
+Hin = 10
+Win = 8
+Hker = 3
+Wker = 2
+
+
+class ConvTranspose2DQInt8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.int8, True),
+            ([-1, -1, -1, -1], torch.int8, True),
+            ([-1], torch.float, True),
+        ]
+    )
+    def forward(self, input, weight, bias):
+        qinput = torch._make_per_tensor_quantized_tensor(input, 0.01, -25)
+        qinput = torch.dequantize(qinput)
+        qweight = torch._make_per_tensor_quantized_tensor(weight, 0.01, 50)
+        qweight = torch.dequantize(qweight)
+        qbias = torch.quantize_per_tensor(bias, 0.0001, 0, torch.qint32)
+        qbias = torch.dequantize(qbias)
+        qz = torch.ops.aten.convolution(
+            qinput,
+            qweight,
+            bias=qbias,
+            stride=[2, 1],
+            padding=[1, 1],
+            dilation=[1, 1],
+            transposed=True,
+            output_padding=[0, 0],
+            groups=1,
+        )
+        return qz
+
+
+@register_test_case(module_factory=lambda: ConvTranspose2DQInt8Module())
+def ConvTranspose2DQInt8_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(N, Cin, Hin, Win, low=-128, high=127).to(torch.int8),
+        tu.randint(Cin, Cout, Hker, Wker, low=-128, high=127).to(torch.int8),
+        torch.rand(Cout),
+    )

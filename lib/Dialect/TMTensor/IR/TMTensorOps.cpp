@@ -936,7 +936,7 @@ struct FoldTensorCastOp : public OpInterfaceRewritePattern<TMTensorOp> {
     // If no operand comes from a tensor::CastOp and can be folded then fail.
     bool hasTensorCastOperand =
         llvm::any_of(op.getInputAndOutputOperands(), [&](OpOperand *opOperand) {
-          if (opOperand->get().isa<BlockArgument>())
+          if (isa<BlockArgument>(opOperand->get()))
             return false;
           auto castOp = opOperand->get().getDefiningOp<tensor::CastOp>();
           return castOp && canFoldIntoConsumerOp(castOp);
