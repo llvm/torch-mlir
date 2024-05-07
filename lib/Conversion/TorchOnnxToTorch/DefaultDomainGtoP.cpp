@@ -1285,45 +1285,59 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(
               binder.op, "Expected result type having sizes");
         }
-        ArrayRef<int64_t> resultShape = resultType.getSizes();
-        unsigned resultRank = resultShape.size();
-
-        SmallVector<Value> outputSize;
+        SmallVector<Value> cstKernel, cstPadding, cstStrides, cstDilations;
+        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
         Value cstOne = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(1));
-        for (unsigned i = 2; i < resultRank; i++) {
-          if (resultShape[i] == Torch::kUnknownSize) {
-            outputSize.push_back(cstOne);
+        for (unsigned i = 2; i < inputRank; i++) {
+          if (inputShape[i] == Torch::kUnknownSize) {
+            Value dim = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(i));
+            Value inputDimSize = rewriter.create<Torch::AtenSizeIntOp>(
+                binder.getLoc(), operand, dim);
+            cstKernel.push_back(inputDimSize);
           } else {
-            outputSize.push_back(rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getI64IntegerAttr(resultShape[i])));
+            cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(inputShape[i])));
           }
+          cstPadding.push_back(cstZero);
+          cstDilations.push_back(cstOne);
+          cstStrides.push_back(cstOne);
         }
-        Value outputSizeList = rewriter.create<Torch::PrimListConstructOp>(
+        Value kernelSizeList = rewriter.create<Torch::PrimListConstructOp>(
             binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            outputSize);
+            cstKernel);
+        Value paddingList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstPadding);
+        Value dilationsList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstDilations);
+        Value stridesList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstStrides);
+        Value cstCeilMode =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
 
-        Type returnIndicesType = torch::Torch::ValueTensorType::get(
-            binder.op->getContext(), resultShape,
-            rewriter.getIntegerType(64, true));
-        if (inputRank == 3) {
-          rewriter.replaceOpWithNewOp<Torch::AtenAdaptiveMaxPool1dOp>(
-              binder.op, resultType, returnIndicesType, operand,
-              outputSizeList);
-          return success();
-        } else if (inputRank == 4) {
-          rewriter.replaceOpWithNewOp<Torch::AtenAdaptiveMaxPool2dOp>(
-              binder.op, resultType, returnIndicesType, operand,
-              outputSizeList);
+        if (inputRank == 3)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Unimplemented: AtenMaxPool1dOp");
+        else if (inputRank == 4) {
+          rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, dilationsList, cstCeilMode);
           return success();
         } else if (inputRank == 5) {
-          rewriter.replaceOpWithNewOp<Torch::AtenAdaptiveMaxPool3dOp>(
-              binder.op, resultType, returnIndicesType, operand,
-              outputSizeList);
+          rewriter.replaceOpWithNewOp<Torch::AtenMaxPool3dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, dilationsList, cstCeilMode);
           return success();
         }
-
         return failure();
       });
   patterns.onOp(
