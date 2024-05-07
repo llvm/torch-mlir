@@ -817,6 +817,40 @@ def aten〇_unsafe_view〡shape(self: List[int], size: List[int]) -> List[int]:
 def aten〇resize_〡shape(self: List[int], size: List[int], memory_format: Optional[int] = None) -> List[int]:
     return size
 
+def _max_pool1d(
+    input: List[int],
+    kernel_size: List[int],
+    stride: List[int],
+    padding: List[int],
+    dilation: List[int],
+    ceil_mode: bool,
+):
+  assert len(kernel_size) == 1, "max_pool1d: kernel_size must be a single int"
+  kL = kernel_size[0]
+
+  assert len(stride) == 0 or len(stride) == 1, "avg_pool1d: stride must either be omitted, or a single int"
+  dL = kL if len(stride) == 0 else stride[0]
+
+  assert len(padding) == 1, "max_pool1d: padding must be a single int"
+  padL = padding[0]
+
+  assert len(dilation) == 1, "max_pool1d: dilation must be a single int"
+  dilationL = dilation[0]
+
+  assert len(input) == 2 or len(input) == 3
+
+  nbatch = input[-3] if len(input) == 3 else 1
+  nInputPlane = input[-2]
+  inputLength = input[-1]
+
+  outputLength = upstream_shape_functions.pooling_output_shape(
+    inputLength, kL, padL, dL, dilationL, ceil_mode)
+
+  if len(input) == 2:
+    return [nInputPlane, outputLength]
+  else:
+    return [nbatch, nInputPlane, outputLength]
+
 def _pool3d_shape_check(
     input: List[int],
     kD: int,
@@ -917,6 +951,9 @@ def _max_pool3d(
         return [nInputPlane, outputDepth, outputHeight, outputWidth]
     else:
         return [nbatch, nInputPlane, outputDepth, outputHeight, outputWidth]
+
+def aten〇max_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), dilation: List[int] = (1,), ceil_mode: bool = False) -> List[int]:
+    return _max_pool1d(self, kernel_size, stride, padding, dilation, ceil_mode)
 
 def aten〇max_pool2d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0,), dilation: List[int] = (1, 1,), ceil_mode: bool = False) -> List[int]:
     return upstream_shape_functions.max_pool2d(self, kernel_size, stride, padding, dilation, ceil_mode)
@@ -2609,6 +2646,11 @@ def aten〇masked_fill〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], mask_r
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(1, None, "cpu", None, NonZeroDTensorWithDtype(torch.bool, device="cpu")))
 def aten〇masked_select〡dtype(self_rank_dtype: Tuple[int, int], mask_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5)], kernel_size=[2]))
+def aten〇max_pool1d〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), dilation: List[int] = (1,), ceil_mode: bool = False) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
