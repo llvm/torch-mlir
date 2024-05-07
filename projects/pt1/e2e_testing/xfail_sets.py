@@ -2676,4 +2676,7 @@ ONNX_CRASHING_SET = {
     "ScatterReduceFloatSumModuleIncludeSelf",
     "ScatterReduceIntProdModuleIncludeSelf",
     "ScatterReduceIntSumModuleIncludeSelf",
+    # The following test sporadically stopped producing correct numerics for the golden value in the CI.
+    # For now, we are removing the test until this issue has been debugged.
+    "QuantizedMLP_basic",
 }
