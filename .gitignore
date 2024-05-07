@@ -9,6 +9,7 @@
 mlir_venv/
 externals/pytorch/
 libtorch*
+.idea/
 
 /build/
 /setup_build/
