@@ -1438,6 +1438,8 @@ STABLEHLO_PASS_SET = {
     "ElementwiseTruncIntModule_basic",
     "ElementwiseTruncModule_basic",
     "ElementwiseLogSigmoidModule_basic",
+    "ElementwiseHardshrinkStaticModule_basic",
+    "ElementwiseSoftshrinkStaticModule_basic",
 }
 
 STABLEHLO_CRASHING_SET = {
@@ -1667,6 +1669,10 @@ TOSA_PASS_SET = {
     "ElementwiseSeluModule_basic",
     "ElementwiseSigmoidModule_basic",
     "ElementwiseSignModule_basic",
+    "ElementwiseHardshrinkModule_basic",
+    "ElementwiseHardshrinkStaticModule_basic",
+    "ElementwiseSoftshrinkModule_basic",
+    "ElementwiseSoftshrinkStaticModule_basic",
     "ElementwiseSqrtIntModule_basic",
     "ElementwiseSqrtModule_basic",
     "ElementwiseSubScalarFloatModule_basic",
