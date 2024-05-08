@@ -379,6 +379,17 @@ def test_sparse_SpMM():
 # CHECK:                              [-63., -64.]{{\]}}), size=(8, 4, 2), nnz=32,
 # CHECK:                              layout=torch.sparse_csr)
 # CHECK: torch.mlir
+# CHECK: (array([          0,           4,           8,          12,          16,
+# CHECK:                  20,          24,          28,          32,
+# CHECK:  array([0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1,
+# CHECK:         2, 3, 0, 1, 2, 3, 0, 1, 2, 3]),
+# CHECK:  array([ -1.,  -2.,  -3.,  -4.,  -5.,  -6.,  -7.,  -8.,  -9., -10., -11.,
+# CHECK:       -12., -13., -14., -15., -16., -17., -18., -19., -20., -21., -22.,
+# CHECK:       -23., -24., -25., -26., -27., -28., -29., -30., -31., -32., -33.,
+# CHECK:       -34., -35., -36., -37., -38., -39., -40., -41., -42., -43., -44.,
+# CHECK:       -45., -46., -47., -48., -49., -50., -51., -52., -53., -54., -55.,
+# CHECK:       -56., -57., -58., -59., -60., -61., -62., -63., -64.],
+# CHECK:      dtype=float32))
 # CHECK: torch.mlir.batch
 #
 def test_sparse_eltwise():
@@ -406,12 +417,13 @@ def test_sparse_eltwise():
 
     # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
     res1 = net(sparse_input)
+    res2 = sparse_jit(net, sparse_input)
     # TODO: make these work
-    # res2 = sparse_jit(net, sparse_input)
     # res3 = sparse_jit(net, batch_input)
     print("torch.sparse")
     print(res1)
     print("torch.mlir")
+    print(res2)
     print("torch.mlir.batch")
 
 
