@@ -675,12 +675,12 @@ static Value collapseAndMoveBatchDims(Location loc, Value values, int64_t batch,
   return b.create<AtenViewOp>(loc, valuesTy, values, outDimsList);
 }
 
-class ConvertAten_IndexPutImplOp
-    : public OpConversionPattern<Aten_IndexPutImplOp> {
+class ConvertAtenIndexPutHackedTwinOp
+    : public OpConversionPattern<AtenIndexPutHackedTwinOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(Aten_IndexPutImplOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenIndexPutHackedTwinOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -698,17 +698,6 @@ public:
     if (!valuesTensorType.hasSizes())
       return rewriter.notifyMatchFailure(
           op, "unimplemented: the values tensor type must have sizes.");
-
-    // The unsafe should be either `False` or `none`.
-    if (!op.getUnsafe().getType().isa<Torch::NoneType>()) {
-      bool unsafe;
-      if (!matchPattern(op.getUnsafe(), m_TorchConstantBool(&unsafe)))
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: unsafe must be a constant");
-      else if (unsafe)
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: unsafe is expected to be false");
-    }
 
     // The accumulate should be a torch constant of boolean type.
     bool accumulate;
@@ -1621,8 +1610,8 @@ public:
     RewritePatternSet patterns(context);
     target.addIllegalOp<AtenBincountOp>();
     patterns.add<ConvertAtenBincountOp>(typeConverter, context);
-    target.addIllegalOp<Aten_IndexPutImplOp>();
-    patterns.add<ConvertAten_IndexPutImplOp>(typeConverter, context);
+    target.addIllegalOp<AtenIndexPutHackedTwinOp>();
+    patterns.add<ConvertAtenIndexPutHackedTwinOp>(typeConverter, context);
     target.addIllegalOp<AtenMaxPool2dWithIndicesBackwardOp>();
     patterns.add<ConvertAtenMaxPool2dWithIndicesBackwardOp>(typeConverter,
                                                             context);

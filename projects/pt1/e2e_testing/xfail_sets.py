@@ -1438,6 +1438,8 @@ STABLEHLO_PASS_SET = {
     "ElementwiseTruncIntModule_basic",
     "ElementwiseTruncModule_basic",
     "ElementwiseLogSigmoidModule_basic",
+    "ElementwiseHardshrinkStaticModule_basic",
+    "ElementwiseSoftshrinkStaticModule_basic",
 }
 
 STABLEHLO_CRASHING_SET = {
@@ -1667,6 +1669,10 @@ TOSA_PASS_SET = {
     "ElementwiseSeluModule_basic",
     "ElementwiseSigmoidModule_basic",
     "ElementwiseSignModule_basic",
+    "ElementwiseHardshrinkModule_basic",
+    "ElementwiseHardshrinkStaticModule_basic",
+    "ElementwiseSoftshrinkModule_basic",
+    "ElementwiseSoftshrinkStaticModule_basic",
     "ElementwiseSqrtIntModule_basic",
     "ElementwiseSqrtModule_basic",
     "ElementwiseSubScalarFloatModule_basic",
@@ -1698,7 +1704,6 @@ TOSA_PASS_SET = {
     "HardswishModule_basic",
     "HardswishRandomModule_basic",
     "HardtanhBackward_basic",
-    "IndexPutImpl2DNoneIndexStaticModule_basic",
     "IndexTensorMultiIndexStaticModule_basic",
     "IndexTensorStaticModule_basic",
     "IscloseStaticModuleTrue_basic",
@@ -2623,9 +2628,6 @@ ONNX_XFAIL_SET = {
     "IndexPutHackedTwin3DFloatNonAccumulateModule_basic",
     "IndexPutHackedTwin3DIntAccumulateModule_basic",
     "IndexPutHackedTwin3DIntNonAccumulateModule_basic",
-    # Failure - onnx_lowering: onnx.SoftmaxCrossEntropyLoss
-    "CrossEntropyLossModule_basic",
-    "CrossEntropyLossNoReductionModule_basic",
     # RuntimeError: unsupported input type: Device
     "PrimsIotaModule_basic",
     # Failure - unknown
@@ -2679,4 +2681,7 @@ ONNX_CRASHING_SET = {
     "ScatterReduceFloatSumModuleIncludeSelf",
     "ScatterReduceIntProdModuleIncludeSelf",
     "ScatterReduceIntSumModuleIncludeSelf",
+    # The following test sporadically stopped producing correct numerics for the golden value in the CI.
+    # For now, we are removing the test until this issue has been debugged.
+    "QuantizedMLP_basic",
 }
