@@ -359,37 +359,30 @@ def test_sparse_SpMM():
 # CHECK-LABEL: test_sparse_eltwise
 # CHECK:       #[[$CSRD:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : dense, d1 : compressed, d2 : dense), posWidth = 64, crdWidth = 64 }>
 # CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[8,4,2],f32,#[[$CSRD]]>) -> !torch.vtensor<[8,4,2],f32,#[[$CSRD]]> {
-# CHECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[8,4,2],f32,#[[$CSRD]]> -> !torch.vtensor<[8,4,2],f32,#[[$CSRD]]>
-# CHECK:         return %[[R]] : !torch.vtensor<[8,4,2],f32,#[[$CSRD]]>
+# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>) -> !torch.vtensor<[4,2,2],f32,#[[$CSRD]]> {
+# CHECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[4,2,2],f32,#[[$CSRD]]> -> !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>
+# CHECK:         return %[[R]] : !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>
 # CHECK:       }
 # CHECK:       #[[$BCSR:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : batch, d1 : dense, d2 : compressed), posWidth = 64, crdWidth = 64 }>
 # CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[8,4,2],f32,#[[$BCSR]]>) -> !torch.vtensor<[8,4,2],f32,#[[$BCSR]]> {
-# CHECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[8,4,2],f32,#[[$BCSR]]> -> !torch.vtensor<[8,4,2],f32,#[[$BCSR]]>
-# CHECK:         return %[[R]] : !torch.vtensor<[8,4,2],f32,#[[$BCSR]]>
+# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>) -> !torch.vtensor<[4,2,2],f32,#[[$BCSR]]> {
+# CHECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[4,2,2],f32,#[[$BCSR]]> -> !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>
+# CHECK:         return %[[R]] : !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>
 # CHECK:       }
 #
 # CHECK: torch.sparse
-# CHECK:   tensor(crow_indices=tensor([ 0,  4,  8, 12, 16, 20, 24, 28, 32]),
-# CHECK:          col_indices=tensor([0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1,
-# CHECK:                              2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3]),
+# CHECK:   tensor(crow_indices=tensor([0, 2, 4, 6, 8]),
+# CHECK:          col_indices=tensor([0, 1, 0, 1, 0, 1, 0, 1]),
 # CHECK:          values=tensor({{\[}}[ -1.,  -2.],
 #                                     ...
-# CHECK:                              [-63., -64.]{{\]}}), size=(8, 4, 2), nnz=32,
+# CHECK:                              [-15., -16.]{{\]}}), size=(4, 2, 2), nnz=8,
 # CHECK:                              layout=torch.sparse_csr)
+#
 # CHECK: torch.mlir
-# CHECK: (array([          0,           4,           8,          12,          16,
-# CHECK:                  20,          24,          28,          32,
-# CHECK:  array([0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1,
-# CHECK:         2, 3, 0, 1, 2, 3, 0, 1, 2, 3]),
-# CHECK:  array([ -1.,  -2.,  -3.,  -4.,  -5.,  -6.,  -7.,  -8.,  -9., -10., -11.,
-# CHECK:       -12., -13., -14., -15., -16., -17., -18., -19., -20., -21., -22.,
-# CHECK:       -23., -24., -25., -26., -27., -28., -29., -30., -31., -32., -33.,
-# CHECK:       -34., -35., -36., -37., -38., -39., -40., -41., -42., -43., -44.,
-# CHECK:       -45., -46., -47., -48., -49., -50., -51., -52., -53., -54., -55.,
-# CHECK:       -56., -57., -58., -59., -60., -61., -62., -63., -64.],
-# CHECK:      dtype=float32))
+# CHECK:   [0 2 4 6 8]
+# CHECK:   [0 1 0 1 0 1 0 1]
+# CHECK:   [ -1.  -2.  -3.  -4.  -5.  -6.  -7.  -8.  -9. -10. -11. -12. -13. -14.
+# CHECK:    -15. -16.]
 # CHECK: torch.mlir.batch
 #
 def test_sparse_eltwise():
@@ -402,7 +395,7 @@ def test_sparse_eltwise():
 
     net = EltNet()
     dense_input = torch.reshape(
-        torch.arange(1, 65, dtype=torch.float32), shape=(8, 4, 2)
+        torch.arange(1, 17, dtype=torch.float32), shape=(4, 2, 2)
     )
 
     # This yields a plain CSR with dense **sub**tensor
@@ -423,7 +416,9 @@ def test_sparse_eltwise():
     print("torch.sparse")
     print(res1)
     print("torch.mlir")
-    print(res2)
+    print(res2[0])
+    print(res2[1])
+    print(res2[2])
     print("torch.mlir.batch")
 
 
