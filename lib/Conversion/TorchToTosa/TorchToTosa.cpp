@@ -3575,8 +3575,8 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<Aten_IndexPutImplOp>::matchAndRewrite(
-    Aten_IndexPutImplOp op, OpAdaptor adaptor,
+LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
+    AtenIndexPutHackedTwinOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // a = torch.tensor([[0, 1, 2, 3]])
   // a[..., 1:] = torch.tensor([4, 5, 6])
@@ -5331,7 +5331,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
     INSERT_ATENOP_PATTERN(AtenGatherOp);
-    INSERT_ATENOP_PATTERN(Aten_IndexPutImplOp);
+    INSERT_ATENOP_PATTERN(AtenIndexPutHackedTwinOp);
     INSERT_ATENOP_PATTERN(AtenIndexTensorHackedTwinOp);
     INSERT_ATENOP_PATTERN(AtenAbsOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
