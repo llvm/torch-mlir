@@ -27,6 +27,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
+#include <cmath>
 #include <numeric>
 #include <type_traits>
 
@@ -1064,7 +1065,8 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
 }
 
 // Convert a Aten::GELU to HLO
-// Gelu(x) = x * 1/2 * [1 + erf(x/(sqrt(2)))]
+// Gelu(x, "none") = x * 0.5 * (1 + erf(x/(sqrt(2))))
+// Gelu(x, "tanh") = x * 0.5 * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
 template <>
 LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
     AtenGeluOp op, OpAdaptor adaptor,
@@ -1076,16 +1078,44 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
     return op.emitError("only ranked tensor type is supported.");
   }
 
+  std::string approximate;
+  if (!matchPattern(op.getApproximate(), m_TorchConstantStr(approximate))) {
+    return op.emitError("approximate must be constant string");
+  }
+  if (approximate != "none" && approximate != "tanh") {
+    return op.emitError("unsupported approximate: ") << approximate;
+  }
+
   Value one = getConstantLike(rewriter, loc, 1.0, input);
   Value two = getConstantLike(rewriter, loc, 2.0, input);
+  Value three = getConstantLike(rewriter, loc, 3.0, input);
   Value half = getConstantLike(rewriter, loc, 0.5, input);
-  auto rsqrtTwo = rewriter.create<mlir::stablehlo::RsqrtOp>(loc, two);
-  auto erfElement = rewriter.create<stablehlo::MulOp>(loc, input, rsqrtTwo);
-  auto erf = rewriter.create<mlir::chlo::ErfOp>(loc, erfElement);
-  auto erfAdd = rewriter.create<stablehlo::AddOp>(loc, erf, one);
-  auto halfMul = rewriter.create<stablehlo::MulOp>(loc, erfAdd, half);
-  rewriter.replaceOpWithNewOp<stablehlo::MulOp>(op, input, halfMul);
-  return success();
+  // 2/pi
+  Value twoDivPi = getConstantLike(rewriter, loc, M_2_PI, input);
+  Value t = getConstantLike(rewriter, loc, 0.044715, input);
+
+  // x * 0.5
+  auto inputMulHalf = rewriter.create<stablehlo::MulOp>(loc, input, half);
+  if (approximate == "none") {
+    auto rsqrtTwo = rewriter.create<stablehlo::RsqrtOp>(loc, two);
+    auto erfElement = rewriter.create<stablehlo::MulOp>(loc, input, rsqrtTwo);
+    auto erf = rewriter.create<chlo::ErfOp>(loc, erfElement);
+    auto erfAdd = rewriter.create<stablehlo::AddOp>(loc, erf, one);
+    rewriter.replaceOpWithNewOp<stablehlo::MulOp>(op, erfAdd, inputMulHalf);
+    return success();
+  } else {
+    auto sqrtTwoPi = rewriter.create<stablehlo::SqrtOp>(loc, twoDivPi);
+    // x^3
+    auto powThree = rewriter.create<stablehlo::PowOp>(loc, input, three);
+    // x + 0.044715 * x^3
+    auto add = rewriter.create<stablehlo::AddOp>(
+        loc, input, rewriter.create<stablehlo::MulOp>(loc, t, powThree));
+    auto tanh = rewriter.create<stablehlo::TanhOp>(
+        loc, rewriter.create<stablehlo::MulOp>(loc, sqrtTwoPi, add));
+    auto tanhAdd = rewriter.create<stablehlo::AddOp>(loc, tanh, one);
+    rewriter.replaceOpWithNewOp<stablehlo::MulOp>(op, tanhAdd, inputMulHalf);
+    return success();
+  }
 }
 
 // AtenLog2Op
