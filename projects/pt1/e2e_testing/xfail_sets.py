@@ -1723,9 +1723,6 @@ TOSA_PASS_SET = {
     "Matmul_3d",
     "Matmul_dot",
     "MatmulStaticBroadcast_basic",
-    "MaxPool1dEmptyStrideStaticModule_basic",
-    "MaxPool1dStaticCeilModeTrueModule_basic",
-    "MaxPool1dStaticModule_basic",
     "MaxPool2dEmptyStrideStaticModule_basic",
     "MaxPool2dStaticCeilModeTrueModule_basic",
     "MaxPool2dStaticModule_basic",
@@ -1907,6 +1904,9 @@ MAKE_FX_TOSA_PASS_SET = (
     TOSA_PASS_SET
     | {
         ### Tests additionally passing in make_fx_tosa
+        "MaxPool1dEmptyStrideStaticModule_basic",
+        "MaxPool1dStaticCeilModeTrueModule_basic",
+        "MaxPool1dStaticModule_basic",
         "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
         "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
         "AdaptiveAvgPool1dStaticEvenMultiple_basic",
