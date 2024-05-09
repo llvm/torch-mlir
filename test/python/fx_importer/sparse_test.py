@@ -573,10 +573,10 @@ def test_sparse_network():
                 mem = mem * self.decay + X[..., t]
                 spike = self.act(mem - self.thresh)
                 mem = mem * (1.0 - spike)
+                spike = spike.to_sparse().to_dense()  # prop hack
                 spike_pot.append(spike)
             spike_pot = torch.stack(spike_pot, dim=-1)
-            # Hack to get to_sparse() through propagation.
-            return spike_pot.to_sparse().to_dense()
+            return spike_pot
 
     class tdLayer(nn.Module):
         def __init__(self, layer):
