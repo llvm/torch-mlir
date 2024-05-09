@@ -128,10 +128,9 @@ def sparse_export(
                 node.meta["sparsity"] = SparsityMeta(
                     torch.sparse_coo, 0, dim, 0, None, torch.int64, torch.int64
                 )
-            # TODO: Uncomment this to hack sparsity into the network.
-            # elif node.name == "_to_dense":
-            #     # hack (assumes we never really want the to_dense for now)
-            #     node.meta["sparsity"] = node.args[0].meta.get("sparsity", None)
+            elif node.name == "_to_dense":
+                # Hack: assumes we never really want the to_dense for now.
+                node.meta["sparsity"] = node.args[0].meta.get("sparsity", None)
     return prog
 
 
