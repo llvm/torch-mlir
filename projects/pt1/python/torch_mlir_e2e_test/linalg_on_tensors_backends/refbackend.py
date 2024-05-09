@@ -90,7 +90,10 @@ def get_ctype_func(func_name):
 
 class RefBackendInvoker:
     def __init__(self, module):
-        self.ee = ExecutionEngine(module)
+        libs = [
+            "/usr/local/google/home/ajcbik/TORCHMLIR/torch-mlir/buildx/build/lib/libmlir_c_runner_utils.so"
+        ]
+        self.ee = ExecutionEngine(module, opt_level=3, shared_libs=libs)
         self.result = None
 
         return_funcs = get_return_funcs(module)
@@ -125,8 +128,10 @@ class RefBackendInvoker:
                     ctypes.pointer(ctypes.pointer(get_unranked_memref_descriptor(arg)))
                 )
 
+            #print("INVOKE EE", args)
             self.ee.invoke(function_name, *ffi_args)
             result = self.result
+            #print("INVOKED EE", result)
             assert result is not None, "Invocation didn't produce a result"
             self.result = None
             return result
@@ -138,6 +143,7 @@ LOWERING_PIPELINE = (
     "builtin.module("
     + ",".join(
         [
+            #    "func.func(linalg-fold-unit-extent-dims)",
             "func.func(refback-generalize-tensor-pad)",
             "func.func(refback-generalize-tensor-concat)",
             # Apply some optimizations. It would be great if MLIR had more useful
@@ -231,6 +237,7 @@ class RefBackendLinalgOnTensorsBackend(LinalgOnTensorsBackend):
             imported_module,
             LOWERING_PIPELINE,
             "Lowering Linalg-on-Tensors IR to LLVM with RefBackend",
+            # BIK
             enable_ir_printing=False,
         )
         return imported_module
