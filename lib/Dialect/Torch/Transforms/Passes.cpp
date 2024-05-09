@@ -66,8 +66,8 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   // Perform the bulk of lowering to the backend contract.
   // See the pass documentation for more information.
   pm.addPass(createLowerToBackendContractPass(
-      options.maxIterations, options.decompose, options.backendLegalOps,
-      options.extraLibrary));
+      options.maxIterations, options.decompose, options.shapeDtypeRefine,
+      options.backendLegalOps, options.extraLibrary));
 }
 
 // A simplification pipeline to establish the invariants of the backend
@@ -119,11 +119,13 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
   // Update the return op to return value tensors.
   pm.addPass(Torch::createRefinePublicReturnPass());
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
-  // Do shape and dtype refinement.
-  // Shape refinement should be run before dtype refinement because Torch type
-  // promotion rules actually depend on the shape of the operand.
-  createTorchShapeRefinementPipeline(pm, options);
-  createTorchDtypeRefinementPipeline(pm, options);
+  if (options.shapeDtypeRefine) {
+    // Do shape and dtype refinement.
+    // Shape refinement should be run before dtype refinement because Torch type
+    // promotion rules actually depend on the shape of the operand.
+    createTorchShapeRefinementPipeline(pm, options);
+    createTorchDtypeRefinementPipeline(pm, options);
+  }
   // Propagate to ABI return types the shape/dtype information discovered by
   // the previous pass. Doing this is ABI-compatible for our backends.
   pm.addPass(Torch::createRefinePublicReturnPass());

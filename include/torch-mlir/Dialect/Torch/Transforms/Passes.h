@@ -42,6 +42,9 @@ struct TorchLoweringPipelineOptions
   Option<bool> decompose{*this, "decompose-complex-ops",
                          llvm::cl::desc("Decompose complex operations."),
                          llvm::cl::init(true)};
+  Option<bool> shapeDtypeRefine{
+      *this, "shape-dtype-refine",
+      llvm::cl::desc("Do shape and dtype refinement."), llvm::cl::init(true)};
   // A list of ops that should be considered legal for the backend.
   // TODO: The meaning of this list should be formalized.
   // A sketch of the semantics would be:
@@ -130,10 +133,9 @@ createDropAbstractInterpCalculationsPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createEraseModuleInitializerPass();
 
-std::unique_ptr<OperationPass<ModuleOp>>
-createLowerToBackendContractPass(int maxIterations, bool decompose,
-                                 ArrayRef<std::string> backendLegalOps,
-                                 StringRef extraLibrary);
+std::unique_ptr<OperationPass<ModuleOp>> createLowerToBackendContractPass(
+    int maxIterations, bool decompose, bool shapeDtypeRefine,
+    ArrayRef<std::string> backendLegalOps, StringRef extraLibrary);
 
 std::unique_ptr<OperationPass<ModuleOp>>
 createVerifyBackendContractNoDecompositionsPass();
