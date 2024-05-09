@@ -120,21 +120,17 @@ def sparse_export(
                     node.meta["sparsity"] = sparse_metadata(args[k])
                 k = k + 1
         elif node.op == "call_function":
+            print(node.target._opname)
             # Zero preserving elt-wise unary op.
-            if node.target in {
-                torch.ops.aten.add.default,
-                torch.ops.aten.neg.default,
-                torch.ops.aten.relu.default,
-                torch.ops.aten.sin.default
-            }:
+            if node.target._opname in {"add", "neg", "relu", "sin"}:
                 node.meta["sparsity"] = node.args[0].meta.get("sparsity", None)
-            elif node.target == torch.ops.aten._to_sparse.default:
+            elif node.target._opname == "_to_sparse":
                 dim = len(node.meta.get("val").shape)
                 node.meta["sparsity"] = SparsityMeta(
                     torch.sparse_coo, 0, dim, 0, None, torch.int64, torch.int64
                 )
             # TODO: Uncomment this to hack sparsity into the network.
-            # elif node.target == torch.ops.aten._to_dense.default:
+            # elif node.target._opname == "_to_dense":
             #     # hack (assumes we never really want the to_dense for now)
             #     node.meta["sparsity"] = node.args[0].meta.get("sparsity", None)
     return prog
