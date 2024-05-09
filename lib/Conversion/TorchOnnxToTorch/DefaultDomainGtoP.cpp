@@ -259,6 +259,159 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, operand);
                   return success();
                 });
+  patterns.onOp(
+      "Loop", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // Get all operands (maxTripCount, cond, ....inits....)
+        llvm::SmallVector<Value> operands;
+        if (binder.tensorOperandsList(operands) || operands.size() == 0 ||
+            binder.getNumOperands() < 2) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Failed to get required operands");
+        }
+
+        llvm::SmallVector<mlir::Type> operandTypeVec;
+        if (binder.tensorOperandTypes(operandTypeVec) ||
+            operandTypeVec.size() == 0) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Failed to get operandTypes");
+        }
+
+        Region *loopBodyIn;
+        if (binder.getRegionAtIndex(loopBodyIn, 0)) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Failed getting LoopBody Region");
+        }
+
+        // MaxTripCount - tensor int64 scalar (or empty)
+        Value maxTripCountTensor = operands[0];
+        auto maxTripCountInt = rewriter.create<Torch::AtenItemOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            maxTripCountTensor);
+
+        // Condition - tensor bool scalar (or empty)
+        Value conditionTensor = operands[1];
+        auto conditionInt = rewriter.create<Torch::AtenItemOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            conditionTensor);
+        auto conditionBool = rewriter.create<Torch::AtenBoolIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::BoolType>(), conditionInt);
+        // To be used for "for like" loop case
+        auto constBoolTrue = rewriter.create<Torch::ConstantBoolOp>(
+            binder.getLoc(), rewriter.getBoolAttr(true));
+
+        // Others (if present) - variadic (can be tensors and scalar values)
+        if (binder.getNumOperands() > 2) {
+          operandTypeVec.erase(operandTypeVec.begin(),
+                               operandTypeVec.begin() + 2);
+          operands.erase(operands.begin(), operands.begin() + 2);
+        }
+
+        auto getOpName = [](Operation *op) -> std::string {
+          std::string name = op->getName().getStringRef().str();
+          if (name != "torch.operator")
+            return name;
+          // for unconverted onnx ops
+          return mlir::dyn_cast<StringAttr>(op->getAttr("name"))
+              .getValue()
+              .str();
+        };
+
+        // PrimLoop Op expectes inputCondition to be boolConstantTrue
+        // to decide if the loopOp is `forlike`. Use loopIsForLike to
+        // ensure appropriate inputCondition is set
+        // Case 1 : loopCondInp -> identity -> terminator(loopCondOut)
+        bool loopIsForLike = false;
+        auto case1ForLike = [&getOpName](Region *loopBody) -> bool {
+          Value onnxLoopBodyCondIn = loopBody->front().getArgument(1);
+          if (!onnxLoopBodyCondIn.hasOneUse())
+            return false;
+          Operation *inpCondUser = *onnxLoopBodyCondIn.getUsers().begin();
+          if (getOpName(inpCondUser) != "onnx.Identity") {
+            return false;
+          }
+          if (!inpCondUser->hasOneUse() ||
+              getOpName(*(inpCondUser->getUsers().begin())) !=
+                  "torch.operator_terminator")
+            return false;
+          return true;
+        };
+        loopIsForLike = case1ForLike(loopBodyIn);
+
+        Value loopInitCondition =
+            loopIsForLike ? constBoolTrue : conditionBool.getResult();
+        auto loc = binder.getLoc();
+        mlir::ImplicitLocOpBuilder b(loc, rewriter);
+        auto loop = b.create<Torch::PrimLoopOp>(
+            TypeRange(operandTypeVec), maxTripCountInt, loopInitCondition,
+            ValueRange(operands));
+
+        rewriter.cloneRegionBefore(*loopBodyIn, loop.getRegion(),
+                                   loop.getRegion().begin());
+
+        // primLoopOp loopBody expects torch.int as first arg
+        // insert torch.int arg in loop body, convert to tensor,
+        // replace all uses of old arg, delete old arg.
+        auto loopVarArg = loop.getRegion().front().getArgument(0);
+        // insert new Arg
+        loop.getRegion().front().insertArgument(
+            0U, rewriter.getType<Torch::IntType>(), binder.getLoc());
+        auto newLoopVarArg = loop.getRegion().front().getArgument(0);
+
+        // convert int arg to tensor of original Type
+        rewriter.setInsertionPointToStart(&loop.getRegion().front());
+        Value loopVarVal = BlockArgument::Value(loopVarArg);
+        auto newTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+            loop.getRegion().op_begin()->getLoc(), loopVarVal.getType(),
+            newLoopVarArg);
+
+        loopVarArg.replaceAllUsesWith(newTensor);
+        loop.getRegion().eraseArgument(1);
+
+        // primLoopOp loopBody has no condition arg
+        auto condArg = loop.getRegion().front().getArgument(1);
+        if (!condArg.use_empty())
+          condArg.replaceAllUsesWith(conditionTensor);
+
+        // replace terminator
+        PatternRewriter::InsertionGuard guard(rewriter);
+        Operation *terminator = loop.getRegion().front().getTerminator();
+        rewriter.setInsertionPoint(terminator);
+
+        // results - n loop carried dependencies and k scan outputs
+        // Fail when there are scanOutputs in onnxLoop (K>0);
+        // unsupported for now
+        if (terminator->getNumOperands() !=
+            loop.getRegion().getNumArguments() - 1) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "scanOutputs in loop body unsupported");
+        }
+
+        // Get remaining operands from onnxLoopBody's terminator Op
+        // these are all the loop carried dependencies in the loop body
+        auto terminatorOperands = terminator->getOperands();
+        llvm::SmallVector<Value> remTerminatorOperands(
+            terminatorOperands.begin() + 1, terminatorOperands.end());
+        Value terminatorCond;
+        if (loopIsForLike) {
+          terminatorCond = constBoolTrue;
+        } else {
+          // Only use when loop is not forlike
+          Value terminatorCondTensor = terminatorOperands[0];
+          auto terminatorCondInt = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              terminatorCondTensor);
+          auto terminatorCondBool = rewriter.create<Torch::AtenBoolIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::BoolType>(),
+              terminatorCondInt);
+          terminatorCond = terminatorCondBool.getResult();
+        }
+        rewriter.replaceOpWithNewOp<Torch::PrimLoopConditionOp>(
+            terminator, terminatorCond, remTerminatorOperands);
+
+        loop.getRegion().eraseArgument(1);
+        rewriter.replaceOp(binder.op, loop);
+        return success();
+      });
   patterns.onOp("LSTM", 1, onnx_c::OnnxLstmExpander);
   patterns.onOp(
       "LogSoftmax", 13,
@@ -2197,7 +2350,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   return success();
                 });
   patterns.onOp(
-      "Identity", 14, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Identity", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value tensor;
         if (binder.tensorOperand(tensor) ||
