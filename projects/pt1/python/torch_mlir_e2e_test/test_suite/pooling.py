@@ -153,22 +153,25 @@ class AdaptiveAvgPool2dUnitOutputSizeDynamicModule(torch.nn.Module):
 def AdaptiveAvgPool2dUnitOutputSizeDynamicModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 512, 7, 7))
 
+
 # ==============================================================================
+
 
 class MaxPool1dModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.mp1d = torch.nn.MaxPool1d(kernel_size=[6],
-                                       stride=[2],
-                                       padding=[3],
-                                       dilation=2)
+        self.mp1d = torch.nn.MaxPool1d(
+            kernel_size=[6], stride=[2], padding=[3], dilation=2
+        )
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
     def forward(self, x):
         return self.mp1d(x)
 
@@ -184,10 +187,12 @@ class MaxPool1dEmptyStrideStaticModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([1, 1, 20], torch.float32, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 20], torch.float32, True),
+        ]
+    )
     def forward(self, x):
         return torch.ops.aten.max_pool1d(x, kernel_size=2, stride=[])
 
@@ -201,16 +206,17 @@ class MaxPool1dStaticModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.mp1d = torch.nn.MaxPool1d(kernel_size=[3],
-                                       stride=[2],
-                                       padding=[1],
-                                       dilation=[1])
+        self.mp1d = torch.nn.MaxPool1d(
+            kernel_size=[3], stride=[2], padding=[1], dilation=[1]
+        )
 
     @export
-    @annotate_args([
-        None,
-        ([1, 64, 112], torch.float32, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([1, 64, 112], torch.float32, True),
+        ]
+    )
     def forward(self, x):
         return self.mp1d(x)
 
@@ -219,21 +225,22 @@ class MaxPool1dStaticModule(torch.nn.Module):
 def MaxPool1dStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 64, 112))
 
+
 class MaxPool1dStaticCeilModeTrueModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.mp1d = torch.nn.MaxPool1d(kernel_size=[3],
-                                       stride=[2],
-                                       padding=[1],
-                                       dilation=[1],
-                                       ceil_mode=True)
+        self.mp1d = torch.nn.MaxPool1d(
+            kernel_size=[3], stride=[2], padding=[1], dilation=[1], ceil_mode=True
+        )
 
     @export
-    @annotate_args([
-        None,
-        ([1, 64, 112], torch.float32, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([1, 64, 112], torch.float32, True),
+        ]
+    )
     def forward(self, x):
         return self.mp1d(x)
 
@@ -247,17 +254,17 @@ class MaxPool1dCeilModeTrueModule(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.mp1d = torch.nn.MaxPool1d(kernel_size=[6],
-                                       stride=[2],
-                                       padding=[3],
-                                       dilation=2,
-                                       ceil_mode=True)
+        self.mp1d = torch.nn.MaxPool1d(
+            kernel_size=[6], stride=[2], padding=[3], dilation=2, ceil_mode=True
+        )
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
     def forward(self, x):
         return self.mp1d(x)
 
@@ -265,8 +272,6 @@ class MaxPool1dCeilModeTrueModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: MaxPool1dCeilModeTrueModule())
 def MaxPool1dCeilModeTrueModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, low=0.5, high=1.0))
-
-
 
 
 # ==============================================================================
