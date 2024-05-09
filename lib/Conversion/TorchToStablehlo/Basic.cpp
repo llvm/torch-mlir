@@ -529,26 +529,40 @@ public:
     RankedTensorType lhsTy = dyn_cast<RankedTensorType>(lhs.getType());
     RankedTensorType rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
 
-    if (!lhsTy)
+    if (!lhsTy) {
       return op.emitError("only Tensor types supported in StableHLO");
+    }
+    if (!rhsTy) {
+      rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
+                                         rhs.getType());
+      rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
+    }
 
-    RankedTensorType outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                                   ->convertType(op.getType())
-                                   .template cast<RankedTensorType>();
+    auto outType = cast<RankedTensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     Type lhsElemTy = lhsTy.getElementType();
-    if (!lhsElemTy.isIntOrFloat()) {
+    Type rhsElemTy = rhsTy.getElementType();
+    if (!lhsElemTy.isIntOrFloat() || !rhsElemTy.isIntOrFloat()) {
       return op.emitError(
           "only floating-point or integer datatype legalization supported");
     }
 
-    if (!rhsTy) {
-      rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
-                                         lhsElemTy);
+    if (isa<mlir::IntegerType>(lhsElemTy) && isa<mlir::FloatType>(rhsElemTy)) {
+      lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, rhsTy);
+    } else if (isa<mlir::FloatType>(lhsElemTy) &&
+               isa<mlir::IntegerType>(rhsElemTy)) {
+      rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy);
+    } else {
+      if (lhsElemTy.getIntOrFloatBitWidth() >
+          rhsElemTy.getIntOrFloatBitWidth()) {
+        rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy);
+      } else {
+        lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, rhsTy);
+      }
     }
-
-    // TODO: what is the PyTorch default type promotion?
-    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy);
+    lhsElemTy = dyn_cast<RankedTensorType>(lhs.getType()).getElementType();
 
     chlo::ComparisonTypeAttr compareTypeAttr;
     chlo::ComparisonDirectionAttr compareDirectionAttr;
