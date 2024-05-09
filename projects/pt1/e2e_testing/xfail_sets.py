@@ -2488,8 +2488,6 @@ ONNX_XFAIL_SET = {
     "SplitDimStaticModule_basic",
     "SqrtIntConstantModule_basic",
     "SqrtIntModule_basic",
-    "StdCorrectionEmptyDimModule_basic",
-    "StdDimEmptyDimModule_basic",
     "SubFloatModule_basic",
     "SubIntModule_basic",
     "TanhBackward_basic",
@@ -2543,8 +2541,6 @@ ONNX_XFAIL_SET = {
     "UpSampleNearest2dDynamicFactor_basic",
     "UpSampleNearest2dStaticFactor_basic",
     "UpSampleNearest2d_basic",
-    "VarCorrectionEmptyDimModule_basic",
-    "VarDimEmptyDimModule_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewCollapseModule_basic",
     "ViewDynamicExpandCollapseModule_basic",
@@ -2674,15 +2670,21 @@ if torch_version_for_comparison() < version.parse("2.3.0.dev"):
 
 
 ONNX_CRASHING_SET = {
+    # unknown
+    "ElementwisePreluModule_basic",
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
-    "ElementwisePreluModule_basic",
     "ViewDynamicExpandCollapseWithParallelUnknownDimModule_basic",
+    # The following test sporadically stopped producing correct numerics for the golden value in the CI.
+    # For now, we are removing the test until this issue has been debugged.
+    "QuantizedMLP_basic",
     "ScatterReduceFloatProdModuleIncludeSelf",
     "ScatterReduceFloatSumModuleIncludeSelf",
     "ScatterReduceIntProdModuleIncludeSelf",
     "ScatterReduceIntSumModuleIncludeSelf",
-    # The following test sporadically stopped producing correct numerics for the golden value in the CI.
-    # For now, we are removing the test until this issue has been debugged.
-    "QuantizedMLP_basic",
+    # these empty dim modules generate IR with an empty float constant, which gets compared to int dims
+    "StdDimEmptyDimModule_basic",
+    "StdCorrectionEmptyDimModule_basic",
+    "VarCorrectionEmptyDimModule_basic",
+    "VarDimEmptyDimModule_basic",
 }

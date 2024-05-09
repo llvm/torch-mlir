@@ -79,7 +79,9 @@ class ImportSmokeTest(unittest.TestCase):
     def load_onnx_model(self, file_path: Path) -> onnx.ModelProto:
         raw_model = onnx.load(file_path)
         try:
-            inferred_model = onnx.shape_inference.infer_shapes(raw_model)
+            inferred_model = onnx.shape_inference.infer_shapes(
+                raw_model, data_prop=True
+            )
         except onnx.onnx_cpp2py_export.shape_inference.InferenceError as e:
             print("WARNING: Shape inference failure (skipping test):", e)
             self.skipTest(reason="shape inference failure")

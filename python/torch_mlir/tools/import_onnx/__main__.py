@@ -79,7 +79,7 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
         raw_model = onnx.load(args.input_file)
     else:
         raw_model = onnx.load(args.input_file, load_external_data=False)
-        onnx.load_external_data_for_model(raw_model, args.data_dir)
+        onnx.load_external_data_for_model(raw_model, str(args.data_dir))
 
     # Run the checker to test whether the file is above the threshold for
     # in-memory shape inference.  If not, go ahead and do the shape inference.
