@@ -2452,7 +2452,7 @@ private:
 // Static initializer.
 SmallVector<StringRef> ConvertSparseOperatorOp::legalizedNames = {
     "torch.aten._to_dense", "torch.aten._to_sparse", "torch.aten._to_csr",
-    "torch.aten._to_csc", "torch.aten._to_bsr", "torch.aten._to_bsc",
+    "torch.aten._to_csc",   "torch.aten._to_bsr",    "torch.aten._to_bsc",
 };
 } // namespace
 
