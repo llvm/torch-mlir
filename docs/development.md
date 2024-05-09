@@ -27,7 +27,7 @@ Also, ensure that you have the appropriate `python-dev` package installed
 to access the Python development libraries / headers. For example, you can install
 it with the following `apt` command on Ubuntu/Debian`.
 
-```
+```shell
 sudo apt install python3-dev
 ```
 
