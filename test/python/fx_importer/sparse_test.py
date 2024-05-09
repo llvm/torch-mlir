@@ -128,7 +128,7 @@ def sparse_export(
                 node.meta["sparsity"] = SparsityMeta(
                     torch.sparse_coo, 0, dim, 0, None, torch.int64, torch.int64
                 )
-            # Uncomment this to hack sparsity into the network.
+            # TODO: Uncomment this to hack sparsity into the network.
             # elif node.name == "_to_dense":
             #     # hack (assumes we never really want the to_dense for now)
             #     node.meta["sparsity"] = node.args[0].meta.get("sparsity", None)
@@ -575,8 +575,7 @@ def test_sparse_network():
                 mem = mem * (1.0 - spike)
                 spike_pot.append(spike)
             spike_pot = torch.stack(spike_pot, dim=-1)
-            # TODO: hack to get to_sparse() through propagation.
-            print(spike_pot)
+            # Hack to get to_sparse() through propagation.
             return spike_pot.to_sparse().to_dense()
 
     class tdLayer(nn.Module):
