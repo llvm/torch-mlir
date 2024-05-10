@@ -84,6 +84,10 @@ int64_t getNumberOfElements(RankedTensorType inputType);
 SmallVector<int64_t> makeShapeLLVMCompatible(ArrayRef<int64_t> shape);
 SmallVector<int64_t> makeShapeTorchCompatible(ArrayRef<int64_t> shape);
 
+ValueTensorType getTensorTypeFromValueVector(ArrayRef<Value> shapes,
+                                             Type dtype);
+Value getTensorDimSize(PatternRewriter &rewriter, Value tensor, int64_t dim);
+
 // Helper function to squeeze the input tensor at given dim.
 // Return the squeezed tensor or failure.
 FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
