@@ -2527,7 +2527,7 @@ public:
       Value checkClosest = b.create<arith::CmpFOp>(
               loc, arith::CmpFPredicate::OLT, d, halfConst);
       Value res = b.create<arith::SelectOp>(loc, checkClosest,
-                                                      x, y);
+                                                       x, y);
       return res;
     };
 
