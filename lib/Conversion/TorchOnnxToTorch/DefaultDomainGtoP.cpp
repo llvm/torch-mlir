@@ -123,12 +123,20 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (gridShape[3] != 2)
           return rewriter.notifyMatchFailure(binder.op,
                                              "gridShape[3] expected to be 2");
-        std::string mode;
-        if (binder.customOpNameStringAttr(mode, "mode", "linear"))
+        std::string iModeString;
+        int64_t iModeInt;
+        if (binder.customOpNameStringAttr(iModeString, "mode", "linear"))
           return rewriter.notifyMatchFailure(binder.op, "mode bind failure");
-        if (mode != "linear" && mode != "bilinear")
+
+        if (iModeString == "linear" || iModeString == "bilinear") {
+          iModeInt = 0;
+        } else if (iModeString == "nearest") {
+          iModeInt = 1;
+        } else {
           return rewriter.notifyMatchFailure(
-              binder.op, "currently only mode : linear supported");
+              binder.op, "currently only mode : linear and nearest supported");
+        }
+
         std::string padding;
         if (binder.customOpNameStringAttr(padding, "padding_mode", "zeros"))
           return rewriter.notifyMatchFailure(binder.op,
@@ -143,7 +151,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         Value interpolationMode = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), iModeInt));
+
         Value paddingMode = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
@@ -651,7 +660,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           result = rewriter.create<Torch::AtenMaximumOp>(
               binder.getLoc(), resultType, result, operands[i]);
         }
-        rewriter.replaceOp(binder.op, result.getDefiningOp());
+        rewriter.replaceOp(binder.op, result);
         return success();
       });
   patterns.onOp(
@@ -667,7 +676,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           result = rewriter.create<Torch::AtenMinimumOp>(
               binder.getLoc(), resultType, result, operands[i]);
         }
-        rewriter.replaceOp(binder.op, result.getDefiningOp());
+        rewriter.replaceOp(binder.op, result);
         return success();
       });
   patterns.onOp("Neg", 1,
