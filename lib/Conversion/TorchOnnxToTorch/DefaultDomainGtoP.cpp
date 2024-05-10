@@ -128,17 +128,15 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (binder.customOpNameStringAttr(iModeString, "mode", "linear"))
           return rewriter.notifyMatchFailure(binder.op, "mode bind failure");
         
-        if(iModeString == "linear" || iModeString == "bilinear") {
+        if (iModeString == "linear" || iModeString == "bilinear") {
           iModeInt = 0;
-        }
-        else if(iModeString == "nearest") {
+        } else if(iModeString == "nearest") {
           iModeInt = 1;
-        }
-        else {
+        } else {
           return rewriter.notifyMatchFailure(
-              binder.op, "currently only mode : linear supported");
+              binder.op, "currently only mode : linear and nearest supported");
         }
-        
+
         std::string padding;
         if (binder.customOpNameStringAttr(padding, "padding_mode", "zeros"))
           return rewriter.notifyMatchFailure(binder.op,

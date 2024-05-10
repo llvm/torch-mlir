@@ -2535,7 +2535,7 @@ public:
     };
 
     auto lambdaNearest = [&](OpBuilder &b, Location loc, Value x, Value y,
-                           Value d) -> Value {
+                            Value d) -> Value {
       Value halfConst = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getFloatAttr(floatType, 0.5));
       Value checkClosest = b.create<arith::CmpFOp>(
@@ -2545,13 +2545,13 @@ public:
     };
 
     auto lambdaInterpolate = [&](OpBuilder &b, Location loc, Value iMode, Value x, Value y,
-                           Value d) -> Value {
+                                Value d) -> Value {
       Value linear = lambdaLinear(b, loc, x, y, d); 
       Value nearest = lambdaNearest(b, loc, x, y, d);
       Value zeroInt =
-              b.create<arith::ConstantOp>(loc, b.getIntegerAttr(int64type, 0));
-      Value checkMode = b.create<arith::CmpIOp>(
-                      loc, arith::CmpIPredicate::eq, iMode, zeroInt);
+          b.create<arith::ConstantOp>(loc, b.getIntegerAttr(int64type, 0));
+      Value checkMode = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, 
+                                                iMode, zeroInt);
       Value res = b.create<arith::SelectOp>(loc, checkMode, linear, nearest);
       return res;
     };
