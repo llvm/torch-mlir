@@ -48,8 +48,13 @@ Value scalarToStablehloTensor(ConversionPatternRewriter &rewriter,
 Value promoteType(PatternRewriter &rewriter, Location loc, Value input,
                   TensorType outType);
 
+FailureOr<Value> getBroadcastResultShape(PatternRewriter &rewriter,
+                                         Operation *op, ArrayRef<Value> tensors,
+                                         size_t dimSizeIndexBits);
+
 Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
-                          TensorType outType);
+                          TensorType outType,
+                          std::optional<Value> bcastSizeTensor);
 
 SmallVector<int64_t> toPositiveDims(ArrayRef<int64_t> dims, int64_t rank);
 
