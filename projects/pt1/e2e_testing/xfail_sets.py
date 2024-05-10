@@ -1078,6 +1078,8 @@ STABLEHLO_PASS_SET = {
     "Matmul_matvec",
     "Matmul_vecmat",
     "MatmulStaticBroadcast_basic",
+    "MaxPool1dStaticModule_basic",
+    "MaxPool1dEmptyStrideStaticModule_basic",
     "MaxPool2dStaticModule_basic",
     "MaxPool2dEmptyStrideStaticModule_basic",
     "MaxPool3dStaticModule_basic",
