@@ -67,6 +67,9 @@ public:
       Value dequantOpd, MPTQTOpd;
       for (unsigned k = 0; k < depth + 1; k++) {
         auto currOp = operand.getDefiningOp();
+        // Case 0 : currOp is a nullptr (e.g., operand is a block argument)
+        if (!currOp)
+          break;
         // Case 1 : currOp is a q commuting op (continue loop)
         if (isQCommutingOp(currOp)) {
           commutingOpStack.push(currOp);
