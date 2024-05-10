@@ -1,7 +1,4 @@
 // RUN: torch-mlir-opt <%s -convert-torch-to-linalg -split-input-file -verify-diagnostics | FileCheck %s
-// This test file verifies both the legacy and strict view patterns together.
-// It can be deleted entirely when/if the legacy patterns are deleted (the
-// sibling view_strict.mlir test verifies strict patterns in isolation).
 // -----
 
 // CHECK-LABEL:   func.func @torch.aten.view$twotothree(
