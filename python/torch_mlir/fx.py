@@ -45,6 +45,8 @@ def _module_lowering(
         + ",".join(backend_legal_ops)
         + " extra-library="
         + extra_library_file_name
+        + " shape-dtype-refine="
+        + ("false" if not backend_legal_ops and not extra_library_file_name else "true")
         + "}"
     )
     run_pipeline_with_repro_report(

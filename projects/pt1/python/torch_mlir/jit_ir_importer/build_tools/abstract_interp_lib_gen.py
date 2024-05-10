@@ -338,6 +338,26 @@ def aten〇grid_sampler〡shape(input: List[int], grid: List[int], interpolation
     output = [input[0],input[1],grid[1],grid[2]]
     return output
 
+def aten〇__interpolate〇size_list_scale_list〡shape(input: List[int], size: Optional[List[int]] = None, scale_factor: Optional[List[float]] = None, mode: str = "nearest", align_corners: Optional[bool] = None, recompute_scale_factor: Optional[bool] = None, antialias: bool = False) -> List[int]:
+    output = [input[0], input[1]]
+    if size is not None:
+        assert (
+          scale_factor is None
+        ), "Must specify exactly one of size and scale_factor"
+        output.append(size[0])
+        output.append(size[1])
+        return output
+    elif scale_factor is not None:
+        assert (
+          size is None
+        ), "Must specify exactly one of size and scale_factor"
+        output.append(int(scale_factor[0] * input[2]))
+        output.append(int(scale_factor[1] * input[3]))
+        return output
+    assert 0, "Either size or scale_factor must be presented"
+    return output
+
+
 def prims〇collapse〡shape(a: List[int], start: int, end: int) -> List[int]:
     # Obtained through trial and error on a few examples in PyTorch:
     assert start < len(a), "start out of bounds"
@@ -2330,6 +2350,10 @@ def aten〇grid_sampler〡dtype(input_rank_dtype: Tuple[int, int], grid_rank_dty
     grid_rank, grid_dtype = input_rank_dtype
     return input_dtype
 
+def aten〇__interpolate〇size_list_scale_list〡dtype(input_rank_dtype: Tuple[int, int], size: Optional[List[int]] = None, scale_factor: Optional[List[float]] = None, mode: str = "nearest", align_corners: Optional[bool] = None, recompute_scale_factor: Optional[bool] = None, antialias: bool = False) -> int:
+    input_rank, input_dtype = input_rank_dtype
+    return input_dtype
+
 @check_dtype_function([ErrorInvocation(TensorOfShape(2, 3, 4), padding=1),
                        ErrorInvocation(TensorOfShape(2, 3, 4), padding=[]),
                        ErrorInvocation(TensorOfShape(2, 3, 4), padding=[2]),
@@ -2585,6 +2609,11 @@ def aten〇masked_fill〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], mask_r
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(1, None, "cpu", None, NonZeroDTensorWithDtype(torch.bool, device="cpu")))
 def aten〇masked_select〡dtype(self_rank_dtype: Tuple[int, int], mask_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5)], kernel_size=[2]))
+def aten〇max_pool1d〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), dilation: List[int] = (1,), ceil_mode: bool = False) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 

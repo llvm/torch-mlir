@@ -25,6 +25,6 @@ module = torchscript.compile(
     model, data, output_type=torchscript.OutputType.STABLEHLO, use_tracing=True
 )
 with open(out_stablehlo_mlir_path, "w", encoding="utf-8") as outf:
-    outf.write(str(module))
+    outf.write(module.operation.get_asm())
 
 print(f"StableHLO IR of tiny bert successfully written into {out_stablehlo_mlir_path}")
