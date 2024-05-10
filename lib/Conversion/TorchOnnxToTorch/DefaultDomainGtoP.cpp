@@ -127,10 +127,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         int64_t iModeInt;
         if (binder.customOpNameStringAttr(iModeString, "mode", "linear"))
           return rewriter.notifyMatchFailure(binder.op, "mode bind failure");
-        
+
         if (iModeString == "linear" || iModeString == "bilinear") {
           iModeInt = 0;
-        } else if(iModeString == "nearest") {
+        } else if (iModeString == "nearest") {
           iModeInt = 1;
         } else {
           return rewriter.notifyMatchFailure(
