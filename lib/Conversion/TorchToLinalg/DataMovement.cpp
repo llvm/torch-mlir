@@ -1347,7 +1347,7 @@ public:
       totalSize = b.create<arith::MulIOp>(totalSize, dim);
     }
 
-    Value inferredSize = b.create<arith::DivSIOp>(totalSize, knownSize);
+    Value inferredSize = b.create<arith::DivUIOp>(totalSize, knownSize);
     for (auto &size : sizes) {
       Value isNeg =
           b.create<arith::CmpIOp>(arith::CmpIPredicate::slt, size, zero);

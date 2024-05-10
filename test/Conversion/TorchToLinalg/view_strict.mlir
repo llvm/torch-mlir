@@ -132,7 +132,7 @@ func.func @torch.aten.view$expandInferredDim(%arg0: !torch.vtensor<[2,6],f32>) -
 // CHECK-DAG:   %[[DIM2_INDEX:.*]] = tensor.dim %[[SELF]], %[[INDEX2]] : tensor<?x?x?xf32>
 // CHECK-DAG:   %[[DIM2:.*]] = arith.index_cast %[[DIM2_INDEX]] : index to i64
 // CHECK-DAG:   %[[KNOWN2:.*]] = arith.muli %[[KNOWN1]], %[[DIM2]] : i64
-// CHECK-DAG:   %[[DIMINFER:.*]] = arith.divsi %[[KNOWN2]], %[[PROD4]] : i64
+// CHECK-DAG:   %[[DIMINFER:.*]] = arith.divui %[[KNOWN2]], %[[PROD4]] : i64
 // CHECK:       %[[DIM0:.*]] = torch_c.to_i64 %arg1
 // CHECK:       %[[DIM1:.*]] = torch_c.to_i64 %[[CONSTANT1]]
 // CHECK:       %[[DIM3:.*]] = torch_c.to_i64 %[[CONSTANT1]]
