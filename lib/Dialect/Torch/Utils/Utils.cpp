@@ -286,8 +286,7 @@ ValueTensorType Torch::getTensorTypeFromValueVector(ArrayRef<Value> shapes,
     else
       shapeInts.push_back(kUnknownSize);
   }
-  return Torch::ValueTensorType::get(shapeInts[0].getContext(), shapeInts,
-                                     dtype);
+  return Torch::ValueTensorType::get(shapes[0].getContext(), shapeInts, dtype);
 }
 
 // Helper function to get the size of the tensor at the given dimension.

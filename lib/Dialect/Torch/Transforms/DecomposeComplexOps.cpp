@@ -704,9 +704,18 @@ public:
         /*dtype=*/none, /*layout=*/none,
         /*device=*/none, /*pin_memory=*/none);
 
-    Value unsqueezeRowArange = unsqueezeTensor(rewriter, op, rowArange, cstOne);
-    Value unsqueezeColArange =
+    auto unsqueezeRowArangeInfo =
+        unsqueezeTensor(rewriter, op, rowArange, cstOne);
+    auto unsqueezeColArangeInfo =
         unsqueezeTensor(rewriter, op, colArange, cstZero);
+
+    if (failed(unsqueezeRowArangeInfo) || failed(unsqueezeColArangeInfo)) {
+      return rewriter.notifyMatchFailure(op,
+                                         "cannot generate unsqueeze tensor");
+    }
+
+    Value unsqueezeRowArange = unsqueezeRowArangeInfo.value();
+    Value unsqueezeColArange = unsqueezeColArangeInfo.value();
 
     Value unsqueezeRowArangePlusDiagonal = rewriter.create<AtenAddScalarOp>(
         loc, unsqueezeRowArange.getType(), unsqueezeRowArange, op.getDiagonal(),
