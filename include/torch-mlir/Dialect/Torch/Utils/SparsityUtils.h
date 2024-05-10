@@ -18,7 +18,7 @@ namespace torch {
 namespace Torch {
 
 // Create a new SparseTensorEncodingAttr based on the provided `attr`, but with
-// a new dense level insert at `dim`.
+// a new dense level inserted at `dim`.
 FailureOr<Attribute> getSparsityWithDenseLTAtDim(Attribute attr, Value dim);
 
 } // namespace Torch
