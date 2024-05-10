@@ -108,14 +108,43 @@ func.func @torch.aten.view$expandInferredDim(%arg0: !torch.vtensor<[2,6],f32>) -
 }
 
 // -----
-// TODO: Enable once supported.
+// Note that this is presently going down a fallback path as an explicit
+// reshape. Someday, this should generate flatten/unflatten.
+// CHECK-LABEL: func.func @torch.aten$dynamicValOutput
+// CHECK:       %[[SELF:.*]] = torch_c.to_builtin_tensor %arg0
+// CHECK:       %[[CONSTANT1:.*]] = torch.constant.int 1
+// CHECK-DAG:   %[[PROD1:.*]] = arith.constant 1
+// CHECK-DAG:   %[[ARG1_CVT:.*]] = torch_c.to_i64 %arg1
+// CHECK-DAG:   %[[PROD2:.*]] = arith.muli %[[PROD1]], %[[ARG1_CVT]]
+// CHECK-DAG:   %[[ONEI64:.*]] = torch_c.to_i64 %[[CONSTANT1]]
+// CHECK-DAG:   %[[PROD3:.*]] = arith.muli %[[PROD2]], %[[ONEI64]]
+// CHECK-DAG:   %[[ONEI64_0:.*]] = torch_c.to_i64 %[[CONSTANT1]]
+// CHECK-DAG:   %[[PROD4:.*]] = arith.muli %[[PROD3]], %[[ONEI64_0]]
+// CHECK-DAG:   %[[INDEX0:.*]] = arith.constant 0 : index
+// CHECK-DAG:   %[[DIM0_INDEX:.*]] = tensor.dim %[[SELF]], %[[INDEX0]] : tensor<?x?x?xf32>
+// CHECK-DAG:   %[[DIM0:.*]] = arith.index_cast %[[DIM0_INDEX]] : index to i64
+// CHECK-DAG:   %[[KNOWN0:.*]] = arith.muli %[[PROD1]], %[[DIM0]] : i64
+// CHECK-DAG:   %[[INDEX1:.*]] = arith.constant 1 : index
+// CHECK-DAG:   %[[DIM1_INDEX:.*]] = tensor.dim %[[SELF]], %[[INDEX1]] : tensor<?x?x?xf32>
+// CHECK-DAG:   %[[DIM1:.*]] = arith.index_cast %[[DIM1_INDEX]] : index to i64
+// CHECK-DAG:   %[[KNOWN1:.*]] = arith.muli %[[KNOWN0]], %[[DIM1]] : i64
+// CHECK-DAG:   %[[INDEX2:.*]] = arith.constant 2 : index
+// CHECK-DAG:   %[[DIM2_INDEX:.*]] = tensor.dim %[[SELF]], %[[INDEX2]] : tensor<?x?x?xf32>
+// CHECK-DAG:   %[[DIM2:.*]] = arith.index_cast %[[DIM2_INDEX]] : index to i64
+// CHECK-DAG:   %[[KNOWN2:.*]] = arith.muli %[[KNOWN1]], %[[DIM2]] : i64
+// CHECK-DAG:   %[[DIMINFER:.*]] = arith.divsi %[[KNOWN2]], %[[PROD4]] : i64
+// CHECK:       %[[DIM0:.*]] = torch_c.to_i64 %arg1
+// CHECK:       %[[DIM1:.*]] = torch_c.to_i64 %[[CONSTANT1]]
+// CHECK:       %[[DIM3:.*]] = torch_c.to_i64 %[[CONSTANT1]]
+// CHECK:       %[[OUTPUT_DIMS:.*]] = tensor.from_elements %[[DIM0]], %[[DIM1]], %[[DIMINFER]], %[[DIM3]] : tensor<4xi64>
+// CHECK:       tensor.reshape %[[SELF]](%[[OUTPUT_DIMS]]) : (tensor<?x?x?xf32>, tensor<4xi64>) -> tensor<?x1x?x1xf32>
+//
 func.func @torch.aten$dynamicValOutput(%arg0: !torch.vtensor<[?, ?, ?],f32>, %arg1: !torch.int) -> !torch.vtensor<[?,1,?,1],f32>
   attributes {torch.assume_strict_symbolic_shapes, torch.disable_legacy_view}
 {
   %int1 = torch.constant.int 1
   %int-1 = torch.constant.int -1
   %0 = torch.prim.ListConstruct %arg1, %int1, %int-1, %int1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-  // expected-error@+1 {{torch.aten.view}}
   %1 = torch.aten.view %arg0, %0 : !torch.vtensor<[?, ?, ?],f32>, !torch.list<int> -> !torch.vtensor<[?,1,?,1],f32>
   return %1 : !torch.vtensor<[?,1,?,1],f32>
 }

@@ -1384,6 +1384,8 @@ public:
     auto loc = op.getLoc();
     auto resultType =
         cast<RankedTensorType>(typeConverter->convertType(op.getType()));
+    auto self = adaptor.getSelf();
+    auto selfTy = cast<RankedTensorType>(self.getType());
 
     // Handle collapse to 0D.
     if (sizeValues.empty()) {
@@ -1421,9 +1423,9 @@ public:
     }
 
     // Handle inferred dim case.
-    if (inferredDim >= 0) {
-      // TODO: Remove this restriction once flatten/unflatten reliably work
-      // with multiple dynamic dimensions.
+    // TODO: Remove the restriction on staticSizes once flatten/unflatten
+    // reliably work with multiple dynamic dimensions.
+    if (inferredDim >= 0 && staticSizes) {
       if (!staticSizes) {
         return rewriter.notifyMatchFailure(
             loc, "view to flatten/unflatten only supported for static sizes");
@@ -1460,14 +1462,58 @@ public:
       return success();
     }
 
-    // Normal lowering to reshape.
+    // Generate output dims, either based on whether there is an inferred dim
+    // present or all dims are specified.
     auto sizeTy = cast<IntegerType>(
         typeConverter->convertType(sizeValues.front().getType()));
     SmallVector<Value> outputDimValues;
-    for (Value torchSize : sizeValues) {
-      outputDimValues.push_back(typeConverter->materializeTargetConversion(
-          rewriter, loc, sizeTy, torchSize));
+    assert(sizeTy && "Type converter did not handle size");
+    if (inferredDim >= 0) {
+      // Inferred dim. If the above flatten/unflatten logic ever catches
+      // everything, this branch can go away entirely.
+      Value one = rewriter.create<arith::ConstantOp>(
+          loc, sizeTy, rewriter.getIntegerAttr(sizeTy, 1));
+      Value sizeProduct = one;
+      // Multiply the non-inferred target sizes.
+      for (int i = 0, e = sizeValues.size(); i < e; ++i) {
+        if (i == inferredDim)
+          continue;
+        Value size = sizeValues[i];
+        Value convertedSize = typeConverter->materializeTargetConversion(
+            rewriter, loc, sizeTy, size);
+        assert(convertedSize && "Type converter did not handle size");
+        sizeProduct =
+            rewriter.create<arith::MulIOp>(loc, sizeProduct, convertedSize);
+      }
+
+      // Multiply the self tensor sizes.
+      Value selfProduct = one;
+      for (int i = 0, e = selfTy.getRank(); i < e; ++i) {
+        Value index = rewriter.create<arith::ConstantIndexOp>(loc, i);
+        Value dim = rewriter.create<tensor::DimOp>(loc, self, index);
+        dim = rewriter.create<arith::IndexCastOp>(loc, sizeTy, dim);
+        selfProduct = rewriter.create<arith::MulIOp>(loc, selfProduct, dim);
+      }
+
+      Value inferredSize =
+          rewriter.create<arith::DivSIOp>(loc, selfProduct, sizeProduct);
+      for (int i = 0, e = sizeValues.size(); i < e; ++i) {
+        if (i == inferredDim) {
+          outputDimValues.push_back(inferredSize);
+        } else {
+          outputDimValues.push_back(typeConverter->materializeTargetConversion(
+              rewriter, loc, sizeTy, sizeValues[i]));
+        }
+      }
+    } else {
+      // No inferred dim. So output dims are just pass through.
+      for (Value torchSize : sizeValues) {
+        outputDimValues.push_back(typeConverter->materializeTargetConversion(
+            rewriter, loc, sizeTy, torchSize));
+      }
     }
+
+    // Normal lowering to reshape with fully computed sizes.
     auto outputDimsTy = RankedTensorType::get(
         outputDimValues.size(), outputDimValues.front().getType());
     auto outputDims = rewriter.create<tensor::FromElementsOp>(loc, outputDimsTy,
