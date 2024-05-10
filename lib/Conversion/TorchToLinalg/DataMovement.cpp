@@ -1347,7 +1347,7 @@ public:
       totalSize = b.create<arith::MulIOp>(totalSize, dim);
     }
 
-    Value inferredSize = b.create<arith::DivUIOp>(totalSize, knownSize);
+    Value inferredSize = b.create<arith::DivSIOp>(totalSize, knownSize);
     for (auto &size : sizes) {
       Value isNeg =
           b.create<arith::CmpIOp>(arith::CmpIPredicate::slt, size, zero);
@@ -1496,7 +1496,7 @@ public:
       }
 
       Value inferredSize =
-          rewriter.create<arith::DivSIOp>(loc, selfProduct, sizeProduct);
+          rewriter.create<arith::DivUIOp>(loc, selfProduct, sizeProduct);
       for (int i = 0, e = sizeValues.size(); i < e; ++i) {
         if (i == inferredDim) {
           outputDimValues.push_back(inferredSize);
