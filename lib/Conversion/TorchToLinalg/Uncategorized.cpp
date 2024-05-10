@@ -2538,7 +2538,7 @@ public:
                              Value d) -> Value {
       Value halfConst = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getFloatAttr(floatType, 0.5));
-      Value checkClosest = 
+      Value checkClosest =
           b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OLT, d, halfConst);
       Value res = b.create<arith::SelectOp>(loc, checkClosest, x, y);
       return res;
