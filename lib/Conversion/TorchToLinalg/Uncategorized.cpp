@@ -2517,7 +2517,7 @@ public:
       Value ra = b.create<arith::MulFOp>(loc, x, dm);
       Value rb = b.create<arith::MulFOp>(loc, y, d);
       Value res = b.create<arith::AddFOp>(loc, ra, rb);
-      return res    ;
+      return res;
     };
 
     auto lambdaNearest = [&](OpBuilder &b, Location loc, Value x, Value y,
