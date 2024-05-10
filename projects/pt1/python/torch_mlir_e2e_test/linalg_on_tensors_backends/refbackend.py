@@ -138,8 +138,6 @@ LOWERING_PIPELINE = (
     "builtin.module("
     + ",".join(
         [
-            "func.func(refback-generalize-tensor-pad)",
-            "func.func(refback-generalize-tensor-concat)",
             # Apply some optimizations. It would be great if MLIR had more useful
             # optimizations that worked out of the box here.
             # Note: When measured, this doesn't seem to actually help that much
@@ -157,6 +155,10 @@ LOWERING_PIPELINE = (
             "sparse-storage-specifier-to-llvm",
             # Buffer deallocation pass does not know how to handle realloc.
             "func.func(expand-realloc)",
+            # Generalize pad and concat after sparse compiler, as they are handled
+            # differently when the operations involve sparse operand.
+            "func.func(refback-generalize-tensor-pad)",
+            "func.func(refback-generalize-tensor-concat)",
             # Bufferize.
             "func.func(scf-bufferize)",
             "func.func(tm-tensor-bufferize)",
