@@ -1,7 +1,5 @@
 // RUN: torch-mlir-opt <%s -convert-torch-to-linalg -split-input-file -verify-diagnostics | FileCheck %s
-// This test file verifies both the legacy and strict view patterns together.
-// It can be deleted entirely when/if the legacy patterns are deleted (the
-// sibling view_strict.mlir test verifies strict patterns in isolation).
+
 // -----
 
 // CHECK-LABEL:   func.func @torch.aten.view$twotothree(
@@ -13,7 +11,7 @@
 // CHECK:    return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[2,3],f32>
 
 func.func @torch.aten.view$twotothree(%arg0: !torch.vtensor<[3,2],f32>) -> !torch.vtensor<[2,3],f32>
-  attributes {torch.assume_strict_symbolic_shapes}
+  attributes {torch.assume_strict_symbolic_shapes, torch.disable_legacy_view}
 {
     %int3 = torch.constant.int 3
     %int2 = torch.constant.int 2
@@ -32,7 +30,7 @@ func.func @torch.aten.view$twotothree(%arg0: !torch.vtensor<[3,2],f32>) -> !torc
 // CHECK:        return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[?,?],f32>
 
 func.func @torch.aten.view$dynamictest(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32>
-  attributes {torch.assume_strict_symbolic_shapes}
+  attributes {torch.assume_strict_symbolic_shapes, torch.disable_legacy_view}
 {
     %int1 = torch.constant.int 1
     %int0 = torch.constant.int 0
@@ -53,7 +51,7 @@ func.func @torch.aten.view$dynamictest(%arg0: !torch.vtensor<[?,?],f32>) -> !tor
 // CHECK:        return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[?,2,3,?],f32>
 
 func.func @torch.aten.view$dynamictest2(%arg0: !torch.vtensor<[?,6,?],f32>) -> !torch.vtensor<[?,2,3,?],f32>
-  attributes {torch.assume_strict_symbolic_shapes}
+  attributes {torch.assume_strict_symbolic_shapes, torch.disable_legacy_view}
 {
   %int3 = torch.constant.int 3
   %int2 = torch.constant.int 2
@@ -77,7 +75,7 @@ func.func @torch.aten.view$dynamictest2(%arg0: !torch.vtensor<[?,6,?],f32>) -> !
 // CHECK:     return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[16,1,128],f32>
 
 func.func @torch.aten.view$dynamicVal(%arg0: !torch.vtensor<[1,?,128],f32>) -> !torch.vtensor<[16,1,128],f32>
-  attributes {torch.assume_strict_symbolic_shapes}
+  attributes {torch.assume_strict_symbolic_shapes, torch.disable_legacy_view}
 {
     %int128 = torch.constant.int 128
     %int1 = torch.constant.int 1
@@ -98,15 +96,15 @@ func.func @torch.aten.view$dynamicVal(%arg0: !torch.vtensor<[1,?,128],f32>) -> !
 // CHECK: %[[BUILTIN_TENSOR_CAST:.*]] = torch_c.from_builtin_tensor %[[CAST]] : tensor<8x1x?x1xf32> -> !torch.vtensor<[8,1,?,1],f32>
 // CHECK: return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[8,1,?,1],f32>
 
-func.func @torch.aten$dynamicValOutput(%arg0: !torch.vtensor<[4,5,6],f32>) -> !torch.vtensor<[8,1,?,1],f32>
-  attributes {torch.assume_strict_symbolic_shapes}
+func.func @torch.aten$dynamicValOutput(%arg0: !torch.vtensor<[?,?,?],f32>, %arg2: !torch.int) -> !torch.vtensor<[?,?,?,?],f32>
+  attributes {torch.assume_strict_symbolic_shapes, torch.disable_legacy_view}
 {
-  %int8 = torch.constant.int 8
+  //%int8 = torch.constant.int 8
   %int1 = torch.constant.int 1
   %int-1 = torch.constant.int -1
-  %0 = torch.prim.ListConstruct %int8, %int1, %int-1, %int1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-  %1 = torch.aten.view %arg0, %0 : !torch.vtensor<[4,5,6],f32>, !torch.list<int> -> !torch.vtensor<[8,1,?,1],f32>
-  return %1 : !torch.vtensor<[8,1,?,1],f32>
+  %0 = torch.prim.ListConstruct %arg2, %int1, %int-1, %int1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.view %arg0, %0 : !torch.vtensor<[?,?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,?,?,?],f32>
+  return %1 : !torch.vtensor<[?,?,?,?],f32>
 }
 
 // -----
@@ -122,7 +120,7 @@ func.func @torch.aten$dynamicValOutput(%arg0: !torch.vtensor<[4,5,6],f32>) -> !t
 
 // 4 -> [2,1,2] [5,6] -> [3,10].
 func.func @torch.aten$dynamicValOutput2(%arg0: !torch.vtensor<[4,5,6],f32>) -> !torch.vtensor<[2,1,2,3,?],f32>
-  attributes {torch.assume_strict_symbolic_shapes}
+  attributes {torch.assume_strict_symbolic_shapes, torch.disable_legacy_view}
 {
   %int2 = torch.constant.int 2
   %int1 = torch.constant.int 1
@@ -144,7 +142,7 @@ func.func @torch.aten$dynamicValOutput2(%arg0: !torch.vtensor<[4,5,6],f32>) -> !
 // CHECK:     return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[3,2,2],f32>
 
 func.func @torch.aten.view$expandInferredDim(%arg0: !torch.vtensor<[2,6],f32>) -> !torch.vtensor<[3,2,2],f32>
-  attributes {torch.assume_strict_symbolic_shapes}
+  attributes {torch.assume_strict_symbolic_shapes, torch.disable_legacy_view}
 {
     %int2 = torch.constant.int 2
     %int3 = torch.constant.int 3
@@ -171,7 +169,7 @@ func.func @torch.aten.view$expandInferredDim(%arg0: !torch.vtensor<[2,6],f32>) -
 //  -- for collapse, [0,1], [2], [3,4] and
 //  -- for expand [0,1,2], [3], [4].
 func.func @torch.aten.view$singleUnknownMatches0(%arg0: !torch.vtensor<[10,3,?,2,3],f32>) -> !torch.vtensor<[2,3,5,?,6],f32>
-  attributes {torch.assume_strict_symbolic_shapes}
+  attributes {torch.assume_strict_symbolic_shapes, torch.disable_legacy_view}
 {
     %int3 = torch.constant.int 3
     %int2 = torch.constant.int 2
@@ -200,7 +198,7 @@ func.func @torch.aten.view$singleUnknownMatches0(%arg0: !torch.vtensor<[10,3,?,2
 // CHECK: return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[2,2,2,?,?,?,6],f32>
 
 func.func @torch.aten.view$combineConcepts(%arg0 : !torch.vtensor<[8,?,?,?,2,1,3], f32>) -> !torch.vtensor<[2,2,2,?,?,?,6], f32>
-  attributes {torch.assume_strict_symbolic_shapes}
+  attributes {torch.assume_strict_symbolic_shapes, torch.disable_legacy_view}
 {
 
   %int1 = torch.constant.int 1
@@ -226,7 +224,7 @@ func.func @torch.aten.view$combineConcepts(%arg0 : !torch.vtensor<[8,?,?,?,2,1,3
 // CHECK: %[[BUILTIN_TENSOR_CAST:.*]] = torch_c.from_builtin_tensor %[[COLLAPSE]] : tensor<?xf32> -> !torch.vtensor<[?],f32>
 // CHECK: return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[?],f32>
 func.func @torch.aten.view$multiDynamicsInSourceOfCollapse (%arg0 : !torch.vtensor<[?,2,?,4,?], f32>) -> !torch.vtensor<[?], f32>
-  attributes {torch.assume_strict_symbolic_shapes}
+  attributes {torch.assume_strict_symbolic_shapes, torch.disable_legacy_view}
 {
   %int-1 = torch.constant.int -1
   %0 = torch.prim.ListConstruct %int-1 : (!torch.int) -> !torch.list<int>
@@ -248,7 +246,7 @@ func.func @torch.aten.view$multiDynamicsInSourceOfCollapse (%arg0 : !torch.vtens
 // CHECK: return {{.*}} : !torch.vtensor<[3,4,5],f32>
 
 func.func @torch.aten.view$castingView (%arg0 : !torch.vtensor<[?,?,?], f32>) -> !torch.vtensor<[3,4,5], f32>
-  attributes {torch.assume_strict_symbolic_shapes}
+  attributes {torch.assume_strict_symbolic_shapes, torch.disable_legacy_view}
 {
   %int3 = torch.constant.int 3
   %int4 = torch.constant.int 4
@@ -274,7 +272,7 @@ func.func @torch.aten.view$castingView (%arg0 : !torch.vtensor<[?,?,?], f32>) ->
 // CHECK: return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[2,5,?,6],f32>
 
 func.func @torch.aten.view$dynamicInferredSame(%arg0: !torch.vtensor<[10,?,2,3],f32>) -> !torch.vtensor<[2,5,?,6],f32>
-  attributes {torch.assume_strict_symbolic_shapes}
+  attributes {torch.assume_strict_symbolic_shapes, torch.disable_legacy_view}
 {
   %int2 = torch.constant.int 2
   %int5 = torch.constant.int 5
