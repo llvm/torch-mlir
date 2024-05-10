@@ -209,32 +209,46 @@ static Value createCompareScalarOp(OpBuilder &b, Location loc, OpTy op,
   Type lhsDtype = lhs.getType();
   Type rhsDtype = rhs.getType();
   Type elementalType = cast<BaseTensorType>(op.getSelf().getType()).getDtype();
-  Value otherPromoted = convertScalarToDtype(b, loc, rhs, lhsDtype);
 
-  if (isa<mlir::IntegerType>(elementalType) &&
-      !isa<mlir::IntegerType>(rhsDtype)) {
-    // TODO: Promote tensor args from integer to float.
+  if (lhsDtype.isIntOrFloat() && rhsDtype.isIntOrFloat()) {
+    if (isa<mlir::FloatType>(lhsDtype) && isa<mlir::IntegerType>(rhsDtype)) {
+      rhs = convertScalarToDtype(b, loc, rhs, lhsDtype);
+      elementalType = lhsDtype;
+    } else if (isa<mlir::IntegerType>(lhsDtype) &&
+               isa<mlir::FloatType>(rhsDtype)) {
+      lhs = convertScalarToDtype(b, loc, lhs, rhsDtype);
+      elementalType = rhsDtype;
+    } else {
+      // Both are either Integer or Float types, but the bit width might be
+      // different.
+      if (lhsDtype.getIntOrFloatBitWidth() > rhsDtype.getIntOrFloatBitWidth()) {
+        rhs = convertScalarToDtype(b, loc, rhs, lhsDtype);
+      } else {
+        lhs = convertScalarToDtype(b, loc, lhs, rhsDtype);
+      }
+    }
+  } else {
     op.emitError("unimplemented: type promotion from tensor to scalar.");
     return nullptr;
   }
 
   if constexpr (std::is_same<OpTy, AtenLtScalarOp>()) {
-    return createLessThan(b, loc, elementalType, lhs, otherPromoted);
+    return createLessThan(b, loc, elementalType, lhs, rhs);
   }
   if constexpr (std::is_same<OpTy, AtenLeScalarOp>()) {
-    return createLessThanOrEqual(b, loc, elementalType, lhs, otherPromoted);
+    return createLessThanOrEqual(b, loc, elementalType, lhs, rhs);
   }
   if constexpr (std::is_same<OpTy, AtenGtScalarOp>()) {
-    return createGreaterThan(b, loc, elementalType, lhs, otherPromoted);
+    return createGreaterThan(b, loc, elementalType, lhs, rhs);
   }
   if constexpr (std::is_same<OpTy, AtenGeScalarOp>()) {
-    return createGreaterThanOrEqual(b, loc, elementalType, lhs, otherPromoted);
+    return createGreaterThanOrEqual(b, loc, elementalType, lhs, rhs);
   }
   if constexpr (std::is_same<OpTy, AtenEqScalarOp>()) {
-    return createEqual(b, loc, elementalType, lhs, otherPromoted);
+    return createEqual(b, loc, elementalType, lhs, rhs);
   }
   if constexpr (std::is_same<OpTy, AtenNeScalarOp>()) {
-    return createNotEqual(b, loc, elementalType, lhs, otherPromoted);
+    return createNotEqual(b, loc, elementalType, lhs, rhs);
   }
   llvm_unreachable("unimplemented: op type not supported");
 }

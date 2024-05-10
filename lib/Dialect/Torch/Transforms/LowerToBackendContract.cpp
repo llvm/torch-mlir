@@ -263,10 +263,12 @@ class LowerToBackendContractPass
 public:
   LowerToBackendContractPass() = default;
   LowerToBackendContractPass(int maxIterations, bool decompose,
+                             bool shapeDtypeRefine,
                              ArrayRef<std::string> backendLegalOps,
                              StringRef extraLibrary) {
     this->maxIterations = maxIterations;
     this->decompose = decompose;
+    this->shapeDtypeRefine = shapeDtypeRefine;
     this->backendLegalOps = backendLegalOps;
     this->extraLibrary = extraLibrary.str();
   }
@@ -282,6 +284,7 @@ public:
     OpPassManager pm(module.getOperationName());
     TorchLoweringPipelineOptions options;
     options.decompose = decompose;
+    options.shapeDtypeRefine = shapeDtypeRefine;
     options.backendLegalOps = backendLegalOps;
     options.extraLibrary = extraLibrary;
     createTorchSimplificationPipeline(pm, options);
@@ -336,10 +339,11 @@ public:
 
 std::unique_ptr<OperationPass<ModuleOp>>
 mlir::torch::Torch::createLowerToBackendContractPass(
-    int maxIterations, bool decompose, ArrayRef<std::string> backendLegalOps,
-    StringRef extraLibrary) {
+    int maxIterations, bool decompose, bool shapeDtypeRefine,
+    ArrayRef<std::string> backendLegalOps, StringRef extraLibrary) {
   return std::make_unique<LowerToBackendContractPass>(
-      maxIterations, decompose, backendLegalOps, extraLibrary);
+      maxIterations, decompose, shapeDtypeRefine, backendLegalOps,
+      extraLibrary);
 }
 
 std::unique_ptr<OperationPass<ModuleOp>>
