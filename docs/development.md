@@ -13,9 +13,6 @@ While this is running, you can already setup the Python venv and dependencies in
 
 ## Setup your Python VirtualEnvironment and Dependencies
 
-Also, ensure that you have the appropriate `python-dev` package installed
-to access the Python development libraries / headers.
-
 ```shell
 python -m venv mlir_venv
 source mlir_venv/bin/activate
@@ -25,6 +22,15 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install -r torchvision-requirements.txt
 ```
+
+Also, ensure that you have the appropriate `python-dev` package installed
+to access the Python development libraries / headers. For example, you can install
+it with the following `apt` command on Ubuntu/Debian.
+
+```shell
+sudo apt install python3-dev
+```
+
 
 ## (Optional) Set up pre-commit
 

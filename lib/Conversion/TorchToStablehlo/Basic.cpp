@@ -27,6 +27,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
+#include <cmath>
 #include <numeric>
 #include <type_traits>
 
@@ -448,11 +449,13 @@ public:
           "only floating-point or integer datatype legalization supported");
     }
 
-    if (std::is_same<AtenOpT, AtenSquareOp>()) {
+    if constexpr (std::is_same<AtenOpT, AtenSquareOp>()) {
       rhs = lhs;
-    } else if (!rhsType) {
-      rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
-                                         outElemTy);
+    } else {
+      if (!rhsType) {
+        rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
+                                           outElemTy);
+      }
     }
     DenseI64ArrayAttr bcastDimensions;
     lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outType);
@@ -461,8 +464,8 @@ public:
     Value result =
         rewriter.create<ChloOpT>(loc, outType, lhs, rhs, bcastDimensions);
 
-    if (!std::is_same<AtenDivTensorModeOp, AtenOpT>() &&
-        !std::is_same<AtenDivScalarModeOp, AtenOpT>()) {
+    if constexpr (!std::is_same<AtenDivTensorModeOp, AtenOpT>() &&
+                  !std::is_same<AtenDivScalarModeOp, AtenOpT>()) {
       rewriter.replaceOp(op, result);
       return success();
     }
@@ -528,26 +531,40 @@ public:
     RankedTensorType lhsTy = dyn_cast<RankedTensorType>(lhs.getType());
     RankedTensorType rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
 
-    if (!lhsTy)
+    if (!lhsTy) {
       return op.emitError("only Tensor types supported in StableHLO");
+    }
+    if (!rhsTy) {
+      rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
+                                         rhs.getType());
+      rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
+    }
 
-    RankedTensorType outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                                   ->convertType(op.getType())
-                                   .template cast<RankedTensorType>();
+    auto outType = cast<RankedTensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     Type lhsElemTy = lhsTy.getElementType();
-    if (!lhsElemTy.isIntOrFloat()) {
+    Type rhsElemTy = rhsTy.getElementType();
+    if (!lhsElemTy.isIntOrFloat() || !rhsElemTy.isIntOrFloat()) {
       return op.emitError(
           "only floating-point or integer datatype legalization supported");
     }
 
-    if (!rhsTy) {
-      rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
-                                         lhsElemTy);
+    if (isa<mlir::IntegerType>(lhsElemTy) && isa<mlir::FloatType>(rhsElemTy)) {
+      lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, rhsTy);
+    } else if (isa<mlir::FloatType>(lhsElemTy) &&
+               isa<mlir::IntegerType>(rhsElemTy)) {
+      rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy);
+    } else {
+      if (lhsElemTy.getIntOrFloatBitWidth() >
+          rhsElemTy.getIntOrFloatBitWidth()) {
+        rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy);
+      } else {
+        lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, rhsTy);
+      }
     }
-
-    // TODO: what is the PyTorch default type promotion?
-    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy);
+    lhsElemTy = dyn_cast<RankedTensorType>(lhs.getType()).getElementType();
 
     chlo::ComparisonTypeAttr compareTypeAttr;
     chlo::ComparisonDirectionAttr compareDirectionAttr;
@@ -560,32 +577,32 @@ public:
           op->getContext(), chlo::ComparisonType::SIGNED);
     }
 
-    if (std::is_same<AtenOpT, AtenLtTensorOp>() ||
-        std::is_same<AtenOpT, AtenLtScalarOp>()) {
+    if constexpr (std::is_same<AtenOpT, AtenLtTensorOp>() ||
+                  std::is_same<AtenOpT, AtenLtScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::LT);
-    } else if (std::is_same<AtenOpT, AtenGtTensorOp>() ||
-               std::is_same<AtenOpT, AtenGtScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenGtTensorOp>() ||
+                         std::is_same<AtenOpT, AtenGtScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::GT);
-    } else if (std::is_same<AtenOpT, AtenGeTensorOp>() ||
-               std::is_same<AtenOpT, AtenGeScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenGeTensorOp>() ||
+                         std::is_same<AtenOpT, AtenGeScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::GE);
-    } else if (std::is_same<AtenOpT, AtenEqTensorOp>() ||
-               std::is_same<AtenOpT, AtenEqScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenEqTensorOp>() ||
+                         std::is_same<AtenOpT, AtenEqScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::EQ);
-    } else if (std::is_same<AtenOpT, AtenNeTensorOp>() ||
-               std::is_same<AtenOpT, AtenNeScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenNeTensorOp>() ||
+                         std::is_same<AtenOpT, AtenNeScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::NE);
-    } else if (std::is_same<AtenOpT, AtenLtTensorOp>() ||
-               std::is_same<AtenOpT, AtenLtScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenLtTensorOp>() ||
+                         std::is_same<AtenOpT, AtenLtScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::LT);
-    } else if (std::is_same<AtenOpT, AtenLeTensorOp>() ||
-               std::is_same<AtenOpT, AtenLeScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenLeTensorOp>() ||
+                         std::is_same<AtenOpT, AtenLeScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::LE);
     } else {
@@ -1064,7 +1081,8 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
 }
 
 // Convert a Aten::GELU to HLO
-// Gelu(x) = x * 1/2 * [1 + erf(x/(sqrt(2)))]
+// Gelu(x, "none") = x * 0.5 * (1 + erf(x/(sqrt(2))))
+// Gelu(x, "tanh") = x * 0.5 * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
 template <>
 LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
     AtenGeluOp op, OpAdaptor adaptor,
@@ -1076,16 +1094,44 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
     return op.emitError("only ranked tensor type is supported.");
   }
 
+  std::string approximate;
+  if (!matchPattern(op.getApproximate(), m_TorchConstantStr(approximate))) {
+    return op.emitError("approximate must be constant string");
+  }
+  if (approximate != "none" && approximate != "tanh") {
+    return op.emitError("unsupported approximate: ") << approximate;
+  }
+
   Value one = getConstantLike(rewriter, loc, 1.0, input);
   Value two = getConstantLike(rewriter, loc, 2.0, input);
+  Value three = getConstantLike(rewriter, loc, 3.0, input);
   Value half = getConstantLike(rewriter, loc, 0.5, input);
-  auto rsqrtTwo = rewriter.create<mlir::stablehlo::RsqrtOp>(loc, two);
-  auto erfElement = rewriter.create<stablehlo::MulOp>(loc, input, rsqrtTwo);
-  auto erf = rewriter.create<mlir::chlo::ErfOp>(loc, erfElement);
-  auto erfAdd = rewriter.create<stablehlo::AddOp>(loc, erf, one);
-  auto halfMul = rewriter.create<stablehlo::MulOp>(loc, erfAdd, half);
-  rewriter.replaceOpWithNewOp<stablehlo::MulOp>(op, input, halfMul);
-  return success();
+  // 2/pi
+  Value twoDivPi = getConstantLike(rewriter, loc, M_2_PI, input);
+  Value t = getConstantLike(rewriter, loc, 0.044715, input);
+
+  // x * 0.5
+  auto inputMulHalf = rewriter.create<stablehlo::MulOp>(loc, input, half);
+  if (approximate == "none") {
+    auto rsqrtTwo = rewriter.create<stablehlo::RsqrtOp>(loc, two);
+    auto erfElement = rewriter.create<stablehlo::MulOp>(loc, input, rsqrtTwo);
+    auto erf = rewriter.create<chlo::ErfOp>(loc, erfElement);
+    auto erfAdd = rewriter.create<stablehlo::AddOp>(loc, erf, one);
+    rewriter.replaceOpWithNewOp<stablehlo::MulOp>(op, erfAdd, inputMulHalf);
+    return success();
+  } else {
+    auto sqrtTwoPi = rewriter.create<stablehlo::SqrtOp>(loc, twoDivPi);
+    // x^3
+    auto powThree = rewriter.create<stablehlo::PowOp>(loc, input, three);
+    // x + 0.044715 * x^3
+    auto add = rewriter.create<stablehlo::AddOp>(
+        loc, input, rewriter.create<stablehlo::MulOp>(loc, t, powThree));
+    auto tanh = rewriter.create<stablehlo::TanhOp>(
+        loc, rewriter.create<stablehlo::MulOp>(loc, sqrtTwoPi, add));
+    auto tanhAdd = rewriter.create<stablehlo::AddOp>(loc, tanh, one);
+    rewriter.replaceOpWithNewOp<stablehlo::MulOp>(op, tanhAdd, inputMulHalf);
+    return success();
+  }
 }
 
 // AtenLog2Op

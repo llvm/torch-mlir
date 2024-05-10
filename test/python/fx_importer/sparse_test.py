@@ -120,9 +120,20 @@ def sparse_export(
                     node.meta["sparsity"] = sparse_metadata(args[k])
                 k = k + 1
         elif node.op == "call_function":
+            # TODO: use upstream _opname implementation when available
+            opname = node.target._schema.name.split("::")[1]
             # Zero preserving elt-wise unary op.
-            if node.name in {"abs", "neg", "relu", "sin"}:
+            if opname in {"abs", "neg", "relu", "sin"}:
                 node.meta["sparsity"] = node.args[0].meta.get("sparsity", None)
+            elif opname == "_to_sparse":
+                dim = len(node.meta.get("val").shape)
+                node.meta["sparsity"] = SparsityMeta(
+                    torch.sparse_coo, 0, dim, 0, None, torch.int64, torch.int64
+                )
+            # TODO: Uncomment this to hack sparsity into the network.
+            # elif opname == "_to_dense":
+            #     # hack (assumes we never really want the to_dense for now)
+            #     node.meta["sparsity"] = node.args[0].meta.get("sparsity", None)
     return prog
 
 
@@ -199,6 +210,7 @@ def run(f):
 
 
 @run
+#
 # CHECK-LABEL: test_sparse_id
 # CHECK:       #[[$COO:.*]] = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 : compressed(nonunique), d1 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
 # CHECK:       func.func @main(
@@ -245,6 +257,7 @@ def test_sparse_id():
 
 
 @run
+#
 # CHECK-LABEL: test_sparse_sum
 # CHECK:       #[[$CSR:.*]] = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 : dense, d1 : compressed), posWidth = 64, crdWidth = 64 }>
 # CHECK:       func.func @main(
@@ -279,6 +292,7 @@ def test_sparse_sum():
 
 
 @run
+#
 # CHECK-LABEL: test_sparse_SpMV
 # CHECK:       #[[$BSR:.*]] = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 floordiv 2 : dense, d1 floordiv 2 : compressed, d0 mod 2 : dense, d1 mod 2 : dense), posWidth = 64, crdWidth = 64 }>
 # CHECK:       func.func @main(
@@ -314,6 +328,7 @@ def test_sparse_SpMV():
 
 
 @run
+#
 # CHECK-LABEL: test_sparse_SpMM
 # CHECK:       #[[$COO:.*]] = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 : compressed(nonunique), d1 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
 # CHECK:       func.func @main(
@@ -356,29 +371,38 @@ def test_sparse_SpMM():
 
 
 @run
+#
 # CHECK-LABEL: test_sparse_eltwise
 # CHECK:       #[[$CSRD:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : dense, d1 : compressed, d2 : dense), posWidth = 64, crdWidth = 64 }>
 # CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[8,4,2],f32,#[[$CSRD]]>) -> !torch.vtensor<[8,4,2],f32,#[[$CSRD]]> {
-# CHECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[8,4,2],f32,#[[$CSRD]]> -> !torch.vtensor<[8,4,2],f32,#[[$CSRD]]>
-# CHECK:         return %[[R]] : !torch.vtensor<[8,4,2],f32,#[[$CSRD]]>
+# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>) -> !torch.vtensor<[4,2,2],f32,#[[$CSRD]]> {
+# CHECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[4,2,2],f32,#[[$CSRD]]> -> !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>
+# CHECK:         return %[[R]] : !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>
 # CHECK:       }
 # CHECK:       #[[$BCSR:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : batch, d1 : dense, d2 : compressed), posWidth = 64, crdWidth = 64 }>
 # CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[8,4,2],f32,#[[$BCSR]]>) -> !torch.vtensor<[8,4,2],f32,#[[$BCSR]]> {
-# CHECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[8,4,2],f32,#[[$BCSR]]> -> !torch.vtensor<[8,4,2],f32,#[[$BCSR]]>
-# CHECK:         return %[[R]] : !torch.vtensor<[8,4,2],f32,#[[$BCSR]]>
+# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>) -> !torch.vtensor<[4,2,2],f32,#[[$BCSR]]> {
+# CHECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[4,2,2],f32,#[[$BCSR]]> -> !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>
+# CHECK:         return %[[R]] : !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>
 # CHECK:       }
 #
 # CHECK: torch.sparse
-# CHECK:   tensor(crow_indices=tensor([ 0,  4,  8, 12, 16, 20, 24, 28, 32]),
-# CHECK:          col_indices=tensor([0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1,
-# CHECK:                              2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3]),
+# CHECK:   tensor(crow_indices=tensor([0, 2, 4, 6, 8]),
+# CHECK:          col_indices=tensor([0, 1, 0, 1, 0, 1, 0, 1]),
 # CHECK:          values=tensor({{\[}}[ -1.,  -2.],
-#                                     ...
-# CHECK:                              [-63., -64.]{{\]}}), size=(8, 4, 2), nnz=32,
+# CHECK:                              [ -3.,  -4.],
+# CHECK:                              [ -5.,  -6.],
+# CHECK:                              [ -7.,  -8.],
+# CHECK:                              [ -9., -10.],
+# CHECK:                              [-11., -12.],
+# CHECK:                              [-13., -14.],
+# CHECK:                              [-15., -16.]{{\]}}), size=(4, 2, 2), nnz=8,
 # CHECK:                              layout=torch.sparse_csr)
 # CHECK: torch.mlir
+# CHECK:   [0 2 4 6 8]
+# CHECK:   [0 1 0 1 0 1 0 1]
+# CHECK:   [ -1.  -2.  -3.  -4.  -5.  -6.  -7.  -8.  -9. -10. -11. -12. -13. -14.
+# CHECK:    -15. -16.]
 # CHECK: torch.mlir.batch
 #
 def test_sparse_eltwise():
@@ -391,7 +415,7 @@ def test_sparse_eltwise():
 
     net = EltNet()
     dense_input = torch.reshape(
-        torch.arange(1, 65, dtype=torch.float32), shape=(8, 4, 2)
+        torch.arange(1, 17, dtype=torch.float32), shape=(4, 2, 2)
     )
 
     # This yields a plain CSR with dense **sub**tensor
@@ -406,16 +430,20 @@ def test_sparse_eltwise():
 
     # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
     res1 = net(sparse_input)
-    # TODO: make these work
-    # res2 = sparse_jit(net, sparse_input)
+    res2 = sparse_jit(net, sparse_input)
+    # TODO: make this work
     # res3 = sparse_jit(net, batch_input)
     print("torch.sparse")
     print(res1)
     print("torch.mlir")
+    print(res2[0])
+    print(res2[1])
+    print(res2[2])
     print("torch.mlir.batch")
 
 
 @run
+#
 # CHECK-LABEL: test_sparse_coo3
 # CHECK:       #[[$COO3:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : compressed(nonunique), d1 : singleton(nonunique, soa), d2 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
 # CHECK:       func.func @main(
@@ -458,3 +486,138 @@ def test_sparse_coo3():
     print("torch.sparse")
     print(res1)
     print("torch.mlir")
+
+
+@run
+#
+# CHECK-LABEL: test_sparse_activation
+# CHECK:       #[[$COO:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : compressed(nonunique), d1 : singleton(nonunique, soa), d2 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
+# CHECK:       func.func @main(
+# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[2,2,2],f32>) -> !torch.vtensor<[2,2,2],f32,#[[$COO]]> {
+# CHECK:         %[[N1:.*]] = torch.constant.none
+# CHECK:         %[[N2:.*]] = torch.constant.none
+# CHECK:         %[[N3:.*]] = torch.constant.none
+# CHECK:         %[[R:.*]] = torch.operator "torch.aten._to_sparse"(%[[A]], %[[N1]], %[[N2]], %[[N3]]) : (!torch.vtensor<[2,2,2],f32>, !torch.none, !torch.none, !torch.none) -> !torch.vtensor<[2,2,2],f32,#[[$COO]]>
+# CHECK:         return %[[R]] : !torch.vtensor<[2,2,2],f32,#[[$COO]]>
+# CHECK:       }
+#
+# CHECK: torch.sparse
+# CHECK:   tensor(indices=tensor({{\[}}[0, 0, 0, 0, 1, 1, 1, 1],
+# CHECK:                               [0, 0, 1, 1, 0, 0, 1, 1],
+# CHECK:                               [0, 1, 0, 1, 0, 1, 0, 1]{{\]}}),
+# CHECK:      values=tensor([1., 1., 1., 1., 1., 1., 1., 1.]),
+# CHECK:      size=(2, 2, 2), nnz=8, layout=torch.sparse_coo)
+# CHECK: torch.mlir
+# CHECK:   [0 8]
+# CHECK:   [0 0 0 0 1 1 1 1]
+# CHECK:   [0 0 1 1 0 0 1 1]
+# CHECK:   [0 1 0 1 0 1 0 1]
+# CHECK:   [1. 1. 1. 1. 1. 1. 1. 1.]
+#
+def test_sparse_activation():
+    class SparseActivationCOO(torch.nn.Module):
+        def forward(self, x):
+            return x.to_sparse()
+
+    net = SparseActivationCOO()
+    x = torch.ones(2, 2, 2)
+    m = export_and_import(net, x)
+    print(m)
+
+    # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
+    res1 = net(x)
+    res2 = sparse_jit(net, x)
+    print("torch.sparse")
+    print(res1)
+    print("torch.mlir")
+    print(res2[0])
+    print(res2[1])
+    print(res2[2])
+    print(res2[3])
+    print(res2[4])
+
+
+@run
+#
+# CHECK-LABEL: test_sparse_network
+# CHECK:       func.func @main(
+# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[2,3,8,8],f32>) -> !torch.vtensor<[8],f32> {
+#                ... lots of IR ...
+# CHECK-COUNT-15: torch.aten.mul.Tensor
+#                ... lots of IR ...
+# CHECK:        }
+#
+# CHECK: torch.sparse
+# CHECK:   tensor([ 0., 11.,  9., 11., 13., 11., 10., 12.])
+# CHECK: torch.mlir
+# CHECK:   [ 0. 11.  9. 11. 13. 11. 10. 12.]
+#
+def test_sparse_network():
+    def spike(input):
+        return (input >= 0).float()
+
+    def sqSum(input):
+        return (input * input).sum()
+
+    class LIF(nn.Module):
+        def __init__(self):
+            super(LIF, self).__init__()
+            self.thresh = 1.0
+            self.decay = 0.5
+            self.act = spike
+
+        def forward(self, X):
+            """A filter that yields a binary-valued sparse tensor."""
+            mem = 0
+            spike_pot = []
+            T = X.size(-1)
+            for t in range(T):
+                mem = mem * self.decay + X[..., t]
+                spike = self.act(mem - self.thresh)
+                mem = mem * (1.0 - spike)
+                spike = spike.to_sparse().to_dense()  # prop hack
+                spike_pot.append(spike)
+            spike_pot = torch.stack(spike_pot, dim=-1)
+            return spike_pot
+
+    class tdLayer(nn.Module):
+        def __init__(self, layer):
+            super(tdLayer, self).__init__()
+            self.layer = layer
+
+        def forward(self, X):
+            T = X.size(-1)
+            out = []
+            for t in range(T):
+                m = self.layer(X[..., t])
+                out.append(m)
+            out = torch.stack(out, dim=-1)
+            return out
+
+    class Block(nn.Module):
+        def __init__(self):
+            super(Block, self).__init__()
+            self.spike = LIF()
+            self.layer = tdLayer(sqSum)
+
+        def forward(self, X):
+            out = self.spike(X)
+            out = self.layer(out)
+            return out
+
+    net = Block()
+
+    # Get a random (but reproducible) input, so that a
+    # general sparse tensor appears after LIF.
+    torch.manual_seed(0)
+    x = torch.rand(2, 3, 8, 8)
+    m = export_and_import(net, x)
+    print(m)
+
+    # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
+    res1 = net(x)
+    res2 = sparse_jit(net, x)
+    print("torch.sparse")
+    print(res1)
+    print("torch.mlir")
+    print(res2)

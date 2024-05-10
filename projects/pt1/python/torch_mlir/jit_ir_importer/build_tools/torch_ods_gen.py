@@ -634,6 +634,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants(
         "aten::masked_scatter : (Tensor, Tensor, Tensor) -> (Tensor)"
     )
+    emit(
+        "aten::__interpolate.size_list_scale_list : (Tensor, int[]?, float[]?, str, bool?, bool?, bool) -> (Tensor)"
+    )
     emit("aten::adaptive_avg_pool1d : (Tensor, int[]) -> (Tensor)")
     emit("aten::adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")
     emit("aten::_adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")

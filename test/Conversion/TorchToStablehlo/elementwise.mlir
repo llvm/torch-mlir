@@ -3,16 +3,15 @@
 // CHECK-LABEL:  func.func @torch.aten.gelu(
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
 // CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
-// CHECK:         %[[STR:.*]] = torch.constant.str "none"
 // CHECK:         %[[T1:.*]] = "chlo.constant_like"(%[[T0]]) <{value = 1.000000e+00 : f32}> : (tensor<?x?xf32>) -> tensor<?x?xf32>
 // CHECK:         %[[T2:.*]] = "chlo.constant_like"(%[[T0]]) <{value = 2.000000e+00 : f32}> : (tensor<?x?xf32>) -> tensor<?x?xf32>
 // CHECK:         %[[T3:.*]] = "chlo.constant_like"(%[[T0]]) <{value = 5.000000e-01 : f32}> : (tensor<?x?xf32>) -> tensor<?x?xf32>
-// CHECK:         %[[T4:.*]] = stablehlo.rsqrt %[[T2]] : tensor<?x?xf32>
-// CHECK:         %[[T5:.*]] = stablehlo.multiply %[[T0]], %[[T4]] : tensor<?x?xf32>
-// CHECK:         %[[T6:.*]] = chlo.erf %[[T5]] : tensor<?x?xf32> -> tensor<?x?xf32>
-// CHECK:         %[[T7:.*]] = stablehlo.add %[[T6]], %[[T1]] : tensor<?x?xf32>
-// CHECK:         %[[T8:.*]] = stablehlo.multiply %[[T7]], %[[T3]] : tensor<?x?xf32>
-// CHECK:         %[[T9:.*]] = stablehlo.multiply %[[T0]], %[[T8]] : tensor<?x?xf32>
+// CHECK:         %[[T4:.*]] = stablehlo.multiply %[[T0]], %[[T3]]
+// CHECK:         %[[T5:.*]] = stablehlo.rsqrt %[[T2]] : tensor<?x?xf32>
+// CHECK:         %[[T6:.*]] = stablehlo.multiply %[[T0]], %[[T5]] : tensor<?x?xf32>
+// CHECK:         %[[T7:.*]] = chlo.erf %[[T6]] : tensor<?x?xf32> -> tensor<?x?xf32>
+// CHECK:         %[[T8:.*]] = stablehlo.add %[[T7]], %[[T1]] : tensor<?x?xf32>
+// CHECK:         %[[T9:.*]] = stablehlo.multiply %[[T8]], %[[T4]] : tensor<?x?xf32>
 // CHECK:         %[[T10:.*]] = torch_c.from_builtin_tensor %[[T9]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
 // CHECK:         return %[[T10]] : !torch.vtensor<[?,?],f32>
 func.func @torch.aten.gelu(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
@@ -396,11 +395,12 @@ func.func @torch.aten.divtensor$basic(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !
 // CHECK:         %[[INT3:.*]] = torch.constant.int 3
 // CHECK:         %[[T1:.*]] = torch_c.to_i64 %[[INT3]]
 // CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[T1]] : tensor<1xi64>
-// CHECK:         %[[T2:.*]] = stablehlo.convert %[[FROM_ELEMENTS]] : (tensor<1xi64>) -> tensor<1xf32>
-// CHECK:         %[[T3:.*]] = stablehlo.reshape %[[T2]] : (tensor<1xf32>) -> tensor<f32>
-// CHECK:         %[[T4:.*]] = chlo.broadcast_compare %[[T0]], %[[T3]] {compare_type = #chlo<comparison_type FLOAT>, comparison_direction = #chlo<comparison_direction GT>} : (tensor<?x?xf32>, tensor<f32>) -> tensor<?x?xi1>
-// CHECK:         %[[T5:.*]] = torch_c.from_builtin_tensor %[[T4]] : tensor<?x?xi1> -> !torch.vtensor<[?,?],i1>
-// CHECK:         return %[[T5]] : !torch.vtensor<[?,?],i1>
+// CHECK:         %[[T2:.*]] = stablehlo.convert %[[FROM_ELEMENTS]] : tensor<1xi64>
+// CHECK:         %[[T3:.*]] = stablehlo.reshape %[[T2]] : (tensor<1xi64>) -> tensor<i64>
+// CHECK:         %[[T4:.*]] = stablehlo.convert %[[T3]] : (tensor<i64>) -> tensor<f32>
+// CHECK:         %[[T5:.*]] = chlo.broadcast_compare %[[T0]], %[[T4]] {compare_type = #chlo<comparison_type FLOAT>, comparison_direction = #chlo<comparison_direction GT>} : (tensor<?x?xf32>, tensor<f32>) -> tensor<?x?xi1>
+// CHECK:         %[[T6:.*]] = torch_c.from_builtin_tensor %[[T5]] : tensor<?x?xi1> -> !torch.vtensor<[?,?],i1>
+// CHECK:         return %[[T6]] : !torch.vtensor<[?,?],i1>
 func.func @torch.aten.gt.scalar(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],i1> {
   %int3 = torch.constant.int 3
   %0 = torch.aten.gt.Scalar %arg0, %int3 : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[?,?],i1>
@@ -577,11 +577,12 @@ func.func @torch.aten.divscalar$variable(%arg0: !torch.vtensor<[?,?],f32>, %arg1
 // CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
 // CHECK:         %[[T1:.*]] = torch_c.to_i64 %[[ARG1]]
 // CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[T1]] : tensor<1xi64>
-// CHECK:         %[[T2:.*]] = stablehlo.convert %[[FROM_ELEMENTS]] : (tensor<1xi64>) -> tensor<1xf32>
-// CHECK:         %[[T3:.*]] = stablehlo.reshape %[[T2]] : (tensor<1xf32>) -> tensor<f32>
-// CHECK:         %[[T4:.*]] = chlo.broadcast_compare %[[T0]], %[[T3]] {compare_type = #chlo<comparison_type FLOAT>, comparison_direction = #chlo<comparison_direction GT>} : (tensor<?x?xf32>, tensor<f32>) -> tensor<?x?xi1>
-// CHECK:         %[[T5:.*]] = torch_c.from_builtin_tensor %[[T4]] : tensor<?x?xi1> -> !torch.vtensor<[?,?],i1>
-// CHECK:         return %[[T5]] : !torch.vtensor<[?,?],i1>
+// CHECK:         %[[T2:.*]] = stablehlo.convert %[[FROM_ELEMENTS]] : tensor<1xi64>
+// CHECK:         %[[T3:.*]] = stablehlo.reshape %[[T2]] : (tensor<1xi64>) -> tensor<i64>
+// CHECK:         %[[T4:.*]] = stablehlo.convert %[[T3]] : (tensor<i64>) -> tensor<f32>
+// CHECK:         %[[T5:.*]] = chlo.broadcast_compare %[[T0]], %[[T4]] {compare_type = #chlo<comparison_type FLOAT>, comparison_direction = #chlo<comparison_direction GT>} : (tensor<?x?xf32>, tensor<f32>) -> tensor<?x?xi1>
+// CHECK:         %[[T6:.*]] = torch_c.from_builtin_tensor %[[T5]] : tensor<?x?xi1> -> !torch.vtensor<[?,?],i1>
+// CHECK:         return %[[T6]] : !torch.vtensor<[?,?],i1>
 func.func @torch.aten.gt.scalar$variable(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.int) -> !torch.vtensor<[?,?],i1> {
   %0 = torch.aten.gt.Scalar %arg0, %arg1: !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[?,?],i1>
   return %0 : !torch.vtensor<[?,?],i1>
