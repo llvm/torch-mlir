@@ -12,6 +12,7 @@
 #include "../PassDetail.h"
 #include "./PopulatePatterns.h"
 
+#include "mlir/IR/BuiltinTypes.h"
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
@@ -73,18 +74,20 @@ LogicalResult ConvertAtenOp<AtenRandnGeneratorOp>::matchAndRewrite(
 
   auto outTy = getTypeConverter()->convertType(op.getType());
   auto outElemTy = cast<RankedTensorType>(outTy).getElementType();
-  auto scalarTy = RankedTensorType::get({}, outElemTy);
   if (!isa<mlir::FloatType>(outElemTy)) {
     return rewriter.notifyMatchFailure(op,
                                        "only support output with float type");
   }
+  auto scalarTy = RankedTensorType::get({}, outElemTy);
 
   Value shapeTensor = rewriter.create<stablehlo::ConstantOp>(
       loc, rewriter.getI64TensorAttr(shape));
   Value mean = rewriter.create<stablehlo::ConstantOp>(
-      loc, DenseFPElementsAttr::get(scalarTy, 0.0));
+      loc,
+      DenseElementsAttr::get(scalarTy, rewriter.getFloatAttr(outElemTy, 0.0)));
   Value var = rewriter.create<stablehlo::ConstantOp>(
-      loc, DenseFPElementsAttr::get(scalarTy, 1.0));
+      loc,
+      DenseElementsAttr::get(scalarTy, rewriter.getFloatAttr(outElemTy, 1.0)));
 
   rewriter.replaceOpWithNewOp<stablehlo::RngOp>(
       op, outTy, mean, var, shapeTensor, stablehlo::RngDistribution::NORMAL);

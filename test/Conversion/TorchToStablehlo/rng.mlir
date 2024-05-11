@@ -52,6 +52,28 @@ func.func @torch.aten.randn.generator() -> !torch.vtensor<[32, 64],f64> {
 
 // -----
 
+// CHECK-LABEL:  func.func @torch.aten.randn.generator$f32
+// CHECK:          %[[NONE:.*]] = torch.constant.none
+// CHECK:          %[[INT32:.*]] = torch.constant.int 32
+// CHECK:          %[[INT64:.*]] = torch.constant.int 64
+// CHECK:          %[[LIST:.*]] = torch.prim.ListConstruct
+// CHECK:          %[[SHAPE:.*]] = stablehlo.constant dense<[32, 64]> : tensor<2xi64>
+// CHECK:          %[[VAL_0:.*]] = stablehlo.constant dense<0.000000e+00> : tensor<f32>
+// CHECK:          %[[VAL_1:.*]] = stablehlo.constant dense<1.000000e+00> : tensor<f32>
+// CHECK:          %[[RNG:.*]] = stablehlo.rng %[[VAL_0]], %[[VAL_1]], %[[SHAPE]], distribution =  NORMAL : (tensor<f32>, tensor<f32>, tensor<2xi64>) -> tensor<32x64xf32>
+// CHECK:          %[[RET:.*]] = torch_c.from_builtin_tensor %[[RNG]] : tensor<32x64xf32> -> !torch.vtensor<[32,64],f32>
+// CHECK:          return %[[RET]] : !torch.vtensor<[32,64],f32>
+func.func @torch.aten.randn.generator$f32() -> !torch.vtensor<[32, 64],f32> {
+  %none = torch.constant.none
+  %int32 = torch.constant.int 32
+  %int64 = torch.constant.int 64
+  %size = torch.prim.ListConstruct %int32, %int64 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.randn.generator %size, %none, %none, %none, %none, %none : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[32, 64], f32>
+  return %0 : !torch.vtensor<[32, 64],f32>
+}
+
+// -----
+
 // CHECK-LABEL:  func.func @torch.aten.normal_functional(
 // CHECK-SAME:                                        %[[ARG_0:.*]]: !torch.vtensor<[32,64],f64>) -> !torch.vtensor<[32,64],f64> {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
