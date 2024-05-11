@@ -75,6 +75,8 @@ public:
         typeConverter, patterns, target, options);
     torch_to_stablehlo::populatePoolingOpPatternsAndLegality(
         typeConverter, patterns, target, options);
+    torch_to_stablehlo::populateRngOpPatternsAndLegality(
+        typeConverter, patterns, target, options);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
