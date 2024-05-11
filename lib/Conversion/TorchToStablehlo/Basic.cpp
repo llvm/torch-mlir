@@ -1819,36 +1819,6 @@ LogicalResult ConvertAtenOp<AtenPowTensorTensorOp>::matchAndRewrite(
   return success();
 }
 
-template <>
-LogicalResult ConvertAtenOp<AtenUniformOp>::matchAndRewrite(
-    AtenUniformOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Value self = adaptor.getSelf();
-  Value generator = adaptor.getGenerator();
-  Location loc = op.getLoc();
-
-  if (!isa<Torch::NoneType>(generator.getType()))
-    return rewriter.notifyMatchFailure(
-        op, "The generator has to be None because only global default "
-            "generator is supported");
-
-  auto elements = cast<RankedTensorType>(self.getType()).getShape();
-  if (llvm::any_of(elements,
-                   [](int64_t dim) { return dim == ShapedType::kDynamic; }))
-    return rewriter.notifyMatchFailure(op, "Dynamic shape support TBD");
-  auto shape_tensor = rewriter.create<stablehlo::ConstantOp>(
-      loc, rewriter.getI64TensorAttr(elements));
-  auto outTy = getTypeConverter()->convertType(op.getType());
-  auto outElemTy = cast<RankedTensorType>(outTy).getElementType();
-  Value from =
-      hlo::scalarToStablehloTensor(rewriter, op, adaptor.getFrom(), outElemTy);
-  Value to =
-      hlo::scalarToStablehloTensor(rewriter, op, adaptor.getTo(), outElemTy);
-  rewriter.replaceOpWithNewOp<stablehlo::RngOp>(
-      op, outTy, from, to, shape_tensor, stablehlo::RngDistribution::UNIFORM);
-  return success();
-}
-
 // Converts `aten.empty.memory_format` to `tensor.empty` op.
 template <>
 LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
@@ -2240,7 +2210,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenToDtypeOp);
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorTensorOp);
-  INSERT_ATENOP_PATTERN(AtenUniformOp);
+
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
   INSERT_ATENOP_PATTERN(AtenFlipOp);
