@@ -1324,10 +1324,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value cstCeilMode =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
 
-        if (inputRank == 3)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "Unimplemented: AtenMaxPool1dOp");
-        else if (inputRank == 4) {
+        if (inputRank == 3) {
+          rewriter.replaceOpWithNewOp<Torch::AtenMaxPool1dOp>(
+              binder.op, resultType, operand, kernelSizeList, stridesList,
+              paddingList, dilationsList, cstCeilMode);
+          return success();
+        } else if (inputRank == 4) {
           rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dOp>(
               binder.op, resultType, operand, kernelSizeList, stridesList,
               paddingList, dilationsList, cstCeilMode);
