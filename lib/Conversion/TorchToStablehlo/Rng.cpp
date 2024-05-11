@@ -19,7 +19,6 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include "llvm/ADT/APFloat.h"
 
 using namespace mlir;
 using namespace mlir::torch;
