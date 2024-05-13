@@ -1778,15 +1778,15 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             llvm::SmallVector<int64_t>{1}, valuesTy.getDtype());
 
         bool valuesAreInt = isa<IntegerType>(valuesTy.getDtype());
-        Type valueEty = valuesAreInt ? intTy : floatTy;
+        Type valuesETy = valuesAreInt ? intTy : floatTy;
 
         Value off = rewriter.create<Torch::AtenSelectIntOp>(loc, selectTy,
                                                             values, zero, zero);
-        off = rewriter.create<Torch::AtenItemOp>(loc, valueEty, off);
+        off = rewriter.create<Torch::AtenItemOp>(loc, valuesETy, off);
 
         Value on = rewriter.create<Torch::AtenSelectIntOp>(loc, selectTy,
                                                            values, zero, one);
-        on = rewriter.create<Torch::AtenItemOp>(loc, valueEty, on);
+        on = rewriter.create<Torch::AtenItemOp>(loc, valuesETy, on);
 
         auto i32Ty = rewriter.getIntegerType(32, true);
         llvm::SmallVector<int64_t> onehotShape(indicesTy.getSizes());
@@ -1806,7 +1806,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
           onehotTy =
               rewriter.getType<Torch::ValueTensorType>(onehotShape, i32Ty);
-          onehot = rewriter.create<Torch::AtenTransposeIntOp>(loc, onehotTy,
+          onehot = rewriter.create<Torch::AtenTransposeIntOp>(loc, resultType,
                                                               onehot, iv1, iv0);
         }
 
