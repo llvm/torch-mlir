@@ -459,6 +459,11 @@ def test_sparse_eltwise():
 # CHECK:          values=tensor([   0.,    0.,    1.,    2.,    3., 1000.]),
 # CHECK:          size=(10, 20, 30), nnz=6, dtype=torch.float64, layout=torch.sparse_coo)
 # CHECK: torch.mlir
+# CHECK:  [0 6]
+# CHECK:  [0 1 1 4 9 9]
+# CHECK:  [ 0  1  1  5 19 19]
+# CHECK:  [ 0  1  3  6 28 29]
+# CHECK:  [   0.    0.    1.    2.    3. 1000.]
 #
 def test_sparse_coo3():
     class COO3Net(torch.nn.Module):
@@ -481,11 +486,15 @@ def test_sparse_coo3():
 
     # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
     res1 = net(sparse_input)
-    # TODO: make coo3 work
-    # res2 = sparse_jit(net, sparse_input)
+    res2 = sparse_jit(net, sparse_input)
     print("torch.sparse")
     print(res1)
     print("torch.mlir")
+    print(res2[0])
+    print(res2[1])
+    print(res2[2])
+    print(res2[3])
+    print(res2[4])
 
 
 @run
