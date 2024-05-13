@@ -39,7 +39,8 @@ template <> struct QuantInfo<AtenReluOp> {
 bool isQCommutingOp(mlir::Operation *op) {
   // if adding a new commuting op here, be sure to add a
   // RemoveUnused pattern for that op to clean up afterwards
-  return llvm::isa<AtenTransposeIntOp, AtenReshapeOp, AtenSliceTensorOp>(op);
+  return llvm::isa<AtenTransposeIntOp, AtenReshapeOp, AtenSliceTensorOp,
+                   PrimsCollapseOp, AtenViewOp>(op);
 }
 
 // The following conversion takes patterns of the form [op0 -> MPTQT -> dequant
@@ -372,11 +373,12 @@ public:
         RemoveUnused<AtenQuantizePerTensorOp>,
         RemoveUnused<Aten_MakePerTensorQuantizedTensorOp>,
         RemoveUnused<AtenTransposeIntOp>, RemoveUnused<AtenSliceTensorOp>,
-        RemoveUnused<AtenReshapeOp>,
-        QuantizeOperandsPastCommutingOps<AtenConvolutionOp, 0>,
+        RemoveUnused<AtenReshapeOp>, RemoveUnused<PrimsCollapseOp>,
+        RemoveUnused<AtenViewOp>,
+        QuantizeOperandsPastCommutingOps<AtenConvolutionOp, 5>,
         QuantizeOperandsPastCommutingOps<AtenReluOp, 0>,
         QuantizeOperandsPastCommutingOps<AtenMatmulOp, 2>,
-        QuantizeOperandsPastCommutingOps<AtenMmOp, 1>,
+        QuantizeOperandsPastCommutingOps<AtenMmOp, 2>,
         QuantizeAccumulator<AtenMmOp>, QuantizeAccumulator<AtenMatmulOp>,
         QuantizeResultLikeOperand<AtenReluOp>, QuantizeBias<AtenConvolutionOp>>(
         context);
