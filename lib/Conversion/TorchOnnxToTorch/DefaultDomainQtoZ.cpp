@@ -982,7 +982,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // out = Log(reducesum(exp(data)))
         Value castDType = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(/*Float64Type*/ 7));
-        llvm::errs() << castDType << "castDType\n";
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         Value constFalse =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
@@ -991,18 +990,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                         .getOptionalSizes();
         auto f64ResultType = rewriter.getType<Torch::ValueTensorType>(
             size, rewriter.getF64Type());
-        llvm::errs() << f64ResultType << "f64ResultType\n";
         Value dataCast = rewriter.create<Torch::AtenToDtypeOp>(
             binder.getLoc(), f64ResultType, data, castDType,
             /*non_blocking=*/constFalse, /*copy=*/constFalse,
             /*memory_format=*/noneVal);
-        llvm::errs() << dataCast << "AtenToDtypeOp\n";
         Value dataExp = rewriter.create<Torch::AtenExpOp>(
             binder.getLoc(), f64ResultType, dataCast);
-        llvm::errs() << dataExp << "AtenExpOp\n";
         auto f64ReduceType = rewriter.getType<Torch::ValueTensorType>(
             resultType.getOptionalSizes(), rewriter.getF64Type());
-        llvm::errs() << f64ReduceType << "f64ReduceType\n";
         auto reducedSumBool = reducedSumImpl(
             binder, rewriter, dataExp, f64ReduceType,
             /*storeValue=*/data, keepDims, noop_with_empty_axes, true);
@@ -1010,17 +1005,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(
               binder.op,
               "Failed to perform sum operation on square of operand");
-        llvm::errs() << data << "reducedSumImpl\n";
         Value finalResult = rewriter.create<Torch::AtenLogOp>(
-            binder.getLoc(), f64ResultType, data);
-        llvm::errs() << finalResult << "AtenLogOp\n";
+            binder.getLoc(), f64ReduceType, data);
         Value resultDtype = Torch::getDtypeIntValueForType(
             rewriter, binder.getLoc(), resultType.getDtype());
         rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
             binder.op, resultType, finalResult, resultDtype,
             /*non_blocking=*/constFalse, /*copy=*/constFalse,
             /*memory_format=*/noneVal);
-        llvm::errs() << finalResult << "finalResult\n";
         return success();
       });
   patterns.onOp("ReduceSum", 1,
