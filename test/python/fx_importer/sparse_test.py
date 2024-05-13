@@ -583,8 +583,8 @@ def test_sparse_network():
             for t in range(T):
                 mem = mem * self.decay + X[..., t]
                 spike = self.act(mem - self.thresh)
-                mem = mem * (1.0 - spike)
                 spike = spike.to_sparse().to_dense()  # prop hack
+                mem = mem * (1.0 - spike)
                 spike_pot.append(spike)
             spike_pot = torch.stack(spike_pot, dim=-1)
             return spike_pot
