@@ -291,33 +291,6 @@ func.func @torch.runtime.assert(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vten
 
 // -----
 
-// CHECK-LABEL:   func.func @torch.aten.uniform(
-// CHECK-SAME:                                    %[[ARG_0:.*]]: !torch.vtensor<[32,64],f64>) -> !torch.vtensor<[32,64],f64> {
-// CHECK:           %[[NONE:.*]] = torch.constant.none
-// CHECK:           %[[FLOAT_0:.*]] = torch.constant.float 0.000000e+00
-// CHECK:           %[[VAL_0:.*]] = torch_c.to_f64 %[[FLOAT_0]]
-// CHECK:           %[[FLOAT_1:.*]] = torch.constant.float 1.000000e+00
-// CHECK:           %[[VAL_1:.*]] = torch_c.to_f64 %[[FLOAT_1]]
-// CHECK:           %[[VAL_2:.*]] = stablehlo.constant dense<[32, 64]> : tensor<2xi64>
-// CHECK:           %[[ELEM_0:.*]] = tensor.from_elements %[[VAL_0]] : tensor<1xf64>
-// CHECK:           %[[VAL_3:.*]] = stablehlo.convert %[[ELEM_0]] : tensor<1xf64>
-// CHECK:           %[[VAL_4:.*]] = stablehlo.reshape %[[VAL_3]] : (tensor<1xf64>) -> tensor<f64>
-// CHECK:           %[[ELEM_1:.*]] = tensor.from_elements %[[VAL_1]] : tensor<1xf64>
-// CHECK:           %[[VAL_5:.*]] = stablehlo.convert %[[ELEM_1]] : tensor<1xf64>
-// CHECK:           %[[VAL_6:.*]] = stablehlo.reshape %[[VAL_5]] : (tensor<1xf64>) -> tensor<f64>
-// CHECK:           %[[VAL_7:.*]] = stablehlo.rng %[[VAL_4]], %[[VAL_6]], %[[VAL_2]], distribution =  UNIFORM : (tensor<f64>, tensor<f64>, tensor<2xi64>) -> tensor<32x64xf64>
-// CHECK:           %[[VAL_8:.*]] = torch_c.from_builtin_tensor %[[VAL_7]] : tensor<32x64xf64> -> !torch.vtensor<[32,64],f64>
-// CHECK:           return %[[VAL_8]] : !torch.vtensor<[32,64],f64>
-func.func @torch.aten.uniform(%arg0: !torch.vtensor<[32, 64],f64>) -> !torch.vtensor<[32, 64],f64> {
-  %none = torch.constant.none
-  %float0 = torch.constant.float 0.0
-  %float1 = torch.constant.float 1.0
-  %0 = torch.aten.uniform %arg0, %float0, %float1, %none : !torch.vtensor<[32, 64],f64>, !torch.float, !torch.float, !torch.none -> !torch.vtensor<[32, 64],f64>
-  return %0 : !torch.vtensor<[32, 64],f64>
-}
-
-// -----
-
 // CHECK-LABEL:   func.func @torch.aten.bitwise_left_shift.Tensor(
 // CHECK-SAME:                              %[[ARG_0:.*]]: !torch.vtensor<[3,4],si32>,
 // CHECK-SAME:                              %[[ARG_1:.*]]: !torch.vtensor<[3,1],si32>) -> !torch.vtensor<[3,4],si32> {

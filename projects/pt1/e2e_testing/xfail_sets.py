@@ -1078,6 +1078,8 @@ STABLEHLO_PASS_SET = {
     "Matmul_matvec",
     "Matmul_vecmat",
     "MatmulStaticBroadcast_basic",
+    "MaxPool1dStaticModule_basic",
+    "MaxPool1dEmptyStrideStaticModule_basic",
     "MaxPool2dStaticModule_basic",
     "MaxPool2dEmptyStrideStaticModule_basic",
     "MaxPool3dStaticModule_basic",
@@ -1905,6 +1907,9 @@ MAKE_FX_TOSA_PASS_SET = (
     TOSA_PASS_SET
     | {
         ### Tests additionally passing in make_fx_tosa
+        "MaxPool1dEmptyStrideStaticModule_basic",
+        "MaxPool1dStaticCeilModeTrueModule_basic",
+        "MaxPool1dStaticModule_basic",
         "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
         "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
         "AdaptiveAvgPool1dStaticEvenMultiple_basic",
@@ -2361,6 +2366,11 @@ ONNX_XFAIL_SET = {
     "LinalgNormKeepDimComplexModule_basic",
     "LinalgVectorNormComplexModule_basic",
     "LogSoftmaxBackwardModule_basic",
+    "MaxPool1dCeilModeTrueModule_basic",
+    "MaxPool1dEmptyStrideStaticModule_basic",
+    "MaxPool1dModule_basic",
+    "MaxPool1dStaticCeilModeTrueModule_basic",
+    "MaxPool1dStaticModule_basic",
     "MaxPool2dCeilModeTrueModule_basic",
     "MaxPool2dModule_basic",
     "MaxPool2dWithIndicesAllOnesModule_basic",
@@ -2659,12 +2669,6 @@ ONNX_XFAIL_SET = {
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
 }
-
-if torch_version_for_comparison() >= version.parse("2.4.0.dev"):
-    ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
-        # ERROR: Found dtype (torch.float64) but expected (torch.float32)
-        "ReduceL1NormWithDTypeModule_basic",
-    }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
     ONNX_XFAIL_SET = ONNX_XFAIL_SET | {

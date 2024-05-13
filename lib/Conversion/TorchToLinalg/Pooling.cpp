@@ -185,6 +185,12 @@ namespace {
 
 template <typename T> struct DimensionTraits {};
 
+template <> struct DimensionTraits<AtenMaxPool1dOp> {
+  static constexpr int64_t Dim = 1;
+  // unused const variable warning suppression:
+  static_assert(Dim == Dim);
+};
+
 template <> struct DimensionTraits<AtenMaxPool2dOp> {
   static constexpr int64_t Dim = 2;
   // unused const variable warning suppression:
@@ -328,7 +334,24 @@ public:
 
     Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
 
-    if constexpr (Dim == 2) {
+    if constexpr (Dim == 1) {
+      SmallVector<Value, 4> outTensorShape;
+      Value maxPool1d, paddedInput;
+      TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
+          elementType,
+          APFloat::getInf(
+              cast<mlir::FloatType>(elementType).getFloatSemantics(),
+              /*Negative=*/true));
+      if (failed(createPoolingOp<linalg::PoolingNcwMaxOp>(
+              op, rewriter, self, /*supportNonFPInput=*/true, ceilMode,
+              /*dimensionality=*/1, kernelSizeIntValues, strideInts,
+              paddingInts, dilationInts, smallestFPValueAttr, outTensorShape,
+              paddedInput, maxPool1d)))
+        return rewriter.notifyMatchFailure(op, "unable to compute maxpool1d");
+      Type newResultType = this->getTypeConverter()->convertType(op.getType());
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, maxPool1d);
+      return success();
+    } else if constexpr (Dim == 2) {
       SmallVector<Value, 4> outTensorShape;
       // `maxpool2d` contains the result of maxpool2d operation over the input.
       Value maxPool2d, paddedInput;
@@ -1090,8 +1113,10 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
+  target.addIllegalOp<AtenMaxPool1dOp>();
   target.addIllegalOp<AtenMaxPool2dOp>();
   target.addIllegalOp<AtenMaxPool3dOp>();
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool1dOp>>(typeConverter, context);
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dOp>>(typeConverter, context);
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dOp>>(typeConverter, context);
 
