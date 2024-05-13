@@ -1690,7 +1690,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
           onehotTy =
               rewriter.getType<Torch::ValueTensorType>(onehotShape, i32Ty);
-          onehot = rewriter.create<Torch::AtenTransposeIntOp>(loc, onehotTy,
+          onehot = rewriter.create<Torch::AtenTransposeIntOp>(loc, resultType,
                                                               onehot, iv1, iv0);
         }
 
