@@ -1761,23 +1761,32 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           depth = rewriter.create<Torch::AtenIntScalarOp>(
               loc, rewriter.getType<Torch::IntType>(), depth);
 
-        auto selectTy = rewriter.getType<Torch::ValueTensorType>(
-            llvm::SmallVector<int64_t>{1}, valuesTy.getDtype());
-
+        Type boolTy = rewriter.getType<Torch::ValueTensorType>(
+            indicesTy.getSizes(), rewriter.getI1Type());
         Value zero = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(0));
         Value one = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(1));
+        Value lt =
+            rewriter.create<Torch::AtenLtScalarOp>(loc, boolTy, indices, zero);
+        Value add = rewriter.create<Torch::AtenAddScalarOp>(
+            loc, indicesTy, indices, depth, one);
+        indices = rewriter.create<Torch::AtenWhereSelfOp>(loc, indicesTy, lt,
+                                                          add, indices);
+
+        auto selectTy = rewriter.getType<Torch::ValueTensorType>(
+            llvm::SmallVector<int64_t>{1}, valuesTy.getDtype());
+
+        bool valuesAreInt = isa<IntegerType>(valuesTy.getDtype());
+        Type valueEty = valuesAreInt ? intTy : floatTy;
 
         Value off = rewriter.create<Torch::AtenSelectIntOp>(loc, selectTy,
                                                             values, zero, zero);
-        off = rewriter.create<Torch::AtenItemOp>(
-            loc, rewriter.getType<Torch::IntType>(), off);
+        off = rewriter.create<Torch::AtenItemOp>(loc, valueEty, off);
 
         Value on = rewriter.create<Torch::AtenSelectIntOp>(loc, selectTy,
                                                            values, zero, one);
-        on = rewriter.create<Torch::AtenItemOp>(
-            loc, rewriter.getType<Torch::IntType>(), on);
+        on = rewriter.create<Torch::AtenItemOp>(loc, valueEty, on);
 
         auto i32Ty = rewriter.getIntegerType(32, true);
         llvm::SmallVector<int64_t> onehotShape(indicesTy.getSizes());
@@ -1817,9 +1826,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
             /*memory_format=*/none);
 
-        onehotTy = rewriter.getType<Torch::ValueTensorType>(
-            onehotShape, resultType.getDtype());
-        onehot = rewriter.create<Torch::AtenWhereScalarOp>(loc, onehotTy,
+        onehot = rewriter.create<Torch::AtenWhereScalarOp>(loc, resultType,
                                                            onehot, on, off);
 
         rewriter.replaceOp(binder.op, onehot);
