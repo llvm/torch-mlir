@@ -275,7 +275,7 @@ SmallVector<int64_t> Torch::makeShapeTorchCompatible(ArrayRef<int64_t> shape) {
   return updatedShape;
 }
 
-ValueTensorType Torch::getTensorTypeFromValueVector(ArrayRef<Value> shapes,
+ValueTensorType Torch::getResultTypeFromValueVector(ArrayRef<Value> shapes,
                                                     Type dtype) {
   assert(!shapes.empty() && "shape vector cannot be empty");
   SmallVector<int64_t> shapeInts;

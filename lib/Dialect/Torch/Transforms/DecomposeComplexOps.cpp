@@ -694,15 +694,19 @@ public:
     Value rowSize = getTensorDimSize(rewriter, input, -2);
     Value colSize = getTensorDimSize(rewriter, input, -1);
 
-    auto si64Type = IntegerType::get(context, 64, IntegerType::Signed);
-    Value rowArange = rewriter.create<AtenArangeOp>(
-        loc, getTensorTypeFromValueVector({rowSize}, si64Type), rowSize,
-        /*dtype=*/none, /*layout=*/none,
-        /*device=*/none, /*pin_memory=*/none);
-    Value colArange = rewriter.create<AtenArangeOp>(
-        loc, getTensorTypeFromValueVector({colSize}, si64Type), colSize,
-        /*dtype=*/none, /*layout=*/none,
-        /*device=*/none, /*pin_memory=*/none);
+    auto si64Type = rewriter.getIntegerType(/*width=*/64, /*isSigned*/ true);
+    auto int64DtypeInt = getDtypeIntValueForType(rewriter, loc, si64Type);
+    auto rowArrangeType = getResultTypeFromValueVector({rowSize}, si64Type);
+    auto colArrangeType = getResultTypeFromValueVector({colSize}, si64Type);
+
+    Value rowArange =
+        rewriter.create<AtenArangeOp>(loc, rowArrangeType, rowSize,
+                                      /*dtype=*/int64DtypeInt, /*layout=*/none,
+                                      /*device=*/none, /*pin_memory=*/none);
+    Value colArange =
+        rewriter.create<AtenArangeOp>(loc, colArrangeType, colSize,
+                                      /*dtype=*/int64DtypeInt, /*layout=*/none,
+                                      /*device=*/none, /*pin_memory=*/none);
 
     auto unsqueezeRowArangeInfo =
         unsqueezeTensor(rewriter, op, rowArange, cstOne);
@@ -722,9 +726,9 @@ public:
         cstOne);
 
     auto boolType = rewriter.getI1Type();
+    auto condType = getResultTypeFromValueVector({rowSize, colSize}, boolType);
     Value condTensor = rewriter.create<AtenGeTensorOp>(
-        loc, getTensorTypeFromValueVector({rowSize, colSize}, boolType),
-        unsqueezeColArange, unsqueezeRowArangePlusDiagonal);
+        loc, condType, unsqueezeColArange, unsqueezeRowArangePlusDiagonal);
 
     rewriter.replaceOpWithNewOp<AtenWhereScalarOtherOp>(
         op, op.getResult().getType(), condTensor, input, cstZero);
