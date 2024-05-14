@@ -2524,14 +2524,38 @@ public:
       Value result = b.create<tensor::ExtractOp>(loc, input, index);
       return result;
     };
-    auto lambdaInter = [&](OpBuilder &b, Location loc, Value x, Value y,
-                           Value d) -> Value {
+
+    auto lambdaLinear = [&](OpBuilder &b, Location loc, Value x, Value y,
+                            Value d) -> Value {
       Value dm = b.create<arith::SubFOp>(loc, oneFloat, d);
       Value ra = b.create<arith::MulFOp>(loc, x, dm);
       Value rb = b.create<arith::MulFOp>(loc, y, d);
       Value res = b.create<arith::AddFOp>(loc, ra, rb);
       return res;
     };
+
+    auto lambdaNearest = [&](OpBuilder &b, Location loc, Value x, Value y,
+                             Value d) -> Value {
+      Value halfConst = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getFloatAttr(floatType, 0.5));
+      Value checkClosest =
+          b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OLT, d, halfConst);
+      Value res = b.create<arith::SelectOp>(loc, checkClosest, x, y);
+      return res;
+    };
+
+    auto lambdaInterpolate = [&](OpBuilder &b, Location loc, Value iMode,
+                                 Value x, Value y, Value d) -> Value {
+      Value linear = lambdaLinear(b, loc, x, y, d);
+      Value nearest = lambdaNearest(b, loc, x, y, d);
+      Value zeroInt =
+          b.create<arith::ConstantOp>(loc, b.getIntegerAttr(int64type, 0));
+      Value checkMode = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                                iMode, zeroInt);
+      Value res = b.create<arith::SelectOp>(loc, checkMode, linear, nearest);
+      return res;
+    };
+
     auto resultType = getTypeConverter()
                           ->convertType(op.getResult().getType())
                           .cast<RankedTensorType>();
@@ -2545,6 +2569,7 @@ public:
     if (resultType.isDynamicDim(3))
       resultSize.push_back(rewriter.create<tensor::DimOp>(loc, grid, 2));
     Value alignCorners = adaptor.getAlignCorners();
+    Value interMode = adaptor.getInterpolationMode();
     Value resultFinal =
         rewriter.create<tensor::EmptyOp>(loc, resultType, resultSize);
     auto sGrid = rewriter.create<linalg::GenericOp>(
@@ -2633,10 +2658,12 @@ public:
           Value lw1a = b.create<arith::SIToFPOp>(loc, floatType, lower1);
           Value d1 = b.create<arith::SubFOp>(loc, result0, lw0a);
           Value d0 = b.create<arith::SubFOp>(loc, result1, lw1a);
-          Value resultScaled0 = lambdaInter(b, loc, result00b, result01b, d0);
-          Value resultScaled1 = lambdaInter(b, loc, result10b, result11b, d0);
-          Value resultScaled =
-              lambdaInter(b, loc, resultScaled0, resultScaled1, d1);
+          Value resultScaled0 =
+              lambdaInterpolate(b, loc, interMode, result00b, result01b, d0);
+          Value resultScaled1 =
+              lambdaInterpolate(b, loc, interMode, result10b, result11b, d0);
+          Value resultScaled = lambdaInterpolate(
+              b, loc, interMode, resultScaled0, resultScaled1, d1);
           b.create<linalg::YieldOp>(loc, resultScaled);
         });
     rewriter.replaceOp(op, sGrid.getResults());

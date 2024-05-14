@@ -103,6 +103,7 @@ from ..ir import (
     StringAttr,
     SymbolTable,
     Type as IrType,
+    UnitAttr,
     Value,
 )
 
@@ -642,6 +643,10 @@ class FxImporter:
             func_op = func_dialect.FuncOp(
                 func_name, ftype, ip=self._m_ip, visibility=func_visibility
             )
+            # Programs imported from FX have strong guarantees. Setting this attribute
+            # causes various lowerings to be able to emit more efficient code or
+            # handle more cases. See isAssumingStrictSymbolicShapes().
+            func_op.attributes["torch.assume_strict_symbolic_shapes"] = UnitAttr.get()
             entry_block = Block.create_at_start(func_op.body, ftype.inputs)
 
         node_importer = GraphNodeImporter(
