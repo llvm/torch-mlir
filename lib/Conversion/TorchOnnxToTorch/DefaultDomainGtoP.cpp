@@ -1730,4 +1730,57 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, input);
                   return success();
                 });
+
+  patterns.onOp(
+      "Hardmax", 13, [](OpBinder Binder, ConversionPatternRewriter &Rewriter) {
+        // def hardmax(tensor, dim=-1):
+        //   zeros = torch.zeros_like(tensor, dtype=torch.int64)
+        //   maximums = torch.argmax(tensor, dim=dim, keepdim=True)
+        //   return zeros.scatter(dim, maximums, value=1)
+
+        Torch::ValueTensorType ResultType;
+        int64_t AxisValue;
+        Value Input, Axis;
+        if (Binder.tensorOperand(Input) ||
+            Binder.s64IntegerAttr(AxisValue, "axis") ||
+            Binder.tensorResultType(ResultType))
+          return failure();
+
+        auto Loc = Binder.getLoc();
+
+        std::optional<int64_t> AxisIntTorch =
+            onnxDtypeIntToTorchDtypeInt(AxisValue);
+        if (!AxisIntTorch.has_value()) {
+          return Rewriter.notifyMatchFailure(
+              Binder.op, "unimplemented support for the given axis conversion");
+        }
+        Axis = Rewriter.create<Torch::ConstantIntOp>(
+            Loc, Rewriter.getI64IntegerAttr(AxisIntTorch.value()));
+
+        // building zeros_like
+        Value NoneVal = Rewriter.create<Torch::ConstantNoneOp>(Loc);
+
+        Value ZerosLike = Rewriter.create<Torch::AtenZerosLikeOp>(
+            Loc, ResultType, /*self=*/Input,
+            /*dtype=*/NoneVal,
+            /*layout=*/NoneVal, /*device=*/NoneVal,
+            /*pin_memory*/ NoneVal, /*memory_format=*/NoneVal);
+
+        // torch.argmax
+        Value ConstKeepDims = Rewriter.create<Torch::ConstantBoolOp>(
+            Loc, Rewriter.getType<Torch::BoolType>(),
+            Rewriter.getBoolAttr(true));
+        Value Argmax = Rewriter.create<Torch::AtenArgmaxOp>(
+            Loc, ResultType, Input, Axis, ConstKeepDims);
+
+        // scatter_
+        Value OneInt = Rewriter.create<Torch::ConstantIntOp>(
+            Loc, Rewriter.getI64IntegerAttr(1));
+        Rewriter.replaceOpWithNewOp<Torch::AtenScatterValueOp>(
+            Binder.op, ResultType, /*self=*/ZerosLike, /*dim=*/Axis,
+            /*index=*/Argmax,
+            /*src=*/OneInt);
+
+        return success();
+      });
 }
