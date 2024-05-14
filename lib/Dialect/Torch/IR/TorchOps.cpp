@@ -4656,6 +4656,94 @@ LogicalResult AtenNormScalarOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenRenormOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenRenormOp::verify() {
+
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+  auto selfDtype = selfType.getDtype();
+  auto selfRankedType = getSelf().getType().cast<RankedTensorType>();
+  int64_t selfRank = selfRankedType.getRank();
+
+  if (!selfType.hasDtype()) {
+    return success();
+  }
+
+  // Check if dtype is one of those supported by renorm operation.
+  // ComplexType will match any torch complex types, but each float must be
+  // checked individually.
+  if (selfDtype.isa<mlir::ComplexType>()) {
+    return emitOpError(
+        "lowering for complex type input tensor is currently unsuporrted");
+  }
+
+  if (!selfDtype.isa<mlir::Float16Type, mlir::BFloat16Type, mlir::Float32Type,
+                     mlir::Float64Type, mlir::ComplexType>()) {
+    return emitOpError(
+               "expected a float or complex type for input tensor, but got ")
+           << selfDtype;
+  }
+
+  // According to the Pytoch documentation tensor need to be at least rank 2
+  if (selfRank <= 1) {
+    return emitOpError("renorm: input needs at least 2 dimensions, got ")
+           << selfRank << " dimensions";
+  }
+
+  // Check if argument p is valid
+  auto pType = getP().getType();
+  double_t p;
+
+  if (pType.isa<mlir::ComplexType>()) {
+    return emitOpError("renorm: p must be real-valued");
+  }
+
+  if (!matchPattern(getP(), m_TorchConstantFloat(&p))) {
+    return emitOpError("renorm: p must be real-valued");
+  }
+
+  if (p < 0) {
+    return emitOpError("renorm: non-positive norm not supported");
+  }
+
+  // Check if argument maxnorm is valid
+  auto maxnormType = getMaxnorm().getType();
+  double_t maxnorm;
+  if (maxnormType.isa<mlir::ComplexType>()) {
+    return emitOpError("renorm: maxnorm must be real-valued");
+  }
+
+  if (!matchPattern(getP(), m_TorchConstantFloat(&maxnorm))) {
+    return emitOpError("renorm: maxnorm must be real-valued");
+  }
+
+  if (maxnorm < 0) {
+    return emitOpError("renorm: expected maxnorm to be >= 0 but got ")
+           << maxnorm;
+  }
+
+  // Get the dimension
+  int64_t dim;
+  if (!matchPattern(getDim(), m_TorchConstantInt(&dim))) {
+    return emitOpError("dim must be a constant int");
+  }
+
+  // check if is dim is in the correct range
+  if (dim >= selfRank || dim < -selfRank) {
+    return emitOpError("Dimension out of range (expected to be in range of [")
+           << -selfRank << ", " << selfRank - 1 << "], but got " << dim;
+  }
+
+  // Canonicalize dimension if necessary
+  if (dim < 0) {
+    dim += selfRank;
+  }
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // AtenPermuteOp
 //===----------------------------------------------------------------------===//
 

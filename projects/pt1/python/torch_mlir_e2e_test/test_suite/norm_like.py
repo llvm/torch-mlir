@@ -633,3 +633,73 @@ class AtenInstanceNormModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenInstanceNormModule())
 def AtenInstanceNormModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 2, 1, 3), tu.rand(2), tu.rand(2))
+
+
+# ==============================================================================
+class RenormModuleFloat32(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.p = 2.0
+        self.dim = 3
+        self.maxnorm = 10
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 3, 4, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.renorm(x, self.p, self.dim, self.maxnorm)
+
+
+@register_test_case(module_factory=lambda: RenormModuleFloat32())
+def RenormModuleFloat32_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 3, 4, 5))
+
+
+class RenormModuleFloat16(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.p = 2.0
+        self.dim = 1
+        self.maxnorm = 10.5
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 3, 4, 5], torch.float16, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.renorm(x, self.p, self.dim, self.maxnorm)
+
+
+@register_test_case(module_factory=lambda: RenormModuleFloat16())
+def RenormModuleFloat16_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 3, 4, 5).to(torch.float16))
+
+
+class RenormModuleFloat32NegativeDim(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.p = 2.0
+        self.dim = -1
+        self.maxnorm = 10
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 3, 4, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.renorm(x, self.p, self.dim, self.maxnorm)
+
+
+@register_test_case(module_factory=lambda: RenormModuleFloat32NegativeDim())
+def RenormModuleFloat32NegativeDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 3, 4, 5).to(torch.float32))

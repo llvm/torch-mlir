@@ -1473,6 +1473,9 @@ STABLEHLO_PASS_SET = {
     "ElementwiseLogSigmoidModule_basic",
     "ElementwiseHardshrinkStaticModule_basic",
     "ElementwiseSoftshrinkStaticModule_basic",
+    "RenormModuleFloat16_basic",
+    "RenormModuleFloat32NegativeDim_basic",
+    "RenormModuleFloat32_basic",
 }
 
 STABLEHLO_CRASHING_SET = set()
@@ -1949,6 +1952,8 @@ TOSA_PASS_SET = {
     "LinspaceOneSizeModule_basic",
     "LinspaceTwoSizeModule_basic",
     "TorchPrimLoopForLikeTensorArgModule_basic",
+    "RenormModuleFloat32NegativeDim_basic",
+    "RenormModuleFloat32_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (
@@ -1982,6 +1987,8 @@ MAKE_FX_TOSA_PASS_SET = (
         "ViewSizeDimLedByCollapsedOnesModule_basic",
         "ViewSizeFromOtherTensor_basic",
         "ScaledDotProductAttentionDifferentModule_basic",
+        "RenormModuleFloat32NegativeDim_basic",
+        "RenormModuleFloat32_basic",
     }
 ) - {
     ### Test failing in make_fx_tosa but not in tosa
@@ -2690,6 +2697,10 @@ ONNX_XFAIL_SET = {
     "IndexPutHackedTwin3DIntNonAccumulateModule_basic",
     # RuntimeError: unsupported input type: Device
     "PrimsIotaModule_basic",
+    # Error: 'aten::renorm' to ONNX opset version 17 is not supported.
+    "RenormModuleFloat16_basic",
+    "RenormModuleFloat32NegativeDim_basic",
+    "RenormModuleFloat32_basic",
     # Failure - unknown
     "BernoulliModule_basic",
     "Conv_Transpose1dModule_basic",

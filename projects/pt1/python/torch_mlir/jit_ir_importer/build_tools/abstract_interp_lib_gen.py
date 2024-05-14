@@ -1990,6 +1990,9 @@ def aten〇linalg_norm〡shape(self: List[int], ord: Optional[float] = None, dim
 def aten〇frobenius_norm〇dim〡shape(self: List[int], dim: List[int], keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, 0)
 
+def aten〇renorm〡shape(self: List[int], p: float, dim: int, maxnorm: float) -> List[int]:
+    return self
+
 def aten〇norm〇Scalar〡shape(self: List[int], p: float = 2) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, None, False, None)
 
@@ -4400,6 +4403,20 @@ def aten〇linalg_norm〡dtype(self_rank_dtype: Tuple[int, int], ord: Optional[U
         assert not is_complex_dtype(dtype)
         return dtype
     return aten〇std〡dtype(self_rank_dtype)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(
+        tensor_shapes=[(3,3)],
+        error_types={torch.bool, torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64},
+        p=1, 
+        dim=0, 
+        maxnorm=5)
+)
+def aten〇renorm〡dtype(self_rank_dtype: Tuple[int, int], p: Union[int, float, complex], dim: int, maxnorm: Union[int, float, complex]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert not is_integer_dtype(self_dtype)
+
+    return self_dtype
 
 @check_dtype_function(
         _check_tensors_with_the_same_dtype(
