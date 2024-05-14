@@ -1670,8 +1670,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 });
 
   patterns.onOp(
-      "Transpose", 13,
-      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Transpose", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         auto loc = binder.getLoc();
         Torch::ValueTensorType resultType;
         Value operand;
