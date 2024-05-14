@@ -4471,10 +4471,10 @@ OpFoldResult PrimMaxIntOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult PrimNumToTensorScalarOp::fold(FoldAdaptor adaptor) {
   Attribute a = adaptor.getA();
-  auto resultTy = cast<BaseTensorType>(getType());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
   if (!a)
     return {};
-  if (!resultTy.hasDtype() || !resultTy.hasSizes())
+  if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes())
     return {};
 
   auto dty = resultTy.getDtype();
