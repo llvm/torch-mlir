@@ -674,7 +674,6 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenTriuOp op,
                                 PatternRewriter &rewriter) const override {
-    MLIRContext *context = op.getContext();
     Location loc = op.getLoc();
     Value input = op.getSelf();
     auto inputType = cast<BaseTensorType>(input.getType());
