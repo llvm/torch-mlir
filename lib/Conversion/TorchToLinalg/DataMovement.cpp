@@ -1880,9 +1880,11 @@ public:
             op, adaptor, rewriter, resultShape, offsets, strides))) {
       return failure();
     }
-
+    SmallVector<int64_t> dynShape(resultType.getRank(), ShapedType::kDynamic);
+    auto sliceType = RankedTensorType::get(
+        dynShape, resultType.getElementType(), resultType.getEncoding());
     Value result = rewriter.create<tensor::ExtractSliceOp>(
-        loc, input, offsets, resultShape, strides);
+        loc, sliceType, input, offsets, resultShape, strides);
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
     return success();

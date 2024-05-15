@@ -235,6 +235,18 @@ Type BaseTensorType::getWithSizesAndDtype(
   llvm_unreachable("not a BaseTensorType!");
 }
 
+Type BaseTensorType::getWithSizesAndDtypeAndSparsity(
+    std::optional<ArrayRef<int64_t>> optionalSizes, Type optionalDtype,
+    Attribute optionalSparsity) const {
+  if (mlir::isa<NonValueTensorType>(*this))
+    return NonValueTensorType::get(getContext(), optionalSizes, optionalDtype,
+                                   optionalSparsity);
+  if (mlir::isa<ValueTensorType>(*this))
+    return ValueTensorType::get(getContext(), optionalSizes, optionalDtype,
+                                optionalSparsity);
+  llvm_unreachable("not a BaseTensorType!");
+}
+
 ValueTensorType BaseTensorType::getWithValueSemantics() const {
   if (auto tensor = dyn_cast<NonValueTensorType>())
     return tensor.getWithValueSemantics();

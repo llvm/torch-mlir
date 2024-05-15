@@ -134,6 +134,16 @@ def sparse_export(
             # elif opname == "_to_dense":
             #     # hack (assumes we never really want the to_dense for now)
             #     node.meta["sparsity"] = node.args[0].meta.get("sparsity", None)
+            elif opname == "select" and node.args[0].meta.get("sparsity", None):
+                dim = len(node.meta.get("val").shape)
+                node.meta["sparsity"] = SparsityMeta(
+                    torch.sparse_coo, 0, dim, 0, None, torch.int64, torch.int64
+                )
+            elif opname == "stack" and node.args[0][0].meta.get("sparsity", None):
+                dim = len(node.meta.get("val").shape)
+                node.meta["sparsity"] = SparsityMeta(
+                    torch.sparse_coo, 0, dim - 1, 1, None, torch.int64, torch.int64
+                )
     return prog
 
 
