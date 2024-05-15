@@ -1733,9 +1733,21 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
   patterns.onOp(
       "Hardmax", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // onnx.Hardmax can be expanded into the following python code:
+        //
+        // import torch.nn.functional as F
         // def hardmax(tensor, dim=-1):
         //   maximums = torch.argmax(tensor, dim=dim, keepdim=False)
         //   return F.one_hot(maximums)
+        //
+        // Given an example input:
+        // tensor([[1, 2, 3],
+        //         [4, 6, 5],
+        //         [9, 8, 7]])
+        // Above code yields the following:
+        // tensor([[0, 0, 1],
+        //         [0, 1, 0],
+        //         [1, 0, 0]])
 
         Torch::ValueTensorType resultType;
         int64_t axisValue;
