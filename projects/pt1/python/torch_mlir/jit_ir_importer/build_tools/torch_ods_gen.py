@@ -360,7 +360,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::bitwise_or.Tensor : (Tensor, Tensor) -> (Tensor)",
         "aten::bitwise_xor.Tensor : (Tensor, Tensor) -> (Tensor)",
         "aten::bitwise_left_shift.Tensor : (Tensor, Tensor) -> (Tensor)",
+        "aten::bitwise_left_shift.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)",
         "aten::bitwise_right_shift.Tensor : (Tensor, Tensor) -> (Tensor)",
+        "aten::bitwise_right_shift.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)",
         "aten::threshold : (Tensor, Scalar, Scalar) -> (Tensor)",
         "aten::square : (Tensor) -> (Tensor)",
         "aten::zero : (Tensor) -> (Tensor)",
@@ -1030,6 +1032,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::__not__ : (bool) -> (bool)", has_folder=True)
     emit("aten::len.t : (t[]) -> (int)", has_folder=True, has_canonicalizer=True)
     emit("aten::__getitem__.t : (t[], int) -> (t)", has_canonicalizer=True)
+    emit(
+        "aten::__rshift__.Scalar : (Tensor, Scalar) -> (Tensor)", has_canonicalizer=True
+    )
+    emit(
+        "aten::__lshift__.Scalar : (Tensor, Scalar) -> (Tensor)", has_canonicalizer=True
+    )
     emit("aten::_set_item.t : (t[], int, t) -> (t[])")
     emit("aten::mul : (Scalar, Scalar) -> (Scalar)", has_folder=True)
     emit("aten::div : (Scalar, Scalar) -> (float)", has_folder=True)

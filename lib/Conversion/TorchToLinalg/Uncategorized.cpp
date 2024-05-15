@@ -517,6 +517,23 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     return b.create<arith::ShRSIOp>(loc, lhs, rhs);
   }
+  if (auto rshift = dyn_cast<AtenBitwiseRightShiftTensorScalarOp>(op)) {
+    Type dtype =
+        cast<RankedTensorType>(converter->convertType(rshift.getType()))
+            .getElementType();
+    Type resultElementType = cast<BaseTensorType>(rshift.getType()).getDtype();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
+                                      /*srcOriginalDtype=*/std::nullopt,
+                                      /*dstOriginalDtype=*/resultElementType);
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype,
+                                       /*srcOriginalDtype=*/std::nullopt,
+                                       /*dstOriginalDtype=*/resultElementType);
+    if (!isa<mlir::IntegerType>(dtype)) {
+      rshift.emitError("lshift op does not support non-integer input dtype");
+      return nullptr;
+    }
+    return b.create<arith::ShRSIOp>(loc, self, other);
+  }
   if (auto bitwiseLeftShiftTensor =
           dyn_cast<AtenBitwiseLeftShiftTensorOp>(op)) {
     Type dtype = converter->convertType(bitwiseLeftShiftTensor.getType())
@@ -530,6 +547,23 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     return b.create<arith::ShLIOp>(loc, lhs, rhs);
+  }
+  if (auto lshift = dyn_cast<AtenBitwiseLeftShiftTensorScalarOp>(op)) {
+    Type dtype =
+        cast<RankedTensorType>(converter->convertType(lshift.getType()))
+            .getElementType();
+    Type resultElementType = cast<BaseTensorType>(lshift.getType()).getDtype();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
+                                      /*srcOriginalDtype=*/std::nullopt,
+                                      /*dstOriginalDtype=*/resultElementType);
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype,
+                                       /*srcOriginalDtype=*/std::nullopt,
+                                       /*dstOriginalDtype=*/resultElementType);
+    if (!isa<mlir::IntegerType>(dtype)) {
+      lshift.emitError("lshift op does not support non-integer input dtype");
+      return nullptr;
+    }
+    return b.create<arith::ShLIOp>(loc, self, other);
   }
   if (isa<AtenLogicalOrOp, AtenLogicalAndOp, AtenLogicalXorOp>(op)) {
     MLIRContext *context = op->getContext();
