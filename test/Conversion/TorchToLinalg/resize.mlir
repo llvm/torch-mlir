@@ -4,15 +4,13 @@
 func.func @test_resize_sizes_linear(%arg0: !torch.vtensor<[1,1,2,4],f32>, %arg1: !torch.vtensor<[4]
 ,si64>) -> !torch.vtensor<[?,?,?,?],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
      // CHECK: %[[generic:.*]] = linalg.generic
-     // CHECK: %[[c2_i64:.*]] = arith.constant 2 : i64
-     // CHECK: %[[c4_i64:.*]] = arith.constant 4 : i64
      // CHECK: %[[cst:.*]] = arith.constant 1.001000e+00 : f32
      // CHECK: %[[cst_4:.*]] = arith.constant 1.000000e+00 : f32
      // CHECK: %[[cst_5:.*]] = arith.constant 5.000000e-01 : f32
      // CHECK: %[[cst_6:.*]] = arith.constant 0.000000e+00 : f32
      // CHECK: %[[x13:.*]] = linalg.index 2 : index
      // CHECK: %[[x14:.*]] = linalg.index 3 : index
-     // CHECK: %[[x15:.*]] = arith.sitofp %[[c2_i64]] : i64 to f32
+     // CHECK: %[[x15:.*]] = arith.sitofp %[[c2_i64:.*]] : i64 to f32
      // CHECK: %[[x16:.*]] = arith.sitofp %[[x6:.*]] : i64 to f32
      // CHECK: %[[x17:.*]] = arith.divf %[[x16]], %[[x15]] : f32
      // CHECK: %[[x18:.*]] = arith.index_cast %[[x13]] : index to i64
@@ -23,7 +21,7 @@ func.func @test_resize_sizes_linear(%arg0: !torch.vtensor<[1,1,2,4],f32>, %arg1:
      // CHECK: %[[x23:.*]] = arith.maximumf %[[x22]], %[[cst_6]] : f32
      // CHECK: %[[x24:.*]] = arith.subf %[[x15]], %[[cst]] : f32
      // CHECK: %[[x25:.*]] = arith.minimumf %[[x23]], %[[x24]] : f32
-     // CHECK: %[[x26:.*]] = arith.sitofp %[[c4_i64]] : i64 to f32
+     // CHECK: %[[x26:.*]] = arith.sitofp %[[c4_i64:.*]] : i64 to f32
      // CHECK: %[[x27:.*]] = arith.sitofp %[[x7:.*]] : i64 to f32
      // CHECK: %[[x28:.*]] = arith.divf %[[x27]], %[[x26]] : f32
      // CHECK: %[[x29:.*]] = arith.index_cast %[[x14]] : index to i64
@@ -96,12 +94,10 @@ func.func @test_resize_sizes_linear(%arg0: !torch.vtensor<[1,1,2,4],f32>, %arg1:
 
 func.func @test_resize_sizes_nearest(%arg0: !torch.vtensor<[1,1,2,4],f32>, %arg1: !torch.vtensor<[4],si64>) -> !torch.vtensor<[?,?,?,?],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
     // CHECK: %[[GENERIC:.*]] = linalg.generic
-    // CHECK: %[[c2_i64:.*]] = arith.constant 2 : i64
-    // CHECK: %[[c4_i64:.*]] = arith.constant 4 : i64
     // CHECK: %[[x13:.*]] = linalg.index 2 : index
     // CHECK: %[[x14:.*]] = linalg.index 3 : index
-    // CHECK: %[[x15:.*]] = arith.sitofp %[[c2_i64]] : i64 to f32
-    // CHECK: %[[x16:.*]] = arith.sitofp %[[c4_i64]] : i64 to f32
+    // CHECK: %[[x15:.*]] = arith.sitofp %[[c2_i64:.*]] : i64 to f32
+    // CHECK: %[[x16:.*]] = arith.sitofp %[[c4_i64:.*]] : i64 to f32
     // CHECK: %[[x19:.*]] = arith.sitofp %[[x6:.*]] : i64 to f32
     // CHECK: %[[x20:.*]] = arith.sitofp %[[x7:.*]] : i64 to f32
     // CHECK: %[[x21:.*]] = arith.divf %[[x19]], %[[x15]] : f32
