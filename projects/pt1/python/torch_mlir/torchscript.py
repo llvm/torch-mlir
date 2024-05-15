@@ -212,7 +212,9 @@ BACKEND_LEGAL_OPS = {
         "aten.adaptive_avg_pool2d",
         "aten.unflatten.int",
     ],
-    OutputType.STABLEHLO: [],
+    OutputType.STABLEHLO: [
+        "aten.amax"
+    ],
 }
 
 
