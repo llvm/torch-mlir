@@ -1734,9 +1734,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
   patterns.onOp(
       "Hardmax", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         // def hardmax(tensor, dim=-1):
-        //   zeros = torch.zeros_like(tensor, dtype=torch.int64)
-        //   maximums = torch.argmax(tensor, dim=dim, keepdim=True)
-        //   return zeros.scatter(dim, maximums, value=1)
+        //   maximums = torch.argmax(tensor, dim=dim, keepdim=False)
+        //   return F.one_hot(maximums)
 
         Torch::ValueTensorType resultType;
         int64_t axisValue;
@@ -1757,29 +1756,18 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Axis = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(axisIntTorch.value()));
 
-        // building zeros_like
-        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(loc);
-
-        Value zerosLike = rewriter.create<Torch::AtenZerosLikeOp>(
-            loc, resultType, /*self=*/input,
-            /*dtype=*/noneVal,
-            /*layout=*/noneVal, /*device=*/noneVal,
-            /*pin_memory*/ noneVal, /*memory_format=*/noneVal);
-
         // torch.argmax
         Value constKeepDims = rewriter.create<Torch::ConstantBoolOp>(
             loc, rewriter.getType<Torch::BoolType>(),
-            rewriter.getBoolAttr(true));
+            rewriter.getBoolAttr(false));
         Value Argmax = rewriter.create<Torch::AtenArgmaxOp>(
             loc, resultType, input, Axis, constKeepDims);
 
-        // scatter_
+        // one_hot
         Value oneInt = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(1));
-        rewriter.replaceOpWithNewOp<Torch::AtenScatterValueOp>(
-            binder.op, resultType, /*self=*/zerosLike, /*dim=*/Axis,
-            /*index=*/Argmax,
-            /*src=*/oneInt);
+        rewriter.replaceOpWithNewOp<Torch::AtenOneHotOp>(binder.op, resultType,
+                                                         Argmax, oneInt);
 
         return success();
       });
