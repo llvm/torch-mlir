@@ -7162,10 +7162,8 @@ class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
       return rewriter.notifyMatchFailure(
           op, "input tensor should have known sizes.");
     int64_t inputRank = inputType.getSizes().size();
-    int64_t numClasses;
-    if (!matchPattern(op.getNumClasses(), m_TorchConstantInt(&numClasses)))
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: num_classes must be constant");
+    int64_t numClasses = Torch::kUnknownSize;
+    matchPattern(op.getNumClasses(), m_TorchConstantInt(&numClasses));
     Value none = rewriter.create<ConstantNoneOp>(loc);
 
     // arange tensor
