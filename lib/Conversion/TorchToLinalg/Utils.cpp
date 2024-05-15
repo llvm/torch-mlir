@@ -572,3 +572,55 @@ bool torch_to_linalg::isUnsignedTorchType(Type type) {
   llvm_unreachable("Unknown type checked for signedness");
   return false;
 }
+
+LogicalResult torch_to_linalg::permuteTensor(Operation *op,
+                                             PatternRewriter &rewriter,
+                                             Location loc,
+                                             SmallVector<int64_t> dimensions,
+                                             Value input, Value &result) {
+  auto inType = cast<RankedTensorType>(input.getType());
+  int64_t inputRank = inType.getRank();
+  Type elementType = inType.getElementType();
+
+  // Check if the dimensions are a valid constants.
+  int64_t numDimensions = dimensions.size();
+  if (inputRank != numDimensions)
+    return rewriter.notifyMatchFailure(
+        op, "size of `dims` must be equal to the rank of the input");
+  for (unsigned i = 0; i < numDimensions; i++) {
+    if (dimensions[i] < 0)
+      dimensions[i] = toPositiveDim(dimensions[i], inputRank);
+    if (!isValidDim(dimensions[i], inputRank))
+      return rewriter.notifyMatchFailure(op, "dimension out of range");
+  }
+
+  SmallVector<Value> outputDims;
+  for (unsigned i = 0; i < inputRank; i++)
+    outputDims.push_back(getDimOp(rewriter, loc, input, dimensions[i]));
+
+  Value outVector = rewriter.create<tensor::EmptyOp>(
+      loc, getAsOpFoldResult(outputDims), elementType);
+  SmallVector<AffineExpr> idExprs;
+  SmallVector<AffineExpr> swapExprs;
+  for (unsigned i = 0; i < inputRank; i++)
+    idExprs.push_back(getAffineDimExpr(i, rewriter.getContext()));
+  for (unsigned i = 0; i < inputRank; i++)
+    swapExprs.push_back(idExprs[dimensions[i]]);
+
+  AffineMap inputMap =
+      AffineMap::get(inputRank, /*symbolCount=*/0, idExprs, op->getContext());
+  AffineMap outputMap =
+      AffineMap::get(inputRank, /*symbolCount=*/0, swapExprs, op->getContext());
+  SmallVector<AffineMap> indexingMaps{inputMap, outputMap};
+  SmallVector<utils::IteratorType> iteratorTypes(inputRank,
+                                                 utils::IteratorType::parallel);
+  result = rewriter
+               .create<linalg::GenericOp>(
+                   loc, outVector.getType(), input, outVector, indexingMaps,
+                   iteratorTypes,
+                   [](OpBuilder &b, Location loc, ValueRange args) {
+                     b.create<linalg::YieldOp>(loc, args[0]);
+                   })
+               .getResult(0);
+  return success();
+}

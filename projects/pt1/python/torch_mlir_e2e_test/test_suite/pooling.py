@@ -1104,6 +1104,38 @@ def AvgPool2dWithoutPadModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AvgPool3dStaticModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool3d(
+            kernel_size=[2, 2, 2],
+            stride=[2, 2, 2],
+            padding=[0, 0, 0],
+            ceil_mode=False,
+            count_include_pad=True,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 2, 4, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool3dStaticModule())
+def AvgPool3dStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 2, 4, 4, 4, low=-1))
+
+
+# ==============================================================================
+
+
 class AvgPool1dFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

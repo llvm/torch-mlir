@@ -111,7 +111,7 @@ static Value padInputTensor(Operation *op, ConversionPatternRewriter &rewriter,
   SmallVector<int64_t> lowPaddingIncludingNC = {0, 0};
   SmallVector<int64_t> highPaddingIncludingNC = {0, 0};
 
-  unsigned selfRank = cast<RankedTensorType>(self.getType()).getRank();
+  unsigned selfRank = self.getType().cast<RankedTensorType>().getRank();
   unsigned paddingIntsSize = paddingInts.size();
 
   if (paddingIntsSize == 2 * (selfRank - 2)) {
@@ -168,11 +168,44 @@ static LogicalResult createPoolingOp(
   Value windowTensor = rewriter.create<tensor::EmptyOp>(
       loc, getAsOpFoldResult(shape), elementType);
 
-  result = rewriter
-               .create<OpTy>(loc, outTensorInitialized.getType(),
-                             ValueRange{paddedInput, windowTensor},
-                             outTensorInitialized, stridesAttr, dilationAttr)
-               .getResult(0);
+  SmallVector<int64_t> dimensions;
+  Value permutedInput = paddedInput, permutedOutput = outTensorInitialized;
+  if (dimensionality == 3) {
+    // Permute input and output tensor as follows:
+    // (n,c,d,h,w) -> (n,d,h,w,c)
+    dimensions = {0, 2, 3, 4, 1};
+    if (failed(torch_to_linalg::permuteTensor(op, rewriter, op->getLoc(),
+                                              dimensions, paddedInput,
+                                              permutedInput)))
+      return rewriter.notifyMatchFailure(
+          op, "failed to perform permutation of tensor");
+
+    if (failed(torch_to_linalg::permuteTensor(op, rewriter, op->getLoc(),
+                                              dimensions, outTensorInitialized,
+                                              permutedOutput)))
+      return rewriter.notifyMatchFailure(
+          op, "failed to perform permutation of tensor");
+  }
+
+  Value poolingResult =
+      rewriter
+          .create<OpTy>(loc, permutedOutput.getType(),
+                        ValueRange{permutedInput, windowTensor}, permutedOutput,
+                        stridesAttr, dilationAttr)
+          .getResult(0);
+
+  result = poolingResult;
+  if (dimensionality == 3) {
+    // Permute output tensor as follows:
+    // (n,d,h,w,c) -> (n,c,d,h,w)
+    dimensions.clear();
+    dimensions = {0, 4, 1, 2, 3};
+    if (failed(torch_to_linalg::permuteTensor(
+            op, rewriter, op->getLoc(), dimensions, poolingResult, result)))
+      return rewriter.notifyMatchFailure(
+          op, "failed to perform permutation of tensor");
+  }
+
   return success();
 }
 
@@ -604,15 +637,18 @@ public:
             paddingInts, dilationInts, rewriter.getZeroAttr(inputElementType),
             outTensorShape, paddedInput, sumPool)))
       return rewriter.notifyMatchFailure(op, "unable to compute sumpool");
-    Value divisor;
-    if constexpr (std::is_same<OpTy, AtenAvgPool2dOp>()) {
-      Value kHtimeskW = rewriter.create<arith::MulIOp>(
-          loc, kernelSizeIntValues[0], kernelSizeIntValues[1]);
-      divisor = isa<Torch::NoneType>(op.getDivisorOverride().getType())
-                    ? kHtimeskW
-                    : adaptor.getDivisorOverride();
-    } else {
-      divisor = kernelSizeIntValues[0];
+    // }
+
+    Value divisor = kernelSizeIntValues[0];
+    for (unsigned i = 1; i < kernelSizeIntValues.size(); i++) {
+      divisor =
+          rewriter.create<arith::MulIOp>(loc, divisor, kernelSizeIntValues[i]);
+    }
+    if constexpr (!std::is_same<OpTy, AtenAvgPool1dOp>()) {
+      divisor =
+          op.getDivisorOverride().getType().template isa<Torch::NoneType>()
+              ? divisor
+              : adaptor.getDivisorOverride();
     }
     divisor = convertScalarToDtype(rewriter, loc, divisor, resultElementType);
 
@@ -1115,12 +1151,15 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
 
   target.addIllegalOp<AtenMaxPool2dWithIndicesOp>();
   patterns.add<ConvertAtenMaxPool2dWithIndicesOp>(typeConverter, context);
-  target.addIllegalOp<AtenAvgPool1dOp, AtenAvgPool2dOp>();
+  target.addIllegalOp<AtenAvgPool1dOp, AtenAvgPool2dOp, AtenAvgPool3dOp>();
   patterns
       .add<ConvertAtenAvgPoolOp<AtenAvgPool1dOp, linalg::PoolingNcwSumOp, 1>>(
           typeConverter, context);
   patterns
       .add<ConvertAtenAvgPoolOp<AtenAvgPool2dOp, linalg::PoolingNchwSumOp, 2>>(
+          typeConverter, context);
+  patterns
+      .add<ConvertAtenAvgPoolOp<AtenAvgPool3dOp, linalg::PoolingNdhwcSumOp, 3>>(
           typeConverter, context);
   target.addIllegalOp<AtenAdaptiveAvgPool1dOp, AtenAdaptiveAvgPool2dOp,
                       AtenAdaptiveAvgPool3dOp, Aten_AdaptiveAvgPool3dOp>();
