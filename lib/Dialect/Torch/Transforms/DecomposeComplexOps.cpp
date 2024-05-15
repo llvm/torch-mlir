@@ -695,8 +695,8 @@ public:
 
     auto si64Type = rewriter.getIntegerType(/*width=*/64, /*isSigned*/ true);
     auto int64DtypeInt = getDtypeIntValueForType(rewriter, loc, si64Type);
-    auto rowArrangeType = getResultTypeFromValueVector({rowSize}, si64Type);
-    auto colArrangeType = getResultTypeFromValueVector({colSize}, si64Type);
+    auto rowArrangeType = getTensorTypeFromShapeValues({rowSize}, si64Type);
+    auto colArrangeType = getTensorTypeFromShapeValues({colSize}, si64Type);
 
     Value rowArange =
         rewriter.create<AtenArangeOp>(loc, rowArrangeType, rowSize,
@@ -725,7 +725,7 @@ public:
         cstOne);
 
     auto boolType = rewriter.getI1Type();
-    auto condType = getResultTypeFromValueVector({rowSize, colSize}, boolType);
+    auto condType = getTensorTypeFromShapeValues({rowSize, colSize}, boolType);
     Value condTensor = rewriter.create<AtenGeTensorOp>(
         loc, condType, unsqueezeColArange, unsqueezeRowArangePlusDiagonal);
 

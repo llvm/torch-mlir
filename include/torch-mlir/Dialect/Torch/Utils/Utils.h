@@ -84,7 +84,7 @@ int64_t getNumberOfElements(RankedTensorType inputType);
 SmallVector<int64_t> makeShapeLLVMCompatible(ArrayRef<int64_t> shape);
 SmallVector<int64_t> makeShapeTorchCompatible(ArrayRef<int64_t> shape);
 
-ValueTensorType getResultTypeFromValueVector(ArrayRef<Value> shapes,
+ValueTensorType getTensorTypeFromShapeValues(ArrayRef<Value> shapes,
                                              Type dtype);
 Value getTensorDimSize(PatternRewriter &rewriter, Value tensor, int64_t dim);
 
