@@ -1739,7 +1739,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         Torch::ValueTensorType resultType;
         int64_t axisValue;
-        Value input, Axis;
+        Value input, axis;
         if (binder.tensorOperand(input) ||
             binder.s64IntegerAttr(axisValue, "axis") ||
             binder.tensorResultType(resultType))
@@ -1753,21 +1753,21 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented support for the given axis conversion");
         }
-        Axis = rewriter.create<Torch::ConstantIntOp>(
+        axis = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(axisIntTorch.value()));
 
         // torch.argmax
         Value constKeepDims = rewriter.create<Torch::ConstantBoolOp>(
             loc, rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(false));
-        Value Argmax = rewriter.create<Torch::AtenArgmaxOp>(
-            loc, resultType, input, Axis, constKeepDims);
+        Value argmax = rewriter.create<Torch::AtenArgmaxOp>(
+            loc, resultType, input, axis, constKeepDims);
 
         // one_hot
         Value oneInt = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(1));
         rewriter.replaceOpWithNewOp<Torch::AtenOneHotOp>(binder.op, resultType,
-                                                         Argmax, oneInt);
+                                                         argmax, oneInt);
 
         return success();
       });
