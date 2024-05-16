@@ -3371,6 +3371,104 @@ public:
 };
 } // namespace
 
+// Decompose aten.masked_scatter:
+// def masked_scatter(self: Tensor, mask: Tensor, source: Tensor) -> Tensor:
+//     mask_int = mask + torch.zeros_like(self)
+//     prefix_sum = torch.cumsum(mask_int.flatten(), dim=0)
+//     mask_prefix = torch.clamp(prefix_sum - 1, min=0)
+//     mask = mask.to(torch.bool)
+//     source = source.flatten()[mask_prefix].reshape(mask.shape)
+//     return torch.where(mask, source, self)
+namespace {
+class DecomposeAtenMaskedScatterOp
+    : public OpRewritePattern<AtenMaskedScatterOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMaskedScatterOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto context = op.getContext();
+    Value mask = op.getMask();
+    Value source = op.getSource();
+    Value self = op.getSelf();
+
+    auto selfTy = cast<BaseTensorType>(self.getType());
+    auto resTy = cast<BaseTensorType>(op.getType());
+    auto sourceTy = cast<BaseTensorType>(source.getType());
+
+    if (!resTy || !resTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+    if (!selfTy || !selfTy.areAllSizesKnown())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: no implementation for rankless tensor");
+    if (!sourceTy || !sourceTy.areAllSizesKnown() || !sourceTy.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: no implementation for rankless tensor");
+
+    int64_t selfNumel = getTensorNumel(self).value(); // as selfTy has sizes
+    int64_t sourceNumel =
+        getTensorNumel(source).value(); // as sourceTy has sizes
+    int64_t selfRank = selfTy.getSizes().size();
+    int64_t sourceRank = sourceTy.getSizes().size();
+
+    Value constZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value constOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value constNone = rewriter.create<ConstantNoneOp>(loc);
+    Value selfLastDim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(selfRank - 1));
+    Value sourceLastDim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(sourceRank - 1));
+
+    auto si64Type = IntegerType::get(context, 64, IntegerType::Signed);
+    auto int64Dtype = getDtypeIntValueForType(
+        rewriter, loc,
+        rewriter.getIntegerType(/*width=*/64, /*isSigned=*/true));
+    auto selfIntType = selfTy.getWithSizesAndDtype(selfTy.getSizes(), si64Type);
+
+    Value zerosLike = rewriter.create<Torch::AtenZerosLikeOp>(
+        loc, selfIntType, self, int64Dtype, constNone, constNone, constNone,
+        constNone);
+    Value maskInt = rewriter.create<Torch::AtenAddTensorOp>(
+        loc, selfIntType, mask, zerosLike, constOne);
+
+    auto flattenMaskedType = selfTy.getWithSizesAndDtype(
+        /*optionalSizes=*/{selfNumel}, si64Type);
+    Value maskIntFlatten = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
+        loc, flattenMaskedType, maskInt, constZero, selfLastDim);
+    Value prefixSum = rewriter.create<Torch::AtenCumsumOp>(
+        loc, flattenMaskedType, maskIntFlatten,
+        /*dim=*/constZero, constNone);
+    Value prefixSumMinusOne = rewriter.create<Torch::AtenSubScalarOp>(
+        loc, flattenMaskedType, prefixSum, constOne, constOne);
+    Value maskPrefix = rewriter.create<Torch::AtenClampOp>(
+        loc, flattenMaskedType, prefixSumMinusOne, /*min=*/constZero,
+        /*max=*/constNone);
+
+    auto sourceFlattenType = sourceTy.getWithSizesAndDtype(
+        /*optionalSizes=*/{sourceNumel}, sourceTy.getDtype());
+    Value sourceFlatten = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
+        loc, sourceFlattenType, source, constZero, sourceLastDim);
+
+    auto selectSourceType = sourceTy.getWithSizesAndDtype(
+        /*optionalSizes=*/{selfNumel}, sourceTy.getDtype());
+    Value selectSource = rewriter.create<Torch::AtenIndexSelectOp>(
+        loc, selectSourceType, sourceFlatten, constZero, maskPrefix);
+
+    // Reshape normalized output back to the original input shape
+    auto selfShape = rewriter.create<AtenSizeOp>(
+        loc, Torch::ListType::get(IntType::get(context)), self);
+    Value sourceReshape = rewriter.create<Torch::AtenViewOp>(
+        loc, selfTy, selectSource, selfShape);
+    rewriter.replaceOpWithNewOp<Torch::AtenWhereSelfOp>(op, resTy, mask,
+                                                        sourceReshape, self);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten._convolution-like to aten.convolution
 namespace {
 template <typename ConvolutionLikeOp>
@@ -7839,6 +7937,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarSelfOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNanToNumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMaskedFillScalarOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMaskedScatterOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSizeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_SoftmaxBackwardDataOp>(
