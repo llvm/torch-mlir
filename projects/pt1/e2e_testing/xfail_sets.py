@@ -1723,7 +1723,6 @@ TOSA_PASS_SET = {
     "MaskedFillScalarIntValueModule_basic",
     "MaskedFillScalarIntValueStaticModule_basic",
     "MaskedFillTensorIntValueStaticModule_basic",
-    "MaskedScatterStaticBasic_basic",
     "Matmul4dStatic_basic",
     "Matmul_3d",
     "Matmul_dot",
