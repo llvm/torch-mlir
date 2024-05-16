@@ -11,6 +11,7 @@
 #include "mlir/IR/BuiltinDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
+#include "torch-mlir/Dialect/Torch/Utils/SparsityUtils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -208,6 +209,19 @@ std::optional<unsigned> Torch::getTensorRank(Value tensor) {
   return tensorType.getSizes().size();
 }
 
+std::optional<int64_t> Torch::getTensorNumel(Value tensor) {
+  BaseTensorType tensorType = cast<BaseTensorType>(tensor.getType());
+  if (!tensorType.hasSizes())
+    return std::nullopt;
+  int64_t numel = 1;
+  for (auto dim : tensorType.getSizes()) {
+    if (dim == ShapedType::kDynamic)
+      return ShapedType::kDynamic;
+    numel *= dim;
+  }
+  return numel;
+}
+
 bool Torch::isViewLikeOp(Operation *op) {
   // AtenContiguousOp might return a view, so this is conservatively
   // correct. We could potentially be more precise and identify the cases
@@ -318,6 +332,11 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
   if (!inputType.hasSizes()) {
     return rewriter.notifyMatchFailure(op, "input tensor must have size");
   }
+  FailureOr<Attribute> enc =
+      getSparsityWithDenseLTAtDim(inputType.getOptionalSparsity(), dim);
+  if (failed(enc)) {
+    return failure();
+  }
 
   SmallVector<int64_t> unsqueezedShape;
   ArrayRef<int64_t> inputShape = inputType.getSizes();
@@ -334,8 +353,8 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
   } else {
     unsqueezedShape.resize(unsqueezedRank, kUnknownSize);
   }
-  Type unsqueezedType = inputType.getWithSizesAndDtype(
-      unsqueezedShape, inputType.getOptionalDtype());
+  Type unsqueezedType = inputType.getWithSizesAndDtypeAndSparsity(
+      unsqueezedShape, inputType.getOptionalDtype(), enc.value());
   Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(
       op->getLoc(), unsqueezedType, input, dim);
   return unsqueezed;

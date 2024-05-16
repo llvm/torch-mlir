@@ -2581,7 +2581,8 @@ void AtenMaskedFillTensorOp::getCanonicalizationPatterns(
 
 OpFoldResult AtenCloneOp::fold(FoldAdaptor adaptor) {
   // note: memory_format would be ignored
-  if (llvm::dyn_cast<ValueTensorType>(getSelf().getType())) {
+  if (getSelf().getType() == getResult().getType() &&
+      llvm::dyn_cast<ValueTensorType>(getSelf().getType())) {
     // self should have value semantics
     return getSelf();
   }
@@ -3569,16 +3570,16 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
   auto inType = dyn_cast<ValueTensorType>(getOperand(0).getType());
   auto outType = dyn_cast<ValueTensorType>(getResult().getType());
 
+  if (!inType || !outType || !inType.hasSizes() || !outType.hasSizes() ||
+      !inType.hasDtype() || !outType.hasDtype() ||
+      inType.getDtype() != outType.getDtype())
+    return nullptr;
+
   if (start && end && step && step.getValue().getSExtValue() == 1 &&
       start.getValue().getSExtValue() == 0 &&
       end.getValue().getSExtValue() == std::numeric_limits<int64_t>::max() &&
       inType == outType)
     return getOperand(0);
-
-  if (!inType || !outType || !inType.hasSizes() || !outType.hasSizes() ||
-      !inType.hasDtype() || !outType.hasDtype() ||
-      inType.getDtype() != outType.getDtype())
-    return nullptr;
 
   if (inType.getSizes().size() != outType.getSizes().size() ||
       !inType.areAllSizesKnown() || !outType.areAllSizesKnown())
@@ -4471,10 +4472,10 @@ OpFoldResult PrimMaxIntOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult PrimNumToTensorScalarOp::fold(FoldAdaptor adaptor) {
   Attribute a = adaptor.getA();
-  auto resultTy = cast<BaseTensorType>(getType());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
   if (!a)
     return {};
-  if (!resultTy.hasDtype() || !resultTy.hasSizes())
+  if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes())
     return {};
 
   auto dty = resultTy.getDtype();

@@ -134,6 +134,16 @@ def sparse_export(
             # elif opname == "_to_dense":
             #     # hack (assumes we never really want the to_dense for now)
             #     node.meta["sparsity"] = node.args[0].meta.get("sparsity", None)
+            elif opname == "select" and node.args[0].meta.get("sparsity", None):
+                dim = len(node.meta.get("val").shape)
+                node.meta["sparsity"] = SparsityMeta(
+                    torch.sparse_coo, 0, dim, 0, None, torch.int64, torch.int64
+                )
+            elif opname == "stack" and node.args[0][0].meta.get("sparsity", None):
+                dim = len(node.meta.get("val").shape)
+                node.meta["sparsity"] = SparsityMeta(
+                    torch.sparse_coo, 0, dim - 1, 1, None, torch.int64, torch.int64
+                )
     return prog
 
 
@@ -459,6 +469,11 @@ def test_sparse_eltwise():
 # CHECK:          values=tensor([   0.,    0.,    1.,    2.,    3., 1000.]),
 # CHECK:          size=(10, 20, 30), nnz=6, dtype=torch.float64, layout=torch.sparse_coo)
 # CHECK: torch.mlir
+# CHECK:  [0 6]
+# CHECK:  [0 1 1 4 9 9]
+# CHECK:  [ 0  1  1  5 19 19]
+# CHECK:  [ 0  1  3  6 28 29]
+# CHECK:  [   0.    0.    1.    2.    3. 1000.]
 #
 def test_sparse_coo3():
     class COO3Net(torch.nn.Module):
@@ -481,11 +496,15 @@ def test_sparse_coo3():
 
     # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
     res1 = net(sparse_input)
-    # TODO: make coo3 work
-    # res2 = sparse_jit(net, sparse_input)
+    res2 = sparse_jit(net, sparse_input)
     print("torch.sparse")
     print(res1)
     print("torch.mlir")
+    print(res2[0])
+    print(res2[1])
+    print(res2[2])
+    print(res2[3])
+    print(res2[4])
 
 
 @run
@@ -574,8 +593,8 @@ def test_sparse_network():
             for t in range(T):
                 mem = mem * self.decay + X[..., t]
                 spike = self.act(mem - self.thresh)
-                mem = mem * (1.0 - spike)
                 spike = spike.to_sparse().to_dense()  # prop hack
+                mem = mem * (1.0 - spike)
                 spike_pot.append(spike)
             spike_pot = torch.stack(spike_pot, dim=-1)
             return spike_pot
@@ -621,3 +640,47 @@ def test_sparse_network():
     print(res1)
     print("torch.mlir")
     print(res2)
+
+
+@run
+#
+# CHECK-LABEL: test_sparse_feature_scaling
+# CHECK:       func.func @main(
+# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,4],f32>) -> !torch.vtensor<[4,4],f32> {
+#                ... more IR ...
+# CHECK:         %[[D:.*]] = torch.operator "torch.aten._to_sparse"
+# CHECK:         %[[R:.*]] = torch.aten.mm %[[D]], %[[A]]
+# CHECK          return %[[R]] : !torch.vtensor<[4,4],f32>
+# CHECK:        }
+#
+# CHECK: torch.sparse
+# CHECK:   tensor({{\[}}[0.3342, 0.5173, 0.0596, 0.0889],
+# CHECK:                [0.1321, 0.2724, 0.2105, 0.3851],
+# CHECK:                [0.2478, 0.3439, 0.1898, 0.2185],
+# CHECK:                [0.0222, 0.1683, 0.2928, 0.5167]{{\]}})
+# CHECK: torch.mlir
+#
+def test_sparse_feature_scaling():
+    class Scale(nn.Module):
+        def forward(self, F):
+            sum_vector = torch.sum(F, dim=1)
+            reciprocal_vector = 1 / sum_vector
+            reciprocal_vector[reciprocal_vector == float("inf")] = 0
+            scaling_diagonal = torch.diag(reciprocal_vector).to_sparse()
+            return scaling_diagonal @ F
+
+    net = Scale()
+
+    # Get a random (but reproducible) features input.
+    torch.manual_seed(0)
+    f = torch.rand(4, 4)
+    m = export_and_import(net, f)
+    print(m)
+
+    # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
+    res1 = net(f)
+    # TODO: make this work
+    # res2 = sparse_jit(net, f)
+    print("torch.sparse")
+    print(res1)
+    print("torch.mlir")
