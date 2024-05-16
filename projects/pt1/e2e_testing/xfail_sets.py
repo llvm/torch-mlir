@@ -2367,6 +2367,7 @@ ONNX_XFAIL_SET = {
     "LinalgNormKeepDimComplexModule_basic",
     "LinalgVectorNormComplexModule_basic",
     "LogSoftmaxBackwardModule_basic",
+    "MaskedScatterStaticBasic_basic",
     "MaxPool1dCeilModeTrueModule_basic",
     "MaxPool1dEmptyStrideStaticModule_basic",
     "MaxPool1dModule_basic",
