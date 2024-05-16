@@ -247,8 +247,7 @@ FailureOr<Value> broadcastAndConcatIndices(Operation *op,
   concatShape.push_back(indexTensors.size());
 
   SmallVector<Value> broadcastedIndices;
-  Type indexElemTy =
-      cast<RankedTensorType>(indexTensors[0].getType()).getElementType();
+  Type indexElemTy = rewriter.getI64Type();
   RankedTensorType bcastIndexType =
       RankedTensorType::get(indicesShape, indexElemTy);
   for (auto indexTensor : indexTensors) {
