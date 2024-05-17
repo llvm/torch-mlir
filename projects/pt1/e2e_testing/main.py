@@ -56,6 +56,7 @@ from .xfail_sets import (
     FX_IMPORTER_STABLEHLO_XFAIL_SET,
     FX_IMPORTER_STABLEHLO_CRASHING_SET,
     FX_IMPORTER_TOSA_XFAIL_SET,
+    ONNX_TOSA_XFAIL_SET,
 )
 
 # Import tests to register them in the global registry.
@@ -75,6 +76,7 @@ def _get_argparse():
         "lazy_tensor_core",
         "torchdynamo",
         "onnx",
+        "onnx_tosa",
         "fx_importer",
         "fx_importer_stablehlo",
         "fx_importer_tosa",
@@ -98,6 +100,7 @@ Meaning of options:
 "fx_importer": run the model through the fx importer frontend and execute the graph using Linalg-on-Tensors.
 "fx_importer_stablehlo": run the model through the fx importer frontend and execute the graph using Stablehlo backend.
 "fx_importer_tosa": run the model through the fx importer frontend and execute the graph using the TOSA backend.
+"onnx_tosa": Import ONNX to Torch via the torch-onnx-to-torch path and execute the graph using the TOSA backend.
 """,
     )
     parser.add_argument(
@@ -191,9 +194,13 @@ def main():
         xfail_set = TORCHDYNAMO_XFAIL_SET
         crashing_set = TORCHDYNAMO_CRASHING_SET
     elif args.config == "onnx":
-        config = OnnxBackendTestConfig(LinalgOnTensorsOnnxBackend())
+        config = OnnxBackendTestConfig(RefBackendLinalgOnTensorsBackend())
         xfail_set = ONNX_XFAIL_SET
         crashing_set = ONNX_CRASHING_SET
+    elif args.config == "onnx_tosa":
+        config = OnnxBackendTestConfig(LinalgOnTensorsTosaBackend(), output_type="tosa")
+        xfail_set = ONNX_TOSA_XFAIL_SET
+        crashing_set = set()
 
     do_not_attempt = set(
         args.crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed or []
