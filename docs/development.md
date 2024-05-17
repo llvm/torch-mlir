@@ -59,7 +59,7 @@ This requires `lld`, `clang`, `ccache`, and other dependencies for building `lib
 cmake -GNinja -Bbuild \
   externals/llvm-project/llvm \
   -DCMAKE_BUILD_TYPE=Release \
-  -DLLVM_ENABLE_ASSERTIONS=ON" \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
