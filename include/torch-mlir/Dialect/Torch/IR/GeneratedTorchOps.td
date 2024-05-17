@@ -12439,8 +12439,8 @@ def Torch_AtenKthvalueOp : Torch_Op<"aten.kthvalue", [
     Torch_BoolType:$keepdim
   );
   let results = (outs
-    AnyTorchTensorType:$values,
-    AnyTorchTensorType:$indices
+    AnyTorchOptionalTensorType:$values,
+    AnyTorchOptionalTensorType:$indices
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{

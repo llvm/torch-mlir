@@ -5548,7 +5548,9 @@ class CloneModule(torch.nn.Module):
 def CloneModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 5))
 
+
 # ==============================================================================
+
 
 class AtenKthvalueModule(torch.nn.Module):
 
@@ -5556,20 +5558,18 @@ class AtenKthvalueModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None, 
-        ([2, 6, 3], torch.int32, True)
-    ])
+    @annotate_args([None, ([2, 6, 3], torch.int32, True)])
     def forward(self, x):
         return torch.ops.aten.kthvalue(x, k=4, dim=1, keepdim=False)
 
 
 @register_test_case(module_factory=lambda: AtenKthvalueModule())
 def AtenKthvalueModule_basic(module, tu: TestUtils):
-    module.forward(torch.randperm(2*6*3, dtype=torch.int32).reshape(2, 6, 3))
+    module.forward(torch.randperm(2 * 6 * 3, dtype=torch.int32).reshape(2, 6, 3))
 
 
 # ==============================================================================
+
 
 class AtenKthvalueKeepDimModule(torch.nn.Module):
 
@@ -5577,19 +5577,18 @@ class AtenKthvalueKeepDimModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None, 
-        ([2, 6, 3], torch.int32, True)
-    ])
+    @annotate_args([None, ([2, 6, 3], torch.int32, True)])
     def forward(self, x):
         return torch.ops.aten.kthvalue(x, k=4, dim=1, keepdim=True)
 
 
 @register_test_case(module_factory=lambda: AtenKthvalueKeepDimModule())
 def AtenKthvalueKeepDimModule_basic(module, tu: TestUtils):
-    module.forward(torch.randperm(2*6*3, dtype=torch.int32).reshape(2, 6, 3))
+    module.forward(torch.randperm(2 * 6 * 3, dtype=torch.int32).reshape(2, 6, 3))
+
 
 # ==============================================================================
+
 
 class AtenKthvalueDynamicDimsModule(torch.nn.Module):
 
@@ -5597,19 +5596,18 @@ class AtenKthvalueDynamicDimsModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None, 
-        ([-1, -1, -1, -1], torch.int32, True)
-    ])
+    @annotate_args([None, ([-1, -1, -1, -1], torch.int32, True)])
     def forward(self, x):
         return torch.ops.aten.kthvalue(x, k=6, dim=2, keepdim=True)
 
 
 @register_test_case(module_factory=lambda: AtenKthvalueDynamicDimsModule())
 def AtenKthvalueDynamicDimsModule_basic(module, tu: TestUtils):
-    module.forward(torch.randperm(4*2*8*3, dtype=torch.int32).reshape(4, 2, 8, 3))
+    module.forward(torch.randperm(4 * 2 * 8 * 3, dtype=torch.int32).reshape(4, 2, 8, 3))
+
 
 # ==============================================================================
+
 
 class AtenKthvalueFloat64Module(torch.nn.Module):
 
@@ -5617,19 +5615,20 @@ class AtenKthvalueFloat64Module(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None, 
-        ([4, 2, 8, 3], torch.float64, True)
-    ])
+    @annotate_args([None, ([4, 2, 8, 3], torch.float64, True)])
     def forward(self, x):
         return torch.ops.aten.kthvalue(x, k=3, dim=0, keepdim=True)
 
 
 @register_test_case(module_factory=lambda: AtenKthvalueFloat64Module())
 def AtenKthvalueFloat64Module_basic(module, tu: TestUtils):
-    module.forward(torch.randperm(4*2*8*3, dtype=torch.float64).reshape(4, 2, 8, 3))
+    module.forward(
+        torch.randperm(4 * 2 * 8 * 3, dtype=torch.float64).reshape(4, 2, 8, 3)
+    )
+
 
 # ==============================================================================
+
 
 class AtenKthvalueFloat64DynamicDimsModule(torch.nn.Module):
 
@@ -5637,14 +5636,13 @@ class AtenKthvalueFloat64DynamicDimsModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None, 
-        ([-1, -1, -1, -1], torch.float64, True)
-    ])
+    @annotate_args([None, ([-1, -1, -1, -1], torch.float64, True)])
     def forward(self, x):
         return torch.ops.aten.kthvalue(x, k=3, dim=3, keepdim=True)
 
 
 @register_test_case(module_factory=lambda: AtenKthvalueFloat64DynamicDimsModule())
 def AtenKthvalueFloat64DynamicDimsModule_basic(module, tu: TestUtils):
-    module.forward(torch.randperm(4*2*8*3, dtype=torch.float64).reshape(4, 2, 8, 3))
+    module.forward(
+        torch.randperm(4 * 2 * 8 * 3, dtype=torch.float64).reshape(4, 2, 8, 3)
+    )

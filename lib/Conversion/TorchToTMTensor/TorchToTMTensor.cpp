@@ -273,7 +273,10 @@ static FailureOr<Value> createIntOrFloatCompareOp(PatternRewriter &rewriter,
     }
     arith::CmpIPredicate predicate = isDescending ? g : l;
     compareOp = rewriter.create<arith::CmpIOp>(loc, predicate, lhs, rhs);
-  } else if (elementType.isa<mlir::FloatType>()) {
+    return compareOp;
+  }
+
+  if (elementType.isa<mlir::FloatType>()) {
     // Case for using arith::CmpFOp.
     arith::CmpFPredicate g =
         isEqual ? arith::CmpFPredicate::OGE : arith::CmpFPredicate::OGT;
@@ -282,11 +285,11 @@ static FailureOr<Value> createIntOrFloatCompareOp(PatternRewriter &rewriter,
 
     arith::CmpFPredicate predicate = isDescending ? g : l;
     compareOp = rewriter.create<arith::CmpFOp>(loc, predicate, lhs, rhs);
-  } else {
-    return rewriter.notifyMatchFailure(
-        loc, "Only Integer and Floating element type expected.");
+    return compareOp;
   }
-  return compareOp;
+
+  return rewriter.notifyMatchFailure(
+      loc, "Only Integer and Floating element type expected.");
 }
 
 // Utility function to create a TMTensor::SortOp.
