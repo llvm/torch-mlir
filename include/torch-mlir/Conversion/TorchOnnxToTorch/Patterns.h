@@ -97,6 +97,31 @@ struct OpBinder {
     return success();
   }
 
+  // Operand matches of different arities.
+  ParseResult tensorListOperand(Value &value0) {
+    if (op->getNumOperands() != 1)
+      return failure();
+    value0 = op->getOperand(0);
+    auto tt = dyn_cast<Torch::ListType>(value0.getType());
+    if (!tt)
+      return failure();
+    if (!toValidTensorType(tt.getContainedType()))
+      return failure();
+    return success();
+  }
+
+  ParseResult tensorListResultType(Torch::ListType &type0) {
+    if (op->getNumResults() != 1)
+      return failure();
+    auto tt = dyn_cast<Torch::ListType>(op->getResult(0).getType());
+    if (!tt)
+      return failure();
+    if (!toValidTensorType(tt.getContainedType()))
+      return failure();
+    type0 = tt;
+    return success();
+  }
+
   ParseResult tensorResultTypes(llvm::SmallVector<mlir::Type> &typeList) {
     for (auto result : op->getResults()) {
       auto t = toValidTensorType(result.getType());
