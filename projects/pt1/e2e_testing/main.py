@@ -28,9 +28,6 @@ from torch_mlir_e2e_test.configs import (
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import (
     RefBackendLinalgOnTensorsBackend,
 )
-from torch_mlir_e2e_test.onnx_backends.linalg_on_tensors import (
-    LinalgOnTensorsOnnxBackend,
-)
 from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import (
     LinalgOnTensorsTosaBackend,
 )

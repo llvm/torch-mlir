@@ -11,7 +11,6 @@ import onnx
 import torch
 import torch_mlir
 
-from torch_mlir_e2e_test.onnx_backends.abc import OnnxBackend
 from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 from torch_mlir_e2e_test.utils import convert_annotations_to_placeholders
 from .utils import (
@@ -121,7 +120,7 @@ class OnnxBackendTestConfig(TestConfig):
 
     def __init__(
         self,
-        backend: OnnxBackend,
+        backend,
         use_make_fx: bool = False,
         output_type="linalg-on-tensors",
     ):
