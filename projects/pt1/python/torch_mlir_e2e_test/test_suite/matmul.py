@@ -11,14 +11,19 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
+
 class AtenDotModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([None,
-    ([-1], torch.float32, True),
-    ([-1], torch.float32, True),])
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return torch.dot(lhs, rhs)
 
