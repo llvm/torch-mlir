@@ -519,6 +519,20 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         return success();
       });
   patterns.onOp(
+      "SequenceConstruct", 11,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        SmallVector<Value> operands;
+        Torch::ListType resultType;
+
+        if (binder.tensorOperands(operands, binder.getNumOperands()) ||
+            binder.tensorListResultType(resultType))
+          return failure();
+
+        rewriter.replaceOpWithNewOp<Torch::PrimListConstructOp>(
+            binder.op, resultType, operands);
+        return success();
+      });
+  patterns.onOp(
       "Sigmoid", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value x;
