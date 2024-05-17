@@ -449,11 +449,13 @@ public:
           "only floating-point or integer datatype legalization supported");
     }
 
-    if (std::is_same<AtenOpT, AtenSquareOp>()) {
+    if constexpr (std::is_same<AtenOpT, AtenSquareOp>()) {
       rhs = lhs;
-    } else if (!rhsType) {
-      rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
-                                         outElemTy);
+    } else {
+      if (!rhsType) {
+        rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
+                                           outElemTy);
+      }
     }
     DenseI64ArrayAttr bcastDimensions;
     lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outType);
@@ -462,8 +464,8 @@ public:
     Value result =
         rewriter.create<ChloOpT>(loc, outType, lhs, rhs, bcastDimensions);
 
-    if (!std::is_same<AtenDivTensorModeOp, AtenOpT>() &&
-        !std::is_same<AtenDivScalarModeOp, AtenOpT>()) {
+    if constexpr (!std::is_same<AtenDivTensorModeOp, AtenOpT>() &&
+                  !std::is_same<AtenDivScalarModeOp, AtenOpT>()) {
       rewriter.replaceOp(op, result);
       return success();
     }
@@ -575,32 +577,32 @@ public:
           op->getContext(), chlo::ComparisonType::SIGNED);
     }
 
-    if (std::is_same<AtenOpT, AtenLtTensorOp>() ||
-        std::is_same<AtenOpT, AtenLtScalarOp>()) {
+    if constexpr (std::is_same<AtenOpT, AtenLtTensorOp>() ||
+                  std::is_same<AtenOpT, AtenLtScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::LT);
-    } else if (std::is_same<AtenOpT, AtenGtTensorOp>() ||
-               std::is_same<AtenOpT, AtenGtScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenGtTensorOp>() ||
+                         std::is_same<AtenOpT, AtenGtScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::GT);
-    } else if (std::is_same<AtenOpT, AtenGeTensorOp>() ||
-               std::is_same<AtenOpT, AtenGeScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenGeTensorOp>() ||
+                         std::is_same<AtenOpT, AtenGeScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::GE);
-    } else if (std::is_same<AtenOpT, AtenEqTensorOp>() ||
-               std::is_same<AtenOpT, AtenEqScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenEqTensorOp>() ||
+                         std::is_same<AtenOpT, AtenEqScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::EQ);
-    } else if (std::is_same<AtenOpT, AtenNeTensorOp>() ||
-               std::is_same<AtenOpT, AtenNeScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenNeTensorOp>() ||
+                         std::is_same<AtenOpT, AtenNeScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::NE);
-    } else if (std::is_same<AtenOpT, AtenLtTensorOp>() ||
-               std::is_same<AtenOpT, AtenLtScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenLtTensorOp>() ||
+                         std::is_same<AtenOpT, AtenLtScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::LT);
-    } else if (std::is_same<AtenOpT, AtenLeTensorOp>() ||
-               std::is_same<AtenOpT, AtenLeScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenLeTensorOp>() ||
+                         std::is_same<AtenOpT, AtenLeScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::LE);
     } else {
@@ -1817,36 +1819,6 @@ LogicalResult ConvertAtenOp<AtenPowTensorTensorOp>::matchAndRewrite(
   return success();
 }
 
-template <>
-LogicalResult ConvertAtenOp<AtenUniformOp>::matchAndRewrite(
-    AtenUniformOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Value self = adaptor.getSelf();
-  Value generator = adaptor.getGenerator();
-  Location loc = op.getLoc();
-
-  if (!isa<Torch::NoneType>(generator.getType()))
-    return rewriter.notifyMatchFailure(
-        op, "The generator has to be None because only global default "
-            "generator is supported");
-
-  auto elements = cast<RankedTensorType>(self.getType()).getShape();
-  if (llvm::any_of(elements,
-                   [](int64_t dim) { return dim == ShapedType::kDynamic; }))
-    return rewriter.notifyMatchFailure(op, "Dynamic shape support TBD");
-  auto shape_tensor = rewriter.create<stablehlo::ConstantOp>(
-      loc, rewriter.getI64TensorAttr(elements));
-  auto outTy = getTypeConverter()->convertType(op.getType());
-  auto outElemTy = cast<RankedTensorType>(outTy).getElementType();
-  Value from =
-      hlo::scalarToStablehloTensor(rewriter, op, adaptor.getFrom(), outElemTy);
-  Value to =
-      hlo::scalarToStablehloTensor(rewriter, op, adaptor.getTo(), outElemTy);
-  rewriter.replaceOpWithNewOp<stablehlo::RngOp>(
-      op, outTy, from, to, shape_tensor, stablehlo::RngDistribution::UNIFORM);
-  return success();
-}
-
 // Converts `aten.empty.memory_format` to `tensor.empty` op.
 template <>
 LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
@@ -2238,7 +2210,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenToDtypeOp);
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorTensorOp);
-  INSERT_ATENOP_PATTERN(AtenUniformOp);
+
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
   INSERT_ATENOP_PATTERN(AtenFlipOp);

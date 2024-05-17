@@ -72,6 +72,9 @@ bool isBuiltInType(Type type);
 // std::nullopt is returned if the tensorRank can't be determined.
 std::optional<unsigned> getTensorRank(Value tensor);
 
+// Helper function to get the number of elements in a tensor.
+std::optional<int64_t> getTensorNumel(Value tensor);
+
 bool isViewLikeOp(Operation *op);
 
 Value getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter, Location loc,

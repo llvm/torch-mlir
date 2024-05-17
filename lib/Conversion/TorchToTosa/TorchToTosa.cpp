@@ -371,8 +371,8 @@ public:
     }
     auto rhsTensor = rhsTy ? rhs : rhsAsTensor;
     // There is no Lesser operator in TOSA.
-    auto swapLhsRhs = (std::is_same<AtenOpT, AtenLtTensorOp>() ||
-                       std::is_same<AtenOpT, AtenLtScalarOp>());
+    constexpr auto swapLhsRhs = (std::is_same<AtenOpT, AtenLtTensorOp>() ||
+                                 std::is_same<AtenOpT, AtenLtScalarOp>());
 
     // Promote lhs and rhs dtypes for bitwise operators.
     TensorType resultTy = OpConversionPattern<AtenOpT>::getTypeConverter()
@@ -388,12 +388,15 @@ public:
                                              (swapLhsRhs ? lhs : rhsTensor));
 
     // There is no NE operator in TOSA.
-    if (std::is_same<AtenOpT, AtenNeTensorOp>() ||
-        std::is_same<AtenOpT, AtenNeScalarOp>())
+    if constexpr (std::is_same<AtenOpT, AtenNeTensorOp>() ||
+                  std::is_same<AtenOpT, AtenNeScalarOp>()) {
       rewriter.replaceOpWithNewOp<tosa::LogicalNotOp>(op, resultTy,
                                                       resultOp.getResult());
-    else
+    }
+
+    else {
       rewriter.replaceOp(op, resultOp.getResult());
+    }
 
     return success();
   }
@@ -425,7 +428,7 @@ public:
           op, "Only floating-point or integer datatype legalization supported");
 
     Value rhsTensor;
-    if (std::is_same<AtenOpT, AtenSquareOp>()) {
+    if constexpr (std::is_same<AtenOpT, AtenSquareOp>()) {
       rhsTensor = lhs;
     } else {
       Value rhsAsTensor;
