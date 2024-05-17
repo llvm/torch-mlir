@@ -2912,11 +2912,13 @@ public:
     auto inputType = input.getType().cast<RankedTensorType>();
     auto inputRank = inputType.getRank();
 
-    if (inputType.isDynamicDim(2) || inputType.isDynamicDim(3)) {
-      return rewriter.notifyMatchFailure(op, "error: Dynamic dim on resize op");
-    }
-
     SmallVector<Value, 2> outputSizeIntValues;
+    Value inputSizeH = getDimOp(rewriter, loc, input, 2);
+    inputSizeH = rewriter.create<arith::IndexCastOp>(
+        loc, rewriter.getIntegerType(64), inputSizeH);
+    Value inputSizeW = getDimOp(rewriter, loc, input, 3);
+    inputSizeW = rewriter.create<arith::IndexCastOp>(
+        loc, rewriter.getIntegerType(64), inputSizeW);
 
     if (!op.getScaleFactor().getType().isa<Torch::NoneType>()) {
       SmallVector<Value, 2> ScaleFactorTorchFloat;
@@ -2927,8 +2929,6 @@ public:
       SmallVector<Value, 2> ScaleFactorFloatValues;
       ScaleFactorFloatValues = getTypeConvertedValues(
           rewriter, loc, getTypeConverter(), ScaleFactorTorchFloat);
-      Value inputSizeH = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getI64IntegerAttr(inputType.getShape()[2]));
       Value inputHFP = rewriter.create<arith::SIToFPOp>(
           loc, rewriter.getF32Type(), inputSizeH);
       Value scale = rewriter.create<arith::TruncFOp>(loc, inputHFP.getType(),
@@ -2938,8 +2938,6 @@ public:
       outputH =
           rewriter.create<arith::FPToSIOp>(loc, rewriter.getI64Type(), outputH);
 
-      Value inputSizeW = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getI64IntegerAttr(inputType.getShape()[3]));
       Value inputWFP = rewriter.create<arith::SIToFPOp>(
           loc, rewriter.getF32Type(), inputSizeW);
       scale = rewriter.create<arith::TruncFOp>(loc, inputWFP.getType(),
@@ -2960,11 +2958,9 @@ public:
       outputSizeIntValues = getTypeConvertedValues(
           rewriter, loc, getTypeConverter(), outputSizeTorchInt);
     }
-    int hDimOffset = 2;
-    SmallVector<Value> dims = getTensorSizes(rewriter, loc, input);
-    dims[hDimOffset] = castIntToIndex(rewriter, loc, outputSizeIntValues[0]);
-    dims[hDimOffset + 1] =
-        castIntToIndex(rewriter, loc, outputSizeIntValues[1]);
+    SmallVector<Value> dims = getTensorSizesUntilDim(rewriter, loc, input, 1);
+    dims.push_back(castIntToIndex(rewriter, loc, outputSizeIntValues[0]));
+    dims.push_back(castIntToIndex(rewriter, loc, outputSizeIntValues[1]));
 
     Value outTensor = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(dims), inputType.getElementType());
@@ -2983,10 +2979,6 @@ public:
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value outputSizeH = outputSizeIntValues[0];
                   Value outputSizeW = outputSizeIntValues[1];
-                  Value inputSizeH = b.create<arith::ConstantOp>(
-                      loc, b.getI64IntegerAttr(inputType.getShape()[2]));
-                  Value inputSizeW = b.create<arith::ConstantOp>(
-                      loc, b.getI64IntegerAttr(inputType.getShape()[3]));
                   Value retVal;
                   if (mode == "nearest") {
                     retVal =

@@ -2607,9 +2607,6 @@ ONNX_XFAIL_SET = {
     "BernoulliTensorModule_basic",
     # Failure - onnx_lowering: onnx.ReduceProd
     "ReduceProdDimIntFloatModule_basic",
-    # Failure - onnx_lowering: onnx.Resize
-    "UpSampleNearest2dDynamicSize_basic",
-    "UpSampleNearest2dStaticSize_basic",
     # Failure - onnx_lowering: onnx.ScatterElements
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMinModuleIncludeSelf",
