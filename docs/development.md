@@ -53,6 +53,42 @@ Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is 
 
 The following command generates configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.  On Windows, use the "Developer PowerShell for Visual Studio" to ensure that the compiler and linker binaries are in the `PATH` variable.
 
+This requires `lld`, `clang`, `ccache`, and other dependencies for building `libtorch` / `PyTorch` wheels from source. If you run into issues because of these, try the [simplified build command](#simplified-build).
+
+```shell
+cmake -GNinja -Bbuild \
+  externals/llvm-project/llvm \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DPython3_FIND_VIRTUALENV=ONLY \
+  -DLLVM_ENABLE_PROJECTS=mlir \
+  -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
+  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD" \
+  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+  -DLLVM_TARGETS_TO_BUILD=host \
+  `# use clang`\
+  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+  `# use ccache to cache build results` \
+  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+  `# use LLD to link in seconds, rather than minutes` \
+  `# if using clang <= 13, replace --ld-path=lld with -fuse-ld=lld` \
+  -DCMAKE_EXE_LINKER_FLAGS_INIT="--ld-path=lld" \
+  -DCMAKE_MODULE_LINKER_FLAGS_INIT="--ld-path=lld" \
+  -DCMAKE_SHARED_LINKER_FLAGS_INIT="--ld-path=lld" \
+  `# Enabling libtorch binary cache instead of downloading the latest libtorch everytime.` \
+  `# Testing against a mismatched version of libtorch may cause failures` \
+  -DLIBTORCH_CACHE=ON \
+  `# Enable an experimental path to build libtorch (and PyTorch wheels) from source,` \
+  `# instead of downloading them` \
+  -DLIBTORCH_SRC_BUILD=ON \
+  `# Set the variant of libtorch to build / link against. (shared|static and optionally cxxabi11)` \
+  -DLIBTORCH_VARIANT=shared
+```
+
+# Simplified build
+
+If you're running into issues with the above build command, consider using the following:
+
 ```shell
 cmake -GNinja -Bbuild \
   -DCMAKE_BUILD_TYPE=Release \
@@ -63,32 +99,6 @@ cmake -GNinja -Bbuild \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DLLVM_TARGETS_TO_BUILD=host \
   externals/llvm-project/llvm
-```
-#### Flags that can reduce build time:
-* Enabling clang on Linux
-```shell
-  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-```
-* Enabling ccache
-```shell
-  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-```
-* Enabling LLD (links in seconds compared to minutes)
-```shell
-  -DCMAKE_EXE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_MODULE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_SHARED_LINKER_FLAGS_INIT="-fuse-ld=lld"
-# Use --ld-path= instead of -fuse-ld=lld for clang > 13
-```
-* Enabling libtorch binary cache
-By default we download the latest version of libtorch everytime you build so we are always on the latest version. Set `-DLIBTORCH_CACHE=ON` to
-not download the latest version everytime. If libtorch gets out of date and you test against a newer PyTorch you may notice failures.
-```shell
-  -DLIBTORCH_CACHE=ON
-```
-* Enabling building libtorch as part of your build
-By default we download the latest version of libtorch. We have an experimental path to build libtorch (and PyTorch wheels) from source.
-```shell
-  -DLIBTORCH_SRC_BUILD=ON  # Build Libtorch from source
-  -DLIBTORCH_VARIANT=shared # Set the variant of libtorch to build / link against. (`shared`|`static` and optionally `cxxabi11`)
 ```
 
 #### Flags to enable MLIR debugging:
