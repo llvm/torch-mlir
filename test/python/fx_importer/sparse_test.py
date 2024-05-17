@@ -723,9 +723,9 @@ def test_sparse_gcn():
             nn.init.ones_(self.bias)
 
         def forward(self, inp, adj_mat):
-            # Input times weight matrix.
+            # Input matrix times weight matrix.
             support = torch.mm(inp, self.kernel)
-            # Sparse adjacency times support matrix
+            # Sparse adjacency matrix times support matrix.
             output = torch.spmm(adj_mat, support)
             # Add bias.
             output = output + self.bias
