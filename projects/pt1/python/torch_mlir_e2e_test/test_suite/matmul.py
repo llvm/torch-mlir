@@ -12,6 +12,30 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 # ==============================================================================
 
 
+class AtenDotModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.dot(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: AtenDotModule())
+def AtenDotModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4), tu.rand(4))
+
+
+# ==============================================================================
+
+
 class MatmulDot(torch.nn.Module):
     def __init__(self):
         super().__init__()
