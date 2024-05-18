@@ -986,6 +986,24 @@ def PixelShuffleModuleSpatiallyStatic_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ChannelShuffleModuleStatic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([2, 6, 3, 4], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.channel_shuffle(x, 2)
+
+
+@register_test_case(module_factory=lambda: ChannelShuffleModuleStatic())
+def ChannelShuffleModuleStatic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 6, 3, 4))
+
+
+# ==============================================================================
+
+
 class TensorsConcatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
