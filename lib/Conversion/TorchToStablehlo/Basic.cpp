@@ -2052,6 +2052,77 @@ LogicalResult ConvertAtenOp<AtenBitwiseRightShiftTensorOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
+    AtenTrilOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  Location loc = op.getLoc();
+
+  Value self = adaptor.getSelf();
+
+  auto selfTy = self.getType().cast<RankedTensorType>();
+  if (!selfTy.hasStaticShape()) {
+    return op->emitError("dynamic shaped input is not supported");
+  }
+
+  ArrayRef<int64_t> selfShape = selfTy.getShape();
+  int64_t selfRank = selfTy.getRank();
+  auto iotaElementTy = mlir::IntegerType::get(op.getContext(), 64);
+  auto iotaTy = RankedTensorType::get(
+      {selfShape[selfRank - 2], selfShape[selfRank - 1]}, iotaElementTy);
+  Value colIdxTensor =
+      rewriter.create<stablehlo::IotaOp>(loc, iotaTy, 1).getResult();
+  Value rowIdxTensor =
+      rewriter.create<stablehlo::IotaOp>(loc, iotaTy, 0).getResult();
+
+  Value diagonal = adaptor.getDiagonal();
+  Value diagonalTensor =
+      rewriter.create<tensor::FromElementsOp>(loc, diagonal).getResult();
+
+  auto bcastDimensions = rewriter.getDenseI64ArrayAttr({1});
+  Value shiftedRowIdxTensor = rewriter.create<chlo::BroadcastAddOp>(
+      loc, rowIdxTensor, diagonalTensor, bcastDimensions);
+
+  auto cmpDirectionAttr = stablehlo::ComparisonDirectionAttr::get(
+      rewriter.getContext(), stablehlo::ComparisonDirection::LE);
+  auto cmpTypeAttr = stablehlo::ComparisonTypeAttr::get(
+      rewriter.getContext(), stablehlo::ComparisonType::SIGNED);
+  auto cmpTy = iotaTy.clone(rewriter.getI1Type());
+  Value cmpRes = rewriter.create<stablehlo::CompareOp>(
+      loc, cmpTy, colIdxTensor, shiftedRowIdxTensor, cmpDirectionAttr,
+      cmpTypeAttr);
+
+  auto resTy =
+      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+
+  auto bcastTy = resTy.clone(rewriter.getI1Type());
+  auto bcastAttr = rewriter.getDenseI64ArrayAttr({selfRank - 2, selfRank - 1});
+  Value bcastedCmpRes = rewriter.create<stablehlo::BroadcastInDimOp>(
+      loc, bcastTy, cmpRes, bcastAttr);
+
+  auto resElemTy = resTy.getElementType();
+  Value zeroTensor;
+  if (resElemTy.isa<mlir::FloatType>()) {
+    auto constAttr = SplatElementsAttr::get(
+        resTy, llvm::APFloat::getZero(
+                   resElemTy.cast<FloatType>().getFloatSemantics(), false));
+    zeroTensor = rewriter.create<stablehlo::ConstantOp>(loc, resTy, constAttr);
+  } else if (resElemTy.isa<mlir::IntegerType>()) {
+    auto constAttr = SplatElementsAttr::get(
+        resTy,
+        llvm::APInt::getZero(resElemTy.cast<mlir::IntegerType>().getWidth()));
+    zeroTensor = rewriter.create<stablehlo::ConstantOp>(loc, resTy, constAttr);
+  } else {
+    return op.emitError("element type is not float or integer");
+  }
+
+  rewriter.replaceOpWithNewOp<stablehlo::SelectOp>(
+      op.getOperation(), resTy, bcastedCmpRes, self, zeroTensor);
+
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -2218,6 +2289,8 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenFmodTensorOp);
   INSERT_ATENOP_PATTERN(AtenBitwiseLeftShiftTensorOp);
   INSERT_ATENOP_PATTERN(AtenBitwiseRightShiftTensorOp);
+
+  INSERT_ATENOP_PATTERN(AtenTrilOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \
