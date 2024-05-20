@@ -1761,10 +1761,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         std::optional<int64_t> axisIntTorch =
             onnxDtypeIntToTorchDtypeInt(axisValue);
-        if (!axisIntTorch.has_value()) {
+        if (!axisIntTorch.has_value())
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented support for the given axis conversion");
-        }
         axis = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(axisIntTorch.value()));
 
