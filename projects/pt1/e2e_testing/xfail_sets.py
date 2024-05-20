@@ -524,9 +524,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenSubFloatModule_basic",
     "AtenTopKModule_basic",
     "AtenTopKSmallestModule_basic",
-    "AtenTrilModule_basic",
-    "AtenTrilWithNegDiagonalModule_basic",
-    "AtenTrilWithPosDiagonalModule_basic",
     "Aten_EmbeddingBagExample_basic",
     "AvgPool2dDivisorOverrideModule_basic",
     "BernoulliTensorModule_basic",
@@ -822,6 +819,7 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "AtenDotModule_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
@@ -866,6 +864,9 @@ STABLEHLO_PASS_SET = {
     "AtenRoundIntModule_basic",
     "AtenSubFloatModule_basic",
     "AtenToDeviceModule_basic",
+    "AtenTrilStaticModule_basic",
+    "AtenTrilWithNegDiagonalStaticModule_basic",
+    "AtenTrilWithPosDiagonalStaticModule_basic",
     "Aten_CastFloatModule_basic",
     "Aten_CastLongModule_basic",
     "AvgPool1dStaticModule_basic",
@@ -1452,6 +1453,7 @@ STABLEHLO_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "AtenDotModule_basic",
     "ElementwiseFloatTensorGtIntScalarModule_basic",
     "ElementwiseLogSigmoidModule_basic",
     "ElementwiseTruncModule_basic",
