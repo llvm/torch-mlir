@@ -23,7 +23,14 @@ static bool haveSameSizeAndElementType(TensorType lhs, TensorType rhs) {
   if (lhs.hasRank() != rhs.hasRank())
     return false;
   bool sameSize = lhs.hasRank() ? lhs.getShape().equals(rhs.getShape()) : true;
-  bool sameElementType = lhs.getElementType() == rhs.getElementType();
+  bool sameElementType = false;
+  if (isa<IntegerType>(lhs.getElementType()) &&
+      isa<IntegerType>(rhs.getElementType())) {
+    sameElementType = lhs.getElementType().getIntOrFloatBitWidth() ==
+                      rhs.getElementType().getIntOrFloatBitWidth();
+  } else {
+    sameElementType = lhs.getElementType() == rhs.getElementType();
+  }
   return sameElementType && sameSize;
 }
 
@@ -39,18 +46,6 @@ LogicalResult ToBuiltinTensorOp::verify() {
     return emitError()
            << "operand and result must have the same size and dtype";
   }
-  return success();
-}
-
-LogicalResult ToBuiltinTensorOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  auto resultType =
-      cast<Torch::ValueTensorType>(operands[0].getType()).toBuiltinTensor();
-  if (!resultType)
-    return failure();
-  inferredReturnTypes.push_back(resultType);
   return success();
 }
 

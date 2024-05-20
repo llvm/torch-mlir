@@ -23,6 +23,7 @@ STABLEHLO_TO_LINALG_FUNC_PIPELINE = ",".join(
     [
         "func.func(stablehlo-aggressive-simplification)",
         "stablehlo-legalize-to-linalg",
+        "stablehlo-convert-to-signless",
         "canonicalize",
     ]
 )

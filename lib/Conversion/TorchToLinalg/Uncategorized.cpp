@@ -1197,6 +1197,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto atenToDtype = dyn_cast<AtenToDtypeOp>(op)) {
     Value input = payloadArgs[0];
+    Type inputElementType =
+        cast<BaseTensorType>(atenToDtype.getSelf().getType()).getDtype();
     Type dtype =
         cast<RankedTensorType>(converter->convertType(atenToDtype.getType()))
             .getElementType();
@@ -1215,7 +1217,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     resultElementType = *maybeResultElementType;
     Value result = convertScalarToDtype(b, loc, input, dtype,
-                                        /*srcOriginalDtype=*/std::nullopt,
+                                        /*srcOriginalDtype=*/inputElementType,
                                         /*dstOriginalDtype=*/resultElementType);
     return result;
   }

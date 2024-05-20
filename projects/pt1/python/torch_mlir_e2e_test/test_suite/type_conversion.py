@@ -136,6 +136,26 @@ def TypeConversionI1ToF64Module_basic(module, tu: TestUtils):
     module.forward(tensor)
 
 
+class TypeConversionUint8ToF32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3], torch.uint8, True),
+        ]
+    )
+    def forward(self, x):
+        return x.to(torch.float)
+
+
+@register_test_case(module_factory=lambda: TypeConversionUint8ToF32Module())
+def TypeConversionUint8ToF32Module_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 1, 255]).to(torch.uint8))
+
+
 # ==============================================================================
 
 

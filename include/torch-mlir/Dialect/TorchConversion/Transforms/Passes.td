@@ -21,6 +21,17 @@ def FuncBackendTypeConversion : Pass<"torch-func-backend-type-conversion", "Modu
   }];
 }
 
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+def FuncBackendTypeConversionForStablehlo : Pass<"torch-func-backend-type-conversion-for-stablehlo", "ModuleOp"> {
+  let summary = "Convert functions to operate on builtin tensors for stablehlo backend";
+  let constructor = "mlir::torch::TorchConversion::createFuncBackendTypeConversionForStablehloPass()";
+  let description = [{
+    Partial type conversion pass analogous in scope to the upstream
+    `func-bufferize` pass. See details there.
+  }];
+}
+#endif // TORCH_MLIR_ENABLE_STABLEHLO
+
 def FinalizingBackendTypeConversion
     : InterfacePass<"torch-finalizing-backend-type-conversion", "mlir::FunctionOpInterface"> {
   let summary = "Finalizes a partial conversion to builtin tensors";
@@ -31,6 +42,19 @@ def FinalizingBackendTypeConversion
     See details there.
   }];
 }
+
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+def FinalizingBackendTypeConversionForStablehlo
+    : InterfacePass<"torch-finalizing-backend-type-conversion-for-stablehlo", "mlir::FunctionOpInterface"> {
+  let summary = "Finalizes a partial conversion to builtin tensors for stablehlo";
+  let constructor =
+    "mlir::torch::TorchConversion::createFinalizingBackendTypeConversionForStablehloPass()";
+  let description = [{
+    Analogous in scope to the upstream `finalizing-bufferize` pass.
+    See details there.
+  }];
+}
+#endif // TORCH_MLIR_ENABLE_STABLEHLO
 
 def VerifyLinalgOnTensorsBackendContract : Pass<"torch-verify-linalg-on-tensors-backend-contract", "ModuleOp"> {
   let summary = "Verifies conformity to the linalg-on-tensors backend contract";

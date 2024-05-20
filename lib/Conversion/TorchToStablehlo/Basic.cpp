@@ -277,8 +277,8 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto inputType = dyn_cast<RankedTensorType>(adaptor.getA().getType());
     if (!inputType)
-
       op.emitError("only Tensor types supported in StableHLO");
+
     Location loc = op.getLoc();
     Value input = adaptor.getA();
     SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
@@ -290,14 +290,24 @@ public:
     for (int64_t i = 0; i < inputRank; i++)
       checkDimEqualHelper(rewriter, loc, inputSizes[i], constantOne);
 
+    // handle unsigned interger
+    if (inputType.getElementType().isUnsignedInteger()) {
+      input = rewriter.create<stablehlo::ConvertOp>(
+          loc, input,
+          rewriter.getIntegerType(
+              inputType.getElementType().getIntOrFloatBitWidth()));
+    }
+
     Value constantZero =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
     SmallVector<Value> indices(inputRank, constantZero);
     Value result = rewriter.create<tensor::ExtractOp>(loc, input, indices);
     Type resultType =
         this->getTypeConverter()->convertType(op->getResult(0).getType());
-    rewriter.replaceOp(op, convertScalarToDtype(rewriter, loc, result,
-                                                resultType, inputDtype));
+    rewriter.replaceOp(
+        op,
+        convertScalarToDtype(rewriter, loc, result, resultType, inputDtype,
+                             /*srcOriginalDtype=*/inputType.getElementType()));
     return success();
   }
 };

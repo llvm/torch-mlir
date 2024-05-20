@@ -38,7 +38,7 @@ setupValueTensorToBuiltinTensorConversion(ConversionTarget &target,
     assert(inputs.size() == 1);
     if (!isa<Torch::BaseTensorType>(inputs[0].getType()))
       return {};
-    return builder.create<ToBuiltinTensorOp>(loc, inputs[0]);
+    return builder.create<ToBuiltinTensorOp>(loc, type, inputs[0]);
   });
   auto sourceMaterialization = [](OpBuilder &builder,
                                   Torch::ValueTensorType type,
@@ -50,6 +50,39 @@ setupValueTensorToBuiltinTensorConversion(ConversionTarget &target,
   typeConverter.addSourceMaterialization(sourceMaterialization);
   typeConverter.addArgumentMaterialization(sourceMaterialization);
 }
+
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+static void setupValueTensorToBuiltinTensorConversionForStablehlo(
+    ConversionTarget &target, TypeConverter &typeConverter) {
+  target.addLegalOp<TorchConversion::ToBuiltinTensorOp,
+                    TorchConversion::FromBuiltinTensorOp>();
+  typeConverter.addConversion(
+      [](Torch::ValueTensorType type) -> std::optional<Type> {
+        auto builtinType = type.toBuiltinTensor();
+        if (type.getDtype().isUnsignedInteger()) {
+          return builtinType.clone(type.getDtype());
+        }
+        return builtinType;
+      });
+  typeConverter.addTargetMaterialization([](OpBuilder &builder, TensorType type,
+                                            ValueRange inputs,
+                                            Location loc) -> Value {
+    assert(inputs.size() == 1);
+    if (!isa<Torch::BaseTensorType>(inputs[0].getType()))
+      return {};
+    return builder.create<ToBuiltinTensorOp>(loc, type, inputs[0]);
+  });
+  auto sourceMaterialization = [](OpBuilder &builder,
+                                  Torch::ValueTensorType type,
+                                  ValueRange inputs, Location loc) -> Value {
+    assert(inputs.size() == 1);
+    assert(isa<TensorType>(inputs[0].getType()));
+    return builder.create<FromBuiltinTensorOp>(loc, type, inputs[0]);
+  };
+  typeConverter.addSourceMaterialization(sourceMaterialization);
+  typeConverter.addArgumentMaterialization(sourceMaterialization);
+}
+#endif
 
 static void setupTorchBoolToI1Conversion(ConversionTarget &target,
                                          TypeConverter &typeConverter) {
@@ -168,3 +201,14 @@ void mlir::torch::TorchConversion::setupBackendTypeConversion(
   setupTorchFloatToF64Conversion(target, typeConverter);
   setupTorchGeneratorToI64Conversion(target, typeConverter);
 }
+
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+void mlir::torch::TorchConversion::setupBackendTypeConversionForStablehlo(
+    ConversionTarget &target, TypeConverter &typeConverter) {
+  setupValueTensorToBuiltinTensorConversionForStablehlo(target, typeConverter);
+  setupTorchBoolToI1Conversion(target, typeConverter);
+  setupTorchIntToI64Conversion(target, typeConverter);
+  setupTorchFloatToF64Conversion(target, typeConverter);
+  setupTorchGeneratorToI64Conversion(target, typeConverter);
+}
+#endif
