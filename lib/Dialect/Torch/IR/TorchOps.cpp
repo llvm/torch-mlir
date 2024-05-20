@@ -549,6 +549,24 @@ void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenDotOp
+//===----------------------------------------------------------------------===//
+
+void AtenDotOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                            MLIRContext *context) {
+  patterns.add(+[](AtenDotOp op, PatternRewriter &rewriter) {
+    auto ty = dyn_cast<ValueTensorType>(op.getResult().getType());
+    if (!ty || !ty.hasSizes() || !ty.hasDtype()) {
+      return failure();
+    }
+
+    rewriter.replaceOpWithNewOp<AtenMatmulOp>(op, op.getResult().getType(),
+                                              op.getSelf(), op.getTensor());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // RuntimeAssertOp
 //===----------------------------------------------------------------------===//
 

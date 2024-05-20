@@ -1816,4 +1816,56 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, input);
                   return success();
                 });
+
+  patterns.onOp(
+      "Hardmax", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // onnx.Hardmax can be expanded into the following python code:
+        //
+        // import torch.nn.functional as F
+        // def hardmax(tensor, dim=-1):
+        //   maximums = torch.argmax(tensor, dim=dim, keepdim=False)
+        //   return F.one_hot(maximums)
+        //
+        // Given an example input:
+        // tensor([[1, 2, 3],
+        //         [4, 6, 5],
+        //         [9, 8, 7]])
+        // Above code yields the following:
+        // tensor([[0, 0, 1],
+        //         [0, 1, 0],
+        //         [1, 0, 0]])
+
+        Torch::ValueTensorType resultType;
+        int64_t axisValue;
+        Value input, axis;
+        if (binder.tensorOperand(input) ||
+            binder.s64IntegerAttr(axisValue, "axis") ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        auto loc = binder.getLoc();
+
+        std::optional<int64_t> axisIntTorch =
+            onnxDtypeIntToTorchDtypeInt(axisValue);
+        if (!axisIntTorch.has_value())
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented support for the given axis conversion");
+        axis = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(axisIntTorch.value()));
+
+        // torch.argmax
+        Value constKeepDims = rewriter.create<Torch::ConstantBoolOp>(
+            loc, rewriter.getType<Torch::BoolType>(),
+            rewriter.getBoolAttr(false));
+        Value argmax = rewriter.create<Torch::AtenArgmaxOp>(
+            loc, resultType, input, axis, constKeepDims);
+
+        // one_hot
+        Value oneInt = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(1));
+        rewriter.replaceOpWithNewOp<Torch::AtenOneHotOp>(binder.op, resultType,
+                                                         argmax, oneInt);
+
+        return success();
+      });
 }
