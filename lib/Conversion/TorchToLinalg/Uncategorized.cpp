@@ -2672,68 +2672,58 @@ public:
 };
 } // namespace
 
-static Value NearestInterpolate(OpBuilder &b, Location loc, Value outputSizeH,
-                                Value outputSizeW, Value input,
-                                Value inputSizeH, Value inputSizeW) {
+static Value NearestInterpolate(OpBuilder &b, Location loc,
+                                SmallVector<Value> outputSizes, Value input,
+                                SmallVector<Value> inputSizes) {
 
   auto inputType = input.getType().cast<RankedTensorType>();
   auto inputRank = inputType.getRank();
-
-  Value yOut = b.create<linalg::IndexOp>(loc, 2);
-  Value xOut = b.create<linalg::IndexOp>(loc, 3);
-
-  Value inputHFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizeH);
-  Value inputWFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizeW);
-
-  Value outputSizeHFP =
-      b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizeH);
-  Value outputSizeWFP =
-      b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizeW);
-
-  // scale = length_resized / length_original
-  // x_original = x_resized / scale
-  Value hScale = b.create<arith::DivFOp>(loc, outputSizeHFP, inputHFP);
-  Value wScale = b.create<arith::DivFOp>(loc, outputSizeWFP, inputWFP);
-
-  Value yOutInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), yOut);
-  Value yOutFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), yOutInt);
-  Value yProj = b.create<arith::DivFOp>(loc, yOutFP, hScale);
-
-  Value xOutInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), xOut);
-  Value xOutFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), xOutInt);
-  Value xProj = b.create<arith::DivFOp>(loc, xOutFP, wScale);
-
-  // get nearest pixel using floor
-  Value yNearestFP = b.create<math::FloorOp>(loc, yProj);
-  Value xNearestFP = b.create<math::FloorOp>(loc, xProj);
-
-  Value yNearestInt =
-      b.create<arith::FPToSIOp>(loc, b.getI64Type(), yNearestFP);
-  Value yNearest =
-      b.create<arith::IndexCastOp>(loc, b.getIndexType(), yNearestInt);
-
-  Value xNearestInt =
-      b.create<arith::FPToSIOp>(loc, b.getI64Type(), xNearestFP);
-  Value xNearest =
-      b.create<arith::IndexCastOp>(loc, b.getIndexType(), xNearestInt);
 
   SmallVector<Value> indices;
   for (unsigned i = 0; i < inputRank; i++) {
     indices.push_back(b.create<linalg::IndexOp>(loc, i));
   }
 
-  int hDimOffset = 2;
-  indices[hDimOffset] = yNearest;
-  indices[hDimOffset + 1] = xNearest;
+  for (unsigned i = 2; i < inputRank; i++) {
+    Value outIndex = indices[i];
+
+    Value inputSizeFP =
+        b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizes[i - 2]);
+
+    Value outputSizeFP =
+        b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizes[i - 2]);
+
+    // scale = length_resized / length_original
+    // x_original = x_resized / scale
+    Value scale = b.create<arith::DivFOp>(loc, outputSizeFP, inputSizeFP);
+
+    Value outInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), outIndex);
+    Value outFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), outInt);
+    Value proj = b.create<arith::DivFOp>(loc, outFP, scale);
+
+    // get nearest pixel using floor
+    Value nearestFP = b.create<math::FloorOp>(loc, proj);
+
+    Value nearestInt =
+        b.create<arith::FPToSIOp>(loc, b.getI64Type(), nearestFP);
+    Value nearest =
+        b.create<arith::IndexCastOp>(loc, b.getIndexType(), nearestInt);
+
+    indices[i] = nearest;
+  }
   Value retVal = b.create<tensor::ExtractOp>(loc, input, indices);
   return retVal;
 }
 
 static Value BilinearInterpolate(OpBuilder &b,
                                  Aten__InterpolateSizeListScaleListOp op,
-                                 Location loc, Value outputSizeH,
-                                 Value outputSizeW, Value input,
-                                 Value inputSizeH, Value inputSizeW) {
+                                 Location loc, SmallVector<Value> outputSizes,
+                                 Value input, SmallVector<Value> inputSizes) {
+  Value inputSizeH = inputSizes[0];
+  Value inputSizeW = inputSizes[1];
+  Value outputSizeH = outputSizes[0];
+  Value outputSizeW = outputSizes[1];
+
   int hDimOffset = 2;
   auto inputType = input.getType().cast<RankedTensorType>();
   auto inputRank = inputType.getRank();
@@ -2888,7 +2878,6 @@ static Value BilinearInterpolate(OpBuilder &b,
   rhs = b.create<arith::MulFOp>(loc, w1, xInter1);
 
   Value retVal = b.create<arith::AddFOp>(loc, lhs, rhs);
-
   return retVal;
 }
 
@@ -2911,46 +2900,43 @@ public:
     Value input = adaptor.getInput();
     auto inputType = input.getType().cast<RankedTensorType>();
     auto inputRank = inputType.getRank();
+    if (mode == "bilinear" && inputRank != 4)
+      return rewriter.notifyMatchFailure(
+          op,
+          "cannot perform bilinear interpolation when input spatial dims != 2");
 
-    SmallVector<Value, 2> outputSizeIntValues;
-    Value inputSizeH = getDimOp(rewriter, loc, input, 2);
-    inputSizeH = rewriter.create<arith::IndexCastOp>(
-        loc, rewriter.getIntegerType(64), inputSizeH);
-    Value inputSizeW = getDimOp(rewriter, loc, input, 3);
-    inputSizeW = rewriter.create<arith::IndexCastOp>(
-        loc, rewriter.getIntegerType(64), inputSizeW);
+    SmallVector<Value> outputSizeIntValues;
+    SmallVector<Value> inputSizes;
+    for (unsigned i = 2; i < inputRank; i++) {
+      Value inputSize = getDimOp(rewriter, loc, input, 2);
+      inputSizes.push_back(rewriter.create<arith::IndexCastOp>(
+          loc, rewriter.getIntegerType(64), inputSize));
+    }
 
     if (!op.getScaleFactor().getType().isa<Torch::NoneType>()) {
-      SmallVector<Value, 2> ScaleFactorTorchFloat;
+      SmallVector<Value> ScaleFactorTorchFloat;
       if (!getListConstructElements(op.getScaleFactor(), ScaleFactorTorchFloat))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: the output_size is not constructed from "
                 "ListConstruct");
-      SmallVector<Value, 2> ScaleFactorFloatValues;
+      SmallVector<Value> ScaleFactorFloatValues;
       ScaleFactorFloatValues = getTypeConvertedValues(
           rewriter, loc, getTypeConverter(), ScaleFactorTorchFloat);
-      Value inputHFP = rewriter.create<arith::SIToFPOp>(
-          loc, rewriter.getF32Type(), inputSizeH);
-      Value scale = rewriter.create<arith::TruncFOp>(loc, inputHFP.getType(),
-                                                     ScaleFactorFloatValues[0]);
-      Value outputSizeH = rewriter.create<arith::MulFOp>(loc, inputHFP, scale);
-      Value outputH = rewriter.create<math::FloorOp>(loc, outputSizeH);
-      outputH =
-          rewriter.create<arith::FPToSIOp>(loc, rewriter.getI64Type(), outputH);
+      for (unsigned i = 0; i < inputRank - 2; i++) {
+        Value inputSizeFP = rewriter.create<arith::SIToFPOp>(
+            loc, rewriter.getF32Type(), inputSizes[i]);
+        Value scale = rewriter.create<arith::TruncFOp>(
+            loc, inputSizeFP.getType(), ScaleFactorFloatValues[i]);
+        Value outputSize =
+            rewriter.create<arith::MulFOp>(loc, inputSizeFP, scale);
+        outputSize = rewriter.create<math::FloorOp>(loc, outputSize);
+        outputSize = rewriter.create<arith::FPToSIOp>(
+            loc, rewriter.getI64Type(), outputSize);
 
-      Value inputWFP = rewriter.create<arith::SIToFPOp>(
-          loc, rewriter.getF32Type(), inputSizeW);
-      scale = rewriter.create<arith::TruncFOp>(loc, inputWFP.getType(),
-                                               ScaleFactorFloatValues[1]);
-      Value outputSizeW = rewriter.create<arith::MulFOp>(loc, inputWFP, scale);
-      Value outputW = rewriter.create<math::FloorOp>(loc, outputSizeW);
-      outputW =
-          rewriter.create<arith::FPToSIOp>(loc, rewriter.getI64Type(), outputW);
-
-      outputSizeIntValues.push_back(outputH);
-      outputSizeIntValues.push_back(outputW);
+        outputSizeIntValues.push_back(outputSize);
+      }
     } else {
-      SmallVector<Value, 2> outputSizeTorchInt;
+      SmallVector<Value> outputSizeTorchInt;
       if (!getListConstructElements(op.getSize(), outputSizeTorchInt))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: the output_size is not constructed from "
@@ -2959,8 +2945,9 @@ public:
           rewriter, loc, getTypeConverter(), outputSizeTorchInt);
     }
     SmallVector<Value> dims = getTensorSizesUntilDim(rewriter, loc, input, 1);
-    dims.push_back(castIntToIndex(rewriter, loc, outputSizeIntValues[0]));
-    dims.push_back(castIntToIndex(rewriter, loc, outputSizeIntValues[1]));
+    for (unsigned i = 2; i < inputRank; i++) {
+      dims.push_back(castIntToIndex(rewriter, loc, outputSizeIntValues[i - 2]));
+    }
 
     Value outTensor = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(dims), inputType.getElementType());
@@ -2977,17 +2964,13 @@ public:
                 /*indexingMaps=*/idMap,
                 /*iteratorTypes=*/iteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value outputSizeH = outputSizeIntValues[0];
-                  Value outputSizeW = outputSizeIntValues[1];
                   Value retVal;
                   if (mode == "nearest") {
-                    retVal =
-                        NearestInterpolate(b, loc, outputSizeH, outputSizeW,
-                                           input, inputSizeH, inputSizeW);
+                    retVal = NearestInterpolate(b, loc, outputSizeIntValues,
+                                                input, inputSizes);
                   } else if (mode == "bilinear") {
-                    retVal = BilinearInterpolate(b, op, loc, outputSizeH,
-                                                 outputSizeW, input, inputSizeH,
-                                                 inputSizeW);
+                    retVal = BilinearInterpolate(
+                        b, op, loc, outputSizeIntValues, input, inputSizes);
                   }
                   b.create<linalg::YieldOp>(loc, retVal);
                 })

@@ -2804,7 +2804,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               llvm::ArrayRef(selectSizes), operandType.getOptionalDtype());
 
           MLIRContext *context = binder.op->getContext();
-          for (int i = sizes[0] - 2; i < sizes[0]; i++) {
+          for (int i = 2; i < sizes[0]; i++) {
             Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
                 binder.getLoc(), rewriter.getType<Torch::IntType>(),
                 rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
