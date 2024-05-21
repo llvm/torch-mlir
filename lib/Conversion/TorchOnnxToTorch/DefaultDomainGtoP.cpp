@@ -466,15 +466,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(
               binder.op, "unsupported conversion: auto_pad != NOTSET");
 
-        Torch::ValueTensorType resultType;
+        Torch::ValueTensorType resultTypeOut;
         Value operand;
-        bool ceilMode;
-        int64_t storageOrder;
+        int64_t ceilMode, storageOrder;
         // TODO: Add support for indices output and storage_order
         if (binder.tensorOperand(operand) ||
-            binder.s64BoolAttr(ceilMode, "ceil_mode", false) ||
+            binder.s64IntegerAttr(ceilMode, "ceil_mode", 0) ||
             binder.s64IntegerAttr(storageOrder, "storage_order", 0) ||
-            binder.tensorResultType(resultType))
+            binder.tensorResultTypeAtIndex(resultTypeOut, 0))
           return rewriter.notifyMatchFailure(
               binder.op,
               "operand/ceil_mode/storage_order/resultType bind failure");
@@ -547,12 +546,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           Value shuffledPaddingList =
               createConstantIntList(binder, rewriter, padding);
           Value zero;
-          if (resultType.getDtype().isa<FloatType>()) {
+          if (resultTypeOut.getDtype().isa<FloatType>()) {
             zero = rewriter.create<Torch::ConstantFloatOp>(
                 binder.getLoc(), rewriter.getType<Torch::FloatType>(),
                 rewriter.getF64FloatAttr(
                     std::numeric_limits<double>::lowest()));
-          } else if (resultType.getDtype().isa<IntegerType>()) {
+          } else if (resultTypeOut.getDtype().isa<IntegerType>()) {
             zero = rewriter.create<Torch::ConstantIntOp>(
                 binder.getLoc(), rewriter.getI64IntegerAttr(
                                      std::numeric_limits<int64_t>::lowest()));
@@ -578,17 +577,39 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (rank == 3)
           return rewriter.notifyMatchFailure(binder.op,
                                              "Unimplemented: AtenMaxPool1dOp");
-        if (rank == 4) {
-          rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dOp>(
-              binder.op, resultType, operand, kernelSizeList, stridesList,
-              paddingList, dilationsList, cstCeilMode);
-          return success();
-        }
-        if (rank == 5) {
-          rewriter.replaceOpWithNewOp<Torch::AtenMaxPool3dOp>(
-              binder.op, resultType, operand, kernelSizeList, stridesList,
-              paddingList, dilationsList, cstCeilMode);
-          return success();
+
+        if (binder.op->getNumResults() == 2) {
+          Torch::ValueTensorType resultTypeIndices;
+          if (binder.tensorResultTypeAtIndex(resultTypeIndices, 1))
+            return failure();
+
+          if (rank == 4) {
+            rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dWithIndicesOp>(
+                binder.op, resultTypeOut, resultTypeIndices, operand,
+                kernelSizeList, stridesList, paddingList, dilationsList,
+                cstCeilMode);
+            return success();
+          }
+          if (rank == 5) {
+            rewriter.replaceOpWithNewOp<Torch::AtenMaxPool3dWithIndicesOp>(
+                binder.op, resultTypeOut, resultTypeIndices, operand,
+                kernelSizeList, stridesList, paddingList, dilationsList,
+                cstCeilMode);
+            return success();
+          }
+        } else {
+          if (rank == 4) {
+            rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dOp>(
+                binder.op, resultTypeOut, operand, kernelSizeList, stridesList,
+                paddingList, dilationsList, cstCeilMode);
+            return success();
+          }
+          if (rank == 5) {
+            rewriter.replaceOpWithNewOp<Torch::AtenMaxPool3dOp>(
+                binder.op, resultTypeOut, operand, kernelSizeList, stridesList,
+                paddingList, dilationsList, cstCeilMode);
+            return success();
+          }
         }
         return rewriter.notifyMatchFailure(binder.op, "No rank is matched.");
       });

@@ -455,9 +455,6 @@ FX_IMPORTER_XFAIL_SET = {
     "ThresholdBackward2dMixedModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
-    "UnbindIntGetItem_Module_basic",
-    "UnbindIntListUnpack_Module_basic",
-    "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
@@ -2587,10 +2584,6 @@ ONNX_XFAIL_SET = {
     # when the issue is fixed, please remove DiagonalWithStaticShapeModule as well as the xfails here.
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
-    # Failure - onnx_lowering: onnx.MaxPool
-    "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
-    "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
-    "MaxPool2dWithIndicesStaticModule_basic",
     # Failure - onnx_lowering: onnx.ReduceProd
     "ReduceProdFloatModule_basic",
     "ReduceProdDtypeFloatModule_basic",
@@ -2690,6 +2683,9 @@ ONNX_CRASHING_SET = {
     # The following test sporadically stopped producing correct numerics for the golden value in the CI.
     # For now, we are removing the test until this issue has been debugged.
     "QuantizedMLP_basic",
+    # Runtime crash: mismatched size for broadcast
+    "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
+    "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {

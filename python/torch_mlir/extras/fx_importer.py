@@ -1428,6 +1428,8 @@ class GraphNodeImporter:
         elif target == torch.ops.aten._assert_async.msg:
             # TODO: A more suitable op to replace it?
             return
+        elif target == torch.ops.aten._unsafe_index_put.default:
+            node.target = target = torch.ops.aten._unsafe_index_put.hacked_twin
 
         schema = target._schema
         assert isinstance(schema, FunctionSchema)

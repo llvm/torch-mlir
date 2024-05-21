@@ -2404,6 +2404,28 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                                         exp);
         return success();
       });
+  patterns.onOp("Softsign", 22,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value input;
+                  if (binder.tensorOperand(input) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+
+                  Value absX = rewriter.create<Torch::AtenAbsOp>(
+                      binder.getLoc(), resultType, input);
+
+                  Value constOne = rewriter.create<Torch::ConstantIntOp>(
+                      binder.getLoc(), rewriter.getI64IntegerAttr(1));
+
+                  Value absXPlusOne = rewriter.create<Torch::AtenAddScalarOp>(
+                      binder.getLoc(), resultType, absX, constOne, constOne);
+
+                  rewriter.replaceOpWithNewOp<Torch::AtenDivTensorOp>(
+                      binder.op, resultType, input, absXPlusOne);
+                  return success();
+                });
   patterns.onOp(
       "Trilu", 14, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
