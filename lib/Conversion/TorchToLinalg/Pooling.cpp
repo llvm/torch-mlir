@@ -111,7 +111,7 @@ static Value padInputTensor(Operation *op, ConversionPatternRewriter &rewriter,
   SmallVector<int64_t> lowPaddingIncludingNC = {0, 0};
   SmallVector<int64_t> highPaddingIncludingNC = {0, 0};
 
-  unsigned selfRank = self.getType().cast<RankedTensorType>().getRank();
+  unsigned selfRank = cast<RankedTensorType>(self.getType()).getRank();
   unsigned paddingIntsSize = paddingInts.size();
 
   if (paddingIntsSize == 2 * (selfRank - 2)) {

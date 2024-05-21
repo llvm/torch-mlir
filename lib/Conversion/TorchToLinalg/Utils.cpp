@@ -587,7 +587,7 @@ LogicalResult torch_to_linalg::permuteTensor(Operation *op,
   if (inputRank != numDimensions)
     return rewriter.notifyMatchFailure(
         op, "size of `dims` must be equal to the rank of the input");
-  for (unsigned i = 0; i < numDimensions; i++) {
+  for (uint32_t i = 0; i < numDimensions; i++) {
     if (dimensions[i] < 0)
       dimensions[i] = toPositiveDim(dimensions[i], inputRank);
     if (!isValidDim(dimensions[i], inputRank))
@@ -595,16 +595,16 @@ LogicalResult torch_to_linalg::permuteTensor(Operation *op,
   }
 
   SmallVector<Value> outputDims;
-  for (unsigned i = 0; i < inputRank; i++)
+  for (uint32_t i = 0; i < inputRank; i++)
     outputDims.push_back(getDimOp(rewriter, loc, input, dimensions[i]));
 
   Value outVector = rewriter.create<tensor::EmptyOp>(
       loc, getAsOpFoldResult(outputDims), elementType);
   SmallVector<AffineExpr> idExprs;
   SmallVector<AffineExpr> swapExprs;
-  for (unsigned i = 0; i < inputRank; i++)
+  for (uint32_t i = 0; i < inputRank; i++)
     idExprs.push_back(getAffineDimExpr(i, rewriter.getContext()));
-  for (unsigned i = 0; i < inputRank; i++)
+  for (uint32_t i = 0; i < inputRank; i++)
     swapExprs.push_back(idExprs[dimensions[i]]);
 
   AffineMap inputMap =
