@@ -2541,3 +2541,16 @@ func.func @test_sequence_empty() -> !torch.list<vtensor<[],f32>> attributes {tor
   %0 = torch.operator "onnx.SequenceEmpty"() : () -> !torch.list<vtensor<[],f32>>
   return %0 : !torch.list<vtensor<[],f32>>
 }
+
+// -----
+
+func.func @test_upsample_nearest(%arg0: !torch.vtensor<[1,1,2,2],f32>, %arg1: !torch.vtensor<[4],f32>) -> !torch.vtensor<[1,1,4,6],f32> attributes {torch.onnx_meta.ir_version = 4 : si64, torch.onnx_meta.opset_version = 9 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT4:.*]] = torch.constant.int 4
+  // CHECK: %[[INT6:.*]] = torch.constant.int 6
+  // CHECK: %[[OUTPUT_SIZE:.*]] = torch.prim.ListConstruct %[[INT4]], %[[INT6]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[NONE:.*]] = torch.constant.none
+  // CHECK: %[[UPSAMPLE_RESULT:.*]] = torch.aten.upsample_nearest2d %arg0, %[[OUTPUT_SIZE]], %[[NONE]], %[[NONE]] : !torch.vtensor<[1,1,2,2],f32>, !torch.list<int>, !torch.none, !torch.none -> !torch.vtensor<[1,1,4,6],f32>
+  // CHECK: return %[[UPSAMPLE_RESULT]] : !torch.vtensor<[1,1,4,6],f32>
+  %0 = torch.operator "onnx.Upsample"(%arg0, %arg1) {torch.onnx.mode = "nearest"} : (!torch.vtensor<[1,1,2,2],f32>, !torch.vtensor<[4],f32>) -> !torch.vtensor<[1,1,4,6],f32>
+  return %0 : !torch.vtensor<[1,1,4,6],f32>
+}
