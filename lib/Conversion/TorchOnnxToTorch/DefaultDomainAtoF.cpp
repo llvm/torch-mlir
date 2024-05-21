@@ -909,16 +909,26 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
           auto ty = cast<ShapedType>(attr.getType());
           ElementsAttr denseAttr;
-          auto ptr = attr.getRawHandle().getBlob()->getData();
+          auto ptr = attr.getRawHandle().getBlob();
+          if (!ptr) {
+            denseAttr =
+                DenseElementsAttr::getElided(ty); // this doesn't exist...
+            // figure out how to get dense_resource<__elided__> without
+            // ASMPrinter????
+            rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
+                binder.op, resultType, denseAttr);
+            return success();
+          }
+          auto data = ptr->getData();
           if (cast<ShapedType>(attr.getType()).getElementType().isInteger(1)) {
             llvm::SmallVector<APInt> newContents;
-            for (auto val : ptr) {
+            for (auto val : data) {
               APInt apval(1, val);
               newContents.push_back(apval);
             }
             denseAttr = DenseElementsAttr::get(ty, newContents);
           } else {
-            denseAttr = DenseElementsAttr::getFromRawBuffer(ty, ptr);
+            denseAttr = DenseElementsAttr::getFromRawBuffer(ty, data);
           }
 
           rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
