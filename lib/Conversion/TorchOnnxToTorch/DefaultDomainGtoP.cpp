@@ -444,6 +444,37 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
+  patterns.onOp("NegativeLogLikelihoodLoss", 13,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value self, target, weight, reduction, ignore_index;
+                  int64_t ignore_index_int;
+                  std::string reduction_str;
+
+                  if (binder.tensorOperands(self, target) ||
+                      binder.s64IntegerAttr(ignore_index_int, "ignore_index", -100) ||
+                      binder.customOpNameStringAttr(reduction_str, "reduction", "mean") ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+
+                  // optional third tensor argument
+                  if(binder.tensorOperandAtIndex(weight, 2)){
+                    weight = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+                  }
+
+                  ignore_index = rewriter.create<Torch::ConstantIntOp>(
+                      binder.getLoc(), rewriter.getI64IntegerAttr(ignore_index_int));
+
+                  // convert string reduction attr to standardized integer enum value
+                  int reduction_value = torch_upstream::get_reduction_enum(reduction_str);
+                  reduction = rewriter.create<Torch::ConstantIntOp>(
+                      binder.getLoc(), rewriter.getI64IntegerAttr(reduction_value));
+
+                  rewriter.replaceOpWithNewOp<Torch::AtenNllLossForwardOp>(
+                      binder.op, resultType, resultType, self, target, weight, reduction, ignore_index);
+                  return success();
+                });
   patterns.onOp("NonZero", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
