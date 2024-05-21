@@ -83,6 +83,7 @@ from torch.fx.node import (
 )
 
 from ..ir import (
+    AffineMapAttr,
     Attribute,
     Block,
     Context,
@@ -1278,9 +1279,9 @@ class GraphNodeImporter:
         with InsertionPoint(self._b):
             loc = Location.unknown()
 
-            # Import shape symbols and symbolic guards if any
+            # Import dynamic shape symbols (if any) with range constraints
             range_constraints = self._cc.get_range_constraints()
-            self._import_shape_symbols_and_guards(loc, range_constraints)
+            #self._import_symbolic_ints_with_constraints(loc, range_constraints)
 
             num_placeholders = 0
             for node in nodes:
@@ -1340,6 +1341,8 @@ class GraphNodeImporter:
                     # results.
                     operands = [self._import_argument(loc, arg) for arg in node.args[0]]
                     func_dialect.ReturnOp(operands, loc=loc)
+
+                #self._create_bind_symbolic_shape_ops(self, loc, node)
 
     def _promote_symbolic_scalar_int_float(self, loc, graph, param):
         temp_target = torch.ops.aten.Float.Scalar
@@ -1604,26 +1607,25 @@ class GraphNodeImporter:
         for i, value in enumerate(operation.results):
             self.bind_node_value(node, value, i)
 
-    def _import_shape_symbols_and_guards(
+    def _import_symbolic_ints_with_constraints(
         self, loc: Location, range_constraints: Dict[str, RangeConstraint]
-    ) -> Value:
+    ):
         for symbol, constraints in range_constraints.items():
             # Create torch.sym_int ops
             operation = Operation.create(
                 name="torch.symbolic_int",
-                attributes={"symbol_name": StringAttr.get(symbol)},
+                attributes={
+                    "symbol_name": StringAttr.get(symbol),
+                    "min_val": self._cc.integer_attr(constraints.min_val, 64),
+                    "max_val": self._cc.integer_attr(constraints.max_val, 64),
+                },
                 results=[self._cc.torch_int_type],
                 loc=loc,
             )
             self.bind_symbol_value(symbol, operation.result)
 
-            # Create torch.symbolic_guard ops
-            # operation = Operation.create(
-            #     name="torch.symbolic_guard",
-            #     operands=[self.resolve_symbol_value(symbol)],
-            #     attributes={"range_constraints": IntegerSet.get_empty(1, 1)},
-            #     loc=loc,
-            # )
+    def _create_bind_symbolic_shape_ops(self, loc: Location, node: torch_fx.Node):
+        pass
 
     def _import_argument(
         self, loc: Location, arg: NodeArgument, expected_jit_type=None
