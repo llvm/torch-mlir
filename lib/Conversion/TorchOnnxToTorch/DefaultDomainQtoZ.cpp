@@ -2792,6 +2792,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "unimplemented: support not present for nearest_mode "
                          "except floor");
         }
+        if (coordTfMode == "half_pixel_symmetric" ||
+            coordTfMode == "asymmetric" || coordTfMode == "tf_crop_and_resize")
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented coordinate transformation mode.");
 
         Value zero = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
