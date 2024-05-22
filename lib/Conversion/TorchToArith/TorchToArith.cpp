@@ -190,28 +190,14 @@ public:
             dyn_cast<DenseResourceElementsAttr>(op.getValueAttr())) {
       if (auto type = dyn_cast<RankedTensorType>(elements.getType())) {
         if (auto intType = dyn_cast<IntegerType>(type.getElementType())) {
-          if (intType.getWidth() == 1) {
-            // `i1` is not a compatible type for
-            // convertDenseResourceElementsAttr in
-            // externals/llvm-project/mlir/lib/Target/LLVMIR/ModuleTranslation.cpp
-            Type builtinTensorElemTy = IntegerType::get(context, 1);
-            auto shapedType =
-                RankedTensorType::get(type.getShape(), builtinTensorElemTy);
-            auto rawData = elements.getRawHandle().getBlob()->getData();
-            DenseElementsAttr newAttr =
-                DenseElementsAttr::getFromRawBuffer(shapedType, rawData);
-            rewriter.replaceOpWithNewOp<arith::ConstantOp>(op, newAttr);
-            return success();
-          } else {
-            Type builtinTensorElemTy =
-                IntegerType::get(context, intType.getIntOrFloatBitWidth());
-            auto shapedType =
-                RankedTensorType::get(type.getShape(), builtinTensorElemTy);
-            rewriter.replaceOpWithNewOp<arith::ConstantOp>(
-                op, DenseResourceElementsAttr::get(shapedType,
-                                                   elements.getRawHandle()));
-            return success();
-          }
+          Type builtinTensorElemTy =
+              IntegerType::get(context, intType.getIntOrFloatBitWidth());
+          auto shapedType =
+              RankedTensorType::get(type.getShape(), builtinTensorElemTy);
+          rewriter.replaceOpWithNewOp<arith::ConstantOp>(
+              op, DenseResourceElementsAttr::get(shapedType,
+                                                 elements.getRawHandle()));
+          return success();
         }
       }
     }
