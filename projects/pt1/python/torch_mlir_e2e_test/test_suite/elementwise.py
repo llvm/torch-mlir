@@ -5812,6 +5812,29 @@ def ElementwiseBitwiseLeftShiftInt64Module_basic(module, tu: TestUtils):
     )
 
 
+class ElementwiseBitwiseLeftShiftTensorScalarInt64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int64, True),
+            ([-1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.bitwise_left_shift(lhs, rhs)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseBitwiseLeftShiftTensorScalarInt64Module()
+)
+def ElementwiseBitwiseLeftShiftTensorScalarInt64Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-1000, high=1000), 4)
+
+
 class ElementwiseBitwiseLeftShiftInt32Module(torch.nn.Module):
     def __init__(self):
         super().__init__()

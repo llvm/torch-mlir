@@ -2054,6 +2054,30 @@ void Aten__And__ScalarOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// Aten__Lshift__ScalarOp
+//===----------------------------------------------------------------------===//
+void Aten__Lshift__ScalarOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](Aten__Lshift__ScalarOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenBitwiseLeftShiftTensorScalarOp>(
+        op, op.getType(), op.getSelf(), op.getOther());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__Rshift__ScalarOp
+//===----------------------------------------------------------------------===//
+void Aten__Rshift__ScalarOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](Aten__Rshift__ScalarOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenBitwiseRightShiftTensorScalarOp>(
+        op, op.getType(), op.getSelf(), op.getOther());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenScalarImplicitOp
 //===----------------------------------------------------------------------===//
 void AtenScalarImplicitOp::getCanonicalizationPatterns(
