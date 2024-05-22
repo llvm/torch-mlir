@@ -1453,6 +1453,13 @@ STABLEHLO_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
+    "ElementwiseDivTensorFloatModule_basic",
+    "ElementwiseMulTensorFloatModule_basic",
+    "ElementwiseWhereScalarSelfStaticModule_basic",
+    "GroupNormModule_basic",
+    "GroupNormNoWeightAndBiasModule_basic",
+    "NativeGroupNormModule_basic",
     "AtenDotModule_basic",
     "ElementwiseFloatTensorGtIntScalarModule_basic",
     "ElementwiseLogSigmoidModule_basic",
