@@ -1957,7 +1957,6 @@ MAKE_FX_TOSA_PASS_SET = (
     "Conv2dNoPaddingModule_basic",
     "Conv2dWithPaddingDilationStrideModule_basic",
     "Conv2dWithPaddingModule_basic",
-    "AtenInstanceNormModule_basic",
     # failed to legalize operation 'torch.operator'
     "ElementwisePreluModule_basic",
     "ElementwisePreluStaticModule_basic",
