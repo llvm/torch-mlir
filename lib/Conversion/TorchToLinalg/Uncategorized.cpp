@@ -2984,26 +2984,25 @@ public:
     SmallVector<utils::IteratorType> iteratorTypes(
         inputRank, utils::IteratorType::parallel);
 
-    Value finalRes =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, outTensor.getType(), ValueRange{}, outTensor,
-                /*indexingMaps=*/idMap,
-                /*iteratorTypes=*/iteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value retVal;
-                  if (mode == "nearest") {
-                    retVal =
-                        NearestInterpolate(b, loc, outputSizeIntValues, input,
-                                           inputSizes, ScaleFactorFloatValues);
-                  } else if (mode == "bilinear") {
-                    retVal = BilinearInterpolate(
-                        b, op, loc, outputSizeIntValues, input, inputSizes,
-                        ScaleFactorFloatValues);
-                  }
-                  b.create<linalg::YieldOp>(loc, retVal);
-                })
-            .getResult(0);
+    Value finalRes = rewriter
+                         .create<linalg::GenericOp>(
+                             loc, outTensor.getType(), ValueRange{}, outTensor,
+                             /*indexingMaps=*/idMap,
+                             /*iteratorTypes=*/iteratorTypes,
+                             [&](OpBuilder &b, Location loc, ValueRange args) {
+                               Value retVal;
+                               if (mode == "nearest") {
+                                 retVal = NearestInterpolate(
+                                     b, loc, outputSizeIntValues, input,
+                                     inputSizes, ScaleFactorFloatValues);
+                               } else if (mode == "bilinear") {
+                                 retVal = BilinearInterpolate(
+                                     b, op, loc, outputSizeIntValues, input,
+                                     inputSizes, ScaleFactorFloatValues);
+                               }
+                               b.create<linalg::YieldOp>(loc, retVal);
+                             })
+                         .getResult(0);
     Type newResultType =
         getTypeConverter()->convertType(op.getResult().getType());
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, finalRes);
