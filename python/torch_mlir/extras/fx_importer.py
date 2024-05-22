@@ -1281,7 +1281,7 @@ class GraphNodeImporter:
 
             # Import dynamic shape symbols (if any) with range constraints
             range_constraints = self._cc.get_range_constraints()
-            # self._import_symbolic_ints_with_constraints(loc, range_constraints)
+            self._import_symbolic_ints_with_constraints(loc, range_constraints)
 
             num_placeholders = 0
             for node in nodes:

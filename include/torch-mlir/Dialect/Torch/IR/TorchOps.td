@@ -1342,7 +1342,7 @@ def Torch_DtypeCalculateYieldDtypesOp : Torch_Op<"dtype.calculate.yield.dtypes",
 // Symbolic shape modeling ops for TorchDynamo frontend.
 //===----------------------------------------------------------------------===//
 
-def Torch_SymbolicIntOp : Torch_Op<"symbolic_int", []> {
+def Torch_SymbolicIntOp : Torch_Op<"symbolic_int", [Pure]> {
   let summary = "Symbolic int representing a dynamic dimension";
   let description = [{
     The `torch.symbolic_int` operation captures a dynamic dimension on the
