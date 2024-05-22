@@ -439,9 +439,10 @@ public:
     target.addIllegalOp<Torch::ConstantIntOp>();
     patterns.add<ConvertTorchConstantIntOp>(typeConverter, context);
 
-    target.addIllegalOp<AtenIntBoolOp, AtenFloatScalarOp>();
+    target.addIllegalOp<AtenIntBoolOp, AtenFloatScalarOp, AtenIntScalarOp>();
     patterns.add<ConvertAtenCastOp<AtenIntBoolOp>>(typeConverter, context);
     patterns.add<ConvertAtenCastOp<AtenFloatScalarOp>>(typeConverter, context);
+    patterns.add<ConvertAtenCastOp<AtenIntScalarOp>>(typeConverter, context);
 
     target.addIllegalOp<AtenAddOp>();
     patterns.add<ConvertAtenAddOp>(typeConverter, context);

@@ -326,3 +326,14 @@ func.func @torch.aten.Int.bool(%arg0: !torch.bool) -> !torch.int {
   %0 = torch.aten.Int.bool %arg0 : !torch.bool -> !torch.int
   return %0 : !torch.int
 }
+
+// CHECK-LABEL:   func.func @torch.aten.Int.Scalar(
+// CHECK-SAME:                            %[[ARG:.*]]: !torch.float) -> !torch.int {
+// CHECK:         %[[ARG_F64:.*]] = torch_c.to_f64 %[[ARG]]
+// CHECK:         %[[FPTOSI:.*]] = arith.fptosi %[[ARG_F64]] : f64 to i64
+// CHECK:         %[[OUT:.*]] = torch_c.from_i64 %[[FPTOSI]]
+// CHECK:         return %[[OUT]] : !torch.int
+func.func @torch.aten.Int.Scalar(%arg0: !torch.float) -> !torch.int {
+  %0 = torch.aten.Int.Scalar %arg0 : !torch.float -> !torch.int
+  return %0 : !torch.int
+}
