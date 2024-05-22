@@ -848,6 +848,13 @@ class FxImporter:
                         result_types.append(
                             self._cc.tensor_to_vtensor_type(result_node)
                         )
+                    elif type(result_node) in SCALAR_TYPE_TO_TORCH_MLIR_TYPE:
+                        result_types.append(
+                            IrType.parse(
+                                SCALAR_TYPE_TO_TORCH_MLIR_TYPE[type(result_node)],
+                                self._c,
+                            )
+                        )
                     else:
                         result_types.append(self._cc.node_val_to_type(result_node))
         return (
