@@ -844,6 +844,10 @@ class FxImporter:
                         result_types.append(
                             IrType.parse("!torch.none", context=self._c)
                         )
+                    elif isinstance(result_node, torch.Tensor):
+                        result_types.append(
+                            self._cc.tensor_to_vtensor_type(result_node)
+                        )
                     else:
                         result_types.append(self._cc.node_val_to_type(result_node))
         return (
@@ -1004,7 +1008,9 @@ class ContextCache:
 
     def tensor_to_vtensor_type(self, tensor: torch.Tensor) -> IrType:
         dtype_asm = str(self.dtype_to_type(tensor.dtype))
-        return IrType.parse(f"!torch.vtensor<{list(tensor.size())},{dtype_asm}>")
+        return IrType.parse(
+            f"!torch.vtensor<{list(tensor.size())},{dtype_asm}>", context=self._c
+        )
 
     def get_node_location(self, node: torch_fx.Node) -> Optional[Location]:
         stack_trace = node.meta.get("stack_trace")
@@ -1749,6 +1755,10 @@ def _make_vtensor_literal_op(
             )
         else:
             bytes_view = np_tensor.view(npy_dtype)
+            if tensor.dtype == torch.bool:
+                # The np.bool_ type has a length of 1 byte, which needs to be compressed into 1 bit,
+                # and specify the bitorder to ensure that the memory layout is consistent with DenseResourceElementsAttr.
+                bytes_view = np.packbits(bytes_view, bitorder="little")
             tensor_type = create_mlir_tensor_type(tensor)
             shape_desc = "_".join([str(d) for d in tensor.shape])
             blob_name = f"torch_tensor_{shape_desc}_{str(tensor.dtype)}"
