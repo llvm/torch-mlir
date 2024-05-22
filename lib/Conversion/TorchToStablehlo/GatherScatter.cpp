@@ -101,6 +101,8 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
       rewriter.getContext(),
       /*offsetDims=*/offsetDims,
       /*collapsedSliceDims=*/collapsedSliceDims,
+      /*operandBatchingDims=*/{},
+      /*startIndicesBatchingDims=*/{},
       /*startIndexMap=*/startIndexMap,
       /*indexVecDim=*/indexVecDim);
 
@@ -584,6 +586,8 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
       rewriter.getContext(),
       /*offsetDims=*/{},
       /*collapsedSliceDims=*/collapsedDims,
+      /*operandBatchingDims=*/{},
+      /*startIndicesBatchingDims=*/{},
       /*startIndexMap=*/startIndexMap,
       /*indexVecDim=*/indexVecDim);
 
@@ -744,6 +748,8 @@ public:
         rewriter.getContext(),
         /*updateWindowDims=*/{},
         /*insertedWindowDims=*/insertedWindowDims,
+        /*inputBatchingDims=*/{},
+        /*scatterIndicesBatchingDims=*/{},
         /*scatterDimsToOperandDim=*/scatterDimOperandDimMap,
         /*indexVectorDim=*/indexVecDim);
 
@@ -826,6 +832,8 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
       rewriter.getContext(),
       /*offsetDims=*/offsetDims,
       /*collapsedSliceDims=*/collapsedDims,
+      /*operandBatchingDims=*/{},
+      /*startIndicesBatchingDims=*/{},
       /*startIndexMap=*/startIndexMap,
       /*indexVecDim=*/indexVecDim);
 
@@ -900,6 +908,8 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
       rewriter.getContext(),
       /*updateWindowDims=*/updateWindowDims,
       /*insertedWindowDims=*/insertedWindowDims,
+      /*inputBatchingDims=*/{},
+      /*scatterIndicesBatchingDims=*/{},
       /*scatterDimsToOperandDim=*/scatterDimOperandDimMap,
       /*indexVectorDim=*/indexVecDim);
 
