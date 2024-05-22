@@ -367,7 +367,6 @@ FX_IMPORTER_XFAIL_SET = {
     "BoolIntTrueModule_basic",
     "BroadcastDynamicDimModule_basic",
     "CeilFloatModule_basic",
-    "ConstantBoolParameterModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
     "Conv2dQInt8Module_basic",
