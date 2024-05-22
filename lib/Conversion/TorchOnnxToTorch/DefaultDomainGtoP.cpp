@@ -451,7 +451,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   int64_t ignore_index_int;
                   std::string reduction_str;
 
-                  if (binder.tensorOperands(self, target) ||
+                  if (binder.tensorOperandAtIndex(self, 0) ||
+                      binder.tensorOperandAtIndex(target, 1) ||
                       binder.s64IntegerAttr(ignore_index_int, "ignore_index", -100) ||
                       binder.customOpNameStringAttr(reduction_str, "reduction", "mean") ||
                       binder.tensorResultType(resultType)) {
@@ -467,12 +468,17 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.getLoc(), rewriter.getI64IntegerAttr(ignore_index_int));
 
                   // convert string reduction attr to standardized integer enum value
-                  int reduction_value = torch_upstream::get_reduction_enum(reduction_str);
+                  int reduction_value = torch_upstream::get_loss_reduction_enum(reduction_str);
                   reduction = rewriter.create<Torch::ConstantIntOp>(
                       binder.getLoc(), rewriter.getI64IntegerAttr(reduction_value));
 
-                  rewriter.replaceOpWithNewOp<Torch::AtenNllLossForwardOp>(
-                      binder.op, resultType, resultType, self, target, weight, reduction, ignore_index);
+                  Value nllLoss =
+                      rewriter
+                          .create<Torch::AtenNllLossForwardOp>(
+                              binder.getLoc(), resultType, resultType, self, target, weight, reduction, ignore_index)
+                          ->getResult(0);
+
+                  rewriter.replaceOp(binder.op, nllLoss);
                   return success();
                 });
   patterns.onOp("NonZero", 13,
