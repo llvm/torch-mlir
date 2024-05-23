@@ -622,22 +622,18 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(binder.op, "pooled_shape bind failure");
         if (binder.f32FloatAttr(spatialScale, "spatial_scale", 0))
           return rewriter.notifyMatchFailure(binder.op, "spatial_scale bind failure");
-        int64_t pooledHeight = pooledShape[0], pooledWidth = pooledShape[1];
 
-        Value outputShapeList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            pooledShape);
+        Value outputShapeList = createConstantIntList(binder, rewriter, pooledShape);
         
         // load inputs
-        Torch::ValueTensorType resultType;
+        Torch::ValueTensorType resultTy;
         Value input, rois;
-        if (binder.tensorOperands(input, rois) || binder.tensorResultType(resultType))
+        if (binder.tensorOperands(input, rois) || binder.tensorResultType(resultTy))
           return failure();
-
-        Location loc = binder.getLoc();
         
         // lower into torch
+        Location loc = binder.getLoc();
+
         auto inputTy = input.getType().cast<Torch::ValueTensorType>();
         auto roisTy = rois.getType().cast<Torch::ValueTensorType>();
         if (!inputTy || !inputTy.hasSizes())
@@ -645,10 +641,20 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (!roisTy || !roisTy.hasSizes())
           return failure();
         
+        auto intValueTy = rewriter.getType<Torch::IntType>();
+        auto intTensorTy = rewriter.getType<Torch::ValueTensorType>(
+            roisTy.getSizes(), intValueTy);
+
+        Value constBool = rewriter.create<Torch::ConstantBoolOp>(
+            loc, rewriter.getBoolAttr(true));
+        
+        Value roisInt = rewriter.create<Torch::Aten_CastLongOp>(
+            loc, intTensorTy, rois, constBool);
+        
         ArrayRef<int64_t> inputShape = inputTy.getSizes();
         int64_t inputRank = inputShape.size();
-        int64_t batchSize = inputShape[0], numChannels = inputShape[1],
-                imageWidth = inputShape[2], imageHeight = inputShape[3];
+        if (inputRank < 4)
+          return rewriter.notifyMatchFailure(binder.op, "Rank of input tensor must be >= 4");
 
         ArrayRef<int64_t> roisShape = roisTy.getSizes();
         if (roisShape.size() != 2 || roisShape[1] != 5)
@@ -663,63 +669,57 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         SmallVector<Value> pooledRois;
 
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+
         for (int64_t i = 0; i < numRois; i++) {
-          auto intValueTy = rewriter.getType<Torch::IntType>();
-
+          Value roiIdx = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(i));
           Value roiSpec = rewriter.create<Torch::AtenIndexTensorOp>(
-              loc, roisTy, rois, i);
-          Value batchIdx = rewriter.create<Torch::AtenIndexTensorOp>(
-              loc, intValueTy, roiSpec, constInts[0]);
-          Value roiX1 = rewriter.create<Torch::AtenIndexTensorOp>(
-              loc, intValueTy, roiSpec, constInts[1]);
-          Value roiY1 = rewriter.create<Torch::AtenIndexTensorOp>(
-              loc, intValueTy, roiSpec, constInts[2]);
-          Value roiX2 = rewriter.create<Torch::AtenIndexTensorOp>(
-              loc, intValueTy, roiSpec, constInts[3]);
-          Value roiY2 = rewriter.create<Torch::AtenIndexTensorOp>(
-              loc, intValueTy, roiSpec, constInts[4]);
+              loc, intTensorTy, roisInt, 
+              packValueIntoTensor(binder, rewriter, roiIdx, noneVal));
 
-          // Value roiWidth = rewriter.create<Torch::AtenSubIntOp>(
-          //     loc, intValueTy, roiX2, roiX1);
-          // Value roiHeight = rewriter.create<Torch::AtenSubIntOp>(
-          //     loc, intValueTy, roiY2, roiY1);
-
+          SmallVector<Value> roiValues(5);
+          for (int specIdx = 0; specIdx < 5; specIdx++) {
+            auto intTensorZeroRankTy =  rewriter.getType<Torch::ValueTensorType>(
+                ArrayRef<int64_t>(), intValueTy);
+            Value specTensor = rewriter.create<Torch::AtenIndexTensorOp>(
+                loc, intTensorZeroRankTy, roiSpec, 
+                packValueIntoTensor(binder, rewriter, constInts[specIdx], noneVal));
+            Value specValue = rewriter.create<Torch::AtenScalarImplicitOp>(
+                loc, intValueTy, specTensor);
+            roiValues[specIdx] = specValue;
+          }
+          Value batchIdx = roiValues[0], 
+                roiX1 = roiValues[1], roiY1 = roiValues[2], 
+                roiX2 = roiValues[3], roiY2 = roiValues[4];
+          
           Value image = rewriter.create<Torch::AtenIndexTensorOp>(
-              loc, inputTy, input, batchIdx); // (NC x H x W)
+              loc, inputTy, input, 
+              packValueIntoTensor(binder, rewriter, batchIdx, noneVal)); // (NC x H x W)
 
           Value imageExtractedY = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, inputTy, image, constInts[1], roiY1, roiY2);
+              loc, inputTy, image, constInts[1], roiY1, roiY2, constInts[1]);
           Value region = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, inputTy, image, constInts[2], roiX1, roiX2);
+              loc, inputTy, imageExtractedY, constInts[2], roiX1, roiX2, constInts[1]);
 
           Value pooledRegion = rewriter.create<Torch::AtenAdaptiveMaxPool2dOp>(
-              loc, inputTy, region, outputShapeList).getResult0();
-
-          // Value pooledWidthVal = rewriter.create<Torch::ConstantIntOp>(
-          //     loc, rewriter.getI64IntegerAttr(pooledWidth));
-          // Value pooledHeightVal = rewriter.create<Torch::ConstantIntOp>(
-          //     loc, rewriter.getI64IntegerAttr(pooledHeight));
-
-          // Value kernelSizeX = rewriter.create<Torch::AtenDivScalarOp>(
-          //     loc, rewriter.getType<Torch::FloatType>(), roiWidth, pooledWidthVal);
-          // Value kernelSizeY = rewriter.create<Torch::AtenDivScalarOp>(
-          //     loc, rewriter.getType<Torch::FloatType>(), roiHeight, pooledHeightVal);
-
+              loc, inputTy, intTensorTy, region, outputShapeList).getResult0();
           Value pooledRegionPadded = rewriter.create<Torch::AtenUnsqueezeOp>(
               loc, inputTy, pooledRegion, constInts[0]);
 
-          pooledRois.push_back(pooledRegion);
+          pooledRois.push_back(pooledRegionPadded);
         }
 
         // concatenate pooled rois and return
         Value pooledRoisTensorList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            Torch::ListType::get(inputTy),
-            pooledShape);
+            loc, Torch::ListType::get(inputTy), pooledRois);
         
-        rewriter.replaceOpWithNewOp<Torch::AtenCatOp>(
-            binder.op, inputTy, pooledRoisTensorList, constInts[0]
-        );
+        Value concatenated = rewriter.create<Torch::AtenCatOp>(
+            loc, inputTy, pooledRoisTensorList, constInts[0]);
+
+        rewriter.replaceOpWithNewOp<Torch::Aten_CastFloatOp>(
+            binder.op, resultTy, concatenated, constBool);
+        
         return success();
       });
   patterns.onOp("Greater", 16,
