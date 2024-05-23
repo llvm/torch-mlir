@@ -3050,4 +3050,72 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.op, resultType, permutedInput, reshapeSizesList);
         return success();
       });
+  patterns.onOp(
+      "Shrink", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
+        Torch::ValueTensorType resultType;
+        Value input;
+        float bias, lambd;
+        if (binder.tensorOperand(input) ||
+            binder.f32FloatAttr(bias, "bias", 0.0) ||
+            binder.f32FloatAttr(lambd, "lambd", 0.5) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+
+        Torch::ValueTensorType inputType =
+            cast<Torch::ValueTensorType>(input.getType());
+        if (!isa<mlir::FloatType>(inputType.getDtype()))
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: non-floating point dtype");
+
+        // The formula of this operator is: If x < -lambd, y = x + bias; If x >
+        // lambd, y = x - bias; Otherwise, y = 0.
+        // The implementation is based on the following algorithm:
+        // Shrink <bias,lambd>(input) => (output)
+        // {
+        //    Lambd = Constant <value_float: float = @lambd> ()
+        //    LambdCast = CastLike (Lambd, input)
+        //    Bias = Constant <value_float: float = @bias> ()
+        //    BiasCast = CastLike (Bias, input)
+        //    Zero = Constant <value: tensor = float {0}> ()
+        //    ZeroCast = CastLike (Zero, input)
+        //    NegLmbda = Neg (LambdCast)
+        //    InputLessThanNegLambda = Less (input, NegLmbda)
+        //    InputAddBias = Add (input, BiasCast)
+        //    InputSubBias = Sub (input, BiasCast)
+        //    LambdaLessThanInput = Less (LambdCast, input)
+        //    InputSubBiasOrZero = Where (LambdaLessThanInput, InputSubBias,
+        //    ZeroCast) output = Where (InputLessThanNegLambda, InputAddBias,
+        //    InputSubBiasOrZero)
+        // }
+        Value constLambd = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getFloatAttr(rewriter.getF64Type(), lambd));
+        Value constBias = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getFloatAttr(rewriter.getF64Type(), bias));
+        Value constZero = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getFloatAttr(rewriter.getF64Type(), 0.0));
+        Value constOne = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getFloatAttr(rewriter.getF64Type(), 1.0));
+        Value constNegLambd = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getFloatAttr(rewriter.getF64Type(), -lambd));
+
+        Value inputLTNegLambd = rewriter.create<Torch::AtenLtScalarOp>(
+            loc, inputType, input, constNegLambd);
+        Value inputPlusBias = rewriter.create<Torch::AtenAddScalarOp>(
+            loc, inputType, input, constBias, /*alpha=*/constOne);
+        Value inputSubBias = rewriter.create<Torch::AtenSubScalarOp>(
+            loc, inputType, input, constBias, /*alpha=*/constOne);
+        Value inputGTLambd = rewriter.create<Torch::AtenGtScalarOp>(
+            loc, inputType, input, constLambd);
+
+        Value inputSubBiasOrZero =
+            rewriter.create<Torch::AtenWhereScalarOtherOp>(
+                loc, resultType, inputGTLambd, inputSubBias, constZero);
+        rewriter.replaceOpWithNewOp<Torch::AtenWhereSelfOp>(
+            binder.op, resultType, inputLTNegLambd, inputPlusBias,
+            inputSubBiasOrZero);
+
+        return success();
+      });
 }
