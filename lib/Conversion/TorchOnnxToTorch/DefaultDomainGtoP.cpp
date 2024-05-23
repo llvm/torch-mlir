@@ -176,7 +176,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         auto conditionType =
-            conditionTensor.getType().cast<Torch::ValueTensorType>();
+            cast<Torch::ValueTensorType>(conditionTensor.getType());
         if (!conditionType || conditionType.getSizes().size() != 1)
           return rewriter.notifyMatchFailure(
               binder.op, "condition must have one single element per "
