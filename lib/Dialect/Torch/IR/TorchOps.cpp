@@ -2417,7 +2417,7 @@ OpFoldResult AtenNeStrOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult Aten__Contains__StrListOp::fold(FoldAdaptor adaptor) {
-  StringAttr item = dyn_cast<StringAttr>(adaptor.getItem());
+  StringAttr item = dyn_cast_or_null<StringAttr>(adaptor.getItem());
   if (!item)
     return nullptr;
 
