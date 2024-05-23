@@ -63,7 +63,7 @@ LogicalResult windowFunctionImpl(OpBinder binder,
   // Create an f32 ValueTensorType with thse same size as size, the
   // operand
   auto shapeOfOperand =
-      size.getType().dyn_cast<Torch::ValueTensorType>().getOptionalSizes();
+      dyn_cast<Torch::ValueTensorType>(size.getType()).getOptionalSizes();
   auto f32ResultType = rewriter.getType<Torch::ValueTensorType>(
       shapeOfOperand, rewriter.getF32Type());
   Value periodicSizeFloat = b.create<Torch::AtenToDtypeOp>(
@@ -897,8 +897,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         }
 
         if (DenseResourceElementsAttr attr =
-                binder.op->getAttr("torch.onnx.value")
-                    .dyn_cast_or_null<DenseResourceElementsAttr>()) {
+                dyn_cast_or_null<DenseResourceElementsAttr>(
+                    binder.op->getAttr("torch.onnx.value"))) {
           // Bytes are stored in little endian order. Big endian support will
           // require swizzling.
           if (!Endian::little) {
@@ -926,8 +926,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return success();
         }
 
-        if (ElementsAttr attr = binder.op->getAttr("torch.onnx.value")
-                                    .dyn_cast_or_null<ElementsAttr>()) {
+        if (ElementsAttr attr = dyn_cast_or_null<ElementsAttr>(
+                binder.op->getAttr("torch.onnx.value"))) {
           rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
               binder.op, resultType, attr);
           return success();
@@ -2283,9 +2283,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType))
           return failure();
         Type listElemType =
-            tensors[0]
-                .getType()
-                .cast<Torch::BaseTensorType>()
+            cast<Torch::BaseTensorType>(tensors[0].getType())
                 .getWithSizesAndDtype(/*optionalSizes=*/std::nullopt,
                                       /*optionalDtype=*/nullptr);
         Type listType = Torch::ListType::get(listElemType);

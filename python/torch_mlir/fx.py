@@ -27,7 +27,6 @@ def _module_lowering(
     verbose,
     output_type,
     torch_mod,
-    backend_legal_ops=None,
     extra_library_file_name=None,
 ):
 
@@ -35,23 +34,13 @@ def _module_lowering(
         if verbose:
             print(torch_mod)
         return torch_mod
-    # TODO: pass backend_legal_ops/extra_library_file_name by caller
-    if backend_legal_ops is None:
-        backend_legal_ops = []
+    # TODO: pass extra_library_file_name by caller
     if extra_library_file_name is None:
         extra_library_file_name = ""
-    option_string = (
-        "{backend-legal-ops="
-        + ",".join(backend_legal_ops)
-        + " extra-library="
-        + extra_library_file_name
-        + " shape-dtype-refine="
-        + ("false" if not backend_legal_ops and not extra_library_file_name else "true")
-        + "}"
-    )
+    option_string = "{extra-library=" + extra_library_file_name + "}"
     run_pipeline_with_repro_report(
         torch_mod,
-        f"builtin.module(torch-function-to-torch-backend-pipeline{option_string})",
+        f"builtin.module(torchdynamo-export-to-torch-backend-pipeline{option_string})",
         "Lowering TorchFX IR -> Torch Backend IR",
         enable_ir_printing=verbose,
     )

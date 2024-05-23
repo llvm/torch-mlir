@@ -1875,10 +1875,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 binder.op, "Axes should be the same size of starts and ends");
         }
 
-        auto stepsTy = steps.getType()
-                           .cast<Torch::ValueTensorType>()
-                           .toBuiltinTensor()
-                           .dyn_cast<RankedTensorType>();
+        auto stepsTy = dyn_cast<RankedTensorType>(
+            cast<Torch::ValueTensorType>(steps.getType()).toBuiltinTensor());
 
         if (!(stepsTy && stepsTy.getDimSize(0) == endsTy.getDimSize(0)))
           return rewriter.notifyMatchFailure(
@@ -2804,7 +2802,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value modeStrValue;
 
         auto extract = [&rewriter, &binder](Value x, Value v) {
-          auto xTy = x.getType().cast<Torch::ValueTensorType>();
+          auto xTy = cast<Torch::ValueTensorType>(x.getType());
           Type extractTy = rewriter.getType<Torch::FloatType>();
           if (isa<IntegerType>(xTy.getDtype()))
             extractTy = rewriter.getType<Torch::IntType>();
@@ -2818,7 +2816,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           auto sizes =
               dyn_cast<Torch::ValueTensorType>(operand.getType()).getSizes();
           Torch::BaseTensorType operandType =
-              operand.getType().cast<Torch::BaseTensorType>();
+              cast<Torch::BaseTensorType>(operand.getType());
 
           SmallVector<int64_t> selectSizes;
           selectSizes.push_back(1);
@@ -2835,7 +2833,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             Value item = extract(operand, ext);
             itemList.push_back(item);
           }
-          auto xTy = operand.getType().cast<Torch::ValueTensorType>();
+          auto xTy = cast<Torch::ValueTensorType>(operand.getType());
           Value ValueList;
           if (isa<IntegerType>(xTy.getDtype())) {
             ValueList = rewriter.create<Torch::PrimListConstructOp>(

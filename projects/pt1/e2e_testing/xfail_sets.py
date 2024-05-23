@@ -367,7 +367,6 @@ FX_IMPORTER_XFAIL_SET = {
     "BoolIntTrueModule_basic",
     "BroadcastDynamicDimModule_basic",
     "CeilFloatModule_basic",
-    "ConstantBoolParameterModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
     "Conv2dQInt8Module_basic",
@@ -451,7 +450,6 @@ FX_IMPORTER_XFAIL_SET = {
     "TensorToBool_basic",
     "TensorToFloatZeroRank_basic",
     "TensorToFloat_basic",
-    "TestMultipleTensorAndPrimitiveTypesReturn_basic",
     "ThresholdBackward2dMixedModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
@@ -816,6 +814,7 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "ReduceAminSingleDim_basic",
     "AtenDotModule_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
@@ -1450,6 +1449,13 @@ STABLEHLO_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
+    "ElementwiseDivTensorFloatModule_basic",
+    "ElementwiseMulTensorFloatModule_basic",
+    "ElementwiseWhereScalarSelfStaticModule_basic",
+    "GroupNormModule_basic",
+    "GroupNormNoWeightAndBiasModule_basic",
+    "NativeGroupNormModule_basic",
     "AtenDotModule_basic",
     "ElementwiseFloatTensorGtIntScalarModule_basic",
     "ElementwiseLogSigmoidModule_basic",
@@ -1947,7 +1953,6 @@ MAKE_FX_TOSA_PASS_SET = (
     "Conv2dNoPaddingModule_basic",
     "Conv2dWithPaddingDilationStrideModule_basic",
     "Conv2dWithPaddingModule_basic",
-    "AtenInstanceNormModule_basic",
     # failed to legalize operation 'torch.operator'
     "ElementwisePreluModule_basic",
     "ElementwisePreluStaticModule_basic",

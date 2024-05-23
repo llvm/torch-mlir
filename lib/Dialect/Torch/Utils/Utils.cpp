@@ -289,6 +289,32 @@ SmallVector<int64_t> Torch::makeShapeTorchCompatible(ArrayRef<int64_t> shape) {
   return updatedShape;
 }
 
+ValueTensorType Torch::getTensorTypeFromShapeValues(ArrayRef<Value> shapes,
+                                                    Type dtype) {
+  assert(!shapes.empty() && "shape vector cannot be empty");
+  SmallVector<int64_t> shapeInts;
+  for (Value shape : shapes) {
+    int64_t dim;
+    if (matchPattern(shape, m_TorchConstantInt(&dim)))
+      shapeInts.push_back(dim);
+    else
+      shapeInts.push_back(kUnknownSize);
+  }
+  return Torch::ValueTensorType::get(shapes[0].getContext(), shapeInts, dtype);
+}
+
+// Helper function to get the size of the tensor at the given dimension.
+Value Torch::getTensorDimSize(PatternRewriter &rewriter, Value tensor,
+                              int64_t dim) {
+  auto loc = tensor.getLoc();
+  auto dimVal =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
+  // Use 'createOrFold' instead of 'create':
+  // If the dimension is a constant, then the AtenSizeIntOp is folded to a
+  // ContantIntOp.
+  return rewriter.createOrFold<AtenSizeIntOp>(loc, tensor, dimVal);
+}
+
 // Helper function to squeeze the input tensor at given dim.
 // Return the squeezed tensor or failure.
 FailureOr<Value> Torch::squeezeTensor(PatternRewriter &rewriter, Operation *op,
