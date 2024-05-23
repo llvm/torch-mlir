@@ -97,6 +97,56 @@ struct OpBinder {
     return success();
   }
 
+  // Operand matches of different arities.
+  ParseResult tensorListOperand(Value &value0) {
+    if (op->getNumOperands() != 1)
+      return failure();
+    value0 = op->getOperand(0);
+    auto tt = dyn_cast<Torch::ListType>(value0.getType());
+    if (!tt)
+      return failure();
+    if (!toValidTensorType(tt.getContainedType()))
+      return failure();
+    return success();
+  }
+
+  ParseResult tensorListResultType(Torch::ListType &type0) {
+    if (op->getNumResults() != 1)
+      return failure();
+    auto tt = dyn_cast<Torch::ListType>(op->getResult(0).getType());
+    if (!tt)
+      return failure();
+    if (!toValidTensorType(tt.getContainedType()))
+      return failure();
+    type0 = tt;
+    return success();
+  }
+
+  ParseResult tensorResultTypes(llvm::SmallVector<mlir::Type> &typeList) {
+    for (auto result : op->getResults()) {
+      auto t = toValidTensorType(result.getType());
+      if (!t)
+        return failure();
+      typeList.push_back(t);
+    }
+    return success();
+  }
+
+  // The importer imports Onnx.GraphProto attributes as regions attached to the
+  // op.
+  ParseResult getRegionAtIndex(mlir::Region *&region, int64_t idx) {
+    if (idx >= op->getNumRegions())
+      return failure();
+
+    region = &op->getRegion(idx);
+
+    if (region == nullptr) {
+      return failure();
+    }
+
+    return success();
+  }
+
   ParseResult tensorResultTypeAtIndex(Torch::ValueTensorType &typeIdx,
                                       int64_t idx) {
     if (idx >= op->getNumResults())
@@ -178,13 +228,32 @@ struct OpBinder {
     }
     if (auto arrayAttr = dyn_cast<ArrayAttr>(attr)) {
       for (auto element : arrayAttr) {
-        auto integerAttr = element.dyn_cast<IntegerAttr>();
+        auto integerAttr = dyn_cast<IntegerAttr>(element);
         if (!integerAttr)
           return failure();
         IntegerType t = cast<IntegerType>(integerAttr.getType());
         if (!t.isSigned() || t.getWidth() != 64)
           return failure();
         values.push_back(integerAttr.getSInt());
+      }
+      return success();
+    }
+    return failure();
+  }
+
+  ParseResult stringArrayAttr(llvm::SmallVector<std::string> &values,
+                              StringRef nameSuffix) {
+    SmallString<64> name("torch.onnx.");
+    name.append(nameSuffix);
+    auto attr = op->getAttr(name);
+    if (!attr)
+      return success();
+    if (auto arrayAttr = dyn_cast<ArrayAttr>(attr)) {
+      for (auto element : arrayAttr) {
+        StringAttr stringAttr = dyn_cast<StringAttr>(element);
+        if (!stringAttr)
+          return failure();
+        values.push_back(stringAttr.getValue().str());
       }
       return success();
     }

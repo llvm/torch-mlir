@@ -8,8 +8,10 @@ from typing import TextIO
 from contextlib import contextmanager
 import textwrap
 
+
 class TextEmitter:
     """Helper for emitting text files"""
+
     _INDENT = "  "
 
     def __init__(self, out: TextIO):

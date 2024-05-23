@@ -30,17 +30,16 @@ echo "::endgroup::"
 
 case $torch_version in
   nightly)
-    # Failing with: NotImplementedError: 
+    # Failing with: NotImplementedError:
     #   Could not run 'aten::empty.memory_format' with arguments from the 'Lazy' backend.
     # As of 2024-01-07
     # echo "::group::Run Lazy Tensor Core e2e integration tests"
     # python -m e2e_testing.main --config=lazy_tensor_core -v
     # echo "::endgroup::"
 
-    # TODO: There is one failing test in this group on stable. It could
-    # be xfailed vs excluding entirely.
-    echo "::group::Run TorchDynamo e2e integration tests"
-    python -m e2e_testing.main --config=torchdynamo -v
+    # TODO: Need to verify in the stable version
+    echo "::group::Run FxImporter e2e integration tests"
+    python -m e2e_testing.main --config=fx_importer -v
     echo "::endgroup::"
     ;;
   stable)

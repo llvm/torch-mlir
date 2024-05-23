@@ -42,7 +42,7 @@ public:
 
     // get inputs: lhs, rhsQuant, scales, zps
     Value lhs = adaptor.getOperands()[0];
-    auto lhsType = lhs.getType().cast<RankedTensorType>();
+    auto lhsType = cast<RankedTensorType>(lhs.getType());
     if (!lhsType) {
       return failure();
     }
@@ -50,7 +50,7 @@ public:
     int lhsReductDimSize = lhsShape.back();
 
     Value rhsQuant = adaptor.getOperands()[1];
-    auto rhsType = rhsQuant.getType().cast<RankedTensorType>();
+    auto rhsType = cast<RankedTensorType>(rhsQuant.getType());
     if (!rhsType) {
       return failure();
     }
@@ -95,7 +95,7 @@ public:
 
     // get outputs
     Type newResultType = getTypeConverter()->convertType(op.getType(0));
-    auto resultType = newResultType.cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(newResultType);
     if (!resultType) {
       return failure();
     }

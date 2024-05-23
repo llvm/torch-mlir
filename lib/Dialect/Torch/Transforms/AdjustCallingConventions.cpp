@@ -49,11 +49,11 @@ public:
     // The incoporation of the torch.type_bound arg attr is context-dependent.
 
     for (auto type : llvm::enumerate(func.getArgumentTypes())) {
-      if (type.value().isa<NonValueTensorType>()) {
+      if (isa<NonValueTensorType>(type.value())) {
         auto typeBoundAttr =
             func.getArgAttrOfType<TypeAttr>(type.index(), typeBoundIdent);
         Type bound = typeBoundAttr ? typeBoundAttr.getValue() : Type();
-        if (!bound.isa<ValueTensorType>())
+        if (!isa<ValueTensorType>(bound))
           return rewriter.notifyMatchFailure(
               func, "unimplemented: preserving aliasing for non-value-semantic "
                     "type bounds");
@@ -61,7 +61,7 @@ public:
                                                ? typeBoundAttr.getValue()
                                                : type.value());
         continue;
-      } else if (auto none = type.value().dyn_cast<Torch::NoneType>()) {
+      } else if (auto none = dyn_cast<Torch::NoneType>(type.value())) {
         continue;
       }
       // TODO: add tuple type.
@@ -72,10 +72,10 @@ public:
 
     SmallVector<Type> newResultTypes;
     for (auto type : func.getFunctionType().getResults()) {
-      if (auto none = type.dyn_cast<Torch::NoneType>()) {
+      if (auto none = dyn_cast<Torch::NoneType>(type)) {
         continue;
       }
-      if (auto tuple = type.dyn_cast<Torch::TupleType>()) {
+      if (auto tuple = dyn_cast<Torch::TupleType>(type)) {
         llvm::append_range(newResultTypes, tuple.getContainedTypes());
         continue;
       }
@@ -111,7 +111,7 @@ public:
 
     SmallVector<Value> newOperands;
     for (auto operand : llvm::enumerate(adaptor.getOperands())) {
-      if (operand.value().getType().isa<Torch::NoneType>())
+      if (isa<Torch::NoneType>(operand.value().getType()))
         continue;
       auto it = typeBoundMap.find({call.getCallee(), operand.index()});
       if (it != typeBoundMap.end()) {
@@ -133,12 +133,12 @@ public:
     int newOpResultIdx = 0;
     SmallVector<Value> newResults;
     for (auto type : call.getResultTypes()) {
-      if (type.isa<Torch::NoneType>()) {
+      if (isa<Torch::NoneType>(type)) {
         newResults.push_back(
             rewriter.create<ConstantNoneOp>(call.getLoc(), type));
         continue;
       }
-      if (type.isa<Torch::TupleType>()) {
+      if (isa<Torch::TupleType>(type)) {
         newResults.push_back(rewriter.create<PrimTupleConstructOp>(
             call.getLoc(), type, newCall.getResults()));
         continue;
@@ -167,9 +167,9 @@ public:
     for (auto operand : adaptor.getOperands()) {
       if (!operand)
         continue;
-      if (operand.getType().isa<Torch::NoneType>())
+      if (isa<Torch::NoneType>(operand.getType()))
         continue;
-      if (auto tuple = operand.getType().dyn_cast<Torch::TupleType>()) {
+      if (auto tuple = dyn_cast<Torch::TupleType>(operand.getType())) {
         Location loc = op.getLoc();
         for (auto en : llvm::enumerate(tuple.getContainedTypes())) {
           auto i = rewriter.create<ConstantIntOp>(
@@ -207,7 +207,7 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
       [](OpBuilder &builder, Torch::BaseTensorType type, ValueRange inputs,
          Location loc) -> Value {
         assert(inputs.size() == 1);
-        assert(inputs[0].getType().isa<BaseTensorType>());
+        assert(isa<BaseTensorType>(inputs[0].getType()));
         return copyTensorToType(builder, loc, type, inputs[0]);
       });
   patterns.add<AdjustCallingConventionForFunc>(typeConverter, context);

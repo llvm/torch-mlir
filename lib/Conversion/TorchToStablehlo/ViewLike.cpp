@@ -13,6 +13,7 @@
 #include "PopulatePatterns.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
@@ -71,7 +72,7 @@ Value getDynamicSliceInternal(PatternRewriter &rewriter, Operation *op,
   SmallVector<Value, 4> endIndices;
   SmallVector<Value, 4> strides;
 
-  auto inputTy = input.getType().dyn_cast<RankedTensorType>();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
   size_t rank = inputTy.getRank();
   startIndices.reserve(rank);
   endIndices.reserve(rank);
@@ -115,7 +116,7 @@ FailureOr<Value> getDynamicSlice(PatternRewriter &rewriter, Operation *op,
                                  std::optional<Value> stepOpt, int64_t dim,
                                  size_t dimSizeIndexBits) {
   auto loc = op->getLoc();
-  auto inputTy = input.getType().dyn_cast<RankedTensorType>();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
   auto rank = inputTy.getRank();
 
   dim = (dim + rank) % rank;
@@ -167,25 +168,38 @@ public:
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto rankType =
-        adaptor.getSelf().getType().template dyn_cast<RankedTensorType>();
+    auto rankType = dyn_cast<RankedTensorType>(adaptor.getSelf().getType());
     if (!rankType)
       return op.emitError("Only ranked tensor types are currently supported");
 
+    // collect Value of dims
     SmallVector<Value, 4> dimSizes;
     if (!getAtenViewOpSizes(op, adaptor, rewriter, dimSizes)) {
       return op.emitError("Dims size must be a list of Scalar");
     }
 
     auto loc = op.getLoc();
-    auto newRank = dimSizes.size();
-    if (newRank == 0 || rankType.getRank() == 0) {
+    if (dimSizes.size() == 0 || rankType.getRank() == 0) {
       rewriter.replaceOpWithNewOp<stablehlo::ReshapeOp>(
           op,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
               op.getType()),
           adaptor.getSelf());
       return success();
+    }
+
+    // collect constant dim size which == -1
+    SmallVector<size_t> negOneIndex;
+    for (size_t i = 0; i < dimSizes.size(); i++) {
+      int64_t dim;
+      if (matchPattern(dimSizes[i], m_TorchConstantInt(&dim))) {
+        if (dim == -1) {
+          negOneIndex.push_back(i);
+        }
+      }
+    }
+    if (negOneIndex.size() > 1) {
+      return op.emitError("Only support at most one -1 in view target dims");
     }
 
     std::for_each(dimSizes.begin(), dimSizes.end(), [&](Value &dSize) {
@@ -193,44 +207,31 @@ public:
       return dSize;
     });
 
-    const auto &options = ConvertAtenOp<AtenOpT>::getOptions();
-    Type intType = rewriter.getIntegerType(options.dimSizeIndexBits);
-    if (options.dimSizeIndexBits == 32) {
-      // The i64 calculation is much slower than i32 on some devices, such as
-      // Nvidia GPU. One can truncate from i64 to i32 since dimension sizes are
-      // unlikely to exceed the range of i32(4GiB)
-      std::for_each(dimSizes.begin(), dimSizes.end(), [&](Value &dSize) {
-        // dimSize: cast i64 -> i32
-        dSize = rewriter.create<arith::TruncIOp>(loc, intType, dSize);
-        return dSize;
-      });
+    Value numel = rewriter.create<shape::NumElementsOp>(
+        loc, rewriter.create<shape::ShapeOfOp>(loc, adaptor.getSelf()));
+    numel =
+        rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), numel);
+
+    // note: assuming that -1 doesn't arise from dynamic value
+    if (negOneIndex.size() == 1) {
+      size_t index = negOneIndex[0];
+      Value realDim = numel;
+      for (size_t i = 0; i < dimSizes.size(); i++) {
+        if (i != index) {
+          realDim = rewriter.create<arith::DivUIOp>(loc, realDim, dimSizes[i]);
+        }
+      }
+      // update -1 to realDim
+      dimSizes[index] = realDim;
     }
 
-    Value numel = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(intType, 1));
-    for (auto d : dimSizes) {
-      numel = rewriter.create<arith::MulIOp>(loc, numel, d);
-    }
-    numel = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(),
-                                                numel);
-
-    if (dimSizes.size() == 0) {
-      rewriter.replaceOpWithNewOp<stablehlo::ReshapeOp>(
-          op,
-          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-              op.getType()),
-          adaptor.getSelf());
-      return success();
-    }
     Value stablehloShape =
         rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
-    Value computedShape = rewriter.create<stablehlo::ComputeReshapeShapeOp>(
-        loc, stablehloShape.getType(), numel, stablehloShape);
     rewriter.replaceOpWithNewOp<stablehlo::DynamicReshapeOp>(
         op,
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()),
-        adaptor.getSelf(), computedShape);
+        adaptor.getSelf(), stablehloShape);
     return success();
   }
 
@@ -259,11 +260,11 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
     AtenSliceTensorOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
-  auto selfTy = self.getType().cast<RankedTensorType>();
+  auto selfTy = cast<RankedTensorType>(self.getType());
   if (!selfTy)
     return op.emitError("only ranked tensor types are supported");
   auto outTy =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   int64_t dim;
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return rewriter.notifyMatchFailure(
@@ -301,7 +302,7 @@ LogicalResult ConvertAtenOp<AtenSqueezeOp>::matchAndRewrite(
     AtenSqueezeOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
-  auto selfTy = self.getType().cast<RankedTensorType>();
+  auto selfTy = cast<RankedTensorType>(self.getType());
   if (!selfTy)
     return op.emitError("only ranked tensor types are supported");
 
@@ -344,7 +345,7 @@ LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
     AtenSqueezeDimOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
-  auto selfTy = self.getType().cast<RankedTensorType>();
+  auto selfTy = cast<RankedTensorType>(self.getType());
   if (!selfTy)
     return op.emitError("only ranked tensor types are supported");
 
@@ -395,7 +396,7 @@ template <>
 LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
     AtenUnsqueezeOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType) {
     return op.emitError("only tensor types are currently supported");
   }
@@ -404,7 +405,7 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return op->emitError("dim must be a Scalar constant");
   int64_t inputRank =
-      adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
+      cast<RankedTensorType>(adaptor.getSelf().getType()).getRank();
   dim = toPositiveDim(dim, inputRank + 1);
   if (!isValidDim(dim, inputRank + 1))
     return rewriter.notifyMatchFailure(op, "dim is statically invalid");
@@ -416,6 +417,69 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
                                        "failed to create unsqueezed tensor");
 
   rewriter.replaceOp(op, *unsqzTensorInfo);
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<PrimsCollapseOp>::matchAndRewrite(
+    PrimsCollapseOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto selfType = dyn_cast<TensorType>(adaptor.getA().getType());
+  if (!selfType) {
+    return op.emitError("only tensor types are currently supported");
+  }
+
+  auto rank = selfType.getRank();
+  if (rank == 0)
+    return rewriter.notifyMatchFailure(
+        op, "the rank of tensor must be greater than 0");
+
+  int64_t start, end;
+  if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant start is currently supported");
+  if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant end is currently supported");
+
+  auto collapseTensorInfo = hlo::collapseTensor(
+      rewriter, op, adaptor.getA(), start, end, options.dimSizeIndexBits);
+  if (failed(collapseTensorInfo))
+    return rewriter.notifyMatchFailure(op, "failed to create collapsed tensor");
+
+  rewriter.replaceOp(op, *collapseTensorInfo);
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<PrimsSplitDimOp>::matchAndRewrite(
+    PrimsSplitDimOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto selfType = adaptor.getA().getType().dyn_cast<TensorType>();
+  if (!selfType) {
+    return op.emitError("only tensor types are currently supported");
+  }
+
+  auto rank = selfType.getRank();
+  if (rank == 0)
+    return rewriter.notifyMatchFailure(
+        op, "the rank of tensor must be greater than 0");
+
+  int64_t dim, outerLength;
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant dim is currently supported");
+  if (!matchPattern(op.getOuterLength(), m_TorchConstantInt(&outerLength)))
+    return rewriter.notifyMatchFailure(
+        op, "only constant outerLength is currently supported");
+
+  auto splitTensorInfo = hlo::splitTensor(
+      rewriter, op, adaptor.getA(), dim, outerLength, options.dimSizeIndexBits);
+
+  if (failed(splitTensorInfo))
+    return rewriter.notifyMatchFailure(op, "failed to create split tensor");
+
+  rewriter.replaceOp(op, *splitTensorInfo);
   return success();
 }
 
@@ -431,6 +495,8 @@ void mlir::torch::torch_to_stablehlo::populateViewLikeOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenSqueezeOp);
   INSERT_ATENOP_PATTERN(AtenSqueezeDimOp);
   INSERT_ATENOP_PATTERN(AtenUnsqueezeOp);
+  INSERT_ATENOP_PATTERN(PrimsCollapseOp);
+  INSERT_ATENOP_PATTERN(PrimsSplitDimOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_VIEW_OP_PATTERN(AtenOp)                                         \

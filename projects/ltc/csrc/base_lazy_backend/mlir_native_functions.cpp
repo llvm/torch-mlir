@@ -60,7 +60,7 @@ at::Tensor to_meta(const at::Tensor &tensor) {
   return out;
 }
 
-c10::optional<at::Tensor> to_meta(const c10::optional<at::Tensor> &tensor) {
+std::optional<at::Tensor> to_meta(const std::optional<at::Tensor> &tensor) {
   if (tensor.has_value()) {
     return to_meta(*tensor);
   }
@@ -76,9 +76,9 @@ c10::optional<at::Tensor> to_meta(const c10::optional<at::Tensor> &tensor) {
   return outs;
 }
 
-c10::List<c10::optional<at::Tensor>>
-to_meta(const c10::List<c10::optional<at::Tensor>> &t_list) {
-  c10::List<c10::optional<at::Tensor>> outs;
+c10::List<std::optional<at::Tensor>>
+to_meta(const c10::List<std::optional<at::Tensor>> &t_list) {
+  c10::List<std::optional<at::Tensor>> outs;
   outs.reserve(t_list.size());
   for (const auto &tensor : t_list) {
     outs.push_back(to_meta(tensor));
@@ -94,7 +94,7 @@ namespace {
 
 [[maybe_unused]] at::Tensor
 CreateLtcTensor(const at::Tensor &tensor,
-                const c10::optional<torch::lazy::BackendDevice> &device) {
+                const std::optional<torch::lazy::BackendDevice> &device) {
   if (tensor.defined() && device) {
     return torch::lazy::CreateAtenFromLtcTensor(
         torch::lazy::LazyTensor::Create(tensor, *device));
@@ -102,8 +102,8 @@ CreateLtcTensor(const at::Tensor &tensor,
   return tensor;
 }
 
-[[maybe_unused]] c10::optional<torch::lazy::BackendDevice>
-GetLtcDevice(const c10::optional<c10::Device> &device) {
+[[maybe_unused]] std::optional<torch::lazy::BackendDevice>
+GetLtcDevice(const std::optional<c10::Device> &device) {
   if (!device) {
     return c10::nullopt;
   }
@@ -148,7 +148,7 @@ void copy_(torch::lazy::LazyTensorPtr &input, torch::lazy::LazyTensorPtr &src) {
 // This should be safe to do, because every operator in the LT is functional.
 at::Tensor
 LazyNativeFunctions::clone(const at::Tensor &self,
-                           c10::optional<at::MemoryFormat> memory_format) {
+                           std::optional<at::MemoryFormat> memory_format) {
   auto self_lt = torch::lazy::TryGetLtcTensor(self);
   return torch::lazy::CreateAtenFromLtcTensor(
       self_lt->Create(self_lt->GetIrValue(), self_lt->GetDevice()));
@@ -234,10 +234,10 @@ at::Tensor LazyNativeFunctions::_copy_from_and_resize(const at::Tensor &self,
 }
 
 at::Tensor LazyNativeFunctions::_to_copy(
-    const at::Tensor &self, c10::optional<at::ScalarType> dtype,
-    c10::optional<at::Layout> layout, c10::optional<at::Device> device,
-    c10::optional<bool> pin_memory, bool non_blocking,
-    c10::optional<at::MemoryFormat> memory_format) {
+    const at::Tensor &self, std::optional<at::ScalarType> dtype,
+    std::optional<at::Layout> layout, std::optional<at::Device> device,
+    std::optional<bool> pin_memory, bool non_blocking,
+    std::optional<at::MemoryFormat> memory_format) {
   PRINT_FUNCTION();
   auto options = self.options();
   if (dtype) {
@@ -482,7 +482,7 @@ LazyNativeFunctions::split_copy_symint(const at::Tensor &self,
 
 at::Tensor LazyNativeFunctions::index(
     const at::Tensor &self,
-    const c10::List<c10::optional<at::Tensor>> &indices) {
+    const c10::List<std::optional<at::Tensor>> &indices) {
   TORCH_LAZY_FN_COUNTER("lazy::");
   auto common_device = torch::lazy::GetBackendDevice(self);
   TORCH_INTERNAL_ASSERT(common_device);
@@ -491,7 +491,7 @@ at::Tensor LazyNativeFunctions::index(
 
   std::vector<torch::lazy::Value> values;
   for (const auto &it : indices) {
-    c10::optional<at::Tensor> tensor = it;
+    std::optional<at::Tensor> tensor = it;
     LazyTensorPtr lazy_tensor =
         torch::lazy::TryGetLtcTensor(tensor.value_or(at::Tensor()));
     values.push_back(
@@ -532,7 +532,7 @@ at::Tensor LazyNativeFunctions::index(
 }
 
 at::Tensor LazyNativeFunctions::index_put(
-    const at::Tensor &self, const c10::List<c10::optional<at::Tensor>> &indices,
+    const at::Tensor &self, const c10::List<std::optional<at::Tensor>> &indices,
     const at::Tensor &values, bool accumulate) {
   TORCH_LAZY_FN_COUNTER("lazy::");
   auto common_device = torch::lazy::GetBackendDevice(self);
@@ -544,7 +544,7 @@ at::Tensor LazyNativeFunctions::index_put(
 
   std::vector<torch::lazy::Value> indices_vector;
   for (const auto &it : indices) {
-    c10::optional<at::Tensor> tensor = it;
+    std::optional<at::Tensor> tensor = it;
     LazyTensorPtr lazy_tensor =
         torch::lazy::TryGetLtcTensor(tensor.value_or(at::Tensor()));
     indices_vector.push_back(
@@ -616,9 +616,9 @@ at::Tensor LazyNativeFunctions::block_diag(at::TensorList tensors) {
 }
 at::Tensor LazyNativeFunctions::new_empty_strided_symint(
     const at::Tensor &self, c10::SymIntArrayRef size,
-    c10::SymIntArrayRef stride, c10::optional<at::ScalarType> dtype,
-    c10::optional<at::Layout> layout, c10::optional<at::Device> device,
-    c10::optional<bool> pin_memory) {
+    c10::SymIntArrayRef stride, std::optional<at::ScalarType> dtype,
+    std::optional<at::Layout> layout, std::optional<at::Device> device,
+    std::optional<bool> pin_memory) {
   if (!device || device->type() == c10::DeviceType::Lazy) {
     return at::functionalization::functionalize_aten_op_symint<ATEN_OP(
         new_empty_strided)>::call(self, size, stride, dtype, layout, device,
@@ -628,8 +628,8 @@ at::Tensor LazyNativeFunctions::new_empty_strided_symint(
   // lazy_tensor.new_empty_strided(..., "cpu") we need to avoid explicit
   // functionalization. To do that we create regular cpu tensors.
   at::Tensor t = at::empty_symint(
-      size, (dtype ? dtype : c10::optional<at::ScalarType>(self.scalar_type())),
-      (layout ? layout : c10::optional<at::Layout>(self.layout())), device,
+      size, (dtype ? dtype : std::optional<at::ScalarType>(self.scalar_type())),
+      (layout ? layout : std::optional<at::Layout>(self.layout())), device,
       pin_memory, c10::nullopt);
   return t.as_strided_symint(size, stride, /*storage_offset=*/0);
 }
@@ -679,8 +679,8 @@ at::Tensor LazyNativeFunctions::_trilinear(
                          unroll_dim);
 }
 at::Tensor LazyNativeFunctions::linalg_pinv(
-    const at::Tensor &self, const c10::optional<at::Tensor> &atol,
-    const c10::optional<at::Tensor> &rtol, bool hermitian) {
+    const at::Tensor &self, const std::optional<at::Tensor> &atol,
+    const std::optional<at::Tensor> &rtol, bool hermitian) {
   return at::functionalization::functionalize_aten_op<ATEN_OP2(
       linalg_pinv, atol_rtol_tensor)>::call(self, atol, rtol, hermitian);
 }

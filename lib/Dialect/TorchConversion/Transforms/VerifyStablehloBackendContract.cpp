@@ -11,10 +11,9 @@
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
@@ -33,7 +32,7 @@ class VerifyStablehloBackendContractPass
     converter.addConversion([](Type type) -> Type {
       auto elemTy = type;
       if (isa<TensorType>(type))
-        elemTy = type.cast<TensorType>().getElementType();
+        elemTy = cast<TensorType>(type).getElementType();
       if (BaseMemRefType::isValidElementType(elemTy))
         return type;
       return nullptr;
@@ -47,13 +46,21 @@ class VerifyStablehloBackendContractPass
     // Structural operations.
     target.addDynamicallyLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>(
         opHasLegalTypes);
-    // Shape operations.
-    target.addDynamicallyLegalOp<shape::ShapeOfOp>(opHasLegalTypes);
 
     target.addLegalDialect<chlo::ChloDialect>();
     target.addLegalDialect<stablehlo::StablehloDialect>();
     target.addLegalDialect<tensor::TensorDialect>();
     target.addLegalDialect<arith::ArithDialect>();
+    target.addLegalDialect<math::MathDialect>();
+    target.addLegalDialect<shape::ShapeDialect>();
+    auto moduleOp = getOperation();
+    RewritePatternSet patterns(context);
+    if (failed(applyFullConversion(moduleOp, target, std::move(patterns)))) {
+      emitError(moduleOp.getLoc())
+          << "Module does not conform to the Stablehlo backend contract. "
+             "See dialect conversion legality information above.";
+      return signalPassFailure();
+    }
   }
 };
 } // namespace

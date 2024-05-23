@@ -43,7 +43,7 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value self = adaptor.getSelf();
-    auto selfTy = self.getType().cast<TensorType>();
+    auto selfTy = cast<TensorType>(self.getType());
 
     if (!selfTy)
       return rewriter.notifyMatchFailure(op,
@@ -93,9 +93,9 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
-    auto lhsTy = lhs.getType().cast<TensorType>();
+    auto lhsTy = cast<TensorType>(lhs.getType());
     Value rhs = adaptor.getOther();
-    auto rhsTy = rhs.getType().cast<TensorType>();
+    auto rhsTy = cast<TensorType>(rhs.getType());
 
     if (!lhsTy || !rhsTy)
       return rewriter.notifyMatchFailure(op,
@@ -144,12 +144,12 @@ LogicalResult torchScalarToTosaTensor(ConversionPatternRewriter &rewriter,
     return rewriter.notifyMatchFailure(op,
                                        "Unable to extract the scalar constant");
 
-  if (dtype.isa<mlir::FloatType>()) {
+  if (isa<mlir::FloatType>(dtype)) {
     tosaTensor = tosa::getConstTensor<float>(rewriter, op,
                                              (isFloat ? doubleValue : intValue),
                                              dshape, dtype)
                      .value();
-  } else if (auto intType = dtype.dyn_cast<mlir::IntegerType>()) {
+  } else if (auto intType = dyn_cast<mlir::IntegerType>(dtype)) {
     auto w = intType.getWidth();
     if (w != 1 && w != 32 && w != 64)
       return rewriter.notifyMatchFailure(op, [&](Diagnostic &diag) {
@@ -235,15 +235,15 @@ public:
     // alpha : scalar: i32/i64/f32
     // output: tensor: tensor<i32/i64/f32>
     Value lhs = adaptor.getSelf();
-    auto lhsType = lhs.getType().dyn_cast<TensorType>();
+    auto lhsType = dyn_cast<TensorType>(lhs.getType());
     Value rhs = adaptor.getOther();
-    auto rhsType = rhs.getType().dyn_cast<TensorType>();
+    auto rhsType = dyn_cast<TensorType>(rhs.getType());
 
     if (!lhsType)
       return rewriter.notifyMatchFailure(op,
                                          "Only Tensor types supported in TOSA");
 
-    if (auto lhsElemTy = lhsType.getElementType().dyn_cast<IntegerType>()) {
+    if (auto lhsElemTy = dyn_cast<IntegerType>(lhsType.getElementType())) {
       if (lhsElemTy.getWidth() > 64)
         return rewriter.notifyMatchFailure(
             op, "Integers with widths greater than 64 are not supported");
@@ -261,7 +261,7 @@ public:
     }
 
     Type rhsAlphaMulElemType;
-    if (outElemTy.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(outElemTy)) {
       rhsAlphaMulElemType = outElemTy;
     } else {
       // if output type is 64, input type should also be 32
@@ -284,7 +284,7 @@ public:
           op->getLoc(),
           RankedTensorType::get(rhsType.getShape(), rhsAlphaMulElemType), rhs);
       // reinitialize right value type to tensor<i32/f32>
-      rhsType = rhs.getType().dyn_cast<TensorType>();
+      rhsType = dyn_cast<TensorType>(rhs.getType());
     }
     auto rhsTensor = rhsType ? rhs : rhsAsTensor;
 
@@ -337,9 +337,9 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
-    auto lhsTy = lhs.getType().dyn_cast<TensorType>();
+    auto lhsTy = dyn_cast<TensorType>(lhs.getType());
     Value rhs = adaptor.getOther();
-    auto rhsTy = rhs.getType().dyn_cast<TensorType>();
+    auto rhsTy = dyn_cast<TensorType>(rhs.getType());
 
     if (!lhsTy)
       return rewriter.notifyMatchFailure(op,
@@ -355,7 +355,7 @@ public:
         std::is_same<AtenOpT, AtenBitwiseAndTensorOp>() ||
         std::is_same<AtenOpT, AtenBitwiseOrTensorOp>() ||
         std::is_same<AtenOpT, AtenBitwiseXorTensorOp>();
-    if (lhsElemTy.isa<mlir::FloatType>() && isBitwiseOp) {
+    if (isa<mlir::FloatType>(lhsElemTy) && isBitwiseOp) {
       return rewriter.notifyMatchFailure(op,
                                          "For bitwise operators, only integer "
                                          "datatype legalization is supported");
@@ -371,8 +371,8 @@ public:
     }
     auto rhsTensor = rhsTy ? rhs : rhsAsTensor;
     // There is no Lesser operator in TOSA.
-    auto swapLhsRhs = (std::is_same<AtenOpT, AtenLtTensorOp>() ||
-                       std::is_same<AtenOpT, AtenLtScalarOp>());
+    constexpr auto swapLhsRhs = (std::is_same<AtenOpT, AtenLtTensorOp>() ||
+                                 std::is_same<AtenOpT, AtenLtScalarOp>());
 
     // Promote lhs and rhs dtypes for bitwise operators.
     TensorType resultTy = OpConversionPattern<AtenOpT>::getTypeConverter()
@@ -388,12 +388,15 @@ public:
                                              (swapLhsRhs ? lhs : rhsTensor));
 
     // There is no NE operator in TOSA.
-    if (std::is_same<AtenOpT, AtenNeTensorOp>() ||
-        std::is_same<AtenOpT, AtenNeScalarOp>())
+    if constexpr (std::is_same<AtenOpT, AtenNeTensorOp>() ||
+                  std::is_same<AtenOpT, AtenNeScalarOp>()) {
       rewriter.replaceOpWithNewOp<tosa::LogicalNotOp>(op, resultTy,
                                                       resultOp.getResult());
-    else
+    }
+
+    else {
       rewriter.replaceOp(op, resultOp.getResult());
+    }
 
     return success();
   }
@@ -409,7 +412,7 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
-    auto lhsType = lhs.getType().dyn_cast<TensorType>();
+    auto lhsType = dyn_cast<TensorType>(lhs.getType());
 
     if (!lhsType)
       return rewriter.notifyMatchFailure(op,
@@ -425,12 +428,12 @@ public:
           op, "Only floating-point or integer datatype legalization supported");
 
     Value rhsTensor;
-    if (std::is_same<AtenOpT, AtenSquareOp>()) {
+    if constexpr (std::is_same<AtenOpT, AtenSquareOp>()) {
       rhsTensor = lhs;
     } else {
       Value rhsAsTensor;
       Value rhs = adaptor.getOther();
-      auto rhsType = rhs.getType().dyn_cast<TensorType>();
+      auto rhsType = dyn_cast<TensorType>(rhs.getType());
       if (!rhsType) {
         if (failed(torchScalarToTosaTensor(rewriter, op, op.getOther(),
                                            rhsAsTensor, outElemTy, {}))) {
@@ -442,8 +445,7 @@ public:
       rhsTensor = rhsType ? rhs : rhsAsTensor;
     }
 
-    if (outElemTy.isa<mlir::FloatType>() ||
-        outElemTy.isa<mlir::IntegerType>()) {
+    if (isa<mlir::FloatType>(outElemTy) || isa<mlir::IntegerType>(outElemTy)) {
       auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
                          ->convertType(op.getType())
                          .template cast<TensorType>();
@@ -470,9 +472,9 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
-    auto lhsTy = lhs.getType().dyn_cast<TensorType>();
+    auto lhsTy = dyn_cast<TensorType>(lhs.getType());
     Value rhs = adaptor.getOther();
-    auto rhsTy = rhs.getType().dyn_cast<TensorType>();
+    auto rhsTy = dyn_cast<TensorType>(rhs.getType());
 
     if (!lhsTy)
       return rewriter.notifyMatchFailure(op,
@@ -498,7 +500,7 @@ public:
 
     // auto result;
     Value result;
-    if (outType.getElementType().template isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(outType.getElementType())) {
       // The input to the reciprocal is an integer sometimes, and we may need to
       // promote it to a floating point. Per TOSA specification, the input types
       // can only be floating point for tosa::ReciprocalOp.
@@ -512,8 +514,8 @@ public:
     } else {
       // The output type can be different than the input types (e.g. dividing an
       // int tensor results in a floating point tensor).
-      result = tosa::createBinaryOpAndCast<tosa::DivOp>(rewriter, op, outType,
-                                                        lhs, rhsTensor)
+      result = tosa::createBinaryOpAndCast<tosa::IntDivOp>(
+                   rewriter, op, outType, lhs, rhsTensor)
                    .getResult();
     }
 
@@ -539,7 +541,7 @@ LogicalResult ConvertAtenOp<AtenTanhOp>::matchAndRewrite(
     AtenTanhOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value self = adaptor.getSelf();
-  auto selfTy = self.getType().cast<TensorType>();
+  auto selfTy = cast<TensorType>(self.getType());
   if (selfTy && selfTy.getElementType().isa<mlir::FloatType>()) {
     rewriter.replaceOpWithNewOp<tosa::TanhOp>(
         op, getTypeConverter()->convertType(op.getType()), self);
@@ -556,7 +558,7 @@ LogicalResult ConvertAtenOp<AtenSigmoidOp>::matchAndRewrite(
     AtenSigmoidOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value self = adaptor.getSelf();
-  auto selfTy = self.getType().cast<TensorType>();
+  auto selfTy = cast<TensorType>(self.getType());
   if (selfTy && selfTy.getElementType().isa<mlir::FloatType>()) {
     rewriter.replaceOpWithNewOp<tosa::SigmoidOp>(
         op, getTypeConverter()->convertType(op.getType()), self);
@@ -573,7 +575,7 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
     AtenReluOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value self = adaptor.getSelf();
-  auto selfTy = self.getType().cast<TensorType>();
+  auto selfTy = cast<TensorType>(self.getType());
 
   // Maps to tosa.clamp which has both int and fp limits.
   int64_t clampMin = 0;
@@ -603,7 +605,7 @@ LogicalResult ConvertAtenOp<AtenLeakyReluOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   Value self = adaptor.getSelf();
-  auto selfTy = self.getType().cast<TensorType>();
+  auto selfTy = cast<TensorType>(self.getType());
   if (!selfTy.getElementType().isa<mlir::FloatType>()) {
     return rewriter.notifyMatchFailure(
         op, "Only floating-point datatype legalization currently supported");
@@ -661,7 +663,7 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value self = adaptor.getSelf();
-    auto selfTy = self.getType().cast<TensorType>();
+    auto selfTy = cast<TensorType>(self.getType());
 
     if (!selfTy)
       return rewriter.notifyMatchFailure(op,
@@ -714,7 +716,7 @@ class ConvertAtenMultipleDimsReductionOp
                                          "non-const dim parameter unsupported");
     int64_t N = reduceDims.size();
     int64_t inputRank =
-        adaptor.getSelf().getType().template cast<RankedTensorType>().getRank();
+        cast<RankedTensorType>(adaptor.getSelf().getType()).getRank();
     for (unsigned i = 0; i < N; i++) {
       reduceDims[i] = toPositiveDim(reduceDims[i], inputRank);
       if (!isValidDim(reduceDims[i], inputRank))
@@ -752,7 +754,7 @@ class ConvertAtenOneDimReductionOp
       return rewriter.notifyMatchFailure(op,
                                          "non-const dim parameter unsupported");
     int64_t inputRank =
-        adaptor.getSelf().getType().template cast<RankedTensorType>().getRank();
+        cast<RankedTensorType>(adaptor.getSelf().getType()).getRank();
     reduceDim = toPositiveDim(reduceDim, inputRank);
     if (!isValidDim(reduceDim, inputRank))
       return rewriter.notifyMatchFailure(op, "dim is statically invalid");
@@ -783,7 +785,7 @@ public:
                                           ElementsAttr &reduceDimsAttr,
                                           bool &keepDims) const override {
     auto self = adaptor.getSelf();
-    auto selfTy = self.getType().template cast<RankedTensorType>();
+    auto selfTy = cast<RankedTensorType>(self.getType());
 
     // Select all dims to reduce
     SmallVector<int64_t, 4> reduceDims;
@@ -805,7 +807,7 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   Value self = adaptor.getSelf();
-  auto selfTy = self.getType().template cast<RankedTensorType>();
+  auto selfTy = cast<RankedTensorType>(self.getType());
 
   if (!selfTy)
     return rewriter.notifyMatchFailure(
@@ -836,7 +838,7 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
   // Create a single instance of tosa.argmax.
   // Multiple dims require chained construct.
   auto buildArgmax = [&](int64_t reduceDim, Value input) -> Value {
-    auto inputTy = input.getType().cast<RankedTensorType>();
+    auto inputTy = cast<RankedTensorType>(input.getType());
     auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
     SmallVector<int64_t> outputShapeArr = {};
     int32_t i = 0;
@@ -866,7 +868,7 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
   // Convert the final index to i64 for backend finalization, However, i64
   // is not a defined type for tosa.cast, so using arith.extsi instead.
   auto castToInt64 = [&](Value result) -> LogicalResult {
-    auto resTy = result.getType().cast<ShapedType>();
+    auto resTy = cast<ShapedType>(result.getType());
     if (!resTy)
       return rewriter.notifyMatchFailure(op,
                                          "Argmax: Result is not a shaped type");
@@ -916,7 +918,7 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value self = adaptor.getSelf();
-    auto selfTy = self.getType().template cast<RankedTensorType>();
+    auto selfTy = cast<RankedTensorType>(self.getType());
 
     if (!selfTy)
       return rewriter.notifyMatchFailure(
@@ -1011,7 +1013,7 @@ LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   Value self = adaptor.getSelf();
-  auto selfTy = self.getType().template cast<RankedTensorType>();
+  auto selfTy = cast<RankedTensorType>(self.getType());
 
   if (!selfTy)
     return rewriter.notifyMatchFailure(
@@ -1022,7 +1024,7 @@ LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
         op, "Only floating-point datatype legalization supported");
 
   auto outType =
-      getTypeConverter()->convertType(op.getType()).template cast<TensorType>();
+      cast<TensorType>(getTypeConverter()->convertType(op.getType()));
 
   Value expTensor;
   Value expScalar = op.getExponent();
@@ -1064,8 +1066,8 @@ public:
                               ConversionPatternRewriter &rewriter, Value &lhs,
                               Value &rhs, Value &output) const {
 
-    auto lhsTy = lhs.getType().cast<RankedTensorType>();
-    auto rhsTy = rhs.getType().cast<RankedTensorType>();
+    auto lhsTy = cast<RankedTensorType>(lhs.getType());
+    auto rhsTy = cast<RankedTensorType>(rhs.getType());
 
     auto lhsRank = lhsTy.getRank();
     auto rhsRank = rhsTy.getRank();
@@ -1098,7 +1100,7 @@ public:
     // construct the input and output reshaping logic.
     auto getRankBroadcastedShape = [&](Value tensor,
                                        bool isRHS) -> SmallVector<int64_t> {
-      auto tensorTy = tensor.getType().cast<TensorType>();
+      auto tensorTy = cast<TensorType>(tensor.getType());
       auto tensorShape = makeShapeTorchCompatible(tensorTy.getShape());
       auto tensorRank = tensorTy.getRank();
 
@@ -1152,7 +1154,7 @@ public:
     // TOSA matmul is performed on two 3D inputs and generates a 3D output.
     // Lower ranked tensors are dim-1 reshaped up to 3D
     auto reshapeUpTo3DTensor = [&](Value tensor) -> Value {
-      auto tensorTy = tensor.getType().cast<TensorType>();
+      auto tensorTy = cast<TensorType>(tensor.getType());
       auto rank = tensorTy.getRank();
 
       assert(rank <= 3 && "reshapeUpTo3D tensor must receive rank <= 3");
@@ -1441,9 +1443,9 @@ public:
     }
 
     auto matmulLhsShape = makeShapeTorchCompatible(
-        matmulLhs.getType().template cast<RankedTensorType>().getShape());
+        cast<RankedTensorType>(matmulLhs.getType()).getShape());
     auto matmulRhsShape = makeShapeTorchCompatible(
-        matmulRhs.getType().template cast<RankedTensorType>().getShape());
+        cast<RankedTensorType>(matmulRhs.getType()).getShape());
 
     // The reshape/transpose should ensure the tosa.matmul always has same
     // batch size for either matrix. If if shapes are dynamic, they'll be
@@ -1454,7 +1456,7 @@ public:
     SmallVector<int64_t> matmulOutputShape(
         {matmulLhsShape[0], matmulLhsShape[1], matmulRhsShape[2]});
     Type outputElemTy;
-    if (lhsElemTy.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(lhsElemTy)) {
       outputElemTy = lhsElemTy;
     } else { // qint8 emits i32 matmul output
       outputElemTy = rewriter.getIntegerType(32);
@@ -1643,10 +1645,10 @@ public:
                                  ConversionPatternRewriter &rewriter,
                                  Value &lhs, Value &rhs) const override {
     lhs = adaptor.getSelf();
-    auto lhsTy = lhs.getType().cast<RankedTensorType>();
+    auto lhsTy = cast<RankedTensorType>(lhs.getType());
 
     rhs = adaptor.getOther();
-    auto rhsTy = rhs.getType().cast<RankedTensorType>();
+    auto rhsTy = cast<RankedTensorType>(rhs.getType());
 
     if (!lhsTy || !rhsTy)
       return rewriter.notifyMatchFailure(
@@ -1667,10 +1669,10 @@ public:
                                  Value &lhs, Value &rhs) const override {
 
     lhs = adaptor.getSelf();
-    auto lhsTy = lhs.getType().cast<RankedTensorType>();
+    auto lhsTy = cast<RankedTensorType>(lhs.getType());
 
     rhs = adaptor.getMat2();
-    auto rhsTy = rhs.getType().cast<RankedTensorType>();
+    auto rhsTy = cast<RankedTensorType>(rhs.getType());
 
     if (!lhsTy || !rhsTy)
       return rewriter.notifyMatchFailure(
@@ -1704,10 +1706,10 @@ public:
                                  Value &lhs, Value &rhs) const override {
 
     lhs = adaptor.getInput();
-    auto lhsTy = lhs.getType().cast<RankedTensorType>();
+    auto lhsTy = cast<RankedTensorType>(lhs.getType());
 
     rhs = adaptor.getWeight();
-    auto rhsTy = rhs.getType().cast<RankedTensorType>();
+    auto rhsTy = cast<RankedTensorType>(rhs.getType());
 
     if (!lhsTy || !rhsTy)
       return rewriter.notifyMatchFailure(
@@ -1745,14 +1747,13 @@ public:
     auto biasTy = bias.getType();
 
     // TOSA does not mandate that elementwise op tensors need to be ranked.
-    if (!biasTy.template isa<Torch::NoneType>() &&
-        !biasTy.template isa<TensorType>())
+    if (!isa<Torch::NoneType>(biasTy) && !isa<TensorType>(biasTy))
       return rewriter.notifyMatchFailure(
           op, "Only tensor types supported in GEMM to TOSA for bias tensor");
 
     // RHS must have its last two dims transposed prior to matrix
     // multiplication.
-    auto rhsTy = rhs.getType().cast<RankedTensorType>();
+    auto rhsTy = cast<RankedTensorType>(rhs.getType());
     auto rhsRank = rhsTy.getRank();
     auto rhsShape = makeShapeTorchCompatible(rhsTy.getShape());
     auto rhsElemTy = rhsTy.getElementType();
@@ -1790,7 +1791,7 @@ public:
                                          "Failed to perform matmul operation");
 
     Value matmulPlusBias = matmulOutput;
-    if (!biasTy.template isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(biasTy)) {
       // Bias addition broadcasts to the matmul output shape.
       matmulPlusBias =
           rewriter
@@ -1819,7 +1820,7 @@ LogicalResult ConvertAtenOp<AtenRsubScalarOp>::matchAndRewrite(
   auto otherScalar = op.getOther();
   auto alphaScalar = op.getAlpha();
 
-  auto selfTy = self.getType().cast<RankedTensorType>();
+  auto selfTy = cast<RankedTensorType>(self.getType());
   if (!selfTy)
     return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types supported in TOSA Rsub");
@@ -1868,8 +1869,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   auto input = adaptor.getInput();
   auto weight = adaptor.getWeight();
 
-  auto inputTy = input.getType().cast<RankedTensorType>();
-  auto weightTy = weight.getType().cast<RankedTensorType>();
+  auto inputTy = cast<RankedTensorType>(input.getType());
+  auto weightTy = cast<RankedTensorType>(weight.getType());
   auto outputTy = getTypeConverter()
                       ->convertType(op.getType())
                       .template cast<RankedTensorType>();
@@ -1894,11 +1895,11 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   // Bias is optional. TOSA mandates a zero tensor here, so construct one if
   // required.
   auto bias = adaptor.getBias();
-  if (adaptor.getBias().getType().template isa<Torch::NoneType>()) {
+  if (isa<Torch::NoneType>(adaptor.getBias().getType())) {
     // TBD: This is only valid for quantized 8-bit. For 16-bit, the bias (and
     // accumulator) are 48-bit and not 32-bit, and requires the use of APInt to
     // define a 48-bit int.
-    if (inputElemTy.isa<quant::QuantizedType>()) {
+    if (isa<quant::QuantizedType>(inputElemTy)) {
       SmallVector<int32_t> zeroVec(weightShape[0], 0);
       bias = tosa::getConstTensor<int32_t>(
                  rewriter, op, zeroVec, {static_cast<int32_t>(weightShape[0])})
@@ -1910,12 +1911,12 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
                  .value();
     }
   } else {
-    if (!bias.getType().cast<RankedTensorType>())
+    if (!cast<RankedTensorType>(bias.getType()))
       return rewriter.notifyMatchFailure(
           op, "Bias provided but not a ranked tensor");
   }
   auto biasElemTy =
-      inputElemTy.isa<mlir::FloatType>() ? inputElemTy : rewriter.getI32Type();
+      isa<mlir::FloatType>(inputElemTy) ? inputElemTy : rewriter.getI32Type();
 
   int64_t groups;
   if (!matchPattern(op.getGroups(), m_TorchConstantInt(&groups))) {
@@ -2098,7 +2099,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
           .getResult();
 
   Value rescaledResult = transposedOutput;
-  if (inputElemTy.isa<quant::QuantizedType>()) {
+  if (isa<quant::QuantizedType>(inputElemTy)) {
     rescaledResult = tosa::buildRescaleOpConvOutput(
         rewriter, op, transposedOutput, inputTy, weightTy, outputTy);
   }
@@ -2116,7 +2117,7 @@ LogicalResult ConvertAtenOp<AtenReshapeOp>::matchAndRewrite(
 
   auto self = adaptor.getSelf();
 
-  auto selfTy = self.getType().cast<RankedTensorType>();
+  auto selfTy = cast<RankedTensorType>(self.getType());
   if (!selfTy)
     return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types supported in TOSA Reshape");
@@ -2200,7 +2201,7 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a ranked tensor output
-  if (!adaptor.getInput().getType().dyn_cast<RankedTensorType>())
+  if (!dyn_cast<RankedTensorType>(adaptor.getInput().getType()))
     return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types are supported");
 
@@ -2212,8 +2213,8 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
   if (op.getMomentum().getType().isa<Torch::NoneType>())
     return rewriter.notifyMatchFailure(op, "Unsupported None for momentum");
 
-  auto meanType = adaptor.getRunningMean().getType().dyn_cast<TensorType>();
-  auto varianceType = adaptor.getRunningVar().getType().dyn_cast<TensorType>();
+  auto meanType = dyn_cast<TensorType>(adaptor.getRunningMean().getType());
+  auto varianceType = dyn_cast<TensorType>(adaptor.getRunningVar().getType());
   if (!varianceType || !meanType)
     return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types are supported");
@@ -2226,11 +2227,11 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
                                    const TypeConverter *converter, Type outType,
                                    const Value toBcast, Value &result) {
     RankedTensorType toBcastType =
-        toBcast.getType().dyn_cast<RankedTensorType>();
+        dyn_cast<RankedTensorType>(toBcast.getType());
     if (toBcastType.getRank() > 1)
       return rewriter.notifyMatchFailure(op, "Rank cannot be more than 1");
 
-    RankedTensorType outTensorType = outType.cast<RankedTensorType>();
+    RankedTensorType outTensorType = cast<RankedTensorType>(outType);
     SmallVector<int64_t> newShape = {
         makeShapeTorchCompatible(toBcastType.getShape())[0]};
     for (auto i = 2; i < outTensorType.getRank(); ++i)
@@ -2299,11 +2300,11 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   // eventually being reshaped for broadcasting.
 
   // Not a ranked tensor output
-  if (!adaptor.getInput().getType().dyn_cast<RankedTensorType>())
+  if (!dyn_cast<RankedTensorType>(adaptor.getInput().getType()))
     return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types are supported");
 
-  auto inputType = adaptor.getInput().getType().cast<RankedTensorType>();
+  auto inputType = cast<RankedTensorType>(adaptor.getInput().getType());
   if (inputType.getRank() > 4)
     return rewriter.notifyMatchFailure(op,
                                        "Only up to 4D tensors are supported");
@@ -2318,8 +2319,8 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   if (adaptor.getBias().getType().isa<Torch::NoneType>())
     return rewriter.notifyMatchFailure(op, "Unsupported None for bias");
 
-  auto weightType = adaptor.getWeight().getType().cast<RankedTensorType>();
-  auto biasType = adaptor.getBias().getType().cast<RankedTensorType>();
+  auto weightType = cast<RankedTensorType>(adaptor.getWeight().getType());
+  auto biasType = cast<RankedTensorType>(adaptor.getBias().getType());
   int64_t inputRank = inputType.getRank();
   Type elemTy = inputType.getElementType();
   SmallVector<int64_t> inputTypeShape(
@@ -2462,7 +2463,7 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
   // element type. All tensors with element types other than integer can reuse
   // existing elements attribute.
   // TODO: what about unsigned integer?
-  if (auto elements = op.getValueAttr().dyn_cast<DenseIntElementsAttr>()) {
+  if (auto elements = dyn_cast<DenseIntElementsAttr>(op.getValueAttr())) {
     if (elements.getElementType().isSignedInteger()) {
       Type builtinTensorElemTy = outputTy.getElementType();
       unsigned bitWidth = builtinTensorElemTy.getIntOrFloatBitWidth();
@@ -2484,7 +2485,7 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a ranked tensor type
-  auto selfType = adaptor.getSelf().getType().dyn_cast<RankedTensorType>();
+  auto selfType = dyn_cast<RankedTensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(op,
                                        "Only ranked tensor types supported");
@@ -2549,7 +2550,7 @@ LogicalResult ConvertAtenOp<AtenUnflattenIntOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a ranked tensor type
-  auto selfType = adaptor.getSelf().getType().dyn_cast<RankedTensorType>();
+  auto selfType = dyn_cast<RankedTensorType>(adaptor.getSelf().getType());
   if (!selfType || !selfType.hasStaticShape())
     return rewriter.notifyMatchFailure(
         op,
@@ -2603,7 +2604,7 @@ LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a ranked tensor type
-  auto selfType = adaptor.getSelf().getType().dyn_cast<RankedTensorType>();
+  auto selfType = dyn_cast<RankedTensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op,
@@ -2638,7 +2639,7 @@ LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types are currently supported");
@@ -2666,7 +2667,7 @@ LogicalResult ConvertAtenOp<AtenThresholdOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types are currently supported");
@@ -2677,7 +2678,7 @@ LogicalResult ConvertAtenOp<AtenThresholdOp>::matchAndRewrite(
         op, "Only floating-point or integer datatype legalization supported");
 
   // Integer types with width > 32 are not supported
-  auto selfIntType = selfElemTy.dyn_cast<IntegerType>();
+  auto selfIntType = dyn_cast<IntegerType>(selfElemTy);
   if (selfIntType && selfIntType.getWidth() > 32) {
     return rewriter.notifyMatchFailure(
         op, "Integer types with width greater than 32 are not supported");
@@ -2716,7 +2717,7 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType) {
     return rewriter.notifyMatchFailure(
         op, "Only tensor types are currently supported");
@@ -2764,7 +2765,7 @@ LogicalResult ConvertAtenOp<AtenContiguousOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types are currently supported");
@@ -2782,7 +2783,7 @@ LogicalResult ConvertAtenOp<AtenDropoutOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getInput().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getInput().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types are currently supported");
@@ -2808,7 +2809,7 @@ LogicalResult ConvertAtenOp<AtenViewOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types are currently supported");
@@ -2870,7 +2871,7 @@ static Value approximateErfOp(ConversionPatternRewriter &rewriter,
   //
   // Erf = 1 - 1 / (1 + a1X + a2X + a3X + a4X)^4
 
-  auto outType = x.getType().cast<TensorType>();
+  auto outType = cast<TensorType>(x.getType());
   auto loc = op->getLoc();
   auto absX = rewriter.create<tosa::AbsOp>(loc, outType, x);
   auto zero = tosa::getConstTensor<float>(rewriter, op, 0, {}, dtype).value();
@@ -2950,13 +2951,13 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types are currently supported");
 
   auto selfElemTy = selfType.getElementType();
-  if (!selfElemTy.isa<mlir::FloatType>()) {
+  if (!isa<mlir::FloatType>(selfElemTy)) {
     return rewriter.notifyMatchFailure(
         op, "Only floating-point datatype legalization supported");
   }
@@ -2987,13 +2988,13 @@ LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types are currently supported");
 
   auto selfElemTy = selfType.getElementType();
-  if (!selfElemTy.isa<mlir::FloatType>()) {
+  if (!isa<mlir::FloatType>(selfElemTy)) {
     return rewriter.notifyMatchFailure(
         op, "Only floating-point datatype legalization supported");
   }
@@ -3044,7 +3045,7 @@ LogicalResult ConvertAtenOp<AtenHardtanhBackwardOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType) {
     return rewriter.notifyMatchFailure(
         op, "Only tensor types are currently supported");
@@ -3057,14 +3058,14 @@ LogicalResult ConvertAtenOp<AtenHardtanhBackwardOp>::matchAndRewrite(
   }
 
   // Integer types with width > 32 are not supported
-  auto selfIntType = selfElemTy.dyn_cast<IntegerType>();
+  auto selfIntType = dyn_cast<IntegerType>(selfElemTy);
   if (selfIntType && selfIntType.getWidth() > 32) {
     return rewriter.notifyMatchFailure(
         op, "Integer types with width greater than 32 are not supported");
   }
 
   Value gradOutput = adaptor.getGradOutput();
-  auto gradOutputType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto gradOutputType = dyn_cast<TensorType>(adaptor.getSelf().getType());
 
   Type gradOutputElemType = gradOutputType.getElementType();
 
@@ -3120,14 +3121,14 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
   Value weight = adaptor.getWeight();
   Value indices = adaptor.getIndices();
   RankedTensorType outType =
-      typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(typeConverter->convertType(op.getType()));
 
-  auto indicesType = indices.getType().dyn_cast<RankedTensorType>();
+  auto indicesType = dyn_cast<RankedTensorType>(indices.getType());
   if (!indicesType || !indicesType.getElementType().isa<IntegerType>())
     return rewriter.notifyMatchFailure(
         op, "Indices must be of integer tensor type");
 
-  auto weightType = weight.getType().cast<RankedTensorType>();
+  auto weightType = cast<RankedTensorType>(weight.getType());
   if (weightType.getRank() != 2)
     return op.emitError("weight must be of rank 2");
 
@@ -3217,7 +3218,7 @@ LogicalResult ConvertAtenOp<AtenTransposeIntOp>::matchAndRewrite(
     AtenTransposeIntOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
 
@@ -3259,12 +3260,12 @@ LogicalResult ConvertAtenOp<AtenMaxDimOp>::matchAndRewrite(
     AtenMaxDimOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
 
   auto indicesType =
-      getTypeConverter()->convertType(op.getType(1)).dyn_cast<TensorType>();
+      dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType(1)));
   if (!indicesType)
     return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
 
@@ -3335,7 +3336,7 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
     AtenSliceTensorOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType || !selfType.hasStaticShape())
     return rewriter.notifyMatchFailure(
         op, "Only tensor types with static shape are supported");
@@ -3407,7 +3408,7 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType || !selfType.hasStaticShape())
     return rewriter.notifyMatchFailure(
         op, "Only tensor types with static shape are supported");
@@ -3501,13 +3502,13 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
 
   // Not a tensor type.
   auto input = adaptor.getSelf();
-  auto inputType = adaptor.getSelf().getType().dyn_cast<RankedTensorType>();
+  auto inputType = dyn_cast<RankedTensorType>(adaptor.getSelf().getType());
   if (!inputType)
     return rewriter.notifyMatchFailure(
         op, "Only RankedTensorType input are currently supported");
 
   auto index = adaptor.getIndex();
-  auto indexType = adaptor.getIndex().getType().dyn_cast<RankedTensorType>();
+  auto indexType = dyn_cast<RankedTensorType>(adaptor.getIndex().getType());
   auto inputShape = inputType.getShape();
   int paramsRank = inputShape.size();
 
@@ -3577,8 +3578,8 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<Aten_IndexPutImplOp>::matchAndRewrite(
-    Aten_IndexPutImplOp op, OpAdaptor adaptor,
+LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
+    AtenIndexPutHackedTwinOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // a = torch.tensor([[0, 1, 2, 3]])
   // a[..., 1:] = torch.tensor([4, 5, 6])
@@ -3594,13 +3595,13 @@ LogicalResult ConvertAtenOp<Aten_IndexPutImplOp>::matchAndRewrite(
 
   // Not a tensor type.
   auto input = adaptor.getSelf();
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types input are currently supported");
 
   auto fillValues = adaptor.getValues();
-  auto valuesType = adaptor.getValues().getType().dyn_cast<TensorType>();
+  auto valuesType = dyn_cast<TensorType>(adaptor.getValues().getType());
   if (!valuesType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types input are currently supported");
@@ -3641,7 +3642,7 @@ LogicalResult ConvertAtenOp<Aten_IndexPutImplOp>::matchAndRewrite(
         return rewriter.notifyMatchFailure(
             op, "Multiple None index is not support for now.");
       }
-      auto indexNextType = indexNext.getType().dyn_cast<RankedTensorType>();
+      auto indexNextType = dyn_cast<RankedTensorType>(indexNext.getType());
       auto indexNextShape = indexNextType.getShape();
 
       int64_t size = 1;
@@ -3653,7 +3654,7 @@ LogicalResult ConvertAtenOp<Aten_IndexPutImplOp>::matchAndRewrite(
               .value();
     }
 
-    auto indexType = index.getType().dyn_cast<RankedTensorType>();
+    auto indexType = dyn_cast<RankedTensorType>(index.getType());
     auto indexShape = indexType.getShape();
     indexesShape.push_back(makeShapeTorchCompatible(indexShape));
     indexesRank.push_back(indexType.getRank());
@@ -3735,7 +3736,7 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
   //  [[16, 17, 18, 19, 20], [11, 12, 13, 14, 15], [ 6,  7,  8,  9, 10]]]
   auto input = adaptor.getSelf();
   auto inputTensorType =
-      adaptor.getSelf().getType().dyn_cast<RankedTensorType>();
+      dyn_cast<RankedTensorType>(adaptor.getSelf().getType());
   // Check input is a tensor type.
   if (!inputTensorType)
     return rewriter.notifyMatchFailure(
@@ -3772,7 +3773,7 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
     for (size_t i = 0; i < indexTensors.size(); i++) {
       auto index = indexTensors[i];
 
-      auto indexType = index.getType().dyn_cast<RankedTensorType>();
+      auto indexType = dyn_cast<RankedTensorType>(index.getType());
       auto indexShape = indexType.getShape();
       indexesShape.push_back(makeShapeTorchCompatible(indexShape));
       indexesRank.push_back(indexType.getRank());
@@ -3838,7 +3839,7 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
 
   // Support for multiple index
   auto index = indexTensors[0];
-  auto indexType = index.getType().dyn_cast<RankedTensorType>();
+  auto indexType = dyn_cast<RankedTensorType>(index.getType());
   auto indexShape = indexType.getShape();
   // index i64 to i32 for tosa compatible
   if (indexType.getElementType() != rewriter.getIntegerType(32)) {
@@ -3880,7 +3881,7 @@ LogicalResult ConvertAtenOp<AtenAbsOp>::matchAndRewrite(
     AtenAbsOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types input are currently supported");
@@ -3897,11 +3898,11 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types input are currently supported");
-  auto condType = adaptor.getCondition().getType().dyn_cast<TensorType>();
+  auto condType = dyn_cast<TensorType>(adaptor.getCondition().getType());
   if (!condType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types condition are currently supported");
@@ -3920,11 +3921,11 @@ LogicalResult ConvertAtenOp<AtenLeTensorOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types input are currently supported");
-  auto otherType = adaptor.getOther().getType().dyn_cast<TensorType>();
+  auto otherType = dyn_cast<TensorType>(adaptor.getOther().getType());
   if (!otherType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types condition are currently supported");
@@ -3956,8 +3957,8 @@ LogicalResult ConvertAtenOp<AtenIscloseOp>::matchAndRewrite(
         op, "unimplemented: equal_nan is expected to be false");
 
   // check tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
-  auto otherType = adaptor.getOther().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
+  auto otherType = dyn_cast<TensorType>(adaptor.getOther().getType());
   if (!selfType || !otherType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types input are currently supported");
@@ -3999,7 +4000,7 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "only tensor types input are currently supported");
@@ -4235,7 +4236,7 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
                                        "Unable to extract the scalar constant");
 
   auto outElemTy = resultType.getElementType();
-  if (outElemTy.isa<mlir::IntegerType>()) {
+  if (isa<mlir::IntegerType>(outElemTy)) {
     rewriter.replaceOpWithNewOp<tosa::ConstOp>(
         op, resultType, DenseElementsAttr::get(resultType, {intValue}));
   } else if (outElemTy.isF64()) {
@@ -4252,8 +4253,8 @@ LogicalResult ConvertAtenOp<AtenCopyOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
-  auto srcType = adaptor.getSrc().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
+  auto srcType = dyn_cast<TensorType>(adaptor.getSrc().getType());
   if (!selfType || !selfType.hasStaticShape())
     return rewriter.notifyMatchFailure(
         op, "Only tensor types with static shape are supported");
@@ -4298,7 +4299,7 @@ LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType || !selfType.hasStaticShape())
     return rewriter.notifyMatchFailure(
         op, "Only tensor types with static shape are supported");
@@ -4356,14 +4357,14 @@ LogicalResult ConvertAtenOp<AtenRemainderScalarOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   Value self = adaptor.getSelf();
-  auto selfTy = self.getType().template cast<RankedTensorType>();
+  auto selfTy = cast<RankedTensorType>(self.getType());
 
   if (!selfTy)
     return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types supported in TOSA Remainder");
 
   auto outType =
-      getTypeConverter()->convertType(op.getType()).template cast<TensorType>();
+      cast<TensorType>(getTypeConverter()->convertType(op.getType()));
 
   Type outElemTy = outType.getElementType();
   if (!outElemTy.isIntOrFloat())
@@ -4382,16 +4383,15 @@ LogicalResult ConvertAtenOp<AtenRemainderScalarOp>::matchAndRewrite(
     self = rewriter.create<tosa::CastOp>(op.getLoc(), outType, self);
 
   auto divTensor = self;
-  // tosa::DivOp only supports int
-  if (outElemTy.isa<mlir::FloatType>()) {
+  if (isa<mlir::FloatType>(outElemTy)) {
     auto otherTensorReciprocal = rewriter.create<tosa::ReciprocalOp>(
         op.getLoc(), otherTensor.getType(), otherTensor);
     divTensor = rewriter.create<tosa::MulOp>(
         op.getLoc(), outType, self, otherTensorReciprocal, /*shift=*/0);
     divTensor = rewriter.create<tosa::FloorOp>(op.getLoc(), outType, divTensor);
   } else {
-    divTensor =
-        rewriter.create<tosa::DivOp>(op.getLoc(), outType, self, otherTensor);
+    divTensor = rewriter.create<tosa::IntDivOp>(op.getLoc(), outType, self,
+                                                otherTensor);
   }
 
   auto mulTensor =
@@ -4439,7 +4439,7 @@ public:
   // Apply the transposeDims vector on input to generate a transposed form.
   Value transposeTensor(AtenOpT op, ConversionPatternRewriter &rewriter,
                         Value input, ArrayRef<int32_t> transposeDims) const {
-    auto inputTy = input.getType().template cast<RankedTensorType>();
+    auto inputTy = cast<RankedTensorType>(input.getType());
     auto inputElemTy = inputTy.getElementType();
     auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
     auto inputRank = inputTy.getRank();
@@ -4463,8 +4463,7 @@ public:
   Value transposePoolingInputToHwc(AtenOpT op,
                                    ConversionPatternRewriter &rewriter,
                                    Value input) const {
-    auto inputRank =
-        input.getType().template cast<RankedTensorType>().getRank();
+    auto inputRank = cast<RankedTensorType>(input.getType()).getRank();
 
     SmallVector<int32_t> nchwToNhwc4DTransposeDims({0, 2, 3, 1});
     SmallVector<int32_t> chwToHwc3DTransposeDims({1, 2, 0});
@@ -4477,7 +4476,7 @@ public:
   Value transposePoolingOutputToChw(AtenOpT op,
                                     ConversionPatternRewriter &rewriter,
                                     Value input) const {
-    auto inputTy = input.getType().template cast<RankedTensorType>();
+    auto inputTy = cast<RankedTensorType>(input.getType());
     auto inputRank = inputTy.getRank();
 
     SmallVector<int32_t> nhwcToNchw4DTransposeDims({0, 3, 1, 2});
@@ -4548,7 +4547,7 @@ public:
                               DenseI64ArrayAttr &stride, DenseI64ArrayAttr &pad,
                               Type &outputTy) const override {
     auto inputXchw = adaptor.getSelf();
-    auto inputTy = inputXchw.getType().template cast<RankedTensorType>();
+    auto inputTy = cast<RankedTensorType>(inputXchw.getType());
     if (!inputTy)
       return rewriter.notifyMatchFailure(
           op, "Adaptive avgpool requires ranked tensor input");
@@ -4660,7 +4659,7 @@ static LogicalResult getOutputTypeAndPoolingParameters(
     DenseI64ArrayAttr &kernel, DenseI64ArrayAttr &stride,
     DenseI64ArrayAttr &pad) {
 
-  RankedTensorType inputTy = inputXchw.getType().cast<RankedTensorType>();
+  RankedTensorType inputTy = cast<RankedTensorType>(inputXchw.getType());
   if (!inputTy)
     return rewriter.notifyMatchFailure(
         op, "Pooling op requires ranked tensor input");
@@ -4798,7 +4797,7 @@ public:
     // FIXME: Handle layout, device and pin_memory. Assume dtype has been
     // processed to set output type correctly?
     // The layout arg should be either `none` or `0` i.e. strided.
-    if (!op.getLayout().getType().template isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getLayout().getType())) {
       int64_t tensorLayout;
       if (!matchPattern(op.getLayout(), m_TorchConstantInt(&tensorLayout)))
         return rewriter.notifyMatchFailure(
@@ -4809,7 +4808,7 @@ public:
     }
 
     bool pinMemory;
-    if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
+    if (!isa<Torch::NoneType>(op.getPinMemory().getType()) &&
         (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
          pinMemory)) {
       return rewriter.notifyMatchFailure(
@@ -4893,19 +4892,19 @@ public:
     }
 
     // Not a tensor type.
-    auto selfType = adaptor.getSelf().getType().template dyn_cast<TensorType>();
+    auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
     if (!selfType || !outType.hasStaticShape())
       return rewriter.notifyMatchFailure(
           op,
           "Only tensor types with static shapes input are currently supported");
 
-    auto maskType = adaptor.getMask().getType().template dyn_cast<TensorType>();
+    auto maskType = dyn_cast<TensorType>(adaptor.getMask().getType());
     if (!maskType)
       return rewriter.notifyMatchFailure(
           op, "Only tensor types mask are currently supported");
 
     Value rhs = adaptor.getValue();
-    auto rhsType = rhs.getType().template dyn_cast<TensorType>();
+    auto rhsType = dyn_cast<TensorType>(rhs.getType());
     Value rhsAsTensor;
     if (!rhsType) { // scalar
       if (failed(torchScalarToTosaTensor(rewriter, op, op.getValue(),
@@ -4914,11 +4913,11 @@ public:
             op, "Currently only scalar constants are supported for "
                 "conversion in TOSA operation");
     } else { // tensor
-      rhsType = rhs.getType().dyn_cast<TensorType>();
+      rhsType = dyn_cast<TensorType>(rhs.getType());
     }
 
     auto rhsTensor = rhsType ? rhs : rhsAsTensor;
-    auto rhsTensorType = rhsTensor.getType().template dyn_cast<TensorType>();
+    auto rhsTensorType = dyn_cast<TensorType>(rhsTensor.getType());
     if (rhsTensorType.getElementType() != outElemTy)
       rhsTensor = rewriter.create<tosa::CastOp>(
           op.getLoc(),
@@ -4941,7 +4940,7 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     int64_t memoryFormat;
-    if (!op.getMemoryFormat().getType().template isa<Torch::NoneType>() &&
+    if (!isa<Torch::NoneType>(op.getMemoryFormat().getType()) &&
         (!matchPattern(op.getMemoryFormat(),
                        m_TorchConstantInt(&memoryFormat)) ||
          (memoryFormat != torch_upstream::MemoryFormat::Contiguous &&
@@ -4965,7 +4964,7 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   Location loc = op.getLoc();
   Value self = adaptor.getSelf();
-  auto selfTy = self.getType().cast<RankedTensorType>();
+  auto selfTy = cast<RankedTensorType>(self.getType());
   auto selfElemTy = selfTy.getElementType();
   int64_t rank = selfTy.getRank();
 
@@ -5034,7 +5033,7 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   const TypeConverter *typeConverter = this->getTypeConverter();
   auto outType =
-      typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(typeConverter->convertType(op.getType()));
   int64_t rank = outType.getRank();
   int64_t dim;
 
@@ -5075,7 +5074,7 @@ LogicalResult ConvertAtenOp<AtenSqrtOp>::matchAndRewrite(
 
   // Converts AtenSqrtOp into pow(x, 0.5)
   auto self = adaptor.getSelf();
-  auto selfTy = self.getType().dyn_cast<TensorType>();
+  auto selfTy = dyn_cast<TensorType>(self.getType());
   if (!selfTy)
     return rewriter.notifyMatchFailure(op,
                                        "Only Tensor types supported in TOSA");
@@ -5334,7 +5333,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
     INSERT_ATENOP_PATTERN(AtenGatherOp);
-    INSERT_ATENOP_PATTERN(Aten_IndexPutImplOp);
+    INSERT_ATENOP_PATTERN(AtenIndexPutHackedTwinOp);
     INSERT_ATENOP_PATTERN(AtenIndexTensorHackedTwinOp);
     INSERT_ATENOP_PATTERN(AtenAbsOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);

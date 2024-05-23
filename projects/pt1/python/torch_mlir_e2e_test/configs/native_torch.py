@@ -10,6 +10,7 @@ from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 
 class NativeTorchTestConfig(TestConfig):
     """TestConfig that just runs the torch.nn.Module without compiling"""
+
     def __init__(self):
         super().__init__()
 
@@ -23,7 +24,6 @@ class NativeTorchTestConfig(TestConfig):
         for item in trace:
             output = getattr(artifact, item.symbol)(*item.inputs)
             result.append(
-                TraceItem(symbol=item.symbol,
-                          inputs=item.inputs,
-                          output=output))
+                TraceItem(symbol=item.symbol, inputs=item.inputs, output=output)
+            )
         return result

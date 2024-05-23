@@ -9,6 +9,7 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 # CHECK-LABEL: @__torch__.f
 @mb.import_function
 @torch.jit.script
@@ -27,6 +28,7 @@ def f(b: bool, i: int):
         return i + i * i
     else:
         return i * i
+
 
 assert isinstance(f, torch.jit.ScriptFunction)
 mb.module.operation.print()

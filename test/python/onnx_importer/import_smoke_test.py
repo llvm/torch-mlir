@@ -48,6 +48,7 @@ TEST_CAST_XFAILS = [
     "node_test_if_opt_model",
 ]
 
+
 class ImportSmokeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

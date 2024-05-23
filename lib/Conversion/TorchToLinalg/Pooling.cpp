@@ -80,7 +80,7 @@ computeOutputTensor(Operation *op, ConversionPatternRewriter &rewriter,
                     SmallVectorImpl<int64_t> &dilationInts,
                     SmallVectorImpl<Value> &kernelSizeIntValues,
                     SmallVectorImpl<Value> &outTensorShape, Value initValue) {
-  Type elementType = self.getType().cast<RankedTensorType>().getElementType();
+  Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
   Location loc = op->getLoc();
 
   Value N = getDimOp(rewriter, loc, self, 0);
@@ -116,7 +116,7 @@ static Value padInputTensor(Operation *op, ConversionPatternRewriter &rewriter,
   SmallVector<int64_t> lowPaddingIncludingNC = {0, 0};
   SmallVector<int64_t> highPaddingIncludingNC = {0, 0};
 
-  unsigned selfRank = self.getType().cast<RankedTensorType>().getRank();
+  unsigned selfRank = cast<RankedTensorType>(self.getType()).getRank();
   unsigned paddingIntsSize = paddingInts.size();
 
   if (paddingIntsSize == 2 * (selfRank - 2)) {
@@ -153,8 +153,8 @@ static LogicalResult createPoolingOp(
     SmallVectorImpl<int64_t> &dilationInts, Attribute initValueAttr,
     SmallVectorImpl<Value> &outTensorShape, Value &paddedInput, Value &result) {
   Location loc = op->getLoc();
-  Type elementType = self.getType().cast<RankedTensorType>().getElementType();
-  if (!elementType.isa<mlir::FloatType>() && !supportNonFPInput)
+  Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
+  if (!isa<mlir::FloatType>(elementType) && !supportNonFPInput)
     return op->emitError("unimplemented: non-floating point type");
 
   Value initValue =
@@ -185,6 +185,12 @@ namespace {
 
 template <typename T> struct DimensionTraits {};
 
+template <> struct DimensionTraits<AtenMaxPool1dOp> {
+  static constexpr int64_t Dim = 1;
+  // unused const variable warning suppression:
+  static_assert(Dim == Dim);
+};
+
 template <> struct DimensionTraits<AtenMaxPool2dOp> {
   static constexpr int64_t Dim = 2;
   // unused const variable warning suppression:
@@ -214,10 +220,10 @@ private:
                                    bool ceilMode) const {
     SmallVector<Value, 5> outTensorShape;
     Value self = adaptor.getSelf();
-    Type elementType = self.getType().cast<RankedTensorType>().getElementType();
+    Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
     TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
         elementType,
-        APFloat::getInf(elementType.cast<mlir::FloatType>().getFloatSemantics(),
+        APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
                         /*Negative=*/true));
     Value initValue =
         rewriter.create<arith::ConstantOp>(op->getLoc(), smallestFPValueAttr);
@@ -307,7 +313,7 @@ public:
 
     const TypeConverter *typeConverter = this->getTypeConverter();
     Value self = adaptor.getSelf();
-    int64_t selfRank = self.getType().cast<RankedTensorType>().getRank();
+    int64_t selfRank = cast<RankedTensorType>(self.getType()).getRank();
 
     if (selfRank != Dim + 2)
       return rewriter.notifyMatchFailure(
@@ -326,16 +332,33 @@ public:
                                                   strideInts, paddingInts)))
       return rewriter.notifyMatchFailure(op, "invalid pooling parameters");
 
-    Type elementType = self.getType().cast<RankedTensorType>().getElementType();
+    Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
 
-    if constexpr (Dim == 2) {
+    if constexpr (Dim == 1) {
+      SmallVector<Value, 4> outTensorShape;
+      Value maxPool1d, paddedInput;
+      TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
+          elementType,
+          APFloat::getInf(
+              cast<mlir::FloatType>(elementType).getFloatSemantics(),
+              /*Negative=*/true));
+      if (failed(createPoolingOp<linalg::PoolingNcwMaxOp>(
+              op, rewriter, self, /*supportNonFPInput=*/true, ceilMode,
+              /*dimensionality=*/1, kernelSizeIntValues, strideInts,
+              paddingInts, dilationInts, smallestFPValueAttr, outTensorShape,
+              paddedInput, maxPool1d)))
+        return rewriter.notifyMatchFailure(op, "unable to compute maxpool1d");
+      Type newResultType = this->getTypeConverter()->convertType(op.getType());
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, maxPool1d);
+      return success();
+    } else if constexpr (Dim == 2) {
       SmallVector<Value, 4> outTensorShape;
       // `maxpool2d` contains the result of maxpool2d operation over the input.
       Value maxPool2d, paddedInput;
       TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
           elementType,
           APFloat::getInf(
-              elementType.cast<mlir::FloatType>().getFloatSemantics(),
+              cast<mlir::FloatType>(elementType).getFloatSemantics(),
               /*Negative=*/true));
       if (failed(createPoolingOp<linalg::PoolingNchwMaxOp>(
               op, rewriter, self, /*supportNonFPInput=*/true, ceilMode,
@@ -389,7 +412,7 @@ public:
     Location loc = op->getLoc();
     const TypeConverter *typeConverter = getTypeConverter();
     Value self = adaptor.getSelf();
-    RankedTensorType selfType = self.getType().cast<RankedTensorType>();
+    RankedTensorType selfType = cast<RankedTensorType>(self.getType());
     Type elementType = selfType.getElementType();
     RankedTensorType indicesRankedTensorType =
         getTypeConverter()
@@ -416,7 +439,7 @@ public:
     // `maxpool2d` contains the result of maxpool2d operation over the input.
     auto smallestFPValueAttr = rewriter.getFloatAttr(
         elementType,
-        APFloat::getInf(elementType.cast<mlir::FloatType>().getFloatSemantics(),
+        APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
                         /*Negative=*/true));
     Value maxPool2d, paddedInput;
     SmallVector<Value, 4> outTensorShape;
@@ -552,10 +575,10 @@ public:
     Value self = adaptor.getSelf();
 
     Type inputElementType =
-        self.getType().cast<RankedTensorType>().getElementType();
+        cast<RankedTensorType>(self.getType()).getElementType();
     Type resultType = typeConverter->convertType(op.getType());
     Type resultElementType =
-        resultType.cast<RankedTensorType>().getElementType();
+        cast<RankedTensorType>(resultType).getElementType();
 
     bool ceilMode;
     SmallVector<Value, Dim> kernelSizeIntValues;
@@ -592,10 +615,9 @@ public:
     if constexpr (std::is_same<OpTy, AtenAvgPool2dOp>()) {
       Value kHtimeskW = rewriter.create<arith::MulIOp>(
           loc, kernelSizeIntValues[0], kernelSizeIntValues[1]);
-      divisor =
-          op.getDivisorOverride().getType().template isa<Torch::NoneType>()
-              ? kHtimeskW
-              : adaptor.getDivisorOverride();
+      divisor = isa<Torch::NoneType>(op.getDivisorOverride().getType())
+                    ? kHtimeskW
+                    : adaptor.getDivisorOverride();
     } else {
       divisor = kernelSizeIntValues[0];
     }
@@ -615,9 +637,9 @@ public:
                 /*iteratorTypes=*/iteratorTypesAvg,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value avg;
-                  if (resultElementType.isa<mlir::IntegerType>())
+                  if (isa<mlir::IntegerType>(resultElementType))
                     avg = b.create<arith::DivSIOp>(loc, args[0], divisor);
-                  else if (resultElementType.isa<mlir::FloatType>())
+                  else if (isa<mlir::FloatType>(resultElementType))
                     avg = b.create<arith::DivFOp>(loc, args[0], divisor);
                   b.create<linalg::YieldOp>(loc, avg);
                 })
@@ -707,7 +729,7 @@ public:
     Type auxTensorElementType = auxTensorType.getElementType();
     auto smallestFPValueAttr = rewriter.getFloatAttr(
         elementType,
-        APFloat::getInf(elementType.cast<mlir::FloatType>().getFloatSemantics(),
+        APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
                         /*Negative=*/true));
     buffVal = rewriter.create<arith::ConstantOp>(loc, elementType,
                                                  smallestFPValueAttr);
@@ -901,7 +923,7 @@ public:
     const TypeConverter *typeConverter = this->getTypeConverter();
 
     Value input = adaptor.getSelf();
-    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
     const Type elementType = inputType.getElementType();
 
     // get rank of input (same as rank of output)
@@ -1091,8 +1113,10 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
+  target.addIllegalOp<AtenMaxPool1dOp>();
   target.addIllegalOp<AtenMaxPool2dOp>();
   target.addIllegalOp<AtenMaxPool3dOp>();
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool1dOp>>(typeConverter, context);
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dOp>>(typeConverter, context);
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dOp>>(typeConverter, context);
 

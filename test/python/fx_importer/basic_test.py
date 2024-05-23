@@ -11,9 +11,14 @@ import torch
 import torch.nn as nn
 from torch.export import Dim
 from torch._dynamo.backends.common import aot_autograd
-from torch._functorch.aot_autograd import make_boxed_compiler, get_aot_graph_name, set_model_name
+from torch._functorch.aot_autograd import (
+    make_boxed_compiler,
+    get_aot_graph_name,
+    set_model_name,
+)
 
 from torch_mlir import fx
+from torch_mlir.compiler_utils import run_pipeline_with_repro_report
 
 
 def run(f):
@@ -80,6 +85,7 @@ def test_import_frozen_exported_program_with_func_name():
     m = fx.export_and_import(Basic(), torch.randn(3, 4), func_name="test_net")
     print(m)
 
+
 @run
 # CHECK-LABEL: test_import_frozen_exported_program_with_dynamic_shapes
 # CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,4],f32>) -> !torch.vtensor<[?,4],f32>
@@ -93,28 +99,87 @@ def test_import_frozen_exported_program_with_dynamic_shapes():
 
     batch = Dim("batch")
     dynamic_shapes = {"x": {0: batch}}
-    m = fx.export_and_import(Basic(), torch.randn(3, 4), dynamic_shapes=dynamic_shapes, func_name="test_net")
+    m = fx.export_and_import(
+        Basic(), torch.randn(3, 4), dynamic_shapes=dynamic_shapes, func_name="test_net"
+    )
     print(m)
 
 
+@run
+# CHECK-LABEL: test_broadcast_with_dynamic_shapes
+# CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[1,2],f32>, %[[ARG1:[a-zA-Z0-9]+]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,2],f32>
+def test_broadcast_with_dynamic_shapes():
+    class Basic(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, y):
+            return torch.broadcast_to(x, (y.shape[0], -1))
+
+    # Sample inputs
+    x = torch.randn(1, 2)
+    y = torch.randn(10)
+
+    dim_0 = Dim("dim_0")
+    dynamic_shapes = {
+        "x": {},
+        "y": {0: dim_0},
+    }
+
+    m = fx.export_and_import(
+        Basic(), x, y, dynamic_shapes=dynamic_shapes, func_name="test_net"
+    )
+    print(m)
+
 
 @make_boxed_compiler
-def fx_import_aot_autograd_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
+def fx_import_aot_autograd_backend(
+    gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]
+):
     print(gm.print_readable(False), flush=True)
     m = fx.stateless_fx_import(gm, model_name=get_aot_graph_name())
     print(m, flush=True)
     return gm
 
+
 @run
 # CHECK-LABEL: test_stateless_fx_import
-# CHECK:     func.func @basic_forward__6_inference_0(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
+# CHECK:     func.func @[[basic:[a-zA-Z0-9_]+]](%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
 # CHECK-NEXT:  %0 = torch.aten.tanh %arg0 : !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
 # CHECK-NEXT:  return %0 : !torch.vtensor<[3,4],f32>
 def test_stateless_fx_import():
     fx_import_backend = aot_autograd(fw_compiler=fx_import_aot_autograd_backend)
     set_model_name("basic_forward")
+
     @torch._dynamo.optimize(backend=fx_import_backend)
     def basic_forward(x):
         return torch.tanh(x)
 
     basic_forward(torch.randn(3, 4))
+
+
+@run
+# CHECK-LABEL: test_full
+# CHECK:    %2 = torch.aten.fill.Scalar %1, %int0 : !torch.vtensor<[],i1>, !torch.int -> !torch.vtensor<[],i1>
+def test_full():
+    class Basic(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self):
+            return torch.full(
+                [],
+                False,
+                dtype=torch.bool,
+                layout=torch.strided,
+                device="cpu",
+                pin_memory=False,
+            )
+
+    m = fx.export_and_import(Basic(), func_name="test_full", enable_graph_printing=True)
+    run_pipeline_with_repro_report(
+        m,
+        f"builtin.module(torch-simplification-pipeline)",
+        "torch-simplification-pipeline",
+    )
+    print(m)

@@ -39,5 +39,5 @@ def main():
     report_results(results, set(), verbose=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

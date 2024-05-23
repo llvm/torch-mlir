@@ -89,8 +89,8 @@ convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(PatternRewriter &rewriter,
                                                      Value indices, Value src,
                                                      int64_t dim) {
   // Get information on types for inputs
-  RankedTensorType indexType = indices.getType().cast<RankedTensorType>();
-  RankedTensorType srcSelf = src.getType().cast<RankedTensorType>();
+  RankedTensorType indexType = cast<RankedTensorType>(indices.getType());
+  RankedTensorType srcSelf = cast<RankedTensorType>(src.getType());
 
   // Store location for insertions
   Location loc = src.getLoc();
@@ -219,7 +219,7 @@ static Value createTMTensorScatterOp(
     llvm::ArrayRef<int64_t> dimensionsMap, bool uniqueIndices,
     function_ref<void(OpBuilder &, Location, Value, Value)> bodyBuild) {
   auto dimensionsMapAttr = b.getDenseI64ArrayAttr(dimensionsMap);
-  auto originalTensorType = original.getType().cast<RankedTensorType>();
+  auto originalTensorType = cast<RankedTensorType>(original.getType());
   Type originalElementType = originalTensorType.getElementType();
   auto scatterOp = b.create<TMTensor::ScatterOp>(
       loc, originalTensorType, ValueRange{updates, indices},
@@ -241,8 +241,8 @@ static Value createTMTensorScanOp(
     OpBuilder &b, Location loc, Value input, Value output, Value accumulator,
     int64_t dim, bool inclusive,
     function_ref<void(OpBuilder &, Location, Value, Value)> bodyBuild) {
-  auto inputType = input.getType().cast<RankedTensorType>();
-  auto accType = accumulator.getType().cast<RankedTensorType>();
+  auto inputType = cast<RankedTensorType>(input.getType());
+  auto accType = cast<RankedTensorType>(accumulator.getType());
   Type elementType = inputType.getElementType();
   auto scanOp = b.create<TMTensor::ScanOp>(
       loc, TypeRange{inputType, accType}, input,
@@ -287,7 +287,7 @@ createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
 
   // Step 3. Create comparison op which will be used as the sorting predicate.
   Value compareOp;
-  if (auto intType = elementTypes[0].dyn_cast<mlir::IntegerType>()) {
+  if (auto intType = dyn_cast<mlir::IntegerType>(elementTypes[0])) {
     // Case for using arith::CmpIOp.
     arith::CmpIPredicate ge = arith::CmpIPredicate::sge;
     arith::CmpIPredicate le = arith::CmpIPredicate::sle;
@@ -329,9 +329,9 @@ public:
     Value index = adaptor.getIndex();
     Value src = adaptor.getSrc();
 
-    RankedTensorType selfType = self.getType().cast<RankedTensorType>();
-    RankedTensorType indexType = index.getType().cast<RankedTensorType>();
-    RankedTensorType srcType = src.getType().cast<RankedTensorType>();
+    RankedTensorType selfType = cast<RankedTensorType>(self.getType());
+    RankedTensorType indexType = cast<RankedTensorType>(index.getType());
+    RankedTensorType srcType = cast<RankedTensorType>(src.getType());
     if (selfType.getRank() != indexType.getRank() ||
         indexType.getRank() != srcType.getRank())
       return rewriter.notifyMatchFailure(op,
@@ -385,7 +385,7 @@ public:
     // TODO: Add a check to verify that the input tensor elements are all
     // non-negative.
     // Check whether the input is a 1-d tensor of integer type or not.
-    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
     if (inputType.getRank() != 1 ||
         !inputType.getElementType().isa<mlir::IntegerType>())
       return rewriter.notifyMatchFailure(
@@ -394,7 +394,7 @@ public:
 
     // Check whether the input tensor element type is i64 or not.
     IntegerType inputIntegerType =
-        inputType.getElementType().cast<IntegerType>();
+        cast<IntegerType>(inputType.getElementType());
     if (inputIntegerType.getWidth() != 64)
       return rewriter.notifyMatchFailure(
           op,
@@ -409,7 +409,7 @@ public:
     SmallVector<int64_t> maxTensorSizes;
     ValueTensorType maxTensorType = ValueTensorType::get(
         context, llvm::ArrayRef(maxTensorSizes),
-        torchTypeInput.getType().cast<ValueTensorType>().getDtype());
+        cast<ValueTensorType>(torchTypeInput.getType()).getDtype());
     Value maxTensor =
         rewriter.create<AtenMaxOp>(loc, maxTensorType, torchTypeInput);
     maxTensor = typeConverter->materializeTargetConversion(
@@ -432,7 +432,7 @@ public:
         makeShapeTorchCompatible(inputType.getShape())[0], 1};
     ValueTensorType expandInputType = ValueTensorType::get(
         context, llvm::ArrayRef(expandedInputSizes),
-        torchTypeInput.getType().cast<ValueTensorType>().getDtype());
+        cast<ValueTensorType>(torchTypeInput.getType()).getDtype());
     Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(1));
     Value expandedInputTensor = rewriter.create<AtenUnsqueezeOp>(
@@ -571,7 +571,7 @@ Value combinePutIndices(Location loc, llvm::ArrayRef<Value> indicesRef,
   }
 
   BaseTensorType unsqueezedTensorType =
-      indices[0].getType().cast<BaseTensorType>();
+      cast<BaseTensorType>(indices[0].getType());
   Value indicesTorchList = b.create<PrimListConstructOp>(
       loc, Torch::ListType::get(unsqueezedTensorType), indices);
   llvm::SmallVector<int64_t, 2> concatShape{
@@ -675,12 +675,12 @@ static Value collapseAndMoveBatchDims(Location loc, Value values, int64_t batch,
   return b.create<AtenViewOp>(loc, valuesTy, values, outDimsList);
 }
 
-class ConvertAten_IndexPutImplOp
-    : public OpConversionPattern<Aten_IndexPutImplOp> {
+class ConvertAtenIndexPutHackedTwinOp
+    : public OpConversionPattern<AtenIndexPutHackedTwinOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(Aten_IndexPutImplOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenIndexPutHackedTwinOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -691,24 +691,13 @@ public:
     auto inputType = cast<ValueTensorType>(input.getType());
     auto valuesType = cast<ValueTensorType>(values.getType());
     int64_t inputRank = inputType.getSizes().size();
-    auto valuesTensorType = op.getValues().getType().cast<BaseTensorType>();
+    auto valuesTensorType = cast<BaseTensorType>(op.getValues().getType());
     auto resultType = typeConverter->convertType(op->getResult(0).getType())
                           .cast<RankedTensorType>();
 
     if (!valuesTensorType.hasSizes())
       return rewriter.notifyMatchFailure(
           op, "unimplemented: the values tensor type must have sizes.");
-
-    // The unsafe should be either `False` or `none`.
-    if (!op.getUnsafe().getType().isa<Torch::NoneType>()) {
-      bool unsafe;
-      if (!matchPattern(op.getUnsafe(), m_TorchConstantBool(&unsafe)))
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: unsafe must be a constant");
-      else if (unsafe)
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: unsafe is expected to be false");
-    }
 
     // The accumulate should be a torch constant of boolean type.
     bool accumulate;
@@ -778,12 +767,18 @@ public:
         loc, rewriter.getI64IntegerAttr(0));
     Value one = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(1));
-    llvm::SmallVector<int64_t> valuesShape{valuesType.getSizes().front()};
+    llvm::SmallVector<int64_t> valuesShape;
     llvm::SmallVector<Value> valuesDims;
-    valuesDims.push_back(
-        rewriter.create<Torch::AtenSizeIntOp>(loc, values, zero));
+    int vDim = 0;
 
-    int vDim = 1;
+    if (optionalIndicesCount + valuesType.getSizes().size() >
+        inputType.getSizes().size()) {
+      valuesShape.push_back(valuesType.getSizes().front());
+      valuesDims.push_back(
+          rewriter.create<Torch::AtenSizeIntOp>(loc, values, zero));
+      vDim++;
+    }
+
     for (int i = 0, s = inputType.getSizes().size(); i < s; ++i) {
       if (i < optionalIndicesCount &&
           !isa<Torch::NoneType>(optionalIndicesList[i].getType())) {
@@ -896,9 +891,9 @@ public:
     Value gradOutput = adaptor.getGradOutput();
     Value input = adaptor.getSelf();
     RankedTensorType gradOutputType =
-        gradOutput.getType().cast<RankedTensorType>();
+        cast<RankedTensorType>(gradOutput.getType());
     Type gradOutputElemType = gradOutputType.getElementType();
-    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
     Type inputElemType = inputType.getElementType();
     int64_t tensorOperandRank = inputType.getRank();
 
@@ -908,7 +903,7 @@ public:
         mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
     indices = typeConverter->materializeTargetConversion(
         rewriter, loc, typeConverter->convertType(indices.getType()), indices);
-    RankedTensorType indicesType = indices.getType().cast<RankedTensorType>();
+    RankedTensorType indicesType = cast<RankedTensorType>(indices.getType());
     Type indicesElemType = indicesType.getElementType();
 
     // The element type of the `input` and `grad_output` should be same.
@@ -1094,11 +1089,11 @@ public:
     Location loc = op.getLoc();
 
     RankedTensorType selfType =
-        adaptor.getSelf().getType().cast<RankedTensorType>();
+        cast<RankedTensorType>(adaptor.getSelf().getType());
     RankedTensorType indexType =
-        adaptor.getIndex().getType().cast<RankedTensorType>();
+        cast<RankedTensorType>(adaptor.getIndex().getType());
     RankedTensorType srcType =
-        adaptor.getSrc().getType().cast<RankedTensorType>();
+        cast<RankedTensorType>(adaptor.getSrc().getType());
 
     Value self = adaptor.getSelf();
 
@@ -1318,7 +1313,7 @@ public:
 
     // Step 1. Fetch Input to sort.
     Value inputTensor = adaptor.getSelf();
-    auto inputType = inputTensor.getType().cast<RankedTensorType>();
+    auto inputType = cast<RankedTensorType>(inputTensor.getType());
     unsigned inputRank = inputType.getRank();
 
     // Step 2. Fetch dimension to perform sort in.
@@ -1408,7 +1403,7 @@ public:
                           .cast<RankedTensorType>();
     Type elementType = resultType.getElementType();
     Type inputElementType =
-        input.getType().cast<RankedTensorType>().getElementType();
+        cast<RankedTensorType>(input.getType()).getElementType();
 
     // Converting the input element type to the result's element type.
     // The only possible mismatch would be when the input element type is an
@@ -1480,7 +1475,7 @@ public:
     Value isCausal = op.getIsCausal();
     Value scale = op.getScale();
     Type elementType =
-        adaptor.getQuery().getType().cast<ShapedType>().getElementType();
+        cast<ShapedType>(adaptor.getQuery().getType()).getElementType();
 
     // Verify inputs (only support defaults)
     if (!mask.getType().isa<Torch::NoneType>())
@@ -1551,10 +1546,9 @@ public:
     key = collapseBatch(key);
     value = collapseBatch(value);
 
-    SmallVector<int64_t> outSizes(
-        query.getType().cast<ShapedType>().getShape());
+    SmallVector<int64_t> outSizes(cast<ShapedType>(query.getType()).getShape());
     SmallVector<int64_t> valueSizes(
-        value.getType().cast<ShapedType>().getShape());
+        cast<ShapedType>(value.getType()).getShape());
     outSizes[outSizes.size() - 1] = valueSizes[valueSizes.size() - 1];
     SmallVector<Value> outSizesDynamic(
         getTensorSizes(rewriter, op.getLoc(), query));
@@ -1616,8 +1610,8 @@ public:
     RewritePatternSet patterns(context);
     target.addIllegalOp<AtenBincountOp>();
     patterns.add<ConvertAtenBincountOp>(typeConverter, context);
-    target.addIllegalOp<Aten_IndexPutImplOp>();
-    patterns.add<ConvertAten_IndexPutImplOp>(typeConverter, context);
+    target.addIllegalOp<AtenIndexPutHackedTwinOp>();
+    patterns.add<ConvertAtenIndexPutHackedTwinOp>(typeConverter, context);
     target.addIllegalOp<AtenMaxPool2dWithIndicesBackwardOp>();
     patterns.add<ConvertAtenMaxPool2dWithIndicesBackwardOp>(typeConverter,
                                                             context);

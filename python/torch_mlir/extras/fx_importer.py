@@ -103,6 +103,7 @@ from ..ir import (
     StringAttr,
     SymbolTable,
     Type as IrType,
+    UnitAttr,
     Value,
 )
 
@@ -236,12 +237,6 @@ _IS_TORCH_2_1_OR_EARLIER = torch.__version__.split("+")[0] <= "2.1.0"
 # set and just check key existence in SYMBOLIC_OP_TO_TORCH_OP
 
 if _IS_TORCH_2_1_OR_EARLIER:
-    SYMBOLIC_TORCH_OPS = {
-        torch.ops.aten.sym_size,
-        torch.ops.aten.sym_stride,
-        torch.ops.aten.sym_numel,
-    }
-
     SYMBOLIC_OP_TO_TORCH_OP = {
         (torch.ops.aten.sym_size, 1): torch.ops.aten.size.default,
         (torch.ops.aten.sym_size, 2): torch.ops.aten.size.int,
@@ -249,13 +244,9 @@ if _IS_TORCH_2_1_OR_EARLIER:
         (torch.ops.aten.sym_stride, 2): torch.ops.aten.stride.int,
         (torch.ops.aten.sym_numel, 1): torch.ops.aten.numel.default,
     }
-else:
-    SYMBOLIC_TORCH_OPS = {
-        torch.ops.aten.sym_size.int,
-        torch.ops.aten.sym_stride.int,
-        torch.ops.aten.sym_numel.default,
-    }
 
+    SYMBOLIC_TORCH_OPS = {key[0] for key in SYMBOLIC_OP_TO_TORCH_OP}
+else:
     SYMBOLIC_OP_TO_TORCH_OP = {
         torch.ops.aten.sym_size.default: torch.ops.aten.size.default,
         torch.ops.aten.sym_size.int: torch.ops.aten.size.int,
@@ -263,6 +254,8 @@ else:
         torch.ops.aten.sym_stride.int: torch.ops.aten.stride.int,
         torch.ops.aten.sym_numel.default: torch.ops.aten.numel.default,
     }
+
+    SYMBOLIC_TORCH_OPS = {key for key in SYMBOLIC_OP_TO_TORCH_OP}
 
 
 @dataclass(frozen=True)
@@ -650,6 +643,10 @@ class FxImporter:
             func_op = func_dialect.FuncOp(
                 func_name, ftype, ip=self._m_ip, visibility=func_visibility
             )
+            # Programs imported from FX have strong guarantees. Setting this attribute
+            # causes various lowerings to be able to emit more efficient code or
+            # handle more cases. See isAssumingStrictSymbolicShapes().
+            func_op.attributes["torch.assume_strict_symbolic_shapes"] = UnitAttr.get()
             entry_block = Block.create_at_start(func_op.body, ftype.inputs)
 
         node_importer = GraphNodeImporter(
@@ -847,6 +844,17 @@ class FxImporter:
                         result_types.append(
                             IrType.parse("!torch.none", context=self._c)
                         )
+                    elif isinstance(result_node, torch.Tensor):
+                        result_types.append(
+                            self._cc.tensor_to_vtensor_type(result_node)
+                        )
+                    elif type(result_node) in SCALAR_TYPE_TO_TORCH_MLIR_TYPE:
+                        result_types.append(
+                            IrType.parse(
+                                SCALAR_TYPE_TO_TORCH_MLIR_TYPE[type(result_node)],
+                                self._c,
+                            )
+                        )
                     else:
                         result_types.append(self._cc.node_val_to_type(result_node))
         return (
@@ -1005,9 +1013,14 @@ class ContextCache:
             self._dtype_to_type[dtype] = t
         return t
 
+    def create_vtensor_type(self, dtype: torch.dtype, size: torch.Size) -> IrType:
+        dtype_asm = str(self.dtype_to_type(dtype))
+        return IrType.parse(
+            f"!torch.vtensor<{list(size)},{dtype_asm}>", context=self._c
+        )
+
     def tensor_to_vtensor_type(self, tensor: torch.Tensor) -> IrType:
-        dtype_asm = str(self.dtype_to_type(tensor.dtype))
-        return IrType.parse(f"!torch.vtensor<{list(tensor.size())},{dtype_asm}>")
+        return self.create_vtensor_type(tensor.dtype, tensor.size())
 
     def get_node_location(self, node: torch_fx.Node) -> Optional[Location]:
         stack_trace = node.meta.get("stack_trace")
@@ -1397,6 +1410,7 @@ class GraphNodeImporter:
     def _import_torch_op_overload(
         self, loc: Location, node: torch_fx.Node, target: TorchOpOverload
     ):
+        # TODO: Convert this cascade of ifs to a table-driven
         # replace lift_fresh_copy with clone op
         if target == torch.ops.aten.lift_fresh_copy.default:
             node.target = target = torch.ops.aten.clone.default
@@ -1420,6 +1434,18 @@ class GraphNodeImporter:
                 for key_node in node.users:
                     if key_node.target == torch.ops.aten.baddbmm.default:
                         node.target = target = torch.ops.aten.zeros.default
+        elif target == torch.ops.aten._local_scalar_dense.default:
+            input_type = node.args[0].meta["tensor_meta"].dtype
+            if input_type.is_floating_point:
+                node.target = target = torch.ops.aten.Float.Tensor
+            else:
+                node.target = target = torch.ops.aten.Int.Tensor
+            node.args = (node.args[0],)
+        elif target == torch.ops.aten._assert_async.msg:
+            # TODO: A more suitable op to replace it?
+            return
+        elif target == torch.ops.aten._unsafe_index_put.default:
+            node.target = target = torch.ops.aten._unsafe_index_put.hacked_twin
 
         schema = target._schema
         assert isinstance(schema, FunctionSchema)
@@ -1450,15 +1476,15 @@ class GraphNodeImporter:
         # Unroll operands from formal parameters, args and kwargs.
         operands = []
         for i, parameter in enumerate(schema.arguments):
-            if parameter.kwarg_only and parameter.name in node.kwargs:
+            if i < len(node.args):
+                operands.append(
+                    self._import_argument(loc, node.args[i], parameter.type)
+                )
+            elif parameter.name in node.kwargs:
                 operands.append(
                     self._import_argument(
                         loc, node.kwargs[parameter.name], parameter.type
                     )
-                )
-            elif i < len(node.args):
-                operands.append(
-                    self._import_argument(loc, node.args[i], parameter.type)
                 )
             else:
                 operands.append(
@@ -1495,19 +1521,66 @@ class GraphNodeImporter:
                 with loc:
                     self.bind_node_value(arg, self._import_literal(obj))
 
-            return self.resolve_node_value(arg)
+            argument_value = self.resolve_node_value(arg)
         elif isinstance(arg, torch_fx.immutable_collections.immutable_list):
-            return self._import_list_argument(loc, arg, expected_jit_type)
+            argument_value = self._import_list_argument(loc, arg, expected_jit_type)
         elif isinstance(expected_jit_type, torch.TensorType) and not isinstance(
             arg, torch.Tensor
         ):
             # promote scalars to tensor types as appropriate
-            return self._import_scalar_as_tensor(loc, arg)
-        else:
+            argument_value = self._import_scalar_as_tensor(loc, arg)
+        elif LITERAL_CONVERTER_MAP.lookup(type(arg)) is not None:
             with loc:
-                return self._import_literal(arg)
+                argument_value = self._import_literal(arg)
+        else:
+            raise TypeError(f"Unsupported argument type {arg.__class__}")
+        with loc:
+            return self._convert_type(argument_value, expected_jit_type)
+
+    def _convert_type(
+        self,
+        val: Value,
+        expected_type,
+        dtype: Optional[torch.dtype] = None,
+        size: Optional[torch.Size] = None,
+    ):
+        """
+        When the type of 'value' and the type in the schema do not match,
+        attempt to perform automatic type conversion.
+
+        example: test/python/fx_importer/basic_test.py::test_full
+        """
+        if not expected_type:
+            return val
+        op_name = None
+        result_type = None
+        # TODO: If additional types require conversion in the future,
+        #  consider implementing a table-driven approach.
+        operands = [val]
+        if val.type == self._cc.torch_bool_type:
+            if isinstance(expected_type, torch.FloatType):
+                op_name = "torch.aten.Float.bool"
+                result_type = self._cc.torch_float_type
+            elif isinstance(expected_type, (torch.IntType, torch.NumberType)):
+                op_name = "torch.aten.Int.bool"
+                result_type = self._cc.torch_int_type
+        elif expected_type is torch.Tensor:
+            op_name = "torch.prims.convert_element_type"
+            result_type = self._cc.create_vtensor_type(dtype, size)
+            operands.append(
+                LITERAL_CONVERTER_MAP.lookup(torch.dtype)(dtype, self, self._cc)
+            )
+        if op_name is None:
+            return val
+        return Operation.create(
+            name=op_name, results=[result_type], operands=operands
+        ).result
 
     def _import_literal(self, py_value: Any) -> Value:
+        orig_value = None
+        if isinstance(py_value, torch.Tensor) and py_value.dtype == torch.bool:
+            orig_value = py_value
+            py_value = py_value.to(torch.uint8)
         # Apply the conversion callback.
         user_value = self.fx_importer._hooks.resolve_literal(self, py_value)
         if user_value is not None:
@@ -1520,7 +1593,12 @@ class GraphNodeImporter:
             raise TypeError(
                 f"Unsupported argument -> literal conversion for {py_value.__class__}"
             )
-        return converter(py_value, self, self._cc)
+        result = converter(py_value, self, self._cc)
+        if orig_value is not None:
+            result = self._convert_type(
+                result, torch.Tensor, orig_value.dtype, orig_value.size()
+            )
+        return result
 
     def _import_input(self, py_value: Any, info: InputInfo) -> Value:
         # Try the hook.
@@ -1668,14 +1746,17 @@ def _make_constant_op(
     )
 
 
-def create_mlir_tensor_type(tensor: torch.Tensor) -> IrType:
+def _create_mlir_tensor_type(dtype: torch.dtype, size: torch.Size) -> IrType:
     try:
-        dtype = tensor.dtype
         element_type = TORCH_DTYPE_TO_MLIR_TYPE[dtype]()
-        tensor_type = RankedTensorType.get(tuple(tensor.size()), element_type)
+        tensor_type = RankedTensorType.get(size, element_type)
         return tensor_type
     except KeyError:
         raise TypeError(f"Could not map Torch dtype {dtype} to an MLIR type")
+
+
+def create_mlir_tensor_type(tensor: torch.Tensor) -> IrType:
+    return _create_mlir_tensor_type(tensor.dtype, tensor.size())
 
 
 def _make_vtensor_literal_op(
@@ -1820,8 +1901,7 @@ def _emit_operation(
 
 # Opaque value to indicate something is empty. Used in cases where 'None'
 # may have a different meaning.
-class EmptyType:
-    ...
+class EmptyType: ...
 
 
 Empty = EmptyType()

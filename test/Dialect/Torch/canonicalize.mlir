@@ -504,8 +504,8 @@ func.func @torch.aten.eq.str$different_value() -> !torch.bool {
 
 // CHECK-LABEL:   func.func @torch.aten.eq.str$same_operand(
 // CHECK-SAME:                                       %{{.*}}: !torch.str) -> !torch.bool {
-// CHECK-NEXT:       %[[F:.*]] = torch.constant.bool true
-// CHECK-NEXT:       return %[[F]] : !torch.bool
+// CHECK-NEXT:       %[[TRUE:.*]] = torch.constant.bool true
+// CHECK-NEXT:       return %[[TRUE]] : !torch.bool
 func.func @torch.aten.eq.str$same_operand(%arg0: !torch.str) -> !torch.bool {
   %0 = torch.aten.eq.str %arg0, %arg0 : !torch.str, !torch.str -> !torch.bool
   return %0 : !torch.bool
@@ -518,6 +518,35 @@ func.func @torch.aten.eq.str$same_value() -> !torch.bool {
   %str4 = torch.constant.str "4"
   %str4_0 = torch.constant.str "4"
   %2 = torch.aten.eq.str %str4, %str4_0 : !torch.str, !torch.str -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.ne.str$different_value() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func.func @torch.aten.ne.str$different_value() -> !torch.bool {
+  %str4 = torch.constant.str "4"
+  %str5 = torch.constant.str "5"
+  %2 = torch.aten.ne.str %str4, %str5 : !torch.str, !torch.str -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.ne.str$same_operand(
+// CHECK-SAME:                                       %{{.*}}: !torch.str) -> !torch.bool {
+// CHECK-NEXT:       %[[FALSE:.*]] = torch.constant.bool false
+// CHECK-NEXT:       return %[[FALSE]] : !torch.bool
+func.func @torch.aten.ne.str$same_operand(%arg0: !torch.str) -> !torch.bool {
+  %0 = torch.aten.ne.str %arg0, %arg0 : !torch.str, !torch.str -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.ne.str$same_value() -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func.func @torch.aten.ne.str$same_value() -> !torch.bool {
+  %str4 = torch.constant.str "4"
+  %str4_0 = torch.constant.str "4"
+  %2 = torch.aten.ne.str %str4, %str4_0 : !torch.str, !torch.str -> !torch.bool
   return %2 : !torch.bool
 }
 
@@ -537,6 +566,30 @@ func.func @torch.aten.len.str$empty() -> !torch.int {
   %str = torch.constant.str ""
   %2 = torch.aten.len.str %str : !torch.str -> !torch.int
   return %2 : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.__contains__.str_list$false() -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func.func @torch.aten.__contains__.str_list$false() -> !torch.bool {
+  %str = torch.constant.str "c"
+  %str_0 = torch.constant.str "b"
+  %str_1 = torch.constant.str "a"
+  %1 = torch.prim.ListConstruct %str_1, %str_0 : (!torch.str, !torch.str) -> !torch.list<str>
+  %2 = torch.aten.__contains__.str_list %1, %str : !torch.list<str>, !torch.str -> !torch.bool
+  return %2 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.__contains__.str_list$true() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func.func @torch.aten.__contains__.str_list$true() -> !torch.bool {
+  %str = torch.constant.str "aa"
+  %str_0 = torch.constant.str "aa"
+  %str_1 = torch.constant.str "ccc"
+  %1 = torch.prim.ListConstruct %str_1, %str_0 : (!torch.str, !torch.str) -> !torch.list<str>
+  %2 = torch.aten.__contains__.str_list %1, %str : !torch.list<str>, !torch.str -> !torch.bool
+  return %2 : !torch.bool
 }
 
 // CHECK-LABEL:   func.func @torch.aten.__not__
@@ -1481,6 +1534,26 @@ func.func @torch.aten.tensor$one_elem() -> (!torch.vtensor<[1],si64>) {
   return %67 : !torch.vtensor<[1],si64>
 }
 
+// CHECK-LABEL:   func.func @torch.aten.tensor.float(
+// CHECK-NEXT: torch.vtensor.literal(dense<1.000000e+01> : tensor<f32>) : !torch.vtensor<[],f32>
+func.func @torch.aten.tensor.float() -> !torch.vtensor<[],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %float1.000000e01 = torch.constant.float 1.000000e+01
+  %67 = torch.aten.tensor.float %float1.000000e01, %none, %none, %false : !torch.float, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[],f32>
+  return %67 : !torch.vtensor<[],f32>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.tensor.int(
+// CHECK-NEXT: torch.vtensor.literal(dense<45> : tensor<si32>) : !torch.vtensor<[],si32>
+func.func @torch.aten.tensor.int() -> !torch.vtensor<[],si32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %int45 = torch.constant.int 45
+  %67 = torch.aten.tensor.int %int45, %none, %none, %false : !torch.int, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[],si32>
+  return %67 : !torch.vtensor<[],si32>
+}
+
 // CHECK-LABEL:   func.func @torch.aten.to.dtype$same_dtype(
 // CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<*,f32>) -> !torch.tensor<*,f32> {
 // CHECK-NEXT:      return %[[ARG]] : !torch.tensor<*,f32>
@@ -2042,7 +2115,7 @@ func.func @torch.aten.broadcast_to$fold(%arg0: !torch.vtensor<[3,4,2],f32>) -> !
 // -----
 
 // CHECK-LABEL:   func.func @torch.aten.broadcast_to$fold_splat
-// CHECK:                 %[[CST:.+]] = torch.vtensor.literal(dense<3.000000e+00> : tensor<3x4x2xf32>) : !torch.vtensor<[3,4,2],f32> 
+// CHECK:                 %[[CST:.+]] = torch.vtensor.literal(dense<3.000000e+00> : tensor<3x4x2xf32>) : !torch.vtensor<[3,4,2],f32>
 // CHECK:                 return %[[CST]]
 func.func @torch.aten.broadcast_to$fold_splat() -> !torch.vtensor<[3,4,2],f32> {
   %tensor = torch.vtensor.literal(dense<3.0> : tensor<1x4x1xf32>) : !torch.vtensor<[1,4,1],f32>
@@ -2154,6 +2227,8 @@ func.func @torch.aten.rsub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[]
     return %2 : !torch.vtensor<[],si64>
 }
 
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.rsub.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
 // CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<-1> : tensor<si64>) : !torch.vtensor<[],si64>
 // CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
@@ -2166,6 +2241,8 @@ func.func @torch.aten.rsub.Scalar$canonicalize_numtotensor_0d() -> !torch.vtenso
     return %2 : !torch.vtensor<[],si64>
 }
 
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.ScalarImplicit$canonicalize_numtotensor_0d() -> !torch.number {
 // CHECK:             %int1 = torch.constant.int 1
 // CHECK:             %[[VAL_1:.*]] = torch.derefine %int1 : !torch.int to !torch.number
@@ -2177,6 +2254,8 @@ func.func @torch.aten.ScalarImplicit$canonicalize_numtotensor_0d() -> !torch.num
     return %1 : !torch.number
 }
 
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.ScalarImplicit$canonicalize_literal_0d() -> !torch.number {
 // CHECK:             %int1 = torch.constant.int 1
 // CHECK:             %[[VAL_0:.*]] = torch.derefine %int1 : !torch.int to !torch.number
@@ -2184,6 +2263,18 @@ func.func @torch.aten.ScalarImplicit$canonicalize_numtotensor_0d() -> !torch.num
 func.func @torch.aten.ScalarImplicit$canonicalize_literal_0d() -> !torch.number {
     %0 = torch.vtensor.literal(dense<1> : tensor<si64>) : !torch.vtensor<[],si64>
     %1 = torch.aten.ScalarImplicit %0 : !torch.vtensor<[],si64> -> !torch.number
+    return %1 : !torch.number
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.ScalarImplicit$canonicalize_literal_0d_float() -> !torch.number {
+// CHECK:             %float1.000000e00 = torch.constant.float 1.000000e+00
+// CHECK:             %[[VAL_0:.*]] = torch.derefine %float1.000000e00 : !torch.float to !torch.number
+// CHECK:             return %[[VAL_0]] : !torch.number
+func.func @torch.aten.ScalarImplicit$canonicalize_literal_0d_float() -> !torch.number {
+    %0 = torch.vtensor.literal(dense<1.0> : tensor<f64>) : !torch.vtensor<[],f64>
+    %1 = torch.aten.ScalarImplicit %0 : !torch.vtensor<[],f64> -> !torch.number
     return %1 : !torch.number
 }
 
@@ -2285,6 +2376,14 @@ func.func @torch.aten.any.bool$fold() -> !torch.bool {
 // CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[?,?],si64>
 func.func @torch.aten.floor$canonicalize(%arg0: !torch.vtensor<[?,?],si64>) -> !torch.vtensor<[?,?],si64> {
   %0 = torch.aten.floor %arg0 : !torch.vtensor<[?,?],si64> -> !torch.vtensor<[?,?],si64>
+  return %0 : !torch.vtensor<[?,?],si64>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.trunc$canonicalize
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[?,?],si64>
+// CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[?,?],si64>
+func.func @torch.aten.trunc$canonicalize(%arg0: !torch.vtensor<[?,?],si64>) -> !torch.vtensor<[?,?],si64> {
+  %0 = torch.aten.trunc %arg0 : !torch.vtensor<[?,?],si64> -> !torch.vtensor<[?,?],si64>
   return %0 : !torch.vtensor<[?,?],si64>
 }
 
@@ -2841,4 +2940,89 @@ func.func @aten_tensor_tensor_ne() -> (!torch.vtensor<[4],i1>, !torch.vtensor<[4
   %uintBool = torch.aten.ne.Scalar %uintTensor, %intScalar : !torch.vtensor<[4],ui8>, !torch.int -> !torch.vtensor<[4],i1>
   %fpBool = torch.aten.ne.Scalar %fpTensor, %fpScalar : !torch.vtensor<[4],f32>, !torch.float -> !torch.vtensor<[4],i1>
   return %intBool, %uintBool, %fpBool : !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_log$fold_splat_i1
+func.func @aten_log$fold_splat_i1() -> !torch.vtensor<[4], f32> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<0.000000e+00> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  // CHECK: return %[[RET]] : !torch.vtensor<[4],f32>
+  %cst = torch.vtensor.literal(dense<true> : tensor<4xi1>) : !torch.vtensor<[4], i1>
+  %result = torch.aten.log %cst : !torch.vtensor<[4], i1> -> !torch.vtensor<[4], f32>
+  return %result : !torch.vtensor<[4], f32>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_log$fold_splat_si32
+func.func @aten_log$fold_splat_si32() -> !torch.vtensor<[4], f32> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<1.09861231> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  // CHECK: return %[[RET]] : !torch.vtensor<[4],f32>
+  %cst = torch.vtensor.literal(dense<3> : tensor<4xsi32>) : !torch.vtensor<[4], si32>
+  %result = torch.aten.log %cst : !torch.vtensor<[4], si32> -> !torch.vtensor<[4], f32>
+  return %result : !torch.vtensor<[4], f32>
+}
+
+// -----
+
+// CHECK-LABEL: @aten_log$fold_splat_f32
+func.func @aten_log$fold_splat_f32() -> !torch.vtensor<[4], f32> {
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<1.09861231> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  // CHECK: return %[[RET]] : !torch.vtensor<[4],f32>
+  %cst = torch.vtensor.literal(dense<3.0> : tensor<4xf32>) : !torch.vtensor<[4], f32>
+  %result = torch.aten.log %cst : !torch.vtensor<[4], f32> -> !torch.vtensor<[4], f32>
+  return %result : !torch.vtensor<[4], f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.prims.convert_element_type$fold(
+// CHECK:            %[[ARG:.*]]: !torch.vtensor<[64],f32>) -> !torch.vtensor<[64],f32> {
+// CHECK:      return %[[ARG]] : !torch.vtensor<[64],f32>
+func.func @torch.prims.convert_element_type$fold(%arg0: !torch.vtensor<[64],f32>) -> !torch.vtensor<[64],f32> {
+  %int6 = torch.constant.int 6
+  %0 = torch.prims.convert_element_type %arg0, %int6 : !torch.vtensor<[64],f32>, !torch.int -> !torch.vtensor<[64],f32>
+  return %0 : !torch.vtensor<[64],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.prims.convert_element_type$no_fold(
+// CHECK:            %[[ARG:.*]]: !torch.vtensor<[64],f32>) -> !torch.vtensor<[64],si32> {
+// CHECK:      %[[RET:.*]] = torch.prims.convert_element_type %[[ARG]], %{{.*}} : !torch.vtensor<[64],f32>, !torch.int -> !torch.vtensor<[64],si32>
+// CHECK:      return %[[RET]] : !torch.vtensor<[64],si32>
+func.func @torch.prims.convert_element_type$no_fold(%arg0: !torch.vtensor<[64],f32>) -> !torch.vtensor<[64],si32> {
+  %int6 = torch.constant.int 6
+  %0 = torch.prims.convert_element_type %arg0, %int6 : !torch.vtensor<[64],f32>, !torch.int -> !torch.vtensor<[64],si32>
+  return %0 : !torch.vtensor<[64],si32>
+}
+
+// -----
+
+// CHECK-LABEL:   @torch.aten.max_pool2d_with_indices$canonicalize(
+// CHECK:            %[[ARG:.*]]: !torch.vtensor<[10,64,112,112],f32>) -> !torch.vtensor<[10,64,56,56],f32> {
+// CHECK:      %[[RET:.*]] = torch.aten.max_pool2d %[[ARG]]
+// CHECK:      return %[[RET]] : !torch.vtensor<[10,64,56,56],f32>
+func.func @torch.aten.max_pool2d_with_indices$canonicalize(%arg0: !torch.vtensor<[10,64,112,112],f32>) -> !torch.vtensor<[10,64,56,56],f32> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %29 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %30 = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %31 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %result0, %result1 = torch.aten.max_pool2d_with_indices %arg0, %29, %30, %31, %31, %false : !torch.vtensor<[10,64,112,112],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[10,64,56,56],f32>, !torch.vtensor<[10,64,56,56],si64>
+  return %result0 : !torch.vtensor<[10,64,56,56],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   @torch.aten.clone$no_fold(
+func.func @torch.aten.clone$no_fold(%arg0: !torch.vtensor<[1,2,50,4],f32>) -> (!torch.tensor) {
+  // CHECK: %{{.*}} = torch.aten.clone %{{.*}}, %{{.*}} : !torch.vtensor<[1,2,50,4],f32>, !torch.none -> !torch.vtensor
+  %none = torch.constant.none
+  %0 = torch.aten.clone %arg0, %none : !torch.vtensor<[1,2,50,4],f32>, !torch.none -> !torch.vtensor
+  %1 = torch.copy.to_tensor %0 : !torch.tensor
+  return %1 : !torch.tensor
 }

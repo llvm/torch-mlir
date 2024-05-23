@@ -11,6 +11,7 @@
 #include "mlir/IR/BuiltinDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
+#include "torch-mlir/Dialect/Torch/Utils/SparsityUtils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -44,9 +45,9 @@ bool Torch::getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
 }
 
 torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
-  if (type.isa<Float32Type>())
+  if (isa<Float32Type>(type))
     return torch_upstream::ScalarType::Float;
-  if (type.isa<Float64Type>())
+  if (isa<Float64Type>(type))
     return torch_upstream::ScalarType::Double;
   if (type.isSignedInteger(64))
     return torch_upstream::ScalarType::Long;
@@ -64,14 +65,14 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::Byte;
   if (type.isSignedInteger(8))
     return torch_upstream::ScalarType::Char;
-  if (type.isa<QUInt8Type>())
+  if (isa<QUInt8Type>(type))
     return torch_upstream::ScalarType::QUInt8;
-  if (type.isa<QInt8Type>())
+  if (isa<QInt8Type>(type))
     return torch_upstream::ScalarType::QInt8;
-  if (type.isa<QInt32Type>())
+  if (isa<QInt32Type>(type))
     return torch_upstream::ScalarType::QInt32;
-  if (type.isa<ComplexType>()) {
-    mlir::Type complexElemType = type.cast<ComplexType>().getElementType();
+  if (isa<ComplexType>(type)) {
+    mlir::Type complexElemType = cast<ComplexType>(type).getElementType();
     if (complexElemType.isF16())
       return torch_upstream::ScalarType::ComplexHalf;
     if (complexElemType.isF32())
@@ -84,9 +85,9 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
 Type Torch::getTypeForTorchType(
     MLIRContext *context, Type type,
     mlir::IntegerType::SignednessSemantics signedness) {
-  if (type.isa<Torch::IntType>())
+  if (isa<Torch::IntType>(type))
     return IntegerType::get(context, 64, signedness);
-  if (type.isa<Torch::FloatType>())
+  if (isa<Torch::FloatType>(type))
     return Float64Type::get(context);
   llvm::report_fatal_error("unhandled type for getTypeForTorchType");
 }
@@ -150,14 +151,14 @@ Torch::getTorchTypeForScalarType(MLIRContext *context,
 
 Type Torch::getDefaultDtypeForTorchScalar(Type type) {
   MLIRContext *context = type.getContext();
-  if (type.isa<Torch::FloatType>()) {
+  if (isa<Torch::FloatType>(type)) {
     // For now, use float32 which is the initial default dtype returned by
     // `torch.get_default_dtype`.
     return Float32Type::get(context);
   }
-  if (type.isa<Torch::IntType>())
+  if (isa<Torch::IntType>(type))
     return IntegerType::get(context, 64, IntegerType::Signed);
-  if (type.isa<Torch::BoolType>())
+  if (isa<Torch::BoolType>(type))
     return IntegerType::get(context, 1);
   llvm_unreachable(
       "getDefaultDtypeForTorchScalar called on an unsupported type");
@@ -165,11 +166,11 @@ Type Torch::getDefaultDtypeForTorchScalar(Type type) {
 
 Type Torch::getBuiltInTypeForTorchScalar(Type type) {
   MLIRContext *context = type.getContext();
-  if (type.isa<Torch::FloatType>())
+  if (isa<Torch::FloatType>(type))
     return Float64Type::get(context);
-  if (type.isa<Torch::IntType>())
+  if (isa<Torch::IntType>(type))
     return IntegerType::get(context, 64, IntegerType::Signed);
-  if (type.isa<Torch::BoolType>())
+  if (isa<Torch::BoolType>(type))
     return IntegerType::get(context, 1);
   llvm_unreachable(
       "getBuiltInTypeForTorchScalar called on an unsupported type");
@@ -185,7 +186,7 @@ Value Torch::getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
 // Helper to convert a tensor to a specific scalar type.
 Value Torch::convertTensorToDtype(PatternRewriter &rewriter, Location loc,
                                   Value input, Type dtype) {
-  BaseTensorType origType = input.getType().cast<BaseTensorType>();
+  BaseTensorType origType = cast<BaseTensorType>(input.getType());
   Type newType = origType.getWithSizesAndDtype(origType.getSizes(), dtype);
   // `convertIntVal` contains the corresponding integer for the dtype which is
   // used by the aten.to.dtype op.
@@ -202,10 +203,23 @@ bool Torch::isBuiltInType(Type type) {
 }
 
 std::optional<unsigned> Torch::getTensorRank(Value tensor) {
-  BaseTensorType tensorType = tensor.getType().cast<BaseTensorType>();
+  BaseTensorType tensorType = cast<BaseTensorType>(tensor.getType());
   if (!tensorType.hasSizes())
     return std::nullopt;
   return tensorType.getSizes().size();
+}
+
+std::optional<int64_t> Torch::getTensorNumel(Value tensor) {
+  BaseTensorType tensorType = cast<BaseTensorType>(tensor.getType());
+  if (!tensorType.hasSizes())
+    return std::nullopt;
+  int64_t numel = 1;
+  for (auto dim : tensorType.getSizes()) {
+    if (dim == ShapedType::kDynamic)
+      return ShapedType::kDynamic;
+    numel *= dim;
+  }
+  return numel;
 }
 
 bool Torch::isViewLikeOp(Operation *op) {
@@ -275,11 +289,37 @@ SmallVector<int64_t> Torch::makeShapeTorchCompatible(ArrayRef<int64_t> shape) {
   return updatedShape;
 }
 
+ValueTensorType Torch::getTensorTypeFromShapeValues(ArrayRef<Value> shapes,
+                                                    Type dtype) {
+  assert(!shapes.empty() && "shape vector cannot be empty");
+  SmallVector<int64_t> shapeInts;
+  for (Value shape : shapes) {
+    int64_t dim;
+    if (matchPattern(shape, m_TorchConstantInt(&dim)))
+      shapeInts.push_back(dim);
+    else
+      shapeInts.push_back(kUnknownSize);
+  }
+  return Torch::ValueTensorType::get(shapes[0].getContext(), shapeInts, dtype);
+}
+
+// Helper function to get the size of the tensor at the given dimension.
+Value Torch::getTensorDimSize(PatternRewriter &rewriter, Value tensor,
+                              int64_t dim) {
+  auto loc = tensor.getLoc();
+  auto dimVal =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
+  // Use 'createOrFold' instead of 'create':
+  // If the dimension is a constant, then the AtenSizeIntOp is folded to a
+  // ContantIntOp.
+  return rewriter.createOrFold<AtenSizeIntOp>(loc, tensor, dimVal);
+}
+
 // Helper function to squeeze the input tensor at given dim.
 // Return the squeezed tensor or failure.
 FailureOr<Value> Torch::squeezeTensor(PatternRewriter &rewriter, Operation *op,
                                       Location loc, int64_t dim, Value input) {
-  BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+  BaseTensorType inputType = cast<BaseTensorType>(input.getType());
   if (!inputType.hasSizes()) {
     return rewriter.notifyMatchFailure(loc, "input tensor must have size");
   }
@@ -314,9 +354,14 @@ FailureOr<Value> Torch::squeezeTensor(PatternRewriter &rewriter, Operation *op,
 // Return the unsqueezed tensor or failure.
 FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
                                         Operation *op, Value input, Value dim) {
-  BaseTensorType inputType = input.getType().cast<BaseTensorType>();
+  BaseTensorType inputType = cast<BaseTensorType>(input.getType());
   if (!inputType.hasSizes()) {
     return rewriter.notifyMatchFailure(op, "input tensor must have size");
+  }
+  FailureOr<Attribute> enc =
+      getSparsityWithDenseLTAtDim(inputType.getOptionalSparsity(), dim);
+  if (failed(enc)) {
+    return failure();
   }
 
   SmallVector<int64_t> unsqueezedShape;
@@ -334,8 +379,8 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
   } else {
     unsqueezedShape.resize(unsqueezedRank, kUnknownSize);
   }
-  Type unsqueezedType = inputType.getWithSizesAndDtype(
-      unsqueezedShape, inputType.getOptionalDtype());
+  Type unsqueezedType = inputType.getWithSizesAndDtypeAndSparsity(
+      unsqueezedShape, inputType.getOptionalDtype(), enc.value());
   Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(
       op->getLoc(), unsqueezedType, input, dim);
   return unsqueezed;
@@ -348,9 +393,9 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
                                   SmallVector<int64_t> &resultShape,
                                   SmallVector<Value> &resultShapeValue) {
   SmallVector<int64_t> shapeA{
-      inputA.getType().cast<BaseTensorType>().getSizes()};
+      cast<BaseTensorType>(inputA.getType()).getSizes()};
   SmallVector<int64_t> shapeB{
-      inputB.getType().cast<BaseTensorType>().getSizes()};
+      cast<BaseTensorType>(inputB.getType()).getSizes()};
   unsigned rankA = shapeA.size();
   unsigned rankB = shapeB.size();
   unsigned minRank = rankA > rankB ? rankB : rankA;
@@ -504,9 +549,8 @@ Value Torch::createRank0Tensor(PatternRewriter &rewriter, Location loc,
                                BaseTensorType inputType, Value scalar) {
   assert(inputType.hasDtype() && "input must have dtype");
   SmallVector<int64_t> sizes;
-  BaseTensorType rank0TensorTy =
-      inputType.getWithSizesAndDtype(ArrayRef(sizes), inputType.getDtype())
-          .cast<BaseTensorType>();
+  BaseTensorType rank0TensorTy = cast<BaseTensorType>(
+      inputType.getWithSizesAndDtype(ArrayRef(sizes), inputType.getDtype()));
   Value dimList = rewriter.create<PrimListConstructOp>(
       loc, Torch::ListType::get(Torch::IntType::get(inputType.getContext())),
       ValueRange{});
@@ -531,9 +575,9 @@ Type Torch::getDefaultAccType(PatternRewriter &rewriter, Type inputType) {
     return rewriter.getF32Type();
   if (inputType.isBF16())
     return rewriter.getF32Type();
-  if (inputType.isa<Float32Type>())
+  if (isa<Float32Type>(inputType))
     return rewriter.getF32Type();
-  if (inputType.isa<Float64Type>())
+  if (isa<Float64Type>(inputType))
     return rewriter.getF64Type();
   if (inputType.isFloat8E5M2())
     return rewriter.getF32Type();

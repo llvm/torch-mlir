@@ -95,7 +95,7 @@ public:
     Value input = adaptor.getA();
     Type resultType =
         this->getTypeConverter()->convertType(op->getResult(0).getType());
-    if (!input.getType().isa<mlir::FloatType>())
+    if (!isa<mlir::FloatType>(input.getType()))
       input = convertScalarToDtype(rewriter, loc, input, rewriter.getF64Type());
     Value result = rewriter.create<UnaryOp>(loc, input);
     rewriter.replaceOp(op,
@@ -172,8 +172,8 @@ public:
   matchAndRewrite(ValueTensorLiteralOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     MLIRContext *context = op->getContext();
-    if (auto elements = op.getValueAttr().dyn_cast<DenseIntElementsAttr>()) {
-      if (auto type = elements.getType().dyn_cast<RankedTensorType>()) {
+    if (auto elements = dyn_cast<DenseIntElementsAttr>(op.getValueAttr())) {
+      if (auto type = dyn_cast<RankedTensorType>(elements.getType())) {
         Type elemTy = op.getValueAttr().getElementType();
         unsigned bitWidth = elemTy.getIntOrFloatBitWidth();
         Type builtinTensorElemTy = IntegerType::get(context, bitWidth);
@@ -187,9 +187,9 @@ public:
       }
     }
     if (auto elements =
-            op.getValueAttr().dyn_cast<DenseResourceElementsAttr>()) {
-      if (auto type = elements.getType().dyn_cast<RankedTensorType>()) {
-        if (auto intType = type.getElementType().dyn_cast<IntegerType>()) {
+            dyn_cast<DenseResourceElementsAttr>(op.getValueAttr())) {
+      if (auto type = dyn_cast<RankedTensorType>(elements.getType())) {
+        if (auto intType = dyn_cast<IntegerType>(type.getElementType())) {
           Type builtinTensorElemTy =
               IntegerType::get(context, intType.getIntOrFloatBitWidth());
           auto shapedType =
@@ -272,9 +272,9 @@ public:
         convertScalarToDtype(rewriter, loc, adaptor.getA(), resultType);
     Value operandB =
         convertScalarToDtype(rewriter, loc, adaptor.getB(), resultType);
-    if (resultType.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(resultType)) {
       rewriter.replaceOpWithNewOp<arith::AddFOp>(op, operandA, operandB);
-    } else if (resultType.isa<mlir::IntegerType>()) {
+    } else if (isa<mlir::IntegerType>(resultType)) {
       rewriter.replaceOpWithNewOp<arith::AddIOp>(op, operandA, operandB);
     } else {
       return rewriter.notifyMatchFailure(
@@ -439,9 +439,10 @@ public:
     target.addIllegalOp<Torch::ConstantIntOp>();
     patterns.add<ConvertTorchConstantIntOp>(typeConverter, context);
 
-    target.addIllegalOp<AtenIntBoolOp, AtenFloatScalarOp>();
+    target.addIllegalOp<AtenIntBoolOp, AtenFloatScalarOp, AtenIntScalarOp>();
     patterns.add<ConvertAtenCastOp<AtenIntBoolOp>>(typeConverter, context);
     patterns.add<ConvertAtenCastOp<AtenFloatScalarOp>>(typeConverter, context);
+    patterns.add<ConvertAtenCastOp<AtenIntScalarOp>>(typeConverter, context);
 
     target.addIllegalOp<AtenAddOp>();
     patterns.add<ConvertAtenAddOp>(typeConverter, context);

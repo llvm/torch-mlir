@@ -73,7 +73,7 @@ func.func @torch.aten.flatten.using_ints$flatten_back(%arg0: !torch.vtensor<[3,3
 // CHECK-LABEL:   func.func @torch.aten.flatten.using_ints$rank0(
 // CHECK-SAME:                                           %[[TENSOR:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[1],f32> {
 // CHECK:           %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[TENSOR]] : !torch.vtensor<[],f32> -> tensor<f32>
-// CHECK:           %[[COLLAPSED:.*]] = tensor.expand_shape %[[BUILTIN_TENSOR]] [] : tensor<f32> into tensor<1xf32>
+// CHECK:           %[[COLLAPSED:.*]] = tensor.expand_shape %[[BUILTIN_TENSOR]] [] output_shape [1] : tensor<f32> into tensor<1xf32>
 // CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[COLLAPSED]] : tensor<1xf32> -> !torch.vtensor<[1],f32>
 // CHECK:           return %[[RESULT]] : !torch.vtensor<[1],f32>
 
@@ -82,5 +82,3 @@ func.func @torch.aten.flatten.using_ints$rank0(%arg0: !torch.vtensor<[],f32>) ->
   %0 = torch.aten.flatten.using_ints %arg0, %int0, %int0 : !torch.vtensor<[],f32>, !torch.int, !torch.int -> !torch.vtensor<[1],f32>
   return %0 : !torch.vtensor<[1],f32>
 }
-
-

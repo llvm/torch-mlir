@@ -27,6 +27,7 @@ def recursively_convert_to_numpy(o: Any):
         return o
     raise Exception(f"Unexpected Python function input: {o}")
 
+
 def recursively_convert_from_numpy(o: Any):
     if isinstance(o, np.ndarray):
         return torch.from_numpy(o)
