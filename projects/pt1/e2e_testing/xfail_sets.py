@@ -450,7 +450,6 @@ FX_IMPORTER_XFAIL_SET = {
     "TensorToBool_basic",
     "TensorToFloatZeroRank_basic",
     "TensorToFloat_basic",
-    "TestMultipleTensorAndPrimitiveTypesReturn_basic",
     "ThresholdBackward2dMixedModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
