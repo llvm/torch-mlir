@@ -293,7 +293,10 @@ public:
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override;
+                  ConversionPatternRewriter &rewriter) const override {
+    assert(false && "Unimplemented");
+    return failure();
+  };
 };
 
 template <typename AtenOpT>
