@@ -724,45 +724,22 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           Value pooledRegion = rewriter.create<Torch::AtenAdaptiveMaxPool2dOp>(
               loc, pooledRegionTy, pooledRegionIndicesTy, region, outputShapeList).getResult0();
           
-          SmallVector<int64_t> pooledRegionPaddedShape(pooledRegionShape);
-          pooledRegionPaddedShape.insert(pooledRegionPaddedShape.begin(), 1);
-          auto pooledRegionPaddedTy = rewriter.getType<Torch::ValueTensorType>(
-              pooledRegionPaddedShape, imageTy.getDtype());
-          Value pooledRegionPadded = rewriter.create<Torch::AtenUnsqueezeOp>(
-              loc, pooledRegionPaddedTy, pooledRegion, constInts[0]);
+          // SmallVector<int64_t> pooledRegionPaddedShape(pooledRegionShape);
+          // pooledRegionPaddedShape.insert(pooledRegionPaddedShape.begin(), 1);
+          // auto pooledRegionPaddedTy = rewriter.getType<Torch::ValueTensorType>(
+          //     pooledRegionPaddedShape, imageTy.getDtype());
+          // Value pooledRegionPadded = rewriter.create<Torch::AtenUnsqueezeOp>(
+          //     loc, pooledRegionPaddedTy, pooledRegion, constInts[0]);
 
-          pooledRois.push_back(pooledRegionPadded);
+          pooledRois.push_back(pooledRegion);
         }
 
         // concatenate pooled rois and return
         Value pooledRoisTensorList = rewriter.create<Torch::PrimListConstructOp>(
             loc, Torch::ListType::get(pooledRois[0].getType()), pooledRois);
 
-        rewriter.replaceOpWithNewOp<Torch::AtenCatOp>(
+        rewriter.replaceOpWithNewOp<Torch::AtenStackOp>(
             binder.op, resultTy, pooledRoisTensorList, constInts[0]);
-
-        // auto intListTy = rewriter.getType<Torch::ListType>(
-        //     rewriter.getType<Torch::IntType>());
-        
-        // ArrayRef<int64_t> resultShape = resultTy.getSizes();
-        // SmallVector<Value> resultShapeList;
-        // for (int i = 0; i < resultShape.size(); i++) {
-        //   resultShapeList.push_back(
-        //       rewriter.create<Torch::ConstantIntOp>(
-        //           binder.getLoc(), rewriter.getI64IntegerAttr(resultShape[i]))
-        //       );
-        // }
-        
-        // rewriter.replaceOpWithNewOp<Torch::AtenZerosOp>(
-        //     binder.op, 
-        //     resultTy, 
-        //     rewriter.create<Torch::PrimListConstructOp>(
-        //         binder.getLoc(), 
-        //         intListTy,
-        //         resultShapeList
-        //     ),
-        //     noneVal, noneVal, noneVal, noneVal
-        // );
         
         return success();
       });
