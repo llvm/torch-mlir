@@ -536,8 +536,19 @@ class FxImporter:
 
         sig = prog.graph_signature
 
-        # Populate range constraints for dynamic shapes if any
-        self._cc.set_range_constraints(prog)
+        # Populate symbolic guards for dynamic shapes (if any)
+        # Only supports Sympy.Int at the moment
+        contains_symbolic_ints = False
+        for val in prog.range_constraints.values():
+            if (
+                isinstance(val.lower, sympy.Integer)
+                and isinstance(val.upper, sympy.Integer)
+                and not val.is_bool
+            ):
+                contains_symbolic_ints = True
+                break
+        if contains_symbolic_ints:
+            self._cc.set_symbolic_guards(prog)
 
         # Invert the (producer, node_name) maps for mutated user inputs and mutated
         # buffers. This is because we hit-detect based on the input node name.
@@ -740,8 +751,19 @@ class FxImporter:
         state_dict = prog.state_dict
         arg_replacements: Dict[str, Any] = {}
 
-        # Populate range constraints for dynamic shapes if any
-        self._cc.set_range_constraints(prog)
+        # Populate symbolic guards for dynamic shapes (if any)
+        # Only supports Sympy.Int at the moment
+        contains_symbolic_ints = False
+        for val in prog.range_constraints.values():
+            if (
+                isinstance(val.lower, sympy.Integer)
+                and isinstance(val.upper, sympy.Integer)
+                and not val.is_bool
+            ):
+                contains_symbolic_ints = True
+                break
+        if contains_symbolic_ints:
+            self._cc.set_symbolic_guards(prog)
 
         # If there is no "constants" attribute, consult the "state_dict". Otherwise, only look
         # at "constants". Relevant upstream patch: https://github.com/pytorch/pytorch/pull/118969
@@ -885,7 +907,7 @@ class ContextCache:
         "_c",
         "_dtype_to_type",
         "_tensor_metadata_cache",
-        "_range_constraints",
+        "_symbolic_guards",
         "_py_attr_tracker",
         # Types.
         "torch_bool_type",
@@ -904,7 +926,7 @@ class ContextCache:
         self._tensor_metadata_cache: Dict[
             Tuple[torch.Size, torch.dtype, Optional[SparsityMeta], bool], IrType
         ] = {}
-        self._range_constraints: Dict = {}
+        self._symbolic_guards: Dict = {}
         self._py_attr_tracker = py_attr_tracker or RefTracker()
 
         # Common types.
@@ -1054,10 +1076,9 @@ class ContextCache:
                 return Location.file(filename, line, col=0, context=self._c)
         return Location.unknown(context=self._c)
 
-    def set_range_constraints(
+    def set_symbolic_guards(
         self, prog: torch.export.ExportedProgram
     ) -> Dict[str, RangeConstraint]:
-        range_constraints = prog.range_constraints
 
         def _sympy_int_to_int(val: sympy.Expr, adjust: str):
             # Convert simple sympy Integers into concrete int
@@ -1084,17 +1105,16 @@ class ContextCache:
             else:
                 raise RuntimeError(f"Got invalid adjustment {adjust}")
 
-        if not self._range_constraints:
-            self._range_constraints = {
-                str(k): RangeConstraint(
-                    _sympy_int_to_int(v.lower, "ceil"),  # type: ignore[arg-type]
-                    _sympy_int_to_int(v.upper, "floor"),  # type: ignore[arg-type]
-                )
-                for k, v in range_constraints.items()
-            }
+        self._symbolic_guards = {
+            str(k): RangeConstraint(
+                _sympy_int_to_int(v.lower, "ceil"),  # type: ignore[arg-type]
+                _sympy_int_to_int(v.upper, "floor"),  # type: ignore[arg-type]
+            )
+            for k, v in prog.range_constraints.items()
+        }
 
-    def get_range_constraints(self) -> Dict[str, RangeConstraint]:
-        return self._range_constraints
+    def get_symbolic_guards(self) -> Dict[str, RangeConstraint]:
+        return self._symbolic_guards
 
 
 class GraphNodeImporter:
@@ -1279,8 +1299,8 @@ class GraphNodeImporter:
         with InsertionPoint(self._b):
             loc = Location.unknown()
 
-            # Import dynamic shape symbols (if any) with range constraints
-            range_constraints = self._cc.get_range_constraints()
+            # Import dynamic shape symbols and guards (if any)
+            range_constraints = self._cc.get_symbolic_guards()
             self._import_symbolic_ints_with_constraints(loc, range_constraints)
 
             num_placeholders = 0
