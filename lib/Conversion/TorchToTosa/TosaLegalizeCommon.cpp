@@ -11,17 +11,11 @@
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 
-#include <climits>
-#include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <numeric>
 
-#include "mlir/Dialect/Quant/QuantTypes.h" // from @llvm-project
 #include "mlir/Dialect/Tensor/IR/Tensor.h" // from @llvm-project
-#include "mlir/IR/BuiltinTypes.h"          // from @llvm-project
-#include "mlir/IR/Matchers.h"              // from @llvm-project
-#include "mlir/IR/PatternMatch.h"          // from @llvm-project
 #include "llvm/Support/FormatVariadic.h"
 
 namespace mlir {
