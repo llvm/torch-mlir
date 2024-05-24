@@ -1396,9 +1396,7 @@ def Torch_BindSymbolicShapeOp : Torch_Op<"bind_symbolic_shape", []> {
     Builtin_AffineMapAttr:$shape_expressions
   );
   let results = (outs);
-  let assemblyFormat = [{
-    $operand `,` `[` $shape_symbols `]` `,` $shape_expressions attr-dict `:` type($operand)
-  }];
+  let hasCustomAssemblyFormat = 1;
 }
 
 #endif // TORCH_OPS

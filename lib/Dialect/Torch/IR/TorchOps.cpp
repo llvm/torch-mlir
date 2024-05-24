@@ -5034,3 +5034,49 @@ LogicalResult InitializeGlobalSlotsOp::verify() {
     return emitOpError("expected number of operands to match number of slots");
   return success();
 }
+
+//===----------------------------------------------------------------------===//
+// BindSymbolicShapeOp
+//===----------------------------------------------------------------------===//
+
+//
+// torch.bind_symbolic_shape %6, [%0, %1, %2], #affine_map<()[s0, s1, s2] ->
+// (s0, 3, s1 * 2 + s2)> : !torch.vtensor<[?,3,?],f32>
+//
+
+ParseResult BindSymbolicShapeOp::parse(OpAsmParser &parser,
+                                       OperationState &result) {
+  OpAsmParser::UnresolvedOperand operand;
+  SmallVector<OpAsmParser::UnresolvedOperand> shapeSymbols;
+  AffineMapAttr shapeExpressions;
+  Type tensorType;
+
+  if (parser.parseOperand(operand) || parser.parseComma() ||
+      parser.parseLSquare() || parser.parseOperandList(shapeSymbols) ||
+      parser.parseRSquare() || parser.parseComma() ||
+      parser.parseAttribute(shapeExpressions, "shape_expressions",
+                            result.attributes) ||
+      parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseColonType(tensorType)) {
+    return failure();
+  }
+
+  result.addTypes(tensorType);
+  if (parser.resolveOperand(operand, tensorType, result.operands) ||
+      parser.resolveOperands(shapeSymbols,
+                             parser.getBuilder().getIntegerType(64),
+                             result.operands)) {
+    return failure();
+  }
+
+  return success();
+}
+
+void BindSymbolicShapeOp::print(OpAsmPrinter &p) {
+  p << " " << getOperand() << ", [";
+  llvm::interleaveComma(getShapeSymbols(), p);
+  p << "], " << "#affine_map<" << getShapeExpressions().getValue() << ">";
+  p.printOptionalAttrDict((*this)->getAttrs(),
+                          /*elidedAttrs=*/{"shape_expressions"});
+  p << " : " << getOperand().getType();
+}
