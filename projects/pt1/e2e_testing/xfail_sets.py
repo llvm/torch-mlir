@@ -336,8 +336,6 @@ FX_IMPORTER_XFAIL_SET = {
     "AnyBoolFalseModule_basic",
     "AnyBoolTrueModule_basic",
     "ArangeStartOutViewModule_basic",
-    "AtenEmbeddingBagStaticModule_basic",
-    "AtenEmbeddingBagSumExample_basic",
     "AtenFloatScalarModule_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
