@@ -83,6 +83,9 @@ from torch.fx.node import (
 )
 
 from ..ir import (
+    AffineMap,
+    AffineSymbolExpr,
+    AffineConstantExpr,
     AffineMapAttr,
     Attribute,
     Block,
@@ -1300,8 +1303,8 @@ class GraphNodeImporter:
             loc = Location.unknown()
 
             # Import dynamic shape symbols and guards (if any)
-            range_constraints = self._cc.get_symbolic_guards()
-            self._import_symbolic_ints_with_constraints(loc, range_constraints)
+            symbolic_guards = self._cc.get_symbolic_guards()
+            self._import_shape_symbols_with_guards(loc, symbolic_guards)
 
             num_placeholders = 0
             for node in nodes:
@@ -1362,7 +1365,7 @@ class GraphNodeImporter:
                     operands = [self._import_argument(loc, arg) for arg in node.args[0]]
                     func_dialect.ReturnOp(operands, loc=loc)
 
-                # self._create_bind_symbolic_shape_ops(self, loc, node)
+                self._create_bind_symbolic_shape_ops(loc, node)
 
     def _promote_symbolic_scalar_int_float(self, loc, graph, param):
         temp_target = torch.ops.aten.Float.Scalar
@@ -1627,10 +1630,10 @@ class GraphNodeImporter:
         for i, value in enumerate(operation.results):
             self.bind_node_value(node, value, i)
 
-    def _import_symbolic_ints_with_constraints(
-        self, loc: Location, range_constraints: Dict[str, RangeConstraint]
+    def _import_shape_symbols_with_guards(
+        self, loc: Location, symbolic_guards: Dict[str, RangeConstraint]
     ):
-        for symbol, constraints in range_constraints.items():
+        for symbol, constraints in symbolic_guards.items():
             # Create torch.sym_int ops
             operation = Operation.create(
                 name="torch.symbolic_int",
@@ -1645,7 +1648,37 @@ class GraphNodeImporter:
             self.bind_symbol_value(symbol, operation.result)
 
     def _create_bind_symbolic_shape_ops(self, loc: Location, node: torch_fx.Node):
-        pass
+        node_val = node.meta.get("val")
+        if (node_val is not None) and isinstance(node_val, TorchFakeTensor):
+            # Only create bind ops if the shapes contain symbolic sizes
+            if node_val._has_symbolic_sizes_strides:
+                symbols_set = set()
+                shape_exprs = []
+                for s in node_val.size():
+                    if isinstance(s, torch.SymInt):
+                        symbols_set.update(s.node.expr.free_symbols)
+                        shape_exprs.append(s.node.expr)
+                    else:
+                        assert isinstance(s, int)
+                        shape_exprs.append(s)
+
+                symbols_set = sorted(symbols_set, key=lambda x: x.name)
+
+                # Map from actual shape symbols to local symbols in the affine map
+                symbol_table = {
+                    str(symbol): AffineSymbolExpr.get(i)
+                    for i, symbol in enumerate(symbols_set)
+                }
+
+                affine_exprs = [
+                    (
+                        AffineConstantExpr.get(expr)
+                        if isinstance(expr, int)
+                        else eval(str(expr), symbol_table)
+                    )
+                    for expr in shape_exprs
+                ]
+                affine_map = AffineMap.get(0, len(symbols_set), affine_exprs)
 
     def _import_argument(
         self, loc: Location, arg: NodeArgument, expected_jit_type=None
