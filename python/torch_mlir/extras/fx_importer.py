@@ -1210,7 +1210,7 @@ class GraphNodeImporter:
             binding = self._symbol_to_value[shape_symbol]
         except KeyError:
             raise KeyError(
-                f"FX Shape Symbol {shape_symbol} has not been bound to an MLIR value"
+                f"Shape symbol {shape_symbol} has not been bound to an MLIR value"
             )
         if isinstance(binding, Value):
             return binding
@@ -1652,6 +1652,7 @@ class GraphNodeImporter:
         if (node_val is not None) and isinstance(node_val, TorchFakeTensor):
             # Only create bind ops if the shapes contain symbolic sizes
             if node_val._has_symbolic_sizes_strides:
+                # Read node metadata to obtain shape symbols and expressions
                 symbols_set = set()
                 shape_exprs = []
                 for s in node_val.size():
@@ -1662,23 +1663,41 @@ class GraphNodeImporter:
                         assert isinstance(s, int)
                         shape_exprs.append(s)
 
+                # Map from actual shape symbols to local symbols in the affine map
                 symbols_set = sorted(symbols_set, key=lambda x: x.name)
 
-                # Map from actual shape symbols to local symbols in the affine map
                 symbol_table = {
                     str(symbol): AffineSymbolExpr.get(i)
                     for i, symbol in enumerate(symbols_set)
                 }
 
+                # Convert symbolic shape expressions into affine expressions
                 affine_exprs = [
                     (
                         AffineConstantExpr.get(expr)
                         if isinstance(expr, int)
-                        else eval(str(expr), symbol_table)
+                        # Use `symbol_table.copy()` here to avoid the
+                        # `eval` from adding an `__builtins__` entry to
+                        # the map.
+                        else eval(str(expr), symbol_table.copy())
                     )
                     for expr in shape_exprs
                 ]
                 affine_map = AffineMap.get(0, len(symbols_set), affine_exprs)
+
+                # Build operand list
+                operand_list = []
+                operand_list.append(self.resolve_node_value(node))
+                for symbol in symbol_table.keys():
+                    operand_list.append(self.resolve_symbol_value(symbol))
+
+                # Create torch.bind_symbolic_shape ops
+                Operation.create(
+                    name="torch.bind_symbolic_shape",
+                    attributes={"shape_expressions": AffineMapAttr.get(affine_map)},
+                    operands=operand_list,
+                    loc=loc,
+                )
 
     def _import_argument(
         self, loc: Location, arg: NodeArgument, expected_jit_type=None

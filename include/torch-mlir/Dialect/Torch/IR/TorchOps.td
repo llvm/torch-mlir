@@ -1397,7 +1397,7 @@ def Torch_BindSymbolicShapeOp : Torch_Op<"bind_symbolic_shape", []> {
   );
   let results = (outs);
   let assemblyFormat = [{
-    $operand `,` $shape_symbols `,` $shape_expressions attr-dict `:` qualified(type($operand))
+    $operand `,` $shape_symbols `,` $shape_expressions attr-dict `:` type($operand)
   }];
 }
 
