@@ -5080,3 +5080,24 @@ void BindSymbolicShapeOp::print(OpAsmPrinter &p) {
                           /*elidedAttrs=*/{"shape_expressions"});
   p << " : " << getOperand().getType();
 }
+
+LogicalResult BindSymbolicShapeOp::verify() {
+  if (getShapeSymbols().empty())
+    return emitOpError() << "requires non-empty shapeSymbols";
+
+  for (auto symbol : getShapeSymbols()) {
+    if (!symbol || !symbol.getDefiningOp()) {
+      return emitOpError()
+             << "symbolic shape symbol must be defined by an operation";
+    }
+
+    Operation *definingOp = symbol.getDefiningOp();
+
+    if (!isa<SymbolicIntOp>(definingOp)) {
+      return emitOpError()
+             << "shape symbol must be produced by a SymbolicIntOp";
+    }
+  }
+
+  return success();
+}

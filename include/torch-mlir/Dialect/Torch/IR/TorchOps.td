@@ -1398,6 +1398,7 @@ def Torch_BindSymbolicShapeOp : Torch_Op<"bind_symbolic_shape", []> {
   );
   let results = (outs);
   let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 }
 
 #endif // TORCH_OPS
