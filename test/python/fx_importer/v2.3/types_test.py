@@ -37,7 +37,7 @@ def test_scalar_typed_node():
             return x.shape[0]
 
     # CHECK: %[[S0:.*]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
-    # CHECK: torch.bind_symbolic_shape %arg0, [%[[S0]]], #affine_map<()[s0] -> (s0, 4)> : !torch.vtensor<[?,4],f32>
+    # CHECK: torch.bind_symbolic_shape %arg0, [%[[S0]]], affine_map<()[s0] -> (s0, 4)> : !torch.vtensor<[?,4],f32>
     # CHECK: torch.aten.size.int %arg0, %int0 : !torch.vtensor<[?,4],f32>, !torch.int -> !torch.int
     m = fx.export_and_import(
         Basic(), torch.randn(3, 4), dynamic_shapes={"x": {0: torch.export.Dim("b")}}

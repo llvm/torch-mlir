@@ -5040,7 +5040,7 @@ LogicalResult InitializeGlobalSlotsOp::verify() {
 //===----------------------------------------------------------------------===//
 
 //
-// torch.bind_symbolic_shape %6, [%0, %1, %2], #affine_map<()[s0, s1, s2] ->
+// torch.bind_symbolic_shape %6, [%0, %1, %2], affine_map<()[s0, s1, s2] ->
 // (s0, s1 * 2 + s2, 3)> : !torch.vtensor<[?,?,3],f32>
 //
 
@@ -5075,7 +5075,7 @@ ParseResult BindSymbolicShapeOp::parse(OpAsmParser &parser,
 void BindSymbolicShapeOp::print(OpAsmPrinter &p) {
   p << " " << getOperand() << ", [";
   llvm::interleaveComma(getShapeSymbols(), p);
-  p << "], " << "#affine_map<" << getShapeExpressions().getValue() << ">";
+  p << "], " << "affine_map<" << getShapeExpressions().getValue() << ">";
   p.printOptionalAttrDict((*this)->getAttrs(),
                           /*elidedAttrs=*/{"shape_expressions"});
   p << " : " << getOperand().getType();
