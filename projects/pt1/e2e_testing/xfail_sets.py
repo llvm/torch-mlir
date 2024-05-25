@@ -1442,9 +1442,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseSoftshrinkStaticModule_basic",
 }
 
-STABLEHLO_CRASHING_SET = {
-    "AtenEmbeddingBagSumExample_basic",
-}
+STABLEHLO_CRASHING_SET = set()
 
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
