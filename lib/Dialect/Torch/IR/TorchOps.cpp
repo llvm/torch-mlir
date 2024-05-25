@@ -5041,7 +5041,7 @@ LogicalResult InitializeGlobalSlotsOp::verify() {
 
 //
 // torch.bind_symbolic_shape %6, [%0, %1, %2], #affine_map<()[s0, s1, s2] ->
-// (s0, 3, s1 * 2 + s2)> : !torch.vtensor<[?,3,?],f32>
+// (s0, s1 * 2 + s2, 3)> : !torch.vtensor<[?,?,3],f32>
 //
 
 ParseResult BindSymbolicShapeOp::parse(OpAsmParser &parser,
