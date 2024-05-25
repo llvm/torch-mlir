@@ -540,18 +540,7 @@ class FxImporter:
         sig = prog.graph_signature
 
         # Populate symbolic guards for dynamic shapes (if any)
-        # Only supports Sympy.Int at the moment
-        contains_symbolic_ints = False
-        for val in prog.range_constraints.values():
-            if (
-                isinstance(val.lower, sympy.Integer)
-                and isinstance(val.upper, sympy.Integer)
-                and not val.is_bool
-            ):
-                contains_symbolic_ints = True
-                break
-        if contains_symbolic_ints:
-            self._cc.set_symbolic_guards(prog)
+        self._cc.set_symbolic_guards(prog)
 
         # Invert the (producer, node_name) maps for mutated user inputs and mutated
         # buffers. This is because we hit-detect based on the input node name.
@@ -755,18 +744,7 @@ class FxImporter:
         arg_replacements: Dict[str, Any] = {}
 
         # Populate symbolic guards for dynamic shapes (if any)
-        # Only supports Sympy.Int at the moment
-        contains_symbolic_ints = False
-        for val in prog.range_constraints.values():
-            if (
-                isinstance(val.lower, sympy.Integer)
-                and isinstance(val.upper, sympy.Integer)
-                and not val.is_bool
-            ):
-                contains_symbolic_ints = True
-                break
-        if contains_symbolic_ints:
-            self._cc.set_symbolic_guards(prog)
+        self._cc.set_symbolic_guards(prog)
 
         # If there is no "constants" attribute, consult the "state_dict". Otherwise, only look
         # at "constants". Relevant upstream patch: https://github.com/pytorch/pytorch/pull/118969
@@ -1091,7 +1069,6 @@ class ContextCache:
                 return -math.inf
             if isinstance(val, sympy.Integer):
                 return int(val)
-
             # TODO: Remove this adjustment when fractional ranges are removed
             logging.warning(
                 "Export constraints cannot be non-integer expressions. Found "
@@ -1100,7 +1077,6 @@ class ContextCache:
                 val,
                 adjust,
             )
-
             if adjust == "floor":
                 return math.floor(val)
             elif adjust == "ceil":
@@ -1108,13 +1084,23 @@ class ContextCache:
             else:
                 raise RuntimeError(f"Got invalid adjustment {adjust}")
 
-        self._symbolic_guards = {
-            str(k): RangeConstraint(
-                _sympy_int_to_int(v.lower, "ceil"),  # type: ignore[arg-type]
-                _sympy_int_to_int(v.upper, "floor"),  # type: ignore[arg-type]
-            )
-            for k, v in prog.range_constraints.items()
-        }
+        contains_symbolic_ints = False
+        for val in prog.range_constraints.values():
+            if (
+                isinstance(val.lower, sympy.Integer)
+                and isinstance(val.upper, sympy.Integer)
+                and not val.is_bool
+            ):
+                contains_symbolic_ints = True
+                break
+        if contains_symbolic_ints:
+            self._symbolic_guards = {
+                str(k): RangeConstraint(
+                    _sympy_int_to_int(v.lower, "ceil"),  # type: ignore[arg-type]
+                    _sympy_int_to_int(v.upper, "floor"),  # type: ignore[arg-type]
+                )
+                for k, v in prog.range_constraints.items()
+            }
 
     def get_symbolic_guards(self) -> Dict[str, RangeConstraint]:
         return self._symbolic_guards
