@@ -30,13 +30,13 @@ def test_tanh_sigmoid_cat_shape_expr_import():
         def forward(self, x, y):
             a = torch.tanh(x)
             b = torch.sigmoid(y)
-            return torch.cat((a, a, b), dim=-1)
+            return torch.cat((a, a, b), dim=1)
 
-    x, y = torch.randn(5, 3, 2), torch.randn(5, 3, 5)
+    x, y = torch.randn(5, 2, 3), torch.randn(5, 6, 3)
 
     dim_n = torch.export.Dim("n", min=5, max=10)
-    dim_x2 = torch.export.Dim("x2", max=100)
-    dim_y2 = torch.export.Dim("y2", max=50)
+    dim_x1 = torch.export.Dim("x1", max=100)
+    dim_y1 = torch.export.Dim("y1", max=50)
 
     # CHECK: torch.
     m = fx.export_and_import(
@@ -44,8 +44,8 @@ def test_tanh_sigmoid_cat_shape_expr_import():
         x,
         y,
         dynamic_shapes={
-            "x": {0: dim_n, 2: dim_x2},
-            "y": {0: dim_n, 2: dim_y2},
+            "x": {0: dim_n, 1: dim_x1},
+            "y": {0: dim_n, 1: dim_y1},
         },
     )
     print(m)

@@ -1380,14 +1380,15 @@ def Torch_BindSymbolicShapeOp : Torch_Op<"bind_symbolic_shape", []> {
   let description = [{
     The `torch.bind_symbolic_shape` operation binds shape expressions
     useful to compute the dynamic dimensions of a tensor. It takes a
-    variadic of SSA symbols that correspond to the symbols declared in
-    the affine map comprising of a list of affine shape expressions
-    for each dim.
+    variadic of SSA symbols that map 1:1 to the local symbols declared
+    in the affine map. The affine map contains a list of affine shape
+    expressions for each dim where the terminals are from the declared
+    symbols.
 
     Example:
     ```
-    torch.bind_symbolic_shape %out0, %0, %1 #affine_map<()[s0, s1](s0+s1, 10)>
-    torch.bind_symbolic_shape %out1, %2 #affine_map<()[s2](2*s2, 100)>
+    torch.bind_symbolic_shape %arg0, [%0, %1], #affine_map<()[s0, s1] -> (s0, s1, 3)> : !torch.vtensor<[?,?,3],f32>
+    torch.bind_symbolic_shape %out0, [%0, %1, %2], #affine_map<()[s0, s1, s2] -> (s0, s1 * 2 + s2, 3)> : !torch.vtensor<[?,?,3],f32>
     ```
   }];
   let arguments = (ins
