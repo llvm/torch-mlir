@@ -91,7 +91,7 @@ def _module_lowering(
 ):
     if verbose:
         print("\n====================")
-        print("ONNX Torch IR")
+        print("ONNX RAW IR")
         print(torch_mod)
 
     # Lower from ONNX to Torch
@@ -100,6 +100,11 @@ def _module_lowering(
         f"builtin.module(func.func({ONNX_TO_TORCH_FUNC_PIPELINE}))",
         "Lowering Onnx backend contract to Linalg-on-Tensors backend contract",
     )
+
+    if verbose:
+        print("\n====================")
+        print("TorchFX IR")
+        print(torch_mod)
 
     backend_legal_ops = [
         "aten.flatten.using_ints",
