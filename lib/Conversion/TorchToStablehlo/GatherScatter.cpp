@@ -32,6 +32,9 @@ namespace {
 static Value createInitialValueForGatherScatterOp(Operation *op,
                                                   RankedTensorType constType,
                                                   PatternRewriter &rewriter) {
+  if (!constType.hasStaticShape()) {
+    return nullptr;
+  }
   auto elementTy = constType.getElementType();
   if (isa<AtenEmbeddingBagPaddingIdxOp>(op)) {
     if (isa<mlir::FloatType>(elementTy)) {
