@@ -5049,7 +5049,7 @@ ParseResult BindSymbolicShapeOp::parse(OpAsmParser &parser,
   OpAsmParser::UnresolvedOperand operand;
   SmallVector<OpAsmParser::UnresolvedOperand> shapeSymbols;
   AffineMapAttr shapeExpressions;
-  Type tensorType;
+  Type operandType;
 
   if (parser.parseOperand(operand) || parser.parseComma() ||
       parser.parseLSquare() || parser.parseOperandList(shapeSymbols) ||
@@ -5057,14 +5057,13 @@ ParseResult BindSymbolicShapeOp::parse(OpAsmParser &parser,
       parser.parseAttribute(shapeExpressions, "shape_expressions",
                             result.attributes) ||
       parser.parseOptionalAttrDict(result.attributes) ||
-      parser.parseColonType(tensorType)) {
+      parser.parseColonType(operandType)) {
     return failure();
   }
 
-  result.addTypes(tensorType);
-  if (parser.resolveOperand(operand, tensorType, result.operands) ||
+  if (parser.resolveOperand(operand, operandType, result.operands) ||
       parser.resolveOperands(shapeSymbols,
-                             parser.getBuilder().getIntegerType(64),
+                             parser.getBuilder().getType<Torch::IntType>(),
                              result.operands)) {
     return failure();
   }
