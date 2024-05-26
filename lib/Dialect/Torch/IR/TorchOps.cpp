@@ -5071,6 +5071,8 @@ ParseResult BindSymbolicShapeOp::parse(OpAsmParser &parser,
   return success();
 }
 
+// Use a custom printer here to avoid the AffineMap from getting hoisted
+// when printed. This makes it so the AffineMap is printed inline with the op.
 void BindSymbolicShapeOp::print(OpAsmPrinter &p) {
   p << " " << getOperand() << ", [";
   llvm::interleaveComma(getShapeSymbols(), p);
@@ -5085,13 +5087,7 @@ LogicalResult BindSymbolicShapeOp::verify() {
     return emitOpError() << "requires non-empty shapeSymbols";
 
   for (auto symbol : getShapeSymbols()) {
-    if (!symbol || !symbol.getDefiningOp()) {
-      return emitOpError()
-             << "symbolic shape symbol must be defined by an operation";
-    }
-
     Operation *definingOp = symbol.getDefiningOp();
-
     if (!isa<SymbolicIntOp>(definingOp)) {
       return emitOpError()
              << "shape symbol must be produced by a SymbolicIntOp";
