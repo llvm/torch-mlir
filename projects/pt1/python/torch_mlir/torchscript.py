@@ -384,9 +384,9 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
         sys.stderr = original_stderr
 
     if verbose:
-         print("\n====================")
-         print("TorchScript RAW IR")
-         print(mb.module)
+        print("\n====================")
+        print("TorchScript RAW IR")
+        print(mb.module)
 
     if output_type == OutputType.RAW:
         return mb.module
