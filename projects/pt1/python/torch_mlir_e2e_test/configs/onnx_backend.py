@@ -89,6 +89,11 @@ def _module_lowering(
     output_type,
     torch_mod,
 ):
+    if verbose:
+        print("\n====================")
+        print("ONNX Torch IR")
+        print(torch_mod)
+
     # Lower from ONNX to Torch
     run_pipeline_with_repro_report(
         torch_mod,
