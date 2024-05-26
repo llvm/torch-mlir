@@ -32,7 +32,11 @@ class TosaBackendTestConfig(TestConfig):
     def compile(self, program: torch.nn.Module, verbose: bool = False) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         module = torchscript.compile(
-            program, example_args, output_type="tosa", use_make_fx=self.use_make_fx, verbose=verbose
+            program,
+            example_args,
+            output_type="tosa",
+            use_make_fx=self.use_make_fx,
+            verbose=verbose,
         )
 
         return self.backend.compile(module)
