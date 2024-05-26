@@ -1662,9 +1662,8 @@ class GraphNodeImporter:
                     (
                         AffineConstantExpr.get(expr)
                         if isinstance(expr, int)
-                        # Use `symbol_table.copy()` here to avoid the
-                        # `eval` from adding an `__builtins__` entry to
-                        # the map.
+                        # Use `symbol_table.copy()` here to avoid `eval` from
+                        # adding the `__builtins__` entry to the map.
                         else eval(str(expr), symbol_table.copy())
                     )
                     for expr in shape_exprs
