@@ -814,6 +814,12 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "AtenLinear1D_basic",
+    "AtenLinear2D_basic",
+    "AtenLinear3DBias_basic",
+    "AtenLinearMatVec_basic",
+    "AtenLinearVecMatBias_basic",
+    "AtenLinearVecMat_basic",
     "ReduceAminSingleDim_basic",
     "AtenDotModule_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
@@ -1447,6 +1453,8 @@ STABLEHLO_CRASHING_SET = set()
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "AtenLinear2D_basic",
+    "AtenLinear3DBias_basic",
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
     "ElementwiseDivTensorFloatModule_basic",
     "ElementwiseMulTensorFloatModule_basic",
@@ -1911,6 +1919,9 @@ MAKE_FX_TOSA_PASS_SET = (
     TOSA_PASS_SET
     | {
         ### Tests additionally passing in make_fx_tosa
+        "AtenLinear1D_basic",
+        "AtenLinearMatVec_basic",
+        "AtenLinearVecMatBias_basic",
         "MaxPool1dEmptyStrideStaticModule_basic",
         "MaxPool1dStaticCeilModeTrueModule_basic",
         "MaxPool1dStaticModule_basic",
