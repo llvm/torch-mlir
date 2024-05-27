@@ -5513,38 +5513,57 @@ public:
     Value bias = op.getBias();
 
     BaseTensorType inputType = cast<BaseTensorType>(input.getType());
-    if (!inputType.hasSizes() || inputType.getSizes().size() < 2)
-      return rewriter.notifyMatchFailure(
-          op, "expected input to be rank 2 or greater");
+    if (!inputType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "expected input to have sizes");
 
     BaseTensorType weightType = cast<BaseTensorType>(weight.getType());
-    // `weight` must be a rank 2 matrix.
-    if (!weightType.hasSizes() || weightType.getSizes().size() != 2)
-      return rewriter.notifyMatchFailure(op, "expected weight to be a rank 2");
+    if (!weightType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "expected weight to have sizes");
 
-    SmallVector<int64_t> transposeShape =
-        llvm::to_vector(llvm::reverse(weightType.getSizes()));
-    Type transposeType = weightType.getWithSizesAndDtype(
-        llvm::ArrayRef(transposeShape), weightType.getOptionalDtype());
-    Value transposeWeight =
-        rewriter.create<AtenTOp>(loc, transposeType, weight);
+    auto transposeWeight = [&]() -> Value {
+      SmallVector<int64_t> transposeShape =
+          llvm::to_vector(llvm::reverse(weightType.getSizes()));
+      Type transposeType = weightType.getWithSizesAndDtype(
+          llvm::ArrayRef(transposeShape), weightType.getOptionalDtype());
+      Value transposeWeight =
+          rewriter.create<AtenTOp>(loc, transposeType, weight);
+      return transposeWeight;
+    };
 
-    Value matmul = rewriter.create<AtenMatmulOp>(loc, op.getType(), input,
-                                                 transposeWeight);
     if (bias.getType().isa<Torch::NoneType>()) {
-      rewriter.replaceOp(op, matmul);
+      auto weightRank = weightType.getSizes().size();
+      if (weightRank > 2 || weightRank <= 0)
+        return rewriter.notifyMatchFailure(
+            op, "expected weight's rank <= 2 && >= 1");
+      if (weightRank == 1) {
+        rewriter.replaceOpWithNewOp<AtenMatmulOp>(op, op.getType(), input,
+                                                  weight);
+        return success();
+      } else if (weightRank == 2) {
+        rewriter.replaceOpWithNewOp<AtenMatmulOp>(op, op.getType(), input,
+                                                  transposeWeight());
+        return success();
+      }
+      llvm_unreachable("unsupported weightRank");
+    } else {
+      BaseTensorType biasType = cast<BaseTensorType>(bias.getType());
+      if (!biasType.hasSizes() || biasType.getSizes().size() != 1)
+        return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
+
+      // `weight` must be a rank 2 matrix.
+      auto weightRank = weightType.getSizes().size();
+      if (weightRank != 2)
+        return rewriter.notifyMatchFailure(op,
+                                           "expected weight to be a rank 2");
+
+      Value matmul = rewriter.create<AtenMatmulOp>(loc, op.getType(), input,
+                                                   transposeWeight());
+      Value alpha =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+      rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, op.getType(), matmul,
+                                                   op.getBias(), alpha);
       return success();
     }
-
-    BaseTensorType biasType = cast<BaseTensorType>(bias.getType());
-    if (!biasType.hasSizes() || biasType.getSizes().size() != 1)
-      return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
-
-    Value alpha =
-        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
-    rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, op.getType(), matmul,
-                                                 op.getBias(), alpha);
-    return success();
   }
 };
 } // namespace
