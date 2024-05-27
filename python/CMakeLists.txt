@@ -96,6 +96,7 @@ set(_source_components
   TorchMLIRPythonSources
   TorchMLIRPythonExtensions
   TorchMLIRSiteInitialize
+  StablehloPythonExtensions
 
   # Sources related to optional Torch extension dependent features. Typically
   # empty unless if project features are enabled.

@@ -34,6 +34,9 @@ from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import (
 from torch_mlir_e2e_test.stablehlo_backends.linalg_on_tensors import (
     LinalgOnTensorsStablehloBackend,
 )
+from torch_mlir_e2e_test.stablehlo_backends.refbackend import (
+    RefBackendStablehloBackend,
+)
 
 from .xfail_sets import (
     LINALG_XFAIL_SET,
@@ -151,7 +154,7 @@ def main():
         xfail_set = LINALG_XFAIL_SET
         crashing_set = LINALG_CRASHING_SET
     elif args.config == "stablehlo":
-        config = StablehloBackendTestConfig(LinalgOnTensorsStablehloBackend())
+        config = StablehloBackendTestConfig(RefBackendStablehloBackend())
         xfail_set = all_test_unique_names - STABLEHLO_PASS_SET
         crashing_set = STABLEHLO_CRASHING_SET
     elif args.config == "tosa":
