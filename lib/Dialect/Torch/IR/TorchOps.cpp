@@ -14,10 +14,12 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/DialectResourceBlobManager.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Support/LLVM.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "torch-mlir/Utils.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Casting.h"
@@ -2752,6 +2754,40 @@ LogicalResult ValueTensorLiteralOp::inferReturnTypes(
 
 OpFoldResult ValueTensorLiteralOp::fold(FoldAdaptor adaptor) {
   return getValueAttr();
+}
+
+void ValueTensorLiteralOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](ValueTensorLiteralOp op, PatternRewriter &rewriter) {
+    if (DenseResourceElementsAttr attr =
+            dyn_cast<DenseResourceElementsAttr>(op.getValueAttr())) {
+      // Bytes are stored in little endian order. Big endian support will
+      // require swizzling.
+      if (!Endian::little) {
+        op->emitError("unimplemented: importing on big endian systems");
+        return failure();
+      }
+
+      auto ty = cast<ShapedType>(attr.getType());
+      ElementsAttr denseAttr;
+      auto ptr = attr.getRawHandle().getBlob()->getData();
+      if (ty.getElementType().isInteger(1)) {
+        llvm::SmallVector<APInt> newContents;
+        for (auto val : ptr) {
+          APInt apval(1, val);
+          newContents.push_back(apval);
+        }
+        denseAttr = DenseElementsAttr::get(ty, newContents);
+      } else {
+        denseAttr = DenseElementsAttr::getFromRawBuffer(ty, ptr);
+      }
+
+      rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(op, op.getType(),
+                                                               denseAttr);
+      return success();
+    }
+    return failure();
+  });
 }
 
 //----------------------------------------------------------------------------//

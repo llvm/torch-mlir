@@ -15,20 +15,7 @@
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-
-class Endian {
-private:
-  static constexpr uint32_t uint32_ = 0x01020304;
-  static constexpr uint8_t magic_ = (const uint8_t &)uint32_;
-
-public:
-  static constexpr bool little = magic_ == 0x04;
-  static constexpr bool big = magic_ == 0x01;
-  static_assert(little || big, "Cannot determine endianness!");
-
-private:
-  Endian() = delete;
-};
+#include "torch-mlir/Utils.h"
 
 namespace mlir::torch::onnx_c {
 

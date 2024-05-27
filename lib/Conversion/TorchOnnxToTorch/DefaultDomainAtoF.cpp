@@ -12,6 +12,7 @@
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "torch-mlir/Utils.h"
 #include "llvm/Support/FormatVariadic.h"
 
 using namespace mlir;
@@ -899,30 +900,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         if (DenseResourceElementsAttr attr =
                 dyn_cast_or_null<DenseResourceElementsAttr>(
                     binder.op->getAttr("torch.onnx.value"))) {
-          // Bytes are stored in little endian order. Big endian support will
-          // require swizzling.
-          if (!Endian::little) {
-            binder.op->emitError(
-                "unimplemented: importing on big endian systems");
-            return failure();
-          }
-
-          auto ty = cast<ShapedType>(attr.getType());
-          ElementsAttr denseAttr;
-          auto ptr = attr.getRawHandle().getBlob()->getData();
-          if (cast<ShapedType>(attr.getType()).getElementType().isInteger(1)) {
-            llvm::SmallVector<APInt> newContents;
-            for (auto val : ptr) {
-              APInt apval(1, val);
-              newContents.push_back(apval);
-            }
-            denseAttr = DenseElementsAttr::get(ty, newContents);
-          } else {
-            denseAttr = DenseElementsAttr::getFromRawBuffer(ty, ptr);
-          }
-
           rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
-              binder.op, resultType, denseAttr);
+              binder.op, resultType, attr);
           return success();
         }
 
