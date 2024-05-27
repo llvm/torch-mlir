@@ -2952,4 +2952,111 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 /*Torch_BoolType:$antialias*/ cstFalse);
         return success();
       });
+  patterns.onOp(
+      "SpaceToDepth", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input;
+        int64_t blockSize;
+        std::string mode;
+        if (binder.tensorOperand(input) ||
+            binder.s64IntegerAttr(blockSize, "blocksize") ||
+            binder.customOpNameStringAttr(mode, "mode", "DCR") ||
+            binder.tensorResultType(resultType))
+          return failure();
+        auto inputTy = dyn_cast<Torch::BaseTensorType>(input.getType());
+        if (!inputTy || !inputTy.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input type having sizes");
+        }
+        SmallVector<int64_t> inputSizes{inputTy.getSizes()};
+        if (inputSizes.size() != 4) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Expected input rank to be 4");
+        }
+
+        Value b = rewriter.create<Torch::AtenSizeIntOp>(
+            binder.getLoc(), input,
+            rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(0)));
+        Value c = rewriter.create<Torch::AtenSizeIntOp>(
+            binder.getLoc(), input,
+            rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(1)));
+        Value h = rewriter.create<Torch::AtenSizeIntOp>(
+            binder.getLoc(), input,
+            rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(2)));
+        Value w = rewriter.create<Torch::AtenSizeIntOp>(
+            binder.getLoc(), input,
+            rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(3)));
+        Value cstBlockSize = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(blockSize));
+        Value cstBlockSizeSquare = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(blockSize * blockSize));
+        Value hDivBlockSize = rewriter.create<Torch::AtenDivIntOp>(
+            binder.getLoc(), h, cstBlockSize);
+        Value wDivBlockSize = rewriter.create<Torch::AtenDivIntOp>(
+            binder.getLoc(), w, cstBlockSize);
+        hDivBlockSize = rewriter.create<Torch::AtenIntFloatOp>(binder.getLoc(),
+                                                               hDivBlockSize);
+        wDivBlockSize = rewriter.create<Torch::AtenIntFloatOp>(binder.getLoc(),
+                                                               wDivBlockSize);
+
+        // The implementation is as follows:
+        // tmp = np.reshape(
+        //     x, [b, c, h // blocksize, blocksize, w // blocksize, blocksize]
+        // )
+        // tmp = np.transpose(tmp, [0, 3, 5, 1, 2, 4])
+        // y = np.reshape(tmp, [b, c * (blocksize**2), h // blocksize, w //
+        // blocksize])
+        Value reshapeSizesList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(input.getContext())),
+            llvm::SmallVector<Value>{b, c, hDivBlockSize, cstBlockSize,
+                                     wDivBlockSize, cstBlockSize});
+        int64_t hDivBlockSizeInt = inputSizes[2] == Torch::kUnknownSize
+                                       ? Torch::kUnknownSize
+                                       : inputSizes[2] / blockSize;
+        int64_t wDivBlockSizeInt = inputSizes[3] == Torch::kUnknownSize
+                                       ? Torch::kUnknownSize
+                                       : inputSizes[3] / blockSize;
+        SmallVector<int64_t, 6> reshapeSizesInt{inputSizes[0],    inputSizes[1],
+                                                hDivBlockSizeInt, blockSize,
+                                                wDivBlockSizeInt, blockSize};
+        Value reshapedInput = rewriter.create<Torch::AtenReshapeOp>(
+            binder.getLoc(),
+            inputTy.getWithSizesAndDtype(reshapeSizesInt,
+                                         inputTy.getOptionalDtype()),
+            input, reshapeSizesList);
+
+        Value transposedInput;
+        if (failed(createTorchTransposeOp(
+                rewriter, binder.getLoc(), reshapedInput,
+                /*dimA=*/1, /*dimB=*/3, transposedInput)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to create TorchTranspose op");
+        if (failed(createTorchTransposeOp(
+                rewriter, binder.getLoc(), transposedInput,
+                /*dimA=*/2, /*dimB=*/5, transposedInput)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to create TorchTranspose op");
+        if (failed(createTorchTransposeOp(
+                rewriter, binder.getLoc(), transposedInput,
+                /*dimA=*/4, /*dimB=*/5, transposedInput)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to create TorchTranspose op");
+
+        Value cMulBlockSizeSquare = rewriter.create<Torch::AtenMulIntOp>(
+            binder.getLoc(), c, cstBlockSizeSquare);
+        reshapeSizesList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(input.getContext())),
+            llvm::SmallVector<Value>{b, cMulBlockSizeSquare, hDivBlockSize,
+                                     wDivBlockSize});
+        rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(
+            binder.op, resultType, transposedInput, reshapeSizesList);
+        return success();
+      });
 }

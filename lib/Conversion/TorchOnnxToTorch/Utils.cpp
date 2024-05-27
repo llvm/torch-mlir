@@ -97,3 +97,19 @@ mlir::torch::onnx_c::onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
 
   return dtypeIntTorch;
 }
+
+LogicalResult mlir::torch::onnx_c::createTorchTransposeOp(
+    ConversionPatternRewriter &rewriter, Location loc, Value input,
+    int64_t dimA, int64_t dimB, Value &transposed) {
+  Type transposedType;
+  if (failed(getTransposedType(cast<Torch::BaseTensorType>(input.getType()),
+                               dimA, dimB, transposedType)))
+    return failure();
+  Value cstDimA = rewriter.create<Torch::ConstantIntOp>(
+      loc, rewriter.getI64IntegerAttr(dimA));
+  Value cstDimB = rewriter.create<Torch::ConstantIntOp>(
+      loc, rewriter.getI64IntegerAttr(dimB));
+  transposed = rewriter.create<Torch::AtenTransposeIntOp>(
+      loc, transposedType, input, cstDimA, cstDimB);
+  return success();
+}

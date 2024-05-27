@@ -18,23 +18,6 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
 
-static LogicalResult createTorchTransposeOp(ConversionPatternRewriter &rewriter,
-                                            Location loc, Value input,
-                                            int64_t dimA, int64_t dimB,
-                                            Value &transposed) {
-  Type transposedType;
-  if (failed(getTransposedType(cast<Torch::BaseTensorType>(input.getType()),
-                               dimA, dimB, transposedType)))
-    return failure();
-  Value cstDimA = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getI64IntegerAttr(dimA));
-  Value cstDimB = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getI64IntegerAttr(dimB));
-  transposed = rewriter.create<Torch::AtenTransposeIntOp>(
-      loc, transposedType, input, cstDimA, cstDimB);
-  return success();
-}
-
 namespace {
 LogicalResult windowFunctionImpl(OpBinder binder,
                                  ConversionPatternRewriter &rewriter,
