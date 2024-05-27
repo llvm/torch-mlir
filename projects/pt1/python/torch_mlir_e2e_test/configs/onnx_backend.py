@@ -89,12 +89,22 @@ def _module_lowering(
     output_type,
     torch_mod,
 ):
+    if verbose:
+        print("\n====================")
+        print("ONNX RAW IR")
+        print(torch_mod)
+
     # Lower from ONNX to Torch
     run_pipeline_with_repro_report(
         torch_mod,
         f"builtin.module(func.func({ONNX_TO_TORCH_FUNC_PIPELINE}))",
         "Lowering Onnx backend contract to Linalg-on-Tensors backend contract",
     )
+
+    if verbose:
+        print("\n====================")
+        print("TorchFX IR")
+        print(torch_mod)
 
     backend_legal_ops = [
         "aten.flatten.using_ints",

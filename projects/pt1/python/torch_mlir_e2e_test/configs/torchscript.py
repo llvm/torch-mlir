@@ -17,7 +17,9 @@ class TorchScriptTestConfig(TestConfig):
     def __init__(self):
         super().__init__()
 
-    def compile(self, program: torch.nn.Module) -> torch.jit.ScriptModule:
+    def compile(
+        self, program: torch.nn.Module, verbose: bool = False
+    ) -> torch.jit.ScriptModule:
         return torch.jit.script(program)
 
     def run(self, artifact: torch.jit.ScriptModule, trace: Trace) -> Trace:

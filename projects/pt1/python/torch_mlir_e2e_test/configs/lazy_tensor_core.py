@@ -22,7 +22,9 @@ class LazyTensorCoreTestConfig(TestConfig):
         super().__init__()
         lazy_backend._initialize()
 
-    def compile(self, program: torch.nn.Module) -> torch.nn.Module:
+    def compile(
+        self, program: torch.nn.Module, verbose: bool = False
+    ) -> torch.nn.Module:
         return program.to("lazy")
 
     def run(self, artifact: torch.nn.Module, trace: Trace) -> Trace:
