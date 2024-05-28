@@ -2786,16 +2786,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 coordTfMode, "coordinate_transformation_mode", "half_pixel") ||
             binder.customOpNameStringAttr(nearest_mode, "nearest_mode", ""))
           return failure();
-
+        if (coordTfMode == "tf_crop_and_resize")
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: coordinate transformation mode: "
+                         "tf_crop_and_resize");
         if (mode == "nearest" && nearest_mode != "floor") {
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: support not present for nearest_mode "
                          "except floor");
         }
-        if (coordTfMode == "half_pixel_symmetric" ||
-            coordTfMode == "asymmetric" || coordTfMode == "tf_crop_and_resize")
-          return rewriter.notifyMatchFailure(
-              binder.op, "unimplemented coordinate transformation mode.");
+        unsigned rank = dyn_cast<Torch::ValueTensorType>(operands[0].getType())
+                            .getSizes()
+                            .size();
 
         Value zero = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
@@ -2857,36 +2859,54 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value sizesValueList = noneVal;
         Value alignCorners =
             coordTfMode == "align_corners" ? cstTrue : cstFalse;
-
         if (mode == "cubic") {
           return rewriter.notifyMatchFailure(binder.op,
                                              "unimplemented: bicubic mode");
         }
+        // supported modes:
+        // bilinear (half_pixel), bilinear with align_corners,
+        // bilinear_pytorch_half_pixel, bilinear_asymmetric nearest
+        // (asymmetric), nearest with align_corners, nearest_half_pixel,
+        // nearest_pytorch_half_pixel
         if (mode == "linear") {
-          modeStrValue = rewriter.create<Torch::ConstantStrOp>(binder.getLoc(),
-                                                               "bilinear");
-          if (operands.size() < 4) {
-            Value scaleOperand = operands[2];
-            scalesValueList = getValueList(scaleOperand);
-            sizesValueList = noneVal;
-          } else {
-            Value sizeOperand = operands[3];
-            scalesValueList = noneVal;
-            sizesValueList = getValueList(sizeOperand);
+          std::string modeStr;
+          switch (rank) {
+          case 3:
+            modeStr = "linear";
+            break;
+          case 4:
+            modeStr = "bilinear";
+            break;
+          case 5:
+            modeStr = "trilinear";
+            break;
+          default:
+            return failure();
           }
+          // Confusingly enough, the default coordTfMode for pytorch bilinear
+          // mode is apparently half_pixel, NOT pytorch_half_pixel
+          if (coordTfMode != "half_pixel" && coordTfMode != "align_corners")
+            modeStr = (modeStr + "_") + coordTfMode;
+          modeStrValue = rewriter.create<Torch::ConstantStrOp>(binder.getLoc(),
+                                                               modeStr);
         }
         if (mode == "nearest") {
+          std::string modeStr = "nearest";
+          // The default coordTfMode for pytorch with mode = nearest is
+          // apparently asymmetric
+          if (coordTfMode != "asymmetric" && coordTfMode != "align_corners")
+            modeStr = (modeStr + "_") + coordTfMode;
           modeStrValue =
-              rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), "nearest");
-          if (operands.size() < 4) {
-            Value scaleOperand = operands[2];
-            scalesValueList = getValueList(scaleOperand);
-            sizesValueList = noneVal;
-          } else {
-            Value sizesOperand = operands[3];
-            scalesValueList = noneVal;
-            sizesValueList = getValueList(sizesOperand);
-          }
+              rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), modeStr);
+        }
+        if (operands.size() < 4) {
+          Value scaleOperand = operands[2];
+          scalesValueList = getValueList(scaleOperand);
+          sizesValueList = noneVal;
+        } else {
+          Value sizeOperand = operands[3];
+          scalesValueList = noneVal;
+          sizesValueList = getValueList(sizeOperand);
         }
         if (scalesValueList.getType().isa<Torch::NoneType>() &&
             sizesValueList.getType().isa<Torch::NoneType>()) {
