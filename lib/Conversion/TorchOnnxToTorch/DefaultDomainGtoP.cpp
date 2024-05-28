@@ -609,6 +609,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                         binder.op, "unimplemented: support not present for seed attribute");
                   }
 
+                  if(sample_size <= 0) {
+                    return rewriter.notifyMatchFailure(
+                        binder.op, "unsupported: sample_size <= 0");
+                  }
+
                   std::optional<int64_t> torch_dtype = onnxDtypeIntToTorchDtypeInt(onnx_dtype);
                   if(!torch_dtype.has_value()) {
                     return rewriter.notifyMatchFailure(binder.op, "unimplemented support for the given dtype conversion");
@@ -622,6 +627,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   // Sample with replacement by default (no onnx equivalent in arguments)
                   Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), rewriter.getBoolAttr(true));
 
+                  // Torch Multinomial always produces a LongTensor
                   Torch::ValueTensorType selfType = cast<Torch::ValueTensorType>(self.getType());
                   Type int64 = IntegerType::get(selfType.getContext(), 64,
                                                 IntegerType::Signed);
