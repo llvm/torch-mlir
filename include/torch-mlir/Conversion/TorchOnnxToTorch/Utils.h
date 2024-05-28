@@ -35,10 +35,6 @@ namespace mlir::torch::onnx_c {
 Value createConstantIntList(OpBinder binder,
                             ConversionPatternRewriter &rewriter,
                             SmallVector<int64_t> cstInput);
-Value packValueIntoTensor(OpBinder binder, 
-                          ConversionPatternRewriter &rewriter,
-                          Value value,
-                          const Value& noneVal);
 Type getQTorchTypeFromTorchIntType(Type ty);
 
 template <typename T>

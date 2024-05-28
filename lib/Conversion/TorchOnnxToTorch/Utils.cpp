@@ -28,28 +28,6 @@ Value mlir::torch::onnx_c::createConstantIntList(
       cstValue);
 }
 
-Value mlir::torch::onnx_c::packValueIntoTensor(
-    OpBinder binder, ConversionPatternRewriter &rewriter,
-    Value value, const Value& noneVal) {
-  auto valueTy = rewriter.getIntegerType(64, true);
-  ArrayRef<int64_t> tensorShape = {};
-  ArrayRef<int64_t> tensorPackedShape = {1};
-  auto tensorTy = rewriter.getType<Torch::ValueTensorType>(
-      tensorShape, valueTy);
-  
-  Value constBool = rewriter.create<Torch::ConstantBoolOp>(
-      binder.getLoc(), rewriter.getBoolAttr(true));
-
-  Value valueTensor = rewriter.create<Torch::AtenTensorIntOp>(
-      binder.getLoc(), tensorTy, value, noneVal, noneVal, constBool);
-  
-  SmallVector<Value> tensorVec = {valueTensor};
-  return rewriter.create<Torch::PrimListConstructOp>(
-      binder.getLoc(),
-      Torch::ListType::get(tensorTy),
-      tensorVec);
-}
-
 Type mlir::torch::onnx_c::getQTorchTypeFromTorchIntType(Type ty) {
   Torch::ValueTensorType tty = dyn_cast<Torch::ValueTensorType>(ty);
   if (!tty)

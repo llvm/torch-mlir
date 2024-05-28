@@ -677,18 +677,16 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           
           auto roiSpecTy = rewriter.getType<Torch::ValueTensorType>(
               roisTy.getSizes().slice(1), intValueTy);
-          Value roiSpec = rewriter.create<Torch::AtenIndexTensorOp>(
-              loc, roiSpecTy, roisInt, 
-              packValueIntoTensor(binder, rewriter, roiIdx, noneVal));
+          Value roiSpec = rewriter.create<Torch::AtenSelectIntOp>(
+              loc, roiSpecTy, roisInt, constInts[0], roiIdx);
 
           SmallVector<Value> roiValues(5);
           for (int specIdx = 0; specIdx < 5; specIdx++) {
             auto intTensorZeroRankTy =  rewriter.getType<Torch::ValueTensorType>(
                 ArrayRef<int64_t>(), intValueTy);
-            Value specTensor = rewriter.create<Torch::AtenIndexTensorOp>(
-                loc, intTensorZeroRankTy, roiSpec, 
-                packValueIntoTensor(binder, rewriter, constInts[specIdx], noneVal));
-            Value specValue = rewriter.create<Torch::AtenIntTensorOp>(
+            Value specTensor = rewriter.create<Torch::AtenSelectIntOp>(
+                loc, intTensorZeroRankTy, roiSpec, constInts[0], constInts[specIdx]);
+            Value specValue = rewriter.create<Torch::AtenItemOp>(
                 loc, torchIntValueTy, specTensor);
             roiValues[specIdx] = specValue;
           }
@@ -699,13 +697,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           auto imageTy = rewriter.getType<Torch::ValueTensorType>(
               inputShape.slice(1), inputTy.getDtype());
 
-          Value image = rewriter.create<Torch::AtenIndexTensorOp>(
-              loc, imageTy, input, 
-              packValueIntoTensor(binder, rewriter, batchIdx, noneVal)); // (NC x H x W)
+          Value image = rewriter.create<Torch::AtenSelectIntOp>(
+              loc, imageTy, input, constInts[0], batchIdx); // (NC x H x W)
 
           SmallVector<int64_t> imageUnknownShape(imageTy.getSizes());
-          imageUnknownShape[imageUnknownShape.size()-1] = Torch::kUnknownSize;
-          imageUnknownShape[imageUnknownShape.size()-2] = Torch::kUnknownSize;
+          imageUnknownShape[inputRank-2] = Torch::kUnknownSize;
+          imageUnknownShape[inputRank-3] = Torch::kUnknownSize;
           auto imageUnknownTy = rewriter.getType<Torch::ValueTensorType>(
               imageUnknownShape, imageTy.getDtype());
           
@@ -715,22 +712,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               loc, imageUnknownTy, imageExtractedY, constInts[2], roiX1, roiX2, constInts[1]);
 
           SmallVector<int64_t> pooledRegionShape(imageTy.getSizes());
-          pooledRegionShape[pooledRegionShape.size()-1] = pooledShape[0];
-          pooledRegionShape[pooledRegionShape.size()-2] = pooledShape[1];
+          pooledRegionShape[inputRank-2] = pooledShape[1];
+          pooledRegionShape[inputRank-3] = pooledShape[0];
           auto pooledRegionTy = rewriter.getType<Torch::ValueTensorType>(
               pooledRegionShape, imageTy.getDtype());
           auto pooledRegionIndicesTy = rewriter.getType<Torch::ValueTensorType>(
               pooledRegionShape, intValueTy);
           Value pooledRegion = rewriter.create<Torch::AtenAdaptiveMaxPool2dOp>(
               loc, pooledRegionTy, pooledRegionIndicesTy, region, outputShapeList).getResult0();
-          
-          // SmallVector<int64_t> pooledRegionPaddedShape(pooledRegionShape);
-          // pooledRegionPaddedShape.insert(pooledRegionPaddedShape.begin(), 1);
-          // auto pooledRegionPaddedTy = rewriter.getType<Torch::ValueTensorType>(
-          //     pooledRegionPaddedShape, imageTy.getDtype());
-          // Value pooledRegionPadded = rewriter.create<Torch::AtenUnsqueezeOp>(
-          //     loc, pooledRegionPaddedTy, pooledRegion, constInts[0]);
-
           pooledRois.push_back(pooledRegion);
         }
 
