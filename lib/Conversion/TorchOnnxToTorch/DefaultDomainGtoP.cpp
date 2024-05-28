@@ -620,7 +620,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         float spatialScale;
         if (binder.s64IntegerArrayAttr(pooledShape, "pooled_shape", {}))
           return rewriter.notifyMatchFailure(binder.op, "pooled_shape bind failure");
-        if (binder.f32FloatAttr(spatialScale, "spatial_scale", 0))
+        if (binder.f32FloatAttr(spatialScale, "spatial_scale", 1.0f))
           return rewriter.notifyMatchFailure(binder.op, "spatial_scale bind failure");
 
         Value outputShapeList = createConstantIntList(binder, rewriter, pooledShape);
@@ -640,16 +640,19 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return failure();
         if (!roisFloatTy || !roisFloatTy.hasSizes())
           return failure();
-        
+
         auto intValueTy = rewriter.getIntegerType(64, true);
         auto torchIntValueTy = rewriter.getType<Torch::IntType>();
+        auto torchFloatScalarTy = rewriter.getType<Torch::FloatType>();
+
+        Value spatialScalar = rewriter.create<Torch::ConstantFloatOp>(
+            loc, torchFloatScalarTy, rewriter.getF64FloatAttr(spatialScale));
 
         Value constBool = rewriter.create<Torch::ConstantBoolOp>(
             loc, rewriter.getBoolAttr(true));
         
-        auto roisTy = rewriter.getType<Torch::ValueTensorType>(roisFloatTy.getSizes(), intValueTy);
-        Value roisInt = rewriter.create<Torch::Aten_CastLongOp>(
-            loc, roisTy, rois, constBool);
+        auto roisTy = rewriter.getType<Torch::ValueTensorType>(
+            roisFloatTy.getSizes(), rewriter.getF32Type());
         
         ArrayRef<int64_t> inputShape = inputTy.getSizes();
         int64_t inputRank = inputShape.size();
@@ -661,31 +664,60 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(binder.op, "Expected ROIs to be tensor of rank 2: (num_rois, 5)");
         int64_t numRois = roisShape[0];
         
-        SmallVector<Value> constInts(5);
-        for (int i = 0; i < 5; i++) {
+        SmallVector<Value> constInts(6);
+        for (int i = 0; i <= 5; i++) {
           constInts[i] = rewriter.create<Torch::ConstantIntOp>(
               loc, rewriter.getI64IntegerAttr(i));
         }
 
         SmallVector<Value> pooledRois;
 
-        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        // prepare batch indices
+        auto batchIdxsShape = SmallVector<int64_t>{Torch::kUnknownSize};
+        auto batchIdxsFloatTy = rewriter.getType<Torch::ValueTensorType>(
+            batchIdxsShape, rewriter.getF32Type());
+        Value batchIdxsFloat = rewriter.create<Torch::AtenSelectIntOp>(
+            loc, batchIdxsFloatTy, rois, constInts[1], constInts[0]);
+        auto batchIdxsIntTy = rewriter.getType<Torch::ValueTensorType>(
+            batchIdxsShape, intValueTy);
+        Value batchIdxs = rewriter.create<Torch::Aten_CastLongOp>(
+            loc, batchIdxsIntTy, batchIdxsFloat, constBool);
+        
+        // prepare regions of interest
+        auto roiBBsShape = SmallVector<int64_t>{Torch::kUnknownSize, 4};
+        auto roiBBsFloatTy = rewriter.getType<Torch::ValueTensorType>(
+            roiBBsShape, rewriter.getF32Type());
+        Value roiBBs = rewriter.create<Torch::AtenSliceTensorOp>(
+            loc, roiBBsFloatTy, rois, constInts[1], constInts[1], constInts[5], constInts[1]);
+        Value roiBBsScaledFloat = rewriter.create<Torch::AtenMulScalarOp>(
+            loc, roiBBsFloatTy, roiBBs, spatialScalar);
+        auto roiBBsTy = rewriter.getType<Torch::ValueTensorType>(
+            roiBBsShape, intValueTy);
+        Value roiBBsScaled = rewriter.create<Torch::Aten_CastLongOp>(
+            loc, roiBBsTy, roiBBsScaledFloat, constBool);
 
         for (int64_t i = 0; i < numRois; i++) {
           Value roiIdx = rewriter.create<Torch::ConstantIntOp>(
               loc, rewriter.getI64IntegerAttr(i));
           
           auto roiSpecTy = rewriter.getType<Torch::ValueTensorType>(
-              roisTy.getSizes().slice(1), intValueTy);
+              roiBBsTy.getSizes().slice(1), intValueTy);
           Value roiSpec = rewriter.create<Torch::AtenSelectIntOp>(
-              loc, roiSpecTy, roisInt, constInts[0], roiIdx);
+              loc, roiSpecTy, roiBBsScaled, constInts[0], roiIdx);
 
           SmallVector<Value> roiValues(5);
           for (int specIdx = 0; specIdx < 5; specIdx++) {
             auto intTensorZeroRankTy =  rewriter.getType<Torch::ValueTensorType>(
-                ArrayRef<int64_t>(), intValueTy);
-            Value specTensor = rewriter.create<Torch::AtenSelectIntOp>(
-                loc, intTensorZeroRankTy, roiSpec, constInts[0], constInts[specIdx]);
+                SmallVector<int64_t>{}, intValueTy);
+            Value specTensor;
+            if (specIdx == 0) { // batch index
+              specTensor = rewriter.create<Torch::AtenSelectIntOp>(
+                loc, intTensorZeroRankTy, batchIdxs, constInts[0], roiIdx);
+            } else { // roi dimension
+              specTensor = rewriter.create<Torch::AtenSelectIntOp>(
+                loc, intTensorZeroRankTy, roiSpec, constInts[0], constInts[specIdx-1]);
+            }
+
             Value specValue = rewriter.create<Torch::AtenItemOp>(
                 loc, torchIntValueTy, specTensor);
             roiValues[specIdx] = specValue;
@@ -694,15 +726,23 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                 roiX1 = roiValues[1], roiY1 = roiValues[2], 
                 roiX2 = roiValues[3], roiY2 = roiValues[4];
           
+          // add 1 to end indicators to be inclusive
+          roiX2 = rewriter.create<Torch::AtenAddOp>(
+              loc, torchIntValueTy, roiX2, constInts[1]);
+          roiY2 = rewriter.create<Torch::AtenAddOp>(
+              loc, torchIntValueTy, roiY2, constInts[1]);
+          
           auto imageTy = rewriter.getType<Torch::ValueTensorType>(
               inputShape.slice(1), inputTy.getDtype());
 
           Value image = rewriter.create<Torch::AtenSelectIntOp>(
               loc, imageTy, input, constInts[0], batchIdx); // (NC x H x W)
 
+          int64_t widthDim = inputRank-2, heightDim = inputRank-3;
+
           SmallVector<int64_t> imageUnknownShape(imageTy.getSizes());
-          imageUnknownShape[inputRank-2] = Torch::kUnknownSize;
-          imageUnknownShape[inputRank-3] = Torch::kUnknownSize;
+          imageUnknownShape[heightDim] = Torch::kUnknownSize;
+          imageUnknownShape[widthDim] = Torch::kUnknownSize;
           auto imageUnknownTy = rewriter.getType<Torch::ValueTensorType>(
               imageUnknownShape, imageTy.getDtype());
           
@@ -712,8 +752,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               loc, imageUnknownTy, imageExtractedY, constInts[2], roiX1, roiX2, constInts[1]);
 
           SmallVector<int64_t> pooledRegionShape(imageTy.getSizes());
-          pooledRegionShape[inputRank-2] = pooledShape[1];
-          pooledRegionShape[inputRank-3] = pooledShape[0];
+          pooledRegionShape[heightDim] = pooledShape[0];
+          pooledRegionShape[widthDim] = pooledShape[1];
           auto pooledRegionTy = rewriter.getType<Torch::ValueTensorType>(
               pooledRegionShape, imageTy.getDtype());
           auto pooledRegionIndicesTy = rewriter.getType<Torch::ValueTensorType>(
