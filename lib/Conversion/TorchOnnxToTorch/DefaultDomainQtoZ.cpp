@@ -2887,8 +2887,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           // mode is apparently half_pixel, NOT pytorch_half_pixel
           if (coordTfMode != "half_pixel" && coordTfMode != "align_corners")
             modeStr = (modeStr + "_") + coordTfMode;
-          modeStrValue = rewriter.create<Torch::ConstantStrOp>(binder.getLoc(),
-                                                               modeStr);
+          modeStrValue =
+              rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), modeStr);
         }
         if (mode == "nearest") {
           std::string modeStr = "nearest";

@@ -2675,7 +2675,8 @@ public:
 static Value NearestInterpolate(OpBuilder &b, Location loc,
                                 SmallVector<Value> outputSizes, Value input,
                                 SmallVector<Value> inputSizes,
-                                SmallVector<Value> scaleValues, std::string coordStr) {
+                                SmallVector<Value> scaleValues,
+                                std::string coordStr) {
 
   auto inputType = input.getType().cast<RankedTensorType>();
   auto inputRank = inputType.getRank();
@@ -2724,7 +2725,8 @@ static Value BilinearInterpolate(OpBuilder &b,
                                  Aten__InterpolateSizeListScaleListOp op,
                                  Location loc, SmallVector<Value> outputSizes,
                                  Value input, SmallVector<Value> inputSizes,
-                                 SmallVector<Value> scaleValues, std::string coordStr) {
+                                 SmallVector<Value> scaleValues,
+                                 std::string coordStr) {
   unsigned dimOffset = 2;
   auto inputType = input.getType().cast<RankedTensorType>();
   auto inputRank = inputType.getRank();
@@ -2867,9 +2869,12 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
 
     std::string mode;
-    // note: to support onnx.Resize, we are passing some extra options through the mode attribute. For example, onnx.Resize with mode="linear" and coordinate_transformation_mode="asymmetric" will lower to an interpolate op with the non-standard mode="bilinear_asymmetric".
+    // note: to support onnx.Resize, we are passing some extra options through
+    // the mode attribute. For example, onnx.Resize with mode="linear" and
+    // coordinate_transformation_mode="asymmetric" will lower to an interpolate
+    // op with the non-standard mode="bilinear_asymmetric".
     matchPattern(op.getMode(), m_TorchConstantStr(mode));
-    if (mode.substr(0, 8) != "bilinear" && mode.substr(0,7) != "nearest") {
+    if (mode.substr(0, 8) != "bilinear" && mode.substr(0, 7) != "nearest") {
       return failure();
     }
 
@@ -2906,10 +2911,10 @@ public:
       for (unsigned i = 0; i < inputRank - 2; i++) {
         Value inputSizeFP = rewriter.create<arith::SIToFPOp>(
             loc, rewriter.getF32Type(), inputSizes[i]);
-        ScaleFactorFloatValues[i] =
-            rewriter.create<arith::TruncFOp>(loc, inputSizeFP.getType(), ScaleFactorFloatValues[i]);
-        Value outputSize =
-            rewriter.create<arith::MulFOp>(loc, inputSizeFP, ScaleFactorFloatValues[i]);
+        ScaleFactorFloatValues[i] = rewriter.create<arith::TruncFOp>(
+            loc, inputSizeFP.getType(), ScaleFactorFloatValues[i]);
+        Value outputSize = rewriter.create<arith::MulFOp>(
+            loc, inputSizeFP, ScaleFactorFloatValues[i]);
         outputSize = rewriter.create<math::FloorOp>(loc, outputSize);
         outputSize = rewriter.create<arith::FPToSIOp>(
             loc, rewriter.getI64Type(), outputSize);
@@ -2936,27 +2941,26 @@ public:
     AffineMap idMap = rewriter.getMultiDimIdentityMap(inputRank);
     SmallVector<utils::IteratorType> iteratorTypes(
         inputRank, utils::IteratorType::parallel);
-    Value finalRes = rewriter
-                         .create<linalg::GenericOp>(
-                             loc, outTensor.getType(), ValueRange{}, outTensor,
-                             /*indexingMaps=*/idMap,
-                             /*iteratorTypes=*/iteratorTypes,
-                             [&](OpBuilder &b, Location loc, ValueRange args) {
-                               Value retVal;
-                               if (mode.substr(0,7) == "nearest") {
-                                 retVal = NearestInterpolate(
-                                     b, loc, outputSizeIntValues, input,
-                                     inputSizes, ScaleFactorFloatValues,
-                                     mode.substr(7));
-                               } else if (mode.substr(0, 8) == "bilinear") {
-                                 retVal = BilinearInterpolate(
-                                     b, op, loc, outputSizeIntValues, input,
-                                     inputSizes, ScaleFactorFloatValues,
-                                     mode.substr(8));
-                               }
-                               b.create<linalg::YieldOp>(loc, retVal);
-                             })
-                         .getResult(0);
+    Value finalRes =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, outTensor.getType(), ValueRange{}, outTensor,
+                /*indexingMaps=*/idMap,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value retVal;
+                  if (mode.substr(0, 7) == "nearest") {
+                    retVal = NearestInterpolate(
+                        b, loc, outputSizeIntValues, input, inputSizes,
+                        ScaleFactorFloatValues, mode.substr(7));
+                  } else if (mode.substr(0, 8) == "bilinear") {
+                    retVal = BilinearInterpolate(
+                        b, op, loc, outputSizeIntValues, input, inputSizes,
+                        ScaleFactorFloatValues, mode.substr(8));
+                  }
+                  b.create<linalg::YieldOp>(loc, retVal);
+                })
+            .getResult(0);
     Type newResultType =
         getTypeConverter()->convertType(op.getResult().getType());
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, finalRes);
