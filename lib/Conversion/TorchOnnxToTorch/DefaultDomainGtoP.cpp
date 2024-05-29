@@ -672,12 +672,74 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.op, "Expected ROIs to be tensor of rank 2: (num_rois, 5)");
         }
         int64_t numRois = roisShape[0];
+
+        /* The implementation is based on the following algorithm:
+          MaxRoiPool <pooled_shape, spatial_scale>(
+              input : tensor<float>, rois : tensor<?x5xfloat>) => (output)
+          {
+            * Step 1: Extract ROI specification
+              - Each ROI is represented as [batch_id, x1, y1, x2, y2], where 
+                range is inclusive of x1, y1, x2, and y2
+              - The range values are scaled by spatial_scale
+            
+            BatchIdxsFloat = Select(rois, dim=1, index=0)
+            BatchIdxs = CastLong(BatchIdxsFloat)
+            RoiBBsFloat = Slice(rois, dim=1, start=1, end=5, stride=1)
+            RoiBBsScaledFloat = MulScalar(RoiBBsFloat, spatial_scale)
+            RoiBBsScaled = CastLong(RoiBBsScaledFloat)
+
+            * Step 2: Iteratively pool ROIs
+            pooledROIs = []
+            for (roiIdx = 0; roiIdx < len(rois); roiIdx++) {
+              * Step 2a: For each ROI, we extract batch_id, x1, y1, x2, & y2
+              RoiSpec = Select(RoiBBsScaled, 0, roiIdx) : tensor<4xint>
+              roiValues = []
+              for (specIdx = 0; specIdx < 5; specIdx++) {
+                if (specIdx == 0)
+                  SpecTensor = Select(BatchIdxs, 1, roiIdx) : tensor<int>
+                else
+                  SpecTensor = Select(RoiSpec, 0, specIdx-1) : tensor<int>
+                SpecValue = Item(specTensor) : torch.int
+                roiValues.push(SpecValue)
+              }
+              BatchIdx, X1, Y1, X2, Y2 = roiValues
+
+              * Step 2b: extract image from input and extract region
+                - X2 and Y2 are incremented by 1 to make range inclusive
+                - width and height dimension are calculated once outside of loop
+                  but intuition is expressed more clearly below
+              
+              image = Select(input, 0, BatchIdx)
+              widthDim = rank(image) - 1
+              heightDim = rank(image) - 2
+
+              imageExtractedY = Slice(image, heightDim, Y1, Y2 + 1, 1)
+              region = Slice(image, widthDim, X1, X2 + 1, 1)
+
+              * Step 2c: apply adaptive max pooling to pool region of interest
+                         into final pooled size
+              pooledROI = AdaptiveMaxPool2d(region, pooled_shape)
+              pooledROIs.push(pooledROI)
+            }
+
+            * Step 3: Stack pooled regions and return final output
+            return output = Stack(pooledRois, dim=0)
+          }
+        */
         
         SmallVector<Value> constInts(6);
         for (int i = 0; i <= 5; i++) {
           constInts[i] = rewriter.create<Torch::ConstantIntOp>(
               loc, rewriter.getI64IntegerAttr(i));
         }
+
+        int64_t widthDim = inputRank-2;
+        Value widthDimValue = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(widthDim));
+        
+        int64_t heightDim = inputRank-3;
+        Value heightDimValue = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(heightDim));
 
         // extract indices of images within batch
         auto batchIdxsShape = SmallVector<int64_t>{Torch::kUnknownSize};
@@ -747,8 +809,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               inputShape.slice(1), inputTy.getDtype());
           Value image = rewriter.create<Torch::AtenSelectIntOp>(
               loc, imageTy, input, constInts[0], batchIdx); // (NC x H x W)
-
-          int64_t widthDim = inputRank-2, heightDim = inputRank-3;
           
           SmallVector<int64_t> imageUnknownShape(imageTy.getSizes());
           imageUnknownShape[heightDim] = Torch::kUnknownSize;
@@ -758,10 +818,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           
           // extract ROI from image
           Value imageExtractedY = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, imageUnknownTy, image, constInts[1], roiY1, roiY2, 
+              loc, imageUnknownTy, image, heightDimValue, roiY1, roiY2, 
               constInts[1]);
           Value region = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, imageUnknownTy, imageExtractedY, constInts[2], roiX1, roiX2, 
+              loc, imageUnknownTy, imageExtractedY, widthDimValue, roiX1, roiX2, 
               constInts[1]);
 
           SmallVector<int64_t> pooledRegionShape(imageTy.getSizes());
