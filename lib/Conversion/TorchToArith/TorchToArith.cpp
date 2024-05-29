@@ -25,6 +25,9 @@
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
+// for llvm::dbgs
+#include "llvm/Support/Debug.h"
+
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;

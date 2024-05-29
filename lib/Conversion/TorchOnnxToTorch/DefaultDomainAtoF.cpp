@@ -911,12 +911,11 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           ElementsAttr denseAttr;
           auto ptr = attr.getRawHandle().getBlob();
           if (!ptr) {
-            denseAttr =
-                DenseElementsAttr::getElided(ty); // this doesn't exist...
-            // figure out how to get dense_resource<__elided__> without
-            // ASMPrinter????
+            auto elidedAttr = DenseResourceElementsAttr::get(
+                ty, "__onnx_constant_not_found_and_may_be_elided__",
+                AsmResourceBlob());
             rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
-                binder.op, resultType, denseAttr);
+                binder.op, resultType, elidedAttr);
             return success();
           }
           auto data = ptr->getData();
