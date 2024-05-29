@@ -2083,9 +2083,20 @@ public:
     Value p = op.getP();
     Value maxnorm = op.getMaxnorm();
 
+    // Prepare all necessary variables
     auto ndim = getTensorRank(self);
     auto resType = cast<BaseTensorType>(self.getType());
+
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+
     Type dtype = resType.getDtype();
+    if (isa<mlir::ComplexType>(dtype)) {
+      return rewriter.notifyMatchFailure(
+          op, "lowering of aten.renorm for complex inputs dtype is "
+              "currently unimplemented");
+    }
 
     ArrayRef<int64_t> inputSizeArrayRef = resType.getSizes();
     SmallVector<int64_t> inputSize;

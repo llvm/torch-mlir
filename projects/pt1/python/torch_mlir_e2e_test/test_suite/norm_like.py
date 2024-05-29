@@ -639,15 +639,15 @@ def AtenInstanceNormModule_basic(module, tu: TestUtils):
 class RenormModuleFloat32(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.p = 2.0
-        self.dim = 3
+        self.p = 2
+        self.dim = 1
         self.maxnorm = 10
 
     @export
     @annotate_args(
         [
             None,
-            ([3, 3, 4, 5], torch.float32, True),
+            ([3, 3], torch.float32, True),
         ]
     )
     def forward(self, x):
@@ -656,21 +656,21 @@ class RenormModuleFloat32(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: RenormModuleFloat32())
 def RenormModuleFloat32_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 3, 4, 5))
+    module.forward(tu.rand(3, 3))
 
 
 class RenormModuleFloat16(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.p = 2.0
+        self.p = 2.1
         self.dim = 1
-        self.maxnorm = 10.5
+        self.maxnorm = 10
 
     @export
     @annotate_args(
         [
             None,
-            ([3, 3, 4, 5], torch.float16, True),
+            ([3, 4, 5], torch.float16, True),
         ]
     )
     def forward(self, x):
@@ -679,21 +679,21 @@ class RenormModuleFloat16(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: RenormModuleFloat16())
 def RenormModuleFloat16_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 3, 4, 5).to(torch.float16))
+    module.forward(tu.rand(3, 4, 5).to(torch.float16))
 
 
 class RenormModuleFloat32NegativeDim(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.p = 2.0
+        self.p = 2.3
         self.dim = -1
-        self.maxnorm = 10
+        self.maxnorm = 5.2
 
     @export
     @annotate_args(
         [
             None,
-            ([3, 3, 4, 5], torch.float32, True),
+            ([1, 4, 5, 2], torch.float32, True),
         ]
     )
     def forward(self, x):
@@ -702,4 +702,4 @@ class RenormModuleFloat32NegativeDim(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: RenormModuleFloat32NegativeDim())
 def RenormModuleFloat32NegativeDim_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 3, 4, 5).to(torch.float32))
+    module.forward(tu.rand(1, 4, 5, 2).to(torch.float32))

@@ -4662,13 +4662,14 @@ LogicalResult AtenNormScalarOp::verify() {
 LogicalResult AtenRenormOp::verify() {
 
   auto selfType = cast<BaseTensorType>(getSelf().getType());
-  auto selfDtype = selfType.getDtype();
-  auto selfRankedType = getSelf().getType().cast<RankedTensorType>();
-  int64_t selfRank = selfRankedType.getRank();
 
-  if (!selfType.hasDtype()) {
+  if (!selfType.hasDtype() || !selfType.hasSizes()) {
     return success();
   }
+
+  auto inShape = selfType.getSizes();
+  int64_t selfRank = inShape.size();
+  auto selfDtype = selfType.getDtype();
 
   // Check if dtype is one of those supported by renorm operation.
   // ComplexType will match any torch complex types, but each float must be
@@ -4693,34 +4694,43 @@ LogicalResult AtenRenormOp::verify() {
 
   // Check if argument p is valid
   auto pType = getP().getType();
-  double_t p;
 
   if (pType.isa<mlir::ComplexType>()) {
     return emitOpError("renorm: p must be real-valued");
   }
 
-  if (!matchPattern(getP(), m_TorchConstantFloat(&p))) {
+  // The argument 'p' can be either an integer or a floating-point number,
+  // so we need to consider both options and check if 'p' is within the correct
+  // range
+  int64_t pInt = 1;
+  double_t pDouble = 1;
+  if (!matchPattern(getP(), m_TorchConstantInt(&pInt)) &&
+      !matchPattern(getP(), m_TorchConstantFloat(&pDouble))) {
     return emitOpError("renorm: p must be real-valued");
   }
 
-  if (p < 0) {
+  if (pInt <= 0 || pDouble <= 0) {
     return emitOpError("renorm: non-positive norm not supported");
   }
 
   // Check if argument maxnorm is valid
   auto maxnormType = getMaxnorm().getType();
-  double_t maxnorm;
   if (maxnormType.isa<mlir::ComplexType>()) {
     return emitOpError("renorm: maxnorm must be real-valued");
   }
 
-  if (!matchPattern(getP(), m_TorchConstantFloat(&maxnorm))) {
+  // The argument 'maxnorm' can be either an integer or a floating-point number,
+  // so we need to consider both options and check if 'maxnorm' is within the
+  // correct range
+  int64_t maxnormInt = 0;
+  double_t maxnormDouble = 0;
+  if (!matchPattern(getMaxnorm(), m_TorchConstantInt(&maxnormInt)) &&
+      !matchPattern(getMaxnorm(), m_TorchConstantFloat(&maxnormDouble))) {
     return emitOpError("renorm: maxnorm must be real-valued");
   }
 
-  if (maxnorm < 0) {
-    return emitOpError("renorm: expected maxnorm to be >= 0 but got ")
-           << maxnorm;
+  if (maxnormInt < 0 || maxnormDouble < 0) {
+    return emitOpError("renorm: expected maxnorm to be >= 0");
   }
 
   // Get the dimension
