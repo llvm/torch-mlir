@@ -912,7 +912,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           auto ptr = attr.getRawHandle().getBlob();
           if (!ptr) {
             denseAttr = DenseResourceElementsAttr::get(
-                ty, "__onnx_constant_not_found_and_may_be_elided__",
+                ty, "__onnx_constant_not_found_possibly_due_to_being_elided__",
                 AsmResourceBlob());
             rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
                 binder.op, resultType, denseAttr);
