@@ -160,14 +160,10 @@ LOWERING_PIPELINE = (
             "func.func(refback-generalize-tensor-pad)",
             "func.func(refback-generalize-tensor-concat)",
             # Bufferize.
-            "func.func(scf-bufferize)",
+            "one-shot-bufferize{copy-before-write bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map}",
             "func.func(tm-tensor-bufferize)",
             "func.func(empty-tensor-to-alloc-tensor)",
-            "func.func(linalg-bufferize)",
-            "func-bufferize",
-            "arith-bufferize",
             "refback-mlprogram-bufferize",
-            "func.func(tensor-bufferize)",
             "func.func(finalizing-bufferize)",
             "func.func(buffer-deallocation)",
             # Buffer-deallocation does not work with the inlined code generated
