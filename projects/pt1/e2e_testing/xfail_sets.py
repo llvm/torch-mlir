@@ -1458,6 +1458,8 @@ STABLEHLO_CRASHING_SET = set()
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "TensorSplitSections_GetItemModule_basic",
+    "TensorSplitSections_ListUnpackModule_basic",
     "AtenLinear2D_basic",
     "AtenLinear3DBias_basic",
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
