@@ -13526,6 +13526,31 @@ def Torch_AtenSplitSizesOp : Torch_Op<"aten.split.sizes", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasCanonicalizer = 1;
+}
+
+def Torch_AtenTensorSplitSectionsOp : Torch_Op<"aten.tensor_split.sections", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::tensor_split.sections : (Tensor, int, int) -> (Tensor[])`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$sections,
+    Torch_IntType:$dim
+  );
+  let results = (outs
+    AnyTorchListOfTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenTensorSplitSectionsOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenTensorSplitSectionsOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
 }
 
 def Torch_AtenUnbindIntOp : Torch_Op<"aten.unbind.int", [

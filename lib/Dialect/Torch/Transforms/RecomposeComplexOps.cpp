@@ -13,6 +13,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include <numeric>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -362,6 +363,79 @@ public:
   }
 };
 
+class RecomposeSplitWithSizesGetItemOp
+    : public OpRewritePattern<Aten__Getitem__TOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten__Getitem__TOp op,
+                                PatternRewriter &rewriter) const override {
+    // recompose AtenSplitWithSizes + __getitem__t to AtenSliceTensorOp
+    auto splitWithSizesOp =
+        dyn_cast<AtenSplitWithSizesOp>(op.getList().getDefiningOp());
+    if (!splitWithSizesOp)
+      return rewriter.notifyMatchFailure(op,
+                                         "Input is not AtenSplitWithSizesOp");
+    if (isListPotentiallyMutated(splitWithSizesOp.getResult()))
+      return rewriter.notifyMatchFailure(
+          op, "AtenSplitWithSizesOp result is potentially mutated");
+    if (isListPotentiallyMutated(splitWithSizesOp.getSplitSizes())) {
+      return rewriter.notifyMatchFailure(
+          op, "splitWithSizesOp's split_sizes is potentially mutated");
+    }
+
+    SmallVector<int64_t> splitSizes;
+    if (!matchPattern(splitWithSizesOp.getSplitSizes(),
+                      m_TorchListOfConstantInts(splitSizes))) {
+      return rewriter.notifyMatchFailure(
+          op, "split_sizes must be list of constant int");
+    }
+
+    int64_t index;
+    if (!matchPattern(op.getIdx(), m_TorchConstantInt(&index)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected `idx` of `Aten__Getitem__TOp` to be a constant int");
+    index = toPositiveDim(index, splitSizes.size());
+    if (!isValidDim(index, splitSizes.size()))
+      return rewriter.notifyMatchFailure(
+          op, "Expected `idx` in range of split_sizes");
+
+    Location loc = op.getLoc();
+    Value input = splitWithSizesOp.getSelf();
+    Value dim = splitWithSizesOp.getDim();
+
+    // add runtime.assert to check dimension constraint
+    Value totalSize = rewriter.create<AtenSizeIntOp>(loc, input, dim);
+    int64_t sumSplitSize =
+        std::accumulate(splitSizes.begin(), splitSizes.end(), 0);
+    Value cstSumSplitSize = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(sumSplitSize));
+    Value eqOrNot =
+        rewriter.create<AtenEqIntOp>(loc, totalSize, cstSumSplitSize);
+    rewriter.create<RuntimeAssertOp>(
+        loc, eqOrNot,
+        rewriter.getStringAttr("split dim must be sum of split_sizes"));
+
+    // replace with AtenSliceTensorOp
+    SmallVector<int64_t> boundaryOfSliceOp(splitSizes.size() + 1, 0);
+    for (size_t i = 1; i < boundaryOfSliceOp.size(); i++) {
+      boundaryOfSliceOp[i] = boundaryOfSliceOp[i - 1] + splitSizes[i - 1];
+    }
+    Value cstOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    auto start = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(boundaryOfSliceOp[index]));
+    auto end = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(boundaryOfSliceOp[index + 1]));
+    Value slice = rewriter.create<AtenSliceTensorOp>(
+        loc, op.getType(), input, dim, start, end, /*step=*/cstOne);
+    rewriter.replaceOp(op, slice);
+    // erase splitOp if no user left
+    if (splitWithSizesOp.getResult().use_empty())
+      rewriter.eraseOp(splitWithSizesOp);
+    return success();
+  }
+};
+
 class RecomposeSplitWithSizesListUnpack
     : public OpRewritePattern<PrimListUnpackOp> {
 public:
@@ -390,20 +464,11 @@ public:
           op, "split_sizes is not from PrimListConstructOp");
     }
 
-    int64_t sumSplitSize = 0;
     SmallVector<int64_t> splitSizes;
-    for (auto operand : splitSizesConstruct.getOperands()) {
-      int64_t value = -1;
-      // TODO: support when split_sizes are not constant int
-      if (!matchPattern(operand, m_TorchConstantInt(&value))) {
-        return rewriter.notifyMatchFailure(
-            op, "one of split_sizes is not constant int");
-      }
-      if (value < 0) {
-        return rewriter.notifyMatchFailure(op, "all of split_sizes must > 0");
-      }
-      sumSplitSize += value;
-      splitSizes.push_back(value);
+    if (!matchPattern(splitOp.getSplitSizes(),
+                      m_TorchListOfConstantInts(splitSizes))) {
+      return rewriter.notifyMatchFailure(
+          op, "split_sizes must be list of constant int");
     }
     if (splitSizes.size() != op.getNumResults()) {
       return rewriter.notifyMatchFailure(
@@ -416,6 +481,8 @@ public:
 
     // add runtime.assert to check rank constraint
     Value totalSize = rewriter.create<AtenSizeIntOp>(loc, input, dim);
+    int64_t sumSplitSize =
+        std::accumulate(splitSizes.begin(), splitSizes.end(), 0);
     Value cstSumSplitSize = rewriter.create<ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(sumSplitSize));
     Value eqOrNot =
@@ -523,6 +590,7 @@ public:
     patterns.add<RecomposeSelectFill_>(context);
     patterns.add<RecomposeSplitTensorGetItemOp>(context);
     patterns.add<RecomposeSplitTensorListUnpack>(context);
+    patterns.add<RecomposeSplitWithSizesGetItemOp>(context);
     patterns.add<RecomposeSplitWithSizesListUnpack>(context);
     patterns.add<RecomposeUnbindListUnpack>(context);
     patterns.add<RecomposeUnbindGetItem>(context);
