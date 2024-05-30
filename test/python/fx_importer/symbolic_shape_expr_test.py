@@ -69,7 +69,14 @@ def test_tanh_sigmoid_cat_shape_expr_import():
         "z": {0: dim_n, 1: dim_z1},
     }
 
-    m = fx.export_and_import(TanhSigmoidCat(), x, y, z, dynamic_shapes=dynamic_shapes)
+    m = fx.export_and_import(
+        TanhSigmoidCat(),
+        x,
+        y,
+        z,
+        dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
+    )
     print(m)
 
 
@@ -112,6 +119,7 @@ def test_symbolic_dim_differ_by_one():
         y,
         dynamic_shapes=dynamic_shapes,
         experimental_support_mutation=True,
+        import_symbolic_shape_expressions=True,
     )
     print(m)
 
@@ -141,7 +149,13 @@ def test_div_tensor_mixed_ranks():
     batch = Dim("batch")
     dynamic_shapes = {"x": None, "y": {0: batch}}
 
-    m = fx.export_and_import(DivTensorMixedRanks(), x, y, dynamic_shapes=dynamic_shapes)
+    m = fx.export_and_import(
+        DivTensorMixedRanks(),
+        x,
+        y,
+        dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
+    )
     print(m)
 
 
@@ -168,7 +182,12 @@ def test_slice_tensor():
     batch = Dim("batch", min=3)
     dynamic_shapes = {"x": {0: batch}}
 
-    m = fx.export_and_import(SliceTensor(), x, dynamic_shapes=dynamic_shapes)
+    m = fx.export_and_import(
+        SliceTensor(),
+        x,
+        dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
+    )
     print(m)
 
 
@@ -199,6 +218,7 @@ def test_broadcast_unit_dim_to_static_with_unchanged_dim_dynamic():
         BroadcastUnitDimToStaticWithUnchangedDimDynamic(),
         x,
         dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
     )
     print(m)
 
@@ -232,6 +252,7 @@ def test_broadcast_unit_dim_to_dynamic_with_unchanged_dim_static():
         x,
         y,
         dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
     )
     print(m)
 
@@ -268,6 +289,7 @@ def test_broadcast_unit_dim_to_dynamic_with_unchanged_dim_dynamic():
         x,
         y,
         dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
     )
     print(m)
 
@@ -297,7 +319,11 @@ def test_broadcast_unit_dim_to_dynamic_with_rank_increase():
     dynamic_shapes = {"x": {}, "y": {0: dim_0}}
 
     m = fx.export_and_import(
-        BroadcastUnitDimToDynamicWithRankIncrease(), x, y, dynamic_shapes=dynamic_shapes
+        BroadcastUnitDimToDynamicWithRankIncrease(),
+        x,
+        y,
+        dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
     )
     print(m)
 
@@ -325,7 +351,13 @@ def test_gather_elements():
     batch = Dim("batch", min=3)
     dynamic_shapes = {"x": {0: batch}, "y": {}}
 
-    m = fx.export_and_import(GatherElements(), x, y, dynamic_shapes=dynamic_shapes)
+    m = fx.export_and_import(
+        GatherElements(),
+        x,
+        y,
+        dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
+    )
     print(m)
 
 
@@ -346,7 +378,12 @@ def test_shape_square():
     batch = Dim("batch")
     dynamic_shapes = {"x": {0: batch}}
 
-    m = fx.export_and_import(ShapeSquare(), x, dynamic_shapes=dynamic_shapes)
+    m = fx.export_and_import(
+        ShapeSquare(),
+        x,
+        dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
+    )
     print(m)
 
 
@@ -367,7 +404,12 @@ def test_shape_div():
     batch = Dim("batch", max=1000) * 5
     dynamic_shapes = {"x": {0: batch}}
 
-    m = fx.export_and_import(ShapeDiv(), x, dynamic_shapes=dynamic_shapes)
+    m = fx.export_and_import(
+        ShapeDiv(),
+        x,
+        dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
+    )
     print(m)
 
 
@@ -392,5 +434,6 @@ def test_symbolic_dim_subtract():
         SymbolicDimSubtract(),
         x,
         dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
     )
     print(m)

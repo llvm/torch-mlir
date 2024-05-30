@@ -49,6 +49,9 @@ class FxImporterTestConfig(TestConfig):
                 prog,
                 output_type=self._output_type,
                 func_name=artifact.__class__.__name__,
+                # While the current e2e tests don't exercise symbolic shapes,
+                # enabling this here ensures they don't regress either.
+                import_symbolic_shape_expressions=True,
             )
             module = self._backend.compile(module)
             backend_module = self._backend.load(module)

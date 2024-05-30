@@ -40,6 +40,9 @@ def test_scalar_typed_node():
     # CHECK: torch.bind_symbolic_shape %arg0, [%[[S0]]], affine_map<()[s0] -> (s0, 4)> : !torch.vtensor<[?,4],f32>
     # CHECK: torch.aten.size.int %arg0, %int0 : !torch.vtensor<[?,4],f32>, !torch.int -> !torch.int
     m = fx.export_and_import(
-        Basic(), torch.randn(3, 4), dynamic_shapes={"x": {0: torch.export.Dim("b")}}
+        Basic(),
+        torch.randn(3, 4),
+        dynamic_shapes={"x": {0: torch.export.Dim("b")}},
+        import_symbolic_shape_expressions=True,
     )
     print(m)

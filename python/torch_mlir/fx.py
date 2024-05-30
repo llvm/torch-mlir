@@ -54,6 +54,7 @@ def export_and_import(
     fx_importer: Optional[FxImporter] = None,
     dynamic_shapes: Optional[Union[Dict[str, Any], Tuple[Any]]] = None,
     experimental_support_mutation: bool = False,
+    import_symbolic_shape_expressions: bool = False,
     hooks: Optional[FxImporterHooks] = None,
     decomposition_table: Optional[Dict[torch._ops.OperatorBase, Callable]] = None,
     func_name: str = "main",
@@ -79,9 +80,17 @@ def export_and_import(
     if experimental_support_mutation:
         if torch.__version__ < "2.3.0.dev20240207":
             warnings.warn("Mutable program import only supported on PyTorch 2.3+")
-        fx_importer.import_program(prog, func_name=func_name)
+        fx_importer.import_program(
+            prog,
+            func_name=func_name,
+            import_symbolic_shape_expressions=import_symbolic_shape_expressions,
+        )
     else:
-        fx_importer.import_frozen_program(prog, func_name=func_name)
+        fx_importer.import_frozen_program(
+            prog,
+            func_name=func_name,
+            import_symbolic_shape_expressions=import_symbolic_shape_expressions,
+        )
 
     return _module_lowering(
         enable_ir_printing, OutputType.get(output_type), fx_importer.module

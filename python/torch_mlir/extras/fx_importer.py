@@ -551,6 +551,7 @@ class FxImporter:
         *,
         func_name: str = "main",
         func_visibility: Optional[str] = None,
+        import_symbolic_shape_expressions: bool = False,
     ) -> Operation:
         """Imports an ExportedProgram according to our chosen canonical representation.
 
@@ -601,7 +602,8 @@ class FxImporter:
         sig = prog.graph_signature
 
         # Populate symbolic guards for dynamic shapes (if any)
-        self._cc.set_symbolic_guards(prog)
+        if import_symbolic_shape_expressions:
+            self._cc.set_symbolic_guards(prog)
 
         # Invert the (producer, node_name) maps for mutated user inputs and mutated
         # buffers. This is because we hit-detect based on the input node name.
@@ -758,7 +760,9 @@ class FxImporter:
 
         # Import all nodes and return.
         node_importer.import_nodes(
-            all_producer_nodes.values(), skip_placeholders_outputs=True
+            all_producer_nodes.values(),
+            skip_placeholders_outputs=True,
+            import_symbolic_shape_expressions=import_symbolic_shape_expressions,
         )
         node_importer.return_node_values(loc, user_outputs)
         self.symbol_table.insert(func_op)
@@ -770,6 +774,7 @@ class FxImporter:
         *,
         func_name: str = "main",
         func_visibility: Optional[str] = None,
+        import_symbolic_shape_expressions: bool = False,
     ) -> Operation:
         """Imports a consolidated torch.export.ExportedProgram instance.
 
@@ -805,7 +810,8 @@ class FxImporter:
         arg_replacements: Dict[str, Any] = {}
 
         # Populate symbolic guards for dynamic shapes (if any)
-        self._cc.set_symbolic_guards(prog)
+        if import_symbolic_shape_expressions:
+            self._cc.set_symbolic_guards(prog)
 
         # If there is no "constants" attribute, consult the "state_dict". Otherwise, only look
         # at "constants". Relevant upstream patch: https://github.com/pytorch/pytorch/pull/118969
@@ -853,7 +859,10 @@ class FxImporter:
                 g.erase_node(node)
 
         return self.import_stateless_graph(
-            g, func_name=func_name, func_visibility=func_visibility
+            g,
+            func_name=func_name,
+            func_visibility=func_visibility,
+            import_symbolic_shape_expressions=import_symbolic_shape_expressions,
         )
 
     def import_graph_module(self, gm: GraphModule) -> Operation:
@@ -870,6 +879,7 @@ class FxImporter:
         *,
         func_name: str = "main",
         func_visibility: Optional[str] = None,
+        import_symbolic_shape_expressions: bool = False,
     ) -> Operation:
         """Low-level import of a functionalized, assumed stateless Graph as a func.
 
@@ -894,7 +904,9 @@ class FxImporter:
             self._cc,
             entry_block,
         )
-        node_importer.import_nodes(g.nodes)
+        node_importer.import_nodes(
+            g.nodes, import_symbolic_shape_expressions=import_symbolic_shape_expressions
+        )
         self.symbol_table.insert(func)
         return func
 
@@ -1344,14 +1356,19 @@ class GraphNodeImporter:
             func_dialect.ReturnOp(operands, loc=loc)
 
     def import_nodes(
-        self, nodes: Iterable[Node], *, skip_placeholders_outputs: bool = False
+        self,
+        nodes: Iterable[Node],
+        *,
+        skip_placeholders_outputs: bool = False,
+        import_symbolic_shape_expressions: bool = False,
     ):
         with InsertionPoint(self._b):
             loc = Location.unknown()
 
             # Import dynamic shape symbols and guards (if any)
-            symbolic_guards = self._cc.get_symbolic_guards()
-            self._import_shape_symbols_with_guards(loc, symbolic_guards)
+            if import_symbolic_shape_expressions:
+                symbolic_guards = self._cc.get_symbolic_guards()
+                self._import_shape_symbols_with_guards(loc, symbolic_guards)
 
             num_placeholders = 0
             for node in nodes:

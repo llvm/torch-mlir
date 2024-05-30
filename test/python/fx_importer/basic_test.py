@@ -105,7 +105,11 @@ def test_import_frozen_exported_program_with_dynamic_shapes():
     batch = Dim("batch")
     dynamic_shapes = {"x": {0: batch}}
     m = fx.export_and_import(
-        Basic(), torch.randn(3, 4), dynamic_shapes=dynamic_shapes, func_name="test_net"
+        Basic(),
+        torch.randn(3, 4),
+        dynamic_shapes=dynamic_shapes,
+        func_name="test_net",
+        import_symbolic_shape_expressions=True,
     )
     print(m)
 
@@ -138,7 +142,12 @@ def test_broadcast_with_dynamic_shapes():
     }
 
     m = fx.export_and_import(
-        Basic(), x, y, dynamic_shapes=dynamic_shapes, func_name="test_net"
+        Basic(),
+        x,
+        y,
+        dynamic_shapes=dynamic_shapes,
+        func_name="test_net",
+        import_symbolic_shape_expressions=True,
     )
     print(m)
 
