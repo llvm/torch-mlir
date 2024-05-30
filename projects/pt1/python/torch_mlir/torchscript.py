@@ -212,7 +212,12 @@ BACKEND_LEGAL_OPS = {
         "aten.adaptive_avg_pool2d",
         "aten.unflatten.int",
     ],
-    OutputType.STABLEHLO: ["aten.amax"],
+    OutputType.STABLEHLO: [
+        "aten.amax",
+        "aten.amin",
+        "aten.randn.generator",
+        "aten.normal_functional",
+    ],
 }
 
 
@@ -377,6 +382,12 @@ PyTorch TorchScript module -> torch-mlir Object Graph IR import failed with:
         ) from None
     finally:
         sys.stderr = original_stderr
+
+    if verbose:
+        print("\n====================")
+        print("TorchScript RAW IR")
+        print(mb.module)
+
     if output_type == OutputType.RAW:
         return mb.module
 

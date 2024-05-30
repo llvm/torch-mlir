@@ -18,6 +18,10 @@ void mlir::torch::registerTorchPasses() {
       "Pipeline lowering TorchScript object graph IR to Torch backend form.",
       mlir::torch::Torch::createTorchScriptModuleToTorchBackendPipeline);
   mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
+      "torchdynamo-export-to-torch-backend-pipeline",
+      "Pipeline lowering TorchDynamo exported graph IR to Torch backend form.",
+      mlir::torch::Torch::createTorchDynamoExportToTorchBackendPipeline);
+  mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
       "torch-function-to-torch-backend-pipeline",
       "Pipeline lowering a Torch function to Torch backend form.",
       mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline);
@@ -57,6 +61,18 @@ void mlir::torch::Torch::createTorchScriptModuleToTorchBackendPipeline(
   pm.addPass(createInlinerPass());
 
   createTorchFunctionToTorchBackendPipeline(pm, options);
+}
+
+void mlir::torch::Torch::createTorchDynamoExportToTorchBackendPipeline(
+    OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
+  pm.addNestedPass<func::FuncOp>(
+      createReduceOpVariantsPass(options.extraLibrary));
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  if (options.decompose) {
+    pm.addNestedPass<func::FuncOp>(
+        Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
+    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  }
 }
 
 void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(

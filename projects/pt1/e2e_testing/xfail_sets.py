@@ -336,8 +336,6 @@ FX_IMPORTER_XFAIL_SET = {
     "AnyBoolFalseModule_basic",
     "AnyBoolTrueModule_basic",
     "ArangeStartOutViewModule_basic",
-    "AtenEmbeddingBagStaticModule_basic",
-    "AtenEmbeddingBagSumExample_basic",
     "AtenFloatScalarModule_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
@@ -367,7 +365,6 @@ FX_IMPORTER_XFAIL_SET = {
     "BoolIntTrueModule_basic",
     "BroadcastDynamicDimModule_basic",
     "CeilFloatModule_basic",
-    "ConstantBoolParameterModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
     "Conv2dQInt8Module_basic",
@@ -446,18 +443,13 @@ FX_IMPORTER_XFAIL_SET = {
     "SqrtIntConstantModule_basic",
     "SqrtIntModule_basic",
     "SubFloatModule_basic",
-    "TModuleRank0_basic",
     "TensorToBoolZeroRank_basic",
     "TensorToBool_basic",
     "TensorToFloatZeroRank_basic",
     "TensorToFloat_basic",
-    "TestMultipleTensorAndPrimitiveTypesReturn_basic",
     "ThresholdBackward2dMixedModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
-    "UnbindIntGetItem_Module_basic",
-    "UnbindIntListUnpack_Module_basic",
-    "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
@@ -819,6 +811,13 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "AtenLinear1D_basic",
+    "AtenLinear2D_basic",
+    "AtenLinear3DBias_basic",
+    "AtenLinearMatVec_basic",
+    "AtenLinearVecMatBias_basic",
+    "AtenLinearVecMat_basic",
+    "ReduceAminSingleDim_basic",
     "AtenDotModule_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool1dUnitOutputSizeStaticModule_basic",
@@ -1446,13 +1445,20 @@ STABLEHLO_PASS_SET = {
     "ElementwiseSoftshrinkStaticModule_basic",
 }
 
-STABLEHLO_CRASHING_SET = {
-    "AtenEmbeddingBagSumExample_basic",
-}
+STABLEHLO_CRASHING_SET = set()
 
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "AtenLinear2D_basic",
+    "AtenLinear3DBias_basic",
+    "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
+    "ElementwiseDivTensorFloatModule_basic",
+    "ElementwiseMulTensorFloatModule_basic",
+    "ElementwiseWhereScalarSelfStaticModule_basic",
+    "GroupNormModule_basic",
+    "GroupNormNoWeightAndBiasModule_basic",
+    "NativeGroupNormModule_basic",
     "AtenDotModule_basic",
     "ElementwiseFloatTensorGtIntScalarModule_basic",
     "ElementwiseLogSigmoidModule_basic",
@@ -1910,6 +1916,9 @@ MAKE_FX_TOSA_PASS_SET = (
     TOSA_PASS_SET
     | {
         ### Tests additionally passing in make_fx_tosa
+        "AtenLinear1D_basic",
+        "AtenLinearMatVec_basic",
+        "AtenLinearVecMatBias_basic",
         "MaxPool1dEmptyStrideStaticModule_basic",
         "MaxPool1dStaticCeilModeTrueModule_basic",
         "MaxPool1dStaticModule_basic",
@@ -1950,7 +1959,6 @@ MAKE_FX_TOSA_PASS_SET = (
     "Conv2dNoPaddingModule_basic",
     "Conv2dWithPaddingDilationStrideModule_basic",
     "Conv2dWithPaddingModule_basic",
-    "AtenInstanceNormModule_basic",
     # failed to legalize operation 'torch.operator'
     "ElementwisePreluModule_basic",
     "ElementwisePreluStaticModule_basic",
@@ -2583,10 +2591,6 @@ ONNX_XFAIL_SET = {
     # when the issue is fixed, please remove DiagonalWithStaticShapeModule as well as the xfails here.
     "TileBigDimsSizeModule_basic",
     "TileSmallDimsSizeModule_basic",
-    # Failure - onnx_lowering: onnx.MaxPool
-    "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
-    "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
-    "MaxPool2dWithIndicesStaticModule_basic",
     # Failure - onnx_lowering: onnx.ReduceProd
     "ReduceProdFloatModule_basic",
     "ReduceProdDtypeFloatModule_basic",
@@ -2692,6 +2696,9 @@ ONNX_CRASHING_SET = {
     "StdCorrectionEmptyDimModule_basic",
     "VarCorrectionEmptyDimModule_basic",
     "VarDimEmptyDimModule_basic",
+    # Runtime crash: mismatched size for broadcast
+    "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
+    "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {

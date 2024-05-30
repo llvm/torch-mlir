@@ -17,11 +17,9 @@
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -32,6 +30,9 @@ namespace {
 static Value createInitialValueForGatherScatterOp(Operation *op,
                                                   RankedTensorType constType,
                                                   PatternRewriter &rewriter) {
+  if (!constType.hasStaticShape()) {
+    return nullptr;
+  }
   auto elementTy = constType.getElementType();
   if (isa<AtenEmbeddingBagPaddingIdxOp>(op)) {
     if (isa<mlir::FloatType>(elementTy)) {
@@ -101,6 +102,8 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
       rewriter.getContext(),
       /*offsetDims=*/offsetDims,
       /*collapsedSliceDims=*/collapsedSliceDims,
+      /*operandBatchingDims=*/{},
+      /*startIndicesBatchingDims=*/{},
       /*startIndexMap=*/startIndexMap,
       /*indexVecDim=*/indexVecDim);
 
@@ -584,6 +587,8 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
       rewriter.getContext(),
       /*offsetDims=*/{},
       /*collapsedSliceDims=*/collapsedDims,
+      /*operandBatchingDims=*/{},
+      /*startIndicesBatchingDims=*/{},
       /*startIndexMap=*/startIndexMap,
       /*indexVecDim=*/indexVecDim);
 
@@ -744,6 +749,8 @@ public:
         rewriter.getContext(),
         /*updateWindowDims=*/{},
         /*insertedWindowDims=*/insertedWindowDims,
+        /*inputBatchingDims=*/{},
+        /*scatterIndicesBatchingDims=*/{},
         /*scatterDimsToOperandDim=*/scatterDimOperandDimMap,
         /*indexVectorDim=*/indexVecDim);
 
@@ -826,6 +833,8 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
       rewriter.getContext(),
       /*offsetDims=*/offsetDims,
       /*collapsedSliceDims=*/collapsedDims,
+      /*operandBatchingDims=*/{},
+      /*startIndicesBatchingDims=*/{},
       /*startIndexMap=*/startIndexMap,
       /*indexVecDim=*/indexVecDim);
 
@@ -900,6 +909,8 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
       rewriter.getContext(),
       /*updateWindowDims=*/updateWindowDims,
       /*insertedWindowDims=*/insertedWindowDims,
+      /*inputBatchingDims=*/{},
+      /*scatterIndicesBatchingDims=*/{},
       /*scatterDimsToOperandDim=*/scatterDimOperandDimMap,
       /*indexVectorDim=*/indexVecDim);
 

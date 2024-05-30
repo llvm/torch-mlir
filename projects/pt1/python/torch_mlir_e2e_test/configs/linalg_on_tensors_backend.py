@@ -29,10 +29,10 @@ class LinalgOnTensorsBackendTestConfig(TestConfig):
         super().__init__()
         self.backend = backend
 
-    def compile(self, program: torch.nn.Module) -> Any:
+    def compile(self, program: torch.nn.Module, verbose: bool = False) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         module = torchscript.compile(
-            program, example_args, output_type="linalg-on-tensors"
+            program, example_args, output_type="linalg-on-tensors", verbose=verbose
         )
 
         return self.backend.compile(module)

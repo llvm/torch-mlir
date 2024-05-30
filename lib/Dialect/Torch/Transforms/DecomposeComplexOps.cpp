@@ -674,7 +674,6 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenTriuOp op,
                                 PatternRewriter &rewriter) const override {
-    MLIRContext *context = op.getContext();
     Location loc = op.getLoc();
     Value input = op.getSelf();
     auto inputType = cast<BaseTensorType>(input.getType());
@@ -685,37 +684,50 @@ public:
       return rewriter.notifyMatchFailure(op, "the rank of tensor should >= 2");
     }
 
-    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
     Value cstZero =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
     Value cstOne =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
     Value none = rewriter.create<ConstantNoneOp>(loc);
 
-    Value rowDim = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(-2));
-    Value colDim = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(-1));
-    Value rowSize = rewriter.create<AtenSizeIntOp>(loc, input, rowDim);
-    Value colSize = rewriter.create<AtenSizeIntOp>(loc, input, colDim);
+    Value rowSize = getTensorDimSize(rewriter, input, -2);
+    Value colSize = getTensorDimSize(rewriter, input, -1);
 
-    Value rowArange = rewriter.create<AtenArangeOp>(
-        loc, baseType, rowSize, /*dtype=*/none, /*layout=*/none,
-        /*device=*/none, /*pin_memory=*/none);
-    Value colArange = rewriter.create<AtenArangeOp>(
-        loc, baseType, colSize, /*dtype=*/none, /*layout=*/none,
-        /*device=*/none, /*pin_memory=*/none);
+    auto si64Type = rewriter.getIntegerType(/*width=*/64, /*isSigned*/ true);
+    auto int64DtypeInt = getDtypeIntValueForType(rewriter, loc, si64Type);
+    auto rowArrangeType = getTensorTypeFromShapeValues({rowSize}, si64Type);
+    auto colArrangeType = getTensorTypeFromShapeValues({colSize}, si64Type);
 
-    Value unsqueezeRowArange =
-        rewriter.create<AtenUnsqueezeOp>(loc, baseType, rowArange, cstOne);
-    Value unsqueezeColArange =
-        rewriter.create<AtenUnsqueezeOp>(loc, baseType, colArange, cstZero);
+    Value rowArange =
+        rewriter.create<AtenArangeOp>(loc, rowArrangeType, rowSize,
+                                      /*dtype=*/int64DtypeInt, /*layout=*/none,
+                                      /*device=*/none, /*pin_memory=*/none);
+    Value colArange =
+        rewriter.create<AtenArangeOp>(loc, colArrangeType, colSize,
+                                      /*dtype=*/int64DtypeInt, /*layout=*/none,
+                                      /*device=*/none, /*pin_memory=*/none);
+
+    auto unsqueezeRowArangeInfo =
+        unsqueezeTensor(rewriter, op, rowArange, cstOne);
+    auto unsqueezeColArangeInfo =
+        unsqueezeTensor(rewriter, op, colArange, cstZero);
+
+    if (failed(unsqueezeRowArangeInfo) || failed(unsqueezeColArangeInfo)) {
+      return rewriter.notifyMatchFailure(op,
+                                         "cannot generate unsqueeze tensor");
+    }
+
+    Value unsqueezeRowArange = unsqueezeRowArangeInfo.value();
+    Value unsqueezeColArange = unsqueezeColArangeInfo.value();
 
     Value unsqueezeRowArangePlusDiagonal = rewriter.create<AtenAddScalarOp>(
-        loc, baseType, unsqueezeRowArange, op.getDiagonal(), cstOne);
+        loc, unsqueezeRowArange.getType(), unsqueezeRowArange, op.getDiagonal(),
+        cstOne);
 
+    auto boolType = rewriter.getI1Type();
+    auto condType = getTensorTypeFromShapeValues({rowSize, colSize}, boolType);
     Value condTensor = rewriter.create<AtenGeTensorOp>(
-        loc, baseType, unsqueezeColArange, unsqueezeRowArangePlusDiagonal);
+        loc, condType, unsqueezeColArange, unsqueezeRowArangePlusDiagonal);
 
     rewriter.replaceOpWithNewOp<AtenWhereScalarOtherOp>(
         op, op.getResult().getType(), condTensor, input, cstZero);
@@ -5501,38 +5513,57 @@ public:
     Value bias = op.getBias();
 
     BaseTensorType inputType = cast<BaseTensorType>(input.getType());
-    if (!inputType.hasSizes() || inputType.getSizes().size() < 2)
-      return rewriter.notifyMatchFailure(
-          op, "expected input to be rank 2 or greater");
+    if (!inputType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "expected input to have sizes");
 
     BaseTensorType weightType = cast<BaseTensorType>(weight.getType());
-    // `weight` must be a rank 2 matrix.
-    if (!weightType.hasSizes() || weightType.getSizes().size() != 2)
-      return rewriter.notifyMatchFailure(op, "expected weight to be a rank 2");
+    if (!weightType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "expected weight to have sizes");
 
-    SmallVector<int64_t> transposeShape =
-        llvm::to_vector(llvm::reverse(weightType.getSizes()));
-    Type transposeType = weightType.getWithSizesAndDtype(
-        llvm::ArrayRef(transposeShape), weightType.getOptionalDtype());
-    Value transposeWeight =
-        rewriter.create<AtenTOp>(loc, transposeType, weight);
+    auto transposeWeight = [&]() -> Value {
+      SmallVector<int64_t> transposeShape =
+          llvm::to_vector(llvm::reverse(weightType.getSizes()));
+      Type transposeType = weightType.getWithSizesAndDtype(
+          llvm::ArrayRef(transposeShape), weightType.getOptionalDtype());
+      Value transposeWeight =
+          rewriter.create<AtenTOp>(loc, transposeType, weight);
+      return transposeWeight;
+    };
 
-    Value matmul = rewriter.create<AtenMatmulOp>(loc, op.getType(), input,
-                                                 transposeWeight);
     if (bias.getType().isa<Torch::NoneType>()) {
-      rewriter.replaceOp(op, matmul);
+      auto weightRank = weightType.getSizes().size();
+      if (weightRank > 2 || weightRank <= 0)
+        return rewriter.notifyMatchFailure(
+            op, "expected weight's rank <= 2 && >= 1");
+      if (weightRank == 1) {
+        rewriter.replaceOpWithNewOp<AtenMatmulOp>(op, op.getType(), input,
+                                                  weight);
+        return success();
+      } else if (weightRank == 2) {
+        rewriter.replaceOpWithNewOp<AtenMatmulOp>(op, op.getType(), input,
+                                                  transposeWeight());
+        return success();
+      }
+      llvm_unreachable("unsupported weightRank");
+    } else {
+      BaseTensorType biasType = cast<BaseTensorType>(bias.getType());
+      if (!biasType.hasSizes() || biasType.getSizes().size() != 1)
+        return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
+
+      // `weight` must be a rank 2 matrix.
+      auto weightRank = weightType.getSizes().size();
+      if (weightRank != 2)
+        return rewriter.notifyMatchFailure(op,
+                                           "expected weight to be a rank 2");
+
+      Value matmul = rewriter.create<AtenMatmulOp>(loc, op.getType(), input,
+                                                   transposeWeight());
+      Value alpha =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+      rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, op.getType(), matmul,
+                                                   op.getBias(), alpha);
       return success();
     }
-
-    BaseTensorType biasType = cast<BaseTensorType>(bias.getType());
-    if (!biasType.hasSizes() || biasType.getSizes().size() != 1)
-      return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
-
-    Value alpha =
-        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
-    rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, op.getType(), matmul,
-                                                 op.getBias(), alpha);
-    return success();
   }
 };
 } // namespace
@@ -7162,10 +7193,8 @@ class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
       return rewriter.notifyMatchFailure(
           op, "input tensor should have known sizes.");
     int64_t inputRank = inputType.getSizes().size();
-    int64_t numClasses;
-    if (!matchPattern(op.getNumClasses(), m_TorchConstantInt(&numClasses)))
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: num_classes must be constant");
+    int64_t numClasses = Torch::kUnknownSize;
+    matchPattern(op.getNumClasses(), m_TorchConstantInt(&numClasses));
     Value none = rewriter.create<ConstantNoneOp>(loc);
 
     // arange tensor

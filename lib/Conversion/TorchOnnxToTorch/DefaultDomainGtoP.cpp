@@ -176,7 +176,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         auto conditionType =
-            conditionTensor.getType().cast<Torch::ValueTensorType>();
+            cast<Torch::ValueTensorType>(conditionTensor.getType());
         if (!conditionType || conditionType.getSizes().size() != 1)
           return rewriter.notifyMatchFailure(
               binder.op, "condition must have one single element per "
@@ -466,15 +466,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(
               binder.op, "unsupported conversion: auto_pad != NOTSET");
 
-        Torch::ValueTensorType resultType;
+        Torch::ValueTensorType resultTypeOut;
         Value operand;
-        bool ceilMode;
-        int64_t storageOrder;
+        int64_t ceilMode, storageOrder;
         // TODO: Add support for indices output and storage_order
         if (binder.tensorOperand(operand) ||
-            binder.s64BoolAttr(ceilMode, "ceil_mode", false) ||
+            binder.s64IntegerAttr(ceilMode, "ceil_mode", 0) ||
             binder.s64IntegerAttr(storageOrder, "storage_order", 0) ||
-            binder.tensorResultType(resultType))
+            binder.tensorResultTypeAtIndex(resultTypeOut, 0))
           return rewriter.notifyMatchFailure(
               binder.op,
               "operand/ceil_mode/storage_order/resultType bind failure");
@@ -547,12 +546,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           Value shuffledPaddingList =
               createConstantIntList(binder, rewriter, padding);
           Value zero;
-          if (resultType.getDtype().isa<FloatType>()) {
+          if (resultTypeOut.getDtype().isa<FloatType>()) {
             zero = rewriter.create<Torch::ConstantFloatOp>(
                 binder.getLoc(), rewriter.getType<Torch::FloatType>(),
                 rewriter.getF64FloatAttr(
                     std::numeric_limits<double>::lowest()));
-          } else if (resultType.getDtype().isa<IntegerType>()) {
+          } else if (resultTypeOut.getDtype().isa<IntegerType>()) {
             zero = rewriter.create<Torch::ConstantIntOp>(
                 binder.getLoc(), rewriter.getI64IntegerAttr(
                                      std::numeric_limits<int64_t>::lowest()));
@@ -578,17 +577,39 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (rank == 3)
           return rewriter.notifyMatchFailure(binder.op,
                                              "Unimplemented: AtenMaxPool1dOp");
-        if (rank == 4) {
-          rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dOp>(
-              binder.op, resultType, operand, kernelSizeList, stridesList,
-              paddingList, dilationsList, cstCeilMode);
-          return success();
-        }
-        if (rank == 5) {
-          rewriter.replaceOpWithNewOp<Torch::AtenMaxPool3dOp>(
-              binder.op, resultType, operand, kernelSizeList, stridesList,
-              paddingList, dilationsList, cstCeilMode);
-          return success();
+
+        if (binder.op->getNumResults() == 2) {
+          Torch::ValueTensorType resultTypeIndices;
+          if (binder.tensorResultTypeAtIndex(resultTypeIndices, 1))
+            return failure();
+
+          if (rank == 4) {
+            rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dWithIndicesOp>(
+                binder.op, resultTypeOut, resultTypeIndices, operand,
+                kernelSizeList, stridesList, paddingList, dilationsList,
+                cstCeilMode);
+            return success();
+          }
+          if (rank == 5) {
+            rewriter.replaceOpWithNewOp<Torch::AtenMaxPool3dWithIndicesOp>(
+                binder.op, resultTypeOut, resultTypeIndices, operand,
+                kernelSizeList, stridesList, paddingList, dilationsList,
+                cstCeilMode);
+            return success();
+          }
+        } else {
+          if (rank == 4) {
+            rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dOp>(
+                binder.op, resultTypeOut, operand, kernelSizeList, stridesList,
+                paddingList, dilationsList, cstCeilMode);
+            return success();
+          }
+          if (rank == 5) {
+            rewriter.replaceOpWithNewOp<Torch::AtenMaxPool3dOp>(
+                binder.op, resultTypeOut, operand, kernelSizeList, stridesList,
+                paddingList, dilationsList, cstCeilMode);
+            return success();
+          }
         }
         return rewriter.notifyMatchFailure(binder.op, "No rank is matched.");
       });
@@ -1740,23 +1761,32 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           depth = rewriter.create<Torch::AtenIntScalarOp>(
               loc, rewriter.getType<Torch::IntType>(), depth);
 
-        auto selectTy = rewriter.getType<Torch::ValueTensorType>(
-            llvm::SmallVector<int64_t>{1}, valuesTy.getDtype());
-
+        Type boolTy = rewriter.getType<Torch::ValueTensorType>(
+            indicesTy.getSizes(), rewriter.getI1Type());
         Value zero = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(0));
         Value one = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(1));
+        Value lt =
+            rewriter.create<Torch::AtenLtScalarOp>(loc, boolTy, indices, zero);
+        Value add = rewriter.create<Torch::AtenAddScalarOp>(
+            loc, indicesTy, indices, depth, one);
+        indices = rewriter.create<Torch::AtenWhereSelfOp>(loc, indicesTy, lt,
+                                                          add, indices);
+
+        auto selectTy = rewriter.getType<Torch::ValueTensorType>(
+            llvm::SmallVector<int64_t>{1}, valuesTy.getDtype());
+
+        bool valuesAreInt = isa<IntegerType>(valuesTy.getDtype());
+        Type valuesETy = valuesAreInt ? intTy : floatTy;
 
         Value off = rewriter.create<Torch::AtenSelectIntOp>(loc, selectTy,
                                                             values, zero, zero);
-        off = rewriter.create<Torch::AtenItemOp>(
-            loc, rewriter.getType<Torch::IntType>(), off);
+        off = rewriter.create<Torch::AtenItemOp>(loc, valuesETy, off);
 
         Value on = rewriter.create<Torch::AtenSelectIntOp>(loc, selectTy,
                                                            values, zero, one);
-        on = rewriter.create<Torch::AtenItemOp>(
-            loc, rewriter.getType<Torch::IntType>(), on);
+        on = rewriter.create<Torch::AtenItemOp>(loc, valuesETy, on);
 
         auto i32Ty = rewriter.getIntegerType(32, true);
         llvm::SmallVector<int64_t> onehotShape(indicesTy.getSizes());
@@ -1776,7 +1806,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
           onehotTy =
               rewriter.getType<Torch::ValueTensorType>(onehotShape, i32Ty);
-          onehot = rewriter.create<Torch::AtenTransposeIntOp>(loc, onehotTy,
+          onehot = rewriter.create<Torch::AtenTransposeIntOp>(loc, resultType,
                                                               onehot, iv1, iv0);
         }
 
@@ -1796,9 +1826,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
             /*memory_format=*/none);
 
-        onehotTy = rewriter.getType<Torch::ValueTensorType>(
-            onehotShape, resultType.getDtype());
-        onehot = rewriter.create<Torch::AtenWhereScalarOp>(loc, onehotTy,
+        onehot = rewriter.create<Torch::AtenWhereScalarOp>(loc, resultType,
                                                            onehot, on, off);
 
         rewriter.replaceOp(binder.op, onehot);

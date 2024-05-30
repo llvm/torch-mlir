@@ -73,6 +73,11 @@ struct TorchLoweringPipelineOptions
 void createTorchScriptModuleToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options);
 
+/// Creates a pipeline that lowers the graph IR that is produced by
+/// TorchDynamo export into the form expected by torch-verify-backend-contract.
+void createTorchDynamoExportToTorchBackendPipeline(
+    OpPassManager &pm, const TorchLoweringPipelineOptions &options);
+
 /// Creates a pipeline that lowers a flat list of funcs and global slots
 /// with the torch and aten dialects and mutable arrays and converts it to
 /// the form required by torch-verify-backend-contract.
