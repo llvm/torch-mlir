@@ -2598,6 +2598,10 @@ ONNX_XFAIL_SET = {
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "_SoftmaxModule_basic",
     # Failure - onnx_import
+    # Failure - onnx_lowering: onnx.SplitToSequence
+    "ChunkListUnpackUneven_Module_basic",
+    "TensorSplitSections_GetItemModule_basic",
+    "TensorSplitSections_ListUnpackModule_basic",
     # Failure - onnx_lowering: onnx.AveragePool
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
     # these diagonal modules are currently failing due to dynamic shape.
