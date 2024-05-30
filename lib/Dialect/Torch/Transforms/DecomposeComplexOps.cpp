@@ -5337,6 +5337,126 @@ public:
   }
 };
 
+// Decompose multinomial
+class DecomposeAtenMultinomialOp : public OpRewritePattern<AtenMultinomialOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMultinomialOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op.getGenerator().getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "The generator has to be None because only global default "
+              "generator is supported");
+
+    Location loc = op.getLoc();
+    Type resultType = op.getType();
+    Value self = op.getSelf();
+    Value numSamples = op.getNumSamples();
+    int64_t sample_size;
+    if (!matchPattern(numSamples, m_TorchConstantInt(&sample_size)))
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported: num_samples must be an integer value");
+
+    bool replacement;
+    if (!matchPattern(op.getReplacement(), m_TorchConstantBool(&replacement)))
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported: replacement must be a boolean value");
+
+    auto selfType = cast<ValueTensorType>(self.getType());
+    ArrayRef<int64_t> shape = selfType.getSizes();
+    size_t dim = shape.size();
+    Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+    Value zero = rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value one = rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value flt_one = rewriter.create<Torch::ConstantFloatOp>(loc, rewriter.getF32FloatAttr(1.0));
+    Value cstNegtiveOne = rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+
+    Value torch_int32_dtype_int = rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr((int)torch_upstream::ScalarType::Int));
+    Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(loc, rewriter.getBoolAttr(true));
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, rewriter.getBoolAttr(false));
+
+    Type element_type = selfType.getDtype();
+    Value element_dtype = getDtypeIntValueForType(rewriter, loc, element_type);
+
+    // shortcut for special cases
+    if(!replacement || sample_size == 1){
+      Value q = rewriter.create<AtenEmptyLikeOp>(loc, selfType, self, element_dtype, none, none, none, none);
+      Value q_exp = rewriter.create<AtenExponentialOp>(loc, selfType, q, flt_one, none);
+      Value q_div = rewriter.create<AtenDivTensorOp>(loc, selfType, q_exp, self);
+      if(sample_size == 1) {
+        rewriter.replaceOpWithNewOp<AtenArgmaxOp>(op, resultType, q_div, cstNegtiveOne, cstTrue);
+      }
+      else {
+        Value res = rewriter.create<AtenTopkOp>(loc, q_div.getType(), resultType, q_div, numSamples, cstNegtiveOne, cstTrue, cstTrue).getIndices();
+        rewriter.replaceOp(op, res);
+      }
+
+      return success();
+    }
+
+    // replacement = True
+    if(dim == 1) {
+      // normalize distribution
+      auto float_type = rewriter.getType<Torch::FloatType>();
+      auto int_type = rewriter.getType<Torch::IntType>();
+      Type sum_type = cast<BaseTensorType>(selfType.getWithSizesAndDtype(std::nullopt, selfType.getDtype()));
+      Value sum_weights = rewriter.create<AtenSumOp>(loc, sum_type, self, none);
+      Value sum_weights_scalar = rewriter.create<AtenFloatImplicitOp>(loc, float_type, sum_weights);
+      Value norm_weights = rewriter.create<AtenDivScalarOp>(loc, self.getType(), self, sum_weights_scalar);
+
+      // get uniform random samples
+      SmallVector<Value> rand_shape({numSamples});
+      Value rand_sample_shape = rewriter.create<Torch::PrimListConstructOp>(loc, Torch::ListType::get(Torch::IntType::get(op->getContext())), rand_shape);
+      Type sample_type = cast<BaseTensorType>(selfType.getWithSizesAndDtype(std::nullopt, selfType.getDtype()));
+      Value uniform_samples = rewriter.create<AtenRandOp>(loc, sample_type, rand_sample_shape, element_dtype, none, none, none);
+
+      // calculate CDF
+      int64_t d0 = shape[0];
+      Value dim0 = rewriter.create<AtenSizeIntOp>(loc, int_type, self, zero);
+      SmallVector<Value> ones_shape({dim0, dim0});
+      ArrayRef<int64_t> ones_shape_array({d0, d0});
+      Value ones_size = rewriter.create<Torch::PrimListConstructOp>(loc, Torch::ListType::get(Torch::IntType::get(op->getContext())), ones_shape);
+      Torch::ValueTensorType ones_output_type = Torch::ValueTensorType::get(selfType.getContext(), ones_shape_array, element_type);
+      Value ones_mat = rewriter.create<AtenOnesOp>(loc, ones_output_type, ones_size, element_dtype, none, none, none);
+
+      Value L = rewriter.create<AtenTrilOp>(loc, ones_output_type, ones_mat, zero);
+      Type cdf_type = selfType.getWithSizesAndDtype(std::nullopt, element_type);
+      Value cdf = rewriter.create<AtenMatmulOp>(loc, cdf_type, L, norm_weights);
+
+      // compare samples to cdf
+      Value uni_sample_unsqueeze = rewriter.create<AtenUnsqueezeOp>(loc, cdf_type, uniform_samples, one);
+      SmallVector<Value> expand_sizes({cstNegtiveOne, dim0});
+      Value expand_dim_list = rewriter.create<Torch::PrimListConstructOp>(loc, Torch::ListType::get(Torch::IntType::get(op->getContext())), expand_sizes);
+      Value uni_sample_expanded = rewriter.create<AtenExpandOp>(loc, cdf_type, uni_sample_unsqueeze, expand_dim_list, cstFalse);
+
+      Value cdf_unsqueeze = rewriter.create<AtenUnsqueezeOp>(loc, cdf_type, cdf, zero);
+      SmallVector<Value> cdf_expand_sizes({numSamples, cstNegtiveOne});
+      Value cdf_expand_dim_list = rewriter.create<Torch::PrimListConstructOp>(loc, Torch::ListType::get(Torch::IntType::get(op->getContext())), cdf_expand_sizes);
+      Value cdf_expanded = rewriter.create<AtenExpandOp>(loc, cdf_type, cdf_unsqueeze, cdf_expand_dim_list, cstFalse);
+
+      auto bool_type = getTypeForScalarType(self.getContext(), torch_upstream::ScalarType::Bool);
+      auto sample_expanded_type = cast<ValueTensorType>(uni_sample_expanded.getType());
+      Type cmp_type = sample_expanded_type.getWithSizesAndDtype(std::nullopt, bool_type.value());
+      Value comparison = rewriter.create<AtenLtTensorOp>(loc, cmp_type, uni_sample_expanded, cdf_expanded);
+      auto int32_type = getTypeForScalarType(self.getContext(), torch_upstream::ScalarType::Int);
+      Type cmp_int_type = cast<ValueTensorType>(comparison.getType()).getWithSizesAndDtype(std::nullopt, int32_type.value());
+
+      // get sample results (class indices)
+      Value comparison_int = rewriter.create<AtenToDtypeOp>(loc, cmp_int_type, comparison, torch_int32_dtype_int, cstFalse, cstFalse, none);
+      rewriter.replaceOpWithNewOp<AtenArgmaxOp>(op, resultType, comparison_int, one, cstFalse);
+
+    }
+    else if (dim == 2) {
+    }
+    else {
+      return rewriter.notifyMatchFailure(
+          op, "Tensor operand for Multinomial must be 1 or 2 dim");
+    }
+
+    return success();
+  }
+};
+
 // aten.normal_functional(mean, sigma) = randn() * sigma + mean.
 class DecomposeAtenNormalFunctionalOp
     : public OpRewritePattern<AtenNormalFunctionalOp> {
@@ -8792,6 +8912,7 @@ public:
         DecomposeAtenBernoulliLikeOp<AtenBernoulliPOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBernoulliTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExponentialOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMultinomialOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenZeroOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEyeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEyeMOp>(patterns);
