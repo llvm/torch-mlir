@@ -161,7 +161,6 @@ LOWERING_PIPELINE = (
             "func.func(refback-generalize-tensor-concat)",
             # Bufferize.
             "func.func(tm-tensor-bufferize)",
-            "func.func(empty-tensor-to-alloc-tensor)",
             "one-shot-bufferize{copy-before-write bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map}",
             "refback-mlprogram-bufferize",
             "func.func(finalizing-bufferize)",
