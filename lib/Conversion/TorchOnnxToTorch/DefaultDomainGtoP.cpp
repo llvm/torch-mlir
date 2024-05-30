@@ -1896,4 +1896,34 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         return success();
       });
+  patterns.onOp(
+      "LpNormalization", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        int64_t axis, p;
+        Value input;
+        if (binder.tensorOperand(input) ||
+            binder.s64IntegerAttr(axis, "axis", -1) ||
+            binder.s64IntegerAttr(p, "p", 2) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        auto loc = binder.getLoc();
+        Value cstAxis = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(axis));
+        Value cstP = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(p));
+        Value cstKeepDim = rewriter.create<Torch::ConstantBoolOp>(
+            loc, rewriter.getBoolAttr(true));
+        Value axisPrimList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            rewriter.getType<Torch::ListType>(
+                rewriter.getType<Torch::IntType>()),
+            llvm::ArrayRef<Value>{cstAxis});
+
+        rewriter.replaceOpWithNewOp<Torch::AtenNormScalarOptDimOp>(
+            binder.op, resultType, input, cstP, axisPrimList, cstKeepDim);
+
+        return success();
+      });
 }
