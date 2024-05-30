@@ -24,49 +24,57 @@ def run(f):
 
 @run
 # CHECK-LABEL: test_tanh_sigmoid_cat_shape_expr_import
-# CHECK:      func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,3],f32>, %[[ARG1:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,3],f32>) -> !torch.vtensor<[?,?,3],f32> {
+# CHECK:      func.func @main(
+# CHECK-SAME:       %[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,3],f32>,
+# CHECK-SAME:       %[[ARG1:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,3],f32>,
+# CHECK-SAME:       %[[ARG2:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,3],f32>) -> !torch.vtensor<[?,?,3],f32> {
 # CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 5, max_val = 10} : !torch.int
 # CHECK:        %[[S1:.+]] = torch.symbolic_int "s1" {min_val = {{[0-9]+}}, max_val = 100} : !torch.int
 # CHECK:        %[[S2:.+]] = torch.symbolic_int "s3" {min_val = {{[0-9]+}}, max_val = 50} : !torch.int
+# CHECK:        %[[S3:.+]] = torch.symbolic_int "s5" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
 # CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]], %[[S1]]], affine_map<()[s0, s1] -> (s0, s1, 3)> : !torch.vtensor<[?,?,3],f32>
 # CHECK:        torch.bind_symbolic_shape %[[ARG1]], [%[[S0]], %[[S2]]], affine_map<()[s0, s1] -> (s0, s1, 3)> : !torch.vtensor<[?,?,3],f32>
+# CHECK:        torch.bind_symbolic_shape %[[ARG2]], [%[[S0]], %[[S3]]], affine_map<()[s0, s1] -> (s0, s1, 3)> : !torch.vtensor<[?,?,3],f32>
 # CHECK:        %[[TANH:.+]] = torch.aten.tanh %[[ARG0]] : !torch.vtensor<[?,?,3],f32> -> !torch.vtensor<[?,?,3],f32>
 # CHECK:        torch.bind_symbolic_shape %[[TANH]], [%[[S0]], %[[S1]]], affine_map<()[s0, s1] -> (s0, s1, 3)> : !torch.vtensor<[?,?,3],f32>
 # CHECK:        %[[SIG:.+]] = torch.aten.sigmoid %[[ARG1]] : !torch.vtensor<[?,?,3],f32> -> !torch.vtensor<[?,?,3],f32>
 # CHECK:        torch.bind_symbolic_shape %[[SIG]], [%[[S0]], %[[S2]]], affine_map<()[s0, s1] -> (s0, s1, 3)> : !torch.vtensor<[?,?,3],f32>
-# CHECK:        %[[LIST:.+]] = torch.prim.ListConstruct %[[TANH]], %[[TANH]], %[[SIG]] : (!torch.vtensor<[?,?,3],f32>, !torch.vtensor<[?,?,3],f32>, !torch.vtensor<[?,?,3],f32>) -> !torch.list<vtensor>
+# CHECK:        %[[LIST:.+]] = torch.prim.ListConstruct %[[TANH]], %[[TANH]], %[[SIG]], %[[ARG2]] : (!torch.vtensor<[?,?,3],f32>, !torch.vtensor<[?,?,3],f32>, !torch.vtensor<[?,?,3],f32>, !torch.vtensor<[?,?,3],f32>) -> !torch.list<vtensor>
 # CHECK:        %[[CAT:.+]] = torch.aten.cat %[[LIST]], {{.*}} : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[?,?,3],f32>
-# CHECK:        torch.bind_symbolic_shape %[[CAT]], [%[[S0]], %[[S1]], %[[S2]]], affine_map<()[s0, s1, s2] -> (s0, s1 * 2 + s2, 3)> : !torch.vtensor<[?,?,3],f32>
+# CHECK:        torch.bind_symbolic_shape %[[CAT]], [%[[S0]], %[[S1]], %[[S2]], %[[S3]]], affine_map<()[s0, s1, s2, s3] -> (s0, s1 * 2 + s3 + s2, 3)> : !torch.vtensor<[?,?,3],f32>
 # CHECK:        return %[[CAT]] : !torch.vtensor<[?,?,3],f32>
 def test_tanh_sigmoid_cat_shape_expr_import():
     class TanhSigmoidCat(nn.Module):
         def __init__(self):
             super().__init__()
 
-        def forward(self, x, y):
+        def forward(self, x, y, z):
             a = torch.tanh(x)
             b = torch.sigmoid(y)
-            return torch.cat((a, a, b), dim=1)
+            return torch.cat((a, a, b, z), dim=1)
 
     # Sample inputs
     x = torch.randn(5, 2, 3)
     y = torch.randn(5, 6, 3)
+    z = torch.randn(5, 4, 3)
 
     # Dynamic dim constraints
     dim_n = Dim("n", min=5, max=10)
     dim_x1 = Dim("x1", max=100)
     dim_y1 = Dim("y1", max=50)
+    dim_z1 = Dim("z1")
     dynamic_shapes = {
         "x": {0: dim_n, 1: dim_x1},
         "y": {0: dim_n, 1: dim_y1},
+        "z": {0: dim_n, 1: dim_z1},
     }
 
-    m = fx.export_and_import(TanhSigmoidCat(), x, y, dynamic_shapes=dynamic_shapes)
+    m = fx.export_and_import(TanhSigmoidCat(), x, y, z, dynamic_shapes=dynamic_shapes)
     print(m)
 
 
 @run
-# CHECK-LABEL: test_symbolic_dim_dependence
+# CHECK-LABEL: test_symbolic_dim_differ_by_one
 # CHECK:      func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?],f32>, %[[ARG1:[a-zA-Z0-9]+]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> attributes {torch.assume_strict_symbolic_shapes} {
 # CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 3, max_val = 6} : !torch.int
 # This appears in torch-nightly, but not in torch-stable (re-enable once we've moved torch-stable to 2.4+)
@@ -78,8 +86,8 @@ def test_tanh_sigmoid_cat_shape_expr_import():
 # CHECK:        %[[ADD:.+]] = torch.aten.add.Tensor %[[ARG0]], %[[SLICE]], {{.*}} : !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>, !torch.int -> !torch.vtensor<[?],f32>
 # CHECK:        torch.bind_symbolic_shape %[[ADD]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
 # CHECK:        return %[[ADD]] : !torch.vtensor<[?],f32>
-def test_symbolic_dim_dependence():
-    class SymbolicDimDependence(torch.nn.Module):
+def test_symbolic_dim_differ_by_one():
+    class SymbolicDimDifferByOne(torch.nn.Module):
         def __init__(self):
             super().__init__()
 
@@ -99,7 +107,7 @@ def test_symbolic_dim_dependence():
     }
 
     m = fx.export_and_import(
-        SymbolicDimDependence(),
+        SymbolicDimDifferByOne(),
         x,
         y,
         dynamic_shapes=dynamic_shapes,
@@ -318,4 +326,71 @@ def test_gather_elements():
     dynamic_shapes = {"x": {0: batch}, "y": {}}
 
     m = fx.export_and_import(GatherElements(), x, y, dynamic_shapes=dynamic_shapes)
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_shape_square
+def test_shape_square():
+    class ShapeSquare(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            return torch.outer(x, x).flatten()
+
+    # Sample inputs
+    x = torch.rand(10)
+
+    # Dynamic dim constraints
+    batch = Dim("batch")
+    dynamic_shapes = {"x": {0: batch}}
+
+    m = fx.export_and_import(ShapeSquare(), x, dynamic_shapes=dynamic_shapes)
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_shape_div
+def test_shape_div():
+    class ShapeDiv(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            return x.reshape(-1, 5)
+
+    # Sample inputs
+    x = torch.rand(10, 7)
+
+    # Dynamic dim constraints
+    batch = Dim("batch", max=1000) * 5
+    dynamic_shapes = {"x": {0: batch}}
+
+    m = fx.export_and_import(ShapeDiv(), x, dynamic_shapes=dynamic_shapes)
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_symbolic_dim_subtract
+def test_symbolic_dim_subtract():
+    class SymbolicDimSubtract(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return x[5:]
+
+    # Sample inputs
+    x = torch.randn(10)
+
+    # Dynamic dim constraints
+    dimx = Dim("dimx", min=5)
+    dynamic_shapes = {"x": {0: dimx}}
+
+    m = fx.export_and_import(
+        SymbolicDimSubtract(),
+        x,
+        dynamic_shapes=dynamic_shapes,
+    )
     print(m)

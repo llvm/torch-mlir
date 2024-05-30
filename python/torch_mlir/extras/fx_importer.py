@@ -83,10 +83,14 @@ from torch.fx.node import (
 )
 
 from ..ir import (
-    AffineMap,
-    AffineSymbolExpr,
+    AffineAddExpr,
     AffineConstantExpr,
+    AffineExpr,
+    AffineMap,
     AffineMapAttr,
+    AffineModExpr,
+    AffineMulExpr,
+    AffineSymbolExpr,
     Attribute,
     Block,
     Context,
@@ -268,6 +272,63 @@ else:
 class RangeConstraint:
     min_val: int
     max_val: int
+
+
+def sympy_expr_to_semi_affine_expr(
+    expr: sympy.Expr, symbols_map: Dict[str, AffineSymbolExpr]
+) -> AffineExpr:
+    """Translate sympy expressions to MLIR (semi-)affine expressions.
+
+    Recursively traverse the sympy expr AST and build the affine expr.
+    This is not a perfect translation. Sympy expressions are much more
+    expressive and not as constrained as affine (linear) expressions are.
+    However, for the most part, we don't need to support all of sympy.
+    PyTorch only uses a subset of sympy for capturing and expressing
+    symbolic shapes, and among what's supported, we expect the semi-affine
+    expressions (https://mlir.llvm.org/docs/Dialects/Affine/#semi-affine-maps)
+    to be sufficient.
+    """
+    if isinstance(expr, sympy.Symbol):
+        return symbols_map[str(expr)]
+    elif isinstance(expr, int) or isinstance(expr, sympy.Integer):
+        return AffineConstantExpr.get(expr)
+    # This handles both add (`s0 + c`) and subtract (`s0 - c`)
+    # as the expression is `sympy.Add` in both cases but with
+    # args (s0, c) in first case and (s0, -c) in the second case.
+    elif isinstance(expr, sympy.Add):
+        affine_expr = AffineConstantExpr.get(0)
+        for arg in expr.args:
+            affine_expr = AffineAddExpr.get(
+                sympy_expr_to_semi_affine_expr(arg, symbols_map), affine_expr
+            )
+        return affine_expr
+    elif isinstance(expr, sympy.Mul):
+        affine_expr = AffineConstantExpr.get(1)
+        for arg in expr.args:
+            affine_expr = AffineMulExpr.get(
+                sympy_expr_to_semi_affine_expr(arg, symbols_map), affine_expr
+            )
+        return affine_expr
+    elif isinstance(expr, sympy.Pow):
+        base, exp = expr.args
+        assert isinstance(exp, (int, sympy.Integer))
+        assert exp > 0, "Only positive exponents supported in sympy.Pow"
+        affine_expr = AffineConstantExpr.get(1)
+        for _ in range(exp):
+            affine_expr = AffineMulExpr.get(
+                sympy_expr_to_semi_affine_expr(base, symbols_map), affine_expr
+            )
+        return affine_expr
+    elif isinstance(expr, sympy.Mod):
+        dividend, divisor = expr.args
+        return AffineModExpr.get(
+            sympy_expr_to_semi_affine_expr(dividend, symbols_map),
+            sympy_expr_to_semi_affine_expr(divisor, symbols_map),
+        )
+    else:
+        raise NotImplementedError(
+            f"Translation of sympy.Expr of type {type(expr)} not implemented yet."
+        )
 
 
 @dataclass(frozen=True)
@@ -1649,31 +1710,25 @@ class GraphNodeImporter:
                         assert isinstance(s, int)
                         shape_exprs.append(s)
 
-                # Map from actual shape symbols to local symbols in the affine map
+                # Map from sympy shape symbols to local symbols in the affine map
                 symbols_set = sorted(symbols_set, key=lambda x: x.name)
-
-                symbol_table = {
+                symbols_map = {
                     str(symbol): AffineSymbolExpr.get(i)
                     for i, symbol in enumerate(symbols_set)
                 }
 
                 # Convert symbolic shape expressions into affine expressions
                 affine_exprs = [
-                    (
-                        AffineConstantExpr.get(expr)
-                        if isinstance(expr, int)
-                        # Use `symbol_table.copy()` here to avoid `eval` from
-                        # adding the `__builtins__` entry to the map.
-                        else eval(str(expr), symbol_table.copy())
-                    )
+                    sympy_expr_to_semi_affine_expr(expr, symbols_map)
                     for expr in shape_exprs
                 ]
+
                 affine_map = AffineMap.get(0, len(symbols_set), affine_exprs)
 
                 # Build operand list
                 operand_list = []
                 operand_list.append(self.resolve_node_value(node))
-                for symbol in symbol_table.keys():
+                for symbol in symbols_map.keys():
                     operand_list.append(self.resolve_symbol_value(symbol))
 
                 # Create torch.bind_symbolic_shape ops
