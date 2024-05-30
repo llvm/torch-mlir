@@ -443,7 +443,6 @@ FX_IMPORTER_XFAIL_SET = {
     "SqrtIntConstantModule_basic",
     "SqrtIntModule_basic",
     "SubFloatModule_basic",
-    "TModuleRank0_basic",
     "TensorToBoolZeroRank_basic",
     "TensorToBool_basic",
     "TensorToFloatZeroRank_basic",

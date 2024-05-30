@@ -1731,6 +1731,10 @@ public:
     auto inputRank = inType.getRank();
     auto outType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op->getResult(0).getType()));
+    if (inputRank <= 1 && inType == outType) {
+      rewriter.replaceOp(op, {adaptor.getSelf()});
+      return success();
+    }
     auto elementType = inType.getElementType();
 
     dim0 = toPositiveDim(dim0, inputRank);
