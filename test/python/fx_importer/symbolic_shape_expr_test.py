@@ -23,7 +23,7 @@ def run(f):
 
 
 @run
-# CHECK-LABEL: test_tanh_sigmoid_cat_shape_expr_import
+# CHECK-LABEL: test_tanh_sigmoid_cat
 # CHECK:      func.func @main(
 # CHECK-SAME:       %[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,3],f32>,
 # CHECK-SAME:       %[[ARG1:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,3],f32>,
@@ -43,7 +43,7 @@ def run(f):
 # CHECK:        %[[CAT:.+]] = torch.aten.cat %[[LIST]], {{.*}} : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[?,?,3],f32>
 # CHECK:        torch.bind_symbolic_shape %[[CAT]], [%[[S0]], %[[S1]], %[[S2]], %[[S3]]], affine_map<()[s0, s1, s2, s3] -> (s0, s1 * 2 + s3 + s2, 3)> : !torch.vtensor<[?,?,3],f32>
 # CHECK:        return %[[CAT]] : !torch.vtensor<[?,?,3],f32>
-def test_tanh_sigmoid_cat_shape_expr_import():
+def test_tanh_sigmoid_cat():
     class TanhSigmoidCat(nn.Module):
         def __init__(self):
             super().__init__()
@@ -125,6 +125,106 @@ def test_symbolic_dim_differ_by_one():
 
 
 @run
+# CHECK-LABEL: test_outer_with_squared_shape
+# CHECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
+# CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
+# CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
+# CHECK:        %[[VIEW1:.+]] = torch.aten.view %[[ARG0]], {{.*}} : !torch.vtensor<[?],f32>, !torch.list<int> -> !torch.vtensor<[?,1],f32>
+# CHECK:        torch.bind_symbolic_shape %[[VIEW1]], [%[[S0]]], affine_map<()[s0] -> (s0, 1)> : !torch.vtensor<[?,1],f32>
+# CHECK:        %[[MUL:.+]] = torch.aten.mul.Tensor %[[VIEW1]], %[[ARG0]] : !torch.vtensor<[?,1],f32>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?,?],f32>
+# CHECK:        torch.bind_symbolic_shape %[[MUL]], [%[[S0]]], affine_map<()[s0] -> (s0, s0)> : !torch.vtensor<[?,?],f32>
+# CHECK:        %[[VIEW2:.+]] = torch.aten.view %[[MUL]], {{.*}} : !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[?],f32>
+# CHECK:        torch.bind_symbolic_shape %[[VIEW2]], [%[[S0]]], affine_map<()[s0] -> (s0 * s0)> : !torch.vtensor<[?],f32>
+# CHECK:        return %[[VIEW2]] : !torch.vtensor<[?],f32>
+def test_outer_with_squared_shape():
+    class OuterWithSquaredShape(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            return torch.outer(x, x).flatten()
+
+    # Sample inputs
+    x = torch.rand(10)
+
+    # Dynamic dim constraints
+    batch = Dim("batch")
+    dynamic_shapes = {"x": {0: batch}}
+
+    m = fx.export_and_import(
+        OuterWithSquaredShape(),
+        x,
+        dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_slice_tensor_static_output
+# CHECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?,3],f32>) -> !torch.vtensor<[2,1],f32> {
+# CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 3, max_val = 9223372036854775806} : !torch.int
+# CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
+# CHECK:        %[[SLICE1:.+]] = torch.aten.slice.Tensor %[[ARG0]], {{.*}}, {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[?,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3],f32>
+# CHECK:        %[[SLICE2:.+]] = torch.aten.slice.Tensor %[[SLICE1]], {{.*}}, {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[2,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,1],f32>
+# CHECK:        return %[[SLICE2]] : !torch.vtensor<[2,1],f32>
+def test_slice_tensor_static_output():
+    class SliceTensorStaticOutput(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            return x[0:2, :1]
+
+    # Sample inputs
+    x = torch.randn(4, 3)
+
+    # Dynamic dim constraints
+    batch = Dim("batch", min=3)
+    dynamic_shapes = {"x": {0: batch}}
+
+    m = fx.export_and_import(
+        SliceTensorStaticOutput(),
+        x,
+        dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_slice_tensor_dynamic_output
+# CHECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
+# CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 5, max_val = 9223372036854775806} : !torch.int
+# CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
+# CHECK:        %[[SLICE:.+]] = torch.aten.slice.Tensor %[[ARG0]], {{.*}}, {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[?],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?],f32>
+# CHECK:        torch.bind_symbolic_shape %[[SLICE]], [%[[S0]]], affine_map<()[s0] -> (s0 - 5)> : !torch.vtensor<[?],f32>
+# CHECK:        return %[[SLICE]] : !torch.vtensor<[?],f32>
+def test_slice_tensor_dynamic_output():
+    class SliceTensorDynamicOutput(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return x[5:]
+
+    # Sample inputs
+    x = torch.randn(10)
+
+    # Dynamic dim constraints
+    dimx = Dim("dimx", min=5)
+    dynamic_shapes = {"x": {0: dimx}}
+
+    m = fx.export_and_import(
+        SliceTensorDynamicOutput(),
+        x,
+        dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
+    )
+    print(m)
+
+
+@run
 # CHECK-LABEL: test_div_tensor_mixed_ranks
 # CHECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[],f32>, %[[ARG1:.+]]: !torch.vtensor<[?,3],f32>) -> !torch.vtensor<[?,3],f32> {
 # CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
@@ -160,30 +260,31 @@ def test_div_tensor_mixed_ranks():
 
 
 @run
-# CHECK-LABEL: test_slice_tensor
-# CHECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?,3],f32>) -> !torch.vtensor<[2,1],f32> {
-# CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 3, max_val = 9223372036854775806} : !torch.int
-# CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
-# CHECK:        %[[SLICE1:.+]] = torch.aten.slice.Tensor %[[ARG0]], {{.*}}, {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[?,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3],f32>
-# CHECK:        %[[SLICE2:.+]] = torch.aten.slice.Tensor %[[SLICE1]], {{.*}}, {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[2,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,1],f32>
-# CHECK:        return %[[SLICE2]] : !torch.vtensor<[2,1],f32>
-def test_slice_tensor():
-    class SliceTensor(torch.nn.Module):
+# CHECK-LABEL: test_shape_div
+# CHECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?,7],f32>) -> !torch.vtensor<[?,5],f32> {
+# CHECK:        %[[S0:.+]] = torch.symbolic_int "5*s1" {min_val = 0, max_val = 5000} : !torch.int
+# CHECK:        %[[S1:.+]] = torch.symbolic_int "s1" {min_val = 2, max_val = 1000} : !torch.int
+# CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S1]]], affine_map<()[s0] -> (s0 * 5, 7)> : !torch.vtensor<[?,7],f32>
+# CHECK:        %[[VIEW:.+]] = torch.aten.view %[[ARG0]], {{.*}} : !torch.vtensor<[?,7],f32>, !torch.list<int> -> !torch.vtensor<[?,5],f32>
+# CHECK:        torch.bind_symbolic_shape %[[VIEW]], [%[[S1]]], affine_map<()[s0] -> (s0 * 7, 5)> : !torch.vtensor<[?,5],f32>
+# CHECK:        return %[[VIEW]] : !torch.vtensor<[?,5],f32>
+def test_shape_div():
+    class ShapeDiv(torch.nn.Module):
         def __init__(self):
             super().__init__()
 
         def forward(self, x: torch.Tensor) -> torch.Tensor:
-            return x[0:2, :1]
+            return x.reshape(-1, 5)
 
     # Sample inputs
-    x = torch.randn(4, 3)
+    x = torch.rand(10, 7)
 
     # Dynamic dim constraints
-    batch = Dim("batch", min=3)
+    batch = Dim("batch", max=1000) * 5
     dynamic_shapes = {"x": {0: batch}}
 
     m = fx.export_and_import(
-        SliceTensor(),
+        ShapeDiv(),
         x,
         dynamic_shapes=dynamic_shapes,
         import_symbolic_shape_expressions=True,
@@ -355,84 +456,6 @@ def test_gather_elements():
         GatherElements(),
         x,
         y,
-        dynamic_shapes=dynamic_shapes,
-        import_symbolic_shape_expressions=True,
-    )
-    print(m)
-
-
-@run
-# CHECK-LABEL: test_shape_square
-def test_shape_square():
-    class ShapeSquare(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            return torch.outer(x, x).flatten()
-
-    # Sample inputs
-    x = torch.rand(10)
-
-    # Dynamic dim constraints
-    batch = Dim("batch")
-    dynamic_shapes = {"x": {0: batch}}
-
-    m = fx.export_and_import(
-        ShapeSquare(),
-        x,
-        dynamic_shapes=dynamic_shapes,
-        import_symbolic_shape_expressions=True,
-    )
-    print(m)
-
-
-@run
-# CHECK-LABEL: test_shape_div
-def test_shape_div():
-    class ShapeDiv(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-
-        def forward(self, x: torch.Tensor) -> torch.Tensor:
-            return x.reshape(-1, 5)
-
-    # Sample inputs
-    x = torch.rand(10, 7)
-
-    # Dynamic dim constraints
-    batch = Dim("batch", max=1000) * 5
-    dynamic_shapes = {"x": {0: batch}}
-
-    m = fx.export_and_import(
-        ShapeDiv(),
-        x,
-        dynamic_shapes=dynamic_shapes,
-        import_symbolic_shape_expressions=True,
-    )
-    print(m)
-
-
-@run
-# CHECK-LABEL: test_symbolic_dim_subtract
-def test_symbolic_dim_subtract():
-    class SymbolicDimSubtract(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-
-        def forward(self, x):
-            return x[5:]
-
-    # Sample inputs
-    x = torch.randn(10)
-
-    # Dynamic dim constraints
-    dimx = Dim("dimx", min=5)
-    dynamic_shapes = {"x": {0: dimx}}
-
-    m = fx.export_and_import(
-        SymbolicDimSubtract(),
-        x,
         dynamic_shapes=dynamic_shapes,
         import_symbolic_shape_expressions=True,
     )
