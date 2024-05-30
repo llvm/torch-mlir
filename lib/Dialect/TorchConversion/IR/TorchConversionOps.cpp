@@ -9,10 +9,8 @@
 
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 
-#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/TypeUtilities.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "llvm/ADT/StringMap.h"
 
