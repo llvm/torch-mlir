@@ -290,11 +290,11 @@ def sympy_expr_to_semi_affine_expr(
     """
     if isinstance(expr, sympy.Symbol):
         return symbols_map[str(expr)]
-    elif isinstance(expr, int) or isinstance(expr, sympy.Integer):
+    elif isinstance(expr, (int, sympy.Integer)):
         return AffineConstantExpr.get(expr)
-    # This handles both add (`s0 + c`) and subtract (`s0 - c`)
-    # as the expression is `sympy.Add` in both cases but with
-    # args (s0, c) in first case and (s0, -c) in the second case.
+    # This handles both add (`s0 + c`) and subtract (`s0 - c`).
+    # The expression is `sympy.Add` in both cases but with args
+    # (s0, c) in first case and (s0, -c) in the second case.
     elif isinstance(expr, sympy.Add):
         affine_expr = AffineConstantExpr.get(0)
         for arg in expr.args:
@@ -1134,7 +1134,7 @@ class ContextCache:
         self, prog: torch.export.ExportedProgram
     ) -> Dict[str, RangeConstraint]:
 
-        def _sympy_int_to_int(val: sympy.Expr, adjust: str):
+        def _sympy_int_to_int(val: sympy.Expr, adjust_func: Callable):
             # Convert simple sympy Integers into concrete int
             if val == sympy.oo:
                 return math.inf
@@ -1143,19 +1143,7 @@ class ContextCache:
             if isinstance(val, sympy.Integer):
                 return int(val)
             # TODO: Remove this adjustment when fractional ranges are removed
-            logging.warning(
-                "Export constraints cannot be non-integer expressions. Found "
-                "type %s, and value %s. We will attempt to %s this value.",
-                type(val),
-                val,
-                adjust,
-            )
-            if adjust == "floor":
-                return math.floor(val)
-            elif adjust == "ceil":
-                return math.ceil(val)
-            else:
-                raise RuntimeError(f"Got invalid adjustment {adjust}")
+            return adjust_func(val)
 
         contains_symbolic_ints = False
         for val in prog.range_constraints.values():
@@ -1169,8 +1157,8 @@ class ContextCache:
         if contains_symbolic_ints:
             self._symbolic_guards = {
                 str(k): RangeConstraint(
-                    _sympy_int_to_int(v.lower, "ceil"),  # type: ignore[arg-type]
-                    _sympy_int_to_int(v.upper, "floor"),  # type: ignore[arg-type]
+                    _sympy_int_to_int(v.lower, math.ceil),
+                    _sympy_int_to_int(v.upper, math.floor),
                 )
                 for k, v in prog.range_constraints.items()
             }
