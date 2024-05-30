@@ -262,7 +262,8 @@ def test_div_tensor_mixed_ranks():
 @run
 # CHECK-LABEL: test_shape_div
 # CHECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?,7],f32>) -> !torch.vtensor<[?,5],f32> {
-# CHECK:        %[[S0:.+]] = torch.symbolic_int "5*s1" {min_val = 0, max_val = 5000} : !torch.int
+# This appears in torch-nightly, but not in torch-stable (re-enable once we've moved torch-stable to 2.4+)
+# CHECK-DISABLED:        %[[S0:.+]] = torch.symbolic_int "5*s1" {min_val = 0, max_val = 5000} : !torch.int
 # CHECK:        %[[S1:.+]] = torch.symbolic_int "s1" {min_val = 2, max_val = 1000} : !torch.int
 # CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S1]]], affine_map<()[s0] -> (s0 * 5, 7)> : !torch.vtensor<[?,7],f32>
 # CHECK:        %[[VIEW:.+]] = torch.aten.view %[[ARG0]], {{.*}} : !torch.vtensor<[?,7],f32>, !torch.list<int> -> !torch.vtensor<[?,5],f32>
