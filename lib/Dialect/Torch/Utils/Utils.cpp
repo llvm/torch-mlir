@@ -570,6 +570,24 @@ LogicalResult Torch::getTransposedType(BaseTensorType inType, int64_t dimA,
   return success();
 }
 
+LogicalResult Torch::getPermutedType(BaseTensorType inType,
+                                     SmallVector<int64_t> permuteDims,
+                                     Type &permutedType) {
+  if (!inType.hasSizes())
+    return failure();
+
+  SmallVector<int64_t> shape(inType.getSizes());
+  if (shape.size() != permuteDims.size())
+    return failure();
+
+  SmallVector<int64_t> permutedShape;
+  for (unsigned i = 0; i < shape.size(); i++)
+    permutedShape.push_back(shape[permuteDims[i]]);
+  permutedType = inType.getWithSizesAndDtype(llvm::ArrayRef(permutedShape),
+                                             inType.getOptionalDtype());
+  return success();
+}
+
 Type Torch::getDefaultAccType(PatternRewriter &rewriter, Type inputType) {
   if (inputType.isF16())
     return rewriter.getF32Type();

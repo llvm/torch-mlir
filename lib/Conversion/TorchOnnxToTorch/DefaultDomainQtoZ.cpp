@@ -3031,22 +3031,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                          inputTy.getOptionalDtype()),
             input, reshapeSizesList);
 
-        Value transposedInput;
-        if (failed(createTorchTransposeOp(
-                rewriter, binder.getLoc(), reshapedInput,
-                /*dimA=*/1, /*dimB=*/3, transposedInput)))
+        SmallVector<int64_t, 6> permuteDimsInt{0, 3, 5, 1, 2, 4};
+        Value permutedInput;
+        if (failed(createTorchPermuteOp(rewriter, binder.getLoc(),
+                                        reshapedInput, permuteDimsInt,
+                                        permutedInput)))
           return rewriter.notifyMatchFailure(
-              binder.op, "Failed to create TorchTranspose op");
-        if (failed(createTorchTransposeOp(
-                rewriter, binder.getLoc(), transposedInput,
-                /*dimA=*/2, /*dimB=*/5, transposedInput)))
-          return rewriter.notifyMatchFailure(
-              binder.op, "Failed to create TorchTranspose op");
-        if (failed(createTorchTransposeOp(
-                rewriter, binder.getLoc(), transposedInput,
-                /*dimA=*/4, /*dimB=*/5, transposedInput)))
-          return rewriter.notifyMatchFailure(
-              binder.op, "Failed to create TorchTranspose op");
+              binder.op, "Failed to create Torch Permute op");
 
         Value cMulBlockSizeSquare = rewriter.create<Torch::AtenMulIntOp>(
             binder.getLoc(), c, cstBlockSizeSquare);
@@ -3056,7 +3047,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             llvm::SmallVector<Value>{b, cMulBlockSizeSquare, hDivBlockSize,
                                      wDivBlockSize});
         rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(
-            binder.op, resultType, transposedInput, reshapeSizesList);
+            binder.op, resultType, permutedInput, reshapeSizesList);
         return success();
       });
 }

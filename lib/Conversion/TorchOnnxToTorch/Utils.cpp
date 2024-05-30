@@ -113,3 +113,29 @@ LogicalResult mlir::torch::onnx_c::createTorchTransposeOp(
       loc, transposedType, input, cstDimA, cstDimB);
   return success();
 }
+
+static SmallVector<Value>
+getAsTorchConstantIntValues(OpBuilder &b, Location loc,
+                            SmallVectorImpl<int64_t> &ints) {
+  return llvm::to_vector<4>(llvm::map_range(ints, [&](int64_t val) -> Value {
+    return b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(val));
+  }));
+}
+
+LogicalResult mlir::torch::onnx_c::createTorchPermuteOp(
+    ConversionPatternRewriter &rewriter, Location loc, Value input,
+    SmallVector<int64_t> permuteDims, Value &permuted) {
+  Type permutedType;
+  if (failed(
+          Torch::getPermutedType(cast<Torch::BaseTensorType>(input.getType()),
+                                 permuteDims, permutedType)))
+    return failure();
+  SmallVector<Value, 6> permuteDimsValue =
+      getAsTorchConstantIntValues(rewriter, loc, permuteDims);
+  Value permuteDimsList = rewriter.create<Torch::PrimListConstructOp>(
+      loc, Torch::ListType::get(Torch::IntType::get(input.getContext())),
+      permuteDimsValue);
+  permuted = rewriter.create<Torch::AtenPermuteOp>(loc, permutedType, input,
+                                                   permuteDimsList);
+  return success();
+}
