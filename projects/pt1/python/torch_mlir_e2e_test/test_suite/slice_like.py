@@ -1077,7 +1077,9 @@ class SplitWithSizes_Module(torch.nn.Module):
 def SplitWithSizes_Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 2, 2))
 
+
 # ==============================================================================
+
 
 class TensorSplitSections_GetItemModule(torch.nn.Module):
     def __init__(self):
@@ -1093,6 +1095,7 @@ class TensorSplitSections_GetItemModule(torch.nn.Module):
     def forward(self, x):
         split = torch.tensor_split(x, 3, dim=1)
         return split[0], split[1], split[2]
+
 
 @register_test_case(module_factory=lambda: TensorSplitSections_GetItemModule())
 def TensorSplitSections_GetItemModule_basic(module, tu: TestUtils):
@@ -1114,7 +1117,7 @@ class TensorSplitSections_ListUnpackModule(torch.nn.Module):
         a, b, c, d = torch.tensor_split(x, 4, dim=1)
         return a, b, c, d
 
+
 @register_test_case(module_factory=lambda: TensorSplitSections_ListUnpackModule())
 def TensorSplitSections_ListUnpackModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 5))
-
