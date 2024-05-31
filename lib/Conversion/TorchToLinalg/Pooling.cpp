@@ -168,12 +168,11 @@ static LogicalResult createPoolingOp(
   Value windowTensor = rewriter.create<tensor::EmptyOp>(
       loc, getAsOpFoldResult(shape), elementType);
 
-  SmallVector<int64_t> dimensions;
   Value permutedInput = paddedInput, permutedOutput = outTensorInitialized;
   if (dimensionality == 3) {
     // Permute input and output tensor as follows:
     // (n,c,d,h,w) -> (n,d,h,w,c)
-    dimensions = {0, 2, 3, 4, 1};
+    SmallVector<int64_t> dimensions = {0, 2, 3, 4, 1};
     if (failed(torch_to_linalg::permuteTensor(op, rewriter, op->getLoc(),
                                               dimensions, paddedInput,
                                               permutedInput)))
@@ -198,8 +197,7 @@ static LogicalResult createPoolingOp(
   if (dimensionality == 3) {
     // Permute output tensor as follows:
     // (n,d,h,w,c) -> (n,c,d,h,w)
-    dimensions.clear();
-    dimensions = {0, 4, 1, 2, 3};
+    SmallVector<int64_t> dimensions = {0, 4, 1, 2, 3};
     if (failed(torch_to_linalg::permuteTensor(
             op, rewriter, op->getLoc(), dimensions, poolingResult, result)))
       return rewriter.notifyMatchFailure(
@@ -640,15 +638,14 @@ public:
     // }
 
     Value divisor = kernelSizeIntValues[0];
-    for (unsigned i = 1; i < kernelSizeIntValues.size(); i++) {
+    for (uint32_t i = 1; i < kernelSizeIntValues.size(); i++) {
       divisor =
           rewriter.create<arith::MulIOp>(loc, divisor, kernelSizeIntValues[i]);
     }
     if constexpr (!std::is_same<OpTy, AtenAvgPool1dOp>()) {
-      divisor =
-          op.getDivisorOverride().getType().template isa<Torch::NoneType>()
-              ? divisor
-              : adaptor.getDivisorOverride();
+      divisor = isa<Torch::NoneType>(op.getDivisorOverride().getType())
+                    ? divisor
+                    : adaptor.getDivisorOverride();
     }
     divisor = convertScalarToDtype(rewriter, loc, divisor, resultElementType);
 
