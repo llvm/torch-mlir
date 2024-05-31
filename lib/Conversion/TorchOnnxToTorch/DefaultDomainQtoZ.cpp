@@ -484,9 +484,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           binder.tensorResultType(resultTy))
         return failure();
 
-      auto dataTy = data.getType().cast<Torch::ValueTensorType>(), 
-            indicesTy = indices.getType().cast<Torch::ValueTensorType>(), 
-            updatesTy = updates.getType().cast<Torch::ValueTensorType>();
+      auto dataTy = cast<Torch::ValueTensorType>(data.getType()),
+           cast<Torch::ValueTensorType>(indicesTy = indices.getType()),
+           cast<Torch::ValueTensorType>(updatesTy = updates.getType());
 
       int64_t dataRank = dataTy.getSizes().size(), 
               indicesRank = indicesTy.getSizes().size(), 
