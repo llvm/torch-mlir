@@ -1868,9 +1868,8 @@ public:
     const TypeConverter *typeConverter = getTypeConverter();
 
     auto input = adaptor.getSelf();
-    RankedTensorType resultType =
-        typeConverter->convertType(op->getResult(0).getType())
-            .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        typeConverter->convertType(op->getResult(0).getType()));
 
     SmallVector<Value> resultShape;
     SmallVector<Value> offsets;
@@ -2107,9 +2106,8 @@ public:
 
     auto input = adaptor.getSelf();
 
-    RankedTensorType resultType =
-        typeConverter->convertType(op->getResult(0).getType())
-            .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        typeConverter->convertType(op->getResult(0).getType()));
 
     SmallVector<Value> resultShape;
     SmallVector<Value> offsets;
@@ -2343,9 +2341,8 @@ public:
           op, "diagonal dimensions cannot be identical");
 
     Type elementType = inputType.getElementType();
-    RankedTensorType outputType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType outputType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Location loc = op.getLoc();
 
     Value dim1Size, dim2Size;
@@ -2581,9 +2578,8 @@ public:
                 })
             .getResult(0);
 
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, resultTensor);
     return success();
@@ -2608,9 +2604,8 @@ public:
       return failure();
     // Conversion is completed specified by information in the sparse tensor
     // type. Thus, we can rewrite all legalizedNames to the same construct.
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     rewriter.replaceOpWithNewOp<sparse_tensor::ConvertOp>(
         op, resultType, adaptor.getOperands()[0]);
     return success();

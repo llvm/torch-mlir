@@ -42,9 +42,8 @@ public:
 
     if (train)
       return failure();
-    auto resultType = getTypeConverter()
-                          ->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
                                                 adaptor.getInput());
     return success();
@@ -60,8 +59,8 @@ static Value toLinearIndex(OpBuilder &b, Location loc,
   Value result =
       b.create<arith::ConstantOp>(loc, b.getZeroAttr(b.getI64Type()));
   for (auto [index, stride] : llvm::zip(indicesIntValues, shapeIntValues)) {
-    assert(index.getType().isa<mlir::IntegerType>() &&
-           stride.getType().isa<mlir::IntegerType>() &&
+    assert(isa<mlir::IntegerType>(index.getType()) &&
+           isa<mlir::IntegerType>(stride.getType()) &&
            "Input arrays to `toLinearIndex` must only contain values of type "
            "`mlir::IntegerType`");
     Value mul = b.create<arith::MulIOp>(loc, result, stride);
@@ -129,7 +128,7 @@ public:
     if (!isa<mlir::FloatType>(elemTy))
       return rewriter.notifyMatchFailure(op, "This op only support float type");
 
-    if (!generator.getType().isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(generator.getType()))
       return rewriter.notifyMatchFailure(
           op, "The generator has to be None because only global default "
               "generator is supported");
@@ -180,7 +179,7 @@ public:
                       b.create<arith::MulFOp>(loc, updateFloat, scale);
                   Value res = b.create<arith::AddFOp>(loc, updateScaled, min);
                   Value truncRes = res;
-                  if (elemTy.isa<Float16Type, Float32Type>())
+                  if (isa<Float16Type, Float32Type>(elemTy))
                     truncRes = b.create<arith::TruncFOp>(loc, elemTy, res);
                   b.create<linalg::YieldOp>(loc, truncRes);
                 })

@@ -271,7 +271,7 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
   auto getOptionalVal = [&](Value val) -> std::optional<Value> {
-    if (val.getType().isa<Torch::NoneType>()) {
+    if (isa<Torch::NoneType>(val.getType())) {
       return std::nullopt;
     } else {
       return val;
@@ -451,7 +451,7 @@ template <>
 LogicalResult ConvertAtenOp<PrimsSplitDimOp>::matchAndRewrite(
     PrimsSplitDimOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  auto selfType = adaptor.getA().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getA().getType());
   if (!selfType) {
     return op.emitError("only tensor types are currently supported");
   }

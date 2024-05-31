@@ -41,7 +41,7 @@ static void signShift(PatternRewriter &rewriter, Location loc, Value &arg,
     return;
   int64_t minSI = -(1 << (numBits - 1));
   Value minSIValue = rewriter.create<arith::ConstantIntOp>(
-      loc, minSI, zp.getType().cast<mlir::IntegerType>().getWidth());
+      loc, minSI, cast<mlir::IntegerType>(zp.getType()).getWidth());
   zp = rewriter.create<arith::AddIOp>(loc, zp, minSIValue);
   minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, numBits);
   arg = torch_to_linalg::createElementwiseLinalgGeneric(
@@ -1057,10 +1057,10 @@ public:
         loc, getAsOpFoldResult(outDims), accumulatorDType);
 
     Value outputTensor;
-    if (accumulatorDType != resultDTy && !bias.getType().isa<Torch::NoneType>())
+    if (accumulatorDType != resultDTy && !isa<Torch::NoneType>(bias.getType()))
       bias = torch_to_linalg::convertTensorToElementType(rewriter, loc, bias,
                                                          accumulatorDType);
-    if (bias.getType().isa<Torch::NoneType>()) {
+    if (isa<Torch::NoneType>(bias.getType())) {
       Value c0;
       if (isa<mlir::FloatType>(accumulatorDType)) {
         c0 = rewriter.create<arith::ConstantOp>(

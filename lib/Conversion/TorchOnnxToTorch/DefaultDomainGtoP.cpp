@@ -546,12 +546,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           Value shuffledPaddingList =
               createConstantIntList(binder, rewriter, padding);
           Value zero;
-          if (resultTypeOut.getDtype().isa<FloatType>()) {
+          if (isa<FloatType>(resultTypeOut.getDtype())) {
             zero = rewriter.create<Torch::ConstantFloatOp>(
                 binder.getLoc(), rewriter.getType<Torch::FloatType>(),
                 rewriter.getF64FloatAttr(
                     std::numeric_limits<double>::lowest()));
-          } else if (resultTypeOut.getDtype().isa<IntegerType>()) {
+          } else if (isa<IntegerType>(resultTypeOut.getDtype())) {
             zero = rewriter.create<Torch::ConstantIntOp>(
                 binder.getLoc(), rewriter.getI64IntegerAttr(
                                      std::numeric_limits<int64_t>::lowest()));
@@ -1295,7 +1295,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType))
           return failure();
 
-        auto inputTensorType = operand.getType().cast<Torch::ValueTensorType>();
+        auto inputTensorType = cast<Torch::ValueTensorType>(operand.getType());
         if (!inputTensorType || !inputTensorType.hasSizes()) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected input type having sizes");
@@ -1509,10 +1509,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         if (!constantValue) {
           auto dataTensorType = cast<Torch::ValueTensorType>(data.getType());
-          if (dataTensorType.getDtype().isa<IntegerType>())
+          if (isa<IntegerType>(dataTensorType.getDtype()))
             constantValue = rewriter.create<Torch::ConstantIntOp>(
                 loc, rewriter.getI64IntegerAttr(0));
-          if (dataTensorType.getDtype().isa<FloatType>())
+          if (isa<FloatType>(dataTensorType.getDtype()))
             constantValue = rewriter.create<Torch::ConstantFloatOp>(
                 loc, rewriter.getF64FloatAttr(0.0f));
 

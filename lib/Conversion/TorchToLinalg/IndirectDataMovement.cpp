@@ -845,7 +845,7 @@ public:
     outputSizeIntValues = getTypeConvertedValues(
         rewriter, loc, getTypeConverter(), outputSizeTorchInt);
 
-    if (!op.getScalesH().getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getScalesH().getType())) {
       // Convert float values to int values.
       // int_value = (int64_t)ceil(float_value)
       Value ceilVal = rewriter.create<math::CeilOp>(loc, adaptor.getScalesH());
@@ -858,7 +858,7 @@ public:
       scaleFactorsInt.push_back(scaleFactorVal);
     }
 
-    if (!op.getScalesW().getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getScalesW().getType())) {
       // Convert float values to int values.
       // int_value = (int64_t)ceil(float_value)
       Value ceilVal = rewriter.create<math::CeilOp>(loc, adaptor.getScalesW());
@@ -1006,7 +1006,7 @@ public:
     unsigned hDimOffset = 2;
 
     SmallVector<Value, 2> scaleFactorsFloatValues;
-    if (!op.getScalesH().getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getScalesH().getType())) {
       scaleFactorsFloatValues.push_back(adaptor.getScalesH());
     } else {
       auto scaleFactorVal = rewriter.create<arith::DivFOp>(
@@ -1019,7 +1019,7 @@ public:
       scaleFactorsFloatValues.push_back(scaleFactorVal);
     }
 
-    if (!op.getScalesW().getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getScalesW().getType())) {
       scaleFactorsFloatValues.push_back(adaptor.getScalesW());
     } else {
       auto scaleFactorVal = rewriter.create<arith::DivFOp>(
