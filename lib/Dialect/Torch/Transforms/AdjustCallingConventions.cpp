@@ -215,11 +215,11 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
     for (int i = 0, e = func.getNumArguments(); i != e; i++) {
       if (func.getArgAttr(i, "torch.type_bound"))
         return false;
-      if (func.getArgumentTypes()[i].isa<Torch::NoneType>())
+      if (isa<Torch::NoneType>(func.getArgumentTypes()[i]))
         return false;
     }
     for (int i = 0, e = func.getNumResults(); i != e; i++) {
-      if (func.getFunctionType().getResults()[i].isa<Torch::NoneType>())
+      if (isa<Torch::NoneType>(func.getFunctionType().getResults()[i]))
         return false;
     }
     return true;

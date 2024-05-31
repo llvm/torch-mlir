@@ -442,7 +442,7 @@ def Torch_PrimDictConstructOp: Torch_Op<"prim.DictConstruct", [
   }];
 
   let extraClassDeclaration = [{
-    Type getKeyType) { return cast<DictType>(getType()).getKeyType(); }
+    Type getKeyType() { return cast<DictType>(getType()).getKeyType(); }
     Type getValueType() { return cast<DictType>(getType()).getValueType(); }
   }];
 }

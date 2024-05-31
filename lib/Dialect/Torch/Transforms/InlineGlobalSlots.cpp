@@ -63,8 +63,8 @@ public:
 };
 
 static bool isTypeTriviallySafe(Type type) {
-  return type.isa<Torch::IntType, Torch::FloatType, Torch::BoolType,
-                  Torch::StringType, Torch::NoneType, Torch::ValueTensorType>();
+  return isa<Torch::IntType, Torch::FloatType, Torch::BoolType,
+             Torch::StringType, Torch::NoneType, Torch::ValueTensorType>(type);
 }
 
 static bool isUseTreatedWithValueSemantics(OpOperand &use) {

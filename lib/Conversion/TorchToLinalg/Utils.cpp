@@ -52,7 +52,7 @@ Value torch_to_linalg::getPaddedTensor(
 Value torch_to_linalg::getZeroPaddedTensor(
     Operation *op, OpBuilder &b, Value &input,
     SmallVectorImpl<int64_t> &paddingInts) {
-  assert(input.getType().isa<RankedTensorType>() &&
+  assert(isa<RankedTensorType>(input.getType()) &&
          "input must be RankedTensorType");
   Location loc = op->getLoc();
   Value c0 = b.create<arith::ConstantOp>(
@@ -67,7 +67,7 @@ Value torch_to_linalg::getZeroPaddedTensor(
 Value torch_to_linalg::getDynamicZeroPaddedTensor(
     Operation *op, OpBuilder &b, Value &input, SmallVectorImpl<Value> &padding,
     int unpaddedDims, Value pad) {
-  assert(input.getType().isa<RankedTensorType>() &&
+  assert(isa<RankedTensorType>(input.getType()) &&
          "input must be RankedTensorType");
   unsigned int inRank = cast<RankedTensorType>(input.getType()).getRank();
   Location loc = op->getLoc();

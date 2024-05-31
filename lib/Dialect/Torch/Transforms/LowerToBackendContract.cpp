@@ -36,8 +36,8 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
 static LogicalResult checkType(Operation *op, Type type,
                                bool actuallyEmitDiagnostics) {
   // Allow various scalar types that backends are expected to be able to handle.
-  if (type.isa<Torch::IntType, Torch::FloatType, Torch::BoolType,
-               Torch::DeviceType>())
+  if (isa<Torch::IntType, Torch::FloatType, Torch::BoolType, Torch::DeviceType>(
+          type))
     return success();
 
   // Backends are not expected to support dynamic computations on these types,

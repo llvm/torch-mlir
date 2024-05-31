@@ -87,7 +87,7 @@ public:
     if (!isa<mlir::FloatType>(inElementType)) {
       if (isa<mlir::IntegerType>(inElementType)) {
         auto integerTy = dyn_cast<mlir::IntegerType>(
-            op.getSelf().getType().template cast<BaseTensorType>().getDtype());
+            cast<BaseTensorType>(op.getSelf().getType()).getDtype());
         isUnsigned = integerTy.isUnsigned();
       } else {
         return rewriter.notifyMatchFailure(
@@ -277,7 +277,7 @@ public:
 
 static Value createAbsOpForNormOps(OpBuilder &b, Location loc, Value elem,
                                    Type resultElementType) {
-  if (elem.getType().isa<mlir::ComplexType>()) {
+  if (isa<mlir::ComplexType>(elem.getType())) {
     return b.create<complex::AbsOp>(loc, elem);
   }
 
@@ -387,9 +387,8 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     if (isa<mlir::FloatType>(resultElementType))
       return b.create<arith::MinimumFOp>(loc, self, result);
     else if (isa<mlir::IntegerType>(resultElementType)) {
-      IntegerType intType = cast<BaseTensorType>(min.getSelf().getType())
-                                .getDtype()
-                                .dyn_cast<mlir::IntegerType>();
+      IntegerType intType = dyn_cast<mlir::IntegerType>(
+          cast<BaseTensorType>(min.getSelf().getType()).getDtype());
       if (intType.isUnsigned())
         return b.create<arith::MinUIOp>(loc, self, result);
       if (intType.isSigned())

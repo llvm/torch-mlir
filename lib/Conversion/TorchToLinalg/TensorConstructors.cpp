@@ -367,8 +367,8 @@ public:
     for (auto size : resultSize)
       resultSizeIndex.push_back(castIntToIndex(rewriter, loc, size));
 
-    auto resultType = typeConverter->convertType(op.getType())
-                          .template cast<RankedTensorType>();
+    auto resultType =
+        cast<RankedTensorType>(typeConverter->convertType(op.getType()));
     Type resultElementType;
     if (isa<Torch::NoneType>(op.getDtype().getType())) {
       resultElementType = resultType.getElementType();
@@ -424,7 +424,7 @@ public:
           op, "unimplemented: pin_memory must be either None or false");
 
     // Only `none`, `contiguous` and `preserve` memory_format is supported.
-    if (!op.getMemoryFormat().getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getMemoryFormat().getType())) {
       int64_t memoryFormat;
       if (!matchPattern(op.getMemoryFormat(),
                         m_TorchConstantInt(&memoryFormat)))
@@ -439,7 +439,7 @@ public:
     }
 
     // TODO: Add support for device arg other than cpu.
-    if (!op.getDevice().getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getDevice().getType())) {
       std::string device;
       if (!matchPattern(op.getDevice(), m_TorchConstantDevice(device)))
         return rewriter.notifyMatchFailure(
@@ -451,7 +451,7 @@ public:
 
     // TODO: Add support for non-strided layout.
     // torch.layout is by default strided i.e. 0.
-    if (!op.getLayout().getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getLayout().getType())) {
       int64_t tensorLayout;
       if (!matchPattern(op.getLayout(), m_TorchConstantInt(&tensorLayout)))
         return rewriter.notifyMatchFailure(
@@ -476,7 +476,7 @@ public:
     auto resultType =
         cast<RankedTensorType>(typeConverter->convertType(op.getType()));
     Type resultElementType;
-    if (op.getDtype().getType().isa<Torch::NoneType>()) {
+    if (isa<Torch::NoneType>(op.getDtype().getType())) {
       resultElementType = getDefaultDtypeForTorchScalar(
           Torch::FloatType::get(op->getContext()));
     } else {
@@ -525,7 +525,7 @@ public:
 
     // The pin_memory should be either `False` or `none`.
     bool pinMemory;
-    if (!op.getPinMemory().getType().isa<Torch::NoneType>() &&
+    if (!isa<Torch::NoneType>(op.getPinMemory().getType()) &&
         (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
          pinMemory)) {
       return rewriter.notifyMatchFailure(

@@ -157,8 +157,8 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   Value builtinTypeStart = adaptor.getStart();
   Value builtinTypeEnd = adaptor.getEnd();
 
-  if (torchTypeStart.getType().isa<OptionalType>() ||
-      torchTypeEnd.getType().isa<OptionalType>())
+  if (isa<OptionalType>(torchTypeStart.getType()) ||
+      isa<OptionalType>(torchTypeEnd.getType()))
     return rewriter.notifyMatchFailure(op, "unimplemented optional type arg");
 
   int64_t step;
@@ -349,11 +349,11 @@ LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "offsets must be a vector with static shape equal to 1");
 
-  if (!op.getPaddingIdx().getType().isa<Torch::NoneType>())
+  if (!isa<Torch::NoneType>(op.getPaddingIdx().getType()))
     return rewriter.notifyMatchFailure(
         op, "Unimplemented: padding_idx should be none");
 
-  if (!op.getPerSampleWeights().getType().isa<Torch::NoneType>())
+  if (!isa<Torch::NoneType>(op.getPerSampleWeights().getType()))
     return rewriter.notifyMatchFailure(
         op, "Unimplemented: per_sample_weights should be none");
 

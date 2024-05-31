@@ -191,8 +191,8 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
   // to match the library function signature.
   if (auto unionType = dyn_cast<Torch::UnionType>(desiredType)) {
     if (llvm::all_of(unionType.getContainedTypes(), [](Type containedType) {
-          return containedType
-              .isa<Torch::IntType, Torch::FloatType, Torch::NoneType>();
+          return isa<Torch::IntType, Torch::FloatType, Torch::NoneType>(
+              containedType);
         }))
       return b.create<DerefineOp>(loc, desiredType, operand).getResult();
   }

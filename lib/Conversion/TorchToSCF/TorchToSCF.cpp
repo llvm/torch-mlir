@@ -252,7 +252,7 @@ public:
     // "block" arguments
     for (const auto &barg : enumerate(op.getRegion().front().getArguments())) {
       Value to = block->getArgument(barg.index());
-      if (to.getType().isa<mlir::IndexType>())
+      if (isa<mlir::IndexType>(to.getType()))
         to =
             rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), to);
       Type targetType = to.getType();

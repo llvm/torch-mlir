@@ -271,7 +271,7 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
   auto getOptionalVal = [&](Value val) -> std::optional<Value> {
-    if (val.getType().isa<Torch::NoneType>()) {
+    if (isa<Torch::NoneType>(val.getType())) {
       return std::nullopt;
     } else {
       return val;

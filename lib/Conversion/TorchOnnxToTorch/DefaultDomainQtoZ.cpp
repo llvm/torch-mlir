@@ -2905,8 +2905,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           scalesValueList = noneVal;
           sizesValueList = getValueList(sizeOperand);
         }
-        if (scalesValueList.getType().isa<Torch::NoneType>() &&
-            sizesValueList.getType().isa<Torch::NoneType>()) {
+        if (isa<Torch::NoneType>(scalesValueList.getType()) &&
+            isa<Torch::NoneType>(sizesValueList.getType())) {
           return rewriter.notifyMatchFailure(binder.op, "unknown scaling mode");
         }
         rewriter

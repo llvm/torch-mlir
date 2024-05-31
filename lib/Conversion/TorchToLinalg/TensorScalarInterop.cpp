@@ -138,11 +138,11 @@ public:
       requires_grad = tensorFloatOp.getRequiresGrad();
     }
     // TODO: Dtype conversion.
-    if (!dtype.getType().isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(dtype.getType()))
       return rewriter.notifyMatchFailure(op, "Unimplemented non-None dtype");
 
     // TODO: Device information.
-    if (!device.getType().isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(device.getType()))
       return rewriter.notifyMatchFailure(
           op, "Unimplemented non-None device information");
 

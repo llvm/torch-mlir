@@ -1943,7 +1943,7 @@ OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
 OpFoldResult AtenTruncOp::fold(FoldAdaptor adaptor) {
   auto resultType = dyn_cast<ValueTensorType>(getType());
   if (resultType && resultType.hasDtype() &&
-      resultType.getDtype().isa<mlir::IntegerType>()) {
+      isa<mlir::IntegerType>(resultType.getDtype())) {
     return getSelf();
   }
   return {};
@@ -2133,7 +2133,7 @@ traceKnownSizeTensorType(Value value, std::optional<int64_t> dim) {
   // Limit the loop count to 6 to avoid indefinite compilation times from
   // unbounded IR traversals.
   for (auto idx = 0; idx < 6; ++idx) {
-    if (!value || !value.getType().isa<BaseTensorType>())
+    if (!value || !isa<BaseTensorType>(value.getType()))
       return failure();
 
     auto tensorType = cast<BaseTensorType>(value.getType());
@@ -2719,7 +2719,7 @@ static bool areSizesAndDtypesCompatible(BaseTensorType a, BaseTensorType b) {
 
 bool NonValueTensorLiteralOp::isCompatibleReturnTypes(TypeRange inferred,
                                                       TypeRange actual) {
-  if (!actual[0].isa<BaseTensorType>())
+  if (!isa<BaseTensorType>(actual[0]))
     return false;
   return areSizesAndDtypesCompatible(cast<BaseTensorType>(inferred[0]),
                                      cast<BaseTensorType>(actual[0]));
@@ -3067,7 +3067,7 @@ OpFoldResult AtenIsFloatingPointOp::fold(FoldAdaptor adaptor) {
   if (!operandType)
     return nullptr;
   if (operandType.hasDtype()) {
-    bool isFloatType = operandType.getDtype().isa<mlir::FloatType>();
+    bool isFloatType = isa<mlir::FloatType>(operandType.getDtype());
     return IntegerAttr::get(IntegerType::get(getContext(), 1), isFloatType);
   }
   // doesn't has dtype
@@ -3125,12 +3125,12 @@ void AtenSliceTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     int64_t start;
     int64_t end;
     int64_t step;
-    if (op.getStart().getType().isa<Torch::NoneType>()) {
+    if (isa<Torch::NoneType>(op.getStart().getType())) {
       start = 0;
     } else if (!matchPattern(op.getStart(), m_TorchConstantInt(&start))) {
       return failure();
     }
-    if (op.getEnd().getType().isa<Torch::NoneType>()) {
+    if (isa<Torch::NoneType>(op.getEnd().getType())) {
       end = listElements.size();
     } else if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end))) {
       return failure();
@@ -3223,7 +3223,7 @@ void PrimTupleIndexOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     // things.
     Value replacement = tupleConstruct.getElements()[i];
     if (replacement.getType() != op.getType()) {
-      if (op.getType().isa<BaseTensorType>()) {
+      if (isa<BaseTensorType>(op.getType())) {
         replacement = rewriter.create<Torch::TensorStaticInfoCastOp>(
             op.getLoc(), op.getType(), replacement);
       } else {
@@ -3706,7 +3706,7 @@ OpFoldResult AtenAddOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   }
 
-  if (adaptor.getA().isa<IntegerAttr>() && adaptor.getB().isa<IntegerAttr>()) {
+  if (isa<IntegerAttr>(adaptor.getA()) && isa<IntegerAttr>(adaptor.getB())) {
     return atenBinaryIntOperatorFoldHelper(
         adaptor.getOperands(),
         [](int64_t a, int64_t b) -> int64_t { return a + b; });
@@ -3725,7 +3725,7 @@ OpFoldResult AtenMulOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   }
 
-  if (adaptor.getA().isa<IntegerAttr>() && adaptor.getB().isa<IntegerAttr>()) {
+  if (isa<IntegerAttr>(adaptor.getA()) && isa<IntegerAttr>(adaptor.getB())) {
     return atenBinaryIntOperatorFoldHelper(
         adaptor.getOperands(),
         [](int64_t a, int64_t b) -> int64_t { return a * b; });
@@ -3744,7 +3744,7 @@ OpFoldResult AtenSubOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   }
 
-  if (adaptor.getA().isa<IntegerAttr>() && adaptor.getB().isa<IntegerAttr>()) {
+  if (isa<IntegerAttr>(adaptor.getA()) && isa<IntegerAttr>(adaptor.getB())) {
     return atenBinaryIntOperatorFoldHelper(
         adaptor.getOperands(),
         [](int64_t a, int64_t b) -> int64_t { return a - b; });
@@ -4639,8 +4639,8 @@ LogicalResult AtenNormScalarOp::verify() {
   // Check if dtype is one of those supported by norm operation.
   // ComplexType will match any torch complex types, but each float must be
   // checked individually.
-  if (!inTensorDtype.isa<mlir::ComplexType, mlir::Float16Type,
-                         mlir::Float32Type, mlir::Float64Type>()) {
+  if (!isa<mlir::ComplexType, mlir::Float16Type, mlir::Float32Type,
+           mlir::Float64Type>(inTensorDtype)) {
     return emitOpError(
                "expected a float or complex type for input tensor, but got ")
            << inTensorDtype;

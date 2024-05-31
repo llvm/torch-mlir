@@ -422,7 +422,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto clone = dyn_cast<AtenCloneOp>(op)) {
     int64_t memoryFormat;
-    if (!clone.getMemoryFormat().getType().isa<Torch::NoneType>() &&
+    if (!isa<Torch::NoneType>(clone.getMemoryFormat().getType()) &&
         (!matchPattern(clone.getMemoryFormat(),
                        m_TorchConstantInt(&memoryFormat)) ||
          (memoryFormat != torch_upstream::MemoryFormat::Contiguous &&
@@ -434,9 +434,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return payloadArgs[0];
   }
   if (auto bitwiseAndTensor = dyn_cast<AtenBitwiseAndTensorOp>(op)) {
-    if (cast<ValueTensorType>(bitwiseAndTensor.getType())
-            .getDtype()
-            .isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(
+            cast<ValueTensorType>(bitwiseAndTensor.getType()).getDtype())) {
       bitwiseAndTensor.emitError(
           "Bitwise_And does not support floating point dtype");
       return nullptr;
@@ -468,9 +467,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::AndIOp>(loc, self, other);
   }
   if (auto bitwiseOrTensor = dyn_cast<AtenBitwiseOrTensorOp>(op)) {
-    if (cast<ValueTensorType>(bitwiseOrTensor.getType())
-            .getDtype()
-            .isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(
+            cast<ValueTensorType>(bitwiseOrTensor.getType()).getDtype())) {
       bitwiseOrTensor.emitError(
           "Bitwise_Or does not support floating point dtype");
       return nullptr;
@@ -483,9 +481,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::OrIOp>(loc, lhs, rhs);
   }
   if (auto bitwiseXorTensor = dyn_cast<AtenBitwiseXorTensorOp>(op)) {
-    if (cast<ValueTensorType>(bitwiseXorTensor.getType())
-            .getDtype()
-            .isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(
+            cast<ValueTensorType>(bitwiseXorTensor.getType()).getDtype())) {
       bitwiseXorTensor.emitError(
           "Bitwise_Xor does not support floating point dtype");
       return nullptr;
@@ -554,7 +551,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return createEqual(b, loc, floatDtype, self, zero);
   }
   if (isa<AtenAbsOp>(op)) {
-    if (payloadArgs[0].getType().isa<IntegerType>())
+    if (isa<IntegerType>(payloadArgs[0].getType()))
       return b.create<math::AbsIOp>(loc, payloadArgs[0]);
     return b.create<math::AbsFOp>(loc, payloadArgs[0]);
   }
@@ -650,18 +647,16 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::SelectOp>(loc, cmp, arg, zeroPoint);
   }
   if (auto round = dyn_cast<AtenRoundOp>(op)) {
-    if (!cast<ValueTensorType>(round.getType())
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(round.getType()).getDtype())) {
       round.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
     return b.create<math::RoundEvenOp>(loc, payloadArgs[0]);
   }
   if (auto prelu = dyn_cast<AtenPreluOp>(op)) {
-    if (!cast<ValueTensorType>(prelu.getType())
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(prelu.getType()).getDtype())) {
       prelu.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -680,9 +675,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::AddFOp>(loc, positivePart, scaledNegativePart);
   }
   if (auto gelu = dyn_cast<AtenGeluOp>(op)) {
-    if (!cast<ValueTensorType>(gelu.getType())
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(gelu.getType()).getDtype())) {
       gelu.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -726,9 +720,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return nullptr;
   }
   if (auto geluBackward = dyn_cast<AtenGeluBackwardOp>(op)) {
-    if (!cast<ValueTensorType>(geluBackward.getType())
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(geluBackward.getType()).getDtype())) {
       geluBackward.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -763,9 +756,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto hardtanhBackward = dyn_cast<AtenHardtanhBackwardOp>(op)) {
     AtenHardtanhBackwardOp::Adaptor adaptor(operands);
-    if (!cast<ValueTensorType>(hardtanhBackward.getType())
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(hardtanhBackward.getType()).getDtype())) {
       hardtanhBackward.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -959,9 +951,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto pow = dyn_cast<AtenPowTensorScalarOp>(op)) {
-    if (!cast<ValueTensorType>(pow.getType())
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(pow.getType()).getDtype())) {
       pow.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -1038,9 +1029,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto lerp = dyn_cast<AtenLerpTensorOp>(op)) {
-    if (!cast<ValueTensorType>(lerp.getType())
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(lerp.getType()).getDtype())) {
       lerp.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -1076,8 +1066,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     AtenClampOp::Adaptor adaptor(operands);
     auto min = adaptor.getMin();
     auto max = adaptor.getMax();
-    if (min.getType().isa<Torch::OptionalType>() ||
-        max.getType().isa<Torch::OptionalType>()) {
+    if (isa<Torch::OptionalType>(min.getType()) ||
+        isa<Torch::OptionalType>(max.getType())) {
       clamp.emitError("unimplemented: runtime optional type");
       return nullptr;
     }
@@ -1115,9 +1105,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     };
 
     auto result = payloadArgs[0];
-    if (!min.getType().isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(min.getType()))
       result = cmpSelect(result, min, /*getMax=*/false);
-    if (!max.getType().isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(max.getType()))
       result = cmpSelect(result, max, /*getMax=*/true);
     return result;
   }
@@ -1125,8 +1115,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     AtenClampTensorOp::Adaptor adaptor(operands);
     auto min = adaptor.getMin();
     auto max = adaptor.getMax();
-    if (min.getType().isa<Torch::OptionalType>() ||
-        max.getType().isa<Torch::OptionalType>()) {
+    if (isa<Torch::OptionalType>(min.getType()) ||
+        isa<Torch::OptionalType>(max.getType())) {
       clampTensor.emitError("unimplemented: runtime optional type");
       return nullptr;
     }
@@ -1135,7 +1125,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
             .getElementType();
     bool isMinNone = true;
     auto result = payloadArgs[0];
-    if (!min.getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(min.getType())) {
       isMinNone = false;
       auto minPromoted = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
       Value pred;
@@ -1153,7 +1143,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       }
       result = b.create<arith::SelectOp>(loc, pred, minPromoted, result);
     }
-    if (!max.getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(max.getType())) {
       max = isMinNone ? payloadArgs[1] : payloadArgs[2];
       auto maxPromoted = convertScalarToDtype(b, loc, max, dtype);
       Value pred;
@@ -1597,7 +1587,7 @@ public:
 
     Location loc = op->getLoc();
     auto tensorOperands = llvm::to_vector<6>(llvm::make_filter_range(
-        operands, [](Value v) { return v.getType().isa<RankedTensorType>(); }));
+        operands, [](Value v) { return isa<RankedTensorType>(v.getType()); }));
     auto resultType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op->getResult(0).getType()));
     bool hadErrorCreatingPayload = false;
@@ -1646,7 +1636,7 @@ public:
       return rewriter.notifyMatchFailure(op, "dim must be constant");
 
     // TODO: Incorporate the weight argument.
-    if (!weight.getType().isa<mlir::torch::Torch::NoneType>())
+    if (!isa<mlir::torch::Torch::NoneType>(weight.getType()))
       return rewriter.notifyMatchFailure(
           op, "Unimplemented, the weight operand is not incorporated.");
 
@@ -1936,7 +1926,7 @@ public:
     Value input = adaptor.getSelf();
     Value target = adaptor.getTarget();
     Value weight = adaptor.getWeight();
-    bool weightIsNone = op.getWeight().getType().isa<Torch::NoneType>();
+    bool weightIsNone = isa<Torch::NoneType>(op.getWeight().getType());
     Value ignoreIndex = castIntToIndex(rewriter, loc, adaptor.getIgnoreIndex());
     Value totalWeight = adaptor.getTotalWeight();
 
@@ -2229,7 +2219,7 @@ public:
     if (succeeded(checkNotNone(rewriter, op, eps)))
       handleEps = true;
 
-    if (handleEps && !eps.getType().isa<mlir::FloatType>()) {
+    if (handleEps && !isa<mlir::FloatType>(eps.getType())) {
       op.emitError("Logit does not support non-floating point type");
       return failure();
     }
@@ -2877,7 +2867,7 @@ public:
           loc, rewriter.getIntegerType(64), inputSize));
     }
 
-    if (!op.getScaleFactor().getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getScaleFactor().getType())) {
       bool recompScale;
       if (!matchPattern(op.getRecomputeScaleFactor(),
                         m_TorchConstantBool(&recompScale)))

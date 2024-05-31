@@ -242,10 +242,10 @@ getMaxInDim(ConversionPatternRewriter &rewriter, Operation *op, Value &input,
   auto *secondIdxArg = std::next(secondValArg);
 
   stablehlo::ComparisonTypeAttr compareTypeAttr;
-  if (inputTy.getElementType().isa<mlir::FloatType>()) {
+  if (isa<mlir::FloatType>(inputTy.getElementType())) {
     compareTypeAttr = stablehlo::ComparisonTypeAttr::get(
         rewriter.getContext(), stablehlo::ComparisonType::FLOAT);
-  } else if (inputTy.getElementType().isa<mlir::IntegerType>()) {
+  } else if (isa<mlir::IntegerType>(inputTy.getElementType())) {
     compareTypeAttr = stablehlo::ComparisonTypeAttr::get(
         rewriter.getContext(), stablehlo::ComparisonType::SIGNED);
   }
@@ -535,12 +535,10 @@ LogicalResult ConvertAtenReductionOp<AtenMaxDimOp>::matchAndRewrite(
             "AtenMaxDimOp to StableHLO");
   }
 
-  RankedTensorType valResultType = getTypeConverter()
-                                       ->convertType(op.getResult(0).getType())
-                                       .template cast<RankedTensorType>();
-  RankedTensorType idxResultType = getTypeConverter()
-                                       ->convertType(op.getResult(1).getType())
-                                       .template cast<RankedTensorType>();
+  RankedTensorType valResultType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op.getResult(0).getType()));
+  RankedTensorType idxResultType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op.getResult(1).getType()));
   Type idxElementType = idxResultType.getElementType();
   if (!isa<mlir::IntegerType>(idxElementType)) {
     return op.emitError("Aten.max.dim needs integer-like result");
@@ -636,9 +634,8 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
   auto inputTy = dyn_cast<RankedTensorType>(input.getType());
-  auto outTy = getTypeConverter()
-                   ->convertType(op.getType())
-                   .template dyn_cast<RankedTensorType>();
+  auto outTy =
+      dyn_cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   if (!inputTy) {
     return rewriter.notifyMatchFailure(
         op, "only Tensor types supported in StableHLO");
