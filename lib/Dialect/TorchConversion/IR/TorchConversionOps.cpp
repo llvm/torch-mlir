@@ -74,7 +74,7 @@ LogicalResult FromBuiltinTensorOp::verify() {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult FromI1Op::fold(FoldAdaptor adaptor) {
-  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::BoolAttr>();
+  auto attr = dyn_cast_or_null<mlir::BoolAttr>(adaptor.getOperand());
   if (attr) {
     return attr;
   } else {
@@ -87,7 +87,7 @@ OpFoldResult FromI1Op::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ToI1Op::fold(FoldAdaptor adaptor) {
-  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::BoolAttr>();
+  auto attr = dyn_cast_or_null<mlir::BoolAttr>(adaptor.getOperand());
   if (attr) {
     return attr;
   } else {
@@ -100,7 +100,7 @@ OpFoldResult ToI1Op::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult FromI64Op::fold(FoldAdaptor adaptor) {
-  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::IntegerAttr>();
+  auto attr = dyn_cast_or_null<mlir::IntegerAttr>(adaptor.getOperand());
   if (attr) {
     return attr;
   } else {
@@ -113,7 +113,7 @@ OpFoldResult FromI64Op::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ToI64Op::fold(FoldAdaptor adaptor) {
-  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::IntegerAttr>();
+  auto attr = dyn_cast_or_null<mlir::IntegerAttr>(adaptor.getOperand());
   if (attr) {
     return attr;
   } else {
@@ -126,7 +126,7 @@ OpFoldResult ToI64Op::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ToF64Op::fold(FoldAdaptor adaptor) {
-  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::FloatAttr>();
+  auto attr = dyn_cast_or_null<mlir::FloatAttr>(adaptor.getOperand());
   if (attr) {
     return attr;
   } else {
@@ -139,7 +139,7 @@ OpFoldResult ToF64Op::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult FromF64Op::fold(FoldAdaptor adaptor) {
-  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::FloatAttr>();
+  auto attr = dyn_cast_or_null<mlir::FloatAttr>(adaptor.getOperand());
   if (attr) {
     return attr;
   } else {

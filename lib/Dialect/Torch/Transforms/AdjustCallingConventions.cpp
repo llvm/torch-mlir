@@ -110,7 +110,7 @@ public:
         continue;
       auto it = typeBoundMap.find({call.getCallee(), operand.index()});
       if (it != typeBoundMap.end()) {
-        if (auto valueTensorType = it->second.dyn_cast<ValueTensorType>()) {
+        if (auto valueTensorType = dyn_cast<ValueTensorType>(it->second)) {
           newOperands.push_back(copyTensorToType(
               rewriter, call->getLoc(), valueTensorType, operand.value()));
           continue;

@@ -99,19 +99,15 @@ static Value createMaxAlongDimension(PatternRewriter &rewriter, Location loc,
                                      Operation *op, Value input, Value dim,
                                      bool keepDim) {
   Value keepDimCst = rewriter.create<ConstantBoolOp>(loc, keepDim);
-  BaseTensorType valueType =
-      computeReductionType(rewriter, op, cast<BaseTensorType>(input.getType()),
-                           dim, keepDim)
-          .cast<BaseTensorType>();
+  BaseTensorType valueType = cast<BaseTensorType>(computeReductionType(
+      rewriter, op, cast<BaseTensorType>(input.getType()), dim, keepDim));
   if (!valueType)
     return nullptr;
   BaseTensorType indexType =
-      valueType
-          .getWithSizesAndDtype(
-              !valueType.hasSizes() ? std::optional<ArrayRef<int64_t>>()
-                                    : llvm::ArrayRef(valueType.getSizes()),
-              IntegerType::get(op->getContext(), 64, IntegerType::Signed))
-          .cast<BaseTensorType>();
+      cast<BaseTensorType>(valueType.getWithSizesAndDtype(
+          !valueType.hasSizes() ? std::optional<ArrayRef<int64_t>>()
+                                : llvm::ArrayRef(valueType.getSizes()),
+          IntegerType::get(op->getContext(), 64, IntegerType::Signed)));
   return rewriter
       .create<AtenMaxDimOp>(loc, valueType, indexType, input, dim, keepDimCst)
       .getValues();
@@ -1059,7 +1055,7 @@ public:
   LogicalResult matchAndRewrite(AtenEyeMOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    auto outType = op.getType().dyn_cast<BaseTensorType>();
+    auto outType = dyn_cast<BaseTensorType>(op.getType());
     if (!outType)
       return rewriter.notifyMatchFailure(
           op, "Only tensor types input are currently supported");
@@ -1659,11 +1655,9 @@ public:
     unsigned inputRank = *maybeInputRank;
     if (!indicesTensorType.hasSizes())
       return failure();
-    BaseTensorType valueTensorType =
-        inputType
-            .getWithSizesAndDtype(indicesTensorType.getOptionalSizes(),
-                                  inputType.getOptionalDtype())
-            .cast<BaseTensorType>();
+    BaseTensorType valueTensorType = cast<BaseTensorType>(
+        inputType.getWithSizesAndDtype(indicesTensorType.getOptionalSizes(),
+                                       inputType.getOptionalDtype()));
 
     // If the dim type is `NoneType` i.e. reduce along all the dimensions.
     // `AtenMaxDimOp` and `AtenMinDimOp` do not support dim as `NoneType` so
@@ -1671,10 +1665,8 @@ public:
     // happens on the 0th dimension.
     if (isa<Torch::NoneType>(dim.getType())) {
       BaseTensorType flattenType =
-          inputType
-              .getWithSizesAndDtype({kUnknownSize},
-                                    inputType.getOptionalDtype())
-              .cast<BaseTensorType>();
+          cast<BaseTensorType>(inputType.getWithSizesAndDtype(
+              {kUnknownSize}, inputType.getOptionalDtype()));
       dim = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
       Value end = rewriter.create<ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(inputRank - 1));
@@ -3887,10 +3879,9 @@ public:
         gradOutputViewSizesInt[0] = kUnknownSize;
       gradOutputViewSizesInt[1] = 1;
       BaseTensorType gradOutputTypeForView =
-          gradOutputTy
-              .getWithSizesAndDtype(llvm::ArrayRef(gradOutputViewSizesInt),
-                                    gradOutputTy.getOptionalDtype())
-              .cast<BaseTensorType>();
+          cast<BaseTensorType>(gradOutputTy.getWithSizesAndDtype(
+              llvm::ArrayRef(gradOutputViewSizesInt),
+              gradOutputTy.getOptionalDtype()));
       Value gradOutputView = rewriter.create<Torch::AtenViewOp>(
           loc, gradOutputTypeForView, gradOutput, gradOutputViewShapeList);
 
@@ -3918,10 +3909,9 @@ public:
       }
 
       BaseTensorType gradWeightTy =
-          inputTransposedTy
-              .getWithSizesAndDtype(llvm::ArrayRef(gradWeightSizesInt),
-                                    inputTransposedTy.getOptionalDtype())
-              .cast<BaseTensorType>();
+          cast<BaseTensorType>(inputTransposedTy.getWithSizesAndDtype(
+              llvm::ArrayRef(gradWeightSizesInt),
+              inputTransposedTy.getOptionalDtype()));
 
       Value numGroup = rewriter.create<AtenSizeIntOp>(loc, input, cstZero);
       gradWeight = rewriter.create<Torch::AtenConvolutionOp>(
@@ -3937,10 +3927,9 @@ public:
       for (unsigned i = 0; i < gradWeightTy.getSizes().size() - 2; i++) {
         gradWeightSizesInt[i + 2] = weightSizes[i + 2];
         BaseTensorType gradWeightNarrowTy =
-            gradWeightTy
-                .getWithSizesAndDtype(llvm::ArrayRef(gradWeightSizesInt),
-                                      gradWeightTy.getOptionalDtype())
-                .cast<BaseTensorType>();
+            cast<BaseTensorType>(gradWeightTy.getWithSizesAndDtype(
+                llvm::ArrayRef(gradWeightSizesInt),
+                gradWeightTy.getOptionalDtype()));
 
         Value dim = rewriter.create<ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(i + 2));
@@ -3970,10 +3959,9 @@ public:
               gradWeightViewShapeValue);
 
       BaseTensorType gradWeightTypeForView =
-          gradWeightTy
-              .getWithSizesAndDtype(llvm::ArrayRef(gradWeightViewShapeInt),
-                                    gradWeightTy.getOptionalDtype())
-              .cast<BaseTensorType>();
+          cast<BaseTensorType>(gradWeightTy.getWithSizesAndDtype(
+              llvm::ArrayRef(gradWeightViewShapeInt),
+              gradWeightTy.getOptionalDtype()));
       gradWeight = rewriter.create<Torch::AtenViewOp>(
           loc, gradWeightTypeForView, gradWeight, gradWeightViewShapeList);
 
@@ -3986,10 +3974,9 @@ public:
             gradWeightViewShapeInt[gradWeightDimsOrder[i]]);
       }
       BaseTensorType gradWeightTypeForMoveDim =
-          gradWeightTy
-              .getWithSizesAndDtype(llvm::ArrayRef(gradWeightMoveDimShape),
-                                    gradWeightTy.getOptionalDtype())
-              .cast<BaseTensorType>();
+          cast<BaseTensorType>(gradWeightTy.getWithSizesAndDtype(
+              llvm::ArrayRef(gradWeightMoveDimShape),
+              gradWeightTy.getOptionalDtype()));
 
       gradWeight = rewriter.create<AtenMovedimIntOp>(
           loc, gradWeightTypeForMoveDim, gradWeight, /*source=*/cstZero,
@@ -4009,9 +3996,8 @@ public:
       Value gradOutputTransposed = rewriter.create<Torch::AtenTransposeIntOp>(
           loc, transposedType, gradOutput, cstZero, cstOne);
       // Convolve input with grad_output.
-      if (failed(
-              getTransposedType(op.getResultTypes()[1].cast<BaseTensorType>(),
-                                0, 1, transposedType)))
+      if (failed(getTransposedType(cast<BaseTensorType>(op.getResultTypes()[1]),
+                                   0, 1, transposedType)))
         return failure();
       gradWeight = rewriter.create<Torch::AtenConvolutionOp>(
           loc, transposedType, inputTransposed, gradOutputTransposed, cstNone,
@@ -6525,11 +6511,9 @@ public:
     if (!inputType.hasSizes())
       return rewriter.notifyMatchFailure(
           op, "Expected the input tensor to have sizes");
-    BaseTensorType subType =
-        inputType
-            .getWithSizesAndDtype(llvm::ArrayRef(inputType.getSizes()),
-                                  resultType.getOptionalDtype())
-            .cast<BaseTensorType>();
+    BaseTensorType subType = cast<BaseTensorType>(
+        inputType.getWithSizesAndDtype(llvm::ArrayRef(inputType.getSizes()),
+                                       resultType.getOptionalDtype()));
 
     Value sub =
         createTensorSub(rewriter, loc, subType, op.getSelf(), op.getTarget());
@@ -6609,10 +6593,8 @@ public:
         loc, rewriter.getF64FloatAttr((double)cstHigh));
 
     BaseTensorType floatResultType =
-        resultTensorType
-            .getWithSizesAndDtype(resultTensorType.getSizes(),
-                                  rewriter.getF32Type())
-            .cast<BaseTensorType>();
+        cast<BaseTensorType>(resultTensorType.getWithSizesAndDtype(
+            resultTensorType.getSizes(), rewriter.getF32Type()));
     Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
         loc, floatResultType, op.getSize(), /*dtype=*/none,
         /*layout=*/op.getLayout(),
@@ -7344,11 +7326,8 @@ public:
 
     auto selfType = cast<BaseTensorType>(self.getType());
     auto indexType = cast<BaseTensorType>(index.getType());
-    BaseTensorType srcType =
-        selfType
-            .getWithSizesAndDtype(indexType.getOptionalSizes(),
-                                  selfType.getOptionalDtype())
-            .cast<BaseTensorType>();
+    BaseTensorType srcType = cast<BaseTensorType>(selfType.getWithSizesAndDtype(
+        indexType.getOptionalSizes(), selfType.getOptionalDtype()));
     Value src =
         createInitTensor(rewriter, loc, srcType, op.getValue(), sizeList);
     rewriter.replaceOpWithNewOp<AtenScatterSrcOp>(op, op.getType(), self,
@@ -7488,7 +7467,7 @@ static FailureOr<Value> createNewIndices(Operation *op,
   Location loc = op->getLoc();
   MLIRContext *context = op->getContext();
 
-  auto inputType = input.getType().cast<BaseTensorType>();
+  auto inputType = cast<BaseTensorType>(input.getType());
   if (!inputType.hasSizes()) {
     return failure();
   }
@@ -7497,7 +7476,7 @@ static FailureOr<Value> createNewIndices(Operation *op,
 
   int64_t maxIndexRank = 0;
   for (auto index : oldIndices) {
-    auto indexType = index.getType().dyn_cast<BaseTensorType>();
+    auto indexType = dyn_cast<BaseTensorType>(index.getType());
     if (!indexType) // None index
       continue;
     if (!indexType.hasSizes())

@@ -409,10 +409,8 @@ public:
     Value self = adaptor.getSelf();
     RankedTensorType selfType = cast<RankedTensorType>(self.getType());
     Type elementType = selfType.getElementType();
-    RankedTensorType indicesRankedTensorType =
-        getTypeConverter()
-            ->convertType(op->getResult(1).getType())
-            .cast<RankedTensorType>();
+    RankedTensorType indicesRankedTensorType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(1).getType()));
 
     // TODO: Add support for 3D inputs.
     if (selfType.getRank() == 3)

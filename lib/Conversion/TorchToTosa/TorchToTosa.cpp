@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-//
+////
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -828,9 +828,8 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "non-const keepdim parameter unsupported");
 
-  auto resultTy = getTypeConverter()
-                      ->convertType(op.getResult().getType())
-                      .cast<RankedTensorType>();
+  auto resultTy = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op.getResult().getType()));
   auto outputETy = resultTy.getElementType();
 
   // Create a single instance of tosa.argmax.
@@ -4058,9 +4057,8 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   const TypeConverter *typeConverter = this->getTypeConverter();
-  RankedTensorType resultType =
-      typeConverter->convertType(op->getResult(0).getType())
-          .cast<RankedTensorType>();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      typeConverter->convertType(op->getResult(0).getType()));
 
   // At this point all tensors should have value semantics, and hence the
   // `layout` check can be ignored.
@@ -4162,10 +4160,10 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
   };
 
   const auto isIntType =
-      resultType.getElementType().dyn_cast_or_null<mlir::IntegerType>();
+      dyn_cast_or_null<mlir::IntegerType>(resultType.getElementType());
 
   const auto isDoubleType =
-      resultType.getElementType().dyn_cast_or_null<mlir::FloatType>();
+      dyn_cast_or_null<mlir::FloatType>(resultType.getElementType());
 
   auto maybeResult = [&]() -> std::optional<Value> {
     // Integer output type, and start / end / range are all integers.
@@ -4218,9 +4216,8 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   const TypeConverter *typeConverter = this->getTypeConverter();
-  RankedTensorType resultType =
-      typeConverter->convertType(op->getResult(0).getType())
-          .cast<RankedTensorType>();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      typeConverter->convertType(op->getResult(0).getType()));
 
   // Only supports integer operand type, because for the floating point operand
   // type result tensor has to be of type `f64` which is not supported in the
@@ -4336,9 +4333,8 @@ LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewrite(
               "memory_format is supported");
   }
 
-  auto resultTy = getTypeConverter()
-                      ->convertType(op.getResult().getType())
-                      .cast<RankedTensorType>();
+  auto resultTy = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op.getResult().getType()));
 
   Value result;
   if (failed(tosa::tosaCastTensorToType(rewriter, op, adaptor.getSelf(),

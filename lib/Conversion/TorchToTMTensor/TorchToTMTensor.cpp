@@ -349,8 +349,8 @@ public:
           b.create<TMTensor::YieldOp>(loc, updatesElement);
         });
 
-    auto resultType = typeConverter->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        typeConverter->convertType(op->getResult(0).getType()));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, scatterOp);
     return success();
   }
@@ -439,8 +439,8 @@ public:
     indices = typeConverter->materializeTargetConversion(
         rewriter, loc, typeConverter->convertType(indices.getType()), indices);
 
-    auto resultType = typeConverter->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        typeConverter->convertType(op->getResult(0).getType()));
     Type resultElemType = resultType.getElementType();
 
     SmallVector<Value, 1> inputSizeDynamic =
@@ -686,8 +686,8 @@ public:
     auto valuesType = cast<ValueTensorType>(values.getType());
     int64_t inputRank = inputType.getSizes().size();
     auto valuesTensorType = cast<BaseTensorType>(op.getValues().getType());
-    auto resultType = typeConverter->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        typeConverter->convertType(op->getResult(0).getType()));
 
     if (!valuesTensorType.hasSizes())
       return rewriter.notifyMatchFailure(
@@ -1285,9 +1285,8 @@ public:
                   })
               .getResult()[0];
     }
-    auto resultType = getTypeConverter()
-                          ->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, scatterOp);
 
     return success();
@@ -1392,9 +1391,8 @@ public:
 
     Location loc = op.getLoc();
     Value input = adaptor.getSelf();
-    auto resultType = getTypeConverter()
-                          ->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Type elementType = resultType.getElementType();
     Type inputElementType =
         cast<RankedTensorType>(input.getType()).getElementType();

@@ -31,7 +31,7 @@ LogicalResult verifyLinalgCompatibleTypes(Operation *op,
       return false;
     auto tensor = dyn_cast<ValueTensorType>(type);
     return !tensor ||
-           tensor.toBuiltinTensor().dyn_cast_or_null<RankedTensorType>();
+           dyn_cast_or_null<RankedTensorType>(tensor.toBuiltinTensor());
   };
 
   bool valid = llvm::all_of(op->getOperandTypes(), isValidLinalgType) &&

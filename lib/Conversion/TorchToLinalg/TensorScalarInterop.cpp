@@ -146,9 +146,8 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Unimplemented non-None device information");
 
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Type outElementType = resultType.getElementType();
     Value elemValProm =
         convertScalarToDtype(rewriter, loc, elemVal, outElementType);
@@ -171,9 +170,8 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Type outElementType = resultType.getElementType();
     Value elemVal = adaptor.getA();
     Value elemValProm =

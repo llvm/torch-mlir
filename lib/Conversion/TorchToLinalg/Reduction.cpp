@@ -86,11 +86,8 @@ public:
     bool isUnsigned = false;
     if (!isa<mlir::FloatType>(inElementType)) {
       if (isa<mlir::IntegerType>(inElementType)) {
-        auto integerTy = op.getSelf()
-                             .getType()
-                             .template cast<BaseTensorType>()
-                             .getDtype()
-                             .template dyn_cast<mlir::IntegerType>();
+        auto integerTy = dyn_cast<mlir::IntegerType>(
+            op.getSelf().getType().template cast<BaseTensorType>().getDtype());
         isUnsigned = integerTy.isUnsigned();
       } else {
         return rewriter.notifyMatchFailure(
@@ -376,11 +373,8 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     if (isa<mlir::FloatType>(resultElementType))
       return b.create<arith::MaximumFOp>(loc, self, result);
     else if (isa<mlir::IntegerType>(resultElementType)) {
-      IntegerType intType = max.getSelf()
-                                .getType()
-                                .cast<BaseTensorType>()
-                                .getDtype()
-                                .dyn_cast<mlir::IntegerType>();
+      IntegerType intType = dyn_cast<mlir::IntegerType>(
+          cast<BaseTensorType>(max.getSelf().getType()).getDtype());
       if (intType.isUnsigned())
         return b.create<arith::MaxUIOp>(loc, self, result);
       if (intType.isSigned())
@@ -393,9 +387,7 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     if (isa<mlir::FloatType>(resultElementType))
       return b.create<arith::MinimumFOp>(loc, self, result);
     else if (isa<mlir::IntegerType>(resultElementType)) {
-      IntegerType intType = min.getSelf()
-                                .getType()
-                                .cast<BaseTensorType>()
+      IntegerType intType = cast<BaseTensorType>(min.getSelf().getType())
                                 .getDtype()
                                 .dyn_cast<mlir::IntegerType>();
       if (intType.isUnsigned())
@@ -657,9 +649,8 @@ public:
       return opInfo;
 
     Location loc = op->getLoc();
-    auto resultType = getTypeConverter()
-                          ->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Type elemType = resultType.getElementType();
     LogicalResult elemTypeCheck =
         validateReductionElementType(op, elemType, rewriter);

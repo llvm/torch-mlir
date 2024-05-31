@@ -451,7 +451,7 @@ template <>
 LogicalResult ConvertAtenOp<PrimsSplitDimOp>::matchAndRewrite(
     PrimsSplitDimOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  auto selfType = adaptor.getA().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getA().getType());
   if (!selfType) {
     return op.emitError("only tensor types are currently supported");
   }

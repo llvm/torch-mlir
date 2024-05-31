@@ -453,25 +453,22 @@ LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
       loc, getTypeConverter()->convertType(op.getType(0)),
       stablehloReduceOp.getResult(0), outShapeTensor);
 
-  RankedTensorType resultType = getTypeConverter()
-                                    ->convertType(op->getResult(1).getType())
-                                    .cast<RankedTensorType>();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(1).getType()));
   Value resultB =
       createInitialValueForGatherScatterOp(op, resultType, rewriter);
   if (!resultB)
     return failure();
 
-  resultType = getTypeConverter()
-                   ->convertType(op->getResult(2).getType())
-                   .cast<RankedTensorType>();
+  resultType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(2).getType()));
   Value resultC =
       createInitialValueForGatherScatterOp(op, resultType, rewriter);
   if (!resultC)
     return failure();
 
-  resultType = getTypeConverter()
-                   ->convertType(op->getResult(3).getType())
-                   .cast<RankedTensorType>();
+  resultType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(3).getType()));
   Value resultD =
       createInitialValueForGatherScatterOp(op, resultType, rewriter);
   if (!resultD)
@@ -612,9 +609,8 @@ LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
 
   auto input = adaptor.getSelf();
 
-  RankedTensorType resultType =
-      typeConverter->convertType(op->getResult(0).getType())
-          .cast<RankedTensorType>();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      typeConverter->convertType(op->getResult(0).getType()));
 
   SmallVector<Value> resultShape;
   SmallVector<Value> offsets;

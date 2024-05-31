@@ -179,15 +179,13 @@ public:
 
     for (auto i : {TOP, VCENTER, BOTTOM}) {
       for (auto j : {LEFT, HCENTER, RIGHT}) {
-        auto constVtile{
+        auto constVtile{dyn_cast_or_null<mlir::IntegerAttr>(
             mlir::dyn_cast<mlir::arith::ConstantOp>(vTile[i].getDefiningOp())
-                .getValue()
-                .dyn_cast_or_null<mlir::IntegerAttr>()};
+                .getValue())};
 
-        auto constHtile{
+        auto constHtile{dyn_cast_or_null<mlir::IntegerAttr>(
             mlir::dyn_cast<mlir::arith::ConstantOp>(hTile[j].getDefiningOp())
-                .getValue()
-                .dyn_cast_or_null<mlir::IntegerAttr>()};
+                .getValue())};
         auto vSize = constVtile.getInt();
         auto hSize = constHtile.getInt();
 
@@ -536,9 +534,8 @@ public:
 
     Location loc = op.getLoc();
     const TypeConverter *typeConverter = this->getTypeConverter();
-    RankedTensorType resultType =
-        typeConverter->convertType(op->getResult(0).getType())
-            .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        typeConverter->convertType(op->getResult(0).getType()));
     Type dtype = resultType.getElementType();
     Value start =
         convertScalarToDtype(rewriter, loc, adaptor.getStart(), dtype);
