@@ -9,11 +9,12 @@
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include <numeric>
 
@@ -23,6 +24,31 @@ using namespace mlir::torch::Torch;
 
 namespace mlir {
 namespace hlo {
+
+// Create chlo::ConstantLikeOp
+template <typename T>
+Value getConstantLike(OpBuilder &rewriter, Location loc, T constant,
+                      Value val) {
+  Type ty = getElementTypeOrSelf(val.getType());
+  auto getAttr = [&]() -> Attribute {
+    if (isa<mlir::IntegerType>(ty))
+      return rewriter.getIntegerAttr(ty, constant);
+    if (isa<mlir::FloatType>(ty))
+      return rewriter.getFloatAttr(ty, constant);
+    if (auto complexTy = dyn_cast<mlir::ComplexType>(ty))
+      return mlir::complex::NumberAttr::get(complexTy, constant, 0);
+    llvm_unreachable("unhandled element type");
+  };
+  return rewriter.create<mlir::chlo::ConstantLikeOp>(
+      loc, cast<TypedAttr>(getAttr()), val);
+}
+
+// Template instantiation
+template Value getConstantLike<int64_t>(OpBuilder &rewriter, Location loc,
+                                        int64_t constant, Value val);
+
+template Value getConstantLike<double>(OpBuilder &rewriter, Location loc,
+                                       double constant, Value val);
 
 // Create a 32-bit float constant operator from a float
 Value getStablehloConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,

@@ -18,7 +18,6 @@
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
@@ -351,9 +350,9 @@ public:
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(
         op,
-        ConvertAtenOp<AtenOpT>::getTypeConverter()
-            ->convertType(op.getType())
-            .template cast<RankedTensorType>(),
+        cast<RankedTensorType>(
+            ConvertAtenOp<AtenOpT>::getTypeConverter()->convertType(
+                op.getType())),
         output);
 
     return success();
@@ -731,9 +730,8 @@ public:
     // If transposed is set to true,
     // the weight shape changes to [IC, (OC//G), KH, KW]
     auto weightTy = cast<RankedTensorType>(weight.getType());
-    auto outTy = getTypeConverter()
-                     ->convertType(op.getType())
-                     .template cast<RankedTensorType>();
+    auto outTy =
+        cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
     if (!inputTy || !weightTy || !outTy) {
       return op.emitError("input, weight and output must be ranked tensors");
     }

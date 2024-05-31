@@ -1,5 +1,5 @@
 //===----------------------------------------------------------------------===//
-//
+////
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -13,7 +13,6 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/IR/Matchers.h"
-#include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
@@ -22,7 +21,6 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include <optional>
 
@@ -49,7 +47,7 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Only Tensor types supported in TOSA");
 
-    if (selfTy.getElementType().isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(selfTy.getElementType())) {
       rewriter.replaceOpWithNewOp<TosaOpT>(
           op,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -101,9 +99,9 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Only Tensor types supported in TOSA");
 
-    auto outTy = OpConversionPattern<AtenOpT>::getTypeConverter()
-                     ->convertType(op.getType())
-                     .template cast<TensorType>();
+    auto outTy = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     auto binaryOp =
         tosa::createBinaryOpAndCast<TosaOpT>(rewriter, op, outTy, lhs, rhs);
@@ -250,9 +248,9 @@ public:
     }
 
     // Get output type: tensor<i32/i64/f32>
-    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                       ->convertType(op.getType())
-                       .template cast<TensorType>();
+    auto outType = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     Type outElemTy = outType.getElementType();
     if (!outElemTy.isIntOrFloat()) {
@@ -375,9 +373,9 @@ public:
                                  std::is_same<AtenOpT, AtenLtScalarOp>());
 
     // Promote lhs and rhs dtypes for bitwise operators.
-    TensorType resultTy = OpConversionPattern<AtenOpT>::getTypeConverter()
-                              ->convertType(op.getType())
-                              .template cast<TensorType>();
+    TensorType resultTy = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
     if (isBitwiseOp) {
       lhs = tosa::promoteType(rewriter, lhs, resultTy);
       rhsTensor = tosa::promoteType(rewriter, rhsTensor, resultTy);
@@ -418,9 +416,9 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Only Tensor types supported in TOSA");
 
-    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                       ->convertType(op.getType())
-                       .template cast<TensorType>();
+    auto outType = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     Type outElemTy = outType.getElementType();
     if (!outElemTy.isIntOrFloat())
@@ -446,9 +444,9 @@ public:
     }
 
     if (isa<mlir::FloatType>(outElemTy) || isa<mlir::IntegerType>(outElemTy)) {
-      auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                         ->convertType(op.getType())
-                         .template cast<TensorType>();
+      auto outType = cast<TensorType>(
+          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+              op.getType()));
 
       auto mulOp = tosa::createMulOpAndCast(rewriter, op, outType, lhs,
                                             rhsTensor, /*shift=*/0);
@@ -494,9 +492,9 @@ public:
                 "conversion in TOSA operation");
     }
     auto rhsTensor = rhsTy ? rhs : rhsAsTensor;
-    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                       ->convertType(op.getType())
-                       .template cast<TensorType>();
+    auto outType = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     // auto result;
     Value result;
@@ -542,7 +540,7 @@ LogicalResult ConvertAtenOp<AtenTanhOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   Value self = adaptor.getSelf();
   auto selfTy = cast<TensorType>(self.getType());
-  if (selfTy && selfTy.getElementType().isa<mlir::FloatType>()) {
+  if (selfTy && isa<mlir::FloatType>(selfTy.getElementType())) {
     rewriter.replaceOpWithNewOp<tosa::TanhOp>(
         op, getTypeConverter()->convertType(op.getType()), self);
     return success();
@@ -559,7 +557,7 @@ LogicalResult ConvertAtenOp<AtenSigmoidOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   Value self = adaptor.getSelf();
   auto selfTy = cast<TensorType>(self.getType());
-  if (selfTy && selfTy.getElementType().isa<mlir::FloatType>()) {
+  if (selfTy && isa<mlir::FloatType>(selfTy.getElementType())) {
     rewriter.replaceOpWithNewOp<tosa::SigmoidOp>(
         op, getTypeConverter()->convertType(op.getType()), self);
     return success();
@@ -586,7 +584,7 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
   }
 
   // Rescale the clampIn for quantized types. TBD
-  if (!selfTy.getElementType().isa<mlir::FloatType>()) {
+  if (!isa<mlir::FloatType>(selfTy.getElementType())) {
     return rewriter.notifyMatchFailure(
         op, "Only floating-point datatype legalization currently supported");
   }
@@ -606,7 +604,7 @@ LogicalResult ConvertAtenOp<AtenLeakyReluOp>::matchAndRewrite(
 
   Value self = adaptor.getSelf();
   auto selfTy = cast<TensorType>(self.getType());
-  if (!selfTy.getElementType().isa<mlir::FloatType>()) {
+  if (!isa<mlir::FloatType>(selfTy.getElementType())) {
     return rewriter.notifyMatchFailure(
         op, "Only floating-point datatype legalization currently supported");
   }
@@ -669,9 +667,9 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Only Tensor types supported in TOSA");
 
-    auto outputTy = OpConversionPattern<AtenOpT>::getTypeConverter()
-                        ->convertType(op.getType())
-                        .template cast<RankedTensorType>();
+    auto outputTy = cast<RankedTensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
     if (!outputTy)
       return rewriter.notifyMatchFailure(
           op, "Only ranked tensor type outputs permitted for reduce_mean");
@@ -830,9 +828,8 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "non-const keepdim parameter unsupported");
 
-  auto resultTy = getTypeConverter()
-                      ->convertType(op.getResult().getType())
-                      .cast<RankedTensorType>();
+  auto resultTy = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op.getResult().getType()));
   auto outputETy = resultTy.getElementType();
 
   // Create a single instance of tosa.argmax.
@@ -929,9 +926,9 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Squeeze could not compute new shape");
 
-    auto resultTy = OpConversionPattern<AtenOpT>::getTypeConverter()
-                        ->convertType(op.getResult().getType())
-                        .template cast<RankedTensorType>();
+    auto resultTy = cast<RankedTensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getResult().getType()));
     auto resultElemTy = resultTy.getElementType();
 
     auto newOutputTy = RankedTensorType::get(
@@ -1019,7 +1016,7 @@ LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types supported in TOSA Pow");
 
-  if (!selfTy.getElementType().isa<mlir::FloatType>())
+  if (!isa<mlir::FloatType>(selfTy.getElementType()))
     return rewriter.notifyMatchFailure(
         op, "Only floating-point datatype legalization supported");
 
@@ -1626,9 +1623,9 @@ public:
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(
         op,
-        OpConversionPattern<AtenOpT>::getTypeConverter()
-            ->convertType(op.getType())
-            .template cast<RankedTensorType>(),
+        cast<RankedTensorType>(
+            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+                op.getType())),
         output);
 
     return success();
@@ -1802,9 +1799,9 @@ public:
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(
         op,
-        OpConversionPattern<AtenOpT>::getTypeConverter()
-            ->convertType(op.getType())
-            .template cast<RankedTensorType>(),
+        cast<RankedTensorType>(
+            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+                op.getType())),
         matmulPlusBias);
 
     return success();
@@ -1825,7 +1822,7 @@ LogicalResult ConvertAtenOp<AtenRsubScalarOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types supported in TOSA Rsub");
 
-  if (!selfTy.getElementType().isa<mlir::FloatType>())
+  if (!isa<mlir::FloatType>(selfTy.getElementType()))
     return rewriter.notifyMatchFailure(
         op, "Only floating-point datatype legalization supported");
 
@@ -1871,9 +1868,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
 
   auto inputTy = cast<RankedTensorType>(input.getType());
   auto weightTy = cast<RankedTensorType>(weight.getType());
-  auto outputTy = getTypeConverter()
-                      ->convertType(op.getType())
-                      .template cast<RankedTensorType>();
+  auto outputTy =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
 
   if (!inputTy || !weightTy || !outputTy)
     return rewriter.notifyMatchFailure(
@@ -2210,7 +2206,7 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
   // Note: cudnn_enabled is not handled.
 
   // FIXME: Handle training and momentum.
-  if (op.getMomentum().getType().isa<Torch::NoneType>())
+  if (isa<Torch::NoneType>(op.getMomentum().getType()))
     return rewriter.notifyMatchFailure(op, "Unsupported None for momentum");
 
   auto meanType = dyn_cast<TensorType>(adaptor.getRunningMean().getType());
@@ -2314,9 +2310,9 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   // Note: cudnn_enabled is not handled.
 
   // FIXME: Handle the None cases for the optional parameters.
-  if (adaptor.getWeight().getType().isa<Torch::NoneType>())
+  if (isa<Torch::NoneType>(adaptor.getWeight().getType()))
     return rewriter.notifyMatchFailure(op, "Unsupported None for weight");
-  if (adaptor.getBias().getType().isa<Torch::NoneType>())
+  if (isa<Torch::NoneType>(adaptor.getBias().getType()))
     return rewriter.notifyMatchFailure(op, "Unsupported None for bias");
 
   auto weightType = cast<RankedTensorType>(adaptor.getWeight().getType());
@@ -2455,9 +2451,8 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
     ValueTensorLiteralOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
-  auto outputTy = getTypeConverter()
-                      ->convertType(op.getType())
-                      .template cast<RankedTensorType>();
+  auto outputTy =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
 
   // Tensors with integer types need to be converted to signless integer
   // element type. All tensors with element types other than integer can reuse
@@ -3124,7 +3119,7 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
       cast<RankedTensorType>(typeConverter->convertType(op.getType()));
 
   auto indicesType = dyn_cast<RankedTensorType>(indices.getType());
-  if (!indicesType || !indicesType.getElementType().isa<IntegerType>())
+  if (!indicesType || !isa<IntegerType>(indicesType.getElementType()))
     return rewriter.notifyMatchFailure(
         op, "Indices must be of integer tensor type");
 
@@ -3634,11 +3629,11 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
     auto indexTorch = tensorsTorchType[i];
     // TODO add support for none index other than i==0, like (index0, None)
     // (None, index1)
-    if (i == 0 && indexTorch.getType().isa<Torch::NoneType>()) {
+    if (i == 0 && isa<Torch::NoneType>(indexTorch.getType())) {
       // convert None to [0,0,0]
       auto indexNext = indexTensors[i + 1];
       auto indexNextTorch = tensorsTorchType[i + 1];
-      if (indexNextTorch.getType().isa<Torch::NoneType>()) {
+      if (isa<Torch::NoneType>(indexNextTorch.getType())) {
         return rewriter.notifyMatchFailure(
             op, "Multiple None index is not support for now.");
       }
@@ -3965,8 +3960,8 @@ LogicalResult ConvertAtenOp<AtenIscloseOp>::matchAndRewrite(
   if (!selfType.hasStaticShape() || !otherType.hasStaticShape())
     return rewriter.notifyMatchFailure(
         op, "Only tensor types with static shape are supported");
-  if (!selfType.getElementType().isa<mlir::FloatType>() ||
-      !otherType.getElementType().isa<mlir::FloatType>()) {
+  if (!isa<mlir::FloatType>(selfType.getElementType()) ||
+      !isa<mlir::FloatType>(otherType.getElementType())) {
     return rewriter.notifyMatchFailure(
         op, "unimplemented: only FP element type is supported");
   }
@@ -4060,9 +4055,8 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   const TypeConverter *typeConverter = this->getTypeConverter();
-  RankedTensorType resultType =
-      typeConverter->convertType(op->getResult(0).getType())
-          .cast<RankedTensorType>();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      typeConverter->convertType(op->getResult(0).getType()));
 
   // At this point all tensors should have value semantics, and hence the
   // `layout` check can be ignored.
@@ -4070,7 +4064,7 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
   // TODO: Add support for pin_memory features.
   // The pin_memory should be either `False` or `none`.
   bool pinMemory;
-  if (!op.getPinMemory().getType().isa<Torch::NoneType>() &&
+  if (!isa<Torch::NoneType>(op.getPinMemory().getType()) &&
       (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
        pinMemory)) {
     return rewriter.notifyMatchFailure(
@@ -4164,10 +4158,10 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
   };
 
   const auto isIntType =
-      resultType.getElementType().dyn_cast_or_null<mlir::IntegerType>();
+      dyn_cast_or_null<mlir::IntegerType>(resultType.getElementType());
 
   const auto isDoubleType =
-      resultType.getElementType().dyn_cast_or_null<mlir::FloatType>();
+      dyn_cast_or_null<mlir::FloatType>(resultType.getElementType());
 
   auto maybeResult = [&]() -> std::optional<Value> {
     // Integer output type, and start / end / range are all integers.
@@ -4220,9 +4214,8 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   const TypeConverter *typeConverter = this->getTypeConverter();
-  RankedTensorType resultType =
-      typeConverter->convertType(op->getResult(0).getType())
-          .cast<RankedTensorType>();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      typeConverter->convertType(op->getResult(0).getType()));
 
   // Only supports integer operand type, because for the floating point operand
   // type result tensor has to be of type `f64` which is not supported in the
@@ -4325,7 +4318,7 @@ LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewrite(
   }
 
   // Only `none`, `contiguous` and `preserve` memory_format is supported.
-  if (!op.getMemoryFormat().getType().isa<Torch::NoneType>()) {
+  if (!isa<Torch::NoneType>(op.getMemoryFormat().getType())) {
     int64_t memoryFormat;
     if (!matchPattern(op.getMemoryFormat(), m_TorchConstantInt(&memoryFormat)))
       return rewriter.notifyMatchFailure(
@@ -4338,9 +4331,8 @@ LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewrite(
               "memory_format is supported");
   }
 
-  auto resultTy = getTypeConverter()
-                      ->convertType(op.getResult().getType())
-                      .cast<RankedTensorType>();
+  auto resultTy = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op.getResult().getType()));
 
   Value result;
   if (failed(tosa::tosaCastTensorToType(rewriter, op, adaptor.getSelf(),
@@ -4781,9 +4773,9 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
-    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                       ->convertType(op.getType())
-                       .template dyn_cast<TensorType>();
+    auto outType = dyn_cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     if (!outType)
       return rewriter.notifyMatchFailure(op,
@@ -4843,9 +4835,9 @@ public:
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                       ->convertType(op.getType())
-                       .template dyn_cast<TensorType>();
+    auto outType = dyn_cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     if (!outType || !outType.hasStaticShape())
       return rewriter.notifyMatchFailure(
@@ -4877,9 +4869,9 @@ public:
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                       ->convertType(op.getType())
-                       .template dyn_cast<TensorType>();
+    auto outType = dyn_cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     if (!outType || !outType.hasStaticShape())
       return rewriter.notifyMatchFailure(
@@ -4949,9 +4941,9 @@ public:
           "unimplemented: only contiguous and channels last memory "
           "format is supported");
     }
-    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                       ->convertType(op.getType())
-                       .template dyn_cast<TensorType>();
+    auto outType = dyn_cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
     rewriter.replaceOpWithNewOp<tosa::CastOp>(op, outType, adaptor.getSelf());
 
     return success();
@@ -5079,8 +5071,8 @@ LogicalResult ConvertAtenOp<AtenSqrtOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op,
                                        "Only Tensor types supported in TOSA");
 
-  auto resultType = typeConverter->convertType(op.getType())
-                        .template cast<RankedTensorType>();
+  auto resultType =
+      cast<RankedTensorType>(typeConverter->convertType(op.getType()));
   auto elementType = resultType.getElementType();
 
   if (isa<mlir::IntegerType>(selfTy.getElementType())) {

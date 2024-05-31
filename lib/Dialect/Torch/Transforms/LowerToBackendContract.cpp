@@ -12,7 +12,6 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -37,8 +36,8 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
 static LogicalResult checkType(Operation *op, Type type,
                                bool actuallyEmitDiagnostics) {
   // Allow various scalar types that backends are expected to be able to handle.
-  if (type.isa<Torch::IntType, Torch::FloatType, Torch::BoolType,
-               Torch::DeviceType>())
+  if (isa<Torch::IntType, Torch::FloatType, Torch::BoolType, Torch::DeviceType>(
+          type))
     return success();
 
   // Backends are not expected to support dynamic computations on these types,
@@ -390,6 +389,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenWhereScalarOtherOp>();
   target.addIllegalOp<AtenWhereScalarSelfOp>();
   target.addIllegalOp<AtenMaskedFillScalarOp>();
+  target.addIllegalOp<AtenMaskedScatterOp>();
   target.addIllegalOp<AtenSizeOp>();
   target.addIllegalOp<AtenReshapeOp>();
   target.addIllegalOp<Aten_SoftmaxBackwardDataOp>();

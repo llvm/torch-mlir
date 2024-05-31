@@ -14,7 +14,9 @@ class NativeTorchTestConfig(TestConfig):
     def __init__(self):
         super().__init__()
 
-    def compile(self, program: torch.nn.Module) -> torch.nn.Module:
+    def compile(
+        self, program: torch.nn.Module, verbose: bool = False
+    ) -> torch.nn.Module:
         return program
 
     def run(self, artifact: torch.nn.Module, trace: Trace) -> Trace:

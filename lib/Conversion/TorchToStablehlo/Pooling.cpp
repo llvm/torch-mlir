@@ -18,12 +18,9 @@
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include <iostream>
 #include <numeric>
 
 using namespace mlir;
@@ -219,10 +216,10 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
   auto *secondIdxArg = std::next(secondValArg);
 
   stablehlo::ComparisonTypeAttr compareTypeAttr;
-  if (inputTy.getElementType().isa<mlir::FloatType>()) {
+  if (isa<mlir::FloatType>(inputTy.getElementType())) {
     compareTypeAttr = stablehlo::ComparisonTypeAttr::get(
         rewriter.getContext(), stablehlo::ComparisonType::FLOAT);
-  } else if (inputTy.getElementType().isa<mlir::IntegerType>()) {
+  } else if (isa<mlir::IntegerType>(inputTy.getElementType())) {
     compareTypeAttr = stablehlo::ComparisonTypeAttr::get(
         rewriter.getContext(), stablehlo::ComparisonType::SIGNED);
   }
@@ -398,9 +395,8 @@ public:
     RankedTensorType inputTy = cast<RankedTensorType>(input.getType());
     Type inputElemTy = inputTy.getElementType();
     int64_t inputRank = inputTy.getRank();
-    RankedTensorType outTy = ConvertAtenOp<AtenOpT>::getTypeConverter()
-                                 ->convertType(op.getType())
-                                 .template cast<RankedTensorType>();
+    RankedTensorType outTy = cast<RankedTensorType>(
+        ConvertAtenOp<AtenOpT>::getTypeConverter()->convertType(op.getType()));
     auto outShape = outTy.getShape();
 
     if (inputRank <= Dim) {

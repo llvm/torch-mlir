@@ -9,18 +9,13 @@
 
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
-#include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
@@ -414,10 +409,8 @@ public:
     Value self = adaptor.getSelf();
     RankedTensorType selfType = cast<RankedTensorType>(self.getType());
     Type elementType = selfType.getElementType();
-    RankedTensorType indicesRankedTensorType =
-        getTypeConverter()
-            ->convertType(op->getResult(1).getType())
-            .cast<RankedTensorType>();
+    RankedTensorType indicesRankedTensorType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(1).getType()));
 
     // TODO: Add support for 3D inputs.
     if (selfType.getRank() == 3)
@@ -722,10 +715,10 @@ public:
 
     Location loc = op->getLoc();
     const TypeConverter *typeConverter = opConversionPattern.getTypeConverter();
-    outputType = typeConverter->convertType(op.getResult0().getType())
-                     .template cast<RankedTensorType>();
-    auxTensorType = typeConverter->convertType(op.getResult1().getType())
-                        .template cast<RankedTensorType>();
+    outputType = cast<RankedTensorType>(
+        typeConverter->convertType(op.getResult0().getType()));
+    auxTensorType = cast<RankedTensorType>(
+        typeConverter->convertType(op.getResult1().getType()));
     Type auxTensorElementType = auxTensorType.getElementType();
     auto smallestFPValueAttr = rewriter.getFloatAttr(
         elementType,
@@ -804,8 +797,8 @@ public:
 
     Location loc = op->getLoc();
     const TypeConverter *typeConverter = opConversionPattern.getTypeConverter();
-    outputType = typeConverter->convertType(op.getResult().getType())
-                     .template cast<RankedTensorType>();
+    outputType = cast<RankedTensorType>(
+        typeConverter->convertType(op.getResult().getType()));
     buffVal = rewriter.create<arith::ConstantOp>(
         loc, elementType, rewriter.getFloatAttr(elementType, 0));
     auxTensor = rewriter.create<tensor::EmptyOp>(

@@ -125,7 +125,7 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
         llvm::copy_if(getInputOperands(),
           std::back_inserter(result),
           [](OpOperand *opOperand) {
-            return opOperand->get().getType().template isa<MemRefType>();
+            return isa<MemRefType>(opOperand->get().getType());
           });
         return result;
       }]
@@ -144,7 +144,7 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
         llvm::copy_if(getInputOperands(),
           std::back_inserter(result),
           [](OpOperand *opOperand) {
-            return opOperand->get().getType().template isa<RankedTensorType>();
+            return isa<RankedTensorType>(opOperand->get().getType());
           });
         return result;
       }]
@@ -200,7 +200,7 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
         llvm::copy_if(getOutputOperands(),
           std::back_inserter(result),
           [](OpOperand *opOperand) {
-            return opOperand->get().getType().template isa<MemRefType>();
+            return isa<MemRefType>(opOperand->get().getType());
           });
         return result;
       }]
@@ -219,7 +219,7 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
         llvm::copy_if(getOutputOperands(),
           std::back_inserter(result),
           [](OpOperand *opOperand) {
-            return opOperand->get().getType().template isa<RankedTensorType>();
+            return isa<RankedTensorType>(opOperand->get().getType());
           });
         return result;
       }]
@@ -238,7 +238,7 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
         llvm::transform(getOutputBufferOperands(),
           std::back_inserter(result),
           [](OpOperand *opOperands) {
-            return opOperands->get().getType().cast<MemRefType>();
+            return cast<MemRefType>(opOperands->get().getType());
           });
         return result;
       }]
@@ -257,7 +257,7 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
         llvm::transform(getOutputTensorOperands(),
           std::back_inserter(result),
           [](OpOperand *opOperands) {
-            return opOperands->get().getType().cast<RankedTensorType>();
+            return cast<RankedTensorType>(opOperands->get().getType());
           });
         return result;
       }]
@@ -318,7 +318,7 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
       /*args=*/(ins "OpOperand *":$opOperand),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        if (!opOperand->get().getType().template isa<RankedTensorType>())
+        if (!isa<RankedTensorType>(opOperand->get().getType()))
           return false;
         if (opOperand->getOperandNumber() < $_op.getNumInputs())
           return true;
@@ -334,7 +334,7 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
       /*args=*/(ins "OpOperand *":$opOperand),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        if (!opOperand->get().getType().template isa<RankedTensorType>())
+        if (!isa<RankedTensorType>(opOperand->get().getType()))
           return false;
         if (opOperand->getOperandNumber() >= $_op.getNumInputs())
           return true;
@@ -367,7 +367,7 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
       /*defaultImplementation=*/[{
         assert(opOperand->getOwner() == this->getOperation());
         if (auto shapedType =
-              opOperand->get().getType().template dyn_cast<ShapedType>())
+              dyn_cast<ShapedType>(opOperand->get().getType()))
           return shapedType.getRank();
         return 0;
       }]
@@ -383,7 +383,7 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
       /*defaultImplementation=*/[{
         assert(opOperand->getOwner() == this->getOperation());
         if (auto shapedType =
-              opOperand->get().getType().template dyn_cast<ShapedType>())
+              dyn_cast<ShapedType>(opOperand->get().getType()))
           return shapedType.getShape();
         return {};
       }]
@@ -398,7 +398,7 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         assert(opOperand->getOwner() == this->getOperation());
-        return !opOperand->get().getType().template isa<ShapedType>();
+        return !isa<ShapedType>(opOperand->get().getType());
       }]
     >,
     //===------------------------------------------------------------------===//
@@ -416,10 +416,10 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
         return this->getOperation()->getNumResults() == 0 &&
           llvm::all_of(getInputOperands(), [&](OpOperand *opOperand) {
             return isScalar(opOperand) ||
-              opOperand->get().getType().template isa<MemRefType>();
+              isa<MemRefType>(opOperand->get().getType());
           }) &&
           llvm::all_of(getOutputOperands(), [](OpOperand *opOperand) {
-            return opOperand->get().getType().template isa<MemRefType>();
+            return isa<MemRefType>(opOperand->get().getType());
           });
       }]
     >,
@@ -435,10 +435,10 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
         return
           llvm::all_of(getInputOperands(), [&](OpOperand *opOperand) {
             return isScalar(opOperand) ||
-              opOperand->get().getType().template isa<RankedTensorType>();
+              isa<RankedTensorType>(opOperand->get().getType());
           }) &&
           llvm::all_of(getOutputOperands(), [](OpOperand *opOperand) {
-            return opOperand->get().getType().template isa<RankedTensorType>();
+            return isa<RankedTensorType>(opOperand->get().getType());
           });
       }]
     >,
@@ -478,8 +478,8 @@ def TMTensorInterface : OpInterface<"TMTensorOp"> {
 
     private:
     void setOperandSegmentAt(unsigned idx, unsigned val) {
-      auto attr = (*this)->getAttr("operand_segment_sizes")
-        .cast<DenseIntElementsAttr>();
+      auto attr = cast<DenseIntElementsAttr>((*this)->getAttr("operand_segment_sizes")
+        );
       unsigned i = 0;
       auto newAttr = attr.mapValues(IntegerType::get(getContext(), 32),
         [&](const APInt &v) { return (i++ == idx) ? APInt(32, val) : v; });

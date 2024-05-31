@@ -12,6 +12,30 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 # ==============================================================================
 
 
+class AtenDotModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.dot(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: AtenDotModule())
+def AtenDotModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4), tu.rand(4))
+
+
+# ==============================================================================
+
+
 class MatmulDot(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -593,6 +617,131 @@ def AtenMatmulQMixedSigni8Transpose_basic(module, tu: TestUtils):
         tu.randint(7, 2, 3, 4, low=-128, high=127).to(torch.int8),
         tu.randint(2, 6, 4, low=0, high=255).to(torch.uint8),
     )
+
+
+# ==============================================================================
+
+
+class AtenLinear1D(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3], torch.float32, True),
+            ([3], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.ops.aten.linear(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenLinear1D())
+def AtenLinear1D_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3), tu.rand(3))
+
+
+# ==============================================================================
+
+
+class AtenLinearMatVec(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.float32, True),
+            ([4], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.ops.aten.linear(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenLinearMatVec())
+def AtenLinearMatVec_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4), tu.rand(4))
+
+
+# ==============================================================================
+
+
+class AtenLinearVecMat(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.float32, True),
+            ([3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.ops.aten.linear(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenLinearVecMat())
+def AtenLinearVecMat_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4), tu.rand(3, 4))
+
+
+class AtenLinearVecMatBias(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.float32, True),
+            ([3, 4], torch.float32, True),
+            ([3], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b, c):
+        return torch.ops.aten.linear(a, b, c)
+
+
+@register_test_case(module_factory=lambda: AtenLinearVecMatBias())
+def AtenLinearVecMatBias_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4), tu.rand(3, 4), tu.rand(3))
+
+
+# ==============================================================================
+
+
+class AtenLinear2D(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.float32, True),
+            ([5, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.ops.aten.linear(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenLinear2D())
+def AtenLinear2D_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4), tu.rand(5, 4))
+
+
+# ==============================================================================
+
+
+class AtenLinear3DBias(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 6, 4], torch.float32, True),
+            ([5, 4], torch.float32, True),
+            ([5], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b, c):
+        return torch.ops.aten.linear(a, b, c)
+
+
+@register_test_case(module_factory=lambda: AtenLinear3DBias())
+def AtenLinear3DBias_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 6, 4), tu.rand(5, 4), tu.rand(5))
 
 
 # ==============================================================================

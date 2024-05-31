@@ -118,7 +118,7 @@ public:
         if (auto optionalType =
                 dyn_cast<OptionalType>(listType.getContainedType())) {
           if (!llvm::all_of(listConstruct.getElements(), [](Value val) {
-                return val.getType().isa<NonValueTensorType, Torch::NoneType>();
+                return isa<NonValueTensorType, Torch::NoneType>(val.getType());
               })) {
             rewriter.cancelOpModification(op);
             return rewriter.notifyMatchFailure(
