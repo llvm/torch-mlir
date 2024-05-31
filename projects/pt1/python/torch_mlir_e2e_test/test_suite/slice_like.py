@@ -995,8 +995,8 @@ class ChunkListUnpackUneven_Module(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        chunk_0, chunk_1, chunk_2 = torch.chunk(x, 3, 1)
-        return torch.ops.aten.add(chunk_0, chunk_1), chunk_2
+        a0, a1, a2, a3, a4 = torch.chunk(x, 6, 1)
+        return a0, a1, a2, a3, a4
 
 
 @register_test_case(module_factory=lambda: ChunkListUnpackUneven_Module())
@@ -1076,3 +1076,48 @@ class SplitWithSizes_Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: SplitWithSizes_Module())
 def SplitWithSizes_Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 2, 2))
+
+
+# ==============================================================================
+
+
+class TensorSplitSections_GetItemModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        split = torch.tensor_split(x, 3, dim=1)
+        return split[0], split[1], split[2]
+
+
+@register_test_case(module_factory=lambda: TensorSplitSections_GetItemModule())
+def TensorSplitSections_GetItemModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5))
+
+
+class TensorSplitSections_ListUnpackModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        a, b, c, d = torch.tensor_split(x, 4, dim=1)
+        return a, b, c, d
+
+
+@register_test_case(module_factory=lambda: TensorSplitSections_ListUnpackModule())
+def TensorSplitSections_ListUnpackModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5))
