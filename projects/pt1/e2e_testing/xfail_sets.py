@@ -22,6 +22,12 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "IscloseStaticModule_basic",
     "IscloseStaticModuleTrue_basic",
     "SplitWithSizes_Module_basic",
+    # lowering to torch backend IR fails due to unsupported op: aten.upsample_[mode/dims].vec
+    # these interpolate tests are added specifically to test onnx.Resize.
+    "InterpolateDynamicModule_sizes_bilinear",
+    "InterpolateDynamicModule_sizes_nearest",
+    "InterpolateStaticModule_scales_bilinear_align_corners",
+    "InterpolateDynamicModule_scales_recompute_bilinear",
 }
 
 LINALG_CRASHING_SET = {
@@ -3089,6 +3095,10 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "IndexTensorSelectDimModule_basic",
     "IndexTensorStaticContiguousWithNoneModule_basic",
     "IndexTensorStaticNonContiguousWithNoneModule_basic",
+    "InterpolateDynamicModule_sizes_bilinear",
+    "InterpolateDynamicModule_sizes_nearest",
+    "InterpolateStaticModule_scales_bilinear_align_corners",
+    "InterpolateDynamicModule_scales_recompute_bilinear",
     "IntFloatModule_basic",
     "IntImplicitModule_basic",
     "IsFloatingPointFloat_True",
@@ -3933,6 +3943,10 @@ ONNX_TOSA_XFAIL_SET = {
     "IndexTensorStaticContiguousWithNoneModule_basic",
     "IndexTensorStaticModule_basic",
     "IndexTensorStaticNonContiguousWithNoneModule_basic",
+    "InterpolateDynamicModule_sizes_bilinear",
+    "InterpolateDynamicModule_sizes_nearest",
+    "InterpolateStaticModule_scales_bilinear_align_corners",
+    "InterpolateDynamicModule_scales_recompute_bilinear",
     "IntFloatModule_basic",
     "IntImplicitModule_basic",
     "IouOfModule_basic",
