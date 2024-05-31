@@ -299,24 +299,26 @@ def sympy_expr_to_semi_affine_expr(
         affine_expr = AffineConstantExpr.get(0)
         for arg in expr.args:
             affine_expr = AffineAddExpr.get(
-                sympy_expr_to_semi_affine_expr(arg, symbols_map), affine_expr
+                affine_expr, sympy_expr_to_semi_affine_expr(arg, symbols_map)
             )
         return affine_expr
     elif isinstance(expr, sympy.Mul):
         affine_expr = AffineConstantExpr.get(1)
         for arg in expr.args:
             affine_expr = AffineMulExpr.get(
-                sympy_expr_to_semi_affine_expr(arg, symbols_map), affine_expr
+                affine_expr, sympy_expr_to_semi_affine_expr(arg, symbols_map)
             )
         return affine_expr
     elif isinstance(expr, sympy.Pow):
         base, exp = expr.args
+        # Only integer exponent is supported
+        # So, s1 ** s0 isn't allowed.
         assert isinstance(exp, (int, sympy.Integer))
         assert exp > 0, "Only positive exponents supported in sympy.Pow"
         affine_expr = AffineConstantExpr.get(1)
         for _ in range(exp):
             affine_expr = AffineMulExpr.get(
-                sympy_expr_to_semi_affine_expr(base, symbols_map), affine_expr
+                affine_expr, sympy_expr_to_semi_affine_expr(base, symbols_map)
             )
         return affine_expr
     elif isinstance(expr, sympy.Mod):
