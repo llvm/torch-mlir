@@ -1451,7 +1451,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseLogSigmoidModule_basic",
     "ElementwiseHardshrinkStaticModule_basic",
     "ElementwiseSoftshrinkStaticModule_basic",
-    "ScaledDotProductAttentionDifferentModule_basic"
+    "ScaledDotProductAttentionDifferentModule_basic",
 }
 
 STABLEHLO_CRASHING_SET = set()
