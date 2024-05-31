@@ -993,7 +993,7 @@ def Torch_TensorStaticInfoCastOp : Torch_Op<"tensor_static_info_cast", [
     AnyTorchTensorType:$result
   );
   let assemblyFormat = [{
-    $operand attr-dict `:` qualified(type($operand)) `to` qualified(type$result))
+    $operand attr-dict `:` qualified(type($operand)) `to` qualified(type($result))
   }];
   let hasCanonicalizer = 1;
 }
