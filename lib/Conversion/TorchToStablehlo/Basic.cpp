@@ -2110,29 +2110,29 @@ LogicalResult ConvertAtenOp<AtenScaledDotProductAttentionOp>::matchAndRewrite(
                                        "is_causal must be a Scalar constant");
 
   Value mask = adaptor.getAttnMask();
-  auto maskTy = mask.getType().dyn_cast<RankedTensorType>();
+  auto maskTy = dyn_cast<RankedTensorType>(mask.getType());
 
   if (isCausal && maskTy)
     return op.emitError("aten.scaled_dot_product_attention: is_causal and "
                         "attn_mask can NOT be enabled at the same time");
 
   Value query = adaptor.getQuery();
-  auto queryTy = query.getType().dyn_cast<RankedTensorType>();
+  auto queryTy = dyn_cast<RankedTensorType>(query.getType());
 
   Value key = adaptor.getKey();
-  auto keyTy = key.getType().dyn_cast<RankedTensorType>();
+  auto keyTy = dyn_cast<RankedTensorType>(key.getType());
 
   Value value = adaptor.getValue();
-  auto valueTy = value.getType().dyn_cast<RankedTensorType>();
+  auto valueTy = dyn_cast<RankedTensorType>(value.getType());
 
   if (!queryTy || !keyTy || !valueTy) {
     return op.emitError("aten.scaled_dot_product_attention: Q, K, V "
                         "must be ranked tensor");
   }
 
-  if (!queryTy.getElementType().isa<::mlir::FloatType>() ||
-      !keyTy.getElementType().isa<::mlir::FloatType>() ||
-      !valueTy.getElementType().isa<::mlir::FloatType>()) {
+  if (!isa<::mlir::FloatType>(queryTy.getElementType()) ||
+      !isa<::mlir::FloatType>(keyTy.getElementType()) ||
+      !isa<::mlir::FloatType>(valueTy.getElementType())) {
     return op.emitError("aten.scaled_dot_product_attention: Q, K, V "
                         "must be tensor of floating-point numbers");
   }
@@ -2142,7 +2142,7 @@ LogicalResult ConvertAtenOp<AtenScaledDotProductAttentionOp>::matchAndRewrite(
   int64_t queryRank = queryTy.getRank();
 
   Value scale = adaptor.getScale();
-  auto scaleTy = scale.getType().dyn_cast<::mlir::FloatType>();
+  auto scaleTy = dyn_cast<::mlir::FloatType>(scale.getType());
   Value scaleTensor;
   if (scaleTy) {
     scaleTensor = hlo::scalarToStablehloTensor(rewriter, op.getOperation(),
@@ -2178,14 +2178,14 @@ LogicalResult ConvertAtenOp<AtenScaledDotProductAttentionOp>::matchAndRewrite(
       op->getLoc(), queryDotKeyTy, query, key, queryDotKeyDimsAttr, nullptr);
 
   auto outTy =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
 
   Value scaledQueryDotKey = rewriter.create<chlo::BroadcastMulOp>(
       op->getLoc(), queryDotKey, scaleTensor, nullptr);
 
   auto scaledQueryDotKeyTy =
-      scaledQueryDotKey.getType().cast<RankedTensorType>();
-  auto elementTy = queryTy.getElementType().cast<::mlir::FloatType>();
+      cast<RankedTensorType>(scaledQueryDotKey.getType());
+  auto elementTy = cast<::mlir::FloatType>(queryTy.getElementType());
 
   Value maskedVal = scaledQueryDotKey;
   Value bias;
@@ -2269,7 +2269,7 @@ LogicalResult ConvertAtenOp<AtenScaledDotProductAttentionOp>::matchAndRewrite(
   }
 
   Value reduceVal = reducOp.getResults()[0];
-  auto reduceTy = reduceVal.getType().cast<RankedTensorType>();
+  auto reduceTy = cast<RankedTensorType>(reduceVal.getType());
 
   llvm::SmallVector<int64_t, 4> reshapeShape(reduceTy.getShape());
   reshapeShape.push_back(1);
