@@ -3033,7 +3033,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         SmallVector<int64_t, 6> permuteDimsInt{0, 3, 5, 1, 2, 4};
         Value permutedInput;
-        if (failed(createTorchPermuteOp(rewriter, binder.getLoc(),
+        if (failed(createTorchPermuteOp(binder, rewriter, binder.getLoc(),
                                         reshapedInput, permuteDimsInt,
                                         permutedInput)))
           return rewriter.notifyMatchFailure(

@@ -100,7 +100,8 @@ LogicalResult createTorchTransposeOp(ConversionPatternRewriter &rewriter,
                                      Location loc, Value input, int64_t dimA,
                                      int64_t dimB, Value &transposed);
 
-LogicalResult createTorchPermuteOp(ConversionPatternRewriter &rewriter,
+LogicalResult createTorchPermuteOp(OpBinder binder,
+                                   ConversionPatternRewriter &rewriter,
                                    Location loc, Value input,
                                    SmallVector<int64_t> permuteDims,
                                    Value &permuted);
