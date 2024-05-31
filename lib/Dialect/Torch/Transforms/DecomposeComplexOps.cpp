@@ -2087,8 +2087,9 @@ public:
     auto ndim = getTensorRank(self);
     auto resType = cast<BaseTensorType>(self.getType());
 
-    if (!resType.hasDtype()) {
-      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    if (!resType.hasDtype() || !resType.hasSizes()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "result should have dtype and sizes");
     }
 
     Type dtype = resType.getDtype();
@@ -2098,9 +2099,10 @@ public:
               "currently unimplemented");
     }
 
-    ArrayRef<int64_t> inputSizeArrayRef = resType.getSizes();
-    SmallVector<int64_t> inputSize;
-    inputSize.assign(inputSizeArrayRef.begin(), inputSizeArrayRef.end());
+    SmallVector<int64_t> inputSize(resType.getSizes());
+
+    if (inputSize[0] == Torch::kUnknownSize)
+      return rewriter.notifyMatchFailure(op, "size of input tensor is unknown");
 
     // Convert dim from Value to int
     int64_t dimInt;
@@ -2118,12 +2120,11 @@ public:
     // ndim-1]
     llvm::SmallVector<Value> reduceDimsVector;
     for (u_int64_t i = 0; i < ndim; i++) {
+      if (i == (u_int64_t)dimInt)
+        continue;
+
       Value constI = rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(i));
-
-      if (i == (u_int64_t)dimInt) {
-        continue;
-      }
 
       reduceDimsVector.push_back(constI);
     }
@@ -2136,9 +2137,9 @@ public:
     // Make output shape for linalg.vector_norm operation
     SmallVector<Value> inputSizeValue;
     for (u_int64_t i = 0; i < inputSize.size(); i++) {
-      if (i != (u_int64_t)dimInt) {
+      if (i != (u_int64_t)dimInt)
         inputSize[i] = 1;
-      }
+
       inputSizeValue.push_back(
           rewriter.create<Torch::ConstantIntOp>(loc, inputSize[i]));
     }
