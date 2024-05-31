@@ -447,7 +447,7 @@ func.func @torch.aten.sdpa.QKVfM(%arg0: !torch.vtensor<[1,32,3,128],f32>, %arg1:
 // CHECK: %[[VAL_8:.*]] = stablehlo.exponential %[[VAL_7]] : tensor<1x32x3x5xf32>
 func.func @torch.aten.sdpa.QKVC(%arg0: !torch.vtensor<[1,32,3,128],f32>, %arg1: !torch.vtensor<[1,32,5,128],f32>, %arg2: !torch.vtensor<[1,32,5,256],f32>) -> !torch.vtensor<[1,32,3,256],f32> {
   %float0.000000e00 = torch.constant.float 0.000000e+00
-  %true = torch.constant.bool true 
+  %true = torch.constant.bool true
   %none = torch.constant.none
   %res = torch.aten.scaled_dot_product_attention %arg0, %arg1, %arg2, %none, %float0.000000e00, %true, %none : !torch.vtensor<[1,32,3,128],f32>, !torch.vtensor<[1,32,5,128],f32>, !torch.vtensor<[1,32,5,256],f32>, !torch.none, !torch.float, !torch.bool, !torch.none -> !torch.vtensor<[1,32,3,256],f32>
   return %res : !torch.vtensor<[1,32,3,256],f32>

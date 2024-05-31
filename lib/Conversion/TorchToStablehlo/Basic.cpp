@@ -2091,7 +2091,7 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
   return success();
 }
 
-template<>
+template <>
 LogicalResult ConvertAtenOp<AtenScaledDotProductAttentionOp>::matchAndRewrite(
     AtenScaledDotProductAttentionOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -2145,8 +2145,8 @@ LogicalResult ConvertAtenOp<AtenScaledDotProductAttentionOp>::matchAndRewrite(
   auto scaleTy = scale.getType().dyn_cast<::mlir::FloatType>();
   Value scaleTensor;
   if (scaleTy) {
-    scaleTensor = hlo::scalarToStablehloTensor(
-        rewriter, op.getOperation(), scale, queryTy.getElementType());
+    scaleTensor = hlo::scalarToStablehloTensor(rewriter, op.getOperation(),
+                                               scale, queryTy.getElementType());
   } else {
     Value lastDimSzOfQuery =
         getDimOp(rewriter, op->getLoc(), query, queryRank - 1);
@@ -2155,8 +2155,8 @@ LogicalResult ConvertAtenOp<AtenScaledDotProductAttentionOp>::matchAndRewrite(
     Value lastDimSzOfQueryFPTensor = hlo::scalarToStablehloTensor(
         rewriter, op.getOperation(), lastDimSzOfQueryInt,
         queryTy.getElementType());
-    scaleTensor = rewriter.create<stablehlo::RsqrtOp>(
-        op->getLoc(), lastDimSzOfQueryFPTensor);
+    scaleTensor = rewriter.create<stablehlo::RsqrtOp>(op->getLoc(),
+                                                      lastDimSzOfQueryFPTensor);
   }
 
   int64_t nBatchDims = queryRank - 2;
@@ -2164,9 +2164,9 @@ LogicalResult ConvertAtenOp<AtenScaledDotProductAttentionOp>::matchAndRewrite(
   int64_t rhsResultDimIdx = nBatchDims, rhsContractingDimIdx = nBatchDims + 1;
   auto batchDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, nBatchDims));
   stablehlo::DotDimensionNumbersAttr queryDotKeyDimsAttr =
-      stablehlo::DotDimensionNumbersAttr::get(
-          rewriter.getContext(), batchDims, batchDims, {lhsContractingDimIdx},
-          {rhsContractingDimIdx});
+      stablehlo::DotDimensionNumbersAttr::get(rewriter.getContext(), batchDims,
+                                              batchDims, {lhsContractingDimIdx},
+                                              {rhsContractingDimIdx});
 
   llvm::SmallVector<int64_t, 4> queryDotKeyResShape(
       queryShape.take_front(nBatchDims));
@@ -2245,8 +2245,8 @@ LogicalResult ConvertAtenOp<AtenScaledDotProductAttentionOp>::matchAndRewrite(
   auto initValTy = RankedTensorType::get({}, elementTy);
   auto initAttr = DenseElementsAttr::get(
       initValTy, APFloat::getZero(elementTy.getFloatSemantics(), false));
-  Value initVal = rewriter.create<stablehlo::ConstantOp>(op->getLoc(),
-                                                         initValTy, initAttr);
+  Value initVal =
+      rewriter.create<stablehlo::ConstantOp>(op->getLoc(), initValTy, initAttr);
   auto expValShape = scaledQueryDotKeyTy.getShape();
   auto reducedValTy = RankedTensorType::get(
       llvm::ArrayRef<int64_t>(expValShape.data(), expValShape.size() - 1),
@@ -2274,19 +2274,19 @@ LogicalResult ConvertAtenOp<AtenScaledDotProductAttentionOp>::matchAndRewrite(
   llvm::SmallVector<int64_t, 4> reshapeShape(reduceTy.getShape());
   reshapeShape.push_back(1);
   auto reshapeTy = reduceTy.clone(reshapeShape);
-  Value reshapeVal = rewriter.create<stablehlo::ReshapeOp>(
-      op->getLoc(), reshapeTy, reduceVal);
+  Value reshapeVal =
+      rewriter.create<stablehlo::ReshapeOp>(op->getLoc(), reshapeTy, reduceVal);
   Value divVal = rewriter.create<chlo::BroadcastDivOp>(
       op->getLoc(), scaledQueryDotKeyTy, expVal, reshapeVal, nullptr);
 
   lhsContractingDimIdx = nBatchDims + 1;
   rhsContractingDimIdx = nBatchDims;
   stablehlo::DotDimensionNumbersAttr dotValDimsAttr =
-      stablehlo::DotDimensionNumbersAttr::get(
-          rewriter.getContext(), batchDims, batchDims, {lhsContractingDimIdx},
-          {rhsContractingDimIdx});
-  rewriter.replaceOpWithNewOp<stablehlo::DotGeneralOp>(
-      op, outTy, divVal, value, dotValDimsAttr, nullptr);
+      stablehlo::DotDimensionNumbersAttr::get(rewriter.getContext(), batchDims,
+                                              batchDims, {lhsContractingDimIdx},
+                                              {rhsContractingDimIdx});
+  rewriter.replaceOpWithNewOp<stablehlo::DotGeneralOp>(op, outTy, divVal, value,
+                                                       dotValDimsAttr, nullptr);
 
   return success();
 }
