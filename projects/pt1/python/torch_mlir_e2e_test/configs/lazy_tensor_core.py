@@ -22,21 +22,22 @@ class LazyTensorCoreTestConfig(TestConfig):
         super().__init__()
         lazy_backend._initialize()
 
-    def compile(self, program: torch.nn.Module) -> torch.nn.Module:
-        return program.to('lazy')
+    def compile(
+        self, program: torch.nn.Module, verbose: bool = False
+    ) -> torch.nn.Module:
+        return program.to("lazy")
 
     def run(self, artifact: torch.nn.Module, trace: Trace) -> Trace:
         result: Trace = []
 
         for item in trace:
             # We need to move all the inputs to the lazy device before running in LTC.
-            lazy_inputs = tree_map(to_device('lazy'), item.inputs)
+            lazy_inputs = tree_map(to_device("lazy"), item.inputs)
             output = getattr(artifact, item.symbol)(*lazy_inputs)
-            cpu_outputs = tree_map(to_device('cpu'), output)
+            cpu_outputs = tree_map(to_device("cpu"), output)
 
             result.append(
-                TraceItem(symbol=item.symbol,
-                          inputs=item.inputs,
-                          output=cpu_outputs))
+                TraceItem(symbol=item.symbol, inputs=item.inputs, output=cpu_outputs)
+            )
 
         return result

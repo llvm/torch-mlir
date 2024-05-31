@@ -18,7 +18,7 @@ mb = ModuleBuilder()
 @mb.import_function
 @torch.jit.script
 def dict_literal_empty() -> Dict[str, torch.Tensor]:
-  return {}
+    return {}
 
 
 # CHECK-LABEL:   func.func @__torch__.dict_literal(
@@ -33,10 +33,9 @@ def dict_literal_empty() -> Dict[str, torch.Tensor]:
 # CHECK:         }
 @mb.import_function
 @torch.jit.script
-def dict_literal(k0: str, v0, k1: str,
-                  v1) -> Dict[str, Optional[torch.Tensor]]:
-  my_dict: Dict[str, Optional[torch.Tensor]] = {k0: v0, k1: v1}
-  return my_dict
+def dict_literal(k0: str, v0, k1: str, v1) -> Dict[str, Optional[torch.Tensor]]:
+    my_dict: Dict[str, Optional[torch.Tensor]] = {k0: v0, k1: v1}
+    return my_dict
 
 
 mb.module.operation.print()

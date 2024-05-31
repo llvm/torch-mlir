@@ -9,19 +9,14 @@
 
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
-#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 
 using namespace mlir;
@@ -47,9 +42,8 @@ public:
 
     if (train)
       return failure();
-    auto resultType = getTypeConverter()
-                          ->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
                                                 adaptor.getInput());
     return success();
@@ -65,8 +59,8 @@ static Value toLinearIndex(OpBuilder &b, Location loc,
   Value result =
       b.create<arith::ConstantOp>(loc, b.getZeroAttr(b.getI64Type()));
   for (auto [index, stride] : llvm::zip(indicesIntValues, shapeIntValues)) {
-    assert(index.getType().isa<mlir::IntegerType>() &&
-           stride.getType().isa<mlir::IntegerType>() &&
+    assert(isa<mlir::IntegerType>(index.getType()) &&
+           isa<mlir::IntegerType>(stride.getType()) &&
            "Input arrays to `toLinearIndex` must only contain values of type "
            "`mlir::IntegerType`");
     Value mul = b.create<arith::MulIOp>(loc, result, stride);
@@ -127,20 +121,21 @@ public:
     Value from = adaptor.getFrom();
     Value to = adaptor.getTo();
     Value generator = adaptor.getGenerator();
-    RankedTensorType resultType = self.getType().cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(self.getType());
     Type elemTy = resultType.getElementType();
+    Type f64Ty = rewriter.getF64Type();
 
     if (!isa<mlir::FloatType>(elemTy))
       return rewriter.notifyMatchFailure(op, "This op only support float type");
 
-    if (!generator.getType().isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(generator.getType()))
       return rewriter.notifyMatchFailure(
           op, "The generator has to be None because only global default "
               "generator is supported");
     // Get key, min and max used by `linalg.generic` compute payload.
     Value key = rewriter.create<TorchConversion::GetNextSeedOp>(loc);
-    Value min = convertScalarToDtype(rewriter, loc, from, elemTy);
-    Value max = convertScalarToDtype(rewriter, loc, to, elemTy);
+    Value min = convertScalarToDtype(rewriter, loc, from, f64Ty);
+    Value max = convertScalarToDtype(rewriter, loc, to, f64Ty);
 
     // Construct the `linalg.generic` op.
     auto resultRank = resultType.getRank();
@@ -179,11 +174,14 @@ public:
 
                   // res = cast(F64, tempN) * scale + min
                   Value updateFloat =
-                      b.create<arith::UIToFPOp>(loc, elemTy, randomVal);
+                      b.create<arith::UIToFPOp>(loc, f64Ty, randomVal);
                   Value updateScaled =
                       b.create<arith::MulFOp>(loc, updateFloat, scale);
                   Value res = b.create<arith::AddFOp>(loc, updateScaled, min);
-                  b.create<linalg::YieldOp>(loc, res);
+                  Value truncRes = res;
+                  if (isa<Float16Type, Float32Type>(elemTy))
+                    truncRes = b.create<arith::TruncFOp>(loc, elemTy, res);
+                  b.create<linalg::YieldOp>(loc, truncRes);
                 })
             .getResult(0);
 

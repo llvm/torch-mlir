@@ -11,13 +11,16 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 class TestModule(torch.nn.Module):
-  def __init__(self):
-    super().__init__()
-  def forward(self, x, y):
-    # CHECK-LABEL: torch.nn_module
-    # CHECK: loc("{{.*}}methods-locations.py":[[@LINE+1]]
-    return x * y
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x, y):
+        # CHECK-LABEL: torch.nn_module
+        # CHECK: loc("{{.*}}methods-locations.py":[[@LINE+1]]
+        return x * y
+
 
 test_module = TestModule()
 recursivescriptmodule = torch.jit.script(test_module)

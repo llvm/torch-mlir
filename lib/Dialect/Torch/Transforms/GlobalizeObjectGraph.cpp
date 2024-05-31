@@ -9,18 +9,14 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IRMapping.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/StringSet.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -134,7 +130,7 @@ private:
         slotName = setAttrOp.getName();
       }
 
-      auto moduleType = module.getType().cast<NnModuleType>();
+      auto moduleType = cast<NnModuleType>(module.getType());
       auto slots = moduleClassNameToSlots.find(moduleType.getClassName());
       // TODO: Improve verifier so that this can never happen
       if (slots == moduleClassNameToSlots.end())
@@ -163,13 +159,13 @@ private:
     }
 
     auto classType = symbolTable.lookup<ClassTypeOp>(
-        nnModule.getType().cast<NnModuleType>().getClassName());
+        cast<NnModuleType>(nnModule.getType()).getClassName());
     for (auto t :
          llvm::zip(nnModule.getOps<SlotOp>(), classType.getOps<AttrOp>())) {
       auto slot = std::get<0>(t);
       auto attr = std::get<1>(t);
       nameStack.push_back(attr.getName().str());
-      if (attr.getType().isa<NnModuleType>()) {
+      if (isa<NnModuleType>(attr.getType())) {
         if (failed(recursivelyTraverse(
                 slot.getValue().getDefiningOp<NnModuleOp>())))
           return failure();
@@ -333,7 +329,7 @@ static LogicalResult analyzeInstances(func::FuncOp func,
   for (auto &argInstance : argInstances)
     mapping.map(func.getArgument(argInstance.argIndex), argInstance.instance);
   auto walkResult = func.walk([&](PrimGetAttrOp op) {
-    if (!op.getType().isa<NnModuleType>())
+    if (!isa<NnModuleType>(op.getType()))
       return WalkResult::advance();
     auto instance = mapping.lookupOrNull(op.getReceiver());
     assert(instance && "verifyFuncConformsToSubset should ensure this");
@@ -355,7 +351,7 @@ createMonomorphizationForCall(func::CallOp op, IRMapping &mapping,
   Monomorphization monomorphization;
   monomorphization.func = func;
   for (auto operand : llvm::enumerate(op->getOperands())) {
-    if (!operand.value().getType().isa<NnModuleType>())
+    if (!isa<NnModuleType>(operand.value().getType()))
       continue;
     Value instance = mapping.lookupOrNull(operand.value());
     assert(instance && "verifyFuncConformsToSubset should ensure this");
@@ -377,7 +373,7 @@ public:
       monomorphization.func = func;
       bool canTriviallyMonomorphize = true;
       for (auto arg : llvm::enumerate(func.getArguments())) {
-        auto type = arg.value().getType().dyn_cast<NnModuleType>();
+        auto type = dyn_cast<NnModuleType>(arg.value().getType());
         if (!type)
           continue;
         auto classType = symbolTable.lookup<ClassTypeOp>(type.getClassName());
@@ -436,7 +432,7 @@ private:
 // !torch.nn.Module<"..."> types.
 static LogicalResult verifyNnModuleValueUses(Value value) {
   // Trivially succeed for non-module types.
-  if (!value.getType().isa<NnModuleType>())
+  if (!isa<NnModuleType>(value.getType()))
     return success();
   for (Operation *op : value.getUsers()) {
     if (isa<func::CallOp, PrimGetAttrOp>(op))
@@ -516,7 +512,7 @@ static LogicalResult rewriteMonomorphizedFuncClone(
     return WalkResult::advance();
   };
   auto handlePrimGetAttr = [&](PrimGetAttrOp op) {
-    if (!op.getType().isa<NnModuleType>()) {
+    if (!isa<NnModuleType>(op.getType())) {
       auto instance =
           mapping.lookup(op.getReceiver()).getDefiningOp<NnModuleOp>();
       SlotOp affectedSlot;
@@ -540,7 +536,7 @@ static LogicalResult rewriteMonomorphizedFuncClone(
     Monomorphization monomorphization = std::move(*maybeMonomorphization);
     auto newArguments = llvm::to_vector<6>(
         llvm::make_filter_range(op->getOperands(), [](Value v) {
-          return !v.getType().isa<NnModuleType>();
+          return !isa<NnModuleType>(v.getType());
         }));
     assert(newFuncs.find(monomorphization) != newFuncs.end());
     auto newOp = OpBuilder(op).create<func::CallOp>(
@@ -564,7 +560,7 @@ static LogicalResult rewriteMonomorphizedFuncClone(
   }
   llvm::BitVector argsToErase(func.getNumArguments());
   for (auto type : llvm::enumerate(func.getArgumentTypes())) {
-    if (type.value().isa<NnModuleType>()) {
+    if (isa<NnModuleType>(type.value())) {
       argsToErase.set(type.index());
     }
   }

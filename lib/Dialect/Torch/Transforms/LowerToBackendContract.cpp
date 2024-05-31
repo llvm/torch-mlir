@@ -12,7 +12,6 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -37,8 +36,8 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
 static LogicalResult checkType(Operation *op, Type type,
                                bool actuallyEmitDiagnostics) {
   // Allow various scalar types that backends are expected to be able to handle.
-  if (type.isa<Torch::IntType, Torch::FloatType, Torch::BoolType,
-               Torch::DeviceType>())
+  if (isa<Torch::IntType, Torch::FloatType, Torch::BoolType, Torch::DeviceType>(
+          type))
     return success();
 
   // Backends are not expected to support dynamic computations on these types,
@@ -118,7 +117,7 @@ static LogicalResult checkType(Operation *op, Type type,
   if (auto optionalType = dyn_cast<OptionalType>(type)) {
     // TODO: Be stricter about tensor types.
     // See comment below for ListType.
-    if (optionalType.getContainedType().isa<ValueTensorType>())
+    if (isa<ValueTensorType>(optionalType.getContainedType()))
       return success();
     return checkType(op, optionalType.getContainedType(),
                      actuallyEmitDiagnostics);
@@ -134,7 +133,7 @@ static LogicalResult checkType(Operation *op, Type type,
     // the contained type information. Somehow this slips through and works.
     // We should be stricter about this and properly infer the contained type
     // and shape.
-    if (listType.getContainedType().isa<ValueTensorType>())
+    if (isa<ValueTensorType>(listType.getContainedType()))
       return success();
     return checkType(op, listType.getContainedType(), actuallyEmitDiagnostics);
   }
@@ -263,10 +262,12 @@ class LowerToBackendContractPass
 public:
   LowerToBackendContractPass() = default;
   LowerToBackendContractPass(int maxIterations, bool decompose,
+                             bool shapeDtypeRefine,
                              ArrayRef<std::string> backendLegalOps,
                              StringRef extraLibrary) {
     this->maxIterations = maxIterations;
     this->decompose = decompose;
+    this->shapeDtypeRefine = shapeDtypeRefine;
     this->backendLegalOps = backendLegalOps;
     this->extraLibrary = extraLibrary.str();
   }
@@ -282,6 +283,7 @@ public:
     OpPassManager pm(module.getOperationName());
     TorchLoweringPipelineOptions options;
     options.decompose = decompose;
+    options.shapeDtypeRefine = shapeDtypeRefine;
     options.backendLegalOps = backendLegalOps;
     options.extraLibrary = extraLibrary;
     createTorchSimplificationPipeline(pm, options);
@@ -305,8 +307,7 @@ public:
         return signalPassFailure();
     } while (!satisfiesBackendContract(module, target));
     LLVM_DEBUG({
-      llvm::dbgs() << "LowerToBackendContractPass: "
-                   << "succeeded after " << i
+      llvm::dbgs() << "LowerToBackendContractPass: " << "succeeded after " << i
                    << " iterations of the simplification pipeline\n";
     });
   }
@@ -337,10 +338,11 @@ public:
 
 std::unique_ptr<OperationPass<ModuleOp>>
 mlir::torch::Torch::createLowerToBackendContractPass(
-    int maxIterations, bool decompose, ArrayRef<std::string> backendLegalOps,
-    StringRef extraLibrary) {
+    int maxIterations, bool decompose, bool shapeDtypeRefine,
+    ArrayRef<std::string> backendLegalOps, StringRef extraLibrary) {
   return std::make_unique<LowerToBackendContractPass>(
-      maxIterations, decompose, backendLegalOps, extraLibrary);
+      maxIterations, decompose, shapeDtypeRefine, backendLegalOps,
+      extraLibrary);
 }
 
 std::unique_ptr<OperationPass<ModuleOp>>
@@ -371,6 +373,9 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<Aten_SoftmaxOp>();
   target.addIllegalOp<Aten_LogSoftmaxOp>();
   target.addIllegalOp<AtenLogSoftmaxIntOp>();
+  target.addIllegalOp<AtenLogSigmoidOp>();
+  target.addIllegalOp<AtenHardshrinkOp>();
+  target.addIllegalOp<AtenSoftshrinkOp>();
   target.addIllegalOp<AtenEmptyLikeOp>();
   target.addIllegalOp<AtenOnesLikeOp>();
   target.addIllegalOp<AtenZerosLikeOp>();
@@ -384,6 +389,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenWhereScalarOtherOp>();
   target.addIllegalOp<AtenWhereScalarSelfOp>();
   target.addIllegalOp<AtenMaskedFillScalarOp>();
+  target.addIllegalOp<AtenMaskedScatterOp>();
   target.addIllegalOp<AtenSizeOp>();
   target.addIllegalOp<AtenReshapeOp>();
   target.addIllegalOp<Aten_SoftmaxBackwardDataOp>();
@@ -464,16 +470,18 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenMishOp>();
   target.addIllegalOp<AtenFullLikeOp>();
   target.addIllegalOp<AtenNewFullOp>();
-  target.addIllegalOp<AtenIndexPutOp>();
   target.addIllegalOp<AtenExpandAsOp>();
   target.addIllegalOp<Aten_ToCopyOp>();
   target.addIllegalOp<AtenDropoutOp>();
   target.addIllegalOp<AtenNativeDropoutOp>();
   target.addIllegalOp<AtenNewEmptyOp>();
-  target.addIllegalOp<AtenIndexPutHackedTwinOp>();
+  target.addIllegalOp<AtenIndexTensorOp>();
+  target.addIllegalOp<AtenIndexPutOp>();
+  target.addIllegalOp<Aten_IndexPutImplOp>();
   target.addIllegalOp<Aten_UnsafeIndexPutHackedTwinOp>();
   target.addIllegalOp<AtenPadOp>();
   target.addIllegalOp<AtenPreluOp>();
+  target.addIllegalOp<AtenCeluOp>();
   target.addIllegalOp<AtenToDtypeLayoutOp>();
   target.addIllegalOp<AtenToDeviceOp>();
   target.addIllegalOp<AtenToPrimDeviceOp>();
@@ -497,7 +505,6 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<Aten_EmbeddingBagOp>();
   target.addIllegalOp<AtenLiftFreshCopyOp>();
   target.addIllegalOp<AtenLerpScalarOp>();
-  target.addIllegalOp<AtenIndexTensorOp>();
   target.addIllegalOp<AtenMseLossOp>();
   target.addIllegalOp<AtenRandintLowOp>();
   target.addIllegalOp<AtenRandintOp>();
@@ -512,6 +519,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenNormalFunctionalOp>();
   target.addIllegalOp<AtenVarMeanOp>();
   target.addIllegalOp<AtenCosineSimilarityOp>();
+  target.addIllegalOp<AtenTruncOp>();
   target.addIllegalOp<AtenNewEmptyStridedOp>();
   target.addIllegalOp<AtenEmptyStridedOp>();
   target.addIllegalOp<AtenBucketizeTensorOp>();
@@ -534,7 +542,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   }
   target.addDynamicallyLegalOp<OperatorOp>(
       [backendLegalOpsSet](OperatorOp opOp) {
-        auto opName = opOp->getAttr("name").cast<StringAttr>().getValue();
+        auto opName = cast<StringAttr>(opOp->getAttr("name")).getValue();
         return backendLegalOpsSet.contains(opName);
       });
 }

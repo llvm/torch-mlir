@@ -12,17 +12,14 @@
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Dialect/Traits.h"
 #include "mlir/IR/DialectResourceBlobManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
 using namespace mlir;
@@ -95,7 +92,7 @@ public:
     Value input = adaptor.getA();
     Type resultType =
         this->getTypeConverter()->convertType(op->getResult(0).getType());
-    if (!input.getType().isa<mlir::FloatType>())
+    if (!isa<mlir::FloatType>(input.getType()))
       input = convertScalarToDtype(rewriter, loc, input, rewriter.getF64Type());
     Value result = rewriter.create<UnaryOp>(loc, input);
     rewriter.replaceOp(op,
@@ -172,8 +169,8 @@ public:
   matchAndRewrite(ValueTensorLiteralOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     MLIRContext *context = op->getContext();
-    if (auto elements = op.getValueAttr().dyn_cast<DenseIntElementsAttr>()) {
-      if (auto type = elements.getType().dyn_cast<RankedTensorType>()) {
+    if (auto elements = dyn_cast<DenseIntElementsAttr>(op.getValueAttr())) {
+      if (auto type = dyn_cast<RankedTensorType>(elements.getType())) {
         Type elemTy = op.getValueAttr().getElementType();
         unsigned bitWidth = elemTy.getIntOrFloatBitWidth();
         Type builtinTensorElemTy = IntegerType::get(context, bitWidth);
@@ -187,9 +184,9 @@ public:
       }
     }
     if (auto elements =
-            op.getValueAttr().dyn_cast<DenseResourceElementsAttr>()) {
-      if (auto type = elements.getType().dyn_cast<RankedTensorType>()) {
-        if (auto intType = type.getElementType().dyn_cast<IntegerType>()) {
+            dyn_cast<DenseResourceElementsAttr>(op.getValueAttr())) {
+      if (auto type = dyn_cast<RankedTensorType>(elements.getType())) {
+        if (auto intType = dyn_cast<IntegerType>(type.getElementType())) {
           Type builtinTensorElemTy =
               IntegerType::get(context, intType.getIntOrFloatBitWidth());
           auto shapedType =
@@ -439,9 +436,10 @@ public:
     target.addIllegalOp<Torch::ConstantIntOp>();
     patterns.add<ConvertTorchConstantIntOp>(typeConverter, context);
 
-    target.addIllegalOp<AtenIntBoolOp, AtenFloatScalarOp>();
+    target.addIllegalOp<AtenIntBoolOp, AtenFloatScalarOp, AtenIntScalarOp>();
     patterns.add<ConvertAtenCastOp<AtenIntBoolOp>>(typeConverter, context);
     patterns.add<ConvertAtenCastOp<AtenFloatScalarOp>>(typeConverter, context);
+    patterns.add<ConvertAtenCastOp<AtenIntScalarOp>>(typeConverter, context);
 
     target.addIllegalOp<AtenAddOp>();
     patterns.add<ConvertAtenAddOp>(typeConverter, context);

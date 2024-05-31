@@ -27,7 +27,7 @@ public:
     Location loc = op.getLoc();
     Value self = op.getSelf();
     MLIRContext *context = op.getContext();
-    auto tensorType = self.getType().cast<BaseTensorType>();
+    auto tensorType = cast<BaseTensorType>(self.getType());
     if (!tensorType.hasSizes())
       return rewriter.notifyMatchFailure(op, "unranked tensor");
     int64_t rank = tensorType.getSizes().size();
@@ -96,12 +96,11 @@ static LogicalResult refineShapeCalculateResult(ShapeCalculateOp op,
       sizes.push_back(kUnknownSize);
   }
 
-  auto originalResultType = result.getType().cast<BaseTensorType>();
-  auto impliedTypesFromShape =
+  auto originalResultType = cast<BaseTensorType>(result.getType());
+  auto impliedTypesFromShape = cast<BaseTensorType>(
       cast<BaseTensorType>(originalResultType)
           .getWithSizesAndDtype(ArrayRef(sizes),
-                                originalResultType.getOptionalDtype())
-          .cast<BaseTensorType>();
+                                originalResultType.getOptionalDtype()));
 
   return updateCalculateOpResultTypes(op, resultNum, impliedTypesFromShape,
                                       rewriter);

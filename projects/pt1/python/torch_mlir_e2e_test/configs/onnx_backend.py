@@ -11,7 +11,6 @@ import onnx
 import torch
 import torch_mlir
 
-from torch_mlir_e2e_test.onnx_backends.abc import OnnxBackend
 from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 from torch_mlir_e2e_test.utils import convert_annotations_to_placeholders
 from .utils import (
@@ -22,11 +21,26 @@ from .utils import (
 from torch_mlir.extras import onnx_importer
 from torch_mlir.dialects import torch as torch_d
 from torch_mlir.ir import Context, Module
+from torch_mlir.compiler_utils import (
+    OutputType,
+    run_pipeline_with_repro_report,
+    lower_mlir_module,
+)
+
+# The pipeline of func.func passes that lower the ONNX backend contract to the
+# Linalg-on-Tensors backend contract accepted by RefBackend or another user
+# defined backend.
+ONNX_TO_TORCH_FUNC_PIPELINE = ",".join(
+    [
+        "convert-torch-onnx-to-torch",
+    ]
+)
 
 
 def import_onnx(contents):
     # Import the ONNX model proto from the file contents:
     raw_model = onnx.load_from_string(contents)
+    # since it does not affect current e2e tests, data_prop is left false here
     model_proto = onnx.shape_inference.infer_shapes(raw_model)
 
     # Import the ONNX module into an MLIR module:
@@ -46,8 +60,8 @@ def convert_onnx(model, inputs):
     examples = []
     input_names = []
     dynamic_tensors = {}
-    for (index, arg) in enumerate(inputs):
-        shape = map(lambda d : d if d >= 0 else 1, arg.shape)
+    for index, arg in enumerate(inputs):
+        shape = map(lambda d: d if d >= 0 else 1, arg.shape)
         shape = tuple(shape)
         examples.append(torch.zeros(size=shape, dtype=arg.dtype))
 
@@ -55,18 +69,57 @@ def convert_onnx(model, inputs):
         input_names.append(input_name)
 
         dynamic_dims = {}
-        for (dimindex, dim) in enumerate(arg.shape):
-            if (dim < 0):
+        for dimindex, dim in enumerate(arg.shape):
+            if dim < 0:
                 dynamic_dims[dimindex] = "dim_{}_{}".format(index, dimindex)
 
-        if (dynamic_dims):
+        if dynamic_dims:
             dynamic_tensors[input_name] = dynamic_dims
 
-
-    examples=tuple(examples)
-    torch.onnx.export(model, examples, buffer, input_names=input_names, dynamic_axes=dynamic_tensors)
+    examples = tuple(examples)
+    torch.onnx.export(
+        model, examples, buffer, input_names=input_names, dynamic_axes=dynamic_tensors
+    )
     buffer = buffer.getvalue()
     return import_onnx(buffer)
+
+
+def _module_lowering(
+    verbose,
+    output_type,
+    torch_mod,
+):
+    if verbose:
+        print("\n====================")
+        print("ONNX RAW IR")
+        print(torch_mod)
+
+    # Lower from ONNX to Torch
+    run_pipeline_with_repro_report(
+        torch_mod,
+        f"builtin.module(func.func({ONNX_TO_TORCH_FUNC_PIPELINE}))",
+        "Lowering Onnx backend contract to Linalg-on-Tensors backend contract",
+    )
+
+    if verbose:
+        print("\n====================")
+        print("TorchFX IR")
+        print(torch_mod)
+
+    backend_legal_ops = [
+        "aten.flatten.using_ints",
+        "aten.adaptive_avg_pool1d",
+        "aten.unflatten.int",
+    ]
+    option_string = "{backend-legal-ops=" + ",".join(backend_legal_ops) + "}"
+    run_pipeline_with_repro_report(
+        torch_mod,
+        f"builtin.module(torch-lower-to-backend-contract{option_string})",
+        "Lowering TorchFX IR -> Torch Backend IR",
+    )
+
+    return lower_mlir_module(verbose, output_type, torch_mod)
+
 
 class OnnxBackendTestConfig(TestConfig):
     """Base class for TestConfig's that are implemented with ONNX.
@@ -74,18 +127,26 @@ class OnnxBackendTestConfig(TestConfig):
     This class handles all the common lowering that torch-mlir does before
     reaching the ONNX abstraction level.
     """
-    def __init__(self, backend: OnnxBackend, use_make_fx: bool = False):
+
+    def __init__(
+        self,
+        backend,
+        use_make_fx: bool = False,
+        output_type="linalg-on-tensors",
+    ):
         super().__init__()
         self.backend = backend
         self.use_make_fx = use_make_fx
+        self.output_type = output_type
 
-    def compile(self, program: torch.nn.Module) -> Any:
+    def compile(self, program: torch.nn.Module, verbose: bool = False) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         onnx_module = convert_onnx(program, example_args)
-        compiled_module = self.backend.compile(onnx_module)
+        backend_module = _module_lowering(
+            verbose, OutputType.get(self.output_type), onnx_module
+        )
+        compiled_module = self.backend.compile(backend_module)
         return compiled_module
-
-
 
     def run(self, artifact: Any, trace: Trace) -> Trace:
         backend_module = self.backend.load(artifact)
@@ -95,7 +156,6 @@ class OnnxBackendTestConfig(TestConfig):
             outputs = getattr(backend_module, "main_graph")(*numpy_inputs)
             output = recursively_convert_from_numpy(outputs)
             result.append(
-                TraceItem(symbol=item.symbol,
-                          inputs=item.inputs,
-                          output=output))
+                TraceItem(symbol=item.symbol, inputs=item.inputs, output=output)
+            )
         return result

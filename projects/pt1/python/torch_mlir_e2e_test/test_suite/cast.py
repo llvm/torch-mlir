@@ -11,15 +11,18 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
+
 class TensorToIntZeroRank(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, x):
         return int(x)
 
@@ -28,17 +31,21 @@ class TensorToIntZeroRank(torch.nn.Module):
 def TensorToIntZeroRank_basic(module, tu: TestUtils):
     module.forward(tu.randint(high=10))
 
+
 # ==============================================================================
+
 
 class TensorToInt(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int64, True),
+        ]
+    )
     def forward(self, x):
         return int(x)
 
@@ -47,17 +54,21 @@ class TensorToInt(torch.nn.Module):
 def TensorToInt_basic(module, tu: TestUtils):
     module.forward(tu.randint(1, 1, high=10))
 
+
 # ==============================================================================
+
 
 class TensorToFloatZeroRank(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.float64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.float64, True),
+        ]
+    )
     def forward(self, x):
         return float(x)
 
@@ -66,17 +77,21 @@ class TensorToFloatZeroRank(torch.nn.Module):
 def TensorToFloatZeroRank_basic(module, tu: TestUtils):
     module.forward(tu.rand().to(torch.float64))
 
+
 # ==============================================================================
+
 
 class TensorToFloat(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.float64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float64, True),
+        ]
+    )
     def forward(self, x):
         return float(x)
 
@@ -85,17 +100,21 @@ class TensorToFloat(torch.nn.Module):
 def TensorToFloat_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1).to(torch.float64))
 
+
 # ==============================================================================
+
 
 class TensorToBoolZeroRank(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.bool, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.bool, True),
+        ]
+    )
     def forward(self, x):
         return bool(x)
 
@@ -104,17 +123,21 @@ class TensorToBoolZeroRank(torch.nn.Module):
 def TensorToBoolZeroRank_basic(module, tu: TestUtils):
     module.forward(torch.tensor(1, dtype=torch.bool))
 
+
 # ==============================================================================
+
 
 class TensorToBool(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.bool, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bool, True),
+        ]
+    )
     def forward(self, x):
         return bool(x)
 

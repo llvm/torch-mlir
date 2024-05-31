@@ -17,11 +17,9 @@
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -32,6 +30,9 @@ namespace {
 static Value createInitialValueForGatherScatterOp(Operation *op,
                                                   RankedTensorType constType,
                                                   PatternRewriter &rewriter) {
+  if (!constType.hasStaticShape()) {
+    return nullptr;
+  }
   auto elementTy = constType.getElementType();
   if (isa<AtenEmbeddingBagPaddingIdxOp>(op)) {
     if (isa<mlir::FloatType>(elementTy)) {
@@ -64,7 +65,7 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
       loc, rewriter.getIntegerAttr(intType, 1));
 
   // sliceSizes
-  auto inputRankTy = input.getType().dyn_cast<RankedTensorType>();
+  auto inputRankTy = dyn_cast<RankedTensorType>(input.getType());
   auto inputRank = inputRankTy.getRank();
   SmallVector<Value, 4> sliceSizes;
   sliceSizes.reserve(inputRank);
@@ -85,7 +86,7 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
   for (int64_t r = 0; r < axis; ++r) {
     offsetDims.push_back(r);
   }
-  auto indicesRankTy = indices.getType().dyn_cast<RankedTensorType>();
+  auto indicesRankTy = dyn_cast<RankedTensorType>(indices.getType());
   auto indicesRank = indicesRankTy.getRank();
   for (int64_t r = axis + 1; r < inputRank; ++r) {
     offsetDims.push_back(r + indicesRank - 1);
@@ -101,6 +102,8 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
       rewriter.getContext(),
       /*offsetDims=*/offsetDims,
       /*collapsedSliceDims=*/collapsedSliceDims,
+      /*operandBatchingDims=*/{},
+      /*startIndicesBatchingDims=*/{},
       /*startIndexMap=*/startIndexMap,
       /*indexVecDim=*/indexVecDim);
 
@@ -132,8 +135,7 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
                                            SmallVector<Value> &strides) {
   Location loc = op.getLoc();
   auto input = adaptor.getSelf();
-  RankedTensorType inputType =
-      input.getType().template cast<RankedTensorType>();
+  RankedTensorType inputType = cast<RankedTensorType>(input.getType());
 
   Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
   Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
@@ -155,13 +157,13 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   Value builtinTypeStart = adaptor.getStart();
   Value builtinTypeEnd = adaptor.getEnd();
 
-  if (torchTypeStart.getType().isa<OptionalType>() ||
-      torchTypeEnd.getType().isa<OptionalType>())
+  if (isa<OptionalType>(torchTypeStart.getType()) ||
+      isa<OptionalType>(torchTypeEnd.getType()))
     return rewriter.notifyMatchFailure(op, "unimplemented optional type arg");
 
   int64_t step;
   if (!matchPattern(op.getStep(), m_TorchConstantInt(&step))) {
-    if (!op.getStep().getType().template isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(op.getStep().getType()))
       return op->emitError("unimplemented: step is not constant");
     step = 1;
   }
@@ -225,7 +227,7 @@ FailureOr<Value> broadcastAndConcatIndices(Operation *op,
   // concat index tensor into to indices tensor for concat
   for (size_t i = 0; i < indexTensors.size(); i++) {
     auto indexTensor = indexTensors[i];
-    auto indexTensorType = indexTensor.getType().cast<RankedTensorType>();
+    auto indexTensorType = cast<RankedTensorType>(indexTensor.getType());
     for (int64_t size : makeShapeTorchCompatible(indexTensorType.getShape())) {
       if (size == kUnknownSize)
         return failure();
@@ -248,8 +250,7 @@ FailureOr<Value> broadcastAndConcatIndices(Operation *op,
   concatShape.push_back(indexTensors.size());
 
   SmallVector<Value> broadcastedIndices;
-  Type indexElemTy =
-      indexTensors[0].getType().cast<RankedTensorType>().getElementType();
+  Type indexElemTy = rewriter.getI64Type();
   RankedTensorType bcastIndexType =
       RankedTensorType::get(indicesShape, indexElemTy);
   for (auto indexTensor : indexTensors) {
@@ -290,7 +291,7 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
     AtenEmbeddingOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto weight = adaptor.getWeight();
-  auto weightTy = weight.getType().cast<RankedTensorType>();
+  auto weightTy = cast<RankedTensorType>(weight.getType());
   if (!weightTy)
     return op.emitError("only ranked tensor types are supported");
 
@@ -332,27 +333,27 @@ LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
   Value indices = adaptor.getIndices();
   Value offsets = adaptor.getOffsets();
 
-  auto weightTy = weight.getType().cast<RankedTensorType>();
+  auto weightTy = cast<RankedTensorType>(weight.getType());
   if (weightTy && weightTy.hasStaticShape() && weightTy.getRank() != 2)
     return rewriter.notifyMatchFailure(
         op, "weight must be rank 2 tensor with static shapes");
 
-  auto indicesTy = indices.getType().cast<RankedTensorType>();
+  auto indicesTy = cast<RankedTensorType>(indices.getType());
   if (indicesTy && indicesTy.hasStaticShape() && indicesTy.getRank() != 1)
     return rewriter.notifyMatchFailure(
         op, "indices must be a vector with static shapes");
 
-  auto offsetsTy = offsets.getType().cast<RankedTensorType>();
+  auto offsetsTy = cast<RankedTensorType>(offsets.getType());
   if (offsetsTy && offsetsTy.getRank() != 1 && offsetsTy.hasStaticShape() &&
       offsetsTy.getShape()[0] == 1)
     return rewriter.notifyMatchFailure(
         op, "offsets must be a vector with static shape equal to 1");
 
-  if (!op.getPaddingIdx().getType().isa<Torch::NoneType>())
+  if (!isa<Torch::NoneType>(op.getPaddingIdx().getType()))
     return rewriter.notifyMatchFailure(
         op, "Unimplemented: padding_idx should be none");
 
-  if (!op.getPerSampleWeights().getType().isa<Torch::NoneType>())
+  if (!isa<Torch::NoneType>(op.getPerSampleWeights().getType()))
     return rewriter.notifyMatchFailure(
         op, "Unimplemented: per_sample_weights should be none");
 
@@ -452,25 +453,22 @@ LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
       loc, getTypeConverter()->convertType(op.getType(0)),
       stablehloReduceOp.getResult(0), outShapeTensor);
 
-  RankedTensorType resultType = getTypeConverter()
-                                    ->convertType(op->getResult(1).getType())
-                                    .cast<RankedTensorType>();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(1).getType()));
   Value resultB =
       createInitialValueForGatherScatterOp(op, resultType, rewriter);
   if (!resultB)
     return failure();
 
-  resultType = getTypeConverter()
-                   ->convertType(op->getResult(2).getType())
-                   .cast<RankedTensorType>();
+  resultType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(2).getType()));
   Value resultC =
       createInitialValueForGatherScatterOp(op, resultType, rewriter);
   if (!resultC)
     return failure();
 
-  resultType = getTypeConverter()
-                   ->convertType(op->getResult(3).getType())
-                   .cast<RankedTensorType>();
+  resultType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(3).getType()));
   Value resultD =
       createInitialValueForGatherScatterOp(op, resultType, rewriter);
   if (!resultD)
@@ -485,7 +483,7 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
     AtenIndexSelectOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
-  auto selfTy = self.getType().cast<RankedTensorType>();
+  auto selfTy = cast<RankedTensorType>(self.getType());
   if (!selfTy)
     return op.emitError("only ranked tensor types are supported");
   int64_t dim;
@@ -514,8 +512,8 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
   Location loc = op->getLoc();
   Value input = adaptor.getSelf();
   Value index = adaptor.getIndex();
-  auto inputType = input.getType().cast<RankedTensorType>();
-  auto indexType = index.getType().cast<RankedTensorType>();
+  auto inputType = cast<RankedTensorType>(input.getType());
+  auto indexType = cast<RankedTensorType>(index.getType());
   auto indexElemType = indexType.getElementType();
 
   if (indexType.getRank() != inputType.getRank()) {
@@ -586,6 +584,8 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
       rewriter.getContext(),
       /*offsetDims=*/{},
       /*collapsedSliceDims=*/collapsedDims,
+      /*operandBatchingDims=*/{},
+      /*startIndicesBatchingDims=*/{},
       /*startIndexMap=*/startIndexMap,
       /*indexVecDim=*/indexVecDim);
 
@@ -609,9 +609,8 @@ LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
 
   auto input = adaptor.getSelf();
 
-  RankedTensorType resultType =
-      typeConverter->convertType(op->getResult(0).getType())
-          .cast<RankedTensorType>();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      typeConverter->convertType(op->getResult(0).getType()));
 
   SmallVector<Value> resultShape;
   SmallVector<Value> offsets;
@@ -623,7 +622,7 @@ LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
   }
 
   Value src = adaptor.getSrc();
-  auto srcType = src.getType().cast<RankedTensorType>();
+  auto srcType = cast<RankedTensorType>(src.getType());
   int64_t srcRank = srcType.getRank();
   SmallVector<int64_t> srcAbstractSizes(srcRank, kUnknownSize);
   auto abstractSrcType = RankedTensorType::get(
@@ -651,9 +650,9 @@ public:
     Value input = adaptor.getSelf();
     Value index = adaptor.getIndex();
     Value src = adaptor.getSrc();
-    auto inputType = input.getType().cast<RankedTensorType>();
-    auto indexType = index.getType().cast<RankedTensorType>();
-    auto srcType = src.getType().cast<RankedTensorType>();
+    auto inputType = cast<RankedTensorType>(input.getType());
+    auto indexType = cast<RankedTensorType>(index.getType());
+    auto srcType = cast<RankedTensorType>(src.getType());
     auto indexElemType = indexType.getElementType();
 
     if (indexType.getRank() != inputType.getRank() ||
@@ -746,6 +745,8 @@ public:
         rewriter.getContext(),
         /*updateWindowDims=*/{},
         /*insertedWindowDims=*/insertedWindowDims,
+        /*inputBatchingDims=*/{},
+        /*scatterIndicesBatchingDims=*/{},
         /*scatterDimsToOperandDim=*/scatterDimOperandDimMap,
         /*indexVectorDim=*/indexVecDim);
 
@@ -789,9 +790,9 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   Location loc = op->getLoc();
   Value input = adaptor.getSelf();
-  auto inputTensorType = input.getType().cast<RankedTensorType>();
+  auto inputTensorType = cast<RankedTensorType>(input.getType());
   auto outType =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   auto outShape = outType.getShape();
   Value indexList = op.getIndices();
   SmallVector<Value> indicesTorchType;
@@ -828,6 +829,8 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
       rewriter.getContext(),
       /*offsetDims=*/offsetDims,
       /*collapsedSliceDims=*/collapsedDims,
+      /*operandBatchingDims=*/{},
+      /*startIndicesBatchingDims=*/{},
       /*startIndexMap=*/startIndexMap,
       /*indexVecDim=*/indexVecDim);
 
@@ -857,10 +860,10 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
   Value input = adaptor.getSelf();
   Value values = adaptor.getValues();
   auto outType =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
-  auto inputType = input.getType().cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  auto inputType = cast<RankedTensorType>(input.getType());
   int64_t inputRank = inputType.getRank();
-  auto valuesType = values.getType().cast<RankedTensorType>();
+  auto valuesType = cast<RankedTensorType>(values.getType());
   auto valuesShape = valuesType.getShape();
   bool accumulate;
   if (!matchPattern(op.getAccumulate(), m_TorchConstantBool(&accumulate))) {
@@ -902,6 +905,8 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
       rewriter.getContext(),
       /*updateWindowDims=*/updateWindowDims,
       /*insertedWindowDims=*/insertedWindowDims,
+      /*inputBatchingDims=*/{},
+      /*scatterIndicesBatchingDims=*/{},
       /*scatterDimsToOperandDim=*/scatterDimOperandDimMap,
       /*indexVectorDim=*/indexVecDim);
 

@@ -13,11 +13,8 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
@@ -37,9 +34,8 @@ Value torch_to_linalg::getPaddedTensor(
     SmallVectorImpl<int64_t> &lowPaddingInts,
     SmallVectorImpl<int64_t> &highPaddingInts, Value pad) {
   Location loc = op->getLoc();
-  Type rankedTensorType =
-      tensor::PadOp::inferResultType(input.getType().cast<RankedTensorType>(),
-                                     lowPaddingInts, highPaddingInts);
+  Type rankedTensorType = tensor::PadOp::inferResultType(
+      cast<RankedTensorType>(input.getType()), lowPaddingInts, highPaddingInts);
   SmallVector<OpFoldResult> lowPaddings =
       getIndexIntsAsOpFoldResult(b, lowPaddingInts);
   SmallVector<OpFoldResult> highPaddings =
@@ -56,12 +52,12 @@ Value torch_to_linalg::getPaddedTensor(
 Value torch_to_linalg::getZeroPaddedTensor(
     Operation *op, OpBuilder &b, Value &input,
     SmallVectorImpl<int64_t> &paddingInts) {
-  assert(input.getType().isa<RankedTensorType>() &&
+  assert(isa<RankedTensorType>(input.getType()) &&
          "input must be RankedTensorType");
   Location loc = op->getLoc();
   Value c0 = b.create<arith::ConstantOp>(
       loc,
-      b.getZeroAttr(input.getType().cast<RankedTensorType>().getElementType()));
+      b.getZeroAttr(cast<RankedTensorType>(input.getType()).getElementType()));
   return getPaddedTensor(op, b, input, paddingInts, paddingInts, c0);
 }
 
@@ -71,9 +67,9 @@ Value torch_to_linalg::getZeroPaddedTensor(
 Value torch_to_linalg::getDynamicZeroPaddedTensor(
     Operation *op, OpBuilder &b, Value &input, SmallVectorImpl<Value> &padding,
     int unpaddedDims, Value pad) {
-  assert(input.getType().isa<RankedTensorType>() &&
+  assert(isa<RankedTensorType>(input.getType()) &&
          "input must be RankedTensorType");
-  unsigned int inRank = input.getType().cast<RankedTensorType>().getRank();
+  unsigned int inRank = cast<RankedTensorType>(input.getType()).getRank();
   Location loc = op->getLoc();
 
   SmallVector<Value> inputDims = getTensorSizes(b, loc, input);
@@ -86,7 +82,7 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
        pad < paddingIncludingUnchanged.end(); pad++)
     *pad = castIntToIndex(b, loc, *pad);
 
-  Type elementType = input.getType().cast<RankedTensorType>().getElementType();
+  Type elementType = cast<RankedTensorType>(input.getType()).getElementType();
   // TODO: audit possibility of sparsity on this tensor
   Type inputType =
       RankedTensorType::get(makeShapeLLVMCompatible(llvm::ArrayRef<int64_t>(
@@ -158,7 +154,7 @@ Value torch_to_linalg::getOutputDimForConvTransposeOps(
 Value torch_to_linalg::createReductionLinalgGeneric(
     OpBuilder &b, Location loc, const ReductionOpInfo &opInfo, Value initElem,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild) {
-  auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
+  auto inputType = cast<RankedTensorType>(opInfo.tensorOperand.getType());
 
   // Get the result shape by obtaining the size of each
   // dimension in the input tensor that is not getting reduced.
@@ -237,7 +233,7 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
   SmallVector<int64_t> operandRanks;
   operandRanks.resize(tensorOperands.size());
   llvm::transform(tensorOperands, operandRanks.begin(), [](Value tensor) {
-    return tensor.getType().dyn_cast<RankedTensorType>().getRank();
+    return dyn_cast<RankedTensorType>(tensor.getType()).getRank();
   });
 
   auto resultRankIt =
@@ -253,7 +249,7 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
   bool elideDynamicBroadcastCheck = isAssumingStrictSymbolicShapes(b);
   for (Value tensorOperand : tensorOperands) {
     SmallVector<AffineExpr> exprs;
-    auto type = tensorOperand.getType().cast<RankedTensorType>();
+    auto type = cast<RankedTensorType>(tensorOperand.getType());
     for (auto size :
          llvm::enumerate(makeShapeTorchCompatible(type.getShape()))) {
       // If the size is statically known to be 1, we don't want any
@@ -327,7 +323,7 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
     Operation *op, PatternRewriter &rewriter, Value input,
     SmallVector<Value> broadcastToShape, RankedTensorType broadcastType,
     Value &result, SmallVector<bool> useBroadcastToShape) {
-  RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+  RankedTensorType inputType = cast<RankedTensorType>(input.getType());
   int64_t inputRank = inputType.getRank();
   int64_t outputRank = broadcastToShape.size();
   ArrayRef<int64_t> outputShape = broadcastType.getShape();
@@ -525,7 +521,7 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
 
 Value torch_to_linalg::removeSizeInformation(OpBuilder &b, Location loc,
                                              Value tensor) {
-  auto tensorType = tensor.getType().cast<RankedTensorType>();
+  auto tensorType = cast<RankedTensorType>(tensor.getType());
   auto rank = tensorType.getRank();
   SmallVector<int64_t> unknownSizes(rank, kUnknownSize);
   return b.create<tensor::CastOp>(

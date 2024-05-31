@@ -15,10 +15,15 @@ mb = ModuleBuilder()
 # CHECK:           %[[REFINED:.*]] = torch.tensor_static_info_cast %[[ARG]] : !torch.tensor to !torch.tensor<[1,384],f32>
 # CHECK:           %[[RESULT:.*]] = torch.tensor_static_info_cast %[[REFINED]] : !torch.tensor<[1,384],f32> to !torch.tensor
 # CHECK:           return %[[RESULT]] : !torch.tensor
-mb.import_function(create_script_function("__torch__.refined_block_arg", """
+mb.import_function(
+    create_script_function(
+        "__torch__.refined_block_arg",
+        """
 graph(%0 : Float(1, 384)):
     return (%0)
-"""))
+""",
+    )
+)
 
 mb.module.operation.print()
 print()

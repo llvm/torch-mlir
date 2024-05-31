@@ -6,6 +6,7 @@ import typing
 
 import torch
 from torch_mlir.jit_ir_importer import ClassAnnotator, ModuleBuilder
+
 # RUN: %PYTHON %s | FileCheck %s
 
 mb = ModuleBuilder()
@@ -31,7 +32,7 @@ except Exception as e:
     print(e)
 
 try:
-    annotator.annotateArgs(class_type, ['forward'], [None])
+    annotator.annotateArgs(class_type, ["forward"], [None])
 except Exception as e:
     # CHECK: There must be one argument annotation per function parameter.
     # CHECK-SAME: Including 'self' the number of argument annotations is: 1.
@@ -40,7 +41,7 @@ except Exception as e:
     print(e)
 
 try:
-    annotator.annotateArgs(class_type, ['forward'], [None, ([3, 4], 42, False)])
+    annotator.annotateArgs(class_type, ["forward"], [None, ([3, 4], 42, False)])
 except Exception as e:
     # This is just the raw repr of the object in quotes.
     # CHECK: unsupported scalar type '42'
