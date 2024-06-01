@@ -23,47 +23,15 @@ void mlir::torch::TorchConversion::getBackendTypeConversionDependentDialects(
 // Type conversion setup.
 //===----------------------------------------------------------------------===//
 
-static void
-setupValueTensorToBuiltinTensorConversion(ConversionTarget &target,
-                                          TypeConverter &typeConverter) {
-  target.addLegalOp<TorchConversion::ToBuiltinTensorOp,
-                    TorchConversion::FromBuiltinTensorOp>();
-  typeConverter.addConversion(
-      [](Torch::ValueTensorType type) -> std::optional<Type> {
-        return type.toBuiltinTensor();
-      });
-  typeConverter.addTargetMaterialization([](OpBuilder &builder, TensorType type,
-                                            ValueRange inputs,
-                                            Location loc) -> Value {
-    assert(inputs.size() == 1);
-    if (!isa<Torch::BaseTensorType>(inputs[0].getType()))
-      return {};
-    return builder.create<ToBuiltinTensorOp>(loc, type, inputs[0]);
-  });
-  auto sourceMaterialization = [](OpBuilder &builder,
-                                  Torch::ValueTensorType type,
-                                  ValueRange inputs, Location loc) -> Value {
-    assert(inputs.size() == 1);
-    assert(isa<TensorType>(inputs[0].getType()));
-    return builder.create<FromBuiltinTensorOp>(loc, type, inputs[0]);
-  };
-  typeConverter.addSourceMaterialization(sourceMaterialization);
-  typeConverter.addArgumentMaterialization(sourceMaterialization);
-}
+using ValueTensorTypeConversionFn =
+    std::function<std::optional<Type>(Torch::ValueTensorType)>;
 
-#ifdef TORCH_MLIR_ENABLE_STABLEHLO
-static void setupValueTensorToBuiltinTensorConversionForStablehlo(
-    ConversionTarget &target, TypeConverter &typeConverter) {
+static void setupValueTensorToBuiltinTensorConversion(
+    ConversionTarget &target, TypeConverter &typeConverter,
+    const ValueTensorTypeConversionFn &conversionFn) {
   target.addLegalOp<TorchConversion::ToBuiltinTensorOp,
                     TorchConversion::FromBuiltinTensorOp>();
-  typeConverter.addConversion(
-      [](Torch::ValueTensorType type) -> std::optional<Type> {
-        auto builtinType = type.toBuiltinTensor();
-        if (type.getDtype().isUnsignedInteger()) {
-          return builtinType.clone(type.getDtype());
-        }
-        return builtinType;
-      });
+  typeConverter.addConversion(conversionFn);
   typeConverter.addTargetMaterialization([](OpBuilder &builder, TensorType type,
                                             ValueRange inputs,
                                             Location loc) -> Value {
@@ -82,7 +50,6 @@ static void setupValueTensorToBuiltinTensorConversionForStablehlo(
   typeConverter.addSourceMaterialization(sourceMaterialization);
   typeConverter.addArgumentMaterialization(sourceMaterialization);
 }
-#endif
 
 static void setupTorchBoolToI1Conversion(ConversionTarget &target,
                                          TypeConverter &typeConverter) {
@@ -195,7 +162,12 @@ static void setupTorchGeneratorToI64Conversion(ConversionTarget &target,
 
 void mlir::torch::TorchConversion::setupBackendTypeConversion(
     ConversionTarget &target, TypeConverter &typeConverter) {
-  setupValueTensorToBuiltinTensorConversion(target, typeConverter);
+  auto valueTensorTypeConversion =
+      [](Torch::ValueTensorType type) -> std::optional<Type> {
+    return type.toBuiltinTensor();
+  };
+  setupValueTensorToBuiltinTensorConversion(target, typeConverter,
+                                            valueTensorTypeConversion);
   setupTorchBoolToI1Conversion(target, typeConverter);
   setupTorchIntToI64Conversion(target, typeConverter);
   setupTorchFloatToF64Conversion(target, typeConverter);
@@ -205,7 +177,16 @@ void mlir::torch::TorchConversion::setupBackendTypeConversion(
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 void mlir::torch::TorchConversion::setupBackendTypeConversionForStablehlo(
     ConversionTarget &target, TypeConverter &typeConverter) {
-  setupValueTensorToBuiltinTensorConversionForStablehlo(target, typeConverter);
+  auto valueTensorTypeConversion =
+      [](Torch::ValueTensorType type) -> std::optional<Type> {
+    auto builtinType = type.toBuiltinTensor();
+    if (type.getDtype().isUnsignedInteger()) {
+      return builtinType.clone(type.getDtype());
+    }
+    return builtinType;
+  };
+  setupValueTensorToBuiltinTensorConversion(target, typeConverter,
+                                            valueTensorTypeConversion);
   setupTorchBoolToI1Conversion(target, typeConverter);
   setupTorchIntToI64Conversion(target, typeConverter);
   setupTorchFloatToF64Conversion(target, typeConverter);

@@ -24,6 +24,10 @@ static bool haveSameSizeAndElementType(TensorType lhs, TensorType rhs) {
     return false;
   bool sameSize = lhs.hasRank() ? lhs.getShape().equals(rhs.getShape()) : true;
   bool sameElementType = false;
+  // Namely, it is worth mentioning that the backends can have different
+  // expectations for signedness when converting from and to the builtin MLIR
+  // types. Therefore, the verifier cannot expect the input and output types to
+  // match in their signedness.
   if (isa<IntegerType>(lhs.getElementType()) &&
       isa<IntegerType>(rhs.getElementType())) {
     sameElementType = lhs.getElementType().getIntOrFloatBitWidth() ==
