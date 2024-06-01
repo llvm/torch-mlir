@@ -1132,6 +1132,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         traits=["HasValueSemantics"],
     )
 
+    # ==========================================================================
+    # 'c10d_functional' namespace.
+    # ==========================================================================
+
+    # uncomment bellow when upstream signature converge.
+    # emit("c10d_functional::all_reduce : (Tensor, str, str, int[], int) -> (Tensor)")
 
 def dump_registered_ops(outfile: TextIO, registry: Registry):
     for _, v in sorted(registry.by_unique_key.items()):
