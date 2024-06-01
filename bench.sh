@@ -36,11 +36,28 @@ measure_build_time() {
     -DLIBTORCH_VARIANT=shared \
     -G Ninja
   
+  # Verify the linker being used by introducing an intentional linker error
+  echo "int main() { undefined_function(); return 0; }" > "$build_dir/linker_test.c"
+  if ! cmake --build "$build_dir" --config Debug --target linker_test 2>&1 | grep -q "$linker"; then
+    echo "Error: Linker mismatch. Expected $linker, but a different linker was used."
+    exit 1
+  fi
+  rm "$build_dir/linker_test.c"
+  
   local start_time=$(date +%s)
   cmake --build $build_dir --config Debug -- -j $max_cores
   local end_time=$(date +%s)
   local build_time=$((end_time - start_time))
   echo "Build time with $linker ($max_cores cores): $build_time seconds" | tee -a "$results_file"
+  
+  # Perform an incremental build and measure the link time
+  echo "Performing incremental build..."
+  touch "$build_dir/src/incremental_change.c"
+  incremental_start_time=$(date +%s)
+  cmake --build "$build_dir" --config Debug -- -j "$max_cores"
+  incremental_end_time=$(date +%s)
+  incremental_build_time=$((incremental_end_time - incremental_start_time))
+  echo "Incremental build time with $linker ($max_cores cores): $incremental_build_time seconds" | tee -a "$results_file"
 }
 
 # Create results directory
