@@ -1649,7 +1649,7 @@ func.func @ints_constant() -> !torch.vtensor<[2], si64> attributes {torch.onnx_m
 
 // -----
 
-// CHECK-LABEL: @dense_resource_rconstant
+// CHECK-LABEL: @dense_resource_constant
 func.func @dense_resource_constant() -> () attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64} {
   // CHECK: torch.vtensor.literal(dense<[0, 10, 128, 17000]> : tensor<4xsi32>) : !torch.vtensor<[4],si32>
   %0 = torch.operator "onnx.Constant"() {torch.onnx.value = dense_resource<_int32> : tensor<4xsi32>} : () -> !torch.vtensor<[4],si32>
