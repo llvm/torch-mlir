@@ -732,6 +732,306 @@ public:
 };
 } // namespace
 
+Value arange(PatternRewriter &rewriter, Location loc, Value size, Value dtype,
+             Value layout, Value device, Value pin_memory, Type type) {
+
+  auto arrangeType = getTensorTypeFromShapeValues({size}, type);
+  return rewriter.create<AtenArangeOp>(loc, arrangeType, size,
+                                       /*dtype=*/dtype, /*layout=*/layout,
+                                       /*device=*/device,
+                                       /*pin_memory=*/pin_memory);
+}
+
+void _getTrilSizes(PatternRewriter &rewriter, Location loc, int64_t row,
+                   int64_t col, int64_t offset,
+                   /*return values*/ int64_t &trapezoidSize,
+                   int64_t &rectangleSize) {
+
+  // Base case
+  if (row == 0 || col == 0) {
+    trapezoidSize = 0;
+    rectangleSize = 0;
+
+    return;
+  }
+
+  // Calculate mFirstRow size
+  int64_t mFirstRow;
+  if (offset > 0)
+    mFirstRow = (col < offset + 1) ? col : offset + 1;
+  else
+    mFirstRow = (row + offset > 0) ? 1 : 0;
+
+  // Calculate mLastRow size
+  int64_t minimum = (col < row + offset) ? col : row + offset;
+  int64_t mLastRow = (minimum > 0) ? minimum : 0;
+
+  // Calculate nRowAll
+  minimum = (row < row + offset) ? row : row + offset;
+  int64_t nRowAll = (minimum > 0) ? minimum : 0;
+
+  // Calucltae nRowTrapezoid
+  int64_t nRowTrapezoid = mLastRow - mFirstRow + 1;
+
+  // Number of elements in top trapezoid - trapezoidSize
+  trapezoidSize = (mFirstRow + mLastRow) * nRowTrapezoid / 2;
+
+  // Number of elements in bottom rectangle - rectangleSize
+  int64_t diffRow = nRowAll - nRowTrapezoid;
+  rectangleSize = (diffRow * col > 0) ? diffRow * col : 0;
+}
+
+void _getTriuSizes(PatternRewriter &rewriter, Location loc, int64_t row,
+                   int64_t col, int64_t offset,
+                   /*return values*/ Value &trapezoidSize, Value &rectangleSize,
+                   Value &mFirstRow) {
+
+  // Constants
+  Value cstZero = rewriter.create<Torch::ConstantIntOp>(loc, 0);
+
+  // Base case
+  if (row == 0 || col == 0) {
+    trapezoidSize = cstZero;
+    rectangleSize = cstZero;
+    mFirstRow = cstZero;
+
+    return;
+  }
+
+  // Calculate mFirstRow size
+  int64_t maximum = (col - offset > 0) ? col - offset : 0;
+  int64_t mFirstRowInt = (offset > 0) ? maximum : col;
+
+  // Number of elements in top rectangle - calculate rectangle size
+  int64_t minimum = (row < -offset) ? row : -offset;
+  int64_t rectangleSizeInt = (minimum * col > 0) ? minimum * col : 0;
+
+  // Number of elements in bottom trapezoid - calculte trapezoid size
+  int64_t trapezoidSizeTril;
+  int64_t rectangleSizeTril;
+
+  _getTrilSizes(rewriter, loc, row, col, offset - 1, trapezoidSizeTril,
+                rectangleSizeTril);
+  int64_t triuSize = row * col - (trapezoidSizeTril + rectangleSizeTril);
+  int64_t trapezoidSizeInt = triuSize - rectangleSizeInt;
+
+  // Create Value from int
+  trapezoidSize = rewriter.create<Torch::ConstantIntOp>(
+      loc, rewriter.getI64IntegerAttr(trapezoidSizeInt));
+  rectangleSize = rewriter.create<Torch::ConstantIntOp>(
+      loc, rewriter.getI64IntegerAttr(rectangleSizeInt));
+  mFirstRow = rewriter.create<Torch::ConstantIntOp>(
+      loc, rewriter.getI64IntegerAttr(mFirstRowInt));
+}
+
+// decomposition of torch.triu_indices
+// https://github.com/pytorch/pytorch/blob/67ef2683d970fc541b6d266d4b3f8ba9d13844ca/torch/_refs/__init__.py#L5829
+namespace {
+class DecomposeAtenTriuIndicesOp : public OpRewritePattern<AtenTriuIndicesOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTriuIndicesOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+
+    // Required parameters
+    Value row = op.getRow();
+    Value col = op.getCol();
+    Value offset = op.getOffset();
+
+    // Check if row, col and offset are constant ints
+    int64_t rowInt;
+    if (!matchPattern(row, m_TorchConstantInt(&rowInt)))
+      return rewriter.notifyMatchFailure(op,
+                                         "Unimplemented: row not constant int");
+
+    int64_t colInt;
+    if (!matchPattern(col, m_TorchConstantInt(&colInt)))
+      return rewriter.notifyMatchFailure(op,
+                                         "Unimplemented: col not constant int");
+
+    int64_t offsetInt;
+    if (!matchPattern(offset, m_TorchConstantInt(&offsetInt)))
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: offset not constant int");
+
+    // Optional parameters
+    Value dtype = op.getDtype();
+    Value layout = op.getLayout();
+    Value device = op.getDevice();
+    Value pinMemory = op.getPinMemory();
+
+    // Get int value for dtype
+    int64_t dtypeInt;
+    if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: dtype not constant int");
+
+    FailureOr<Type> dtypeType =
+        getTypeForScalarType(context, (torch_upstream::ScalarType)dtypeInt);
+    if (failed(dtypeType))
+      return rewriter.notifyMatchFailure(op, "dtype is undefined");
+
+    // Constants
+    Value cstZero = rewriter.create<Torch::ConstantIntOp>(loc, 0);
+    Value cstOne = rewriter.create<Torch::ConstantIntOp>(loc, 1);
+    Value cstTwo = rewriter.create<Torch::ConstantIntOp>(loc, 2);
+    Value cstFalse = rewriter.create<ConstantBoolOp>(loc, false);
+    Value cstMinusZeroPointFive = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(-0.5));
+    Value cstMinusTwoFloat = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(-2.0));
+
+    // Calculte trapezoidSize, rectangleSize and mFirstRow
+    Value trapezoidSize;
+    Value rectangleSize;
+    Value mFirstRow;
+
+    _getTriuSizes(rewriter, loc, rowInt, colInt, offsetInt, trapezoidSize,
+                  rectangleSize, mFirstRow);
+
+    // Get const ints from Values
+    int64_t rectangleSizeInt;
+    matchPattern(rectangleSize, m_TorchConstantInt(&rectangleSizeInt));
+    int64_t trapezoidSizeInt;
+    matchPattern(trapezoidSize, m_TorchConstantInt(&trapezoidSizeInt));
+    int64_t mFirstRowInt;
+    matchPattern(mFirstRow, m_TorchConstantInt(&mFirstRowInt));
+
+    // Calculte column offset
+    Value colOffset = (offsetInt > 0) ? offset : cstZero;
+
+    // Calculate indices for top rectangle
+    // Type type = rewriter.getIntegerType(/*width=*/64, /*isSigned*/ true);
+    Value xs2 = arange(rewriter, loc, rectangleSize, dtype, layout, device,
+                       pinMemory, *dtypeType);
+
+    // Calculate row_indices2 and column_idices 2
+    Value rowInds2 =
+        rewriter.create<AtenFloorDivideScalarOp>(loc, xs2.getType(), xs2, col);
+    Value colInds2 =
+        rewriter.create<AtenRemainderScalarOp>(loc, xs2.getType(), xs2, col);
+
+    // Bottom trapezoid
+    auto f64DtypeInt =
+        getDtypeIntValueForType(rewriter, loc, rewriter.getF64Type());
+    Value xs1 = arange(rewriter, loc, trapezoidSize, f64DtypeInt, layout,
+                       device, pinMemory, rewriter.getF64Type());
+
+    // b = -0.5 - m_first_row
+    Value mFirstRowFloat = rewriter.create<Torch::ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(mFirstRowInt));
+    Value b = rewriter.create<AtenSubFloatOp>(loc, cstMinusZeroPointFive,
+                                              mFirstRowFloat);
+
+    // Implements this piece of code: row_inds1 = torch.floor(-b - torch.sqrt(b
+    // * b - 2 * xs1))
+    Value bSquare = rewriter.create<AtenMulFloatOp>(loc, b, b);
+
+    Value twoTimesXs1 = rewriter.create<AtenMulScalarOp>(loc, xs1.getType(),
+                                                         xs1, cstMinusTwoFloat);
+    Value sqrtInput = rewriter.create<AtenAddScalarOp>(
+        loc, twoTimesXs1.getType(), twoTimesXs1, bSquare, cstOne);
+
+    Value sqrt =
+        rewriter.create<AtenSqrtOp>(loc, sqrtInput.getType(), sqrtInput);
+    Value negativeSqrt = rewriter.create<AtenNegOp>(loc, sqrt.getType(), sqrt);
+
+    Value rowInds1 = rewriter.create<AtenSubScalarOp>(
+        loc, negativeSqrt.getType(), negativeSqrt, b, cstOne);
+    rowInds1 = rewriter.create<AtenFloorOp>(loc, rowInds1.getType(), rowInds1);
+
+    // Implements this piece of code: col_inds1 = torch.floor(xs1 - ((2 *
+    // m_first_row - 1 - row_inds1) * row_inds1) * 0.5)
+    Value twoTimesMFirstRow =
+        rewriter.create<AtenMulIntOp>(loc, cstTwo, mFirstRow);
+    twoTimesMFirstRow =
+        rewriter.create<AtenSubIntOp>(loc, twoTimesMFirstRow, cstOne);
+    Value negativeRowInds1 =
+        rewriter.create<AtenNegOp>(loc, rowInds1.getType(), rowInds1);
+
+    negativeRowInds1 = rewriter.create<AtenAddScalarOp>(
+        loc, negativeRowInds1.getType(), negativeRowInds1, twoTimesMFirstRow,
+        cstOne);
+    negativeRowInds1 = rewriter.create<AtenMulTensorOp>(
+        loc, negativeRowInds1.getType(), negativeRowInds1, rowInds1);
+    negativeRowInds1 = rewriter.create<AtenMulScalarOp>(
+        loc, negativeRowInds1.getType(), negativeRowInds1,
+        cstMinusZeroPointFive);
+
+    Value colInds1 = rewriter.create<AtenAddTensorOp>(loc, xs1.getType(), xs1,
+                                                      negativeRowInds1, cstOne);
+    colInds1 = rewriter.create<AtenFloorOp>(loc, colInds1.getType(), colInds1);
+
+    // Convert to dtype
+    Type int64Type = rewriter.getIntegerType(/*width=*/64, /*isSigned=*/true);
+
+    auto rowInds1Type = cast<BaseTensorType>(rowInds1.getType());
+    ArrayRef<int64_t> sizes = rowInds1Type.getSizes();
+    Type finalRowType = rowInds1Type.getWithSizesAndDtype(sizes, int64Type);
+    rowInds1 = rewriter.create<AtenToDtypeOp>(
+        loc, finalRowType, rowInds1, dtype,
+        /*non_blocking*/ cstFalse, /*copy*/ cstFalse,
+        /*memory_format*/ cstOne);
+
+    auto colInds1Type = cast<BaseTensorType>(colInds1.getType());
+    sizes = colInds1Type.getSizes();
+    Type finalColType = colInds1Type.getWithSizesAndDtype(sizes, int64Type);
+    colInds1 = rewriter.create<AtenToDtypeOp>(
+        loc, finalColType, colInds1, dtype,
+        /*non_blocking*/ cstFalse, /*copy*/ cstFalse,
+        /*memory_format*/ cstOne);
+
+    // Final calculation for row and col indices
+    if (colInt) {
+
+      Value rectangleSizeDivCol =
+          rewriter.create<Torch::ConstantIntOp>(loc, rectangleSizeInt / colInt);
+
+      rowInds1 = rewriter.create<AtenAddScalarOp>(
+          loc, rowInds1.getType(), rowInds1, rectangleSizeDivCol, cstOne);
+    }
+
+    colInds1 = rewriter.create<AtenAddScalarOp>(loc, colInds1.getType(),
+                                                colInds1, colOffset, cstOne);
+
+    Type listElemType =
+        cast<Torch::BaseTensorType>(rowInds1.getType())
+            .getWithSizesAndDtype(/*optionalSizes=*/std::nullopt,
+                                  /*optionalDtype=*/nullptr);
+    Type listType = Torch::ListType::get(listElemType);
+
+    Value sequenceRow = rewriter.create<Torch::PrimListConstructOp>(
+        loc, listType, SmallVector<Value>{rowInds2, rowInds1});
+    Value sequenceCol = rewriter.create<Torch::PrimListConstructOp>(
+        loc, listType, SmallVector<Value>{colInds2, colInds1});
+
+    // Concatenate row and col indices
+    Type finalCatType = colInds1Type.getWithSizesAndDtype(
+        {rectangleSizeInt + trapezoidSizeInt}, int64Type);
+
+    Value catRow = rewriter.create<AtenCatOp>(loc, finalCatType, sequenceRow,
+                                              /*dim*/ cstZero);
+    Value catCol = rewriter.create<AtenCatOp>(loc, finalCatType, sequenceCol,
+                                              /*dim*/ cstZero);
+
+    // Make return value
+    Value sequence = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(context, rowInds1.getType()),
+        ValueRange{catRow, catCol});
+    Type finalStackType = colInds1Type.getWithSizesAndDtype(
+        ArrayRef<int64_t>{2, rectangleSizeInt + trapezoidSizeInt}, int64Type);
+
+    rewriter.replaceOpWithNewOp<AtenStackOp>(op, finalStackType, sequence,
+                                             cstZero);
+
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeAtenSizeOp : public OpRewritePattern<AtenSizeOp> {
 public:
@@ -8374,6 +8674,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenTileOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTriuOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTriuIndicesOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgNormOp>(patterns);
     // More specific conv ops
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTbcOp>(patterns);

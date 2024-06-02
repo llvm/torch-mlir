@@ -1754,6 +1754,36 @@ def aten〇_embedding_bag〡shape(weight: List[int], indices: List[int], offsets
      return _embedding_bag_helper(weight, indices, offsets, include_last_offset,
                                  mode, per_sample_weights, padding_idx)
 
+def aten〇triu_indices〡shape(row: int, col: int, offset: int = 0, dtype: Optional[int] = 4, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    if row == 0 or col == 0:
+        return [2, 0]
+
+    # Number of elements in top rectangle
+    rectangle_size = max(0, min(row, -offset) * col)
+
+    # _get_tril_indices
+    offset_tril = offset - 1
+    if row == 0 or col == 0:
+        trapezoid_size_tril = 0
+        rectangle_size_tril = 0
+    else:
+        m_first_row = min(col, 1 + offset_tril) if offset_tril > 0 else int(row + offset_tril > 0)
+        m_last_row = max(0, min(col, row + offset_tril))
+        n_row_all = max(0, min(row, row + offset_tril))
+        n_row_trapezoid = m_last_row - m_first_row + 1
+
+        # Number of elements in top trapezoid
+        trapezoid_size_tril = (m_first_row + m_last_row) * n_row_trapezoid // 2
+        # Number of elements in bottom rectangle
+        diff_row = n_row_all - n_row_trapezoid
+        rectangle_size_tril = max(0, diff_row * col)
+
+    # Number of elements in bottom trapezoid
+    triu_size = row * col - (trapezoid_size_tril + rectangle_size_tril)
+    trapezoid_size = triu_size - rectangle_size
+
+    return [2, rectangle_size + trapezoid_size]
+
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), LongTensorOfShape(2), None, 1, -100), # Basic case.
     Invocation(TensorOfShape(3), LongTensorOfShape(), None, 1, -100), # No batch dim.
@@ -4942,6 +4972,9 @@ def aten〇dequantize〇self〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 
 def aten〇dequantize〇tensor〡dtype(qtensor_rank_dtype: Tuple[int, int]) -> int:
     return torch.float32
+
+def aten〇triu_indices〡dtype(row: int, col: int, offset: int = 0, dtype: Optional[int] = 4, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    return torch.int64 if dtype is None else dtype
 
 def aten〇int_repr〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
