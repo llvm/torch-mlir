@@ -9,16 +9,13 @@
 
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -43,7 +40,8 @@ static void signShift(PatternRewriter &rewriter, Location loc, Value &arg,
   if (!isUnsignedType)
     return;
   int64_t minSI = -(1 << (numBits - 1));
-  Value minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, 32);
+  Value minSIValue = rewriter.create<arith::ConstantIntOp>(
+      loc, minSI, cast<mlir::IntegerType>(zp.getType()).getWidth());
   zp = rewriter.create<arith::AddIOp>(loc, zp, minSIValue);
   minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, numBits);
   arg = torch_to_linalg::createElementwiseLinalgGeneric(
@@ -797,6 +795,8 @@ public:
     auto resultTy = cast<ValueTensorType>(op.getType());
 
     Value inputZp, weightZp;
+    bool inputUnsigned = false;
+    bool weightUnsigned = false;
     if (auto make = op.getInput()
                         .getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
       input = make.getSelf();
@@ -806,6 +806,8 @@ public:
       inputZp = typeConverter->materializeTargetConversion(
           rewriter, loc, typeConverter->convertType(inputZp.getType()),
           inputZp);
+      auto torchDtype = cast<ValueTensorType>(make.getType()).getDtype();
+      inputUnsigned = torch_to_linalg::isUnsignedTorchType(torchDtype);
     }
 
     if (auto make = op.getWeight()
@@ -818,6 +820,8 @@ public:
       weightZp = typeConverter->materializeTargetConversion(
           rewriter, loc, typeConverter->convertType(weightZp.getType()),
           weightZp);
+      auto torchDtype = cast<ValueTensorType>(make.getType()).getDtype();
+      weightUnsigned = torch_to_linalg::isUnsignedTorchType(torchDtype);
     }
 
     if (static_cast<bool>(inputZp) != static_cast<bool>(weightZp)) {
@@ -916,15 +920,35 @@ public:
     SmallVector<Value> strideIntValues =
         getAsConstantIntValues(rewriter, loc, strideInts);
 
+    // convert any uint8 quantization to int8 quantization
+    if (auto integerType = dyn_cast<mlir::IntegerType>(inputDTy)) {
+      int64_t width = integerType.getWidth();
+      signShift(rewriter, loc, input, inputZp, inputUnsigned, width);
+    }
+    if (auto integerType = dyn_cast<mlir::IntegerType>(weightDTy)) {
+      int64_t width = integerType.getWidth();
+      signShift(rewriter, loc, weight, weightZp, weightUnsigned, width);
+    }
     // Pad the input tensor according to padding.
     SmallVector<Value> outDims{inBatch, weightBatch};
     Value paddedInput;
-    if (transposed) {
-      if (!isa<mlir::FloatType>(inputDTy) || !isa<mlir::FloatType>(weightDTy) ||
-          !isa<mlir::FloatType>(resultDTy))
-        return rewriter.notifyMatchFailure(
-            op, "transpose does not support non-fp type yet");
+    Value pad = inputZp;
+    if (!pad) {
+      if (isa<mlir::FloatType>(inputDTy))
+        pad = rewriter.create<arith::ConstantOp>(
+            op.getLoc(), rewriter.getFloatAttr(inputDTy, 0.0));
+      if (isa<mlir::IntegerType>(inputDTy))
+        pad = rewriter.create<arith::ConstantOp>(
+            op.getLoc(), rewriter.getIntegerAttr(inputDTy, 0));
+    }
+    if (pad.getType() != inputDTy) {
+      if (isa<mlir::FloatType>(inputDTy))
+        pad = rewriter.create<arith::TruncFOp>(op.getLoc(), inputDTy, pad);
 
+      if (isa<mlir::IntegerType>(inputDTy))
+        pad = rewriter.create<arith::TruncIOp>(op.getLoc(), inputDTy, pad);
+    }
+    if (transposed) {
       Value c0 =
           rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
       Value c1 =
@@ -994,7 +1018,7 @@ public:
 
       // Allocate padded input tensor
       Value initTensor =
-          createZeroInitTensor(rewriter, loc, outerSizes, inputDTy);
+          createInitTensor(rewriter, loc, outerSizes, inputDTy, pad);
 
       // Insert input into allocated tensor
       SmallVector<Value> strideIndexValues{c1, c1};
@@ -1017,24 +1041,6 @@ public:
       strideInts.clear();
       strideInts.append(numSpatialDims, 1);
     } else {
-      Value pad = inputZp;
-      if (!pad) {
-        if (isa<mlir::FloatType>(inputDTy))
-          pad = rewriter.create<arith::ConstantOp>(
-              op.getLoc(), rewriter.getFloatAttr(inputDTy, 0.0));
-        if (isa<mlir::IntegerType>(inputDTy))
-          pad = rewriter.create<arith::ConstantOp>(
-              op.getLoc(), rewriter.getIntegerAttr(inputDTy, 0));
-      }
-
-      if (pad.getType() != inputDTy) {
-        if (isa<mlir::FloatType>(inputDTy))
-          pad = rewriter.create<arith::TruncFOp>(op.getLoc(), inputDTy, pad);
-
-        if (isa<mlir::IntegerType>(inputDTy))
-          pad = rewriter.create<arith::TruncIOp>(op.getLoc(), inputDTy, pad);
-      }
-
       // Pad input
       paddedInput = torch_to_linalg::getDynamicZeroPaddedTensor(
           op, rewriter, input, paddingIntValues, /*unpaddedDims=*/2, pad);
@@ -1051,10 +1057,10 @@ public:
         loc, getAsOpFoldResult(outDims), accumulatorDType);
 
     Value outputTensor;
-    if (accumulatorDType != resultDTy && !bias.getType().isa<Torch::NoneType>())
+    if (accumulatorDType != resultDTy && !isa<Torch::NoneType>(bias.getType()))
       bias = torch_to_linalg::convertTensorToElementType(rewriter, loc, bias,
                                                          accumulatorDType);
-    if (bias.getType().isa<Torch::NoneType>()) {
+    if (isa<Torch::NoneType>(bias.getType())) {
       Value c0;
       if (isa<mlir::FloatType>(accumulatorDType)) {
         c0 = rewriter.create<arith::ConstantOp>(

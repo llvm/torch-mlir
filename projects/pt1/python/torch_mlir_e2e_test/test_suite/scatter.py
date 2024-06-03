@@ -12,6 +12,31 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 # ==============================================================================
 
 
+class MaskedScatterStaticBasic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 4], torch.float32, True),
+            ([4, 4], torch.bool, True),
+            ([8, 8], torch.float32, True),
+        ]
+    )
+    def forward(self, x, mask, y):
+        return torch.masked_scatter(x, mask, y)
+
+
+@register_test_case(module_factory=lambda: MaskedScatterStaticBasic())
+def MaskedScatterStaticBasic_basic(module, tu: TestUtils):
+    x = torch.rand(4, 4)
+    mask = torch.rand(4, 4) > 0.5
+    y = torch.rand(8, 8)
+    module.forward(x, mask, y)
+
+
 class IndexPutImpl1DFloatNonAccumulateModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

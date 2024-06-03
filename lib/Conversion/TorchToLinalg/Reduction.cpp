@@ -9,18 +9,14 @@
 
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -90,11 +86,8 @@ public:
     bool isUnsigned = false;
     if (!isa<mlir::FloatType>(inElementType)) {
       if (isa<mlir::IntegerType>(inElementType)) {
-        auto integerTy = op.getSelf()
-                             .getType()
-                             .template cast<BaseTensorType>()
-                             .getDtype()
-                             .template dyn_cast<mlir::IntegerType>();
+        auto integerTy = dyn_cast<mlir::IntegerType>(
+            cast<BaseTensorType>(op.getSelf().getType()).getDtype());
         isUnsigned = integerTy.isUnsigned();
       } else {
         return rewriter.notifyMatchFailure(
@@ -284,7 +277,7 @@ public:
 
 static Value createAbsOpForNormOps(OpBuilder &b, Location loc, Value elem,
                                    Type resultElementType) {
-  if (elem.getType().isa<mlir::ComplexType>()) {
+  if (isa<mlir::ComplexType>(elem.getType())) {
     return b.create<complex::AbsOp>(loc, elem);
   }
 
@@ -380,11 +373,8 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     if (isa<mlir::FloatType>(resultElementType))
       return b.create<arith::MaximumFOp>(loc, self, result);
     else if (isa<mlir::IntegerType>(resultElementType)) {
-      IntegerType intType = max.getSelf()
-                                .getType()
-                                .cast<BaseTensorType>()
-                                .getDtype()
-                                .dyn_cast<mlir::IntegerType>();
+      IntegerType intType = dyn_cast<mlir::IntegerType>(
+          cast<BaseTensorType>(max.getSelf().getType()).getDtype());
       if (intType.isUnsigned())
         return b.create<arith::MaxUIOp>(loc, self, result);
       if (intType.isSigned())
@@ -397,11 +387,8 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     if (isa<mlir::FloatType>(resultElementType))
       return b.create<arith::MinimumFOp>(loc, self, result);
     else if (isa<mlir::IntegerType>(resultElementType)) {
-      IntegerType intType = min.getSelf()
-                                .getType()
-                                .cast<BaseTensorType>()
-                                .getDtype()
-                                .dyn_cast<mlir::IntegerType>();
+      IntegerType intType = dyn_cast<mlir::IntegerType>(
+          cast<BaseTensorType>(min.getSelf().getType()).getDtype());
       if (intType.isUnsigned())
         return b.create<arith::MinUIOp>(loc, self, result);
       if (intType.isSigned())
@@ -661,9 +648,8 @@ public:
       return opInfo;
 
     Location loc = op->getLoc();
-    auto resultType = getTypeConverter()
-                          ->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Type elemType = resultType.getElementType();
     LogicalResult elemTypeCheck =
         validateReductionElementType(op, elemType, rewriter);

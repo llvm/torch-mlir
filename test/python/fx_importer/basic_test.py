@@ -105,6 +105,33 @@ def test_import_frozen_exported_program_with_dynamic_shapes():
     print(m)
 
 
+@run
+# CHECK-LABEL: test_broadcast_with_dynamic_shapes
+# CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[1,2],f32>, %[[ARG1:[a-zA-Z0-9]+]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,2],f32>
+def test_broadcast_with_dynamic_shapes():
+    class Basic(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, y):
+            return torch.broadcast_to(x, (y.shape[0], -1))
+
+    # Sample inputs
+    x = torch.randn(1, 2)
+    y = torch.randn(10)
+
+    dim_0 = Dim("dim_0")
+    dynamic_shapes = {
+        "x": {},
+        "y": {0: dim_0},
+    }
+
+    m = fx.export_and_import(
+        Basic(), x, y, dynamic_shapes=dynamic_shapes, func_name="test_net"
+    )
+    print(m)
+
+
 @make_boxed_compiler
 def fx_import_aot_autograd_backend(
     gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]
@@ -117,7 +144,7 @@ def fx_import_aot_autograd_backend(
 
 @run
 # CHECK-LABEL: test_stateless_fx_import
-# CHECK:     func.func @basic_forward__6_inference_0(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
+# CHECK:     func.func @[[basic:[a-zA-Z0-9_]+]](%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
 # CHECK-NEXT:  %0 = torch.aten.tanh %arg0 : !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
 # CHECK-NEXT:  return %0 : !torch.vtensor<[3,4],f32>
 def test_stateless_fx_import():

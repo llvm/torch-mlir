@@ -8,12 +8,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/TypeSupport.h"
-#include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
@@ -21,11 +18,9 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -38,7 +33,8 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 static int64_t productReduce(ArrayRef<int64_t> a) {
-  return accumulate(a.begin(), a.end(), /*init=*/1, std::multiplies<int64_t>());
+  return accumulate(a.begin(), a.end(), /*init=*/static_cast<int64_t>(1),
+                    std::multiplies<int64_t>());
 }
 
 template <typename OpTy, typename OpAdaptor>
@@ -940,6 +936,9 @@ public:
   LogicalResult
   matchAndRewrite(AtenViewOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    if (op->getParentOp()->hasAttr("torch.disable_legacy_view"))
+      return rewriter.notifyMatchFailure(op.getLoc(),
+                                         "legacy view lowering diabled");
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
@@ -1284,6 +1283,9 @@ public:
   LogicalResult
   matchAndRewrite(AtenViewOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    if (op->getParentOp()->hasAttr("torch.disable_legacy_view"))
+      return rewriter.notifyMatchFailure(op.getLoc(),
+                                         "legacy view lowering diabled");
     SmallVector<Value> sizes;
     if (!getListConstructElements(op.getSize(), sizes))
       return op.emitError(
@@ -1319,12 +1321,16 @@ public:
       size = convert;
     }
 
-    // Check we are only inferring one dimension:
-    Value countPred =
-        b.create<arith::CmpIOp>(arith::CmpIPredicate::sle, count, one);
-    b.create<cf::AssertOp>(
-        loc, countPred,
-        b.getStringAttr("must have at most one inferred (negative) dimension"));
+    // Check we are only inferring one dimension if not in strict mode. In
+    // strict mode, there will only ever statically be one inferred dim.
+    if (!isAssumingStrictSymbolicShapes(rewriter)) {
+      Value countPred =
+          b.create<arith::CmpIOp>(arith::CmpIPredicate::sle, count, one);
+      b.create<cf::AssertOp>(
+          loc, countPred,
+          b.getStringAttr(
+              "must have at most one inferred (negative) dimension"));
+    }
 
     // Determine the total size of the inferred dimension and update the
     // inferred dimension:
@@ -1351,6 +1357,165 @@ public:
         cast<RankedTensorType>(typeConverter->convertType(op.getType()));
     rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(op, resultType, self,
                                                    outputDims);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertAtenViewOpStrict : public OpConversionPattern<AtenViewOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenViewOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (!isAssumingStrictSymbolicShapes(rewriter))
+      return rewriter.notifyMatchFailure(op.getLoc(),
+                                         "not strict symbolic shapes");
+    SmallVector<Value> sizeValues;
+    if (!getListConstructElements(op.getSize(), sizeValues))
+      return op.emitError(
+          "unimplemented: the tensor size list is not from list construct");
+
+    auto loc = op.getLoc();
+    auto resultType =
+        cast<RankedTensorType>(typeConverter->convertType(op.getType()));
+    auto self = adaptor.getSelf();
+    auto selfTy = cast<RankedTensorType>(self.getType());
+
+    // Handle collapse to 0D.
+    if (sizeValues.empty()) {
+      rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(
+          op, resultType, adaptor.getSelf(), ArrayRef<ReassociationIndices>{});
+      return success();
+    }
+
+    // If there is a static inferred dimension (-1), then we emit a
+    // flatten/unflatten and let that proceed through its lowering.
+    // Otherwise, emit a tensor.reshape. Note that this relies on the fact that
+    // Torch does not allow such an op to have a symbolic inferred dim.
+    int inferredDim = -1;
+    bool staticSizes = true;
+    for (int i = 0, e = sizeValues.size(); i < e; ++i) {
+      int64_t dim;
+      if (!matchPattern(sizeValues[i], m_TorchConstantInt(&dim))) {
+        staticSizes = false;
+        continue;
+      }
+      if (dim == -1) {
+        inferredDim = i;
+        break;
+      }
+    }
+
+    // While it should be illegal to have a view op with fully known sizes
+    // and a dynamic shape, in reality, torch IR is a bit loosey and
+    // progressively resolves to this state. There are delicate invariants
+    // on the ops we produce that require this, so we enforce.
+    if (staticSizes && !resultType.hasStaticShape()) {
+      return rewriter.notifyMatchFailure(loc,
+                                         "view cannot be converted with static "
+                                         "sizes and a dynamic result type");
+    }
+
+    // Handle inferred dim case.
+    // TODO: Remove the restriction on staticSizes once flatten/unflatten
+    // reliably work with multiple dynamic dimensions.
+    if (inferredDim >= 0 && staticSizes) {
+      if (!staticSizes) {
+        return rewriter.notifyMatchFailure(
+            loc, "view to flatten/unflatten only supported for static sizes");
+      }
+      // This is a torch-torch conversion, so only non adapted types are
+      // involved.
+      auto selfTy = dyn_cast<ValueTensorType>(op.getSelf().getType());
+      if (!selfTy || !selfTy.hasSizes())
+        return failure();
+
+      // Work out the 1D flattened type.
+      int64_t flatDim = 1;
+      auto selfSizes = selfTy.getSizes();
+      for (int64_t dim : selfSizes) {
+        if (dim == kUnknownSize) {
+          flatDim = kUnknownSize;
+          break;
+        }
+        flatDim *= dim;
+      }
+      // Flatten to 1D.
+      ValueTensorType flatType = rewriter.getType<ValueTensorType>(
+          ArrayRef<int64_t>{flatDim}, selfTy.getOptionalDtype());
+      Value dimStart = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(0));
+      Value dimEnd = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(selfSizes.size() - 1));
+      Value flatSelf = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
+          loc, flatType, op.getSelf(), dimStart, dimEnd);
+
+      // Unflatten to requested size.
+      rewriter.replaceOpWithNewOp<AtenUnflattenIntOp>(
+          op, op.getResult().getType(), flatSelf, dimStart, op.getSize());
+      return success();
+    }
+
+    // Generate output dims, either based on whether there is an inferred dim
+    // present or all dims are specified.
+    auto sizeTy = cast<IntegerType>(
+        typeConverter->convertType(sizeValues.front().getType()));
+    SmallVector<Value> outputDimValues;
+    assert(sizeTy && "Type converter did not handle size");
+    if (inferredDim >= 0) {
+      // Inferred dim. If the above flatten/unflatten logic ever catches
+      // everything, this branch can go away entirely.
+      Value one = rewriter.create<arith::ConstantOp>(
+          loc, sizeTy, rewriter.getIntegerAttr(sizeTy, 1));
+      Value sizeProduct = one;
+      // Multiply the non-inferred target sizes.
+      for (int i = 0, e = sizeValues.size(); i < e; ++i) {
+        if (i == inferredDim)
+          continue;
+        Value size = sizeValues[i];
+        Value convertedSize = typeConverter->materializeTargetConversion(
+            rewriter, loc, sizeTy, size);
+        assert(convertedSize && "Type converter did not handle size");
+        sizeProduct =
+            rewriter.create<arith::MulIOp>(loc, sizeProduct, convertedSize);
+      }
+
+      // Multiply the self tensor sizes.
+      Value selfProduct = one;
+      for (int i = 0, e = selfTy.getRank(); i < e; ++i) {
+        Value index = rewriter.create<arith::ConstantIndexOp>(loc, i);
+        Value dim = rewriter.create<tensor::DimOp>(loc, self, index);
+        dim = rewriter.create<arith::IndexCastOp>(loc, sizeTy, dim);
+        selfProduct = rewriter.create<arith::MulIOp>(loc, selfProduct, dim);
+      }
+
+      Value inferredSize =
+          rewriter.create<arith::DivUIOp>(loc, selfProduct, sizeProduct);
+      for (int i = 0, e = sizeValues.size(); i < e; ++i) {
+        if (i == inferredDim) {
+          outputDimValues.push_back(inferredSize);
+        } else {
+          outputDimValues.push_back(typeConverter->materializeTargetConversion(
+              rewriter, loc, sizeTy, sizeValues[i]));
+        }
+      }
+    } else {
+      // No inferred dim. So output dims are just pass through.
+      for (Value torchSize : sizeValues) {
+        outputDimValues.push_back(typeConverter->materializeTargetConversion(
+            rewriter, loc, sizeTy, torchSize));
+      }
+    }
+
+    // Normal lowering to reshape with fully computed sizes.
+    auto outputDimsTy = RankedTensorType::get(
+        outputDimValues.size(), outputDimValues.front().getType());
+    auto outputDims = rewriter.create<tensor::FromElementsOp>(loc, outputDimsTy,
+                                                              outputDimValues);
+    rewriter.replaceOpWithNewOp<tensor::ReshapeOp>(
+        op, resultType, adaptor.getSelf(), outputDims);
     return success();
   }
 };
@@ -1566,6 +1731,10 @@ public:
     auto inputRank = inType.getRank();
     auto outType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op->getResult(0).getType()));
+    if (inputRank <= 1 && inType == outType) {
+      rewriter.replaceOp(op, {adaptor.getSelf()});
+      return success();
+    }
     auto elementType = inType.getElementType();
 
     dim0 = toPositiveDim(dim0, inputRank);
@@ -1699,9 +1868,8 @@ public:
     const TypeConverter *typeConverter = getTypeConverter();
 
     auto input = adaptor.getSelf();
-    RankedTensorType resultType =
-        typeConverter->convertType(op->getResult(0).getType())
-            .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        typeConverter->convertType(op->getResult(0).getType()));
 
     SmallVector<Value> resultShape;
     SmallVector<Value> offsets;
@@ -1711,9 +1879,11 @@ public:
             op, adaptor, rewriter, resultShape, offsets, strides))) {
       return failure();
     }
-
+    SmallVector<int64_t> dynShape(resultType.getRank(), ShapedType::kDynamic);
+    auto sliceType = RankedTensorType::get(
+        dynShape, resultType.getElementType(), resultType.getEncoding());
     Value result = rewriter.create<tensor::ExtractSliceOp>(
-        loc, input, offsets, resultShape, strides);
+        loc, sliceType, input, offsets, resultShape, strides);
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
     return success();
@@ -1936,9 +2106,8 @@ public:
 
     auto input = adaptor.getSelf();
 
-    RankedTensorType resultType =
-        typeConverter->convertType(op->getResult(0).getType())
-            .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        typeConverter->convertType(op->getResult(0).getType()));
 
     SmallVector<Value> resultShape;
     SmallVector<Value> offsets;
@@ -2172,9 +2341,8 @@ public:
           op, "diagonal dimensions cannot be identical");
 
     Type elementType = inputType.getElementType();
-    RankedTensorType outputType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType outputType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Location loc = op.getLoc();
 
     Value dim1Size, dim2Size;
@@ -2410,9 +2578,8 @@ public:
                 })
             .getResult(0);
 
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, resultTensor);
     return success();
@@ -2437,9 +2604,8 @@ public:
       return failure();
     // Conversion is completed specified by information in the sparse tensor
     // type. Thus, we can rewrite all legalizedNames to the same construct.
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     rewriter.replaceOpWithNewOp<sparse_tensor::ConvertOp>(
         op, resultType, adaptor.getOperands()[0]);
     return success();
@@ -2451,14 +2617,17 @@ private:
 };
 // Static initializer.
 SmallVector<StringRef> ConvertSparseOperatorOp::legalizedNames = {
-    "torch.aten._to_sparse", "torch.aten._to_csr", "torch.aten._to_csc",
-    "torch.aten._to_bsr",    "torch.aten._to_bsc",
+    "torch.aten._to_dense", "torch.aten._to_sparse", "torch.aten._to_csr",
+    "torch.aten._to_csc",   "torch.aten._to_bsr",    "torch.aten._to_bsc",
 };
 } // namespace
 
 void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
+  // Add some legal ops for torch-torch lowering.
+  target.addLegalOp<ConstantIntOp>();
+
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<AtenReflectionPad1dOp>();
   patterns.add<ConvertAtenReflectionPad1dOp>(typeConverter, context);
@@ -2468,10 +2637,23 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenFlattenUsingIntsOp>(typeConverter, context);
   patterns.add<ConvertAtenUnflattenIntOp>(typeConverter, context);
   target.addIllegalOp<AtenUnflattenIntOp>();
+
+  // View op sadness: In the future, we only want ConvertAtenViewOpStrict,
+  // but this requires work upstream to fully generalize reshape handling.
+  // In the meantime, the analysis based ConvertAtenViewOp tries hard to
+  // produce expand/collapse shapes, the ConvertAtenViewOpStrict does the
+  // right thing but cannot be fully supported for dynamic shapes, and
+  // ConvertAtenViewOpToReshape overly pessimizes and generates a lot of IR
+  // due to not statically switching between inferred and non-inferred view
+  // cases. They are ordered by optimiality of the lowerings they generate
+  // when they are able.
   target.addIllegalOp<AtenViewOp>();
-  patterns.add<ConvertAtenViewOp>(typeConverter, context, /*benefit=*/200);
+  patterns.add<ConvertAtenViewOp>(typeConverter, context, /*benefit=*/300);
+  patterns.add<ConvertAtenViewOpStrict>(typeConverter, context,
+                                        /*benefit=*/200);
   patterns.add<ConvertAtenViewOpToReshape>(typeConverter, context,
                                            /*benefit=*/100);
+
   target.addIllegalOp<AtenSqueezeOp>();
   patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);
   target.addIllegalOp<AtenSqueezeDimOp>();
