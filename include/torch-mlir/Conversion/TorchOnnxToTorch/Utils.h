@@ -96,6 +96,16 @@ m_OnnxListOfConstantInts(SmallVectorImpl<int64_t> &bind_values) {
 
 std::optional<int64_t> onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx);
 
+LogicalResult createTorchTransposeOp(ConversionPatternRewriter &rewriter,
+                                     Location loc, Value input, int64_t dimA,
+                                     int64_t dimB, Value &transposed);
+
+LogicalResult createTorchPermuteOp(OpBinder binder,
+                                   ConversionPatternRewriter &rewriter,
+                                   Location loc, Value input,
+                                   SmallVector<int64_t> permuteDims,
+                                   Value &permuted);
+
 } // namespace mlir::torch::onnx_c
 
 #endif // TORCHMLIR_CONVERSION_TORCHONNXTOTORCH_UTILS_H
