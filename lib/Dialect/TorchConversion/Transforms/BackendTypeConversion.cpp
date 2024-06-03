@@ -91,7 +91,7 @@ static void setupTorchIntToI64Conversion(ConversionTarget &target,
           return std::nullopt;
         // Other input type to be converted to i64 are handled by other
         // materializers.
-        if (!inputs[0].getType().isa<Torch::IntType>())
+        if (!isa<Torch::IntType>(inputs[0].getType()))
           return std::nullopt;
         assert(inputs.size() == 1);
         return builder.create<ToI64Op>(loc, inputs[0]).getResult();
@@ -145,7 +145,7 @@ static void setupTorchGeneratorToI64Conversion(ConversionTarget &target,
           return std::nullopt;
         // Other input type to be converted to i64 are handled by other
         // materializers.
-        if (!inputs[0].getType().isa<Torch::GeneratorType>())
+        if (!isa<Torch::GeneratorType>(inputs[0].getType()))
           return std::nullopt;
         assert(inputs.size() == 1);
         return builder.create<GeneratorToI64Op>(loc, inputs[0]).getResult();

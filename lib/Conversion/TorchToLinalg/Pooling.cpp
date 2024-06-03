@@ -9,18 +9,13 @@
 
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
-#include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
@@ -185,6 +180,12 @@ namespace {
 
 template <typename T> struct DimensionTraits {};
 
+template <> struct DimensionTraits<AtenMaxPool1dOp> {
+  static constexpr int64_t Dim = 1;
+  // unused const variable warning suppression:
+  static_assert(Dim == Dim);
+};
+
 template <> struct DimensionTraits<AtenMaxPool2dOp> {
   static constexpr int64_t Dim = 2;
   // unused const variable warning suppression:
@@ -328,7 +329,24 @@ public:
 
     Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
 
-    if constexpr (Dim == 2) {
+    if constexpr (Dim == 1) {
+      SmallVector<Value, 4> outTensorShape;
+      Value maxPool1d, paddedInput;
+      TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
+          elementType,
+          APFloat::getInf(
+              cast<mlir::FloatType>(elementType).getFloatSemantics(),
+              /*Negative=*/true));
+      if (failed(createPoolingOp<linalg::PoolingNcwMaxOp>(
+              op, rewriter, self, /*supportNonFPInput=*/true, ceilMode,
+              /*dimensionality=*/1, kernelSizeIntValues, strideInts,
+              paddingInts, dilationInts, smallestFPValueAttr, outTensorShape,
+              paddedInput, maxPool1d)))
+        return rewriter.notifyMatchFailure(op, "unable to compute maxpool1d");
+      Type newResultType = this->getTypeConverter()->convertType(op.getType());
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, maxPool1d);
+      return success();
+    } else if constexpr (Dim == 2) {
       SmallVector<Value, 4> outTensorShape;
       // `maxpool2d` contains the result of maxpool2d operation over the input.
       Value maxPool2d, paddedInput;
@@ -391,10 +409,8 @@ public:
     Value self = adaptor.getSelf();
     RankedTensorType selfType = cast<RankedTensorType>(self.getType());
     Type elementType = selfType.getElementType();
-    RankedTensorType indicesRankedTensorType =
-        getTypeConverter()
-            ->convertType(op->getResult(1).getType())
-            .cast<RankedTensorType>();
+    RankedTensorType indicesRankedTensorType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(1).getType()));
 
     // TODO: Add support for 3D inputs.
     if (selfType.getRank() == 3)
@@ -699,10 +715,10 @@ public:
 
     Location loc = op->getLoc();
     const TypeConverter *typeConverter = opConversionPattern.getTypeConverter();
-    outputType = typeConverter->convertType(op.getResult0().getType())
-                     .template cast<RankedTensorType>();
-    auxTensorType = typeConverter->convertType(op.getResult1().getType())
-                        .template cast<RankedTensorType>();
+    outputType = cast<RankedTensorType>(
+        typeConverter->convertType(op.getResult0().getType()));
+    auxTensorType = cast<RankedTensorType>(
+        typeConverter->convertType(op.getResult1().getType()));
     Type auxTensorElementType = auxTensorType.getElementType();
     auto smallestFPValueAttr = rewriter.getFloatAttr(
         elementType,
@@ -781,8 +797,8 @@ public:
 
     Location loc = op->getLoc();
     const TypeConverter *typeConverter = opConversionPattern.getTypeConverter();
-    outputType = typeConverter->convertType(op.getResult().getType())
-                     .template cast<RankedTensorType>();
+    outputType = cast<RankedTensorType>(
+        typeConverter->convertType(op.getResult().getType()));
     buffVal = rewriter.create<arith::ConstantOp>(
         loc, elementType, rewriter.getFloatAttr(elementType, 0));
     auxTensor = rewriter.create<tensor::EmptyOp>(
@@ -1090,8 +1106,10 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
+  target.addIllegalOp<AtenMaxPool1dOp>();
   target.addIllegalOp<AtenMaxPool2dOp>();
   target.addIllegalOp<AtenMaxPool3dOp>();
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool1dOp>>(typeConverter, context);
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dOp>>(typeConverter, context);
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dOp>>(typeConverter, context);
 

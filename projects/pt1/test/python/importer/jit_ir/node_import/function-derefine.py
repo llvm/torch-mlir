@@ -11,6 +11,7 @@ import typing
 
 mb = ModuleBuilder()
 
+
 # CHECK-LABEL:   func.func @__torch__.optional_return(
 # CHECK-SAME:                            %[[ARG:.*]]: !torch.int) -> !torch.optional<int> {
 # CHECK:           %[[RET:.*]] = torch.derefine %[[ARG]] : !torch.int to !torch.optional<int>

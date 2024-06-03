@@ -39,6 +39,37 @@ def DiagonalModule_nonsquare(module, tu: TestUtils):
 # ==============================================================================
 
 
+class DiagonalWithStaticShapeModule(torch.nn.Module):
+    """
+    Diagonal with static shape. The other diagonal modules are failing in onnx
+    because DecomoposeAtenEyeMOp requires constants n, m, which are only constant
+    when the shape is static.
+
+    Please remove this module and associated test once the issue is fixed.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 9], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.diagonal(a)
+
+
+@register_test_case(module_factory=lambda: DiagonalWithStaticShapeModule())
+def DiagonalWithStaticShapeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 9))
+
+
+# ==============================================================================
+
+
 class DiagonalTransposedModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

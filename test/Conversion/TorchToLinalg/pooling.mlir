@@ -1,5 +1,27 @@
 // RUN: torch-mlir-opt <%s -convert-torch-to-linalg -split-input-file -verify-diagnostics | FileCheck %s
 
+// CHECK-LABEL: func @forward_max_pool1d
+func.func @forward_max_pool1d(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %int4 = torch.constant.int 4
+  %false = torch.constant.bool false
+  // CHECK: %[[C1:.*]] = torch_c.to_i64 %int1
+  // CHECK: %[[NEUTRAL:.*]] = arith.constant 0xFF800000 : f32
+  // CHECK: %[[PADDED:.*]] = tensor.pad %{{.*}} low[0, 0, 3] high[0, 0, 3]
+  // CHECK: %[[OUT:.*]] = linalg.fill ins(%[[NEUTRAL]] : f32) outs(%{{.*}} : tensor<?x?x?xf32>) -> tensor<?x?x?xf32>
+  // CHECK: %[[T1:.*]] = arith.index_cast %[[C1]] : i64 to index
+  // CHECK: %[[INIT:.*]] = tensor.empty(%[[T1]]) : tensor<?xf32>
+  // CHECK: linalg.pooling_ncw_max {dilations = dense<4> : vector<1xi64>, strides = dense<2> : vector<1xi64>} ins(%[[PADDED]], %[[INIT]] : tensor<?x?x?xf32>, tensor<?xf32>) outs(%[[OUT]] : tensor<?x?x?xf32>) -> tensor<?x?x?xf32>
+  %kernel_size = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int2 : (!torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int4 : (!torch.int) -> !torch.list<int>
+  %4 = torch.aten.max_pool1d %arg0, %kernel_size, %stride, %padding, %dilation, %false : !torch.vtensor<[?,?,?],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[?,?,?],f32>
+  return %4 : !torch.vtensor<[?,?,?],f32>
+}
+
 // CHECK-LABEL: func @forward_max_pool2d
 func.func @forward_max_pool2d(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?,?],f32> {
   %int1 = torch.constant.int 1

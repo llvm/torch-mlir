@@ -22,6 +22,10 @@ namespace hlo {
 
 using mlir::ConversionPatternRewriter;
 
+// Create chlo::ConstantLikeOp
+template <typename T>
+Value getConstantLike(OpBuilder &rewriter, Location loc, T constant, Value val);
+
 // Create a 32-bit float constant operator from a float
 Value getStablehloConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
                                        float val);
@@ -68,6 +72,17 @@ FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
 FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
                                  Value tensor, ArrayRef<int64_t> inputUnsqzDims,
                                  size_t dimSizeIndexBits);
+
+// Get a tensor that collapse the specified dimensions of the input tensor
+FailureOr<Value> collapseTensor(PatternRewriter &rewriter, Operation *op,
+                                Value tensor, int64_t collapseStartDim,
+                                int64_t collapseEndDim,
+                                size_t dimSizeIndexBits);
+
+// Get a tensor that splits the specified dimensions of the input tensor
+FailureOr<Value> splitTensor(PatternRewriter &rewriter, Operation *op,
+                             Value tensor, int64_t splitDim,
+                             int64_t outerLength, size_t dimSizeIndexBits);
 
 Value getConstantOfShape(PatternRewriter &rewriter, Location loc,
                          const APFloat &constant, Value shape,

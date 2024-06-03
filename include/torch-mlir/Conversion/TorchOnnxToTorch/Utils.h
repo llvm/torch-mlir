@@ -38,6 +38,13 @@ Value createConstantIntList(OpBinder binder,
 
 Type getQTorchTypeFromTorchIntType(Type ty);
 
+template <typename T>
+Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
+                Value &ofItem) {
+  return rewriter.create<Torch::AtenItemOp>(binder.getLoc(),
+                                            rewriter.getType<T>(), ofItem);
+}
+
 LogicalResult OnnxLstmExpander(OpBinder binder,
                                ConversionPatternRewriter &rewriter);
 
@@ -54,12 +61,12 @@ struct onnx_list_of_constant_ints_op_binder {
 
   bool match(Operation *op) {
     auto constOp = dyn_cast<Torch::OperatorOp>(op);
-    if (!constOp || !constOp.getName().equals("onnx.Constant"))
+    if (!constOp || !(constOp.getName() == "onnx.Constant"))
       return false;
 
     if (DenseResourceElementsAttr attr =
-            constOp->getAttr("torch.onnx.value")
-                .dyn_cast_or_null<DenseResourceElementsAttr>()) {
+            dyn_cast_or_null<DenseResourceElementsAttr>(
+                constOp->getAttr("torch.onnx.value"))) {
       // Bytes are stored in little endian order. Big endian support will
       // require swizzling.
       if (!Endian::little) {

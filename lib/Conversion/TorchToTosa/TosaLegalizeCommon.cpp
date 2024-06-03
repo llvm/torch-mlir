@@ -11,17 +11,11 @@
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 
-#include <climits>
-#include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <numeric>
 
-#include "mlir/Dialect/Quant/QuantTypes.h" // from @llvm-project
 #include "mlir/Dialect/Tensor/IR/Tensor.h" // from @llvm-project
-#include "mlir/IR/BuiltinTypes.h"          // from @llvm-project
-#include "mlir/IR/Matchers.h"              // from @llvm-project
-#include "mlir/IR/PatternMatch.h"          // from @llvm-project
 #include "llvm/Support/FormatVariadic.h"
 
 namespace mlir {
@@ -114,20 +108,20 @@ tosa::MulOp createMulOpAndCast(PatternRewriter &rewriter, Operation *op,
 }
 
 template <>
-tosa::DivOp createBinaryOpAndCast<DivOp>(PatternRewriter &rewriter,
-                                         Operation *op, TensorType outType,
-                                         Value lhs, Value rhs) {
+tosa::IntDivOp
+createBinaryOpAndCast<IntDivOp>(PatternRewriter &rewriter, Operation *op,
+                                TensorType outType, Value lhs, Value rhs) {
   auto lhsElemTy = cast<TensorType>(lhs.getType()).getElementType();
   auto rhsElemTy = cast<TensorType>(rhs.getType()).getElementType();
   if (isa<mlir::FloatType>(lhsElemTy) || isa<mlir::FloatType>(rhsElemTy)) {
-    (void)rewriter.notifyMatchFailure(op,
-                                      "tosa.div only supports integer type");
+    (void)rewriter.notifyMatchFailure(
+        op, "tosa.int_div only supports integer type");
   }
 
   lhs = promoteType(rewriter, lhs, outType);
   rhs = promoteType(rewriter, rhs, outType);
-  return tosa::CreateOpAndInfer<tosa::DivOp>(rewriter, op->getLoc(), outType,
-                                             lhs, rhs);
+  return tosa::CreateOpAndInfer<tosa::IntDivOp>(rewriter, op->getLoc(), outType,
+                                                lhs, rhs);
 }
 
 std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
@@ -819,9 +813,9 @@ convertReduceProdOp(PatternRewriter &rewriter, Operation *op,
     return std::nullopt;
 
   bool input_is_qtype =
-      input_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
+      isa<mlir::quant::UniformQuantizedType>(input_type.getElementType());
   bool output_is_qtype =
-      output_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
+      isa<mlir::quant::UniformQuantizedType>(output_type.getElementType());
 
   if (input_is_qtype || output_is_qtype) {
     op->emitOpError("ConvertReduceProdOp: input/output tensor should "
@@ -845,9 +839,9 @@ convertReduceSumOp(PatternRewriter &rewriter, Operation *op,
     return std::nullopt;
 
   bool input_is_qtype =
-      input_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
+      isa<mlir::quant::UniformQuantizedType>(input_type.getElementType());
   bool output_is_qtype =
-      output_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
+      isa<mlir::quant::UniformQuantizedType>(output_type.getElementType());
 
   if (input_is_qtype != output_is_qtype) {
     op->emitOpError("ConvertReduceSumOp: input/output tensor should "
@@ -900,9 +894,9 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
     return std::nullopt;
 
   bool input_is_qtype =
-      input_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
+      isa<mlir::quant::UniformQuantizedType>(input_type.getElementType());
   bool output_is_qtype =
-      output_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
+      isa<mlir::quant::UniformQuantizedType>(output_type.getElementType());
 
   if (input_is_qtype != output_is_qtype) {
     op->emitOpError("ConvertReduceSumOp: input/output tensor should "
@@ -911,7 +905,7 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
   }
 
   // Only supports float type mean() if it's non-quantized
-  if (!input_is_qtype && !output_type.getElementType().isa<mlir::FloatType>()) {
+  if (!input_is_qtype && !isa<mlir::FloatType>(output_type.getElementType())) {
     op->emitWarning(
         "Failed convertReduceMean: input unquantized type but output element "
         "not FloatType!");
