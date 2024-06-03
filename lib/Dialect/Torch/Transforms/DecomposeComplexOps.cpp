@@ -2585,7 +2585,36 @@ public:
 
     auto weightedDelta =
         rewriter.create<AtenMulScalarOp>(loc, inputType, delta, op.getWeight());
-    auto lerp = rewriter.create<AtenAddTensorOp>(loc, inputType, start,
+    auto lerp = rewriter.create<AtenAddTensorOp>(loc, resType, start,
+                                                 weightedDelta, cstOne);
+    rewriter.replaceOp(op, lerp);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenLerpTensorOp : public OpRewritePattern<AtenLerpTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLerpTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto resType = cast<BaseTensorType>(op.getType());
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+    Value cstOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    auto start = op.getSelf();
+    auto inputType = cast<BaseTensorType>(start.getType());
+
+    auto delta = rewriter.create<AtenSubTensorOp>(loc, inputType, op.getEnd(),
+                                                  start, cstOne);
+
+    auto weightedDelta =
+        rewriter.create<AtenMulTensorOp>(loc, inputType, delta, op.getWeight());
+    auto lerp = rewriter.create<AtenAddTensorOp>(loc, resType, start,
                                                  weightedDelta, cstOne);
     rewriter.replaceOp(op, lerp);
     return success();
@@ -8114,6 +8143,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLeakyReluBackwardOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLerpScalarOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLerpTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyStridedOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyStridedOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBucketizeTensorOp>(patterns);
