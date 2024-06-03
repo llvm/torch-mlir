@@ -4670,8 +4670,8 @@ LogicalResult AtenRenormOp::verify() {
   int64_t selfRank = inShape.size();
   auto selfDtype = selfType.getDtype();
 
-  if (!selfDtype.isa<mlir::Float16Type, mlir::BFloat16Type, mlir::Float32Type,
-                     mlir::Float64Type, mlir::ComplexType>())
+  if (!isa<mlir::Float16Type, mlir::BFloat16Type, mlir::Float32Type,
+           mlir::Float64Type, mlir::ComplexType>(selfDtype))
     return emitOpError(
                "expected a float or complex type for input tensor, but got ")
            << selfDtype;
@@ -4684,7 +4684,7 @@ LogicalResult AtenRenormOp::verify() {
   // Check if argument p is valid
   auto pType = getP().getType();
 
-  if (pType.isa<mlir::ComplexType>())
+  if (isa<mlir::ComplexType>(pType))
     return emitOpError("renorm: p must be real-valued");
 
   // The argument 'p' can be either an integer or a floating-point number,
@@ -4701,7 +4701,7 @@ LogicalResult AtenRenormOp::verify() {
 
   // Check if argument maxnorm is valid
   auto maxnormType = getMaxnorm().getType();
-  if (maxnormType.isa<mlir::ComplexType>())
+  if (isa<mlir::ComplexType>(maxnormType))
     return emitOpError("renorm: maxnorm must be real-valued");
 
   // The argument 'maxnorm' can be either an integer or a floating-point number,

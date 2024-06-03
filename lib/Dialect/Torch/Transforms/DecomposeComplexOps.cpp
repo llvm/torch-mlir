@@ -2148,7 +2148,7 @@ public:
     Value dtypeValue;
     Type vectorNormOutType;
 
-    if (dtype.isa<mlir::Float16Type, mlir::BFloat16Type>()) {
+    if (isa<mlir::Float16Type, mlir::BFloat16Type>(dtype)) {
       dtype = cast<Type>(rewriter.getF32Type());
       dtypeValue = getDtypeIntValueForType(rewriter, loc, dtype);
       vectorNormOutType = resType.getWithSizesAndDtype(inputSize, dtype);
