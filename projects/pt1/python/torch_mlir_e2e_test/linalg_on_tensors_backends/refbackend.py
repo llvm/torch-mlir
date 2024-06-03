@@ -138,8 +138,6 @@ LOWERING_PIPELINE = (
     "builtin.module("
     + ",".join(
         [
-            "func.func(refback-generalize-tensor-pad)",
-            "func.func(refback-generalize-tensor-concat)",
             # Apply some optimizations. It would be great if MLIR had more useful
             # optimizations that worked out of the box here.
             # Note: When measured, this doesn't seem to actually help that much
@@ -155,18 +153,21 @@ LOWERING_PIPELINE = (
             "sparse-assembler{direct-out}",
             "sparsification-and-bufferization",
             "sparse-storage-specifier-to-llvm",
-            "inline",  # inline sparse helper methods where useful
+            # Buffer deallocation pass does not know how to handle realloc.
+            "func.func(expand-realloc)",
+            # Generalize pad and concat after sparse compiler, as they are handled
+            # differently when the operations involve sparse operand.
+            "func.func(refback-generalize-tensor-pad)",
+            "func.func(refback-generalize-tensor-concat)",
             # Bufferize.
-            "func.func(scf-bufferize)",
             "func.func(tm-tensor-bufferize)",
-            "func.func(empty-tensor-to-alloc-tensor)",
-            "func.func(linalg-bufferize)",
-            "func-bufferize",
-            "arith-bufferize",
+            "one-shot-bufferize{copy-before-write bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map}",
             "refback-mlprogram-bufferize",
-            "func.func(tensor-bufferize)",
             "func.func(finalizing-bufferize)",
             "func.func(buffer-deallocation)",
+            # Buffer-deallocation does not work with the inlined code generated
+            # by sparse tensor dialect.
+            "inline",  # inline sparse helper methods where useful
             # Munge to make it ExecutionEngine compatible.
             # Specifically, we rewrite calling convention boundaries to be in terms
             # of unranked memref, and we rewrite the return to actually be a
@@ -193,6 +194,7 @@ LOWERING_PIPELINE = (
             "convert-bufferization-to-memref",
             "finalize-memref-to-llvm",
             "func.func(convert-arith-to-llvm)",
+            "convert-vector-to-llvm",
             "convert-func-to-llvm",
             "convert-cf-to-llvm",
             "convert-complex-to-llvm",

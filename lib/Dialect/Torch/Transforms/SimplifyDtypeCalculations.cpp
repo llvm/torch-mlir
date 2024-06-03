@@ -179,11 +179,10 @@ public:
                                          "should have concrete Scalar Type.");
     }
     Type inputType = getBuiltInTypeForTorchScalar(op.getA().getType());
-    auto impliedTypeFromInputType =
+    auto impliedTypeFromInputType = cast<BaseTensorType>(
         cast<BaseTensorType>(originalResultType)
             .getWithSizesAndDtype(originalResultType.getOptionalSizes(),
-                                  inputType)
-            .cast<BaseTensorType>();
+                                  inputType));
 
     op.getResult().setType(impliedTypeFromInputType);
     return success();

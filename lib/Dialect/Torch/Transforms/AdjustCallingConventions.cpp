@@ -9,13 +9,8 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
@@ -115,7 +110,7 @@ public:
         continue;
       auto it = typeBoundMap.find({call.getCallee(), operand.index()});
       if (it != typeBoundMap.end()) {
-        if (auto valueTensorType = it->second.dyn_cast<ValueTensorType>()) {
+        if (auto valueTensorType = dyn_cast<ValueTensorType>(it->second)) {
           newOperands.push_back(copyTensorToType(
               rewriter, call->getLoc(), valueTensorType, operand.value()));
           continue;
@@ -220,11 +215,11 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
     for (int i = 0, e = func.getNumArguments(); i != e; i++) {
       if (func.getArgAttr(i, "torch.type_bound"))
         return false;
-      if (func.getArgumentTypes()[i].isa<Torch::NoneType>())
+      if (isa<Torch::NoneType>(func.getArgumentTypes()[i]))
         return false;
     }
     for (int i = 0, e = func.getNumResults(); i != e; i++) {
-      if (func.getFunctionType().getResults()[i].isa<Torch::NoneType>())
+      if (isa<Torch::NoneType>(func.getFunctionType().getResults()[i]))
         return false;
     }
     return true;

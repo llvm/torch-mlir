@@ -11,6 +11,7 @@
 #include "mlir/IR/BuiltinDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
+#include "torch-mlir/Dialect/Torch/Utils/SparsityUtils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -208,6 +209,19 @@ std::optional<unsigned> Torch::getTensorRank(Value tensor) {
   return tensorType.getSizes().size();
 }
 
+std::optional<int64_t> Torch::getTensorNumel(Value tensor) {
+  BaseTensorType tensorType = cast<BaseTensorType>(tensor.getType());
+  if (!tensorType.hasSizes())
+    return std::nullopt;
+  int64_t numel = 1;
+  for (auto dim : tensorType.getSizes()) {
+    if (dim == ShapedType::kDynamic)
+      return ShapedType::kDynamic;
+    numel *= dim;
+  }
+  return numel;
+}
+
 bool Torch::isViewLikeOp(Operation *op) {
   // AtenContiguousOp might return a view, so this is conservatively
   // correct. We could potentially be more precise and identify the cases
@@ -275,6 +289,32 @@ SmallVector<int64_t> Torch::makeShapeTorchCompatible(ArrayRef<int64_t> shape) {
   return updatedShape;
 }
 
+ValueTensorType Torch::getTensorTypeFromShapeValues(ArrayRef<Value> shapes,
+                                                    Type dtype) {
+  assert(!shapes.empty() && "shape vector cannot be empty");
+  SmallVector<int64_t> shapeInts;
+  for (Value shape : shapes) {
+    int64_t dim;
+    if (matchPattern(shape, m_TorchConstantInt(&dim)))
+      shapeInts.push_back(dim);
+    else
+      shapeInts.push_back(kUnknownSize);
+  }
+  return Torch::ValueTensorType::get(shapes[0].getContext(), shapeInts, dtype);
+}
+
+// Helper function to get the size of the tensor at the given dimension.
+Value Torch::getTensorDimSize(PatternRewriter &rewriter, Value tensor,
+                              int64_t dim) {
+  auto loc = tensor.getLoc();
+  auto dimVal =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
+  // Use 'createOrFold' instead of 'create':
+  // If the dimension is a constant, then the AtenSizeIntOp is folded to a
+  // ContantIntOp.
+  return rewriter.createOrFold<AtenSizeIntOp>(loc, tensor, dimVal);
+}
+
 // Helper function to squeeze the input tensor at given dim.
 // Return the squeezed tensor or failure.
 FailureOr<Value> Torch::squeezeTensor(PatternRewriter &rewriter, Operation *op,
@@ -318,6 +358,11 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
   if (!inputType.hasSizes()) {
     return rewriter.notifyMatchFailure(op, "input tensor must have size");
   }
+  FailureOr<Attribute> enc =
+      getSparsityWithDenseLTAtDim(inputType.getOptionalSparsity(), dim);
+  if (failed(enc)) {
+    return failure();
+  }
 
   SmallVector<int64_t> unsqueezedShape;
   ArrayRef<int64_t> inputShape = inputType.getSizes();
@@ -334,8 +379,8 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
   } else {
     unsqueezedShape.resize(unsqueezedRank, kUnknownSize);
   }
-  Type unsqueezedType = inputType.getWithSizesAndDtype(
-      unsqueezedShape, inputType.getOptionalDtype());
+  Type unsqueezedType = inputType.getWithSizesAndDtypeAndSparsity(
+      unsqueezedShape, inputType.getOptionalDtype(), enc.value());
   Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(
       op->getLoc(), unsqueezedType, input, dim);
   return unsqueezed;

@@ -1864,6 +1864,34 @@ def ElementwiseMulTensorComplexModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+# torch.complex32 is not supported by the refbackend.
+class ElementwiseMulTensorComplexDiffModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.complex64, True),
+            ([-1], torch.complex128, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.mul(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMulTensorComplexDiffModule())
+def ElementwiseMulTensorComplexDiffModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, high=10).type(torch.complex64),
+        tu.randint(4, high=10).type(torch.complex128),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseMishModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2197,6 +2225,98 @@ class ElementwiseLogSigmoidModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseLogSigmoidModule())
 def ElementwiseLogSigmoidModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseSoftshrinkModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.softshrink(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSoftshrinkModule())
+def ElementwiseSoftshrinkModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseSoftshrinkStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.softshrink(a, 2.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSoftshrinkStaticModule())
+def ElementwiseSoftshrinkStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6))
+
+
+# ==============================================================================
+
+
+class ElementwiseHardshrinkModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.hardshrink(a, 1.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseHardshrinkModule())
+def ElementwiseHardshrinkModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class ElementwiseHardshrinkStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.hardshrink(a, 2.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseHardshrinkStaticModule())
+def ElementwiseHardshrinkStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6))
 
 
 # ==============================================================================
@@ -5243,6 +5363,29 @@ def AtenTrilModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AtenTrilStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([8, 8], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.tril(x)
+
+
+@register_test_case(module_factory=lambda: AtenTrilStaticModule())
+def AtenTrilStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 8))
+
+
+# ==============================================================================
+
+
 class AtenTrilWithPosDiagonalModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -5266,6 +5409,29 @@ def AtenTrilWithPosDiagonalModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AtenTrilWithPosDiagonalStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([9, 4, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.tril(x, diagonal=2)
+
+
+@register_test_case(module_factory=lambda: AtenTrilWithPosDiagonalStaticModule())
+def AtenTrilWithPosDiagonalStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(9, 4, 3))
+
+
+# ==============================================================================
+
+
 class AtenTrilWithNegDiagonalModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -5283,6 +5449,29 @@ class AtenTrilWithNegDiagonalModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AtenTrilWithNegDiagonalModule())
 def AtenTrilWithNegDiagonalModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 1, 5, 9))
+
+
+# ==============================================================================
+
+
+class AtenTrilWithNegDiagonalStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 1, 5, 9], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.tril(x, diagonal=-4)
+
+
+@register_test_case(module_factory=lambda: AtenTrilWithNegDiagonalStaticModule())
+def AtenTrilWithNegDiagonalStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 1, 5, 9))
 
 

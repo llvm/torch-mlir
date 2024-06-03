@@ -12,12 +12,10 @@
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
-#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
 using namespace mlir;
@@ -254,7 +252,7 @@ public:
     // "block" arguments
     for (const auto &barg : enumerate(op.getRegion().front().getArguments())) {
       Value to = block->getArgument(barg.index());
-      if (to.getType().isa<mlir::IndexType>())
+      if (isa<mlir::IndexType>(to.getType()))
         to =
             rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), to);
       Type targetType = to.getType();
