@@ -301,6 +301,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::relu : (Tensor) -> (Tensor)",
         "aten::relu6 : (Tensor) -> (Tensor)",
         "aten::leaky_relu : (Tensor, Scalar) -> (Tensor)",
+        "aten::rrelu : (Tensor, Scalar, Scalar, bool, Generator?) -> (Tensor)",
+        "aten::celu : (Tensor, Scalar) -> (Tensor)",
         "aten::selu : (Tensor) -> (Tensor)",
         "aten::sigmoid : (Tensor) -> (Tensor)",
         "aten::sinh : (Tensor) -> (Tensor)",
@@ -472,7 +474,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::floor_divide : (Tensor, Tensor) -> (Tensor)")
     emit("aten::softplus : (Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::prelu : (Tensor, Tensor) -> (Tensor)")
-    emit_with_mutating_variants("aten::celu : (Tensor, Scalar) -> (Tensor)")
     emit("aten::real : (Tensor) -> (Tensor)")
     emit("aten::imag : (Tensor) -> (Tensor)")
     emit("aten::view_as_complex : (Tensor) -> (Tensor)")

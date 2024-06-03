@@ -483,6 +483,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<Aten_UnsafeIndexPutHackedTwinOp>();
   target.addIllegalOp<AtenPadOp>();
   target.addIllegalOp<AtenPreluOp>();
+  target.addIllegalOp<AtenRreluOp>();
   target.addIllegalOp<AtenCeluOp>();
   target.addIllegalOp<AtenToDtypeLayoutOp>();
   target.addIllegalOp<AtenToDeviceOp>();

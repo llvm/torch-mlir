@@ -1062,6 +1062,100 @@ def ElementwiseCeluModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseRreluTrainModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        res = torch.ops.aten.rrelu(x, 0.4, 0.6, True)
+        return torch.mean(res), torch.std(res)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRreluTrainModule())
+def ElementwiseRreluTrainModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1024, 1536))
+
+
+# ==============================================================================
+
+
+class ElementwiseRreluTrainStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1024, 1536], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        res = torch.ops.aten.rrelu(x, 0.1, 0.9, True)
+        return torch.mean(res), torch.std(res)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRreluTrainStaticModule())
+def ElementwiseRreluTrainStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1024, 1536))
+
+
+# ==============================================================================
+
+
+class ElementwiseRreluEvalModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.rrelu(x, 0.4, 0.6, False)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRreluEvalModule())
+def ElementwiseRreluEvalModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, low=-1, high=1))
+
+
+# ==============================================================================
+
+
+class ElementwiseRreluEvalStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.rrelu(x, 0.1, 0.9, False)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRreluEvalStaticModule())
+def ElementwiseRreluEvalStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, low=-1, high=1))
+
+
+# ==============================================================================
+
+
 class ElementwiseCeluStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

@@ -2520,6 +2520,77 @@ public:
 
 } // namespace
 
+// rrelu = max(0, x) + min(0, alpha * x)
+// if in training mode, the alpha is sampled from uniform distribution (lower,
+// upper) if in testing mode, the alpha is (lower + upper) / 2
+namespace {
+class DecomposeAtenRreluOp : public OpRewritePattern<AtenRreluOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRreluOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value lower = op.getLower();
+    Value upper = op.getUpper();
+    auto resType = cast<BaseTensorType>(op.getType());
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+
+    bool training;
+    if (!matchPattern(op.getTraining(), m_TorchConstantBool(&training))) {
+      return rewriter.notifyMatchFailure(op, "training should be a constant");
+    }
+
+    Value constantZeroFloat =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+    Value constantOneFloat =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value constantTwoFloat =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(2.0));
+
+    Value alpha;
+    if (training) {
+      // Create a uniform random op with low and high set to `lower` and
+      // `upper`, respectively.
+      Value none = rewriter.create<ConstantNoneOp>(loc);
+      Value emptyTensor = rewriter.create<AtenFullLikeOp>(
+          loc, resType, self, constantZeroFloat, /*dtype=*/none,
+          /*layout=*/none,
+          /*device=*/none, /*pin_memoty=*/none, /*memory_format=*/none);
+      alpha = rewriter.create<AtenUniformOp>(loc, resType, emptyTensor,
+                                             /*from=*/lower, /*to=*/upper,
+                                             /*generator=*/none);
+    } else {
+      Value half = rewriter.create<AtenAddOp>(loc, constantTwoFloat.getType(),
+                                              lower, upper);
+      alpha = rewriter.create<AtenDivOp>(loc, constantTwoFloat.getType(), half,
+                                         constantTwoFloat);
+    }
+
+    Value zeroTensor =
+        createRank0Tensor(rewriter, loc, resType, constantZeroFloat);
+    Value positiveOutput =
+        rewriter.create<AtenMaximumOp>(loc, resType, zeroTensor, self);
+
+    Value scaledSelf;
+    if (training) {
+      scaledSelf = rewriter.create<AtenMulTensorOp>(loc, resType, self, alpha);
+    } else {
+      scaledSelf = rewriter.create<AtenMulScalarOp>(loc, resType, self, alpha);
+    }
+
+    Value negativeOutput =
+        rewriter.create<AtenMinimumOp>(loc, resType, zeroTensor, scaledSelf);
+    Value rreluOutput = rewriter.create<AtenAddTensorOp>(
+        loc, resType, positiveOutput, negativeOutput, constantOneFloat);
+    rewriter.replaceOp(op, rreluOutput);
+    return success();
+  }
+};
+} // namespace
+
 // CELU(x)=max(0,x)+min(0,alpha∗(exp(x/alpha)−1))
 namespace {
 class DecomposeAtenCeluOp : public OpRewritePattern<AtenCeluOp> {
@@ -8065,6 +8136,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPreluOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRreluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
