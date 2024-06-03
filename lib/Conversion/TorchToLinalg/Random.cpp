@@ -12,6 +12,7 @@
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -107,6 +108,25 @@ static Value randomUniformUInt(OpBuilder &b, Location loc, Value ctr,
   return bitwiseXOr(t, shiftRight32(add(mul(x, x), y)));
 }
 
+// generate uniform random Float64
+static Value randomUniformF64(OpBuilder &b, Location loc, Value ctr, Value key,
+                              Value min, Value max) {
+  Value randomVal = randomUniformUInt(b, loc, ctr, key);
+  // scale = (max - min) * const(F64,  5.4210108E-20)
+  // which is derived from rand(min,max) =
+  // rand()/(RAND_MAX/(max-min)) where RAND_MAX = 2^64 - 1
+  Value epsilon = b.create<arith::ConstantOp>(
+      loc, b.getFloatAttr(b.getF64Type(), 5.4210108E-20));
+  Value range = b.create<arith::SubFOp>(loc, max, min);
+  Value scale = b.create<arith::MulFOp>(loc, range, epsilon);
+  // res = cast(F64, tempN) * scale + min
+  Value updateFloat = b.create<arith::UIToFPOp>(loc, b.getF64Type(), randomVal);
+  Value updateScaled = b.create<arith::MulFOp>(loc, updateFloat, scale);
+  Value uniform_sample = b.create<arith::AddFOp>(loc, updateScaled, min);
+
+  return uniform_sample;
+}
+
 namespace {
 class ConvertAtenUniformOp : public OpConversionPattern<AtenUniformOp> {
 public:
@@ -162,22 +182,9 @@ public:
 
                   Value linearIndex =
                       toLinearIndex(b, loc, indicesIntValues, sizesIntValues);
-                  Value randomVal = randomUniformUInt(b, loc, linearIndex, key);
 
-                  // scale = (max - min) * const(F64,  5.4210108E-20)
-                  // which is derived from rand(min,max) =
-                  // rand()/(RAND_MAX/(max-min)) where RAND_MAX = 2^64 - 1
-                  Value epsilon = b.create<arith::ConstantOp>(
-                      loc, b.getFloatAttr(min.getType(), 5.4210108E-20));
-                  Value range = b.create<arith::SubFOp>(loc, max, min);
-                  Value scale = b.create<arith::MulFOp>(loc, range, epsilon);
-
-                  // res = cast(F64, tempN) * scale + min
-                  Value updateFloat =
-                      b.create<arith::UIToFPOp>(loc, f64Ty, randomVal);
-                  Value updateScaled =
-                      b.create<arith::MulFOp>(loc, updateFloat, scale);
-                  Value res = b.create<arith::AddFOp>(loc, updateScaled, min);
+                  Value res =
+                      randomUniformF64(b, loc, linearIndex, key, min, max);
                   Value truncRes = res;
                   if (isa<Float16Type, Float32Type>(elemTy))
                     truncRes = b.create<arith::TruncFOp>(loc, elemTy, res);
@@ -192,6 +199,301 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenMultinomialOp : public OpConversionPattern<AtenMultinomialOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenMultinomialOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Location loc = op.getLoc();
+    Value self = adaptor.getSelf();
+    Value numSamples = adaptor.getNumSamples();
+    Value generator = adaptor.getGenerator();
+    RankedTensorType selfType = cast<RankedTensorType>(self.getType());
+    Type elemTy = selfType.getElementType();
+    Type f64Ty = rewriter.getF64Type();
+    Type i64Ty = rewriter.getI64Type();
+    Type indexTy = rewriter.getIndexType();
+    int64_t input_rank = selfType.getRank();
+    bool b_replacement;
+
+    if (!isa<mlir::FloatType>(elemTy))
+      return rewriter.notifyMatchFailure(op, "This op only support float type");
+
+    if (!generator.getType().isa<Torch::NoneType>())
+      return rewriter.notifyMatchFailure(
+          op, "The generator has to be None because only global default "
+              "generator is supported");
+
+    if (!matchPattern(op.getReplacement(), m_TorchConstantBool(&b_replacement)))
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported: replacement must be a boolean value");
+
+    if (!b_replacement)
+      return rewriter.notifyMatchFailure(op,
+                                         "Unimplemented: replacement = False");
+
+    if (!numSamples.getType().isa<mlir::IntegerType>()) {
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported: num_samples must be an integer value");
+    }
+
+    if (!(input_rank == 1 || input_rank == 2)) {
+      return rewriter.notifyMatchFailure(
+          op, "torch.multinomial accepts only rank 1 or 2 tensors as weights");
+    }
+
+    Value cstZero = rewriter.create<arith::ConstantOp>(
+        loc, i64Ty, rewriter.getI64IntegerAttr(0));
+    Value cstOne = rewriter.create<arith::ConstantOp>(
+        loc, i64Ty, rewriter.getI64IntegerAttr(1));
+    Value zeroIndex =
+        rewriter.create<arith::IndexCastOp>(loc, indexTy, cstZero);
+    Value oneIndex = rewriter.create<arith::IndexCastOp>(loc, indexTy, cstOne);
+    Value numSamples_index =
+        rewriter.create<arith::IndexCastOp>(loc, indexTy, numSamples);
+
+    Value numDistributions;
+    Value num_categories_index;
+    ValueRange result_shape;
+    if (input_rank == 1) {
+      numDistributions = rewriter.create<arith::ConstantOp>(
+          loc, i64Ty, rewriter.getI64IntegerAttr(1));
+      num_categories_index =
+          rewriter.create<tensor::DimOp>(loc, indexTy, self, zeroIndex);
+      result_shape = ValueRange{numSamples_index};
+    } else {
+      Value num_dist_index =
+          rewriter.create<tensor::DimOp>(loc, indexTy, self, zeroIndex);
+      num_categories_index =
+          rewriter.create<tensor::DimOp>(loc, indexTy, self, oneIndex);
+      numDistributions =
+          rewriter.create<arith::IndexCastOp>(loc, i64Ty, num_dist_index);
+      result_shape = ValueRange{num_dist_index, numSamples_index};
+    }
+
+    Value num_categories =
+        rewriter.create<arith::IndexCastOp>(loc, i64Ty, num_categories_index);
+    Value resultTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(result_shape), i64Ty);
+
+    // Get multinomial samples for each weight vector
+    auto multinomial_computation = [&](OpBuilder &b, Location loc, Value j,
+                                       ValueRange args) {
+      Value j_index = b.create<arith::IndexCastOp>(loc, indexTy, j);
+      Value init_sum =
+          b.create<arith::ConstantOp>(loc, f64Ty, b.getF64FloatAttr(0.0));
+      Value sum_weights =
+          b.create<scf::ForOp>(
+               loc, cstZero, num_categories, cstOne, ValueRange{init_sum},
+               [&](OpBuilder &b, Location loc, Value i, ValueRange args) {
+                 Value currSum = args[0];
+                 Value i_index = b.create<arith::IndexCastOp>(loc, indexTy, i);
+                 ValueRange ind;
+                 if (input_rank == 1) {
+                   ind = ValueRange{i_index};
+                 } else {
+                   ind = ValueRange{j_index, i_index};
+                 }
+                 Value currWeight = b.create<tensor::ExtractOp>(loc, self, ind);
+                 Value updatedSum =
+                     b.create<arith::AddFOp>(loc, currSum, currWeight);
+                 b.create<scf::YieldOp>(loc, ValueRange{updatedSum});
+               })
+              .getResult(0);
+
+      Value sum = convertScalarToDtype(b, loc, sum_weights, elemTy);
+
+      // compute cdf in loop
+      Value init_cdf = b.create<tensor::EmptyOp>(
+          loc, getAsOpFoldResult(ValueRange{num_categories_index}), elemTy);
+      Value cdf =
+          b.create<scf::ForOp>(
+               loc, cstZero, num_categories, cstOne, ValueRange{init_cdf},
+               [&](OpBuilder &b, Location loc, Value i, ValueRange vals) {
+                 Value distribution = vals[0];
+                 // if (i > 0)
+                 auto comparison_predicate = arith::CmpIPredicateAttr::get(
+                     b.getContext(), arith::CmpIPredicate::sgt);
+                 Value condition = b.create<arith::CmpIOp>(
+                     loc, comparison_predicate, i, cstZero);
+                 Value i_index = b.create<arith::IndexCastOp>(loc, indexTy, i);
+                 // curr_cum = i > 0 ? prob[i] + prob[i-1] : prob[i]
+                 ValueRange ind;
+                 if (input_rank == 1) {
+                   ind = ValueRange{i_index};
+                 } else {
+                   ind = ValueRange{j_index, i_index};
+                 }
+                 Value curr_weight =
+                     b.create<tensor::ExtractOp>(loc, self, ind);
+                 Value curr_mass =
+                     b.create<arith::DivFOp>(loc, curr_weight, sum);
+                 Value curr_cum =
+                     b.create<scf::IfOp>(
+                          loc, condition,
+                          [&](OpBuilder &b, Location loc) {
+                            Value prevI =
+                                b.create<arith::SubIOp>(loc, i, cstOne);
+                            Value prevIndex = b.create<arith::IndexCastOp>(
+                                loc, indexTy, prevI);
+                            Value prev_mass = b.create<tensor::ExtractOp>(
+                                loc, distribution, ValueRange{prevIndex});
+                            Value curr_sum = b.create<arith::AddFOp>(
+                                loc, curr_mass, prev_mass);
+                            b.create<scf::YieldOp>(loc, ValueRange(curr_sum));
+                          },
+                          [&](OpBuilder &b, Location loc) {
+                            b.create<scf::YieldOp>(loc, ValueRange{curr_mass});
+                          })
+                         .getResult(0);
+
+                 Value updated_cdf = b.create<tensor::InsertOp>(
+                     loc, curr_cum, distribution, ValueRange(i_index));
+                 b.create<scf::YieldOp>(loc, ValueRange(updated_cdf));
+               })
+              .getResult(0);
+
+      // Get key, min and max used by RNG.
+      Value key = b.create<TorchConversion::GetNextSeedOp>(loc);
+      Value min = b.create<arith::ConstantOp>(loc, f64Ty,
+                                              rewriter.getF64FloatAttr(0.0));
+      Value max = b.create<arith::ConstantOp>(loc, f64Ty,
+                                              rewriter.getF64FloatAttr(1.0));
+
+      // iterate and sample class indices
+      Value result = args[0];
+      Value finalResult =
+          rewriter
+              .create<scf::ForOp>(
+                  loc, cstZero, numSamples, cstOne, ValueRange{result},
+                  [&](OpBuilder &b, Location loc, Value i, ValueRange args) {
+                    // Sample random float
+                    Value uniform_sample =
+                        randomUniformF64(b, loc, i, key, min, max);
+
+                    // binary search in cdf to find our sample
+                    Value left = b.create<arith::ConstantOp>(
+                        loc, i64Ty, b.getI64IntegerAttr(0));
+                    Value right = num_categories;
+
+                    auto checkCondition = [&](OpBuilder &b, Location loc,
+                                              ValueRange vals) {
+                      Value left = vals[0];
+                      Value right = vals[1];
+
+                      // while (right > left)
+                      auto comparison_predicate = arith::CmpIPredicateAttr::get(
+                          b.getContext(), arith::CmpIPredicate::sgt);
+                      Value loop_condition = b.create<arith::CmpIOp>(
+                          loc, comparison_predicate, right, left);
+                      b.create<scf::ConditionOp>(loc, loop_condition, vals);
+                    };
+
+                    ValueRange while_results =
+                        b.create<scf::WhileOp>(
+                             loc, TypeRange{i64Ty, i64Ty},
+                             ValueRange{left, right}, checkCondition,
+                             [&](OpBuilder &b, Location loc, ValueRange vals) {
+                               Value left = vals[0];
+                               Value right = vals[1];
+
+                               Value two = b.create<arith::ConstantOp>(
+                                   loc, i64Ty, b.getI64IntegerAttr(2));
+                               Value diff =
+                                   b.create<arith::SubIOp>(loc, right, left);
+                               Value diff_mid =
+                                   b.create<arith::DivSIOp>(loc, diff, two);
+                               Value mid_pointer =
+                                   b.create<arith::AddIOp>(loc, left, diff_mid);
+                               Type indexTy = b.getIndexType();
+                               Value mid_index = b.create<arith::IndexCastOp>(
+                                   loc, indexTy, mid_pointer);
+
+                               // branch and update search indices
+                               auto then_block = [&](OpBuilder &b,
+                                                     Location loc) {
+                                 // left += 1
+                                 Value one = b.create<arith::ConstantOp>(
+                                     loc, i64Ty, b.getI64IntegerAttr(1));
+                                 Value new_left =
+                                     b.create<arith::AddIOp>(loc, left, one);
+
+                                 b.create<scf::YieldOp>(
+                                     loc, ValueRange{new_left, right});
+                               };
+                               auto else_block = [&](OpBuilder &b,
+                                                     Location loc) {
+                                 // right = mid
+                                 b.create<scf::YieldOp>(
+                                     loc, ValueRange{left, mid_pointer});
+                               };
+
+                               Value cum_prob = b.create<tensor::ExtractOp>(
+                                   loc, cdf, ValueRange{mid_index});
+                               auto cmp_predicate =
+                                   arith::CmpFPredicateAttr::get(
+                                       b.getContext(),
+                                       arith::CmpFPredicate::OLT);
+                               Value branch_condition = b.create<arith::CmpFOp>(
+                                   loc, cmp_predicate, cum_prob,
+                                   uniform_sample);
+                               ValueRange branch_results =
+                                   b.create<scf::IfOp>(loc, branch_condition,
+                                                       then_block, else_block)
+                                       .getResults();
+                               Value new_left = branch_results[0];
+                               Value new_right = branch_results[1];
+
+                               b.create<scf::YieldOp>(
+                                   loc, ValueRange{new_left, new_right});
+                             })
+                            .getResults();
+
+                    // sample_idx = left_pointer
+                    Value sample_pointer = while_results[0];
+                    Value i_index =
+                        b.create<arith::IndexCastOp>(loc, indexTy, i);
+
+                    Value prevResult = args[0];
+                    Value newResult;
+                    if (input_rank == 1) {
+                      // result[i] = sample_idx
+                      newResult = b.create<tensor::InsertOp>(
+                          loc, sample_pointer, prevResult, ValueRange{i_index});
+                    } else {
+                      // result[j][i] = sample_idx
+                      newResult = b.create<tensor::InsertOp>(
+                          loc, sample_pointer, prevResult,
+                          ValueRange{j_index, i_index});
+                    }
+
+                    b.create<scf::YieldOp>(loc, ValueRange{newResult});
+                  })
+              .getResult(0);
+
+      b.create<scf::YieldOp>(loc, ValueRange{finalResult});
+    };
+
+    Value finalResultTensor =
+        rewriter
+            .create<scf::ForOp>(loc, cstZero, numDistributions, cstOne,
+                                ValueRange{resultTensor},
+                                multinomial_computation)
+            .getResult(0);
+
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
+                                                finalResultTensor);
+
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateRandomPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -200,4 +502,6 @@ void mlir::torch::torch_to_linalg::populateRandomPatternsAndLegality(
   patterns.add<ConvertAtenDropoutOp>(typeConverter, context);
   target.addIllegalOp<AtenUniformOp>();
   patterns.add<ConvertAtenUniformOp>(typeConverter, context);
+  target.addIllegalOp<AtenMultinomialOp>();
+  patterns.add<ConvertAtenMultinomialOp>(typeConverter, context);
 }
