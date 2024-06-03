@@ -638,8 +638,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         Location loc = binder.getLoc();
 
-        auto inputTy = input.getType().cast<Torch::ValueTensorType>();
-        auto roisFloatTy = rois.getType().cast<Torch::ValueTensorType>();
+        auto inputTy = cast<Torch::ValueTensorType>(input.getType());
+        auto roisFloatTy = cast<Torch::ValueTensorType>(rois.getType());
         if (!inputTy || !inputTy.hasSizes())
           return failure();
         if (!roisFloatTy || !roisFloatTy.hasSizes())
@@ -1531,7 +1531,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType))
           return failure();
 
-        auto inputTensorType = operand.getType().cast<Torch::ValueTensorType>();
+        auto inputTensorType = cast<Torch::ValueTensorType>(operand.getType());
         if (!inputTensorType || !inputTensorType.hasSizes()) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected input type having sizes");
