@@ -911,6 +911,9 @@ STABLEHLO_PASS_SET = {
     "Convolution2DStaticModule_basic",
     "ConvolutionBackwardModule2DStatic_basic",
     "ConvolutionModule2DTransposeStridedStatic_basic",
+    "Conv_Transpose1dStaticModule_basic",
+    "Conv_Transpose2dStaticModule_basic",
+    "Conv_Transpose3dStaticModule_basic",
     "ConstantPad2dStaticModule_basic",
     "ConstantPadNdModule_basic",
     "ConstantPadNdPartialStaticModule_basic",
@@ -2662,6 +2665,8 @@ ONNX_XFAIL_SET = {
     "PrimsIotaModule_basic",
     # Failure - unknown
     "BernoulliModule_basic",
+    "Conv_Transpose1dModule_basic",
+    "Conv_Transpose3dModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "CopyWithDifferentDTypesAndSizesModule_basic",
     "CopyWithDifferentDTypesModule_basic",
