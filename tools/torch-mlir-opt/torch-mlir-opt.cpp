@@ -40,6 +40,7 @@ int main(int argc, char **argv) {
 
   DialectRegistry registry;
   mlir::torch::registerAllDialects(registry);
+  mlir::torch::registerAllExtensions(registry);
   mlir::torch::registerOptionalInputDialects(registry);
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO

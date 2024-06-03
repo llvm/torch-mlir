@@ -40,7 +40,11 @@ void mlir::torch::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<mlir::torch::Torch::TorchDialect>();
   registry.insert<mlir::torch::TorchConversion::TorchConversionDialect>();
   registry.insert<mlir::torch::TMTensor::TMTensorDialect>();
+}
+
+void mlir::torch::registerAllExtensions(mlir::DialectRegistry &registry) {
   mlir::func::registerInlinerExtension(registry);
+  tensor::registerInferTypeOpInterfaceExternalModels(registry);
 }
 
 // TODO: Break this up when backends are separated.
@@ -49,7 +53,6 @@ void mlir::torch::registerOptionalInputDialects(
   registry.insert<complex::ComplexDialect, linalg::LinalgDialect,
                   memref::MemRefDialect, ml_program::MLProgramDialect,
                   scf::SCFDialect, tensor::TensorDialect, tosa::TosaDialect>();
-  tensor::registerInferTypeOpInterfaceExternalModels(registry);
 }
 
 void mlir::torch::registerAllPasses() {
