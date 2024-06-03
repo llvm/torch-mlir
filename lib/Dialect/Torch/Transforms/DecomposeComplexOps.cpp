@@ -2585,7 +2585,7 @@ public:
 
     auto weightedDelta =
         rewriter.create<AtenMulScalarOp>(loc, inputType, delta, op.getWeight());
-    auto lerp = rewriter.create<AtenAddTensorOp>(loc, inputType, start,
+    auto lerp = rewriter.create<AtenAddTensorOp>(loc, resType, start,
                                                  weightedDelta, cstOne);
     rewriter.replaceOp(op, lerp);
     return success();
@@ -2614,7 +2614,7 @@ public:
 
     auto weightedDelta =
         rewriter.create<AtenMulTensorOp>(loc, inputType, delta, op.getWeight());
-    auto lerp = rewriter.create<AtenAddTensorOp>(loc, inputType, start,
+    auto lerp = rewriter.create<AtenAddTensorOp>(loc, resType, start,
                                                  weightedDelta, cstOne);
     rewriter.replaceOp(op, lerp);
     return success();
