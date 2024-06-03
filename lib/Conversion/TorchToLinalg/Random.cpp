@@ -223,7 +223,7 @@ public:
     if (!isa<mlir::FloatType>(elemTy))
       return rewriter.notifyMatchFailure(op, "This op only support float type");
 
-    if (!generator.getType().isa<Torch::NoneType>())
+    if (!mlir::isa<Torch::NoneType>(generator.getType()))
       return rewriter.notifyMatchFailure(
           op, "The generator has to be None because only global default "
               "generator is supported");
@@ -236,7 +236,7 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Unimplemented: replacement = False");
 
-    if (!numSamples.getType().isa<mlir::IntegerType>()) {
+    if (!mlir::isa<mlir::IntegerType>(numSamples.getType())) {
       return rewriter.notifyMatchFailure(
           op, "Unsupported: num_samples must be an integer value");
     }
