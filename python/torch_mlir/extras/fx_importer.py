@@ -1600,6 +1600,10 @@ class GraphNodeImporter:
         user_value = self.fx_importer._hooks.resolve_literal(self, py_value)
         if user_value is not None:
             assert isinstance(user_value, Value)
+            if orig_value is not None:
+                user_value = self._convert_type(
+                    user_value, torch.Tensor, orig_value.dtype, orig_value.size()
+                )
             return user_value
 
         # Default conversion path.
