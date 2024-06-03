@@ -389,7 +389,7 @@ class MultinomialModule(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        a = torch.ops.aten.multinomial(x, 1024*1024, replacement=True)
+        a = torch.ops.aten.multinomial(x, 1024 * 1024, replacement=True)
         return a.mean(dtype=torch.double)
 
 
@@ -397,6 +397,7 @@ class MultinomialModule(torch.nn.Module):
 def MultinomialModule_basic(module, tu: TestUtils):
     x = tu.rand(100).double()
     module.forward(x)
+
 
 class MultinomialModule2D(torch.nn.Module):
     def __init__(self):
@@ -410,7 +411,7 @@ class MultinomialModule2D(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        a = torch.ops.aten.multinomial(x, 1024*1024, replacement=True)
+        a = torch.ops.aten.multinomial(x, 1024 * 1024, replacement=True)
         return a.mean(dtype=torch.double)
 
 
@@ -421,6 +422,7 @@ def MultinomialModule2D_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
+
 
 class RandLikeModule(torch.nn.Module):
     def __init__(self):
