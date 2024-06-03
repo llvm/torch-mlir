@@ -1157,7 +1157,8 @@ def ConvTbcModule_basic(module, tu: TestUtils):
 
 
 class Conv2dQInt8Module(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, groups=1):
+        self.groups = groups
         super().__init__()
 
     @export
@@ -1186,7 +1187,7 @@ class Conv2dQInt8Module(torch.nn.Module):
             stride=[1, 1],
             padding=[0, 0],
             dilation=[1, 1],
-            groups=1,
+            groups=self.groups,
         )
 
 
@@ -1198,13 +1199,12 @@ def Conv2dQInt8Module_basic(module, tu: TestUtils):
     module.forward(inputVec, weight, bias)
 
 
-N = 10
-Cin = 5
-Cout = 7
-Hin = 10
-Win = 8
-Hker = 3
-Wker = 2
+@register_test_case(module_factory=lambda: Conv2dQInt8Module(groups=2))
+def Conv2dQInt8Module_grouped(module, tu: TestUtils):
+    inputVec = tu.randint(2, 8, 7, 8, low=-128, high=127).to(torch.int8)
+    weight = tu.randint(6, 4, 3, 2, low=-128, high=127).to(torch.int8)
+    bias = torch.rand(6)
+    module.forward(inputVec, weight, bias)
 
 
 class ConvTranspose2DQInt8Module(torch.nn.Module):
@@ -1244,6 +1244,13 @@ class ConvTranspose2DQInt8Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ConvTranspose2DQInt8Module())
 def ConvTranspose2DQInt8_basic(module, tu: TestUtils):
+    N = 10
+    Cin = 5
+    Cout = 7
+    Hin = 10
+    Win = 8
+    Hker = 3
+    Wker = 2
     module.forward(
         tu.randint(N, Cin, Hin, Win, low=-128, high=127).to(torch.int8),
         tu.randint(Cin, Cout, Hker, Wker, low=-128, high=127).to(torch.int8),

@@ -829,7 +829,7 @@ public:
           op, "lhs and rhs of convolution must either be both int or fp");
     }
 
-    if (inputZp && weightZp && !isa<Torch::NoneType>(bias.getType())) {
+    if (inputZp && !isa<Torch::NoneType>(bias.getType())) {
       auto biasDTy = cast<RankedTensorType>(bias.getType()).getElementType();
       if (!biasDTy.isInteger(32)) {
         return rewriter.notifyMatchFailure(
@@ -1123,7 +1123,7 @@ public:
     // - grouped 1d-3d
     // - grouped 1d-3d (quantized)
     // - ungrouped 1d-3d
-    if (groupSize == 1 && !inputZp && !weightZp) {
+    if (groupSize == 1 && !inputZp) {
       switch (numSpatialDims) {
       case 1:
         conv = rewriter
@@ -1164,7 +1164,7 @@ public:
       return success();
     }
 
-    if (groupSize == 1 && inputZp && weightZp) {
+    if (groupSize == 1 && inputZp) {
       // The quantized version uses a different channel ordering so we need to
       // permute the tensors in order to use the existing path. We should
       // eventually directly support this channel ordering.
@@ -1224,10 +1224,6 @@ public:
       return success();
     }
 
-    if (inputZp || weightZp)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: quantized grouped convolutions");
-
     if (numSpatialDims != 2)
       return rewriter.notifyMatchFailure(
           op, "unimplemented: only 2D grouped convolution supported");
@@ -1238,7 +1234,7 @@ public:
     auto weightShape = makeShapeTorchCompatible(
         cast<RankedTensorType>(weight.getType()).getShape());
     if (weightShape[0] != kUnknownSize && inShape[1] == groupSize &&
-        weightShape[0] % inShape[1] == 0 && weightShape[1] == 1) {
+        weightShape[0] % inShape[1] == 0 && weightShape[1] == 1 && !inputZp) {
       // Collapse weight shape
       SmallVector<ReassociationIndices, 4> collapsedDims = {{0, 1}, {2}, {3}};
       SmallVector<int64_t> collapsedShape{
@@ -1325,13 +1321,22 @@ public:
     auto expandOutputTensor = expandGroups(outputTensor, 1);
 
     // TODO: add 1D and 3D case
-    conv = rewriter
-               .create<linalg::Conv2DNgchwGfchwOp>(
-                   loc, expandOutputTensor.getResultType(),
-                   ValueRange{paddedInputExpanded, weightExpanded},
-                   expandOutputTensor.getResult(), stridesAttr, dilationAttr)
-               .getResult(0);
-
+    if (!inputZp) {
+      conv = rewriter
+                 .create<linalg::Conv2DNgchwGfchwOp>(
+                     loc, expandOutputTensor.getResultType(),
+                     ValueRange{paddedInputExpanded, weightExpanded},
+                     expandOutputTensor.getResult(), stridesAttr, dilationAttr)
+                 .getResult(0);
+    } else {
+      conv = rewriter
+                 .create<linalg::Conv2DNgchwGfchwQOp>(
+                     loc, expandOutputTensor.getResultType(),
+                     ValueRange{paddedInputExpanded, weightExpanded, inputZp,
+                                weightZp},
+                     expandOutputTensor.getResult(), stridesAttr, dilationAttr)
+                 .getResult(0);
+    }
     conv = rewriter.create<tensor::CollapseShapeOp>(
         loc, outputTensor.getType(), conv,
         expandOutputTensor.getReassociationIndices());
