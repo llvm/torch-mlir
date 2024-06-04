@@ -172,7 +172,7 @@ void mlir::torch::TorchConversion::setupBackendTypeConversion(
     if (type.getDtype().isInteger()) {
       return builtinType.clone(IntegerType::get(
           builtinType.getContext(), type.getDtype().getIntOrFloatBitWidth(),
-          /*signedness=*/IntegerType::SignednessSemantics::Signless));
+          IntegerType::Signless));
     }
 
     return builtinType;
@@ -194,14 +194,13 @@ void mlir::torch::TorchConversion::setupBackendTypeConversionForStablehlo(
     if (!builtinType)
       return std::nullopt;
 
-    // convert signed integer type to signless, reserve unsigned integer type as
-    // unsigned
+    // convert signed integer type to signless, keep unsigned as unsigned
     if (type.getDtype().isUnsignedInteger()) {
       return builtinType.clone(type.getDtype());
     } else if (type.getDtype().isSignedInteger()) {
       return builtinType.clone(IntegerType::get(
           builtinType.getContext(), type.getDtype().getIntOrFloatBitWidth(),
-          /*signedness=*/IntegerType::SignednessSemantics::Signless));
+          IntegerType::Signless));
     }
 
     return builtinType;
