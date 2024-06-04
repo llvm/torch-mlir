@@ -1157,6 +1157,16 @@ class ContextCache:
                 contains_symbolic_ints = True
                 break
         if contains_symbolic_ints:
+            # Build a map from shape symbol name to `RangeConstraint` object
+            # capturing `min_val`` and `max_val`` constraints for that
+            # symbol. Translate sympy integers to regular integers.
+            #
+            # Example:
+            #       {
+            #          's0': RangeConstraint(min_val=5, max_val=10),
+            #          's1': RangeConstraint(min_val=0, max_val=100),
+            #          's3': RangeConstraint(min_val=0, max_val=9223372036854775806),
+            #       }
             self._symbolic_guards = {
                 str(k): RangeConstraint(
                     _sympy_int_to_int(v.lower, math.ceil),
