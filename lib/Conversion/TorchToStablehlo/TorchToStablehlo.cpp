@@ -51,7 +51,8 @@ public:
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
-    TorchConversion::setupBackendTypeConversion(target, typeConverter);
+    TorchConversion::setupBackendTypeConversionForStablehlo(target,
+                                                            typeConverter);
 
     RewritePatternSet patterns(context);
 

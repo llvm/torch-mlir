@@ -900,7 +900,7 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
   for (int64_t i = maxIndexRank; i < inputRank; ++i) {
     updateWindowDims.push_back(i);
   }
-  llvm::outs() << "maxIndexRank: " << maxIndexRank << "\n";
+
   auto scatterDimensionNumbers = stablehlo::ScatterDimensionNumbersAttr::get(
       rewriter.getContext(),
       /*updateWindowDims=*/updateWindowDims,

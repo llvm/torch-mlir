@@ -826,6 +826,8 @@ STABLEHLO_PASS_SET = {
     "SplitWithSizes_Module_basic",
     "TensorSplitSections_GetItemModule_basic",
     "TensorSplitSections_ListUnpackModule_basic",
+    "EmptyModule_uint8",
+    "TypeConversionUint8ToF32Module_basic",
     "AtenLinear1D_basic",
     "AtenLinear2D_basic",
     "AtenLinear3DBias_basic",

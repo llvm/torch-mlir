@@ -148,10 +148,11 @@ void TorchConversion::createTorchBackendToStablehloBackendPipeline(
 
   // Finish the type conversion from `torch` types to the types of the
   // StableHLO backend contract.
-  pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
+  pm.addPass(
+      TorchConversion::createFuncBackendTypeConversionForStablehloPass());
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(
-      TorchConversion::createFinalizingBackendTypeConversionPass());
+      TorchConversion::createFinalizingBackendTypeConversionForStablehloPass());
 
   // Verify that we have lowered to Stablehlo ops.
   pm.addPass(TorchConversion::createVerifyStablehloBackendContractPass());

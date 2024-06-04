@@ -25,9 +25,7 @@ class TorchConversion_Op<string mnemonic, list<Trait> traits = []>
 // Conversions to backend types.
 //===----------------------------------------------------------------------===//
 
-def TorchConversion_ToBuiltinTensorOp : TorchConversion_Op<"to_builtin_tensor", [
-    DeclareOpInterfaceMethods<InferTypeOpInterface>
-  ]> {
+def TorchConversion_ToBuiltinTensorOp : TorchConversion_Op<"to_builtin_tensor"> {
   let summary = "Convert a `!torch.vtensor` to a `tensor`";
   let description = [{
     This op only operates on ValueTensorType, to avoid conflating conversions
