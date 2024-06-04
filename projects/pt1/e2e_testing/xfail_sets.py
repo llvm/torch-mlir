@@ -2723,6 +2723,8 @@ ONNX_XFAIL_SET = {
     "ElementwiseUnaryIntModule_basic",
     "ElementwiseFloatTensorGtIntTensorModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
+    "MultinomialModule_basic",
+    "MultinomialModule2D_basic",
     "NativeDropoutTrainModule_basic",
     "NativeDropoutTrainStaticShapeModule_basic",
     "ReduceAnyFloatModule_basic",
