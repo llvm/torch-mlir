@@ -1704,7 +1704,8 @@ class GraphNodeImporter:
     def _create_bind_symbolic_shape_ops(self, loc: Location, node: torch_fx.Node):
         node_val = node.meta.get("val")
         if (node_val is not None) and isinstance(node_val, TorchFakeTensor):
-            # Only create bind ops if the shapes contain symbolic sizes
+            # Only create bind ops if the shapes contain symbolic sizes.
+            # Query the bool attribute `_has_symbolic_sizes_strides` on node.meta["val"].
             if node_val._has_symbolic_sizes_strides:
                 # Read node metadata to obtain shape symbols and expressions
                 symbols_set = set()
