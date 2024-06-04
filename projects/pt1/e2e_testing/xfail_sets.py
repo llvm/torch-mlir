@@ -887,6 +887,7 @@ STABLEHLO_PASS_SET = {
     "Aten_CastLongModule_basic",
     "AvgPool1dStaticModule_basic",
     "AvgPool2dStaticModule_basic",
+    "AvgPool3dStaticModule_basic",
     "BaddbmmBroadcast1DInputModule_basic",
     "BaddbmmBroadcast2DInputModule_basic",
     "BaddbmmStaticModule_basic",
