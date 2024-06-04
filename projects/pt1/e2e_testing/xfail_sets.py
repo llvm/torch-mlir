@@ -2340,9 +2340,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseBitwiseAndScalarInt64Module_basic",
     "ElementwiseBitwiseAndScalarInt8Module_basic",
     "ElementwiseBitwiseAndStaticShapeModule_basic",
-    "ElementwiseBitwiseLeftShiftInt32Module_basic",
-    "ElementwiseBitwiseLeftShiftInt64Module_basic",
-    "ElementwiseBitwiseLeftShiftInt8Module_basic",
     "ElementwiseBitwiseNotInt32Module_basic",
     "ElementwiseBitwiseNotInt64Module_basic",
     "ElementwiseBitwiseOrModule_basic",
@@ -2717,10 +2714,14 @@ ONNX_XFAIL_SET = {
     "ReduceMinAlongDimUnsignedInt_basic",
 }
 
-if torch_version_for_comparison() < version.parse("2.3.0.dev"):
+if torch_version_for_comparison() < version.parse("2.4.0.dev"):
     ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
         # ERROR: shape (torch.Size([6, 4, 5])) is not equal to golden shape (torch.Size([120]))
         "RepeatInterleaveSelfIntNoDimModule_basic",
+        # torch.onnx.errors.UnsupportedOperatorError: Exporting the operator 'aten::bitwise_left_shift' to ONNX opset version 17 is not supported.
+        "ElementwiseBitwiseLeftShiftInt32Module_basic",
+        "ElementwiseBitwiseLeftShiftInt64Module_basic",
+        "ElementwiseBitwiseLeftShiftInt8Module_basic",
     }
 
 

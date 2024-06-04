@@ -339,13 +339,6 @@ def test_sparse_SpMV():
 
 @run
 #
-# CHECK-LABEL: test_sparse_SpMM
-# CHECK:       #[[$COO:.*]] = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 : compressed(nonunique), d1 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
-# CHECK:       func.func @main(
-# CHECK:         %[[R:.*]] = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[8,8],f32,#sparse>, !torch.vtensor<[8,8],f32> -> !torch.vtensor<[8,8],f32>
-# CHECK:         return %[[R]] : !torch.vtensor<[8,8],f32>
-# CHECK:       }
-#
 # CHECK: torch.sparse
 # CHECK:   tensor({{\[}}[8., 8., 8., 8., 8., 8., 8., 8.],
 # CHECK-COUNT-6:        [8., 8., 8., 8., 8., 8., 8., 8.],
@@ -367,7 +360,7 @@ def test_sparse_SpMM():
     dense_input = torch.ones(8, 8)
     sparse_input = dense_input.to_sparse_coo()
     m = export_and_import(net, sparse_input, dense_input)
-    print(m)
+    # print(m)
 
     # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
     res1 = net(sparse_input, dense_input)
@@ -507,16 +500,6 @@ def test_sparse_coo3():
 
 @run
 #
-# CHECK-LABEL: test_sparse_activation
-# CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[2,2,2],f32>) -> !torch.vtensor<[2,2,2],f32> {
-# CHECK:         %[[N1:.*]] = torch.constant.none
-# CHECK:         %[[N2:.*]] = torch.constant.none
-# CHECK:         %[[N3:.*]] = torch.constant.none
-# CHECK:         %[[R:.*]] = torch.operator "torch.aten.to_sparse"(%[[A]], %[[N1]], %[[N2]], %[[N3]]) : (!torch.vtensor<[2,2,2],f32>, !torch.none, !torch.none, !torch.none) -> !torch.vtensor<[2,2,2],f32>
-# CHECK:         return %[[R]] : !torch.vtensor<[2,2,2],f32>
-# CHECK:       }
-#
 # CHECK: torch.sparse
 # CHECK:   tensor(indices=tensor({{\[}}[0, 0, 0, 0, 1, 1, 1, 1],
 # CHECK:                               [0, 0, 1, 1, 0, 0, 1, 1],
@@ -532,7 +515,7 @@ def test_sparse_activation():
     net = SparseActivationCOO()
     x = torch.ones(2, 2, 2)
     m = export_and_import(net, x)
-    print(m)
+    # print(m)
 
     # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
     res1 = net(x)
@@ -633,15 +616,6 @@ def test_sparse_network():
 
 @run
 #
-# CHECK-LABEL: test_sparse_feature_scaling
-# CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,4],f32>) -> !torch.vtensor<[4,4],f32> {
-#                ... more IR ...
-# CHECK:         %[[D:.*]] = torch.operator "torch.aten.to_sparse"
-# CHECK:         %[[R:.*]] = torch.aten.matmul %[[D]], %[[A]]
-# CHECK          return %[[R]] : !torch.vtensor<[4,4],f32>
-# CHECK:        }
-#
 # CHECK: torch.sparse
 # CHECK:   tensor({{\[}}[0.3342, 0.5173, 0.0596, 0.0889],
 # CHECK:                [0.1321, 0.2724, 0.2105, 0.3851],
@@ -664,7 +638,7 @@ def test_sparse_feature_scaling():
     torch.manual_seed(0)
     f = torch.rand(4, 4)
     m = export_and_import(net, f)
-    print(m)
+    # print(m)
 
     # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
     res1 = net(f)

@@ -1118,7 +1118,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # ==========================================================================
 
     emit("prims::convert_element_type : (Tensor, int) -> (Tensor)", has_folder=True)
-    emit("prims::var : (Tensor, int[]?, float, int?) -> (Tensor)")
+    emit("prims::var : (Tensor, int[]?, float?, int?) -> (Tensor)")
     emit("prims::sqrt : (Tensor) -> (Tensor)")
     emit("prims::collapse : (Tensor, int, int) -> (Tensor)")
     emit("prims::split_dim : (Tensor, int, int) -> (Tensor)")
