@@ -149,59 +149,18 @@ static Value createFpOpWithDtype(OpBuilder &b, const TypeConverter *converter,
   return convertScalarToDtype(b, loc, newOp, outTy, std::nullopt, outTTy);
 }
 
-template <typename OpTy>
-static Value createCompareTensorOp(OpBuilder &b, Location loc, OpTy op,
-                                   Value lhs, Value rhs) {
-  static_assert(std::is_same<OpTy, AtenLtTensorOp>() ||
-                    std::is_same<OpTy, AtenLeTensorOp>() ||
-                    std::is_same<OpTy, AtenGtTensorOp>() ||
-                    std::is_same<OpTy, AtenGeTensorOp>() ||
-                    std::is_same<OpTy, AtenEqTensorOp>() ||
-                    std::is_same<OpTy, AtenNeTensorOp>(),
-                "unimplemented: op type not supported");
-
-  Type lhsDtype = lhs.getType();
-  Type rhsDtype = rhs.getType();
-
-  // TODO: Type promotion in case of different `lhsDtype` and `rhsDtype` needs
-  // to be handled.
-  if (lhsDtype != rhsDtype) {
-    op.emitError("unimplemented: lhs and rhs dtype must be same");
-    return nullptr;
-  }
-
-  Type elementalType = cast<BaseTensorType>(op.getSelf().getType()).getDtype();
-  if constexpr (std::is_same<OpTy, AtenLtTensorOp>()) {
-    return createLessThan(b, loc, elementalType, lhs, rhs);
-  }
-  if constexpr (std::is_same<OpTy, AtenLeTensorOp>()) {
-    return createLessThanOrEqual(b, loc, elementalType, lhs, rhs);
-  }
-  if constexpr (std::is_same<OpTy, AtenGtTensorOp>()) {
-    return createGreaterThan(b, loc, elementalType, lhs, rhs);
-  }
-  if constexpr (std::is_same<OpTy, AtenGeTensorOp>()) {
-    return createGreaterThanOrEqual(b, loc, elementalType, lhs, rhs);
-  }
-  if constexpr (std::is_same<OpTy, AtenEqTensorOp>()) {
-    return createEqual(b, loc, elementalType, lhs, rhs);
-  }
-  if constexpr (std::is_same<OpTy, AtenNeTensorOp>()) {
-    return createNotEqual(b, loc, elementalType, lhs, rhs);
-  }
-  llvm_unreachable("unimplemented: op type not supported");
-}
+template <class T, class... Ts>
+struct is_any_same : std::disjunction<std::is_same<T, Ts>...> {};
 
 template <typename OpTy>
-static Value createCompareScalarOp(OpBuilder &b, Location loc, OpTy op,
-                                   Value lhs, Value rhs) {
-  static_assert(std::is_same<OpTy, AtenLtScalarOp>() ||
-                    std::is_same<OpTy, AtenLeScalarOp>() ||
-                    std::is_same<OpTy, AtenEqScalarOp>() ||
-                    std::is_same<OpTy, AtenNeScalarOp>() ||
-                    std::is_same<OpTy, AtenGtScalarOp>() ||
-                    std::is_same<OpTy, AtenGeScalarOp>(),
-                "unimplemented: op type not supported");
+static Value createCompareOp(OpBuilder &b, Location loc, OpTy op, Value lhs,
+                             Value rhs) {
+  static_assert(
+      is_any_same<OpTy, AtenLtScalarOp, AtenLeScalarOp, AtenEqScalarOp,
+                  AtenNeScalarOp, AtenGtScalarOp, AtenGeScalarOp,
+                  AtenLtTensorOp, AtenLeTensorOp, AtenGtTensorOp,
+                  AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp>(),
+      "unimplemented: op type not supported");
 
   Type lhsDtype = lhs.getType();
   Type rhsDtype = rhs.getType();
@@ -229,22 +188,22 @@ static Value createCompareScalarOp(OpBuilder &b, Location loc, OpTy op,
     return nullptr;
   }
 
-  if constexpr (std::is_same<OpTy, AtenLtScalarOp>()) {
+  if constexpr (is_any_same<OpTy, AtenLtScalarOp, AtenLtTensorOp>()) {
     return createLessThan(b, loc, elementalType, lhs, rhs);
   }
-  if constexpr (std::is_same<OpTy, AtenLeScalarOp>()) {
+  if constexpr (is_any_same<OpTy, AtenLeScalarOp, AtenLeTensorOp>()) {
     return createLessThanOrEqual(b, loc, elementalType, lhs, rhs);
   }
-  if constexpr (std::is_same<OpTy, AtenGtScalarOp>()) {
+  if constexpr (is_any_same<OpTy, AtenGtScalarOp, AtenGtTensorOp>()) {
     return createGreaterThan(b, loc, elementalType, lhs, rhs);
   }
-  if constexpr (std::is_same<OpTy, AtenGeScalarOp>()) {
+  if constexpr (is_any_same<OpTy, AtenGeScalarOp, AtenGeTensorOp>()) {
     return createGreaterThanOrEqual(b, loc, elementalType, lhs, rhs);
   }
-  if constexpr (std::is_same<OpTy, AtenEqScalarOp>()) {
+  if constexpr (is_any_same<OpTy, AtenEqScalarOp, AtenEqTensorOp>()) {
     return createEqual(b, loc, elementalType, lhs, rhs);
   }
-  if constexpr (std::is_same<OpTy, AtenNeScalarOp>()) {
+  if constexpr (is_any_same<OpTy, AtenNeScalarOp, AtenNeTensorOp>()) {
     return createNotEqual(b, loc, elementalType, lhs, rhs);
   }
   llvm_unreachable("unimplemented: op type not supported");
@@ -892,28 +851,22 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<math::Atan2Op>(loc, lhs, rhs);
   }
   if (auto ltTensor = dyn_cast<AtenLtTensorOp>(op)) {
-    return createCompareTensorOp(b, loc, ltTensor, payloadArgs[0],
-                                 payloadArgs[1]);
+    return createCompareOp(b, loc, ltTensor, payloadArgs[0], payloadArgs[1]);
   }
   if (auto leTensor = dyn_cast<AtenLeTensorOp>(op)) {
-    return createCompareTensorOp(b, loc, leTensor, payloadArgs[0],
-                                 payloadArgs[1]);
+    return createCompareOp(b, loc, leTensor, payloadArgs[0], payloadArgs[1]);
   }
   if (auto gtTensor = dyn_cast<AtenGtTensorOp>(op)) {
-    return createCompareTensorOp(b, loc, gtTensor, payloadArgs[0],
-                                 payloadArgs[1]);
+    return createCompareOp(b, loc, gtTensor, payloadArgs[0], payloadArgs[1]);
   }
   if (auto geTensor = dyn_cast<AtenGeTensorOp>(op)) {
-    return createCompareTensorOp(b, loc, geTensor, payloadArgs[0],
-                                 payloadArgs[1]);
+    return createCompareOp(b, loc, geTensor, payloadArgs[0], payloadArgs[1]);
   }
   if (auto eqTensor = dyn_cast<AtenEqTensorOp>(op)) {
-    return createCompareTensorOp(b, loc, eqTensor, payloadArgs[0],
-                                 payloadArgs[1]);
+    return createCompareOp(b, loc, eqTensor, payloadArgs[0], payloadArgs[1]);
   }
   if (auto neTensor = dyn_cast<AtenNeTensorOp>(op)) {
-    return createCompareTensorOp(b, loc, neTensor, payloadArgs[0],
-                                 payloadArgs[1]);
+    return createCompareOp(b, loc, neTensor, payloadArgs[0], payloadArgs[1]);
   }
   if (auto div = dyn_cast<AtenDivTensorOp>(op)) {
     AtenDivTensorOp::Adaptor adaptor(operands);
@@ -996,27 +949,27 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto gtScalar = dyn_cast<AtenGtScalarOp>(op)) {
-    return createCompareScalarOp(b, loc, gtScalar, payloadArgs[0], operands[1]);
+    return createCompareOp(b, loc, gtScalar, payloadArgs[0], operands[1]);
   }
 
   if (auto geScalar = dyn_cast<AtenGeScalarOp>(op)) {
-    return createCompareScalarOp(b, loc, geScalar, payloadArgs[0], operands[1]);
+    return createCompareOp(b, loc, geScalar, payloadArgs[0], operands[1]);
   }
 
   if (auto eqScalar = dyn_cast<AtenEqScalarOp>(op)) {
-    return createCompareScalarOp(b, loc, eqScalar, payloadArgs[0], operands[1]);
+    return createCompareOp(b, loc, eqScalar, payloadArgs[0], operands[1]);
   }
 
   if (auto neScalar = dyn_cast<AtenNeScalarOp>(op)) {
-    return createCompareScalarOp(b, loc, neScalar, payloadArgs[0], operands[1]);
+    return createCompareOp(b, loc, neScalar, payloadArgs[0], operands[1]);
   }
 
   if (auto ltScalar = dyn_cast<AtenLtScalarOp>(op)) {
-    return createCompareScalarOp(b, loc, ltScalar, payloadArgs[0], operands[1]);
+    return createCompareOp(b, loc, ltScalar, payloadArgs[0], operands[1]);
   }
 
   if (auto leScalar = dyn_cast<AtenLeScalarOp>(op)) {
-    return createCompareScalarOp(b, loc, leScalar, payloadArgs[0], operands[1]);
+    return createCompareOp(b, loc, leScalar, payloadArgs[0], operands[1]);
   }
 
   if (auto whereSelf = dyn_cast<AtenWhereSelfOp>(op)) {

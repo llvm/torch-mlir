@@ -27,6 +27,7 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "InterpolateDynamicModule_sizes_nearest",
     "InterpolateStaticModule_scales_bilinear_align_corners",
     "InterpolateDynamicModule_scales_recompute_bilinear",
+    "ElementwiseFloatTensorGtIntTensorModule_basic",
 }
 
 LINALG_CRASHING_SET = {
@@ -2707,6 +2708,7 @@ ONNX_XFAIL_SET = {
     "ElementwiseTanIntModule_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
     "ElementwiseUnaryIntModule_basic",
+    "ElementwiseFloatTensorGtIntTensorModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
     "NativeDropoutTrainModule_basic",
     "NativeDropoutTrainStaticShapeModule_basic",
@@ -3786,6 +3788,7 @@ ONNX_TOSA_XFAIL_SET = {
     "ElementwiseExpm1IntModule_basic",
     "ElementwiseExpm1Module_basic",
     "ElementwiseFlattenBroadcastModule_basic",
+    "ElementwiseFloatTensorGtIntTensorModule_basic",
     "ElementwiseFmodTensor_Float_basic",
     "ElementwiseFmodTensor_Int_Float_basic",
     "ElementwiseFmodTensor_Int_basic",
