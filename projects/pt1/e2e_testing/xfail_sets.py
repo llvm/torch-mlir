@@ -888,6 +888,7 @@ STABLEHLO_PASS_SET = {
     "Aten_CastLongModule_basic",
     "AvgPool1dStaticModule_basic",
     "AvgPool2dStaticModule_basic",
+    "AvgPool2dCountIncludePadFalseStaticModule_basic",
     "AvgPool3dStaticModule_basic",
     "BaddbmmBroadcast1DInputModule_basic",
     "BaddbmmBroadcast2DInputModule_basic",
@@ -1479,6 +1480,7 @@ STABLEHLO_CRASHING_SET = set()
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "AvgPool2dCountIncludePadFalseStaticModule_basic",
     "TensorSplitSections_GetItemModule_basic",
     "TensorSplitSections_ListUnpackModule_basic",
     "AtenLinear2D_basic",
@@ -1950,6 +1952,7 @@ MAKE_FX_TOSA_PASS_SET = (
     TOSA_PASS_SET
     | {
         ### Tests additionally passing in make_fx_tosa
+        "AvgPool2dCountIncludePadFalseStaticModule_basic",
         "AtenLinear1D_basic",
         "AtenLinearMatVec_basic",
         "AtenLinearVecMatBias_basic",
