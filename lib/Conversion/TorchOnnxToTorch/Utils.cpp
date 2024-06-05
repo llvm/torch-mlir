@@ -16,7 +16,7 @@ using namespace mlir::torch::onnx_c;
 
 Value mlir::torch::onnx_c::createConstantIntList(
     OpBinder binder, ConversionPatternRewriter &rewriter,
-    SmallVector<int64_t> cstInput) {
+    ArrayRef<int64_t> cstInput) {
   SmallVector<Value> cstValue;
   for (int64_t i : cstInput) {
     cstValue.push_back(rewriter.create<Torch::ConstantIntOp>(
