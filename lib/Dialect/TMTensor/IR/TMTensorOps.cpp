@@ -928,15 +928,15 @@ LogicalResult TopkOp::verify() {
     return op->emitOpError("dimension exceeds rank");
   }
   // Ensure input/output element types match
-  auto inputValuesType = values().getType().cast<ShapedType>();
-  auto outputValuesType = outputValues().getType().cast<ShapedType>();
+  auto inputValuesType = cast<ShapedType>(values().getType());
+  auto outputValuesType = cast<ShapedType>(outputValues().getType());
   if (inputValuesType.getElementType() != outputValuesType.getElementType()) {
     return op->emitOpError("expected input/output value types to be identical");
   }
   // Indices must be int if provided
-  auto outputIndicesType = outputIndices().getType().cast<ShapedType>();
+  auto outputIndicesType = cast<ShapedType>(outputIndices().getType());
   if (auto inputIndices = indices()) {
-    auto inputIndicesType = inputIndices->getType().cast<ShapedType>();
+    auto inputIndicesType = cast<ShapedType>(inputIndices->getType());
     if (!inputIndicesType.getElementType().isInteger(32) ||
         !outputIndicesType.getElementType().isInteger(32)) {
       return op->emitOpError("expected input/output indices types to be int32");
@@ -948,14 +948,14 @@ LogicalResult TopkOp::verify() {
     return op->emitOpError("expected input/output to have the same rank");
   }
   if (auto inputIndices = indices()) {
-    auto inputIndicesType = inputIndices->getType().cast<ShapedType>();
+    auto inputIndicesType = cast<ShapedType>(inputIndices->getType());
     if (inputIndicesType.getRank() != outputIndicesType.getRank()) {
       return op->emitOpError("expected input/output to have the same rank");
     }
   }
   // Input indicies and values must have the same shape.
   if (auto inputIndices = indices()) {
-    auto inputIndicesType = inputIndices->getType().cast<ShapedType>();
+    auto inputIndicesType = cast<ShapedType>(inputIndices->getType());
     if (failed(verifyCompatibleShape(inputValuesType, inputIndicesType)))
       return op->emitOpError("input indices/values shape must match");
   }

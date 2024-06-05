@@ -261,7 +261,7 @@ static FailureOr<Value> createIntOrFloatCompareOp(PatternRewriter &rewriter,
                                                   bool isEqual) {
 
   Value compareOp;
-  if (auto intType = elementType.dyn_cast<mlir::IntegerType>()) {
+  if (auto intType = dyn_cast<mlir::IntegerType>(elementType)) {
     // Case for using arith::CmpIOp.
     arith::CmpIPredicate g =
         isEqual ? arith::CmpIPredicate::sge : arith::CmpIPredicate::sgt;
@@ -276,7 +276,7 @@ static FailureOr<Value> createIntOrFloatCompareOp(PatternRewriter &rewriter,
     return compareOp;
   }
 
-  if (elementType.isa<mlir::FloatType>()) {
+  if (isa<mlir::FloatType>(elementType)) {
     // Case for using arith::CmpFOp.
     arith::CmpFPredicate g =
         isEqual ? arith::CmpFPredicate::OGE : arith::CmpFPredicate::OGT;
@@ -1647,7 +1647,7 @@ public:
     auto typec = this->getTypeConverter();
 
     Value input = adaptor.getSelf();
-    auto inputType = input.getType().cast<RankedTensorType>();
+    auto inputType = cast<RankedTensorType>(input.getType());
     unsigned inputRank = inputType.getRank();
     Type inputElementType = inputType.getElementType();
 
@@ -1687,13 +1687,10 @@ public:
 
     // check if element type is float, int, or unsigned
     bool isUnsigned = false;
-    if (!inputElementType.isa<mlir::FloatType>()) {
-      if (inputElementType.isa<mlir::IntegerType>()) {
-        auto integerTy = op.getSelf()
-                             .getType()
-                             .template cast<BaseTensorType>()
-                             .getDtype()
-                             .template dyn_cast<mlir::IntegerType>();
+    if (!isa<mlir::FloatType>(inputElementType)) {
+      if (isa<mlir::IntegerType>(inputElementType)) {
+        auto integerTy = dyn_cast<mlir::IntegerType>(
+            cast<BaseTensorType>(op.getSelf().getType()).getDtype());
         isUnsigned = integerTy.isUnsigned();
       } else {
         return rewriter.notifyMatchFailure(
@@ -1706,14 +1703,14 @@ public:
     // topk op and linalg generic op for finding max value.
     Value fillValLinalgFindMax;
     Value fillValTopK;
-    if (inputElementType.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(inputElementType)) {
       // max float for topk tensor
       fillValTopK = rewriter.create<arith::ConstantOp>(
           loc,
           rewriter.getFloatAttr(
               inputElementType,
               APFloat::getInf(
-                  inputElementType.cast<mlir::FloatType>().getFloatSemantics(),
+                  cast<mlir::FloatType>(inputElementType).getFloatSemantics(),
                   /*Negative=*/false)));
       // min float for linalg generic op tensor
       fillValLinalgFindMax = rewriter.create<arith::ConstantOp>(
@@ -1721,10 +1718,10 @@ public:
           rewriter.getFloatAttr(
               inputElementType,
               APFloat::getInf(
-                  inputElementType.cast<mlir::FloatType>().getFloatSemantics(),
+                  cast<mlir::FloatType>(inputElementType).getFloatSemantics(),
                   /*Negative=*/true)));
     } else if (!isUnsigned) {
-      auto width = inputElementType.cast<mlir::IntegerType>().getWidth();
+      auto width = cast<mlir::IntegerType>(inputElementType).getWidth();
       // max signed int for topk op tensor
       auto init = APSInt::getSignedMaxValue(width);
       fillValTopK = rewriter.create<arith::ConstantOp>(
@@ -1734,7 +1731,7 @@ public:
       fillValLinalgFindMax = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getIntegerAttr(inputElementType, init));
     } else if (isUnsigned) {
-      auto width = inputElementType.cast<mlir::IntegerType>().getWidth();
+      auto width = cast<mlir::IntegerType>(inputElementType).getWidth();
       // max unsigned int for topk op tensor
       auto init = APInt::getMaxValue(width);
       fillValTopK = rewriter.create<arith::ConstantOp>(
@@ -1876,7 +1873,7 @@ public:
               rewriter.create<linalg::IndexOp>(nestedLoc, dim));
 
           Value resultVal, predicate;
-          if (inputElementType.isa<mlir::FloatType>()) {
+          if (isa<mlir::FloatType>(inputElementType)) {
             resultVal = rewriter.create<arith::MaximumFOp>(nestedLoc, newValue,
                                                            oldValue);
             predicate = rewriter.create<arith::CmpFOp>(
@@ -1903,7 +1900,7 @@ public:
 
     auto findMaxVal = findMaxLinalg.getResult(0);
     auto findMaxIdx = findMaxLinalg.getResult(1);
-    auto findMaxIdxType = findMaxIdx.getType().cast<RankedTensorType>();
+    auto findMaxIdxType = cast<RankedTensorType>(findMaxIdx.getType());
 
     // ======== END: Linalg generic to find max in topk result ========
 
@@ -1966,7 +1963,7 @@ public:
         });
 
     auto extractedIdx = extractedIdxLinalg.getResult(0);
-    auto extractedIdxType = extractedIdx.getType().cast<RankedTensorType>();
+    auto extractedIdxType = cast<RankedTensorType>(extractedIdx.getType());
 
     // ======== END: Linalg generic for index extraction ========
 
@@ -2015,13 +2012,13 @@ public:
 
     // Create output value type ("squeezed" since we assume keepdim=False).
     auto topkValResultType =
-        topkOpVal.front().getType().cast<RankedTensorType>();
+        cast<RankedTensorType>(topkOpVal.front().getType());
     auto squeezedValType = topkValResultType.cloneWith(
         resultShapeInt,
-        findMaxVal.getType().cast<RankedTensorType>().getElementType());
+        cast<RankedTensorType>(findMaxVal.getType()).getElementType());
 
     // Create output idx type ("squeezed" since we assume keepdim=False).
-    auto castedIdxType = castedIdx.getType().cast<RankedTensorType>();
+    auto castedIdxType = cast<RankedTensorType>(castedIdx.getType());
     auto squeezedIdxType = castedIdxType.cloneWith(
         resultShapeInt, findMaxIdxType.getElementType());
 
