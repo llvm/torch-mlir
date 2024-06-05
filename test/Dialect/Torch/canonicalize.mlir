@@ -3026,3 +3026,40 @@ func.func @torch.aten.clone$no_fold(%arg0: !torch.vtensor<[1,2,50,4],f32>) -> (!
   %1 = torch.copy.to_tensor %0 : !torch.tensor
   return %1 : !torch.tensor
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.prims.convert_element_type$fold(
+// CHECK-SAME:                                                     %[[ARG0:.*]]: !torch.vtensor<[64,128],f16>,
+// CHECK-SAME:                                                     %[[ARG1:.*]]: !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,128],f32> {
+// CHECK:           %[[INT32:.*]] = torch.constant.int 6
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[NEGONE:.*]] = torch.constant.int -1
+// CHECK:           %[[EMBD:.*]] = torch.aten.embedding %[[ARG0]], %[[ARG1]], %[[NEGONE]], %[[FALSE]], %[[FALSE]] : !torch.vtensor<[64,128],f16>, !torch.vtensor<[4],si64>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[4,128],f16>
+// CHECK:           %[[DTYPE:.*]] = torch.prims.convert_element_type %[[EMBD]], %[[INT32]] : !torch.vtensor<[4,128],f16>, !torch.int -> !torch.vtensor<[4,128],f32>
+// CHECK:           return %[[DTYPE]] : !torch.vtensor<[4,128],f32>
+// CHECK:         }
+func.func @torch.prims.convert_element_type$fold(%arg0: !torch.vtensor<[64,128],f16>, %arg1: !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,128],f32> {
+  %int6 = torch.constant.int 6
+  %false = torch.constant.bool false
+  %int-1 = torch.constant.int -1
+  %0 = torch.prims.convert_element_type %arg0, %int6 : !torch.vtensor<[64,128],f16>, !torch.int -> !torch.vtensor<[64,128],f32>
+  %1 = torch.aten.embedding %0, %arg1, %int-1, %false, %false : !torch.vtensor<[64,128],f32>, !torch.vtensor<[4],si64>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[4,128],f32>
+  return %1 : !torch.vtensor<[4,128],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.prims.convert_element_type$not_fold(
+// CHECK-SAME:                                                     %[[ARG0:.*]]: !torch.vtensor<[64,128],f32>,
+// CHECK-SAME:                                                     %[[ARG1:.*]]: !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,128],f16> {
+// CHECK:           %{{.*}} = torch.prims.convert_element_type
+// CHECK:           %{{.*}} = torch.aten.embedding
+func.func @torch.prims.convert_element_type$not_fold(%arg0: !torch.vtensor<[64,128],f32>, %arg1: !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,128],f16> {
+  %int5 = torch.constant.int 5
+  %false = torch.constant.bool false
+  %int-1 = torch.constant.int -1
+  %0 = torch.prims.convert_element_type %arg0, %int5 : !torch.vtensor<[64,128],f32>, !torch.int -> !torch.vtensor<[64,128],f16>
+  %1 = torch.aten.embedding %0, %arg1, %int-1, %false, %false : !torch.vtensor<[64,128],f16>, !torch.vtensor<[4],si64>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[4,128],f16>
+  return %1 : !torch.vtensor<[4,128],f16>
+}
