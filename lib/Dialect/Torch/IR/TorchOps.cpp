@@ -4865,7 +4865,7 @@ LogicalResult AtenLinalgCrossOp::verify() {
 
 LogicalResult AtenKthvalueOp::verify() {
 
-  auto selfType = getSelf().getType().cast<BaseTensorType>();
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
 
   if (!selfType.hasDtype() || !selfType.hasSizes())
     return success();

@@ -384,7 +384,7 @@ def TMTensor_TopkOp : TMTensor_Op<"topk",
       return getOutputOperand(1)->get();
     }
     ShapedType getInputType() {
-      return values().getType().cast<ShapedType>();
+      return cast<ShapedType>(values().getType());
     }
     int64_t getInputRank() {
       return getInputType().getRank();
