@@ -1470,6 +1470,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseLogSigmoidModule_basic",
     "ElementwiseHardshrinkStaticModule_basic",
     "ElementwiseSoftshrinkStaticModule_basic",
+    "ScaledDotProductAttentionDifferentModule_basic",
 }
 
 STABLEHLO_CRASHING_SET = set()
@@ -1943,6 +1944,7 @@ TOSA_PASS_SET = {
     "LinspaceOneSizeModule_basic",
     "LinspaceTwoSizeModule_basic",
     "TorchPrimLoopForLikeTensorArgModule_basic",
+    "ScaledDotProductAttentionDifferentModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (
@@ -1975,7 +1977,6 @@ MAKE_FX_TOSA_PASS_SET = (
         "ViewSizeDimLedAndFollowedByCollapsedOnesModule_basic",
         "ViewSizeDimLedByCollapsedOnesModule_basic",
         "ViewSizeFromOtherTensor_basic",
-        "ScaledDotProductAttentionDifferentModule_basic",
     }
 ) - {
     ### Test failing in make_fx_tosa but not in tosa
