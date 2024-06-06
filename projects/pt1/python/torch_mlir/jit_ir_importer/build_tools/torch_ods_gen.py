@@ -911,6 +911,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::linspace : (Scalar, Scalar, int, int?, int?, Device?, bool?) -> (Tensor)"
     )
     emit("aten::linalg_cross : (Tensor, Tensor, int) -> (Tensor)", has_verifier=True)
+    emit("aten::col2im : (Tensor, int[], int[], int[], int[], int[]) -> (Tensor)")
 
     # Functionalization ops
     emit("aten::alias_copy : (Tensor) -> (Tensor)")

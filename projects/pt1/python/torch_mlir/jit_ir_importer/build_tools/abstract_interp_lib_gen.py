@@ -1502,6 +1502,46 @@ def aten〇addcdiv〡shape(self: List[int], tensor1: List[int], tensor2: List[in
     return upstream_shape_functions.broadcast(self, upstream_shape_functions.broadcast(tensor1, tensor2))
 
 @check_shape_function([
+    Invocation(TensorOfShape(1,5,5), [5,5], [1,5], [1,1], [0,0], [1,1]), # basic case
+    Invocation(TensorOfShape(1,4,5), [6,6], [2,2], [1,5], [0,0], [1,1]), # dilation
+    Invocation(TensorOfShape(1,5,15), [5,5], [1,5], [1,1], [0,1], [1,1]), # padding
+    Invocation(TensorOfShape(1,9,4), [5,5], [3,3], [1,1], [0,0], [2,2]), # stride
+    ErrorInvocation(TensorOfShape(1,5,5), [5,5], [1,7], [1,1], [0,0], [1,1]), # mismatch of sliding blocks
+])
+def aten〇col2im〡shape(self: List[int], output_size: List[int], kernel_size: List[int], dilation: List[int], padding: List[int], stride: List[int]) -> List[int]:
+    assert len(output_size) == 2, "output_size is expected to have length 2"
+    assert len(kernel_size) == 2, "kernel_size is expected to have length 2"
+    assert len(dilation) == 2, "dilation is expected to have length 2"
+    assert len(stride) == 2, "stride is expected to have length 2"
+    assert len(padding) == 2, "padding is expected to have length 2"
+
+    assert kernel_size[0] > 0 and kernel_size[1] > 0, "kernel size should be greater than 0"
+    assert dilation[0] > 0 and dilation[1] > 0, "dilation should be greater than 0"
+    assert padding[0] >= 0 and padding[1] >= 0, "padding should be non negative"
+    assert stride[0] > 0 and stride[1] > 0, "stride must be greater than 0"
+
+    ndim = len(self)
+    assert (ndim == 2 and self[0] != 0 and self[1] != 0) or (ndim == 3 and self[1] != 0 and self[2] != 0), "Expected 2D or 3D (batch mode) tensor for input with possibly 0 batch size and non zero dimensions for input"
+
+    batch_dim = 0 if ndim == 3 else -1
+    n_input_plane = self[batch_dim + 1]
+
+    assert n_input_plane % (kernel_size[0] * kernel_size[1]) == 0, "Expected size of input's dimension 1 to be divisible by the product of kernel_size"
+
+    input_length = self[batch_dim + 2]
+    n_blocks_height = (output_size[0] + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) // stride[0] + 1
+    n_blocks_width = (output_size[1] + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) // stride[1] + 1
+
+    assert input_length == n_blocks_height * n_blocks_width, "Expected size of input's dimension 2 to match the calculated number of sliding blocks"
+
+    # compute the shape of the output
+    num_channels = n_input_plane // (kernel_size[0] * kernel_size[1])
+    out: List[int] = [self[0], num_channels] if batch_dim == 0 else [num_channels]
+    out += [elem for elem in output_size]
+
+    return out
+
+@check_shape_function([
     Invocation(TensorOfShape(2, 3), 1), # Basic case.
     Invocation(TensorOfShape(2, 3), 2, dim=0), # Test explicit `dim`.
     ErrorInvocation(TensorOfShape(2, 3), 10), # `k` too big.
@@ -3707,6 +3747,16 @@ def aten〇bincount〡dtype(self_rank_dtype: Tuple[int, int], weights_rank_dtype
     if weights_rank_dtype is None:
         return torch.int64
     return torch.float64
+
+@check_dtype_function([
+    Invocation(TensorOfShape(1, 5, 5, dtype=torch.int64), [5,5], [1,5], [1,1], [0,0], [1,1]), # int type
+    Invocation(TensorOfShape(1, 5, 5, dtype=torch.float64), [5,5], [1,5], [1,1], [0,0], [1,1]), # float type
+    Invocation(TensorOfShape(1, 5, 5, dtype=torch.complex64), [5,5], [1,5], [1,1], [0,0], [1,1]), # complex type
+    Invocation(TensorOfShape(1, 5, 5, dtype=torch.bool), [5,5], [1,5], [1,1], [0,0], [1,1]), # boolean type
+])
+def aten〇col2im〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int], kernel_size: List[int], dilation: List[int], padding: List[int], stride: List[int]) -> int:
+    _, self_dtype = self_rank_dtype
+    return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, tensor_device=torch.device("cpu")))
 def aten〇nonzero〡dtype(self_rank_dtype: Tuple[int, int]) -> int:

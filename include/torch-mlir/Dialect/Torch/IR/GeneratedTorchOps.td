@@ -12398,6 +12398,34 @@ def Torch_AtenLinalgCrossOp : Torch_Op<"aten.linalg_cross", [
   let hasVerifier = 1;
 }
 
+def Torch_AtenCol2imOp : Torch_Op<"aten.col2im", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::col2im : (Tensor, int[], int[], int[], int[], int[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$output_size,
+    AnyTorchListOfTorchIntType:$kernel_size,
+    AnyTorchListOfTorchIntType:$dilation,
+    AnyTorchListOfTorchIntType:$padding,
+    AnyTorchListOfTorchIntType:$stride
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenCol2imOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 6, 1);
+    }
+    void AtenCol2imOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 6, 1);
+    }
+  }];
+}
+
 def Torch_AtenAliasCopyOp : Torch_Op<"aten.alias_copy", [
     AllowsTypeRefinement,
     HasValueSemantics,
