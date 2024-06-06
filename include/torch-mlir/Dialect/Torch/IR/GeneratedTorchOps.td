@@ -16223,11 +16223,11 @@ def Torch_PrimsVarOp : Torch_Op<"prims.var", [
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `prims::var : (Tensor, int[]?, float, int?) -> (Tensor)`";
+  let summary = "Generated op for `prims::var : (Tensor, int[]?, float?, int?) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$inp,
     AnyTorchOptionalListOfTorchIntType:$dims,
-    Torch_FloatType:$correction,
+    AnyTorchOptionalFloatType:$correction,
     AnyTorchOptionalIntType:$output_dtype
   );
   let results = (outs

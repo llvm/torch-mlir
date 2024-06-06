@@ -600,7 +600,7 @@ def aten〇mean〡shape(self: List[int], dtype: Optional[int] = None) -> List[in
 def aten〇var〡shape(self: List[int], unbiased: bool = True) -> List[int]:
     return []
 
-def prims〇var〡shape(inp: List[int], dims: Optional[List[int]], correction: float, output_dtype: Optional[int] = None) -> List[int]:
+def prims〇var〡shape(inp: List[int], dims: Optional[List[int]], correction: Optional[float] = 1, output_dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(inp, dims, False, None)
 
 def aten〇var〇dim〡shape(self: List[int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> List[int]:
@@ -4302,7 +4302,7 @@ def aten〇var〇correction〡dtype(self_rank_dtype: Tuple[int, int], dim: Optio
     return aten〇std〡dtype(self_rank_dtype)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dims=[], correction=0.0))
-def prims〇var〡dtype(inp_rank_dtype: Tuple[int, int], dims: Optional[List[int]], correction: float, output_dtype: Optional[int] = None) -> int:
+def prims〇var〡dtype(inp_rank_dtype: Tuple[int, int], dims: Optional[List[int]], correction: Optional[float] = 1, output_dtype: Optional[int] = None) -> int:
     return aten〇std〡dtype(inp_rank_dtype)
 
 @check_dtype_function(
