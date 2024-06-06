@@ -22,6 +22,10 @@ namespace hlo {
 
 using mlir::ConversionPatternRewriter;
 
+// Create chlo::ConstantLikeOp
+template <typename T>
+Value getConstantLike(OpBuilder &rewriter, Location loc, T constant, Value val);
+
 // Create a 32-bit float constant operator from a float
 Value getStablehloConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
                                        float val);

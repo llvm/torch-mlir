@@ -555,6 +555,9 @@ def aten〇prelu〡shape(self: List[int], weight: List[int]) -> List[int]:
 def aten〇celu〡shape(self: List[int], alpha: float = 1.) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇rrelu〡shape(self: List[int], lower: float = 0.125, upper: float = 0.33333333333333331, training: bool = False, generator: Any = None) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇selu〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -597,7 +600,7 @@ def aten〇mean〡shape(self: List[int], dtype: Optional[int] = None) -> List[in
 def aten〇var〡shape(self: List[int], unbiased: bool = True) -> List[int]:
     return []
 
-def prims〇var〡shape(inp: List[int], dims: Optional[List[int]], correction: float, output_dtype: Optional[int] = None) -> List[int]:
+def prims〇var〡shape(inp: List[int], dims: Optional[List[int]], correction: Optional[float] = 1, output_dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(inp, dims, False, None)
 
 def aten〇var〇dim〡shape(self: List[int], dim: Optional[List[int]], unbiased: bool = True, keepdim: bool = False) -> List[int]:
@@ -676,6 +679,9 @@ def aten〇min〇dim〡shape(self: List[int], dim: int, keepdim: bool = False) -
     return reduced_shape, reduced_shape
 
 def aten〇amax〡shape(self: List[int], dim: List[int] = (), keepdim: bool = False) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
+
+def aten〇amin〡shape(self: List[int], dim: List[int] = (), keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
 def aten〇mean〇dim〡shape(self: List[int], dim: Optional[List[int]], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
@@ -947,6 +953,69 @@ def aten〇upsample_nearest2d_backward〡shape(grad_output: List[int], output_si
 
 # TODO: This should be upstreamed.
 # See https://github.com/pytorch/pytorch/pull/76889 for an example.
+def avg_pool3d(input: List[int], kernel_size: List[int], stride: List[int], padding: List[int], ceil_mode: bool, count_include_pad: bool, divisor_override: Optional[int]):
+    assert (
+        len(kernel_size) == 1 or len(kernel_size) == 3
+    ), "max_pool3d: kernel_size must either be a single int, or a tuple of three ints"
+    (kD, kH, kW) = (kernel_size[0], kernel_size[0], kernel_size[0]) if len(kernel_size) == 1 else (kernel_size[0], kernel_size[1], kernel_size[2])
+
+    assert (
+        len(stride) == 0 or len(stride) == 1 or len(stride) == 3
+    ), "max_pool3d: stride must either be omitted, a single int, or a tuple of three ints"
+
+    if len(stride) == 0:
+        (dD, dH, dW) = (kD, kD, kD)
+    elif len(stride) == 1:
+        (dD, dH, dW) = (stride[0], stride[0], stride[0])
+    else:  # len(stride) == 3
+        (dD, dH, dW) = (stride[0], stride[1], stride[2])
+
+    assert (
+        len(padding) == 1 or len(padding) == 3
+    ), "max_pool3d: padding must either be a single int, or a tuple of thee ints"
+    (padD, padH, padW) = (padding[0], padding[0], padding[0]) if len(padding) == 1 else (padding[0], padding[1], padding[2])
+
+    dilationD = 1
+    dilationH = 1
+    dilationW = 1
+
+    assert len(input) == 4 or len(input) == 5
+    nbatch = input[-5] if len(input) == 5 else 1
+    nInputPlane = input[-4]
+    inputDepth = input[-3]
+    inputHeight = input[-2]
+    inputWidth = input[-1]
+
+    outputDepth = upstream_shape_functions.pooling_output_shape(inputDepth, kD, padD, dD, dilationD, ceil_mode)
+    outputHeight = upstream_shape_functions.pooling_output_shape(inputHeight, kH, padH, dH, dilationH, ceil_mode)
+    outputWidth = upstream_shape_functions.pooling_output_shape(inputWidth, kW, padW, dW, dilationW, ceil_mode)
+
+    _pool3d_shape_check(
+        input,
+        kD,
+        kH,
+        kW,
+        dD,
+        dH,
+        dW,
+        padD,
+        padH,
+        padW,
+        dilationD,
+        dilationH,
+        dilationW,
+        outputDepth,
+        outputHeight,
+        outputWidth,
+    )
+
+    if len(input) == 4:
+        return [nInputPlane, outputDepth, outputHeight, outputWidth]
+    else:
+        return [nbatch, nInputPlane, outputDepth, outputHeight, outputWidth]
+
+# TODO: This should be upstreamed.
+# See https://github.com/pytorch/pytorch/pull/76889 for an example.
 def avg_pool2d(input: List[int], kernel_size: List[int], stride: List[int], padding: List[int], ceil_mode: bool, count_include_pad: bool, divisor_override: Optional[int]):
   assert len(kernel_size) == 1 or len(kernel_size) == 2, "avg_pool2d: kernel_size must either be a single int, or a tuple of two ints"
   kH = kernel_size[0]
@@ -1044,6 +1113,9 @@ def aten〇adaptive_avg_pool1d〡shape(self: List[int], output_size: List[int]) 
 
 def aten〇avg_pool2d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0,), ceil_mode: bool = False, count_include_pad: bool = True, divisor_override: Optional[int] = None) -> List[int]:
     return avg_pool2d(self, kernel_size, stride, padding, ceil_mode, count_include_pad, divisor_override)
+
+def aten〇avg_pool3d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0, 0,), ceil_mode: bool = False, count_include_pad: bool = True, divisor_override: Optional[int] = None) -> List[int]:
+    return avg_pool3d(self, kernel_size, stride, padding, ceil_mode, count_include_pad, divisor_override)
 
 def aten〇adaptive_avg_pool2d〡shape(self: List[int], output_size: List[int]) -> List[int]:
     return upstream_shape_functions.adaptive_avg_pool2d(self, output_size)
@@ -1544,6 +1616,12 @@ def aten〇convolution〡shape(input: List[int], weight: List[int], bias: Option
 
 def aten〇conv1d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1,), padding: List[int] = (0,), dilation: List[int] = (1,), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv_forwards(input, weight, bias, stride, padding, dilation, transposed=False, output_padding=[], groups=1)
+
+def aten〇conv_transpose1d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1,), padding: List[int] = (0,), output_padding: List[int] = (0,), groups: int = 1, dilation: List[int] = (1,)) -> List[int]:
+    return aten〇convolution〡shape(input, weight, bias, stride, padding, dilation, True, output_padding, groups)
+
+def aten〇conv_transpose3d〇input〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1, 1,), padding: List[int] = (0, 0, 0,), output_padding: List[int] = (0, 0, 0,), groups: int = 1, dilation: List[int] = (1, 1, 1,)) -> List[int]:
+    return aten〇convolution〡shape(input, weight, bias, stride, padding, dilation, True, output_padding, groups)
 
 def aten〇_convolution〡shape(input: List[int], weight: List[int], bias: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int, benchmark: bool, deterministic: bool, cudnn_enabled: bool, allow_tf32: bool) -> List[int]:
     return aten〇convolution〡shape(input, weight, bias, stride, padding, dilation, transposed, output_padding, groups)
@@ -2714,6 +2792,12 @@ def aten〇celu〡dtype(self_rank_dtype: Tuple[int, int], alpha: Union[int, floa
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool, *all_integer_dtypes()}))
+def aten〇rrelu〡dtype(self_rank_dtype: Tuple[int, int], lower: Union[int, float, complex] = 0.125, upper: Union[int, float, complex] = 0.33333333333333331, training: bool = False, generator: Any = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert is_float_dtype(self_dtype) or is_complex_dtype(self_dtype)
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}))
 def aten〇relu6〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -3535,6 +3619,10 @@ def aten〇conv3d〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: 
     input_rank, input_dtype = input_rank_dtype
     return input_dtype
 
+def aten〇conv_transpose1d〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, stride: List[int] = (1,), padding: List[int] = (0,), output_padding: List[int] = (0,), groups: int = 1, dilation: List[int] = (1,)) -> int:
+    input_rank, input_dtype = input_rank_dtype
+    return input_dtype
+
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1, 1, 1), (1, 1, 1, 1)]) +
     [Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.bool), TensorOfShape(1, 1, 1, 1, dtype=torch.float32)),
@@ -3543,6 +3631,10 @@ def aten〇conv3d〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: 
      Invocation(TensorOfShape(1, 1, 1, 1, dtype=torch.float32), TensorOfShape(1, 1, 1, 1, dtype=torch.float16))
 ])
 def aten〇conv_transpose2d〇input〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, stride: List[int] = (1, 1,), padding: List[int] = (0, 0,), output_padding: List[int] = (0, 0,), groups: int = 1, dilation: List[int] = (1, 1,)) -> int:
+    input_rank, input_dtype = input_rank_dtype
+    return input_dtype
+
+def aten〇conv_transpose3d〇input〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, stride: List[int] = (1, 1, 1,), padding: List[int] = (0, 0, 0,), output_padding: List[int] = (0, 0, 0,), groups: int = 1, dilation: List[int] = (1, 1, 1,)) -> int:
     input_rank, input_dtype = input_rank_dtype
     return input_dtype
 
@@ -4162,6 +4254,10 @@ def aten〇amax〡dtype(self_rank_dtype: Tuple[int, int], dim: List[int] = (), k
 def aten〇max〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: int, keepdim: bool = False) -> Tuple[int, int]:
     return aten〇max〡dtype(self_rank_dtype), torch.int64
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇amin〡dtype(self_rank_dtype: Tuple[int, int], dim: List[int] = (), keepdim: bool = False) -> int:
+    return aten〇min〡dtype(self_rank_dtype)
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0))
 def aten〇min〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: int, keepdim: bool = False) -> Tuple[int, int]:
     return aten〇min〡dtype(self_rank_dtype), torch.int64
@@ -4206,7 +4302,7 @@ def aten〇var〇correction〡dtype(self_rank_dtype: Tuple[int, int], dim: Optio
     return aten〇std〡dtype(self_rank_dtype)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dims=[], correction=0.0))
-def prims〇var〡dtype(inp_rank_dtype: Tuple[int, int], dims: Optional[List[int]], correction: float, output_dtype: Optional[int] = None) -> int:
+def prims〇var〡dtype(inp_rank_dtype: Tuple[int, int], dims: Optional[List[int]], correction: Optional[float] = 1, output_dtype: Optional[int] = None) -> int:
     return aten〇std〡dtype(inp_rank_dtype)
 
 @check_dtype_function(

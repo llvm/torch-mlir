@@ -9,16 +9,13 @@
 
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -44,7 +41,7 @@ static void signShift(PatternRewriter &rewriter, Location loc, Value &arg,
     return;
   int64_t minSI = -(1 << (numBits - 1));
   Value minSIValue = rewriter.create<arith::ConstantIntOp>(
-      loc, minSI, zp.getType().cast<mlir::IntegerType>().getWidth());
+      loc, minSI, cast<mlir::IntegerType>(zp.getType()).getWidth());
   zp = rewriter.create<arith::AddIOp>(loc, zp, minSIValue);
   minSIValue = rewriter.create<arith::ConstantIntOp>(loc, minSI, numBits);
   arg = torch_to_linalg::createElementwiseLinalgGeneric(
@@ -832,7 +829,7 @@ public:
           op, "lhs and rhs of convolution must either be both int or fp");
     }
 
-    if (inputZp && weightZp && !isa<Torch::NoneType>(bias.getType())) {
+    if (inputZp && !isa<Torch::NoneType>(bias.getType())) {
       auto biasDTy = cast<RankedTensorType>(bias.getType()).getElementType();
       if (!biasDTy.isInteger(32)) {
         return rewriter.notifyMatchFailure(
@@ -1060,10 +1057,10 @@ public:
         loc, getAsOpFoldResult(outDims), accumulatorDType);
 
     Value outputTensor;
-    if (accumulatorDType != resultDTy && !bias.getType().isa<Torch::NoneType>())
+    if (accumulatorDType != resultDTy && !isa<Torch::NoneType>(bias.getType()))
       bias = torch_to_linalg::convertTensorToElementType(rewriter, loc, bias,
                                                          accumulatorDType);
-    if (bias.getType().isa<Torch::NoneType>()) {
+    if (isa<Torch::NoneType>(bias.getType())) {
       Value c0;
       if (isa<mlir::FloatType>(accumulatorDType)) {
         c0 = rewriter.create<arith::ConstantOp>(
@@ -1126,7 +1123,7 @@ public:
     // - grouped 1d-3d
     // - grouped 1d-3d (quantized)
     // - ungrouped 1d-3d
-    if (groupSize == 1 && !inputZp && !weightZp) {
+    if (groupSize == 1 && !inputZp) {
       switch (numSpatialDims) {
       case 1:
         conv = rewriter
@@ -1167,7 +1164,7 @@ public:
       return success();
     }
 
-    if (groupSize == 1 && inputZp && weightZp) {
+    if (groupSize == 1 && inputZp) {
       // The quantized version uses a different channel ordering so we need to
       // permute the tensors in order to use the existing path. We should
       // eventually directly support this channel ordering.
@@ -1227,10 +1224,6 @@ public:
       return success();
     }
 
-    if (inputZp || weightZp)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: quantized grouped convolutions");
-
     if (numSpatialDims != 2)
       return rewriter.notifyMatchFailure(
           op, "unimplemented: only 2D grouped convolution supported");
@@ -1241,7 +1234,7 @@ public:
     auto weightShape = makeShapeTorchCompatible(
         cast<RankedTensorType>(weight.getType()).getShape());
     if (weightShape[0] != kUnknownSize && inShape[1] == groupSize &&
-        weightShape[0] % inShape[1] == 0 && weightShape[1] == 1) {
+        weightShape[0] % inShape[1] == 0 && weightShape[1] == 1 && !inputZp) {
       // Collapse weight shape
       SmallVector<ReassociationIndices, 4> collapsedDims = {{0, 1}, {2}, {3}};
       SmallVector<int64_t> collapsedShape{
@@ -1328,13 +1321,22 @@ public:
     auto expandOutputTensor = expandGroups(outputTensor, 1);
 
     // TODO: add 1D and 3D case
-    conv = rewriter
-               .create<linalg::Conv2DNgchwGfchwOp>(
-                   loc, expandOutputTensor.getResultType(),
-                   ValueRange{paddedInputExpanded, weightExpanded},
-                   expandOutputTensor.getResult(), stridesAttr, dilationAttr)
-               .getResult(0);
-
+    if (!inputZp) {
+      conv = rewriter
+                 .create<linalg::Conv2DNgchwGfchwOp>(
+                     loc, expandOutputTensor.getResultType(),
+                     ValueRange{paddedInputExpanded, weightExpanded},
+                     expandOutputTensor.getResult(), stridesAttr, dilationAttr)
+                 .getResult(0);
+    } else {
+      conv = rewriter
+                 .create<linalg::Conv2DNgchwGfchwQOp>(
+                     loc, expandOutputTensor.getResultType(),
+                     ValueRange{paddedInputExpanded, weightExpanded, inputZp,
+                                weightZp},
+                     expandOutputTensor.getResult(), stridesAttr, dilationAttr)
+                 .getResult(0);
+    }
     conv = rewriter.create<tensor::CollapseShapeOp>(
         loc, outputTensor.getType(), conv,
         expandOutputTensor.getReassociationIndices());

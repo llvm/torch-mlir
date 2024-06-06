@@ -18,23 +18,6 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
 
-static LogicalResult createTorchTransposeOp(ConversionPatternRewriter &rewriter,
-                                            Location loc, Value input,
-                                            int64_t dimA, int64_t dimB,
-                                            Value &transposed) {
-  Type transposedType;
-  if (failed(getTransposedType(cast<Torch::BaseTensorType>(input.getType()),
-                               dimA, dimB, transposedType)))
-    return failure();
-  Value cstDimA = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getI64IntegerAttr(dimA));
-  Value cstDimB = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getI64IntegerAttr(dimB));
-  transposed = rewriter.create<Torch::AtenTransposeIntOp>(
-      loc, transposedType, input, cstDimA, cstDimB);
-  return success();
-}
-
 namespace {
 LogicalResult windowFunctionImpl(OpBinder binder,
                                  ConversionPatternRewriter &rewriter,
@@ -63,7 +46,7 @@ LogicalResult windowFunctionImpl(OpBinder binder,
   // Create an f32 ValueTensorType with thse same size as size, the
   // operand
   auto shapeOfOperand =
-      size.getType().dyn_cast<Torch::ValueTensorType>().getOptionalSizes();
+      dyn_cast<Torch::ValueTensorType>(size.getType()).getOptionalSizes();
   auto f32ResultType = rewriter.getType<Torch::ValueTensorType>(
       shapeOfOperand, rewriter.getF32Type());
   Value periodicSizeFloat = b.create<Torch::AtenToDtypeOp>(
@@ -897,8 +880,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         }
 
         if (DenseResourceElementsAttr attr =
-                binder.op->getAttr("torch.onnx.value")
-                    .dyn_cast_or_null<DenseResourceElementsAttr>()) {
+                dyn_cast_or_null<DenseResourceElementsAttr>(
+                    binder.op->getAttr("torch.onnx.value"))) {
           // Bytes are stored in little endian order. Big endian support will
           // require swizzling.
           if (!Endian::little) {
@@ -909,16 +892,25 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
           auto ty = cast<ShapedType>(attr.getType());
           ElementsAttr denseAttr;
-          auto ptr = attr.getRawHandle().getBlob()->getData();
+          auto ptr = attr.getRawHandle().getBlob();
+          if (!ptr) {
+            denseAttr = DenseResourceElementsAttr::get(
+                ty, "__onnx_constant_not_found_possibly_due_to_being_elided__",
+                AsmResourceBlob());
+            rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
+                binder.op, resultType, denseAttr);
+            return success();
+          }
+          auto data = ptr->getData();
           if (cast<ShapedType>(attr.getType()).getElementType().isInteger(1)) {
             llvm::SmallVector<APInt> newContents;
-            for (auto val : ptr) {
+            for (auto val : data) {
               APInt apval(1, val);
               newContents.push_back(apval);
             }
             denseAttr = DenseElementsAttr::get(ty, newContents);
           } else {
-            denseAttr = DenseElementsAttr::getFromRawBuffer(ty, ptr);
+            denseAttr = DenseElementsAttr::getFromRawBuffer(ty, data);
           }
 
           rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
@@ -926,8 +918,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return success();
         }
 
-        if (ElementsAttr attr = binder.op->getAttr("torch.onnx.value")
-                                    .dyn_cast_or_null<ElementsAttr>()) {
+        if (ElementsAttr attr = dyn_cast_or_null<ElementsAttr>(
+                binder.op->getAttr("torch.onnx.value"))) {
           rewriter.replaceOpWithNewOp<Torch::ValueTensorLiteralOp>(
               binder.op, resultType, attr);
           return success();
@@ -2283,9 +2275,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType))
           return failure();
         Type listElemType =
-            tensors[0]
-                .getType()
-                .cast<Torch::BaseTensorType>()
+            cast<Torch::BaseTensorType>(tensors[0].getType())
                 .getWithSizesAndDtype(/*optionalSizes=*/std::nullopt,
                                       /*optionalDtype=*/nullptr);
         Type listType = Torch::ListType::get(listElemType);

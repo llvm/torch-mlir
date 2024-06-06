@@ -17,12 +17,8 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
-#include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
-#include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include <numeric>
 
@@ -275,7 +271,7 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
   auto getOptionalVal = [&](Value val) -> std::optional<Value> {
-    if (val.getType().isa<Torch::NoneType>()) {
+    if (isa<Torch::NoneType>(val.getType())) {
       return std::nullopt;
     } else {
       return val;
@@ -455,7 +451,7 @@ template <>
 LogicalResult ConvertAtenOp<PrimsSplitDimOp>::matchAndRewrite(
     PrimsSplitDimOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  auto selfType = adaptor.getA().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getA().getType());
   if (!selfType) {
     return op.emitError("only tensor types are currently supported");
   }

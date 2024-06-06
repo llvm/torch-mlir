@@ -61,12 +61,12 @@ struct onnx_list_of_constant_ints_op_binder {
 
   bool match(Operation *op) {
     auto constOp = dyn_cast<Torch::OperatorOp>(op);
-    if (!constOp || !constOp.getName().equals("onnx.Constant"))
+    if (!constOp || !(constOp.getName() == "onnx.Constant"))
       return false;
 
     if (DenseResourceElementsAttr attr =
-            constOp->getAttr("torch.onnx.value")
-                .dyn_cast_or_null<DenseResourceElementsAttr>()) {
+            dyn_cast_or_null<DenseResourceElementsAttr>(
+                constOp->getAttr("torch.onnx.value"))) {
       // Bytes are stored in little endian order. Big endian support will
       // require swizzling.
       if (!Endian::little) {
@@ -95,6 +95,16 @@ m_OnnxListOfConstantInts(SmallVectorImpl<int64_t> &bind_values) {
 }
 
 std::optional<int64_t> onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx);
+
+LogicalResult createTorchTransposeOp(ConversionPatternRewriter &rewriter,
+                                     Location loc, Value input, int64_t dimA,
+                                     int64_t dimB, Value &transposed);
+
+LogicalResult createTorchPermuteOp(OpBinder binder,
+                                   ConversionPatternRewriter &rewriter,
+                                   Location loc, Value input,
+                                   SmallVector<int64_t> permuteDims,
+                                   Value &permuted);
 
 } // namespace mlir::torch::onnx_c
 

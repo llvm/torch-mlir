@@ -8,12 +8,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/TypeSupport.h"
-#include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
@@ -21,11 +18,9 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -1736,6 +1731,10 @@ public:
     auto inputRank = inType.getRank();
     auto outType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op->getResult(0).getType()));
+    if (inputRank <= 1 && inType == outType) {
+      rewriter.replaceOp(op, {adaptor.getSelf()});
+      return success();
+    }
     auto elementType = inType.getElementType();
 
     dim0 = toPositiveDim(dim0, inputRank);
@@ -1801,55 +1800,15 @@ public:
       return rewriter.notifyMatchFailure(op, "all dimensions must be constant");
 
     Value inVector = adaptor.getSelf();
-    auto inType = cast<RankedTensorType>(inVector.getType());
-    int64_t inputRank = inType.getRank();
+    Value result;
+    if (failed(torch_to_linalg::permuteTensor(op, rewriter, op->getLoc(),
+                                              dimensions, inVector, result)))
+      return rewriter.notifyMatchFailure(
+          op, "failed to perform permutation of tensor");
+
     auto outType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op->getResult(0).getType()));
-    Type elementType = inType.getElementType();
-
-    // Check if the dimensions are a valid constants.
-    int64_t numDimensions = dimensions.size();
-    if (inputRank != numDimensions)
-      return rewriter.notifyMatchFailure(
-          op, "size of `dims` must be equal to the rank of the input");
-    for (unsigned i = 0; i < numDimensions; i++) {
-      if (dimensions[i] < 0)
-        dimensions[i] = toPositiveDim(dimensions[i], inputRank);
-      if (!isValidDim(dimensions[i], inputRank))
-        return rewriter.notifyMatchFailure(op, "dimension out of range");
-    }
-
-    Location loc = op.getLoc();
-
-    SmallVector<Value> outputDims;
-    for (unsigned i = 0; i < inputRank; i++)
-      outputDims.push_back(getDimOp(rewriter, loc, inVector, dimensions[i]));
-
-    Value outVector = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(outputDims), elementType);
-    SmallVector<AffineExpr> idExprs;
-    SmallVector<AffineExpr> swapExprs;
-    for (unsigned i = 0; i < inputRank; i++)
-      idExprs.push_back(getAffineDimExpr(i, rewriter.getContext()));
-    for (unsigned i = 0; i < inputRank; i++)
-      swapExprs.push_back(idExprs[dimensions[i]]);
-
-    AffineMap inputMap =
-        AffineMap::get(inputRank, /*symbolCount=*/0, idExprs, op->getContext());
-    AffineMap outputMap = AffineMap::get(inputRank, /*symbolCount=*/0,
-                                         swapExprs, op->getContext());
-    SmallVector<AffineMap> indexingMaps{inputMap, outputMap};
-    SmallVector<utils::IteratorType> iteratorTypes(
-        inputRank, utils::IteratorType::parallel);
-    auto transpose = rewriter
-                         .create<linalg::GenericOp>(
-                             loc, outVector.getType(), inVector, outVector,
-                             indexingMaps, iteratorTypes,
-                             [](OpBuilder &b, Location loc, ValueRange args) {
-                               b.create<linalg::YieldOp>(loc, args[0]);
-                             })
-                         .getResult(0);
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, transpose);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, result);
     return success();
   }
 };
@@ -1869,9 +1828,8 @@ public:
     const TypeConverter *typeConverter = getTypeConverter();
 
     auto input = adaptor.getSelf();
-    RankedTensorType resultType =
-        typeConverter->convertType(op->getResult(0).getType())
-            .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        typeConverter->convertType(op->getResult(0).getType()));
 
     SmallVector<Value> resultShape;
     SmallVector<Value> offsets;
@@ -2108,9 +2066,8 @@ public:
 
     auto input = adaptor.getSelf();
 
-    RankedTensorType resultType =
-        typeConverter->convertType(op->getResult(0).getType())
-            .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        typeConverter->convertType(op->getResult(0).getType()));
 
     SmallVector<Value> resultShape;
     SmallVector<Value> offsets;
@@ -2344,9 +2301,8 @@ public:
           op, "diagonal dimensions cannot be identical");
 
     Type elementType = inputType.getElementType();
-    RankedTensorType outputType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType outputType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Location loc = op.getLoc();
 
     Value dim1Size, dim2Size;
@@ -2582,9 +2538,8 @@ public:
                 })
             .getResult(0);
 
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, resultTensor);
     return success();
@@ -2609,9 +2564,8 @@ public:
       return failure();
     // Conversion is completed specified by information in the sparse tensor
     // type. Thus, we can rewrite all legalizedNames to the same construct.
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     rewriter.replaceOpWithNewOp<sparse_tensor::ConvertOp>(
         op, resultType, adaptor.getOperands()[0]);
     return success();

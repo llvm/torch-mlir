@@ -378,7 +378,7 @@ public:
         QuantizeOperandsPastCommutingOps<AtenConvolutionOp, 5>,
         QuantizeOperandsPastCommutingOps<AtenReluOp, 0>,
         QuantizeOperandsPastCommutingOps<AtenMatmulOp, 2>,
-        QuantizeOperandsPastCommutingOps<AtenMmOp, 2>,
+        QuantizeOperandsPastCommutingOps<AtenMmOp, 4>,
         QuantizeAccumulator<AtenMmOp>, QuantizeAccumulator<AtenMatmulOp>,
         QuantizeResultLikeOperand<AtenReluOp>, QuantizeBias<AtenConvolutionOp>>(
         context);

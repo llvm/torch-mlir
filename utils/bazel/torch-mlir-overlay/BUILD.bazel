@@ -329,7 +329,10 @@ gentbl_cc_library(
     strip_include_prefix = "include",
     tbl_outs = [
         (
-            ["-gen-pass-decls"],
+            [
+                "-gen-pass-decls",
+                "-DTORCH_MLIR_ENABLE_STABLEHLO",
+            ],
             "include/torch-mlir/Dialect/TorchConversion/Transforms/Passes.h.inc",
         ),
     ],
@@ -496,6 +499,9 @@ cc_library(
         "lib/Conversion/TorchToStablehlo/*.cpp",
     ]),
     hdrs = glob(["include/torch-mlir/Conversion/TorchToStablehlo/*.h"]),
+    defines = [
+        "TORCH_MLIR_ENABLE_STABLEHLO",
+    ],
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRConversionPassesIncGen",
@@ -556,6 +562,9 @@ cc_library(
         "lib/Dialect/TorchConversion/Transforms/*.h",
     ]),
     hdrs = glob(["include/torch-mlir/Dialect/TorchConversion/Transforms/*.h"]),
+    defines = [
+        "TORCH_MLIR_ENABLE_STABLEHLO",
+    ],
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRTorchBackendTypeConversion",
@@ -891,6 +900,7 @@ cc_library(
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:DialectUtils",
         "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:TensorInferTypeOpInterfaceImpl",
         "@stablehlo//:linalg_passes",
         "@stablehlo//:stablehlo_passes",
     ],

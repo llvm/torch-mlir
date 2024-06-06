@@ -11,16 +11,10 @@
 
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/BuiltinTypeInterfaces.h"
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Matchers.h"
-#include "mlir/IR/ValueRange.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -298,7 +292,7 @@ createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
     arith::CmpIPredicate predicate = isDescending ? ge : le;
     compareOp = rewriter.create<arith::CmpIOp>(
         loc, predicate, block->getArgument(0), block->getArgument(1));
-  } else if (elementTypes[0].isa<mlir::FloatType>()) {
+  } else if (isa<mlir::FloatType>(elementTypes[0])) {
     // Case for using arith::CmpFOp.
     arith::CmpFPredicate predicate =
         isDescending ? arith::CmpFPredicate::OGE : arith::CmpFPredicate::OLE;
@@ -355,8 +349,8 @@ public:
           b.create<TMTensor::YieldOp>(loc, updatesElement);
         });
 
-    auto resultType = typeConverter->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        typeConverter->convertType(op->getResult(0).getType()));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, scatterOp);
     return success();
   }
@@ -387,7 +381,7 @@ public:
     // Check whether the input is a 1-d tensor of integer type or not.
     RankedTensorType inputType = cast<RankedTensorType>(input.getType());
     if (inputType.getRank() != 1 ||
-        !inputType.getElementType().isa<mlir::IntegerType>())
+        !isa<mlir::IntegerType>(inputType.getElementType()))
       return rewriter.notifyMatchFailure(
           op,
           "Input tensor has to be a one-dimensional tensor of integer type.");
@@ -401,7 +395,7 @@ public:
           "Unimplemented: Integer width not equal to 64 are not supported.");
 
     // TODO: Incorporate the weight argument.
-    if (!weights.getType().isa<mlir::torch::Torch::NoneType>())
+    if (!isa<mlir::torch::Torch::NoneType>(weights.getType()))
       return rewriter.notifyMatchFailure(
           op, "Unimplemented: the weights operand is not incorporated.");
 
@@ -445,8 +439,8 @@ public:
     indices = typeConverter->materializeTargetConversion(
         rewriter, loc, typeConverter->convertType(indices.getType()), indices);
 
-    auto resultType = typeConverter->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        typeConverter->convertType(op->getResult(0).getType()));
     Type resultElemType = resultType.getElementType();
 
     SmallVector<Value, 1> inputSizeDynamic =
@@ -692,8 +686,8 @@ public:
     auto valuesType = cast<ValueTensorType>(values.getType());
     int64_t inputRank = inputType.getSizes().size();
     auto valuesTensorType = cast<BaseTensorType>(op.getValues().getType());
-    auto resultType = typeConverter->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        typeConverter->convertType(op->getResult(0).getType()));
 
     if (!valuesTensorType.hasSizes())
       return rewriter.notifyMatchFailure(
@@ -829,10 +823,10 @@ public:
             Value inputElement) {
           Value yieldValue = valuesElement;
           if (accumulate) {
-            if (inputElement.getType().isa<mlir::IntegerType>()) {
+            if (isa<mlir::IntegerType>(inputElement.getType())) {
               yieldValue =
                   b.create<arith::AddIOp>(loc, inputElement, valuesElement);
-            } else if (inputElement.getType().isa<mlir::FloatType>()) {
+            } else if (isa<mlir::FloatType>(inputElement.getType())) {
               yieldValue =
                   b.create<arith::AddFOp>(loc, inputElement, valuesElement);
             } else {
@@ -1048,10 +1042,10 @@ public:
         [&](OpBuilder &b, Location loc, Value valuesElement,
             Value inputElement) {
           Value yieldValue = valuesElement;
-          if (inputElement.getType().isa<mlir::IntegerType>()) {
+          if (isa<mlir::IntegerType>(inputElement.getType())) {
             yieldValue =
                 b.create<arith::AddIOp>(loc, inputElement, valuesElement);
-          } else if (inputElement.getType().isa<mlir::FloatType>()) {
+          } else if (isa<mlir::FloatType>(inputElement.getType())) {
             yieldValue =
                 b.create<arith::AddFOp>(loc, inputElement, valuesElement);
           } else {
@@ -1210,33 +1204,33 @@ public:
           Value result;
           if (reduceEnum == torch_upstream::ReductionType::SUM ||
               reduceEnum == torch_upstream::ReductionType::MEAN) {
-            if (update.getType().isa<mlir::IntegerType>()) {
+            if (isa<mlir::IntegerType>(update.getType())) {
               result = b.create<arith::AddIOp>(loc, update, current);
-            } else if (update.getType().isa<mlir::FloatType>()) {
+            } else if (isa<mlir::FloatType>(update.getType())) {
               result = b.create<arith::AddFOp>(loc, update, current);
             } else {
               llvm_unreachable("Only integer/float types supported!");
             }
           } else if (reduceEnum == torch_upstream::ReductionType::PROD) {
-            if (update.getType().isa<mlir::IntegerType>()) {
+            if (isa<mlir::IntegerType>(update.getType())) {
               result = b.create<arith::MulIOp>(loc, update, current);
-            } else if (update.getType().isa<mlir::FloatType>()) {
+            } else if (isa<mlir::FloatType>(update.getType())) {
               result = b.create<arith::MulFOp>(loc, update, current);
             } else {
               llvm_unreachable("Only integer/float types supported!");
             }
           } else if (reduceEnum == torch_upstream::ReductionType::MAX) {
-            if (update.getType().isa<mlir::IntegerType>()) {
+            if (isa<mlir::IntegerType>(update.getType())) {
               result = b.create<arith::MaxSIOp>(loc, update, current);
-            } else if (update.getType().isa<mlir::FloatType>()) {
+            } else if (isa<mlir::FloatType>(update.getType())) {
               result = b.create<arith::MaximumFOp>(loc, update, current);
             } else {
               llvm_unreachable("Only integer/float types supported!");
             }
           } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
-            if (update.getType().isa<mlir::IntegerType>()) {
+            if (isa<mlir::IntegerType>(update.getType())) {
               result = b.create<arith::MinSIOp>(loc, update, current);
-            } else if (update.getType().isa<mlir::FloatType>()) {
+            } else if (isa<mlir::FloatType>(update.getType())) {
               result = b.create<arith::MinimumFOp>(loc, update, current);
             } else {
               llvm_unreachable("Only integer/float types supported!");
@@ -1291,9 +1285,8 @@ public:
                   })
               .getResult()[0];
     }
-    auto resultType = getTypeConverter()
-                          ->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, scatterOp);
 
     return success();
@@ -1398,9 +1391,8 @@ public:
 
     Location loc = op.getLoc();
     Value input = adaptor.getSelf();
-    auto resultType = getTypeConverter()
-                          ->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Type elementType = resultType.getElementType();
     Type inputElementType =
         cast<RankedTensorType>(input.getType()).getElementType();
@@ -1420,7 +1412,7 @@ public:
 
     int64_t inputRank = resultType.getRank();
     Value dtype = op.getDtype();
-    if (!dtype.getType().isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(dtype.getType()))
       return rewriter.notifyMatchFailure(
           op, "unsupported: dtype argument not supported");
 
@@ -1450,7 +1442,7 @@ public:
         rewriter, loc, input, output, acc, dim, /*inclusive=*/true,
         [](OpBuilder &b, Location loc, Value input, Value acc) {
           Value sum =
-              (input.getType().isa<mlir::FloatType>()
+              (isa<mlir::FloatType>(input.getType())
                    ? b.create<arith::AddFOp>(loc, input, acc)->getResult(0)
                    : b.create<arith::AddIOp>(loc, input, acc)->getResult(0));
           b.create<TMTensor::YieldOp>(loc, sum);
@@ -1478,7 +1470,7 @@ public:
         cast<ShapedType>(adaptor.getQuery().getType()).getElementType();
 
     // Verify inputs (only support defaults)
-    if (!mask.getType().isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(mask.getType()))
       return rewriter.notifyMatchFailure(op.getLoc(),
                                          "attention masking not supported");
     double dropout;
@@ -1489,7 +1481,7 @@ public:
     if (!matchPattern(isCausal, m_TorchConstantBool(&causal)) || causal)
       return rewriter.notifyMatchFailure(
           op.getLoc(), "causal attention masking not supported");
-    if (!scale.getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(scale.getType())) {
       double scaleFloat;
       if (!matchPattern(scale, m_TorchConstantFloat(&scaleFloat)) ||
           scaleFloat != 1.0)

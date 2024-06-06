@@ -1367,3 +1367,97 @@ class EinsumStaticWithEllipsisSlicingAndBroadcastModule(torch.nn.Module):
 )
 def EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 6, 4, 5), tu.rand(6, 5))
+
+
+class InterpolateModule(torch.nn.Module):
+    def __init__(
+        self,
+        size=None,
+        scale_factor=None,
+        mode="nearest",
+        align_corners=None,
+        recompute_scale_factor=None,
+        antialias=False,
+    ):
+        self.size = size
+        self.scale_factor = scale_factor
+        self.mode = mode
+        self.align_corners = align_corners
+        self.recompute_scale_factor = recompute_scale_factor
+        self.antialias = antialias
+        super().__init__()
+
+    def _forward(self, input):
+        return torch.nn.functional.interpolate(
+            input,
+            size=self.size,
+            scale_factor=self.scale_factor,
+            mode=self.mode,
+            align_corners=self.align_corners,
+            recompute_scale_factor=self.recompute_scale_factor,
+            antialias=self.antialias,
+        )
+
+
+class InterpolateStaticModule(InterpolateModule):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, input):
+        return self._forward(input)
+
+
+class InterpolateDynamicModule(InterpolateModule):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input):
+        return self._forward(input)
+
+
+@register_test_case(
+    module_factory=lambda: InterpolateStaticModule(
+        scale_factor=0.41, mode="bilinear", align_corners=True
+    )
+)
+def InterpolateStaticModule_scales_bilinear_align_corners(module, tu: TestUtils):
+    input = torch.arange(20).to(dtype=torch.float32)
+    input = input.reshape((1, 1, 4, 5))
+    module.forward(input)
+
+
+@register_test_case(
+    module_factory=lambda: InterpolateDynamicModule(size=(2, 7), mode="nearest")
+)
+def InterpolateDynamicModule_sizes_nearest(module, tu: TestUtils):
+    input = torch.arange(20).to(dtype=torch.float32)
+    input = input.reshape((1, 1, 4, 5))
+    module.forward(input)
+
+
+@register_test_case(
+    module_factory=lambda: InterpolateDynamicModule(size=(2, 7), mode="bilinear")
+)
+def InterpolateDynamicModule_sizes_bilinear(module, tu: TestUtils):
+    input = torch.arange(20).to(dtype=torch.float32)
+    input = input.reshape((1, 1, 4, 5))
+    module.forward(input)
+
+
+@register_test_case(
+    module_factory=lambda: InterpolateDynamicModule(
+        scale_factor=(1.9, 2.4), mode="bilinear", recompute_scale_factor=True
+    )
+)
+def InterpolateDynamicModule_scales_recompute_bilinear(module, tu: TestUtils):
+    input = torch.arange(20).to(dtype=torch.float32)
+    input = input.reshape((1, 1, 4, 5))
+    module.forward(input)

@@ -190,8 +190,8 @@ static bool isValidTorchDtype(Type dtype) {
   // Builtin floating point types.
   if (isa<Float16Type, BFloat16Type, Float32Type, Float64Type>(dtype))
     return true;
-  if (dtype.isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
-                Float8E4M3FNUZType, Float8E4M3B11FNUZType>())
+  if (isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
+          Float8E4M3FNUZType, Float8E4M3B11FNUZType>(dtype))
     return true;
 
   if (isa<Torch::StringType>(dtype))
@@ -228,9 +228,9 @@ Type BaseTensorType::getWithSizesAndDtypeFrom(BaseTensorType other) const {
 
 Type BaseTensorType::getWithSizesAndDtype(
     std::optional<ArrayRef<int64_t>> optionalSizes, Type optionalDtype) const {
-  if (isa<NonValueTensorType>())
+  if (mlir::isa<NonValueTensorType>(*this))
     return NonValueTensorType::get(getContext(), optionalSizes, optionalDtype);
-  if (isa<ValueTensorType>())
+  if (mlir::isa<ValueTensorType>(*this))
     return ValueTensorType::get(getContext(), optionalSizes, optionalDtype);
   llvm_unreachable("not a BaseTensorType!");
 }
@@ -248,9 +248,9 @@ Type BaseTensorType::getWithSizesAndDtypeAndSparsity(
 }
 
 ValueTensorType BaseTensorType::getWithValueSemantics() const {
-  if (auto tensor = dyn_cast<NonValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<NonValueTensorType>(*this))
     return tensor.getWithValueSemantics();
-  if (auto tensor = dyn_cast<ValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<ValueTensorType>(*this))
     return tensor;
   llvm_unreachable("not a BaseTensorType!");
 }

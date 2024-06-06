@@ -1446,6 +1446,21 @@ class GraphNodeImporter:
             return
         elif target == torch.ops.aten._unsafe_index_put.default:
             node.target = target = torch.ops.aten._unsafe_index_put.hacked_twin
+        elif target == torch.ops.aten._embedding_bag_forward_only.default:
+            node.target = target = torch.ops.aten.embedding_bag.padding_idx
+            embedding_bag_args = [
+                ("scale_grad_by_freq", False),
+                ("mode", 0),
+                ("sparse", False),
+                ("per_sample_weights", None),
+                ("include_last_offset", False),
+                ("padding_idx", None),
+            ]
+            node_kwargs = dict(node.kwargs)
+            for k, v in embedding_bag_args[len(node.args) - 3 :]:
+                if k not in node_kwargs:
+                    node_kwargs[k] = v
+            node.kwargs = node_kwargs
 
         schema = target._schema
         assert isinstance(schema, FunctionSchema)
@@ -1585,6 +1600,10 @@ class GraphNodeImporter:
         user_value = self.fx_importer._hooks.resolve_literal(self, py_value)
         if user_value is not None:
             assert isinstance(user_value, Value)
+            if orig_value is not None:
+                user_value = self._convert_type(
+                    user_value, torch.Tensor, orig_value.dtype, orig_value.size()
+                )
             return user_value
 
         # Default conversion path.

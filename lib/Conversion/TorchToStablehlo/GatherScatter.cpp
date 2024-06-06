@@ -19,11 +19,9 @@
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -34,6 +32,9 @@ namespace {
 static Value createInitialValueForGatherScatterOp(Operation *op,
                                                   RankedTensorType constType,
                                                   PatternRewriter &rewriter) {
+  if (!constType.hasStaticShape()) {
+    return nullptr;
+  }
   auto elementTy = constType.getElementType();
   if (isa<AtenEmbeddingBagPaddingIdxOp>(op)) {
     if (isa<mlir::FloatType>(elementTy)) {
@@ -158,8 +159,8 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   Value builtinTypeStart = adaptor.getStart();
   Value builtinTypeEnd = adaptor.getEnd();
 
-  if (torchTypeStart.getType().isa<OptionalType>() ||
-      torchTypeEnd.getType().isa<OptionalType>())
+  if (isa<OptionalType>(torchTypeStart.getType()) ||
+      isa<OptionalType>(torchTypeEnd.getType()))
     return rewriter.notifyMatchFailure(op, "unimplemented optional type arg");
 
   int64_t step;
@@ -350,11 +351,11 @@ LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "offsets must be a vector with static shape equal to 1");
 
-  if (!op.getPaddingIdx().getType().isa<Torch::NoneType>())
+  if (!isa<Torch::NoneType>(op.getPaddingIdx().getType()))
     return rewriter.notifyMatchFailure(
         op, "Unimplemented: padding_idx should be none");
 
-  if (!op.getPerSampleWeights().getType().isa<Torch::NoneType>())
+  if (!isa<Torch::NoneType>(op.getPerSampleWeights().getType()))
     return rewriter.notifyMatchFailure(
         op, "Unimplemented: per_sample_weights should be none");
 
@@ -454,25 +455,22 @@ LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
       loc, getTypeConverter()->convertType(op.getType(0)),
       stablehloReduceOp.getResult(0), outShapeTensor);
 
-  RankedTensorType resultType = getTypeConverter()
-                                    ->convertType(op->getResult(1).getType())
-                                    .cast<RankedTensorType>();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(1).getType()));
   Value resultB =
       createInitialValueForGatherScatterOp(op, resultType, rewriter);
   if (!resultB)
     return failure();
 
-  resultType = getTypeConverter()
-                   ->convertType(op->getResult(2).getType())
-                   .cast<RankedTensorType>();
+  resultType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(2).getType()));
   Value resultC =
       createInitialValueForGatherScatterOp(op, resultType, rewriter);
   if (!resultC)
     return failure();
 
-  resultType = getTypeConverter()
-                   ->convertType(op->getResult(3).getType())
-                   .cast<RankedTensorType>();
+  resultType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(3).getType()));
   Value resultD =
       createInitialValueForGatherScatterOp(op, resultType, rewriter);
   if (!resultD)
@@ -613,9 +611,8 @@ LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
 
   auto input = adaptor.getSelf();
 
-  RankedTensorType resultType =
-      typeConverter->convertType(op->getResult(0).getType())
-          .cast<RankedTensorType>();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      typeConverter->convertType(op->getResult(0).getType()));
 
   SmallVector<Value> resultShape;
   SmallVector<Value> offsets;

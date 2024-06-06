@@ -760,6 +760,66 @@ def ConvolutionModule2DTransposeNonUnitOutputPadding_basic(module, tu: TestUtils
     module.forward(tu.rand(1, 2, 4, 4), tu.rand(2, 2, 3, 3))
 
 
+class Conv_Transpose1dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.conv_transpose1d(
+            inputVec,
+            weight,
+            bias=None,
+            stride=[2],
+            padding=[1],
+            dilation=[1],
+            output_padding=[0],
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: Conv_Transpose1dModule())
+def Conv_Transpose1dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2, 6), tu.rand(2, 5, 2))
+
+
+class Conv_Transpose1dStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 2, 6], torch.float32, True),
+            ([2, 5, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.conv_transpose1d(
+            inputVec,
+            weight,
+            bias=None,
+            stride=[2],
+            padding=[1],
+            dilation=[1],
+            output_padding=[0],
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: Conv_Transpose1dStaticModule())
+def Conv_Transpose1dStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2, 6), tu.rand(2, 5, 2))
+
+
 class Conv_Transpose2dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -788,6 +848,96 @@ class Conv_Transpose2dModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: Conv_Transpose2dModule())
 def Conv_Transpose2dModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 2, 5, 6), tu.rand(2, 5, 2, 2))
+
+
+class Conv_Transpose2dStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 2, 5, 6], torch.float32, True),
+            ([2, 5, 2, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.conv_transpose2d(
+            inputVec,
+            weight,
+            bias=None,
+            stride=[2, 2],
+            padding=[1, 1],
+            dilation=[1, 1],
+            output_padding=[0, 0],
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: Conv_Transpose2dStaticModule())
+def Conv_Transpose2dStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2, 5, 6), tu.rand(2, 5, 2, 2))
+
+
+class Conv_Transpose3dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.conv_transpose3d(
+            inputVec,
+            weight,
+            bias=None,
+            stride=[2, 2, 2],
+            padding=[1, 1, 1],
+            dilation=[1, 1, 1],
+            output_padding=[0, 0, 0],
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: Conv_Transpose3dModule())
+def Conv_Transpose3dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2, 5, 6, 7), tu.rand(2, 5, 2, 2, 2))
+
+
+class Conv_Transpose3dStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 2, 5, 6, 7], torch.float32, True),
+            ([2, 5, 2, 2, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.conv_transpose3d(
+            inputVec,
+            weight,
+            bias=None,
+            stride=[2, 2, 2],
+            padding=[1, 1, 1],
+            dilation=[1, 1, 1],
+            output_padding=[0, 0, 0],
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: Conv_Transpose3dStaticModule())
+def Conv_Transpose3dStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2, 5, 6, 7), tu.rand(2, 5, 2, 2, 2))
 
 
 class UpSampleNearest2d(torch.nn.Module):
@@ -1007,7 +1157,8 @@ def ConvTbcModule_basic(module, tu: TestUtils):
 
 
 class Conv2dQInt8Module(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, groups=1):
+        self.groups = groups
         super().__init__()
 
     @export
@@ -1036,7 +1187,7 @@ class Conv2dQInt8Module(torch.nn.Module):
             stride=[1, 1],
             padding=[0, 0],
             dilation=[1, 1],
-            groups=1,
+            groups=self.groups,
         )
 
 
@@ -1048,13 +1199,12 @@ def Conv2dQInt8Module_basic(module, tu: TestUtils):
     module.forward(inputVec, weight, bias)
 
 
-N = 10
-Cin = 5
-Cout = 7
-Hin = 10
-Win = 8
-Hker = 3
-Wker = 2
+@register_test_case(module_factory=lambda: Conv2dQInt8Module(groups=2))
+def Conv2dQInt8Module_grouped(module, tu: TestUtils):
+    inputVec = tu.randint(2, 8, 7, 8, low=-128, high=127).to(torch.int8)
+    weight = tu.randint(6, 4, 3, 2, low=-128, high=127).to(torch.int8)
+    bias = torch.rand(6)
+    module.forward(inputVec, weight, bias)
 
 
 class ConvTranspose2DQInt8Module(torch.nn.Module):
@@ -1094,6 +1244,13 @@ class ConvTranspose2DQInt8Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ConvTranspose2DQInt8Module())
 def ConvTranspose2DQInt8_basic(module, tu: TestUtils):
+    N = 10
+    Cin = 5
+    Cout = 7
+    Hin = 10
+    Win = 8
+    Hker = 3
+    Wker = 2
     module.forward(
         tu.randint(N, Cin, Hin, Win, low=-128, high=127).to(torch.int8),
         tu.randint(Cin, Cout, Hker, Wker, low=-128, high=127).to(torch.int8),

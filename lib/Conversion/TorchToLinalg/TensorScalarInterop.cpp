@@ -9,17 +9,11 @@
 
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
-#include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
@@ -144,17 +138,16 @@ public:
       requires_grad = tensorFloatOp.getRequiresGrad();
     }
     // TODO: Dtype conversion.
-    if (!dtype.getType().isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(dtype.getType()))
       return rewriter.notifyMatchFailure(op, "Unimplemented non-None dtype");
 
     // TODO: Device information.
-    if (!device.getType().isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(device.getType()))
       return rewriter.notifyMatchFailure(
           op, "Unimplemented non-None device information");
 
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Type outElementType = resultType.getElementType();
     Value elemValProm =
         convertScalarToDtype(rewriter, loc, elemVal, outElementType);
@@ -177,9 +170,8 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Type outElementType = resultType.getElementType();
     Value elemVal = adaptor.getA();
     Value elemValProm =

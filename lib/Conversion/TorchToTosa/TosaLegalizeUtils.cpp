@@ -10,7 +10,6 @@
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"       // from @llvm-project
 #include "mlir/Dialect/Tosa/Utils/QuantUtils.h" // from @llvm-project
-#include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 
 namespace mlir {
 namespace tosa {

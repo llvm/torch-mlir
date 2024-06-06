@@ -81,7 +81,7 @@ LogicalResult Torch::wrapWithCalculateOpIfLibraryFunctionAvailable(
   if (name.starts_with("valsem."))
     name = name.drop_front(strlen("valsem."));
   if (isa<OperatorOp>(op))
-    name = cast<OperatorOp>(op)->getAttr("name").cast<StringAttr>().getValue();
+    name = cast<StringAttr>(cast<OperatorOp>(op)->getAttr("name")).getValue();
   std::string libFuncName =
       (getLibraryFunctionPrefix(libFuncKind) + Twine(name)).str();
   auto libFunc = library.lookupSymbol<func::FuncOp>(libFuncName);
@@ -191,8 +191,8 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
   // to match the library function signature.
   if (auto unionType = dyn_cast<Torch::UnionType>(desiredType)) {
     if (llvm::all_of(unionType.getContainedTypes(), [](Type containedType) {
-          return containedType
-              .isa<Torch::IntType, Torch::FloatType, Torch::NoneType>();
+          return isa<Torch::IntType, Torch::FloatType, Torch::NoneType>(
+              containedType);
         }))
       return b.create<DerefineOp>(loc, desiredType, operand).getResult();
   }

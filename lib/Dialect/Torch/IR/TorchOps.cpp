@@ -149,14 +149,12 @@ static Value getScalarIntValue(Value input, Location loc,
 
   if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
     if (inputDtype.isInteger(64)) {
-      auto val = valueTensorLiteralOp.getValue()
-                     .cast<DenseIntElementsAttr>()
+      auto val = cast<DenseIntElementsAttr>(valueTensorLiteralOp.getValue())
                      .getSplatValue<int64_t>();
       return rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(val));
     } else {
-      auto val = valueTensorLiteralOp.getValue()
-                     .cast<DenseIntElementsAttr>()
+      auto val = cast<DenseIntElementsAttr>(valueTensorLiteralOp.getValue())
                      .getSplatValue<bool>();
       return rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(val));
@@ -191,8 +189,7 @@ static Value getScalarFloatValue(Value input, Location loc,
     return nullptr;
 
   if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
-    auto val = valueTensorLiteralOp.getValue()
-                   .cast<DenseFPElementsAttr>()
+    auto val = cast<DenseFPElementsAttr>(valueTensorLiteralOp.getValue())
                    .getSplatValue<FloatAttr>()
                    .getValueAsDouble();
     return rewriter.create<Torch::ConstantFloatOp>(
@@ -1946,7 +1943,7 @@ OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
 OpFoldResult AtenTruncOp::fold(FoldAdaptor adaptor) {
   auto resultType = dyn_cast<ValueTensorType>(getType());
   if (resultType && resultType.hasDtype() &&
-      resultType.getDtype().isa<mlir::IntegerType>()) {
+      isa<mlir::IntegerType>(resultType.getDtype())) {
     return getSelf();
   }
   return {};
@@ -2136,7 +2133,7 @@ traceKnownSizeTensorType(Value value, std::optional<int64_t> dim) {
   // Limit the loop count to 6 to avoid indefinite compilation times from
   // unbounded IR traversals.
   for (auto idx = 0; idx < 6; ++idx) {
-    if (!value || !value.getType().isa<BaseTensorType>())
+    if (!value || !isa<BaseTensorType>(value.getType()))
       return failure();
 
     auto tensorType = cast<BaseTensorType>(value.getType());
@@ -2417,7 +2414,7 @@ OpFoldResult AtenNeStrOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult Aten__Contains__StrListOp::fold(FoldAdaptor adaptor) {
-  StringAttr item = dyn_cast<StringAttr>(adaptor.getItem());
+  StringAttr item = dyn_cast_or_null<StringAttr>(adaptor.getItem());
   if (!item)
     return nullptr;
 
@@ -2518,7 +2515,7 @@ OpFoldResult AtenAnyBoolOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult AtenFloatScalarOp::fold(FoldAdaptor adaptor) {
   // Constant fold int -> float conversion.
-  if (auto integerAttr = adaptor.getA().dyn_cast_or_null<IntegerAttr>()) {
+  if (auto integerAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getA())) {
     return FloatAttr::get(
         mlir::Float64Type::get(getContext()),
         static_cast<double>(integerAttr.getValue().getSExtValue()));
@@ -2535,7 +2532,7 @@ OpFoldResult AtenFloatScalarOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult AtenIntFloatOp::fold(FoldAdaptor adaptor) {
   // Constant fold float -> int conversion.
-  if (auto floatAttr = adaptor.getA().dyn_cast_or_null<FloatAttr>()) {
+  if (auto floatAttr = dyn_cast_or_null<FloatAttr>(adaptor.getA())) {
     return IntegerAttr::get(
         mlir::IntegerType::get(getContext(), 64),
         static_cast<int64_t>(floatAttr.getValue().convertToDouble()));
@@ -2549,7 +2546,7 @@ OpFoldResult AtenIntFloatOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult AtenIntScalarOp::fold(FoldAdaptor adaptor) {
   // Constant fold float -> int conversion.
-  if (auto floatAttr = adaptor.getA().dyn_cast_or_null<FloatAttr>()) {
+  if (auto floatAttr = dyn_cast_or_null<FloatAttr>(adaptor.getA())) {
     return IntegerAttr::get(
         mlir::IntegerType::get(getContext(), 64),
         static_cast<long>(floatAttr.getValue().convertToDouble()));
@@ -2695,9 +2692,8 @@ LogicalResult NonValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
-  auto attr = properties.as<Properties *>()
-                  ->getValue()
-                  .dyn_cast_or_null<ElementsAttr>();
+  auto attr =
+      dyn_cast_or_null<ElementsAttr>(properties.as<Properties *>()->getValue());
   if (!attr)
     return failure();
   RankedTensorType tensorType = cast<RankedTensorType>(attr.getType());
@@ -2723,10 +2719,10 @@ static bool areSizesAndDtypesCompatible(BaseTensorType a, BaseTensorType b) {
 
 bool NonValueTensorLiteralOp::isCompatibleReturnTypes(TypeRange inferred,
                                                       TypeRange actual) {
-  if (!actual[0].isa<BaseTensorType>())
+  if (!isa<BaseTensorType>(actual[0]))
     return false;
-  return areSizesAndDtypesCompatible(inferred[0].cast<BaseTensorType>(),
-                                     actual[0].cast<BaseTensorType>());
+  return areSizesAndDtypesCompatible(cast<BaseTensorType>(inferred[0]),
+                                     cast<BaseTensorType>(actual[0]));
 }
 
 //===----------------------------------------------------------------------===//
@@ -2737,9 +2733,8 @@ LogicalResult ValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
-  auto attr = properties.as<Properties *>()
-                  ->getValue()
-                  .dyn_cast_or_null<ElementsAttr>();
+  auto attr =
+      dyn_cast_or_null<ElementsAttr>(properties.as<Properties *>()->getValue());
   if (!attr)
     return failure();
   RankedTensorType tensorType = cast<RankedTensorType>(attr.getType());
@@ -2760,8 +2755,8 @@ OpFoldResult ValueTensorLiteralOp::fold(FoldAdaptor adaptor) {
 
 bool TensorStaticInfoCastOp::areCastCompatible(mlir::TypeRange inputs,
                                                mlir::TypeRange outputs) {
-  return areSizesAndDtypesCompatible(inputs[0].cast<BaseTensorType>(),
-                                     outputs[0].cast<BaseTensorType>());
+  return areSizesAndDtypesCompatible(cast<BaseTensorType>(inputs[0]),
+                                     cast<BaseTensorType>(outputs[0]));
 }
 
 void TensorStaticInfoCastOp::getCanonicalizationPatterns(
@@ -3051,6 +3046,19 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSplitSizesOp
+//===----------------------------------------------------------------------===//
+
+void AtenSplitSizesOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                   MLIRContext *context) {
+  patterns.add(+[](AtenSplitSizesOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenSplitWithSizesOp>(
+        op, op->getResultTypes(), op.getSelf(), op.getSplitSize(), op.getDim());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenIsFloatingPointOp
 //===----------------------------------------------------------------------===//
 
@@ -3059,7 +3067,7 @@ OpFoldResult AtenIsFloatingPointOp::fold(FoldAdaptor adaptor) {
   if (!operandType)
     return nullptr;
   if (operandType.hasDtype()) {
-    bool isFloatType = operandType.getDtype().isa<mlir::FloatType>();
+    bool isFloatType = isa<mlir::FloatType>(operandType.getDtype());
     return IntegerAttr::get(IntegerType::get(getContext(), 1), isFloatType);
   }
   // doesn't has dtype
@@ -3117,12 +3125,12 @@ void AtenSliceTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     int64_t start;
     int64_t end;
     int64_t step;
-    if (op.getStart().getType().isa<Torch::NoneType>()) {
+    if (isa<Torch::NoneType>(op.getStart().getType())) {
       start = 0;
     } else if (!matchPattern(op.getStart(), m_TorchConstantInt(&start))) {
       return failure();
     }
-    if (op.getEnd().getType().isa<Torch::NoneType>()) {
+    if (isa<Torch::NoneType>(op.getEnd().getType())) {
       end = listElements.size();
     } else if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end))) {
       return failure();
@@ -3215,7 +3223,7 @@ void PrimTupleIndexOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     // things.
     Value replacement = tupleConstruct.getElements()[i];
     if (replacement.getType() != op.getType()) {
-      if (op.getType().isa<BaseTensorType>()) {
+      if (isa<BaseTensorType>(op.getType())) {
         replacement = rewriter.create<Torch::TensorStaticInfoCastOp>(
             op.getLoc(), op.getType(), replacement);
       } else {
@@ -3371,8 +3379,8 @@ using BinaryIntOperatorFn = std::function<int64_t(int64_t, int64_t)>;
 static OpFoldResult
 atenBinaryIntOperatorFoldHelper(ArrayRef<Attribute> operands,
                                 BinaryIntOperatorFn f) {
-  auto intLhs = operands[0].dyn_cast_or_null<IntegerAttr>();
-  auto intRhs = operands[1].dyn_cast_or_null<IntegerAttr>();
+  auto intLhs = dyn_cast_or_null<IntegerAttr>(operands[0]);
+  auto intRhs = dyn_cast_or_null<IntegerAttr>(operands[1]);
   if (!intLhs || !intRhs) {
     return nullptr;
   }
@@ -3698,7 +3706,7 @@ OpFoldResult AtenAddOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   }
 
-  if (adaptor.getA().isa<IntegerAttr>() && adaptor.getB().isa<IntegerAttr>()) {
+  if (isa<IntegerAttr>(adaptor.getA()) && isa<IntegerAttr>(adaptor.getB())) {
     return atenBinaryIntOperatorFoldHelper(
         adaptor.getOperands(),
         [](int64_t a, int64_t b) -> int64_t { return a + b; });
@@ -3717,7 +3725,7 @@ OpFoldResult AtenMulOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   }
 
-  if (adaptor.getA().isa<IntegerAttr>() && adaptor.getB().isa<IntegerAttr>()) {
+  if (isa<IntegerAttr>(adaptor.getA()) && isa<IntegerAttr>(adaptor.getB())) {
     return atenBinaryIntOperatorFoldHelper(
         adaptor.getOperands(),
         [](int64_t a, int64_t b) -> int64_t { return a * b; });
@@ -3736,7 +3744,7 @@ OpFoldResult AtenSubOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   }
 
-  if (adaptor.getA().isa<IntegerAttr>() && adaptor.getB().isa<IntegerAttr>()) {
+  if (isa<IntegerAttr>(adaptor.getA()) && isa<IntegerAttr>(adaptor.getB())) {
     return atenBinaryIntOperatorFoldHelper(
         adaptor.getOperands(),
         [](int64_t a, int64_t b) -> int64_t { return a - b; });
@@ -3793,7 +3801,7 @@ OpFoldResult AtenCeilScalarOp::fold(FoldAdaptor adaptor) {
   if (!adaptor.getA()) {
     return nullptr;
   }
-  auto floatValue = adaptor.getA().dyn_cast_or_null<FloatAttr>();
+  auto floatValue = dyn_cast_or_null<FloatAttr>(adaptor.getA());
   if (!floatValue) {
     return nullptr;
   }
@@ -3821,7 +3829,7 @@ OpFoldResult AtenNegFloatOp::fold(FoldAdaptor adaptor) {
   if (!adaptor.getA()) {
     return nullptr;
   }
-  auto value = adaptor.getA().dyn_cast_or_null<FloatAttr>();
+  auto value = dyn_cast_or_null<FloatAttr>(adaptor.getA());
   if (!value) {
     return nullptr;
   }
@@ -4474,8 +4482,8 @@ OpFoldResult PrimMaxIntOp::fold(FoldAdaptor adaptor) {
   if (getA() == getB())
     return getA();
 
-  auto lhs = adaptor.getA().dyn_cast_or_null<IntegerAttr>();
-  auto rhs = adaptor.getB().dyn_cast_or_null<IntegerAttr>();
+  auto lhs = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
+  auto rhs = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
   if (!lhs || !rhs)
     return nullptr;
   // Torch semantics are that !torch.int is 64-bit signed.
@@ -4543,8 +4551,8 @@ OpFoldResult PrimMinIntOp::fold(FoldAdaptor adaptor) {
   if (getA() == getB())
     return getA();
 
-  auto lhs = adaptor.getA().dyn_cast_or_null<IntegerAttr>();
-  auto rhs = adaptor.getB().dyn_cast_or_null<IntegerAttr>();
+  auto lhs = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
+  auto rhs = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
   if (!lhs || !rhs)
     return nullptr;
   // Torch semantics are that !torch.int is 64-bit signed.
@@ -4631,8 +4639,8 @@ LogicalResult AtenNormScalarOp::verify() {
   // Check if dtype is one of those supported by norm operation.
   // ComplexType will match any torch complex types, but each float must be
   // checked individually.
-  if (!inTensorDtype.isa<mlir::ComplexType, mlir::Float16Type,
-                         mlir::Float32Type, mlir::Float64Type>()) {
+  if (!isa<mlir::ComplexType, mlir::Float16Type, mlir::Float32Type,
+           mlir::Float64Type>(inTensorDtype)) {
     return emitOpError(
                "expected a float or complex type for input tensor, but got ")
            << inTensorDtype;

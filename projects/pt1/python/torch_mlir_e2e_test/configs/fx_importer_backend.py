@@ -36,7 +36,9 @@ class FxImporterTestConfig(TestConfig):
         self._backend = backend
         self._output_type = output_type
 
-    def compile(self, program: torch.nn.Module) -> torch.nn.Module:
+    def compile(
+        self, program: torch.nn.Module, verbose: bool = False
+    ) -> torch.nn.Module:
         return program
 
     def run(self, artifact: torch.nn.Module, trace: Trace) -> Trace:

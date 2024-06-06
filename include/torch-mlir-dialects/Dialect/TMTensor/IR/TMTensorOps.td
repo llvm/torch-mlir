@@ -88,7 +88,7 @@ def TMTensor_ScanOp : TMTensor_Op<"scan",
       return getOutputOperand(0)->get();
     }
     ShapedType getOperandType() {
-      return input().getType().cast<ShapedType>();
+      return cast<ShapedType>(input().getType());
     }
     int64_t getOperandRank() {
       return getOperandType().getRank();
@@ -151,10 +151,10 @@ def TMTensor_ScatterOp : TMTensor_Op<"scatter",
   let extraClassDeclaration = extraTMTensorOpClassDeclaration # [{
 
     int64_t getIndexDepth() {
-      return getInputOperand(1)
+      return cast<ShapedType>(getInputOperand(1)
           ->get()
           .getType()
-          .cast<ShapedType>()
+          )
           .getShape()
           .back();
     }
@@ -164,7 +164,7 @@ def TMTensor_ScatterOp : TMTensor_Op<"scatter",
     }
 
     ShapedType getUpdateType() {
-      return updates().getType().cast<ShapedType>();
+      return cast<ShapedType>(updates().getType());
     }
 
     Value indices() {
@@ -172,7 +172,7 @@ def TMTensor_ScatterOp : TMTensor_Op<"scatter",
     }
 
     ShapedType getIndicesType() {
-      return indices().getType().cast<ShapedType>();
+      return cast<ShapedType>(indices().getType());
     }
 
     Value original() {
@@ -180,11 +180,11 @@ def TMTensor_ScatterOp : TMTensor_Op<"scatter",
     }
 
     ShapedType getOriginalType() {
-      return original().getType().cast<ShapedType>();
+      return cast<ShapedType>(original().getType());
     }
 
     int64_t getUpdateSliceRank() {
-      return updates().getType().cast<ShapedType>().getRank() - 1;
+      return cast<ShapedType>(updates().getType()).getRank() - 1;
     }
 
     bool isScalarUpdate() {
@@ -224,7 +224,7 @@ def TMTensor_SortOp : TMTensor_Op<"sort",
       return getOutputs()[index];
     }
     ShapedType getOperandType(int index) {
-      return operand(index).getType().cast<ShapedType>();
+      return cast<ShapedType>(operand(index).getType());
     }
     int64_t getOperandRank() {
       return getOperandType(0).getRank();
@@ -291,16 +291,16 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
       return getOutputOperand(0)->get();
     }
     ShapedType getQueryType() {
-      return getQuery().getType().cast<ShapedType>();
+      return cast<ShapedType>(getQuery().getType());
     }
     ShapedType getKeyType() {
-      return getKey().getType().cast<ShapedType>();
+      return cast<ShapedType>(getKey().getType());
     }
     ShapedType getValueType() {
-      return getValue().getType().cast<ShapedType>();
+      return cast<ShapedType>(getValue().getType());
     }
     ShapedType getOutputType() {
-      return getOutput().getType().cast<ShapedType>();
+      return cast<ShapedType>(getOutput().getType());
     }
     int64_t getQueryRank() {
       return getQueryType().getRank();

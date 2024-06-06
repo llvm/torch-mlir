@@ -12,7 +12,6 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -37,8 +36,8 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
 static LogicalResult checkType(Operation *op, Type type,
                                bool actuallyEmitDiagnostics) {
   // Allow various scalar types that backends are expected to be able to handle.
-  if (type.isa<Torch::IntType, Torch::FloatType, Torch::BoolType,
-               Torch::DeviceType>())
+  if (isa<Torch::IntType, Torch::FloatType, Torch::BoolType, Torch::DeviceType>(
+          type))
     return success();
 
   // Backends are not expected to support dynamic computations on these types,
@@ -429,7 +428,9 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenConv1dOp>();
   target.addIllegalOp<AtenConv2dOp>();
   target.addIllegalOp<AtenConv3dOp>();
+  target.addIllegalOp<AtenConvTranspose1dOp>();
   target.addIllegalOp<AtenConvTranspose2dInputOp>();
+  target.addIllegalOp<AtenConvTranspose3dInputOp>();
   target.addIllegalOp<AtenArangeOp>();
   target.addIllegalOp<AtenArangeStartOp>();
   target.addIllegalOp<AtenLinspaceOp>();
@@ -483,6 +484,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<Aten_UnsafeIndexPutHackedTwinOp>();
   target.addIllegalOp<AtenPadOp>();
   target.addIllegalOp<AtenPreluOp>();
+  target.addIllegalOp<AtenRreluOp>();
   target.addIllegalOp<AtenCeluOp>();
   target.addIllegalOp<AtenToDtypeLayoutOp>();
   target.addIllegalOp<AtenToDeviceOp>();
@@ -507,6 +509,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<Aten_EmbeddingBagOp>();
   target.addIllegalOp<AtenLiftFreshCopyOp>();
   target.addIllegalOp<AtenLerpScalarOp>();
+  target.addIllegalOp<AtenLerpTensorOp>();
   target.addIllegalOp<AtenMseLossOp>();
   target.addIllegalOp<AtenRandintLowOp>();
   target.addIllegalOp<AtenRandintOp>();

@@ -13,6 +13,7 @@ set(LinkedLibs
   MLIRMemRefDialect
   MLIRSCFDialect
   MLIRTensorDialect
+  MLIRTensorInferTypeOpInterfaceImpl
   MLIRTosaDialect
   MLIRSupport
 

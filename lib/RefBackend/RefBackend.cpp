@@ -56,7 +56,7 @@ void mlir::torch::RefBackend::registerRefBackendPasses() { ::registerPasses(); }
 static bool isArgMemRefTypeValid(Type type) {
   if (auto memRefType = dyn_cast<MemRefType>(type)) {
     Type elemTy = memRefType.getElementType();
-    if (elemTy.isa<Float16Type, Float32Type, Float64Type>()) {
+    if (isa<Float16Type, Float32Type, Float64Type>(elemTy)) {
       return true;
     } else if (auto integerTy = dyn_cast<IntegerType>(elemTy)) {
       if (integerTy.isSignlessInteger(64))
@@ -70,7 +70,7 @@ static bool isArgMemRefTypeValid(Type type) {
       if (integerTy.isSignlessInteger(1))
         return true;
     } else if (auto complexTy = dyn_cast<ComplexType>(elemTy)) {
-      return complexTy.getElementType().isa<Float32Type, Float64Type>();
+      return isa<Float32Type, Float64Type>(complexTy.getElementType());
     }
   }
   return false;

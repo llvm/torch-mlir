@@ -9,8 +9,6 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -189,7 +187,7 @@ public:
         auto it = originalReturnTypes.find(i);
         if (it == originalReturnTypes.end())
           continue;
-        auto originalType = it->second.cast<NonValueTensorType>();
+        auto originalType = cast<NonValueTensorType>(it->second);
         rewriter.setInsertionPoint(returnOp);
         Value newReturnValue = copyTensorToType(rewriter, returnOp->getLoc(),
                                                 originalType, operand.get());
@@ -352,7 +350,7 @@ public:
         auto it = originalTypes.find(operand.get());
         if (it == originalTypes.end())
           continue;
-        auto originalType = it->second.cast<BaseTensorType>();
+        auto originalType = cast<BaseTensorType>(it->second);
         rewriter.setInsertionPoint(op);
         Value newReturnValue = copyTensorToType(rewriter, op->getLoc(),
                                                 originalType, operand.get());

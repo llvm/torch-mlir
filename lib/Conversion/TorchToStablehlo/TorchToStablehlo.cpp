@@ -14,15 +14,9 @@
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Dialect/Traits.h"
-#include "mlir/IR/Matchers.h"
-#include "mlir/Transforms/DialectConversion.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
 using namespace mlir;
@@ -57,7 +51,8 @@ public:
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
-    TorchConversion::setupBackendTypeConversion(target, typeConverter);
+    TorchConversion::setupBackendTypeConversionForStablehlo(target,
+                                                            typeConverter);
 
     RewritePatternSet patterns(context);
 

@@ -23,22 +23,22 @@ void mlir::torch::TorchConversion::getBackendTypeConversionDependentDialects(
 // Type conversion setup.
 //===----------------------------------------------------------------------===//
 
-static void
-setupValueTensorToBuiltinTensorConversion(ConversionTarget &target,
-                                          TypeConverter &typeConverter) {
+using ValueTensorTypeConversionFn =
+    std::function<std::optional<Type>(Torch::ValueTensorType)>;
+
+static void setupValueTensorToBuiltinTensorConversion(
+    ConversionTarget &target, TypeConverter &typeConverter,
+    const ValueTensorTypeConversionFn &conversionFn) {
   target.addLegalOp<TorchConversion::ToBuiltinTensorOp,
                     TorchConversion::FromBuiltinTensorOp>();
-  typeConverter.addConversion(
-      [](Torch::ValueTensorType type) -> std::optional<Type> {
-        return type.toBuiltinTensor();
-      });
+  typeConverter.addConversion(conversionFn);
   typeConverter.addTargetMaterialization([](OpBuilder &builder, TensorType type,
                                             ValueRange inputs,
                                             Location loc) -> Value {
     assert(inputs.size() == 1);
     if (!isa<Torch::BaseTensorType>(inputs[0].getType()))
       return {};
-    return builder.create<ToBuiltinTensorOp>(loc, inputs[0]);
+    return builder.create<ToBuiltinTensorOp>(loc, type, inputs[0]);
   });
   auto sourceMaterialization = [](OpBuilder &builder,
                                   Torch::ValueTensorType type,
@@ -91,7 +91,7 @@ static void setupTorchIntToI64Conversion(ConversionTarget &target,
           return std::nullopt;
         // Other input type to be converted to i64 are handled by other
         // materializers.
-        if (!inputs[0].getType().isa<Torch::IntType>())
+        if (!isa<Torch::IntType>(inputs[0].getType()))
           return std::nullopt;
         assert(inputs.size() == 1);
         return builder.create<ToI64Op>(loc, inputs[0]).getResult();
@@ -145,7 +145,7 @@ static void setupTorchGeneratorToI64Conversion(ConversionTarget &target,
           return std::nullopt;
         // Other input type to be converted to i64 are handled by other
         // materializers.
-        if (!inputs[0].getType().isa<Torch::GeneratorType>())
+        if (!isa<Torch::GeneratorType>(inputs[0].getType()))
           return std::nullopt;
         assert(inputs.size() == 1);
         return builder.create<GeneratorToI64Op>(loc, inputs[0]).getResult();
@@ -162,9 +162,34 @@ static void setupTorchGeneratorToI64Conversion(ConversionTarget &target,
 
 void mlir::torch::TorchConversion::setupBackendTypeConversion(
     ConversionTarget &target, TypeConverter &typeConverter) {
-  setupValueTensorToBuiltinTensorConversion(target, typeConverter);
+  auto valueTensorTypeConversion =
+      [](Torch::ValueTensorType type) -> std::optional<Type> {
+    return type.toBuiltinTensor();
+  };
+  setupValueTensorToBuiltinTensorConversion(target, typeConverter,
+                                            valueTensorTypeConversion);
   setupTorchBoolToI1Conversion(target, typeConverter);
   setupTorchIntToI64Conversion(target, typeConverter);
   setupTorchFloatToF64Conversion(target, typeConverter);
   setupTorchGeneratorToI64Conversion(target, typeConverter);
 }
+
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+void mlir::torch::TorchConversion::setupBackendTypeConversionForStablehlo(
+    ConversionTarget &target, TypeConverter &typeConverter) {
+  auto valueTensorTypeConversion =
+      [](Torch::ValueTensorType type) -> std::optional<Type> {
+    auto builtinType = type.toBuiltinTensor();
+    if (type.getDtype().isUnsignedInteger()) {
+      return builtinType.clone(type.getDtype());
+    }
+    return builtinType;
+  };
+  setupValueTensorToBuiltinTensorConversion(target, typeConverter,
+                                            valueTensorTypeConversion);
+  setupTorchBoolToI1Conversion(target, typeConverter);
+  setupTorchIntToI64Conversion(target, typeConverter);
+  setupTorchFloatToF64Conversion(target, typeConverter);
+  setupTorchGeneratorToI64Conversion(target, typeConverter);
+}
+#endif

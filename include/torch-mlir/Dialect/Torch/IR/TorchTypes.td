@@ -199,7 +199,7 @@ def Torch_ValueTensorType : AnyTorchTensorType<"ValueTensor", "vtensor"> {
 }
 
 def AnyTorchTensorType : Type<
-    CPred<"$_self.isa<::mlir::torch::Torch::BaseTensorType>()">,
+    CPred<"isa<::mlir::torch::Torch::BaseTensorType>($_self)">,
     "Any Torch tensor type"
 >;
 
@@ -410,11 +410,11 @@ def AnyTorchOptionalDeviceType:
 def AnyTorchOptionalGeneratorType:
       OptionalOf<Torch_GeneratorType, "Optional torch Generator type">;
 
-def IsListTypePred : CPred<"$_self.isa<::mlir::torch::Torch::ListType>()">;
+def IsListTypePred : CPred<"isa<::mlir::torch::Torch::ListType>($_self)">;
 class ListOf<list<Type> allowedTypes, string descr> :
     ContainerType<AnyTypeOf<allowedTypes>,
             IsListTypePred,
-            "$_self.cast<::mlir::torch::Torch::ListType>().getContainedType()",
+            "cast<::mlir::torch::Torch::ListType>($_self).getContainedType()",
             descr, "::mlir::torch::Torch::ListType">;
 
 def AnyTorchListOfTorchBoolType : ListOf<[Torch_BoolType], "Bool list type (bool[])">;

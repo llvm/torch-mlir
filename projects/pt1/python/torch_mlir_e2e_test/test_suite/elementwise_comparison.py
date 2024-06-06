@@ -599,6 +599,51 @@ def ElementwiseLtIntTensorModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 5, high=10), tu.randint(5, high=10))
 
 
+class ElementwiseIntTensorLtFloatTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int64, True),
+            ([-1], torch.float64, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.lt(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseIntTensorLtFloatTensorModule())
+def ElementwiseIntTensorLtFloatTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, high=10), tu.rand(5, high=10).to(torch.float64))
+
+
+class ElementwiseFloatTensorGtIntTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1], torch.int32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.gt(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseIntTensorLtFloatTensorModule())
+def ElementwiseFloatTensorGtIntTensorModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(3, 5, high=10).to(torch.float32),
+        tu.randint(5, high=10, dtype=torch.int32),
+    )
+
+
 # ==============================================================================
 
 

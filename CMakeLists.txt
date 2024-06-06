@@ -54,13 +54,6 @@ cmake_dependent_option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" OFF TORCH_MLI
 
 option(TORCH_MLIR_ENABLE_ONNX_C_IMPORTER "Enables the ONNX C importer" OFF)
 
-# TODO(#3299): migrate to from member x.cast<T>() to mlir::cast<T>(x).
-if(MSVC)
-  add_compile_options(/wd4996)
-else()
-  add_compile_options(-Wno-deprecated-declarations)
-endif()
-
 macro(torch_mlir_enable_werror)
   if(TORCH_MLIR_ENABLE_WERROR_FLAG)
     if(NOT MSVC)

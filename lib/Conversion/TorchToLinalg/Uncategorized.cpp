@@ -9,18 +9,15 @@
 
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -152,59 +149,18 @@ static Value createFpOpWithDtype(OpBuilder &b, const TypeConverter *converter,
   return convertScalarToDtype(b, loc, newOp, outTy, std::nullopt, outTTy);
 }
 
-template <typename OpTy>
-static Value createCompareTensorOp(OpBuilder &b, Location loc, OpTy op,
-                                   Value lhs, Value rhs) {
-  static_assert(std::is_same<OpTy, AtenLtTensorOp>() ||
-                    std::is_same<OpTy, AtenLeTensorOp>() ||
-                    std::is_same<OpTy, AtenGtTensorOp>() ||
-                    std::is_same<OpTy, AtenGeTensorOp>() ||
-                    std::is_same<OpTy, AtenEqTensorOp>() ||
-                    std::is_same<OpTy, AtenNeTensorOp>(),
-                "unimplemented: op type not supported");
-
-  Type lhsDtype = lhs.getType();
-  Type rhsDtype = rhs.getType();
-
-  // TODO: Type promotion in case of different `lhsDtype` and `rhsDtype` needs
-  // to be handled.
-  if (lhsDtype != rhsDtype) {
-    op.emitError("unimplemented: lhs and rhs dtype must be same");
-    return nullptr;
-  }
-
-  Type elementalType = cast<BaseTensorType>(op.getSelf().getType()).getDtype();
-  if constexpr (std::is_same<OpTy, AtenLtTensorOp>()) {
-    return createLessThan(b, loc, elementalType, lhs, rhs);
-  }
-  if constexpr (std::is_same<OpTy, AtenLeTensorOp>()) {
-    return createLessThanOrEqual(b, loc, elementalType, lhs, rhs);
-  }
-  if constexpr (std::is_same<OpTy, AtenGtTensorOp>()) {
-    return createGreaterThan(b, loc, elementalType, lhs, rhs);
-  }
-  if constexpr (std::is_same<OpTy, AtenGeTensorOp>()) {
-    return createGreaterThanOrEqual(b, loc, elementalType, lhs, rhs);
-  }
-  if constexpr (std::is_same<OpTy, AtenEqTensorOp>()) {
-    return createEqual(b, loc, elementalType, lhs, rhs);
-  }
-  if constexpr (std::is_same<OpTy, AtenNeTensorOp>()) {
-    return createNotEqual(b, loc, elementalType, lhs, rhs);
-  }
-  llvm_unreachable("unimplemented: op type not supported");
-}
+template <class T, class... Ts>
+struct is_any_same : std::disjunction<std::is_same<T, Ts>...> {};
 
 template <typename OpTy>
-static Value createCompareScalarOp(OpBuilder &b, Location loc, OpTy op,
-                                   Value lhs, Value rhs) {
-  static_assert(std::is_same<OpTy, AtenLtScalarOp>() ||
-                    std::is_same<OpTy, AtenLeScalarOp>() ||
-                    std::is_same<OpTy, AtenEqScalarOp>() ||
-                    std::is_same<OpTy, AtenNeScalarOp>() ||
-                    std::is_same<OpTy, AtenGtScalarOp>() ||
-                    std::is_same<OpTy, AtenGeScalarOp>(),
-                "unimplemented: op type not supported");
+static Value createCompareOp(OpBuilder &b, Location loc, OpTy op, Value lhs,
+                             Value rhs) {
+  static_assert(
+      is_any_same<OpTy, AtenLtScalarOp, AtenLeScalarOp, AtenEqScalarOp,
+                  AtenNeScalarOp, AtenGtScalarOp, AtenGeScalarOp,
+                  AtenLtTensorOp, AtenLeTensorOp, AtenGtTensorOp,
+                  AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp>(),
+      "unimplemented: op type not supported");
 
   Type lhsDtype = lhs.getType();
   Type rhsDtype = rhs.getType();
@@ -232,22 +188,22 @@ static Value createCompareScalarOp(OpBuilder &b, Location loc, OpTy op,
     return nullptr;
   }
 
-  if constexpr (std::is_same<OpTy, AtenLtScalarOp>()) {
+  if constexpr (is_any_same<OpTy, AtenLtScalarOp, AtenLtTensorOp>()) {
     return createLessThan(b, loc, elementalType, lhs, rhs);
   }
-  if constexpr (std::is_same<OpTy, AtenLeScalarOp>()) {
+  if constexpr (is_any_same<OpTy, AtenLeScalarOp, AtenLeTensorOp>()) {
     return createLessThanOrEqual(b, loc, elementalType, lhs, rhs);
   }
-  if constexpr (std::is_same<OpTy, AtenGtScalarOp>()) {
+  if constexpr (is_any_same<OpTy, AtenGtScalarOp, AtenGtTensorOp>()) {
     return createGreaterThan(b, loc, elementalType, lhs, rhs);
   }
-  if constexpr (std::is_same<OpTy, AtenGeScalarOp>()) {
+  if constexpr (is_any_same<OpTy, AtenGeScalarOp, AtenGeTensorOp>()) {
     return createGreaterThanOrEqual(b, loc, elementalType, lhs, rhs);
   }
-  if constexpr (std::is_same<OpTy, AtenEqScalarOp>()) {
+  if constexpr (is_any_same<OpTy, AtenEqScalarOp, AtenEqTensorOp>()) {
     return createEqual(b, loc, elementalType, lhs, rhs);
   }
-  if constexpr (std::is_same<OpTy, AtenNeScalarOp>()) {
+  if constexpr (is_any_same<OpTy, AtenNeScalarOp, AtenNeTensorOp>()) {
     return createNotEqual(b, loc, elementalType, lhs, rhs);
   }
   llvm_unreachable("unimplemented: op type not supported");
@@ -425,7 +381,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto clone = dyn_cast<AtenCloneOp>(op)) {
     int64_t memoryFormat;
-    if (!clone.getMemoryFormat().getType().isa<Torch::NoneType>() &&
+    if (!isa<Torch::NoneType>(clone.getMemoryFormat().getType()) &&
         (!matchPattern(clone.getMemoryFormat(),
                        m_TorchConstantInt(&memoryFormat)) ||
          (memoryFormat != torch_upstream::MemoryFormat::Contiguous &&
@@ -437,24 +393,22 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return payloadArgs[0];
   }
   if (auto bitwiseAndTensor = dyn_cast<AtenBitwiseAndTensorOp>(op)) {
-    if (bitwiseAndTensor.getType()
-            .cast<ValueTensorType>()
-            .getDtype()
-            .isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(
+            cast<ValueTensorType>(bitwiseAndTensor.getType()).getDtype())) {
       bitwiseAndTensor.emitError(
           "Bitwise_And does not support floating point dtype");
       return nullptr;
     }
-    Type dtype = converter->convertType(bitwiseAndTensor.getType())
-                     .cast<RankedTensorType>()
+    Type dtype = cast<RankedTensorType>(
+                     converter->convertType(bitwiseAndTensor.getType()))
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     return b.create<arith::AndIOp>(loc, lhs, rhs);
   }
   if (auto bitwiseAndScalar = dyn_cast<AtenBitwiseAndScalarOp>(op)) {
-    Type dtype = converter->convertType(bitwiseAndScalar.getType())
-                     .cast<RankedTensorType>()
+    Type dtype = cast<RankedTensorType>(
+                     converter->convertType(bitwiseAndScalar.getType()))
                      .getElementType();
     if (!isa<mlir::IntegerType>(dtype)) {
       bitwiseAndScalar.emitError(
@@ -472,32 +426,28 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::AndIOp>(loc, self, other);
   }
   if (auto bitwiseOrTensor = dyn_cast<AtenBitwiseOrTensorOp>(op)) {
-    if (bitwiseOrTensor.getType()
-            .cast<ValueTensorType>()
-            .getDtype()
-            .isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(
+            cast<ValueTensorType>(bitwiseOrTensor.getType()).getDtype())) {
       bitwiseOrTensor.emitError(
           "Bitwise_Or does not support floating point dtype");
       return nullptr;
     }
-    Type dtype = converter->convertType(bitwiseOrTensor.getType())
-                     .cast<RankedTensorType>()
+    Type dtype = cast<RankedTensorType>(
+                     converter->convertType(bitwiseOrTensor.getType()))
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
     return b.create<arith::OrIOp>(loc, lhs, rhs);
   }
   if (auto bitwiseXorTensor = dyn_cast<AtenBitwiseXorTensorOp>(op)) {
-    if (bitwiseXorTensor.getType()
-            .cast<ValueTensorType>()
-            .getDtype()
-            .isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(
+            cast<ValueTensorType>(bitwiseXorTensor.getType()).getDtype())) {
       bitwiseXorTensor.emitError(
           "Bitwise_Xor does not support floating point dtype");
       return nullptr;
     }
-    Type dtype = converter->convertType(bitwiseXorTensor.getType())
-                     .cast<RankedTensorType>()
+    Type dtype = cast<RankedTensorType>(
+                     converter->convertType(bitwiseXorTensor.getType()))
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
@@ -505,8 +455,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto bitwiseRightShiftTensor =
           dyn_cast<AtenBitwiseRightShiftTensorOp>(op)) {
-    Type dtype = converter->convertType(bitwiseRightShiftTensor.getType())
-                     .cast<RankedTensorType>()
+    Type dtype = cast<RankedTensorType>(
+                     converter->convertType(bitwiseRightShiftTensor.getType()))
                      .getElementType();
     if (!isa<mlir::IntegerType>(dtype)) {
       bitwiseRightShiftTensor.emitError(
@@ -519,8 +469,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto bitwiseLeftShiftTensor =
           dyn_cast<AtenBitwiseLeftShiftTensorOp>(op)) {
-    Type dtype = converter->convertType(bitwiseLeftShiftTensor.getType())
-                     .cast<RankedTensorType>()
+    Type dtype = cast<RankedTensorType>(
+                     converter->convertType(bitwiseLeftShiftTensor.getType()))
                      .getElementType();
     if (!isa<mlir::IntegerType>(dtype)) {
       bitwiseLeftShiftTensor.emitError(
@@ -560,7 +510,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return createEqual(b, loc, floatDtype, self, zero);
   }
   if (isa<AtenAbsOp>(op)) {
-    if (payloadArgs[0].getType().isa<IntegerType>())
+    if (isa<IntegerType>(payloadArgs[0].getType()))
       return b.create<math::AbsIOp>(loc, payloadArgs[0]);
     return b.create<math::AbsFOp>(loc, payloadArgs[0]);
   }
@@ -656,20 +606,16 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::SelectOp>(loc, cmp, arg, zeroPoint);
   }
   if (auto round = dyn_cast<AtenRoundOp>(op)) {
-    if (!round.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(round.getType()).getDtype())) {
       round.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
     return b.create<math::RoundEvenOp>(loc, payloadArgs[0]);
   }
   if (auto prelu = dyn_cast<AtenPreluOp>(op)) {
-    if (!prelu.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(prelu.getType()).getDtype())) {
       prelu.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -688,10 +634,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::AddFOp>(loc, positivePart, scaledNegativePart);
   }
   if (auto gelu = dyn_cast<AtenGeluOp>(op)) {
-    if (!gelu.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(gelu.getType()).getDtype())) {
       gelu.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -735,10 +679,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return nullptr;
   }
   if (auto geluBackward = dyn_cast<AtenGeluBackwardOp>(op)) {
-    if (!geluBackward.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(geluBackward.getType()).getDtype())) {
       geluBackward.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -773,10 +715,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto hardtanhBackward = dyn_cast<AtenHardtanhBackwardOp>(op)) {
     AtenHardtanhBackwardOp::Adaptor adaptor(operands);
-    if (!hardtanhBackward.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(hardtanhBackward.getType()).getDtype())) {
       hardtanhBackward.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -911,28 +851,22 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<math::Atan2Op>(loc, lhs, rhs);
   }
   if (auto ltTensor = dyn_cast<AtenLtTensorOp>(op)) {
-    return createCompareTensorOp(b, loc, ltTensor, payloadArgs[0],
-                                 payloadArgs[1]);
+    return createCompareOp(b, loc, ltTensor, payloadArgs[0], payloadArgs[1]);
   }
   if (auto leTensor = dyn_cast<AtenLeTensorOp>(op)) {
-    return createCompareTensorOp(b, loc, leTensor, payloadArgs[0],
-                                 payloadArgs[1]);
+    return createCompareOp(b, loc, leTensor, payloadArgs[0], payloadArgs[1]);
   }
   if (auto gtTensor = dyn_cast<AtenGtTensorOp>(op)) {
-    return createCompareTensorOp(b, loc, gtTensor, payloadArgs[0],
-                                 payloadArgs[1]);
+    return createCompareOp(b, loc, gtTensor, payloadArgs[0], payloadArgs[1]);
   }
   if (auto geTensor = dyn_cast<AtenGeTensorOp>(op)) {
-    return createCompareTensorOp(b, loc, geTensor, payloadArgs[0],
-                                 payloadArgs[1]);
+    return createCompareOp(b, loc, geTensor, payloadArgs[0], payloadArgs[1]);
   }
   if (auto eqTensor = dyn_cast<AtenEqTensorOp>(op)) {
-    return createCompareTensorOp(b, loc, eqTensor, payloadArgs[0],
-                                 payloadArgs[1]);
+    return createCompareOp(b, loc, eqTensor, payloadArgs[0], payloadArgs[1]);
   }
   if (auto neTensor = dyn_cast<AtenNeTensorOp>(op)) {
-    return createCompareTensorOp(b, loc, neTensor, payloadArgs[0],
-                                 payloadArgs[1]);
+    return createCompareOp(b, loc, neTensor, payloadArgs[0], payloadArgs[1]);
   }
   if (auto div = dyn_cast<AtenDivTensorOp>(op)) {
     AtenDivTensorOp::Adaptor adaptor(operands);
@@ -970,10 +904,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto pow = dyn_cast<AtenPowTensorScalarOp>(op)) {
-    if (!pow.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(pow.getType()).getDtype())) {
       pow.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -1017,27 +949,27 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto gtScalar = dyn_cast<AtenGtScalarOp>(op)) {
-    return createCompareScalarOp(b, loc, gtScalar, payloadArgs[0], operands[1]);
+    return createCompareOp(b, loc, gtScalar, payloadArgs[0], operands[1]);
   }
 
   if (auto geScalar = dyn_cast<AtenGeScalarOp>(op)) {
-    return createCompareScalarOp(b, loc, geScalar, payloadArgs[0], operands[1]);
+    return createCompareOp(b, loc, geScalar, payloadArgs[0], operands[1]);
   }
 
   if (auto eqScalar = dyn_cast<AtenEqScalarOp>(op)) {
-    return createCompareScalarOp(b, loc, eqScalar, payloadArgs[0], operands[1]);
+    return createCompareOp(b, loc, eqScalar, payloadArgs[0], operands[1]);
   }
 
   if (auto neScalar = dyn_cast<AtenNeScalarOp>(op)) {
-    return createCompareScalarOp(b, loc, neScalar, payloadArgs[0], operands[1]);
+    return createCompareOp(b, loc, neScalar, payloadArgs[0], operands[1]);
   }
 
   if (auto ltScalar = dyn_cast<AtenLtScalarOp>(op)) {
-    return createCompareScalarOp(b, loc, ltScalar, payloadArgs[0], operands[1]);
+    return createCompareOp(b, loc, ltScalar, payloadArgs[0], operands[1]);
   }
 
   if (auto leScalar = dyn_cast<AtenLeScalarOp>(op)) {
-    return createCompareScalarOp(b, loc, leScalar, payloadArgs[0], operands[1]);
+    return createCompareOp(b, loc, leScalar, payloadArgs[0], operands[1]);
   }
 
   if (auto whereSelf = dyn_cast<AtenWhereSelfOp>(op)) {
@@ -1050,10 +982,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto lerp = dyn_cast<AtenLerpTensorOp>(op)) {
-    if (!lerp.getType()
-             .cast<ValueTensorType>()
-             .getDtype()
-             .isa<mlir::FloatType>()) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(lerp.getType()).getDtype())) {
       lerp.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
@@ -1067,9 +997,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto minimum = dyn_cast<AtenMinimumOp>(op)) {
     Type dtype = cast<BaseTensorType>(minimum.getType()).getDtype();
-    Type elemTy = converter->convertType(minimum.getType())
-                      .cast<RankedTensorType>()
-                      .getElementType();
+    Type elemTy =
+        cast<RankedTensorType>(converter->convertType(minimum.getType()))
+            .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], elemTy);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], elemTy);
     Value pred = createLessThan(b, loc, dtype, lhs, rhs);
@@ -1077,9 +1007,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto maximum = dyn_cast<AtenMaximumOp>(op)) {
     Type dtype = cast<BaseTensorType>(maximum.getType()).getDtype();
-    Type elemTy = converter->convertType(maximum.getType())
-                      .cast<RankedTensorType>()
-                      .getElementType();
+    Type elemTy =
+        cast<RankedTensorType>(converter->convertType(maximum.getType()))
+            .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], elemTy);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], elemTy);
     Value pred = createGreaterThan(b, loc, dtype, lhs, rhs);
@@ -1089,8 +1019,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     AtenClampOp::Adaptor adaptor(operands);
     auto min = adaptor.getMin();
     auto max = adaptor.getMax();
-    if (min.getType().isa<Torch::OptionalType>() ||
-        max.getType().isa<Torch::OptionalType>()) {
+    if (isa<Torch::OptionalType>(min.getType()) ||
+        isa<Torch::OptionalType>(max.getType())) {
       clamp.emitError("unimplemented: runtime optional type");
       return nullptr;
     }
@@ -1128,9 +1058,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     };
 
     auto result = payloadArgs[0];
-    if (!min.getType().isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(min.getType()))
       result = cmpSelect(result, min, /*getMax=*/false);
-    if (!max.getType().isa<Torch::NoneType>())
+    if (!isa<Torch::NoneType>(max.getType()))
       result = cmpSelect(result, max, /*getMax=*/true);
     return result;
   }
@@ -1138,8 +1068,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     AtenClampTensorOp::Adaptor adaptor(operands);
     auto min = adaptor.getMin();
     auto max = adaptor.getMax();
-    if (min.getType().isa<Torch::OptionalType>() ||
-        max.getType().isa<Torch::OptionalType>()) {
+    if (isa<Torch::OptionalType>(min.getType()) ||
+        isa<Torch::OptionalType>(max.getType())) {
       clampTensor.emitError("unimplemented: runtime optional type");
       return nullptr;
     }
@@ -1148,7 +1078,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
             .getElementType();
     bool isMinNone = true;
     auto result = payloadArgs[0];
-    if (!min.getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(min.getType())) {
       isMinNone = false;
       auto minPromoted = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
       Value pred;
@@ -1166,7 +1096,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       }
       result = b.create<arith::SelectOp>(loc, pred, minPromoted, result);
     }
-    if (!max.getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(max.getType())) {
       max = isMinNone ? payloadArgs[1] : payloadArgs[2];
       auto maxPromoted = convertScalarToDtype(b, loc, max, dtype);
       Value pred;
@@ -1220,6 +1150,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto atenToDtype = dyn_cast<AtenToDtypeOp>(op)) {
     Value input = payloadArgs[0];
+    Type inputElementType =
+        cast<BaseTensorType>(atenToDtype.getSelf().getType()).getDtype();
     Type dtype =
         cast<RankedTensorType>(converter->convertType(atenToDtype.getType()))
             .getElementType();
@@ -1238,7 +1170,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     resultElementType = *maybeResultElementType;
     Value result = convertScalarToDtype(b, loc, input, dtype,
-                                        /*srcOriginalDtype=*/std::nullopt,
+                                        /*srcOriginalDtype=*/inputElementType,
                                         /*dstOriginalDtype=*/resultElementType);
     return result;
   }
@@ -1255,9 +1187,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::DivFOp>(loc, self, other);
   }
   if (auto remScalar = dyn_cast<AtenRemainderScalarOp>(op)) {
-    Type newResultType = converter->convertType(remScalar.getType())
-                             .cast<RankedTensorType>()
-                             .getElementType();
+    Type newResultType =
+        cast<RankedTensorType>(converter->convertType(remScalar.getType()))
+            .getElementType();
 
     Value self = convertScalarToDtype(b, loc, payloadArgs[0], newResultType);
     Value other = convertScalarToDtype(b, loc, operands[1], newResultType);
@@ -1275,9 +1207,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return result;
   }
   if (auto remTensor = dyn_cast<AtenRemainderTensorOp>(op)) {
-    Type newResultType = converter->convertType(remTensor.getType())
-                             .cast<RankedTensorType>()
-                             .getElementType();
+    Type newResultType =
+        cast<RankedTensorType>(converter->convertType(remTensor.getType()))
+            .getElementType();
 
     Value self = convertScalarToDtype(b, loc, payloadArgs[0], newResultType);
     Value other = convertScalarToDtype(b, loc, payloadArgs[1], newResultType);
@@ -1295,9 +1227,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return result;
   }
   if (auto fmod = dyn_cast<AtenFmodTensorOp>(op)) {
-    Type newResultType = converter->convertType(fmod.getType())
-                             .cast<RankedTensorType>()
-                             .getElementType();
+    Type newResultType =
+        cast<RankedTensorType>(converter->convertType(fmod.getType()))
+            .getElementType();
 
     Value self = convertScalarToDtype(b, loc, payloadArgs[0], newResultType);
     Value other = convertScalarToDtype(b, loc, payloadArgs[1], newResultType);
@@ -1423,9 +1355,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto bitwiseNot = dyn_cast<AtenBitwiseNotOp>(op)) {
-    Type elementType = converter->convertType(bitwiseNot.getType())
-                           .cast<RankedTensorType>()
-                           .getElementType();
+    Type elementType =
+        cast<RankedTensorType>(converter->convertType(bitwiseNot.getType()))
+            .getElementType();
     if (isa<mlir::FloatType>(elementType)) {
       bitwiseNot.emitError("Bitwise_Not does not support floating point dtype");
       return nullptr;
@@ -1610,10 +1542,9 @@ public:
 
     Location loc = op->getLoc();
     auto tensorOperands = llvm::to_vector<6>(llvm::make_filter_range(
-        operands, [](Value v) { return v.getType().isa<RankedTensorType>(); }));
-    auto resultType = getTypeConverter()
-                          ->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+        operands, [](Value v) { return isa<RankedTensorType>(v.getType()); }));
+    auto resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     bool hadErrorCreatingPayload = false;
     Value generic = torch_to_linalg::createElementwiseLinalgGeneric(
         rewriter, loc, tensorOperands, resultType.getElementType(),
@@ -1660,7 +1591,7 @@ public:
       return rewriter.notifyMatchFailure(op, "dim must be constant");
 
     // TODO: Incorporate the weight argument.
-    if (!weight.getType().isa<mlir::torch::Torch::NoneType>())
+    if (!isa<mlir::torch::Torch::NoneType>(weight.getType()))
       return rewriter.notifyMatchFailure(
           op, "Unimplemented, the weight operand is not incorporated.");
 
@@ -1675,9 +1606,8 @@ public:
       return rewriter.notifyMatchFailure(
           op, "expected input and target to be rank <= 2");
     }
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Type elementType = resultType.getElementType();
 
     Value zeroVal = rewriter.create<arith::ConstantOp>(
@@ -1951,7 +1881,7 @@ public:
     Value input = adaptor.getSelf();
     Value target = adaptor.getTarget();
     Value weight = adaptor.getWeight();
-    bool weightIsNone = op.getWeight().getType().isa<Torch::NoneType>();
+    bool weightIsNone = isa<Torch::NoneType>(op.getWeight().getType());
     Value ignoreIndex = castIntToIndex(rewriter, loc, adaptor.getIgnoreIndex());
     Value totalWeight = adaptor.getTotalWeight();
 
@@ -2072,9 +2002,8 @@ public:
                 })
             ->getResult(0);
 
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, gradInput);
     return success();
   }
@@ -2217,9 +2146,8 @@ public:
   LogicalResult
   matchAndRewrite(TensorStaticInfoCastOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
                                                 adaptor.getOperand());
     return success();
@@ -2246,7 +2174,7 @@ public:
     if (succeeded(checkNotNone(rewriter, op, eps)))
       handleEps = true;
 
-    if (handleEps && !eps.getType().isa<mlir::FloatType>()) {
+    if (handleEps && !isa<mlir::FloatType>(eps.getType())) {
       op.emitError("Logit does not support non-floating point type");
       return failure();
     }
@@ -2320,9 +2248,8 @@ public:
   LogicalResult
   matchAndRewrite(AtenIntReprOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
                                                 adaptor.getSelf());
     return success();
@@ -2365,8 +2292,8 @@ public:
     zeropoint = converter->materializeTargetConversion(
         rewriter, loc, converter->convertType(zeropoint.getType()), zeropoint);
 
-    auto resultType = converter->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        converter->convertType(op->getResult(0).getType()));
 
     llvm::SmallVector<Value> dynSizes;
     for (auto [index, dim] : llvm::enumerate(resultType.getShape())) {
@@ -2556,9 +2483,8 @@ public:
       return res;
     };
 
-    auto resultType = getTypeConverter()
-                          ->convertType(op.getResult().getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getResult().getType()));
     SmallVector<Value> resultSize{};
     if (resultType.isDynamicDim(0))
       resultSize.push_back(rewriter.create<tensor::DimOp>(loc, input, 0));
@@ -2674,9 +2600,11 @@ public:
 
 static Value NearestInterpolate(OpBuilder &b, Location loc,
                                 SmallVector<Value> outputSizes, Value input,
-                                SmallVector<Value> inputSizes) {
+                                SmallVector<Value> inputSizes,
+                                SmallVector<Value> scaleValues,
+                                std::string coordStr) {
 
-  auto inputType = input.getType().cast<RankedTensorType>();
+  auto inputType = cast<RankedTensorType>(input.getType());
   auto inputRank = inputType.getRank();
 
   SmallVector<Value> indices;
@@ -2695,7 +2623,11 @@ static Value NearestInterpolate(OpBuilder &b, Location loc,
 
     // scale = length_resized / length_original
     // x_original = x_resized / scale
-    Value scale = b.create<arith::DivFOp>(loc, outputSizeFP, inputSizeFP);
+    Value scale;
+    if (scaleValues.empty())
+      scale = b.create<arith::DivFOp>(loc, outputSizeFP, inputSizeFP);
+    else
+      scale = scaleValues[i - 2];
 
     Value outInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), outIndex);
     Value outFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), outInt);
@@ -2718,167 +2650,139 @@ static Value NearestInterpolate(OpBuilder &b, Location loc,
 static Value BilinearInterpolate(OpBuilder &b,
                                  Aten__InterpolateSizeListScaleListOp op,
                                  Location loc, SmallVector<Value> outputSizes,
-                                 Value input, SmallVector<Value> inputSizes) {
-  Value inputSizeH = inputSizes[0];
-  Value inputSizeW = inputSizes[1];
-  Value outputSizeH = outputSizes[0];
-  Value outputSizeW = outputSizes[1];
-
-  int hDimOffset = 2;
-  auto inputType = input.getType().cast<RankedTensorType>();
+                                 Value input, SmallVector<Value> inputSizes,
+                                 SmallVector<Value> scaleValues,
+                                 std::string coordStr) {
+  unsigned dimOffset = 2;
+  auto inputType = cast<RankedTensorType>(input.getType());
   auto inputRank = inputType.getRank();
 
-  Value cstOneEps = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.001));
+  Value cstOneEps =
+      b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.000001));
   Value cstOneFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.0));
   Value cstHalf = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.5));
   Value zero = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.0));
 
-  Value yOut = b.create<linalg::IndexOp>(loc, 2);
-  Value xOut = b.create<linalg::IndexOp>(loc, 3);
-
   bool alignCornersBool;
   matchPattern(op.getAlignCorners(), m_TorchConstantBool(&alignCornersBool));
-
-  Value yProj, xProj;
-  if (alignCornersBool) {
-    // x_original = x_resized * (length_original - 1) / (length_resized - 1)
-    Value inputHFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizeH);
-    Value outputSizeHFP =
-        b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizeH);
-    Value yOutInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), yOut);
-    Value yOutFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), yOutInt);
-    Value inputHSubOne = b.create<arith::SubFOp>(loc, inputHFP, cstOneFloat);
-    Value outputSizeHSubOne =
-        b.create<arith::SubFOp>(loc, outputSizeHFP, cstOneFloat);
-    Value hScale =
-        b.create<arith::DivFOp>(loc, inputHSubOne, outputSizeHSubOne);
-    Value yProjBeforeClamp = b.create<arith::MulFOp>(loc, yOutFP, hScale);
-    Value yMax = b.create<arith::MaximumFOp>(loc, yProjBeforeClamp, zero);
-    Value outputSizeHSubOneEps =
-        b.create<arith::SubFOp>(loc, outputSizeHFP, cstOneEps);
-    yProj = b.create<arith::MinimumFOp>(loc, outputSizeHSubOneEps, yMax);
-
-    Value inputWFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizeW);
-    Value outputSizeWFP =
-        b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizeW);
-    Value xOutInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), xOut);
-    Value xOutFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), xOutInt);
-    Value inputWSubOne = b.create<arith::SubFOp>(loc, inputWFP, cstOneFloat);
-    Value outputSizeWSubOne =
-        b.create<arith::SubFOp>(loc, outputSizeWFP, cstOneFloat);
-    Value wScale =
-        b.create<arith::DivFOp>(loc, inputWSubOne, outputSizeWSubOne);
-    Value xProjBeforeClamp = b.create<arith::MulFOp>(loc, xOutFP, wScale);
-    Value xMax = b.create<arith::MaximumFOp>(loc, xProjBeforeClamp, zero);
-    Value outputSizeWSubOneEps =
-        b.create<arith::SubFOp>(loc, outputSizeWFP, cstOneEps);
-    xProj = b.create<arith::MinimumFOp>(loc, outputSizeWSubOneEps, xMax);
-  } else {
-    // y_original = (y_resized + 0.5) / scale - 0.5
-    Value inputHFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizeH);
-    Value outputSizeHFP =
-        b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizeH);
-    Value hScale = b.create<arith::DivFOp>(loc, outputSizeHFP, inputHFP);
-    Value yOutInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), yOut);
-    Value yOutFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), yOutInt);
-    Value yPlusHalf = b.create<arith::AddFOp>(loc, yOutFP, cstHalf);
-    Value yDivScale = b.create<arith::DivFOp>(loc, yPlusHalf, hScale);
-    Value ySubHalf = b.create<arith::SubFOp>(loc, yDivScale, cstHalf);
-    Value yMax = b.create<arith::MaximumFOp>(loc, ySubHalf, zero);
-    Value inputHSubOne = b.create<arith::SubFOp>(loc, inputHFP, cstOneEps);
-    yProj = b.create<arith::MinimumFOp>(loc, yMax, inputHSubOne);
-
-    Value inputWFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizeW);
-    Value outputSizeWFP =
-        b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizeW);
-    Value wScale = b.create<arith::DivFOp>(loc, outputSizeWFP, inputWFP);
-    Value xOutInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), xOut);
-    Value xOutFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), xOutInt);
-    Value xPlusHalf = b.create<arith::AddFOp>(loc, xOutFP, cstHalf);
-    Value xDivScale = b.create<arith::DivFOp>(loc, xPlusHalf, wScale);
-    Value xSubHalf = b.create<arith::SubFOp>(loc, xDivScale, cstHalf);
-    // clamp
-    Value xMax = b.create<arith::MaximumFOp>(loc, xSubHalf, zero);
-    Value inputWSubOne = b.create<arith::SubFOp>(loc, inputWFP, cstOneEps);
-    xProj = b.create<arith::MinimumFOp>(loc, xMax, inputWSubOne);
-  }
-  Value yLow = b.create<math::FloorOp>(loc, yProj);
-  Value yProjPlusOne = b.create<arith::AddFOp>(loc, cstOneFloat, yProj);
-  Value yHigh = b.create<math::FloorOp>(loc, yProjPlusOne);
-
-  Value xLow = b.create<math::FloorOp>(loc, xProj);
-  Value xProjPlusOne = b.create<arith::AddFOp>(loc, cstOneFloat, xProj);
-  Value xHigh = b.create<math::FloorOp>(loc, xProjPlusOne);
 
   SmallVector<Value> indices;
   for (unsigned i = 0; i < inputRank; i++) {
     indices.push_back(b.create<linalg::IndexOp>(loc, i));
   }
-  Value yLowInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), yLow);
-  Value yLowIdx = b.create<arith::IndexCastOp>(loc, b.getIndexType(), yLowInt);
 
-  Value xLowInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), xLow);
-  Value xLowIdx = b.create<arith::IndexCastOp>(loc, b.getIndexType(), xLowInt);
+  SmallVector<Value> proj, projEps, high, low, highFP, lowFP;
+  for (unsigned i = 0; i < inputRank - dimOffset; i++) {
+    // length_original
+    Value inputFP =
+        b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizes[i]);
+    // length_resized
+    Value outputSizeFP =
+        b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizes[i]);
+    // scale = length_resized/length_original
+    Value scale;
+    if (alignCornersBool) {
+      // x_original = x_resized * (length_original - 1) / (length_resized - 1)
+      Value inputSubOne = b.create<arith::SubFOp>(loc, inputFP, cstOneFloat);
+      Value outputSizeSubOne =
+          b.create<arith::SubFOp>(loc, outputSizeFP, cstOneFloat);
+      Value cmp = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UEQ,
+                                          outputSizeSubOne, zero);
+      scale = b.create<arith::DivFOp>(loc, inputSubOne, outputSizeSubOne);
+      scale = b.create<arith::SelectOp>(loc, cmp, zero, scale);
+      coordStr = "_align_corners";
+    } else if (scaleValues.empty())
+      scale = b.create<arith::DivFOp>(loc, outputSizeFP, inputFP);
+    else
+      scale = scaleValues[i];
+    // y_resized
+    Value outInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(),
+                                                indices[i + dimOffset]);
+    Value outFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), outInt);
+    Value preClip;
+    if (coordStr == "_align_corners") {
+      preClip = b.create<arith::MulFOp>(loc, outFP, scale);
+    }
+    if (coordStr == "_asymmetric") {
+      preClip = b.create<arith::DivFOp>(loc, outFP, scale);
+    }
+    if (coordStr == "_pytorch_half_pixel" || coordStr == "") {
+      // half-pixel modes
+      // y_resized + 0.5
+      Value outPlusHalf = b.create<arith::AddFOp>(loc, outFP, cstHalf);
+      // (y_resized + 0.5) / scale
+      Value outDivScale = b.create<arith::DivFOp>(loc, outPlusHalf, scale);
+      // _ - 0.5
+      preClip = b.create<arith::SubFOp>(loc, outDivScale, cstHalf);
+    }
+    // for pytorch half pixel , special case for length_resized == 1:
+    if (coordStr == "_pytorch_half_pixel") {
+      Value cmp = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UEQ,
+                                          outputSizeFP, cstOneFloat);
+      preClip = b.create<arith::SelectOp>(loc, cmp, zero, preClip);
+    }
+    // clip to 0,inf
+    Value max = b.create<arith::MaximumFOp>(loc, preClip, zero);
+    // length_original - 1.001
+    Value inputSubOneEps = b.create<arith::SubFOp>(loc, inputFP, cstOneEps);
+    Value inputSubOne = b.create<arith::SubFOp>(loc, inputFP, cstOneFloat);
+    // clip to [0,length_original - 1.001]
+    projEps.push_back(b.create<arith::MinimumFOp>(loc, max, inputSubOneEps));
+    proj.push_back(b.create<arith::MinimumFOp>(loc, max, inputSubOne));
 
-  Value yHighInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), yHigh);
-  Value yHighIdx =
-      b.create<arith::IndexCastOp>(loc, b.getIndexType(), yHighInt);
+    lowFP.push_back(b.create<math::FloorOp>(loc, projEps[i]));
+    Value projPlusOne = b.create<arith::AddFOp>(loc, cstOneFloat, projEps[i]);
+    highFP.push_back(b.create<math::FloorOp>(loc, projPlusOne));
 
-  Value xHighInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), xHigh);
-  Value xHighIdx =
-      b.create<arith::IndexCastOp>(loc, b.getIndexType(), xHighInt);
+    Value lowInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), lowFP[i]);
+    low.push_back(b.create<arith::IndexCastOp>(loc, b.getIndexType(), lowInt));
 
-  indices[hDimOffset] = yLowIdx;
-  indices[hDimOffset + 1] = xLowIdx;
+    Value highInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), highFP[i]);
+    high.push_back(
+        b.create<arith::IndexCastOp>(loc, b.getIndexType(), highInt));
+  }
+
+  SmallVector<Value> cornerValues;
+  indices[dimOffset] = low[0];
+  indices[dimOffset + 1] = low[1];
   Value p00 = b.create<tensor::ExtractOp>(loc, input, indices);
 
-  indices[hDimOffset] = yLowIdx;
-  indices[hDimOffset + 1] = xHighIdx;
+  indices[dimOffset] = low[0];
+  indices[dimOffset + 1] = high[1];
   Value p01 = b.create<tensor::ExtractOp>(loc, input, indices);
 
-  indices[hDimOffset] = yHighIdx;
-  indices[hDimOffset + 1] = xLowIdx;
+  indices[dimOffset] = high[0];
+  indices[dimOffset + 1] = low[1];
   Value p10 = b.create<tensor::ExtractOp>(loc, input, indices);
 
-  indices[hDimOffset] = yHighIdx;
-  indices[hDimOffset + 1] = xHighIdx;
+  indices[dimOffset] = high[0];
+  indices[dimOffset + 1] = high[1];
   Value p11 = b.create<tensor::ExtractOp>(loc, input, indices);
 
-  // p00 p01
-  // p10 p11
-  // (xhigh - xproj) / (xhigh - xlow) * p00 + (xproj - xlow) /
-  // (xhigh - xlow) * p01
-  Value xHighMinusxProj = b.create<arith::SubFOp>(loc, xHigh, xProj);
-  Value xHighMinusxLow = b.create<arith::SubFOp>(loc, xHigh, xLow);
-  Value w0 = b.create<arith::DivFOp>(loc, xHighMinusxProj, xHighMinusxLow);
-  Value lhs = b.create<arith::MulFOp>(loc, w0, p00);
+  // Let Aij := area rect((yProj,xProj) <-> (y_i*,x_j*)),
+  // where i* = i+1 mod 2 and x_0 = xLow, x_1 = xHigh etc.
+  // We interpolate via the weighted average of pij by weights Aij
+  // the formula is retval = Sum(pij*Aij for i and j in range(2))
+  // Note: we do not need to divide by total rect area == 1
 
-  Value xProjMinusxLow = b.create<arith::SubFOp>(loc, xProj, xLow);
-  Value w1 = b.create<arith::DivFOp>(loc, xProjMinusxLow, xHighMinusxLow);
-  Value rhs = b.create<arith::MulFOp>(loc, w1, p01);
+  // lengths : Aij == dyi*dxj
+  Value dy0 = b.create<arith::SubFOp>(loc, highFP[0], proj[0]);
+  Value dy1 = b.create<arith::SubFOp>(loc, proj[0], lowFP[0]);
+  Value dx0 = b.create<arith::SubFOp>(loc, highFP[1], proj[1]);
+  Value dx1 = b.create<arith::SubFOp>(loc, proj[1], lowFP[1]);
 
-  Value xInter = b.create<arith::AddFOp>(loc, lhs, rhs);
+  // left = A00*p00 + A01*p01 = dy0(dx0p00 + dx1p01)
+  Value dx0p00 = b.create<arith::MulFOp>(loc, dx0, p00);
+  Value dx1p01 = b.create<arith::MulFOp>(loc, dx1, p01);
+  Value sum = b.create<arith::AddFOp>(loc, dx0p00, dx1p01);
+  Value left = b.create<arith::MulFOp>(loc, dy0, sum);
+  // right = A10*p10 + A11*p11 = dy1(dx0p10 + dx1p11)
+  Value dx0p10 = b.create<arith::MulFOp>(loc, dx0, p10);
+  Value dx1p11 = b.create<arith::MulFOp>(loc, dx1, p11);
+  sum = b.create<arith::AddFOp>(loc, dx0p10, dx1p11);
+  Value right = b.create<arith::MulFOp>(loc, dy1, sum);
 
-  // (xhigh - xproj) / (xhigh - xlow) * p10 + (xproj - xlow) /
-  // (xhigh - xlow) * p11
-  lhs = b.create<arith::MulFOp>(loc, w0, p10);
-  rhs = b.create<arith::MulFOp>(loc, w1, p11);
-
-  Value xInter1 = b.create<arith::AddFOp>(loc, lhs, rhs);
-
-  // (yhigh - yproj) / (yhigh - ylow) * xInter + (yproj - ylow)
-  // / (yhigh - ylow) * xInter1
-  Value yHighMinusyProj = b.create<arith::SubFOp>(loc, yHigh, yProj);
-  Value yHighMinusyLow = b.create<arith::SubFOp>(loc, yHigh, yLow);
-  w0 = b.create<arith::DivFOp>(loc, yHighMinusyProj, yHighMinusyLow);
-  lhs = b.create<arith::MulFOp>(loc, w0, xInter);
-
-  Value yProjMinusyLow = b.create<arith::SubFOp>(loc, yProj, yLow);
-  w1 = b.create<arith::DivFOp>(loc, yProjMinusyLow, yHighMinusyLow);
-  rhs = b.create<arith::MulFOp>(loc, w1, xInter1);
-
-  Value retVal = b.create<arith::AddFOp>(loc, lhs, rhs);
-  return retVal;
+  return b.create<arith::AddFOp>(loc, left, right);
 }
 
 namespace {
@@ -2891,50 +2795,59 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
 
     std::string mode;
+    // note: to support onnx.Resize, we are passing some extra options through
+    // the mode attribute. For example, onnx.Resize with mode="linear" and
+    // coordinate_transformation_mode="asymmetric" will lower to an interpolate
+    // op with the non-standard mode="bilinear_asymmetric".
     matchPattern(op.getMode(), m_TorchConstantStr(mode));
-    if (mode != "bilinear" && mode != "nearest") {
+    if (mode.substr(0, 8) != "bilinear" && mode.substr(0, 7) != "nearest") {
       return failure();
     }
 
     Location loc = op->getLoc();
     Value input = adaptor.getInput();
-    auto inputType = input.getType().cast<RankedTensorType>();
+    auto inputType = cast<RankedTensorType>(input.getType());
     auto inputRank = inputType.getRank();
-    if (mode == "bilinear" && inputRank != 4)
+    if (mode.substr(0, 8) == "bilinear" && inputRank != 4)
       return rewriter.notifyMatchFailure(
           op,
           "cannot perform bilinear interpolation when input spatial dims != 2");
 
     SmallVector<Value> outputSizeIntValues;
     SmallVector<Value> inputSizes;
+    SmallVector<Value> ScaleFactorFloatValues;
     for (unsigned i = 2; i < inputRank; i++) {
-      Value inputSize = getDimOp(rewriter, loc, input, 2);
+      Value inputSize = getDimOp(rewriter, loc, input, i);
       inputSizes.push_back(rewriter.create<arith::IndexCastOp>(
           loc, rewriter.getIntegerType(64), inputSize));
     }
 
-    if (!op.getScaleFactor().getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getScaleFactor().getType())) {
+      bool recompScale;
+      if (!matchPattern(op.getRecomputeScaleFactor(),
+                        m_TorchConstantBool(&recompScale)))
+        recompScale = false;
       SmallVector<Value> ScaleFactorTorchFloat;
       if (!getListConstructElements(op.getScaleFactor(), ScaleFactorTorchFloat))
         return rewriter.notifyMatchFailure(
             op, "unimplemented: the output_size is not constructed from "
                 "ListConstruct");
-      SmallVector<Value> ScaleFactorFloatValues;
       ScaleFactorFloatValues = getTypeConvertedValues(
           rewriter, loc, getTypeConverter(), ScaleFactorTorchFloat);
       for (unsigned i = 0; i < inputRank - 2; i++) {
         Value inputSizeFP = rewriter.create<arith::SIToFPOp>(
             loc, rewriter.getF32Type(), inputSizes[i]);
-        Value scale = rewriter.create<arith::TruncFOp>(
+        ScaleFactorFloatValues[i] = rewriter.create<arith::TruncFOp>(
             loc, inputSizeFP.getType(), ScaleFactorFloatValues[i]);
-        Value outputSize =
-            rewriter.create<arith::MulFOp>(loc, inputSizeFP, scale);
+        Value outputSize = rewriter.create<arith::MulFOp>(
+            loc, inputSizeFP, ScaleFactorFloatValues[i]);
         outputSize = rewriter.create<math::FloorOp>(loc, outputSize);
         outputSize = rewriter.create<arith::FPToSIOp>(
             loc, rewriter.getI64Type(), outputSize);
-
         outputSizeIntValues.push_back(outputSize);
       }
+      if (recompScale)
+        ScaleFactorFloatValues.clear();
     } else {
       SmallVector<Value> outputSizeTorchInt;
       if (!getListConstructElements(op.getSize(), outputSizeTorchInt))
@@ -2951,12 +2864,9 @@ public:
 
     Value outTensor = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(dims), inputType.getElementType());
-
     AffineMap idMap = rewriter.getMultiDimIdentityMap(inputRank);
-
     SmallVector<utils::IteratorType> iteratorTypes(
         inputRank, utils::IteratorType::parallel);
-
     Value finalRes =
         rewriter
             .create<linalg::GenericOp>(
@@ -2965,12 +2875,14 @@ public:
                 /*iteratorTypes=*/iteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value retVal;
-                  if (mode == "nearest") {
-                    retVal = NearestInterpolate(b, loc, outputSizeIntValues,
-                                                input, inputSizes);
-                  } else if (mode == "bilinear") {
+                  if (mode.substr(0, 7) == "nearest") {
+                    retVal = NearestInterpolate(
+                        b, loc, outputSizeIntValues, input, inputSizes,
+                        ScaleFactorFloatValues, mode.substr(7));
+                  } else if (mode.substr(0, 8) == "bilinear") {
                     retVal = BilinearInterpolate(
-                        b, op, loc, outputSizeIntValues, input, inputSizes);
+                        b, op, loc, outputSizeIntValues, input, inputSizes,
+                        ScaleFactorFloatValues, mode.substr(8));
                   }
                   b.create<linalg::YieldOp>(loc, retVal);
                 })
