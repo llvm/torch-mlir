@@ -8404,7 +8404,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_ToCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenDropoutOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenGridSamplerOp>(patterns);
+    // addPatternIfTargetOpIsIllegal<DecomposeAtenGridSamplerOp>(patterns);
     addPatternIfTargetOpIsIllegal<DeomposeAtenNativeDropoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexTensorOp>(patterns);
