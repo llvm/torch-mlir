@@ -3115,7 +3115,134 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         rewriter.replaceOpWithNewOp<Torch::AtenWhereSelfOp>(
             binder.op, resultType, inputLTNegLambd, inputPlusBias,
             inputSubBiasOrZero);
+        return success();
+      });
+  patterns.onOp("SequenceAt", 11,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value input_sequence, position;
+                  if (binder.tensorListOperandAtIndex(input_sequence, 0) ||
+                      binder.tensorOperandAtIndex(position, 1) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
 
+                  Value index = rewriter.create<Torch::AtenItemOp>(
+                      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                      position);
+                  rewriter.replaceOpWithNewOp<Torch::Aten__Getitem__TOp>(
+                      binder.op, resultType, input_sequence, index);
+                  return success();
+                });
+  patterns.onOp(
+      "SequenceEmpty", 11,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ListType resultType;
+        int64_t dtypeIntOnnx;
+        if (binder.s64IntegerAttr(dtypeIntOnnx, "dtype", 1) ||
+            binder.tensorListResultType(resultType))
+          return failure();
+
+        std::optional<int64_t> dtypeIntTorch =
+            onnxDtypeIntToTorchDtypeInt(dtypeIntOnnx);
+        if (!dtypeIntTorch.has_value()) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented support for the given dtype conversion");
+        }
+        Value constDtype = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(dtypeIntTorch.value()));
+
+        Value shapeList = createConstantIntList(binder, rewriter, {});
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+
+        Value self = rewriter.create<Torch::AtenEmptyMemoryFormatOp>(
+            binder.op->getLoc(), resultType.getContainedType(), shapeList,
+            /*dtype=*/constDtype,
+            /*layout=*/cstNone,
+            /*device=*/cstNone, /*pinMemory=*/cstNone,
+            /*memoryFormat=*/cstNone);
+
+        rewriter.replaceOpWithNewOp<Torch::PrimListConstructOp>(
+            binder.op, resultType, llvm::SmallVector<Value>{self});
+        return success();
+      });
+  patterns.onOp(
+      "SequenceErase", 11,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ListType resultType;
+        Value input_sequence, position;
+        if (binder.tensorListOperandAtIndex(input_sequence, 0) ||
+            binder.tensorListResultType(resultType))
+          return failure();
+
+        Value length = rewriter.create<Torch::AtenLenTOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            input_sequence);
+
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        if (binder.op->getNumOperands() == 1) {
+          // If True, it means that the `position` arg is missing and
+          // the last tensor from the list has to be erased.
+          Value lengthMinusOne = rewriter.create<Torch::AtenSubIntOp>(
+              binder.getLoc(), length, cstOne);
+          rewriter.replaceOpWithNewOp<Torch::AtenSliceTOp>(
+              binder.op, resultType, input_sequence, /*start=*/cstNone,
+              /*end=*/lengthMinusOne, /*step=*/cstOne);
+          return success();
+        }
+
+        if (binder.tensorOperandAtIndex(position, 1))
+          return failure();
+
+        Value positionInt = rewriter.create<Torch::AtenItemOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(), position);
+        Value listBeforePosition = rewriter.create<Torch::AtenSliceTOp>(
+            binder.getLoc(), resultType, input_sequence, /*start=*/cstNone,
+            /*end=*/positionInt, /*step=*/cstOne);
+        Value positionPlusOne = rewriter.create<Torch::AtenAddIntOp>(
+            binder.getLoc(), positionInt, cstOne);
+        Value listAfterPosition = rewriter.create<Torch::AtenSliceTOp>(
+            binder.getLoc(), resultType, input_sequence,
+            /*start=*/positionPlusOne,
+            /*end=*/length, /*step=*/cstOne);
+
+        rewriter.replaceOpWithNewOp<Torch::AtenAddTOp>(
+            binder.op, resultType, listBeforePosition, listAfterPosition);
+        return success();
+      });
+  patterns.onOp(
+      "SequenceInsert", 11,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ListType resultType;
+        Value input_sequence, position, insertValue;
+        if (binder.tensorListOperandAtIndex(input_sequence, 0) ||
+            binder.tensorOperandAtIndex(insertValue, 1) ||
+            binder.tensorListResultType(resultType))
+          return failure();
+
+        if (binder.op->getNumOperands() == 1) {
+          // If True, it means that the `position` arg is missing and
+          // the tensor has to be inserted at the end of the list.
+          Value length = rewriter.create<Torch::AtenLenTOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              input_sequence);
+          rewriter.replaceOpWithNewOp<Torch::AtenInsertTOp>(
+              binder.op, input_sequence, /*idx=*/length,
+              /*el=*/insertValue);
+          return success();
+        }
+
+        if (binder.tensorOperandAtIndex(position, 2))
+          return failure();
+
+        Value positionInt = rewriter.create<Torch::AtenItemOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(), position);
+        rewriter.create<Torch::AtenInsertTOp>(binder.getLoc(), input_sequence,
+                                              /*idx=*/positionInt,
+                                              /*el=*/insertValue);
+        rewriter.replaceOp(binder.op, input_sequence);
         return success();
       });
 }
