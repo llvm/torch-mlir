@@ -965,20 +965,55 @@ static Value getConstantLike(OpBuilder &b, Location loc, T constant,
                                               val);
 }
 
+template <typename T>
+static Value getConstTensor(ConversionPatternRewriter &rewriter, Operation *op,
+                            ArrayRef<T> values, ArrayRef<int64_t> shape,
+                            Type ty) {
+  Location loc = op->getLoc();
+  RankedTensorType valueType = RankedTensorType::get(shape, ty);
+  auto valueAttr = DenseElementsAttr::get(valueType, values);
+  return rewriter.create<stablehlo::ConstantOp>(loc, valueType, valueAttr);
+}
+
+template <typename T>
+static Value getConstTensor(ConversionPatternRewriter &rewriter, Operation *op,
+                            T value, Type ty) {
+  return getConstTensor(rewriter, op, ArrayRef<T>{value}, {}, ty);
+}
+
 // Helper function to lower AtenGridSamplerOp.
-static Value unnormalize(ConversionPatternRewriter &rewriter, Location loc,
+static Value unnormalize(ConversionPatternRewriter &rewriter, Operation *op,
                          Value coords, int64_t size, Type elemTy,
                          bool alignCorners) {
+  Location loc = op->getLoc();
   RankedTensorType valueType =
       RankedTensorType::get(mlir::ArrayRef<int64_t>{1}, elemTy);
-  Value constPointFive = rewriter.create<stablehlo::ConstantOp>(
-      loc, valueType, DenseFPElementsAttr::get(valueType, {0.5}));
-  double mul = alignCorners ? (size * 0.5 - 0.5) : (size * 0.5);
-  double ofs = size * 0.5 - 0.5;
-  Value constMul = rewriter.create<stablehlo::ConstantOp>(
-      loc, valueType, DenseFPElementsAttr::get(valueType, {mul}));
-  Value constOfs = rewriter.create<stablehlo::ConstantOp>(
-      loc, valueType, DenseFPElementsAttr::get(valueType, {ofs}));
+  APFloat pointFive(cast<mlir::FloatType>(elemTy).getFloatSemantics(), "0.5");
+  // Value constPointFive = getConstTensor(rewriter, op, pointFive, elemTy);
+  APFloat sizeFloat =
+      APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), size);
+  APFloat one = APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), 1);
+  APFloat zero = APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), 0);
+
+  // Value constSize = getConstTensor(rewriter, op, sizeValue, elemTy);
+  // APFloat mulValue = alignCorners ? sizeValue - 1 : sizeValue;
+
+  // double mul = alignCorners ? (size * 0.5 - 0.5) : (size * 0.5);
+  // double ofs = size * 0.5 - 0.5;
+  APFloat mul =
+      alignCorners ? sizeFloat * pointFive - pointFive : sizeFloat * pointFive;
+  APFloat ofs = sizeFloat * pointFive - pointFive;
+  // llvm::errs() << "mul: " << mul << " ofs: " << ofs << "\n";
+  Value constMul = getConstTensor(rewriter, op, mul, elemTy);
+  Value constOfs = getConstTensor(rewriter, op, ofs, elemTy);
+  llvm::errs() << "constMul: " << constMul << " constOfs: " << constOfs << "\n";
+  // auto constMulAttr = rewriter.getFloatAttr(valueType, SmallVector{mul});
+  // Value constMul = rewriter.create<stablehlo::ConstantOp>(loc,
+  // constMulAttr);
+  // Value constMul = rewriter.create<stablehlo::ConstantOp>(
+  //     loc, valueType, DenseElementsAttr::get(valueType, ));
+  // Value constOfs = rewriter.create<stablehlo::ConstantOp>(
+  //     loc, valueType, DenseFPElementsAttr::get(valueType, {ofs}));
   // use chlo::BroadcastMulOp to multiply constMul with coords.
   DenseI64ArrayAttr bcastDimensions;
   Value mulResult = rewriter.create<chlo::BroadcastMulOp>(loc, coords, constMul,
@@ -990,20 +1025,21 @@ static Value unnormalize(ConversionPatternRewriter &rewriter, Location loc,
 }
 
 static Value computeCoordinates(ConversionPatternRewriter &rewriter,
-                                Location loc, Value coords, int64_t size,
+                                Operation *op, Value coords, int64_t size,
                                 Type elemTy, int64_t padding_mode) {
   // TODO: add support for padding_mode 1 and 2.
   return coords;
 }
 
 static Value computeSourceIndex(ConversionPatternRewriter &rewriter,
-                                Location loc, Value coords, int64_t size,
+                                Operation *op, Value coords, int64_t size,
                                 Type elemTy, int64_t padding_mode,
                                 bool alignCorners) {
+  Location loc = op->getLoc();
   Value coordsUn =
-      unnormalize(rewriter, loc, coords, size, elemTy, alignCorners);
-  return computeCoordinates(rewriter, loc, coordsUn, size, elemTy,
-                            padding_mode);
+      unnormalize(rewriter, op, coords, size, elemTy, alignCorners);
+  return computeCoordinates(rewriter, op, coordsUn, size, elemTy, padding_mode);
+  // return coordsUn;
 }
 
 // def in_bounds_cond(xs: Tensor, ys: Tensor) -> Tensor:
@@ -1011,20 +1047,33 @@ static Value computeSourceIndex(ConversionPatternRewriter &rewriter,
 //         0 <= xs, torch.logical_and(xs < iW, torch.logical_and(0 <= ys, ys
 //         < iH))
 //     )
-static Value inBoundsCond(ConversionPatternRewriter &rewriter, Location loc,
+static Value inBoundsCond(ConversionPatternRewriter &rewriter, Operation *op,
                           Value xs, Value ys, int64_t ih, int64_t iw,
                           Type elemTy) {
+  Location loc = op->getLoc();
   RankedTensorType valueType =
       RankedTensorType::get(mlir::ArrayRef<int64_t>{1}, elemTy);
+  APFloat zeroFloat =
+      APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), 0);
+  Value zero = getConstTensor(rewriter, op, zeroFloat, elemTy);
   // RankedTensorType xsType = cast<RankedTensorType>(xs.getType());
-  Value zero = rewriter.create<stablehlo::ConstantOp>(
-      loc, valueType, DenseFPElementsAttr::get(valueType, {0.0}));
-  Value iwValue = rewriter.create<stablehlo::ConstantOp>(
-      loc, valueType,
-      DenseFPElementsAttr::get(valueType, {static_cast<double>(iw)}));
-  Value ihValue = rewriter.create<stablehlo::ConstantOp>(
-      loc, valueType,
-      DenseFPElementsAttr::get(valueType, {static_cast<double>(ih)}));
+  // Value zero = rewriter.create<stablehlo::ConstantOp>(
+  //     loc, valueType, DenseFPElementsAttr::get(valueType, {0.0}));
+  // Value iwValue = getConstTensor(rewriter, op, static_cast<double>(iw),
+  // elemTy); Value ihValue = getConstTensor(rewriter, op,
+  // static_cast<double>(ih), elemTy);
+  APFloat iwFloat =
+      APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), iw);
+  APFloat ihFloat =
+      APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), ih);
+  Value iwValue = getConstTensor(rewriter, op, iwFloat, elemTy);
+  Value ihValue = getConstTensor(rewriter, op, ihFloat, elemTy);
+  // Value iwValue = rewriter.create<stablehlo::ConstantOp>(
+  //     loc, valueType,
+  //     DenseFPElementsAttr::get(valueType, {static_cast<double>(iw)}));
+  // Value ihValue = rewriter.create<stablehlo::ConstantOp>(
+  //     loc, valueType,
+  //     DenseFPElementsAttr::get(valueType, {static_cast<double>(ih)}));
   chlo::ComparisonTypeAttr compareTypeAttr = chlo::ComparisonTypeAttr::get(
       rewriter.getContext(), chlo::ComparisonType::FLOAT);
   chlo::ComparisonDirectionAttr compareLTAttr =
@@ -1064,9 +1113,10 @@ static Value inBoundsCond(ConversionPatternRewriter &rewriter, Location loc,
 //         torch.where(cond, t, 0).view(N, c, oH, oW)
 //         for t in (xs.to(dtype=torch.int64), ys.to(dtype=torch.int64), ws)
 //     )
-SmallVector<Value> clip(ConversionPatternRewriter &rewriter, Location loc,
+SmallVector<Value> clip(ConversionPatternRewriter &rewriter, Operation *op,
                         Value xs, Value ys, Value ws, int64_t N, int64_t oH,
                         int64_t oW, int64_t iH, int64_t iW, Type elemTy) {
+  Location loc = op->getLoc();
   auto indexElemTy = rewriter.getI64Type();
   auto indexTy = RankedTensorType::get(mlir::ArrayRef<int64_t>{1}, indexElemTy);
   auto valueType = RankedTensorType::get(mlir::ArrayRef<int64_t>{1}, elemTy);
@@ -1075,14 +1125,14 @@ SmallVector<Value> clip(ConversionPatternRewriter &rewriter, Location loc,
   Value constIW = rewriter.create<stablehlo::ConstantOp>(
       loc, indexTy, DenseIntElementsAttr::get(indexTy, {iW}));
 
-  Value constOne = rewriter.create<stablehlo::ConstantOp>(
-      loc, indexTy, DenseFPElementsAttr::get(indexTy, {1}));
-
   Value zero = rewriter.create<stablehlo::ConstantOp>(
       loc, indexTy, DenseIntElementsAttr::get(indexTy, {0}));
-  Value zeroFloat = rewriter.create<stablehlo::ConstantOp>(
-      loc, valueType, DenseFPElementsAttr::get(valueType, {0.0}));
-  Value cond = inBoundsCond(rewriter, loc, xs, ys, iH, iW, elemTy);
+  // Value zeroFloat = rewriter.create<stablehlo::ConstantOp>(
+  //     loc, valueType, DenseFPElementsAttr::get(valueType, {0.0}));
+  APFloat zeroAPFloat =
+      APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), 0);
+  Value zeroFloat = getConstTensor(rewriter, op, zeroAPFloat, elemTy);
+  Value cond = inBoundsCond(rewriter, op, xs, ys, iH, iW, elemTy);
   RankedTensorType xsTypeInt = RankedTensorType::get(
       cast<RankedTensorType>(xs.getType()).getShape(), indexElemTy);
   RankedTensorType ysTypeInt = RankedTensorType::get(
@@ -1107,13 +1157,14 @@ SmallVector<Value> clip(ConversionPatternRewriter &rewriter, Location loc,
   return SmallVector<Value>{reshapedXs, reshapedYs, reshapedWs};
 }
 
-Value getSummand(ConversionPatternRewriter &rewriter, Location loc, Value input,
-                 Value ix, Value iy, Value w, int64_t N, int64_t oH, int64_t oW,
-                 int64_t iH, int64_t iW, Value Nidx, Value CIdx,
-                 RankedTensorType outType, Type elemTy) {
+Value getSummand(ConversionPatternRewriter &rewriter, Operation *op,
+                 Value input, Value ix, Value iy, Value w, int64_t N,
+                 int64_t oH, int64_t oW, int64_t iH, int64_t iW, Value Nidx,
+                 Value CIdx, RankedTensorType outType, Type elemTy) {
+  Location loc = op->getLoc();
   auto inputTensorType = cast<RankedTensorType>(input.getType());
   SmallVector<Value> clipValues =
-      clip(rewriter, loc, ix, iy, w, N, oH, oW, iH, iW, elemTy);
+      clip(rewriter, op, ix, iy, w, N, oH, oW, iH, iW, elemTy);
   Value idxX = clipValues[0];
   Value idxY = clipValues[1];
   Value idxW = clipValues[2];
@@ -1162,7 +1213,7 @@ Value getSummand(ConversionPatternRewriter &rewriter, Location loc, Value input,
       rewriter.getDenseI64ArrayAttr(sliceSizes));
   // use chlo::BroadcastMulOp to multiply idxW with gather.
   DenseI64ArrayAttr bcastDimensions;
-  return rewriter.create<chlo::BroadcastAddOp>(loc, gather, idxW,
+  return rewriter.create<chlo::BroadcastMulOp>(loc, gather, idxW,
                                                bcastDimensions);
   // return rewriter.create<stablehlo::MulOp>(loc, gather, idxW);
 }
@@ -1234,10 +1285,15 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
       loc, indexTy, DenseIntElementsAttr::get(indexTy, {N}));
   Value constC = rewriter.create<stablehlo::ConstantOp>(
       loc, indexTy, DenseIntElementsAttr::get(indexTy, {C}));
-  Value constOneFloat = rewriter.create<stablehlo::ConstantOp>(
-      loc, scalarElemType, DenseFPElementsAttr::get(scalarElemType, {1.0}));
-  Value constZeroFloat = rewriter.create<stablehlo::ConstantOp>(
-      loc, scalarElemType, DenseFPElementsAttr::get(scalarElemType, {0.0}));
+  APFloat one = APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), 1);
+  APFloat zero = APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), 0);
+
+  Value constOneFloat = getConstTensor(rewriter, op, one, elemTy);
+  Value constZeroFloat = getConstTensor(rewriter, op, zero, elemTy);
+  // Value constOneFloat = rewriter.create<stablehlo::ConstantOp>(
+  //     loc, scalarElemType, DenseFPElementsAttr::get(scalarElemType, {1.0}));
+  // Value constZeroFloat = rewriter.create<stablehlo::ConstantOp>(
+  //     loc, scalarElemType, DenseFPElementsAttr::get(scalarElemType, {0.0}));
   auto NidxFlatten = rewriter.create<stablehlo::DynamicIotaOp>(
       loc, RankedTensorType::get(mlir::ArrayRef<int64_t>{N}, indexElemTy),
       constN, 0);
@@ -1293,9 +1349,9 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
       loc, RankedTensorType::get(gridXshape, gridTy.getElementType()), gridY);
 
   if (interpolationMode == 0) {
-    Value ix = computeSourceIndex(rewriter, loc, gridXReshape, iW, elemTy,
+    Value ix = computeSourceIndex(rewriter, op, gridXReshape, iW, elemTy,
                                   paddingMode, alignCorners);
-    Value iy = computeSourceIndex(rewriter, loc, gridYReshape, iH, elemTy,
+    Value iy = computeSourceIndex(rewriter, op, gridYReshape, iH, elemTy,
                                   paddingMode, alignCorners);
     Value ix_nw = rewriter.create<stablehlo::FloorOp>(loc, ix);
     Value iy_nw = rewriter.create<stablehlo::FloorOp>(loc, iy);
@@ -1335,13 +1391,13 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
         rewriter.create<chlo::BroadcastSubOp>(loc, iy, iy_nw, bcastDimensions),
         bcastDimensions);
 
-    Value summand_nw = getSummand(rewriter, loc, input, ix_nw, iy_nw, w_nw, N,
+    Value summand_nw = getSummand(rewriter, op, input, ix_nw, iy_nw, w_nw, N,
                                   oH, oW, iH, iW, Nidx, Cidx, outTy, elemTy);
-    Value summand_ne = getSummand(rewriter, loc, input, ix_ne, iy_ne, w_ne, N,
+    Value summand_ne = getSummand(rewriter, op, input, ix_ne, iy_ne, w_ne, N,
                                   oH, oW, iH, iW, Nidx, Cidx, outTy, elemTy);
-    Value summand_sw = getSummand(rewriter, loc, input, ix_sw, iy_sw, w_sw, N,
+    Value summand_sw = getSummand(rewriter, op, input, ix_sw, iy_sw, w_sw, N,
                                   oH, oW, iH, iW, Nidx, Cidx, outTy, elemTy);
-    Value summand_se = getSummand(rewriter, loc, input, ix_se, iy_se, w_se, N,
+    Value summand_se = getSummand(rewriter, op, input, ix_se, iy_se, w_se, N,
                                   oH, oW, iH, iW, Nidx, Cidx, outTy, elemTy);
 
     // summand_nw + summand_ne + summand_sw + summand_se
@@ -1350,15 +1406,15 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
     sum = rewriter.create<stablehlo::AddOp>(loc, sum, summand_se);
     rewriter.replaceOp(op, sum);
   } else if (interpolationMode == 1) {
-    Value ix = computeSourceIndex(rewriter, loc, gridXReshape, iW, elemTy,
+    Value ix = computeSourceIndex(rewriter, op, gridXReshape, iW, elemTy,
                                   paddingMode, alignCorners);
-    Value iy = computeSourceIndex(rewriter, loc, gridYReshape, iH, elemTy,
+    Value iy = computeSourceIndex(rewriter, op, gridYReshape, iH, elemTy,
                                   paddingMode, alignCorners);
     Value ix_round = rewriter.create<stablehlo::RoundOp>(loc, ix);
     Value iy_round = rewriter.create<stablehlo::RoundOp>(loc, iy);
     Value oneTensor = getConstantLike(rewriter, loc, 1.0, ix_round);
     Value summand =
-        getSummand(rewriter, loc, input, ix_round, iy_round, oneTensor, N, oH,
+        getSummand(rewriter, op, input, ix_round, iy_round, oneTensor, N, oH,
                    oW, iH, iW, Nidx, Cidx, outTy, elemTy);
     rewriter.replaceOp(op, summand);
   }
