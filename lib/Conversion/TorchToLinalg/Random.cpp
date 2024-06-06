@@ -280,32 +280,35 @@ public:
     Value resultTensor = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(resultShape), i64Ty);
 
+    // sum weights for normalization
+    torch_to_linalg::ReductionOpInfo opInfo;
+    if (inputRank == 1) {
+      opInfo = {false, self, {0}};
+    } else {
+      opInfo = {false, self, {1}};
+    }
+    Value initSum = rewriter.create<arith::ConstantOp>(
+        loc, f64Ty, rewriter.getF64FloatAttr(0.0));
+    auto sumBody = [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
+      Value input = payloadArgs[0];
+      Value result = payloadArgs[1];
+      Value nextSum = b.create<arith::AddFOp>(loc, input, result);
+      b.create<linalg::YieldOp>(loc, nextSum);
+    };
+    Value sumWeights = torch_to_linalg::createReductionLinalgGeneric(
+        rewriter, loc, opInfo, initSum, sumBody);
+
     // Get multinomial samples for each weight vector
     auto multinomialComputation = [&](OpBuilder &b, Location loc, Value j,
-                                       ValueRange args) {
+                                      ValueRange args) {
       Value jIndex = b.create<arith::IndexCastOp>(loc, indexTy, j);
-      Value initSum =
-          b.create<arith::ConstantOp>(loc, f64Ty, b.getF64FloatAttr(0.0));
-      Value sumWeights =
-          b.create<scf::ForOp>(
-               loc, cstZero, numCategories, cstOne, ValueRange{initSum},
-               [&](OpBuilder &b, Location loc, Value i, ValueRange args) {
-                 Value currSum = args[0];
-                 Value iIndex = b.create<arith::IndexCastOp>(loc, indexTy, i);
-                 ValueRange ind;
-                 if (inputRank == 1) {
-                   ind = ValueRange{iIndex};
-                 } else {
-                   ind = ValueRange{jIndex, iIndex};
-                 }
-                 Value currWeight = b.create<tensor::ExtractOp>(loc, self, ind);
-                 Value updatedSum =
-                     b.create<arith::AddFOp>(loc, currSum, currWeight);
-                 b.create<scf::YieldOp>(loc, ValueRange{updatedSum});
-               })
-              .getResult(0);
 
-      Value sum = convertScalarToDtype(b, loc, sumWeights, elemTy);
+      Value sum;
+      if (inputRank == 1) {
+        sum = b.create<tensor::ExtractOp>(loc, sumWeights, ValueRange{});
+      } else {
+        sum = b.create<tensor::ExtractOp>(loc, sumWeights, ValueRange{jIndex});
+      }
 
       // compute cdf in loop
       Value initCdf = b.create<tensor::EmptyOp>(
@@ -328,10 +331,8 @@ public:
                  } else {
                    ind = ValueRange{jIndex, iIndex};
                  }
-                 Value currWeight =
-                     b.create<tensor::ExtractOp>(loc, self, ind);
-                 Value currMass =
-                     b.create<arith::DivFOp>(loc, currWeight, sum);
+                 Value currWeight = b.create<tensor::ExtractOp>(loc, self, ind);
+                 Value currMass = b.create<arith::DivFOp>(loc, currWeight, sum);
                  Value currCum =
                      b.create<scf::IfOp>(
                           loc, condition,
@@ -415,7 +416,7 @@ public:
 
                                // branch and update search indices
                                auto thenBlock = [&](OpBuilder &b,
-                                                     Location loc) {
+                                                    Location loc) {
                                  // left += 1
                                  Value one = b.create<arith::ConstantOp>(
                                      loc, i64Ty, b.getI64IntegerAttr(1));
@@ -426,7 +427,7 @@ public:
                                      loc, ValueRange{newLeft, right});
                                };
                                auto elseBlock = [&](OpBuilder &b,
-                                                     Location loc) {
+                                                    Location loc) {
                                  // right = mid
                                  b.create<scf::YieldOp>(
                                      loc, ValueRange{left, midPointer});
@@ -439,8 +440,7 @@ public:
                                        b.getContext(),
                                        arith::CmpFPredicate::OLT);
                                Value branchCondition = b.create<arith::CmpFOp>(
-                                   loc, cmpPredicate, cumProb,
-                                   uniformSample);
+                                   loc, cmpPredicate, cumProb, uniformSample);
                                ValueRange branchResults =
                                    b.create<scf::IfOp>(loc, branchCondition,
                                                        thenBlock, elseBlock)

@@ -642,8 +642,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             IntegerType::get(selfType.getContext(), 64, IntegerType::Signed);
         int64_t batchSize = selfType.getSizes()[0];
         SmallVector<int64_t> outShapes({batchSize, sampleSize});
-        Torch::ValueTensorType multinomialOutputType = Torch::ValueTensorType::get(
-            selfType.getContext(), outShapes, int64Dtype);
+        Torch::ValueTensorType multinomialOutputType =
+            Torch::ValueTensorType::get(selfType.getContext(), outShapes,
+                                        int64Dtype);
         Value multinomialTensor = rewriter.create<Torch::AtenMultinomialOp>(
             binder.getLoc(), multinomialOutputType, self, numSamples, cstTrue,
             none);
@@ -651,8 +652,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
             binder.getLoc(), rewriter.getBoolAttr(false));
         rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
-            binder.op, resultType, multinomialTensor, torchDtypeIntValue, cstFalse,
-            cstFalse, none);
+            binder.op, resultType, multinomialTensor, torchDtypeIntValue,
+            cstFalse, cstFalse, none);
 
         return success();
       });
