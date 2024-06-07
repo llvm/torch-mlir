@@ -3120,8 +3120,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
   patterns.onOp("SequenceAt", 11,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
-                  Value input_sequence, position;
-                  if (binder.tensorListOperandAtIndex(input_sequence, 0) ||
+                  Value inputSequence, position;
+                  if (binder.tensorListOperandAtIndex(inputSequence, 0) ||
                       binder.tensorOperandAtIndex(position, 1) ||
                       binder.tensorResultType(resultType))
                     return failure();
@@ -3130,7 +3130,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                       binder.getLoc(), rewriter.getType<Torch::IntType>(),
                       position);
                   rewriter.replaceOpWithNewOp<Torch::Aten__Getitem__TOp>(
-                      binder.op, resultType, input_sequence, index);
+                      binder.op, resultType, inputSequence, index);
                   return success();
                 });
   patterns.onOp(
@@ -3170,14 +3170,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       "SequenceErase", 11,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ListType resultType;
-        Value input_sequence, position;
-        if (binder.tensorListOperandAtIndex(input_sequence, 0) ||
+        Value inputSequence, position;
+        if (binder.tensorListOperandAtIndex(inputSequence, 0) ||
             binder.tensorListResultType(resultType))
           return failure();
 
         Value length = rewriter.create<Torch::AtenLenTOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            input_sequence);
+            binder.getLoc(), rewriter.getType<Torch::IntType>(), inputSequence);
 
         Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         Value cstOne = rewriter.create<Torch::ConstantIntOp>(
@@ -3188,7 +3187,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           Value lengthMinusOne = rewriter.create<Torch::AtenSubIntOp>(
               binder.getLoc(), length, cstOne);
           rewriter.replaceOpWithNewOp<Torch::AtenSliceTOp>(
-              binder.op, resultType, input_sequence, /*start=*/cstNone,
+              binder.op, resultType, inputSequence, /*start=*/cstNone,
               /*end=*/lengthMinusOne, /*step=*/cstOne);
           return success();
         }
@@ -3198,13 +3197,25 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         Value positionInt = rewriter.create<Torch::AtenItemOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(), position);
+        // Handling negative position value.
+        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value isPositionNegative = rewriter.create<Torch::AtenLtIntOp>(
+            binder.getLoc(), positionInt, cstZero);
+        isPositionNegative = rewriter.create<Torch::AtenIntBoolOp>(
+            binder.getLoc(), isPositionNegative);
+        Value finalOffset = rewriter.create<Torch::AtenMulIntOp>(
+            binder.getLoc(), isPositionNegative, length);
+        positionInt = rewriter.create<Torch::AtenAddIntOp>(
+            binder.getLoc(), positionInt, finalOffset);
+
         Value listBeforePosition = rewriter.create<Torch::AtenSliceTOp>(
-            binder.getLoc(), resultType, input_sequence, /*start=*/cstNone,
+            binder.getLoc(), resultType, inputSequence, /*start=*/cstNone,
             /*end=*/positionInt, /*step=*/cstOne);
         Value positionPlusOne = rewriter.create<Torch::AtenAddIntOp>(
             binder.getLoc(), positionInt, cstOne);
         Value listAfterPosition = rewriter.create<Torch::AtenSliceTOp>(
-            binder.getLoc(), resultType, input_sequence,
+            binder.getLoc(), resultType, inputSequence,
             /*start=*/positionPlusOne,
             /*end=*/length, /*step=*/cstOne);
 
@@ -3216,8 +3227,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       "SequenceInsert", 11,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ListType resultType;
-        Value input_sequence, position, insertValue;
-        if (binder.tensorListOperandAtIndex(input_sequence, 0) ||
+        Value inputSequence, position, insertValue;
+        if (binder.tensorListOperandAtIndex(inputSequence, 0) ||
             binder.tensorOperandAtIndex(insertValue, 1) ||
             binder.tensorListResultType(resultType))
           return failure();
@@ -3227,9 +3238,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           // the tensor has to be inserted at the end of the list.
           Value length = rewriter.create<Torch::AtenLenTOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(),
-              input_sequence);
+              inputSequence);
           rewriter.replaceOpWithNewOp<Torch::AtenInsertTOp>(
-              binder.op, input_sequence, /*idx=*/length,
+              binder.op, inputSequence, /*idx=*/length,
               /*el=*/insertValue);
           return success();
         }
@@ -3239,10 +3250,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         Value positionInt = rewriter.create<Torch::AtenItemOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(), position);
-        rewriter.create<Torch::AtenInsertTOp>(binder.getLoc(), input_sequence,
+        rewriter.create<Torch::AtenInsertTOp>(binder.getLoc(), inputSequence,
                                               /*idx=*/positionInt,
                                               /*el=*/insertValue);
-        rewriter.replaceOp(binder.op, input_sequence);
+        rewriter.replaceOp(binder.op, inputSequence);
         return success();
       });
 }
