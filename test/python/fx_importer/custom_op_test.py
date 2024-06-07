@@ -33,21 +33,21 @@ def run(f):
 # CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]], %[[S1]]], affine_map<()[s0, s1] -> (s0, s1, 3)> : !torch.vtensor<[?,?,3],f32>
 # CHECK:        torch.bind_symbolic_shape %[[ARG1]], [%[[S0]], %[[S2]]], affine_map<()[s0, s1] -> (s0, s1, 3)> : !torch.vtensor<[?,?,3],f32>
 # CHECK:        torch.bind_symbolic_shape %[[ARG2]], [%[[S0]], %[[S3]]], affine_map<()[s0, s1] -> (s0, s1, 3)> : !torch.vtensor<[?,?,3],f32>
-# CHECK:        %[[OP:.+]] = torch.operator "torch.my_custom_library.custom_op"(%[[ARG0]], %[[ARG1]], %[[ARG2]]) : (!torch.vtensor<[?,?,3],f32>, !torch.vtensor<[?,?,3],f32>, !torch.vtensor<[?,?,3],f32>) -> !torch.vtensor<[?,?,3],f32>
+# CHECK:        %[[OP:.+]] = torch.operator "torch.my_custom_library.tanh_sigmoid_cat_op"(%[[ARG0]], %[[ARG1]], %[[ARG2]]) : (!torch.vtensor<[?,?,3],f32>, !torch.vtensor<[?,?,3],f32>, !torch.vtensor<[?,?,3],f32>) -> !torch.vtensor<[?,?,3],f32>
 # CHECK:        torch.bind_symbolic_shape %[[OP]], [%[[S0]], %[[S1]], %[[S2]], %[[S3]]], affine_map<()[s0, s1, s2, s3] -> (s0, s2 + s3 + s1 * 2, 3)> : !torch.vtensor<[?,?,3],f32>
 # CHECK:        return %[[OP]] : !torch.vtensor<[?,?,3],f32>
 def test_tanh_sigmoid_cat_custom_op():
 
     m = Library("my_custom_library", "DEF")
-    m.define("custom_op(Tensor x, Tensor y, Tensor z) -> Tensor")
+    m.define("tanh_sigmoid_cat_op(Tensor x, Tensor y, Tensor z) -> Tensor")
 
-    @impl(m, "custom_op", "CompositeExplicitAutograd")
+    @impl(m, "tanh_sigmoid_cat_op", "CompositeExplicitAutograd")
     def custom_op(x, y, z):
         a = torch.tanh(x)
         b = torch.sigmoid(y)
         return torch.cat((a, a, b, z), dim=1)
 
-    @impl_abstract("my_custom_library::custom_op")
+    @impl_abstract("my_custom_library::tanh_sigmoid_cat_op")
     def custom_op_meta(x, y, z):
         result = custom_op(x, y, z)
         return torch.empty_like(result)
@@ -57,7 +57,7 @@ def test_tanh_sigmoid_cat_custom_op():
             super().__init__()
 
         def forward(self, x, y, z):
-            return torch.ops.my_custom_library.custom_op(x, y, z)
+            return torch.ops.my_custom_library.tanh_sigmoid_cat_op(x, y, z)
 
     # Sample inputs
     x = torch.randn(5, 2, 3)
