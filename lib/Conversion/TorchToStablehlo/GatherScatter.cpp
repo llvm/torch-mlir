@@ -1087,7 +1087,7 @@ SmallVector<Value> clip(ConversionPatternRewriter &rewriter, Operation *op,
   auto indexTy = RankedTensorType::get(mlir::ArrayRef<int64_t>{1}, indexElemTy);
 
   Value zeroIntValue = rewriter.create<stablehlo::ConstantOp>(
-      loc, indexTy, DenseIntElementsAttr::get(indexTy, {0}));
+      loc, indexTy, DenseIntElementsAttr::get(indexTy, ArrayRef<int64_t>{0}));
 
   APFloat zeroAPFloat =
       APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), 0);
@@ -1098,8 +1098,8 @@ SmallVector<Value> clip(ConversionPatternRewriter &rewriter, Operation *op,
       cast<RankedTensorType>(xs.getType()).getShape(), indexElemTy);
   RankedTensorType ysTypeInt = RankedTensorType::get(
       cast<RankedTensorType>(ys.getType()).getShape(), indexElemTy);
-  Value xsInt = rewriter.create<stablehlo::ConvertOp>(loc, xsTypeInt, xs);
-  Value ysInt = rewriter.create<stablehlo::ConvertOp>(loc, ysTypeInt, ys);
+  Value xsInt = rewriter.create<stablehlo::ConvertOp>(loc, xs, indexElemTy);
+  Value ysInt = rewriter.create<stablehlo::ConvertOp>(loc, ys, indexElemTy);
 
   Value selectXs = rewriter.create<chlo::BroadcastSelectOp>(
       loc, ArrayRef<Value>{cond, xsInt, zeroIntValue});
@@ -1175,7 +1175,6 @@ Value getSummand(ConversionPatternRewriter &rewriter, Operation *op,
   DenseI64ArrayAttr bcastDimensions;
   return rewriter.create<chlo::BroadcastMulOp>(loc, gather, idxW,
                                                bcastDimensions);
-  // return rewriter.create<stablehlo::MulOp>(loc, gather, idxW);
 }
 
 } // namespace
@@ -1212,7 +1211,8 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
 
   RankedTensorType inputTy = cast<RankedTensorType>(input.getType());
   RankedTensorType gridTy = cast<RankedTensorType>(grid.getType());
-  RankedTensorType outTy = cast<RankedTensorType>(op.getType());
+  RankedTensorType outTy =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   Type elemTy = inputTy.getElementType();
   if (inputTy.getRank() != 4)
     return rewriter.notifyMatchFailure(op, "input must be a 4D tensor");
@@ -1249,35 +1249,31 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
       constC, 0);
 
   // Reshape NidxFlatten to 4D tensor (N, 1, 1, 1)
-  auto NidxSizes = mlir::ArrayRef<int64_t>{N, 1, 1, 1};
+  auto NidxSizes = mlir::SmallVector<int64_t>{N, 1, 1, 1};
   auto Nidx = rewriter.create<stablehlo::ReshapeOp>(
       loc, RankedTensorType::get(NidxSizes, indexElemTy), NidxFlatten);
 
   // Reshape CidxFlatten to 4D tensor (1, C, 1, 1)
-  auto CidxSizes = mlir::ArrayRef<int64_t>{1, C, 1, 1};
+  auto CidxSizes = mlir::SmallVector<int64_t>{1, C, 1, 1};
   auto Cidx = rewriter.create<stablehlo::ReshapeOp>(
       loc, RankedTensorType::get(CidxSizes, indexElemTy), CidxFlatten);
 
   llvm::SmallVector<int64_t> stride(4, 1);
   auto gridX = rewriter.create<stablehlo::SliceOp>(
       loc,
-      RankedTensorType::get(mlir::ArrayRef<int64_t>{N, oH, oW, 1},
+      RankedTensorType::get(mlir::SmallVector<int64_t>{N, oH, oW, 1},
                             gridTy.getElementType()),
-      grid, mlir::ArrayRef<int64_t>{0, 0, 0, 0},
-      mlir::ArrayRef<int64_t>{N, oH, oW, 1}, stride);
+      grid, mlir::SmallVector<int64_t>{0, 0, 0, 0},
+      mlir::SmallVector<int64_t>{N, oH, oW, 1}, stride);
   auto gridY = rewriter.create<stablehlo::SliceOp>(
       loc,
-      RankedTensorType::get(mlir::ArrayRef<int64_t>{N, oH, oW, 1},
+      RankedTensorType::get(mlir::SmallVector<int64_t>{N, oH, oW, 1},
                             gridTy.getElementType()),
-      grid, mlir::ArrayRef<int64_t>{0, 0, 0, 1},
-      mlir::ArrayRef<int64_t>{N, oH, oW, 2}, stride);
+      grid, mlir::SmallVector<int64_t>{0, 0, 0, 1},
+      mlir::SmallVector<int64_t>{N, oH, oW, 2}, stride);
   // squeeze last dimension
   auto gridXshape = mlir::SmallVector<int64_t>{N, oH, oW};
-  SmallVector<Value> gridXshapeValue;
-  for (auto size : gridXshape) {
-    gridXshapeValue.push_back(rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(indexElemTy, size)));
-  }
+
   auto gridXReshape = rewriter.create<stablehlo::ReshapeOp>(
       loc, RankedTensorType::get(gridXshape, gridTy.getElementType()), gridX);
   auto gridYReshape = rewriter.create<stablehlo::ReshapeOp>(
