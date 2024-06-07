@@ -2602,7 +2602,7 @@ static Value NearestInterpolate(OpBuilder &b, Location loc,
                                 SmallVector<Value> outputSizes, Value input,
                                 SmallVector<Value> inputSizes,
                                 SmallVector<Value> scaleValues,
-                                std::string coordStr) {
+                                std::string coordStr, std::string nearestMode) {
 
   auto inputType = cast<RankedTensorType>(input.getType());
   auto inputRank = inputType.getRank();
@@ -2633,9 +2633,29 @@ static Value NearestInterpolate(OpBuilder &b, Location loc,
     Value outFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), outInt);
     Value proj = b.create<arith::DivFOp>(loc, outFP, scale);
 
+    Value nearestFP;
     // get nearest pixel using floor
-    Value nearestFP = b.create<math::FloorOp>(loc, proj);
-
+    if (nearestMode == "floor" || nearestMode == "") {
+      nearestFP = b.create<math::FloorOp>(loc, proj);
+    } else if (nearestMode == "round_prefer_floor") {
+      Value cstHalf = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.5));
+      Value floor = b.create<math::FloorOp>(loc, proj);
+      Value ceil = b.create<math::CeilOp>(loc, proj);
+      Value decimal = b.create<arith::SubFOp>(loc, proj, floor);
+      Value cmp = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULE,
+                                          decimal, cstHalf);
+      nearestFP = b.create<arith::SelectOp>(loc, cmp, floor, ceil);
+    } else if (nearestMode == "round_prefer_ceil") {
+      Value cstHalf = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.5));
+      Value floor = b.create<math::FloorOp>(loc, proj);
+      Value ceil = b.create<math::CeilOp>(loc, proj);
+      Value decimal = b.create<arith::SubFOp>(loc, proj, floor);
+      Value cmp = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGE,
+                                          decimal, cstHalf);
+      nearestFP = b.create<arith::SelectOp>(loc, cmp, ceil, floor);
+    } else if (nearestMode == "ceil") {
+      nearestFP = b.create<math::CeilOp>(loc, proj);
+    }
     Value nearestInt =
         b.create<arith::FPToSIOp>(loc, b.getI64Type(), nearestFP);
     Value nearest =
@@ -2876,9 +2896,15 @@ public:
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value retVal;
                   if (mode.substr(0, 7) == "nearest") {
+                    std::string coordTfMode =
+                        mode.substr(7, mode.find(",") - 7);
+                    std::string nearestMode =
+                        (mode.find(",") == std::string::npos)
+                            ? ""
+                            : mode.substr(mode.find(",") + 1);
                     retVal = NearestInterpolate(
                         b, loc, outputSizeIntValues, input, inputSizes,
-                        ScaleFactorFloatValues, mode.substr(7));
+                        ScaleFactorFloatValues, coordTfMode, nearestMode);
                   } else if (mode.substr(0, 8) == "bilinear") {
                     retVal = BilinearInterpolate(
                         b, op, loc, outputSizeIntValues, input, inputSizes,

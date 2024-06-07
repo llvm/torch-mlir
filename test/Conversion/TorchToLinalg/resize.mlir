@@ -3,20 +3,20 @@
 // CHECK-LABEL: func.func @test_resize_sizes_linear
 func.func @test_resize_sizes_linear(%arg0: !torch.vtensor<[1,1,2,4],f32>, %arg1: !torch.vtensor<[4]
 ,si64>) -> !torch.vtensor<[?,?,?,?],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-     // CHECK: %[[generic:.*]] = linalg.generic
-     // CHECK: %[[extracted:.*]] = tensor.extract %[[x0:.*]][%[[x1:.*]], %[[x2:.*]], %[[x3:.*]], %[[x4:.*]]] : tensor<1x1x2x4xf32>
-     // CHECK: %[[extracted_7:.*]] = tensor.extract %[[x0]][%[[x1]], %[[x2]]
-     // CHECK: %[[extracted_8:.*]] = tensor.extract %[[x0]][%[[x1]], %[[x2]]
-     // CHECK: %[[extracted_9:.*]] = tensor.extract %[[x0]][%[[x1]], %[[x2]]
-     // CHECK: %[[dx0p00:.*]] = arith.mulf %[[dx0:.*]], %[[extracted]]
-     // CHECK: %[[dx1p01:.*]] = arith.mulf %[[dx1:.*]], %[[extracted_7]]
-     // CHECK: %[[sum:.*]] = arith.addf %[[dx0p00]], %[[dx1p01]]
-     // CHECK: %[[left:.*]] = arith.mulf %[[dy0:.*]], %[[sum]]
-     // CHECK: %[[dx0p10:.*]] = arith.mulf %[[dx0]], %[[extracted_8]]
-     // CHECK: %[[dx1p11:.*]] = arith.mulf %[[dx1]], %[[extracted_9]]
-     // CHECK: %[[sum2:.*]] = arith.addf %[[dx0p10]], %[[dx1p11]]
-     // CHECK: %[[right:.*]] = arith.mulf %[[dy1:.*]], %[[sum2]]
-     // CHECK: %[[retval:.*]] = arith.addf %[[left]], %[[right]]
+    // CHECK: %[[generic:.*]] = linalg.generic
+    // CHECK: %[[extracted:.*]] = tensor.extract %[[x0:.*]][%[[x1:.*]], %[[x2:.*]], %[[x3:.*]], %[[x4:.*]]] : tensor<1x1x2x4xf32>
+    // CHECK: %[[extracted_7:.*]] = tensor.extract %[[x0]][%[[x1]], %[[x2]]
+    // CHECK: %[[extracted_8:.*]] = tensor.extract %[[x0]][%[[x1]], %[[x2]]
+    // CHECK: %[[extracted_9:.*]] = tensor.extract %[[x0]][%[[x1]], %[[x2]]
+    // CHECK: %[[dx0p00:.*]] = arith.mulf %[[dx0:.*]], %[[extracted]]
+    // CHECK: %[[dx1p01:.*]] = arith.mulf %[[dx1:.*]], %[[extracted_7]]
+    // CHECK: %[[sum:.*]] = arith.addf %[[dx0p00]], %[[dx1p01]]
+    // CHECK: %[[left:.*]] = arith.mulf %[[dy0:.*]], %[[sum]]
+    // CHECK: %[[dx0p10:.*]] = arith.mulf %[[dx0]], %[[extracted_8]]
+    // CHECK: %[[dx1p11:.*]] = arith.mulf %[[dx1]], %[[extracted_9]]
+    // CHECK: %[[sum2:.*]] = arith.addf %[[dx0p10]], %[[dx1p11]]
+    // CHECK: %[[right:.*]] = arith.mulf %[[dy1:.*]], %[[sum2]]
+    // CHECK: %[[retval:.*]] = arith.addf %[[left]], %[[right]]
     %none = torch.constant.none
     %none_0 = torch.constant.none
     %int0 = torch.constant.int 0
@@ -36,6 +36,7 @@ func.func @test_resize_sizes_linear(%arg0: !torch.vtensor<[1,1,2,4],f32>, %arg1:
 
 // -----
 
+// CHECK-LABEL: func.func @test_resize_sizes_nearest
 func.func @test_resize_sizes_nearest(%arg0: !torch.vtensor<[1,1,2,4],f32>, %arg1: !torch.vtensor<[4],si64>) -> !torch.vtensor<[?,?,?,?],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
     // CHECK: %[[GENERIC:.*]] = linalg.generic
     // CHECK: %[[x11:.*]] = linalg.index 0 : index
@@ -48,8 +49,8 @@ func.func @test_resize_sizes_nearest(%arg0: !torch.vtensor<[1,1,2,4],f32>, %arg1
     // CHECK: %[[x23:.*]] = arith.index_cast %[[x13]] : index to i64
     // CHECK: %[[x24:.*]] = arith.sitofp %[[x23]] : i64 to f32
     // CHECK: %[[x25:.*]] = arith.divf %[[x24]], %[[x21]] : f32
-    // CHECK: %[[x29:.*]] = math.floor %[[x25]] : f32
-    // CHECK: %[[x31:.*]] = arith.fptosi %[[x29]] : f32 to i64
+    // CHECK: %[[x26:.*]] = math.floor %[[x25]] : f32
+    // CHECK: %[[x31:.*]] = arith.fptosi %[[x26]] : f32 to i64
     // CHECK: %[[x32:.*]] = arith.index_cast %[[x31]] : i64 to index
     // CHECK: %[[x16:.*]] = arith.sitofp %[[c4_i64:.*]] : i64 to f32
     // CHECK: %[[x20:.*]] = arith.sitofp %[[x7:.*]] : i64 to f32
@@ -57,8 +58,8 @@ func.func @test_resize_sizes_nearest(%arg0: !torch.vtensor<[1,1,2,4],f32>, %arg1
     // CHECK: %[[x26:.*]] = arith.index_cast %[[x14]] : index to i64
     // CHECK: %[[x27:.*]] = arith.sitofp %[[x26]] : i64 to f32
     // CHECK: %[[x28:.*]] = arith.divf %[[x27]], %[[x22]] : f32
-    // CHECK: %[[x30:.*]] = math.floor %[[x28]] : f32
-    // CHECK: %[[x33:.*]] = arith.fptosi %[[x30]] : f32 to i64
+    // CHECK: %[[x29:.*]] = math.floor %[[x28]] : f32
+    // CHECK: %[[x33:.*]] = arith.fptosi %[[x29]] : f32 to i64
     // CHECK: %[[x34:.*]] = arith.index_cast %[[x33]] : i64 to index
     // CHECK: %[[extracted:.*]] = tensor.extract %[[x0:.*]][%[[x11]], %[[x12]], %[[x32]], %[[x34]]] : tensor<1x1x2x4xf32>
     // CHECK: linalg.yield %[[extracted]] : f32
@@ -81,6 +82,7 @@ func.func @test_resize_sizes_nearest(%arg0: !torch.vtensor<[1,1,2,4],f32>, %arg1
 
 // -----
 
+// CHECK-LABEL: func.func @test_resize_nearest_1d
 func.func @test_resize_nearest_1d(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch.vtensor<[3],si64>) -> !torch.vtensor<[?,?,?],f32> {
     // CHECK: %[[GENERIC:.*]] = linalg.generic
     // CHECK: %[[x11:.*]] = linalg.index 0 : index
@@ -102,7 +104,7 @@ func.func @test_resize_nearest_1d(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !to
     %int0 = torch.constant.int 0
     %false = torch.constant.bool false
     %true = torch.constant.bool true
-    %str = torch.constant.str "nearest"
+    %str = torch.constant.str "nearest,floor"
     %int2 = torch.constant.int 2
     %0 = torch.aten.select.int %arg1, %int0, %int2 : !torch.vtensor<[3],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
     %1 = torch.aten.item %0 : !torch.vtensor<[1],si64> -> !torch.int
@@ -113,6 +115,7 @@ func.func @test_resize_nearest_1d(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !to
 
 // -----
 
+// CHECK-LABEL: func.func @test_resize_nearest_3d
 func.func @test_resize_nearest_3d(%arg0: !torch.vtensor<[?,?,?,?,?],f32>, %arg1: !torch.vtensor<[5],si64>) -> !torch.vtensor<[?,?,?,?,?],f32> {
     // CHECK: %[[GENERIC:.*]] = linalg.generic
     // CHECK: %[[x11:.*]] = linalg.index 0 : index
@@ -126,8 +129,8 @@ func.func @test_resize_nearest_3d(%arg0: !torch.vtensor<[?,?,?,?,?],f32>, %arg1:
     // CHECK: %[[x23:.*]] = arith.index_cast %[[x13]] : index to i64
     // CHECK: %[[x24:.*]] = arith.sitofp %[[x23]] : i64 to f32
     // CHECK: %[[x25:.*]] = arith.divf %[[x24]], %[[x21]] : f32
-    // CHECK: %[[x29:.*]] = math.floor %[[x25]] : f32
-    // CHECK: %[[x31:.*]] = arith.fptosi %[[x29]] : f32 to i64
+    // CHECK: %[[floor:.*]] = math.floor %[[x25]] : f32
+    // CHECK: %[[x31:.*]] = arith.fptosi %[[floor]] : f32 to i64
     // CHECK: %[[x32:.*]] = arith.index_cast %[[x31]] : i64 to index
     // CHECK: %[[x34:.*]] = arith.index_cast %[[Wfptosi:.*]] : i64 to index
     // CHECK: %[[x35:.*]] = arith.index_cast %[[Dfptosi:.*]] : i64 to index
