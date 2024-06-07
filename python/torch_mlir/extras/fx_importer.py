@@ -89,6 +89,10 @@ from ..ir import (
     FloatAttr,
     BF16Type,
     ComplexType,
+    Float8E5M2Type,
+    Float8E4M3FNType,
+    Float8E5M2FNUZType,
+    Float8E4M3FNUZType,
     F16Type,
     F32Type,
     F64Type,
@@ -137,6 +141,10 @@ TORCH_DTYPE_TO_MLIR_TYPE_ASM = {
     torch.complex32: "complex<f16>",
     torch.complex64: "complex<f32>",
     torch.complex128: "complex<f64>",
+    torch.float8_e5m2: "f8E5M2",
+    torch.float8_e4m3fn: "f8E4M3FN",
+    torch.float8_e5m2fnuz: "f8E5M2FNUZ",
+    torch.float8_e4m3fnuz: "f8E4M3FNUZ",
 }
 
 TORCH_DTYPE_TO_MLIR_TYPE: Dict[torch.dtype, Callable[[], IrType]] = {
@@ -155,6 +163,10 @@ TORCH_DTYPE_TO_MLIR_TYPE: Dict[torch.dtype, Callable[[], IrType]] = {
     torch.complex32: lambda: ComplexType.get(F16Type.get()),
     torch.complex64: lambda: ComplexType.get(F32Type.get()),
     torch.complex128: lambda: ComplexType.get(F64Type.get()),
+    torch.float8_e5m2 : lambda: Float8E5M2Type.get(),
+    torch.float8_e5m2fnuz : lambda: Float8E5M2FNUZType.get(),
+    torch.float8_e4m3fn : lambda: Float8E4M3FNType.get(),
+    torch.float8_e4m3fnuz : lambda: Float8E4M3FNUZType.get(),
 }
 
 TORCH_DTYPE_TO_NPY_TYPE = {
@@ -193,6 +205,10 @@ TORCH_DTYPE_TO_INT = {
     # torch.quint8: 13,
     # torch.qint32 14
     torch.bfloat16: 15,
+    torch.float8_e5m2: 23,
+    torch.float8_e4m3fn: 24,
+    torch.float8_e5m2fnuz: 25,
+    torch.float8_e4m3fnuz: 26,
 }
 
 TORCH_MEMORY_FORMAT_TO_INT = {
