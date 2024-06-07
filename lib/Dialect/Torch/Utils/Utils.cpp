@@ -80,6 +80,14 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     if (complexElemType.isF64())
       return torch_upstream::ScalarType::ComplexDouble;
   }
+  if (isa<Float8E5M2Type>(type))
+    return torch_upstream::ScalarType::Float8_e5m2;
+  if (isa<Float8E4M3FNType>(type))
+    return torch_upstream::ScalarType::Float8_e4m3fn;
+  if (isa<Float8E5M2FNUZType>(type))
+    return torch_upstream::ScalarType::Float8_e5m2fnuz;
+  if (isa<Float8E4M3FNUZType>(type))
+    return torch_upstream::ScalarType::Float8_e4m3fnuz;
   llvm::report_fatal_error("unhandled type for getScalarTypeForType");
 }
 Type Torch::getTypeForTorchType(
@@ -128,6 +136,14 @@ Torch::getTypeForScalarType(MLIRContext *context,
     return mlir::ComplexType::get(Float32Type::get(context));
   case torch_upstream::ScalarType::ComplexDouble:
     return mlir::ComplexType::get(Float64Type::get(context));
+  case torch_upstream::ScalarType::Float8_e5m2:
+    return Float8E5M2Type::get(context);
+  case torch_upstream::ScalarType::Float8_e4m3fn:
+    return Float8E4M3FNType::get(context);
+  case torch_upstream::ScalarType::Float8_e5m2fnuz:
+    return Float8E5M2FNUZType::get(context);
+  case torch_upstream::ScalarType::Float8_e4m3fnuz:
+    return Float8E4M3FNUZType::get(context);
   case torch_upstream::ScalarType::Undefined:
     return failure();
   default:
