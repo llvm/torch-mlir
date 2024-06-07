@@ -163,10 +163,10 @@ TORCH_DTYPE_TO_MLIR_TYPE: Dict[torch.dtype, Callable[[], IrType]] = {
     torch.complex32: lambda: ComplexType.get(F16Type.get()),
     torch.complex64: lambda: ComplexType.get(F32Type.get()),
     torch.complex128: lambda: ComplexType.get(F64Type.get()),
-    torch.float8_e5m2 : lambda: Float8E5M2Type.get(),
-    torch.float8_e5m2fnuz : lambda: Float8E5M2FNUZType.get(),
-    torch.float8_e4m3fn : lambda: Float8E4M3FNType.get(),
-    torch.float8_e4m3fnuz : lambda: Float8E4M3FNUZType.get(),
+    torch.float8_e5m2: lambda: Float8E5M2Type.get(),
+    torch.float8_e5m2fnuz: lambda: Float8E5M2FNUZType.get(),
+    torch.float8_e4m3fn: lambda: Float8E4M3FNType.get(),
+    torch.float8_e4m3fnuz: lambda: Float8E4M3FNUZType.get(),
 }
 
 TORCH_DTYPE_TO_NPY_TYPE = {
