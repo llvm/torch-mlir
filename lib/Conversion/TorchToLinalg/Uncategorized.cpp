@@ -2631,7 +2631,17 @@ static Value NearestInterpolate(OpBuilder &b, Location loc,
 
     Value outInt = b.create<arith::IndexCastOp>(loc, b.getI64Type(), outIndex);
     Value outFP = b.create<arith::SIToFPOp>(loc, b.getF32Type(), outInt);
-    Value proj = b.create<arith::DivFOp>(loc, outFP, scale);
+    Value proj;
+    if (coordStr.empty() || coordStr == "_asymmetric") {
+      proj = b.create<arith::DivFOp>(loc, outFP, scale);
+    } else if (coordStr == "_half_pixel") {
+      Value cstHalf = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.5));
+      Value add = b.create<arith::AddFOp>(loc, outFP, cstHalf);
+      Value div = b.create<arith::DivFOp>(loc, add, scale);
+      proj = b.create<arith::SubFOp>(loc, div, cstHalf);
+    } else {
+      llvm_unreachable("Unsupported coordination transformation mode");
+    }
 
     Value nearestFP;
     // get nearest pixel using floor
@@ -2655,6 +2665,8 @@ static Value NearestInterpolate(OpBuilder &b, Location loc,
       nearestFP = b.create<arith::SelectOp>(loc, cmp, ceil, floor);
     } else if (nearestMode == "ceil") {
       nearestFP = b.create<math::CeilOp>(loc, proj);
+    } else {
+      llvm_unreachable("Unsupported nearest mode");
     }
     Value nearestInt =
         b.create<arith::FPToSIOp>(loc, b.getI64Type(), nearestFP);
