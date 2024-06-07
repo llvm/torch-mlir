@@ -1429,7 +1429,8 @@ class GraphNodeImporter:
                     operands = [self._import_argument(loc, arg) for arg in node.args[0]]
                     func_dialect.ReturnOp(operands, loc=loc)
 
-                self._create_bind_symbolic_shape_ops(loc, node)
+                if import_symbolic_shape_expressions:
+                    self._create_bind_symbolic_shape_ops(loc, node)
 
     def _promote_symbolic_scalar_int_float(self, loc, graph, param):
         temp_target = torch.ops.aten.Float.Scalar
