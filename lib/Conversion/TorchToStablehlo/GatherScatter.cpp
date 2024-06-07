@@ -984,8 +984,6 @@ static Value unnormalize(ConversionPatternRewriter &rewriter, Operation *op,
                          Value coords, int64_t size, Type elemTy,
                          bool alignCorners) {
   Location loc = op->getLoc();
-  RankedTensorType valueType =
-      RankedTensorType::get(mlir::ArrayRef<int64_t>{1}, elemTy);
   APFloat pointFive(cast<mlir::FloatType>(elemTy).getFloatSemantics(), "0.5");
   APFloat sizeFloat =
       APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), size);
@@ -999,13 +997,7 @@ static Value unnormalize(ConversionPatternRewriter &rewriter, Operation *op,
   APFloat ofs = sizeFloat * pointFive - pointFive;
   Value constMul = getConstScalarTensor(rewriter, op, mul, elemTy);
   Value constOfs = getConstScalarTensor(rewriter, op, ofs, elemTy);
-  // auto constMulAttr = rewriter.getFloatAttr(valueType, SmallVector{mul});
-  // Value constMul = rewriter.create<stablehlo::ConstantOp>(loc,
-  // constMulAttr);
-  // Value constMul = rewriter.create<stablehlo::ConstantOp>(
-  //     loc, valueType, DenseElementsAttr::get(valueType, ));
-  // Value constOfs = rewriter.create<stablehlo::ConstantOp>(
-  //     loc, valueType, DenseFPElementsAttr::get(valueType, {ofs}));
+
   // use chlo::BroadcastMulOp to multiply constMul with coords.
   DenseI64ArrayAttr bcastDimensions;
   Value mulResult = rewriter.create<chlo::BroadcastMulOp>(loc, coords, constMul,
@@ -1094,7 +1086,6 @@ SmallVector<Value> clip(ConversionPatternRewriter &rewriter, Operation *op,
   Location loc = op->getLoc();
   auto indexElemTy = rewriter.getI64Type();
   auto indexTy = RankedTensorType::get(mlir::ArrayRef<int64_t>{1}, indexElemTy);
-  auto valueType = RankedTensorType::get(mlir::ArrayRef<int64_t>{1}, elemTy);
 
   Value zeroIntValue = rewriter.create<stablehlo::ConstantOp>(
       loc, indexTy, DenseIntElementsAttr::get(indexTy, {0}));
