@@ -1022,7 +1022,6 @@ static Value computeSourceIndex(ConversionPatternRewriter &rewriter,
   Value coordsUn =
       unnormalize(rewriter, op, coords, size, elemTy, alignCorners);
   return computeCoordinates(rewriter, op, coordsUn, size, elemTy, padding_mode);
-  // return coordsUn;
 }
 
 // def in_bounds_cond(xs: Tensor, ys: Tensor) -> Tensor:
@@ -1131,8 +1130,7 @@ Value getSummand(ConversionPatternRewriter &rewriter, Operation *op,
   Value idxY = clipValues[1];
   Value idxW = clipValues[2];
   SmallVector<Value> indexTensors{Nidx, CIdx, idxY, idxX};
-  // auto indexTensors = getTypeConvertedValues(
-  //     rewriter, loc, rewriter.getTypeConverter(), indicesTorchType);
+
   int maxIndexRank = -1;
   auto gatherIndicesInfo =
       broadcastAndConcatIndices(input.getDefiningOp(), rewriter, indexTensors,
@@ -1253,16 +1251,12 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
   // Reshape NidxFlatten to 4D tensor (N, 1, 1, 1)
   auto NidxSizes = mlir::ArrayRef<int64_t>{N, 1, 1, 1};
   auto Nidx = rewriter.create<stablehlo::ReshapeOp>(
-      loc,
-      RankedTensorType::get(mlir::ArrayRef<int64_t>{N, 1, 1, 1}, indexElemTy),
-      NidxFlatten);
+      loc, RankedTensorType::get(NidxSizes, indexElemTy), NidxFlatten);
 
   // Reshape CidxFlatten to 4D tensor (1, C, 1, 1)
   auto CidxSizes = mlir::ArrayRef<int64_t>{1, C, 1, 1};
   auto Cidx = rewriter.create<stablehlo::ReshapeOp>(
-      loc,
-      RankedTensorType::get(mlir::ArrayRef<int64_t>{1, C, 1, 1}, indexElemTy),
-      CidxFlatten);
+      loc, RankedTensorType::get(CidxSizes, indexElemTy), CidxFlatten);
 
   llvm::SmallVector<int64_t> stride(4, 1);
   auto gridX = rewriter.create<stablehlo::SliceOp>(
