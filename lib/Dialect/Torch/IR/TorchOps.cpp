@@ -5034,3 +5034,65 @@ LogicalResult InitializeGlobalSlotsOp::verify() {
     return emitOpError("expected number of operands to match number of slots");
   return success();
 }
+
+//===----------------------------------------------------------------------===//
+// BindSymbolicShapeOp
+//===----------------------------------------------------------------------===//
+
+//
+// torch.bind_symbolic_shape %6, [%0, %1, %2], affine_map<()[s0, s1, s2] ->
+// (s0, s1 * 2 + s2, 3)> : !torch.vtensor<[?,?,3],f32>
+//
+
+ParseResult BindSymbolicShapeOp::parse(OpAsmParser &parser,
+                                       OperationState &result) {
+  OpAsmParser::UnresolvedOperand operand;
+  SmallVector<OpAsmParser::UnresolvedOperand> shapeSymbols;
+  AffineMapAttr shapeExpressions;
+  Type operandType;
+
+  if (parser.parseOperand(operand) || parser.parseComma() ||
+      parser.parseLSquare() || parser.parseOperandList(shapeSymbols) ||
+      parser.parseRSquare() || parser.parseComma() ||
+      parser.parseAttribute(shapeExpressions, "shape_expressions",
+                            result.attributes) ||
+      parser.parseOptionalAttrDict(result.attributes) ||
+      parser.parseColonType(operandType)) {
+    return failure();
+  }
+
+  if (parser.resolveOperand(operand, operandType, result.operands) ||
+      parser.resolveOperands(shapeSymbols,
+                             parser.getBuilder().getType<Torch::IntType>(),
+                             result.operands)) {
+    return failure();
+  }
+
+  return success();
+}
+
+// Use a custom printer here to avoid the AffineMap from getting hoisted
+// when printed. This makes it so the AffineMap is printed inline with the op.
+void BindSymbolicShapeOp::print(OpAsmPrinter &p) {
+  p << " " << getOperand() << ", [";
+  llvm::interleaveComma(getShapeSymbols(), p);
+  p << "], " << "affine_map<" << getShapeExpressions().getValue() << ">";
+  p.printOptionalAttrDict((*this)->getAttrs(),
+                          /*elidedAttrs=*/{"shape_expressions"});
+  p << " : " << getOperand().getType();
+}
+
+LogicalResult BindSymbolicShapeOp::verify() {
+  if (getShapeSymbols().empty())
+    return emitOpError() << "requires non-empty shapeSymbols";
+
+  for (auto symbol : getShapeSymbols()) {
+    Operation *definingOp = symbol.getDefiningOp();
+    if (!isa<SymbolicIntOp>(definingOp)) {
+      return emitOpError()
+             << "shape symbol must be produced by a SymbolicIntOp";
+    }
+  }
+
+  return success();
+}

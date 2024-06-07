@@ -14,6 +14,8 @@ except ImportError:
 import logging
 import operator
 import re
+import sympy
+import math
 from dataclasses import dataclass
 from types import BuiltinMethodType, BuiltinFunctionType
 from typing import (
@@ -81,6 +83,14 @@ from torch.fx.node import (
 )
 
 from ..ir import (
+    AffineAddExpr,
+    AffineConstantExpr,
+    AffineExpr,
+    AffineMap,
+    AffineMapAttr,
+    AffineModExpr,
+    AffineMulExpr,
+    AffineSymbolExpr,
     Attribute,
     Block,
     Context,
@@ -256,6 +266,71 @@ else:
     }
 
     SYMBOLIC_TORCH_OPS = {key for key in SYMBOLIC_OP_TO_TORCH_OP}
+
+
+@dataclass
+class RangeConstraint:
+    min_val: int
+    max_val: int
+
+
+def sympy_expr_to_semi_affine_expr(
+    expr: sympy.Expr, symbols_map: Dict[str, AffineSymbolExpr]
+) -> AffineExpr:
+    """Translate sympy expressions to MLIR (semi-)affine expressions.
+
+    Recursively traverse the sympy expr AST and build the affine expr.
+    This is not a perfect translation. Sympy expressions are much more
+    expressive and not as constrained as affine (linear) expressions are.
+    However, for the most part, we don't need to support all of sympy.
+    PyTorch only uses a subset of sympy for capturing and expressing
+    symbolic shapes, and among what's supported, we expect the semi-affine
+    expressions (https://mlir.llvm.org/docs/Dialects/Affine/#semi-affine-maps)
+    to be sufficient.
+    """
+    if isinstance(expr, sympy.Symbol):
+        return symbols_map[str(expr)]
+    elif isinstance(expr, (int, sympy.Integer)):
+        return AffineConstantExpr.get(expr)
+    # This handles both add (`s0 + c`) and subtract (`s0 - c`).
+    # The expression is `sympy.Add` in both cases but with args
+    # (s0, c) in first case and (s0, -c) in the second case.
+    elif isinstance(expr, sympy.Add):
+        affine_expr = AffineConstantExpr.get(0)
+        for arg in expr.args:
+            affine_expr = AffineAddExpr.get(
+                affine_expr, sympy_expr_to_semi_affine_expr(arg, symbols_map)
+            )
+        return affine_expr
+    elif isinstance(expr, sympy.Mul):
+        affine_expr = AffineConstantExpr.get(1)
+        for arg in expr.args:
+            affine_expr = AffineMulExpr.get(
+                affine_expr, sympy_expr_to_semi_affine_expr(arg, symbols_map)
+            )
+        return affine_expr
+    elif isinstance(expr, sympy.Pow):
+        base, exp = expr.args
+        # Only integer exponent is supported
+        # So, s1 ** s0 isn't allowed.
+        assert isinstance(exp, (int, sympy.Integer))
+        assert exp > 0, "Only positive exponents supported in sympy.Pow"
+        affine_expr = AffineConstantExpr.get(1)
+        for _ in range(exp):
+            affine_expr = AffineMulExpr.get(
+                affine_expr, sympy_expr_to_semi_affine_expr(base, symbols_map)
+            )
+        return affine_expr
+    elif isinstance(expr, sympy.Mod):
+        dividend, divisor = expr.args
+        return AffineModExpr.get(
+            sympy_expr_to_semi_affine_expr(dividend, symbols_map),
+            sympy_expr_to_semi_affine_expr(divisor, symbols_map),
+        )
+    else:
+        raise NotImplementedError(
+            f"Translation of sympy.Expr of type {type(expr)} not implemented yet."
+        )
 
 
 @dataclass(frozen=True)
@@ -478,6 +553,7 @@ class FxImporter:
         *,
         func_name: str = "main",
         func_visibility: Optional[str] = None,
+        import_symbolic_shape_expressions: bool = False,
     ) -> Operation:
         """Imports an ExportedProgram according to our chosen canonical representation.
 
@@ -526,6 +602,10 @@ class FxImporter:
         )
 
         sig = prog.graph_signature
+
+        # Populate symbolic guards for dynamic shapes (if any)
+        if import_symbolic_shape_expressions:
+            self._cc.set_symbolic_guards(prog)
 
         # Invert the (producer, node_name) maps for mutated user inputs and mutated
         # buffers. This is because we hit-detect based on the input node name.
@@ -682,7 +762,9 @@ class FxImporter:
 
         # Import all nodes and return.
         node_importer.import_nodes(
-            all_producer_nodes.values(), skip_placeholders_outputs=True
+            all_producer_nodes.values(),
+            skip_placeholders_outputs=True,
+            import_symbolic_shape_expressions=import_symbolic_shape_expressions,
         )
         node_importer.return_node_values(loc, user_outputs)
         self.symbol_table.insert(func_op)
@@ -694,6 +776,7 @@ class FxImporter:
         *,
         func_name: str = "main",
         func_visibility: Optional[str] = None,
+        import_symbolic_shape_expressions: bool = False,
     ) -> Operation:
         """Imports a consolidated torch.export.ExportedProgram instance.
 
@@ -727,6 +810,10 @@ class FxImporter:
         sig = prog.graph_signature
         state_dict = prog.state_dict
         arg_replacements: Dict[str, Any] = {}
+
+        # Populate symbolic guards for dynamic shapes (if any)
+        if import_symbolic_shape_expressions:
+            self._cc.set_symbolic_guards(prog)
 
         # If there is no "constants" attribute, consult the "state_dict". Otherwise, only look
         # at "constants". Relevant upstream patch: https://github.com/pytorch/pytorch/pull/118969
@@ -774,7 +861,10 @@ class FxImporter:
                 g.erase_node(node)
 
         return self.import_stateless_graph(
-            g, func_name=func_name, func_visibility=func_visibility
+            g,
+            func_name=func_name,
+            func_visibility=func_visibility,
+            import_symbolic_shape_expressions=import_symbolic_shape_expressions,
         )
 
     def import_graph_module(self, gm: GraphModule) -> Operation:
@@ -791,6 +881,7 @@ class FxImporter:
         *,
         func_name: str = "main",
         func_visibility: Optional[str] = None,
+        import_symbolic_shape_expressions: bool = False,
     ) -> Operation:
         """Low-level import of a functionalized, assumed stateless Graph as a func.
 
@@ -815,7 +906,9 @@ class FxImporter:
             self._cc,
             entry_block,
         )
-        node_importer.import_nodes(g.nodes)
+        node_importer.import_nodes(
+            g.nodes, import_symbolic_shape_expressions=import_symbolic_shape_expressions
+        )
         self.symbol_table.insert(func)
         return func
 
@@ -870,6 +963,7 @@ class ContextCache:
         "_c",
         "_dtype_to_type",
         "_tensor_metadata_cache",
+        "_symbolic_guards",
         "_py_attr_tracker",
         # Types.
         "torch_bool_type",
@@ -888,6 +982,7 @@ class ContextCache:
         self._tensor_metadata_cache: Dict[
             Tuple[torch.Size, torch.dtype, Optional[SparsityMeta], bool], IrType
         ] = {}
+        self._symbolic_guards: Dict = {}
         self._py_attr_tracker = py_attr_tracker or RefTracker()
 
         # Common types.
@@ -1037,6 +1132,52 @@ class ContextCache:
                 return Location.file(filename, line, col=0, context=self._c)
         return Location.unknown(context=self._c)
 
+    def set_symbolic_guards(
+        self, prog: torch.export.ExportedProgram
+    ) -> Dict[str, RangeConstraint]:
+
+        def _sympy_int_to_int(val: sympy.Expr, adjust_func: Callable):
+            # Convert simple sympy Integers into concrete int
+            if val == sympy.oo:
+                return math.inf
+            if val == -sympy.oo:
+                return -math.inf
+            if isinstance(val, sympy.Integer):
+                return int(val)
+            # TODO: Remove this adjustment when fractional ranges are removed
+            return adjust_func(val)
+
+        contains_symbolic_ints = False
+        for val in prog.range_constraints.values():
+            if (
+                isinstance(val.lower, sympy.Integer)
+                and isinstance(val.upper, sympy.Integer)
+                and not val.is_bool
+            ):
+                contains_symbolic_ints = True
+                break
+        if contains_symbolic_ints:
+            # Build a map from shape symbol name to `RangeConstraint` object
+            # capturing `min_val`` and `max_val`` constraints for that
+            # symbol. Translate sympy integers to regular integers.
+            #
+            # Example:
+            #       {
+            #          's0': RangeConstraint(min_val=5, max_val=10),
+            #          's1': RangeConstraint(min_val=0, max_val=100),
+            #          's3': RangeConstraint(min_val=0, max_val=9223372036854775806),
+            #       }
+            self._symbolic_guards = {
+                str(k): RangeConstraint(
+                    _sympy_int_to_int(v.lower, math.ceil),
+                    _sympy_int_to_int(v.upper, math.floor),
+                )
+                for k, v in prog.range_constraints.items()
+            }
+
+    def get_symbolic_guards(self) -> Dict[str, RangeConstraint]:
+        return self._symbolic_guards
+
 
 class GraphNodeImporter:
     """Imports graph nodes into an MLIR function.
@@ -1050,6 +1191,7 @@ class GraphNodeImporter:
         "_cc",
         "_on_node_produced",
         "_v",
+        "_symbol_to_value",
         "_multi_result_nodes",
         "fx_importer",
     ]
@@ -1068,6 +1210,8 @@ class GraphNodeImporter:
         # Map of (Node, result_index) to MLIR Value or a callback that lazily
         # constructs and returns a value.
         self._v: Dict[Union[Callable[[], Value], Tuple[torch_fx.Node, int]], Value] = {}
+        # Map of Shape Symbol to MLIR Value
+        self._symbol_to_value: Dict[str, Value] = {}
         # Map of node name to hook that should be called when it is produced.
         self._on_node_produced: Dict[str, Callable[[Value], None]] = {}
         # Statically multi-result nodes which we have de-tupled are noted here.
@@ -1107,6 +1251,28 @@ class GraphNodeImporter:
         value = binding()
         self._v[key] = value
         return value
+
+    def bind_symbol_value(
+        self,
+        shape_symbol: str,
+        value: Value,
+    ):
+        """Binds a shape symbol to a global SSA value (and asserts if already bound)."""
+        assert (
+            shape_symbol not in self._symbol_to_value
+        ), f"Symbol already has a value: {shape_symbol}"
+        self._symbol_to_value[shape_symbol] = value
+
+    def resolve_symbol_value(self, shape_symbol: str) -> Value:
+        """Resolves a shape symbol to a value."""
+        try:
+            binding = self._symbol_to_value[shape_symbol]
+        except KeyError:
+            raise KeyError(
+                f"Shape symbol {shape_symbol} has not been bound to an MLIR value"
+            )
+        if isinstance(binding, Value):
+            return binding
 
     def import_mutable_to_vtensor(
         self, loc: Location, node: Node, mutable_value: Value, producer_node_name: str
@@ -1190,10 +1356,20 @@ class GraphNodeImporter:
             func_dialect.ReturnOp(operands, loc=loc)
 
     def import_nodes(
-        self, nodes: Iterable[Node], *, skip_placeholders_outputs: bool = False
+        self,
+        nodes: Iterable[Node],
+        *,
+        skip_placeholders_outputs: bool = False,
+        import_symbolic_shape_expressions: bool = False,
     ):
         with InsertionPoint(self._b):
             loc = Location.unknown()
+
+            # Import dynamic shape symbols and guards (if any)
+            if import_symbolic_shape_expressions:
+                symbolic_guards = self._cc.get_symbolic_guards()
+                self._import_shape_symbols_with_guards(loc, symbolic_guards)
+
             num_placeholders = 0
             for node in nodes:
                 op = node.op
@@ -1252,6 +1428,8 @@ class GraphNodeImporter:
                     # results.
                     operands = [self._import_argument(loc, arg) for arg in node.args[0]]
                     func_dialect.ReturnOp(operands, loc=loc)
+
+                self._create_bind_symbolic_shape_ops(loc, node)
 
     def _promote_symbolic_scalar_int_float(self, loc, graph, param):
         temp_target = torch.ops.aten.Float.Scalar
@@ -1515,6 +1693,69 @@ class GraphNodeImporter:
         # Record value mapping.
         for i, value in enumerate(operation.results):
             self.bind_node_value(node, value, i)
+
+    def _import_shape_symbols_with_guards(
+        self, loc: Location, symbolic_guards: Dict[str, RangeConstraint]
+    ):
+        for symbol, constraints in symbolic_guards.items():
+            # Create torch.sym_int ops
+            operation = Operation.create(
+                name="torch.symbolic_int",
+                attributes={
+                    "symbol_name": StringAttr.get(symbol),
+                    "min_val": self._cc.integer_attr(constraints.min_val, 64),
+                    "max_val": self._cc.integer_attr(constraints.max_val, 64),
+                },
+                results=[self._cc.torch_int_type],
+                loc=loc,
+            )
+            self.bind_symbol_value(symbol, operation.result)
+
+    def _create_bind_symbolic_shape_ops(self, loc: Location, node: torch_fx.Node):
+        node_val = node.meta.get("val")
+        if (node_val is not None) and isinstance(node_val, TorchFakeTensor):
+            # Only create bind ops if the shapes contain symbolic sizes.
+            # Query the bool attribute `_has_symbolic_sizes_strides` on node.meta["val"].
+            if node_val._has_symbolic_sizes_strides:
+                # Read node metadata to obtain shape symbols and expressions
+                symbols_set = set()
+                shape_exprs = []
+                for s in node_val.size():
+                    if isinstance(s, torch.SymInt):
+                        symbols_set.update(s.node.expr.free_symbols)
+                        shape_exprs.append(s.node.expr)
+                    else:
+                        assert isinstance(s, int)
+                        shape_exprs.append(s)
+
+                # Map from sympy shape symbols to local symbols in the affine map
+                symbols_set = sorted(symbols_set, key=lambda x: x.name)
+                symbols_map = {
+                    str(symbol): AffineSymbolExpr.get(i)
+                    for i, symbol in enumerate(symbols_set)
+                }
+
+                # Convert symbolic shape expressions into affine expressions
+                affine_exprs = [
+                    sympy_expr_to_semi_affine_expr(expr, symbols_map)
+                    for expr in shape_exprs
+                ]
+
+                affine_map = AffineMap.get(0, len(symbols_set), affine_exprs)
+
+                # Build operand list
+                operand_list = []
+                operand_list.append(self.resolve_node_value(node))
+                for symbol in symbols_map.keys():
+                    operand_list.append(self.resolve_symbol_value(symbol))
+
+                # Create torch.bind_symbolic_shape ops
+                Operation.create(
+                    name="torch.bind_symbolic_shape",
+                    attributes={"shape_expressions": AffineMapAttr.get(affine_map)},
+                    operands=operand_list,
+                    loc=loc,
+                )
 
     def _import_argument(
         self, loc: Location, arg: NodeArgument, expected_jit_type=None

@@ -89,6 +89,11 @@ def test_import_frozen_exported_program_with_func_name():
 @run
 # CHECK-LABEL: test_import_frozen_exported_program_with_dynamic_shapes
 # CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,4],f32>) -> !torch.vtensor<[?,4],f32>
+# CHECK:     %[[S0:.*]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
+# CHECK:     torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0, 4)> : !torch.vtensor<[?,4],f32>
+# CHECK:     %[[TANH:.*]] = torch.aten.tanh %[[ARG0]] : !torch.vtensor<[?,4],f32> -> !torch.vtensor<[?,4],f32>
+# CHECK:     torch.bind_symbolic_shape %[[TANH]], [%[[S0]]], affine_map<()[s0] -> (s0, 4)> : !torch.vtensor<[?,4],f32>
+# CHECK:     return %[[TANH]] : !torch.vtensor<[?,4],f32>
 def test_import_frozen_exported_program_with_dynamic_shapes():
     class Basic(nn.Module):
         def __init__(self):
@@ -100,7 +105,11 @@ def test_import_frozen_exported_program_with_dynamic_shapes():
     batch = Dim("batch")
     dynamic_shapes = {"x": {0: batch}}
     m = fx.export_and_import(
-        Basic(), torch.randn(3, 4), dynamic_shapes=dynamic_shapes, func_name="test_net"
+        Basic(),
+        torch.randn(3, 4),
+        dynamic_shapes=dynamic_shapes,
+        func_name="test_net",
+        import_symbolic_shape_expressions=True,
     )
     print(m)
 
@@ -108,6 +117,12 @@ def test_import_frozen_exported_program_with_dynamic_shapes():
 @run
 # CHECK-LABEL: test_broadcast_with_dynamic_shapes
 # CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[1,2],f32>, %[[ARG1:[a-zA-Z0-9]+]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,2],f32>
+# CHECK:     %[[S0:.*]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
+# CHECK:     torch.bind_symbolic_shape %[[ARG1]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
+# CHECK:     torch.aten.size.int
+# CHECK:     torch.prim.ListConstruct
+# CHECK:     %[[EXPAND:.*]] = torch.aten.expand
+# CHECK:     torch.bind_symbolic_shape %[[EXPAND]], [%[[S0]]], affine_map<()[s0] -> (s0, 2)> : !torch.vtensor<[?,2],f32>
 def test_broadcast_with_dynamic_shapes():
     class Basic(nn.Module):
         def __init__(self):
@@ -127,7 +142,12 @@ def test_broadcast_with_dynamic_shapes():
     }
 
     m = fx.export_and_import(
-        Basic(), x, y, dynamic_shapes=dynamic_shapes, func_name="test_net"
+        Basic(),
+        x,
+        y,
+        dynamic_shapes=dynamic_shapes,
+        func_name="test_net",
+        import_symbolic_shape_expressions=True,
     )
     print(m)
 
