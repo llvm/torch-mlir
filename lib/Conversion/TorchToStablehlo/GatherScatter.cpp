@@ -1094,10 +1094,6 @@ SmallVector<Value> clip(ConversionPatternRewriter &rewriter, Operation *op,
   Value zeroFloatValue =
       getConstScalarTensor(rewriter, op, zeroAPFloat, elemTy);
   Value cond = inBoundsCond(rewriter, op, xs, ys, iH, iW, elemTy);
-  RankedTensorType xsTypeInt = RankedTensorType::get(
-      cast<RankedTensorType>(xs.getType()).getShape(), indexElemTy);
-  RankedTensorType ysTypeInt = RankedTensorType::get(
-      cast<RankedTensorType>(ys.getType()).getShape(), indexElemTy);
   Value xsInt = rewriter.create<stablehlo::ConvertOp>(loc, xs, indexElemTy);
   Value ysInt = rewriter.create<stablehlo::ConvertOp>(loc, ys, indexElemTy);
 
