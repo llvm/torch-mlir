@@ -1240,7 +1240,6 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
   int64_t oW = gridSize[2];
   // grid is a 4D tensor with shape (N, oH, oW, 2)
 
-  // Type
   Type indexElemTy = rewriter.getI64Type();
   RankedTensorType indexTy =
       RankedTensorType::get(mlir::ArrayRef<int64_t>{1}, indexElemTy);
