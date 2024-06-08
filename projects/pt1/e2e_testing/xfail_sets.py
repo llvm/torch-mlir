@@ -2701,6 +2701,7 @@ ONNX_XFAIL_SET = {
     "RenormModuleFloat16_basic",
     "RenormModuleFloat32NegativeDim_basic",
     "RenormModuleFloat32_basic",
+    "RenormModuleFloat32DynamicDims_basic",
     # Failure - unknown
     "BernoulliModule_basic",
     "Conv_Transpose1dModule_basic",

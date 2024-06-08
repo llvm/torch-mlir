@@ -2101,9 +2101,6 @@ public:
 
     SmallVector<int64_t> inputSize(resType.getSizes());
 
-    if (inputSize[0] == Torch::kUnknownSize)
-      return rewriter.notifyMatchFailure(op, "size of input tensor is unknown");
-
     // Convert dim from Value to int
     int64_t dimInt;
     if (!matchPattern(dim, m_TorchConstantInt(&dimInt)))
@@ -2168,13 +2165,9 @@ public:
     Value normPlusEps = rewriter.create<AtenAddScalarOp>(
         loc, vectorNormOutType, norm, epsValue, cstOne);
 
-    Value sizeList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
-        inputSizeValue);
-
-    Value maxnormTensorValue =
-        createInitTensor(rewriter, loc, cast<BaseTensorType>(vectorNormOutType),
-                         maxnorm, sizeList);
+    Value maxnormTensorValue = rewriter.create<AtenFullLikeOp>(
+        loc, normPlusEps.getType(), normPlusEps, maxnorm, cstNone, cstNone,
+        cstNone, cstNone, cstNone);
 
     // Divide maxnorm and normPlusEps
     auto divideMaxnormAndNorm = rewriter.create<AtenDivTensorOp>(
@@ -2189,9 +2182,9 @@ public:
     Value greaterThanMaxnorm =
         rewriter.create<AtenGtScalarOp>(loc, boolTensorType, norm, maxnorm);
 
-    Value cstOnetensor =
-        createInitTensor(rewriter, loc, cast<BaseTensorType>(vectorNormOutType),
-                         cstOne, sizeList);
+    Value cstOnetensor = rewriter.create<AtenFullLikeOp>(
+        loc, normPlusEps.getType(), normPlusEps, cstOne, cstNone, cstNone,
+        cstNone, cstNone, cstNone);
 
     auto normFactor = rewriter.create<AtenWhereSelfOp>(
         loc, vectorNormOutType, greaterThanMaxnorm, divideMaxnormAndNorm,
