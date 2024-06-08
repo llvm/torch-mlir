@@ -146,12 +146,11 @@ public:
               "mismatching contracting dimension for torch.aten.mm"));
     }
 
-    auto resultTy = cast<ValueTensorType>(op.getType());
-    auto resultDTy = resultTy.toBuiltinTensor().getElementType();
-    Type newResultType = getTypeConverter()->convertType(op.getType());
-    Type elementType = cast<TensorType>(newResultType).getElementType();
-    auto accumulatorDType = getDefaultAccType(rewriter, resultDTy);
-    if (accumulatorDType != resultDTy) {
+    TensorType resultType =
+        cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+    Type elementType = resultType.getElementType();
+    auto accumulatorDType = getDefaultAccType(rewriter, elementType);
+    if (accumulatorDType != resultType.getElementType()) {
       elementType = accumulatorDType;
     }
     Value zeroFill = createZeroInitTensor(
@@ -197,18 +196,16 @@ public:
                    .getResult(0);
     }
 
-    if (accumulatorDType != resultDTy) {
-      Type resultElementType =
-          cast<RankedTensorType>(newResultType).getElementType();
+    if (accumulatorDType != resultType.getElementType()) {
       matmul = torch_to_linalg::convertTensorToElementType(
-          rewriter, loc, matmul, resultElementType);
+          rewriter, loc, matmul, resultType.getElementType());
     }
     // When constructed with just dynamic sizes, EmptyOp will have a result
     // type which has all `?`'s for dimensions, which might not be the result
     // type of `op`. The constraints on later linalg ops means that the result
     // of the MatmulOp will have this type too. So cast it to the desired type
     // so that in the end we have the original result type.
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, matmul);
 
     return success();
   }

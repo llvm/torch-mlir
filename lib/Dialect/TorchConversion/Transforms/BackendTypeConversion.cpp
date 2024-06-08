@@ -164,7 +164,18 @@ void mlir::torch::TorchConversion::setupBackendTypeConversion(
     ConversionTarget &target, TypeConverter &typeConverter) {
   auto valueTensorTypeConversion =
       [](Torch::ValueTensorType type) -> std::optional<Type> {
-    return type.toBuiltinTensor();
+    auto builtinType = type.toBuiltinTensor();
+    if (!builtinType)
+      return std::nullopt;
+
+    // convert any integer type to signless
+    if (type.getDtype().isInteger()) {
+      return builtinType.clone(IntegerType::get(
+          builtinType.getContext(), type.getDtype().getIntOrFloatBitWidth(),
+          IntegerType::Signless));
+    }
+
+    return builtinType;
   };
   setupValueTensorToBuiltinTensorConversion(target, typeConverter,
                                             valueTensorTypeConversion);
@@ -180,9 +191,18 @@ void mlir::torch::TorchConversion::setupBackendTypeConversionForStablehlo(
   auto valueTensorTypeConversion =
       [](Torch::ValueTensorType type) -> std::optional<Type> {
     auto builtinType = type.toBuiltinTensor();
+    if (!builtinType)
+      return std::nullopt;
+
+    // convert signed integer type to signless, keep unsigned as unsigned
     if (type.getDtype().isUnsignedInteger()) {
       return builtinType.clone(type.getDtype());
+    } else if (type.getDtype().isSignedInteger()) {
+      return builtinType.clone(IntegerType::get(
+          builtinType.getContext(), type.getDtype().getIntOrFloatBitWidth(),
+          IntegerType::Signless));
     }
+
     return builtinType;
   };
   setupValueTensorToBuiltinTensorConversion(target, typeConverter,
