@@ -2352,7 +2352,7 @@ func.func @test_col2im(%arg0: !torch.vtensor<[1,5,5],f32>, %arg1: !torch.vtensor
 // -----
 
 // CHECK-LABEL: func.func @test_col2im_pads
-func.func @test_col2im_pads(%arg0: !torch.vtensor<[1,5,5],f32>, %arg1: !torch.vtensor<[2],si64>, %arg2: !torch.vtensor<[2],si64>) -> !torch.vtensor<[1,1,5,5],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+func.func @test_col2im_pads(%arg0: !torch.vtensor<[1,5,15],f32>, %arg1: !torch.vtensor<[2],si64>, %arg2: !torch.vtensor<[2],si64>) -> !torch.vtensor<[1,1,5,5],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK-DAG: %[[INT1_0:.*]] = torch.constant.int 1
   // CHECK-DAG: %[[INT1_1:.*]] = torch.constant.int 1
   // CHECK-DAG: %[[INT0_0:.*]] = torch.constant.int 0
@@ -2379,9 +2379,9 @@ func.func @test_col2im_pads(%arg0: !torch.vtensor<[1,5,5],f32>, %arg1: !torch.vt
   // CHECK-DAG: %[[PADLIST:.*]] = torch.prim.ListConstruct %[[INT0_0]], %[[INT0_1]] : (!torch.int, !torch.int) -> !torch.list<int>
   // CHECK-DAG: %[[DILATIONSLIST:.*]] = torch.prim.ListConstruct %[[INT1_0]], %[[INT1_1]] : (!torch.int, !torch.int) -> !torch.list<int>
   // CHECK-DAG: %[[STRIDESLIST:.*]] = torch.prim.ListConstruct %[[INT1_2]], %[[INT1_3]] : (!torch.int, !torch.int) -> !torch.list<int>
-  // CHECK: %[[COL2IM:.*]] = torch.aten.col2im %arg0, %[[IMAGESHAPELIST]], %[[BLOCKSHAPELIST]], %[[DILATIONSLIST]], %[[PADLIST]], %[[STRIDESLIST]] : !torch.vtensor<[1,5,5],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.vtensor<[1,1,5,5],f32>
+  // CHECK: %[[COL2IM:.*]] = torch.aten.col2im %arg0, %[[IMAGESHAPELIST]], %[[BLOCKSHAPELIST]], %[[DILATIONSLIST]], %[[PADLIST]], %[[STRIDESLIST]] : !torch.vtensor<[1,5,15],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.vtensor<[1,1,5,5],f32>
   // CHECK: return %[[COL2IM]] : !torch.vtensor<[1,1,5,5],f32>
-  %0 = torch.operator "onnx.Col2Im"(%arg0, %arg1, %arg2) {torch.onnx.pads = [0 : si64, 1 : si64, 0 : si64, 1 : si64]} : (!torch.vtensor<[1,5,5],f32>, !torch.vtensor<[2],si64>, !torch.vtensor<[2],si64>) -> !torch.vtensor<[1,1,5,5],f32>
+  %0 = torch.operator "onnx.Col2Im"(%arg0, %arg1, %arg2) {torch.onnx.pads = [0 : si64, 1 : si64, 0 : si64, 1 : si64]} : (!torch.vtensor<[1,5,15],f32>, !torch.vtensor<[2],si64>, !torch.vtensor<[2],si64>) -> !torch.vtensor<[1,1,5,5],f32>
   return %0 : !torch.vtensor<[1,1,5,5],f32>
 }
 
