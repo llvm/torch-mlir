@@ -829,7 +829,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         return success();
       });
   patterns.onOp(
-      "Concat", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Concat", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         SmallVector<Value> tensors;
         int64_t dim;

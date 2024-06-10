@@ -110,6 +110,18 @@ struct OpBinder {
     return success();
   }
 
+  ParseResult tensorListOperandAtIndex(Value &valueIdx, int64_t idx) {
+    if (idx >= op->getNumOperands())
+      return failure();
+    valueIdx = op->getOperand(idx);
+    auto tt = dyn_cast<Torch::ListType>(valueIdx.getType());
+    if (!tt)
+      return failure();
+    if (!toValidTensorType(tt.getContainedType()))
+      return failure();
+    return success();
+  }
+
   ParseResult tensorListResultType(Torch::ListType &type0) {
     if (op->getNumResults() != 1)
       return failure();

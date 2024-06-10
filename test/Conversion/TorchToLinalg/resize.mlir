@@ -155,3 +155,44 @@ func.func @test_resize_nearest_3d(%arg0: !torch.vtensor<[?,?,?,?,?],f32>, %arg1:
     %7 = torch.aten.__interpolate.size_list_scale_list %arg0, %6, %none_0, %str, %false, %none_0, %false : !torch.vtensor<[?,?,?,?,?],f32>, !torch.list<int>, !torch.none, !torch.str, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[?,?,?,?,?],f32>
     return %7 : !torch.vtensor<[?,?,?,?,?],f32>
   }
+
+// CHECK-LABEL: func.func @test_resize_nearest_half_pixel
+func.func @test_resize_nearest_half_pixel_round_prefer_floor(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch.vtensor<[3],si64>) -> !torch.vtensor<[?,?,?],f32> {
+    // CHECK: %[[GENERIC:.*]] = linalg.generic
+    // CHECK: %[[x11:.*]] = linalg.index 0 : index
+    // CHECK: %[[x12:.*]] = linalg.index 1 : index
+    // CHECK: %[[x13:.*]] = linalg.index 2 : index
+    // CHECK: %[[x15:.*]] = arith.sitofp %[[c2_i64:.*]] : i64 to f32
+    // CHECK: %[[x19:.*]] = arith.sitofp %[[x6:.*]] : i64 to f32
+    // CHECK: %[[x21:.*]] = arith.divf %[[x19]], %[[x15]] : f32
+    // CHECK: %[[x23:.*]] = arith.index_cast %[[x13]] : index to i64
+    // CHECK: %[[x24:.*]] = arith.sitofp %[[x23]] : i64 to f32
+    // CHECK: %[[cst:.*]] = arith.constant 5.000000e-01 : f32
+    // CHECK: %[[add:.*]] = arith.addf %[[x24]], %[[cst]] : f32
+    // CHECK: %[[x25:.*]] = arith.divf %[[add]], %[[x21]] : f32
+    // CHECK: %[[sub:.*]] = arith.subf %[[x25]], %[[cst]] : f32
+    // CHECK: %[[cst3:.*]] = arith.constant 5.000000e-01 : f32
+    // CHECK: %[[floor:.*]] = math.floor %[[sub]] : f32
+    // CHECK: %[[ceil:.*]] = math.ceil %[[sub]] : f32
+    // CHECK: %[[sub2:.*]] = arith.subf %[[sub]], %[[floor]] : f32
+    // CHECK: %[[cmpf:.*]] = arith.cmpf ule, %[[sub2]], %[[cst3]] : f32
+    // CHECK: %[[select:.*]] =  arith.select %[[cmpf]], %[[floor]], %[[ceil]] : f32
+    // CHECK: %[[x31:.*]] = arith.fptosi %[[select]] : f32 to i64
+    // CHECK: %[[x32:.*]] = arith.index_cast %[[x31]] : i64 to index
+    // CHECK: %[[extracted:.*]] = tensor.extract %[[x0:.*]][%[[x11]], %[[x12]], %[[x32]]] : tensor<?x?x?xf32>
+    // CHECK: linalg.yield %[[extracted]] : f32
+    %none = torch.constant.none
+    %none_0 = torch.constant.none
+    %int0 = torch.constant.int 0
+    %false = torch.constant.bool false
+    %true = torch.constant.bool true
+    %str = torch.constant.str "nearest_half_pixel,round_prefer_floor"
+    %int2 = torch.constant.int 2
+    %0 = torch.aten.select.int %arg1, %int0, %int2 : !torch.vtensor<[3],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+    %1 = torch.aten.item %0 : !torch.vtensor<[1],si64> -> !torch.int
+    %4 = torch.prim.ListConstruct %1 : (!torch.int) -> !torch.list<int>
+    %5 = torch.aten.__interpolate.size_list_scale_list %arg0, %4, %none_0, %str, %false, %none_0, %false : !torch.vtensor<[?,?,?],f32>, !torch.list<int>, !torch.none, !torch.str, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[?,?,?],f32>
+    return %5 : !torch.vtensor<[?,?,?],f32>
+}
+
+// -----
