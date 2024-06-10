@@ -2728,4 +2728,95 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
         return success();
       });
+
+  patterns.onOp(
+      "DFT", 20, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value inTensor, dftLength, axis;
+        Torch::ValueTensorType resultType;
+        int64_t inverse, onesided;
+        if (binder.tensorOperandAtIndex(inTensor, 0) ||
+            binder.s64IntegerAttr(inverse, "inverse", 0) ||
+            binder.s64IntegerAttr(onesided, "onesided", 0) ||
+            binder.tensorResultType(resultType))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Input Tensor / attrs / resultType bind failed");
+        if (!binder.tensorOperandAtIndex(dftLength, 1)) {
+          // Convert to int and pass as n
+          dftLength = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), dftLength);
+        } else {
+          // Default for torch is None
+          dftLength = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        }
+        // Default is same for onnx and torch
+        if (!binder.tensorOperandAtIndex(axis, 2)) {
+          // convert to int and pass to dims
+          axis = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), axis);
+        } else {
+          // Default in torch is -1 and onnx is -2 (since -1 is for real / img)
+          axis = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(-2));
+        }
+
+        if (onesided == 1)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Unsupported option : onesided");
+        // norm default string attr
+        Value norm = rewriter.create<Torch::ConstantStrOp>(
+            binder.getLoc(), rewriter.getStringAttr(Twine("backward")));
+        // Convert from [....., 2] complex number repr for fft consumption.
+        Torch::ValueTensorType inType =
+            binder.toValidTensorType(inTensor.getType());
+        int64_t lastIndex = inType.getSizes().back();
+        if (lastIndex != 1 && lastIndex != 2)
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Expected input tensor to have dims [..., 1] or [..., 2]");
+
+        // concat with zeros to make it [..., 2]
+        Value inForComplexVal = inTensor;
+        ArrayRef<int64_t> inForComplexSizes = inType.getSizes().drop_back();
+        if (lastIndex == 1) {
+          Value constZeroVal = rewriter.create<Torch::ConstantFloatOp>(
+              binder.getLoc(), rewriter.getF64FloatAttr(0));
+          Value constOne = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(1));
+          Value constZero = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(0));
+          Value padSizeList =
+              rewriter
+                  .create<Torch::PrimListConstructOp>(
+                      binder.getLoc(),
+                      Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+                      SmallVector<Value>({constZero, constOne}))
+                  .getResult();
+          Value modeVal = rewriter.create<Torch::ConstantStrOp>(
+              binder.getLoc(), rewriter.getStringAttr("constant"));
+          SmallVector<int64_t> resSize(inForComplexSizes);
+          resSize.push_back(2);
+          inForComplexVal = rewriter.create<Torch::AtenPadOp>(
+              binder.getLoc(),
+              inType.getWithSizesAndDtype(resSize, inType.getOptionalDtype()),
+              inTensor, padSizeList, modeVal, constZeroVal);
+        }
+        Type inComplexTensorType = Torch::ValueTensorType::get(
+            binder.op->getContext(), inForComplexSizes,
+            mlir::ComplexType::get(inType.getDtype()));
+        Value inComplexTensor = rewriter.create<Torch::AtenViewAsComplexOp>(
+            binder.getLoc(), inComplexTensorType, inForComplexVal);
+        Value ftOp;
+        if (inverse == 0) {
+          ftOp = rewriter.create<Torch::AtenFftFftOp>(
+              binder.getLoc(), inComplexTensorType, inComplexTensor,
+              /*n = */ dftLength, /*dim = */ axis, /*norm = */ norm);
+        } else {
+          ftOp = rewriter.create<Torch::AtenFftIfftOp>(
+              binder.getLoc(), inComplexTensorType, inComplexTensor,
+              /*n = */ dftLength, /*dim = */ axis, /*norm = */ norm);
+        }
+        rewriter.replaceOpWithNewOp<Torch::AtenViewAsRealOp>(binder.op,
+                                                             resultType, ftOp);
+        return success();
+      });
 }
