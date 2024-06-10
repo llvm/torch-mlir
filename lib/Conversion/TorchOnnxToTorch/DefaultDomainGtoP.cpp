@@ -618,46 +618,39 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         SmallVector<int64_t> pooledShape;
         float spatialScale;
-        if (binder.s64IntegerArrayAttr(pooledShape, "pooled_shape", {})) {
+        if (binder.s64IntegerArrayAttr(pooledShape, "pooled_shape", {}) ||
+            binder.f32FloatAttr(spatialScale, "spatial_scale", 1.0f)) {
           return rewriter.notifyMatchFailure(binder.op,
-                                             "pooled_shape bind failure");
+                                             "Attribute bind failure");
         }
-        if (binder.f32FloatAttr(spatialScale, "spatial_scale", 1.0f)) {
+        Torch::ValueTensorType resultTy;
+        Value input, rois;
+        if (binder.tensorOperands(input, rois) ||
+            binder.tensorResultType(resultTy)) {
           return rewriter.notifyMatchFailure(binder.op,
-                                             "spatial_scale bind failure");
+                                             "Operand or result type mismatch");
         }
 
         Value outputShapeList =
             createConstantIntList(binder, rewriter, pooledShape);
-
-        Torch::ValueTensorType resultTy;
-        Value input, rois;
-        if (binder.tensorOperands(input, rois) ||
-            binder.tensorResultType(resultTy))
-          return failure();
-
         Location loc = binder.getLoc();
 
         auto inputTy = cast<Torch::ValueTensorType>(input.getType());
-        auto roisFloatTy = cast<Torch::ValueTensorType>(rois.getType());
+        auto roisTy = cast<Torch::ValueTensorType>(rois.getType());
         if (!inputTy || !inputTy.hasSizes())
           return failure();
-        if (!roisFloatTy || !roisFloatTy.hasSizes())
+        if (!roisTy || !roisTy.hasSizes())
           return failure();
 
         auto intTy = rewriter.getIntegerType(64, true);
-        auto floatTy = rewriter.getF32Type();
+        auto floatTy = roisTy.getDtype();
         auto torchIntTy = rewriter.getType<Torch::IntType>();
-        auto torchFloatTy = rewriter.getType<Torch::FloatType>();
 
         Value spatialScaleValue = rewriter.create<Torch::ConstantFloatOp>(
-            loc, torchFloatTy, rewriter.getF64FloatAttr(spatialScale));
+            loc, rewriter.getF64FloatAttr(spatialScale));
 
         Value boolTrue = rewriter.create<Torch::ConstantBoolOp>(
             loc, rewriter.getBoolAttr(true));
-
-        auto roisTy = rewriter.getType<Torch::ValueTensorType>(
-            roisFloatTy.getSizes(), floatTy);
 
         ArrayRef<int64_t> inputShape = inputTy.getSizes();
         int64_t inputRank = inputShape.size();
@@ -667,9 +660,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         ArrayRef<int64_t> roisShape = roisTy.getSizes();
-        if (roisShape.size() != 2 || roisShape[1] != 5) {
+        if (!roisTy.areAllSizesKnown() || roisShape.size() != 2 ||
+            roisShape[1] != 5) {
           return rewriter.notifyMatchFailure(
-              binder.op, "Expected ROIs to be tensor of rank 2: (num_rois, 5)");
+              binder.op, "Expected ROIs to be statically sized tensor of shape "
+                         "(num_rois, 5)");
         }
         int64_t numRois = roisShape[0];
 
