@@ -1970,6 +1970,12 @@ def aten〇index〇Tensor_hacked_twin〡shape(self: List[int], indices: List[Lis
 def aten〇cat〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.cat(tensors, dim)
 
+def aten〇atleast_1d〡shape(self: List[int]) -> List[int]:
+    if len(self) == 0:
+        return [1]
+    else:
+        return self
+
 def aten〇stack〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.stack(tensors, dim)
 
@@ -4862,6 +4868,11 @@ def aten〇cat〡dtype(tensors_rank_dtype: List[Tuple[int, int]], dim: int = 0) 
         ranks.append(tensor_rank)
         dtypes.append(tensor_dtype)
     return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇atleast_1d〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
 
 @check_dtype_function(
     [Invocation("i,j->ij", [TensorOfShape(1, dtype=torch.float32),

@@ -1517,6 +1517,44 @@ public:
 } // namespace
 
 namespace {
+// Decompose aten.atleast_1d into: aten.reshape. See
+// https://github.com/pytorch/pytorch/blob/9a8ab778d34bd24c5caceb340837483decc4c311/torch/_refs/__init__.py#L2591
+// def atleast_1d(
+//     arg: Union[TensorLikeType, Sequence[TensorLikeType]], *args:
+//     TensorLikeType
+// ) -> Union[TensorLikeType, Tuple[TensorLikeType, ...]]:
+//     """Refrence implementation of :func:`torch.atleast_1d`."""
+//     if not args and isinstance(arg, collections.abc.Sequence):
+//         args_ = arg
+//     else:
+//         assert not isinstance(arg, collections.abc.Sequence)
+//         args_ = (arg,) + args
+//     res = tuple(a if a.ndim >= 1 else unsqueeze(a, 0) for a in args_)
+//     return res if len(res) > 1 else res[0]
+class DecomposeAtenAtleast1dOp : public OpRewritePattern<AtenAtleast1dOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAtleast1dOp op,
+                                PatternRewriter &rewriter) const override {
+    Value input = op.getSelf();
+    Location loc = op.getLoc();
+    Type opType = op.getType();
+    auto resType = cast<BaseTensorType>(input.getType());
+    SmallVector<int64_t> inputShape(resType.getSizes());
+    if (inputShape.empty()) {
+      Value zero = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(0));
+      rewriter.replaceOpWithNewOp<AtenUnsqueezeOp>(op, opType, input, zero);
+      return success();
+    }
+
+    rewriter.replaceOp(op, input);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose AtenEinsumOp to AtenMatmulOp, and supports possible reduce
 // operation and permute operation. Currently, this pass doesn't support
 // Hadamard product. The basic idea is that:
@@ -8604,6 +8642,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenPreluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRreluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCeluOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);

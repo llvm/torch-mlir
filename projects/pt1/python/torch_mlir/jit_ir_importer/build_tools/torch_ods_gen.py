@@ -772,6 +772,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::argmax : (Tensor, int?, bool) -> (Tensor)")
     emit("aten::argmin : (Tensor, int?, bool) -> (Tensor)")
     emit("aten::one_hot : (Tensor, int) -> (Tensor)")
+    emit("aten::atleast_1d : (Tensor) -> (Tensor)")
     emit("aten::einsum : (str, Tensor[], int[]?) -> (Tensor)")
     emit("aten::trace : (Tensor) -> (Tensor)")
     emit("aten::bucketize.Tensor : (Tensor, Tensor, bool, bool) -> (Tensor)")
