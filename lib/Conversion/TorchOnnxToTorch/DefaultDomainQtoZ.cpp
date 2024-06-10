@@ -2823,10 +2823,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "unimplemented: coordinate transformation mode: "
                          "tf_crop_and_resize");
 
-        if (mode == "nearest" && coordTfMode != "asymmetric") {
+        if (mode == "nearest" && coordTfMode != "asymmetric" &&
+            coordTfMode != "half_pixel") {
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: support not present for coord tf mode "
-                         "except asymmetric");
+                         "except asymmetric and half_pixel");
         }
 
         unsigned rank = dyn_cast<Torch::ValueTensorType>(operands[0].getType())
