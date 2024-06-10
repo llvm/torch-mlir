@@ -368,7 +368,6 @@ def test_sparse_SpMM():
     dense_input = torch.ones(8, 8)
     sparse_input = dense_input.to_sparse_coo()
     m = export_and_import(net, sparse_input, dense_input)
-    print("BIK ME")
     print(m)
 
     # Run it with PyTorch torch.sparse and with TORCH-MLIR sparse_jit.
