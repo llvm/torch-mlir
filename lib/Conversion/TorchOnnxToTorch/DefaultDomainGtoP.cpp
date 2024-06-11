@@ -565,14 +565,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value cstCeilMode =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), ceilMode);
 
-        if (rank == 3)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "Unimplemented: AtenMaxPool1dOp");
-
         if (binder.op->getNumResults() == 2) {
           Torch::ValueTensorType resultTypeIndices;
           if (binder.tensorResultTypeAtIndex(resultTypeIndices, 1))
             return failure();
+
+          if (rank == 3)
+            return rewriter.notifyMatchFailure(
+                binder.op, "Unimplemented: AtenMaxPool1dWithIndicesOp");
 
           if (rank == 4) {
             rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dWithIndicesOp>(
@@ -589,6 +589,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             return success();
           }
         } else {
+          if (rank == 3) {
+            rewriter.replaceOpWithNewOp<Torch::AtenMaxPool1dOp>(
+                binder.op, resultTypeOut, operand, kernelSizeList, stridesList,
+                paddingList, dilationsList, cstCeilMode);
+            return success();
+          }
           if (rank == 4) {
             rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dOp>(
                 binder.op, resultTypeOut, operand, kernelSizeList, stridesList,
