@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 
 using namespace mlir;
@@ -129,4 +130,15 @@ LogicalResult mlir::torch::onnx_c::createTorchPermuteOp(
   permuted = rewriter.create<Torch::AtenPermuteOp>(loc, permutedType, input,
                                                    permuteDimsList);
   return success();
+}
+
+Value createActivationByName(ImplicitLocOpBuilder &b, StringRef name,
+                             Value input) {
+  if (name == "Sigmoid")
+    return b.create<Torch::AtenSigmoidOp>(input.getType(), input);
+  if (name == "Tanh")
+    return b.create<Torch::AtenTanhOp>(input.getType(), input);
+  if (name == "Relu")
+    return b.create<Torch::AtenReluOp>(input.getType(), input);
+  llvm_unreachable("Unsupported activation function");
 }
