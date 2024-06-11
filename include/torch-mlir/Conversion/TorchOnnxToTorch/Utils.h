@@ -106,6 +106,9 @@ LogicalResult createTorchPermuteOp(OpBinder binder,
                                    SmallVector<int64_t> permuteDims,
                                    Value &permuted);
 
+Value createActivationByName(ImplicitLocOpBuilder &b, StringRef name,
+                             Value input);
+
 } // namespace mlir::torch::onnx_c
 
 #endif // TORCHMLIR_CONVERSION_TORCHONNXTOTORCH_UTILS_H

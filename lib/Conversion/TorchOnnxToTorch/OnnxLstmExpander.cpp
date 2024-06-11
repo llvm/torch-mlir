@@ -6,18 +6,6 @@
 using namespace mlir;
 using namespace mlir::torch::Torch;
 namespace mlir::torch::onnx_c {
-
-Value createActivationByName(ImplicitLocOpBuilder &b, StringRef name,
-                             Value input) {
-  if (name == "Sigmoid")
-    return b.create<AtenSigmoidOp>(input.getType(), input);
-  if (name == "Tanh")
-    return b.create<AtenTanhOp>(input.getType(), input);
-  if (name == "Relu")
-    return b.create<AtenReluOp>(input.getType(), input);
-  llvm_unreachable("Unsupported activation function");
-}
-
 // @struct LstmWeights
 // @brief A structure to hold LSTM weights.
 //
