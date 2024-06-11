@@ -34,6 +34,7 @@ except ModuleNotFoundError as e:
     ) from e
 
 from typing import Optional, List, Dict, Tuple
+import warnings
 
 from dataclasses import dataclass
 
@@ -579,6 +580,10 @@ class ContextCache:
 
     def type_proto_to_type(self, tp: onnx.TypeProto) -> IrType:
         if tp == "":
+            warnings.warn(
+                "Found a node without a valid type proto. Consider updating the opset_version of"
+                " the model and/or running the importer with the flag '--clear-domain'."
+            )
             return self.get_none_type()
 
         tt = tp.tensor_type
