@@ -1426,7 +1426,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
         Value cstCeilMode = cstFalse;
         Value cstCountIncludePad = cstFalse;
-        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         Value pv = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), p));
@@ -1437,26 +1436,26 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           avgPool = rewriter.create<Torch::AtenAvgPool1dOp>(
               binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
               paddingList, cstCeilMode, cstCountIncludePad);
+          avgPool = rewriter.create<Torch::AtenMulScalarOp>(
+              binder.getLoc(), resultType, avgPool, numElements);
         } else if (inputRank == 4) {
           avgPool = rewriter.create<Torch::AtenAvgPool2dOp>(
               binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
               paddingList, cstCeilMode, cstCountIncludePad,
-              /*divisor_override=*/cstNone);
+              /*divisor_override=*/cstOne);
         } else if (inputRank == 5) {
           avgPool = rewriter.create<Torch::AtenAvgPool3dOp>(
               binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
               paddingList, cstCeilMode, cstCountIncludePad,
-              /*divisor_override=*/cstNone);
+              /*divisor_override=*/cstOne);
         } else {
           return failure();
         }
-        Value avgpoolMul = rewriter.create<Torch::AtenMulScalarOp>(
-            binder.getLoc(), resultType, avgPool, numElements);
         Value invP = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(double{1.0 / p}));
         rewriter.replaceOpWithNewOp<Torch::AtenPowTensorScalarOp>(
-            binder.op, resultType, avgpoolMul, invP);
+            binder.op, resultType, avgPool, invP);
         return success();
       });
 
