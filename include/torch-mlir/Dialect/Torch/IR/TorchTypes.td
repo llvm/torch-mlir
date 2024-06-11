@@ -315,6 +315,16 @@ def Torch_QInt8Type : Torch_Type<"QInt8", "qint8"> {
   }];
 }
 
+def Torch_QInt16Type : Torch_Type<"QInt16", "qint16"> {
+  let summary = "Type modeling `ScalarType::QInt16`, which doesn't yet exist";
+  let description = [{
+    Pytorch does not have 16-bit integer quantization support. 
+
+    This torch type is added to provide a target for 16-bit quantization 
+    schemes coming from imported onnx models.
+  }];
+}
+
 def Torch_QUInt8Type : Torch_Type<"QUInt8", "quint8"> {
   let summary = "Type modeling `ScalarType::QUInt8`";
   let description = [{

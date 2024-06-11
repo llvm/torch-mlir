@@ -185,7 +185,8 @@ static bool isValidTorchDtype(Type dtype) {
     dtype = cast<ComplexType>(dtype).getElementType();
   }
   // Torch quantized types.
-  if (isa<Torch::QInt8Type, Torch::QUInt8Type, Torch::QInt32Type>(dtype))
+  if (isa<Torch::QInt8Type, Torch::QUInt8Type, Torch::QInt16Type,
+          Torch::QInt32Type>(dtype))
     return true;
   // Builtin floating point types.
   if (isa<Float16Type, BFloat16Type, Float32Type, Float64Type>(dtype))
@@ -462,6 +463,9 @@ static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
 
   if (isa<QInt8Type>(dtype))
     return IntegerType::get(context, 8, IntegerType::Signless);
+
+  if (isa<QInt16Type>(dtype))
+    return IntegerType::get(context, 16, IntegerType::Signless);
 
   if (isa<QInt32Type>(dtype))
     return IntegerType::get(context, 32, IntegerType::Signless);

@@ -408,20 +408,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(1.0));
 
-        auto q = [&](Type qty) -> Type {
-          if (qty.isSignedInteger(8))
-            return rewriter.getType<Torch::QInt8Type>();
-          if (qty.isUnsignedInteger(8))
-            return rewriter.getType<Torch::QUInt8Type>();
-          if (qty.isSignedInteger(32))
-            return rewriter.getType<Torch::QInt32Type>();
-          return {};
-        };
+        Type lhsQTy = getQTorchTypeFromTorchIntType(lhsTy);
+        Type rhsQTy = getQTorchTypeFromTorchIntType(rhsTy);
 
-        Type lhsQTy = rewriter.getType<Torch::ValueTensorType>(
-            lhsTy.getOptionalSizes(), q(lhsTy.getDtype()));
-        Type rhsQTy = rewriter.getType<Torch::ValueTensorType>(
-            rhsTy.getOptionalSizes(), q(rhsTy.getDtype()));
+        if (!lhsQTy || !rhsQTy)
+          return rewriter.notifyMatchFailure(binder.op, "failed to get qtype");
 
         lhs = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
             binder.getLoc(), lhsQTy, lhs, scale, lhsZp);

@@ -270,6 +270,22 @@ MlirTypeID torchMlirTorchQUInt8TypeGetTypeID() {
 }
 
 //===----------------------------------------------------------------------===//
+// torch.qint16 type.
+//===----------------------------------------------------------------------===//
+
+bool torchMlirTypeIsATorchQInt16(MlirType t) {
+  return isa<Torch::QInt16Type>(unwrap(t));
+}
+
+MlirType torchMlirTorchQInt16TypeGet(MlirContext context) {
+  return wrap(Torch::QInt16Type::get(unwrap(context)));
+}
+
+MlirTypeID torchMlirTorchQInt16TypeGetTypeID() {
+  return wrap(Torch::QInt16Type::getTypeID());
+}
+
+//===----------------------------------------------------------------------===//
 // torch.tensor type.
 //===----------------------------------------------------------------------===//
 

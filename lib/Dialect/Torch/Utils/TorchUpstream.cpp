@@ -21,7 +21,7 @@ static inline bool isQIntType(ScalarType t) {
   // Don't forget to extend this when adding new QInt types
   return t == ScalarType::QInt8 || t == ScalarType::QUInt8 ||
          t == ScalarType::QInt32 || t == ScalarType::QUInt4x2 ||
-         t == ScalarType::QUInt2x4;
+         t == ScalarType::QUInt2x4 || t == ScalarType::QInt16;
 }
 
 //===----------------------------------------------------------------------===//

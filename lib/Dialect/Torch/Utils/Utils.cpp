@@ -69,6 +69,8 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::QUInt8;
   if (isa<QInt8Type>(type))
     return torch_upstream::ScalarType::QInt8;
+  if (isa<QInt16Type>(type))
+    return torch_upstream::ScalarType::QInt16;
   if (isa<QInt32Type>(type))
     return torch_upstream::ScalarType::QInt32;
   if (isa<ComplexType>(type)) {
@@ -128,6 +130,8 @@ Torch::getTypeForScalarType(MLIRContext *context,
     return QUInt8Type::get(context);
   case torch_upstream::ScalarType::QInt8:
     return QInt8Type::get(context);
+  case torch_upstream::ScalarType::QInt16:
+    return QInt16Type::get(context);
   case torch_upstream::ScalarType::QInt32:
     return QInt32Type::get(context);
   case torch_upstream::ScalarType::ComplexHalf:

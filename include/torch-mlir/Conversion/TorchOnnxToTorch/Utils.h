@@ -36,7 +36,7 @@ Value createConstantIntList(OpBinder binder,
                             ConversionPatternRewriter &rewriter,
                             SmallVector<int64_t> cstInput);
 
-Type getQTorchTypeFromTorchIntType(Type ty);
+Torch::ValueTensorType getQTorchTypeFromTorchIntType(Type ty);
 
 template <typename T>
 Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
