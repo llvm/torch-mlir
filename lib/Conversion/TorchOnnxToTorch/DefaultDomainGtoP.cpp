@@ -408,8 +408,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(1.0));
 
-        Type lhsQTy = getQTorchTypeFromTorchIntType(lhsTy);
-        Type rhsQTy = getQTorchTypeFromTorchIntType(rhsTy);
+        auto lhsQTy = getQTorchTypeFromTorchIntType(lhsTy);
+        auto rhsQTy = getQTorchTypeFromTorchIntType(rhsTy);
 
         if (!lhsQTy || !rhsQTy)
           return rewriter.notifyMatchFailure(binder.op, "failed to get qtype");
