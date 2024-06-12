@@ -619,13 +619,6 @@ public:
       return rewriter.notifyMatchFailure(
           op, "count_include_pad must be a constant");
 
-    // If the padding is zero then there is no padding to include.
-    if (!countIncludePad &&
-        !llvm::all_of(paddingInts, [](int64_t p) { return p == 0; })) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: count_include_pad is expected to be true");
-    }
-
     // `sumPool` contains the result of sumpool operation over the input.
     Value sumPool, paddedInput;
     SmallVector<Value, Dim + 2> outTensorShape;
@@ -635,9 +628,142 @@ public:
             paddingInts, dilationInts, rewriter.getZeroAttr(inputElementType),
             outTensorShape, paddedInput, sumPool)))
       return rewriter.notifyMatchFailure(op, "unable to compute sumpool");
-    // }
 
-    Value divisor = kernelSizeIntValues[0];
+    // Compute the average of sumPool.
+    Value outputTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(outTensorShape), resultElementType);
+    SmallVector<AffineMap> indexingMapsAvg(
+        2, rewriter.getMultiDimIdentityMap(Dim + 2));
+    SmallVector<utils::IteratorType> iteratorTypesAvg(
+        Dim + 2, utils::IteratorType::parallel);
+    Value avgPool;
+    Value divisor;
+    // Case1: AtenAvgPool1d/2dOp with countIncludePad=false support.
+    if constexpr (std::is_same<OpTy, AtenAvgPool2dOp>()) {
+      auto selfType = cast<RankedTensorType>(self.getType());
+      const int64_t selfRank = selfType.getRank();
+      int64_t wDim = toPositiveDim(-1, selfRank);
+      int64_t hDim = toPositiveDim(-2, selfRank);
+      Value inputHeight = getDimOp(rewriter, loc, self, hDim);
+      Value inputWidth = getDimOp(rewriter, loc, self, wDim);
+      RankedTensorType sumPoolType = cast<RankedTensorType>(sumPool.getType());
+      const int64_t rank = sumPoolType.getRank();
+      int dimH = toPositiveDim(-2, rank);
+      int dimW = toPositiveDim(-1, rank);
+      avgPool =
+          rewriter
+              .create<linalg::GenericOp>(
+                  loc, outputTensor.getType(), sumPool, outputTensor,
+                  /*indexingMaps=*/indexingMapsAvg,
+                  /*iteratorTypes=*/iteratorTypesAvg,
+                  [&](OpBuilder &b, Location loc, ValueRange args) {
+                    // The algorithm for computing the divisor with
+                    // count_include_pad is manily based on pytorch
+                    // implementation. The following code is comment
+                    // with pytorch code.
+                    // https://github.com/pytorch/pytorch/blob/4a6dfbe4806b361c43210dfd56db64c4097c66bb/aten/src/ATen/native/cpu/AvgPoolKernel.cpp#L78
+                    Value indexOh =
+                        b.create<linalg::IndexOp>(loc, /*value=*/dimH);
+                    Value oh = castIndexToInt64(b, loc, indexOh);
+                    Value indexOw =
+                        b.create<linalg::IndexOp>(loc, /*value=*/dimW);
+                    Value ow = castIndexToInt64(b, loc, indexOw);
+
+                    // int64_t ih0 = oh * dH - padH;
+                    Value dH = rewriter.create<arith::ConstantOp>(
+                        loc, rewriter.getI64IntegerAttr(strideInts[0]));
+                    Value padH = rewriter.create<arith::ConstantOp>(
+                        loc, rewriter.getI64IntegerAttr(paddingInts[0]));
+                    Value ohDH = b.create<arith::MulIOp>(loc, oh, dH);
+                    Value ih0 = b.create<arith::SubIOp>(loc, ohDH, padH);
+                    // int64_t iw0 = ow * dW - padW;
+                    Value dW = rewriter.create<arith::ConstantOp>(
+                        loc, rewriter.getI64IntegerAttr(strideInts[1]));
+                    Value padW = rewriter.create<arith::ConstantOp>(
+                        loc, rewriter.getI64IntegerAttr(paddingInts[1]));
+                    Value owDW = b.create<arith::MulIOp>(loc, ow, dW);
+                    Value iw0 = b.create<arith::SubIOp>(loc, owDW, padW);
+                    // int64_t ih1 = std::min(ih0 + kH, input_height + padH);
+                    Value ih = castIndexToInt64(b, loc, inputHeight);
+                    Value ih0KH = b.create<arith::AddIOp>(
+                        loc, ih0, kernelSizeIntValues[0]);
+                    Value ihPadH = b.create<arith::AddIOp>(loc, ih, padH);
+                    Value ih1 = b.create<arith::MinSIOp>(loc, ih0KH, ihPadH);
+                    // int64_t iw1 = std::min(iw0 + kW, input_width + padW);
+                    Value iw = castIndexToInt64(b, loc, inputWidth);
+                    Value iw0KW = b.create<arith::AddIOp>(
+                        loc, iw0, kernelSizeIntValues[1]);
+                    Value iwPadW = b.create<arith::AddIOp>(loc, iw, padW);
+                    Value iw1 = b.create<arith::MinSIOp>(loc, iw0KW, iwPadW);
+                    // int64_t pool_size = (ih1 - ih0) * (iw1 - iw0);
+                    Value ih1Ih0 = b.create<arith::SubIOp>(loc, ih1, ih0);
+                    Value iw1Iw0 = b.create<arith::SubIOp>(loc, iw1, iw0);
+                    Value poolSize =
+                        b.create<arith::MulIOp>(loc, ih1Ih0, iw1Iw0);
+                    // ih0 = std::max(ih0, 0);
+                    Value cstZero = rewriter.create<arith::ConstantOp>(
+                        loc, rewriter.getI64IntegerAttr(0));
+                    Value ih0Clamped =
+                        b.create<arith::MaxSIOp>(loc, ih0, cstZero);
+                    // iw0 = std::max(iw0, 0);
+                    Value iw0Clamped =
+                        b.create<arith::MaxSIOp>(loc, iw0, cstZero);
+                    // ih1 = std::min(ih1, input_height);
+                    Value ih1Clamped = b.create<arith::MinSIOp>(loc, ih1, ih);
+                    // iw1 = std::min(iw1, input_width);
+                    Value iw1Clamped = b.create<arith::MinSIOp>(loc, iw1, iw);
+                    // if (divisor_override.has_value()) {
+                    //   divisor = divisor_override.value();
+                    // } else {
+                    //   if(count_include_pad) {
+                    //     divisor = pool_size;
+                    //   } else {
+                    //     divisor = (ih1 - ih0) * (iw1 - iw0);
+                    //   }
+                    // }
+                    if (countIncludePad) {
+                      divisor = convertScalarToDtype(b, loc, poolSize,
+                                                     resultElementType);
+                    } else {
+                      Value ih1_ih0 =
+                          b.create<arith::SubIOp>(loc, ih1Clamped, ih0Clamped);
+                      Value iw1_iw0 =
+                          b.create<arith::SubIOp>(loc, iw1Clamped, iw0Clamped);
+                      divisor = b.create<arith::MulIOp>(loc, ih1_ih0, iw1_iw0);
+                    }
+                    // AtenAvgPool2/3dOp has an optional divisor_override
+                    // attribute while AtenAvgPool1dOp does not.
+                    if constexpr (std::is_same<OpTy, AtenAvgPool2dOp>()) {
+                      if (!isa<Torch::NoneType>(
+                              op.getDivisorOverride().getType()))
+                        divisor = adaptor.getDivisorOverride();
+                    }
+
+                    divisor = convertScalarToDtype(b, loc, divisor,
+                                                   resultElementType);
+                    Value avg;
+                    if (isa<mlir::IntegerType>(resultElementType))
+                      avg = b.create<arith::DivSIOp>(loc, args[0], divisor);
+                    else if (isa<mlir::FloatType>(resultElementType))
+                      avg = b.create<arith::DivFOp>(loc, args[0], divisor);
+                    b.create<linalg::YieldOp>(loc, avg);
+                  })
+              .getResult(0);
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, avgPool);
+      return success();
+    }
+
+    // TODO: Add support for count_include_pad equal to `False` in
+    // AtenAvgPool1/3dOp.
+    if (!countIncludePad &&
+        !llvm::all_of(paddingInts, [](int64_t p) { return p == 0; })) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: count_include_pad is expected to be true for "
+              "AtenAvgPool3dOp");
+    }
+
+    // Case2: AtenAvgPool1/3dOp without count_include_pad equal to `False`.
+    divisor = kernelSizeIntValues[0];
     for (uint32_t i = 1; i < kernelSizeIntValues.size(); i++) {
       divisor =
           rewriter.create<arith::MulIOp>(loc, divisor, kernelSizeIntValues[i]);
@@ -648,29 +774,20 @@ public:
                     : adaptor.getDivisorOverride();
     }
     divisor = convertScalarToDtype(rewriter, loc, divisor, resultElementType);
-
-    Value outputTensor = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(outTensorShape), resultElementType);
-    SmallVector<AffineMap> indexingMapsAvg(
-        2, rewriter.getMultiDimIdentityMap(Dim + 2));
-    SmallVector<utils::IteratorType> iteratorTypesAvg(
-        Dim + 2, utils::IteratorType::parallel);
-    Value avgPool =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, outputTensor.getType(), sumPool, outputTensor,
-                /*indexingMaps=*/indexingMapsAvg,
-                /*iteratorTypes=*/iteratorTypesAvg,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value avg;
-                  if (isa<mlir::IntegerType>(resultElementType))
-                    avg = b.create<arith::DivSIOp>(loc, args[0], divisor);
-                  else if (isa<mlir::FloatType>(resultElementType))
-                    avg = b.create<arith::DivFOp>(loc, args[0], divisor);
-                  b.create<linalg::YieldOp>(loc, avg);
-                })
-            .getResult(0);
-
+    avgPool = rewriter
+                  .create<linalg::GenericOp>(
+                      loc, outputTensor.getType(), sumPool, outputTensor,
+                      /*indexingMaps=*/indexingMapsAvg,
+                      /*iteratorTypes=*/iteratorTypesAvg,
+                      [&](OpBuilder &b, Location loc, ValueRange args) {
+                        Value avg;
+                        if (isa<mlir::IntegerType>(resultElementType))
+                          avg = b.create<arith::DivSIOp>(loc, args[0], divisor);
+                        else if (isa<mlir::FloatType>(resultElementType))
+                          avg = b.create<arith::DivFOp>(loc, args[0], divisor);
+                        b.create<linalg::YieldOp>(loc, avg);
+                      })
+                  .getResult(0);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, avgPool);
     return success();
   }
