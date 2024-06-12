@@ -1724,6 +1724,54 @@ public:
 } // namespace
 
 namespace {
+// Decompose aten.atleast_2d into: aten.reshape. See
+// https://github.com/pytorch/pytorch/blob/9a8ab778d34bd24c5caceb340837483decc4c311/torch/_refs/__init__.py#L2604
+// def atleast_2d(
+//     arg: Union[TensorLikeType, Sequence[TensorLikeType]], *args:
+//     TensorLikeType
+// ) -> Union[TensorLikeType, Tuple[TensorLikeType, ...]]:
+//     """Reference implementation of :func:`torch.atleast_2d`."""
+//     if not args and isinstance(arg, collections.abc.Sequence):
+//         args_ = arg
+//     else:
+//         assert not isinstance(arg, collections.abc.Sequence)
+//         args_ = (arg,) + args
+//     unsqueeze_atleast_1d = partial(_unsqueeze_atleast, atleast_1d, 0)
+//     res = tuple(a if a.ndim >= 2 else unsqueeze_atleast_1d(a) for a in args_)
+//     return res if len(res) > 1 else res[0]
+class DecomposeAtenAtleast2dOp : public OpRewritePattern<AtenAtleast2dOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAtleast2dOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Type opType = op.getType();
+
+    auto inputType = cast<BaseTensorType>(input.getType());
+    SmallVector<int64_t> inputShape(inputType.getSizes());
+
+    if (inputShape.size() < 2) {
+      auto atleast1dResShape =
+          inputShape.empty() ? SmallVector<int64_t, 1>{1} : inputShape;
+      auto atleast1dResType = rewriter.getType<ValueTensorType>(
+          atleast1dResShape, inputType.getOptionalDtype());
+      auto atleast1dRes =
+          rewriter.create<AtenAtleast1dOp>(loc, atleast1dResType, input);
+      Value zero = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(0));
+      rewriter.replaceOpWithNewOp<AtenUnsqueezeOp>(op, opType, atleast1dRes,
+                                                   zero);
+      return success();
+    }
+
+    rewriter.replaceOp(op, input);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose AtenEinsumOp to AtenMatmulOp, and supports possible reduce
 // operation and permute operation. Currently, this pass doesn't support
 // Hadamard product. The basic idea is that:
@@ -9350,6 +9398,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRreluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast1dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
