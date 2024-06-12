@@ -20,6 +20,7 @@ import shutil
 import sys
 
 import onnx
+import onnx.version
 
 from ...extras import onnx_importer
 
@@ -80,6 +81,16 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
     else:
         raw_model = onnx.load(args.input_file, load_external_data=False)
         onnx.load_external_data_for_model(raw_model, args.data_dir)
+
+    if args.opset_version:
+        raw_model = onnx.version_converter.convert_version(
+            raw_model, args.opset_version
+        )
+
+    if args.clear_domain:
+        graph = raw_model.graph
+        for n in graph.node:
+            n.ClearField("domain")
 
     # Run the checker to test whether the file is above the threshold for
     # in-memory shape inference.  If not, go ahead and do the shape inference.
@@ -150,6 +161,14 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         help="Toggle data propogation for onnx shape inference",
     )
     parser.add_argument(
+        "--clear-domain",
+        dest="clear_domain",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="If enabled, this will clear the domain attribute from each node"
+        " in the onnx graph before performing shape inference.",
+    )
+    parser.add_argument(
         "--keep-temps", action="store_true", help="Keep intermediate files"
     )
     parser.add_argument(
@@ -169,6 +188,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         ' a/b/data/data.bin, then set data-dir to "a/b".'
         " Defaults to the directory of the input file.",
         type=Path,
+    )
+    parser.add_argument(
+        "--opset-version",
+        help="Allows specification of a newer opset_version to update the model"
+        " to before importing to MLIR. This can sometime assist with shape inference.",
+        type=int,
     )
     args = parser.parse_args(argv)
     return args
