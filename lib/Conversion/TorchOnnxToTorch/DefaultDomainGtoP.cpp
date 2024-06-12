@@ -169,6 +169,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             alignCorners);
         return success();
       });
+  // patterns.onOp("GRU", 1, onnx_c::OnnxGruExpander);
   patterns.onOp(
       "If", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Value conditionTensor;

@@ -132,8 +132,8 @@ LogicalResult mlir::torch::onnx_c::createTorchPermuteOp(
   return success();
 }
 
-Value createActivationByName(ImplicitLocOpBuilder &b, StringRef name,
-                             Value input) {
+Value mlir::torch::onnx_c::createActivationByName(ImplicitLocOpBuilder &b,
+                                                  StringRef name, Value input) {
   if (name == "Sigmoid")
     return b.create<Torch::AtenSigmoidOp>(input.getType(), input);
   if (name == "Tanh")
