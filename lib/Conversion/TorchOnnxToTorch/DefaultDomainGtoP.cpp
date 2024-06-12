@@ -1791,6 +1791,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             cstStrides);
         Value cstCeilMode =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), ceilMode);
+        // onnx lp pool doesn't have countIncludePad attribute
         Value cstCountIncludePad =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
         Value pv = rewriter.create<Torch::ConstantIntOp>(
@@ -1801,19 +1802,19 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.getLoc(), inputTensorType, operand, pv);
         Value avgPool;
         if (rank == 3) {
-          avgPool = rewriter.replaceOpWithNewOp<Torch::AtenAvgPool1dOp>(
-              binder.op, resultType, pow, kernelSizeList, stridesList,
+          avgPool = rewriter.create<Torch::AtenAvgPool1dOp>(
+              binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
               paddingList, cstCeilMode, cstCountIncludePad);
           avgPool = rewriter.create<Torch::AtenMulScalarOp>(
               binder.getLoc(), resultType, avgPool, numElements);
         } else if (rank == 4) {
-          avgPool = rewriter.replaceOpWithNewOp<Torch::AtenAvgPool2dOp>(
-              binder.op, resultType, pow, kernelSizeList, stridesList,
+          avgPool = rewriter.create<Torch::AtenAvgPool2dOp>(
+              binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
               paddingList, cstCeilMode, cstCountIncludePad,
               /*divisor_override=*/cstOne);
         } else if (rank == 5) {
-          avgPool = rewriter.replaceOpWithNewOp<Torch::AtenAvgPool3dOp>(
-              binder.op, resultType, pow, kernelSizeList, stridesList,
+          avgPool = rewriter.create<Torch::AtenAvgPool3dOp>(
+              binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
               paddingList, cstCeilMode, cstCountIncludePad,
               /*divisor_override=*/cstOne);
         } else {

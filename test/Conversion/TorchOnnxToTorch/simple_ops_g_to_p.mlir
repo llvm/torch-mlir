@@ -274,6 +274,35 @@ func.func @test_gemm_alpha_beta(%arg0: !torch.vtensor<[3,5],f32>, %arg1: !torch.
 
 // -----
 
+// CHECK-LABEL: func.func @test_lppool_2d
+func.func @test_lppool_2d(%arg0: !torch.vtensor<[1,3,32,32],f32>) -> !torch.vtensor<[1,3,31,31],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 22 : si64} {
+  // CHECK: %[[I1:.*]] = torch.constant.int 1
+  // CHECK: %[[I2:.*]] = torch.constant.int 2
+  // CHECK: %[[NE:.*]] = torch.aten.mul %[[I2]], %[[I1]] : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[I2_1:.*]] = torch.constant.int 2
+  // CHECK: %[[NE1:.*]] = torch.aten.mul %[[I2_1]], %[[NE]] : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[I0:.*]] = torch.constant.int 0
+  // CHECK: %[[I0_1:.*]] = torch.constant.int 0
+  // CHECK: %[[I0_2:.*]] = torch.constant.int 0
+  // CHECK: %[[I0_3:.*]] = torch.constant.int 0
+  // CHECK: %[[I1_1:.*]] = torch.constant.int 1
+  // CHECK: %[[I1_2:.*]] = torch.constant.int 1
+  // CHECK: %[[K:.*]] = torch.prim.ListConstruct %[[I2]], %[[I2_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[PAD:.*]] = torch.prim.ListConstruct %[[I0]], %[[I0_1]], %[[I0_2]], %[[I0_3]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[STR:.*]] = torch.prim.ListConstruct %[[I1_1]], %[[I1_2]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[CEIL:.*]] = torch.constant.bool false
+  // CHECK: %[[CIP:.*]] = torch.constant.bool false
+  // CHECK: %[[P:.*]] = torch.constant.int 2
+  // CHECK: %[[POW:.*]] = torch.aten.pow.Tensor_Scalar %arg0, %[[P]] : !torch.vtensor<[1,3,32,32],f32>, !torch.int -> !torch.vtensor<[1,3,32,32],f32>
+  // CHECK: %[[AVG:.*]] = torch.aten.avg_pool2d %[[POW]], %[[K]], %[[STR]], %[[PAD]], %[[CEIL]], %[[CIP]], %[[I1]] : !torch.vtensor<[1,3,32,32],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.int -> !torch.vtensor<[1,3,31,31],f32>
+  // CHECK: %[[INVP:.*]] = torch.constant.float 5.000000e-01
+  // CHECK: torch.aten.pow.Tensor_Scalar %[[AVG]], %[[INVP]] : !torch.vtensor<[1,3,31,31],f32>, !torch.float -> !torch.vtensor<[1,3,31,31],f32>
+  %0 = torch.operator "onnx.LpPool"(%arg0) {torch.onnx.kernel_shape = [2 : si64, 2 : si64]} : (!torch.vtensor<[1,3,32,32],f32>) -> !torch.vtensor<[1,3,31,31],f32>
+  return %0 : !torch.vtensor<[1,3,31,31],f32>
+}
+
+// -----
+
 // CHECK-LABEL : func.func @test_layer_norm
 func.func @test_layer_norm(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3,4],f32>, %arg2: !torch.vtensor<[3,4],f32>) -> (!torch.vtensor<[3,4], f32>, !torch.vtensor<[1,1],f32>, !torch.vtensor<[1,1],f32>)
                            attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
