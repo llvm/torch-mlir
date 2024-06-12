@@ -1953,6 +1953,8 @@ MAKE_FX_TOSA_PASS_SET = (
         "AtenLinear1D_basic",
         "AtenLinearMatVec_basic",
         "AtenLinearVecMatBias_basic",
+        "Atleast1dModule0dInput_basic",
+        "Atleast1dModule1dInput_basic",
         "MaxPool1dEmptyStrideStaticModule_basic",
         "MaxPool1dStaticCeilModeTrueModule_basic",
         "MaxPool1dStaticModule_basic",
