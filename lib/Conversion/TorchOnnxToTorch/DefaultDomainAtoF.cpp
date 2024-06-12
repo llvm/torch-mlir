@@ -1000,23 +1000,11 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         // padding list, and filter out the duplicate elements.
         // (Also, Torch::AtenCol2imOp requires len(padding) to be 2).
         SmallVector<int64_t> padOnEachAxis = {pads[0], pads[1]};
-
-        SmallVector<Value> cstDilations, cstPadding, cstStrides;
-        for (int64_t i : dilations) {
-          Value x = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(i));
-          cstDilations.push_back(x);
-        }
-        for (int64_t i : padOnEachAxis) {
-          Value x = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(i));
-          cstPadding.push_back(x);
-        }
-        for (int64_t i : strides) {
-          Value x = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(i));
-          cstStrides.push_back(x);
-        }
+        Value dilationsList =
+            createConstantIntList(binder, rewriter, dilations);
+        Value stridesList = createConstantIntList(binder, rewriter, strides);
+        Value paddingList =
+            createConstantIntList(binder, rewriter, padOnEachAxis);
 
         Value zero = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(0));
@@ -1061,18 +1049,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             blockShapeContainer);
-        Value paddingList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            cstPadding);
-        Value dilationsList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            cstDilations);
-        Value stridesList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            cstStrides);
 
         rewriter.replaceOpWithNewOp<Torch::AtenCol2imOp>(
             binder.op, resultType, input, imageShapeAsList, blockShapeAsList,

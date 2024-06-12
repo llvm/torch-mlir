@@ -1509,6 +1509,9 @@ def aten〇addcdiv〡shape(self: List[int], tensor1: List[int], tensor2: List[in
     ErrorInvocation(TensorOfShape(1,5,5), [5,5], [1,7], [1,1], [0,0], [1,1]), # mismatch of sliding blocks
 ])
 def aten〇col2im〡shape(self: List[int], output_size: List[int], kernel_size: List[int], dilation: List[int], padding: List[int], stride: List[int]) -> List[int]:
+    ndim = len(self)
+    assert (ndim == 2 and self[0] != 0 and self[1] != 0) or (ndim == 3 and self[1] != 0 and self[2] != 0), "Expected 2D or 3D (batch mode) tensor for input with possibly 0 batch size and non zero dimensions for input"
+
     assert len(output_size) == 2, "output_size is expected to have length 2"
     assert len(kernel_size) == 2, "kernel_size is expected to have length 2"
     assert len(dilation) == 2, "dilation is expected to have length 2"
@@ -1519,9 +1522,6 @@ def aten〇col2im〡shape(self: List[int], output_size: List[int], kernel_size: 
     assert dilation[0] > 0 and dilation[1] > 0, "dilation should be greater than 0"
     assert padding[0] >= 0 and padding[1] >= 0, "padding should be non negative"
     assert stride[0] > 0 and stride[1] > 0, "stride must be greater than 0"
-
-    ndim = len(self)
-    assert (ndim == 2 and self[0] != 0 and self[1] != 0) or (ndim == 3 and self[1] != 0 and self[2] != 0), "Expected 2D or 3D (batch mode) tensor for input with possibly 0 batch size and non zero dimensions for input"
 
     batch_dim = 0 if ndim == 3 else -1
     n_input_plane = self[batch_dim + 1]
