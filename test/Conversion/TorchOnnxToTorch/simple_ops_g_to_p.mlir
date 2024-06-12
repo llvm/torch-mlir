@@ -311,7 +311,7 @@ func.func @test_lppool_1d(%arg0: !torch.vtensor<[1,3,32],f32>) -> !torch.vtensor
   // CHECK: %[[I0:.*]] = torch.constant.int 0
   // CHECK: %[[I0_1:.*]] = torch.constant.int 0
   // CHECK: %[[I1_1:.*]] = torch.constant.int 1
-  // CHECK: %[[K:.*]] = torch.prim.ListConstruct %[[I2]]: (!torch.int) -> !torch.list<int>
+  // CHECK: %[[K:.*]] = torch.prim.ListConstruct %[[I2]] : (!torch.int) -> !torch.list<int>
   // CHECK: %[[PAD:.*]] = torch.prim.ListConstruct %[[I0]], %[[I0_1]] : (!torch.int, !torch.int) -> !torch.list<int>
   // CHECK: %[[STR:.*]] = torch.prim.ListConstruct %[[I1_1]] : (!torch.int) -> !torch.list<int>
   // CHECK: %[[CEIL:.*]] = torch.constant.bool false
@@ -319,7 +319,7 @@ func.func @test_lppool_1d(%arg0: !torch.vtensor<[1,3,32],f32>) -> !torch.vtensor
   // CHECK: %[[P:.*]] = torch.constant.int 2
   // CHECK: %[[POW:.*]] = torch.aten.pow.Tensor_Scalar %arg0, %[[P]] : !torch.vtensor<[1,3,32],f32>, !torch.int -> !torch.vtensor<[1,3,32],f32>
   // CHECK: %[[AVG:.*]] = torch.aten.avg_pool1d %[[POW]], %[[K]], %[[STR]], %[[PAD]], %[[CEIL]], %[[CIP]] : !torch.vtensor<[1,3,32],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[1,3,31],f32>
-  // CHECK: %[[POW_0:.*]] = torch.aten.mul.Scalar %[[AVG]], %[[NE]] : !torch.vtensor<[1, 3, 31],f32>, !torch.int -> !torch.vtensor<[1, 3, 31],f32>
+  // CHECK: %[[POW_0:.*]] = torch.aten.mul.Scalar %[[AVG]], %[[NE]] : !torch.vtensor<[1,3,31],f32>, !torch.int -> !torch.vtensor<[1,3,31],f32>
   // CHECK: %[[INVP:.*]] = torch.constant.float 5.000000e-01
   // CHECK: torch.aten.pow.Tensor_Scalar %[[POW_0]], %[[INVP]] : !torch.vtensor<[1,3,31],f32>, !torch.float -> !torch.vtensor<[1,3,31],f32>
   %0 = torch.operator "onnx.LpPool"(%arg0) {torch.onnx.kernel_shape = [2 : si64]} : (!torch.vtensor<[1,3,32],f32>) -> !torch.vtensor<[1,3,31],f32>
