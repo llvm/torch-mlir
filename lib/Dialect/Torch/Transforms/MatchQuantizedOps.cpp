@@ -21,10 +21,12 @@ using namespace mlir::torch::Torch;
 namespace {
 
 Type getQuantizedType(MLIRContext *context, Type t) {
-  if (t.isSignlessInteger(8))
+  if (t.isSignlessInteger(8) || t.isUnsignedInteger(8))
     return Torch::QUInt8Type::get(context);
   if (t.isInteger(8) || t.isSignedInteger(8))
     return Torch::QInt8Type::get(context);
+  if (t.isInteger(16))
+    return Torch::QInt16Type::get(context);
   if (t.isInteger(32))
     return Torch::QInt32Type::get(context);
   return {};
