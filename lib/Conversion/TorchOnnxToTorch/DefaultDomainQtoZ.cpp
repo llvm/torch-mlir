@@ -2771,27 +2771,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Torch::ValueTensorType resultType;
         llvm::SmallVector<Value> operands;
         std::string mode, nearest_mode, coordTfMode;
+        int64_t antialias, exclude_outside;
+        float extrapolation_value;
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
 
-        if (auto attr = binder.op->getAttr("torch.onnx.antialias")) {
-          return rewriter.notifyMatchFailure(
-              binder.op,
-              "unimplemented: support not present for antialias attribute");
-        }
         if (auto attr = binder.op->getAttr("torch.onnx.axes")) {
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented: support not present for axes attribute");
-        }
-        if (auto attr = binder.op->getAttr("torch.onnx.exclude_outside")) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "unimplemented: support not present for "
-                         "exclude_outside attribute");
-        }
-        if (auto attr = binder.op->getAttr("torch.onnx.extrapolation_value")) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "unimplemented: support not present for "
-                         "extrapolation_value attribute");
         }
         if (auto attr =
                 binder.op->getAttr("torch.onnx.keep_aspect_ratio_policy")) {
@@ -2805,9 +2792,28 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.customOpNameStringAttr(mode, "mode", "nearest") ||
             binder.customOpNameStringAttr(
                 coordTfMode, "coordinate_transformation_mode", "half_pixel") ||
+            binder.s64IntegerAttr(antialias, "antialias", 0) ||
+            binder.s64IntegerAttr(exclude_outside, "exclude_outside", 0) ||
+            binder.f32FloatAttr(extrapolation_value, "extrapolation_value",
+                                0.0) ||
             binder.customOpNameStringAttr(nearest_mode, "nearest_mode",
                                           "round_prefer_floor"))
           return failure();
+        if (antialias != 0) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented: support not present for antialias attribute");
+        }
+        if (exclude_outside != 0) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: support not present for "
+                         "exclude_outside attribute");
+        }
+        if (extrapolation_value != 0.0) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: support not present for "
+                         "extrapolation_value attribute");
+        }
         if (coordTfMode == "tf_crop_and_resize")
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: coordinate transformation mode: "
