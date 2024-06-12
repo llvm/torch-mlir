@@ -177,22 +177,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                              "requires known result dtype");
 
         if (scaleTy.getSizes().size() == 0) {
-          Type qTy = resultType.getDtype();
-
-          if (qTy.isUnsignedInteger(8)) {
-            qTy = rewriter.getType<Torch::QUInt8Type>();
-          } else if (qTy.isSignedInteger(8)) {
-            qTy = rewriter.getType<Torch::QInt8Type>();
-          } else if (qTy.isSignedInteger(32)) {
-            qTy = rewriter.getType<Torch::QInt32Type>();
-          } else {
+          auto qTensorTy = getQTorchTypeFromTorchIntType(resultType);
+          if (!qTensorTy) {
             return rewriter.notifyMatchFailure(binder.op,
                                                "unsupported result dtype");
           }
 
-          auto qTensorTy = rewriter.getType<Torch::ValueTensorType>(
-              resultType.getOptionalSizes(), qTy);
-          auto torchqTy = Torch::getScalarTypeForType(qTy);
+          auto torchqTy = Torch::getScalarTypeForType(qTensorTy.getDtype());
 
           Value tyConst = rewriter.create<Torch::ConstantIntOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(),
@@ -311,8 +302,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         c = rewriter.create<Torch::AtenDequantizeSelfOp>(binder.getLoc(), cTy,
                                                          c);
-        cTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
+        cTy = getQTorchTypeFromTorchIntType(resultType);
         Value dtyVal = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(
@@ -2823,10 +2813,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "unimplemented: coordinate transformation mode: "
                          "tf_crop_and_resize");
 
-        if (mode == "nearest" && coordTfMode != "asymmetric") {
+        if (mode == "nearest" && coordTfMode != "asymmetric" &&
+            coordTfMode != "half_pixel") {
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: support not present for coord tf mode "
-                         "except asymmetric");
+                         "except asymmetric and half_pixel");
         }
 
         unsigned rank = dyn_cast<Torch::ValueTensorType>(operands[0].getType())

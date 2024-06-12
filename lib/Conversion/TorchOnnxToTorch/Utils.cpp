@@ -28,7 +28,8 @@ Value mlir::torch::onnx_c::createConstantIntList(
       cstValue);
 }
 
-Type mlir::torch::onnx_c::getQTorchTypeFromTorchIntType(Type ty) {
+Torch::ValueTensorType
+mlir::torch::onnx_c::getQTorchTypeFromTorchIntType(Type ty) {
   Torch::ValueTensorType tty = dyn_cast<Torch::ValueTensorType>(ty);
   if (!tty)
     return nullptr;
@@ -40,6 +41,8 @@ Type mlir::torch::onnx_c::getQTorchTypeFromTorchIntType(Type ty) {
     dty = Torch::QUInt8Type::get(ctx);
   if (dty.isSignedInteger(8))
     dty = Torch::QInt8Type::get(ctx);
+  if (dty.isSignedInteger(16))
+    dty = Torch::QInt16Type::get(ctx);
   if (dty.isSignedInteger(32))
     dty = Torch::QInt32Type::get(ctx);
 

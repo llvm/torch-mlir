@@ -1715,21 +1715,12 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                                              "requires known result dtype");
         if (scaleTy.getSizes().size() == 0 ||
             (scaleTy.getSizes().size() == 1 && scaleTy.getSizes()[0] == 1)) {
-          Type qTy = operandTy.getDtype();
-
-          if (qTy.isUnsignedInteger(8)) {
-            qTy = rewriter.getType<Torch::QUInt8Type>();
-          } else if (qTy.isSignedInteger(8)) {
-            qTy = rewriter.getType<Torch::QInt8Type>();
-          } else if (qTy.isSignedInteger(32)) {
-            qTy = rewriter.getType<Torch::QInt32Type>();
-          } else {
+          auto qTensorTy = getQTorchTypeFromTorchIntType(operandTy);
+          if (!qTensorTy) {
             return rewriter.notifyMatchFailure(binder.op,
                                                "unsupported result dtype");
           }
 
-          auto qTensorTy = rewriter.getType<Torch::ValueTensorType>(
-              resultType.getOptionalSizes(), qTy);
           scale = rewriter.create<Torch::AtenItemOp>(
               binder.getLoc(), rewriter.getType<Torch::FloatType>(), scale);
           zeropoint = rewriter.create<Torch::AtenItemOp>(

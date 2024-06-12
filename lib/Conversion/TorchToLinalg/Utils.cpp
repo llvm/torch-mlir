@@ -565,6 +565,8 @@ bool torch_to_linalg::isUnsignedTorchType(Type type) {
     return false;
   if (isa<QUInt8Type>(type))
     return true;
+  if (isa<QInt16Type>(type))
+    return false;
   if (isa<QInt32Type>(type))
     return false;
   if (auto intTy = dyn_cast<IntegerType>(type))
