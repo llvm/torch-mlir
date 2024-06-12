@@ -2657,14 +2657,21 @@ static Value NearestInterpolate(OpBuilder &b, Location loc,
       nearestFP = b.create<arith::SelectOp>(loc, cmp, floor, ceil);
     } else if (nearestMode == "round_prefer_ceil") {
       Value cstHalf = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.5));
+      Value cstOne = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1));
       Value floor = b.create<math::FloorOp>(loc, proj);
       Value ceil = b.create<math::CeilOp>(loc, proj);
       Value decimal = b.create<arith::SubFOp>(loc, proj, floor);
       Value cmp = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGE,
                                           decimal, cstHalf);
       nearestFP = b.create<arith::SelectOp>(loc, cmp, ceil, floor);
+      Value inputSizeMOne = b.create<arith::SubFOp>(loc, inputSizeFP, cstOne);
+      // don't extract out of bounds
+      nearestFP = b.create<arith::MinimumFOp>(loc, nearestFP, inputSizeMOne);
     } else if (nearestMode == "ceil") {
+      Value cstOne = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1));
+      Value inputSizeMOne = b.create<arith::SubFOp>(loc, inputSizeFP, cstOne);
       nearestFP = b.create<math::CeilOp>(loc, proj);
+      nearestFP = b.create<arith::MinimumFOp>(loc, nearestFP, inputSizeMOne);
     } else {
       llvm_unreachable("Unsupported nearest mode");
     }
@@ -2738,7 +2745,8 @@ static Value BilinearInterpolate(OpBuilder &b,
     if (coordStr == "_asymmetric") {
       preClip = b.create<arith::DivFOp>(loc, outFP, scale);
     }
-    if (coordStr == "_pytorch_half_pixel" || coordStr == "") {
+    if (coordStr == "_pytorch_half_pixel" || coordStr == "" ||
+        coordStr == "_half_pixel_symmetric") {
       // half-pixel modes
       // y_resized + 0.5
       Value outPlusHalf = b.create<arith::AddFOp>(loc, outFP, cstHalf);
@@ -2746,6 +2754,18 @@ static Value BilinearInterpolate(OpBuilder &b,
       Value outDivScale = b.create<arith::DivFOp>(loc, outPlusHalf, scale);
       // _ - 0.5
       preClip = b.create<arith::SubFOp>(loc, outDivScale, cstHalf);
+    }
+    // for half_pixel_symmetric, need to compute offset from raw scales
+    if (coordStr == "_half_pixel_symmetric" && !scaleValues.empty()) {
+      Value outputSizeFromScale = b.create<arith::MulFOp>(loc, inputFP, scale);
+      Value adjustment =
+          b.create<arith::DivFOp>(loc, outputSizeFP, outputSizeFromScale);
+      Value cstTwo = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(2.0));
+      Value center = b.create<arith::DivFOp>(loc, inputFP, cstTwo);
+      Value oneMAdjustment =
+          b.create<arith::SubFOp>(loc, cstOneFloat, adjustment);
+      Value offset = b.create<arith::MulFOp>(loc, center, oneMAdjustment);
+      preClip = b.create<arith::AddFOp>(loc, offset, preClip);
     }
     // for pytorch half pixel , special case for length_resized == 1:
     if (coordStr == "_pytorch_half_pixel") {
