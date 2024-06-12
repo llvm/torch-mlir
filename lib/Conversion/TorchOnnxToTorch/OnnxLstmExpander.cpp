@@ -1,3 +1,10 @@
+/*
+See also:
+    test/cpp/torch-mlir/Conversion/TorchOnnxToTorch/OnnxGruExpander.cpp
+    test/cpp/torch-mlir/Conversion/TorchOnnxToTorch/OnnxRnnExpander.cpp
+    test/cpp/torch-mlir/Conversion/TorchOnnxToTorch/OnnxLstmExpander.cpp
+*/
+
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -5,6 +12,7 @@
 
 using namespace mlir;
 using namespace mlir::torch::Torch;
+
 namespace mlir::torch::onnx_c {
 // @struct LstmWeights
 // @brief A structure to hold LSTM weights.
