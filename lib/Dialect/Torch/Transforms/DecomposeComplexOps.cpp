@@ -1218,7 +1218,7 @@ public:
 
 namespace {
 // Decompose aten.atleast_1d into: aten.reshape. See
-// https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/TensorTransformations.cpp#L170
+// https://github.com/pytorch/pytorch/blob/9a8ab778d34bd24c5caceb340837483decc4c311/torch/_refs/__init__.py#L2591
 // def atleast_1d(
 //     arg: Union[TensorLikeType, Sequence[TensorLikeType]], *args:
 //     TensorLikeType

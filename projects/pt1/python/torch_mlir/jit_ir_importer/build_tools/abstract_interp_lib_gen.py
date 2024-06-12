@@ -1885,10 +1885,10 @@ def aten〇cat〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.cat(tensors, dim)
 
 def aten〇atleast_1d〡shape(self: List[int]) -> List[int]:
-    if len(tensor) == 0:
+    if len(self) == 0:
         return [1]
     else:
-        return tensor
+        return self
 
 def aten〇stack〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.stack(tensors, dim)
