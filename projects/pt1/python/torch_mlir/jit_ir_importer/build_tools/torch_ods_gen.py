@@ -978,6 +978,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::tensor_split.sections : (Tensor, int, int) -> (Tensor[])")
     emit("aten::unbind.int : (Tensor, int) -> (Tensor[])")
     emit("aten::chunk : (Tensor, int, int) -> (Tensor[])")
+    emit("aten::meshgrid : (Tensor[]) -> (Tensor[])")
+    emit("aten::meshgrid.indexing : (Tensor[], str) -> (Tensor[])")
 
     # Str ops.
     emit("aten::add.str : (str, str) -> (str)")
