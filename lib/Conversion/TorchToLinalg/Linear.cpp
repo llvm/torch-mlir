@@ -803,6 +803,8 @@ public:
       inputZp = typeConverter->materializeTargetConversion(
           rewriter, loc, typeConverter->convertType(inputZp.getType()),
           inputZp);
+      inputZp =
+          rewriter.create<arith::TruncIOp>(loc, rewriter.getI32Type(), inputZp);
       auto torchDtype = cast<ValueTensorType>(make.getType()).getDtype();
       inputUnsigned = torch_to_linalg::isUnsignedTorchType(torchDtype);
     }
@@ -817,6 +819,8 @@ public:
       weightZp = typeConverter->materializeTargetConversion(
           rewriter, loc, typeConverter->convertType(weightZp.getType()),
           weightZp);
+      weightZp = rewriter.create<arith::TruncIOp>(loc, rewriter.getI32Type(),
+                                                  weightZp);
       auto torchDtype = cast<ValueTensorType>(make.getType()).getDtype();
       weightUnsigned = torch_to_linalg::isUnsignedTorchType(torchDtype);
     }
