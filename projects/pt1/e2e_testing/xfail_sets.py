@@ -1972,6 +1972,7 @@ MAKE_FX_TOSA_PASS_SET = (
         "ViewSizeDimLedAndFollowedByCollapsedOnesModule_basic",
         "ViewSizeDimLedByCollapsedOnesModule_basic",
         "ViewSizeFromOtherTensor_basic",
+        "ScaledDotProductAttentionDifferentModule_basic",
     }
 ) - {
     ### Test failing in make_fx_tosa but not in tosa
