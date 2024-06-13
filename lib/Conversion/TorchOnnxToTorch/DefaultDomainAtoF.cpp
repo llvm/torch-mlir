@@ -970,21 +970,31 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         auto blockShapeTy = cast<Torch::ValueTensorType>(blockShape.getType());
         auto blockShapeSizes = blockShapeTy.getSizes();
 
+        // Check that neither imageShape nor blockShape have dynamic shapes.
+        if (imageShapeSizes[0] == Torch::kUnknownSize ||
+            blockShapeSizes[0] == Torch::kUnknownSize) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Dynamic shapes are not allowed for imageShape and blockShape");
+        }
+
         // TODO: Add support for 5D input tensors.
-        if (imageShapeSizes[0] != 2)
+        if (imageShapeSizes[0] != 2) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected length of imageShape to be equal to 2");
-        if (blockShapeSizes[0] != 2)
+        }
+        if (blockShapeSizes[0] != 2) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected length of blockShape to be equal to 2");
-
-        if (dilations.size() != 2)
+        }
+        if (dilations.size() != 2) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected length of dilations to be equal to 2");
-
-        if (strides.size() != 2)
+        }
+        if (strides.size() != 2) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected length of strides to be equal to 2");
+        }
 
         // TODO: Disable this check and add support for different
         // paddings on lower and higher ends of each axis.
