@@ -1690,21 +1690,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
   patterns.onOp(
       "LpPool", 22, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         std::string autoPad;
-        SmallVector<int64_t> dilation;
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
           return failure();
         if (autoPad != "NOTSET") {
           // TODO: Add support for `auto_pad` != "NOTSET"
           return rewriter.notifyMatchFailure(
               binder.op, "unsupported conversion: auto_pad != NOTSET");
-        }
-        if (binder.s64IntegerArrayAttr(dilation, "dilations", {})) {
-          return failure();
-        }
-        if (dilation.size() > 0) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "dilation is not supported by torch.aten.avgpool op "
-                         "and therefore it is not supported for LpPool.");
         }
 
         Torch::ValueTensorType resultType;
@@ -1725,15 +1716,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (rank > 5 or rank < 3) {
           return failure();
         }
+
         SmallVector<int64_t> kernel, padding, strides, dilations;
         SmallVector<int64_t> defaultPadding(2 * (rank - 2), 0);
         if (binder.s64IntegerArrayAttr(kernel, "kernel_shape", {}) ||
             binder.s64IntegerArrayAttr(padding, "pads", defaultPadding) ||
             binder.s64IntegerArrayAttr(
                 strides, "strides", llvm::SmallVector<int64_t>(rank - 2, 1)) ||
-            binder.s64IntegerArrayAttr(
-                dilations, "dilations",
-                llvm::SmallVector<int64_t>(rank - 2, 1))) {
+            binder.s64IntegerArrayAttr(dilations, "dilations", {})) {
           return failure();
         }
         if (kernel.size() != rank - 2) {
@@ -1749,9 +1739,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(
               binder.op, "strides list size does not match the number of axes");
         }
-        if (dilations != llvm::SmallVector<int64_t>(rank - 2, 1)) {
+        if (dilations.size() > 0) {
           return rewriter.notifyMatchFailure(
-              binder.op, "LpPool with dilations is not supported");
+              binder.op, "dilation is not supported by torch.aten.avgpool op "
+                         "and therefore it is not supported for LpPool.");
         }
 
         SmallVector<Value> cstKernel, cstPadding, cstStrides;
