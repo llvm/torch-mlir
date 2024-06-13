@@ -1688,7 +1688,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
       });
 
   patterns.onOp(
-      "LpPool", 22, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "LpPool", 18, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         std::string autoPad;
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
           return failure();
