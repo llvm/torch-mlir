@@ -1696,6 +1696,28 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.f32FloatAttr(epsilon, "epsilon", 0.00001f) ||
             binder.s64IntegerAttr(stashType, "stash_type", 1))
           return failure();
+
+        // Since the support for `stash_type` arg does not exist in
+        // the torch op so we just check for the stash_type to be same
+        // as the input dtype since that won't require us to do any
+        // input type conversion and hence can be supported.
+        auto xType = cast<Torch::ValueTensorType>(x.getType());
+        std::optional<int64_t> stashTypeIntTorch =
+            onnxDtypeIntToTorchDtypeInt(stashType);
+        if (!stashTypeIntTorch.has_value())
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented support for the given stash_type");
+
+        FailureOr<Type> stashDtype = Torch::getTypeForScalarType(
+            binder.op->getContext(),
+            (torch_upstream::ScalarType)stashTypeIntTorch.value());
+        if (failed(stashDtype))
+          return failure();
+        if (*stashDtype != xType.getOptionalDtype())
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: stash_type should be same "
+                         "as the input dtype");
+
         Value constEpsilon = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(epsilon));
@@ -1704,7 +1726,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           rank = *maybeRank;
         SmallVector<Value> normalized;
         axis = Torch::toPositiveDim(axis, rank);
-        auto xType = cast<Torch::ValueTensorType>(x.getType());
         if (!xType.hasSizes()) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected input (X) to have sizes");
@@ -2320,6 +2341,55 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         rewriter.replaceOpWithNewOp<Torch::AtenMaxUnpool3dOp>(
             binder.op, resultType, data, indices, resultShapeList, stridesList,
             paddingList);
+        return success();
+      });
+  patterns.onOp(
+      "GroupNormalization", 18,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input, scale, bias;
+        int64_t numGroups, stashType;
+        float epsilon;
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorOperandAtIndex(scale, 1) ||
+            binder.tensorOperandAtIndex(bias, 2) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(numGroups, "num_groups") ||
+            binder.f32FloatAttr(epsilon, "epsilon", 1e-5) ||
+            binder.s64IntegerAttr(stashType, "stash_type", 1))
+          return failure();
+
+        // Since the support for `stash_type` arg does not exist in
+        // the torch op so we just check for the stash_type to be same
+        // as the input dtype since that won't require us to do any
+        // input type conversion and hence can be supported.
+        std::optional<int64_t> stashTypeIntTorch =
+            onnxDtypeIntToTorchDtypeInt(stashType);
+        if (!stashTypeIntTorch.has_value())
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented support for the given stash_type");
+
+        FailureOr<Type> stashDtype = Torch::getTypeForScalarType(
+            binder.op->getContext(),
+            (torch_upstream::ScalarType)stashTypeIntTorch.value());
+        if (failed(stashDtype))
+          return failure();
+        auto inputDtype =
+            cast<Torch::ValueTensorType>(input.getType()).getOptionalDtype();
+        if (*stashDtype != inputDtype)
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: stash_type != input dtype");
+
+        Value cstEpsilon = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr((double)epsilon));
+        Value cstNumGroups = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(numGroups));
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
+            binder.getLoc(), rewriter.getBoolAttr(false));
+        rewriter.replaceOpWithNewOp<Torch::AtenGroupNormOp>(
+            binder.op, resultType, input, cstNumGroups, scale, bias, cstEpsilon,
+            /*cudnn_enabled=*/cstFalse);
         return success();
       });
 }
