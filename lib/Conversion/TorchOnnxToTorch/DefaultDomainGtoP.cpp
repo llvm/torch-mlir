@@ -9,6 +9,7 @@
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
@@ -1592,7 +1593,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         return failure();
       });
   patterns.onOp(
-      "GlobalLpPool", 1,
+      "GlobalLpPool", 2,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value operand;
@@ -1608,6 +1609,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
         ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
         unsigned inputRank = inputShape.size();
+        // only handle 2D, 3D and 5D pooling cases
+        if (inputRank > 5 or inputRank < 3) {
+          return failure();
+        }
         if (!resultType || !resultType.hasSizes()) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected result type having sizes");
@@ -1654,11 +1659,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
         Value cstCeilMode = cstFalse;
         Value cstCountIncludePad = cstFalse;
+        Value abs = rewriter.create<Torch::AtenAbsOp>(binder.getLoc(),
+                                                      inputTensorType, operand);
         Value pv = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), p));
         Value pow = rewriter.create<Torch::AtenPowTensorScalarOp>(
-            binder.getLoc(), inputTensorType, operand, pv);
+            binder.getLoc(), inputTensorType, abs, pv);
         Value avgPool;
         if (inputRank == 3) {
           avgPool = rewriter.create<Torch::AtenAvgPool1dOp>(
@@ -1671,13 +1678,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
               paddingList, cstCeilMode, cstCountIncludePad,
               /*divisor_override=*/cstOne);
-        } else if (inputRank == 5) {
+        } else { // inputRank == 5
           avgPool = rewriter.create<Torch::AtenAvgPool3dOp>(
               binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
               paddingList, cstCeilMode, cstCountIncludePad,
               /*divisor_override=*/cstOne);
-        } else {
-          return failure();
         }
         Value invP = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
