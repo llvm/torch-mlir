@@ -1721,7 +1721,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(binder.op,
                                              "Unimplemented: unranked tensor");
         unsigned rank = *maybeRank;
-
+        // only 1D, 2D and 3D LpPool is supported.
+        if (rank > 5 or rank < 3) {
+          return failure();
+        }
         SmallVector<int64_t> kernel, padding, strides, dilations;
         SmallVector<int64_t> defaultPadding(2 * (rank - 2), 0);
         if (binder.s64IntegerArrayAttr(kernel, "kernel_shape", {}) ||
@@ -1791,13 +1794,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
               paddingList, cstCeilMode, cstCountIncludePad,
               /*divisor_override=*/cstOne);
-        } else if (rank == 5) {
+        } else { // rank == 5
           avgPool = rewriter.create<Torch::AtenAvgPool3dOp>(
               binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
               paddingList, cstCeilMode, cstCountIncludePad,
               /*divisor_override=*/cstOne);
-        } else {
-          return failure();
         }
         Value invP = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
