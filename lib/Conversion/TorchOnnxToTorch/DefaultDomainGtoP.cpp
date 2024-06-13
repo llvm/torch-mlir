@@ -1773,8 +1773,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), p));
         auto inputTensorType = cast<Torch::ValueTensorType>(operand.getType());
+        Value abs = rewriter.create<Torch::AtenAbsOp>(binder.getLoc(),
+                                                      inputTensorType, operand);
         Value pow = rewriter.create<Torch::AtenPowTensorScalarOp>(
-            binder.getLoc(), inputTensorType, operand, pv);
+            binder.getLoc(), inputTensorType, abs, pv);
         Value avgPool;
         if (rank == 3) {
           avgPool = rewriter.create<Torch::AtenAvgPool1dOp>(
