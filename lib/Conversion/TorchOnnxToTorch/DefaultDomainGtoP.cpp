@@ -1793,7 +1793,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), ceilMode);
         // onnx lp pool doesn't have countIncludePad attribute
         Value cstCountIncludePad =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
         Value pv = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), p));
