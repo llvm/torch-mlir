@@ -1764,7 +1764,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value stridesList = createConstantIntList(binder, rewriter, strides);
         Value cstCeilMode =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), ceilMode);
-        // onnx lp pool doesn't have countIncludePad attribute
+        // onnx lp pool doesn't have countIncludePad attribute but set it to
+        // true so that in 1D case numElements is correctly undoes divison. For
+        // 2D/3D case, division is avoided by divison_override.
         Value cstCountIncludePad =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
         Value pv = rewriter.create<Torch::ConstantIntOp>(
