@@ -1688,15 +1688,15 @@ public:
     // check if element type is float, int, or unsigned
     bool isUnsigned = false;
     if (!isa<mlir::FloatType>(inputElementType)) {
-      if (isa<mlir::IntegerType>(inputElementType)) {
-        auto integerTy = dyn_cast<mlir::IntegerType>(
-            cast<BaseTensorType>(op.getSelf().getType()).getDtype());
-        isUnsigned = integerTy.isUnsigned();
-      } else {
+      if (!isa<mlir::IntegerType>(inputElementType)) {
         return rewriter.notifyMatchFailure(
             op, opName + " to linalg.* requires Float or Integer "
                          "input element type");
       }
+
+      auto integerTy = dyn_cast<mlir::IntegerType>(
+          cast<BaseTensorType>(op.getSelf().getType()).getDtype());
+      isUnsigned = integerTy.isUnsigned();
     }
 
     // Create the values to fill initial output tensors for
