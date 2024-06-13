@@ -1355,6 +1355,102 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         return failure();
       });
   patterns.onOp(
+      "GlobalLpPool", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        int64_t p;
+        if (binder.tensorOperand(operand) || binder.s64IntegerAttr(p, "p", 2) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        auto inputTensorType = cast<Torch::ValueTensorType>(operand.getType());
+        if (!inputTensorType || !inputTensorType.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input type having sizes");
+        }
+        ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+        unsigned inputRank = inputShape.size();
+        if (!resultType || !resultType.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected result type having sizes");
+        }
+        ArrayRef<int64_t> resultShape = resultType.getSizes();
+
+        SmallVector<Value> cstKernel, cstPadding, cstStrides;
+        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value numElements = cstOne;
+        for (unsigned i = 2; i < inputRank; i++) {
+          if (inputShape[i] == Torch::kUnknownSize) {
+            Value dim = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(i));
+            Value inputDimSize = rewriter.create<Torch::AtenSizeIntOp>(
+                binder.getLoc(), operand, dim);
+            cstKernel.push_back(inputDimSize);
+          } else {
+            int64_t kernelSize = inputShape[i] - resultShape[i] + 1;
+            cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(kernelSize)));
+          }
+          numElements = rewriter.create<Torch::AtenMulOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              cstKernel.back(), numElements);
+          cstPadding.push_back(cstZero);
+          cstStrides.push_back(cstOne);
+        }
+        Value kernelSizeList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstKernel);
+        Value paddingList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstPadding);
+        Value stridesList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            cstStrides);
+        Value cstFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        Value cstCeilMode = cstFalse;
+        Value cstCountIncludePad = cstFalse;
+        Value pv = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), p));
+        Value pow = rewriter.create<Torch::AtenPowTensorScalarOp>(
+            binder.getLoc(), inputTensorType, operand, pv);
+        Value avgPool;
+        if (inputRank == 3) {
+          avgPool = rewriter.create<Torch::AtenAvgPool1dOp>(
+              binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
+              paddingList, cstCeilMode, cstCountIncludePad);
+          avgPool = rewriter.create<Torch::AtenMulScalarOp>(
+              binder.getLoc(), resultType, avgPool, numElements);
+        } else if (inputRank == 4) {
+          avgPool = rewriter.create<Torch::AtenAvgPool2dOp>(
+              binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
+              paddingList, cstCeilMode, cstCountIncludePad,
+              /*divisor_override=*/cstOne);
+        } else if (inputRank == 5) {
+          avgPool = rewriter.create<Torch::AtenAvgPool3dOp>(
+              binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
+              paddingList, cstCeilMode, cstCountIncludePad,
+              /*divisor_override=*/cstOne);
+        } else {
+          return failure();
+        }
+        Value invP = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(double{1.0 / p}));
+        rewriter.replaceOpWithNewOp<Torch::AtenPowTensorScalarOp>(
+            binder.op, resultType, avgPool, invP);
+        return success();
+      });
+
+  patterns.onOp(
       "LayerNormalization", 17,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType yType, meanType, invStdDevType;
