@@ -2952,6 +2952,40 @@ public:
   }
 };
 } // namespace
+
+namespace {
+// This pattern computes a row reduction of a matrix, then returns the product of it's diagonal elements
+class ConvertAtenLinalgDetOp : public OpConversionPattern<AtenLinalgDetOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenLinalgDetOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override { 
+                  // Input: CxNxN or NxN tensor
+                  //  A = HardCopy(Input)
+                  //  scf for n in N (rows):
+                  //    pivot = extract row n from A : tensor<CxN>
+                  //    diag = extract col n from pivot : tensor<C>
+                  //    subpivot = extract rows below pivot from A : tensor<Cx(N-n+1)XN>
+                  //    subdiag = extract col n from subpivot : tensor<Cx(N-n+1)>
+                  //    B = generic over subpivot, pivot, diag, subdiag-> result : tensor<Cx(N-n+1)xN>
+                  //      indexing maps (d0, d1, d2) -> [id, (d0, d2), (d0), (d0,d1), id]
+                  //      cond = (diag != 0.00)
+                  //      cf.assert(cond && "DetOp: singular matrix case and row reductions requiring permutations are not handled")
+                  //      C = divf subdiag, diag
+                  //      scaled = mulf C, pivot
+                  //      diff = subf subpivot, scaled
+                  //      yeild diff
+                  //    newA = insert_slice B into A
+                  //    result = linalg.dot(diag, result)
+                  //    yeild result, newA
+                  //  return result
+                  //       
+                  return failure();
+                  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -3009,4 +3043,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenGridSamplerOp>(typeConverter, context);
   target.addIllegalOp<Aten__InterpolateSizeListScaleListOp>();
   patterns.add<ConvertInterpolateOp>(typeConverter, context);
+  target.addIllegalOp<AtenLinalgDetOp>();
+  patterns.add<ConvertAtenLinalgDetOp>(typeConverter, context);
 }
