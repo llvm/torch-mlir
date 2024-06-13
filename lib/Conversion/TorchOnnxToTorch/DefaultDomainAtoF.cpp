@@ -950,6 +950,130 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         return failure();
       });
   patterns.onOp(
+      "Col2Im", 18, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input, blockShape, imageShape;
+        SmallVector<int64_t> dilations, strides, pads;
+
+        // TODO: The length of dilations should be len(imageShape), and the same
+        // goes for strides. The length of pads should be 2 * len(imageShape).
+        // But, as at the moment we are only supporting 3D or 4D input,
+        // len(imageShape) must necessarily be 2, hence the lengths of the
+        // default values.
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorOperandAtIndex(imageShape, 1) ||
+            binder.tensorOperandAtIndex(blockShape, 2) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerArrayAttr(dilations, "dilations",
+                                       SmallVector<int64_t>{1, 1}) ||
+            binder.s64IntegerArrayAttr(strides, "strides",
+                                       SmallVector<int64_t>{1, 1}) ||
+            binder.s64IntegerArrayAttr(pads, "pads",
+                                       SmallVector<int64_t>{0, 0, 0, 0}))
+          return failure();
+
+        auto imageShapeTy = cast<Torch::ValueTensorType>(imageShape.getType());
+        auto imageShapeSizes = imageShapeTy.getSizes();
+
+        auto blockShapeTy = cast<Torch::ValueTensorType>(blockShape.getType());
+        auto blockShapeSizes = blockShapeTy.getSizes();
+
+        // Check that neither imageShape nor blockShape have dynamic shapes.
+        if (imageShapeSizes[0] == Torch::kUnknownSize ||
+            blockShapeSizes[0] == Torch::kUnknownSize) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Dynamic shapes are not allowed for imageShape and blockShape");
+        }
+
+        // TODO: Add support for 5D input tensors.
+        if (imageShapeSizes[0] != 2) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected length of imageShape to be equal to 2");
+        }
+        if (blockShapeSizes[0] != 2) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected length of blockShape to be equal to 2");
+        }
+        if (dilations.size() != 2) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected length of dilations to be equal to 2");
+        }
+        if (strides.size() != 2) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected length of strides to be equal to 2");
+        }
+
+        // TODO: Disable this check and add support for different
+        // paddings on lower and higher ends of each axis.
+        // Because we have already checked that imageShape has 2 elements,
+        // we can safely assume that len(padding) will be 4.
+        if (pads[0] != pads[2] || pads[1] != pads[3])
+          return rewriter.notifyMatchFailure(
+              binder.op, "padding on the lower end and the higher end "
+                         "on each axis should be the same");
+
+        // Since we know that the padding on the lower end and the higher
+        // end on each axis is the same, we can reduce the size of the
+        // padding list, and filter out the duplicate elements.
+        // (Also, Torch::AtenCol2imOp requires len(padding) to be 2).
+        SmallVector<int64_t> padOnEachAxis = {pads[0], pads[1]};
+        Value dilationsList =
+            createConstantIntList(binder, rewriter, dilations);
+        Value stridesList = createConstantIntList(binder, rewriter, strides);
+        Value paddingList =
+            createConstantIntList(binder, rewriter, padOnEachAxis);
+
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+
+        // Index the imageShape and blockShape tensors, as AtenCol2imOp expects
+        // them to be int lists.
+        auto select = [&](Value v, Value k,
+                          Torch::ValueTensorType ty) -> Value {
+          Value kTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+              binder.getLoc(),
+              Torch::ValueTensorType::get(
+                  binder.op->getContext(), ArrayRef<int64_t>{1},
+                  rewriter.getIntegerType(64, /*signed*/ 1)),
+              k);
+
+          auto sel = rewriter.create<Torch::AtenIndexSelectOp>(
+              binder.getLoc(),
+              Torch::ValueTensorType::get(ty.getContext(), ArrayRef<int64_t>{1},
+                                          ty.getOptionalDtype()),
+              v, zero, kTensor);
+          Value item = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), sel);
+          return item;
+        };
+
+        SmallVector<Value> imageShapeContainer, blockShapeContainer;
+        for (int64_t i = 0; i < imageShapeSizes[0]; ++i) {
+          Value k = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(i));
+
+          // Passing in the shapeType of each of these tensors avoids
+          // repeated casts, as these have already been calculated.
+          imageShapeContainer.push_back(select(imageShape, k, imageShapeTy));
+          blockShapeContainer.push_back(select(blockShape, k, blockShapeTy));
+        }
+
+        Value imageShapeAsList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            imageShapeContainer);
+        Value blockShapeAsList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            blockShapeContainer);
+
+        rewriter.replaceOpWithNewOp<Torch::AtenCol2imOp>(
+            binder.op, resultType, input, imageShapeAsList, blockShapeAsList,
+            dilationsList, paddingList, stridesList);
+        return success();
+      });
+  patterns.onOp(
       "Conv", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         std::string autoPad;
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
