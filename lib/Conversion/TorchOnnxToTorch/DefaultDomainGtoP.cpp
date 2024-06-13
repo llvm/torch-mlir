@@ -1723,36 +1723,29 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         unsigned rank = *maybeRank;
 
         SmallVector<int64_t> kernel, padding, strides, dilations;
-        if (binder.s64IntegerArrayAttr(kernel, "kernel_shape", {})) {
+        SmallVector<int64_t> defaultPadding(2 * (rank - 2), 0);
+        if (binder.s64IntegerArrayAttr(kernel, "kernel_shape", {}) ||
+            binder.s64IntegerArrayAttr(padding, "pads", defaultPadding) ||
+            binder.s64IntegerArrayAttr(
+                strides, "strides", llvm::SmallVector<int64_t>(rank - 2, 1)) ||
+            binder.s64IntegerArrayAttr(
+                dilations, "dilations",
+                llvm::SmallVector<int64_t>(rank - 2, 1))) {
           return failure();
         }
         if (kernel.size() != rank - 2) {
           return rewriter.notifyMatchFailure(
               binder.op, "kernel list size does not match the number of axes");
         }
-        SmallVector<int64_t> defaultPadding(2 * (rank - 2), 0);
-        if (binder.s64IntegerArrayAttr(padding, "pads", defaultPadding)) {
-          return failure();
-        }
         if (padding.size() != 2 * (rank - 2)) {
           return rewriter.notifyMatchFailure(
               binder.op,
               "padding list size does not match twice the number of axes");
         }
-        if (binder.s64IntegerArrayAttr(
-                strides, "strides", llvm::SmallVector<int64_t>(rank - 2, 1))) {
-          return failure();
-        }
         if (strides.size() != rank - 2) {
           return rewriter.notifyMatchFailure(
               binder.op, "strides list size does not match the number of axes");
         }
-        if (binder.s64IntegerArrayAttr(
-                dilations, "dilations",
-                llvm::SmallVector<int64_t>(rank - 2, 1))) {
-          return failure();
-        }
-
         if (dilations != llvm::SmallVector<int64_t>(rank - 2, 1)) {
           return rewriter.notifyMatchFailure(
               binder.op, "LpPool with dilations is not supported");
@@ -1769,26 +1762,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.getLoc(), rewriter.getType<Torch::IntType>(),
               cstKernel.back(), numElements);
         }
-        for (int64_t i : padding) {
-          cstPadding.push_back(rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(i)));
-        }
-        for (int64_t i : strides) {
-          cstStrides.push_back(rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(i)));
-        }
         Value kernelSizeList = rewriter.create<Torch::PrimListConstructOp>(
             binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstKernel);
-        Value paddingList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            cstPadding);
-        Value stridesList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            cstStrides);
+        Value paddingList = createConstantIntList(binder, rewriter, padding);
+        Value stridesList = createConstantIntList(binder, rewriter, strides);
         Value cstCeilMode =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), ceilMode);
         // onnx lp pool doesn't have countIncludePad attribute
