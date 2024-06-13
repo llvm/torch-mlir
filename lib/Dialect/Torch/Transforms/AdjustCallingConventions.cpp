@@ -62,7 +62,7 @@ public:
       // TODO: add tuple type.
       conversion.addInputs(type.index(), type.value());
     }
-    rewriter.applySignatureConversion(&func.getBody(), conversion,
+    rewriter.applySignatureConversion(&func.getBody().front(), conversion,
                                       typeConverter);
 
     SmallVector<Type> newResultTypes;
