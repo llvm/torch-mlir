@@ -15,6 +15,7 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -2960,28 +2961,78 @@ public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
   matchAndRewrite(AtenLinalgDetOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override { 
-                  // Input: CxNxN or NxN tensor
-                  //  A = HardCopy(Input)
-                  //  scf for n in N (rows):
-                  //    pivot = extract row n from A : tensor<CxN>
-                  //    diag = extract col n from pivot : tensor<C>
-                  //    subpivot = extract rows below pivot from A : tensor<Cx(N-n+1)XN>
-                  //    subdiag = extract col n from subpivot : tensor<Cx(N-n+1)>
-                  //    B = generic over subpivot, pivot, diag, subdiag-> result : tensor<Cx(N-n+1)xN>
-                  //      indexing maps (d0, d1, d2) -> [id, (d0, d2), (d0), (d0,d1), id]
-                  //      cond = (diag != 0.00)
-                  //      cf.assert(cond && "DetOp: singular matrix case and row reductions requiring permutations are not handled")
-                  //      C = divf subdiag, diag
-                  //      scaled = mulf C, pivot
-                  //      diff = subf subpivot, scaled
-                  //      yeild diff
-                  //    newA = insert_slice B into A
-                  //    result = linalg.dot(diag, result)
-                  //    yeild result, newA
-                  //  return result
-                  //       
-                  return failure();
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    Value input = adaptor.getA();
+    auto inputType = cast<RankedTensorType>(input.getType());
+    auto inputRank = inputType.getRank();
+    bool isBatched = (inputRank == 3);
+    Value cstZero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value cstOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
+    Value chDim;
+    if (isBatched)
+      chDim = getDimOp(rewriter, loc, input, 0);
+    Value matDim = getDimOp(rewriter, loc, input, inputRank - 1);
+    SmallVector<int64_t> sliceShape(inputType.getShape());
+    sliceShape.pop_back();
+    auto elemTy = inputType.getElementType();
+    auto sliceTy = RankedTensorType::get(sliceShape, elemTy);
+    ArrayRef<Value> sliceSizes(inputSizes.begin(), inputSizes.end() - 1);
+    Value initResult = createZeroInitTensor(rewriter, loc, sliceSizes, elemTy);
+    Value testLoop =
+        rewriter
+            .create<scf::ForOp>(
+                loc, /*start=*/cstZero, /*end=*/matDim, /*step=*/cstOne,
+                /*yeild_to=*/ValueRange{initResult}, /*body_lambda=*/
+                [&](OpBuilder &b, Location loc, Value i, ValueRange vals) {
+                  // extract row i from input Tensor of shape CxNxN or shape
+                  // NxN.
+                  SmallVector<Value> offsets(inputRank, cstZero);
+                  offsets[inputRank - 2] = i;
+                  SmallVector<Value> strides(inputRank, cstOne);
+                  SmallVector<Value> sizes = inputSizes;
+                  sizes[inputRank - 2] = cstOne;
+                  Value pivot = b.create<tensor::ExtractSliceOp>(
+                      loc, sliceTy, input, getAsOpFoldResult(offsets),
+                      getAsOpFoldResult(sizes), getAsOpFoldResult(strides));
+                  Value sumResult = b.create<tensor::EmptyOp>(
+                      loc, getAsOpFoldResult(sliceSizes), elemTy);
+                  Value sum = b.create<linalg::AddOp>(
+                                   loc, ValueRange{pivot, vals[0]}, sumResult)
+                                  .getResult(0);
+                  b.create<scf::YieldOp>(loc, ValueRange(sum));
+                })
+            .getResult(0);
+    Value output = rewriter.create<tensor::ExtractOp>(
+        loc, testLoop, SmallVector<Value>(inputRank - 1, cstZero));
+    Type newResultType =
+        getTypeConverter()->convertType(op.getResult().getType());
+    rewriter.replaceOpWithNewOp<tensor::FromElementsOp>(op, newResultType,
+                                                        ValueRange{output});
+    return success();
+    // Input: CxNxN or NxN tensor
+    //  A = HardCopy(Input)
+    //  scf for n in N (rows):
+    //    pivot = extract row n from A : tensor<CxN>
+    //    diag = extract col n from pivot : tensor<C>
+    //    subpivot = extract rows below pivot from A : tensor<Cx(N-n+1)XN>
+    //    subdiag = extract col n from subpivot : tensor<Cx(N-n+1)>
+    //    B = generic over subpivot, pivot, diag, subdiag-> result :
+    //    tensor<Cx(N-n+1)xN>
+    //      indexing maps (d0, d1, d2) -> [id, (d0, d2), (d0), (d0,d1), id]
+    //      cond = (diag != 0.00)
+    //      cf.assert(cond && "DetOp: singular matrix case and row reductions
+    //      requiring permutations are not handled") C = divf subdiag, diag
+    //      scaled = mulf C, pivot
+    //      diff = subf subpivot, scaled
+    //      yeild diff
+    //    newA = insert_slice B into A
+    //    result = linalg.dot(diag, result)
+    //    yeild result, newA
+    //  return result
+    //
+    return failure();
                   }
 };
 } // namespace
