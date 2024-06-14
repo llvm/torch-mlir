@@ -13726,6 +13726,7 @@ def Torch_AtenMeshgridOp : Torch_Op<"aten.meshgrid", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenMeshgridIndexingOp : Torch_Op<"aten.meshgrid.indexing", [

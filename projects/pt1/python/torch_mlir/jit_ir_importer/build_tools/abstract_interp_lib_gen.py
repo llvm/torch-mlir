@@ -1887,25 +1887,6 @@ def aten〇cat〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
 def aten〇stack〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.stack(tensors, dim)
 
-def aten〇meshgrid〇indexing〡shape(tensors: List[List[int]], indexing: str) -> List[List[int]]:
-    swap_first_and_second_tensors = False
-    if indexing == "xy":
-        swap_first_and_second_tensors = len(tensors) >= 2
-        if swap_first_and_second_tensors:
-            tensors = [tensors[1], tensors[0]] + tensors[2:]
-    else:
-        assert indexing == "ij", "Only 'ij' and 'xy' are supported for the 'indexing' argument"
-    
-    result_shape: List[int] = []
-    for i in range(len(tensors)):
-        # add numel of the tensor to the result shape
-        result_shape.append(upstream_shape_functions.numel(tensors[i]))
-    
-    return [result_shape for _ in range(len(tensors))]
-
-def aten〇meshgrid〡shape(tensors: List[List[int]]) -> List[List[int]]:
-    return aten〇meshgrid〇indexing〡shape(tensors, "ij")
-
 def aten〇fft_fft〡shape(self: List[int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> List[int]:
     return self
 
