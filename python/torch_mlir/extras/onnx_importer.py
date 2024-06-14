@@ -36,7 +36,7 @@ except ModuleNotFoundError as e:
 from typing import Optional, List, Dict, Tuple
 import warnings
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import re
@@ -91,6 +91,45 @@ class Config:
     # making an assumption.
     elide_initialized_inputs: bool = True
 
+    # Some ONNX operators are defined by ONNX functions and will be
+    # automatically expanded (see get_operator_function() below) to MLIR
+    # functions by the importer. This option allows allowlisting functions that
+    # should be expanded. If this is None, then allowlisting is not used (all
+    # functions not explicitly denylisted will be expanded).
+    #
+    # Since function expansion has not always been supported, the default should
+    # be to use allowlisting, to avoid disruption.
+    function_expansion_allowlists_by_domain: Optional[Dict[str, set[str]]] = field(
+        default_factory=lambda: {
+            # Default domain (ONNX built-in ops)
+            "": {
+                "MeanVarianceNormalization",
+            }
+        }
+    )
+
+    # Some ONNX operators are defined by ONNX functions and will be
+    # automatically expanded (see get_operator_function() below) to MLIR
+    # functions by the importer. This option allows denylisting functions that
+    # should not be expanded.
+    function_expansion_denylists_by_domain: Dict[str, set[str]] = field(
+        default_factory=lambda: {
+            # Default domain (ONNX built-in ops)
+            "": {
+                # CastLike's second input `target_type` is used only for its
+                # type (T2), from which its output's type is inferred, but
+                # because its value is unused, ONNX's shape inference doesn't
+                # annotate the input value with a type, so looking up the
+                # function by the provided input types will fail.
+                "CastLike",
+                # ONNX errors when trying to infer the type of the Loop op
+                # within this function: "[ShapeInferenceError] Inferred shape
+                # and existing shape differ in rank: (1) vs (0)"
+                "Range",
+            }
+        }
+    )
+
 
 class ModelInfo:
     """Top-level accounting and accessors for an ONNX model."""
@@ -112,7 +151,12 @@ class ModelInfo:
 class GraphInfo:
     """Information about a Graph within a model."""
 
-    def __init__(self, model_info: ModelInfo, graph_proto: onnx.GraphProto):
+    def __init__(
+        self,
+        model_info: ModelInfo,
+        graph_proto: onnx.GraphProto,
+        is_subgraph: bool = False,
+    ):
         self.model_info = model_info
         self.graph_proto = graph_proto
         self.initializer_map: Dict[str, onnx.TensorProto] = {
@@ -130,7 +174,11 @@ class GraphInfo:
 
         # Generate the effective input map, which for old models can be a
         # subset of the input map.
-        if model_info and model_info.config.elide_initialized_inputs:
+        if (
+            not is_subgraph
+            and model_info
+            and model_info.config.elide_initialized_inputs
+        ):
             self.input_map = {
                 k: v
                 for k, v in self.declared_input_map.items()
@@ -150,9 +198,20 @@ class GraphInfo:
         # Node outputs don't typically have type information, but shape inference
         # will associate them in the value_info. If not there, it may be a
         # graph output, which must have type information.
-        value_info = self.value_info_map.get(name) or self.output_map.get(name)
+        value_info = (
+            self.value_info_map.get(name)
+            or self.output_map.get(name)
+            or self.declared_input_map.get(name)
+        )
         if value_info is not None:
             return value_info.type
+
+        tensor_proto = self.initializer_map.get(name)
+        if tensor_proto is not None:
+            return onnx.helper.make_tensor_type_proto(
+                tensor_proto.data_type, tensor_proto.dims
+            )
+
         # No type information is associated, this can occur when the value is unused:
         return ""
 
@@ -173,6 +232,8 @@ class NodeImporter:
     __slots__ = [
         "_c",
         "_cc",
+        "_m",
+        "_mc",
         "_gi",
         "_p",
         "_b",
@@ -186,9 +247,13 @@ class NodeImporter:
         parent_op: Operation,
         block: Block,
         context_cache: "ContextCache",
+        module_op: Operation,
+        module_cache: "ModuleCache",
     ):
         self._c = parent_op.context
         self._cc = context_cache
+        self._m = module_op
+        self._mc = module_cache
         self._gi = graph_info
         self._p = parent_op
         self._b = block
@@ -196,9 +261,19 @@ class NodeImporter:
 
     @classmethod
     def define_function(
-        cls, graph_info: GraphInfo, module_op: Operation
+        cls,
+        graph_info: GraphInfo,
+        module_op: Operation,
+        context_cache: Optional["ContextCache"] = None,
+        module_cache: Optional["ModuleCache"] = None,
+        private: bool = False,
     ) -> "NodeImporter":
-        cc = ContextCache(module_op.context)
+        cc = (
+            context_cache
+            if context_cache is not None
+            else ContextCache(module_op.context)
+        )
+        mc = module_cache if module_cache is not None else ModuleCache(module_op, cc)
         with module_op.context, Location.name(f"graph:{graph_info.graph_proto.name}"):
             body = module_op.regions[0].blocks[0]
             func_name = graph_info.graph_proto.name
@@ -210,11 +285,23 @@ class NodeImporter:
                 for out in graph_info.output_map.values()
             ]
             ftype = FunctionType.get(input_types, output_types)
-            func_op = func_dialect.FuncOp(func_name, ftype, ip=InsertionPoint(body))
+            func_op = func_dialect.FuncOp(
+                func_name,
+                ftype,
+                ip=InsertionPoint(body),
+                visibility="private" if private else None,
+            )
             block = func_op.add_entry_block(
                 [Location.name(k) for k in graph_info.input_map.keys()]
             )
-        imp = NodeImporter(graph_info, parent_op=func_op, block=block, context_cache=cc)
+        imp = NodeImporter(
+            graph_info,
+            parent_op=func_op,
+            block=block,
+            context_cache=cc,
+            module_op=module_op,
+            module_cache=mc,
+        )
         for node_name, input_value in zip(graph_info.input_map.keys(), block.arguments):
             imp._nv_map[node_name] = input_value
         imp._populate_graph_attrs(func_op)
@@ -294,6 +381,8 @@ class NodeImporter:
     def import_node(self, node: onnx.NodeProto):
         with InsertionPoint(self._b), Location.name(node.name):
             op_type = node.op_type
+            op_domain = node.domain
+
             # Handle special op types that materialize to non-op IR constructs.
             # Handlers return True if the op was handled, else this function
             # should process it as a general node.
@@ -304,33 +393,58 @@ class NodeImporter:
                     return
             # General node import.
             input_values = []
+            input_type_protos = []
             for input_name in node.input:
                 try:
                     input_values.append(self._nv_map[input_name])
+                    # Missing optional arguments will have empty types
+                    input_type_protos.append(
+                        self._gi.find_type_proto_for_name(input_name)
+                        or onnx.TypeProto()
+                    )
                 except KeyError:
                     raise OnnxImportError(
                         f"Non topologically produced ONNX node input '{input_name}': {node}"
                     )
 
-            output_names = list(node.output)
-            output_types = [
-                self._cc.type_proto_to_type(self._gi.find_type_proto_for_name(n))
-                for n in output_names
-            ]
+            output_names = []
+            output_type_protos = []
+            output_types = []
+            for output_name in node.output:
+                output_names.append(output_name)
+                type_proto = self._gi.find_type_proto_for_name(output_name)
+                output_type_protos.append(type_proto)
+                output_types.append(self._cc.type_proto_to_type(type_proto))
 
-            attrs = self.import_attributes(node.attribute)
-            attrs["name"] = StringAttr.get(f"onnx.{op_type}")
-            regions = self.count_regions(node.attribute)
-
-            custom_op = Operation.create(
-                name="torch.operator",
-                results=output_types,
-                operands=input_values,
-                attributes=attrs,
-                regions=regions,
+            for opset_import in self._gi.model_info.model_proto.opset_import:
+                if opset_import.domain == op_domain:
+                    opset_version = opset_import.version
+                    break
+            operator_func_op = self._mc.get_operator_function(
+                op_type,
+                op_domain,
+                opset_version,
+                input_type_protos,
+                output_type_protos,
+                node,
+                self._gi.model_info.config,
             )
 
-            self.import_regions(node.attribute, custom_op)
+            if operator_func_op is not None:
+                custom_op = func_dialect.CallOp(operator_func_op, input_values)
+            else:
+                attrs = self.import_attributes(node.attribute)
+                attrs["name"] = StringAttr.get(f"onnx.{op_type}")
+                regions = self.count_regions(node.attribute)
+                custom_op = Operation.create(
+                    name="torch.operator",
+                    results=output_types,
+                    operands=input_values,
+                    attributes=attrs,
+                    regions=regions,
+                )
+                self.import_regions(node.attribute, custom_op)
+
             for output_name, output_value in zip(output_names, custom_op.results):
                 self._nv_map[output_name] = output_value
 
@@ -388,9 +502,14 @@ class NodeImporter:
                 *block_types, arg_locs=[op.location] * len(block_types)
             )
             block = region.blocks[0]
-            graph_info = GraphInfo(None, attr.g)
+            graph_info = GraphInfo(self._gi.model_info, attr.g, is_subgraph=True)
             imp = NodeImporter(
-                graph_info, parent_op=op, block=block, context_cache=self._cc
+                graph_info,
+                parent_op=op,
+                block=block,
+                context_cache=self._cc,
+                module_op=self._m,
+                module_cache=self._mc,
             )
 
             for node_name, input_value in zip(block_names, block.arguments):
@@ -608,6 +727,11 @@ class ContextCache:
             element_type = self.get_optional_element_type(ot.elem_type)
             return self.get_optional_type(element_type)
 
+        # Check if TypeProto is empty (sometimes happens for unused function
+        # arguments)
+        if tp.WhichOneof("value") is None:
+            return self.get_none_type()
+
         # TODO: Others if ever needed. Or we consider ourselves DNN-only.
         # See TypeProto: sequence_type, map_type, optional_type, sparse_tensor_type.
         raise OnnxImportError(f"Unsupported ONNX TypeProto: {tp}")
@@ -634,6 +758,323 @@ class ContextCache:
             if handler is None:
                 raise OnnxImportError(f"Unhandled ONNX TensorProto data: {tp}")
             return handler(tp)
+
+
+def _shallow_copy_and_clear_protobuf_list(protobuf_list) -> list:
+    """
+    Workaround for .clear() not being available on protobuf lists for some
+    reason.
+    """
+    copy = list(protobuf_list)
+    while len(protobuf_list) > 0:
+        protobuf_list.pop()
+    return copy
+
+
+def _bind_attributes_on_node(
+    interior_node: onnx.NodeProto,
+    caller_node: onnx.NodeProto,
+    op_schema: onnx.defs.OpSchema,
+) -> onnx.NodeProto:
+    """
+    Helper for _specialize_function_and_create_model() that binds concrete
+    values to an attributes on a node in the interior of a function.
+
+    This should behave the same as ONNX's C++ attribute binder, please use it as
+    a reference: https://github.com/onnx/onnx/blob/88f8ef15cfaa3138d336f3502aed5018d802bf43/onnx/shape_inference/attribute_binder.h#L15-L64
+    """
+
+    def _bind_attributes_in_subgraph(
+        old_subgraph: onnx.GraphProto,
+        caller_node: onnx.NodeProto,
+        op_schema: onnx.defs.OpSchema,
+    ) -> onnx.GraphProto:
+        """
+        Recurse to bind attributes in a subgraph.
+        """
+        new_subgraph.CopyFrom(old_subgraph)
+        old_nodes = _shallow_copy_and_clear_protobuf_list(new_subgraph.node)
+        for old_node in old_nodes:
+            new_subgraph.node.append(
+                _bind_attributes_on_node(old_node, caller_node, op_schema)
+            )
+        return new_subgraph
+
+    def _bind_attribute(
+        old_attribute: onnx.AttributeProto,
+        caller_node: onnx.NodeProto,
+        op_schema: onnx.defs.OpSchema,
+    ) -> Optional[onnx.AttributeProto]:
+        """
+        Bind a single attribute.
+
+        Bound values either come from attributes on the node calling the
+        function, or from default values. If the attribute is optional and has
+        no default value, and no value was provided by the caller, None is
+        returned and the attribute should be removed.
+        """
+
+        ref_name = old_attribute.ref_attr_name
+        if not ref_name:
+            if not old_attribute.g or len(old_attribute.graphs) == 0:
+                return old_attribute
+
+            # Recurse to bind attributes on subgraphs. ONNX's implementation of
+            # attribute binding only does this for subgraphs that didn't come
+            # from a referenced attribute value, so this code doesn't either.
+            new_attribute = onnx.AttributeProto()
+            new_attribute.CopyFrom(old_attribute)
+            if new_attribute.g:
+                new_attribute.g = _bind_attributes_in_subgraph(
+                    new_attribute.g, caller_node, op_schema
+                )
+            if new_attribute.graphs:
+                old_subgraphs = _shallow_copy_and_clear_protobuf_list(
+                    new_attribute.graphs
+                )
+                for old_subgraph in old_subgraphs:
+                    new_attribute.graphs.append(
+                        _bind_attributes_in_subgraph(
+                            old_subgraph, caller_node, op_schema
+                        )
+                    )
+            return new_attribute
+
+        for call_attribute in caller_node.attribute:
+            if call_attribute.name == ref_name:
+                new_attribute = onnx.AttributeProto()
+                new_attribute.CopyFrom(call_attribute)
+                new_attribute.name = old_attribute.name
+                return new_attribute
+
+        # The default value is sometimes empty for optional attributes
+        # that don't have a default, in which case it is dropped.
+        default_value = op_schema.attributes[ref_name].default_value
+        if default_value and default_value.type:
+            new_attribute = onnx.AttributeProto()
+            new_attribute.CopyFrom(default_value)
+            new_attribute.name = old_attribute.name
+            return new_attribute
+
+        return None
+
+    new_node = onnx.NodeProto()
+    new_node.CopyFrom(interior_node)
+    old_attributes = _shallow_copy_and_clear_protobuf_list(new_node.attribute)
+    for node_attribute in old_attributes:
+        new_attribute = _bind_attribute(node_attribute, caller_node, op_schema)
+        if new_attribute is not None:
+            new_node.attribute.append(new_attribute)
+            continue
+    return new_node
+
+
+def _specialize_function_and_create_model(
+    function_proto: onnx.FunctionProto,
+    op_schema: onnx.defs.OpSchema,
+    name_to_give_model: str,
+    input_type_protos: list[onnx.TypeProto],
+    output_type_protos: list[onnx.TypeProto],
+    caller_node: onnx.NodeProto,
+) -> onnx.ModelProto:
+    """
+    Helper for ModuleCache::get_operator_function() that specializes a function
+    and coverts it to a model.
+
+    An ONNX function may be polymorphic, parameterized over the types of its
+    inputs and values of its attributes (~= compile-time constants). We need to
+    monomorphize it for importing into MLIR. It seems like the only practical
+    way to do this is by turning it into a model:
+    - models can have types on their inputs and outputs, unlike functions
+    - ONNX provides a function to do shape inference (providing concrete
+      types for everything in the body) for models, but not for functions
+    - the rest of the code in this importer can only handle models, not
+      functions
+    """
+
+    graph_proto = onnx.GraphProto()
+
+    for input_name, input_type_proto in zip(function_proto.input, input_type_protos):
+        input_proto = onnx.ValueInfoProto()
+        input_proto.name = input_name
+        input_proto.type.CopyFrom(input_type_proto)
+        graph_proto.input.append(input_proto)
+        output_proto = onnx.ValueInfoProto()
+
+    for output_name, output_type_proto in zip(
+        function_proto.output, output_type_protos
+    ):
+        output_proto.name = output_name
+        output_proto.type.CopyFrom(output_type_proto)
+        graph_proto.output.append(output_proto)
+
+    for node in function_proto.node:
+        # Import referenced attributes from call-site or default values
+        graph_proto.node.append(_bind_attributes_on_node(node, caller_node, op_schema))
+
+    graph_proto.name = name_to_give_model
+
+    model_proto = onnx.ModelProto()
+    model_proto.opset_import.extend(function_proto.opset_import)
+    # FIXME: is this the correct IR version, or should it be the latest, or the
+    #        one used by the actual model, or something else?
+    model_proto.ir_version = onnx.helper.find_min_ir_version_for(
+        function_proto.opset_import
+    )
+    model_proto.graph.CopyFrom(graph_proto)
+
+    model_proto = onnx.shape_inference.infer_shapes(
+        model_proto, check_type=True, strict_mode=True, data_prop=True
+    )
+    graph_proto = model_proto.graph
+
+    # Useful for debugging.
+    # onnx.checker.check_model(model_proto, full_check=True)
+
+    return model_proto
+
+
+class ModuleCache:
+    """Caches per-module lookups of various things."""
+
+    __slots__ = [
+        "_m",
+        "_cc",
+        "_operator_function_map",
+    ]
+
+    def __init__(self, module_op: Operation, context_cache: ContextCache):
+        self._m = module_op
+        self._cc = context_cache
+        self._operator_function_map: Dict[str, func_dialect.FuncOp] = {}
+
+    def get_operator_function(
+        self,
+        op_name: str,
+        op_domain: str,
+        opset_version: int,
+        input_type_protos: list[onnx.TypeProto],
+        output_type_protos: list[onnx.TypeProto],
+        caller_node: onnx.NodeProto,
+        config: Config,
+    ) -> Optional[func_dialect.FuncOp]:
+        """
+        Get or create MLIR function corresponding to an ONNX operator.
+
+        Returns None for ONNX operators that aren't functions.
+        """
+
+        allowlists = config.function_expansion_allowlists_by_domain
+        denylists = config.function_expansion_denylists_by_domain
+
+        if allowlists is not None and not (
+            op_domain in allowlists and op_name in allowlists[op_domain]
+        ):
+            return None
+
+        if op_domain in denylists and op_name in denylists[op_domain]:
+            return None
+
+        op_schema = onnx.defs.get_schema(
+            op_name, domain=op_domain, max_inclusive_version=opset_version
+        )
+
+        # The get_schema() lookup above should get the right version of the
+        # operator definition, but the function body can change slightly
+        # within a single operator version, as explained in
+        # https://github.com/onnx/onnx/blob/093a8d335a66ea136eb1f16b3a1ce6237ee353ab/onnx/defs/schema.h#L1070-L1086
+        # There also seem to be cases where a function goes from being not
+        # context-dependent to context-dependent.
+        f = lambda ver: ver <= opset_version
+        ncd_function_version = max(
+            filter(f, op_schema.function_opset_versions),
+            default=None,
+        )
+        cd_function_version = max(
+            filter(f, op_schema.context_dependent_function_opset_versions),
+            default=None,
+        )
+        if ncd_function_version is None and cd_function_version is None:
+            # No relevant function definition
+            return None
+        if ncd_function_version is not None and (
+            cd_function_version is None or cd_function_version < ncd_function_version
+        ):
+            specific_version = ncd_function_version
+            is_context_dependent = False
+        else:
+            specific_version = cd_function_version
+            is_context_dependent = True
+
+        # This is both a key for memoization of function importing and also a
+        # name mangling scheme, so it must include all information needed to
+        # uniquely identify a function and anything it might be parameterized
+        # over.
+        key = repr(
+            (
+                op_name,
+                op_domain,
+                opset_version,
+                input_type_protos,
+                # Though output types can be inferred from input types, it does
+                # not seem to be the case that there's only one legal set of
+                # outputs for a given set of inputs. When attemtping to always
+                # use onnx.shape_inference.infer_function_output_types instead
+                # of the caller-provided types, sometimes IR verification fails
+                output_type_protos,
+                # Avoid including the attributes twice (once on their own and
+                # once as part of the node) for context-dependent functions,
+                # avoid including unused parts of the node for other functions.
+                caller_node if is_context_dependent else caller_node.attribute,
+            )
+        )
+
+        existing = self._operator_function_map.get(key)
+        if existing is not None:
+            return existing
+
+        if is_context_dependent:
+            function_proto_str = (
+                op_schema.get_context_dependent_function_with_opset_version(
+                    specific_version,
+                    caller_node.SerializeToString(),
+                    [
+                        t.SerializeToString() if not isinstance(t, bytes) else t
+                        for t in input_type_protos
+                    ],
+                )
+            )
+        else:
+            function_proto_str = op_schema.get_function_with_opset_version(
+                specific_version
+            )
+        if not function_proto_str:
+            raise OnnxImportError(
+                f"Function lookup for {op_name}/{op_domain}/{specific_version}/{is_context_dependent} failed unexpectedly. This probably indicates a bug."
+            )
+        function_proto = onnx.onnx_pb.FunctionProto()
+        function_proto.ParseFromString(function_proto_str)
+
+        tmp_model_proto = _specialize_function_and_create_model(
+            function_proto,
+            op_schema,
+            key,
+            input_type_protos,
+            output_type_protos,
+            caller_node,
+        )
+
+        tmp_model_info = ModelInfo(tmp_model_proto)
+        tmp_graph_info = GraphInfo(tmp_model_info, tmp_model_proto.graph)
+        # Mark function as private so it will be thrown away after inlining
+        imp = NodeImporter.define_function(
+            tmp_graph_info, self._m, self._cc, self, private=True
+        )
+        imp.import_all()
+        func_op = imp._p
+
+        self._operator_function_map[key] = func_op
+        return func_op
 
 
 ELEM_TYPE_TO_IR_TYPE_CB = {
