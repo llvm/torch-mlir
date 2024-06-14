@@ -720,6 +720,123 @@ public:
 } // namespace
 
 namespace {
+class RecomposeMeshgridIndexingListUnpack
+    : public OpRewritePattern<PrimListUnpackOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimListUnpackOp op,
+                                PatternRewriter &rewriter) const override {
+    auto meshgridIndexingOp =
+        op.getOperand().getDefiningOp<Torch::AtenMeshgridIndexingOp>();
+    if (!meshgridIndexingOp)
+      return rewriter.notifyMatchFailure(op,
+                                         "Input is not AtenMeshgridIndexingOp");
+    Location loc = meshgridIndexingOp.getLoc();
+    auto context = meshgridIndexingOp.getContext();
+    auto baseType = NonValueTensorType::getWithLeastStaticInformation(context);
+    SmallVector<Value> tensors;
+    if (!getListConstructElements(meshgridIndexingOp.getTensors(), tensors))
+      return rewriter.notifyMatchFailure(meshgridIndexingOp,
+                                         "Unable to get tensors");
+
+    // auto resultTy =
+    // dyn_cast<Torch::ListType>(meshgridIndexingOp.getResult().getType()); if
+    // (!resultTy)
+    //   return rewriter.notifyMatchFailure(meshgridIndexingOp, "Result type not
+    //   a list");
+
+    int64_t numTensors = tensors.size();
+    bool swapFirstAndSecondTensors = false;
+
+    std::string indexing;
+    if (!matchPattern(meshgridIndexingOp.getIndexing(),
+                      m_TorchConstantStr(indexing))) {
+      return rewriter.notifyMatchFailure(meshgridIndexingOp,
+                                         "Unable to get indexing");
+    }
+
+    if (indexing == "xy" && numTensors >= 2) {
+      swapFirstAndSecondTensors = true;
+      std::swap(tensors[0], tensors[1]);
+    }
+
+    SmallVector<int64_t> sizes;
+
+    /*
+        for (Value tensor : tensors) {
+          BaseTensorType tensorTy = cast<BaseTensorType>(tensor.getType());
+          if (!tensorTy.hasSizes()) {
+            llvm::errs() << "tensorTy: " << tensorTy << "\n";
+            return rewriter.notifyMatchFailure(meshgridIndexingOp, "Tensor shape
+       unknown");
+          }
+
+          auto tensorSizes = tensorTy.getSizes();
+          int64_t numel = 0;
+          if (tensorSizes.size() == 0) {
+            numel = 1;
+          } else if (tensorSizes.size() == 1) {
+            numel = tensorSizes[0];
+          } else {
+            return rewriter.notifyMatchFailure(meshgridIndexingOp, "Not a 0D or
+       1D tensor");
+          }
+
+          sizes.push_back(numel);
+        }
+    */
+    SmallVector<Value> expandShapeValues;
+    for (int64_t i = 0; i < numTensors; i++) {
+      expandShapeValues.push_back(
+          rewriter.create<AtenNumelOp>(loc, tensors[i]));
+    }
+    // for (int64_t size : sizes) {
+    //   expandShapeValues.push_back(rewriter.create<ConstantIntOp>(
+    //       loc, rewriter.getI64IntegerAttr(size)));
+    // }
+    Value expandShapeList = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), expandShapeValues);
+
+    SmallVector<Value> meshgrids;
+    Value constFalse =
+        rewriter.create<ConstantBoolOp>(loc, rewriter.getBoolAttr(false));
+
+    for (auto [idx, tensor] : llvm::enumerate(tensors)) {
+      // SmallVector<int64_t> tensorView(numTensors, 1);
+      // tensorView[idx] = sizes[idx];
+      Value constantOne =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+      SmallVector<Value> tensorViewShapeValues(numTensors, constantOne);
+      tensorViewShapeValues[idx] = expandShapeValues[idx];
+      // BaseTensorType tensorTy = cast<BaseTensorType>(tensor.getType());
+      // Type viewType = tensorTy.getWithSizesAndDtype(
+      //     tensorView, tensorTy.getOptionalDtype());
+
+      Value viewShapeList = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(IntType::get(context)), tensorViewShapeValues);
+      Value view =
+          rewriter.create<AtenViewOp>(loc, baseType, tensor, viewShapeList);
+
+      // Type expandType =
+      //     tensorTy.getWithSizesAndDtype(sizes, tensorTy.getOptionalDtype());
+      Value expandView = rewriter.create<AtenExpandOp>(
+          loc, baseType, view, expandShapeList, constFalse);
+      meshgrids.push_back(expandView);
+    }
+
+    if (swapFirstAndSecondTensors) {
+      std::swap(meshgrids[0], meshgrids[1]);
+    }
+    rewriter.replaceOp(op, meshgrids);
+    // erase meshgridIndexingOp if no user left
+    if (meshgridIndexingOp.getResult().use_empty())
+      rewriter.eraseOp(meshgridIndexingOp);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class RecomposeComplexOpsPass
     : public RecomposeComplexOpsBase<RecomposeComplexOpsPass> {
 public:
@@ -742,6 +859,7 @@ public:
     patterns.add<RecomposeUnbindListUnpack>(context);
     patterns.add<RecomposeUnbindGetItem>(context);
     patterns.add<RecomposeChunkListUnpack>(context);
+    patterns.add<RecomposeMeshgridIndexingListUnpack>(context);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

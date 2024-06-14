@@ -57,3 +57,4 @@ def register_all_tests():
     from . import padding
     from . import diagonal
     from . import gridsampler
+    from . import meshgrid
