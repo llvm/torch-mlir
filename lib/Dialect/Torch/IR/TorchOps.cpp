@@ -4694,7 +4694,7 @@ LogicalResult AtenRenormOp::verify() {
   double_t pDouble = 1;
   if (!matchPattern(getP(), m_TorchConstantInt(&pInt)) &&
       !matchPattern(getP(), m_TorchConstantFloat(&pDouble)))
-    return emitOpError("renorm: p must be real-valued");
+    return success();
 
   if (pInt <= 0 || pDouble <= 0)
     return emitOpError("renorm: non-positive norm not supported");
@@ -4711,7 +4711,7 @@ LogicalResult AtenRenormOp::verify() {
   double_t maxnormDouble = 0;
   if (!matchPattern(getMaxnorm(), m_TorchConstantInt(&maxnormInt)) &&
       !matchPattern(getMaxnorm(), m_TorchConstantFloat(&maxnormDouble)))
-    return emitOpError("renorm: maxnorm must be real-valued");
+    return success();
 
   if (maxnormInt < 0 || maxnormDouble < 0)
     return emitOpError("renorm: expected maxnorm to be >= 0");
@@ -4719,7 +4719,7 @@ LogicalResult AtenRenormOp::verify() {
   // Get the dimension
   int64_t dim;
   if (!matchPattern(getDim(), m_TorchConstantInt(&dim)))
-    return emitOpError("dim must be a constant int");
+    return success();
 
   // check if is dim is in the correct range
   if (dim >= selfRank || dim < -selfRank)
