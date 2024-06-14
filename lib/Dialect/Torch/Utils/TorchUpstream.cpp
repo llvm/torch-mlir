@@ -128,6 +128,21 @@ ScalarType result_type(const ResultTypeState &in_state) {
       combine_categories(in_state.zeroResult, in_state.wrappedResult));
 }
 
+Reduction get_loss_reduction_enum(const llvm::StringRef &reduce) {
+  if (reduce == "none") {
+    return torch_upstream::Reduction::None;
+  } else if (reduce == "mean") {
+    return torch_upstream::Reduction::Mean;
+  } else if (reduce == "sum") {
+    return torch_upstream::Reduction::Sum;
+  } else if (reduce == "end") {
+    return torch_upstream::Reduction::END;
+  } else {
+    llvm_unreachable(
+        "'reduction' argument must be either none, mean, sum or end");
+  }
+}
+
 ReductionType get_reduction_enum(const llvm::StringRef &reduce) {
   if (reduce == "max" || reduce == "amax") {
     return torch_upstream::ReductionType::MAX;
