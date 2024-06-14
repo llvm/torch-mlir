@@ -149,7 +149,8 @@ public:
     TensorType resultType =
         cast<TensorType>(getTypeConverter()->convertType(op.getType()));
     Type elementType = resultType.getElementType();
-    auto accumulatorDType = getDefaultAccType(rewriter, elementType);
+    auto accumulatorDType =
+        getDefaultAccType(rewriter, lhsType.getElementType());
     if (accumulatorDType != resultType.getElementType()) {
       elementType = accumulatorDType;
     }
@@ -1053,7 +1054,7 @@ public:
             castIndexToInt(weightDims[i]), strideIntValues[i]));
     }
 
-    Type accumulatorDType = getDefaultAccType(rewriter, resultDTy);
+    Type accumulatorDType = getDefaultAccType(rewriter, inputDTy);
     Value initTensor = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(outDims), accumulatorDType);
 
