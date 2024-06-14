@@ -3040,6 +3040,20 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenMeshgridOp
+//===----------------------------------------------------------------------===//
+void AtenMeshgridOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                 MLIRContext *context) {
+  patterns.add(+[](AtenMeshgridOp op, PatternRewriter &rewriter) {
+    Value constIndexing = rewriter.create<Torch::ConstantStrOp>(
+        op->getLoc(), rewriter.getStringAttr("ij"));
+    rewriter.replaceOpWithNewOp<AtenMeshgridIndexingOp>(
+        op, op->getResultTypes(), op.getTensors(), constIndexing);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSplitSizesOp
 //===----------------------------------------------------------------------===//
 

@@ -821,6 +821,9 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "MeshgridIndexingIJ_basic",
+    "MeshgridIndexingXY_basic",
+    "Meshgrid_basic",
     "SplitWithSizes_Module_basic",
     "TensorSplitSections_GetItemModule_basic",
     "TensorSplitSections_ListUnpackModule_basic",
@@ -1477,6 +1480,9 @@ STABLEHLO_CRASHING_SET = set()
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "MeshgridIndexingIJ_basic",
+    "MeshgridIndexingXY_basic",
+    "Meshgrid_basic",
     "AvgPool2dCountIncludePadFalseStaticModule_basic",
     "TensorSplitSections_GetItemModule_basic",
     "TensorSplitSections_ListUnpackModule_basic",
