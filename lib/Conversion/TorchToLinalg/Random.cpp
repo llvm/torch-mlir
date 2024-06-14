@@ -250,21 +250,19 @@ public:
         loc, i64Ty, rewriter.getI64IntegerAttr(0));
     Value cstOne = rewriter.create<arith::ConstantOp>(
         loc, i64Ty, rewriter.getI64IntegerAttr(1));
-    Value zeroIndex =
-        rewriter.create<arith::IndexCastOp>(loc, indexTy, cstZero);
-    Value oneIndex = rewriter.create<arith::IndexCastOp>(loc, indexTy, cstOne);
-    Value numSamples_index =
+    Value zeroIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value oneIndex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value numSamplesIndex =
         rewriter.create<arith::IndexCastOp>(loc, indexTy, numSamples);
 
     Value numDistributions;
     Value numCategoriesIndex;
     ValueRange resultShape;
     if (inputRank == 1) {
-      numDistributions = rewriter.create<arith::ConstantOp>(
-          loc, i64Ty, rewriter.getI64IntegerAttr(1));
+      numDistributions = cstOne;
       numCategoriesIndex =
           rewriter.create<tensor::DimOp>(loc, indexTy, self, zeroIndex);
-      resultShape = ValueRange{numSamples_index};
+      resultShape = ValueRange{numSamplesIndex};
     } else {
       Value numDistIndex =
           rewriter.create<tensor::DimOp>(loc, indexTy, self, zeroIndex);
@@ -272,7 +270,7 @@ public:
           rewriter.create<tensor::DimOp>(loc, indexTy, self, oneIndex);
       numDistributions =
           rewriter.create<arith::IndexCastOp>(loc, i64Ty, numDistIndex);
-      resultShape = ValueRange{numDistIndex, numSamples_index};
+      resultShape = ValueRange{numDistIndex, numSamplesIndex};
     }
 
     Value numCategories =
@@ -282,11 +280,11 @@ public:
 
     // sum weights for normalization
     torch_to_linalg::ReductionOpInfo opInfo;
-    if (inputRank == 1) {
+    if (inputRank == 1)
       opInfo = {false, self, {0}};
-    } else {
+    else
       opInfo = {false, self, {1}};
-    }
+
     Value initSum = rewriter.create<arith::ConstantOp>(
         loc, f64Ty, rewriter.getF64FloatAttr(0.0));
     auto sumBody = [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
@@ -358,6 +356,19 @@ public:
                })
               .getResult(0);
 
+      /*
+       * Above we've computed the CDF for the unnormalized distribution given to
+       * us by the user. In order to actually sample from this distribution we
+       * do the following below: 1) Sample a random floating point value, r in
+       * [0,1), from a uniform distribution. 2) Perform a binary search in the
+       * cdf to find the first bin in the CDF where cdf[i] < r. This guarantees
+       * a random sample from the provided distribution with the appropriate
+       * probabilities.
+       *
+       * This logic is pulled straight from PyTorch's Multinomial Kernel:
+       * https://github.com/pytorch/pytorch/blob/e4623de4cf6097ff399aa9eb0cef44b44ca76da4/aten/src/ATen/native/cpu/MultinomialKernel.cpp#L23
+       * */
+
       // Get key, min and max used by RNG.
       Value key = b.create<TorchConversion::GetNextSeedOp>(loc);
       Value min = b.create<arith::ConstantOp>(loc, f64Ty,
@@ -417,11 +428,9 @@ public:
                                // branch and update search indices
                                auto thenBlock = [&](OpBuilder &b,
                                                     Location loc) {
-                                 // left += 1
-                                 Value one = b.create<arith::ConstantOp>(
-                                     loc, i64Ty, b.getI64IntegerAttr(1));
-                                 Value newLeft =
-                                     b.create<arith::AddIOp>(loc, left, one);
+                                 // left = mid + 1
+                                 Value newLeft = b.create<arith::AddIOp>(
+                                     loc, midPointer, cstOne);
 
                                  b.create<scf::YieldOp>(
                                      loc, ValueRange{newLeft, right});
