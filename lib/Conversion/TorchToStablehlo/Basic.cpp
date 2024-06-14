@@ -2100,6 +2100,206 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenScaledDotProductAttentionOp>::matchAndRewrite(
+    AtenScaledDotProductAttentionOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  double dropoutP = 0.0;
+  if (!matchPattern(op.getDropoutP(), m_TorchConstantFloat(&dropoutP)))
+    return rewriter.notifyMatchFailure(op,
+                                       "dropout_p must be a Scalar constant");
+
+  if (dropoutP != 0.0)
+    return rewriter.notifyMatchFailure(op, "dropout_p must be zero");
+
+  bool isCausal = false;
+  if (!matchPattern(op.getIsCausal(), m_TorchConstantBool(&isCausal)))
+    return rewriter.notifyMatchFailure(op,
+                                       "is_causal must be a Scalar constant");
+
+  Value mask = adaptor.getAttnMask();
+  auto maskTy = dyn_cast<RankedTensorType>(mask.getType());
+
+  if (isCausal && maskTy)
+    return op.emitError("aten.scaled_dot_product_attention: is_causal and "
+                        "attn_mask can NOT be enabled at the same time");
+
+  Value query = adaptor.getQuery();
+  auto queryTy = dyn_cast<RankedTensorType>(query.getType());
+
+  Value key = adaptor.getKey();
+  auto keyTy = dyn_cast<RankedTensorType>(key.getType());
+
+  Value value = adaptor.getValue();
+  auto valueTy = dyn_cast<RankedTensorType>(value.getType());
+
+  if (!queryTy || !keyTy || !valueTy) {
+    return op.emitError("aten.scaled_dot_product_attention: Q, K, V "
+                        "must be ranked tensor");
+  }
+
+  if (!isa<::mlir::FloatType>(queryTy.getElementType()) ||
+      !isa<::mlir::FloatType>(keyTy.getElementType()) ||
+      !isa<::mlir::FloatType>(valueTy.getElementType())) {
+    return op.emitError("aten.scaled_dot_product_attention: Q, K, V "
+                        "must be tensor of floating-point numbers");
+  }
+
+  ArrayRef<int64_t> queryShape = queryTy.getShape();
+  ArrayRef<int64_t> keyShape = keyTy.getShape();
+  int64_t queryRank = queryTy.getRank();
+
+  Value scale = adaptor.getScale();
+  auto scaleTy = dyn_cast<::mlir::FloatType>(scale.getType());
+  Value scaleTensor;
+  if (scaleTy) {
+    scaleTensor = hlo::scalarToStablehloTensor(rewriter, op.getOperation(),
+                                               scale, queryTy.getElementType());
+  } else {
+    Value lastDimSzOfQuery =
+        getDimOp(rewriter, op->getLoc(), query, queryRank - 1);
+    Value lastDimSzOfQueryInt = rewriter.create<arith::IndexCastOp>(
+        op->getLoc(), rewriter.getI64Type(), lastDimSzOfQuery);
+    Value lastDimSzOfQueryFPTensor = hlo::scalarToStablehloTensor(
+        rewriter, op.getOperation(), lastDimSzOfQueryInt,
+        queryTy.getElementType());
+    scaleTensor = rewriter.create<stablehlo::RsqrtOp>(op->getLoc(),
+                                                      lastDimSzOfQueryFPTensor);
+  }
+
+  int64_t nBatchDims = queryRank - 2;
+  int64_t lhsResultDimIdx = nBatchDims, lhsContractingDimIdx = nBatchDims + 1;
+  int64_t rhsResultDimIdx = nBatchDims, rhsContractingDimIdx = nBatchDims + 1;
+  auto batchDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, nBatchDims));
+  stablehlo::DotDimensionNumbersAttr queryDotKeyDimsAttr =
+      stablehlo::DotDimensionNumbersAttr::get(rewriter.getContext(), batchDims,
+                                              batchDims, {lhsContractingDimIdx},
+                                              {rhsContractingDimIdx});
+
+  llvm::SmallVector<int64_t, 4> queryDotKeyResShape(
+      queryShape.take_front(nBatchDims));
+  queryDotKeyResShape.push_back(queryShape[lhsResultDimIdx]);
+  queryDotKeyResShape.push_back(keyShape[rhsResultDimIdx]);
+  auto queryDotKeyTy =
+      RankedTensorType::get(queryDotKeyResShape, queryTy.getElementType());
+  Value queryDotKey = rewriter.create<stablehlo::DotGeneralOp>(
+      op->getLoc(), queryDotKeyTy, query, key, queryDotKeyDimsAttr, nullptr);
+
+  auto outTy =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+
+  Value scaledQueryDotKey = rewriter.create<chlo::BroadcastMulOp>(
+      op->getLoc(), queryDotKey, scaleTensor, nullptr);
+
+  auto scaledQueryDotKeyTy =
+      cast<RankedTensorType>(scaledQueryDotKey.getType());
+  auto elementTy = cast<::mlir::FloatType>(queryTy.getElementType());
+
+  Value maskedVal = scaledQueryDotKey;
+  Value bias;
+  if (maskTy && !maskTy.getElementType().isSignlessInteger(1)) {
+    assert(elementTy == maskTy.getElementType() &&
+           "expected the same element type");
+    bias = hlo::promoteAndBroadcast(rewriter, mask, scaledQueryDotKeyTy);
+    maskedVal = rewriter.create<stablehlo::AddOp>(
+        op->getLoc(), scaledQueryDotKeyTy, scaledQueryDotKey, bias);
+  } else if (maskTy || isCausal) {
+    if (isCausal) {
+      ArrayRef<int64_t> maskShape = scaledQueryDotKeyTy.getShape();
+      int64_t maskRank = scaledQueryDotKeyTy.getRank();
+      auto iotaElementTy = mlir::IntegerType::get(op.getContext(), 64);
+      auto iotaTy = RankedTensorType::get(
+          {maskShape[maskRank - 2], maskShape[maskRank - 1]}, iotaElementTy);
+      Value colIdxTensor =
+          rewriter.create<stablehlo::IotaOp>(op->getLoc(), iotaTy, 1)
+              .getResult();
+      Value rowIdxTensor =
+          rewriter.create<stablehlo::IotaOp>(op->getLoc(), iotaTy, 0)
+              .getResult();
+
+      auto cmpDirectionAttr = stablehlo::ComparisonDirectionAttr::get(
+          rewriter.getContext(), stablehlo::ComparisonDirection::LE);
+      auto cmpTypeAttr = stablehlo::ComparisonTypeAttr::get(
+          rewriter.getContext(), stablehlo::ComparisonType::SIGNED);
+      auto cmpTy = iotaTy.clone(rewriter.getI1Type());
+      mask = rewriter.create<stablehlo::CompareOp>(
+          op->getLoc(), cmpTy, colIdxTensor, rowIdxTensor, cmpDirectionAttr,
+          cmpTypeAttr);
+    }
+    auto predTy = scaledQueryDotKeyTy.clone(rewriter.getI1Type());
+    Value bcastedMask = hlo::promoteAndBroadcast(rewriter, mask, predTy);
+
+    auto splatZeroAttr = SplatElementsAttr::get(
+        scaledQueryDotKeyTy,
+        llvm::APFloat::getZero(elementTy.getFloatSemantics()));
+    Value zeorTensor = rewriter.create<stablehlo::ConstantOp>(
+        op->getLoc(), scaledQueryDotKeyTy, splatZeroAttr);
+    auto splatNegInfiAttr = SplatElementsAttr::get(
+        scaledQueryDotKeyTy,
+        APFloat::getInf(elementTy.getFloatSemantics(), true));
+    Value negInfiTensor = rewriter.create<stablehlo::ConstantOp>(
+        op->getLoc(), scaledQueryDotKeyTy, splatNegInfiAttr);
+
+    bias = rewriter.create<stablehlo::SelectOp>(
+        op->getLoc(), scaledQueryDotKeyTy, bcastedMask, zeorTensor,
+        negInfiTensor);
+    maskedVal = rewriter.create<stablehlo::AddOp>(
+        op->getLoc(), scaledQueryDotKeyTy, scaledQueryDotKey, bias);
+  }
+
+  Value expVal = rewriter.create<stablehlo::ExpOp>(
+      op->getLoc(), scaledQueryDotKeyTy, maskedVal);
+
+  auto initValTy = RankedTensorType::get({}, elementTy);
+  auto initAttr = DenseElementsAttr::get(
+      initValTy, APFloat::getZero(elementTy.getFloatSemantics(), false));
+  Value initVal =
+      rewriter.create<stablehlo::ConstantOp>(op->getLoc(), initValTy, initAttr);
+  auto expValShape = scaledQueryDotKeyTy.getShape();
+  auto reducedValTy = RankedTensorType::get(
+      llvm::ArrayRef<int64_t>(expValShape.data(), expValShape.size() - 1),
+      elementTy);
+  auto reducOp = rewriter.create<stablehlo::ReduceOp>(
+      op->getLoc(), reducedValTy, expVal, initVal,
+      rewriter.getDenseI64ArrayAttr({scaledQueryDotKeyTy.getRank() - 1}));
+  Block &block = reducOp.getBody().emplaceBlock();
+  auto blockArgumentTy = RankedTensorType::get({}, elementTy);
+  block.addArgument(blockArgumentTy, op->getLoc());
+  block.addArgument(blockArgumentTy, op->getLoc());
+  auto *firstArgument = block.args_begin();
+  auto secondArgument = block.args_rbegin();
+  {
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(&block);
+    Value addRes = rewriter.create<stablehlo::AddOp>(
+        op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
+    rewriter.create<stablehlo::ReturnOp>(op->getLoc(), addRes);
+  }
+
+  Value reduceVal = reducOp.getResults()[0];
+  auto reduceTy = cast<RankedTensorType>(reduceVal.getType());
+
+  llvm::SmallVector<int64_t, 4> reshapeShape(reduceTy.getShape());
+  reshapeShape.push_back(1);
+  auto reshapeTy = reduceTy.clone(reshapeShape);
+  Value reshapeVal =
+      rewriter.create<stablehlo::ReshapeOp>(op->getLoc(), reshapeTy, reduceVal);
+  Value divVal = rewriter.create<chlo::BroadcastDivOp>(
+      op->getLoc(), scaledQueryDotKeyTy, expVal, reshapeVal, nullptr);
+
+  lhsContractingDimIdx = nBatchDims + 1;
+  rhsContractingDimIdx = nBatchDims;
+  stablehlo::DotDimensionNumbersAttr dotValDimsAttr =
+      stablehlo::DotDimensionNumbersAttr::get(rewriter.getContext(), batchDims,
+                                              batchDims, {lhsContractingDimIdx},
+                                              {rhsContractingDimIdx});
+  rewriter.replaceOpWithNewOp<stablehlo::DotGeneralOp>(op, outTy, divVal, value,
+                                                       dotValDimsAttr, nullptr);
+
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -2268,6 +2468,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenBitwiseRightShiftTensorOp);
 
   INSERT_ATENOP_PATTERN(AtenTrilOp);
+  INSERT_ATENOP_PATTERN(AtenScaledDotProductAttentionOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \

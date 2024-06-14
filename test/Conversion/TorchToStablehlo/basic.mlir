@@ -341,3 +341,140 @@ func.func @torch.aten.tril(%arg0: !torch.vtensor<[2,3,5],f32>, %arg1: !torch.int
   %0 = torch.aten.tril %arg0, %arg1:!torch.vtensor<[2,3,5],f32>, !torch.int -> !torch.vtensor<[2,3,5],f32>
   return %0 : !torch.vtensor<[2,3,5],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.sdpa.QKV(
+// CHECK-SAME:                   %[[ARG_0:.*]]: !torch.vtensor<[1,32,3,128],f32>,
+// CHECK-SAME:                   %[[ARG_1:.*]]: !torch.vtensor<[1,32,5,128],f32>,
+// CHECK-SAME:                   %[[ARG_2:.*]]: !torch.vtensor<[1,32,5,256],f32>) -> !torch.vtensor<[1,32,3,256],f32>
+// CHECK: %[[VAL_0:.*]] = torch_c.to_builtin_tensor %[[ARG_0]] : !torch.vtensor<[1,32,3,128],f32> -> tensor<1x32x3x128xf32>
+// CHECK: %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[ARG_1]] : !torch.vtensor<[1,32,5,128],f32> -> tensor<1x32x5x128xf32>
+// CHECK: %[[VAL_2:.*]] = torch_c.to_builtin_tensor %[[ARG_2]] : !torch.vtensor<[1,32,5,256],f32> -> tensor<1x32x5x256xf32>
+// CHECK: %[[VAL_3:.*]] = arith.constant 128 : index
+// CHECK: %[[VAL_4:.*]] = arith.index_cast %[[VAL_3]] : index to i64
+// CHECK: %[[VAL_5:.*]] = tensor.from_elements %[[VAL_4]] : tensor<1xi64>
+// CHECK: %[[VAL_6:.*]] = stablehlo.convert %[[VAL_5]] : (tensor<1xi64>) -> tensor<1xf32>
+// CHECK: %[[VAL_7:.*]] = stablehlo.reshape %[[VAL_6]] : (tensor<1xf32>) -> tensor<f32>
+// CHECK: %[[VAL_8:.*]] = stablehlo.rsqrt %[[VAL_7]] : tensor<f32>
+// CHECK: %[[VAL_9:.*]] = stablehlo.dot_general %[[VAL_0]], %[[VAL_1]], batching_dims = [0, 1] x [0, 1], contracting_dims = [3] x [3] : (tensor<1x32x3x128xf32>, tensor<1x32x5x128xf32>) -> tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_10:.*]] = chlo.broadcast_multiply %[[VAL_9]], %[[VAL_8]] : (tensor<1x32x3x5xf32>, tensor<f32>) -> tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_11:.*]] = stablehlo.exponential %[[VAL_10]] : tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_12:.*]] = stablehlo.constant dense<0.000000e+00> : tensor<f32>
+// CHECK: %[[VAL_13:.*]] = stablehlo.reduce(%[[VAL_11]] init: %[[VAL_12]]) applies stablehlo.add across dimensions = [3] : (tensor<1x32x3x5xf32>, tensor<f32>) -> tensor<1x32x3xf32>
+// CHECK: %[[VAL_14:.*]] = stablehlo.reshape %[[VAL_13]] : (tensor<1x32x3xf32>) -> tensor<1x32x3x1xf32>
+// CHECK: %[[VAL_15:.*]] = chlo.broadcast_divide %[[VAL_11]], %[[VAL_14]] : (tensor<1x32x3x5xf32>, tensor<1x32x3x1xf32>) -> tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_16:.*]] = stablehlo.dot_general %[[VAL_15]], %[[VAL_2]], batching_dims = [0, 1] x [0, 1], contracting_dims = [3] x [2] : (tensor<1x32x3x5xf32>, tensor<1x32x5x256xf32>) -> tensor<1x32x3x256xf32>
+// CHECK: %[[VAL_17:.*]] = torch_c.from_builtin_tensor %[[VAL_16]] : tensor<1x32x3x256xf32> -> !torch.vtensor<[1,32,3,256],f32>
+// CHECK: return %[[VAL_17]] : !torch.vtensor<[1,32,3,256],f32>
+func.func @torch.aten.sdpa.QKV(%arg0: !torch.vtensor<[1,32,3,128],f32>, %arg1: !torch.vtensor<[1,32,5,128],f32>, %arg2: !torch.vtensor<[1,32,5,256],f32>) -> !torch.vtensor<[1,32,3,256],f32> {
+  %float0.000000e00 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %res = torch.aten.scaled_dot_product_attention %arg0, %arg1, %arg2, %none, %float0.000000e00, %false, %none : !torch.vtensor<[1,32,3,128],f32>, !torch.vtensor<[1,32,5,128],f32>, !torch.vtensor<[1,32,5,256],f32>, !torch.none, !torch.float, !torch.bool, !torch.none -> !torch.vtensor<[1,32,3,256],f32>
+  return %res : !torch.vtensor<[1,32,3,256],f32>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.sdpa.QKVbiM(
+// CHECK-SAME:                   %[[ARG_0:.*]]: !torch.vtensor<[1,32,3,128],f32>,
+// CHECK-SAME:                   %[[ARG_1:.*]]: !torch.vtensor<[1,32,5,128],f32>,
+// CHECK-SAME:                   %[[ARG_2:.*]]: !torch.vtensor<[1,32,5,256],f32>,
+// CHECK-SAME:                   %[[ARG_3:.*]]: !torch.vtensor<[3,5],i1>) -> !torch.vtensor<[1,32,3,256],f32>
+// CHECK: %[[VAL_0:.*]] = torch_c.to_builtin_tensor %[[ARG_3]] : !torch.vtensor<[3,5],i1> -> tensor<3x5xi1>
+// CHECK: %[[VAL_1:.*]] = stablehlo.broadcast_in_dim %[[VAL_0]], dims = [2, 3] : (tensor<3x5xi1>) -> tensor<1x32x3x5xi1>
+// CHECK: %[[VAL_2:.*]] = stablehlo.constant dense<0.000000e+00> : tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_3:.*]] = stablehlo.constant dense<0xFF800000> : tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_4:.*]] = stablehlo.select %[[VAL_1]], %[[VAL_2]], %[[VAL_3]] : tensor<1x32x3x5xi1>, tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_6:.*]] = stablehlo.add %[[VAL_5:.*]], %[[VAL_4]] : tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_7:.*]] = stablehlo.exponential %[[VAL_6]] : tensor<1x32x3x5xf32>
+func.func @torch.aten.sdpa.QKVbiM(%arg0: !torch.vtensor<[1,32,3,128],f32>, %arg1: !torch.vtensor<[1,32,5,128],f32>, %arg2: !torch.vtensor<[1,32,5,256],f32>, %arg3: !torch.vtensor<[3,5],i1>) -> !torch.vtensor<[1,32,3,256],f32> {
+  %float0.000000e00 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %res = torch.aten.scaled_dot_product_attention %arg0, %arg1, %arg2, %arg3, %float0.000000e00, %false, %none : !torch.vtensor<[1,32,3,128],f32>, !torch.vtensor<[1,32,5,128],f32>, !torch.vtensor<[1,32,5,256],f32>, !torch.vtensor<[3,5],i1>, !torch.float, !torch.bool, !torch.none -> !torch.vtensor<[1,32,3,256],f32>
+  return %res : !torch.vtensor<[1,32,3,256],f32>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.sdpa.QKVbfM(
+// CHECK-SAME:                   %[[ARG_0:.*]]: !torch.vtensor<[1,32,3,128],f32>,
+// CHECK-SAME:                   %[[ARG_1:.*]]: !torch.vtensor<[1,32,5,128],f32>,
+// CHECK-SAME:                   %[[ARG_2:.*]]: !torch.vtensor<[1,32,5,256],f32>,
+// CHECK-SAME:                   %[[ARG_3:.*]]: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[1,32,3,256],f32>
+// CHECK: %[[VAL_0:.*]] = torch_c.to_builtin_tensor %[[ARG_3]] : !torch.vtensor<[3,5],f32> -> tensor<3x5xf32>
+// CHECK: %[[VAL_1:.*]] = stablehlo.broadcast_in_dim %[[VAL_0]], dims = [2, 3] : (tensor<3x5xf32>) -> tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_2:.*]] = stablehlo.add %[[VAL_3:.*]], %[[VAL_1]] : tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_4:.*]] = stablehlo.exponential %[[VAL_2]] : tensor<1x32x3x5xf32>
+func.func @torch.aten.sdpa.QKVbfM(%arg0: !torch.vtensor<[1,32,3,128],f32>, %arg1: !torch.vtensor<[1,32,5,128],f32>, %arg2: !torch.vtensor<[1,32,5,256],f32>, %arg3: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[1,32,3,256],f32> {
+  %float0.000000e00 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %res = torch.aten.scaled_dot_product_attention %arg0, %arg1, %arg2, %arg3, %float0.000000e00, %false, %none : !torch.vtensor<[1,32,3,128],f32>, !torch.vtensor<[1,32,5,128],f32>, !torch.vtensor<[1,32,5,256],f32>, !torch.vtensor<[3,5],f32>, !torch.float, !torch.bool, !torch.none -> !torch.vtensor<[1,32,3,256],f32>
+  return %res : !torch.vtensor<[1,32,3,256],f32>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.sdpa.QKVfM(
+// CHECK-SAME:                   %[[ARG_0:.*]]: !torch.vtensor<[1,32,3,128],f32>,
+// CHECK-SAME:                   %[[ARG_1:.*]]: !torch.vtensor<[1,32,5,128],f32>,
+// CHECK-SAME:                   %[[ARG_2:.*]]: !torch.vtensor<[1,32,5,256],f32>,
+// CHECK-SAME:                   %[[ARG_3:.*]]: !torch.vtensor<[1,32,3,5],f32>) -> !torch.vtensor<[1,32,3,256],f32>
+// CHECK: %[[VAL_0:.*]] = torch_c.to_builtin_tensor %[[ARG_3]] : !torch.vtensor<[1,32,3,5],f32> -> tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_2:.*]] = stablehlo.add %[[VAL_1:.*]], %[[VAL_0]] : tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_3:.*]] = stablehlo.exponential %[[VAL_2]] : tensor<1x32x3x5xf32>
+func.func @torch.aten.sdpa.QKVfM(%arg0: !torch.vtensor<[1,32,3,128],f32>, %arg1: !torch.vtensor<[1,32,5,128],f32>, %arg2: !torch.vtensor<[1,32,5,256],f32>, %arg3: !torch.vtensor<[1,32,3,5],f32>) -> !torch.vtensor<[1,32,3,256],f32> {
+  %float0.000000e00 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %res = torch.aten.scaled_dot_product_attention %arg0, %arg1, %arg2, %arg3, %float0.000000e00, %false, %none : !torch.vtensor<[1,32,3,128],f32>, !torch.vtensor<[1,32,5,128],f32>, !torch.vtensor<[1,32,5,256],f32>, !torch.vtensor<[1,32,3,5],f32>, !torch.float, !torch.bool, !torch.none -> !torch.vtensor<[1,32,3,256],f32>
+  return %res : !torch.vtensor<[1,32,3,256],f32>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.sdpa.QKVC(
+// CHECK-SAME:                   %[[ARG_0:.*]]: !torch.vtensor<[1,32,3,128],f32>,
+// CHECK-SAME:                   %[[ARG_1:.*]]: !torch.vtensor<[1,32,5,128],f32>,
+// CHECK-SAME:                   %[[ARG_2:.*]]: !torch.vtensor<[1,32,5,256],f32>) -> !torch.vtensor<[1,32,3,256],f32>
+// CHECK: %[[VAL_0:.*]] = stablehlo.iota dim = 1 : tensor<3x5xi64>
+// CHECK: %[[VAL_1:.*]] = stablehlo.iota dim = 0 : tensor<3x5xi64>
+// CHECK: %[[VAL_2:.*]] = stablehlo.compare  LE, %[[VAL_0]], %[[VAL_1]],  SIGNED : (tensor<3x5xi64>, tensor<3x5xi64>) -> tensor<3x5xi1>
+// CHECK: %[[VAL_3:.*]] = stablehlo.broadcast_in_dim %[[VAL_2]], dims = [2, 3] : (tensor<3x5xi1>) -> tensor<1x32x3x5xi1>
+// CHECK: %[[VAL_4:.*]] = stablehlo.constant dense<0.000000e+00> : tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_5:.*]] = stablehlo.constant dense<0xFF800000> : tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_6:.*]] = stablehlo.select %[[VAL_3]], %[[VAL_4]], %[[VAL_5]] : tensor<1x32x3x5xi1>, tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_7:.*]] = stablehlo.add %[[DUMMY:.*]], %[[VAL_6]] : tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_8:.*]] = stablehlo.exponential %[[VAL_7]] : tensor<1x32x3x5xf32>
+func.func @torch.aten.sdpa.QKVC(%arg0: !torch.vtensor<[1,32,3,128],f32>, %arg1: !torch.vtensor<[1,32,5,128],f32>, %arg2: !torch.vtensor<[1,32,5,256],f32>) -> !torch.vtensor<[1,32,3,256],f32> {
+  %float0.000000e00 = torch.constant.float 0.000000e+00
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %res = torch.aten.scaled_dot_product_attention %arg0, %arg1, %arg2, %none, %float0.000000e00, %true, %none : !torch.vtensor<[1,32,3,128],f32>, !torch.vtensor<[1,32,5,128],f32>, !torch.vtensor<[1,32,5,256],f32>, !torch.none, !torch.float, !torch.bool, !torch.none -> !torch.vtensor<[1,32,3,256],f32>
+  return %res : !torch.vtensor<[1,32,3,256],f32>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.sdpa.QKViMS(
+// CHECK-SAME:                   %[[ARG_0:.*]]: !torch.vtensor<[1,32,3,128],f32>,
+// CHECK-SAME:                   %[[ARG_1:.*]]: !torch.vtensor<[1,32,5,128],f32>,
+// CHECK-SAME:                   %[[ARG_2:.*]]: !torch.vtensor<[1,32,5,256],f32>,
+// CHECK-SAME:                   %[[ARG_3:.*]]: !torch.vtensor<[1,32,3,5],i1>,
+// CHECK-SAME:                   %[[ARG_4:.*]]: !torch.float) -> !torch.vtensor<[1,32,3,256],f32>
+// CHECK: %[[VAL_0:.*]] = torch_c.to_builtin_tensor %[[ARG_3]] : !torch.vtensor<[1,32,3,5],i1> -> tensor<1x32x3x5xi1>
+// CHECK: %[[VAL_1:.*]] = torch_c.to_f64 %[[ARG_4]]
+// CHECK: %[[VAL_2:.*]] = tensor.from_elements %[[VAL_1]] : tensor<1xf64>
+// CHECK: %[[VAL_3:.*]] = stablehlo.convert %[[VAL_2]] : (tensor<1xf64>) -> tensor<1xf32>
+// CHECK: %[[VAL_4:.*]] = stablehlo.reshape %[[VAL_3]] : (tensor<1xf32>) -> tensor<f32>
+// CHECK: %[[VAL_5:.*]] = stablehlo.dot_general %[[DUMMY0:.*]], %[[DUMMY1:.*]], batching_dims = [0, 1] x [0, 1], contracting_dims = [3] x [3] : (tensor<1x32x3x128xf32>, tensor<1x32x5x128xf32>) -> tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_6:.*]] = chlo.broadcast_multiply %[[VAL_5]], %[[VAL_4]] : (tensor<1x32x3x5xf32>, tensor<f32>) -> tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_7:.*]] = stablehlo.constant dense<0.000000e+00> : tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_8:.*]] = stablehlo.constant dense<0xFF800000> : tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_9:.*]] = stablehlo.select %[[VAL_0]], %[[VAL_7]], %[[VAL_8]] : tensor<1x32x3x5xi1>, tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_10:.*]] = stablehlo.add %[[VAL_6]], %[[VAL_9]] : tensor<1x32x3x5xf32>
+// CHECK: %[[VAL_11:.*]] = stablehlo.exponential %[[VAL_10]] : tensor<1x32x3x5xf32>
+func.func @torch.aten.sdpa.QKViMS(%arg0: !torch.vtensor<[1,32,3,128],f32>, %arg1: !torch.vtensor<[1,32,5,128],f32>, %arg2: !torch.vtensor<[1,32,5,256],f32>, %arg3: !torch.vtensor<[1,32,3,5],i1>, %arg4: !torch.float) -> !torch.vtensor<[1,32,3,256],f32> {
+  %float0.000000e00 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %res = torch.aten.scaled_dot_product_attention %arg0, %arg1, %arg2, %arg3, %float0.000000e00, %false, %arg4 : !torch.vtensor<[1,32,3,128],f32>, !torch.vtensor<[1,32,5,128],f32>, !torch.vtensor<[1,32,5,256],f32>, !torch.vtensor<[1,32,3,5],i1>, !torch.float, !torch.bool, !torch.float -> !torch.vtensor<[1,32,3,256],f32>
+  return %res : !torch.vtensor<[1,32,3,256],f32>
+}
