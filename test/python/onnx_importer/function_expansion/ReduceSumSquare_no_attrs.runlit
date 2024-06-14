@@ -1,0 +1,23 @@
+# Test the expansion of ONNX operators that are functions, specifically the
+# propagation of attribute values from the call-site to nodes within the
+# expanded function.
+#
+# In this case, the model has a ReduceSumSquare node with no attributes, but the
+# definition of this version of ReduceSumSquare contains a ReduceSum node that
+# references the value of 'keepdims', and the definition says its default value
+# is 1, so we expect to see this value propagated to the ReduceSum node in the
+# expansion.
+#
+# This also tests that the absence of 'axes' (as an optional attribute with no
+# default value) is propagated in the same way.
+#
+# The model comes from an upstream ONNX test: backend/test/data/node/test_reduce_sum_square_empty_set/model.onnx
+
+# RUN: %PYTHON -m torch_mlir.tools.import_onnx --disable-function-expansion-allowlist %s.onnx | FileCheck %s
+#
+# CHECK-LABEL: func.func @test_reduce_sum_square_empty_set
+# CHECK:        %0 = call @"{{.*}}ReduceSumSquare{{.*}}"
+#
+# CHECK-LABEL: func.func private @"{{.*}}ReduceSumSquare{{.*}}"
+# CHECK:         %0 = torch.operator "onnx.Mul"
+# CHECK:         %1 = torch.operator "onnx.ReduceSum"{{.*}}{torch.onnx.keepdims = 1 : si64}
