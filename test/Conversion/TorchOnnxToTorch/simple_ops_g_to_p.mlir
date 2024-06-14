@@ -366,6 +366,137 @@ func.func @test_leaky_relu(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor
 
 // -----
 
+// CHECK-LABEL: func.func @test_lrn_default
+func.func @test_lrn_default(%arg0: !torch.vtensor<[20,10,3,50],f32>) -> !torch.vtensor<[20,10,3,50],f32> attributes {torch.onnx_meta.opset_version = 17 : si64} {
+    // CHECK-DAG: %[[TRUE:.+]] = torch.constant.bool true
+    // CHECK-DAG: %[[FALSE:.+]] = torch.constant.bool false
+    // CHECK-DAG: %[[F0:.+]] = torch.constant.float 0.000000e+00
+    // CHECK-DAG: %[[ALPHA:.*]] = torch.constant.float 9.9999997473787516E-5
+    // CHECK-DAG: %[[BETA:.*]] = torch.constant.float 7.500000e-01
+    // CHECK-DAG: %[[BIAS:.*]] = torch.constant.float 1.000000e+00
+    // CHECK-DAG: %[[INSQ:.*]] = torch.aten.mul.Tensor %arg0, %arg0
+
+    // CHECK-DAG: %[[I20:.*]] = torch.constant.int 20
+    // CHECK-DAG: %[[I1:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[I10:.*]] = torch.constant.int 10
+    // CHECK-DAG: %[[I3:.+]] = torch.constant.int 3
+    // CHECK-DAG: %[[IMINUS1:.+]] = torch.constant.int -1
+    // CHECK-DAG: %[[VIEWSHAPE:.*]] = torch.prim.ListConstruct %[[I20]], %[[I1]], %[[I10]], %[[I3]], %[[IMINUS1]]
+
+    // CHECK-DAG: %[[VIEW1:.*]] = torch.aten.view %[[INSQ]], %[[VIEWSHAPE]]
+
+    // CHECK-DAG: %[[I0:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[I0_2:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[I0_3:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[I0_4:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[I1_2:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[I1_3:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[PADDING:.*]] = torch.prim.ListConstruct %[[I0]], %[[I0_2]], %[[I0_3]], %[[I0_4]], %[[I1_2]], %[[I1_3]]
+
+    // CHECK-DAG: %[[PADDED:.*]] = torch.aten.constant_pad_nd %[[VIEW1]], %[[PADDING]], %[[F0]]
+
+    // CHECK-DAG: %[[I3_2:.+]] = torch.constant.int 3
+    // CHECK-DAG: %[[I1_4:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[I1_5:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[KERNELSIZE:.*]] = torch.prim.ListConstruct %[[I3_2]], %[[I1_4]], %[[I1_5]]
+
+    // CHECK-DAG: %[[I1_6:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[I1_7:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[I1_8:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[STRIDES:.*]] = torch.prim.ListConstruct %[[I1_6]], %[[I1_7]], %[[I1_8]]
+
+    // CHECK-DAG: %[[I0_5:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[I0_6:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[I0_7:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[POOLPADDING:.*]] = torch.prim.ListConstruct %[[I0_5]], %[[I0_6]], %[[I0_7]]
+
+    // CHECK-DAG: %[[POOL3D:.*]] = torch.aten.avg_pool3d %[[PADDED]], %[[KERNELSIZE]], %[[STRIDES]], %[[POOLPADDING]], %[[FALSE]], %[[TRUE]]
+    // CHECK-DAG: %[[SQUEEZED:.*]] = torch.aten.squeeze.dim %[[POOL3D]], %[[I1]]
+
+    // CHECK-DAG: %[[I20_2:.*]] = torch.constant.int 20
+    // CHECK-DAG: %[[I10_2:.*]] = torch.constant.int 10
+    // CHECK-DAG: %[[I3_2:.+]] = torch.constant.int 3
+    // CHECK-DAG: %[[I50_2:.+]] = torch.constant.int 50
+    // CHECK-DAG: %[[ISHAPE:.*]] = torch.prim.ListConstruct %[[I20_2]], %[[I10_2]], %[[I3_2]], %[[I50_2]]
+
+    // CHECK-DAG: %[[VIEW2:.*]] = torch.aten.view %[[SQUEEZED]], %[[ISHAPE]]
+    // CHECK-DAG: %[[POSTALPHA:.*]] = torch.aten.mul.Scalar %[[VIEW2]], %[[ALPHA]]
+    // CHECK-DAG: %[[POSTBIAS:.*]] = torch.aten.add.Scalar %[[POSTALPHA]], %[[BIAS]], %[[I1]]
+    // CHECK-DAG: %[[POSTBETA:.*]] = torch.aten.pow.Tensor_Scalar %[[POSTBIAS]], %[[BETA]]
+    // CHECK-DAG: %[[OUTPUT:.*]] = torch.aten.div.Tensor %arg0, %[[POSTBETA]]
+    // CHECK: return  %[[OUTPUT]]
+    %0 = torch.operator "onnx.LRN"(%arg0) {torch.onnx.size = 3 : si64} : (!torch.vtensor<[20,10,3,50],f32>) -> !torch.vtensor<[20,10,3,50],f32>
+    return %0 : !torch.vtensor<[20,10,3,50],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_lrn_with_optionals
+func.func @test_lrn_with_optionals(%arg0: !torch.vtensor<[13,19,100,200],f32>) -> !torch.vtensor<[13,19,100,200],f32> attributes {torch.onnx_meta.opset_version = 17 : si64} {
+    // CHECK-DAG: %[[TRUE:.+]] = torch.constant.bool true
+    // CHECK-DAG: %[[FALSE:.+]] = torch.constant.bool false
+    // CHECK-DAG: %[[F0:.+]] = torch.constant.float 0.000000e+00
+    // CHECK-DAG: %[[ALPHA:.*]] = torch.constant.float 0.0020000000949949026
+    // CHECK-DAG: %[[BETA:.*]] = torch.constant.float 0.64999997615814209
+    // CHECK-DAG: %[[BIAS:.*]] = torch.constant.float 3.000000e+00
+    // CHECK-DAG: %[[INSQ:.*]] = torch.aten.mul.Tensor %arg0, %arg0
+
+    // CHECK-DAG: %[[I13:.*]] = torch.constant.int 13
+    // CHECK-DAG: %[[I1:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[I19:.*]] = torch.constant.int 19
+    // CHECK-DAG: %[[I100:.+]] = torch.constant.int 100
+    // CHECK-DAG: %[[IMINUS1:.+]] = torch.constant.int -1
+    // CHECK-DAG: %[[VIEWSHAPE:.*]] = torch.prim.ListConstruct %[[I13]], %[[I1]], %[[I19]], %[[I100]], %[[IMINUS1]]
+
+    // CHECK-DAG: %[[VIEW1:.*]] = torch.aten.view %[[INSQ]], %[[VIEWSHAPE]]
+
+    // CHECK-DAG: %[[I0:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[I0_2:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[I0_3:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[I0_4:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[I2:.*]] = torch.constant.int 2
+    // CHECK-DAG: %[[I2_2:.*]] = torch.constant.int 2
+    // CHECK-DAG: %[[PADDING:.*]] = torch.prim.ListConstruct %[[I0]], %[[I0_2]], %[[I0_3]], %[[I0_4]], %[[I2]], %[[I2_2]]
+
+    // CHECK-DAG: %[[PADDED:.*]] = torch.aten.constant_pad_nd %[[VIEW1]], %[[PADDING]], %[[F0]]
+
+    // CHECK-DAG: %[[I5:.+]] = torch.constant.int 5
+    // CHECK-DAG: %[[I1_4:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[I1_5:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[KERNELSIZE:.*]] = torch.prim.ListConstruct %[[I5]], %[[I1_4]], %[[I1_5]]
+
+    // CHECK-DAG: %[[I1_6:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[I1_7:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[I1_8:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[STRIDES:.*]] = torch.prim.ListConstruct %[[I1_6]], %[[I1_7]], %[[I1_8]]
+
+    // CHECK-DAG: %[[I0_5:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[I0_6:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[I0_7:.+]] = torch.constant.int 0
+    // CHECK-DAG: %[[POOLPADDING:.*]] = torch.prim.ListConstruct %[[I0_5]], %[[I0_6]], %[[I0_7]]
+
+    // CHECK-DAG: %[[POOL3D:.*]] = torch.aten.avg_pool3d %[[PADDED]], %[[KERNELSIZE]], %[[STRIDES]], %[[POOLPADDING]], %[[FALSE]], %[[TRUE]]
+    // CHECK-DAG: %[[SQUEEZED:.*]] = torch.aten.squeeze.dim %[[POOL3D]], %[[I1]]
+
+    // CHECK-DAG: %[[I13_2:.*]] = torch.constant.int 13
+    // CHECK-DAG: %[[I19_2:.*]] = torch.constant.int 19
+    // CHECK-DAG: %[[I100_2:.+]] = torch.constant.int 100
+    // CHECK-DAG: %[[I200_2:.+]] = torch.constant.int 200
+    // CHECK-DAG: %[[ISHAPE:.*]] = torch.prim.ListConstruct %[[I13_2]], %[[I19_2]], %[[I100_2]], %[[I200_2]]
+
+    // CHECK-DAG: %[[VIEW2:.*]] = torch.aten.view %[[SQUEEZED]], %[[ISHAPE]]
+    // CHECK-DAG: %[[POSTALPHA:.*]] = torch.aten.mul.Scalar %[[VIEW2]], %[[ALPHA]]
+    // CHECK-DAG: %[[POSTBIAS:.*]] = torch.aten.add.Scalar %[[POSTALPHA]], %[[BIAS]], %[[I1]]
+    // CHECK-DAG: %[[POSTBETA:.*]] = torch.aten.pow.Tensor_Scalar %[[POSTBIAS]], %[[BETA]]
+    // CHECK-DAG: %[[OUTPUT:.*]] = torch.aten.div.Tensor %arg0, %[[POSTBETA]]
+    // CHECK: return  %[[OUTPUT]]
+    %none = torch.constant.none
+    %0 = torch.operator "onnx.LRN"(%arg0) {torch.onnx.alpha = 2.000000e-03 : f32, torch.onnx.beta = 6.500000e-01 : f32, torch.onnx.bias = 3.000000e+00 : f32, torch.onnx.size = 5 : si64} : (!torch.vtensor<[13,19,100,200],f32>) -> !torch.vtensor<[13,19,100,200],f32>
+    return %0 : !torch.vtensor<[13,19,100,200],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @test_matmul_2d
 func.func @test_matmul_2d(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[3,3],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[4,3],f32> -> !torch.vtensor<[3,3],f32>

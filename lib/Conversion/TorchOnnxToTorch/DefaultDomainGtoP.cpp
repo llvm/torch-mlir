@@ -1946,6 +1946,121 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   return success();
                 });
   patterns.onOp(
+      "LRN", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        int64_t size;
+        float alpha, beta, bias;
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(size, "size", 2) ||
+            binder.f32FloatAttr(alpha, "alpha", 0.0001f) ||
+            binder.f32FloatAttr(beta, "beta", 0.75f) ||
+            binder.f32FloatAttr(bias, "bias", 1.0f))
+          return failure();
+        Type dtype = resultType.getOptionalDtype();
+        Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(alpha));
+        Value constBeta = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(beta));
+        Value constBias = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(bias));
+        // Please refer to the operator description
+        // for more info on the lowering
+        // https://onnx.ai/onnx/operators/onnx__LRN.html
+
+        // squared = operand^2
+        Location loc = binder.getLoc();
+        Torch::ValueTensorType inTy =
+            cast<Torch::ValueTensorType>(operand.getType());
+        Value sqOperand = rewriter.create<Torch::AtenMulTensorOp>(
+            loc, inTy, operand, operand);
+        // view it as n x 1 x c x d0 x d..
+        if (!inTy.hasSizes()) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Expected input to have sizes");
+        }
+        ArrayRef<int64_t> inTyShape = inTy.getSizes();
+        if (inTyShape.size() < 3) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unsupported: the input dimensions should be >= 3");
+        }
+        if (inTyShape[1] == Torch::kUnknownSize) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unsupported: the second dimension size must be "
+                         "statically known");
+        }
+        SmallVector<int64_t, 5> viewShapeInt{inTyShape[0], 1, inTyShape[1],
+                                             inTyShape[2], Torch::kUnknownSize};
+        Torch::ValueTensorType reshapeType =
+            rewriter.getType<Torch::ValueTensorType>(viewShapeInt, dtype);
+        Value viewShapeListVal =
+            createConstantIntList(binder, rewriter, viewShapeInt);
+        auto view = rewriter.create<Torch::AtenViewOp>(
+            loc, reshapeType, sqOperand, viewShapeListVal);
+        // padding
+        int64_t highPad = (size - 1) / 2;
+        int64_t lowPad = (size - 1) - highPad;
+        SmallVector<int64_t> paddingInt{0, 0, 0, 0, lowPad, highPad};
+        auto constPadVal = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(0.0));
+        Value paddingListVal =
+            createConstantIntList(binder, rewriter, paddingInt);
+        SmallVector<int64_t, 5> paddedShapeInt = viewShapeInt;
+        paddedShapeInt[2] += size - 1;
+        Torch::ValueTensorType paddedType =
+            rewriter.getType<Torch::ValueTensorType>(paddedShapeInt, dtype);
+        auto padded = rewriter.create<Torch::AtenConstantPadNdOp>(
+            loc, paddedType, view, paddingListVal, constPadVal);
+        // avg_pool3d
+        SmallVector<int64_t, 3> kernelSize{size, 1, 1};
+        Value kernelSizeList =
+            createConstantIntList(binder, rewriter, kernelSize);
+        SmallVector<int64_t, 3> strides{1, 1, 1};
+        Value stridesList = createConstantIntList(binder, rewriter, strides);
+        SmallVector<int64_t, 3> padding{0, 0, 0};
+        Value paddingList = createConstantIntList(binder, rewriter, padding);
+        auto cstCeilMode =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        auto cstCountIncludeMode =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        // Output of pooling is same reshape(view) type because
+        // of the padding done on the dimensions being pooled.
+        auto pool = rewriter.create<Torch::AtenAvgPool3dOp>(
+            loc, reshapeType, padded, kernelSizeList, stridesList, paddingList,
+            cstCeilMode, cstCountIncludeMode, /*divisor_override=*/cstNone);
+        // squeeze
+        auto one = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(1));
+        SmallVector<int64_t, 5> squeezeShapeInt{
+            viewShapeInt[0], viewShapeInt[2], viewShapeInt[3], viewShapeInt[4]};
+        Torch::ValueTensorType squeezeType =
+            rewriter.getType<Torch::ValueTensorType>(squeezeShapeInt, dtype);
+        auto squeeze = rewriter.create<Torch::AtenSqueezeDimOp>(
+            loc, squeezeType, pool, one);
+        // view as input Type
+        Value intTyShapeList =
+            createConstantIntList(binder, rewriter, inTyShape);
+        auto viewAsInput = rewriter.create<Torch::AtenViewOp>(
+            loc, inTy, squeeze, intTyShapeList);
+        // mul + add + pow + div
+        auto mul = rewriter.create<Torch::AtenMulScalarOp>(
+            loc, resultType, viewAsInput, constAlpha);
+        auto add = rewriter.create<Torch::AtenAddScalarOp>(loc, resultType, mul,
+                                                           constBias, one);
+        auto pow = rewriter.create<Torch::AtenPowTensorScalarOp>(
+            loc, resultType, add, constBeta);
+
+        rewriter.replaceOpWithNewOp<Torch::AtenDivTensorOp>(
+            binder.op, resultType, operand, pow);
+        return success();
+      });
+  patterns.onOp(
       "Pad", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value data, pads, axes;
