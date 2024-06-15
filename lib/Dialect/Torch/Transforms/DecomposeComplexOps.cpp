@@ -1618,6 +1618,7 @@ public:
       auto idxTy = rewriter.getType<Torch::ValueTensorType>(
           reductionShape, rewriter.getIntegerType(32, /*is_signed*/ true));
       llvm::SmallVector<Type, 2> types{reductionTy, idxTy};
+
       reduction = rewriter
                       .create<Torch::AtenMinDimOp>(loc, types, reduction,
                                                    dimValue, op.getKeepdim())
