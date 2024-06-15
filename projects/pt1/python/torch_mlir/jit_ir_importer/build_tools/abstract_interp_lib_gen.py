@@ -1754,13 +1754,16 @@ def aten〇_embedding_bag〡shape(weight: List[int], indices: List[int], offsets
      return _embedding_bag_helper(weight, indices, offsets, include_last_offset,
                                  mode, per_sample_weights, padding_idx)
 
+@check_shape_function([
+    Invocation(4, 3, 1), # Basic case.
+    Invocation(0, 0, 0), # All zeros case.
+    Invocation(7, 5, -2), # Negative offset case.
+    Invocation(35, 55, 16), # Largere values case.
+])
 def aten〇triu_indices〡shape(row: int, col: int, offset: int = 0, dtype: Optional[int] = 4, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
     if row == 0 or col == 0:
         return [2, 0]
-
-    # Number of elements in top rectangle
-    rectangle_size = max(0, min(row, -offset) * col)
-
+    
     # _get_tril_indices
     offset_tril = offset - 1
     if row == 0 or col == 0:
@@ -1780,9 +1783,8 @@ def aten〇triu_indices〡shape(row: int, col: int, offset: int = 0, dtype: Opti
 
     # Number of elements in bottom trapezoid
     triu_size = row * col - (trapezoid_size_tril + rectangle_size_tril)
-    trapezoid_size = triu_size - rectangle_size
 
-    return [2, rectangle_size + trapezoid_size]
+    return [2, triu_size]
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), LongTensorOfShape(2), None, 1, -100), # Basic case.

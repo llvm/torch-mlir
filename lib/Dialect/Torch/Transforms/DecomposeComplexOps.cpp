@@ -732,27 +732,13 @@ public:
 };
 } // namespace
 
-Value arange(PatternRewriter &rewriter, Location loc, Value size, Value dtype,
-             Value layout, Value device, Value pin_memory, Type type) {
-
-  auto arrangeType = getTensorTypeFromShapeValues({size}, type);
-  return rewriter.create<AtenArangeOp>(loc, arrangeType, size,
-                                       /*dtype=*/dtype, /*layout=*/layout,
-                                       /*device=*/device,
-                                       /*pin_memory=*/pin_memory);
-}
-
-void _getTrilSizes(PatternRewriter &rewriter, Location loc, int64_t row,
-                   int64_t col, int64_t offset,
-                   /*return values*/ int64_t &trapezoidSize,
-                   int64_t &rectangleSize) {
+static std::tuple<int64_t, int64_t, int64_t>
+getTrilSizes(PatternRewriter &rewriter, Location loc, int64_t row, int64_t col,
+             int64_t offset) {
 
   // Base case
   if (row == 0 || col == 0) {
-    trapezoidSize = 0;
-    rectangleSize = 0;
-
-    return;
+    return std::make_tuple(0, 0, 0);
   }
 
   // Calculate mFirstRow size
@@ -774,54 +760,44 @@ void _getTrilSizes(PatternRewriter &rewriter, Location loc, int64_t row,
   int64_t nRowTrapezoid = mLastRow - mFirstRow + 1;
 
   // Number of elements in top trapezoid - trapezoidSize
-  trapezoidSize = (mFirstRow + mLastRow) * nRowTrapezoid / 2;
+  int64_t trapezoidSize = (mFirstRow + mLastRow) * nRowTrapezoid / 2;
 
   // Number of elements in bottom rectangle - rectangleSize
   int64_t diffRow = nRowAll - nRowTrapezoid;
-  rectangleSize = (diffRow * col > 0) ? diffRow * col : 0;
+  int64_t rectangleSize = (diffRow * col > 0) ? diffRow * col : 0;
+
+  // Create return value
+  return std::make_tuple(trapezoidSize, rectangleSize, mFirstRow);
 }
 
-void _getTriuSizes(PatternRewriter &rewriter, Location loc, int64_t row,
-                   int64_t col, int64_t offset,
-                   /*return values*/ Value &trapezoidSize, Value &rectangleSize,
-                   Value &mFirstRow) {
-
-  // Constants
-  Value cstZero = rewriter.create<Torch::ConstantIntOp>(loc, 0);
+static std::tuple<int64_t, int64_t, int64_t>
+getTriuSizes(PatternRewriter &rewriter, Location loc, int64_t row, int64_t col,
+             int64_t offset) {
 
   // Base case
-  if (row == 0 || col == 0) {
-    trapezoidSize = cstZero;
-    rectangleSize = cstZero;
-    mFirstRow = cstZero;
-
-    return;
-  }
+  if (row == 0 || col == 0)
+    return std::make_tuple(0, 0, 0);
 
   // Calculate mFirstRow size
   int64_t maximum = (col - offset > 0) ? col - offset : 0;
-  int64_t mFirstRowInt = (offset > 0) ? maximum : col;
+  int64_t mFirstRow = (offset > 0) ? maximum : col;
 
   // Number of elements in top rectangle - calculate rectangle size
   int64_t minimum = (row < -offset) ? row : -offset;
-  int64_t rectangleSizeInt = (minimum * col > 0) ? minimum * col : 0;
+  int64_t rectangleSize = (minimum * col > 0) ? minimum * col : 0;
 
   // Number of elements in bottom trapezoid - calculte trapezoid size
-  int64_t trapezoidSizeTril;
-  int64_t rectangleSizeTril;
+  std::tuple<int64_t, int64_t, int64_t> trilSizes =
+      getTrilSizes(rewriter, loc, row, col, offset - 1);
+  int64_t trapezoidSizeTril = std::get<0>(trilSizes);
+  int64_t rectangleSizeTril = std::get<1>(trilSizes);
+  ;
 
-  _getTrilSizes(rewriter, loc, row, col, offset - 1, trapezoidSizeTril,
-                rectangleSizeTril);
   int64_t triuSize = row * col - (trapezoidSizeTril + rectangleSizeTril);
-  int64_t trapezoidSizeInt = triuSize - rectangleSizeInt;
+  int64_t trapezoidSize = triuSize - rectangleSize;
 
-  // Create Value from int
-  trapezoidSize = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getI64IntegerAttr(trapezoidSizeInt));
-  rectangleSize = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getI64IntegerAttr(rectangleSizeInt));
-  mFirstRow = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getI64IntegerAttr(mFirstRowInt));
+  // Create return value
+  return std::make_tuple(trapezoidSize, rectangleSize, mFirstRow);
 }
 
 // decomposition of torch.triu_indices
@@ -885,28 +861,34 @@ public:
         loc, rewriter.getF64FloatAttr(-2.0));
 
     // Calculte trapezoidSize, rectangleSize and mFirstRow
-    Value trapezoidSize;
-    Value rectangleSize;
-    Value mFirstRow;
+    std::tuple<int64_t, int64_t, int64_t> triuSizes =
+        getTriuSizes(rewriter, loc, rowInt, colInt, offsetInt);
 
-    _getTriuSizes(rewriter, loc, rowInt, colInt, offsetInt, trapezoidSize,
-                  rectangleSize, mFirstRow);
+    int64_t trapezoidSizeInt = std::get<0>(triuSizes);
+    int64_t rectangleSizeInt = std::get<1>(triuSizes);
+    ;
+    int64_t mFirstRowInt = std::get<2>(triuSizes);
+    ;
 
-    // Get const ints from Values
-    int64_t rectangleSizeInt;
-    matchPattern(rectangleSize, m_TorchConstantInt(&rectangleSizeInt));
-    int64_t trapezoidSizeInt;
-    matchPattern(trapezoidSize, m_TorchConstantInt(&trapezoidSizeInt));
-    int64_t mFirstRowInt;
-    matchPattern(mFirstRow, m_TorchConstantInt(&mFirstRowInt));
+    // Create const int Values from ints
+    Value trapezoidSize = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(trapezoidSizeInt));
+    Value rectangleSize = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rectangleSizeInt));
+    Value mFirstRow = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(mFirstRowInt));
 
     // Calculte column offset
     Value colOffset = (offsetInt > 0) ? offset : cstZero;
 
     // Calculate indices for top rectangle
-    // Type type = rewriter.getIntegerType(/*width=*/64, /*isSigned*/ true);
-    Value xs2 = arange(rewriter, loc, rectangleSize, dtype, layout, device,
-                       pinMemory, *dtypeType);
+    auto arrangeType =
+        getTensorTypeFromShapeValues({rectangleSize}, *dtypeType);
+    Value xs2 =
+        rewriter.create<AtenArangeOp>(loc, arrangeType, rectangleSize,
+                                      /*dtype=*/dtype, /*layout=*/layout,
+                                      /*device=*/device,
+                                      /*pin_memory=*/pinMemory);
 
     // Calculate row_indices2 and column_idices 2
     Value rowInds2 =
@@ -917,8 +899,13 @@ public:
     // Bottom trapezoid
     auto f64DtypeInt =
         getDtypeIntValueForType(rewriter, loc, rewriter.getF64Type());
-    Value xs1 = arange(rewriter, loc, trapezoidSize, f64DtypeInt, layout,
-                       device, pinMemory, rewriter.getF64Type());
+    arrangeType =
+        getTensorTypeFromShapeValues({trapezoidSize}, rewriter.getF64Type());
+    Value xs1 =
+        rewriter.create<AtenArangeOp>(loc, arrangeType, trapezoidSize,
+                                      /*dtype=*/f64DtypeInt, /*layout=*/layout,
+                                      /*device=*/device,
+                                      /*pin_memory=*/pinMemory);
 
     // b = -0.5 - m_first_row
     Value mFirstRowFloat = rewriter.create<Torch::ConstantFloatOp>(
@@ -973,16 +960,16 @@ public:
     Type finalRowType = rowInds1Type.getWithSizesAndDtype(sizes, int64Type);
     rowInds1 = rewriter.create<AtenToDtypeOp>(
         loc, finalRowType, rowInds1, dtype,
-        /*non_blocking*/ cstFalse, /*copy*/ cstFalse,
-        /*memory_format*/ cstOne);
+        /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+        /*memory_format=*/cstOne);
 
     auto colInds1Type = cast<BaseTensorType>(colInds1.getType());
     sizes = colInds1Type.getSizes();
     Type finalColType = colInds1Type.getWithSizesAndDtype(sizes, int64Type);
     colInds1 = rewriter.create<AtenToDtypeOp>(
         loc, finalColType, colInds1, dtype,
-        /*non_blocking*/ cstFalse, /*copy*/ cstFalse,
-        /*memory_format*/ cstOne);
+        /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+        /*memory_format=*/cstOne);
 
     // Final calculation for row and col indices
     if (colInt) {
@@ -1013,9 +1000,9 @@ public:
         {rectangleSizeInt + trapezoidSizeInt}, int64Type);
 
     Value catRow = rewriter.create<AtenCatOp>(loc, finalCatType, sequenceRow,
-                                              /*dim*/ cstZero);
+                                              /*dim=*/cstZero);
     Value catCol = rewriter.create<AtenCatOp>(loc, finalCatType, sequenceCol,
-                                              /*dim*/ cstZero);
+                                              /*dim=*/cstZero);
 
     // Make return value
     Value sequence = rewriter.create<PrimListConstructOp>(

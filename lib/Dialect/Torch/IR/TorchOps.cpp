@@ -5241,7 +5241,8 @@ LogicalResult AtenTriuIndicesOp::verify() {
   int64_t dtype;
   if (!matchPattern(getDtype(), m_TorchConstantInt(&dtype)))
     return success();
-  if (dtype != 3 && dtype != 4)
+  if (dtype != (int)torch_upstream::ScalarType::Int &&
+      dtype != (int)torch_upstream::ScalarType::Long)
     return emitOpError(
         "'triu_indices' implemented only for torch.int32 and torch.int64");
 
