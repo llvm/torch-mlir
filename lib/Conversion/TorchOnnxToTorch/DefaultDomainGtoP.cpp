@@ -2672,4 +2672,63 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             /*cudnn_enabled=*/cstFalse);
         return success();
       });
+  patterns.onOp(
+      "Optional", 15, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::OptionalType resultType;
+        Value input;
+
+        if (binder.getNumOperands() == 0)
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented support for missing input element");
+
+        if (binder.tensorListOperand(input))
+          if (binder.tensorOperand(input))
+            return failure();
+
+        if (binder.optionalResultType(resultType))
+          return failure();
+
+        rewriter.replaceOpWithNewOp<Torch::DerefineOp>(binder.op, resultType,
+                                                       input);
+        return success();
+      });
+  patterns.onOp("OptionalGetElement", 15,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ListType tensorListResultType;
+                  Torch::ValueTensorType tensorResultType;
+                  Value input;
+
+                  if (binder.tensorListResultType(tensorListResultType)) {
+                    if (binder.tensorResultType(tensorResultType))
+                      return failure();
+
+                    if (binder.optionalTensorOperand(input)) {
+                      if (binder.tensorOperand(input))
+                        return failure();
+
+                      // It means the input is a tensor.
+                      rewriter.replaceOp(binder.op, input);
+                      return success();
+                    }
+
+                    // It means the input is an optional tensor.
+                    rewriter.replaceOpWithNewOp<Torch::PrimUncheckedCastOp>(
+                        binder.op, tensorResultType, input);
+                    return success();
+                  }
+
+                  if (binder.optionalTensorListOperand(input)) {
+                    if (binder.tensorListOperand(input))
+                      return failure();
+
+                    // It means the input is a tensor list.
+                    rewriter.replaceOp(binder.op, input);
+                    return success();
+                  }
+
+                  // It means the input is an optional tensor list.
+                  rewriter.replaceOpWithNewOp<Torch::PrimUncheckedCastOp>(
+                      binder.op, tensorListResultType, input);
+                  return success();
+                });
 }

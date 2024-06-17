@@ -45,6 +45,18 @@ struct OpBinder {
     return success();
   }
 
+  ParseResult optionalTensorOperand(Value &value0) {
+    if (op->getNumOperands() != 1)
+      return failure();
+    value0 = op->getOperand(0);
+    auto ot = dyn_cast<Torch::OptionalType>(value0.getType());
+    if (!ot)
+      return failure();
+    if (!toValidTensorType(ot.getContainedType()))
+      return failure();
+    return success();
+  }
+
   ParseResult tensorOperands(Value &value0, Value &value1) {
     if (op->getNumOperands() != 2)
       return failure();
@@ -110,6 +122,21 @@ struct OpBinder {
     return success();
   }
 
+  ParseResult optionalTensorListOperand(Value &value0) {
+    if (op->getNumOperands() != 1)
+      return failure();
+    value0 = op->getOperand(0);
+    auto ot = dyn_cast<Torch::OptionalType>(value0.getType());
+    if (!ot)
+      return failure();
+    auto tt = dyn_cast<Torch::ListType>(ot.getContainedType());
+    if (!tt)
+      return failure();
+    if (!toValidTensorType(tt.getContainedType()))
+      return failure();
+    return success();
+  }
+
   ParseResult tensorListOperandAtIndex(Value &valueIdx, int64_t idx) {
     if (idx >= op->getNumOperands())
       return failure();
@@ -141,6 +168,44 @@ struct OpBinder {
         return failure();
       typeList.push_back(t);
     }
+    return success();
+  }
+
+  ParseResult optionalResultType(Torch::OptionalType &type0) {
+    if (op->getNumResults() != 1)
+      return failure();
+    auto ot = dyn_cast<Torch::OptionalType>(op->getResult(0).getType());
+    if (!ot)
+      return failure();
+    type0 = ot;
+    return success();
+  }
+
+  ParseResult optionalTensorResultType(Torch::ValueTensorType &type0) {
+    if (op->getNumResults() != 1)
+      return failure();
+    auto ot = dyn_cast<Torch::OptionalType>(op->getResult(0).getType());
+    if (!ot)
+      return failure();
+    auto t = toValidTensorType(ot.getContainedType());
+    if (!t)
+      return failure();
+    type0 = t;
+    return success();
+  }
+
+  ParseResult optionalTensorListResultType(Torch::ListType &type0) {
+    if (op->getNumResults() != 1)
+      return failure();
+    auto ot = dyn_cast<Torch::OptionalType>(op->getResult(0).getType());
+    if (!ot)
+      return failure();
+    auto tt = dyn_cast<Torch::ListType>(ot.getContainedType());
+    if (!tt)
+      return failure();
+    if (!toValidTensorType(tt.getContainedType()))
+      return failure();
+    type0 = tt;
     return success();
   }
 
