@@ -16445,3 +16445,39 @@ def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
   }];
 }
 
+def Torch_TorchvisionDeformConv2dOp : Torch_Op<"torchvision.deform_conv2d", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `torchvision::deform_conv2d : (Tensor, Tensor, Tensor, Tensor, Tensor, int, int, int, int, int, int, int, int, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$weight,
+    AnyTorchTensorType:$offset,
+    AnyTorchTensorType:$mask,
+    AnyTorchTensorType:$bias,
+    Torch_IntType:$stride_h,
+    Torch_IntType:$stride_w,
+    Torch_IntType:$pad_h,
+    Torch_IntType:$pad_w,
+    Torch_IntType:$dilation_h,
+    Torch_IntType:$dilation_w,
+    Torch_IntType:$groups,
+    Torch_IntType:$offset_groups,
+    Torch_BoolType:$use_mask
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult TorchvisionDeformConv2dOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 14, 1);
+    }
+    void TorchvisionDeformConv2dOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 14, 1);
+    }
+  }];
+}
+

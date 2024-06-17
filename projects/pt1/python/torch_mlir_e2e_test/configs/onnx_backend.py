@@ -78,7 +78,12 @@ def convert_onnx(model, inputs):
 
     examples = tuple(examples)
     torch.onnx.export(
-        model, examples, buffer, input_names=input_names, dynamic_axes=dynamic_tensors
+        model,
+        examples,
+        buffer,
+        input_names=input_names,
+        dynamic_axes=dynamic_tensors,
+        opset_version=19,
     )
     buffer = buffer.getvalue()
     return import_onnx(buffer)
