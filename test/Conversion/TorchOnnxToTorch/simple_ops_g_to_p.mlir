@@ -1543,3 +1543,56 @@ func.func @test_optional_get_element_tensor(%arg0: !torch.vtensor<[4],f32>) -> !
   %0 = torch.operator "onnx.OptionalGetElement"(%arg0) : (!torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32>
   return %0 : !torch.vtensor<[4],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @test_image_decoder_decode_jpeg_bgr
+func.func @test_image_decoder_decode_jpeg_bgr(%arg0: !torch.vtensor<[32,32,3],ui8>) -> !torch.vtensor<[32,32,3],ui8> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK:  %[[INT0_0:.*]] = torch.constant.int 0
+  // CHECK:  %[[FLOATTYPE:.*]] = torch.constant.int 6
+  // CHECK:  %[[NONEVAL:.*]] = torch.constant.none
+  // CHECK:  %[[FALSEVAL:.*]] = torch.constant.bool false
+  // CHECK:  %[[INT2_0:.*]] = torch.constant.int 2
+  // CHECK:  %[[PRIMLIST:.*]] = torch.prim.ListConstruct %[[INT2_0]] : (!torch.int) -> !torch.list<int>
+  // CHECK:  %[[FLIP:.*]] = torch.aten.flip %arg0, %[[PRIMLIST]] : !torch.vtensor<[32,32,3],ui8>, !torch.list<int> -> !torch.vtensor<[32,32,3],ui8>
+  // CHECK:  %[[CAST:.*]] = torch.aten.to.dtype %[[FLIP]], %[[INT0_0]], %[[FALSEVAL]], %[[FALSEVAL]], %[[NONEVAL]] : !torch.vtensor<[32,32,3],ui8>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[32,32,3],ui8>
+  // CHECK:  return %[[CAST]] : !torch.vtensor<[32,32,3],ui8>
+  %0 = torch.operator "onnx.ImageDecoder"(%arg0) {torch.onnx.pixel_format = "BGR"} : (!torch.vtensor<[32,32,3],ui8>) -> !torch.vtensor<[32,32,3],ui8>
+  return %0 : !torch.vtensor<[32,32,3],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_image_decoder_decode_rgb
+func.func @test_image_decoder_decode_rgb(%arg0: !torch.vtensor<[32,32,3],ui8>) -> !torch.vtensor<[32,32,3],ui8> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0_0:.*]] = torch.constant.int 0
+  // CHECK: %[[FLOATTYPE:.*]] = torch.constant.int 6
+  // CHECK: %[[NONEVAL:.*]] = torch.constant.none
+  // CHECK: %[[FALSEVAL:.*]] = torch.constant.bool false
+  // CHECK: %[[CAST:.*]] = torch.aten.to.dtype %arg0, %[[INT0_0]], %[[FALSEVAL]], %[[FALSEVAL]], %[[NONEVAL]] : !torch.vtensor<[32,32,3],ui8>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[32,32,3],ui8>
+  // CHECK: return %[[CAST]] : !torch.vtensor<[32,32,3],ui8>
+  %0 = torch.operator "onnx.ImageDecoder"(%arg0) {torch.onnx.pixel_format = "RGB"} : (!torch.vtensor<[32,32,3],ui8>) -> !torch.vtensor<[32,32,3],ui8>
+  return %0 : !torch.vtensor<[32,32,3],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_image_decoder_decode_grayscale
+func.func @test_image_decoder_decode_grayscale(%arg0: !torch.vtensor<[32,32,3],ui8>) -> !torch.vtensor<[32,32,1],ui8> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0_0:.*]] = torch.constant.int 0
+  // CHECK: %[[INT1_0:.*]] = torch.constant.int 1
+  // CHECK: %[[FLOATTYPE:.*]] = torch.constant.int 6
+  // CHECK: %[[NONEVAL:.*]] = torch.constant.none
+  // CHECK: %[[FALSEVAL:.*]] = torch.constant.bool false
+  // CHECK: %[[RSCALE:.*]] = torch.constant.float 2.989000e-01
+  // CHECK: %[[GSCALE:.*]] = torch.constant.float 5.870000e-01
+  // CHECK: %[[BSCALE:.*]] = torch.constant.float 1.140000e-01
+  // CHECK: %[[SCALELIST:.*]] = torch.prim.ListConstruct %[[RSCALE]], %[[GSCALE]], %[[BSCALE]] : (!torch.float, !torch.float, !torch.float) -> !torch.list<float>
+  // CHECK: %[[SCALETENSOR:.*]] = torch.aten.tensor %[[SCALELIST]], %[[FLOATTYPE]], %[[NONEVAL]], %[[FALSEVAL]] : !torch.list<float>, !torch.int, !torch.none, !torch.bool -> !torch.vtensor<[3],f64>
+  // CHECK: %[[UNSQUEEZE:.*]] = torch.aten.unsqueeze %[[SCALETENSOR]], %[[INT1_0]] : !torch.vtensor<[3],f64>, !torch.int -> !torch.vtensor<[3,1],f64>
+  // CHECK: %[[MATMUL:.*]] = torch.aten.matmul %arg0, %[[UNSQUEEZE]] : !torch.vtensor<[32,32,3],ui8>, !torch.vtensor<[3,1],f64> -> !torch.vtensor<[32,32,1],ui8>
+  // CHECK: %[[CAST:.*]] = torch.aten.to.dtype %[[MATMUL]], %[[INT0_0]], %[[FALSEVAL]], %[[FALSEVAL]], %[[NONEVAL]] : !torch.vtensor<[32,32,1],ui8>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[32,32,1],ui8>
+  // CHECK: return %[[CAST]] : !torch.vtensor<[32,32,1],ui8>
+  %0 = torch.operator "onnx.ImageDecoder"(%arg0) {torch.onnx.pixel_format = "Grayscale"} : (!torch.vtensor<[32,32,3],ui8>) -> !torch.vtensor<[32,32,1],ui8>
+  return %0 : !torch.vtensor<[32,32,1],ui8>
+}

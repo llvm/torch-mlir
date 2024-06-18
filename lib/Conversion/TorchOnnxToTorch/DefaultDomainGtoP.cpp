@@ -2731,4 +2731,81 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, tensorListResultType, input);
                   return success();
                 });
+  patterns.onOp(
+      "ImageDecoder", 20,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value encodedImage;
+        Torch::ValueTensorType resultType;
+        std::string pixelFormat;
+        if (binder.tensorOperand(encodedImage) ||
+            binder.tensorResultType(resultType) ||
+            binder.customOpNameStringAttr(pixelFormat, "pixel_format", "RGB"))
+          return failure();
+
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value one = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value floatType = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(6));
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+
+        auto encodedImageTy =
+            cast<Torch::ValueTensorType>(encodedImage.getType());
+        auto encodedImageShape = encodedImageTy.getSizes();
+
+        Value decodedImage;
+        if (pixelFormat == "BGR") {
+          // FLip the encoded image tensor across the last dimension.
+          Value axisToFlip = createConstantIntList(binder, rewriter, {2});
+          decodedImage = rewriter.create<Torch::AtenFlipOp>(
+              binder.getLoc(), resultType, encodedImage, axisToFlip);
+        } else if (pixelFormat == "RGB") {
+          // Do nothing, as this is already the default mode.
+          decodedImage = encodedImage;
+        } else if (pixelFormat == "Grayscale") {
+          if (encodedImageShape.size() != 3 || encodedImageShape[2] != 3)
+            return rewriter.notifyMatchFailure(
+                binder.op, "An input image of shape (H,W,3) is required "
+                           "for pixel_format='Grayscale'");
+
+          // This scaling list is created based on ITU-R Rec. 601-7.
+          // These scaling factors are used by torchvision as well.
+          Value scalingList = createConstantFloatList(binder, rewriter,
+                                                      {0.2989, 0.5870, 0.1140});
+          auto scalingListTy = rewriter.getType<Torch::ValueTensorType>(
+              ArrayRef<int64_t>{3}, rewriter.getF64Type());
+          scalingList = rewriter.create<Torch::AtenTensorOp>(
+              binder.getLoc(), scalingListTy, scalingList, floatType, none,
+              cstFalse);
+
+          // Unsqueeze the list of scaling factors.
+          auto unsqueezeResultTy = rewriter.getType<Torch::ValueTensorType>(
+              ArrayRef<int64_t>{3, 1}, rewriter.getF64Type());
+          scalingList = rewriter.create<Torch::AtenUnsqueezeOp>(
+              binder.getLoc(), unsqueezeResultTy, scalingList, one);
+
+          // The input encoded image has shape (H,W,3), and the scaling list has
+          // shape (3,1). A matmul operation will output a tensor of shape
+          // (H,W,1), which after squeezing at dim=2, will be equivalent to
+          // unbinding the channels of the image, multiplying each channel by
+          // the corresponding scaling factor, and then adding the resulting
+          // tensors. We do not squeeze the tensor, to preserve the resultType.
+          decodedImage = rewriter.create<Torch::AtenMatmulOp>(
+              binder.getLoc(), resultType, encodedImage, scalingList);
+        } else {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unsupported value for pixel_format");
+        }
+
+        // Cast the decoded image to uint8 type
+        rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+            binder.op, resultType, decodedImage, /*uInt8Type=*/zero,
+            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+            /*memory_format=*/none);
+
+        return success();
+      });
 }
