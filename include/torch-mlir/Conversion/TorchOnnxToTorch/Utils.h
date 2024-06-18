@@ -50,8 +50,8 @@ Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
 
 LogicalResult OnnxLstmExpander(OpBinder binder,
                                ConversionPatternRewriter &rewriter);
-// LogicalResult OnnxGruExpander(OpBinder binder,
-//                                ConversionPatternRewriter &rewriter);
+LogicalResult OnnxGruExpander(OpBinder binder,
+                              ConversionPatternRewriter &rewriter);
 LogicalResult OnnxRnnExpander(OpBinder binder,
                               ConversionPatternRewriter &rewriter);
 
