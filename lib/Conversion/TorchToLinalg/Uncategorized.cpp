@@ -2974,45 +2974,88 @@ public:
     if (isBatched)
       chDim = getDimOp(rewriter, loc, input, 0);
     Value matDim = getDimOp(rewriter, loc, input, inputRank - 1);
+    Value matDimMinusOne = rewriter.create<arith::SubIOp>(loc, matDim, cstOne);
+    Value matDimMinusTwo =
+        rewriter.create<arith::SubIOp>(loc, matDimMinusOne, cstOne);
     SmallVector<int64_t> sliceShape(inputType.getShape());
     sliceShape.pop_back();
     auto elemTy = inputType.getElementType();
     auto sliceTy = RankedTensorType::get(sliceShape, elemTy);
+    SmallVector<int64_t> diagShape({isBatched ? 0 : inputType.getShape()[0]});
+    auto diagTy = RankedTensorType::get(diagShape, elemTy);
     ArrayRef<Value> sliceSizes(inputSizes.begin(), inputSizes.end() - 1);
-    Value initResult = createZeroInitTensor(rewriter, loc, sliceSizes, elemTy);
-    Value testLoop =
-        rewriter
-            .create<scf::ForOp>(
-                loc, /*start=*/cstZero, /*end=*/matDim, /*step=*/cstOne,
-                /*yeild_to=*/ValueRange{initResult}, /*body_lambda=*/
-                [&](OpBuilder &b, Location loc, Value i, ValueRange vals) {
-                  // extract row i from input Tensor of shape CxNxN or shape
-                  // NxN.
-                  SmallVector<Value> offsets(inputRank, cstZero);
-                  offsets[inputRank - 2] = i;
-                  SmallVector<Value> strides(inputRank, cstOne);
-                  SmallVector<Value> sizes = inputSizes;
-                  sizes[inputRank - 2] = cstOne;
-                  Value pivot = b.create<tensor::ExtractSliceOp>(
-                      loc, sliceTy, input, getAsOpFoldResult(offsets),
-                      getAsOpFoldResult(sizes), getAsOpFoldResult(strides));
-                  Value sumResult = b.create<tensor::EmptyOp>(
-                      loc, getAsOpFoldResult(sliceSizes), elemTy);
-                  Value sum = b.create<linalg::AddOp>(
-                                   loc, ValueRange{pivot, vals[0]}, sumResult)
-                                  .getResult(0);
-                  b.create<scf::YieldOp>(loc, ValueRange(sum));
-                })
-            .getResult(0);
-    Value output = rewriter.create<tensor::ExtractOp>(
-        loc, testLoop, SmallVector<Value>(inputRank - 1, cstZero));
+    Value initDiags = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(sliceSizes), elemTy);
+    auto rowReductionLoop = rewriter.create<scf::ForOp>(
+        loc, /*start=*/cstZero, /*end=*/matDimMinusTwo, /*step=*/cstOne,
+        /*yeild_to=*/ValueRange{input, initDiags}, /*body_lambda=*/
+        [&](OpBuilder &b, Location loc, Value i, ValueRange vals) {
+          // extract row i from input Tensor of shape CxNxN or shape
+          // NxN.
+          SmallVector<Value> offsets(inputRank, cstZero);
+          offsets[inputRank - 2] = i;
+          SmallVector<Value> strides(inputRank, cstOne);
+          SmallVector<Value> sizes = inputSizes;
+          sizes[inputRank - 2] = cstOne;
+          Value pivot = b.create<tensor::ExtractSliceOp>(
+              loc, sliceTy, input, getAsOpFoldResult(offsets),
+              getAsOpFoldResult(sizes), getAsOpFoldResult(strides));
+          // extract diagonal elements and insert them into vals[1]
+          offsets.back() = i;
+          sizes.back() = cstOne;
+          Value diag = b.create<tensor::ExtractSliceOp>(
+              loc, diagTy, input, getAsOpFoldResult(offsets),
+              getAsOpFoldResult(sizes), getAsOpFoldResult(strides));
+          SmallVector<Value> diagOffsets(inputRank - 1, cstZero);
+          diagOffsets.back() = i;
+          SmallVector<Value> diagStrides(inputRank - 1, cstOne);
+          SmallVector<Value> diagSizes(sliceSizes);
+          diagSizes.back() = cstOne;
+          Value updatedDiags = b.create<tensor::InsertSliceOp>(
+              loc, diag, vals[1], getAsOpFoldResult(diagOffsets),
+              getAsOpFoldResult(diagSizes), getAsOpFoldResult(diagStrides));
+          // extract elements below pivot row from A to be modified by row
+          // reduction algorithm
+          SmallVector<int64_t> subPivotShape(inputType.getShape());
+          // the subpivot size in the row dimension, as a Value, is matDim - i -
+          // cstOne. This can't be statically converted to an int64_t, since i
+          // is the loop index.
+          subPivotShape[inputRank - 2] = ShapedType::kDynamic;
+          auto subPivotTy = RankedTensorType::get(subPivotShape, elemTy);
+          offsets[inputRank - 2] = b.create<arith::AddIOp>(loc, i, cstOne);
+          offsets.back() = cstOne;
+          sizes[inputRank - 2] =
+              b.create<arith::SubIOp>(loc, matDim, offsets[inputRank - 2]);
+          sizes.back() = inputSizes.back();
+          Value subPivot = b.create<tensor::ExtractSliceOp>(
+              loc, subPivotTy, input, getAsOpFoldResult(offsets),
+              getAsOpFoldResult(sizes), getAsOpFoldResult(strides));
+          // extract the elements in the column below the diagonal element at
+          // (i,i)
+          sizes.back() = cstOne;
+          offsets.back() = i;
+          ArrayRef<int64_t> subDiagShape(subPivotShape.begin(),
+                                         subPivotShape.end() - 1);
+          auto subDiagTy = RankedTensorType::get(subDiagShape, elemTy);
+          Value subDiag = b.create<tensor::ExtractSliceOp>(
+              loc, subDiagTy, input, getAsOpFoldResult(offsets),
+              getAsOpFoldResult(sizes), getAsOpFoldResult(strides));
+          // write a generic op to perform subpivot = subpivot -
+          // (diag/subdiag)*pivot
+          Value rowReductionResult;
+          b.create<scf::YieldOp>(loc,
+                                 ValueRange{rowReductionResult, updatedDiags});
+        });
+    Value allDiags = rowReductionLoop.getResult(0);
+    // linalg generic to do reduce prod for allDiags along back dim.
+    // the result of that generic will be the determinant
+    Value determinant;
     Type newResultType =
         getTypeConverter()->convertType(op.getResult().getType());
-    rewriter.replaceOpWithNewOp<tensor::FromElementsOp>(op, newResultType,
-                                                        ValueRange{output});
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, determinant);
     return success();
     // Input: CxNxN or NxN tensor
-    //  A = HardCopy(Input)
+    //  A = HardCopy(Input)?
     //  scf for n in N (rows):
     //    pivot = extract row n from A : tensor<CxN>
     //    diag = extract col n from pivot : tensor<C>
