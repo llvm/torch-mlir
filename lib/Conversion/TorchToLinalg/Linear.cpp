@@ -855,7 +855,7 @@ public:
 
     Type intType = IntegerType::get(context, 64);
     auto castIndexToInt = [&](Value v) {
-      return rewriter.create<arith::IndexCastOp>(loc, intType, v);
+      return rewriter.createOrFold<arith::IndexCastOp>(loc, intType, v);
     };
 
     SmallVector<Value> paddingIntValues;
