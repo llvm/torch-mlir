@@ -587,6 +587,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::layer_norm : (Tensor, int[], Tensor?, Tensor?, float, bool) -> (Tensor)"
     )
+    emit("aten::renorm : (Tensor, Scalar, int, Scalar) -> (Tensor)", has_verifier=True)
     emit("aten::norm.Scalar : (Tensor, Scalar) -> (Tensor)", has_verifier=True)
     emit("aten::norm.ScalarOpt_dim : (Tensor, Scalar?, int[], bool) -> (Tensor)")
     emit(
@@ -912,6 +913,10 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     )
     emit("aten::linalg_cross : (Tensor, Tensor, int) -> (Tensor)", has_verifier=True)
     emit("aten::col2im : (Tensor, int[], int[], int[], int[], int[]) -> (Tensor)")
+    emit(
+        "aten::kthvalue : (Tensor, int, int, bool) -> (Tensor, Tensor)",
+        has_verifier=True,
+    )
 
     # Functionalization ops
     emit("aten::alias_copy : (Tensor) -> (Tensor)")
@@ -979,6 +984,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::tensor_split.sections : (Tensor, int, int) -> (Tensor[])")
     emit("aten::unbind.int : (Tensor, int) -> (Tensor[])")
     emit("aten::chunk : (Tensor, int, int) -> (Tensor[])")
+    emit("aten::meshgrid : (Tensor[]) -> (Tensor[])", has_canonicalizer=True)
+    emit("aten::meshgrid.indexing : (Tensor[], str) -> (Tensor[])")
 
     # Str ops.
     emit("aten::add.str : (str, str) -> (str)")

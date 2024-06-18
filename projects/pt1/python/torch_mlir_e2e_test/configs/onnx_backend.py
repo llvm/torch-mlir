@@ -102,7 +102,10 @@ def _module_lowering(
     # Lower from ONNX to Torch
     run_pipeline_with_repro_report(
         torch_mod,
-        f"builtin.module(func.func({ONNX_TO_TORCH_FUNC_PIPELINE}))",
+        # The importer may produce additional MLIR functions corresponding to
+        # ONNX operators that are functions. In some cases they need to be
+        # inlined to avoid the backend choking on them.
+        f"builtin.module(inline, func.func({ONNX_TO_TORCH_FUNC_PIPELINE}))",
         "Lowering Onnx backend contract to Linalg-on-Tensors backend contract",
     )
 

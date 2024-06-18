@@ -48,6 +48,7 @@ DEFAULT_DECOMPOSITIONS = [
     torch.ops.aten.triu.default,
     torch.ops.aten.nan_to_num.default,
     torch.ops.aten.unbind,
+    torch.ops.aten._scaled_dot_product_flash_attention_for_cpu,
 ]
 
 

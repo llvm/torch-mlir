@@ -145,6 +145,8 @@ ScalarType promote_skip_undefined(ScalarType a, ScalarType b);
 //===----------------------------------------------------------------------===//
 enum Reduction { None, Mean, Sum, END };
 
+Reduction get_loss_reduction_enum(const llvm::StringRef &reduce);
+
 //===----------------------------------------------------------------------===//
 // Possible values for `memory_format` argument in PyTorch ops that support it.
 // Source:
