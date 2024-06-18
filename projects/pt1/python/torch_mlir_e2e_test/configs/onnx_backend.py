@@ -9,6 +9,7 @@ from typing import Any
 import io
 import onnx
 import torch
+from torch.onnx._constants import ONNX_TORCHSCRIPT_EXPORTER_MAX_OPSET as max_opset_ver
 import torch_mlir
 
 from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
@@ -83,7 +84,7 @@ def convert_onnx(model, inputs):
         buffer,
         input_names=input_names,
         dynamic_axes=dynamic_tensors,
-        opset_version=19,
+        opset_version=max_opset_ver,
     )
     buffer = buffer.getvalue()
     return import_onnx(buffer)
