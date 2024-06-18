@@ -4960,7 +4960,9 @@ def _maybe_import_op_extensions(args: argparse.Namespace):
 
 def main(args):
     _maybe_import_op_extensions(args)
+    # importing torchvision will register torchvision ops with the JITOperatorRegistry
     import torchvision
+
     asm = generate_library(globals())
     # We're about to put quotes around the string, so escape the `"` characters.
     asm = asm.replace("\"", "\\\"")

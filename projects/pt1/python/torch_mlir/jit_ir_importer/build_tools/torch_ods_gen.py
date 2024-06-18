@@ -1162,6 +1162,7 @@ def _maybe_import_op_extensions(args: argparse.Namespace):
 
 def main(args: argparse.Namespace):
     _maybe_import_op_extensions(args)
+    # importing torchvision will register torchvision ops with the JITOperatorRegistry
     import torchvision
 
     registry = Registry.load()

@@ -28,6 +28,9 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "InterpolateStaticModule_scales_bilinear_align_corners",
     "InterpolateDynamicModule_scales_recompute_bilinear",
     "ElementwiseFloatTensorGtIntTensorModule_basic",
+    # unimplemented lowering torch -> linalg for torchvision.deform_conv2d
+    # this is added to check the torch.onnx.export -> import_onnx -> torch path
+    "DeformConv2D_basic",
 }
 
 LINALG_CRASHING_SET = {
@@ -383,6 +386,7 @@ FX_IMPORTER_XFAIL_SET = {
     "ConvolutionBackwardModule2DStrided_basic",
     "ConvolutionBackwardModule2D_basic",
     "CumsumModule_basic",
+    "DeformConv2D_basic",
     "DivFloatModule_basic",
     "DivIntModule_basic",
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
@@ -553,6 +557,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ConvolutionBackwardModule2DStrided_basic",
     "ConvolutionBackwardModule2D_basic",
     "CumsumModule_basic",
+    "DeformConv2D_basic",
     "DiagonalModule_basic",
     "DiagonalModule_nonsquare",
     "DiagonalModule_transposed",
@@ -2686,6 +2691,8 @@ ONNX_XFAIL_SET = {
     "IndexPutHackedTwin3DIntNonAccumulateModule_basic",
     # RuntimeError: unsupported input type: Device
     "PrimsIotaModule_basic",
+    # unimplemented torchvision.deform_conv2d torch->linalg
+    "DeformConv2D_basic",
     # Failure - unknown
     "BernoulliModule_basic",
     "Conv_Transpose1dModule_basic",
@@ -2893,6 +2900,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "CumsumModule_basic",
     "CumsumStaticModule_basic",
     "CumsumStaticNegativeDimModule_basic",
+    "DeformConv2D_basic",
     "DiagonalModule_basic",
     "DiagonalModule_nonsquare",
     "DiagonalModule_transposed",
@@ -3688,6 +3696,7 @@ ONNX_TOSA_XFAIL_SET = {
     "CumsumModule_basic",
     "CumsumStaticModule_basic",
     "CumsumStaticNegativeDimModule_basic",
+    "DeformConv2D_basic",
     "DiagonalModule_basic",
     "DiagonalModule_nonsquare",
     "DiagonalModule_transposed",
