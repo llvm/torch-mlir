@@ -732,9 +732,17 @@ public:
 };
 } // namespace
 
+/*
+ This function calculates the number of elements in the lower triangle (below
+ the main diagonal) of a tensor with dimensions [row, col]. The main diagonal
+ can be shifted using the 'offset' parameter. The lower triangle is divided into
+ two parts: a trapezoid and a rectangle. The return tuple includes the number of
+ elements in the trapezoid, the number of elements in the rectangle, and the
+ index of the first row such that the element [mFirstRow, 0] is below the main
+ diagonal.
+ */
 static std::tuple<int64_t, int64_t, int64_t>
-getTrilSizes(PatternRewriter &rewriter, Location loc, int64_t row, int64_t col,
-             int64_t offset) {
+getTrilSizes(int64_t row, int64_t col, int64_t offset) {
 
   // Base case
   if (row == 0 || col == 0) {
@@ -770,9 +778,17 @@ getTrilSizes(PatternRewriter &rewriter, Location loc, int64_t row, int64_t col,
   return std::make_tuple(trapezoidSize, rectangleSize, mFirstRow);
 }
 
+/*
+ This function calculates the number of elements in the upper triangle (above
+ the main diagonal) of a tensor with dimensions [row, col]. The main diagonal
+ can be shifted using the 'offset' parameter. The upper triangle is divided into
+ two parts: a trapezoid and a rectangle. The return tuple includes the number of
+ elements in the trapezoid, the number of elements in the rectangle, and the
+ index of the first row such that the element [mFirstRow, 0] is above the main
+ diagonal.
+ */
 static std::tuple<int64_t, int64_t, int64_t>
-getTriuSizes(PatternRewriter &rewriter, Location loc, int64_t row, int64_t col,
-             int64_t offset) {
+getTriuSizes(int64_t row, int64_t col, int64_t offset) {
 
   // Base case
   if (row == 0 || col == 0)
@@ -788,10 +804,9 @@ getTriuSizes(PatternRewriter &rewriter, Location loc, int64_t row, int64_t col,
 
   // Number of elements in bottom trapezoid - calculte trapezoid size
   std::tuple<int64_t, int64_t, int64_t> trilSizes =
-      getTrilSizes(rewriter, loc, row, col, offset - 1);
+      getTrilSizes(row, col, offset - 1);
   int64_t trapezoidSizeTril = std::get<0>(trilSizes);
   int64_t rectangleSizeTril = std::get<1>(trilSizes);
-  ;
 
   int64_t triuSize = row * col - (trapezoidSizeTril + rectangleSizeTril);
   int64_t trapezoidSize = triuSize - rectangleSize;
@@ -862,13 +877,11 @@ public:
 
     // Calculte trapezoidSize, rectangleSize and mFirstRow
     std::tuple<int64_t, int64_t, int64_t> triuSizes =
-        getTriuSizes(rewriter, loc, rowInt, colInt, offsetInt);
+        getTriuSizes(rowInt, colInt, offsetInt);
 
     int64_t trapezoidSizeInt = std::get<0>(triuSizes);
     int64_t rectangleSizeInt = std::get<1>(triuSizes);
-    ;
     int64_t mFirstRowInt = std::get<2>(triuSizes);
-    ;
 
     // Create const int Values from ints
     Value trapezoidSize = rewriter.create<Torch::ConstantIntOp>(
