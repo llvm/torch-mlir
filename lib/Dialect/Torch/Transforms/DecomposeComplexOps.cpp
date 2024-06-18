@@ -1618,6 +1618,7 @@ public:
       auto idxTy = rewriter.getType<Torch::ValueTensorType>(
           reductionShape, rewriter.getIntegerType(32, /*is_signed*/ true));
       llvm::SmallVector<Type, 2> types{reductionTy, idxTy};
+
       reduction = rewriter
                       .create<Torch::AtenMinDimOp>(loc, types, reduction,
                                                    dimValue, op.getKeepdim())
@@ -2063,6 +2064,145 @@ public:
     Value lhs = op.getSelf();
     Value rhs = op.getVec();
     rewriter.replaceOpWithNewOp<AtenMatmulOp>(op, op.getType(), lhs, rhs);
+    return success();
+  }
+};
+} // namespace
+
+// https://github.com/pytorch/pytorch/blob/9dec41b684a4284c4e052e295314c23f0f942fec/torch/_refs/__init__.py#L3229
+// Decompose aten.renorm into: linalg_vector_norm
+namespace {
+class DecomposeAtenRenormOp : public OpRewritePattern<AtenRenormOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRenormOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value dim = op.getDim();
+    Value p = op.getP();
+    Value maxnorm = op.getMaxnorm();
+
+    // Prepare all necessary variables
+    auto ndim = getTensorRank(self);
+    auto resType = cast<BaseTensorType>(self.getType());
+
+    if (!resType.hasDtype() || !resType.hasSizes()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "result should have dtype and sizes");
+    }
+
+    Type dtype = resType.getDtype();
+    if (isa<mlir::ComplexType>(dtype)) {
+      return rewriter.notifyMatchFailure(
+          op, "lowering of aten.renorm for complex inputs dtype is "
+              "currently unimplemented");
+    }
+
+    SmallVector<int64_t> inputSize(resType.getSizes());
+
+    // Convert dim from Value to int
+    int64_t dimInt;
+    if (!matchPattern(dim, m_TorchConstantInt(&dimInt)))
+      return rewriter.notifyMatchFailure(op,
+                                         "Unimplemented: dim not constant int");
+
+    // Define all constants
+    Value cstTrue = rewriter.create<ConstantBoolOp>(loc, true);
+    Value cstZero = rewriter.create<Torch::ConstantIntOp>(loc, 0);
+    Value cstOne = rewriter.create<Torch::ConstantIntOp>(loc, 1);
+    Value cstNone = rewriter.create<ConstantNoneOp>(loc);
+
+    // Arragne reduce_dims tensor (vector), [0, 1, ... , dim-1, dim+1, ... ,
+    // ndim-1]
+    llvm::SmallVector<Value> reduceDimsVector;
+    for (u_int64_t i = 0; i < ndim; i++) {
+      if (i == (u_int64_t)dimInt)
+        continue;
+
+      Value constI = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(i));
+
+      reduceDimsVector.push_back(constI);
+    }
+
+    Value reduceDimsList = rewriter.create<Torch::PrimListConstructOp>(
+        loc,
+        rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
+        reduceDimsVector);
+
+    // Make output shape for linalg.vector_norm operation
+    SmallVector<Value> inputSizeValue;
+    for (u_int64_t i = 0; i < inputSize.size(); i++) {
+      if (i != (u_int64_t)dimInt)
+        inputSize[i] = 1;
+
+      inputSizeValue.push_back(
+          rewriter.create<Torch::ConstantIntOp>(loc, inputSize[i]));
+    }
+
+    // Prepare arguments for linalg.vector_norm
+    Value dtypeValue;
+    Type vectorNormOutType;
+
+    if (isa<mlir::Float16Type, mlir::BFloat16Type>(dtype)) {
+      dtype = cast<Type>(rewriter.getF32Type());
+      dtypeValue = getDtypeIntValueForType(rewriter, loc, dtype);
+      vectorNormOutType = resType.getWithSizesAndDtype(inputSize, dtype);
+    } else {
+      dtypeValue = cstNone;
+      vectorNormOutType = resType.getWithSizesAndDtype(inputSize, dtype);
+    }
+
+    auto norm = rewriter.create<AtenLinalgVectorNormOp>(
+        loc, vectorNormOutType, self, p, reduceDimsList, cstTrue, dtypeValue);
+
+    // Define epsiolon constant 10^-7
+    mlir::FloatType f64Type = rewriter.getF64Type();
+    Value epsValue = rewriter.create<ConstantFloatOp>(
+        loc, rewriter.getFloatAttr(f64Type, 1e-7));
+
+    Value normPlusEps = rewriter.create<AtenAddScalarOp>(
+        loc, vectorNormOutType, norm, epsValue, cstOne);
+
+    Value maxnormTensorValue = rewriter.create<AtenFullLikeOp>(
+        loc, normPlusEps.getType(), normPlusEps, maxnorm, cstNone, cstNone,
+        cstNone, cstNone, cstNone);
+
+    // Divide maxnorm and normPlusEps
+    auto divideMaxnormAndNorm = rewriter.create<AtenDivTensorOp>(
+        loc, vectorNormOutType, maxnormTensorValue, normPlusEps);
+
+    // Next few lines corespond to this pythorch code: norm_factor =
+    // torch.where(norm > maxnorm, maxnorm / (norm + eps), 1.0)
+    auto boolTensorType = rewriter.getType<ValueTensorType>(
+        cast<BaseTensorType>(vectorNormOutType).getOptionalSizes(),
+        rewriter.getI1Type());
+
+    Value greaterThanMaxnorm =
+        rewriter.create<AtenGtScalarOp>(loc, boolTensorType, norm, maxnorm);
+
+    Value cstOnetensor = rewriter.create<AtenFullLikeOp>(
+        loc, normPlusEps.getType(), normPlusEps, cstOne, cstNone, cstNone,
+        cstNone, cstNone, cstNone);
+
+    auto normFactor = rewriter.create<AtenWhereSelfOp>(
+        loc, vectorNormOutType, greaterThanMaxnorm, divideMaxnormAndNorm,
+        cstOnetensor);
+
+    // Converte norm_factor to input dtype
+    Value normFactorFinal = rewriter.create<PrimsConvertElementTypeOp>(
+        loc, resType.getWithSizesAndDtype(inputSize, resType.getDtype()),
+        normFactor, getDtypeIntValueForType(rewriter, loc, resType.getDtype()));
+
+    // Multiply input tensor with norm factor
+    auto output = rewriter.create<AtenMulTensorOp>(loc, self.getType(), self,
+                                                   normFactorFinal);
+
+    rewriter.replaceOpWithNewOp<AtenContiguousOp>(op, self.getType(), output,
+                                                  /*memory_format*/ cstZero);
+
     return success();
   }
 };
@@ -8080,6 +8220,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRenormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgCrossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPixelShuffleOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTOp>(patterns);

@@ -248,8 +248,6 @@ TORCHDYNAMO_XFAIL_SET = {
     # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
     # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
-    # AssertionError: Unregistered operation: torch.aten._scaled_dot_product_flash_attention_for_cpu
-    "ScaledDotProductAttentionDifferentModule_basic",
     # AssertionError: Unregistered operation: torch.aten._embedding_bag_forward_only
     "AtenEmbeddingBagStaticModule_basic",
     # Lowering not present for this case
@@ -731,7 +729,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "RsubInt0d_NumToTensor_Module_basic",
     "ScalarConstantTupleModule_basic",
     "ScalarImplicitFloatModule_basic",
-    "ScaledDotProductAttentionDifferentModule_basic",
     "ScatterReduceFloatMaxModule",
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMeanModule",
@@ -824,6 +821,9 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "MeshgridIndexingIJ_basic",
+    "MeshgridIndexingXY_basic",
+    "Meshgrid_basic",
     "SplitWithSizes_Module_basic",
     "TensorSplitSections_GetItemModule_basic",
     "TensorSplitSections_ListUnpackModule_basic",
@@ -1473,6 +1473,9 @@ STABLEHLO_PASS_SET = {
     "ElementwiseLogSigmoidModule_basic",
     "ElementwiseHardshrinkStaticModule_basic",
     "ElementwiseSoftshrinkStaticModule_basic",
+    "RenormModuleFloat16_basic",
+    "RenormModuleFloat32NegativeDim_basic",
+    "RenormModuleFloat32_basic",
 }
 
 STABLEHLO_CRASHING_SET = set()
@@ -1480,6 +1483,9 @@ STABLEHLO_CRASHING_SET = set()
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "MeshgridIndexingIJ_basic",
+    "MeshgridIndexingXY_basic",
+    "Meshgrid_basic",
     "AvgPool2dCountIncludePadFalseStaticModule_basic",
     "TensorSplitSections_GetItemModule_basic",
     "TensorSplitSections_ListUnpackModule_basic",
@@ -1946,6 +1952,8 @@ TOSA_PASS_SET = {
     "LinspaceOneSizeModule_basic",
     "LinspaceTwoSizeModule_basic",
     "TorchPrimLoopForLikeTensorArgModule_basic",
+    "RenormModuleFloat32NegativeDim_basic",
+    "RenormModuleFloat32_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (
@@ -1978,6 +1986,9 @@ MAKE_FX_TOSA_PASS_SET = (
         "ViewSizeDimLedAndFollowedByCollapsedOnesModule_basic",
         "ViewSizeDimLedByCollapsedOnesModule_basic",
         "ViewSizeFromOtherTensor_basic",
+        "ScaledDotProductAttentionDifferentModule_basic",
+        "RenormModuleFloat32NegativeDim_basic",
+        "RenormModuleFloat32_basic",
     }
 ) - {
     ### Test failing in make_fx_tosa but not in tosa
@@ -2270,6 +2281,11 @@ ONNX_XFAIL_SET = {
     "AtenIntTensorCharDtypeModule_basic",
     "AtenItemFpOpModule_basic",
     "AtenItemIntOpModule_basic",
+    "AtenKthvalueModule_basic",
+    "AtenKthvalueKeepDimModule_basic",
+    "AtenKthvalueDynamicDimsModule_basic",
+    "AtenKthvalueFloat64Module_basic",
+    "AtenKthvalueFloat64DynamicDimsModule_basic",
     "AtenLinalgCrossDynamic_basic",
     "AtenMatmulQMixedSigni8Transpose_basic",
     "AtenMatmulQMixedSigni8_basic",
@@ -2686,6 +2702,11 @@ ONNX_XFAIL_SET = {
     "IndexPutHackedTwin3DIntNonAccumulateModule_basic",
     # RuntimeError: unsupported input type: Device
     "PrimsIotaModule_basic",
+    # Error: 'aten::renorm' to ONNX opset version 17 is not supported.
+    "RenormModuleFloat16_basic",
+    "RenormModuleFloat32NegativeDim_basic",
+    "RenormModuleFloat32_basic",
+    "RenormModuleFloat32DynamicDims_basic",
     # Failure - unknown
     "BernoulliModule_basic",
     "Conv_Transpose1dModule_basic",
@@ -3349,7 +3370,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ScalarConstantTupleModule_basic",
     "ScalarImplicitFloatModule_basic",
     "ScalarImplicitIntModule_basic",
-    "ScaledDotProductAttentionDifferentModule_basic",
     "ScatterReduceFloatMaxModule",
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMeanModule",

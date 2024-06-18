@@ -31,10 +31,14 @@ from ...ir import (
 
 
 def main(args: argparse.Namespace):
+    config = onnx_importer.Config()
+    if args.disable_function_expansion_allowlist:
+        config.function_expansion_allowlists_by_domain = None
+
     model_proto = load_onnx_model(args)
     context = Context()
     torch_d.register_dialect(context)
-    model_info = onnx_importer.ModelInfo(model_proto)
+    model_info = onnx_importer.ModelInfo(model_proto, config=config)
     m = model_info.create_module(context=context).operation
     imp = onnx_importer.NodeImporter.define_function(model_info.main_graph, m)
     imp.import_all()
@@ -194,6 +198,12 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         help="Allows specification of a newer opset_version to update the model"
         " to before importing to MLIR. This can sometime assist with shape inference.",
         type=int,
+    )
+    parser.add_argument(
+        "--disable-function-expansion-allowlist",
+        action="store_true",
+        help="Disable the allowlist for ONNX function expansion,"
+        " allowing non-allowlisted functions to be expanded.",
     )
     args = parser.parse_args(argv)
     return args

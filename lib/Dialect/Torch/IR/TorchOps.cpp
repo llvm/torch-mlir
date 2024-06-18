@@ -3040,6 +3040,20 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenMeshgridOp
+//===----------------------------------------------------------------------===//
+void AtenMeshgridOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                 MLIRContext *context) {
+  patterns.add(+[](AtenMeshgridOp op, PatternRewriter &rewriter) {
+    Value constIndexing = rewriter.create<Torch::ConstantStrOp>(
+        op->getLoc(), rewriter.getStringAttr("ij"));
+    rewriter.replaceOpWithNewOp<AtenMeshgridIndexingOp>(
+        op, op->getResultTypes(), op.getTensors(), constIndexing);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSplitSizesOp
 //===----------------------------------------------------------------------===//
 
@@ -4642,6 +4656,80 @@ LogicalResult AtenNormScalarOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenRenormOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenRenormOp::verify() {
+
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+
+  if (!selfType.hasDtype() || !selfType.hasSizes())
+    return success();
+
+  auto inShape = selfType.getSizes();
+  int64_t selfRank = inShape.size();
+  auto selfDtype = selfType.getDtype();
+
+  if (!isa<mlir::Float16Type, mlir::BFloat16Type, mlir::Float32Type,
+           mlir::Float64Type, mlir::ComplexType>(selfDtype))
+    return emitOpError(
+               "expected a float or complex type for input tensor, but got ")
+           << selfDtype;
+
+  // According to the Pytoch documentation tensor need to be at least rank 2
+  if (selfRank <= 1)
+    return emitOpError("renorm: input needs at least 2 dimensions, got ")
+           << selfRank << " dimensions";
+
+  // Check if argument p is valid
+  auto pType = getP().getType();
+
+  if (isa<mlir::ComplexType>(pType))
+    return emitOpError("renorm: p must be real-valued");
+
+  // The argument 'p' can be either an integer or a floating-point number,
+  // so we need to consider both options and check if 'p' is within the correct
+  // range
+  int64_t pInt = 1;
+  double_t pDouble = 1;
+  if (!matchPattern(getP(), m_TorchConstantInt(&pInt)) &&
+      !matchPattern(getP(), m_TorchConstantFloat(&pDouble)))
+    return success();
+
+  if (pInt <= 0 || pDouble <= 0)
+    return emitOpError("renorm: non-positive norm not supported");
+
+  // Check if argument maxnorm is valid
+  auto maxnormType = getMaxnorm().getType();
+  if (isa<mlir::ComplexType>(maxnormType))
+    return emitOpError("renorm: maxnorm must be real-valued");
+
+  // The argument 'maxnorm' can be either an integer or a floating-point number,
+  // so we need to consider both options and check if 'maxnorm' is within the
+  // correct range
+  int64_t maxnormInt = 0;
+  double_t maxnormDouble = 0;
+  if (!matchPattern(getMaxnorm(), m_TorchConstantInt(&maxnormInt)) &&
+      !matchPattern(getMaxnorm(), m_TorchConstantFloat(&maxnormDouble)))
+    return success();
+
+  if (maxnormInt < 0 || maxnormDouble < 0)
+    return emitOpError("renorm: expected maxnorm to be >= 0");
+
+  // Get the dimension
+  int64_t dim;
+  if (!matchPattern(getDim(), m_TorchConstantInt(&dim)))
+    return success();
+
+  // check if is dim is in the correct range
+  if (dim >= selfRank || dim < -selfRank)
+    return emitOpError("Dimension out of range (expected to be in range of [")
+           << -selfRank << ", " << selfRank - 1 << "], but got " << dim;
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // AtenPermuteOp
 //===----------------------------------------------------------------------===//
 
@@ -4859,6 +4947,42 @@ LogicalResult AtenLinalgCrossOp::verify() {
     }
     ++i;
   }
+
+  return success();
+}
+
+LogicalResult AtenKthvalueOp::verify() {
+
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+
+  if (!selfType.hasDtype() || !selfType.hasSizes())
+    return success();
+
+  Type selfDtype = selfType.getDtype();
+  if (selfDtype.isSignlessInteger(1))
+    return emitOpError("input tensors must not have bool dtype");
+
+  int64_t dim;
+  if (!matchPattern(getDim(), m_TorchConstantInt(&dim)))
+    return success();
+
+  ArrayRef<int64_t> selfShape = selfType.getSizes();
+  int64_t selfRank = selfShape.size();
+
+  dim = toPositiveDim(dim, selfRank);
+  if (!isValidDim(dim, selfRank))
+    return emitOpError("dim expected to be in range of [")
+           << -selfRank << ", " << selfRank - 1 << "], but got " << dim;
+
+  // convert k to an integer type
+  int64_t k;
+  if (!matchPattern(getK(), m_TorchConstantInt(&k)))
+    return success();
+
+  // check if k is in the correct range
+  if (selfShape[dim] != kUnknownSize && (k < 1 || k > selfShape[dim]))
+    return emitOpError("k expected to be in range of [")
+           << 1 << ", " << selfShape[dim] << "], but got " << k;
 
   return success();
 }
