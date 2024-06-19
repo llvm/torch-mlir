@@ -24,8 +24,8 @@ func.func @sum(%arg0: !torch.vtensor<[64,64],f32,#CSR>) -> !torch.vtensor<[],f32
 // CHECK-LABEL: func.func @SpMM(
 // CHECK-SAME:  %[[A:.*]]: !torch.vtensor<[8,16],f32,#[[$CSR]]>,
 // CHECK-SAME:  %[[B:.*]]: !torch.vtensor<[16,8],f32>) -> !torch.vtensor<[8,8],f32>
-// CHECK:       %[[S:.*]] = torch_c.to_builtin_tensor %[[A]] : !torch.vtensor<[8,16],f32,#[[$CSR]]> -> tensor<8x16xf32, #[[$CSR]]>
-// CHECK:       %[[T:.*]] = torch_c.to_builtin_tensor %[[B]] : !torch.vtensor<[16,8],f32> -> tensor<16x8xf32>
+// CHECK-DAG:   %[[S:.*]] = torch_c.to_builtin_tensor %[[A]] : !torch.vtensor<[8,16],f32,#[[$CSR]]> -> tensor<8x16xf32, #[[$CSR]]>
+// CHECK-DAG:   %[[T:.*]] = torch_c.to_builtin_tensor %[[B]] : !torch.vtensor<[16,8],f32> -> tensor<16x8xf32>
 // CHECK:       linalg.matmul ins(%[[S]], %[[T]] : tensor<8x16xf32, #[[$CSR]]>, tensor<16x8xf32>)
 func.func @SpMM(%arg0: !torch.vtensor<[8,16],f32,#CSR>,
                 %arg1: !torch.vtensor<[16,8],f32>) -> !torch.vtensor<[8,8],f32> {

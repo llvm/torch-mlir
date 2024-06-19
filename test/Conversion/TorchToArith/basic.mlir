@@ -16,8 +16,8 @@ func.func @torch.aten.dim(%arg0: !torch.vtensor<*,f32>) -> !torch.int {
 // CHECK-LABEL:   func.func @torch.runtime.assert(
 // CHECK-SAME:                            %[[X:.*]]: !torch.int,
 // CHECK-SAME:                            %[[Y:.*]]: !torch.int) {
-// CHECK:           %[[X_I64:.*]] = torch_c.to_i64 %[[X]]
-// CHECK:           %[[Y_I64:.*]] = torch_c.to_i64 %[[Y]]
+// CHECK-DAG:       %[[X_I64:.*]] = torch_c.to_i64 %[[X]]
+// CHECK-DAG:       %[[Y_I64:.*]] = torch_c.to_i64 %[[Y]]
 // CHECK:           %[[CMP:.*]] = arith.cmpi ne, %[[X_I64]], %[[Y_I64]] : i64
 // CHECK:           assert %[[CMP]], "x must not be equal to y"
 // CHECK:           return
@@ -30,8 +30,8 @@ func.func @torch.runtime.assert(%arg0: !torch.int, %arg1: !torch.int) {
 // CHECK-LABEL:   func.func @torch.aten.ne.int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {
-// CHECK:           %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
-// CHECK:           %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK-DAG:       %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK-DAG:       %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
 // CHECK:           %[[CMP:.*]] = arith.cmpi ne, %[[LHS_I64]], %[[RHS_I64]] : i64
 // CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch_c.from_i1 %[[CMP]]
 // CHECK:           return %[[CMP_TORCH_BOOL]] : !torch.bool
@@ -43,8 +43,8 @@ func.func @torch.aten.ne.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.boo
 // CHECK-LABEL:   func.func @torch.aten.eq.int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {
-// CHECK:           %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
-// CHECK:           %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK-DAG:       %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK-DAG:       %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
 // CHECK:           %[[CMP:.*]] = arith.cmpi eq, %[[LHS_I64]], %[[RHS_I64]] : i64
 // CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch_c.from_i1 %[[CMP]]
 // CHECK:           return %[[CMP_TORCH_BOOL]] : !torch.bool
@@ -56,8 +56,8 @@ func.func @torch.aten.eq.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.boo
 // CHECK-LABEL:   func.func @torch.aten.gt.int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {
-// CHECK:           %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
-// CHECK:           %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK-DAG:       %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK-DAG:       %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
 // CHECK:           %[[CMP:.*]] = arith.cmpi sgt, %[[LHS_I64]], %[[RHS_I64]] : i64
 // CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch_c.from_i1 %[[CMP]]
 // CHECK:           return %[[CMP_TORCH_BOOL]] : !torch.bool
@@ -69,8 +69,8 @@ func.func @torch.aten.gt.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.boo
 // CHECK-LABEL:   func.func @torch.aten.ge.int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {
-// CHECK:           %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
-// CHECK:           %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK-DAG:       %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK-DAG:       %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
 // CHECK:           %[[CMP:.*]] = arith.cmpi sge, %[[LHS_I64]], %[[RHS_I64]] : i64
 // CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch_c.from_i1 %[[CMP]]
 // CHECK:           return %[[CMP_TORCH_BOOL]] : !torch.bool
@@ -83,8 +83,8 @@ func.func @torch.aten.ge.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.boo
 // CHECK-LABEL:   func.func @torch.aten.lt.int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {
-// CHECK:           %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
-// CHECK:           %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK-DAG:       %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK-DAG:       %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
 // CHECK:           %[[CMP:.*]] = arith.cmpi slt, %[[LHS_I64]], %[[RHS_I64]] : i64
 // CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch_c.from_i1 %[[CMP]]
 // CHECK:           return %[[CMP_TORCH_BOOL]] : !torch.bool
@@ -96,8 +96,8 @@ func.func @torch.aten.lt.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.boo
 // CHECK-LABEL:   func.func @torch.aten.le.int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {
-// CHECK:           %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
-// CHECK:           %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK-DAG:       %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK-DAG:       %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
 // CHECK:           %[[CMP:.*]] = arith.cmpi sle, %[[LHS_I64]], %[[RHS_I64]] : i64
 // CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch_c.from_i1 %[[CMP]]
 // CHECK:           return %[[CMP_TORCH_BOOL]] : !torch.bool
@@ -145,8 +145,8 @@ func.func @torch.constant.int() -> !torch.int {
 // CHECK-LABEL:  func.func @torch.aten.add.int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.int {
-// CHECK:          %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
-// CHECK:          %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK-DAG:      %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK-DAG:      %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
 // CHECK:          %[[ADD:.*]] = arith.addi %[[LHS_I64:.*]], [[RHS_I64:.*]] : i64
 // CHECK:          %[[OUT:.*]] = torch_c.from_i64 %[[INT:.*]]
 // CHECK:          return %[[OUT:.*]] : !torch.int
@@ -158,8 +158,8 @@ func.func @torch.aten.add.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.in
 // CHECK-LABEL:  func.func @torch.aten.sub.int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.int {
-// CHECK:          %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
-// CHECK:          %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK-DAG:      %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK-DAG:      %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
 // CHECK:          %[[SUB:.*]] = arith.subi %[[LHS_I64:.*]], [[RHS_I64:.*]] : i64
 // CHECK:          %[[OUT:.*]] = torch_c.from_i64 %[[INT:.*]]
 // CHECK:          return %[[OUT:.*]] : !torch.int
@@ -171,8 +171,8 @@ func.func @torch.aten.sub.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.in
 // CHECK-LABEL:  func.func @torch.aten.sub.float(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.float) -> !torch.float {
-// CHECK:          %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
-// CHECK:          %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
+// CHECK-DAG:      %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
+// CHECK-DAG:      %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
 // CHECK:          %[[SUB:.*]] = arith.subf %[[LHS_F64:.*]], [[RHS_F64:.*]] : f64
 // CHECK:          %[[OUT:.*]] = torch_c.from_f64 %[[SUB:.*]]
 // CHECK:          return %[[OUT:.*]] : !torch.float
@@ -184,8 +184,8 @@ func.func @torch.aten.sub.float(%arg0: !torch.float, %arg1: !torch.float) -> !to
 // CHECK-LABEL:  func.func @torch.aten.mul.int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.int {
-// CHECK:          %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
-// CHECK:          %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK-DAG:      %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK-DAG:      %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
 // CHECK:          %[[MUL:.*]] = arith.muli %[[LHS_I64:.*]], [[RHS_I64:.*]] : i64
 // CHECK:          %[[OUT:.*]] = torch_c.from_i64 %[[MUL:.*]]
 // CHECK:          return %[[OUT:.*]] : !torch.int
@@ -197,8 +197,8 @@ func.func @torch.aten.mul.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.in
 // CHECK-LABEL:  func.func @torch.aten.div.float(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.float) -> !torch.float {
-// CHECK:          %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
-// CHECK:          %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
+// CHECK-DAG:      %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
+// CHECK-DAG:      %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
 // CHECK:          %[[SUB:.*]] = arith.divf %[[LHS_F64:.*]], [[RHS_F64:.*]] : f64
 // CHECK:          %[[OUT:.*]] = torch_c.from_f64 %[[SUB:.*]]
 // CHECK:          return %[[OUT:.*]] : !torch.float
@@ -210,8 +210,8 @@ func.func @torch.aten.div.float(%arg0: !torch.float, %arg1: !torch.float) -> !to
 // CHECK-LABEL:   func.func @torch.aten.ge.float(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.float) -> !torch.bool {
-// CHECK:           %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
-// CHECK:           %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
+// CHECK-DAG:       %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
+// CHECK-DAG:       %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
 // CHECK:           %[[CMP:.*]] = arith.cmpf uge, %[[LHS_F64]], %[[RHS_F64]] : f64
 // CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch_c.from_i1 %[[CMP]]
 // CHECK:           return %[[CMP_TORCH_BOOL]] : !torch.bool
@@ -223,8 +223,8 @@ func.func @torch.aten.ge.float(%arg0: !torch.float, %arg1: !torch.float) -> !tor
 // CHECK-LABEL:   func.func @torch.aten.ge.float_int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {
-// CHECK:           %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
-// CHECK:           %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK-DAG:       %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
+// CHECK-DAG:       %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
 // CHECK:           %[[RHS_F64:.*]] = arith.sitofp %[[RHS_I64]] : i64 to f64
 // CHECK:           %[[CMP:.*]] = arith.cmpf uge, %[[LHS_F64]], %[[RHS_F64]] : f64
 // CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch_c.from_i1 %[[CMP]]
@@ -237,8 +237,8 @@ func.func @torch.aten.ge.float_int(%arg0: !torch.float, %arg1: !torch.int) -> !t
 // CHECK-LABEL:   func.func @torch.aten.ne.float_int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {
-// CHECK:           %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
-// CHECK:           %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK-DAG:       %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
+// CHECK-DAG:       %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
 // CHECK:           %[[RHS_F64:.*]] = arith.sitofp %[[RHS_I64]] : i64 to f64
 // CHECK:           %[[CMP:.*]] = arith.cmpf une, %[[LHS_F64]], %[[RHS_F64]] : f64
 // CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch_c.from_i1 %[[CMP]]
@@ -263,8 +263,8 @@ func.func @torch.aten.ceil.float(%arg0: !torch.float) -> !torch.int {
 // CHECK-LABEL:   func.func @torch.aten.gt.float_int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {
-// CHECK:           %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
-// CHECK:           %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK-DAG:       %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
+// CHECK-DAG:       %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
 // CHECK:           %[[RHS_F64:.*]] = arith.sitofp %[[RHS_I64]] : i64 to f64
 // CHECK:           %[[CMP:.*]] = arith.cmpf ugt, %[[LHS_F64]], %[[RHS_F64]] : f64
 // CHECK:           %[[CMP_TORCH_BOOL:.*]] = torch_c.from_i1 %[[CMP]]
