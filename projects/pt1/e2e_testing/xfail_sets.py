@@ -829,6 +829,8 @@ STABLEHLO_PASS_SET = {
     "TensorSplitSections_ListUnpackModule_basic",
     "EmptyModule_uint8",
     "TypeConversionUint8ToF32Module_basic",
+    "Atleast1dModule0dInput_basic",
+    "Atleast1dModule1dInput_basic",
     "AtenLinear1D_basic",
     "AtenLinear2D_basic",
     "AtenLinear3DBias_basic",
@@ -1481,6 +1483,8 @@ STABLEHLO_CRASHING_SET = set()
 TOSA_PASS_SET = {
     "TensorSplitSections_GetItemModule_basic",
     "TensorSplitSections_ListUnpackModule_basic",
+    "Atleast1dModule0dInput_basic",
+    "Atleast1dModule1dInput_basic",
     "AtenLinear2D_basic",
     "AtenLinear3DBias_basic",
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
