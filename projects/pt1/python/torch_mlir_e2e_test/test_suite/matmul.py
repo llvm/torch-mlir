@@ -435,6 +435,33 @@ def AtenMmQMixedSigni8_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AtenIntMM(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.int8, True),
+            ([4, 3], torch.int8, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch._int_mm(x, y)
+
+
+@register_test_case(module_factory=lambda: AtenIntMM())
+def AtenIntMM_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=-128, high=127).to(torch.int8),
+        tu.randint(4, 3, low=-128, high=127).to(torch.int8),
+    )
+
+
+# ==============================================================================
+
+
 class AtenMatmulQint8VM(torch.nn.Module):
     def __init__(self):
         super().__init__()
