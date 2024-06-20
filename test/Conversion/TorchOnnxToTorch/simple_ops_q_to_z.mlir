@@ -2775,3 +2775,218 @@ func.func @test_reversesequence_time(%arg0: !torch.vtensor<[4,4],f32>, %arg1: !t
   %0 = torch.operator "onnx.ReverseSequence"(%arg0, %arg1) {torch.onnx.batch_axis = 1 : si64, torch.onnx.time_axis = 0 : si64} : (!torch.vtensor<[4,4],f32>, !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,4],f32>
   return %0 : !torch.vtensor<[4,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @test_scatternd(
+// CHECK-SAME:                              %[[VAL_0:.*]]: !torch.vtensor<[4,4,4],f32>,
+// CHECK-SAME:                              %[[VAL_1:.*]]: !torch.vtensor<[2,1],si64>,
+// CHECK-SAME:                              %[[VAL_2:.*]]: !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 16 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+func.func @test_scatternd(%arg0: !torch.vtensor<[4,4,4],f32>, %arg1: !torch.vtensor<[2,1],si64>, %arg2: !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 16 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[VAL_3:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_4:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_5:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_4]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_6:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_7:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_6]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_8:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_9:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_8]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_10:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_12:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_13:.*]] = torch.aten.size.int %[[VAL_1]], %[[VAL_12]] : !torch.vtensor<[2,1],si64>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_14:.*]] = torch.aten.mul.int %[[VAL_11]], %[[VAL_13]] : !torch.int, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_15:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_16:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_17:.*]] = torch.aten.slice.Tensor %[[VAL_1]], %[[VAL_15]], %[[VAL_10]], %[[VAL_16]], %[[VAL_11]] : !torch.vtensor<[2,1],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_18:.*]] = torch.aten.lt.Scalar %[[VAL_17]], %[[VAL_10]] : !torch.vtensor<[2,1],si64>, !torch.int -> !torch.vtensor<[2,1],i1>
+  // CHECK:           %[[VAL_19:.*]] = torch.aten.add.Scalar %[[VAL_17]], %[[VAL_5]], %[[VAL_11]] : !torch.vtensor<[2,1],si64>, !torch.int, !torch.int -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_20:.*]] = torch.aten.where.self %[[VAL_18]], %[[VAL_19]], %[[VAL_17]] : !torch.vtensor<[2,1],i1>, !torch.vtensor<[2,1],si64>, !torch.vtensor<[2,1],si64> -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_21:.*]] = torch.prim.ListConstruct %[[VAL_13]], %[[VAL_11]], %[[VAL_11]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_22:.*]] = torch.aten.view %[[VAL_20]], %[[VAL_21]] : !torch.vtensor<[2,1],si64>, !torch.list<int> -> !torch.vtensor<[2,1,1],si64>
+  // CHECK:           %[[VAL_23:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_24:.*]] = torch.aten.flatten.using_ints %[[VAL_22]], %[[VAL_10]], %[[VAL_23]] : !torch.vtensor<[2,1,1],si64>, !torch.int, !torch.int -> !torch.vtensor<[2,1,1],si64>
+  // CHECK:           %[[VAL_25:.*]] = torch.aten.flatten.using_ints %[[VAL_2]], %[[VAL_10]], %[[VAL_23]] : !torch.vtensor<[2,4,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,4,4],f32>
+  // CHECK:           %[[VAL_26:.*]] = torch.prim.ListConstruct %[[VAL_14]], %[[VAL_7]], %[[VAL_9]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_27:.*]] = torch.constant.bool false
+  // CHECK:           %[[VAL_28:.*]] = torch.aten.expand %[[VAL_24]], %[[VAL_26]], %[[VAL_27]] : !torch.vtensor<[2,1,1],si64>, !torch.list<int>, !torch.bool -> !torch.vtensor<[2,4,4],si64>
+  // CHECK:           %[[VAL_29:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_30:.*]] = torch.aten.flatten.using_ints %[[VAL_0]], %[[VAL_10]], %[[VAL_29]] : !torch.vtensor<[4,4,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[4,4,4],f32>
+  // CHECK:           %[[VAL_31:.*]] = torch.aten.scatter.src %[[VAL_30]], %[[VAL_10]], %[[VAL_28]], %[[VAL_25]] : !torch.vtensor<[4,4,4],f32>, !torch.int, !torch.vtensor<[2,4,4],si64>, !torch.vtensor<[2,4,4],f32> -> !torch.vtensor<[4,4,4],f32>
+  // CHECK:           return %[[VAL_31]] : !torch.vtensor<[4,4,4],f32>
+  // CHECK:         }
+  %none = torch.constant.none
+  %0 = torch.operator "onnx.ScatterND"(%arg0, %arg1, %arg2) : (!torch.vtensor<[4,4,4],f32>, !torch.vtensor<[2,1],si64>, !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32>
+  return %0 : !torch.vtensor<[4,4,4],f32>
+}
+
+// CHECK-LABEL:   func.func @test_scatternd_add(
+// CHECK-SAME:                                  %[[VAL_0:.*]]: !torch.vtensor<[4,4,4],f32>,
+// CHECK-SAME:                                  %[[VAL_1:.*]]: !torch.vtensor<[2,1],si64>,
+// CHECK-SAME:                                  %[[VAL_2:.*]]: !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 16 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+func.func @test_scatternd_add(%arg0: !torch.vtensor<[4,4,4],f32>, %arg1: !torch.vtensor<[2,1],si64>, %arg2: !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 16 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[VAL_3:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_4:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_5:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_4]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_6:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_7:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_6]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_8:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_9:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_8]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_10:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_12:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_13:.*]] = torch.aten.size.int %[[VAL_1]], %[[VAL_12]] : !torch.vtensor<[2,1],si64>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_14:.*]] = torch.aten.mul.int %[[VAL_11]], %[[VAL_13]] : !torch.int, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_15:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_16:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_17:.*]] = torch.aten.slice.Tensor %[[VAL_1]], %[[VAL_15]], %[[VAL_10]], %[[VAL_16]], %[[VAL_11]] : !torch.vtensor<[2,1],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_18:.*]] = torch.aten.lt.Scalar %[[VAL_17]], %[[VAL_10]] : !torch.vtensor<[2,1],si64>, !torch.int -> !torch.vtensor<[2,1],i1>
+  // CHECK:           %[[VAL_19:.*]] = torch.aten.add.Scalar %[[VAL_17]], %[[VAL_5]], %[[VAL_11]] : !torch.vtensor<[2,1],si64>, !torch.int, !torch.int -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_20:.*]] = torch.aten.where.self %[[VAL_18]], %[[VAL_19]], %[[VAL_17]] : !torch.vtensor<[2,1],i1>, !torch.vtensor<[2,1],si64>, !torch.vtensor<[2,1],si64> -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_21:.*]] = torch.prim.ListConstruct %[[VAL_13]], %[[VAL_11]], %[[VAL_11]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_22:.*]] = torch.aten.view %[[VAL_20]], %[[VAL_21]] : !torch.vtensor<[2,1],si64>, !torch.list<int> -> !torch.vtensor<[2,1,1],si64>
+  // CHECK:           %[[VAL_23:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_24:.*]] = torch.aten.flatten.using_ints %[[VAL_22]], %[[VAL_10]], %[[VAL_23]] : !torch.vtensor<[2,1,1],si64>, !torch.int, !torch.int -> !torch.vtensor<[2,1,1],si64>
+  // CHECK:           %[[VAL_25:.*]] = torch.aten.flatten.using_ints %[[VAL_2]], %[[VAL_10]], %[[VAL_23]] : !torch.vtensor<[2,4,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,4,4],f32>
+  // CHECK:           %[[VAL_26:.*]] = torch.prim.ListConstruct %[[VAL_14]], %[[VAL_7]], %[[VAL_9]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_27:.*]] = torch.constant.bool false
+  // CHECK:           %[[VAL_28:.*]] = torch.aten.expand %[[VAL_24]], %[[VAL_26]], %[[VAL_27]] : !torch.vtensor<[2,1,1],si64>, !torch.list<int>, !torch.bool -> !torch.vtensor<[2,4,4],si64>
+  // CHECK:           %[[VAL_29:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_30:.*]] = torch.aten.flatten.using_ints %[[VAL_0]], %[[VAL_10]], %[[VAL_29]] : !torch.vtensor<[4,4,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[4,4,4],f32>
+  // CHECK:           %[[VAL_31:.*]] = torch.constant.str "sum"
+  // CHECK:           %[[VAL_32:.*]] = torch.constant.bool true
+  // CHECK:           %[[VAL_33:.*]] = torch.aten.scatter_reduce.two %[[VAL_30]], %[[VAL_10]], %[[VAL_28]], %[[VAL_25]], %[[VAL_31]], %[[VAL_32]] : !torch.vtensor<[4,4,4],f32>, !torch.int, !torch.vtensor<[2,4,4],si64>, !torch.vtensor<[2,4,4],f32>, !torch.str, !torch.bool -> !torch.vtensor<[4,4,4],f32>
+  // CHECK:           return %[[VAL_33]] : !torch.vtensor<[4,4,4],f32>
+  // CHECK:         }
+  %none = torch.constant.none
+  %0 = torch.operator "onnx.ScatterND"(%arg0, %arg1, %arg2) {torch.onnx.reduction = "add"} : (!torch.vtensor<[4,4,4],f32>, !torch.vtensor<[2,1],si64>, !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32>
+    return %0 : !torch.vtensor<[4,4,4],f32>
+}
+
+// CHECK-LABEL:   func.func @test_scatternd_mul(
+// CHECK-SAME:                                  %[[VAL_0:.*]]: !torch.vtensor<[4,4,4],f32>,
+// CHECK-SAME:                                  %[[VAL_1:.*]]: !torch.vtensor<[2,1],si64>,
+// CHECK-SAME:                                  %[[VAL_2:.*]]: !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 16 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+func.func @test_scatternd_mul(%arg0: !torch.vtensor<[4,4,4],f32>, %arg1: !torch.vtensor<[2,1],si64>, %arg2: !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 16 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[VAL_3:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_4:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_5:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_4]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_6:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_7:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_6]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_8:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_9:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_8]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_10:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_12:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_13:.*]] = torch.aten.size.int %[[VAL_1]], %[[VAL_12]] : !torch.vtensor<[2,1],si64>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_14:.*]] = torch.aten.mul.int %[[VAL_11]], %[[VAL_13]] : !torch.int, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_15:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_16:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_17:.*]] = torch.aten.slice.Tensor %[[VAL_1]], %[[VAL_15]], %[[VAL_10]], %[[VAL_16]], %[[VAL_11]] : !torch.vtensor<[2,1],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_18:.*]] = torch.aten.lt.Scalar %[[VAL_17]], %[[VAL_10]] : !torch.vtensor<[2,1],si64>, !torch.int -> !torch.vtensor<[2,1],i1>
+  // CHECK:           %[[VAL_19:.*]] = torch.aten.add.Scalar %[[VAL_17]], %[[VAL_5]], %[[VAL_11]] : !torch.vtensor<[2,1],si64>, !torch.int, !torch.int -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_20:.*]] = torch.aten.where.self %[[VAL_18]], %[[VAL_19]], %[[VAL_17]] : !torch.vtensor<[2,1],i1>, !torch.vtensor<[2,1],si64>, !torch.vtensor<[2,1],si64> -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_21:.*]] = torch.prim.ListConstruct %[[VAL_13]], %[[VAL_11]], %[[VAL_11]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_22:.*]] = torch.aten.view %[[VAL_20]], %[[VAL_21]] : !torch.vtensor<[2,1],si64>, !torch.list<int> -> !torch.vtensor<[2,1,1],si64>
+  // CHECK:           %[[VAL_23:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_24:.*]] = torch.aten.flatten.using_ints %[[VAL_22]], %[[VAL_10]], %[[VAL_23]] : !torch.vtensor<[2,1,1],si64>, !torch.int, !torch.int -> !torch.vtensor<[2,1,1],si64>
+  // CHECK:           %[[VAL_25:.*]] = torch.aten.flatten.using_ints %[[VAL_2]], %[[VAL_10]], %[[VAL_23]] : !torch.vtensor<[2,4,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,4,4],f32>
+  // CHECK:           %[[VAL_26:.*]] = torch.prim.ListConstruct %[[VAL_14]], %[[VAL_7]], %[[VAL_9]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_27:.*]] = torch.constant.bool false
+  // CHECK:           %[[VAL_28:.*]] = torch.aten.expand %[[VAL_24]], %[[VAL_26]], %[[VAL_27]] : !torch.vtensor<[2,1,1],si64>, !torch.list<int>, !torch.bool -> !torch.vtensor<[2,4,4],si64>
+  // CHECK:           %[[VAL_29:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_30:.*]] = torch.aten.flatten.using_ints %[[VAL_0]], %[[VAL_10]], %[[VAL_29]] : !torch.vtensor<[4,4,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[4,4,4],f32>
+  // CHECK:           %[[VAL_31:.*]] = torch.constant.str "prod"
+  // CHECK:           %[[VAL_32:.*]] = torch.constant.bool true
+  // CHECK:           %[[VAL_33:.*]] = torch.aten.scatter_reduce.two %[[VAL_30]], %[[VAL_10]], %[[VAL_28]], %[[VAL_25]], %[[VAL_31]], %[[VAL_32]] : !torch.vtensor<[4,4,4],f32>, !torch.int, !torch.vtensor<[2,4,4],si64>, !torch.vtensor<[2,4,4],f32>, !torch.str, !torch.bool -> !torch.vtensor<[4,4,4],f32>
+  // CHECK:           return %[[VAL_33]] : !torch.vtensor<[4,4,4],f32>
+  // CHECK:         }
+  %none = torch.constant.none
+  %0 = torch.operator "onnx.ScatterND"(%arg0, %arg1, %arg2) {torch.onnx.reduction = "mul"} : (!torch.vtensor<[4,4,4],f32>, !torch.vtensor<[2,1],si64>, !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32>
+    return %0 : !torch.vtensor<[4,4,4],f32>
+}
+
+// CHECK-LABEL:   func.func @test_scatternd_max(
+// CHECK-SAME:                                  %[[VAL_0:.*]]: !torch.vtensor<[4,4,4],f32>,
+// CHECK-SAME:                                  %[[VAL_1:.*]]: !torch.vtensor<[2,1],si64>,
+// CHECK-SAME:                                  %[[VAL_2:.*]]: !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 16 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+func.func @test_scatternd_max(%arg0: !torch.vtensor<[4,4,4],f32>, %arg1: !torch.vtensor<[2,1],si64>, %arg2: !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 16 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[VAL_3:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_4:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_5:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_4]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_6:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_7:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_6]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_8:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_9:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_8]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_10:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_12:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_13:.*]] = torch.aten.size.int %[[VAL_1]], %[[VAL_12]] : !torch.vtensor<[2,1],si64>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_14:.*]] = torch.aten.mul.int %[[VAL_11]], %[[VAL_13]] : !torch.int, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_15:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_16:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_17:.*]] = torch.aten.slice.Tensor %[[VAL_1]], %[[VAL_15]], %[[VAL_10]], %[[VAL_16]], %[[VAL_11]] : !torch.vtensor<[2,1],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_18:.*]] = torch.aten.lt.Scalar %[[VAL_17]], %[[VAL_10]] : !torch.vtensor<[2,1],si64>, !torch.int -> !torch.vtensor<[2,1],i1>
+  // CHECK:           %[[VAL_19:.*]] = torch.aten.add.Scalar %[[VAL_17]], %[[VAL_5]], %[[VAL_11]] : !torch.vtensor<[2,1],si64>, !torch.int, !torch.int -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_20:.*]] = torch.aten.where.self %[[VAL_18]], %[[VAL_19]], %[[VAL_17]] : !torch.vtensor<[2,1],i1>, !torch.vtensor<[2,1],si64>, !torch.vtensor<[2,1],si64> -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_21:.*]] = torch.prim.ListConstruct %[[VAL_13]], %[[VAL_11]], %[[VAL_11]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_22:.*]] = torch.aten.view %[[VAL_20]], %[[VAL_21]] : !torch.vtensor<[2,1],si64>, !torch.list<int> -> !torch.vtensor<[2,1,1],si64>
+  // CHECK:           %[[VAL_23:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_24:.*]] = torch.aten.flatten.using_ints %[[VAL_22]], %[[VAL_10]], %[[VAL_23]] : !torch.vtensor<[2,1,1],si64>, !torch.int, !torch.int -> !torch.vtensor<[2,1,1],si64>
+  // CHECK:           %[[VAL_25:.*]] = torch.aten.flatten.using_ints %[[VAL_2]], %[[VAL_10]], %[[VAL_23]] : !torch.vtensor<[2,4,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,4,4],f32>
+  // CHECK:           %[[VAL_26:.*]] = torch.prim.ListConstruct %[[VAL_14]], %[[VAL_7]], %[[VAL_9]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_27:.*]] = torch.constant.bool false
+  // CHECK:           %[[VAL_28:.*]] = torch.aten.expand %[[VAL_24]], %[[VAL_26]], %[[VAL_27]] : !torch.vtensor<[2,1,1],si64>, !torch.list<int>, !torch.bool -> !torch.vtensor<[2,4,4],si64>
+  // CHECK:           %[[VAL_29:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_30:.*]] = torch.aten.flatten.using_ints %[[VAL_0]], %[[VAL_10]], %[[VAL_29]] : !torch.vtensor<[4,4,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[4,4,4],f32>
+  // CHECK:           %[[VAL_31:.*]] = torch.constant.str "amax"
+  // CHECK:           %[[VAL_32:.*]] = torch.constant.bool true
+  // CHECK:           %[[VAL_33:.*]] = torch.aten.scatter_reduce.two %[[VAL_30]], %[[VAL_10]], %[[VAL_28]], %[[VAL_25]], %[[VAL_31]], %[[VAL_32]] : !torch.vtensor<[4,4,4],f32>, !torch.int, !torch.vtensor<[2,4,4],si64>, !torch.vtensor<[2,4,4],f32>, !torch.str, !torch.bool -> !torch.vtensor<[4,4,4],f32>
+  // CHECK:           return %[[VAL_33]] : !torch.vtensor<[4,4,4],f32>
+  // CHECK:         }
+  %none = torch.constant.none
+  %0 = torch.operator "onnx.ScatterND"(%arg0, %arg1, %arg2) {torch.onnx.reduction = "max"} : (!torch.vtensor<[4,4,4],f32>, !torch.vtensor<[2,1],si64>, !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32>
+    return %0 : !torch.vtensor<[4,4,4],f32>
+}
+
+// CHECK-LABEL:   func.func @test_scatternd_min(
+// CHECK-SAME:                                  %[[VAL_0:.*]]: !torch.vtensor<[4,4,4],f32>,
+// CHECK-SAME:                                  %[[VAL_1:.*]]: !torch.vtensor<[2,1],si64>,
+// CHECK-SAME:                                  %[[VAL_2:.*]]: !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 16 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+func.func @test_scatternd_min(%arg0: !torch.vtensor<[4,4,4],f32>, %arg1: !torch.vtensor<[2,1],si64>, %arg2: !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 16 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[VAL_3:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_4:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_5:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_4]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_6:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_7:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_6]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_8:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_9:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_8]] : !torch.vtensor<[4,4,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_10:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_12:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_13:.*]] = torch.aten.size.int %[[VAL_1]], %[[VAL_12]] : !torch.vtensor<[2,1],si64>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_14:.*]] = torch.aten.mul.int %[[VAL_11]], %[[VAL_13]] : !torch.int, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_15:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_16:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_17:.*]] = torch.aten.slice.Tensor %[[VAL_1]], %[[VAL_15]], %[[VAL_10]], %[[VAL_16]], %[[VAL_11]] : !torch.vtensor<[2,1],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_18:.*]] = torch.aten.lt.Scalar %[[VAL_17]], %[[VAL_10]] : !torch.vtensor<[2,1],si64>, !torch.int -> !torch.vtensor<[2,1],i1>
+  // CHECK:           %[[VAL_19:.*]] = torch.aten.add.Scalar %[[VAL_17]], %[[VAL_5]], %[[VAL_11]] : !torch.vtensor<[2,1],si64>, !torch.int, !torch.int -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_20:.*]] = torch.aten.where.self %[[VAL_18]], %[[VAL_19]], %[[VAL_17]] : !torch.vtensor<[2,1],i1>, !torch.vtensor<[2,1],si64>, !torch.vtensor<[2,1],si64> -> !torch.vtensor<[2,1],si64>
+  // CHECK:           %[[VAL_21:.*]] = torch.prim.ListConstruct %[[VAL_13]], %[[VAL_11]], %[[VAL_11]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_22:.*]] = torch.aten.view %[[VAL_20]], %[[VAL_21]] : !torch.vtensor<[2,1],si64>, !torch.list<int> -> !torch.vtensor<[2,1,1],si64>
+  // CHECK:           %[[VAL_23:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_24:.*]] = torch.aten.flatten.using_ints %[[VAL_22]], %[[VAL_10]], %[[VAL_23]] : !torch.vtensor<[2,1,1],si64>, !torch.int, !torch.int -> !torch.vtensor<[2,1,1],si64>
+  // CHECK:           %[[VAL_25:.*]] = torch.aten.flatten.using_ints %[[VAL_2]], %[[VAL_10]], %[[VAL_23]] : !torch.vtensor<[2,4,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,4,4],f32>
+  // CHECK:           %[[VAL_26:.*]] = torch.prim.ListConstruct %[[VAL_14]], %[[VAL_7]], %[[VAL_9]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_27:.*]] = torch.constant.bool false
+  // CHECK:           %[[VAL_28:.*]] = torch.aten.expand %[[VAL_24]], %[[VAL_26]], %[[VAL_27]] : !torch.vtensor<[2,1,1],si64>, !torch.list<int>, !torch.bool -> !torch.vtensor<[2,4,4],si64>
+  // CHECK:           %[[VAL_29:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_30:.*]] = torch.aten.flatten.using_ints %[[VAL_0]], %[[VAL_10]], %[[VAL_29]] : !torch.vtensor<[4,4,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[4,4,4],f32>
+  // CHECK:           %[[VAL_31:.*]] = torch.constant.str "amin"
+  // CHECK:           %[[VAL_32:.*]] = torch.constant.bool true
+  // CHECK:           %[[VAL_33:.*]] = torch.aten.scatter_reduce.two %[[VAL_30]], %[[VAL_10]], %[[VAL_28]], %[[VAL_25]], %[[VAL_31]], %[[VAL_32]] : !torch.vtensor<[4,4,4],f32>, !torch.int, !torch.vtensor<[2,4,4],si64>, !torch.vtensor<[2,4,4],f32>, !torch.str, !torch.bool -> !torch.vtensor<[4,4,4],f32>
+  // CHECK:           return %[[VAL_33]] : !torch.vtensor<[4,4,4],f32>
+  // CHECK:         }
+  %none = torch.constant.none
+  %0 = torch.operator "onnx.ScatterND"(%arg0, %arg1, %arg2) {torch.onnx.reduction = "min"} : (!torch.vtensor<[4,4,4],f32>, !torch.vtensor<[2,1],si64>, !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32>
+    return %0 : !torch.vtensor<[4,4,4],f32>
+}
