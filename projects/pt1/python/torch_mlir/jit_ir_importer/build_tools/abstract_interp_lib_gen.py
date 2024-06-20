@@ -1356,6 +1356,17 @@ def aten〇_index_put_impl〡shape(self: List[int], indices: List[Optional[List[
 def aten〇bernoulli〡shape(self: List[int], generator: Any = None) -> List[int]:
     return self
 
+@check_shape_function([
+    Invocation(TensorOfShape(5), num_samples=3), # Vector
+    Invocation(TensorOfShape(4, 5), num_samples=3), # Matrix
+])
+def aten〇multinomial〡shape(self: List[int], num_samples: int, replacement: bool = False, generator: Any = None) -> List[int]:
+    assert len(self) == 1 or len(self) == 2
+    if len(self) == 1:
+        return [num_samples]
+    num_rows = self[0]
+    return [num_rows, num_samples]
+
 def aten〇cumsum〡shape(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
     return self
 
@@ -2558,6 +2569,10 @@ def aten〇bernoulli〡dtype(self_rank_dtype: Tuple[int, int], generator: Any = 
 def aten〇bernoulli〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], p_rank_dtype: Tuple[int, int], generator: Any = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+@check_dtype_function([Invocation(TensorOfShape(5, dtype=dtype), 3) for dtype in _SORTED_TORCH_TYPES])
+def aten〇multinomial〡dtype(self_rank_dtype: Tuple[int, int], num_samples: int, replacement: bool = False, generator: Any = None) -> int:
+    return torch.int64
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇bitwise_not〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
