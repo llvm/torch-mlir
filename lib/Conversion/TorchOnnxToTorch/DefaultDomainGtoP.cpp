@@ -1414,11 +1414,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         auto transpose = [&](Value m) -> Value {
           auto tty = cast<Torch::ValueTensorType>(m.getType());
-          auto shape = tty.getOptionalSizes();
+          std::optional<ArrayRef<int64_t>> shape = tty.getOptionalSizes();
+          llvm::SmallVector<int64_t> newShape;
           if (shape.has_value()) {
-            llvm::SmallVector<int64_t> newShape(shape.value());
+            newShape.append(shape.value().begin(), shape.value().end());
             std::reverse(newShape.begin(), newShape.end());
-            shape = std::move(newShape);
+            shape = newShape;
           }
           auto oty = Torch::ValueTensorType::get(tty.getContext(), shape,
                                                  tty.getOptionalDtype());
