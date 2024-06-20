@@ -46,7 +46,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(alpha));
-
         Value constBeta = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(beta));
@@ -62,18 +61,16 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             /*alpha=*/constOne);
 
         // Expression: min(1, alpha * x + beta)
-        Value constantOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
-        Value oneTensor = createRank0Tensor(rewriter, binder.getLoc(),
-                                            resultType, constantOne);
+        Value oneTensor =
+            createRank0Tensor(rewriter, binder.getLoc(), resultType, constOne);
         Value minExpression = rewriter.create<Torch::AtenMinimumOp>(
             binder.getLoc(), resultType, oneTensor, alphaMulXPlusBeta);
 
         // Expression: max(0, min(1, alpha * x + beta))
-        Value constantZero = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(0));
-        Value zeroTensor = createRank0Tensor(rewriter, binder.getLoc(),
-                                             resultType, constantZero);
+        Value constZero = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getF64FloatAttr(0.0));
+        Value zeroTensor =
+            createRank0Tensor(rewriter, binder.getLoc(), resultType, constZero);
         rewriter.replaceOpWithNewOp<Torch::AtenMaximumOp>(
             binder.op, resultType, zeroTensor, minExpression);
         return success();
