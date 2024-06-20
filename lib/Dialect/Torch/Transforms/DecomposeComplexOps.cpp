@@ -2319,6 +2319,42 @@ public:
 };
 } // namespace
 
+namespace {
+
+class DecomposeAten_LinalgDetOp : public OpRewritePattern<Aten_LinalgDetOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_LinalgDetOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value, 3> results = op.getResults();
+    for (unsigned i = 1; i < 3; i++) {
+      if (!results[i].use_empty())
+        return rewriter.notifyMatchFailure(
+            op, "unsupported: _linalg_det results: LU and pivot");
+    }
+    Location loc = op.getLoc();
+    Value input = op.getA();
+    Value determinant = rewriter.create<Torch::AtenLinalgDetOp>(
+        loc, results[0].getType(), input);
+    Value fakeLU = input;
+    auto inputType = cast<ValueTensorType>(input.getType());
+    SmallVector<int64_t> sliceSizes(inputType.getSizes());
+    sliceSizes.pop_back();
+    Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    auto sliceTy = rewriter.getType<Torch::ValueTensorType>(
+        sliceSizes, inputType.getDtype());
+    Value fakePivot = rewriter.create<Torch::AtenSliceTensorOp>(
+        loc, sliceTy, input, /*dim=*/cstOne, /*start=*/cstZero,
+        /*stop=*/cstOne, /*step=*/cstOne);
+    rewriter.replaceOp(op, ValueRange{determinant, fakeLU, fakePivot});
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.pixel_shuffle into: prims.split_dim, aten.permute, and
 // prims.collapse operations.
 //
@@ -8375,6 +8411,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTriuOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgNormOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_LinalgDetOp>(patterns);
     // More specific conv ops
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTbcOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv1dOp>(patterns);

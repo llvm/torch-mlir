@@ -208,9 +208,16 @@ def aten〇sgn〡shape(self: List[int]) -> List[int]:
 
 def aten〇linalg_det〡shape(A: List[int]) -> List[int]:
     assert len(A) == 2 or len(A) == 3
+    assert A[-1] == A[-2]
     if len(A) == 3:
         return A[:1]
     return upstream_shape_functions.zero_dim_tensor(A)
+
+def aten〇_linalg_det〡shape(A: List[int]) -> Tuple[List[int], List[int], List[int]]:
+    return (aten〇linalg_det〡shape(A), A, A[:-1])
+
+def aten〇_linalg_det〡dtype(A_rank_dtype: Tuple[int, int]) -> Tuple[int, int, int]:
+    return (A_rank_dtype[1], A_rank_dtype[1], A_rank_dtype[1])
 
 def aten〇detach〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)

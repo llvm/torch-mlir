@@ -8557,6 +8557,31 @@ def Torch_AtenLinalgDetOp : Torch_Op<"aten.linalg_det", [
   }];
 }
 
+def Torch_Aten_LinalgDetOp : Torch_Op<"aten._linalg_det", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_linalg_det : (Tensor) -> (Tensor, Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$A
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result,
+    AnyTorchOptionalTensorType:$LU,
+    AnyTorchOptionalTensorType:$pivots
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_LinalgDetOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 3);
+    }
+    void Aten_LinalgDetOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 3);
+    }
+  }];
+}
+
 def Torch_AtenFrobeniusNormDimOp : Torch_Op<"aten.frobenius_norm.dim", [
     AllowsTypeRefinement,
     HasValueSemantics,
