@@ -5,9 +5,7 @@
 // CHECK-DAG: %[[TC0:.*]] = torch_c.to_builtin_tensor %[[ARG0:.*]] : !torch.vtensor<[4,10,10,4],f32> -> tensor<4x10x10x4xf32>
 // CHECK-DAG: %[[TC1:.*]] = torch_c.to_builtin_tensor %[[ARG1:.*]] : !torch.vtensor<[4,6,8,2],f32> -> tensor<4x6x8x2xf32>
 // CHECK-DAG: %[[FALSE:.*]] = torch.constant.bool false
-// CHECK-DAG: %[[C0:.*]] = arith.constant 0 : index
 // CHECK-DAG: %[[C1:.*]] = arith.constant 1 : index
-// CHECK-DAG: %[[C2:.*]] = arith.constant 2 : index
 // CHECK-DAG: %[[CST:.*]] = arith.constant 0.000000e+00 : f32
 // CHECK-DAG: %[[CST1:.*]] = arith.constant 1.000000e+00 : f32
 // CHECK-DAG: %[[CST2:.*]] = arith.constant 2.000000e+00 : f32
