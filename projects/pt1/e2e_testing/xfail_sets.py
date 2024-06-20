@@ -2757,6 +2757,14 @@ if torch_version_for_comparison() < version.parse("2.4.0.dev"):
         "ElementwiseBitwiseLeftShiftInt8Module_basic",
     }
 
+if torch_version_for_comparison() < version.parse("2.4.0.dev"):
+    STABLEHLO_PASS_SET = STABLEHLO_PASS_SET - {
+        "AtenIntMM_basic",
+    }
+    FX_IMPORTER_STABLEHLO_XFAIL_SET = FX_IMPORTER_STABLEHLO_XFAIL_SET | {
+        "AtenIntMM_basic",
+    }
+
 
 ONNX_CRASHING_SET = {
     "FakeQuantizePerTensorAffineModule_basic",
