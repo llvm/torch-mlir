@@ -2544,13 +2544,42 @@ func.func @test_sequence_empty() -> !torch.list<vtensor<[],f32>> attributes {tor
 
 // -----
 
+// CHECK-LABEL: func.func @test_upsample_nearest
 func.func @test_upsample_nearest(%arg0: !torch.vtensor<[1,1,2,2],f32>, %arg1: !torch.vtensor<[4],f32>) -> !torch.vtensor<[1,1,4,6],f32> attributes {torch.onnx_meta.ir_version = 4 : si64, torch.onnx_meta.opset_version = 9 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK: %[[INT4:.*]] = torch.constant.int 4
-  // CHECK: %[[INT6:.*]] = torch.constant.int 6
-  // CHECK: %[[OUTPUT_SIZE:.*]] = torch.prim.ListConstruct %[[INT4]], %[[INT6]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[INT0:.*]] = torch.constant.int 0
+  // CHECK: %[[INT2:.*]] = torch.constant.int 2
+  // CHECK: %[[SELECT:.*]] = torch.aten.select.int %arg1, %[[INT0]], %[[INT2]] : !torch.vtensor<[4],f32>, !torch.int, !torch.int -> !torch.vtensor<[1],f32>
+  // CHECK: %[[SCALE:.*]] = torch.aten.item %[[SELECT]] : !torch.vtensor<[1],f32> -> !torch.float
+  // CHECK: %[[INT3:.*]] = torch.constant.int 3
+  // CHECK: %[[SELECT_0:.*]] = torch.aten.select.int %arg1, %[[INT0]], %[[INT3]] : !torch.vtensor<[4],f32>, !torch.int, !torch.int -> !torch.vtensor<[1],f32>
+  // CHECK: %[[SCALE_0:.*]] = torch.aten.item %[[SELECT_0]] : !torch.vtensor<[1],f32> -> !torch.float
+  // CHECK: %[[SCALE_LIST:.*]] = torch.prim.ListConstruct %[[SCALE]], %[[SCALE_0]] : (!torch.float, !torch.float) -> !torch.list<float>
+  // CHECK: %[[MODE:.*]] = torch.constant.str "nearest"
   // CHECK: %[[NONE:.*]] = torch.constant.none
-  // CHECK: %[[UPSAMPLE_RESULT:.*]] = torch.aten.upsample_nearest2d %arg0, %[[OUTPUT_SIZE]], %[[NONE]], %[[NONE]] : !torch.vtensor<[1,1,2,2],f32>, !torch.list<int>, !torch.none, !torch.none -> !torch.vtensor<[1,1,4,6],f32>
-  // CHECK: return %[[UPSAMPLE_RESULT]] : !torch.vtensor<[1,1,4,6],f32>
+  // CHECK: %[[FALSE:.*]] = torch.constant.bool false
+  // CHECK: %[[UPSAMPLE:.*]] = torch.aten.__interpolate.size_list_scale_list %arg0, %[[NONE]], %[[SCALE_LIST:.*]], %[[MODE]], %[[NONE]], %[[NONE]], %[[FALSE]] : !torch.vtensor<[1,1,2,2],f32>, !torch.none, !torch.list<float>, !torch.str, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[1,1,4,6],f32>
+  // CHECK: return %[[UPSAMPLE]] : !torch.vtensor<[1,1,4,6],f32>
   %0 = torch.operator "onnx.Upsample"(%arg0, %arg1) {torch.onnx.mode = "nearest"} : (!torch.vtensor<[1,1,2,2],f32>, !torch.vtensor<[4],f32>) -> !torch.vtensor<[1,1,4,6],f32>
+  return %0 : !torch.vtensor<[1,1,4,6],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_upsample_bilinear
+func.func @test_upsample_bilinear(%arg0: !torch.vtensor<[1,1,2,2],f32>, %arg1: !torch.vtensor<[4],f32>) -> !torch.vtensor<[1,1,4,6],f32> attributes {torch.onnx_meta.ir_version = 4 : si64, torch.onnx_meta.opset_version = 9 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0:.*]] = torch.constant.int 0
+  // CHECK: %[[INT2:.*]] = torch.constant.int 2
+  // CHECK: %[[SELECT:.*]] = torch.aten.select.int %arg1, %[[INT0]], %[[INT2]] : !torch.vtensor<[4],f32>, !torch.int, !torch.int -> !torch.vtensor<[1],f32>
+  // CHECK: %[[SCALE:.*]] = torch.aten.item %[[SELECT]] : !torch.vtensor<[1],f32> -> !torch.float
+  // CHECK: %[[INT3:.*]] = torch.constant.int 3
+  // CHECK: %[[SELECT_0:.*]] = torch.aten.select.int %arg1, %[[INT0]], %[[INT3]] : !torch.vtensor<[4],f32>, !torch.int, !torch.int -> !torch.vtensor<[1],f32>
+  // CHECK: %[[SCALE_0:.*]] = torch.aten.item %[[SELECT_0]] : !torch.vtensor<[1],f32> -> !torch.float
+  // CHECK: %[[SCALE_LIST:.*]] = torch.prim.ListConstruct %[[SCALE]], %[[SCALE_0]] : (!torch.float, !torch.float) -> !torch.list<float>
+  // CHECK: %[[MODE:.*]] = torch.constant.str "bilinear"
+  // CHECK: %[[NONE:.*]] = torch.constant.none
+  // CHECK: %[[FALSE:.*]] = torch.constant.bool false
+  // CHECK: %[[UPSAMPLE:.*]] = torch.aten.__interpolate.size_list_scale_list %arg0, %[[NONE]], %[[SCALE_LIST:.*]], %[[MODE]], %[[NONE]], %[[NONE]], %[[FALSE]] : !torch.vtensor<[1,1,2,2],f32>, !torch.none, !torch.list<float>, !torch.str, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[1,1,4,6],f32>
+  // CHECK: return %[[UPSAMPLE]] : !torch.vtensor<[1,1,4,6],f32>
+  %0 = torch.operator "onnx.Upsample"(%arg0, %arg1) {torch.onnx.mode = "bilinear"} : (!torch.vtensor<[1,1,2,2],f32>, !torch.vtensor<[4],f32>) -> !torch.vtensor<[1,1,4,6],f32>
   return %0 : !torch.vtensor<[1,1,4,6],f32>
 }
