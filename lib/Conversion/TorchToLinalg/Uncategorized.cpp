@@ -3161,7 +3161,7 @@ public:
     rewriter.replaceOpWithNewOp<tensor::FromElementsOp>(op, newResultType,
                                                         ValueRange{detVal});
     return success();
-                  }
+  }
 };
 } // namespace
 

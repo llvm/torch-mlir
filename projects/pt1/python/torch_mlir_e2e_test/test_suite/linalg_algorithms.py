@@ -37,6 +37,7 @@ def DeterminantBatchedModule_F32(module, tu: TestUtils):
     A = tu.rand(3, 4, 4).to(dtype=torch.float32)
     module.forward(A)
 
+
 class DeterminantDynamicModule(torch.nn.Module):
     @export
     @annotate_args([None, [(-1, -1, -1), torch.float32, True]])
@@ -48,4 +49,3 @@ class DeterminantDynamicModule(torch.nn.Module):
 def DeterminantDynamicModule_F32(module, tu: TestUtils):
     A = tu.rand(3, 4, 4).to(dtype=torch.float32)
     module.forward(A)
-
