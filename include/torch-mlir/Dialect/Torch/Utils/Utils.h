@@ -145,6 +145,8 @@ LogicalResult getTransposedType(BaseTensorType inType, int64_t dimA,
 // control the behavior. Such support would be done in coordination with
 // the fx_importer and APIs, which could add hints to the IR (based on
 // Torch flags, user options, etc).
+// Note: The special case of int8 intentionally deviates from the reference, and
+// uses int32 instead of int64 accumulation.
 Type getDefaultAccType(PatternRewriter &rewriter, Type inputType);
 
 LogicalResult getPermutedType(BaseTensorType inType,

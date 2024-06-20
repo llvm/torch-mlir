@@ -625,15 +625,14 @@ Type Torch::getDefaultAccType(PatternRewriter &rewriter, Type inputType) {
     return rewriter.getF32Type();
   if (inputType.isFloat8E4M3FNUZ())
     return rewriter.getF32Type();
-  if (inputType.isSignedInteger(8))
+  if (inputType.isInteger(8))
+    // this is an intentional deviation from CUDA (which accumulates i8 to i64)
+    return rewriter.getI32Type();
+  if (inputType.isInteger(16))
     return rewriter.getI64Type();
-  if (inputType.isUnsignedInteger(8))
+  if (inputType.isInteger(32))
     return rewriter.getI64Type();
-  if (inputType.isSignedInteger(16))
-    return rewriter.getI64Type();
-  if (inputType.isSignedInteger(32))
-    return rewriter.getI64Type();
-  if (inputType.isSignedInteger(64))
+  if (inputType.isInteger(64))
     return rewriter.getI64Type();
   return inputType;
 }
