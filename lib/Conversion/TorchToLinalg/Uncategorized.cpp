@@ -2955,7 +2955,8 @@ public:
 } // namespace
 
 namespace {
-// This pattern computes a row reduction of a matrix, then returns the product of it's diagonal elements
+// This pattern row reduces a matrix, then returns the product of it's diagonal
+// elements
 class ConvertAtenLinalgDetOp : public OpConversionPattern<AtenLinalgDetOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -2967,98 +2968,112 @@ public:
     Value input = adaptor.getA();
     auto inputType = cast<RankedTensorType>(input.getType());
     unsigned inputRank = inputType.getRank();
+    auto elemTy = inputType.getElementType();
     bool isBatched = (inputRank == 3);
     Value cstZero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value cstOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
-    Value chDim = cstZero;
-    if (isBatched)
-      chDim = getDimOp(rewriter, loc, input, 0);
-    Value matDim = getDimOp(rewriter, loc, input, inputRank - 1);
-    Value matDimMinusOne = rewriter.create<arith::SubIOp>(loc, matDim, cstOne);
-    Value matDimMinusTwo =
-        rewriter.create<arith::SubIOp>(loc, matDimMinusOne, cstOne);
-    SmallVector<int64_t> sliceShape(inputType.getShape());
-    sliceShape.pop_back();
-    auto elemTy = inputType.getElementType();
     Value cstZeroF = getConstant(rewriter, loc, 0, elemTy);
+    // get some shapes
+    SmallVector<int64_t> inputShape(inputType.getShape());
+    SmallVector<int64_t> sliceShape(inputShape);
+    sliceShape.pop_back();
+    SmallVector<int64_t> diagShape({isBatched ? inputType.getShape()[0] : 1});
     auto sliceTy = RankedTensorType::get(sliceShape, elemTy);
-    SmallVector<int64_t> diagShape({isBatched ? inputType.getShape()[0] : 0});
     auto diagTy = RankedTensorType::get(diagShape, elemTy);
+    // get some sizes
+    SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
+    Value chDim = isBatched ? inputSizes[0] : cstOne;
+    Value matDim = inputSizes[inputRank - 1];
+    Value matDimMinusOne = rewriter.create<arith::SubIOp>(loc, matDim, cstOne);
     ArrayRef<Value> sliceSizes(inputSizes.begin(), inputSizes.end() - 1);
+    // initialize a tensor to store the diagonal elements found during row
+    // reduction
     Value initDiags = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(sliceSizes), elemTy);
+    // loop over each pivot row in A. Get the diagonal, then reduce the
+    // subdiagonal Don't perform the loop on the last row since no further
+    // reduction is needed.
     auto rowReductionLoop = rewriter.create<scf::ForOp>(
         loc, /*start=*/cstZero, /*end=*/matDimMinusOne, /*step=*/cstOne,
         /*yeild_to=*/ValueRange{input, initDiags}, /*body_lambda=*/
-        [&](OpBuilder &b, Location loc, Value i, ValueRange vals) {
+        [&](OpBuilder &b, Location loc, Value row, ValueRange vals) {
           // extract row i from input Tensor of shape CxNxN or shape
           // NxN.
-          SmallVector<Value> offsets(inputRank, cstZero);
-          offsets[inputRank - 2] = i;
-          SmallVector<Value> strides(inputRank, cstOne);
-          SmallVector<Value> sizes = inputSizes;
-          sizes[inputRank - 2] = cstOne;
+          OpFoldResult cstOneFold = getAsOpFoldResult(cstOne);
+          OpFoldResult cstZeroFold = getAsOpFoldResult(cstZero);
+          SmallVector<OpFoldResult> offsets(inputRank, cstZeroFold);
+          offsets[inputRank - 2] = row;
+          SmallVector<OpFoldResult> strides(inputRank, cstOneFold);
+          auto sizes = getAsOpFoldResult(inputSizes);
+          sizes[inputRank - 2] = cstOneFold;
+          // offsets = [0, row, 0], sizes = [C, 1, N] -> pivot row
           Value pivot = b.create<tensor::ExtractSliceOp>(
-              loc, sliceTy, vals[0], getAsOpFoldResult(offsets),
-              getAsOpFoldResult(sizes), getAsOpFoldResult(strides));
+              loc, sliceTy, vals[0], offsets, sizes, strides);
           // extract diagonal elements and insert them into vals[1]
-          offsets.back() = i;
-          sizes.back() = cstOne;
+          offsets.back() = row;
+          sizes.back() = cstOneFold;
+          // offsets = [0, row, row], sizes = [C, 1, 1] -> diag(row,row)
           Value diag = b.create<tensor::ExtractSliceOp>(
-              loc, diagTy, vals[0], getAsOpFoldResult(offsets),
-              getAsOpFoldResult(sizes), getAsOpFoldResult(strides));
-          SmallVector<Value> diagOffsets(inputRank - 1, cstZero);
-          diagOffsets.back() = i;
-          SmallVector<Value> diagStrides(inputRank - 1, cstOne);
-          SmallVector<Value> diagSizes(sliceSizes);
-          diagSizes.back() = cstOne;
+              loc, diagTy, vals[0], offsets, sizes, strides);
+          SmallVector<OpFoldResult> diagOffsets(inputRank - 1, cstZeroFold);
+          diagOffsets.back() = row;
+          SmallVector<OpFoldResult> diagStrides(inputRank - 1, cstOneFold);
+          SmallVector<OpFoldResult> diagSizes = getAsOpFoldResult(sliceSizes);
+          diagSizes.back() = cstOneFold;
+          // offsets = [0, row], sizes = [C, 1] insert to [C,N]
           Value updatedDiags = b.create<tensor::InsertSliceOp>(
-              loc, diag, vals[1], getAsOpFoldResult(diagOffsets),
-              getAsOpFoldResult(diagSizes), getAsOpFoldResult(diagStrides));
-          // extract elements below pivot row from A
-          // the subpivot row dimension, as a Value, is matDim - i -
-          // cstOne. This can't be statically converted to an int64_t, since i
+              loc, diag, vals[1], diagOffsets, diagSizes, diagStrides);
+          // the subpivot matrix column size, as a Value, is matDim - row -
+          // cstOne. This can't be statically converted to an int64_t, since row
           // is the loop index, so this is left as a dynamic dim.
           SmallVector<int64_t> subPivotShape(inputType.getShape());
           subPivotShape[inputRank - 2] = ShapedType::kDynamic;
-          auto subPivotTy = RankedTensorType::get(subPivotShape, elemTy);
           ArrayRef<int64_t> subDiagShape(subPivotShape.begin(),
                                          subPivotShape.end() - 1);
+          auto subPivotTy = RankedTensorType::get(subPivotShape, elemTy);
           auto subDiagTy = RankedTensorType::get(subDiagShape, elemTy);
-          offsets[inputRank - 2] = b.create<arith::AddIOp>(loc, i, cstOne);
-          sizes[inputRank - 2] =
-              b.create<arith::SubIOp>(loc, matDim, offsets[inputRank - 2]);
-          // extract the elements in the column below the diagonal element at
-          // (i,i). note: offsets = (0, i + 1, i), sizes = (C, N - i - 1, 1)
+          Value rowPlusOne = b.create<arith::AddIOp>(loc, row, cstOne);
+          offsets[inputRank - 2] = getAsOpFoldResult(rowPlusOne);
+          sizes[inputRank - 2] = getAsOpFoldResult(
+              b.create<arith::SubIOp>(loc, matDim, rowPlusOne));
+          // offsets = [0, row + 1, row], sizes = [C, N - row - 1, 1] -> A_j,row
+          // with j > row
           Value subDiag = b.create<tensor::ExtractSliceOp>(
-              loc, subDiagTy, vals[0], getAsOpFoldResult(offsets),
-              getAsOpFoldResult(sizes), getAsOpFoldResult(strides));
-          offsets.back() = cstOne;
-          sizes.back() = inputSizes.back();
+              loc, subDiagTy, vals[0], offsets, sizes, strides);
+          offsets.back() = cstZeroFold;
+          sizes.back() = getAsOpFoldResult(matDim);
+          // offsets = [0, row + 1, 0], sizes = [C, N - row - 1, N] -> elements
+          // below pivot row
           Value subPivot = b.create<tensor::ExtractSliceOp>(
-              loc, subPivotTy, vals[0], getAsOpFoldResult(offsets),
-              getAsOpFoldResult(sizes), getAsOpFoldResult(strides));
-          Value initResult =
-              b.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
+              loc, subPivotTy, vals[0], offsets, sizes, strides);
+          Value initResult = b.create<tensor::EmptyOp>(loc, sizes, elemTy);
           // write a generic op to perform subpivot = subpivot -
           // (subdiag/diag)*pivot
-          // d0 = batches, d1 = row, d2 = column -> (d0,d2), (d0), (d0,d1,d2),
-          // (d0, d1)
+          // d0 = batches, d1 = row, d2 = column -> pivot(d0,d2), diag(d0),
+          // subPivot(d0,d1,d2), subDiag(d0, d1); output(d0,d1,d2)
+          SmallVector<AffineExpr> allDims;
+          for (unsigned i = 0; i < inputRank; i++)
+            allDims.push_back(b.getAffineDimExpr(i));
+          SmallVector<AffineExpr> rowIterator(1, allDims[0]);
+          SmallVector<AffineExpr> colIterator;
+          SmallVector<AffineExpr> batchIterator;
+          if (isBatched) {
+            rowIterator.push_back(allDims[1]);
+            colIterator.push_back(allDims[0]);
+            colIterator.push_back(allDims[2]);
+            batchIterator.push_back(allDims[0]);
+          } else {
+            colIterator.push_back(allDims[1]);
+            batchIterator.push_back(getAffineConstantExpr(0, context));
+          }
           SmallVector<AffineMap> indexingMaps;
           indexingMaps.push_back(
-              AffineMap::get(inputRank, 0,
-                             ArrayRef<AffineExpr>{b.getAffineDimExpr(0),
-                                                  b.getAffineDimExpr(2)},
-                             context));
+              AffineMap::get(inputRank, 0, colIterator, context));
           indexingMaps.push_back(
-              AffineMap::get(inputRank, 0, b.getAffineDimExpr(0)));
+              AffineMap::get(inputRank, 0, batchIterator, context));
           indexingMaps.push_back(b.getMultiDimIdentityMap(inputRank));
           indexingMaps.push_back(
-              AffineMap::get(inputRank, 0,
-                             ArrayRef<AffineExpr>{b.getAffineDimExpr(0),
-                                                  b.getAffineDimExpr(1)},
-                             context));
+              AffineMap::get(inputRank, 0, rowIterator, context));
           indexingMaps.push_back(b.getMultiDimIdentityMap(inputRank));
           SmallVector<utils::IteratorType> iteratorTypes(
               inputRank, utils::IteratorType::parallel);
@@ -3067,52 +3082,59 @@ public:
                    loc, subPivotTy, ValueRange{pivot, diag, subPivot, subDiag},
                    initResult, indexingMaps, iteratorTypes,
                    [&](OpBuilder &b, Location loc, ValueRange args) {
+                     // for d0 in batches, d1 in subpivotrows, d2 in columns
+                     // let i represent the pivot row index (scf loop index)
+                     Value pivotd0d2 = args[0];
+                     Value diagd0 = args[1];
+                     Value subPivotd0d1d2 = args[2];
+                     Value subDiagd0d1 = args[3];
+                     // coeff = A_d1,i / A_i,i
                      Value coeff =
-                         b.create<arith::DivFOp>(loc, args[3], args[1]);
+                         b.create<arith::DivFOp>(loc, subDiagd0d1, diagd0);
                      auto cmp = b.create<arith::CmpFOp>(
-                         loc, arith::CmpFPredicate::ONE, args[1], cstZeroF);
+                         loc, arith::CmpFPredicate::ONE, diagd0, cstZeroF);
                      b.create<cf::AssertOp>(
                          loc, cmp,
                          b.getStringAttr(
                              "unimplemented: determinants requiring "
                              "permutations and singular matrices"));
+                     // coeff*A_i,d2
                      Value scaledPivotValue =
-                         b.create<arith::MulFOp>(loc, coeff, args[0]);
-                     Value result = b.create<arith::SubFOp>(loc, args[2],
+                         b.create<arith::MulFOp>(loc, coeff, pivotd0d2);
+                     // result = A_d1,d2 - (A_d1,i/A_i,i)*A_i,d2
+                     // so that when d2 = i, A_d1,i - (A_d1,i/A_i,i) * A_i,i = 0
+                     Value result = b.create<arith::SubFOp>(loc, subPivotd0d1d2,
                                                             scaledPivotValue);
                      b.create<linalg::YieldOp>(loc, result);
                    })
                   .getResult(0);
           Value rowReductionResult = b.create<tensor::InsertSliceOp>(
-              loc, reducedSubPivot, vals[0], getAsOpFoldResult(offsets),
-              getAsOpFoldResult(sizes), getAsOpFoldResult(strides));
+              loc, reducedSubPivot, vals[0], offsets, sizes, strides);
           b.create<scf::YieldOp>(loc,
                                  ValueRange{rowReductionResult, updatedDiags});
         });
     Value allDiagsExceptLast = rowReductionLoop.getResult(1);
-    SmallVector<Value> offsets(inputRank, matDimMinusOne);
+    SmallVector<OpFoldResult> offsets(inputRank,
+                                      getAsOpFoldResult(matDimMinusOne));
+    SmallVector<OpFoldResult> strides(inputRank, getAsOpFoldResult(cstOne));
+    SmallVector<OpFoldResult> sizes(inputRank, getAsOpFoldResult(cstOne));
+    sizes[0] = getAsOpFoldResult(chDim);
     if (isBatched)
-      offsets[0] = cstZero;
-    SmallVector<OpFoldResult> strides(inputRank, cstOne);
-    SmallVector<Value> sizes = inputSizes;
-    sizes[inputRank - 2] = cstOne;
-    sizes[inputRank - 1] = cstOne;
-
+      offsets[0] = getAsOpFoldResult(cstZero);
     Value lastDiag = rewriter.create<tensor::ExtractSliceOp>(
-        loc, diagTy, rowReductionLoop.getResult(0), getAsOpFoldResult(offsets),
-        getAsOpFoldResult(sizes), strides);
+        loc, diagTy, rowReductionLoop.getResult(0), offsets, sizes, strides);
     offsets.pop_back();
     strides.pop_back();
     sizes.pop_back();
     Value allDiags = rewriter.create<tensor::InsertSliceOp>(
-        loc, lastDiag, allDiagsExceptLast, getAsOpFoldResult(offsets),
-        getAsOpFoldResult(sizes), strides);
+        loc, lastDiag, allDiagsExceptLast, offsets, sizes, strides);
     // linalg generic to do reduce prod for allDiags along back dim.
     // the result of that generic will be the determinant
     SmallVector<AffineMap> indexingMaps;
     indexingMaps.push_back(rewriter.getMultiDimIdentityMap(inputRank - 1));
-    indexingMaps.push_back(
-        AffineMap::get(inputRank - 1, 0, rewriter.getAffineDimExpr(0)));
+    AffineExpr resultExpr = isBatched ? rewriter.getAffineDimExpr(0)
+                                      : getAffineConstantExpr(0, context);
+    indexingMaps.push_back(AffineMap::get(inputRank - 1, 0, resultExpr));
     SmallVector<utils::IteratorType> iteratorTypes(
         inputRank - 1, utils::IteratorType::parallel);
     Value initDet = createInitTensor(rewriter, loc, ValueRange{chDim}, elemTy,
@@ -3129,30 +3151,16 @@ public:
             .getResult(0);
     Type newResultType =
         getTypeConverter()->convertType(op.getResult().getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, determinant);
+    if (isBatched) {
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
+                                                  determinant);
+      return success();
+    }
+    Value detVal = rewriter.create<tensor::ExtractOp>(
+        loc, determinant, SmallVector<Value>(1, cstZero));
+    rewriter.replaceOpWithNewOp<tensor::FromElementsOp>(op, newResultType,
+                                                        ValueRange{detVal});
     return success();
-    // Input: CxNxN or NxN tensor
-    //  A = HardCopy(Input)?
-    //  scf for n in N (rows):
-    //    pivot = extract row n from A : tensor<CxN>
-    //    diag = extract col n from pivot : tensor<C>
-    //    subpivot = extract rows below pivot from A : tensor<Cx(N-n+1)XN>
-    //    subdiag = extract col n from subpivot : tensor<Cx(N-n+1)>
-    //    B = generic over subpivot, pivot, diag, subdiag-> result :
-    //    tensor<Cx(N-n+1)xN>
-    //      indexing maps (d0, d1, d2) -> [id, (d0, d2), (d0), (d0,d1), id]
-    //      cond = (diag != 0.00)
-    //      cf.assert(cond && "DetOp: singular matrix case and row reductions
-    //      requiring permutations are not handled") C = divf subdiag, diag
-    //      scaled = mulf C, pivot
-    //      diff = subf subpivot, scaled
-    //      yeild diff
-    //    newA = insert_slice B into A
-    //    result = linalg.dot(diag, result)
-    //    yeild result, newA
-    //  return result
-    //
-    return failure();
                   }
 };
 } // namespace

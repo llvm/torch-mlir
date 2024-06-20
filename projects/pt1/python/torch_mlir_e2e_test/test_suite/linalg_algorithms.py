@@ -11,25 +11,28 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
+
 class DeterminantModule(torch.nn.Module):
     @export
-    @annotate_args([None, [(4,4), torch.float32, True]])
+    @annotate_args([None, [(4, 4), torch.float32, True]])
     def forward(self, A):
         return torch.linalg.det(A)
 
-@register_test_case(module_factory = lambda : DeterminantModule())
+
+@register_test_case(module_factory=lambda: DeterminantModule())
 def DeterminantModule_F32(module, tu: TestUtils):
-    A = tu.rand(4,4).to(dtype=torch.float32)
+    A = tu.rand(4, 4).to(dtype=torch.float32)
     module.forward(A)
+
 
 class DeterminantBatchedModule(torch.nn.Module):
     @export
-    @annotate_args([None, [(3,4,4), torch.float32, True]])
+    @annotate_args([None, [(3, 4, 4), torch.float32, True]])
     def forward(self, A):
         return torch.linalg.det(A)
 
-@register_test_case(module_factory = lambda : DeterminantBatchedModule())
-def DeterminantBatchedModule_F32(module, tu: TestUtils):
-    A = tu.rand(3,4,4).to(dtype=torch.float32)
-    module.forward(A)
 
+@register_test_case(module_factory=lambda: DeterminantBatchedModule())
+def DeterminantBatchedModule_F32(module, tu: TestUtils):
+    A = tu.rand(3, 4, 4).to(dtype=torch.float32)
+    module.forward(A)
