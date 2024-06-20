@@ -868,6 +868,7 @@ void mlir::torch::torch_to_stablehlo::populateLinearOpPatternsAndLegality(
   patterns.add<ConvertAtenMmOp<AtenOp>>(typeConverter, context, options)
   INSERT_MM_ATENOP_PATTERN(AtenMmOp);
   INSERT_MM_ATENOP_PATTERN(AtenBmmOp);
+  INSERT_MM_ATENOP_PATTERN(Aten_IntMmOp);
 #undef INSERT_MM_ATEMOP_PATTERN
 
 #define INSERT_LINEAR_ATENOP_PATTERN(AtenOp)                                   \

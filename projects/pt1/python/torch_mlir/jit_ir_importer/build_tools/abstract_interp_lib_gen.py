@@ -751,6 +751,9 @@ def aten〇mv〡shape(self: List[int], vec: List[int]) -> List[int]:
 def aten〇mm〡shape(self: List[int], mat2: List[int]) -> List[int]:
     return upstream_shape_functions.mm(self, mat2)
 
+def aten〇_int_mm〡shape(self: List[int], mat2: List[int]) -> List[int]:
+    return upstream_shape_functions.mm(self, mat2)
+
 def aten〇addmm〡shape(self: List[int], mat1: List[int], mat2: List[int], beta: float = 1, alpha: float = 1) -> List[int]:
     return upstream_shape_functions.addmm(self, mat1, mat2, beta, alpha)
 
@@ -3512,6 +3515,13 @@ def aten〇mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[i
     ranks: List[Optional[int]] = [self_rank, mat2_rank]
     dtypes = [self_dtype, mat2_dtype]
     return promote_dtypes(ranks, dtypes)
+
+def aten〇_int_mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    mat2_rank, mat2_dtype = mat2_rank_dtype
+    assert self_dtype == torch.int8
+    assert mat2_dtype == torch.int8
+    return torch.int32
 
 @check_dtype_function(_check_two_tensor_op(
     output_error_types={torch.bool, torch.int8, torch.uint8, torch.int16, torch.int32, torch.int64}))

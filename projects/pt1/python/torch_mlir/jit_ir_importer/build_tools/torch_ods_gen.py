@@ -530,6 +530,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # Non-elementwise tensor compute ops
     emit("aten::linear : (Tensor, Tensor, Tensor?) -> (Tensor)")
     emit("aten::mm : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::_int_mm : (Tensor, Tensor) -> (Tensor)")
     emit("aten::addmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::matmul : (Tensor, Tensor) -> (Tensor)")
     emit("aten::mv : (Tensor, Tensor) -> (Tensor)")
