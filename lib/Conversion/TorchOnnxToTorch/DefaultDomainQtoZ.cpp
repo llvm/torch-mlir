@@ -3268,18 +3268,23 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return failure();
         }
 
-        if (mode != "nearest" && mode != "linear" && mode != "bilinear" &&
-            mode != "trilinear")
+        if (mode != "nearest" && mode != "linear")
           return rewriter.notifyMatchFailure(
               binder.op, "unsupported interpolation mode other than nearest, "
-                         "linear, bilinear and trilinear");
+                         "linear");
 
         int64_t resultRank = resultType.getSizes().size();
-        if (resultRank != 4)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "supports 2d sampling only");
+        if (resultRank > 5)
+          return rewriter.notifyMatchFailure(
+              binder.op, "supports upto 3d upsampling only");
 
         Value scalesValueList = getValueList(binder, rewriter, scales);
+        if (mode == "linear") {
+          if (resultRank == 4)
+            mode = "bilinear";
+          if (resultRank == 5)
+            mode = "trilinear";
+        }
         Value modeStrValue =
             rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), mode);
         Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
