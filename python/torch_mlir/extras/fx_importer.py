@@ -151,11 +151,16 @@ TORCH_DTYPE_TO_MLIR_TYPE_ASM = {
     torch.complex32: "complex<f16>",
     torch.complex64: "complex<f32>",
     torch.complex128: "complex<f64>",
-    torch.float8_e5m2: "f8E5M2",
-    torch.float8_e4m3fn: "f8E4M3FN",
-    torch.float8_e5m2fnuz: "f8E5M2FNUZ",
-    torch.float8_e4m3fnuz: "f8E4M3FNUZ",
 }
+HIGH_VERSION_TORCH_DTYPE_TO_MLIR_TYPE_ASM = {
+    "float8_e5m2": "f8E5M2",
+    "float8_e4m3fn": "f8E4M3FN",
+    "float8_e5m2fnuz": "f8E5M2FNUZ",
+    "float8_e4m3fnuz": "f8E4M3FNUZ",
+}
+for type_str, asm in HIGH_VERSION_TORCH_DTYPE_TO_MLIR_TYPE_ASM.getitems():
+    if hasattr(torch, type_str):
+        TORCH_DTYPE_TO_MLIR_TYPE_ASM[getattr(torch, type_str)] = asm
 
 TORCH_DTYPE_TO_MLIR_TYPE: Dict[torch.dtype, Callable[[], IrType]] = {
     torch.float16: lambda: F16Type.get(),
@@ -173,11 +178,16 @@ TORCH_DTYPE_TO_MLIR_TYPE: Dict[torch.dtype, Callable[[], IrType]] = {
     torch.complex32: lambda: ComplexType.get(F16Type.get()),
     torch.complex64: lambda: ComplexType.get(F32Type.get()),
     torch.complex128: lambda: ComplexType.get(F64Type.get()),
-    torch.float8_e5m2: lambda: Float8E5M2Type.get(),
-    torch.float8_e5m2fnuz: lambda: Float8E5M2FNUZType.get(),
-    torch.float8_e4m3fn: lambda: Float8E4M3FNType.get(),
-    torch.float8_e4m3fnuz: lambda: Float8E4M3FNUZType.get(),
 }
+HIGH_VERSION_TORCH_DTYPE_TO_MLIR_TYPE = {
+    "float8_e5m2": lambda: Float8E5M2Type.get(),
+    "float8_e4m3fn": lambda: Float8E4M3FNType.get(),
+    "float8_e5m2fnuz": lambda: Float8E5M2FNUZType.get(),
+    "float8_e4m3fnuz": lambda: Float8E4M3FNUZType.get(),
+}
+for type_str, type in HIGH_VERSION_TORCH_DTYPE_TO_MLIR_TYPE.getitems():
+    if hasattr(torch, type_str):
+        TORCH_DTYPE_TO_MLIR_TYPE[getattr(torch, type_str)] = type
 
 TORCH_DTYPE_TO_NPY_TYPE = {
     # torch.qint8: None, # no equivalent np datatype
@@ -215,11 +225,16 @@ TORCH_DTYPE_TO_INT = {
     # torch.quint8: 13,
     # torch.qint32 14
     torch.bfloat16: 15,
-    torch.float8_e5m2: 23,
-    torch.float8_e4m3fn: 24,
-    torch.float8_e5m2fnuz: 25,
-    torch.float8_e4m3fnuz: 26,
 }
+HIGH_VERSION_TORCH_DTYPE_TO_INT = {
+    "float8_e5m2": 23,
+    "float8_e4m3fn": 24,
+    "float8_e5m2fnuz": 25,
+    "float8_e4m3fnuz": 26,
+}
+for type_str, type_int in HIGH_VERSION_TORCH_DTYPE_TO_INT.getitems():
+    if hasattr(torch, type_str):
+        TORCH_DTYPE_TO_INT[getattr(torch, type_str)] = type_int
 
 TORCH_MEMORY_FORMAT_TO_INT = {
     torch.contiguous_format: 0,
