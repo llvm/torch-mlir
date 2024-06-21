@@ -28,6 +28,20 @@ Value mlir::torch::onnx_c::createConstantIntList(
       cstValue);
 }
 
+Value mlir::torch::onnx_c::createConstantFloatList(
+    OpBinder binder, ConversionPatternRewriter &rewriter,
+    ArrayRef<double> cstInput) {
+  SmallVector<Value> cstValue;
+  for (double i : cstInput) {
+    cstValue.push_back(rewriter.create<Torch::ConstantFloatOp>(
+        binder.getLoc(), rewriter.getF64FloatAttr(i)));
+  }
+  return rewriter.create<Torch::PrimListConstructOp>(
+      binder.getLoc(),
+      Torch::ListType::get(Torch::FloatType::get(binder.op->getContext())),
+      cstValue);
+}
+
 Torch::ValueTensorType
 mlir::torch::onnx_c::getQTorchTypeFromTorchIntType(Type ty) {
   Torch::ValueTensorType tty = dyn_cast<Torch::ValueTensorType>(ty);

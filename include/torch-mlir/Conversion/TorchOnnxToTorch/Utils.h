@@ -36,6 +36,10 @@ Value createConstantIntList(OpBinder binder,
                             ConversionPatternRewriter &rewriter,
                             ArrayRef<int64_t> cstInput);
 
+Value createConstantFloatList(OpBinder binder,
+                              ConversionPatternRewriter &rewriter,
+                              ArrayRef<double> cstInput);
+
 Torch::ValueTensorType getQTorchTypeFromTorchIntType(Type ty);
 
 template <typename T>
