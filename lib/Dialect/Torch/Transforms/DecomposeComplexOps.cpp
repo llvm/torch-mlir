@@ -2327,29 +2327,15 @@ public:
   LogicalResult matchAndRewrite(Aten_LinalgDetOp op,
                                 PatternRewriter &rewriter) const override {
     SmallVector<Value, 3> results = op.getResults();
-    for (unsigned i = 1; i < 3; i++) {
-      if (!results[i].use_empty())
-        return rewriter.notifyMatchFailure(
-            op, "unsupported: _linalg_det results: LU and pivot");
-    }
+    if (!results[1].use_empty() || !results[2].use_empty())
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: _linalg_det results: LU and pivot");
     Location loc = op.getLoc();
     Value input = op.getA();
     Value determinant = rewriter.create<Torch::AtenLinalgDetOp>(
         loc, results[0].getType(), input);
-    Value fakeLU = input;
-    auto inputType = cast<ValueTensorType>(input.getType());
-    SmallVector<int64_t> sliceSizes(inputType.getSizes());
-    sliceSizes.pop_back();
-    Value cstZero = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(0));
-    Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(1));
-    auto sliceTy = rewriter.getType<Torch::ValueTensorType>(
-        sliceSizes, inputType.getDtype());
-    Value fakePivot = rewriter.create<Torch::AtenSliceTensorOp>(
-        loc, sliceTy, input, /*dim=*/cstOne, /*start=*/cstZero,
-        /*stop=*/cstOne, /*step=*/cstOne);
-    rewriter.replaceOp(op, ValueRange{determinant, fakeLU, fakePivot});
+    rewriter.replaceAllUsesWith(results[0], determinant);
+    rewriter.eraseOp(op);
     return success();
   }
 };
