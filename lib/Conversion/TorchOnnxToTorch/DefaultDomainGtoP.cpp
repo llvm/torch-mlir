@@ -2733,4 +2733,41 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, tensorListResultType, input);
                   return success();
                 });
+  patterns.onOp(
+      "OptionalHasElement", 15,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        if (binder.tensorResultType(resultType))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "result type bind failed");
+
+        Value input;
+        bool output;
+        if (!binder.tensorListOperand(input) || !binder.tensorOperand(input) ||
+            !binder.optionalTensorListOperand(input) ||
+            !binder.optionalTensorOperand(input))
+          output = true;
+        else
+          output = false;
+
+        Value cstOutput = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr((int64_t)output));
+        Value cstDtype = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(),
+            rewriter.getI64IntegerAttr((int)torch_upstream::ScalarType::Bool));
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
+            binder.getLoc(), rewriter.getBoolAttr(false));
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+
+        Value dataList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            rewriter.getType<Torch::ListType>(
+                rewriter.getType<Torch::IntType>()),
+            SmallVector<Value>{cstOutput});
+
+        rewriter.replaceOpWithNewOp<Torch::AtenTensorOp>(
+            binder.op, resultType, dataList, /*dtype=*/cstDtype,
+            /*layout=*/cstNone, /*requires_grad=*/cstFalse);
+        return success();
+      });
 }
