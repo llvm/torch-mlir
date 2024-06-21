@@ -1475,7 +1475,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseSoftshrinkStaticModule_basic",
 }
 
-STABLEHLO_CRASHING_SET = set()
+STABLEHLO_CRASHING_SET = {"IndexPutWithNoneAndBroadcastModule_basic"}
 
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
@@ -2411,6 +2411,7 @@ ONNX_XFAIL_SET = {
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
     "IndexPutImplIndexWithNoneModule_basic",
+    "IndexPutWithNoneAndBroadcastModule_basic",
     "IntFloatModule_basic",
     "IntImplicitModule_basic",
     "IouOfModule_basic",
