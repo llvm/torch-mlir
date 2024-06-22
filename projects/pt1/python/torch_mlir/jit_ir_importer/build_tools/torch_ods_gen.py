@@ -921,6 +921,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::kthvalue : (Tensor, int, int, bool) -> (Tensor, Tensor)",
         has_verifier=True,
     )
+    emit(
+        "aten::stft : (Tensor, int, int?, int?, Tensor?, bool, bool?, bool?) -> (Tensor)"
+    )
 
     # Functionalization ops
     emit("aten::alias_copy : (Tensor) -> (Tensor)")
