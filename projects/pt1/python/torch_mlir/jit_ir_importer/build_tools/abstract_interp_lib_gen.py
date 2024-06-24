@@ -8,6 +8,7 @@ import argparse
 import os
 
 import torch
+import torchvision
 from torch import device
 import torch.jit._shape_functions as upstream_shape_functions
 
@@ -84,6 +85,20 @@ def aten〇triu〡shape(self: List[int], diagonal: int = 0) -> List[int]:
 
 def aten〇tril〡shape(self: List[int], diagonal: int = 0) -> List[int]:
     return upstream_shape_functions.unary(self)
+
+
+def torchvision〇roi_align〡shape(input: List[int], rois: List[int], spatial_scale: float, pooled_height: int, pooled_width: int, sampling_ratio: int, aligned: bool) -> List[int]:
+    return [rois[0], input[1], pooled_height, pooled_width]
+
+def torchvision〇roi_align〡dtype(input_rank_dtype: Tuple[int, int], rois_rank_dtype: Tuple[int, int], spatial_scale: float, pooled_height: int, pooled_width: int, sampling_ratio: int, aligned: bool) -> int:
+    return input_rank_dtype[1]
+
+def torchvision〇roi_pool〡shape(input: List[int], rois: List[int], spatial_scale: float, pooled_height: int, pooled_width: int) -> Tuple[List[int], List[int]]:
+    output = [rois[0], input[1], pooled_height, pooled_width]
+    return (output, output)
+
+def torchvision〇roi_pool〡dtype(input_rank_dtype: Tuple[int, int], rois_rank_dtype: Tuple[int, int], spatial_scale: float, pooled_height: int, pooled_width: int) -> Tuple[int, int]:
+    return (input_rank_dtype[1], torch.int64) 
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 3, 4)), # Basic case.
