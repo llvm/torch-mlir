@@ -10267,6 +10267,29 @@ def Torch_AtenAtleast2dOp : Torch_Op<"aten.atleast_2d", [
   }];
 }
 
+def Torch_AtenVstackOp : Torch_Op<"aten.vstack", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::vstack : (Tensor[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchListOfTensorType:$tensors
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenVstackOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenVstackOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenEinsumOp : Torch_Op<"aten.einsum", [
     AllowsTypeRefinement,
     HasValueSemantics,

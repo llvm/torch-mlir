@@ -2128,6 +2128,10 @@ def aten〇atleast_2d〡shape(self: List[int]) -> List[int]:
     else:
         return self
 
+def aten〇vstack〡shape(tensors: List[List[int]]) -> List[int]:
+    tensors_atleast2d = [ aten〇atleast_2d〡shape(tensor) for tensor in tensors ]
+    return upstream_shape_functions.cat(tensors_atleast2d, 0)
+
 def aten〇stack〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.stack(tensors, dim)
 
@@ -5229,6 +5233,22 @@ def aten〇atleast_2d〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
      Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32),
                  NonZeroDTensorWithDtype(torch.complex64)])])
 def aten〇hstack〡dtype(tensors_rank_dtype: List[Tuple[int, int]]) -> int:
+    ranks: List[Optional[int]] = []
+    dtypes: List[int] = []
+    assert len(tensors_rank_dtype) != 0
+    for tensor_rank_dtype in tensors_rank_dtype:
+        tensor_rank, tensor_dtype = tensor_rank_dtype
+        ranks.append(tensor_rank)
+        dtypes.append(tensor_dtype)
+
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    [Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float16), NonZeroDTensorWithDtype(torch.float64)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32),
+                 NonZeroDTensorWithDtype(torch.complex64)])])
+def aten〇vstack〡dtype(tensors_rank_dtype: List[Tuple[int, int]]) -> int:
     ranks: List[Optional[int]] = []
     dtypes: List[int] = []
     assert len(tensors_rank_dtype) != 0

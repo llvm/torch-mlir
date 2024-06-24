@@ -1772,6 +1772,97 @@ public:
 } // namespace
 
 namespace {
+// Decompose aten.vstack into: aten.vstack and aten.cat See:
+// https://github.com/pytorch/pytorch/blob/9a8ab778d34bd24c5caceb340837483decc4c311/torch/_refs/__init__.py#L3887
+// @out_wrapper()
+// def vstack(tensors: TensorSequenceType) -> TensorLikeType:
+//     torch._check(len(tensors) > 0,
+//         lambda: "vstack expects a non-empty TensorList")
+//     aligned_tensors = atleast_2d(*tensors) return
+//     cat(aligned_tensors, 0)
+class DecomposeAtenVstackOp : public OpRewritePattern<AtenVstackOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenVstackOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+
+    SmallVector<Value> inputTensors;
+    if (!getListConstructElements(op.getTensors(), inputTensors)) {
+      return rewriter.notifyMatchFailure(
+          op, "input should come from a PrimListConstructOp");
+    }
+    if (inputTensors.empty()) {
+      return rewriter.notifyMatchFailure(
+          op, "vstack expects a non-empty TensorList");
+    }
+
+    for (Value tensor : inputTensors) {
+      BaseTensorType tensorType = cast<BaseTensorType>(tensor.getType());
+      if (!tensorType.hasSizes()) {
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: at least one tensor does not have known sizes");
+      }
+    }
+
+    // calculate dimensions of the tensors, after they've all had atleast_2d
+    // applied to them.
+    SmallVector<SmallVector<int64_t>> tensorShapes;
+    for (Value tensor : inputTensors) {
+      auto tensorType = cast<BaseTensorType>(tensor.getType());
+      SmallVector<int64_t> tensorShape{tensorType.getSizes()};
+      switch (tensorShape.size()) {
+      case 0:
+        tensorShape = SmallVector<int64_t>{1, 1};
+        break;
+      case 1:
+        int64_t x = tensorShape[0];
+        tensorShape = SmallVector<int64_t>{1, x};
+        break;
+      }
+      tensorShapes.push_back(tensorShape);
+    }
+
+    // check if all tensors match in all dimensions except the 0th dimension
+    SmallVector<int64_t> fstTensorShape = tensorShapes[0];
+    int64_t fstTensorRank = fstTensorShape.size();
+    for (auto tensorShape : tensorShapes) {
+      if (fstTensorShape.size() != tensorShape.size() ||
+          !std::equal(fstTensorShape.begin() + 1,
+                      fstTensorShape.begin() + fstTensorRank,
+                      tensorShape.begin() + 1)) {
+        return rewriter.notifyMatchFailure(
+            op, "tensors must have all matching dimensions except for 0");
+      }
+    }
+
+    // if so, proceed, and create all the necessary ops.
+    SmallVector<Value> atleast2dTensorOps;
+    for (size_t i = 0; i < inputTensors.size(); i++) {
+      auto tensorType = cast<BaseTensorType>(inputTensors[i].getType());
+      auto newTensorType = rewriter.getType<ValueTensorType>(
+          tensorShapes[i], tensorType.getOptionalDtype());
+      auto tensorOp =
+          rewriter.create<AtenAtleast2dOp>(loc, newTensorType, inputTensors[i]);
+      atleast2dTensorOps.push_back(tensorOp);
+    }
+
+    auto elemType = cast<BaseTensorType>(atleast2dTensorOps[0].getType())
+                        .getWithSizesAndDtype(std::nullopt, nullptr);
+    Value atleast2dTensorList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(elemType), atleast2dTensorOps);
+
+    auto zero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    rewriter.replaceOpWithNewOp<AtenCatOp>(op, op.getType(),
+                                           atleast2dTensorList, zero);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose AtenEinsumOp to AtenMatmulOp, and supports possible reduce
 // operation and permute operation. Currently, this pass doesn't support
 // Hadamard product. The basic idea is that:
@@ -9399,6 +9490,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenCeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast2dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenVstackOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
