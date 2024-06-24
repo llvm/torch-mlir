@@ -1534,6 +1534,16 @@ func.func @torch.aten.tensor$one_elem() -> (!torch.vtensor<[1],si64>) {
   return %67 : !torch.vtensor<[1],si64>
 }
 
+// CHECK-LABEL:   func.func @torch.aten.tensor$no_fold(
+// CHECK:   torch.aten.tensor %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.list<int>, !torch.none, !torch.none, !torch.bool -> !torch.tensor
+func.func @torch.aten.tensor$no_fold(%arg0: !torch.tensor) -> (!torch.tensor) {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %1 = torch.aten.size %arg0 : !torch.tensor -> !torch.list<int>
+  %2 = torch.aten.tensor %1, %none, %none, %false : !torch.list<int>, !torch.none, !torch.none, !torch.bool -> !torch.tensor
+  return %2 : !torch.tensor
+}
+
 // CHECK-LABEL:   func.func @torch.aten.tensor.float(
 // CHECK-NEXT: torch.vtensor.literal(dense<1.000000e+01> : tensor<f32>) : !torch.vtensor<[],f32>
 func.func @torch.aten.tensor.float() -> !torch.vtensor<[],f32> {
