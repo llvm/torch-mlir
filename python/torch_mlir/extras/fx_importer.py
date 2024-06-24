@@ -159,9 +159,9 @@ OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE_ASM = {
     "float8_e5m2fnuz": "f8E5M2FNUZ",
     "float8_e4m3fnuz": "f8E4M3FNUZ",
 }
-for type_str, asm in OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE_ASM.items():
-    if hasattr(torch, type_str):
-        TORCH_DTYPE_TO_MLIR_TYPE_ASM[getattr(torch, type_str)] = asm
+for dtype_str, dtype_asm in OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE_ASM.items():
+    if hasattr(torch, dtype_str):
+        TORCH_DTYPE_TO_MLIR_TYPE_ASM[getattr(torch, dtype_str)] = dtype_asm
 
 TORCH_DTYPE_TO_MLIR_TYPE: Dict[torch.dtype, Callable[[], IrType]] = {
     torch.float16: lambda: F16Type.get(),
@@ -187,9 +187,9 @@ OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE = {
     "float8_e5m2fnuz": lambda: Float8E5M2FNUZType.get(),
     "float8_e4m3fnuz": lambda: Float8E4M3FNUZType.get(),
 }
-for type_str, type in OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE.items():
-    if hasattr(torch, type_str):
-        TORCH_DTYPE_TO_MLIR_TYPE[getattr(torch, type_str)] = type
+for dtype_str, mlir_type in OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE.items():
+    if hasattr(torch, dtype_str):
+        TORCH_DTYPE_TO_MLIR_TYPE[getattr(torch, dtype_str)] = mlir_type
 
 TORCH_DTYPE_TO_NPY_TYPE = {
     # torch.qint8: None, # no equivalent np datatype
@@ -235,9 +235,9 @@ OPTIONAL_TORCH_DTYPE_TO_INT = {
     "float8_e5m2fnuz": 25,
     "float8_e4m3fnuz": 26,
 }
-for type_str, type_int in OPTIONAL_TORCH_DTYPE_TO_INT.items():
-    if hasattr(torch, type_str):
-        TORCH_DTYPE_TO_INT[getattr(torch, type_str)] = type_int
+for dtype_str, dtype_int in OPTIONAL_TORCH_DTYPE_TO_INT.items():
+    if hasattr(torch, dtype_str):
+        TORCH_DTYPE_TO_INT[getattr(torch, dtype_str)] = dtype_int
 
 TORCH_MEMORY_FORMAT_TO_INT = {
     torch.contiguous_format: 0,
