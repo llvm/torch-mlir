@@ -2985,10 +2985,31 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         Location loc = binder.getLoc();
         // concatenate the batchIndices to the rois to get rois as a num_roisx5
-        // tensor
+        // tensor. The batchIndices tensor is an int64 tensor, and needs to be
+        // converted to float before concatenation.
         auto roisType = dyn_cast<Torch::ValueTensorType>(rois.getType());
         if (!roisType || !roisType.hasSizes())
           return failure();
+        Value cstDim = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        FailureOr<Value> unsqueezeIndices =
+            Torch::unsqueezeTensor(rewriter, binder.op, batchIndices, cstDim);
+        if (failed(unsqueezeIndices))
+          return failure();
+        batchIndices = unsqueezeIndices.value();
+        auto batchIndicesType =
+            cast<Torch::ValueTensorType>(batchIndices.getType());
+        Value dTypeInt =
+            Torch::getDtypeIntValueForType(rewriter, loc, roisType.getDtype());
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        Value newBatchIndices = rewriter.create<Torch::AtenToDtypeOp>(
+            loc,
+            batchIndicesType.getWithSizesAndDtype(
+                batchIndicesType.getOptionalSizes(),
+                roisType.getOptionalDtype()),
+            batchIndices, dTypeInt, cstFalse, cstFalse, none);
         SmallVector<int64_t> roiSizes(roisType.getSizes());
         roiSizes.back() = 5;
         auto catType = rewriter.getType<Torch::ValueTensorType>(
@@ -2998,15 +3019,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                           /*optionalDtype=*/nullptr);
         Type listType = Torch::ListType::get(listElemType);
         Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.op->getLoc(), listType, ValueRange{batchIndices, rois});
-        Value cstDim = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+            binder.op->getLoc(), listType, ValueRange{newBatchIndices, rois});
         Value newRois =
             rewriter.create<Torch::AtenCatOp>(loc, catType, tensorList, cstDim);
 
         // make constants from attributes
-        Value cstSpatialScale = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(spatialScaleFloat));
+        Value cstSpatialScale = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getF64FloatAttr(spatialScaleFloat));
         Value pooledHeight = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(outHInt));
         Value pooledWidth = rewriter.create<Torch::ConstantIntOp>(
@@ -3026,7 +3045,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
         // mode == "max"
         auto indicesType = resultType.getWithSizesAndDtype(
-            resultType.getOptionalSizes(), rewriter.getIntegerType(64));
+            resultType.getOptionalSizes(), batchIndicesType.getDtype());
         auto roiPool = rewriter.create<Torch::TorchvisionRoiPoolOp>(
             loc, TypeRange{resultType, indicesType}, input, newRois,
             cstSpatialScale, pooledHeight, pooledWidth);
