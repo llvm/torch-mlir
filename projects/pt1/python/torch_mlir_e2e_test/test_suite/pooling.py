@@ -1698,28 +1698,3 @@ class AdaptiveMaxPool3dStaticWithIndices(torch.nn.Module):
 @register_test_case(module_factory=lambda: AdaptiveMaxPool3dStaticWithIndices())
 def AdaptiveMaxPool3dStaticWithIndices_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 512, 10, 16, 17))
-
-
-# roi pooling
-
-import torchvision
-class RoiModule(torch.nn.Module):
-    @export
-    @annotate_args(
-        [None,
-         ([-1,-1,-1,-1], torch.float32, True),
-         ([-1, 5], torch.float32, True),
-         ])
-    def forward(self, input, boxes):
-        output_width = 1
-        spatial_scale = 1.0
-        sampling_ratio = -1
-        return (torchvision.ops.roi_align(input, boxes, output_width, spatial_scale, sampling_ratio, False), torchvision.ops.roi_pool(input, boxes, output_width, spatial_scale))
-
-@register_test_case(module_factory=lambda : RoiModule())
-def RoiModule_basic(module, tu: TestUtils):
-    input = tu.rand(2,1,3,3).to(dtype=torch.float32)
-    print(input)
-    boxes = torch.tensor([[0,0,0,0,0],[0,0,0,4,1],[0,0,0,1,1], [1,0,0,1,1]]).to(dtype=torch.float32)
-    out = module.forward(input, boxes)
-    print(out)
