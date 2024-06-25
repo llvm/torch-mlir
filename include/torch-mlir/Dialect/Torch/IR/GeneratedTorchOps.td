@@ -12533,6 +12533,36 @@ def Torch_AtenKthvalueOp : Torch_Op<"aten.kthvalue", [
   let hasVerifier = 1;
 }
 
+def Torch_AtenStftOp : Torch_Op<"aten.stft", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::stft : (Tensor, int, int?, int?, Tensor?, bool, bool?, bool?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$n_fft,
+    AnyTorchOptionalIntType:$hop_length,
+    AnyTorchOptionalIntType:$win_length,
+    AnyTorchOptionalTensorType:$window,
+    Torch_BoolType:$normalized,
+    AnyTorchOptionalBoolType:$onesided,
+    AnyTorchOptionalBoolType:$return_complex
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenStftOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 8, 1);
+    }
+    void AtenStftOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 8, 1);
+    }
+  }];
+}
+
 def Torch_AtenAliasCopyOp : Torch_Op<"aten.alias_copy", [
     AllowsTypeRefinement,
     HasValueSemantics,
