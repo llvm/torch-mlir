@@ -3328,19 +3328,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // possible that both window and frameLength can be none, which would
         // mean that either only two operands were passed, or, in case of three
         // operands, window was passed in as none, and frameLength was absent.
-        Value window, frameLength;
-        bool windowIsNone, frameLengthIsNone;
-        if (operands.size() == 2) {
-          window = nullptr;
-          frameLength = nullptr;
-          windowIsNone = frameLengthIsNone = true;
-        } else if (operands.size() == 3) {
+        Value window = nullptr, frameLength = nullptr;
+        bool windowIsNone = true, frameLengthIsNone = true;
+        if (operands.size() == 3) {
           window = operands[2];
-          frameLength = nullptr;
           windowIsNone = isa<Torch::NoneType>(window.getType());
-          frameLengthIsNone = true;
-        } else {
-          // There are four operands.
+        }
+        if (operands.size() == 4) {
           window = operands[2];
           frameLength = operands[3];
           windowIsNone = isa<Torch::NoneType>(window.getType());
@@ -3390,7 +3384,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented: support for bfloat16 type is unimplemented.");
-        } else if (signalTy.getDtype().isF16()) {
+        }
+        if (signalTy.getDtype().isF16()) {
           complexDtype = Torch::getTypeForScalarType(
               binder.op->getContext(),
               torch::torch_upstream::ScalarType::ComplexHalf);
