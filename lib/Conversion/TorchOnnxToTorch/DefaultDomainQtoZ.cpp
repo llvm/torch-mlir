@@ -3564,4 +3564,82 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.op, resultType, permutedStft);
         return success();
       });
+  patterns.onOp(
+      "ReverseSequence", 10,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input, sequenceLens;
+        int64_t batchAxis, timeAxis;
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorOperandAtIndex(sequenceLens, 1) ||
+            binder.s64IntegerAttr(batchAxis, "batch_axis", 1) ||
+            binder.s64IntegerAttr(timeAxis, "time_axis", 0) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        auto inputTy = cast<Torch::ValueTensorType>(input.getType());
+        SmallVector<int64_t> inputShape(inputTy.getSizes());
+        auto dtype = resultType.getDtype();
+
+        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value batchAxisVal = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(batchAxis));
+        Value timeAxisVal = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(timeAxis));
+
+        SmallVector<int64_t> sliceShape(inputShape);
+        sliceShape[batchAxis] = 1;
+        auto sliceType =
+            rewriter.getType<Torch::ValueTensorType>(sliceShape, dtype);
+        SmallVector<int64_t> flipShape(sliceShape);
+        flipShape[timeAxis] = Torch::kUnknownSize;
+        auto flipType =
+            rewriter.getType<Torch::ValueTensorType>(flipShape, dtype);
+        auto scalarTensorType = rewriter.getType<Torch::ValueTensorType>(
+            ArrayRef<int64_t>{1}, rewriter.getIntegerType(64, /*signed*/ 1));
+
+        for (int i = 0; i < inputShape[batchAxis]; i++) {
+          // slice i iterating on batch axis
+          Value k = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(i));
+          Value end =
+              rewriter.create<Torch::AtenAddIntOp>(binder.getLoc(), k, cstOne);
+          Value sliceBatch = rewriter.create<Torch::AtenSliceTensorOp>(
+              binder.getLoc(), sliceType, input, batchAxisVal, k, end, cstOne);
+
+          // get sequence length and slice the reversing part
+          Value kTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+              binder.getLoc(), scalarTensorType, k);
+          Value sel = rewriter.create<Torch::AtenIndexSelectOp>(
+              binder.getLoc(), scalarTensorType, sequenceLens, cstZero,
+              kTensor);
+          Value len = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), sel);
+          Value sliceTime = rewriter.create<Torch::AtenSliceTensorOp>(
+              binder.getLoc(), flipType, sliceBatch, timeAxisVal, cstZero, len,
+              cstOne);
+          // flip the sliced reversing tensor
+          Value dims = rewriter.create<Torch::PrimListConstructOp>(
+              binder.getLoc(),
+              rewriter.getType<Torch::ListType>(
+                  rewriter.getType<Torch::IntType>()),
+              SmallVector<Value>{timeAxisVal});
+          Value flip = rewriter.create<Torch::AtenFlipOp>(
+              binder.getLoc(), flipType, sliceTime, dims);
+
+          // embeds the reversed tensor to the input
+          Value embedTime = rewriter.create<Torch::AtenSliceScatterOp>(
+              binder.getLoc(), sliceType, sliceBatch, flip, timeAxisVal,
+              /*start=*/cstZero, /*end=*/len, /*step=*/cstOne);
+          input = rewriter.create<Torch::AtenSliceScatterOp>(
+              binder.getLoc(), resultType, input, embedTime, batchAxisVal,
+              /*start=*/k, /*end=*/end, /*step=*/cstOne);
+        }
+
+        rewriter.replaceOp(binder.op, input);
+        return success();
+      });
 }
