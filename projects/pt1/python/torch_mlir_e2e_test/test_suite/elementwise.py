@@ -6223,3 +6223,63 @@ class FakeQuantizePerTensorAffineRoundToEvenModule(torch.nn.Module):
 )
 def FakeQuantizePerTensorAffineRoundToEvenModule_basic(module, tu: TestUtils):
     module.forward(torch.FloatTensor([0.5, 1.5, -0.5, -1.5]))
+
+
+# ==============================================================================
+
+
+class TriuIndicesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+        ]
+    )
+    def forward(self):
+        return torch.ops.aten.triu_indices(4, 3, 1)
+
+
+@register_test_case(module_factory=lambda: TriuIndicesModule())
+def TriuIndicesModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class TriuIndicesAllZerosModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+        ]
+    )
+    def forward(self):
+        return torch.ops.aten.triu_indices(0, 0, 0)
+
+
+@register_test_case(module_factory=lambda: TriuIndicesAllZerosModule())
+def TriuIndicesAllZerosModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class TriuIndicesNegativeOffsetModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+        ]
+    )
+    def forward(self):
+        return torch.ops.aten.triu_indices(5, 16, -2)
+
+
+@register_test_case(module_factory=lambda: TriuIndicesNegativeOffsetModule())
+def TriuIndicesNegativeOffsetModule_basic(module, tu: TestUtils):
+    module.forward()

@@ -181,3 +181,28 @@ def get_quantized_mlp():
 @register_test_case(module_factory=get_quantized_mlp)
 def QuantizedMLP_basic(module, tu: TestUtils):
     module.forward(get_quant_model_input())
+
+
+# ==============================================================================
+
+
+class FakeQuantizePerTensorAffineCachemaskModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([6, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.fake_quantize_per_tensor_affine_cachemask(
+            a, 2.0, 0, -128, 127
+        )[0]
+
+
+@register_test_case(module_factory=lambda: FakeQuantizePerTensorAffineCachemaskModule())
+def FakeQuantizePerTensorAffineCachemaskModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 4))

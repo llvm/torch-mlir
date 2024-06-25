@@ -612,6 +612,16 @@ public:
                                                   strideInts, paddingInts)))
       return rewriter.notifyMatchFailure(op, "invalid pooling parameters");
 
+    // Decode strideInts into strideInts and dilation
+    if (strideInts.size() == 2 * Dim) {
+      for (int i = 0; i < Dim; i++) {
+        dilationInts[i] = strideInts[Dim + i];
+      }
+      for (int i = 0; i < Dim; i++) {
+        strideInts.pop_back();
+      }
+    }
+
     // TODO: Add support for count_include_pad equal to `False`.
     bool countIncludePad;
     if (!matchPattern(op.getCountIncludePad(),

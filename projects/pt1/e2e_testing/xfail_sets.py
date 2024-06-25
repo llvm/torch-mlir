@@ -28,6 +28,7 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "InterpolateStaticModule_scales_bilinear_align_corners",
     "InterpolateDynamicModule_scales_recompute_bilinear",
     "ElementwiseFloatTensorGtIntTensorModule_basic",
+    "AtenIntMM_basic",
 }
 
 LINALG_CRASHING_SET = {
@@ -345,6 +346,7 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
+    "AtenIntMM_basic",
     "AtenItemFpOpModule_basic",
     "AtenMatmulQMixedSigni8Transpose_basic",
     "AtenMatmulQMixedSigni8_basic",
@@ -394,6 +396,7 @@ FX_IMPORTER_XFAIL_SET = {
     "ElementwiseRreluTrainStaticModule_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
     "EqIntModule_basic",
+    "FakeQuantizePerTensorAffineCachemaskModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineRoundToEvenModule_basic",
@@ -879,6 +882,7 @@ STABLEHLO_PASS_SET = {
     "AtenItemIntOpModule_basic",
     "AtenMmFloatTypes_basic",
     "AtenMmIntTypes_basic",
+    "AtenIntMM_basic",
     "AtenRoundFloatHalfToEvenModule_basic",
     "AtenRoundFloatModule_basic",
     "AtenRoundIntModule_basic",
@@ -1055,6 +1059,7 @@ STABLEHLO_PASS_SET = {
     "EmptyStridedModule_basic",
     "EqIntModule_basic",
     "ExpandAsIntModule_basic",
+    "FakeQuantizePerTensorAffineCachemaskModule_basic",
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineRoundToEvenModule_basic",
     "Fill_TensorFloat64WithFloat32Static_basic",
@@ -1319,6 +1324,9 @@ STABLEHLO_PASS_SET = {
     "TorchPrimLoopForLikeTensorArgModule_basic",
     "TransposeIntModule_basic",
     "TransposeIntNegDimsModule_basic",
+    "TriuIndicesModule_basic",
+    "TriuIndicesAllZerosModule_basic",
+    "TriuIndicesNegativeOffsetModule_basic",
     "TupleModule_basic",
     "TypeAsDifferentModule_basic",
     "TypeAsSameModule_basic",
@@ -2204,8 +2212,6 @@ ONNX_XFAIL_SET = {
     "ElementwiseLog2IntModule_basic",
     "FlipModuleStaticShape_basic",
     "FlipNegativeIndexModule_basic",
-    "HardsigmoidModule_basic",
-    "HardsigmoidRandomModule_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",
     "ReflectionPad1dModule2dInput_Right",
     "ReflectionPad1dModule2dInput_basic",
@@ -2282,6 +2288,7 @@ ONNX_XFAIL_SET = {
     "AtenIntBoolOpModule_basic",
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
+    "AtenIntMM_basic",
     "AtenItemFpOpModule_basic",
     "AtenItemIntOpModule_basic",
     "AtenKthvalueModule_basic",
@@ -2401,6 +2408,7 @@ ONNX_XFAIL_SET = {
     "EmptyStridedSizeIntStrideModule_basic",
     "EqIntModule_basic",
     "ExponentialModule_basic",
+    "FakeQuantizePerTensorAffineCachemaskModule_basic",
     "FloatImplicitModule_basic",
     "GeFloatIntModule_basic",
     "GeFloatModule_basic",
@@ -2754,6 +2762,14 @@ if torch_version_for_comparison() < version.parse("2.4.0.dev"):
         "ElementwiseBitwiseLeftShiftInt32Module_basic",
         "ElementwiseBitwiseLeftShiftInt64Module_basic",
         "ElementwiseBitwiseLeftShiftInt8Module_basic",
+    }
+
+if torch_version_for_comparison() < version.parse("2.4.0.dev"):
+    STABLEHLO_PASS_SET = STABLEHLO_PASS_SET - {
+        "AtenIntMM_basic",
+    }
+    FX_IMPORTER_STABLEHLO_XFAIL_SET = FX_IMPORTER_STABLEHLO_XFAIL_SET | {
+        "AtenIntMM_basic",
     }
 
 
