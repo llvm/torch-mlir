@@ -8,7 +8,6 @@ import argparse
 import os
 
 import torch
-import torchvision
 from torch import device
 import torch.jit._shape_functions as upstream_shape_functions
 
@@ -1651,6 +1650,12 @@ def aten〇view_as_real〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     else:
         assert False, "Unsupported dtype"
 
+
+def torchvision〇deform_conv2d〡shape(input: List[int], weight: List[int], offset: List[int], mask: List[int], bias: List[int], stride_h: int, stride_w: int, pad_h: int, pad_w: int, dilation_h: int, dilation_w: int, groups: int, offset_groups: int, use_mask: bool) -> List[int]:
+    return [input[0], weight[0], offset[2], offset[3]]
+
+def torchvision〇deform_conv2d〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], offset_rank_dtype: Tuple[int, int], mask_rank_dtype: Tuple[int, int], bias_rank_dtype: Tuple[int, int], stride_h: int, stride_w: int, pad_h: int, pad_w: int, dilation_h: int, dilation_w: int, groups: int, offset_groups: int, use_mask: bool) -> int:
+    return input_rank_dtype[1]
 
 def aten〇conv2d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1,), padding: List[int] = (0, 0,), dilation: List[int] = (1, 1,), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv2d(input, weight, bias, stride, padding, dilation, groups)
@@ -5136,6 +5141,9 @@ def _maybe_import_op_extensions(args: argparse.Namespace):
 
 def main(args):
     _maybe_import_op_extensions(args)
+    # importing torchvision will register torchvision ops with the JITOperatorRegistry
+    import torchvision
+
     asm = generate_library(globals())
     # We're about to put quotes around the string, so escape the `"` characters.
     asm = asm.replace("\"", "\\\"")

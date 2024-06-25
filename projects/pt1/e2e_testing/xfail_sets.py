@@ -29,6 +29,9 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "InterpolateDynamicModule_scales_recompute_bilinear",
     "ElementwiseFloatTensorGtIntTensorModule_basic",
     "AtenIntMM_basic",
+    # unimplemented lowering torch -> linalg for torchvision.deform_conv2d
+    # this is added to check the torch.onnx.export -> import_onnx -> torch path
+    "DeformConv2D_basic",
 }
 
 LINALG_CRASHING_SET = {
@@ -383,6 +386,7 @@ FX_IMPORTER_XFAIL_SET = {
     "ConvolutionBackwardModule2DStrided_basic",
     "ConvolutionBackwardModule2D_basic",
     "CumsumModule_basic",
+    "DeformConv2D_basic",
     "DivFloatModule_basic",
     "DivIntModule_basic",
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
@@ -554,6 +558,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ConvolutionBackwardModule2DStrided_basic",
     "ConvolutionBackwardModule2D_basic",
     "CumsumModule_basic",
+    "DeformConv2D_basic",
     "DeterminantBatchedModule_F32",
     "DeterminantDynamicModule_F32",
     "DeterminantModule_F32",
@@ -2360,19 +2365,12 @@ ONNX_XFAIL_SET = {
     "DivIntModule_basic",
     "ElementwiseAcoshIntModule_basic",
     "ElementwiseAcoshModule_basic",
-    "ElementwiseAndScalarModule_basic",
-    "ElementwiseAndScalarStaticShapeModule_basic",
     "ElementwiseAsinhIntModule_basic",
     "ElementwiseAsinhModule_basic",
     "ElementwiseAtanhIntModule_basic",
     "ElementwiseAtanhModule_basic",
     "ElementwiseAtenIsneginfOpModule_basic",
     "ElementwiseAtenIsposinfOpModule_basic",
-    "ElementwiseBitwiseAndModule_basic",
-    "ElementwiseBitwiseAndScalarInt32Module_basic",
-    "ElementwiseBitwiseAndScalarInt64Module_basic",
-    "ElementwiseBitwiseAndScalarInt8Module_basic",
-    "ElementwiseBitwiseAndStaticShapeModule_basic",
     "ElementwiseBitwiseNotInt32Module_basic",
     "ElementwiseBitwiseNotInt64Module_basic",
     "ElementwiseBitwiseOrModule_basic",
@@ -2713,6 +2711,8 @@ ONNX_XFAIL_SET = {
     "IndexPutHackedTwin3DIntNonAccumulateModule_basic",
     # RuntimeError: unsupported input type: Device
     "PrimsIotaModule_basic",
+    # unimplemented torchvision.deform_conv2d torch->linalg
+    "DeformConv2D_basic",
     # Error: 'aten::renorm' to ONNX opset version 17 is not supported.
     "RenormModuleFloat16_basic",
     "RenormModuleFloat32NegativeDim_basic",
@@ -2762,6 +2762,14 @@ if torch_version_for_comparison() < version.parse("2.4.0.dev"):
         "ElementwiseBitwiseLeftShiftInt32Module_basic",
         "ElementwiseBitwiseLeftShiftInt64Module_basic",
         "ElementwiseBitwiseLeftShiftInt8Module_basic",
+        # bitwise and support has been added in torch nightly
+        "ElementwiseAndScalarModule_basic",
+        "ElementwiseAndScalarStaticShapeModule_basic",
+        "ElementwiseBitwiseAndModule_basic",
+        "ElementwiseBitwiseAndScalarInt32Module_basic",
+        "ElementwiseBitwiseAndScalarInt64Module_basic",
+        "ElementwiseBitwiseAndScalarInt8Module_basic",
+        "ElementwiseBitwiseAndStaticShapeModule_basic",
     }
 
 if torch_version_for_comparison() < version.parse("2.4.0.dev"):
@@ -2933,6 +2941,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "CumsumModule_basic",
     "CumsumStaticModule_basic",
     "CumsumStaticNegativeDimModule_basic",
+    "DeformConv2D_basic",
     "DeterminantBatchedModule_F32",
     "DeterminantDynamicModule_F32",
     "DeterminantModule_F32",
@@ -3730,6 +3739,7 @@ ONNX_TOSA_XFAIL_SET = {
     "CumsumModule_basic",
     "CumsumStaticModule_basic",
     "CumsumStaticNegativeDimModule_basic",
+    "DeformConv2D_basic",
     "DeterminantModule_F32",
     "DeterminantBatchedModule_F32",
     "DeterminantDynamicModule_F32",
