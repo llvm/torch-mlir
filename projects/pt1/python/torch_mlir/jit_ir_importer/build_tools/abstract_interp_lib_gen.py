@@ -223,6 +223,19 @@ def aten〇sign〡shape(self: List[int]) -> List[int]:
 def aten〇sgn〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇linalg_det〡shape(A: List[int]) -> List[int]:
+    assert len(A) == 2 or len(A) == 3
+    assert A[-1] == A[-2]
+    if len(A) == 3:
+        return A[:1]
+    return upstream_shape_functions.zero_dim_tensor(A)
+
+def aten〇_linalg_det〡shape(A: List[int]) -> Tuple[List[int], List[int], List[int]]:
+    return (aten〇linalg_det〡shape(A), A, A[:-1])
+
+def aten〇_linalg_det〡dtype(A_rank_dtype: Tuple[int, int]) -> Tuple[int, int, int]:
+    return (A_rank_dtype[1], A_rank_dtype[1], A_rank_dtype[1])
+
 def aten〇detach〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -2628,6 +2641,12 @@ def aten〇cumsum〡dtype(self_rank_dtype: Tuple[int, int], dim: int, dtype: Opt
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇detach〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(4,4),], error_types={*all_integer_dtypes()}))
+def aten〇linalg_det〡dtype(A_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = A_rank_dtype
+    assert not is_integer_dtype(self_dtype)
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, p=0.5, train=False))
