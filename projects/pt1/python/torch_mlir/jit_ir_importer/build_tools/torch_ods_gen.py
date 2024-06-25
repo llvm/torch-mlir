@@ -1155,6 +1155,13 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         traits=["HasValueSemantics"],
     )
 
+    # ==========================================================================
+    # `torchvision::` namespace.
+    # ==========================================================================
+
+    emit(
+        "torchvision::deform_conv2d : (Tensor, Tensor, Tensor, Tensor, Tensor, int, int, int, int, int, int, int, int, bool) -> (Tensor)"
+    )
     emit(
         "torchvision::roi_align : (Tensor, Tensor, float, int, int, int, bool) -> (Tensor)"
     )
@@ -1180,6 +1187,7 @@ def _maybe_import_op_extensions(args: argparse.Namespace):
 
 def main(args: argparse.Namespace):
     _maybe_import_op_extensions(args)
+    # importing torchvision will register torchvision ops with the JITOperatorRegistry
     import torchvision
 
     registry = Registry.load()
