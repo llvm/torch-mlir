@@ -1155,6 +1155,13 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         traits=["HasValueSemantics"],
     )
 
+    emit(
+        "torchvision::roi_align : (Tensor, Tensor, float, int, int, int, bool) -> (Tensor)"
+    )
+    emit(
+        "torchvision::roi_pool : (Tensor, Tensor, float, int, int) -> (Tensor, Tensor)"
+    )
+
 
 def dump_registered_ops(outfile: TextIO, registry: Registry):
     for _, v in sorted(registry.by_unique_key.items()):
@@ -1173,6 +1180,8 @@ def _maybe_import_op_extensions(args: argparse.Namespace):
 
 def main(args: argparse.Namespace):
     _maybe_import_op_extensions(args)
+    import torchvision
+
     registry = Registry.load()
     if args.debug_registry_dump:
         with open(args.debug_registry_dump, "w") as debug_registry_dump:
