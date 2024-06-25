@@ -149,7 +149,8 @@ public:
     TensorType resultType =
         cast<TensorType>(getTypeConverter()->convertType(op.getType()));
     Type elementType = resultType.getElementType();
-    auto accumulatorDType = getDefaultAccType(rewriter, elementType);
+    auto accumulatorDType =
+        getDefaultAccType(rewriter, lhsType.getElementType());
     if (accumulatorDType != resultType.getElementType()) {
       elementType = accumulatorDType;
     }
@@ -803,6 +804,8 @@ public:
       inputZp = typeConverter->materializeTargetConversion(
           rewriter, loc, typeConverter->convertType(inputZp.getType()),
           inputZp);
+      inputZp =
+          rewriter.create<arith::TruncIOp>(loc, rewriter.getI32Type(), inputZp);
       auto torchDtype = cast<ValueTensorType>(make.getType()).getDtype();
       inputUnsigned = torch_to_linalg::isUnsignedTorchType(torchDtype);
     }
@@ -817,6 +820,8 @@ public:
       weightZp = typeConverter->materializeTargetConversion(
           rewriter, loc, typeConverter->convertType(weightZp.getType()),
           weightZp);
+      weightZp = rewriter.create<arith::TruncIOp>(loc, rewriter.getI32Type(),
+                                                  weightZp);
       auto torchDtype = cast<ValueTensorType>(make.getType()).getDtype();
       weightUnsigned = torch_to_linalg::isUnsignedTorchType(torchDtype);
     }
@@ -1049,7 +1054,7 @@ public:
             castIndexToInt(weightDims[i]), strideIntValues[i]));
     }
 
-    Type accumulatorDType = getDefaultAccType(rewriter, resultDTy);
+    Type accumulatorDType = getDefaultAccType(rewriter, inputDTy);
     Value initTensor = rewriter.create<tensor::EmptyOp>(
         loc, getAsOpFoldResult(outDims), accumulatorDType);
 

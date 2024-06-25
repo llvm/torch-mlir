@@ -458,6 +458,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::fake_quantize_per_tensor_affine : (Tensor, float, int, int, int) -> (Tensor)"
     )
+    emit(
+        "aten::fake_quantize_per_tensor_affine_cachemask : (Tensor, float, int, int, int) -> (Tensor, Tensor)"
+    )
     emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::minimum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::mish : (Tensor) -> (Tensor)")
@@ -530,6 +533,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # Non-elementwise tensor compute ops
     emit("aten::linear : (Tensor, Tensor, Tensor?) -> (Tensor)")
     emit("aten::mm : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::_int_mm : (Tensor, Tensor) -> (Tensor)")
     emit("aten::addmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::matmul : (Tensor, Tensor) -> (Tensor)")
     emit("aten::mv : (Tensor, Tensor) -> (Tensor)")
@@ -917,6 +921,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::kthvalue : (Tensor, int, int, bool) -> (Tensor, Tensor)",
         has_verifier=True,
     )
+    emit(
+        "aten::stft : (Tensor, int, int?, int?, Tensor?, bool, bool?, bool?) -> (Tensor)"
+    )
 
     # Functionalization ops
     emit("aten::alias_copy : (Tensor) -> (Tensor)")
@@ -1061,6 +1068,11 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::narrow.Tensor : (Tensor, int, Tensor, int) -> (Tensor)")
     emit("aten::ScalarImplicit : (Tensor) -> (Scalar)", has_canonicalizer=True)
 
+    emit(
+        "aten::triu_indices : (int, int, int, int?, int?, Device?, bool?) -> (Tensor)",
+        has_verifier=True,
+    )
+
     # backprop ops
     emit("aten::_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)")
     emit("aten::tanh_backward : (Tensor, Tensor) -> (Tensor)")
@@ -1149,6 +1161,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     emit(
         "torchvision::deform_conv2d : (Tensor, Tensor, Tensor, Tensor, Tensor, int, int, int, int, int, int, int, int, bool) -> (Tensor)"
+    )
+    emit(
+        "torchvision::roi_align : (Tensor, Tensor, float, int, int, int, bool) -> (Tensor)"
+    )
+    emit(
+        "torchvision::roi_pool : (Tensor, Tensor, float, int, int) -> (Tensor, Tensor)"
     )
 
 

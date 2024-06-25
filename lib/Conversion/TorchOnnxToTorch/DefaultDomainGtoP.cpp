@@ -46,29 +46,31 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(alpha));
-
         Value constBeta = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(beta));
 
         // Expression: alpha * x + beta
-        Value alpha_x_plus_beta = rewriter.create<Torch::AtenAddScalarOp>(
-            binder.getLoc(), resultType, tensorOperand, constBeta,
-            /*alpha=*/constAlpha);
+        Value alphaMulX = rewriter.create<Torch::AtenMulScalarOp>(
+            binder.getLoc(), resultType, tensorOperand, constAlpha);
+        Value constOne = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(1.0));
+        Value alphaMulXPlusBeta = rewriter.create<Torch::AtenAddScalarOp>(
+            binder.getLoc(), resultType, alphaMulX, constBeta,
+            /*alpha=*/constOne);
 
         // Expression: min(1, alpha * x + beta)
-        Value constantOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
-        Value oneTensor = createRank0Tensor(rewriter, binder.getLoc(),
-                                            resultType, constantOne);
+        Value oneTensor =
+            createRank0Tensor(rewriter, binder.getLoc(), resultType, constOne);
         Value minExpression = rewriter.create<Torch::AtenMinimumOp>(
-            binder.getLoc(), resultType, oneTensor, alpha_x_plus_beta);
+            binder.getLoc(), resultType, oneTensor, alphaMulXPlusBeta);
 
         // Expression: max(0, min(1, alpha * x + beta))
-        Value constantZero = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(0));
-        Value zeroTensor = createRank0Tensor(rewriter, binder.getLoc(),
-                                             resultType, constantZero);
+        Value constZero = rewriter.create<Torch::ConstantFloatOp>(
+            binder.getLoc(), rewriter.getF64FloatAttr(0.0));
+        Value zeroTensor =
+            createRank0Tensor(rewriter, binder.getLoc(), resultType, constZero);
         rewriter.replaceOpWithNewOp<Torch::AtenMaximumOp>(
             binder.op, resultType, zeroTensor, minExpression);
         return success();
@@ -2731,4 +2733,41 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, tensorListResultType, input);
                   return success();
                 });
+  patterns.onOp(
+      "OptionalHasElement", 15,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        if (binder.tensorResultType(resultType))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "result type bind failed");
+
+        Value input;
+        bool output;
+        if (!binder.tensorListOperand(input) || !binder.tensorOperand(input) ||
+            !binder.optionalTensorListOperand(input) ||
+            !binder.optionalTensorOperand(input))
+          output = true;
+        else
+          output = false;
+
+        Value cstOutput = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr((int64_t)output));
+        Value cstDtype = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(),
+            rewriter.getI64IntegerAttr((int)torch_upstream::ScalarType::Bool));
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
+            binder.getLoc(), rewriter.getBoolAttr(false));
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+
+        Value dataList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            rewriter.getType<Torch::ListType>(
+                rewriter.getType<Torch::IntType>()),
+            SmallVector<Value>{cstOutput});
+
+        rewriter.replaceOpWithNewOp<Torch::AtenTensorOp>(
+            binder.op, resultType, dataList, /*dtype=*/cstDtype,
+            /*layout=*/cstNone, /*requires_grad=*/cstFalse);
+        return success();
+      });
 }

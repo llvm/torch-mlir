@@ -5212,3 +5212,39 @@ LogicalResult BindSymbolicShapeOp::verify() {
 
   return success();
 }
+// AtenTriuIndicesOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenTriuIndicesOp::verify() {
+
+  // Check if row, col and offset are constant ints
+  int64_t row;
+  if (!matchPattern(getRow(), m_TorchConstantInt(&row)))
+    return success();
+
+  int64_t col;
+  if (!matchPattern(getCol(), m_TorchConstantInt(&col)))
+    return success();
+
+  int64_t offset;
+  if (!matchPattern(getOffset(), m_TorchConstantInt(&offset)))
+    return success();
+
+  // Check if values of row, and col are valid
+  if (row < 0)
+    return emitOpError("row must be non-negative, got ") << row;
+
+  if (col < 0)
+    return emitOpError("col must be non-negative, got ") << col;
+
+  // Check if dtype is valid
+  int64_t dtype;
+  if (!matchPattern(getDtype(), m_TorchConstantInt(&dtype)))
+    return success();
+  if (dtype != (int)torch_upstream::ScalarType::Int &&
+      dtype != (int)torch_upstream::ScalarType::Long)
+    return emitOpError(
+        "'triu_indices' implemented only for torch.int32 and torch.int64");
+
+  return success();
+}

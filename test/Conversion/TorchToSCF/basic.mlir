@@ -28,8 +28,8 @@ func.func @torch.prim.if(%arg0: !torch.bool) -> !torch.int {
 // CHECK-LABEL:   func.func @aten.prim.if$nested(
 // CHECK-SAME:                              %[[VAL_0:.*]]: !torch.bool,
 // CHECK-SAME:                              %[[VAL_1:.*]]: !torch.bool) -> !torch.int {
-// CHECK:           %[[VAL_2:.*]] = torch_c.to_i1 %[[VAL_0]]
-// CHECK:           %[[VAL_3:.*]] = torch_c.to_i1 %[[VAL_1]]
+// CHECK-DAG:       %[[VAL_2:.*]] = torch_c.to_i1 %[[VAL_0]]
+// CHECK-DAG:       %[[VAL_3:.*]] = torch_c.to_i1 %[[VAL_1]]
 // CHECK:           %[[VAL_4:.*]] = torch.constant.int 2
 // CHECK:           %[[VAL_5:.*]] = torch_c.to_i64 %[[VAL_4]]
 // CHECK:           %[[VAL_6:.*]] = torch.constant.int 3
