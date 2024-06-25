@@ -2619,6 +2619,36 @@ public:
 };
 } // namespace
 
+namespace {
+static ValueTensorType getTypeFromShape(Type dtype, ArrayRef<Value> vals) {
+  // Get a vector of integers from a vector of Values.
+  auto getIntShape = [](auto &&vals) {
+    SmallVector<int64_t> shape;
+    shape.reserve(vals.size());
+    for (auto v : vals) {
+      int64_t cst_val;
+      if (matchPattern(v, m_TorchConstantInt(&cst_val))) {
+        shape.push_back(cst_val);
+      } else {
+        shape.push_back(kUnknownSize);
+      }
+    }
+    return shape;
+  };
+  auto intShape = getIntShape(vals);
+  return ValueTensorType::get(vals[0].getContext(), intShape, dtype);
+}
+
+// Get the size of the dimension 'i'. Note the use of 'createOrFold' instead
+// of 'create': if the dimension size is known, then the AtenSizeIntOp is
+// folded to a ConstantOp.
+static Value getDimSize(PatternRewriter &rewriter, Value tensor, int64_t dim) {
+  auto loc = tensor.getLoc();
+  auto dimVal =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
+  return rewriter.createOrFold<AtenSizeIntOp>(loc, tensor, dimVal);
+}
+
 // Decompose aten.pixel_shuffle into: prims.split_dim, aten.permute, and
 // prims.collapse operations.
 //
@@ -2637,7 +2667,6 @@ public:
 //    X = X.collapse(...)       # shape (*leading_dims, C, r*H, r*W)
 //
 // 'r' above is referred to as the 'upscale factor' or just 'factor' below.
-namespace {
 class DecomposeAtenPixelShuffleOp
     : public OpRewritePattern<AtenPixelShuffleOp> {
 public:
@@ -2667,41 +2696,10 @@ public:
 
     const auto inOptionalDType = inType.getOptionalDtype();
 
-    auto getTypeFromShape = [inOptionalDType](auto &&vals) {
-      // Get a vector of integers from a vector of Values.
-      auto getIntShape = [](auto &&vals) {
-        SmallVector<int64_t> shape;
-        shape.reserve(vals.size());
-        for (auto v : vals) {
-          int64_t cst_val;
-          if (matchPattern(v, m_TorchConstantInt(&cst_val))) {
-            shape.push_back(cst_val);
-          } else {
-            shape.push_back(kUnknownSize);
-          }
-        }
-        return shape;
-      };
-
-      const auto intShape = getIntShape(vals);
-      return ValueTensorType::get(vals[0].getContext(),
-                                  llvm::ArrayRef(intShape), inOptionalDType);
-    };
-
     auto nLeadingDims = inRank - 3;
-
-    // Get the size of the dimension 'i'. Note the use of 'createOrFold' instead
-    // of 'create': if the dimension size is known, then the AtenSizeIntOp is
-    // folded to a ConstantOp.
-    auto getDimSize = [&](uint64_t i) -> Value {
-      Value dim =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
-      return rewriter.createOrFold<AtenSizeIntOp>(loc, inValue, dim);
-    };
-
-    auto inC = getDimSize(inRank - 3);
-    auto inH = getDimSize(inRank - 2);
-    auto inW = getDimSize(inRank - 1);
+    auto inC = getDimSize(rewriter, inValue, inRank - 3);
+    auto inH = getDimSize(rewriter, inValue, inRank - 2);
+    auto inW = getDimSize(rewriter, inValue, inRank - 1);
 
     auto factor = op.getUpscaleFactor();
 
@@ -2759,30 +2757,139 @@ public:
     auto partiallyExpanded =
         rewriter
             .create<PrimsSplitDimOp>(
-                loc, getTypeFromShape(partiallyExpandedShape), inValue,
-                dimensionConstants[nLeadingDims], outC)
+                loc, getTypeFromShape(inOptionalDType, partiallyExpandedShape),
+                inValue, dimensionConstants[nLeadingDims], outC)
             .getResult();
 
     // Split new dimension factorSquared -> (factor, factor)
     auto fullyExpanded = rewriter.create<PrimsSplitDimOp>(
-        loc, getTypeFromShape(prePermuteShape), partiallyExpanded,
-        dimensionConstants[nLeadingDims + 1], factor);
+        loc, getTypeFromShape(inOptionalDType, prePermuteShape),
+        partiallyExpanded, dimensionConstants[nLeadingDims + 1], factor);
 
     // Perform the permutation
-    auto permuted =
-        rewriter.create<AtenPermuteOp>(loc, getTypeFromShape(postPermuteShape),
-                                       fullyExpanded, permuteDimsOrder);
+    auto permuted = rewriter.create<AtenPermuteOp>(
+        loc, getTypeFromShape(inOptionalDType, postPermuteShape), fullyExpanded,
+        permuteDimsOrder);
 
     // Collapse final 2 dimension
     auto partiallyCollapsed = rewriter.create<PrimsCollapseOp>(
-        loc, getTypeFromShape(partiallyCollapsedShape), permuted,
-        dimensionConstants[nLeadingDims + 3],
+        loc, getTypeFromShape(inOptionalDType, partiallyCollapsedShape),
+        permuted, dimensionConstants[nLeadingDims + 3],
         dimensionConstants[nLeadingDims + 4]);
 
     // Collapse back to original rank
     rewriter.replaceOpWithNewOp<PrimsCollapseOp>(
         op, op.getType(), partiallyCollapsed,
         dimensionConstants[nLeadingDims + 1],
+        dimensionConstants[nLeadingDims + 2]);
+
+    return success();
+  }
+};
+
+// Decompose aten.pixel_unshuffle into: prims.split_dim, aten.permute, and
+// prims.collapse operations.
+//
+// If input is a tensor of shape
+//     (*leading_dims, C, H*r, W*r),
+//
+// where leading_dims is of size N, then
+//    X = pixel_unshuffle(input, downscale_factor)
+//
+// gets replaced with
+//    X = input.split_dim(...)  # shape (*leading_dims, C, H*r, W, r)
+//    X = X.split_dim(...)      # shape (*leading_dims, C, H, r, W, r)
+//    X = X.permute(0, ..., N, N+2, N+4, N+1, N+3)
+//                              # shape (*leading_dims, C, r, r, H, W)
+//    X = X.collapse(...)       # shape (*leading_dims, C, r*H, r*W)
+class DecomposeAtenPixelUnshuffleOp
+    : public OpRewritePattern<AtenPixelUnshuffleOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenPixelUnshuffleOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    Value inValue = op.getSelf();
+    auto inType = cast<BaseTensorType>(inValue.getType());
+    auto maybeSizes = inType.getOptionalSizes();
+    if (!maybeSizes) {
+      return rewriter.notifyMatchFailure(
+          op, "Expected input tensor to have known rank.");
+    }
+    auto inShape = maybeSizes.value();
+    auto inRank = inShape.size();
+
+    const auto inOptionalDType = inType.getOptionalDtype();
+
+    auto nLeadingDims = inRank - 3;
+    auto inC = getDimSize(rewriter, inValue, inRank - 3);
+    auto inH = getDimSize(rewriter, inValue, inRank - 2);
+    auto inW = getDimSize(rewriter, inValue, inRank - 1);
+
+    auto factor = op.getDownscaleFactor();
+
+    Value factorSquared =
+        rewriter.createOrFold<AtenMulIntOp>(loc, factor, factor);
+
+    Value outC = rewriter.createOrFold<AtenMulIntOp>(loc, inC, factorSquared);
+
+    Value outH = rewriter.createOrFold<AtenFloordivIntOp>(loc, inH, factor);
+    Value outW = rewriter.createOrFold<AtenFloordivIntOp>(loc, inW, factor);
+
+    SmallVector<Value> dimensionConstants;
+    dimensionConstants.reserve(inRank + 2);
+    for (unsigned i = 0; i < inRank + 2; ++i) {
+      dimensionConstants.push_back(
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i)));
+    }
+
+    SmallVector<Value> leadingDims;
+    leadingDims.reserve(nLeadingDims);
+    for (unsigned i = 0; i < nLeadingDims; ++i) {
+      Value leadingDimSize = rewriter.createOrFold<AtenSizeIntOp>(
+          loc, inValue, dimensionConstants[i]);
+      leadingDims.push_back(leadingDimSize);
+    }
+
+    SmallVector<Value> partiallyExpandedShape0 = leadingDims;
+    partiallyExpandedShape0.append({inC, inH, outW, factor});
+
+    SmallVector<Value> partiallyExpandedShape1 = leadingDims;
+    partiallyExpandedShape1.append({inC, outH, factor, outW, factor});
+
+    SmallVector<Value> postPermuteShape = leadingDims;
+    postPermuteShape.append({inC, factor, factor, outH, outW});
+
+    SmallVector<Value> partiallyCollapsedShape = leadingDims;
+    partiallyCollapsedShape.append({outC, outH, outW});
+
+    SmallVector<Value> outShape = leadingDims;
+    outShape.append({outC, outH, outW});
+
+    SmallVector<Value> permutation{dimensionConstants.begin(),
+                                   dimensionConstants.begin() + nLeadingDims};
+    SmallVector<uint64_t> permutationTail{0, 2, 4, 1, 3};
+    for (uint64_t d : permutationTail) {
+      permutation.push_back(dimensionConstants[nLeadingDims + d]);
+    }
+
+    Value partiallyExpanded = rewriter.create<PrimsSplitDimOp>(
+        loc, getTypeFromShape(inOptionalDType, partiallyExpandedShape0),
+        inValue, dimensionConstants[nLeadingDims + 2], outW);
+
+    Value fullyExpanded = rewriter.create<PrimsSplitDimOp>(
+        loc, getTypeFromShape(inOptionalDType, partiallyExpandedShape1),
+        partiallyExpanded, dimensionConstants[nLeadingDims + 1], outH);
+
+    Value permuted = rewriter.create<AtenPermuteOp>(
+        loc, getTypeFromShape(inOptionalDType, postPermuteShape), fullyExpanded,
+        rewriter.create<PrimListConstructOp>(
+            loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
+            permutation));
+
+    rewriter.replaceOpWithNewOp<PrimsCollapseOp>(
+        op, op.getType(), permuted, dimensionConstants[nLeadingDims + 0],
         dimensionConstants[nLeadingDims + 2]);
 
     return success();
@@ -8548,6 +8655,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRenormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgCrossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPixelShuffleOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenPixelUnshuffleOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxBackwardDataOp>(
         patterns);

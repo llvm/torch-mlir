@@ -986,6 +986,78 @@ def PixelShuffleModuleSpatiallyStatic_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class PixelUnshuffleModuleStaticRank3int64(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([12, 2, 2], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_unshuffle(x, 2)
+
+
+@register_test_case(module_factory=lambda: PixelUnshuffleModuleStaticRank3int64())
+def PixelUnshuffleModuleStaticRank3int64_basic(module, tu: TestUtils):
+    module.forward(tu.randint(12, 2, 2, low=0, high=100))
+
+
+# ==============================================================================
+
+
+class PixelUnshuffleModuleStaticRank4Float32(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([3, 6, 4, 4], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_unshuffle(x, 2)
+
+
+@register_test_case(module_factory=lambda: PixelUnshuffleModuleStaticRank4Float32())
+def PixelUnshuffleModuleStaticRank4Float32_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 6, 4, 4))
+
+
+# ==============================================================================
+
+
+class PixelUnshuffleModuleFullDynamic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1, -1, -1], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_unshuffle(x, 2)
+
+
+@register_test_case(module_factory=lambda: PixelUnshuffleModuleFullDynamic())
+def PixelUnshuffleModuleFullDynamic_basic(module, tu: TestUtils):
+    module.forward(tu.randint(1, 8, 4, 4, low=0, high=100))
+
+
+# ==============================================================================
+
+
+class PixelUnshuffleModuleSpatiallyDynamic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([2, 1, -1, -1], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.pixel_unshuffle(x, 2)
+
+
+@register_test_case(module_factory=lambda: PixelUnshuffleModuleSpatiallyDynamic())
+def PixelUnshuffleModuleSpatiallyDynamic_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 1, 8, 8, low=0, high=100))
+
+
+# ==============================================================================
+
+
 class TensorsConcatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
