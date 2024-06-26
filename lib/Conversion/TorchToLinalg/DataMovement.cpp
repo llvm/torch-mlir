@@ -661,7 +661,8 @@ public:
                                          "Expected input type having sizes");
     }
     int inputRank = inputTensorType.getSizes().size();
-    int outputRank = outputTensorType.getSizes().size();
+    auto outputSizes = outputTensorType.getSizes();
+    int outputRank = outputSizes.size();
 
     int64_t dimInt;
     if (!matchPattern(op.getDim(), m_TorchConstantInt(&dimInt)))
@@ -675,23 +676,64 @@ public:
     auto sizesOp = op.getSizes().getDefiningOp<Torch::PrimListConstructOp>();
     int numSizes = sizesOp.getNumOperands();
 
-    SmallVector<ReassociationIndices> reassociations(inputRank);
-    if (inputRank > 0) {
-      for (int i = 0; i < dimInt; ++i)
-        reassociations[i].push_back(i);
-
-      for (int i = 0; i < numSizes; ++i)
-        reassociations[dimInt].push_back(i + dimInt);
-
-      for (int i = dimInt + numSizes; i < outputRank; ++i)
-        reassociations[i - numSizes + 1].push_back(i);
+    int64_t numDynamicReassocDims = 0;
+    for (int64_t i = dimInt; i < dimInt + numSizes; i++) {
+      if (outputSizes[i] == Torch::kUnknownSize)
+        numDynamicReassocDims++;
     }
 
+    SmallVector<Value> reassocSizes;
+    if (!getListConstructElements(op.getSizes(), reassocSizes) &&
+        numDynamicReassocDims > 1)
+      return rewriter.notifyMatchFailure(
+          op, "Must be able to either infer expansion dims, or retrieve them "
+              "from list construct");
+
     auto expandTy = getTypeConverter()->convertType(outputTensorType);
-    auto expand = rewriter
-                      .create<tensor::ExpandShapeOp>(
-                          loc, expandTy, adaptor.getSelf(), reassociations)
-                      .getResult();
+    Value expand;
+    // When there are less than two dynamic reassociation dims, this will lower
+    // to tensor.expand_shape. Otherwise, this lowers to tensor.reshape.
+    // TODO: in the numDynamicReassocDims >= 2 case, lower to expand_shape with
+    // explicitly provided outputShape once
+    // https://github.com/iree-org/iree/issues/17760 is resolved.
+    if (numDynamicReassocDims < 2) {
+      SmallVector<ReassociationIndices> reassociations(inputRank);
+      if (inputRank > 0) {
+        for (int i = 0; i < dimInt; ++i)
+          reassociations[i].push_back(i);
+        for (int i = 0; i < numSizes; ++i)
+          reassociations[dimInt].push_back(i + dimInt);
+        for (int i = dimInt + numSizes; i < outputRank; ++i)
+          reassociations[i - numSizes + 1].push_back(i);
+      }
+      expand = rewriter
+                    .create<tensor::ExpandShapeOp>(
+                        loc, expandTy, adaptor.getSelf(), reassociations)
+                    .getResult();
+    } else {
+      reassocSizes = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
+                                            reassocSizes);
+      SmallVector<Value> inputShape =
+          getTensorSizes(rewriter, loc, adaptor.getSelf());
+      inputShape = castIndexVectorToInt64Vector(rewriter, loc, inputShape);
+      SmallVector<Value> outputShape(inputShape.begin(),
+                                      inputShape.begin() + dimInt);
+      if (inputRank > 0) {
+        for (int i = 0; i < numSizes; ++i)
+          outputShape.push_back(reassocSizes[i]);
+        for (int i = dimInt + numSizes; i < outputRank; ++i)
+          outputShape.push_back(inputShape[i - numSizes + 1]);
+      }
+
+      RankedTensorType shapeType = RankedTensorType::get(
+          ArrayRef<int64_t>{outputRank}, rewriter.getIntegerType(64));
+      Value shapeValue = rewriter.create<tensor::FromElementsOp>(
+          loc, shapeType, outputShape);
+      expand = rewriter
+                    .create<tensor::ReshapeOp>(loc, expandTy,
+                                              adaptor.getSelf(), shapeValue)
+                    .getResult();
+    }
     rewriter.replaceOp(op, expand);
     return success();
   }
