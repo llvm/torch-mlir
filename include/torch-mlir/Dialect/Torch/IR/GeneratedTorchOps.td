@@ -8586,6 +8586,54 @@ def Torch_AtenLinalgQrOp : Torch_Op<"aten.linalg_qr", [
   }];
 }
 
+def Torch_AtenLinalgDetOp : Torch_Op<"aten.linalg_det", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::linalg_det : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$A
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenLinalgDetOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenLinalgDetOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
+def Torch_Aten_LinalgDetOp : Torch_Op<"aten._linalg_det", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_linalg_det : (Tensor) -> (Tensor, Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$A
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result,
+    AnyTorchOptionalTensorType:$LU,
+    AnyTorchOptionalTensorType:$pivots
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_LinalgDetOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 3);
+    }
+    void Aten_LinalgDetOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 3);
+    }
+  }];
+}
+
 def Torch_AtenFrobeniusNormDimOp : Torch_Op<"aten.frobenius_norm.dim", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -12531,6 +12579,36 @@ def Torch_AtenKthvalueOp : Torch_Op<"aten.kthvalue", [
     }
   }];
   let hasVerifier = 1;
+}
+
+def Torch_AtenStftOp : Torch_Op<"aten.stft", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::stft : (Tensor, int, int?, int?, Tensor?, bool, bool?, bool?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$n_fft,
+    AnyTorchOptionalIntType:$hop_length,
+    AnyTorchOptionalIntType:$win_length,
+    AnyTorchOptionalTensorType:$window,
+    Torch_BoolType:$normalized,
+    AnyTorchOptionalBoolType:$onesided,
+    AnyTorchOptionalBoolType:$return_complex
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenStftOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 8, 1);
+    }
+    void AtenStftOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 8, 1);
+    }
+  }];
 }
 
 def Torch_AtenAliasCopyOp : Torch_Op<"aten.alias_copy", [
@@ -16626,6 +16704,99 @@ def Torch_QuantizedLinearOp : Torch_Op<"quantized.linear", [
     }
     void QuantizedLinearOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
+def Torch_TorchvisionDeformConv2dOp : Torch_Op<"torchvision.deform_conv2d", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `torchvision::deform_conv2d : (Tensor, Tensor, Tensor, Tensor, Tensor, int, int, int, int, int, int, int, int, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$weight,
+    AnyTorchTensorType:$offset,
+    AnyTorchTensorType:$mask,
+    AnyTorchTensorType:$bias,
+    Torch_IntType:$stride_h,
+    Torch_IntType:$stride_w,
+    Torch_IntType:$pad_h,
+    Torch_IntType:$pad_w,
+    Torch_IntType:$dilation_h,
+    Torch_IntType:$dilation_w,
+    Torch_IntType:$groups,
+    Torch_IntType:$offset_groups,
+    Torch_BoolType:$use_mask
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult TorchvisionDeformConv2dOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 14, 1);
+    }
+    void TorchvisionDeformConv2dOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 14, 1);
+    }
+  }];
+}
+
+def Torch_TorchvisionRoiAlignOp : Torch_Op<"torchvision.roi_align", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `torchvision::roi_align : (Tensor, Tensor, float, int, int, int, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$rois,
+    Torch_FloatType:$spatial_scale,
+    Torch_IntType:$pooled_height,
+    Torch_IntType:$pooled_width,
+    Torch_IntType:$sampling_ratio,
+    Torch_BoolType:$aligned
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult TorchvisionRoiAlignOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 7, 1);
+    }
+    void TorchvisionRoiAlignOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 7, 1);
+    }
+  }];
+}
+
+def Torch_TorchvisionRoiPoolOp : Torch_Op<"torchvision.roi_pool", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `torchvision::roi_pool : (Tensor, Tensor, float, int, int) -> (Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$rois,
+    Torch_FloatType:$spatial_scale,
+    Torch_IntType:$pooled_height,
+    Torch_IntType:$pooled_width
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result0,
+    AnyTorchOptionalTensorType:$result1
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult TorchvisionRoiPoolOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 5, 2);
+    }
+    void TorchvisionRoiPoolOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 5, 2);
     }
   }];
 }
