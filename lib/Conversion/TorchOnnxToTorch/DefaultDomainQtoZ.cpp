@@ -3478,35 +3478,41 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
   // Outputs:
   // - outputs: sequence of tensor
   //
-  patterns.onOp(
+
+patterns.onOp(
       "SplitToSequence", 11, 
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Value self;
         Value split;
         int64_t axis;
         int64_t keepdims;
-        Torch::ValueTensorType resultType;
+        Torch::ListType resultType;
+
         if (binder.tensorOperandAtIndex(self, 0))
           return rewriter.notifyMatchFailure(
               binder.op, "Not converting to AtenSplitWithSizesOp due to input "
                          "tensor mismatch");
-        if (binder.tensorResultType(resultType) ||
+        if ( binder.tensorListResultType(resultType) ||
                       binder.s64IntegerAttr(keepdims, "keepdims", 1) ||
                       binder.s64IntegerAttr(axis, "axis", 0))
                     return failure();
 
         Value vkeepdims = rewriter.create<Torch::ConstantIntOp>( binder.getLoc(), 
-				                           rewriter.getType<Torch::IntType>(), rewriter.getI64IntegerAttr(keepdims));
-	      Value vaxis = rewriter.create<Torch::ConstantIntOp>( binder.getLoc(), 
-				                           rewriter.getType<Torch::IntType>(), rewriter.getI64IntegerAttr(axis));
+				rewriter.getType<Torch::IntType>(), rewriter.getI64IntegerAttr(keepdims));
+	Value vaxis = rewriter.create<Torch::ConstantIntOp>( binder.getLoc(), 
+				rewriter.getType<Torch::IntType>(), rewriter.getI64IntegerAttr(axis));
         if (binder.op->getNumOperands() == 1) {
-	           //Split is not specified so will get split with size 1
-		         rewriter.replaceOpWithNewOp<Torch::AtenSplitTensorOp>(
-				                         binder.op, resultType, self, vkeepdims, vaxis );
-        	   return success();
-	      }
-	      rewriter.replaceOpWithNewOp<Torch::AtenSplitTensorOp>(
-				                         binder.op, resultType,self,  split, vaxis );
+	  //Split is not specified so will get split with size 1
+		rewriter.replaceOpWithNewOp<Torch::AtenSplitTensorOp>(
+				binder.op, resultType, self, vkeepdims, vaxis );
+        	return success();
+	}
+        if(binder.tensorOperandAtIndex(split, 1))
+        	return rewriter.notifyMatchFailure(binder.op, "split size is not specified");
+
+	rewriter.replaceOpWithNewOp<Torch::AtenSplitTensorOp>(
+				binder.op, resultType, self,  split, vaxis );
         return success();
-  });
+      });
+
 }
