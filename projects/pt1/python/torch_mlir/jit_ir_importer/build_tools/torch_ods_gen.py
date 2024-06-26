@@ -909,6 +909,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants(
         "aten::baddbmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)"
     )
+    emit(
+        "aten::hann_window.periodic : (int, bool, int?, int?, Device?, bool?) -> (Tensor)"
+    )
     emit("aten::fft_fft : (Tensor, int?, int, str?) -> (Tensor)")
     emit("aten::fmod.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit(
