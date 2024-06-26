@@ -1302,3 +1302,59 @@ func.func @forward(%arg0: !torch.vtensor<[5,5],f32>, %arg1: !torch.vtensor<[5,5]
   %0 = torch.aten.isclose %arg0, %arg1, %float1.000000e-05, %float1.000000e-08, %false : !torch.vtensor<[5,5],f32>, !torch.vtensor<[5,5],f32>, !torch.float, !torch.float, !torch.bool -> !torch.vtensor<[5,5],i1>
   return %0 : !torch.vtensor<[5,5],i1>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.__interpolate.size_list_scale_list.bilinear(
+// CHECK-SAME:                                                             %[[VAL_0:.*]]: !torch.vtensor<[1,16,135,240],f32>) -> !torch.vtensor<[1,16,270,480],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,16,135,240],f32> -> tensor<1x16x135x240xf32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.none
+// CHECK:           %[[VAL_3:.*]] = torch.constant.bool false
+// CHECK:           %[[VAL_4:.*]] = torch.constant.str "bilinear"
+// CHECK:           %[[VAL_5:.*]] = torch.constant.float 2.000000e+00
+// CHECK:           %[[VAL_6:.*]] = torch.prim.ListConstruct %[[VAL_5]], %[[VAL_5]] : (!torch.float, !torch.float) -> !torch.list<float>
+// CHECK:           %[[VAL_7:.*]] = "tosa.const"() <{value = dense<[0, 2, 3, 1]> : tensor<4xi32>}> : () -> tensor<4xi32>
+// CHECK:           %[[VAL_8:.*]] = tosa.transpose %[[VAL_1]], %[[VAL_7]] : (tensor<1x16x135x240xf32>, tensor<4xi32>) -> tensor<1x135x240x16xf32>
+// CHECK:           %[[VAL_9:.*]] = tosa.resize %[[VAL_8]] {border = array<i64: 2, 2>, mode = "BILINEAR", offset = array<i64: 0, 0>, scale = array<i64: 4, 2, 4, 2>} : (tensor<1x135x240x16xf32>) -> tensor<1x270x480x16xf32>
+// CHECK:           %[[VAL_10:.*]] = "tosa.const"() <{value = dense<[0, 3, 1, 2]> : tensor<4xi32>}> : () -> tensor<4xi32>
+// CHECK:           %[[VAL_11:.*]] = tosa.transpose %[[VAL_9]], %[[VAL_10]] : (tensor<1x270x480x16xf32>, tensor<4xi32>) -> tensor<1x16x270x480xf32>
+// CHECK:           %[[VAL_12:.*]] = torch_c.from_builtin_tensor %[[VAL_11]] : tensor<1x16x270x480xf32> -> !torch.vtensor<[1,16,270,480],f32>
+// CHECK:           return %[[VAL_12]] : !torch.vtensor<[1,16,270,480],f32>
+// CHECK:         }
+func.func @torch.aten.__interpolate.size_list_scale_list.bilinear(%arg0: !torch.vtensor<[1,16,135,240],f32>) -> !torch.vtensor<[1,16,270,480],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "bilinear"
+  %float2.000000e00 = torch.constant.float 2.000000e+00
+  %0 = torch.prim.ListConstruct %float2.000000e00, %float2.000000e00 : (!torch.float, !torch.float) -> !torch.list<float>
+  %1 = torch.aten.__interpolate.size_list_scale_list %arg0, %none, %0, %str, %false, %none, %false : !torch.vtensor<[1,16,135,240],f32>, !torch.none, !torch.list<float>, !torch.str, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,16,270,480],f32>
+  return %1 : !torch.vtensor<[1,16,270,480],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.__interpolate.size_list_scale_list.nearest(
+// CHECK-SAME:                                                             %[[VAL_0:.*]]: !torch.vtensor<[1,16,135,240],f32>) -> !torch.vtensor<[1,16,270,480],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,16,135,240],f32> -> tensor<1x16x135x240xf32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.none
+// CHECK:           %[[VAL_3:.*]] = torch.constant.bool false
+// CHECK:           %[[VAL_4:.*]] = torch.constant.str "nearest"
+// CHECK:           %[[VAL_5:.*]] = torch.constant.float 2.000000e+00
+// CHECK:           %[[VAL_6:.*]] = torch.prim.ListConstruct %[[VAL_5]], %[[VAL_5]] : (!torch.float, !torch.float) -> !torch.list<float>
+// CHECK:           %[[VAL_7:.*]] = "tosa.const"() <{value = dense<[0, 2, 3, 1]> : tensor<4xi32>}> : () -> tensor<4xi32>
+// CHECK:           %[[VAL_8:.*]] = tosa.transpose %[[VAL_1]], %[[VAL_7]] : (tensor<1x16x135x240xf32>, tensor<4xi32>) -> tensor<1x135x240x16xf32>
+// CHECK:           %[[VAL_9:.*]] = tosa.resize %[[VAL_8]] {border = array<i64: 2, 2>, mode = "NEAREST_NEIGHBOR", offset = array<i64: 0, 0>, scale = array<i64: 4, 2, 4, 2>} : (tensor<1x135x240x16xf32>) -> tensor<1x270x480x16xf32>
+// CHECK:           %[[VAL_10:.*]] = "tosa.const"() <{value = dense<[0, 3, 1, 2]> : tensor<4xi32>}> : () -> tensor<4xi32>
+// CHECK:           %[[VAL_11:.*]] = tosa.transpose %[[VAL_9]], %[[VAL_10]] : (tensor<1x270x480x16xf32>, tensor<4xi32>) -> tensor<1x16x270x480xf32>
+// CHECK:           %[[VAL_12:.*]] = torch_c.from_builtin_tensor %[[VAL_11]] : tensor<1x16x270x480xf32> -> !torch.vtensor<[1,16,270,480],f32>
+// CHECK:           return %[[VAL_12]] : !torch.vtensor<[1,16,270,480],f32>
+// CHECK:         }
+func.func @torch.aten.__interpolate.size_list_scale_list.nearest(%arg0: !torch.vtensor<[1,16,135,240],f32>) -> !torch.vtensor<[1,16,270,480],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "nearest"
+  %float2.000000e00 = torch.constant.float 2.000000e+00
+  %0 = torch.prim.ListConstruct %float2.000000e00, %float2.000000e00 : (!torch.float, !torch.float) -> !torch.list<float>
+  %1 = torch.aten.__interpolate.size_list_scale_list %arg0, %none, %0, %str, %false, %none, %false : !torch.vtensor<[1,16,135,240],f32>, !torch.none, !torch.list<float>, !torch.str, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,16,270,480],f32>
+  return %1 : !torch.vtensor<[1,16,270,480],f32>
+}
