@@ -707,9 +707,9 @@ public:
           reassociations[i - numSizes + 1].push_back(i);
       }
       expand = rewriter
-                    .create<tensor::ExpandShapeOp>(
-                        loc, expandTy, adaptor.getSelf(), reassociations)
-                    .getResult();
+                   .create<tensor::ExpandShapeOp>(
+                       loc, expandTy, adaptor.getSelf(), reassociations)
+                   .getResult();
     } else {
       reassocSizes = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
                                             reassocSizes);
@@ -717,7 +717,7 @@ public:
           getTensorSizes(rewriter, loc, adaptor.getSelf());
       inputShape = castIndexVectorToInt64Vector(rewriter, loc, inputShape);
       SmallVector<Value> outputShape(inputShape.begin(),
-                                      inputShape.begin() + dimInt);
+                                     inputShape.begin() + dimInt);
       if (inputRank > 0) {
         for (int i = 0; i < numSizes; ++i)
           outputShape.push_back(reassocSizes[i]);
@@ -727,12 +727,12 @@ public:
 
       RankedTensorType shapeType = RankedTensorType::get(
           ArrayRef<int64_t>{outputRank}, rewriter.getIntegerType(64));
-      Value shapeValue = rewriter.create<tensor::FromElementsOp>(
-          loc, shapeType, outputShape);
+      Value shapeValue =
+          rewriter.create<tensor::FromElementsOp>(loc, shapeType, outputShape);
       expand = rewriter
-                    .create<tensor::ReshapeOp>(loc, expandTy,
-                                              adaptor.getSelf(), shapeValue)
-                    .getResult();
+                   .create<tensor::ReshapeOp>(loc, expandTy, adaptor.getSelf(),
+                                              shapeValue)
+                   .getResult();
     }
     rewriter.replaceOp(op, expand);
     return success();
