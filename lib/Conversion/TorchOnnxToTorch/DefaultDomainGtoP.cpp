@@ -2984,4 +2984,23 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             /*layout=*/cstNone, /*requires_grad=*/cstFalse);
         return success();
       });
+  patterns.onOp("NonMaxSuppression", 10,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  SmallVector<Value> operands;
+                  if (binder.tensorOperandsList(operands) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
+
+                  // TODO: Add support for handling max_output_boxes_per_class
+                  // and score_threshold arg.
+                  Type scalarTy = rewriter.getType<Torch::FloatType>();
+                  Value iouThreshold = rewriter.create<Torch::AtenItemOp>(
+                      binder.getLoc(), scalarTy, operands[3]);
+
+                  rewriter.replaceOpWithNewOp<Torch::TorchvisionNmsOp>(
+                      binder.op, resultType, /*boxes=*/operands[0],
+                      /*scores=*/operands[1], /*iou_threshold=*/iouThreshold);
+                  return success();
+                });
 }
