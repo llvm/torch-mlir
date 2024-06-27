@@ -305,7 +305,7 @@ LogicalResult OnnxGruExpander(OpBinder binder,
     linear_before_reset_int = 0;
   bool linear_before_reset = linear_before_reset_int != 0;
 
-  // Setting up weights
+  // for slicing weights into individual directions
   auto getDirection = [&](int64_t direction, Value input) {
     auto inputType = cast<ValueTensorType>(input.getType());
     auto outputType = cast<ValueTensorType>(inputType.getWithSizesAndDtype(
@@ -332,7 +332,8 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
   Value cstTwo = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(2));
 
-  // Lambda function for slicing
+  // Slice a tensor into numSlices slices of size sliceSize
+  // This is used for slicing the weights & biases into the individual gates
   auto sliceTensor = [&](Value tensor, int64_t sliceSize, int64_t numSlices,
                          ValueTensorType sliceType) {
     SmallVector<Value> slices;
@@ -404,14 +405,13 @@ LogicalResult OnnxGruExpander(OpBinder binder,
         Y_hType.getDtype());
   }
 
-  // Call gru_layer
+  // Weights and biases ready. Calling GRU layer to insert the actual ops.
   GruLayerOutput gruLayerOutput =
       gru_layer(b, X_processed, initial_h_processed, weights, activations,
                 linear_before_reset);
 
   // Process outputs based on layout
   Value Y_final, Y_h_final;
-
   if (layout == 0) {
     Y_final = b.create<AtenUnsqueezeOp>(yTy, gruLayerOutput.Y, cstOne);
     Y_h_final = b.create<AtenUnsqueezeOp>(Y_hType, gruLayerOutput.Y_h, cstZero);
