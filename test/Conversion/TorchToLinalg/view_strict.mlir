@@ -7,10 +7,8 @@
 
 // CHECK-LABEL:   func.func @torch.aten.view$twotothree
 // CHECK:       %[[ARG0:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[3,2],f32> -> tensor<3x2xf32>
-// CHECK:       %[[T3:.*]] = torch.constant.int 3
-// CHECK:       %[[T2:.*]] = torch.constant.int 2
-// CHECK:       %[[N2:.*]] = torch_c.to_i64 %[[T2]]
-// CHECK:       %[[N3:.*]] = torch_c.to_i64 %[[T3]]
+// CHECK:       %[[N2:.*]] = arith.constant 2 : i64
+// CHECK:       %[[N3:.*]] = arith.constant 3 : i64
 // CHECK:       %[[ELEMENTS:.*]] = tensor.from_elements %[[N2]], %[[N3]] : tensor<2xi64>
 // CHECK:       %[[RESHAPE:.*]] = tensor.reshape %[[ARG0]](%[[ELEMENTS]]) : (tensor<3x2xf32>, tensor<2xi64>) -> tensor<2x3xf32>
 func.func @torch.aten.view$twotothree(%arg0: !torch.vtensor<[3,2],f32>) -> !torch.vtensor<[2,3],f32>
@@ -112,13 +110,12 @@ func.func @torch.aten.view$expandInferredDim(%arg0: !torch.vtensor<[2,6],f32>) -
 // reshape. Someday, this should generate flatten/unflatten.
 // CHECK-LABEL: func.func @torch.aten$dynamicValOutput
 // CHECK:       %[[SELF:.*]] = torch_c.to_builtin_tensor %arg0
-// CHECK:       %[[CONSTANT1:.*]] = torch.constant.int 1
 // CHECK-DAG:   %[[PROD1:.*]] = arith.constant 1
 // CHECK-DAG:   %[[ARG1_CVT:.*]] = torch_c.to_i64 %arg1
 // CHECK-DAG:   %[[PROD2:.*]] = arith.muli %[[PROD1]], %[[ARG1_CVT]]
-// CHECK-DAG:   %[[ONEI64:.*]] = torch_c.to_i64 %[[CONSTANT1]]
+// CHECK-DAG:   %[[ONEI64:.*]] = arith.constant 1 : i64
 // CHECK-DAG:   %[[PROD3:.*]] = arith.muli %[[PROD2]], %[[ONEI64]]
-// CHECK-DAG:   %[[ONEI64_0:.*]] = torch_c.to_i64 %[[CONSTANT1]]
+// CHECK-DAG:   %[[ONEI64_0:.*]] = arith.constant 1 : i64
 // CHECK-DAG:   %[[PROD4:.*]] = arith.muli %[[PROD3]], %[[ONEI64_0]]
 // CHECK-DAG:   %[[INDEX0:.*]] = arith.constant 0 : index
 // CHECK-DAG:   %[[DIM0_INDEX:.*]] = tensor.dim %[[SELF]], %[[INDEX0]] : tensor<?x?x?xf32>
@@ -134,8 +131,8 @@ func.func @torch.aten.view$expandInferredDim(%arg0: !torch.vtensor<[2,6],f32>) -
 // CHECK-DAG:   %[[KNOWN2:.*]] = arith.muli %[[KNOWN1]], %[[DIM2]] : i64
 // CHECK-DAG:   %[[DIMINFER:.*]] = arith.divui %[[KNOWN2]], %[[PROD4]] : i64
 // CHECK:       %[[DIM0:.*]] = torch_c.to_i64 %arg1
-// CHECK:       %[[DIM1:.*]] = torch_c.to_i64 %[[CONSTANT1]]
-// CHECK:       %[[DIM3:.*]] = torch_c.to_i64 %[[CONSTANT1]]
+// CHECK:       %[[DIM1:.*]] = arith.constant 1 : i64
+// CHECK:       %[[DIM3:.*]] = arith.constant 1 : i64
 // CHECK:       %[[OUTPUT_DIMS:.*]] = tensor.from_elements %[[DIM0]], %[[DIM1]], %[[DIMINFER]], %[[DIM3]] : tensor<4xi64>
 // CHECK:       tensor.reshape %[[SELF]](%[[OUTPUT_DIMS]]) : (tensor<?x?x?xf32>, tensor<4xi64>) -> tensor<?x1x?x1xf32>
 //

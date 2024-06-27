@@ -4,9 +4,9 @@
 // CHECK-SAME:                        %[[VAL_0:.*]]: !torch.bool) -> !torch.int {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_i1 %[[VAL_0]]
 // CHECK:           %[[VAL_2:.*]] = torch.constant.int 2
-// CHECK:           %[[VAL_3:.*]] = torch_c.to_i64 %[[VAL_2]]
+// CHECK:           %[[VAL_3:.*]] = arith.constant 2 : i64
 // CHECK:           %[[VAL_4:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_5:.*]] = torch_c.to_i64 %[[VAL_4]]
+// CHECK:           %[[VAL_5:.*]] = arith.constant 1 : i64
 // CHECK:           %[[VAL_6:.*]] = scf.if %[[VAL_1]] -> (i64) {
 // CHECK:             scf.yield %[[VAL_3]] : i64
 // CHECK:           } else {
@@ -31,11 +31,11 @@ func.func @torch.prim.if(%arg0: !torch.bool) -> !torch.int {
 // CHECK-DAG:       %[[VAL_2:.*]] = torch_c.to_i1 %[[VAL_0]]
 // CHECK-DAG:       %[[VAL_3:.*]] = torch_c.to_i1 %[[VAL_1]]
 // CHECK:           %[[VAL_4:.*]] = torch.constant.int 2
-// CHECK:           %[[VAL_5:.*]] = torch_c.to_i64 %[[VAL_4]]
+// CHECK:           %[[VAL_5:.*]] = arith.constant 2 : i64
 // CHECK:           %[[VAL_6:.*]] = torch.constant.int 3
-// CHECK:           %[[VAL_7:.*]] = torch_c.to_i64 %[[VAL_6]]
+// CHECK:           %[[VAL_7:.*]] = arith.constant 3 : i64
 // CHECK:           %[[VAL_8:.*]] = torch.constant.int 4
-// CHECK:           %[[VAL_9:.*]] = torch_c.to_i64 %[[VAL_8]]
+// CHECK:           %[[VAL_9:.*]] = arith.constant 4 : i64
 // CHECK:           %[[VAL_10:.*]] = scf.if %[[VAL_2]] -> (i64) {
 // CHECK:             %[[VAL_11:.*]] = scf.if %[[VAL_3]] -> (i64) {
 // CHECK:               scf.yield %[[VAL_5]] : i64

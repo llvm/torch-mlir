@@ -278,7 +278,7 @@ func.func @torch.aten.mm$proj(%arg0: !torch.vtensor<[?,256],f32>) -> !torch.vten
 // CHECK:           %[[T_5:.*]] = torch.constant.int 1
 // CHECK:           %[[T_6:.*]] = torch.constant.int 4
 // CHECK:           %[[T_7:.*]] = torch.constant.int 3
-// CHECK:           %[[T_8:.*]] = torch_c.to_i64 %[[T_7]]
+// CHECK:           %[[T_8:.*]] = arith.constant 3 : i64
 // CHECK:           %[[T_9:.*]] = torch.prim.ListConstruct %[[T_4]], %[[T_5]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_10:.*]] = torch.prim.ListConstruct %[[T_6]], %[[T_4]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_11:.*]] = torch.prim.ListConstruct %[[T_7]], %[[T_5]] : (!torch.int, !torch.int) -> !torch.list<int>
@@ -314,8 +314,7 @@ func.func @torch.aten.convolution(%arg0: !torch.vtensor<[?,?,?,?],f32>, %arg1: !
 // CHECK:           %int2 = torch.constant.int 2
 // CHECK:           %int1 = torch.constant.int 1
 // CHECK:           %int4 = torch.constant.int 4
-// CHECK:           %int3 = torch.constant.int 3
-// CHECK:           %[[T_3:.*]] = torch_c.to_i64 %int3
+// CHECK:           %[[T_3:.*]] = arith.constant 3 : i64
 // CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int2, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_5:.*]] = torch.prim.ListConstruct %int4, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_6:.*]] = torch.prim.ListConstruct %int3, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
@@ -357,7 +356,7 @@ func.func @torch.aten.convolution$bias(%arg0: !torch.vtensor<[?,?,?,?],f32>, %ar
 // CHECK:           %none = torch.constant.none
 // CHECK:           %int0 = torch.constant.int 0
 // CHECK:           %int1 = torch.constant.int 1
-// CHECK:           %[[T_2:.*]] = torch_c.to_i64 %int1
+// CHECK:           %[[T_2:.*]] = arith.constant 1 : i64
 // CHECK:           %[[T_3:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_5:.*]] = stablehlo.transpose %[[T_1]], dims = [2, 3, 1, 0] : (tensor<2x4x3x3xf32>) -> tensor<3x3x4x2xf32>
@@ -388,7 +387,7 @@ func.func @torch.aten.convolution$transposed_basic(%arg0: !torch.vtensor<[1,2,7,
 // CHECK:           %none = torch.constant.none
 // CHECK:           %int0 = torch.constant.int 0
 // CHECK:           %int1 = torch.constant.int 1
-// CHECK:           %[[T_2:.*]] = torch_c.to_i64 %int1
+// CHECK:           %[[T_2:.*]] = arith.constant 1 : i64
 // CHECK:           %int2 = torch.constant.int 2
 // CHECK:           %[[T_3:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
@@ -423,7 +422,7 @@ func.func @torch.aten.convolution$transposed_stride(%arg0: !torch.vtensor<[1,2,7
 // CHECK:           %none = torch.constant.none
 // CHECK:           %int0 = torch.constant.int 0
 // CHECK:           %int1 = torch.constant.int 1
-// CHECK:           %[[T_2:.*]] = torch_c.to_i64 %int1
+// CHECK:           %[[T_2:.*]] = arith.constant 1 : i64
 // CHECK:           %int2 = torch.constant.int 2
 // CHECK:           %[[T_3:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
@@ -459,12 +458,12 @@ func.func @torch.aten.convolution$transposed_outputpadding(%arg0: !torch.vtensor
 // CHECK:           %int0 = torch.constant.int 0
 // CHECK:           %int1 = torch.constant.int 1
 // CHECK:           %int2 = torch.constant.int 2
-// CHECK:           %[[T_2:.*]] = torch_c.to_i64 %int2
+// CHECK:           %[[T_2:.*]] = arith.constant 2 : i64
 // CHECK:           %[[T_3:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_5:.*]] = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_6:.*]] = stablehlo.transpose %[[T_1]], dims = [2, 3, 1, 0] : (tensor<2x2x3x3xf32>) -> tensor<3x3x2x2xf32>
-// CHECK:           %[[T_7:.*]] = stablehlo.reverse %6, dims = [0, 1] : tensor<3x3x2x2xf32>
+// CHECK:           %[[T_7:.*]] = stablehlo.reverse %[[T_6]], dims = [0, 1] : tensor<3x3x2x2xf32>
 // CHECK:           %c0 = arith.constant 0 : index
 // CHECK:           %dim = tensor.dim %[[T_7]], %c0 : tensor<3x3x2x2xf32>
 // CHECK:           %[[T_8:.*]] = arith.index_cast %dim : index to i64
@@ -477,14 +476,14 @@ func.func @torch.aten.convolution$transposed_outputpadding(%arg0: !torch.vtensor
 // CHECK:           %c3 = arith.constant 3 : index
 // CHECK:           %dim_2 = tensor.dim %[[T_7]], %c3 : tensor<3x3x2x2xf32>
 // CHECK:           %[[T_11:.*]] = arith.index_cast %dim_2 : index to i64
-// CHECK:           %c2_i64 = arith.constant 2 : i64
-// CHECK:           %[[T_12:.*]] = arith.divsi %[[T_11]], %c2_i64 : i64
-// CHECK:           %[[T_13:.*]] = arith.muli %[[T_10]], %c2_i64 : i64
-// CHECK:           %from_elements = tensor.from_elements %[[T_8]], %[[T_9]], %[[T_10]], %c2_i64, %[[T_12]] : tensor<5xi64>
+// CHECK:           %[[C2:.*]] = arith.constant 2 : i64
+// CHECK:           %[[T_12:.*]] = arith.divsi %[[T_11]], %[[C2]] : i64
+// CHECK:           %[[T_13:.*]] = arith.muli %[[T_10]], %[[C2]] : i64
+// CHECK:           %from_elements = tensor.from_elements %[[T_8]], %[[T_9]], %[[T_10]], %[[C2]], %[[T_12]] : tensor<5xi64>
 // CHECK:           %[[T_14:.*]] = stablehlo.dynamic_reshape %[[T_7]], %from_elements : (tensor<3x3x2x2xf32>, tensor<5xi64>) -> tensor<3x3x2x2x1xf32>
 // CHECK:           %[[T_15:.*]] = stablehlo.transpose %[[T_14]], dims = [0, 1, 3, 2, 4] : (tensor<3x3x2x2x1xf32>) -> tensor<3x3x2x2x1xf32>
-// CHECK:           %from_elements_3 = tensor.from_elements %[[T_8]], %[[T_9]], %[[T_13]], %[[T_12]] : tensor<4xi64>
-// CHECK:           %[[T_16:.*]] = stablehlo.dynamic_reshape %[[T_15]], %from_elements_3 : (tensor<3x3x2x2x1xf32>, tensor<4xi64>) -> tensor<3x3x4x1xf32>
+// CHECK:           %[[from_elements_3:.*]] = tensor.from_elements %[[T_8]], %[[T_9]], %[[T_13]], %[[T_12]] : tensor<4xi64>
+// CHECK:           %[[T_16:.*]] = stablehlo.dynamic_reshape %[[T_15]], %[[from_elements_3]] : (tensor<3x3x2x2x1xf32>, tensor<4xi64>) -> tensor<3x3x4x1xf32>
 // CHECK:           %[[T_17:.*]] = stablehlo.convolution(%[[T_0]], %[[T_16]])
 // CHECK{LITERAL}:          dim_numbers = [b, f, 0, 1]x[0, 1, o, i]->[b, f, 0, 1], window = {stride = [1, 1], pad = [[2, 2], [2, 2]], lhs_dilate = [2, 2], rhs_dilate = [1, 1]} {batch_group_count = 1 : i64, feature_group_count = 2 : i64} : (tensor<1x2x7x7xf32>, tensor<3x3x4x1xf32>) -> tensor<1x4x15x15xf32>
 // CHECK:           %[[T_18:.*]] = torch_c.from_builtin_tensor %[[T_17]] : tensor<1x4x15x15xf32> -> !torch.vtensor<[1,4,15,15],f32>

@@ -3,12 +3,9 @@
 // CHECK-LABEL:  func.func @torch.aten.slice.strided$slice_like(
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
 // CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?,?],f32> -> tensor<?x?x?xf32>
-// CHECK:         %[[INT0:.*]] = torch.constant.int 0
-// CHECK:         %[[T1:.*]] = torch_c.to_i64 %[[INT0]]
-// CHECK:         %[[INT2:.*]] = torch.constant.int 2
-// CHECK:         %[[T2:.*]] = torch_c.to_i64 %[[INT2]]
-// CHECK:         %[[INT10:.*]] = torch.constant.int 10
-// CHECK:         %[[T3:.*]] = torch_c.to_i64 %[[INT10]]
+// CHECK:         %[[T1:.*]] = arith.constant 0 : i64
+// CHECK:         %[[T2:.*]] = arith.constant 2 : i64
+// CHECK:         %[[T3:.*]] = arith.constant 10 : i64
 // CHECK:         %[[C0:.*]] = arith.constant 0 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<?x?x?xf32>
 // CHECK:         %[[T4:.*]] = arith.index_cast %[[DIM]] : index to i64
@@ -42,7 +39,7 @@
 // CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[T10]], %[[C0_I64_5]], %[[C0_I64_5]] : tensor<3xi64>
 // CHECK:         %[[FROM_ELEMENTS_6:.*]] = tensor.from_elements %[[T21]], %[[T18]], %[[T19]] : tensor<3xi64>
 // CHECK:         %[[FROM_ELEMENTS_7:.*]] = tensor.from_elements %[[T2]], %[[C1_I64]], %[[C1_I64]] : tensor<3xi64>
-// CHECK:         %[[T22:.*]] = stablehlo.real_dynamic_slice %[[T0]], %[[FROM_ELEMENTS]], %[[FROM_ELEMENTS]]_6, %[[FROM_ELEMENTS]]_7 : (tensor<?x?x?xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x?x?xf32>
+// CHECK:         %[[T22:.*]] = stablehlo.real_dynamic_slice %[[T0]], %[[FROM_ELEMENTS]], %[[FROM_ELEMENTS_6]], %[[FROM_ELEMENTS_7]] : (tensor<?x?x?xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x?x?xf32>
 // CHECK:         %[[T23:.*]] = torch_c.from_builtin_tensor %[[T22]] : tensor<?x?x?xf32> -> !torch.vtensor<[?,?,?],f32>
 // CHECK:         return %[[T23]] : !torch.vtensor<[?,?,?],f32>
 func.func @torch.aten.slice.strided$slice_like(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
@@ -58,12 +55,9 @@ func.func @torch.aten.slice.strided$slice_like(%arg0: !torch.vtensor<[?,?,?],f32
 // CHECK-LABEL:  func.func @torch.aten.slice.strided.static$slice_like(
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[4,65,256],f32>) -> !torch.vtensor<[2,65,256],f32> {
 // CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4,65,256],f32> -> tensor<4x65x256xf32>
-// CHECK:         %[[INT0:.*]] = torch.constant.int 0
-// CHECK:         %[[T1:.*]] = torch_c.to_i64 %[[INT0]]
-// CHECK:         %[[INT2:.*]] = torch.constant.int 2
-// CHECK:         %[[T2:.*]] = torch_c.to_i64 %[[INT2]]
-// CHECK:         %[[INT9223372036854775807:.*]] = torch.constant.int 9223372036854775807
-// CHECK:         %[[T3:.*]] = torch_c.to_i64 %[[INT9223372036854775807]]
+// CHECK:         %[[T1:.*]] = arith.constant 0 : i64
+// CHECK:         %[[T2:.*]] = arith.constant 2 : i64
+// CHECK:         %[[T3:.*]] =  arith.constant 9223372036854775807 : i64
 // CHECK:         %[[C0:.*]] = arith.constant 0 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<4x65x256xf32>
 // CHECK:         %[[T4:.*]] = arith.index_cast %[[DIM]] : index to i64
@@ -97,7 +91,7 @@ func.func @torch.aten.slice.strided$slice_like(%arg0: !torch.vtensor<[?,?,?],f32
 // CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[T10]], %[[C0_I64_5]], %[[C0_I64_5]] : tensor<3xi64>
 // CHECK:         %[[FROM_ELEMENTS_6:.*]] = tensor.from_elements %[[T21]], %[[T18]], %[[T19]] : tensor<3xi64>
 // CHECK:         %[[FROM_ELEMENTS_7:.*]] = tensor.from_elements %[[T2]], %[[C1_I64]], %[[C1_I64]] : tensor<3xi64>
-// CHECK:         %[[T22:.*]] = stablehlo.real_dynamic_slice %[[T0]], %[[FROM_ELEMENTS]], %[[FROM_ELEMENTS]]_6, %[[FROM_ELEMENTS]]_7 : (tensor<4x65x256xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<2x65x256xf32>
+// CHECK:         %[[T22:.*]] = stablehlo.real_dynamic_slice %[[T0]], %[[FROM_ELEMENTS]], %[[FROM_ELEMENTS_6]], %[[FROM_ELEMENTS_7]] : (tensor<4x65x256xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<2x65x256xf32>
 // CHECK:         %[[T23:.*]] = torch_c.from_builtin_tensor %[[T22]] : tensor<2x65x256xf32> -> !torch.vtensor<[2,65,256],f32>
 // CHECK:         return %[[T23]] : !torch.vtensor<[2,65,256],f32>
 func.func @torch.aten.slice.strided.static$slice_like(%arg0: !torch.vtensor<[4,65,256],f32>) -> !torch.vtensor<[2,65,256],f32> {
@@ -113,12 +107,9 @@ func.func @torch.aten.slice.strided.static$slice_like(%arg0: !torch.vtensor<[4,6
 // CHECK-LABEL:  func.func @torch.aten.slice.last$slice_like(
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,1,?],f32> {
 // CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?,?],f32> -> tensor<?x?x?xf32>
-// CHECK:         %[[INT0:.*]] = torch.constant.int 0
-// CHECK:         %[[T1:.*]] = torch_c.to_i64 %[[INT0]]
-// CHECK:         %[[INT1:.*]] = torch.constant.int 1
-// CHECK:         %[[T2:.*]] = torch_c.to_i64 %[[INT1]]
-// CHECK:         %[[INT:.*]]-1 = torch.constant.int -1
-// CHECK:         %[[T3:.*]] = torch_c.to_i64 %[[INT]]-1
+// CHECK:         %[[T1:.*]] = arith.constant 0 : i64
+// CHECK:         %[[T2:.*]] = arith.constant 1 : i64
+// CHECK:         %[[T3:.*]] = arith.constant -1 : i64
 // CHECK:         %[[C1:.*]] = arith.constant 1 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C1]] : tensor<?x?x?xf32>
 // CHECK:         %[[T4:.*]] = arith.index_cast %[[DIM]] : index to i64
@@ -152,7 +143,7 @@ func.func @torch.aten.slice.strided.static$slice_like(%arg0: !torch.vtensor<[4,6
 // CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[C0_I64_5]], %[[T10]], %[[C0_I64_5]] : tensor<3xi64>
 // CHECK:         %[[FROM_ELEMENTS_6:.*]] = tensor.from_elements %[[T17]], %[[T21]], %[[T19]] : tensor<3xi64>
 // CHECK:         %[[FROM_ELEMENTS_7:.*]] = tensor.from_elements %[[C1_I64]], %[[T2]], %[[C1_I64]] : tensor<3xi64>
-// CHECK:         %[[T22:.*]] = stablehlo.real_dynamic_slice %[[T0]], %[[FROM_ELEMENTS]], %[[FROM_ELEMENTS]]_6, %[[FROM_ELEMENTS]]_7 : (tensor<?x?x?xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x1x?xf32>
+// CHECK:         %[[T22:.*]] = stablehlo.real_dynamic_slice %[[T0]], %[[FROM_ELEMENTS]], %[[FROM_ELEMENTS_6]], %[[FROM_ELEMENTS_7]] : (tensor<?x?x?xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x1x?xf32>
 // CHECK:         %[[T23:.*]] = torch_c.from_builtin_tensor %[[T22]] : tensor<?x1x?xf32> -> !torch.vtensor<[?,1,?],f32>
 // CHECK:         return %[[T23]] : !torch.vtensor<[?,1,?],f32>
 func.func @torch.aten.slice.last$slice_like(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,1,?],f32> {
@@ -168,12 +159,9 @@ func.func @torch.aten.slice.last$slice_like(%arg0: !torch.vtensor<[?,?,?],f32>) 
 // CHECK-LABEL:  func.func @torch.aten.slice.last.static$slice_like(
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[4,65,256],f32>) -> !torch.vtensor<[4,1,256],f32> {
 // CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4,65,256],f32> -> tensor<4x65x256xf32>
-// CHECK:         %[[INT0:.*]] = torch.constant.int 0
-// CHECK:         %[[T1:.*]] = torch_c.to_i64 %[[INT0]]
-// CHECK:         %[[INT1:.*]] = torch.constant.int 1
-// CHECK:         %[[T2:.*]] = torch_c.to_i64 %[[INT1]]
-// CHECK:         %[[INT:.*]]-1 = torch.constant.int -1
-// CHECK:         %[[T3:.*]] = torch_c.to_i64 %[[INT]]-1
+// CHECK:         %[[T1:.*]] = arith.constant 0 : i64
+// CHECK:         %[[T2:.*]] = arith.constant 1 : i64
+// CHECK:         %[[T3:.*]] = arith.constant -1 : i64
 // CHECK:         %[[C1:.*]] = arith.constant 1 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C1]] : tensor<4x65x256xf32>
 // CHECK:         %[[T4:.*]] = arith.index_cast %[[DIM]] : index to i64
@@ -207,7 +195,7 @@ func.func @torch.aten.slice.last$slice_like(%arg0: !torch.vtensor<[?,?,?],f32>) 
 // CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[C0_I64_5]], %[[T10]], %[[C0_I64_5]] : tensor<3xi64>
 // CHECK:         %[[FROM_ELEMENTS_6:.*]] = tensor.from_elements %[[T17]], %[[T21]], %[[T19]] : tensor<3xi64>
 // CHECK:         %[[FROM_ELEMENTS_7:.*]] = tensor.from_elements %[[C1_I64]], %[[T2]], %[[C1_I64]] : tensor<3xi64>
-// CHECK:         %[[T22:.*]] = stablehlo.real_dynamic_slice %[[T0]], %[[FROM_ELEMENTS]], %[[FROM_ELEMENTS]]_6, %[[FROM_ELEMENTS]]_7 : (tensor<4x65x256xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<4x1x256xf32>
+// CHECK:         %[[T22:.*]] = stablehlo.real_dynamic_slice %[[T0]], %[[FROM_ELEMENTS]], %[[FROM_ELEMENTS_6]], %[[FROM_ELEMENTS_7]] : (tensor<4x65x256xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<4x1x256xf32>
 // CHECK:         %[[T23:.*]] = torch_c.from_builtin_tensor %[[T22]] : tensor<4x1x256xf32> -> !torch.vtensor<[4,1,256],f32>
 // CHECK:         return %[[T23]] : !torch.vtensor<[4,1,256],f32>
 func.func @torch.aten.slice.last.static$slice_like(%arg0: !torch.vtensor<[4,65,256],f32>) -> !torch.vtensor<[4,1,256],f32> {
@@ -224,8 +212,7 @@ func.func @torch.aten.slice.last.static$slice_like(%arg0: !torch.vtensor<[4,65,2
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
 // CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?,?],f32> -> tensor<?x?x?xf32>
 // CHECK:         %[[INT1:.*]] = torch.constant.int 1
-// CHECK:         %[[INT2:.*]] = torch.constant.int 2
-// CHECK:         %[[T1:.*]] = torch_c.to_i64 %[[INT2]]
+// CHECK:         %[[T1:.*]] = arith.constant 2 : i64
 // CHECK:         %[[NONE:.*]] = torch.constant.none
 // CHECK:         %[[C1:.*]] = arith.constant 1 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C1]] : tensor<?x?x?xf32>
@@ -247,7 +234,7 @@ func.func @torch.aten.slice.last.static$slice_like(%arg0: !torch.vtensor<[4,65,2
 // CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[C0_I64_4]], %[[C0_I64]], %[[C0_I64_4]] : tensor<3xi64>
 // CHECK:         %[[FROM_ELEMENTS_5:.*]] = tensor.from_elements %[[T3]], %[[T7]], %[[T5]] : tensor<3xi64>
 // CHECK:         %[[FROM_ELEMENTS_6:.*]] = tensor.from_elements %[[C1_I64]], %[[T1]], %[[C1_I64]] : tensor<3xi64>
-// CHECK:         %[[T8:.*]] = stablehlo.real_dynamic_slice %[[T0]], %[[FROM_ELEMENTS]], %[[FROM_ELEMENTS]]_5, %[[FROM_ELEMENTS]]_6 : (tensor<?x?x?xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x?x?xf32>
+// CHECK:         %[[T8:.*]] = stablehlo.real_dynamic_slice %[[T0]], %[[FROM_ELEMENTS]], %[[FROM_ELEMENTS]]_5, %[[FROM_ELEMENTS_6]] : (tensor<?x?x?xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<?x?x?xf32>
 // CHECK:         %[[T9:.*]] = torch_c.from_builtin_tensor %[[T8]] : tensor<?x?x?xf32> -> !torch.vtensor<[?,?,?],f32>
 // CHECK:         return %[[T9]] : !torch.vtensor<[?,?,?],f32>
 func.func @torch.aten.slice.none$slice_like(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
@@ -264,8 +251,7 @@ func.func @torch.aten.slice.none$slice_like(%arg0: !torch.vtensor<[?,?,?],f32>) 
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[4,65,256],f32>) -> !torch.vtensor<[4,33,256],f32> {
 // CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4,65,256],f32> -> tensor<4x65x256xf32>
 // CHECK:         %[[INT1:.*]] = torch.constant.int 1
-// CHECK:         %[[INT2:.*]] = torch.constant.int 2
-// CHECK:         %[[T1:.*]] = torch_c.to_i64 %[[INT2]]
+// CHECK:         %[[T1:.*]] = arith.constant 2 : i64
 // CHECK:         %[[NONE:.*]] = torch.constant.none
 // CHECK:         %[[C1:.*]] = arith.constant 1 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C1]] : tensor<4x65x256xf32>
@@ -287,7 +273,7 @@ func.func @torch.aten.slice.none$slice_like(%arg0: !torch.vtensor<[?,?,?],f32>) 
 // CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[C0_I64_4]], %[[C0_I64]], %[[C0_I64_4]] : tensor<3xi64>
 // CHECK:         %[[FROM_ELEMENTS_5:.*]] = tensor.from_elements %[[T3]], %[[T7]], %[[T5]] : tensor<3xi64>
 // CHECK:         %[[FROM_ELEMENTS_6:.*]] = tensor.from_elements %[[C1_I64]], %[[T1]], %[[C1_I64]] : tensor<3xi64>
-// CHECK:         %[[T8:.*]] = stablehlo.real_dynamic_slice %[[T0]], %[[FROM_ELEMENTS]], %[[FROM_ELEMENTS]]_5, %[[FROM_ELEMENTS]]_6 : (tensor<4x65x256xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<4x33x256xf32>
+// CHECK:         %[[T8:.*]] = stablehlo.real_dynamic_slice %[[T0]], %[[FROM_ELEMENTS]], %[[FROM_ELEMENTS]]_5, %[[FROM_ELEMENTS_6]] : (tensor<4x65x256xf32>, tensor<3xi64>, tensor<3xi64>, tensor<3xi64>) -> tensor<4x33x256xf32>
 // CHECK:         %[[T9:.*]] = torch_c.from_builtin_tensor %[[T8]] : tensor<4x33x256xf32> -> !torch.vtensor<[4,33,256],f32>
 // CHECK:         return %[[T9]] : !torch.vtensor<[4,33,256],f32>
 func.func @torch.aten.slice.none.static$slice_like(%arg0: !torch.vtensor<[4,65,256],f32>) -> !torch.vtensor<[4,33,256],f32> {
