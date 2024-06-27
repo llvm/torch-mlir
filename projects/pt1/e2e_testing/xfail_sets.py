@@ -32,6 +32,7 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # unimplemented lowering torch -> linalg for torchvision.deform_conv2d
     # this is added to check the torch.onnx.export -> import_onnx -> torch path
     "DeformConv2D_basic",
+    "ReduceAnyDimFloatModule_basic",
 }
 
 LINALG_CRASHING_SET = {
@@ -832,6 +833,7 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "ReduceAnyDimFloatModule_basic",
     "MeshgridIndexingIJ_basic",
     "MeshgridIndexingXY_basic",
     "Meshgrid_basic",

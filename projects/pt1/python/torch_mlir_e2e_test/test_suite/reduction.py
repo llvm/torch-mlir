@@ -239,6 +239,26 @@ def ReduceAnyFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
 
+class ReduceAnyDimFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.any(a, dim=0)
+
+
+@register_test_case(module_factory=lambda: ReduceAnyDimFloatModule())
+def ReduceAnyDimFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
 # ==============================================================================
 
 
@@ -1429,7 +1449,7 @@ class ArgmaxModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([-1, -1], torch.float32, True),
+            ([3, 4], torch.float32, True),
         ]
     )
     def forward(self, a):
