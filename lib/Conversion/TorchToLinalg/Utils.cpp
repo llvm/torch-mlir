@@ -78,6 +78,7 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
   paddingIncludingUnchanged.append(padding);
   assert(unpaddedDims + padding.size() == inRank &&
          "sum of unpaddedDims and padding.size() must equal to inputRank");
+  (void)inRank;
   for (auto pad = paddingIncludingUnchanged.begin();
        pad < paddingIncludingUnchanged.end(); pad++)
     *pad = castIntToIndex(b, loc, *pad);
