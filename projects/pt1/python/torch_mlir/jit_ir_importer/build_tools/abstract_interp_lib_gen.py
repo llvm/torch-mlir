@@ -1403,6 +1403,12 @@ def aten〇minimum〡shape(self: List[int], other: List[int]) -> List[int]:
 def aten〇maximum〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
+def aten〇fmin〡shape(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
+def aten〇fmax〡shape(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
 def aten〇bitwise_or〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
@@ -3629,6 +3635,22 @@ def aten〇maximum〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: T
 
 @check_dtype_function(_check_two_tensor_op())
 def aten〇minimum〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    other_rank, other_dtype = other_rank_dtype
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    dtypes = [self_dtype, other_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(_check_two_tensor_op())
+def aten〇fmax〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    other_rank, other_dtype = other_rank_dtype
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    dtypes = [self_dtype, other_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(_check_two_tensor_op())
+def aten〇fmin〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     other_rank, other_dtype = other_rank_dtype
     self_rank, self_dtype = self_rank_dtype
     ranks: List[Optional[int]] = [self_rank, other_rank]

@@ -463,6 +463,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     )
     emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::minimum : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::fmax : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::fmin : (Tensor, Tensor) -> (Tensor)")
     emit("aten::mish : (Tensor) -> (Tensor)")
     emit("aten::xlogy.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit(

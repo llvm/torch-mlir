@@ -1440,6 +1440,150 @@ def ElementwiseMaximumIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseFmaximumNoNanModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.fmax(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFmaximumNoNanModule())
+def ElementwiseFmaximumNoNanModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4), tu.rand(4))
+
+
+# ==============================================================================
+
+
+class ElementwiseFmaximumSingleNanModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.fmax(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFmaximumSingleNanModule())
+def ElementwiseFmaximumSingleNanModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4), torch.tensor([1.0, torch.nan, -0.5, -0.3]))
+
+
+# ==============================================================================
+
+
+class ElementwiseFmaximumBothNanModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.fmax(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFmaximumBothNanModule())
+def ElementwiseFmaximumBothNanModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0.8, torch.nan, torch.nan, -0.3]), torch.tensor([1.0, torch.nan, -0.4, torch.nan]))
+
+
+# ==============================================================================
+
+
+class ElementwiseFminimumNoNanModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.fmin(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFminimumNoNanModule())
+def ElementwiseFminimumNoNanModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4), tu.rand(4))
+
+
+# ==============================================================================
+
+
+class ElementwiseFminimumSingleNanModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.fmin(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFminimumSingleNanModule())
+def ElementwiseFminimumSingleNanModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4), torch.tensor([1.0, torch.nan, -0.5, -0.3]))
+
+
+# ==============================================================================
+
+
+class ElementwiseFminimumBothNanModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.fmin(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFminimumBothNanModule())
+def ElementwiseFminimumBothNanModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0.8, torch.nan, torch.nan, -0.3]), torch.tensor([1.0, torch.nan, -0.4, torch.nan]))
+
+
+# ==============================================================================
+
+
 class ElementwiseMaxOtherModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
