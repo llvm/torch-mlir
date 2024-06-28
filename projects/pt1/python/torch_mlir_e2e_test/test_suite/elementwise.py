@@ -1508,7 +1508,7 @@ class ElementwiseFmaximumBothNanModule(torch.nn.Module):
 def ElementwiseFmaximumBothNanModule_basic(module, tu: TestUtils):
     module.forward(
         torch.tensor([0.8, torch.nan, torch.nan, -0.3]),
-        torch.tensor([1.0, torch.nan, -0.4, torch.nan])
+        torch.tensor([1.0, torch.nan, -0.4, torch.nan]),
     )
 
 
@@ -1583,7 +1583,7 @@ class ElementwiseFminimumBothNanModule(torch.nn.Module):
 def ElementwiseFminimumBothNanModule_basic(module, tu: TestUtils):
     module.forward(
         torch.tensor([0.8, torch.nan, torch.nan, -0.3]),
-        torch.tensor([1.0, torch.nan, -0.4, torch.nan])
+        torch.tensor([1.0, torch.nan, -0.4, torch.nan]),
     )
 
 
