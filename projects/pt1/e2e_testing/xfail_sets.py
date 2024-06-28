@@ -2217,6 +2217,8 @@ ONNX_XFAIL_SET = {
     "ElementwiseAtenFloorDivideTensorNegativeModule_basic",
     "ElementwiseLog10IntModule_basic",
     "ElementwiseLog2IntModule_basic",
+    "ElementwiseFminModule_basic",
+    "ElementwiseFmaxModule_basic",
     "FlipModuleStaticShape_basic",
     "FlipNegativeIndexModule_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",

@@ -1465,6 +1465,7 @@ def ElementwiseFmaxModule_basic(module, tu: TestUtils):
         torch.tensor([1.0, torch.nan, -0.4, torch.nan]),
     )
 
+
 # ==============================================================================
 
 
