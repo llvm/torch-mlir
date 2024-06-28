@@ -69,14 +69,14 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
     int unpaddedDims, Value pad) {
   assert(isa<RankedTensorType>(input.getType()) &&
          "input must be RankedTensorType");
-  unsigned int inRank = cast<RankedTensorType>(input.getType()).getRank();
   Location loc = op->getLoc();
 
   SmallVector<Value> inputDims = getTensorSizes(b, loc, input);
   Value c0 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(0));
   SmallVector<Value> paddingIncludingUnchanged(unpaddedDims, c0);
   paddingIncludingUnchanged.append(padding);
-  assert(unpaddedDims + padding.size() == inRank &&
+  assert(static_cast<int64_t>(unpaddedDims + padding.size()) ==
+             cast<RankedTensorType>(input.getType()).getRank() &&
          "sum of unpaddedDims and padding.size() must equal to inputRank");
   for (auto pad = paddingIncludingUnchanged.begin();
        pad < paddingIncludingUnchanged.end(); pad++)
