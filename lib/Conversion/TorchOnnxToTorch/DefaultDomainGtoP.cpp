@@ -7,9 +7,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/Types.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/ADT/ArrayRef.h"
+#include <cstddef>
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -590,6 +596,128 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
+
+  patterns.onOp("MelWeightMatrix", 17, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+    llvm::SmallVector<Value> operands;
+    Torch::ValueTensorType resultType;
+    int64_t output_dtype_attr;
+    if (binder.tensorOperands(operands, 5) ||
+        binder.tensorResultType(resultType) || operands.size() != 5 ||
+        binder.s64IntegerAttr(output_dtype_attr, "output_datatype", 1)) {
+          return failure();
+    }
+    // operands sequence :
+    // num_mel_bins, dft_length, sample_rate -> int32/64 tensors
+    // lower_edge_hertz, upper_edge_hertz -> f16/32/64
+
+    // Need to backtrack the values of num_mel_bins and dft_length//2+1 from result shape since the inputs are tensors and we cannot know their values at compile time. if the result type does not contain static shapes, then the implementation will be unsupported.
+    if(!resultType.areAllSizesKnown()) 
+      return rewriter.notifyMatchFailure(binder.op, "Unknown result sizes, not supported.");
+
+    ArrayRef<int64_t> resShape = resultType.getSizes();
+    if(resShape.size() != 2)
+      return rewriter.notifyMatchFailure(binder.op, "Expected result rank to be 2, not supported for other ranks.");
+
+    // Here Onwards all shapes will be computed using these sizes
+    int64_t numSpectrogramBinsInt = resShape[0];
+    int64_t numMelBinsInt = resShape[1];
+    Torch::ValueTensorType inputIntType = binder.toValidTensorType(operands[0].getType()); // Assuming operands[0 / 1 / 2] will have the same int type.
+    Torch::ValueTensorType inputFloatType = binder.toValidTensorType(operands[3].getType()); // Assuming operands[3 / 4] will have the same float type
+
+    Value numMelBinsItem = getItemOp<Torch::IntType>(binder, rewriter, operands[0]);
+    numMelBinsItem.dump();
+    Value sampleRateItem = getItemOp<Torch::IntType>(binder, rewriter, operands[2]);
+    Value lowerEdgeHzItem = getItemOp<Torch::FloatType>(binder, rewriter, operands[3]);
+    lowerEdgeHzItem.dump();
+    Value upperEdgeHzItem = getItemOp<Torch::FloatType>(binder, rewriter, operands[4]);
+    
+    Value noneConst = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+    Value oneConst = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), rewriter.getI64IntegerAttr(1));
+    Value twoConst = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), rewriter.getI64IntegerAttr(2));
+    
+    // may not be needed since we already have the values.
+    
+    Torch::ValueTensorType dftLenType = Torch::ValueTensorType::get(binder.op->getContext(), ArrayRef<int64_t> {}, inputIntType.getDtype());
+    // Value dftLengthDivTwo = rewriter.create<Torch::AtenDivScalarOp>(binder.getLoc(), dftLenType, operands[1], twoConst);
+    // Value numSpectrogramBins = rewriter.create<Torch::AtenAddScalarOp>(binder.getLoc(), dftLengthDivTwo, oneConst);
+    
+    Type freqBinsIntType = Torch::ValueTensorType::get(binder.op->getContext(), ArrayRef<int64_t> {1, numMelBinsInt}, inputIntType.getDtype());
+    Type freqBinsFltType = Torch::ValueTensorType::get(binder.op->getContext(), ArrayRef<int64_t> {1, numMelBinsInt}, inputFloatType.getDtype());
+    Value freqBinsInit = rewriter.create<Torch::AtenArangeOp>(binder.getLoc(), freqBinsIntType, numMelBinsItem, noneConst, noneConst, noneConst, noneConst);
+
+    // convert input Freq Hz to Mel
+    Value twoFiveNineFiveConst = rewriter.create<Torch::ConstantFloatOp>(binder.getLoc(), rewriter.getF32FloatAttr(2595));
+    Value sevenHConst = rewriter.create<Torch::ConstantFloatOp>(binder.getLoc(), rewriter.getF32FloatAttr(700));
+    Value tenConst = rewriter.create<Torch::ConstantFloatOp>(binder.getLoc(), rewriter.getF32FloatAttr(10));
+    
+    Value lfDiv7Hfloat = rewriter.create<Torch::AtenDivFloatOp>(binder.getLoc(), lowerEdgeHzItem, sevenHConst); // Since all others need tensor to operate
+    Type freqType = Torch::ValueTensorType::get(binder.op->getContext(), ArrayRef<int64_t> {}, inputFloatType.getDtype()); // should be same type as input float type
+    Value lfDiv7H = rewriter.create<Torch::PrimNumToTensorScalarOp>(binder.getLoc(), freqType, lfDiv7Hfloat);
+    Value lfDiv7HAdd1 = rewriter.create<Torch::AtenAddScalarOp>(binder.getLoc(), lfDiv7H.getType(), lfDiv7H, oneConst, /*alpha =*/ noneConst);
+    lfDiv7H.dump();
+    lfDiv7HAdd1.dump();
+    Value lfDiv7HAdd1Log10 = rewriter.create<Torch::AtenLog10Op>(binder.getLoc(), lfDiv7HAdd1.getType(), lfDiv7HAdd1);
+    lfDiv7HAdd1Log10.dump();
+    Value lfMel = rewriter.create<Torch::AtenMulScalarOp>(binder.getLoc(), lfDiv7HAdd1Log10.getType(), lfDiv7HAdd1Log10, twoFiveNineFiveConst); 
+    lfMel.dump();
+
+    Value hfDiv7Hfloat = rewriter.create<Torch::AtenDivFloatOp>(binder.getLoc(), upperEdgeHzItem, sevenHConst); // Since all others need tensor to operate
+    hfDiv7Hfloat.dump();
+    Value hfDiv7H = rewriter.create<Torch::PrimNumToTensorScalarOp>(binder.getLoc(), freqType, hfDiv7Hfloat);
+    hfDiv7H.dump();
+    Value hfDiv7HAdd1 = rewriter.create<Torch::AtenAddScalarOp>(binder.getLoc(), hfDiv7H.getType(), hfDiv7H, oneConst, /*alpha =*/ noneConst);
+    hfDiv7HAdd1.dump();
+    Value hfDiv7HAdd1Log10 = rewriter.create<Torch::AtenLog10Op>(binder.getLoc(), hfDiv7HAdd1.getType(), hfDiv7HAdd1);
+    hfDiv7HAdd1Log10.dump();
+    Value hfMel = rewriter.create<Torch::AtenMulScalarOp>(binder.getLoc(), hfDiv7HAdd1Log10.getType(), hfDiv7HAdd1Log10, twoFiveNineFiveConst); 
+    hfMel.dump();
+    
+    Value hfSubLf = rewriter.create<Torch::AtenSubOp>(binder.getLoc(), hfMel.getType(), hfMel, lfMel);
+    hfSubLf.dump();
+    Value melStep = rewriter.create<Torch::AtenDivScalarOp>(binder.getLoc(), hfSubLf.getType(), hfSubLf, numMelBinsItem);
+    melStep.dump();
+
+    Value freqBinsMulMelStep = rewriter.create<Torch::AtenMulTensorOp>(binder.getLoc(), freqBinsFltType, freqBinsInit, melStep);
+    freqBinsMulMelStep.dump();
+    Value freqBinsScaled = rewriter.create<Torch::AtenAddOp>(binder.getLoc(), freqBinsFltType, freqBinsMulMelStep, lfMel);
+    freqBinsScaled.dump();
+    
+    //Mel to Hz conv
+    
+    Value fbDiv = rewriter.create<Torch::AtenDivScalarOp>(binder.getLoc(), freqBinsFltType, freqBinsScaled, twoFiveNineFiveConst);
+    fbDiv.dump();
+    Value fbClone = rewriter.create<Torch::AtenCloneOp>(binder.getLoc(), freqBinsFltType, freqBinsScaled, /*memory_format=*/ noneConst);
+    fbClone.dump();
+    Value tenTensor = rewriter.create<Torch::AtenFillTensorOp>(binder.getLoc(), freqBinsFltType, fbClone, tenConst);
+    tenTensor.dump();
+    Value fbPow = rewriter.create<Torch::AtenPowTensorTensorOp>(binder.getLoc(), freqBinsFltType, tenTensor, fbDiv);
+    fbPow.dump();
+    Value fbPowSubOne = rewriter.create<Torch::AtenPowTensorTensorOp>(binder.getLoc(), freqBinsFltType, fbPow, oneConst);
+    fbPowSubOne.dump();
+    Value freqBinsHz = rewriter.create<Torch::AtenMulOp>(binder.getLoc(), freqBinsFltType, fbPowSubOne , sevenHConst);
+    freqBinsHz.dump();
+
+    // Normalize freqBinsHz
+    Value dftLenPlusOne = rewriter.create<Torch::AtenAddScalarOp>(binder.getLoc(), dftLenType, operands[1], oneConst, /*alpha=*/noneConst);
+    dftLenPlusOne.dump();
+    Value fbMulDft = rewriter.create<Torch::AtenMulOp>(binder.getLoc(), freqBinsFltType, freqBinsHz, dftLenPlusOne);
+    fbMulDft.dump();
+    Value freqBinsNormalized = rewriter.create<Torch::AtenDivScalarOp>(binder.getLoc(), freqBinsFltType, fbMulDft, sampleRateItem);
+    freqBinsNormalized.dump();
+    
+    // cast to int32
+    Value fbInt32Type = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), rewriter.getI32IntegerAttr(3));
+    fbInt32Type.dump();
+    Value falseConst = rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+    falseConst.dump();
+    Type freqBinsInt32Type = Torch::ValueTensorType::get(binder.op->getContext(), ArrayRef<int64_t> {1, numMelBinsInt}, inputIntType.getDtype());
+    freqBinsInt32Type.dump();
+    Value freqBins = rewriter.create<Torch::AtenToDtypeOp>(binder.getLoc(), freqBinsInt32Type, freqBinsNormalized, fbInt32Type, /*non_blocking=*/falseConst, /*copy=*/falseConst, /*memory_format=*/noneConst);
+    freqBins.dump();
+
+    return failure();
+    });
+
   patterns.onOp(
       "NegativeLogLikelihoodLoss", 13,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
