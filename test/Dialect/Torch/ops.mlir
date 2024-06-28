@@ -93,6 +93,9 @@ func.func @torch.prim.If(%arg0: !torch.bool, %arg1: !torch.int) -> !torch.int {
 // CHECK: %int-3 = torch.constant.int -3
 %int-3 = torch.constant.int -3
 
+// CHECK: %int5 = torch.constant.int 5 {test = "value"}
+%int5 = torch.constant.int 5 {test = "value"}
+
 // CHECK: %float1.000000e00 = torch.constant.float 1.000000e+00
 %float1.000000e00 = torch.constant.float 1.000000e+00
 // CHECK: %float-1.000000e00 = torch.constant.float -1.000000e+00

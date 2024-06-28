@@ -281,3 +281,30 @@ func.func @torch.aten.view$dynamicInferredSame(%arg0: !torch.vtensor<[10,?,2,3],
   %1 = torch.aten.view %arg0, %0 : !torch.vtensor<[10,?,2,3],f32>, !torch.list<int> -> !torch.vtensor<[2,5,?,6],f32>
   return %1 : !torch.vtensor<[2,5,?,6],f32>
 }
+
+// -----
+
+// this is to check a path for unflatten.int with two dynamic reassociation dims
+// the IR here is generated from the onnx.Gather conversion
+// CHECK-LABEL: @gather_graph
+// CHECK: %[[fromelt:.*]] = tensor.from_elements
+// CHECK-SAME: tensor<3xi64>
+// CHECK: %[[reshape:.*]] = tensor.reshape
+// CHECK-SAME: (tensor<?x3xf32>, tensor<3xi64>) -> tensor<?x?x3xf32>
+func.func @gather_graph(%arg0: !torch.vtensor<[5,3],f32>, %arg1: !torch.vtensor<[?,?],si64>) -> !torch.vtensor<[?,?,3],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  %int-1 = torch.constant.int -1
+  %int5 = torch.constant.int 5
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.lt.Scalar %arg1, %int0 : !torch.vtensor<[?,?],si64>, !torch.int -> !torch.vtensor<[?,?],i1>
+  %1 = torch.aten.add.Scalar %arg1, %int5, %int1 : !torch.vtensor<[?,?],si64>, !torch.int, !torch.int -> !torch.vtensor<[?,?],si64>
+  %2 = torch.aten.where.self %0, %1, %arg1 : !torch.vtensor<[?,?],i1>, !torch.vtensor<[?,?],si64>, !torch.vtensor<[?,?],si64> -> !torch.vtensor<[?,?],si64>
+  %3 = torch.aten.size.int %2, %int0 : !torch.vtensor<[?,?],si64>, !torch.int -> !torch.int
+  %4 = torch.aten.size.int %2, %int1 : !torch.vtensor<[?,?],si64>, !torch.int -> !torch.int
+  %5 = torch.prim.ListConstruct %3, %4 : (!torch.int, !torch.int) -> !torch.list<int>
+  %6 = torch.prim.ListConstruct %int-1 : (!torch.int) -> !torch.list<int>
+  %7 = torch.aten.view %2, %6 : !torch.vtensor<[?,?],si64>, !torch.list<int> -> !torch.vtensor<[?],si64>
+  %8 = torch.aten.index_select %arg0, %int0, %7 : !torch.vtensor<[5,3],f32>, !torch.int, !torch.vtensor<[?],si64> -> !torch.vtensor<[?,3],f32>
+  %9 = torch.aten.unflatten.int %8, %int0, %5 : !torch.vtensor<[?,3],f32>, !torch.int, !torch.list<int> -> !torch.vtensor<[?,?,3],f32>
+  return %9 : !torch.vtensor<[?,?,3],f32>
+}

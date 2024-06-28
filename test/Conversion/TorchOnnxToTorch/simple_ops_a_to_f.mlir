@@ -2617,3 +2617,53 @@ func.func @test_center_crop_pad_crop_negative_axes_hwc(%arg0: !torch.vtensor<[20
   %0 = torch.operator "onnx.CenterCropPad"(%arg0, %arg1) {torch.onnx.axes = [-3 : si64, -2 : si64]} : (!torch.vtensor<[20,8,3],f32>, !torch.vtensor<[2],si64>) -> !torch.vtensor<[10,9,3],f32>
   return %0 : !torch.vtensor<[10,9,3],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @test_dft_fft
+func.func @test_dft_fft(%arg0: !torch.vtensor<[10,10,1],f32>, %arg1: !torch.vtensor<[],si64>) -> !torch.vtensor<[10,10,2],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "dft_example", torch.onnx_meta.producer_version = ""} {
+  // CHECK-SAME:                            %[[INPUT_SIGNAL:.*]]: !torch.vtensor<[10,10,1],f32>,
+  // CHECK-SAME:                            %[[AXIS:.*]]: !torch.vtensor<[],si64>) -> !torch.vtensor<[10,10,2],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "dft_example", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[NONE:.*]] = torch.constant.none
+  // CHECK:           %[[SIG_LEN:.*]] = torch.constant.none
+  // CHECK:           %[[DIM:.*]] = torch.aten.item %[[AXIS]] : !torch.vtensor<[],si64> -> !torch.int
+  // CHECK:           %[[NORM:.*]] = torch.constant.str "backward"
+  // CHECK:           %[[FILL_VAL:.*]] = torch.constant.float 0.000000e+00
+  // CHECK:           %[[ONE:.*]] = torch.constant.int 1
+  // CHECK:           %[[ZERO:.*]] = torch.constant.int 0
+  // CHECK:           %[[PAD_DIM_LIST:.*]] = torch.prim.ListConstruct %[[ZERO]], %[[ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[MODE:.*]] = torch.constant.str "constant"
+  // CHECK:           %[[INPUT_PADDED:.*]] = torch.aten.pad %[[INPUT_SIGNAL]], %[[PAD_DIM_LIST]], %[[MODE]], %[[FILL_VAL]] : !torch.vtensor<[10,10,1],f32>, !torch.list<int>, !torch.str, !torch.float -> !torch.vtensor<[10,10,2],f32>
+  // CHECK:           %[[INPUT_T_CMPLX:.*]] = torch.aten.view_as_complex %[[INPUT_PADDED]] : !torch.vtensor<[10,10,2],f32> -> !torch.vtensor<[10,10],complex<f32>>
+  // CHECK:           %[[FFT_CMPLX:.*]] = torch.aten.fft_fft %[[INPUT_T_CMPLX]], %[[SIG_LEN]], %[[DIM]], %[[NORM]] : !torch.vtensor<[10,10],complex<f32>>, !torch.none, !torch.int, !torch.str -> !torch.vtensor<[10,10],complex<f32>>
+  // CHECK:           %[[FFT_RES_REAL:.*]] = torch.aten.view_as_real %[[FFT_CMPLX]] : !torch.vtensor<[10,10],complex<f32>> -> !torch.vtensor<[10,10,2],f32>
+  // CHECK:           return %[[FFT_RES_REAL]] : !torch.vtensor<[10,10,2],f32>
+  %none = torch.constant.none
+  %0 = torch.operator "onnx.DFT"(%arg0, %none, %arg1) : (!torch.vtensor<[10,10,1],f32>, !torch.none, !torch.vtensor<[],si64>) -> !torch.vtensor<[10,10,2],f32>
+  return %0 : !torch.vtensor<[10,10,2],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @test_dft_inverse_real
+func.func @test_dft_inverse_real(%arg0: !torch.vtensor<[10,10,1],f32>, %arg1: !torch.vtensor<[],si64>) -> !torch.vtensor<[10,10,2],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "dft_example", torch.onnx_meta.producer_version = ""} {
+  // CHECK-SAME:                                     %[[INPUT_SIGNAL:.*]]: !torch.vtensor<[10,10,1],f32>,
+  // CHECK-SAME:                                     %[[AXIS:.*]]: !torch.vtensor<[],si64>) -> !torch.vtensor<[10,10,2],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "dft_example", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[NONE:.*]] = torch.constant.none
+  // CHECK:           %[[SIG_LEN:.*]] = torch.constant.none
+  // CHECK:           %[[DIM:.*]] = torch.aten.item %[[AXIS]] : !torch.vtensor<[],si64> -> !torch.int
+  // CHECK:           %[[NORM:.*]] = torch.constant.str "backward"
+  // CHECK:           %[[FILL_VAL:.*]] = torch.constant.float 0.000000e+00
+  // CHECK:           %[[ONE:.*]] = torch.constant.int 1
+  // CHECK:           %[[ZERO:.*]] = torch.constant.int 0
+  // CHECK:           %[[PAD_DIM_LIST:.*]] = torch.prim.ListConstruct %[[ZERO]], %[[ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[MODE:.*]] = torch.constant.str "constant"
+  // CHECK:           %[[INPUT_PADDED:.*]] = torch.aten.pad %[[INPUT_SIGNAL]], %[[PAD_DIM_LIST]], %[[MODE]], %[[FILL_VAL]] : !torch.vtensor<[10,10,1],f32>, !torch.list<int>, !torch.str, !torch.float -> !torch.vtensor<[10,10,2],f32>
+  // CHECK:           %[[INPUT_T_CMPLX:.*]] = torch.aten.view_as_complex %[[INPUT_PADDED]] : !torch.vtensor<[10,10,2],f32> -> !torch.vtensor<[10,10],complex<f32>>
+  // CHECK:           %[[IFFT_CMPLX:.*]] = torch.aten.fft_ifft %[[INPUT_T_CMPLX]], %[[SIG_LEN]], %[[DIM]], %[[NORM]] : !torch.vtensor<[10,10],complex<f32>>, !torch.none, !torch.int, !torch.str -> !torch.vtensor<[10,10],complex<f32>>
+  // CHECK:           %[[IFFT_RES_REAL:.*]] = torch.aten.view_as_real %[[IFFT_CMPLX]] : !torch.vtensor<[10,10],complex<f32>> -> !torch.vtensor<[10,10,2],f32>
+  // CHECK:           return %[[IFFT_RES_REAL]] : !torch.vtensor<[10,10,2],f32>
+  %none = torch.constant.none
+  %0 = torch.operator "onnx.DFT"(%arg0, %none, %arg1) {torch.onnx.inverse = 1 : si64} : (!torch.vtensor<[10,10,1],f32>, !torch.none, !torch.vtensor<[],si64>) -> !torch.vtensor<[10,10,2],f32>
+  return %0 : !torch.vtensor<[10,10,2],f32>
+}

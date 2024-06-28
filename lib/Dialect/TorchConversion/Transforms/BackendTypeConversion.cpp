@@ -94,7 +94,7 @@ static void setupTorchIntToI64Conversion(ConversionTarget &target,
         if (!isa<Torch::IntType>(inputs[0].getType()))
           return std::nullopt;
         assert(inputs.size() == 1);
-        return builder.create<ToI64Op>(loc, inputs[0]).getResult();
+        return builder.createOrFold<ToI64Op>(loc, inputs[0]);
       });
   auto sourceMaterialization = [](OpBuilder &builder, Torch::IntType type,
                                   ValueRange inputs, Location loc) -> Value {

@@ -559,6 +559,9 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ConvolutionBackwardModule2D_basic",
     "CumsumModule_basic",
     "DeformConv2D_basic",
+    "DeterminantBatchedModule_F32",
+    "DeterminantDynamicModule_F32",
+    "DeterminantModule_F32",
     "DiagonalModule_basic",
     "DiagonalModule_nonsquare",
     "DiagonalModule_transposed",
@@ -1491,7 +1494,7 @@ STABLEHLO_PASS_SET = {
     "RenormModuleFloat32_basic",
 }
 
-STABLEHLO_CRASHING_SET = set()
+STABLEHLO_CRASHING_SET = {"IndexPutWithNoneAndBroadcastModule_basic"}
 
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
@@ -1670,6 +1673,8 @@ TOSA_PASS_SET = {
     "ElementwiseFlattenBroadcastModule_basic",
     "ElementwiseFloorIntModule_basic",
     "ElementwiseFloorModule_basic",
+    "ElementwiseFmaxModule_basic",
+    "ElementwiseFminModule_basic",
     "ElementwiseGeFloatIntScalarModule_basic",
     "ElementwiseGeFloatScalarModule_basic",
     "ElementwiseGeIntScalarModule_basic",
@@ -2192,17 +2197,6 @@ LTC_XFAIL_SET = {
 ONNX_XFAIL_SET = {
     # Failure - cast error
     "PermuteNegativeIndexModule_basic",
-    # Failure - expand multiple dynamic dims
-    "EmbeddingModuleF16_basic",
-    "EmbeddingModuleI32_basic",
-    "EmbeddingModuleI64_basic",
-    "IndexTensorHackedTwinModule3dInput_basic",
-    "IndexTensorHackedTwinModule_basic",
-    "IndexTensorModule3dInput_basic",
-    "IndexTensorModule_basic",
-    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
-    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
-    "IndexTensorSelectDimModule_basic",
     # Failure - incorrect numerics
     "AvgPool2dDivisorOverrideModule_basic",
     "BroadcastDynamicDimModule_basic",
@@ -2212,6 +2206,8 @@ ONNX_XFAIL_SET = {
     "ElementwiseAtenFloorDivideTensorNegativeModule_basic",
     "ElementwiseLog10IntModule_basic",
     "ElementwiseLog2IntModule_basic",
+    "ElementwiseFminModule_basic",
+    "ElementwiseFmaxModule_basic",
     "FlipModuleStaticShape_basic",
     "FlipNegativeIndexModule_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",
@@ -2424,6 +2420,7 @@ ONNX_XFAIL_SET = {
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
     "IndexPutImplIndexWithNoneModule_basic",
+    "IndexPutWithNoneAndBroadcastModule_basic",
     "IntFloatModule_basic",
     "IntImplicitModule_basic",
     "IouOfModule_basic",
@@ -2939,6 +2936,9 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "CumsumStaticModule_basic",
     "CumsumStaticNegativeDimModule_basic",
     "DeformConv2D_basic",
+    "DeterminantBatchedModule_F32",
+    "DeterminantDynamicModule_F32",
+    "DeterminantModule_F32",
     "DiagonalModule_basic",
     "DiagonalModule_nonsquare",
     "DiagonalModule_transposed",
@@ -3734,6 +3734,10 @@ ONNX_TOSA_XFAIL_SET = {
     "CumsumStaticModule_basic",
     "CumsumStaticNegativeDimModule_basic",
     "DeformConv2D_basic",
+    "DeterminantModule_F32",
+    "DeterminantBatchedModule_F32",
+    "DeterminantDynamicModule_F32",
+    "DeterminantModule_F32",
     "DiagonalModule_basic",
     "DiagonalModule_nonsquare",
     "DiagonalModule_transposed",

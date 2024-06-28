@@ -40,6 +40,9 @@ def run_pipeline_with_repro_report(
         )
         # Lower module in place to make it ready for compiler backends.
         with module.context as ctx:
+            # TODO(#3506): Passes can emit errors but not signal failure,
+            # which causes a native assert.
+            ctx.emit_error_diagnostics = True
             pm = PassManager.parse(pipeline)
             if enable_ir_printing:
                 ctx.enable_multithreading(False)

@@ -69,29 +69,23 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
     int unpaddedDims, Value pad) {
   assert(isa<RankedTensorType>(input.getType()) &&
          "input must be RankedTensorType");
-  unsigned int inRank = cast<RankedTensorType>(input.getType()).getRank();
   Location loc = op->getLoc();
 
   SmallVector<Value> inputDims = getTensorSizes(b, loc, input);
   Value c0 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(0));
   SmallVector<Value> paddingIncludingUnchanged(unpaddedDims, c0);
   paddingIncludingUnchanged.append(padding);
-  assert(unpaddedDims + padding.size() == inRank &&
+  assert(static_cast<int64_t>(unpaddedDims + padding.size()) ==
+             cast<RankedTensorType>(input.getType()).getRank() &&
          "sum of unpaddedDims and padding.size() must equal to inputRank");
   for (auto pad = paddingIncludingUnchanged.begin();
        pad < paddingIncludingUnchanged.end(); pad++)
     *pad = castIntToIndex(b, loc, *pad);
 
-  Type elementType = cast<RankedTensorType>(input.getType()).getElementType();
-  // TODO: audit possibility of sparsity on this tensor
-  Type inputType =
-      RankedTensorType::get(makeShapeLLVMCompatible(llvm::ArrayRef<int64_t>(
-                                SmallVector<int64_t>(inRank, kUnknownSize))),
-                            elementType);
-
   SmallVector<OpFoldResult> paddingValues =
       getAsOpFoldResult(paddingIncludingUnchanged);
-  return b.create<tensor::PadOp>(loc, inputType, input, /*low=*/paddingValues,
+
+  return b.create<tensor::PadOp>(loc, Type{}, input, /*low=*/paddingValues,
                                  /*high=*/paddingValues, pad);
 }
 
@@ -103,25 +97,25 @@ Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
   Value c1 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(1));
   Value c2 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(2));
 
-  Value doublePadding = b.create<arith::MulIOp>(loc, paddingInt, c2);
+  Value doublePadding = b.createOrFold<arith::MulIOp>(loc, paddingInt, c2);
   // in + 2 * padding
-  Value inAddDoublePadding =
-      b.create<arith::AddIOp>(loc, castIndexToInt64(b, loc, in), doublePadding);
+  Value inAddDoublePadding = b.createOrFold<arith::AddIOp>(
+      loc, castIndexToInt64(b, loc, in), doublePadding);
 
   // dilation * (kernelSize - 1)
-  Value kernelSizeSub1 = b.create<arith::SubIOp>(loc, kernelSizeInt, c1);
+  Value kernelSizeSub1 = b.createOrFold<arith::SubIOp>(loc, kernelSizeInt, c1);
   Value dilationTimesKernelSize =
-      b.create<arith::MulIOp>(loc, dilationInt, kernelSizeSub1);
+      b.createOrFold<arith::MulIOp>(loc, dilationInt, kernelSizeSub1);
 
-  Value temp =
-      b.create<arith::SubIOp>(loc, inAddDoublePadding, dilationTimesKernelSize);
-  Value dividend = b.create<arith::SubIOp>(loc, temp, c1);
+  Value temp = b.createOrFold<arith::SubIOp>(loc, inAddDoublePadding,
+                                             dilationTimesKernelSize);
+  Value dividend = b.createOrFold<arith::SubIOp>(loc, temp, c1);
   Value division;
   if (ceilMode)
-    division = b.create<arith::CeilDivSIOp>(loc, dividend, strideInt);
+    division = b.createOrFold<arith::CeilDivSIOp>(loc, dividend, strideInt);
   else
-    division = b.create<arith::FloorDivSIOp>(loc, dividend, strideInt);
-  Value out = b.create<arith::AddIOp>(loc, division, c1);
+    division = b.createOrFold<arith::FloorDivSIOp>(loc, dividend, strideInt);
+  Value out = b.createOrFold<arith::AddIOp>(loc, division, c1);
   return castIntToIndex(b, loc, out);
 }
 

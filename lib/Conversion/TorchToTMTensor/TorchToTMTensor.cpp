@@ -541,19 +541,9 @@ public:
 
 namespace {
 
-Value combinePutIndices(Location loc, llvm::ArrayRef<Value> indicesRef,
-                        OpBuilder b) {
-  llvm::SmallVector<Value> indices(indicesRef);
-  // Declare commonly used constants up front:
-  Value torchCstZero =
-      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(0));
-  Value torchCstOne =
-      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(1));
-  Value torchCstNegOne =
-      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(-1));
-
-  // Determine the broadcast sizes and materialize missing implicit end
-  // dimensions:
+// Determine the common broadcast shape of all the index tensors.
+std::pair<llvm::SmallVector<Value>, llvm::SmallVector<int64_t>>
+getBroadcastShape(Location loc, llvm::ArrayRef<Value> indices, OpBuilder b) {
   int64_t indicesRank = 0;
   for (auto index : indices) {
     auto indexTy = cast<Torch::ValueTensorType>(index.getType());
@@ -567,6 +557,8 @@ Value combinePutIndices(Location loc, llvm::ArrayRef<Value> indicesRef,
     return std::max(dim0, dim1);
   };
 
+  Value torchCstOne =
+      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(1));
   llvm::SmallVector<Value> broadcastSizes(indicesRank, torchCstOne);
   llvm::SmallVector<int64_t> broadcastShape(indicesRank, 0);
   for (auto index : indices) {
@@ -585,6 +577,21 @@ Value combinePutIndices(Location loc, llvm::ArrayRef<Value> indicesRef,
       broadcastShape[idx] = maxDim(size, broadcastShape[idx]);
     }
   }
+  return std::make_pair(broadcastSizes, broadcastShape);
+}
+
+Value combinePutIndices(Location loc, llvm::ArrayRef<Value> indicesRef,
+                        OpBuilder b) {
+  llvm::SmallVector<Value> indices(indicesRef);
+  // Declare commonly used constants up front:
+  Value torchCstZero =
+      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(0));
+  Value torchCstOne =
+      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(1));
+  Value torchCstNegOne =
+      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(-1));
+
+  auto [broadcastSizes, broadcastShape] = getBroadcastShape(loc, indicesRef, b);
 
   auto mulDim = [](int64_t dim0, int64_t dim1) {
     if (dim0 == Torch::kUnknownSize || dim1 == Torch::kUnknownSize)
@@ -733,6 +740,34 @@ static Value collapseAndMoveBatchDims(Location loc, Value values, int64_t batch,
   return b.create<AtenViewOp>(loc, valuesTy, values, outDimsList);
 }
 
+// Broadcast the `values` tensor to the slice size created by the list of index
+// tensors.
+static Value broadcastValuesToSliceSize(Location loc, Value input, Value values,
+                                        llvm::ArrayRef<Value> indices,
+                                        OpBuilder b) {
+  auto inputType = cast<ValueTensorType>(input.getType());
+  ArrayRef<int64_t> inputStaticShape = inputType.getSizes();
+  auto valuesType = cast<ValueTensorType>(values.getType());
+
+  // In the case where the input rank is greater than the number of index
+  // tensors, the remaining dimensions of the input are indexed in their
+  // entirety. Thus, we need to append the remaining dimensions to get the shape
+  // of the indexed slice.
+  auto [resultShape, resultStaticShape] = getBroadcastShape(loc, indices, b);
+  for (size_t i = indices.size(); i < inputStaticShape.size(); i++) {
+    Value dim = b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(i));
+    resultShape.push_back(b.create<AtenSizeIntOp>(loc, input, dim));
+    resultStaticShape.push_back(inputStaticShape[i]);
+  }
+
+  auto resultType = b.getType<Torch::ValueTensorType>(
+      resultStaticShape, valuesType.getOptionalDtype());
+  Value broadcastShapeList = b.create<PrimListConstructOp>(
+      loc, Torch::ListType::get(b.getType<Torch::IntType>()), resultShape);
+  return b.create<AtenBroadcastToOp>(loc, resultType, values,
+                                     broadcastShapeList);
+}
+
 class ConvertAtenIndexPutHackedTwinOp
     : public OpConversionPattern<AtenIndexPutHackedTwinOp> {
 public:
@@ -780,6 +815,8 @@ public:
     if (optionalIndicesCount == 0)
       return rewriter.notifyMatchFailure(op, "Indices list must not be empty.");
 
+    values = broadcastValuesToSliceSize(loc, input, values, optionalIndicesList,
+                                        rewriter);
     // Filter to available indices and get the indicesMap:
     SmallVector<Value> indicesList;
     SmallVector<int64_t> indicesMap;

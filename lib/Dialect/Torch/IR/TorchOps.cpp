@@ -2810,7 +2810,8 @@ LogicalResult CopyToNonValueTensorOp::inferReturnTypes(
 void CopyToNonValueTensorOp::getEffects(
     SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
         &effects) {
-  effects.emplace_back(MemoryEffects::Allocate::get(), getResult());
+  effects.emplace_back(MemoryEffects::Allocate::get(),
+                       getOperation()->getOpResult(0));
 }
 
 //===----------------------------------------------------------------------===//
@@ -2837,7 +2838,8 @@ LogicalResult CopyToValueTensorOp::inferReturnTypes(
 void CopyToValueTensorOp::getEffects(
     SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
         &effects) {
-  effects.emplace_back(MemoryEffects::Read::get(), getOperand());
+  effects.emplace_back(MemoryEffects::Read::get(),
+                       &getOperation()->getOpOperand(0));
 }
 
 //===----------------------------------------------------------------------===//
@@ -2880,10 +2882,10 @@ void ConstantDeviceOp::getAsmResultNames(
 ParseResult ConstantIntOp::parse(OpAsmParser &parser, OperationState &result) {
   Builder builder(result.getContext());
   result.addTypes(builder.getType<Torch::IntType>());
-  if (parser.parseOptionalAttrDict(result.attributes))
-    return failure();
   int64_t value;
   if (parser.parseInteger(value))
+    return failure();
+  if (parser.parseOptionalAttrDict(result.attributes))
     return failure();
   result.addAttribute("value", builder.getI64IntegerAttr(value));
   return success();

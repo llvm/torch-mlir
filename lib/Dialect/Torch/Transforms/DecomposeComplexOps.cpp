@@ -2619,6 +2619,28 @@ public:
 };
 } // namespace
 
+namespace {
+
+class DecomposeAten_LinalgDetOp : public OpRewritePattern<Aten_LinalgDetOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_LinalgDetOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value, 3> results = op.getResults();
+    if (!results[1].use_empty() || !results[2].use_empty())
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: _linalg_det results: LU and pivot");
+    Location loc = op.getLoc();
+    Value input = op.getA();
+    Value determinant = rewriter.create<Torch::AtenLinalgDetOp>(
+        loc, results[0].getType(), input);
+    rewriter.replaceAllUsesWith(results[0], determinant);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.pixel_shuffle into: prims.split_dim, aten.permute, and
 // prims.collapse operations.
 //
@@ -8472,6 +8494,41 @@ public:
 } // namespace
 
 namespace {
+// Decompose aten.fmax/fmin to aten.maximum/minimum + aten.where(nanMask)
+template <typename AtenFOpT, typename AtenOpT>
+class DecomposeAtenFMaxMinOp : public OpRewritePattern<AtenFOpT> {
+public:
+  using OpRewritePattern<AtenFOpT>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFOpT op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    BaseTensorType outType = cast<BaseTensorType>(op.getType());
+    Type nanMaskType = outType.getWithSizesAndDtype(
+        !outType.hasSizes() ? std::optional<ArrayRef<int64_t>>()
+                            : llvm::ArrayRef(outType.getSizes()),
+        rewriter.getI1Type());
+
+    Value self = op.getSelf();
+    Value other = op.getOther();
+
+    Value normalResult =
+        rewriter.create<AtenOpT>(loc, outType, self, other).getResult();
+    Value selfIsNan =
+        rewriter.create<Torch::AtenIsnanOp>(loc, nanMaskType, self).getResult();
+    Value otherIsNan =
+        rewriter.create<Torch::AtenIsnanOp>(loc, nanMaskType, other)
+            .getResult();
+    normalResult = rewriter.create<Torch::AtenWhereSelfOp>(
+        loc, outType, otherIsNan, self, normalResult);
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, outType, selfIsNan, other,
+                                                 normalResult);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -8701,6 +8758,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenTriuOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTriuIndicesOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgNormOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_LinalgDetOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenFakeQuantizePerTensorAffineCachemaskOp>(patterns);
     // More specific conv ops
@@ -8708,6 +8766,11 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv3dOp>(patterns);
+
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenFMaxMinOp<AtenFmaxOp, AtenMaximumOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenFMaxMinOp<AtenFminOp, AtenMinimumOp>>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
