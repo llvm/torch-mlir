@@ -429,6 +429,20 @@ cd projects/pt1
 python -m e2e_testing.main -f 'AtenEmbeddingBag'
 ```
 
+The default mode of running tests uses the multi-processing framework and is
+not tolerant of certain types of errors. If encountering native crashes/hangs,
+enable debug variables to run sequentially/in-process with more verbosity:
+
+```
+export TORCH_MLIR_TEST_CONCURRENCY=1
+export TORCH_MLIR_TEST_VERBOSE=1
+```
+
+In this way, you can run under `gdb`, etc and get useful results. Having env
+vars like this makes it easy to set in GH action files, etc. Note that the
+verbose flags are very verbose. Basic sequential progress reports will be
+printed regardless when not running in parallel.
+
 ## Running unit tests.
 
 To run all of the unit tests, run:
