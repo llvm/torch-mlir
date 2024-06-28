@@ -8494,6 +8494,41 @@ public:
 } // namespace
 
 namespace {
+// Decompose aten.fmax/fmin to aten.maximum/minimum + aten.where(nanMask)
+template <typename AtenFOpT, typename AtenOpT>
+class DecomposeAtenFMaxMinOp : public OpRewritePattern<AtenFOpT> {
+public:
+  using OpRewritePattern<AtenFOpT>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFOpT op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    BaseTensorType outType = cast<BaseTensorType>(op.getType());
+    Type nanMaskType = outType.getWithSizesAndDtype(
+        !outType.hasSizes() ? std::optional<ArrayRef<int64_t>>()
+                            : llvm::ArrayRef(outType.getSizes()),
+        rewriter.getI1Type());
+
+    Value self = op.getSelf();
+    Value other = op.getOther();
+
+    Value normalResult =
+        rewriter.create<AtenOpT>(loc, outType, self, other).getResult();
+    Value selfIsNan =
+        rewriter.create<Torch::AtenIsnanOp>(loc, nanMaskType, self).getResult();
+    Value otherIsNan =
+        rewriter.create<Torch::AtenIsnanOp>(loc, nanMaskType, other)
+            .getResult();
+    normalResult = rewriter.create<Torch::AtenWhereSelfOp>(
+        loc, outType, otherIsNan, self, normalResult);
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, outType, selfIsNan, other,
+                                                 normalResult);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -8731,6 +8766,11 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv3dOp>(patterns);
+
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenFMaxMinOp<AtenFmaxOp, AtenMaximumOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenFMaxMinOp<AtenFminOp, AtenMinimumOp>>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

@@ -1440,6 +1440,64 @@ def ElementwiseMaximumIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseFmaxModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.fmax(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFmaxModule())
+def ElementwiseFmaxModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4), tu.rand(4))
+    module.forward(tu.rand(4), torch.tensor([1.0, torch.nan, -0.5, -0.3]))
+    module.forward(
+        torch.tensor([0.8, torch.nan, torch.nan, -0.3]),
+        torch.tensor([1.0, torch.nan, -0.4, torch.nan]),
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseFminModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.fmin(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFminModule())
+def ElementwiseFminModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4), tu.rand(4))
+    module.forward(tu.rand(4), torch.tensor([1.0, torch.nan, -0.5, -0.3]))
+    module.forward(
+        torch.tensor([0.8, torch.nan, torch.nan, -0.3]),
+        torch.tensor([1.0, torch.nan, -0.4, torch.nan]),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseMaxOtherModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
