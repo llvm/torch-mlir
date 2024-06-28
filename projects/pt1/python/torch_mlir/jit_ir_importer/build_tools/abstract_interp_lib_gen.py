@@ -2038,6 +2038,9 @@ def aten〇stft〡shape(self: List[int], n_fft: int, hop_length: Optional[int] =
 
     return out
 
+def aten〇fft_ifft〡shape(self: List[int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> List[int]:
+    return self
+
 class DummyClassType:
     def __init__(self):
         pass
@@ -3405,6 +3408,23 @@ def aten〇stft〡dtype(self_rank_dtype: Tuple[int, int], n_fft: int, hop_length
         return torch.complex64
 
     assert False, "Unsupported dtype"
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bfloat16}))
+def aten〇fft_ifft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if is_complex_dtype(self_dtype):
+        return self_dtype
+    elif self_dtype == torch.float16:
+        return torch.complex32
+    elif self_dtype == torch.float32:
+        return torch.complex64
+    elif self_dtype == torch.float64:
+        return torch.complex128
+    elif is_integer_dtype(self_dtype):
+        return torch.complex64
+    else:
+        assert False, "Unsupported dtype"
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0) +
