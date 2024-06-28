@@ -358,6 +358,15 @@ def run_tests(
     if env_concurrency > 0:
         num_processes = min(num_processes, env_concurrency)
 
+    try:
+        env_verbose = os.getenv("TORCH_MLIR_TEST_VERBOSE", "0")
+        if env_verbose is not None:
+            verbose = bool(int(env_verbose))
+    except ValueError as e:
+        raise ValueError(
+            "Bad value for TORCH_MLIR_TEST_VERBOSE env var: " "Expected integer."
+        ) from e
+
     # TODO: We've noticed that on certain 2 core machine parallelizing the tests
     # makes the llvm backend legacy pass manager 20x slower than using a
     # single process. Need to investigate the root cause eventually. This is a
@@ -375,7 +384,10 @@ def run_tests(
     # seems to cause a cascade of failures resulting in undecipherable error
     # messages.
     if num_processes == 1 or sequential:
-        return [compile_and_run_test(test, config, verbose) for test in tests]
+        print("Running tests sequentially with progress status")
+        for test in tests:
+            print(f"*** RUNNING TEST: {test.unique_name} ***")
+            compile_and_run_test(test, config, verbose)
 
     # This is needed because autograd does not support crossing process
     # boundaries.
