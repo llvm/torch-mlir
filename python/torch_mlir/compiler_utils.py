@@ -75,7 +75,6 @@ def run_pipeline_with_repro_report(
             Add '{debug_options}' to get the IR dump for debugging purpose.
             """
         trimmed_message = "\n".join([m.lstrip() for m in message.split("\n")])
-        print("EXCEPTION:", trimmed_message)
         raise TorchMlirCompilerError(trimmed_message) from None
     finally:
         sys.stderr = original_stderr
