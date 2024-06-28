@@ -2810,7 +2810,8 @@ LogicalResult CopyToNonValueTensorOp::inferReturnTypes(
 void CopyToNonValueTensorOp::getEffects(
     SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
         &effects) {
-  effects.emplace_back(MemoryEffects::Allocate::get(), getResult());
+  effects.emplace_back(MemoryEffects::Allocate::get(),
+                       getOperation()->getOpResult(0));
 }
 
 //===----------------------------------------------------------------------===//
@@ -2837,7 +2838,8 @@ LogicalResult CopyToValueTensorOp::inferReturnTypes(
 void CopyToValueTensorOp::getEffects(
     SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
         &effects) {
-  effects.emplace_back(MemoryEffects::Read::get(), getOperand());
+  effects.emplace_back(MemoryEffects::Read::get(),
+                       &getOperation()->getOpOperand(0));
 }
 
 //===----------------------------------------------------------------------===//

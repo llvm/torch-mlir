@@ -22,6 +22,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+#include <numeric>
 #include <optional>
 
 using namespace mlir;
@@ -5088,6 +5089,193 @@ LogicalResult ConvertAtenOp<AtenSqrtOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult
+ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewrite(
+    Aten__InterpolateSizeListScaleListOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // Converts torch.aten.__interpolate.size_list_scale_list to tosa.resize
+  auto input = adaptor.getInput();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
+  if (!inputTy)
+    return rewriter.notifyMatchFailure(op,
+                                       "Only Tensor types supported in TOSA");
+  auto inputRank = inputTy.getRank();
+  if (inputRank != 4)
+    return rewriter.notifyMatchFailure(op,
+                                       "TOSA resize() takes rank==4 tensors.");
+
+  auto inputShape = inputTy.getShape();
+  auto inputElemTy = inputTy.getElementType();
+  // TOSA works in NHWC. Perform the necessary transformations.
+  std::optional<Value> nchwToNhwcTransposeConst =
+      tosa::getConstTensor<int32_t>(rewriter, op,
+                                    /*vec=*/{0, 2, 3, 1},
+                                    /*shape=*/{static_cast<int32_t>(4)});
+  SmallVector<int64_t> transposedInputShape(
+      {inputShape[0], inputShape[2], inputShape[3], inputShape[1]});
+  auto transposedInputTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(transposedInputShape), inputElemTy);
+  auto transposedInput =
+      rewriter
+          .create<tosa::TransposeOp>(
+              op->getLoc(), getTypeConverter()->convertType(transposedInputTy),
+              input, nchwToNhwcTransposeConst.value())
+          .getResult();
+
+  auto inputHeight = transposedInputShape[1];
+  auto inputWidth = transposedInputShape[2];
+
+  int outputHeight, outputWidth;
+  if (!isa<Torch::NoneType>(op.getScaleFactor().getType())) {
+    SmallVector<double, 2> scaleFactor;
+    if (!matchPattern(op.getScaleFactor(),
+                      m_TorchListOfConstantFloats(scaleFactor)))
+      return rewriter.notifyMatchFailure(
+          op, "non-const scale_factor parameter unsupported");
+
+    outputHeight = inputHeight * scaleFactor[0];
+    outputWidth = inputWidth * scaleFactor[1];
+
+  } else {
+    if (!isa<Torch::NoneType>(op.getSize().getType()))
+      return rewriter.notifyMatchFailure(
+          op, "Scale factor and size are both absent!");
+
+    SmallVector<int64_t, 4> size;
+    if (!matchPattern(op.getSize(), m_TorchListOfConstantInts(size)))
+      return rewriter.notifyMatchFailure(
+          op, "non-const size parameter unsupported");
+    outputHeight = size[0];
+    outputWidth = size[1];
+  }
+
+  std::string pyMode;
+  if (!matchPattern(op.getMode(), m_TorchConstantStr(pyMode)))
+    return rewriter.notifyMatchFailure(op,
+                                       "non-const mode parameter unsupported");
+
+  // All torch modes listed in
+  // https://pytorch.org/docs/stable/generated/torch.nn.functional.interpolate.html
+  if (pyMode != "bilinear" && pyMode != "nearest")
+    return rewriter.notifyMatchFailure(
+        op, "Only nearest and bilinear interpolation modes supported");
+
+  std::string mode;
+  if (pyMode == "bilinear") {
+    mode = "BILINEAR";
+  } else {
+    mode = "NEAREST_NEIGHBOR";
+  }
+
+  bool alignCorners;
+  if (!matchPattern(op.getAlignCorners(), m_TorchConstantBool(&alignCorners)))
+    return rewriter.notifyMatchFailure(
+        op, "non-const align_corners parameter unsupported");
+
+  bool recomputeScaleFactor;
+  if (isa<Torch::NoneType>(op.getRecomputeScaleFactor().getType()))
+    recomputeScaleFactor = false;
+  else if (!matchPattern(op.getRecomputeScaleFactor(),
+                         m_TorchConstantBool(&recomputeScaleFactor)))
+    return rewriter.notifyMatchFailure(
+        op, "non-const recompute_scale_factor parameter unsupported");
+  if (recomputeScaleFactor)
+    return rewriter.notifyMatchFailure(
+        op, "Application of recompute_scale_factor not yet supported");
+
+  bool antialias;
+  if (!matchPattern(op.getAntialias(), m_TorchConstantBool(&antialias)))
+    return rewriter.notifyMatchFailure(
+        op, "non-const antialias parameter unsupported");
+  if (antialias)
+    return rewriter.notifyMatchFailure(
+        op, "Application of antialias not yet supported");
+
+  SmallVector<int64_t> transposedResizedOpShape(
+      {inputShape[0], outputHeight, outputWidth, inputShape[1]});
+  auto transposedResizedOpTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(transposedResizedOpShape), inputElemTy);
+
+  // Formatting snake_case to match TOSA spec names for readability
+  int scale_y_n, scale_y_d, offset_y, border_y;
+  int scale_x_n, scale_x_d, offset_x, border_x;
+
+  // Align corners sets the scaling ratio to (OH - 1)/(IH - 1)
+  // rather than OH / IH. Similarly for width.
+  auto normalize = [&](int input, int output, int &n, int &d, int &offset,
+                       int &border) {
+    // Dimension is length 1, we are just sampling from one value.
+    if (input == 1) {
+      n = output;
+      d = 1;
+      offset = 0;
+      border = output - 1;
+      return;
+    }
+
+    // Apply if aligned and capable to be aligned.
+    bool apply_aligned = alignCorners && (output > 1);
+    n = apply_aligned ? (output - 1) : output;
+    d = apply_aligned ? (input - 1) : input;
+
+    // Simplify the scalers, make sure they are even values.
+    int gcd = std::gcd(n, d);
+    n = 2 * n / gcd;
+    d = 2 * d / gcd;
+
+    offset = 0;
+
+    // If nearest neighbours we need to guarantee we round up.
+    if (mode == "NEAREST_NEIGHBOR" && alignCorners) {
+      offset += n / 2;
+    }
+
+    // TBD: impact of antialias parameter here ?
+
+    // We can compute this directly based on previous values.
+    border = d * (output - 1) - n * (input - 1) + offset;
+  };
+
+  normalize(inputHeight, outputHeight, scale_y_n, scale_y_d, offset_y,
+            border_y);
+  normalize(inputWidth, outputWidth, scale_x_n, scale_x_d, offset_x, border_x);
+
+  DenseI64ArrayAttr scale = rewriter.getDenseI64ArrayAttr(
+      {scale_y_n, scale_y_d, scale_x_n, scale_x_d});
+  DenseI64ArrayAttr offset =
+      rewriter.getDenseI64ArrayAttr({offset_y, offset_x});
+  DenseI64ArrayAttr border =
+      rewriter.getDenseI64ArrayAttr({border_y, border_x});
+  StringAttr modeAttr = rewriter.getStringAttr(mode);
+
+  auto resizeOpResult =
+      rewriter
+          .create<tosa::ResizeOp>(op->getLoc(), transposedResizedOpTy,
+                                  transposedInput, scale, offset, border,
+                                  modeAttr)
+          .getResult();
+
+  auto resultType =
+      cast<RankedTensorType>(typeConverter->convertType(op.getType()));
+  std::optional<Value> nhwcToNchwTransposeConst =
+      tosa::getConstTensor<int32_t>(rewriter, op,
+                                    /*vec=*/{0, 3, 1, 2},
+                                    /*shape=*/{static_cast<int32_t>(4)});
+  // SmallVector<int64_t> transposedOutputShape(
+  //     {transposedResizedOpShape[0], transposedResizedOpShape[3],
+  //      transposedResizedOpShape[1], transposedResizedOpShape[2]});
+  // auto transposedOutputType = RankedTensorType::get(
+  //     makeShapeLLVMCompatible(transposedOutputShape), inputElemTy);
+  rewriter
+      .replaceOpWithNewOp<tosa::TransposeOp>(
+          op, getTypeConverter()->convertType(resultType), resizeOpResult,
+          nhwcToNchwTransposeConst.value())
+      .getResult();
+
+  return success();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -5340,6 +5528,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenCatOp);
     INSERT_ATENOP_PATTERN(AtenSqrtOp);
     INSERT_ATENOP_PATTERN(AtenIscloseOp);
+    INSERT_ATENOP_PATTERN(Aten__InterpolateSizeListScaleListOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \

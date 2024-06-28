@@ -43,6 +43,7 @@ def register_all_tests():
     from . import slice_like
     from . import nll_loss
     from . import index_select
+    from . import linalg_algorithms
     from . import arange
     from . import constant_alloc
     from . import threshold

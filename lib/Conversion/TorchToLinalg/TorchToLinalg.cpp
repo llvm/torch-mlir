@@ -16,6 +16,7 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
@@ -42,6 +43,7 @@ public:
     registry.insert<tensor::TensorDialect>();
     registry.insert<arith::ArithDialect>();
     registry.insert<cf::ControlFlowDialect>();
+    registry.insert<scf::SCFDialect>();
     registry.insert<complex::ComplexDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
@@ -51,7 +53,7 @@ public:
     ConversionTarget target(*context);
     target.addLegalDialect<
         linalg::LinalgDialect, func::FuncDialect, cf::ControlFlowDialect,
-        math::MathDialect, sparse_tensor::SparseTensorDialect,
+        math::MathDialect, scf::SCFDialect, sparse_tensor::SparseTensorDialect,
         tensor::TensorDialect, arith::ArithDialect, complex::ComplexDialect>();
     target.addLegalOp<TorchConversion::GetNextSeedOp>();
 

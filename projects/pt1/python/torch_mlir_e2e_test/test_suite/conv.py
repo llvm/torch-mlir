@@ -1256,3 +1256,90 @@ def ConvTranspose2DQInt8_basic(module, tu: TestUtils):
         tu.randint(Cin, Cout, Hker, Wker, low=-128, high=127).to(torch.int8),
         torch.rand(Cout),
     )
+
+
+# torchvision.deform_conv2d
+
+import torchvision
+
+# This section defines a torch->onnx path for this torchvision op so we can test the onnx paths e2e.
+
+# Create symbolic function
+from torch.onnx.symbolic_helper import parse_args, _get_tensor_sizes
+
+
+@parse_args("v", "v", "v", "v", "v", "i", "i", "i", "i", "i", "i", "i", "i", "b")
+def symbolic_deform_conv2d_forward(
+    g,
+    input,
+    weight,
+    offset,
+    mask,
+    bias,
+    stride_h,
+    stride_w,
+    pad_h,
+    pad_w,
+    dilation_h,
+    dilation_w,
+    groups,
+    offset_groups,
+    use_mask,
+):
+    args = [input, weight, offset, bias]
+    if use_mask:
+        args.append(mask)
+    weight_size = _get_tensor_sizes(weight)
+    kwargs = {
+        "dilations_i": [dilation_h, dilation_w],
+        "group_i": groups,
+        "kernel_shape_i": weight_size[2:],
+        "offset_group_i": offset_groups,
+        # NB: ONNX supports asymmetric padding, whereas PyTorch supports only
+        # symmetric padding
+        "pads_i": [pad_h, pad_w, pad_h, pad_w],
+        "strides_i": [stride_h, stride_w],
+    }
+    return g.op("DeformConv", *args, **kwargs)
+
+
+# Register symbolic function
+from torch.onnx import register_custom_op_symbolic
+
+register_custom_op_symbolic(
+    "torchvision::deform_conv2d", symbolic_deform_conv2d_forward, 19
+)
+
+N = 1
+Cin = 1
+Hin = 7
+Win = 6
+Cout = 1
+Hker = 2
+Wker = 2
+offset_groups = 1
+Hout = 6
+Wout = 5
+offset_dim1 = 2 * offset_groups * Hker * Wker
+
+
+class DeformableConvModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([N, Cin, Hin, Win], torch.float32, True),
+            ([N, offset_dim1, Hout, Wout], torch.float32, True),
+            ([Cout, Cin, Hker, Wker], torch.float32, True),
+        ]
+    )
+    def forward(self, input, offset, weight):
+        return torchvision.ops.deform_conv2d(input, offset, weight)
+
+
+@register_test_case(module_factory=lambda: DeformableConvModule())
+def DeformConv2D_basic(module, tu: TestUtils):
+    input = tu.rand(N, Cin, Hin, Win)
+    offset = tu.rand(N, offset_dim1, Hout, Wout)
+    weight = tu.rand(Cout, Cin, Hker, Wker)
+    module.forward(input, offset, weight)

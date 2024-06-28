@@ -67,7 +67,7 @@ func.func @elementwise$ternary(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch
 // CHECK-SAME:                                          %[[VAL_0:.*]]: !torch.vtensor<[?],f32>,
 // CHECK-SAME:                                          %[[VAL_1:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[?],f32> {
 // CHECK:           %[[C1:.*]] = torch.constant.int 1
-// CHECK:           %[[BUILTIN_C1:.*]] = torch_c.to_i64 %[[C1]]
+// CHECK:           %[[BUILTIN_C1:.*]] = arith.constant 1 : i64
 // CHECK:           linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> ()>, affine_map<(d0) -> (d0)>]
 // CHECK:           ^bb0(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32, %{{.*}}: f32):
 // CHECK:             %[[ALPHA:.*]] = arith.sitofp %[[BUILTIN_C1]] : i64 to f32

@@ -7,6 +7,10 @@ import argparse
 import re
 import sys
 
+import torch
+
+torch.device("cpu")
+
 from torch_mlir_e2e_test.framework import run_tests
 from torch_mlir_e2e_test.reporting import report_results
 from torch_mlir_e2e_test.registry import GLOBAL_TEST_REGISTRY

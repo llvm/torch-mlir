@@ -2954,6 +2954,104 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         return success();
       });
   patterns.onOp(
+      "RoiAlign", 16, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // operands = input, rois, batch_indices
+        SmallVector<Value> operands;
+        std::string coordTfMode, mode;
+        int64_t outHInt, outWInt, samplingRatioInt;
+        float spatialScaleFloat;
+        Torch::ValueTensorType resultType;
+        if (binder.tensorOperands(operands, 3) ||
+            binder.customOpNameStringAttr(
+                coordTfMode, "coordinate_transformation_mode", "half_pixel") ||
+            binder.customOpNameStringAttr(mode, "mode", "avg") ||
+            binder.s64IntegerAttr(outHInt, "output_height", 1) ||
+            binder.s64IntegerAttr(outWInt, "output_width", 1) ||
+            binder.s64IntegerAttr(samplingRatioInt, "sampling_ratio", 0) ||
+            binder.f32FloatAttr(spatialScaleFloat, "spatial_scale", 1.0f) ||
+            binder.tensorResultType(resultType))
+          return failure();
+        Value input = operands[0];
+        Value rois = operands[1];
+        Value batchIndices = operands[2];
+
+        // the torchvision roi_pool op does not support these features:
+        if (mode == "max" &&
+            (coordTfMode != "half_pixel" || samplingRatioInt != 0))
+          return rewriter.notifyMatchFailure(
+              binder.op, "unsupported: roi max pooling without default "
+                         "coordTfMode and sampling_ratio");
+
+        Location loc = binder.getLoc();
+        // concatenate the batchIndices to the rois to get rois as a num_roisx5
+        // tensor. The batchIndices tensor is an int64 tensor, and needs to be
+        // converted to float before concatenation.
+        auto roisType = dyn_cast<Torch::ValueTensorType>(rois.getType());
+        if (!roisType || !roisType.hasSizes())
+          return failure();
+        Value cstDim = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        FailureOr<Value> unsqueezeIndices =
+            Torch::unsqueezeTensor(rewriter, binder.op, batchIndices, cstDim);
+        if (failed(unsqueezeIndices))
+          return failure();
+        batchIndices = unsqueezeIndices.value();
+        auto batchIndicesType =
+            cast<Torch::ValueTensorType>(batchIndices.getType());
+        Value dTypeInt =
+            Torch::getDtypeIntValueForType(rewriter, loc, roisType.getDtype());
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        Value newBatchIndices = rewriter.create<Torch::AtenToDtypeOp>(
+            loc,
+            batchIndicesType.getWithSizesAndDtype(
+                batchIndicesType.getOptionalSizes(),
+                roisType.getOptionalDtype()),
+            batchIndices, dTypeInt, cstFalse, cstFalse, none);
+        SmallVector<int64_t> roiSizes(roisType.getSizes());
+        roiSizes.back() = 5;
+        auto catType = rewriter.getType<Torch::ValueTensorType>(
+            roiSizes, roisType.getDtype());
+        Type listElemType =
+            roisType.getWithSizesAndDtype(/*optionalSizes=*/std::nullopt,
+                                          /*optionalDtype=*/nullptr);
+        Type listType = Torch::ListType::get(listElemType);
+        Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.op->getLoc(), listType, ValueRange{newBatchIndices, rois});
+        Value newRois =
+            rewriter.create<Torch::AtenCatOp>(loc, catType, tensorList, cstDim);
+
+        // make constants from attributes
+        Value cstSpatialScale = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getF64FloatAttr(spatialScaleFloat));
+        Value pooledHeight = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(outHInt));
+        Value pooledWidth = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(outWInt));
+        // this is for consistency with the default pytorch sampling ratio value
+        samplingRatioInt = (samplingRatioInt == 0) ? -1 : samplingRatioInt;
+        Value samplingRatio = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(samplingRatioInt));
+        bool aligned = coordTfMode == "half_pixel";
+        Value cstAligned = rewriter.create<Torch::ConstantBoolOp>(loc, aligned);
+
+        if (mode == "avg") {
+          rewriter.replaceOpWithNewOp<Torch::TorchvisionRoiAlignOp>(
+              binder.op, resultType, input, newRois, cstSpatialScale,
+              pooledHeight, pooledWidth, samplingRatio, cstAligned);
+          return success();
+        }
+        // mode == "max"
+        auto indicesType = resultType.getWithSizesAndDtype(
+            resultType.getOptionalSizes(), batchIndicesType.getDtype());
+        auto roiPool = rewriter.create<Torch::TorchvisionRoiPoolOp>(
+            loc, TypeRange{resultType, indicesType}, input, newRois,
+            cstSpatialScale, pooledHeight, pooledWidth);
+        rewriter.replaceOp(binder.op, roiPool.getResult(0));
+        return success();
+      });
+  patterns.onOp(
       "SpaceToDepth", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
@@ -3467,6 +3565,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         return success();
       });
 
+
   
   // split to sequence 
   // Arguments:
@@ -3525,6 +3624,86 @@ patterns.onOp(
 	} else {
 		return failure();
 	}
+        
+ });
 	    
+
+  patterns.onOp(
+      "ReverseSequence", 10,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input, sequenceLens;
+        int64_t batchAxis, timeAxis;
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorOperandAtIndex(sequenceLens, 1) ||
+            binder.s64IntegerAttr(batchAxis, "batch_axis", 1) ||
+            binder.s64IntegerAttr(timeAxis, "time_axis", 0) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        auto inputTy = cast<Torch::ValueTensorType>(input.getType());
+        SmallVector<int64_t> inputShape(inputTy.getSizes());
+        auto dtype = resultType.getDtype();
+
+        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value batchAxisVal = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(batchAxis));
+        Value timeAxisVal = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(timeAxis));
+
+        SmallVector<int64_t> sliceShape(inputShape);
+        sliceShape[batchAxis] = 1;
+        auto sliceType =
+            rewriter.getType<Torch::ValueTensorType>(sliceShape, dtype);
+        SmallVector<int64_t> flipShape(sliceShape);
+        flipShape[timeAxis] = Torch::kUnknownSize;
+        auto flipType =
+            rewriter.getType<Torch::ValueTensorType>(flipShape, dtype);
+        auto scalarTensorType = rewriter.getType<Torch::ValueTensorType>(
+            ArrayRef<int64_t>{1}, rewriter.getIntegerType(64, /*signed*/ 1));
+
+        for (int i = 0; i < inputShape[batchAxis]; i++) {
+          // slice i iterating on batch axis
+          Value k = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(i));
+          Value end =
+              rewriter.create<Torch::AtenAddIntOp>(binder.getLoc(), k, cstOne);
+          Value sliceBatch = rewriter.create<Torch::AtenSliceTensorOp>(
+              binder.getLoc(), sliceType, input, batchAxisVal, k, end, cstOne);
+
+          // get sequence length and slice the reversing part
+          Value kTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+              binder.getLoc(), scalarTensorType, k);
+          Value sel = rewriter.create<Torch::AtenIndexSelectOp>(
+              binder.getLoc(), scalarTensorType, sequenceLens, cstZero,
+              kTensor);
+          Value len = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), sel);
+          Value sliceTime = rewriter.create<Torch::AtenSliceTensorOp>(
+              binder.getLoc(), flipType, sliceBatch, timeAxisVal, cstZero, len,
+              cstOne);
+          // flip the sliced reversing tensor
+          Value dims = rewriter.create<Torch::PrimListConstructOp>(
+              binder.getLoc(),
+              rewriter.getType<Torch::ListType>(
+                  rewriter.getType<Torch::IntType>()),
+              SmallVector<Value>{timeAxisVal});
+          Value flip = rewriter.create<Torch::AtenFlipOp>(
+              binder.getLoc(), flipType, sliceTime, dims);
+
+          // embeds the reversed tensor to the input
+          Value embedTime = rewriter.create<Torch::AtenSliceScatterOp>(
+              binder.getLoc(), sliceType, sliceBatch, flip, timeAxisVal,
+              /*start=*/cstZero, /*end=*/len, /*step=*/cstOne);
+          input = rewriter.create<Torch::AtenSliceScatterOp>(
+              binder.getLoc(), resultType, input, embedTime, batchAxisVal,
+              /*start=*/k, /*end=*/end, /*step=*/cstOne);
+        }
+
+        rewriter.replaceOp(binder.op, input);
+        return success();
       });
 }

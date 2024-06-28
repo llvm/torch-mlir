@@ -140,12 +140,12 @@ Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
 
 Value castIntToIndex(OpBuilder &b, Location loc, Value v) {
   assert(isa<IntegerType>(v.getType()) && "must be called with integer type");
-  return b.create<arith::IndexCastOp>(loc, b.getIndexType(), v);
+  return b.createOrFold<arith::IndexCastOp>(loc, b.getIndexType(), v);
 }
 
 Value castIndexToInt64(OpBuilder &b, Location loc, Value idx) {
   assert(isa<IndexType>(idx.getType()) && "must be called with integer type");
-  return b.create<arith::IndexCastOp>(loc, b.getI64Type(), idx);
+  return b.createOrFold<arith::IndexCastOp>(loc, b.getI64Type(), idx);
 }
 
 SmallVector<Value>

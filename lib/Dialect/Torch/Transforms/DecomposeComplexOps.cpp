@@ -2619,6 +2619,28 @@ public:
 };
 } // namespace
 
+namespace {
+
+class DecomposeAten_LinalgDetOp : public OpRewritePattern<Aten_LinalgDetOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_LinalgDetOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value, 3> results = op.getResults();
+    if (!results[1].use_empty() || !results[2].use_empty())
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: _linalg_det results: LU and pivot");
+    Location loc = op.getLoc();
+    Value input = op.getA();
+    Value determinant = rewriter.create<Torch::AtenLinalgDetOp>(
+        loc, results[0].getType(), input);
+    rewriter.replaceAllUsesWith(results[0], determinant);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.pixel_shuffle into: prims.split_dim, aten.permute, and
 // prims.collapse operations.
 //
@@ -8701,6 +8723,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenTriuOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTriuIndicesOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgNormOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_LinalgDetOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenFakeQuantizePerTensorAffineCachemaskOp>(patterns);
     // More specific conv ops

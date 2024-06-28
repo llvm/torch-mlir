@@ -46,16 +46,17 @@ using namespace mlir::torch::TMTensor;
 static void getEffectsImpl(
     SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
         &effects,
-    ValueRange results, ValueRange inputBuffers, ValueRange outputBuffers) {
-  for (Value value : results) {
+    ResultRange results, ArrayRef<OpOperand *> inputBuffers,
+    ArrayRef<OpOperand *> outputBuffers) {
+  for (OpResult value : results) {
     effects.emplace_back(MemoryEffects::Allocate::get(), value,
                          SideEffects::DefaultResource::get());
   }
-  for (Value value : inputBuffers) {
+  for (OpOperand *value : inputBuffers) {
     effects.emplace_back(MemoryEffects::Read::get(), value,
                          SideEffects::DefaultResource::get());
   }
-  for (Value value : outputBuffers) {
+  for (OpOperand *value : outputBuffers) {
     effects.emplace_back(MemoryEffects::Read::get(), value,
                          SideEffects::DefaultResource::get());
     effects.emplace_back(MemoryEffects::Write::get(), value,
@@ -1121,8 +1122,8 @@ bool TopkOp::payloadUsesValueFromOperand(OpOperand *opOperand) {
   void OP_NAME::getEffects(                                                    \
       SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>      \
           &effects) {                                                          \
-    SmallVector<Value> inputBuffers = getInputBufferOperands();                \
-    SmallVector<Value> outputBuffers = getOutputBufferOperands();              \
+    OpOperandVector inputBuffers = getInputBufferOperands();                   \
+    OpOperandVector outputBuffers = getOutputBufferOperands();                 \
     getEffectsImpl(effects, getOperation()->getResults(), inputBuffers,        \
                    outputBuffers);                                             \
   }
