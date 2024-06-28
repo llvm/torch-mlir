@@ -2197,17 +2197,6 @@ LTC_XFAIL_SET = {
 ONNX_XFAIL_SET = {
     # Failure - cast error
     "PermuteNegativeIndexModule_basic",
-    # Failure - expand multiple dynamic dims
-    "EmbeddingModuleF16_basic",
-    "EmbeddingModuleI32_basic",
-    "EmbeddingModuleI64_basic",
-    "IndexTensorHackedTwinModule3dInput_basic",
-    "IndexTensorHackedTwinModule_basic",
-    "IndexTensorModule3dInput_basic",
-    "IndexTensorModule_basic",
-    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
-    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
-    "IndexTensorSelectDimModule_basic",
     # Failure - incorrect numerics
     "AvgPool2dDivisorOverrideModule_basic",
     "BroadcastDynamicDimModule_basic",
