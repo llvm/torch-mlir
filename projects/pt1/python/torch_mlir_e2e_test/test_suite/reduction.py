@@ -1207,7 +1207,7 @@ def ReduceAmaxMultiDim_basic(module, tu: TestUtils):
 class ReduceAmaxEmptyDim(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args(
         [
@@ -1217,6 +1217,7 @@ class ReduceAmaxEmptyDim(torch.nn.Module):
     )
     def forward(self, a):
         return torch.ops.aten.amax(a, dim=())
+
 
 @register_test_case(module_factory=lambda: ReduceAmaxEmptyDim())
 def ReduceAmaxEmptyDim_basic(module, tu: TestUtils):
@@ -1294,10 +1295,11 @@ def ReduceAminSingleDim_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
 class ReduceAminmaxSingleDim(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args(
         [
@@ -1313,12 +1315,14 @@ class ReduceAminmaxSingleDim(torch.nn.Module):
 def ReduceAminmaxSingleDim_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5, high=100))
 
+
 # ==============================================================================
+
 
 class ReduceAminmaxAllDims(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    
+
     @export
     @annotate_args(
         [
