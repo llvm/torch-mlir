@@ -361,7 +361,7 @@ def run_tests(
     try:
         env_verbose = os.getenv("TORCH_MLIR_TEST_VERBOSE", "0")
         if env_verbose is not None:
-            verbose = bool(int(env_verbose))
+            verbose = verbose or bool(int(env_verbose))
     except ValueError as e:
         raise ValueError(
             "Bad value for TORCH_MLIR_TEST_VERBOSE env var: " "Expected integer."
