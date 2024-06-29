@@ -159,7 +159,7 @@ static Value createReduceOpWithSingleRegionOp(Operation *op, Value input,
     if (isa<AtenAmaxOp, AtenMaxOp, AtenMaxDimOp>(op)) {
       result = rewriter.create<stablehlo::MaxOp>(
           op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
-    } else if (isa<AtenAminOp, AtenMinOp>(op)) {
+    } else if (isa<AtenAminOp, AtenMinOp, AtenMinDimOp>(op)) {
       result = rewriter.create<stablehlo::MinOp>(
           op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
     } else if (isa<AtenSumOp, AtenSumDimIntListOp, AtenFrobeniusNormDimOp,

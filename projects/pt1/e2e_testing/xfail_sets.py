@@ -716,9 +716,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ReduceAllDimFloat_basic",
     "ReduceAllDimInt_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
-    "ReduceMinAlongDimNegative_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
-    "ReduceMinAlongDim_basic",
     "ReduceMinKeepDimReturnBoth_basic",
     "ReduceMinKeepDim_basic",
     "ReduceProdDimIntFloatModule_basic",
@@ -831,6 +829,8 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "ReduceMinAlongDimNegative_basic",
+    "ReduceMinAlongDim_basic",
     "ArgminModule_with_dim",
     "ReduceMinAlongDimSignedInt_basic",
     "ReduceAnyDimFloatModule_basic",
