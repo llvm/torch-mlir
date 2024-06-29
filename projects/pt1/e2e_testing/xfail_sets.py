@@ -830,6 +830,9 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "ReduceAminmaxSingleDim_basic",
+    "ReduceAminmaxAllDims_basic",
+    "ReduceAmaxEmptyDim_basic",
     "ReduceMinAlongDimNegative_basic",
     "ReduceMinAlongDim_basic",
     "ArgminModule_with_dim",
