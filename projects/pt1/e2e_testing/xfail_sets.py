@@ -503,7 +503,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ArgminIntModule_multiple_mins",
     "ArgminModule_basic",
     "ArgminModule_keepDim",
-    "ArgminModule_with_dim",
     "AtenComplexImagModule_basic",
     "AtenComplexRealModule_basic",
     "AtenComplexViewModule_basic",
@@ -718,7 +717,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ReduceAllDimInt_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimNegative_basic",
-    "ReduceMinAlongDimSignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
     "ReduceMinAlongDim_basic",
     "ReduceMinKeepDimReturnBoth_basic",
@@ -833,6 +831,8 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "ArgminModule_with_dim",
+    "ReduceMinAlongDimSignedInt_basic",
     "ReduceAnyDimFloatModule_basic",
     "MeshgridIndexingIJ_basic",
     "MeshgridIndexingXY_basic",
