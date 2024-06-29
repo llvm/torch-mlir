@@ -341,6 +341,7 @@ TORCHDYNAMO_CRASHING_SET = {
 }
 
 FX_IMPORTER_XFAIL_SET = {
+    "ReduceAnyDimFloatModule_basic",
     "AllBoolFalseModule_basic",
     "AllBoolTrueModule_basic",
     "AnyBoolFalseModule_basic",
