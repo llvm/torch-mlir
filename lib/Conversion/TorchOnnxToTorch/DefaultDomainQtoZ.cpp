@@ -3565,21 +3565,19 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         return success();
       });
 
-
-  
-  // split to sequence 
+  // split to sequence
   // Arguments:
   // - input: the tensor to split
   // -Split(optional): Length of each output
   // Attributes:
   // - axis: the axis along which to split the input
-  // - keepdims: to keep the split dimension or not. Ignored when 'split' is specified
-  // Outputs:
+  // - keepdims: to keep the split dimension or not. Ignored when 'split' is
+  // specified Outputs:
   // - outputs: sequence of tensor
   //
 
-patterns.onOp(
-      "SplitToSequence", 11, 
+  patterns.onOp(
+      "SplitToSequence", 11,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Value self;
         Value split;
@@ -3592,41 +3590,42 @@ patterns.onOp(
               binder.op, "Not converting to AtenSplitWithSizesOp due to input "
                          "tensor mismatch");
 
-        if ( binder.tensorListResultType(resultType) ||
-                      binder.s64IntegerAttr(keepdims, "keepdims", 1) ||
-                      binder.s64IntegerAttr(axis, "axis", 0))
-                    return failure();
+        if (binder.tensorListResultType(resultType) ||
+            binder.s64IntegerAttr(keepdims, "keepdims", 1) ||
+            binder.s64IntegerAttr(axis, "axis", 0))
+          return failure();
 
-        if (binder.op->getNumOperands() == 1) 
+        if (binder.op->getNumOperands() == 1)
           return rewriter.notifyMatchFailure(
-              binder.op, "No of operand should be 2. Keepdims is not yet implemented");
+              binder.op,
+              "No of operand should be 2. Keepdims is not yet implemented");
 
-	if(binder.tensorOperandAtIndex(split, 1))
-        	return rewriter.notifyMatchFailure(binder.op, "split size is not specified");
+        if (binder.tensorOperandAtIndex(split, 1))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "split size is not specified");
 
-	Value vaxis = rewriter.create<Torch::ConstantIntOp>( binder.getLoc(), 
-				rewriter.getType<Torch::IntType>(), rewriter.getI64IntegerAttr(axis));
+        Value vaxis = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getI64IntegerAttr(axis));
 
-	auto splitTy = cast<Torch::ValueTensorType>(split.getType());
+        auto splitTy = cast<Torch::ValueTensorType>(split.getType());
 
         if (!splitTy || !splitTy.hasSizes())
           return failure();
 
-	ArrayRef<int64_t> splitShape = splitTy.getSizes();
+        ArrayRef<int64_t> splitShape = splitTy.getSizes();
         int64_t splitRank = splitShape.size();
 
-	if(splitRank <= 1) {
-	    Value splitInt = rewriter.create<Torch::AtenItemOp>(
-                                       binder.getLoc(), rewriter.getType<Torch::IntType>(), split);
-            rewriter.replaceOpWithNewOp<Torch::AtenSplitTensorOp>(
-				binder.op, resultType, self, splitInt, vaxis );
-            return success();
-	} else {
-		return failure();
-	}
-        
- });
-	    
+        if (splitRank <= 1) {
+          Value splitInt = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), split);
+          rewriter.replaceOpWithNewOp<Torch::AtenSplitTensorOp>(
+              binder.op, resultType, self, splitInt, vaxis);
+          return success();
+        } else {
+          return failure();
+        }
+      });
 
   patterns.onOp(
       "ReverseSequence", 10,
