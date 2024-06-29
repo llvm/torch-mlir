@@ -722,6 +722,13 @@ def aten〇amax〡shape(self: List[int], dim: List[int] = (), keepdim: bool = Fa
 def aten〇amin〡shape(self: List[int], dim: List[int] = (), keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
+def aten〇aminmax〡shape(self: List[int], dim: Optional[int] = None, keepdim: bool = False) -> Tuple[List[int], List[int]]:
+    if dim is None:
+        return [], []
+    else:
+        reduced_shape = upstream_shape_functions.argmax(self, dim, keepdim)
+        return reduced_shape, reduced_shape
+
 def aten〇mean〇dim〡shape(self: List[int], dim: Optional[List[int]], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
 
@@ -4523,6 +4530,11 @@ def aten〇amin〡dtype(self_rank_dtype: Tuple[int, int], dim: List[int] = (), k
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0))
 def aten〇min〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: int, keepdim: bool = False) -> Tuple[int, int]:
     return aten〇min〡dtype(self_rank_dtype), torch.int64
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇aminmax〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[int] = None, keepdim: bool = False) -> Tuple[int, int]:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype, self_dtype
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(

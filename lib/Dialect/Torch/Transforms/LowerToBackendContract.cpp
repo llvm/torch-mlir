@@ -438,6 +438,9 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenLinspaceOp>();
   target.addIllegalOp<AtenArgmaxOp>();
   target.addIllegalOp<AtenArgminOp>();
+  target.addIllegalOp<AtenAminmaxOp>();
+  target.addIllegalOp<AtenAmaxOp>();
+  target.addIllegalOp<AtenAminOp>();
   target.addIllegalOp<AtenSquareOp>();
   target.addIllegalOp<AtenVarOp>();
   target.addIllegalOp<AtenStdOp>();
@@ -502,7 +505,6 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenNumpyTOp>();
   target.addIllegalOp<AtenSelectScatterOp>();
   target.addIllegalOp<AtenVarDimOp>();
-  target.addIllegalOp<AtenAmaxOp>();
   target.addIllegalOp<AtenVarCorrectionOp>();
   target.addIllegalOp<AtenStdDimOp>();
   target.addIllegalOp<AtenStdCorrectionOp>();

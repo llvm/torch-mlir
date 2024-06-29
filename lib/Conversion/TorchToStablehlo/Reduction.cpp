@@ -488,14 +488,18 @@ public:
       return rewriter.notifyMatchFailure(
           op, "non-const integer `dim` is not supported");
     }
-    for (auto d : inputDims) {
-      d = toPositiveDim(d, inputTy.getRank());
-      // Drop invalid dims
-      if (isValidDim(d, inputTy.getRank())) {
-        dims.push_back(d);
+    if (inputDims.size() == 0) {
+      dims = llvm::to_vector(llvm::seq<int64_t>(0, inputTy.getRank()));
+    } else {
+      for (auto d : inputDims) {
+        d = toPositiveDim(d, inputTy.getRank());
+        // Drop invalid dims
+        if (isValidDim(d, inputTy.getRank())) {
+          dims.push_back(d);
+        }
       }
+      llvm::sort(dims.begin(), dims.end());
     }
-    llvm::sort(dims.begin(), dims.end());
     SmallVector<int64_t> reduceResultShape =
         getReduceOutputShape(inputTy.getShape(), dims);
 
