@@ -2200,6 +2200,7 @@ ONNX_XFAIL_SET = {
     # Failure - cast error
     "PermuteNegativeIndexModule_basic",
     # Failure - incorrect numerics
+    "ReduceAnyDimFloatModule_basic",
     "AvgPool2dDivisorOverrideModule_basic",
     "BroadcastDynamicDimModule_basic",
     "ElementwiseAtan2TensorIntModule_basic",
