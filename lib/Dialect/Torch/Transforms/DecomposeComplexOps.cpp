@@ -1920,15 +1920,19 @@ public:
     Location loc = op.getLoc();
     Value input = op.getSelf();
     Value dim = op.getDim();
-    Value keepDim = op.getKeepdim();
     Value result = op.getResult();
 
+    bool keepDim;
+    if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim))) {
+      return rewriter.notifyMatchFailure(
+          op, "expected keepdim to be a constant bool");
+    }
     BaseTensorType inputType = cast<BaseTensorType>(input.getType());
     BaseTensorType indicesTensorType = cast<BaseTensorType>(result.getType());
     std::optional<unsigned> maybeInputRank = getTensorRank(input);
-    if (!maybeInputRank) {
+    if (!maybeInputRank || *maybeInputRank == 0) {
       return rewriter.notifyMatchFailure(
-          op, "expected input tensor to have a rank");
+          op, "expected input tensor to have a rank > 0");
     }
     unsigned inputRank = *maybeInputRank;
     if (!indicesTensorType.hasSizes())
@@ -1945,21 +1949,49 @@ public:
       BaseTensorType flattenType =
           cast<BaseTensorType>(inputType.getWithSizesAndDtype(
               {kUnknownSize}, inputType.getOptionalDtype()));
-      dim = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      Value zero =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
       Value end = rewriter.create<ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(inputRank - 1));
+      Value falseValue = rewriter.create<ConstantBoolOp>(loc, false);
       input = rewriter.create<AtenFlattenUsingIntsOp>(loc, flattenType, input,
-                                                      dim, end);
+                                                      zero, end);
+      Value resultIndices =
+          rewriter
+              .create<DecompOpTy>(
+                  loc,
+                  valueTensorType.getWithSizesAndDtype(
+                      ArrayRef<int64_t>{}, valueTensorType.getOptionalDtype()),
+                  indicesTensorType.getWithSizesAndDtype(
+                      ArrayRef<int64_t>{},
+                      indicesTensorType.getOptionalDtype()),
+                  input, /*dim=*/zero, /*keepdim=*/falseValue)
+              .getIndices();
+      if (keepDim) {
+        Value one =
+            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+        Value dimList = rewriter.create<PrimListConstructOp>(
+            loc,
+            Torch::ListType::get(Torch::IntType::get(rewriter.getContext())),
+            SmallVector<Value>(inputRank, one));
+        resultIndices = rewriter.create<AtenReshapeOp>(
+            loc,
+            indicesTensorType.getWithSizesAndDtype(
+                SmallVector<int64_t>(inputRank, 1),
+                indicesTensorType.getOptionalDtype()),
+            resultIndices, dimList);
+      }
+      rewriter.replaceOp(op, resultIndices);
+      return success();
+    } else {
+      Value resultIndices =
+          rewriter
+              .create<DecompOpTy>(loc, valueTensorType, indicesTensorType,
+                                  input, dim, op.getKeepdim())
+              .getIndices();
+      rewriter.replaceOp(op, resultIndices);
+      return success();
     }
-
-    Value resultArg =
-        rewriter
-            .create<DecompOpTy>(loc, valueTensorType, indicesTensorType, input,
-                                dim, keepDim)
-            .getIndices();
-
-    rewriter.replaceOp(op, resultArg);
-    return success();
   }
 };
 } // namespace

@@ -1533,6 +1533,29 @@ def ArgmaxModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ArgmaxKeepdimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.argmax(a, keepdim=True)
+
+
+@register_test_case(module_factory=lambda: ArgmaxKeepdimModule())
+def ArgmaxKeepdimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
 class ArgmaxIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
