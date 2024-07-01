@@ -2572,8 +2572,6 @@ ONNX_XFAIL_SET = {
     "SplitDimStaticModule_basic",
     "SqrtIntConstantModule_basic",
     "SqrtIntModule_basic",
-    "StdCorrectionEmptyDimModule_basic",
-    "StdDimEmptyDimModule_basic",
     "SubFloatModule_basic",
     "SubIntModule_basic",
     "TanhBackward_basic",
@@ -2627,8 +2625,6 @@ ONNX_XFAIL_SET = {
     "UpSampleNearest2dDynamicFactor_basic",
     "UpSampleNearest2dStaticFactor_basic",
     "UpSampleNearest2d_basic",
-    "VarCorrectionEmptyDimModule_basic",
-    "VarDimEmptyDimModule_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewCollapseModule_basic",
     "ViewDynamicExpandCollapseModule_basic",
@@ -2797,6 +2793,10 @@ ONNX_CRASHING_SET = {
     # Runtime crash: mismatched size for broadcast
     "MaxPool2dWithIndicesAllNegativeValuesModule_basic",
     "MaxPool2dWithIndicesNonDefaultPaddingModule_basic",
+    "StdDimEmptyDimModule_basic",
+    "StdCorrectionEmptyDimModule_basic",
+    "VarCorrectionEmptyDimModule_basic",
+    "VarDimEmptyDimModule_basic",
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
