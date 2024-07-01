@@ -131,8 +131,7 @@ GruLayerOutput gru_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
 
   int64_t hDtypeInt =
       static_cast<int64_t>(getScalarTypeForType(hTy.getDtype()));
-  Value hDtypeIntVal =
-      b.create<ConstantIntOp>(loc, b.getI64IntegerAttr(hDtypeInt));
+  Value hDtypeIntVal = b.create<ConstantIntOp>(b.getI64IntegerAttr(hDtypeInt));
 
   Value Y_initial = b.create<AtenZerosOp>(yTy, YShapeList, hDtypeIntVal,
                                           cstNone, cstNone, cstNone);
