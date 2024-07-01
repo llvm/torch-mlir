@@ -199,7 +199,7 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
                                        "Unsupported direction attribute value. "
                                        "Only 'forward' is supported but '" +
                                            direction + "' is provided.");
-  int64_t num_directions = 1 + (direction == "bidirectional");
+  int64_t num_directions = (direction == "bidirectional") ? 2 : 1;
 
   auto XShape = xTy.getSizes();
   int64_t batch_size = XShape[1];
