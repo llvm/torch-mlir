@@ -2670,7 +2670,7 @@ func.func @test_stft_with_window(%arg0: !torch.vtensor<[1,128,1],f32>, %arg1: !t
 // CHECK-LABEL: func.func @test_split_to_sequence_1
 func.func @test_split_to_sequence_1(%arg0: !torch.vtensor<[3,6],f32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.list<vtensor<[3,6],f32>> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[VAL_0:.*]]: !torch.vtensor<[3,6],f32>
-  // CHECK: %[[VAL_1:.*]]: !torch.vtensor<[1],si64>) -> !torch.list<vtensor<[3,6],f32>> 
+  // CHECK: %[[VAL_1:.*]]: !torch.vtensor<[1],si64>) -> !torch.list<vtensor<[3,6],f32>>
   // CHECK: %[[VAL_2:.*]] = torch.constant.none
   // CHECK: %[[VAL_3:.*]] = torch.constant.int 1
   // CHECK: %[[VAL_4:.*]] = torch.aten.item %[[VAL_1]] : !torch.vtensor<[1],si64> -> !torch.int
