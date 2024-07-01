@@ -3294,3 +3294,43 @@ func.func @test_unique_sorted_with_negative_axis(%arg0: !torch.vtensor<[3,3],f32
   %0:4 = torch.operator "onnx.Unique"(%arg0) {torch.onnx.axis = -1 : si64, torch.onnx.sorted = 1 : si64} : (!torch.vtensor<[3,3],f32>) -> (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2],si64>, !torch.vtensor<[3],si64>, !torch.vtensor<[2],si64>)
   return %0#0, %0#1, %0#2, %0#3 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2],si64>, !torch.vtensor<[3],si64>, !torch.vtensor<[2],si64>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @test_scan_sum(
+// CHECK-SAME:                             %[[VAL_0:.*]]: !torch.vtensor<[2],f32>,
+// CHECK-SAME:                             %[[VAL_1:.*]]: !torch.vtensor<[3,2],f32>) -> (!torch.vtensor<[2],f32>, !torch.vtensor<[3,2],f32>) attributes {torch.onnx_meta.ir_version = 4 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+func.func @test_scan_sum(%arg0: !torch.vtensor<[2],f32>, %arg1: !torch.vtensor<[3,2],f32>) -> (!torch.vtensor<[2],f32>, !torch.vtensor<[3,2],f32>) attributes {torch.onnx_meta.ir_version = 4 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[VAL_2:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_3:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_4:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_5:.*]] = torch.constant.int 3
+  // CHECK:           %[[VAL_6:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_7:.*]] = torch.prim.ListConstruct %[[VAL_5]], %[[VAL_6]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_8:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_9:.*]] = torch.constant.int 6
+  // CHECK:           %[[VAL_10:.*]] = torch.aten.full %[[VAL_7]], %[[VAL_3]], %[[VAL_9]], %[[VAL_8]], %[[VAL_8]], %[[VAL_8]] : !torch.list<int>, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,2],f32>
+  // CHECK:           %[[VAL_11:.*]] = torch.aten.size.int %[[VAL_1]], %[[VAL_3]] : !torch.vtensor<[3,2],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_12:.*]] = torch.constant.bool true
+  // CHECK:           %[[VAL_13:.*]]:2 = torch.prim.Loop %[[VAL_11]], %[[VAL_12]], init(%[[VAL_0]], %[[VAL_10]]) {
+  // CHECK:           ^bb0(%[[VAL_14:.*]]: !torch.int, %[[VAL_15:.*]]: !torch.vtensor<[2],f32>, %[[VAL_16:.*]]: !torch.vtensor<[3,2],f32>):
+  // CHECK:             %[[VAL_17:.*]] = torch.aten.select.int %[[VAL_1]], %[[VAL_3]], %[[VAL_14]] : !torch.vtensor<[3,2],f32>, !torch.int, !torch.int -> !torch.vtensor<[2],f32>
+  // CHECK:             %[[VAL_18:.*]] = torch.constant.int 1
+  // CHECK:             %[[VAL_19:.*]] = torch.aten.add.Tensor %[[VAL_15]], %[[VAL_17]], %[[VAL_18]] : !torch.vtensor<[2],f32>, !torch.vtensor<[2],f32>, !torch.int -> !torch.vtensor<[2],f32>
+  // CHECK:             %[[VAL_20:.*]] = torch.constant.none
+  // CHECK:             %[[VAL_21:.*]] = torch.aten.clone %[[VAL_19]], %[[VAL_20]] : !torch.vtensor<[2],f32>, !torch.none -> !torch.vtensor<[2],f32>
+  // CHECK:             %[[VAL_22:.*]] = torch.aten.unsqueeze %[[VAL_21]], %[[VAL_3]] : !torch.vtensor<[2],f32>, !torch.int -> !torch.vtensor<[1,2],f32>
+  // CHECK:             %[[VAL_23:.*]] = torch.aten.slice_scatter %[[VAL_16]], %[[VAL_22]], %[[VAL_3]], %[[VAL_14]], %[[VAL_14]], %[[VAL_4]] : !torch.vtensor<[3,2],f32>, !torch.vtensor<[1,2],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,2],f32>
+  // CHECK:             torch.prim.Loop.condition %[[VAL_12]], iter(%[[VAL_19]], %[[VAL_23]] : !torch.vtensor<[2],f32>, !torch.vtensor<[3,2],f32>)
+  // CHECK:           } : (!torch.int, !torch.bool, !torch.vtensor<[2],f32>, !torch.vtensor<[3,2],f32>) -> (!torch.vtensor<[2],f32>, !torch.vtensor<[3,2],f32>)
+  // CHECK:           return %[[VAL_24:.*]]#0, %[[VAL_24]]#1 : !torch.vtensor<[2],f32>, !torch.vtensor<[3,2],f32>
+  // CHECK:         }
+  %none = torch.constant.none
+  %0:2 = torch.operator "onnx.Scan"(%arg0, %arg1) {torch.onnx.num_scan_inputs = 1 : si64} : (!torch.vtensor<[2],f32>, !torch.vtensor<[3,2],f32>) -> (!torch.vtensor<[2],f32>, !torch.vtensor<[3,2],f32>) {
+  ^bb0(%arg2: !torch.vtensor<[2],f32>, %arg3: !torch.vtensor<[2],f32>):
+    %1 = torch.operator "onnx.Add"(%arg2, %arg3) : (!torch.vtensor<[2],f32>, !torch.vtensor<[2],f32>) -> !torch.vtensor<[2],f32>
+    %2 = torch.operator "onnx.Identity"(%1) : (!torch.vtensor<[2],f32>) -> !torch.vtensor<[2],f32>
+    torch.operator_terminator %1, %2 : !torch.vtensor<[2],f32>, !torch.vtensor<[2],f32>
+  }
+  return %0#0, %0#1 : !torch.vtensor<[2],f32>, !torch.vtensor<[3,2],f32>
+}
