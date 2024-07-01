@@ -1839,6 +1839,29 @@ def aten〇triu_indices〡shape(row: int, col: int, offset: int = 0, dtype: Opti
     return [2, triu_size]
 
 @check_shape_function([
+    Invocation(4, 3, 1), # Basic case.
+    Invocation(0, 0, 0), # All zeros case.
+    Invocation(7, 5, -2), # Negative offset case.
+    Invocation(35, 55, 16), # Largere values case.
+])
+def aten〇tril_indices〡shape(row: int, col: int, offset: int = 0, dtype: Optional[int] = 4, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    if row == 0 or col == 0:
+        return [2, 0]
+
+    m_first_row = min(col, 1 + offset) if offset > 0 else int(row + offset > 0)
+    m_last_row = max(0, min(col, row + offset))
+    n_row_all = max(0, min(row, row + offset))
+    n_row_trapezoid = m_last_row - m_first_row + 1
+
+    # Number of elements in top trapezoid
+    trapezoid_size = (m_first_row + m_last_row) * n_row_trapezoid // 2
+    # Number of elements in bottom rectangle
+    diff_row = n_row_all - n_row_trapezoid
+    rectangle_size = max(0, diff_row * col)
+
+    return [2, trapezoid_size + rectangle_size]
+
+@check_shape_function([
     Invocation(TensorOfShape(2, 3), LongTensorOfShape(2), None, 1, -100), # Basic case.
     Invocation(TensorOfShape(3), LongTensorOfShape(), None, 1, -100), # No batch dim.
     Invocation(TensorOfShape(2, 3), LongTensorOfShape(2), None, 0, -100), # No reduction.
@@ -5150,6 +5173,9 @@ def aten〇dequantize〇tensor〡dtype(qtensor_rank_dtype: Tuple[int, int]) -> i
     return torch.float32
 
 def aten〇triu_indices〡dtype(row: int, col: int, offset: int = 0, dtype: Optional[int] = 4, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    return torch.int64 if dtype is None else dtype
+
+def aten〇tril_indices〡dtype(row: int, col: int, offset: int = 0, dtype: Optional[int] = 4, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
     return torch.int64 if dtype is None else dtype
 
 def aten〇int_repr〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
