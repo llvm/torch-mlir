@@ -181,8 +181,7 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
 
   Value B;
   if (binder.tensorOperandAtIndex(B, 3)) {
-    B = b.create<Torch::AtenZerosOp>(BType, BShape, wTy.getDtype(), cstNone,
-                                     cstNone, cstNone);
+    B = b.create<Torch::AtenZerosOp>(BType, BShape, wTy.getDtype());
   }
 
   llvm::SmallVector<std::string> activationsList;
