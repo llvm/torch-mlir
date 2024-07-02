@@ -680,8 +680,19 @@ def aten〇trace〡shape(self: List[int]) -> List[int]:
     assert len(self) == 2, "input must have rank 2"
     return []
 
+# TODO: replace this patched function with `upstream_shape_functions.argmax` when upstream fix it
+# see https://github.com/pytorch/pytorch/pull/129838
+def patched_argmax_shape_func(self: List[int], dim: Optional[int] = None, keepdim: bool = False):
+    if dim is None and keepdim:
+        out: List[int] = []
+        for i in self:
+            out.append(1)
+        return out
+    return upstream_shape_functions.argmax(self, dim, keepdim)
+
 @check_shape_function([
     Invocation(TensorOfShape(2, 3, 4)), # Basic case.
+    Invocation(TensorOfShape(2, 3, 4), keepdim=True), # `keepdim`.
     Invocation(TensorOfShape(2, 3, 4), dim=0), # Test explicit `dim`.
     Invocation(TensorOfShape(2, 3, 4), dim=0, keepdim=True), # `keepdim`.
     Invocation(TensorOfShape(2, 3, 4), dim=-3), # Negative `dim`.
@@ -690,11 +701,11 @@ def aten〇trace〡shape(self: List[int]) -> List[int]:
     ErrorInvocation(TensorOfShape(2, 3, 4), dim=3), # `dim` out of bounds.
 ])
 def aten〇argmax〡shape(self: List[int], dim: Optional[int] = None, keepdim: bool = False) -> List[int]:
-    return upstream_shape_functions.argmax(self, dim, keepdim)
+    return patched_argmax_shape_func(self, dim, keepdim)
 
 def aten〇argmin〡shape(self: List[int], dim: Optional[int] = None, keepdim: bool = False) -> List[int]:
     # There is no shape function for argmin in pytorch, but the one for argmax does exactly what is needed here.
-    return upstream_shape_functions.argmax(self, dim, keepdim)
+    return patched_argmax_shape_func(self, dim, keepdim)
 
 # TODO: The result shape when num_classes=-1 depends on the runtime values of the input tensor,
 # making it impossible to add support for it using the current design of the shape library.
@@ -722,12 +733,19 @@ def aten〇amax〡shape(self: List[int], dim: List[int] = (), keepdim: bool = Fa
 def aten〇amin〡shape(self: List[int], dim: List[int] = (), keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
+@check_shape_function([
+    Invocation(TensorOfShape(2, 3, 4)), # Basic case.
+    Invocation(TensorOfShape(2, 3, 4), keepdim=True), # `keepdim`.
+    Invocation(TensorOfShape(2, 3, 4), dim=0), # Test explicit `dim`.
+    Invocation(TensorOfShape(2, 3, 4), dim=0, keepdim=True), # `keepdim`.
+    Invocation(TensorOfShape(2, 3, 4), dim=-3), # Negative `dim`.
+    Invocation(TensorOfShape(2, 3, 4), dim=2), # Maximum valid `dim`.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim=-4), # `dim` out of bounds.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim=3), # `dim` out of bounds.
+])
 def aten〇aminmax〡shape(self: List[int], dim: Optional[int] = None, keepdim: bool = False) -> Tuple[List[int], List[int]]:
-    if dim is None:
-        return [], []
-    else:
-        reduced_shape = upstream_shape_functions.argmax(self, dim, keepdim)
-        return reduced_shape, reduced_shape
+    reduced_shape = patched_argmax_shape_func(self, dim, keepdim)
+    return reduced_shape, reduced_shape
 
 def aten〇mean〇dim〡shape(self: List[int], dim: Optional[List[int]], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)

@@ -1505,6 +1505,7 @@ STABLEHLO_CRASHING_SET = {"IndexPutWithNoneAndBroadcastModule_basic"}
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "ArgmaxKeepdimModule_basic",
     "MeshgridIndexingIJ_basic",
     "MeshgridIndexingXY_basic",
     "Meshgrid_basic",
