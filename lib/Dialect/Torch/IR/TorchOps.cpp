@@ -3664,7 +3664,9 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
     return DenseElementsAttr::get(outType.toBuiltinTensor(), values);
   }
 
-  // If the input and output shapes are the same we can just fold:
+  // If the input and output shapes are the same & step == 1 we can fold:
+  if (step.getValue().getSExtValue() != 1)
+    return nullptr;
   for (size_t i = 0; i < inType.getSizes().size(); ++i) {
     if (inType.getSizes()[i] != outType.getSizes()[i])
       return nullptr;
