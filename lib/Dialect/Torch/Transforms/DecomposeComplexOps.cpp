@@ -2456,8 +2456,8 @@ public:
     // Arragne reduce_dims tensor (vector), [0, 1, ... , dim-1, dim+1, ... ,
     // ndim-1]
     llvm::SmallVector<Value> reduceDimsVector;
-    for (u_int64_t i = 0; i < ndim; i++) {
-      if (i == (u_int64_t)dimInt)
+    for (uint64_t i = 0; i < ndim; i++) {
+      if (i == (uint64_t)dimInt)
         continue;
 
       Value constI = rewriter.create<Torch::ConstantIntOp>(
@@ -2473,8 +2473,8 @@ public:
 
     // Make output shape for linalg.vector_norm operation
     SmallVector<Value> inputSizeValue;
-    for (u_int64_t i = 0; i < inputSize.size(); i++) {
-      if (i != (u_int64_t)dimInt)
+    for (uint64_t i = 0; i < inputSize.size(); i++) {
+      if (i != (uint64_t)dimInt)
         inputSize[i] = 1;
 
       inputSizeValue.push_back(
