@@ -28,10 +28,10 @@ def test_unbind_int_op():
     class UnbindIntModule(nn.Module):
         def __init__(self):
             super().__init__()
-        
+
         def forward(self, x):
             return torch.unbind(x, 1)
-    
+
     m = fx.export_and_import(
         UnbindIntModule(), torch.randn(3, 4), func_name="test_unbind_int"
     )
