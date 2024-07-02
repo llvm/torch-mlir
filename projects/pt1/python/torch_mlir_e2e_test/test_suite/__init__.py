@@ -41,6 +41,7 @@ def register_all_tests():
     from . import elementwise_comparison
     from . import squeeze
     from . import slice_like
+    from . import spectral
     from . import nll_loss
     from . import index_select
     from . import linalg_algorithms
