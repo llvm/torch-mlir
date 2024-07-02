@@ -1729,37 +1729,9 @@ class GraphNodeImporter:
                 op_overload = getattr(op_overload, op_attrs[i])
             schema = op_overload._schema
 
-<<<<<<< HEAD
         # Convert result types.
         result_types = self._unpack_node_result_types(node, schema)
         if len(result_types) > 1:
-=======
-        return_count = len(schema.returns)
-        if return_count == 1:
-            # Unary return directly maps a single meta["val"] and cannot be subscripted.
-            # if "tensor_meta" is None, this will throw unsupported placeholder node error
-            result_types = [self._cc.node_val_to_type(node)]
-
-            # separately handle ops returning list.
-            if str(result_types[0]).startswith("!torch.list"):
-                self._list_return_nodes.add(node)
-        elif return_count == 0:
-            # Some torch ops do have 0 returns, and these are supported with ZeroResults
-            # op trait. Python bindings for IR creation allow us to pass empty result_types
-            # for such ops. Therefore, we pass an empty result types for these cases.
-            result_types = []
-        else:
-            # Multi-return will unpack the meta["val"] and trigger our getitem subscripting
-            # short-circuit above. Note that if we ever choose to also fully reify Python
-            # level result tuples, we will need to create a tuple-boxed version of this and
-            # redirect to it for generic object access.
-
-            result_types = []
-            for v in node.meta["val"]:
-                result_types.append(self._cc.tensor_metadata_to_type(v))
-            result_types = tuple(result_types)
-
->>>>>>> [FxImporter]: support parsing nodes which return list
             self._multi_result_nodes.add(node)
 
         # Unroll operands from formal parameters, args and kwargs.
@@ -2076,6 +2048,10 @@ class GraphNodeImporter:
             # Unary return directly maps a single meta["val"] and cannot be subscripted.
             # if "tensor_meta" is None, this will throw unsupported placeholder node error
             result_types = [self._cc.node_val_to_type(node)]
+
+            # separately handle ops returning list.
+            if str(result_types[0]).startswith("!torch.list"):
+                self._list_return_nodes.add(node)
         elif return_count == 0:
             # Some torch ops do have 0 returns, and these are supported with ZeroResults
             # op trait. Python bindings for IR creation allow us to pass empty result_types
