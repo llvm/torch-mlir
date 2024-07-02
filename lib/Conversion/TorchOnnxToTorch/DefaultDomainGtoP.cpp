@@ -2231,37 +2231,73 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.op, "The axes parameter is not supported yet");
         }
         if (binder.tensorOperandAtIndex(data, 0) ||
-            binder.tensorOperandAtIndex(pads, 1) ||
             binder.tensorResultType(resultType) ||
             binder.customOpNameStringAttr(mode, "mode", "constant"))
           return failure();
+
+        // get input rank
+        auto dataOpTy = cast<Torch::ValueTensorType>(data.getType());
+        TensorType dataTensor = dataOpTy.toBuiltinTensor();
+        if (!dataTensor || !dataTensor.hasRank())
+          return rewriter.notifyMatchFailure(
+              binder.op, "pad length unknown and data operand unranked");
+        int64_t dataRank = dataTensor.getRank();
+        int64_t padsSize = 2 * dataRank;
+
         Location loc = binder.getLoc();
 
-        // Get pads shape and rank. The pads tensor is expected to be 1-D
-        // tensor.
-        auto padsTensorType = cast<Torch::ValueTensorType>(pads.getType());
-        if (!padsTensorType || !padsTensorType.hasSizes()) {
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "Expect non empty pad tensor");
-        }
-        ArrayRef<int64_t> padsShape = padsTensorType.getSizes();
-        int64_t padsRank = padsShape.size();
-        if (padsRank != 1)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "expect 1-d pad tensor");
+        // get pads (earlier versions use an attribute, newer versions use a
+        // tensor input)
+        SmallVector<int64_t> padInts;
+        SmallVector<Value> padsTensorValue;
+        if (binder.tensorOperandAtIndex(pads, 1)) {
+          SmallVector<int64_t> defaultPads(2 * dataRank, 0);
+          if (binder.s64IntegerArrayAttr(padInts, "pads", defaultPads))
+            return failure();
+          // opset_version 1 uses the attribute name "paddings"
+          if (padInts == defaultPads &&
+              binder.s64IntegerArrayAttr(padInts, "paddings", defaultPads))
+            return failure();
+          for (auto p : padInts)
+            padsTensorValue.push_back(rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(p)));
+        } else {
+          // Get pads shape and rank. The pads tensor is expected to be 1-D
+          // tensor.
+          auto padsTensorType = cast<Torch::ValueTensorType>(pads.getType());
+          if (!padsTensorType || !padsTensorType.hasSizes()) {
+            return rewriter.notifyMatchFailure(binder.op,
+                                               "Expect non empty pad tensor");
+          }
+          ArrayRef<int64_t> padsShape = padsTensorType.getSizes();
+          int64_t padsRank = padsShape.size();
+          if (padsRank != 1)
+            return rewriter.notifyMatchFailure(binder.op,
+                                               "expect 1-d pad tensor");
+          if (padsShape[0] != Torch::kUnknownSize) {
+            // As per onnx.Pad documentation, padSize = 2*num_data_axes
+            // (if axes param not passed). Need to be updated when adding
+            // support for `axes` param.
+            padsSize = padsShape[0];
+          }
 
-        int64_t padsSize = padsShape[0];
-        if (padsSize == Torch::kUnknownSize) {
-          // As per onnx.Pad documentation, padSize = 2*num_data_axes
-          // (if axes param not passed). Need to be updated when adding
-          // support for `axes` param.
-          auto dataOpTy = cast<Torch::ValueTensorType>(data.getType());
-          TensorType dataTensor = dataOpTy.toBuiltinTensor();
-          if (!dataTensor || !dataTensor.hasRank())
-            return rewriter.notifyMatchFailure(
-                binder.op, "pad length unknown and data operand unranked");
-          int64_t dataRank = dataTensor.getRank();
-          padsSize = 2 * dataRank;
+          // Extract all the values of 1-D pad tensor and create a list of all
+          // these values as torch.pad op expects pad list.
+          Value constZero = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(0));
+          SmallVector<int64_t> emptyShape;
+          Type padsElemType = Torch::ValueTensorType::get(
+              padsTensorType.getContext(), emptyShape,
+              padsTensorType.getOptionalDtype());
+          for (uint32_t i = 0; i < padsSize; ++i) {
+            Value index = rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(i));
+            auto select = rewriter.create<Torch::AtenSelectIntOp>(
+                loc, padsElemType, pads, constZero, index);
+            Value selectInt = rewriter.create<Torch::AtenItemOp>(
+                loc, rewriter.getType<Torch::IntType>(), select);
+            padsTensorValue.push_back(selectInt);
+          }
         }
 
         Value constantValue;
@@ -2286,32 +2322,18 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           if (isa<IntegerType>(dataTensorType.getDtype()))
             constantValue = rewriter.create<Torch::ConstantIntOp>(
                 loc, rewriter.getI64IntegerAttr(0));
-          if (isa<FloatType>(dataTensorType.getDtype()))
+          // Earlier versions used a FLOAT attribute to store the constant
+          // value. The following will pick up on any non-default value attr if
+          // provided.
+          float constantFloat;
+          if (isa<FloatType>(dataTensorType.getDtype()) &&
+              !binder.f32FloatAttr(constantFloat, "value", 0.0f))
             constantValue = rewriter.create<Torch::ConstantFloatOp>(
-                loc, rewriter.getF64FloatAttr(0.0f));
+                loc, rewriter.getF64FloatAttr(constantFloat));
 
           if (!constantValue)
             return rewriter.notifyMatchFailure(
                 binder.op, "expected integer or float data tensor");
-        }
-
-        // Extract all the values of 1-D pad tensor and create a list of all
-        // these values as torch.pad op expects pad list.
-        Value constZero = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(0));
-        SmallVector<Value> padsTensorValue;
-        SmallVector<int64_t> emptyShape;
-        Type padsElemType =
-            Torch::ValueTensorType::get(padsTensorType.getContext(), emptyShape,
-                                        padsTensorType.getOptionalDtype());
-        for (uint32_t i = 0; i < padsSize; ++i) {
-          Value index = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(i));
-          auto select = rewriter.create<Torch::AtenSelectIntOp>(
-              loc, padsElemType, pads, constZero, index);
-          Value selectInt = rewriter.create<Torch::AtenItemOp>(
-              loc, rewriter.getType<Torch::IntType>(), select);
-          padsTensorValue.push_back(selectInt);
         }
 
         // The torch.pad op expects a different arrangement of padding pairs for
@@ -2319,8 +2341,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // tensor to satisfy torch.pad op semantics.
         SmallVector<Value> padsRearrange;
         for (uint32_t i = 0; i < padsSize / 2; i++) {
-          padsRearrange.emplace_back(padsTensorValue[i]);
-          padsRearrange.emplace_back(padsTensorValue[(padsSize / 2) + i]);
+          padsRearrange.emplace_back(padsTensorValue[(padsSize / 2) - i - 1]);
+          padsRearrange.emplace_back(padsTensorValue[padsSize - i - 1]);
         }
 
         Value padsSizeList =

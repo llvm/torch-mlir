@@ -1221,10 +1221,11 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             SmallVector<Value> inputPaddingList;
             for (uint32_t i = 0; i < padding.size() / 2; i++) {
               padsRearrange.emplace_back(rewriter.create<Torch::ConstantIntOp>(
-                  binder.getLoc(), rewriter.getI64IntegerAttr(padding[i])));
-              padsRearrange.emplace_back(rewriter.create<Torch::ConstantIntOp>(
                   binder.getLoc(), rewriter.getI64IntegerAttr(
-                                       padding[(padding.size() / 2) + i])));
+                                       padding[padding.size() / 2 - i - 1])));
+              padsRearrange.emplace_back(rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(),
+                  rewriter.getI64IntegerAttr(padding[padding.size() - i - 1])));
               inputPaddingList.emplace_back(
                   rewriter.create<Torch::ConstantIntOp>(
                       binder.getLoc(), rewriter.getI64IntegerAttr(0)));

@@ -97,8 +97,12 @@ public:
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
     Type elementType = cast<RankedTensorType>(newResultType).getElementType();
+
+    auto dstOriginalDtype =
+        cast<Torch::ValueTensorType>(op.getType()).getDtype();
     Value castedValue =
-        convertScalarToDtype(rewriter, loc, adaptor.getValue(), elementType);
+        convertScalarToDtype(rewriter, loc, adaptor.getValue(), elementType,
+                             std::nullopt, dstOriginalDtype);
 
     Type padType = tensor::PadOp::inferResultType(
         cast<RankedTensorType>(self.getType()), staticLow, staticHigh);

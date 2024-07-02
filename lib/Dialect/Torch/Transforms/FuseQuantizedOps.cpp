@@ -40,7 +40,8 @@ bool isQCommutingOp(mlir::Operation *op) {
   // if adding a new commuting op here, be sure to add a
   // RemoveUnused pattern for that op to clean up afterwards
   return llvm::isa<AtenTransposeIntOp, AtenReshapeOp, AtenSliceTensorOp,
-                   PrimsCollapseOp, AtenViewOp>(op);
+                   PrimsCollapseOp, AtenViewOp, AtenPadOp, AtenConstantPadNdOp>(
+      op);
 }
 
 // The following conversion takes patterns of the form [op0 -> MPTQT -> dequant
@@ -65,7 +66,7 @@ public:
     for (unsigned i : QuantInfo<SrcOp>::operandsToQuantize) {
       Value operand = operands[i];
       std::stack<mlir::Operation *> commutingOpStack;
-      Value dequantOpd, MPTQTOpd;
+      Value dequantOpd, MPTQTOpd, scale, zeroPoint;
       for (unsigned k = 0; k < depth + 1; k++) {
         auto currOp = operand.getDefiningOp();
         // Case 0 : currOp is a nullptr (e.g., operand is a block argument)
@@ -84,6 +85,8 @@ public:
           auto MPTQTOp =
               dequantOpd.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>();
           MPTQTOpd = MPTQTOp.getOperand(0);
+          scale = MPTQTOp.getOperand(1);
+          zeroPoint = MPTQTOp.getOperand(2);
         }
         // either a dequant was found or chain broken, so break loop
         break;
@@ -107,6 +110,16 @@ public:
         commutingOpStack.pop();
         llvm::SmallVector<Value> currOperands(currOp->getOperands());
         currOperands[0] = oldOpd;
+        if (isa<Torch::AtenPadOp, Torch::AtenConstantPadNdOp>(currOp)) {
+          Value floatPadValue = currOperands.back();
+          Value intPadValue = rewriter.create<Torch::AtenAddFloatIntOp>(
+              loc, floatPadValue, zeroPoint);
+          intPadValue =
+              rewriter.create<Torch::AtenDivFloatOp>(loc, intPadValue, scale);
+          intPadValue =
+              rewriter.create<Torch::AtenIntScalarOp>(loc, intPadValue);
+          currOperands.back() = intPadValue;
+        }
         // get new result type
         auto oldType = cast<ValueTensorType>(currOp->getResultTypes()[0]);
         auto intType =
