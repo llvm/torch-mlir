@@ -34,6 +34,9 @@ def test_unbind_int_op():
             return torch.unbind(x, 1)
 
     m = fx.export_and_import(
-        UnbindIntModule(), torch.randn(3, 4), func_name="test_unbind_int"
+        UnbindIntModule(),
+        torch.randn(3, 4),
+        func_name="test_unbind_int",
+        decomposition_table=False,
     )
     print(m)

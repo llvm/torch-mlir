@@ -1459,7 +1459,9 @@ class GraphNodeImporter:
                             fx_list_return_value = self._v[(getitem_ref, 0)]
                             operands = [
                                 fx_list_return_value,
-                                self._import_default_value(loc, getitem_index, torch.IntType)
+                                self._import_default_value(
+                                    loc, getitem_index, torch.IntType
+                                ),
                             ]
 
                             # We trust the tensor type in FX graph, even if it's a getitem
@@ -1467,8 +1469,8 @@ class GraphNodeImporter:
                             operation = Operation.create(
                                 "torch.aten.__getitem__.t",
                                 results=(self._cc.node_val_to_type(node),),
-                                operands = operands,
-                                loc=loc
+                                operands=operands,
+                                loc=loc,
                             )
                             for i, value in enumerate(operation.results):
                                 self._v[(node, i)] = value
