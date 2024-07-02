@@ -2315,8 +2315,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         // The torch.pad op expects a different arrangement of padding pairs for
-        // each dimension as compared to the onnx.pad op. Rearrange the pad tensor
-        // as shown below:
+        // each dimension as compared to the onnx.pad op. Rearrange the pad
+        // tensor as shown below:
         //
         // [x1_begin, x2_begin, ..., x1_end, x2_end,...] ->
         // [xn_begin, xn_end, ...., x2_begin, x2_end, x1_begin, x1_end]
