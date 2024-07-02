@@ -3,6 +3,8 @@ add_mlir_conversion_library(TorchMLIRTorchOnnxToTorch
     DefaultDomainGtoP.cpp
     DefaultDomainQtoZ.cpp
     OnnxLstmExpander.cpp
+    OnnxRnnExpander.cpp
+    OnnxGruExpander.cpp
     Passes.cpp
     Patterns.cpp
     TorchOnnxToTorch.cpp
