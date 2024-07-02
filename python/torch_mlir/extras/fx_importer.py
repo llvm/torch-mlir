@@ -1458,7 +1458,7 @@ class GraphNodeImporter:
                         elif getitem_ref in self._list_return_nodes:
                             fx_list_return_value = self._v[(getitem_ref, 0)]
                             operands = [
-                                fx_list_return_value, 
+                                fx_list_return_value,
                                 self._import_default_value(loc, getitem_index, torch.IntType)
                             ]
 

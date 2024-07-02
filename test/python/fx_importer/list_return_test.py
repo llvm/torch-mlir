@@ -17,6 +17,7 @@ def run(f):
     f()
     print()
 
+
 @run
 # CHECK-LABEL: test_unbind_int_op
 # CHECK:     func.func @test_unbind_int(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[3,4],f32>) -> (!torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>)
@@ -36,4 +37,3 @@ def test_unbind_int_op():
         UnbindIntModule(), torch.randn(3, 4), func_name="test_unbind_int"
     )
     print(m)
-
