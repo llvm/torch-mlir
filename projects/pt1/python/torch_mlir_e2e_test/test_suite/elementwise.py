@@ -6341,3 +6341,82 @@ class TriuIndicesNegativeOffsetModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TriuIndicesNegativeOffsetModule())
 def TriuIndicesNegativeOffsetModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+
+class TrilIndicesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+        ]
+    )
+    def forward(self):
+        return torch.ops.aten.tril_indices(4, 3, 1)
+
+
+@register_test_case(module_factory=lambda: TrilIndicesModule())
+def TrilIndicesModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class TrilIndicesAllZerosModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+        ]
+    )
+    def forward(self):
+        return torch.ops.aten.tril_indices(0, 0, 0)
+
+
+@register_test_case(module_factory=lambda: TrilIndicesAllZerosModule())
+def TrilIndicesAllZerosModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class TrilIndicesNegativeOffsetModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+        ]
+    )
+    def forward(self):
+        return torch.ops.aten.tril_indices(5, 16, -2)
+
+
+@register_test_case(module_factory=lambda: TrilIndicesNegativeOffsetModule())
+def TrilIndicesNegativeOffsetModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class TrilIndicesOfssetGreaterThanRowModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+        ]
+    )
+    def forward(self):
+        return torch.ops.aten.tril_indices(7, 9, 8)
+
+
+@register_test_case(module_factory=lambda: TrilIndicesOfssetGreaterThanRowModule())
+def TrilIndicesOfssetGreaterThanRowModule_basic(module, tu: TestUtils):
+    module.forward()
