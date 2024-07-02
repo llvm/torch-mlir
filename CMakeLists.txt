@@ -40,6 +40,17 @@ if(TORCH_MLIR_ENABLE_REFBACKEND)
 endif()
 
 option(TORCH_MLIR_ENABLE_STABLEHLO "Add stablehlo dialect" ON)
+set (TORCH_MLIR_STABLEHLO_AVAILABLE_PRIVIDERS
+  "internal" # Torch-MLIR will build StableHLO during its build.
+  "external" # Torch-MLIR assumes that the caller has setup all necessary targets.
+)
+string(REPLACE ";" ", "
+  TORCH_MLIR_STABLEHLO_AVAILABLE_PRIVIDERS_DOCSTRING
+  "${TORCH_MLIR_STABLEHLO_AVAILABLE_PRIVIDERS}")
+set(TORCH_MLIR_STABLEHLO_PROVIDER "internal" CACHE STRING
+  "Provider for StableHLO dependency. Avalilable providers are ${TORCH_MLIR_STABLEHLO_AVAILABLE_PRIVIDERS_DOCSTRING}.")
+set(TORCH_MLIR_STABLEHLO_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo" CACHE PATH
+  "Path to source StableHLO source directory when StableHLO privder is internal.")
 if(TORCH_MLIR_ENABLE_STABLEHLO)
   add_definitions(-DTORCH_MLIR_ENABLE_STABLEHLO)
 endif()
@@ -223,12 +234,16 @@ endif()
 # Getting this wrong results in building large parts of the stablehlo
 # project that we don't actually depend on. Further some of those parts
 # do not even compile on all platforms.
-if (TORCH_MLIR_ENABLE_STABLEHLO)
+if (TORCH_MLIR_ENABLE_STABLEHLO AND TORCH_MLIR_STABLEHLO_PROVIDER STREQUAL "internal")
   set(STABLEHLO_BUILD_EMBEDDED ON)
-  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo
-    ${CMAKE_CURRENT_BINARY_DIR}/stablehlo
+  add_subdirectory("${TORCH_MLIR_STABLEHLO_SOURCE_DIR}"
+    "${CMAKE_CURRENT_BINARY_DIR}/stablehlo"
     EXCLUDE_FROM_ALL)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo)
+  include_directories("${TORCH_MLIR_STABLEHLO_SOURCE_DIR}")
+endif()
+
+if (NOT TORCH_MLIR_STABLEHLO_PROVIDER IN_LIST TORCH_MLIR_STABLEHLO_AVAILABLE_PRIVIDERS)
+  message(FATAL_ERROR "Unknown StableHLO provider \"${TORCH_MLIR_STABLEHLO_PROVIDER}\".")
 endif()
 
 #-------------------------------------------------------------------------------
