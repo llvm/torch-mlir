@@ -1080,6 +1080,18 @@ class ContextCache:
         sparsity=None,
         mutable: bool = False,
     ):
+        # Some nodes returns a list, like torch.ops.aten.unbind.int
+        if isinstance(tensor_meta, list) or isinstance(val, list):
+            if tensor_meta is not None and all(x is not None for x in tensor_meta):
+                # Assume that all results in the list are tensors.
+                # TODO: Solve this assumption
+                return IrType.parse("!torch.list<vtensor>", context=self._c)
+            elif val is not None and all(x is not None for x in val):
+                return IrType.parse("!torch.list<vtensor>", context=self._c)
+            else:
+                raise NotImplementedError(
+                    f"FIXME: we found no tensor_meta or val in the node, or there are None elements in the node's output."
+                )
         if tensor_meta is not None:
             assert isinstance(tensor_meta, TensorMetadata)
             # Quantized tensor meta data is not preserved in our lowering,
@@ -1227,6 +1239,7 @@ class GraphNodeImporter:
         "_v",
         "_symbol_to_value",
         "_multi_result_nodes",
+        "_list_return_nodes",
         "fx_importer",
     ]
 
@@ -1251,6 +1264,9 @@ class GraphNodeImporter:
         # Statically multi-result nodes which we have de-tupled are noted here.
         # They will have their getitem calls short-circuited.
         self._multi_result_nodes: Set[torch_fx.Node] = set()
+
+        # Stores the node that returns a list, like aten.unbind.int
+        self._list_return_nodes: Set[torch_fx.Node] = set()
 
     def bind_node_value(
         self,
@@ -1439,6 +1455,23 @@ class GraphNodeImporter:
                                     f"notify developers if this case happens "
                                     f"(at {loc})."
                                 )
+                        elif getitem_ref in self._list_return_nodes:
+                            fx_list_return_value = self._v[(getitem_ref, 0)]
+                            operands = [
+                                fx_list_return_value, 
+                                self._import_default_value(loc, getitem_index, torch.IntType)
+                            ]
+
+                            # We trust the tensor type in FX graph, even if it's a getitem
+                            # from a value of MLIR ListType.
+                            operation = Operation.create(
+                                "torch.aten.__getitem__.t",
+                                results=(self._cc.node_val_to_type(node),),
+                                operands = operands,
+                                loc=loc
+                            )
+                            for i, value in enumerate(operation.results):
+                                self._v[(node, i)] = value
                         else:
                             raise NotImplementedError(
                                 f"General getitem access to non-multi-result ops"
@@ -1696,9 +1729,37 @@ class GraphNodeImporter:
                 op_overload = getattr(op_overload, op_attrs[i])
             schema = op_overload._schema
 
+<<<<<<< HEAD
         # Convert result types.
         result_types = self._unpack_node_result_types(node, schema)
         if len(result_types) > 1:
+=======
+        return_count = len(schema.returns)
+        if return_count == 1:
+            # Unary return directly maps a single meta["val"] and cannot be subscripted.
+            # if "tensor_meta" is None, this will throw unsupported placeholder node error
+            result_types = [self._cc.node_val_to_type(node)]
+
+            # separately handle ops returning list.
+            if str(result_types[0]).startswith("!torch.list"):
+                self._list_return_nodes.add(node)
+        elif return_count == 0:
+            # Some torch ops do have 0 returns, and these are supported with ZeroResults
+            # op trait. Python bindings for IR creation allow us to pass empty result_types
+            # for such ops. Therefore, we pass an empty result types for these cases.
+            result_types = []
+        else:
+            # Multi-return will unpack the meta["val"] and trigger our getitem subscripting
+            # short-circuit above. Note that if we ever choose to also fully reify Python
+            # level result tuples, we will need to create a tuple-boxed version of this and
+            # redirect to it for generic object access.
+
+            result_types = []
+            for v in node.meta["val"]:
+                result_types.append(self._cc.tensor_metadata_to_type(v))
+            result_types = tuple(result_types)
+
+>>>>>>> [FxImporter]: support parsing nodes which return list
             self._multi_result_nodes.add(node)
 
         # Unroll operands from formal parameters, args and kwargs.
