@@ -517,6 +517,8 @@ public:
     if (!rhsTy) {
       rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
                                          rhs.getType());
+      // use lhs's element type as compute type
+      rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy);
       rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
     }
 
