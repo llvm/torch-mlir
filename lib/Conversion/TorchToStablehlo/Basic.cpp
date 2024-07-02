@@ -765,7 +765,8 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
       getTypeConverter()->convertType(op->getResult(0).getType()));
 
   if (options.enableStaticShape && selfTy.hasStaticShape()) {
-    Value bcastOp = hlo::promoteAndBroadcast(rewriter, self, outType);
+    Value bcastOp =
+        hlo::promoteAndBroadcast(rewriter, self, outType, std::nullopt);
     rewriter.replaceOp(op, bcastOp);
     return success();
   }
@@ -1482,8 +1483,10 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
           .value());
 
   // Apply affine transform: output x weight + bias [element-wise]
-  auto bcastedWeight = hlo::promoteAndBroadcast(rewriter, weight, outputTy);
-  auto bcastedBias = hlo::promoteAndBroadcast(rewriter, bias, outputTy);
+  auto bcastedWeight =
+      hlo::promoteAndBroadcast(rewriter, weight, outputTy, std::nullopt);
+  auto bcastedBias =
+      hlo::promoteAndBroadcast(rewriter, bias, outputTy, std::nullopt);
   auto outputMulWeight =
       rewriter.create<stablehlo::MulOp>(op->getLoc(), output, bcastedWeight);
   auto finalOuput = rewriter.create<stablehlo::AddOp>(
@@ -1628,8 +1631,10 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
     maxValue = *maxInfo;
   }
   if (inputType.hasStaticShape()) {
-    minValue = hlo::promoteAndBroadcast(rewriter, minValue, inputType);
-    maxValue = hlo::promoteAndBroadcast(rewriter, maxValue, inputType);
+    minValue =
+        hlo::promoteAndBroadcast(rewriter, minValue, inputType, std::nullopt);
+    maxValue =
+        hlo::promoteAndBroadcast(rewriter, maxValue, inputType, std::nullopt);
   }
   rewriter.replaceOpWithNewOp<stablehlo::ClampOp>(op, minValue, input,
                                                   maxValue);
@@ -2011,7 +2016,7 @@ LogicalResult ConvertAtenOp<AtenBitwiseLeftShiftTensorOp>::matchAndRewrite(
 
   auto resultType =
       cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
-  rhs = hlo::promoteAndBroadcast(rewriter, rhs, resultType);
+  rhs = hlo::promoteAndBroadcast(rewriter, rhs, resultType, std::nullopt);
   rewriter.replaceOpWithNewOp<stablehlo::ShiftLeftOp>(op, lhs, rhs);
   return success();
 }
@@ -2026,7 +2031,7 @@ LogicalResult ConvertAtenOp<AtenBitwiseRightShiftTensorOp>::matchAndRewrite(
 
   auto resultType =
       cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
-  rhs = hlo::promoteAndBroadcast(rewriter, rhs, resultType);
+  rhs = hlo::promoteAndBroadcast(rewriter, rhs, resultType, std::nullopt);
   rewriter.replaceOpWithNewOp<stablehlo::ShiftRightArithmeticOp>(op, lhs, rhs);
   return success();
 }
