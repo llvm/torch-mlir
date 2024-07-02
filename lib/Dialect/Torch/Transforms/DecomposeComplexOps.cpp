@@ -113,6 +113,25 @@ static Value createMaxAlongDimension(PatternRewriter &rewriter, Location loc,
       .getValues();
 }
 
+// Reduction function to calculate min along given `dim`.
+static Value createMinAlongDimension(PatternRewriter &rewriter, Location loc,
+                                     Operation *op, Value input, Value dim,
+                                     bool keepDim) {
+  Value keepDimCst = rewriter.create<ConstantBoolOp>(loc, keepDim);
+  BaseTensorType valueType = cast<BaseTensorType>(computeReductionType(
+      rewriter, op, cast<BaseTensorType>(input.getType()), dim, keepDim));
+  if (!valueType)
+    return nullptr;
+  BaseTensorType indexType =
+      cast<BaseTensorType>(valueType.getWithSizesAndDtype(
+          !valueType.hasSizes() ? std::optional<ArrayRef<int64_t>>()
+                                : llvm::ArrayRef(valueType.getSizes()),
+          IntegerType::get(op->getContext(), 64, IntegerType::Signed)));
+  return rewriter
+      .create<AtenMinDimOp>(loc, valueType, indexType, input, dim, keepDimCst)
+      .getValues();
+}
+
 // Helper for creating `aten::sub_tensor_op`.
 static Value createTensorSub(PatternRewriter &rewriter, Location loc,
                              Type tensorType, Value lhs, Value rhs) {
@@ -604,65 +623,6 @@ static Value performLastReduceAndPermute(PatternRewriter &rewriter,
                                                    permuteDimsListValue);
   return out;
 }
-
-namespace {
-/// We decompose aten.amax into a set of aten.max.dim op(s) depending on the
-/// number of dimensions across which the max needs to be computed.
-/// Eg:
-///   INPUT:
-///      final_output = aten.amax(initial_input, dim=(0, 2, 1), keepdim=False)
-///
-///   OUTPUT:
-///      input_1 = aten.max.dim(initial_input, 2, keepdim)  #1
-///      input_2 = aten.max.dim(input_1, 1, keepdim)   #2
-///      final_output = aten.max.dim(input_2, 0, keepdim) #3
-///
-/// NOTE: We iterate over, in reverse order, every dimension included in `dim`
-///       of the `aten.amax` op and create an `aten.amax.dim` op.
-///       Input tensor to the next `aten.amax.dim` op is thus the output of the
-///       previous `aten.amax.dim` op.
-class DecomposeAtenAmaxOp : public OpRewritePattern<AtenAmaxOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenAmaxOp op,
-                                PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
-    SmallVector<int64_t, 4> dims;
-    if (!matchPattern(op.getDim(), m_TorchListOfConstantInts(dims)))
-
-      return rewriter.notifyMatchFailure(op,
-                                         "non-const dim parameter unsupported");
-
-    bool keepDim;
-    if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim)))
-      return rewriter.notifyMatchFailure(
-          op, "Expected a constant boolean value for keepDim");
-
-    Value input = op.getSelf();
-    auto inputTy = dyn_cast<Torch::ValueTensorType>(input.getType());
-    if (!inputTy || !inputTy.hasSizes()) {
-      return rewriter.notifyMatchFailure(op,
-                                         "Expected input type having sizes");
-    }
-    // For every dimension included in `dim` of the op, iterated over in
-    // reverse order, we create a call to aten.max.dim.
-    std::sort(dims.rbegin(), dims.rend());
-    for (int64_t dimInt : dims) {
-      int64_t inputRank = inputTy.getSizes().size();
-      dimInt = toPositiveDim(dimInt, inputRank);
-      if (!isValidDim(dimInt, inputRank))
-        return rewriter.notifyMatchFailure(op, "dim is statically invalid");
-      Value dim = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(dimInt));
-      // The input to the next invocation of aten.max.dim is the output of the
-      // previous aten.max.dim op.
-      input = createMaxAlongDimension(rewriter, loc, op, input, dim, keepDim);
-    }
-    rewriter.replaceOp(op, input);
-    return success();
-  }
-};
-} // end namespace
 
 namespace {
 class DecomposeAtenTriuOp : public OpRewritePattern<AtenTriuOp> {
@@ -1880,52 +1840,69 @@ public:
 } // namespace
 
 namespace {
-class DecomposeAtenAMinMaxOp : public OpRewritePattern<Torch::AtenAminOp> {
+/// We decompose aten.amax into a set of aten.max.dim op(s) depending on the
+/// number of dimensions across which the max needs to be computed.
+/// Eg:
+///   INPUT:
+///      final_output = aten.amax(initial_input, dim=(0, 2, 1), keepdim=False)
+///
+///   OUTPUT:
+///      input_1 = aten.max.dim(initial_input, 2, keepdim)  #1
+///      input_2 = aten.max.dim(input_1, 1, keepdim)   #2
+///      final_output = aten.max.dim(input_2, 0, keepdim) #3
+///
+/// NOTE: We iterate over, in reverse order, every dimension included in `dim`
+///       of the `aten.amax` op and create an `aten.amax.dim` op.
+///       Input tensor to the next `aten.amax.dim` op is thus the output of the
+///       previous `aten.amax.dim` op.
+template <typename OpTy, typename DecompOpTy>
+class DecomposeAtenAminAmaxOp : public OpRewritePattern<OpTy> {
 public:
-  using OpRewritePattern<Torch::AtenAminOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(Torch::AtenAminOp op,
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
                                 PatternRewriter &rewriter) const override {
-    llvm::SmallVector<int64_t> dimList;
-    if (!matchPattern(op.getDim(), m_TorchListOfConstantInts(dimList))) {
-      return rewriter.notifyMatchFailure(op, "dims not foldable constants");
+    Location loc = op.getLoc();
+    bool keepDim;
+    if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected a constant boolean value for keepDim");
+
+    Value input = op.getSelf();
+    auto inputTy = dyn_cast<Torch::ValueTensorType>(input.getType());
+    if (!inputTy || !inputTy.hasSizes()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Expected input type having sizes");
     }
 
-    bool keepdim;
-    if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepdim))) {
-      return rewriter.notifyMatchFailure(op, "keepdims not foldable constants");
+    SmallVector<int64_t, 4> dims;
+    if (!matchPattern(op.getDim(), m_TorchListOfConstantInts(dims)))
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const dim parameter unsupported");
+    if (dims.size() == 0) {
+      dims = llvm::to_vector(llvm::seq<int64_t>(0, inputTy.getSizes().size()));
     }
 
-    auto loc = op.getLoc();
-    std::sort(dimList.begin(), dimList.end(), std::greater<int64_t>());
-
-    Value reduction = op.getSelf();
-    auto resultTy = cast<Torch::ValueTensorType>(op.getType());
-    auto reductionTy = cast<Torch::ValueTensorType>(reduction.getType());
-    llvm::SmallVector<int64_t> reductionShape(reductionTy.getSizes());
-
-    for (auto dim : dimList) {
-      auto dimValue = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(dim));
-      reductionShape[dim] = 1;
-      if (!keepdim) {
-        for (int i = dim, s = reductionShape.size() - 1; i < s; ++i)
-          reductionShape[i] = reductionShape[i + 1];
-        reductionShape.resize(reductionShape.size() - 1);
+    // For every dimension included in `dim` of the op, iterated over in
+    // reverse order, we create a call to aten.max.dim.
+    std::sort(dims.rbegin(), dims.rend());
+    for (int64_t dimInt : dims) {
+      int64_t inputRank = inputTy.getSizes().size();
+      dimInt = toPositiveDim(dimInt, inputRank);
+      if (!isValidDim(dimInt, inputRank))
+        return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+      Value dim = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dimInt));
+      // The input to the next invocation of aten.max.dim is the output of the
+      // previous aten.max.dim op.
+      static_assert(std::is_same_v<OpTy, AtenAmaxOp> ||
+                    std::is_same_v<OpTy, AtenAminOp>);
+      if (std::is_same_v<OpTy, AtenAmaxOp>) {
+        input = createMaxAlongDimension(rewriter, loc, op, input, dim, keepDim);
+      } else if (std::is_same_v<OpTy, AtenAminOp>) {
+        input = createMinAlongDimension(rewriter, loc, op, input, dim, keepDim);
       }
-
-      reductionTy = rewriter.getType<Torch::ValueTensorType>(
-          reductionShape, resultTy.getOptionalDtype());
-      auto idxTy = rewriter.getType<Torch::ValueTensorType>(
-          reductionShape, rewriter.getIntegerType(32, /*is_signed*/ true));
-      llvm::SmallVector<Type, 2> types{reductionTy, idxTy};
-
-      reduction = rewriter
-                      .create<Torch::AtenMinDimOp>(loc, types, reduction,
-                                                   dimValue, op.getKeepdim())
-                      .getResult(0);
     }
-
-    rewriter.replaceOp(op, reduction);
+    rewriter.replaceOp(op, input);
     return success();
   }
 };
@@ -1943,15 +1920,19 @@ public:
     Location loc = op.getLoc();
     Value input = op.getSelf();
     Value dim = op.getDim();
-    Value keepDim = op.getKeepdim();
     Value result = op.getResult();
 
+    bool keepDim;
+    if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim))) {
+      return rewriter.notifyMatchFailure(
+          op, "expected keepdim to be a constant bool");
+    }
     BaseTensorType inputType = cast<BaseTensorType>(input.getType());
     BaseTensorType indicesTensorType = cast<BaseTensorType>(result.getType());
     std::optional<unsigned> maybeInputRank = getTensorRank(input);
-    if (!maybeInputRank) {
+    if (!maybeInputRank || *maybeInputRank == 0) {
       return rewriter.notifyMatchFailure(
-          op, "expected input tensor to have a rank");
+          op, "expected input tensor to have a rank > 0");
     }
     unsigned inputRank = *maybeInputRank;
     if (!indicesTensorType.hasSizes())
@@ -1968,20 +1949,78 @@ public:
       BaseTensorType flattenType =
           cast<BaseTensorType>(inputType.getWithSizesAndDtype(
               {kUnknownSize}, inputType.getOptionalDtype()));
-      dim = rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      Value zero =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
       Value end = rewriter.create<ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(inputRank - 1));
+      Value falseValue = rewriter.create<ConstantBoolOp>(loc, false);
       input = rewriter.create<AtenFlattenUsingIntsOp>(loc, flattenType, input,
-                                                      dim, end);
+                                                      zero, end);
+      Value resultIndices =
+          rewriter
+              .create<DecompOpTy>(
+                  loc,
+                  valueTensorType.getWithSizesAndDtype(
+                      ArrayRef<int64_t>{}, valueTensorType.getOptionalDtype()),
+                  indicesTensorType.getWithSizesAndDtype(
+                      ArrayRef<int64_t>{},
+                      indicesTensorType.getOptionalDtype()),
+                  input, /*dim=*/zero, /*keepdim=*/falseValue)
+              .getIndices();
+      if (keepDim) {
+        Value one =
+            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+        Value dimList = rewriter.create<PrimListConstructOp>(
+            loc,
+            Torch::ListType::get(Torch::IntType::get(rewriter.getContext())),
+            SmallVector<Value>(inputRank, one));
+        resultIndices = rewriter.create<AtenReshapeOp>(
+            loc,
+            indicesTensorType.getWithSizesAndDtype(
+                SmallVector<int64_t>(inputRank, 1),
+                indicesTensorType.getOptionalDtype()),
+            resultIndices, dimList);
+      }
+      rewriter.replaceOp(op, resultIndices);
+      return success();
+    } else {
+      Value resultIndices =
+          rewriter
+              .create<DecompOpTy>(loc, valueTensorType, indicesTensorType,
+                                  input, dim, op.getKeepdim())
+              .getIndices();
+      rewriter.replaceOp(op, resultIndices);
+      return success();
+    }
+  }
+};
+} // namespace
+
+// Decompose `AtenAminmaxOp` to `AtenAminOp` + `AtenAmaxOp`
+namespace {
+class DecomposeAtenAminmaxOp : public OpRewritePattern<AtenAminmaxOp> {
+public:
+  using OpRewritePattern<AtenAminmaxOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAminmaxOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+
+    Torch::ListType listType =
+        rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>());
+    Value dimList;
+    if (isa<Torch::NoneType>(op.getDim().getType())) {
+      dimList = rewriter.create<Torch::PrimListConstructOp>(loc, listType,
+                                                            ArrayRef<Value>{});
+    } else {
+      dimList = rewriter.create<Torch::PrimListConstructOp>(
+          loc, listType, ArrayRef<Value>{op.getDim()});
     }
 
-    Value resultArg =
-        rewriter
-            .create<DecompOpTy>(loc, valueTensorType, indicesTensorType, input,
-                                dim, keepDim)
-            .getIndices();
-
-    rewriter.replaceOp(op, resultArg);
+    auto amin = rewriter.create<AtenAminOp>(
+        loc, op.getMin().getType(), op.getSelf(), dimList, op.getKeepdim());
+    auto amax = rewriter.create<AtenAmaxOp>(
+        loc, op.getMax().getType(), op.getSelf(), dimList, op.getKeepdim());
+    rewriter.replaceOp(op, {amin, amax});
     return success();
   }
 };
@@ -2417,8 +2456,8 @@ public:
     // Arragne reduce_dims tensor (vector), [0, 1, ... , dim-1, dim+1, ... ,
     // ndim-1]
     llvm::SmallVector<Value> reduceDimsVector;
-    for (u_int64_t i = 0; i < ndim; i++) {
-      if (i == (u_int64_t)dimInt)
+    for (uint64_t i = 0; i < ndim; i++) {
+      if (i == (uint64_t)dimInt)
         continue;
 
       Value constI = rewriter.create<Torch::ConstantIntOp>(
@@ -2434,8 +2473,8 @@ public:
 
     // Make output shape for linalg.vector_norm operation
     SmallVector<Value> inputSizeValue;
-    for (u_int64_t i = 0; i < inputSize.size(); i++) {
-      if (i != (u_int64_t)dimInt)
+    for (uint64_t i = 0; i < inputSize.size(); i++) {
+      if (i != (uint64_t)dimInt)
         inputSize[i] = 1;
 
       inputSizeValue.push_back(
@@ -8598,7 +8637,6 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAddmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenAMinMaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);
@@ -8632,9 +8670,14 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposePrimsIotaOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinspaceOp>(patterns);
     addPatternIfTargetOpIsIllegal<
+        DecomposeAtenAminAmaxOp<AtenAmaxOp, AtenMaxDimOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenAminAmaxOp<AtenAminOp, AtenMinDimOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
         DecomposeAtenArgMinMaxOp<AtenArgmaxOp, AtenMaxDimOp>>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenArgMinMaxOp<AtenArgminOp, AtenMinDimOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAminmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSquareOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdOp>(patterns);
@@ -8707,7 +8750,6 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenNumpyTOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectScatterOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarDimOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenAmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdCorrectionOp>(patterns);

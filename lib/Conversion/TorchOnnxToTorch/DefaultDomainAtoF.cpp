@@ -13,6 +13,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/Support/FormatVariadic.h"
+#include <numeric>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -727,6 +728,128 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         // max(0,x) + min(0, alpha * (exp(x/alpha) - 1))
         rewriter.replaceOpWithNewOp<Torch::AtenAddTensorOp>(
             binder.op, resultType, maxExpression, minExpression, constantOne);
+        return success();
+      });
+  patterns.onOp(
+      "CenterCropPad", 18,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input, shape;
+        if (binder.tensorOperands(input, shape) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        auto inputTy = cast<Torch::ValueTensorType>(input.getType());
+        SmallVector<int64_t> inputShape(inputTy.getSizes());
+        SmallVector<int64_t> resultShape(resultType.getSizes());
+        int64_t rank = inputShape.size();
+
+        SmallVector<int64_t> axes, defaultAxes(rank);
+        std::iota(defaultAxes.begin(), defaultAxes.end(), 0);
+        if (binder.s64IntegerArrayAttr(axes, "axes", defaultAxes)) {
+          return failure();
+        }
+        int64_t axesSize = axes.size();
+
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value cstTwo = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(2));
+        auto scalarTensorType = rewriter.getType<Torch::ValueTensorType>(
+            ArrayRef<int64_t>{1}, rewriter.getIntegerType(64, /*signed*/ 1));
+
+        int64_t lastChangeDim = 0;
+        llvm::SmallVector<int64_t> interShape(inputShape);
+        for (int i = 0; i < rank; i++) {
+          if (inputShape[i] != resultShape[i]) {
+            interShape[i] = -1;
+            lastChangeDim = i;
+          }
+          if (interShape[i] == ShapedType::kDynamic)
+            interShape[i] = Torch::kUnknownSize;
+        }
+        auto interType = rewriter.getType<Torch::ValueTensorType>(
+            interShape, resultType.getOptionalDtype());
+
+        Value modeVal = rewriter.create<Torch::ConstantStrOp>(
+            binder.getLoc(), rewriter.getStringAttr("floor"));
+        for (int i = 0; i < axesSize; i++) {
+          if (axes[i] < 0)
+            axes[i] += rank;
+          if (inputShape[axes[i]] == resultShape[axes[i]])
+            continue;
+
+          auto opType = axes[i] == lastChangeDim ? resultType : interType;
+          Value axis = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(axes[i]));
+          Value k = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(i));
+          Value kTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+              binder.getLoc(), scalarTensorType, k);
+          Value sel = rewriter.create<Torch::AtenIndexSelectOp>(
+              binder.getLoc(), scalarTensorType, shape, cstZero, kTensor);
+          Value outputDimSize = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), sel);
+          Value inputDimSize = rewriter.create<Torch::AtenSizeIntOp>(
+              binder.getLoc(), input,
+              rewriter.create<Torch::ConstantIntOp>(
+                  binder.getLoc(), rewriter.getI64IntegerAttr(axes[i])));
+
+          if (inputShape[axes[i]] > resultShape[axes[i]]) {
+            Value sub = rewriter.create<Torch::AtenSubIntOp>(
+                binder.getLoc(), inputDimSize, outputDimSize);
+            Value subTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+                binder.getLoc(), scalarTensorType, sub);
+            Value div = rewriter.create<Torch::AtenDivScalarModeOp>(
+                binder.getLoc(), scalarTensorType, subTensor, cstTwo, modeVal);
+            Value start = rewriter.create<Torch::AtenItemOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(), div);
+            Value end = rewriter.create<Torch::AtenAddIntOp>(
+                binder.getLoc(), start, outputDimSize);
+            input = rewriter.create<Torch::AtenSliceTensorOp>(
+                binder.getLoc(), opType, input, axis, start, end, cstOne);
+          } else {
+            Value sub = rewriter.create<Torch::AtenSubIntOp>(
+                binder.getLoc(), outputDimSize, inputDimSize);
+            Value subTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+                binder.getLoc(), scalarTensorType, sub);
+            Value div = rewriter.create<Torch::AtenDivScalarModeOp>(
+                binder.getLoc(), scalarTensorType, subTensor, cstTwo, modeVal);
+            Value start = rewriter.create<Torch::AtenItemOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(), div);
+            Value end = rewriter.create<Torch::AtenAddIntOp>(
+                binder.getLoc(), start, inputDimSize);
+
+            SmallVector<Value> zerosShapeValues;
+            for (int j = 0; j < rank; j++) {
+              if (j == axes[i]) {
+                zerosShapeValues.push_back(outputDimSize);
+              } else {
+                Value dimSize = rewriter.create<Torch::AtenSizeIntOp>(
+                    binder.getLoc(), input,
+                    rewriter.create<Torch::ConstantIntOp>(
+                        binder.getLoc(), rewriter.getI64IntegerAttr(j)));
+                zerosShapeValues.push_back(dimSize);
+              }
+            }
+            Value zerosShapeList = rewriter.create<Torch::PrimListConstructOp>(
+                binder.getLoc(),
+                rewriter.getType<Torch::ListType>(
+                    rewriter.getType<Torch::IntType>()),
+                zerosShapeValues);
+            Value zeros = rewriter.create<Torch::AtenZerosOp>(
+                binder.getLoc(), opType, zerosShapeList, none, none, none,
+                none);
+            input = rewriter.create<Torch::AtenSliceScatterOp>(
+                binder.getLoc(), opType, zeros, input, axis, start, end,
+                cstOne);
+          }
+        }
+
+        rewriter.replaceOp(binder.op, input);
         return success();
       });
   patterns.onOp(

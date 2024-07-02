@@ -1098,6 +1098,8 @@ ELEM_TYPE_TO_IR_TYPE_CB = {
     onnx.TensorProto.DataType.FLOAT8E5M2: lambda: Float8E5M2Type.get(),
     onnx.TensorProto.DataType.FLOAT8E5M2FNUZ: lambda: Float8E5M2FNUZType.get(),
     onnx.TensorProto.DataType.STRING: lambda: "!torch.str",
+    onnx.TensorProto.DataType.UINT4: lambda: IntegerType.get_unsigned(4),
+    onnx.TensorProto.DataType.INT4: lambda: IntegerType.get_signed(4),
     # Ommitted: STRING,
 }
 
@@ -1133,6 +1135,9 @@ ELEM_TYPE_INLINE_TENSOR_PROTO_CB = {
             bitorder="little",
         ),
         signless=False,
+    ),
+    onnx.TensorProto.DataType.UINT8: lambda tp: DenseElementsAttr.get(
+        np.asarray(tp.int32_data, dtype=np.uint8).reshape(tp.dims), signless=False
     ),
     onnx.TensorProto.DataType.INT8: lambda tp: DenseElementsAttr.get(
         np.asarray(tp.int32_data, dtype=np.int8).reshape(tp.dims), signless=False
