@@ -2673,36 +2673,45 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         return success();
       });
-  patterns.onOp(
-      "LpNormalization", 1,
-      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        int64_t axis, p;
-        Value input;
-        if (binder.tensorOperand(input) ||
-            binder.s64IntegerAttr(axis, "axis", -1) ||
-            binder.s64IntegerAttr(p, "p", 2) ||
-            binder.tensorResultType(resultType))
-          return failure();
+  patterns.onOp("LpNormalization", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  int64_t axis, p;
+                  Value input;
+                  if (binder.tensorOperand(input) ||
+                      binder.s64IntegerAttr(axis, "axis", -1) ||
+                      binder.s64IntegerAttr(p, "p", 2) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
 
-        auto loc = binder.getLoc();
-        Value cstAxis = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(axis));
-        Value cstP = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(p));
-        Value cstKeepDim = rewriter.create<Torch::ConstantBoolOp>(
-            loc, rewriter.getBoolAttr(true));
-        Value axisPrimList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            rewriter.getType<Torch::ListType>(
-                rewriter.getType<Torch::IntType>()),
-            llvm::ArrayRef<Value>{cstAxis});
+                  auto loc = binder.getLoc();
+                  Value cstAxis = rewriter.create<Torch::ConstantIntOp>(
+                      loc, rewriter.getI64IntegerAttr(axis));
+                  Value cstP = rewriter.create<Torch::ConstantIntOp>(
+                      loc, rewriter.getI64IntegerAttr(p));
+                  Value cstKeepDim = rewriter.create<Torch::ConstantBoolOp>(
+                      loc, rewriter.getBoolAttr(true));
+                  Value axisPrimList =
+                      rewriter.create<Torch::PrimListConstructOp>(
+                          binder.getLoc(),
+                          rewriter.getType<Torch::ListType>(
+                              rewriter.getType<Torch::IntType>()),
+                          llvm::ArrayRef<Value>{cstAxis});
 
-        rewriter.replaceOpWithNewOp<Torch::AtenNormScalarOptDimOp>(
-            binder.op, resultType, input, cstP, axisPrimList, cstKeepDim);
+                  SmallVector<int64_t> normSizes(resultType.getSizes());
+                  int64_t rank = normSizes.size();
+                  axis = axis % rank;
+                  axis = (axis < 0) ? axis + rank : axis;
+                  normSizes[axis] = 1;
+                  auto normType = rewriter.getType<Torch::ValueTensorType>(
+                      normSizes, resultType.getDtype());
+                  Value norm = rewriter.create<Torch::AtenNormScalarOptDimOp>(
+                      loc, normType, input, cstP, axisPrimList, cstKeepDim);
 
-        return success();
-      });
+                  rewriter.replaceOpWithNewOp<Torch::AtenDivTensorOp>(
+                      binder.op, resultType, input, norm);
+                  return success();
+                });
   patterns.onOp(
       "MaxUnpool", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         // TODO: Add support for `output_shape` arg.
