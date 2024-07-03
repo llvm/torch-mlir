@@ -134,7 +134,6 @@ RnnLayerOutput rnn_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
   output.Y_h = loop.getResult(1);
   return output;
 }
-
 LogicalResult OnnxRnnExpander(OpBinder binder,
                               ConversionPatternRewriter &rewriter) {
   Location loc = binder.getLoc();
@@ -143,52 +142,15 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
   auto intType = b.getType<IntType>();
   Value cstNone = b.create<ConstantNoneOp>();
   Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
+  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
 
-  ValueTensorType yTy, Y_hType;
-  if (binder.tensorResultTypeAtIndex(yTy, 0) ||
-      binder.tensorResultTypeAtIndex(Y_hType, 1)) {
-    return rewriter.notifyMatchFailure(binder.op,
-                                       "At least one output must be present");
-  }
-  Value X;
-  if (binder.tensorOperandAtIndex(X, 0))
-    return rewriter.notifyMatchFailure(binder.op,
-                                       "Missing required input tensor X");
-  Value W;
-  if (binder.tensorOperandAtIndex(W, 1))
-    return rewriter.notifyMatchFailure(binder.op,
-                                       "Missing required input tensor W");
-  Value R;
-  if (binder.tensorOperandAtIndex(R, 2))
-    return rewriter.notifyMatchFailure(binder.op,
-                                       "Missing required input tensor R");
-  int64_t hidden_size;
-  if (binder.s64IntegerAttr(hidden_size, "hidden_size"))
-    return rewriter.notifyMatchFailure(
-        binder.op, "Missing required attribute hidden_size");
+  int64_t num_directions = Torch::kUnknownSize;
+  int64_t hidden_size = Torch::kUnknownSize;
 
-  auto xTy = cast<ValueTensorType>(X.getType());
-  auto wTy = cast<ValueTensorType>(W.getType());
-  auto WShape = wTy.getSizes();
-  assert(WShape.size() == 3);
-  // use unpacking to get the values of the 3 dimensions
-  int64_t num_directions, hidden_size, input_size;
-  num_directions = WShape[0];
-  hidden_size = WShape[1];
-  input_size = WShape[2];
-  SmallVector<int64_t, 2> BShape = {num_directions, 2 * hidden_size};
-  auto BType = b.getType<ValueTensorType>(BShape, wTy.getDtype());
-
-  Value B;
-  if (binder.tensorOperandAtIndex(B, 3)) {
-    B = b.create<Torch::AtenZerosOp>(BType, BShape, wTy.getDtype());
-  }
-
+  // Attributes
   llvm::SmallVector<std::string> activationsList;
-
   RnnActivations activations;
   activations.f = "Tanh";
-
   if (!binder.stringArrayAttr(activationsList, "activations") &&
       activationsList.size() > 0) {
     if (activationsList.size() == 1) {
@@ -212,45 +174,151 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
                                        "Unsupported direction attribute value. "
                                        "Only 'forward' is supported but '" +
                                            direction + "' is provided.");
-  int64_t num_directions_attr = (direction == "bidirectional") ? 2 : 1;
-  if (num_directions == num_directions_attr) {
+  num_directions = (direction == "bidirectional") ? 2 : 1;
+
+  // hidden_size is required according to the docs,
+  // but if we encounter a model that doesn't have it
+  // that we really want to just push through, consider
+  // deleting this check and making it infer the hidden size
+  if (binder.s64IntegerAttr(hidden_size, "hidden_size"))
     return rewriter.notifyMatchFailure(
-        binder.op, "num_directions from shape of W (" +
-                       std::to_string(num_directions) +
-                       ") does not match the direction attribute value (" +
-                       std::to_string(num_directions_attr) + ")");
+        binder.op, "Missing required attribute hidden_size");
+
+  // Result types
+  ValueTensorType yTy, Y_hType;
+  if (binder.tensorResultTypeAtIndex(yTy, 0) ||
+      binder.tensorResultTypeAtIndex(Y_hType, 1)) {
+    return rewriter.notifyMatchFailure(binder.op,
+                                       "At least one output must be present");
   }
 
-  auto XShape = xTy.getSizes();
-  int64_t batch_size = XShape[1];
-  if (input_size != XShape[2]) {
-    return rewriter.notifyMatchFailure(
-        binder.op, "input_size inferred from shape of W (" +
-                       std::to_string(input_size) +
-                       ") does not match the third dimension of X (" +
-                       std::to_string(XShape[2]) + ")");
+  // Inputs
+  Value X, W, R, B, initial_h;
+  if (binder.tensorOperandAtIndex(X, 0))
+    return rewriter.notifyMatchFailure(binder.op,
+                                       "Missing required input tensor X");
+  if (binder.tensorOperandAtIndex(W, 1))
+    return rewriter.notifyMatchFailure(binder.op,
+                                       "Missing required input tensor W");
+  if (binder.tensorOperandAtIndex(R, 2))
+    return rewriter.notifyMatchFailure(binder.op,
+                                       "Missing required input tensor R");
+  if (binder.tensorOperandAtIndex(B, 3)) {
+    // if no b found, set to null and create one later
+    B = nullptr;
   }
-  if (num_directions != wTy.getSizes()[0])
-    return rewriter.notifyMatchFailure(
-        binder.op, "num_directions (" + std::to_string(num_directions) +
-                       ") does not match the first dimension of wTy (" +
-                       std::to_string(wTy.getSizes()[0]) + ")");
-  if (num_directions != 1) {
-    return rewriter.notifyMatchFailure(
-        binder.op, "Unsupported num_directions. Only 1 is supported but " +
-                       std::to_string(num_directions) + " is provided.");
+  if (binder.tensorOperandAtIndex(initial_h, 5)) {
+    // if no initial_h found, set to null and create one later
+    initial_h = nullptr;
   }
-  if (hidden_size != wTy.getSizes()[1])
-    return rewriter.notifyMatchFailure(
-        binder.op, "hidden_size (" + std::to_string(hidden_size) +
-                       ") does not match the second dimension of wTy (" +
-                       std::to_string(wTy.getSizes()[1]) + ")");
-  if (wTy.getSizes()[2] != input_size)
+
+  // validation
+  auto xTy = cast<ValueTensorType>(X.getType());
+  auto wTy = cast<ValueTensorType>(W.getType());
+  auto rTy = cast<ValueTensorType>(R.getType());
+  auto wShape = wTy.getSizes();
+  auto xShape = xTy.getSizes();
+  auto rShape = rTy.getSizes();
+  assert(wShape.size() == 3);
+
+  int64_t batch_size = xShape[1];
+  int64_t x_input_size = xShape[2];
+
+  int64_t w_num_directions = wShape[0];
+  int64_t w_hidden_size = wShape[1];
+  int64_t w_input_size = wShape[2];
+
+  int64_t r_num_directions = rShape[0];
+  if (rShape[1] != rShape[2])
     return rewriter.notifyMatchFailure(
         binder.op,
-        "The third dimension of wTy (" + std::to_string(wTy.getSizes()[2]) +
-            ") does not match input_size (" + std::to_string(input_size) + ")");
+        "R tensor must be square, but got shape: " + std::to_string(rShape[1]) +
+            "x" + std::to_string(rShape[2]));
+  int64_t r_hidden_size = rShape[1];
 
+  // validate input size
+  if (x_input_size != w_input_size) {
+    return rewriter.notifyMatchFailure(
+        binder.op, "input_size inferred from shape of X (" +
+                       std::to_string(x_input_size) +
+                       ") does not match the input_size attribute value (" +
+                       std::to_string(w_input_size) + ")");
+  }
+
+  // validate hidden size
+  if (w_hidden_size != Torch::kUnknownSize && hidden_size != w_hidden_size) {
+    return rewriter.notifyMatchFailure(
+        binder.op, "hidden_size inferred from shape of W (" +
+                       std::to_string(w_hidden_size) +
+                       ") does not match the hidden_size attribute value (" +
+                       std::to_string(hidden_size) + ")");
+  }
+
+  if (r_hidden_size != Torch::kUnknownSize && hidden_size != r_hidden_size) {
+    return rewriter.notifyMatchFailure(
+        binder.op, "hidden_size inferred from shape of R (" +
+                       std::to_string(r_hidden_size) +
+                       ") does not match the hidden_size attribute value (" +
+                       std::to_string(hidden_size) + ")");
+  }
+
+  // validate num directions
+  if (w_num_directions != Torch::kUnknownSize &&
+      w_num_directions != num_directions) {
+    return rewriter.notifyMatchFailure(
+        binder.op, "num_directions from shape of W (" +
+                       std::to_string(w_num_directions) +
+                       ") does not match the direction attribute value (" +
+                       direction + ")");
+  }
+
+  if (r_num_directions != Torch::kUnknownSize &&
+      r_num_directions != num_directions) {
+    return rewriter.notifyMatchFailure(
+        binder.op, "num_directions from shape of R (" +
+                       std::to_string(r_num_directions) +
+                       ") does not match the direction attribute value (" +
+                       direction + ")");
+  }
+
+  if (num_directions != 1) {
+    return rewriter.notifyMatchFailure(
+        binder.op,
+        "Unsupported num_directions. Only 1 is currently supported but " +
+            std::to_string(num_directions) + " is provided.");
+  }
+
+  // Create B and initial_h if not provided,
+  // using same dtype as X
+  Value cstXDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
+  if (B == nullptr) {
+    SmallVector<int64_t> BShape = {num_directions, 2 * hidden_size};
+    SmallVector<Value> BShapeListContents = {
+        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(num_directions)),
+        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(2 * hidden_size))};
+    Value BShapeList = b.create<PrimListConstructOp>(
+        b.getType<ListType>(intType), BShapeListContents);
+    auto BType = b.getType<ValueTensorType>(BShape, wTy.getDtype());
+    B = b.create<Torch::AtenZerosOp>(BType, BShapeList, cstXDtype, cstNone,
+                                     cstNone, cstNone);
+  }
+  if (initial_h == nullptr) {
+    SmallVector<int64_t> initial_h_shape = {num_directions, batch_size,
+                                            hidden_size};
+    SmallVector<Value> initial_h_shape_list_contents = {
+        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(num_directions)),
+        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(batch_size)),
+        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size))};
+    Value initial_h_shape_list = b.create<PrimListConstructOp>(
+        b.getType<ListType>(intType), initial_h_shape_list_contents);
+    auto initial_h_type =
+        b.getType<ValueTensorType>(initial_h_shape, wTy.getDtype());
+    initial_h =
+        b.create<Torch::AtenZerosOp>(initial_h_type, initial_h_shape_list,
+                                     cstXDtype, cstNone, cstNone, cstNone);
+  }
+
+  // Slicing directions
   auto getDirection = [&](int64_t direction, Value input) {
     auto inputType = cast<ValueTensorType>(input.getType());
 
@@ -269,33 +337,10 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
   Value W_forward = getDirection(0, W);
   Value R_forward = getDirection(0, R);
   Value B_forward = getDirection(0, B);
-
-  auto hTy = b.getType<ValueTensorType>(
-      llvm::SmallVector<int64_t>{num_directions, batch_size, hidden_size},
-      xTy.getDtype());
-
-  Value cstNumDirections =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(num_directions));
-  Value cstBatchSize =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(batch_size));
-  Value cstHiddenSize =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
-
-  Value hShape = b.create<PrimListConstructOp>(
-      b.getType<ListType>(intType),
-      ValueRange({cstNumDirections, cstBatchSize, cstHiddenSize}));
-
-  Value cstDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
-
-  Value initial_h;
-  if (binder.tensorOperandAtIndex(initial_h, 5)) {
-    initial_h =
-        b.create<AtenZerosOp>(hTy, hShape, cstDtype, cstNone, cstNone, cstNone);
-  }
-
   Value initial_h_forward = getDirection(0, initial_h);
 
-  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+  Value cstHiddenSize =
+      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
 
   RnnWeights weights;
   weights.Wi = W_forward;
@@ -323,7 +368,7 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
                                                    rnnLayerOutput.Y_h, cstZero);
 
   Value Y_unsqueezed = b.create<AtenUnsqueezeOp>(yTy, rnnLayerOutput.Y, cstOne);
-  rewriter.replaceOp(binder.op, mlir::ValueRange{Y_unsqueezed, Y_h_unsqueezed});
+  rewriter.replaceOp(binder.op, {Y_unsqueezed, Y_h_unsqueezed});
   return success();
 }
 } // namespace mlir::torch::onnx_c
