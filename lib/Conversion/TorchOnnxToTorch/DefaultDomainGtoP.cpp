@@ -594,7 +594,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
   patterns.onOp("MelWeightMatrix", 17, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
     llvm::SmallVector<Value> operands;
-    Torch::ValueTensorType resultType;
+    typedef Torch::ValueTensorType VTType;
+    VTType resultType;
     int64_t output_dtype_attr;
     if (binder.tensorOperands(operands, 5) ||
         binder.tensorResultType(resultType) || operands.size() != 5 ||
@@ -616,267 +617,175 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
     // Here Onwards all shapes will be computed using these sizes
     int64_t numSpectrogramBinsInt = resShape[0];
     int64_t numMelBinsInt = resShape[1];
-    Torch::ValueTensorType inputIntType = binder.toValidTensorType(operands[0].getType()); // Assuming operands[0 / 1 / 2] will have the same int type.
-    Torch::ValueTensorType inputFloatType = binder.toValidTensorType(operands[3].getType()); // Assuming operands[3 / 4] will have the same float type
-    
+    VTType inputIntType = binder.toValidTensorType(operands[0].getType()); // Since operands[0 / 1 / 2] will have the same int type.
+    VTType inputFloatType = binder.toValidTensorType(operands[3].getType()); // Since operands[3 / 4] will have the same float type
+
     Value numMelBinsItem = getItemOp<Torch::IntType>(binder, rewriter, operands[0]);
-    numMelBinsItem.dump();
+    Value dftLengthItem = getItemOp<Torch::IntType>(binder, rewriter, operands[1]);
     Value sampleRateItem = getItemOp<Torch::IntType>(binder, rewriter, operands[2]);
     Value lowerEdgeHzItem = getItemOp<Torch::FloatType>(binder, rewriter, operands[3]);
-    lowerEdgeHzItem.dump();
     Value upperEdgeHzItem = getItemOp<Torch::FloatType>(binder, rewriter, operands[4]);
-    
-    Value noneConst = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-    Value negTwoConst = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), rewriter.getI64IntegerAttr(-2));
-    Value negOneConst = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), rewriter.getI64IntegerAttr(-1));
-    Value zeroConst = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), rewriter.getI64IntegerAttr(0));
-    Value oneConst = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), rewriter.getI64IntegerAttr(1));
-    Value twoConst = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), rewriter.getI64IntegerAttr(2));
-    Value sixConst = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), rewriter.getI64IntegerAttr(6)); // dtype float32
-    
-    Torch::ValueTensorType dftLenType = Torch::ValueTensorType::get(binder.op->getContext(), ArrayRef<int64_t> {}, inputIntType.getDtype());
-    dftLenType.dump();
-    inputIntType.getDtype().dump();
-    Type si64Ty = rewriter.getIntegerType(64, true);
+
+    // Helpers 
+    ImplicitLocOpBuilder b(binder.getLoc(), rewriter);
+    auto ctx = binder.op->getContext();
+
+    // Recurring shapes
+    SmallVector<int64_t> unranked ({});
+    SmallVector<int64_t> shapeNMB ({numMelBinsInt});
+    SmallVector<int64_t> shapeNMBp2({numMelBinsInt + 2});
+    SmallVector<int64_t> shape1xNMB({1, numMelBinsInt});
+    SmallVector<int64_t> shapeNSB({numSpectrogramBinsInt});
+    SmallVector<int64_t> shapeNSBxNMB({numSpectrogramBinsInt, numMelBinsInt});
+
+    // Recurring DTypes 
+    Type inpFpDType = inputFloatType.getDtype();
+    Type inpIntDType = inputIntType.getDtype();
     Type si32Ty = rewriter.getIntegerType(32, true);
     Type f32Ty = rewriter.getF32Type();
-    Type freqBinsIntType = Torch::ValueTensorType::get(binder.op->getContext(), ArrayRef<int64_t> {numMelBinsInt + 2}, si32Ty); //   IntegerType::get(binder.op->getContext(), 32, IntegerType::Signed));
-    Type freqBinsFltType = Torch::ValueTensorType::get(binder.op->getContext(), ArrayRef<int64_t> {numMelBinsInt + 2}, f32Ty);
-    Value dftLengthDivTwo = rewriter.create<Torch::AtenDivScalarOp>(binder.getLoc(), dftLenType, operands[1], twoConst);
-    dftLengthDivTwo.dump();
-    Value numSpectrogramBins = rewriter.create<Torch::AtenAddScalarOp>(binder.getLoc(), dftLenType, dftLengthDivTwo, oneConst, /*alpha=*/oneConst);
-    Value numSpectrogramBinsItem = getItemOp<Torch::IntType>(binder, rewriter, numSpectrogramBins);
-    numSpectrogramBins.dump();
-    numSpectrogramBinsItem.dump();
-    Value freqBinsInit = rewriter.create<Torch::AtenArangeOp>(binder.getLoc(), freqBinsIntType, numMelBinsItem, /*dtype=*/sixConst, /*layout=*/noneConst, /*device=*/noneConst, /*pin_memory=*/noneConst);
-    freqBinsInit.dump();
+    Type i1Ty = rewriter.getI1Type();
+
+    // Value constants
+    Value noneConst = b.create<Torch::ConstantNoneOp>();
+    Value negTwoConst = b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(-2));
+    Value negOneConst = b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(-1));
+    Value zeroConst = b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(0));
+    Value oneConst = b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(1));
+    Value twoConst = b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(2));
+    Value sixConst = b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(6)); // dtype float32
+
+    VTType dftLenType = VTType::get(ctx, unranked, inpIntDType);
+    Type freqBinsIntType = VTType::get(ctx, shapeNMBp2, si32Ty);
+    Type freqBinsFltType = VTType::get(ctx, shapeNMBp2, f32Ty);
+
+    Value dftLengthDivTwoFlt = b.create<Torch::AtenDivIntOp>(dftLengthItem, twoConst);
+    Value dftLengthDivTwo = b.create<Torch::AtenIntFloatOp>(dftLengthDivTwoFlt);
+    Value numSpectrogramBins = b.create<Torch::AtenAddIntOp>(dftLengthDivTwo, oneConst);
+    Value numSpectrogramBinsItem = numSpectrogramBins;
+    Value freqBinsInit = b.create<Torch::AtenArangeOp>(freqBinsIntType, numMelBinsItem, /*dtype=*/sixConst, /*layout=*/noneConst, /*device=*/noneConst, /*pin_memory=*/noneConst);
 
     // convert input Freq Hz to Mel
-    Value twoFiveNineFiveConst = rewriter.create<Torch::ConstantFloatOp>(binder.getLoc(), rewriter.getF64FloatAttr(2595));
-    Value sevenHConst = rewriter.create<Torch::ConstantFloatOp>(binder.getLoc(), rewriter.getF64FloatAttr(700));
-    Value tenConst = rewriter.create<Torch::ConstantFloatOp>(binder.getLoc(), rewriter.getF64FloatAttr(10));
-    
-    Value lfDiv7Hfloat = rewriter.create<Torch::AtenDivFloatOp>(binder.getLoc(), lowerEdgeHzItem, sevenHConst); // Since all others need tensor to operate
-    Type freqType = Torch::ValueTensorType::get(binder.op->getContext(), ArrayRef<int64_t> {}, inputFloatType.getDtype()); // should be same type as input float type
-    Value lfDiv7H = rewriter.create<Torch::PrimNumToTensorScalarOp>(binder.getLoc(), freqType, lfDiv7Hfloat);
-    Value lfDiv7HAdd1 = rewriter.create<Torch::AtenAddScalarOp>(binder.getLoc(), lfDiv7H.getType(), lfDiv7H, oneConst, /*alpha =*/ oneConst);
-    lfDiv7H.dump();
-    lfDiv7HAdd1.dump();
-    Value lfDiv7HAdd1Log10 = rewriter.create<Torch::AtenLog10Op>(binder.getLoc(), lfDiv7HAdd1.getType(), lfDiv7HAdd1);
-    lfDiv7HAdd1Log10.dump();
-    Value lfMel = rewriter.create<Torch::AtenMulScalarOp>(binder.getLoc(), lfDiv7HAdd1Log10.getType(), lfDiv7HAdd1Log10, twoFiveNineFiveConst); 
-    lfMel.dump();
+    Value twoFiveNineFiveConst = b.create<Torch::ConstantFloatOp>(rewriter.getF64FloatAttr(2595));
+    Value sevenHConst = b.create<Torch::ConstantFloatOp>(rewriter.getF64FloatAttr(700));
+    Value tenConst = b.create<Torch::ConstantFloatOp>(rewriter.getF64FloatAttr(10));
 
-    Value hfDiv7Hfloat = rewriter.create<Torch::AtenDivFloatOp>(binder.getLoc(), upperEdgeHzItem, sevenHConst); // Since all others need tensor to operate
-    hfDiv7Hfloat.dump();
-    Value hfDiv7H = rewriter.create<Torch::PrimNumToTensorScalarOp>(binder.getLoc(), freqType, hfDiv7Hfloat);
-    hfDiv7H.dump();
-    Value hfDiv7HAdd1 = rewriter.create<Torch::AtenAddScalarOp>(binder.getLoc(), hfDiv7H.getType(), hfDiv7H, oneConst, /*alpha =*/ oneConst);
-    hfDiv7HAdd1.dump();
-    Value hfDiv7HAdd1Log10 = rewriter.create<Torch::AtenLog10Op>(binder.getLoc(), hfDiv7HAdd1.getType(), hfDiv7HAdd1);
-    hfDiv7HAdd1Log10.dump();
-    Value hfMel = rewriter.create<Torch::AtenMulScalarOp>(binder.getLoc(), hfDiv7HAdd1Log10.getType(), hfDiv7HAdd1Log10, twoFiveNineFiveConst); 
-    hfMel.dump();
-    
-    Value hfSubLf = rewriter.create<Torch::AtenSubTensorOp>(binder.getLoc(), hfMel.getType(), hfMel, lfMel, /*alpha=*/oneConst);
-    hfSubLf.dump();
-    Value melStep = rewriter.create<Torch::AtenDivScalarOp>(binder.getLoc(), hfSubLf.getType(), hfSubLf, numMelBinsItem);
-    melStep.dump();
+    Value lfDiv7Hfloat = b.create<Torch::AtenDivFloatOp>(lowerEdgeHzItem, sevenHConst); // Since all others need tensor to operate
+    Type freqType = VTType::get(ctx, unranked, inpFpDType);
+    Value lfDiv7H = b.create<Torch::PrimNumToTensorScalarOp>(freqType, lfDiv7Hfloat);
+    Value lfDiv7HAdd1 = b.create<Torch::AtenAddScalarOp>(freqType, lfDiv7H, oneConst, /*alpha =*/ oneConst);
+    Value lfDiv7HAdd1Log10 = b.create<Torch::AtenLog10Op>(freqType, lfDiv7HAdd1);
+    Value lfMel = b.create<Torch::AtenMulScalarOp>(freqType, lfDiv7HAdd1Log10, twoFiveNineFiveConst); 
 
-    Value freqBinsMulMelStep = rewriter.create<Torch::AtenMulTensorOp>(binder.getLoc(), freqBinsFltType, freqBinsInit, melStep);
-    freqBinsMulMelStep.dump();
-    Value freqBinsScaled = rewriter.create<Torch::AtenAddTensorOp>(binder.getLoc(), freqBinsFltType, freqBinsMulMelStep, lfMel, /*alpha=*/oneConst);
-    freqBinsScaled.dump();
-    
+    Value hfDiv7Hfloat = b.create<Torch::AtenDivFloatOp>(upperEdgeHzItem, sevenHConst); // Since all others need tensor to operate
+    Value hfDiv7H = b.create<Torch::PrimNumToTensorScalarOp>(freqType, hfDiv7Hfloat);
+    Value hfDiv7HAdd1 = b.create<Torch::AtenAddScalarOp>(freqType, hfDiv7H, oneConst, /*alpha =*/ oneConst);
+    Value hfDiv7HAdd1Log10 = b.create<Torch::AtenLog10Op>(freqType, hfDiv7HAdd1);
+    Value hfMel = b.create<Torch::AtenMulScalarOp>(freqType, hfDiv7HAdd1Log10, twoFiveNineFiveConst); 
+
+    Value hfSubLf = b.create<Torch::AtenSubTensorOp>(hfMel.getType(), hfMel, lfMel, /*alpha=*/oneConst);
+    Value melStep = b.create<Torch::AtenDivScalarOp>(hfSubLf.getType(), hfSubLf, numMelBinsItem);
+
+    Value freqBinsMulMelStep = b.create<Torch::AtenMulTensorOp>(freqBinsFltType, freqBinsInit, melStep);
+    Value freqBinsScaled = b.create<Torch::AtenAddTensorOp>(freqBinsFltType, freqBinsMulMelStep, lfMel, /*alpha=*/oneConst);
+
     //Mel to Hz conv
-    
-    Value fbDiv = rewriter.create<Torch::AtenDivScalarOp>(binder.getLoc(), freqBinsFltType, freqBinsScaled, twoFiveNineFiveConst);
-    fbDiv.dump();
-    Value fbClone = rewriter.create<Torch::AtenCloneOp>(binder.getLoc(), freqBinsFltType, freqBinsScaled, /*memory_format=*/ noneConst);
-    fbClone.dump();
-    Value tenTensor = rewriter.create<Torch::AtenFillScalarOp>(binder.getLoc(), freqBinsFltType, fbClone, tenConst);
-    tenTensor.dump();
-    Value fbPow = rewriter.create<Torch::AtenPowTensorTensorOp>(binder.getLoc(), freqBinsFltType, tenTensor, fbDiv);
-    fbPow.dump();
-    Value fbPowSubOne = rewriter.create<Torch::AtenSubScalarOp>(binder.getLoc(), freqBinsFltType, fbPow, oneConst, /*alpha=*/oneConst);
-    fbPowSubOne.dump();
-    Value freqBinsHz = rewriter.create<Torch::AtenMulScalarOp>(binder.getLoc(), freqBinsFltType, fbPowSubOne , sevenHConst);
-    freqBinsHz.dump();
+
+    Value fbDiv = b.create<Torch::AtenDivScalarOp>(freqBinsFltType, freqBinsScaled, twoFiveNineFiveConst);
+    Value fbClone = b.create<Torch::AtenCloneOp>(freqBinsFltType, freqBinsScaled, /*memory_format=*/ noneConst);
+    Value tenTensor = b.create<Torch::AtenFillScalarOp>(freqBinsFltType, fbClone, tenConst);
+    Value fbPow = b.create<Torch::AtenPowTensorTensorOp>(freqBinsFltType, tenTensor, fbDiv);
+    Value fbPowSubOne = b.create<Torch::AtenSubScalarOp>(freqBinsFltType, fbPow, oneConst, /*alpha=*/oneConst);
+    Value freqBinsHz = b.create<Torch::AtenMulScalarOp>(freqBinsFltType, fbPowSubOne , sevenHConst);
 
     // Normalize freqBinsHz
-    Value dftLenPlusOne = rewriter.create<Torch::AtenAddScalarOp>(binder.getLoc(), dftLenType, operands[1], oneConst, /*alpha=*/oneConst);
-    dftLenPlusOne.dump();
+    Value dftLenPlusOne = b.create<Torch::AtenAddScalarOp>(dftLenType, operands[1], oneConst, /*alpha=*/oneConst);
     Value dftLenPlusOneItem = getItemOp<Torch::IntType>(binder, rewriter, dftLenPlusOne);
-    Value fbMulDft = rewriter.create<Torch::AtenMulScalarOp>(binder.getLoc(), freqBinsFltType, freqBinsHz, dftLenPlusOneItem);
-    fbMulDft.dump();
-    Value freqBinsNormalized = rewriter.create<Torch::AtenDivScalarOp>(binder.getLoc(), freqBinsFltType, fbMulDft, sampleRateItem);
-    freqBinsNormalized.dump();
-    
+    Value fbMulDft = b.create<Torch::AtenMulScalarOp>(freqBinsFltType, freqBinsHz, dftLenPlusOneItem);
+    Value freqBinsNormalized = b.create<Torch::AtenDivScalarOp>(freqBinsFltType, fbMulDft, sampleRateItem);
+ 
     // cast to int32
-    Value int32TypeConst = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), rewriter.getI64IntegerAttr(3));
-    int32TypeConst.dump();
-    Value falseConst = rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
-    falseConst.dump();
-    // Not needed since int64 int32 same thing
-    // Type freqBinsInt32Type = Torch::ValueTensorType::get(binder.op->getContext(), ArrayRef<int64_t> {1, numMelBinsInt + 2}, inputIntType.getDtype());
-    // freqBinsInt32Type.dump();
-    Value freqBins = rewriter.create<Torch::AtenToDtypeOp>(binder.getLoc(), freqBinsIntType, freqBinsNormalized, /*dtype=*/int32TypeConst, /*non_blocking=*/falseConst, /*copy=*/falseConst, /*memory_format=*/noneConst);
-    freqBins.dump();
+    Value int32TypeConst = b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(3));
+    Value falseConst = b.create<Torch::ConstantBoolOp>(false);
+    Value freqBins = b.create<Torch::AtenToDtypeOp>(freqBinsIntType, freqBinsNormalized, /*dtype=*/int32TypeConst, /*non_blocking=*/falseConst, /*copy=*/falseConst, /*memory_format=*/noneConst);
 
-     
-    Torch::ValueTensorType sliceResType = Torch::ValueTensorType::get(binder.op->getContext(), ArrayRef<int64_t> {numMelBinsInt},  si32Ty); 
-    Type unsqueezeResType = sliceResType.getWithSizesAndDtype(ArrayRef<int64_t> {1, numMelBinsInt}, si32Ty); // Maybe add util func for same size diff dtype and diff sizes same dtype
-    Value lfTensor = rewriter.create<Torch::AtenSliceTensorOp>(binder.getLoc(), sliceResType, freqBins, /*dim=*/zeroConst, /*start=*/zeroConst, /*end=*/negTwoConst, /*step=*/oneConst);
-    lfTensor.dump();
-    Value lowFreqTensor = rewriter.create<Torch::AtenUnsqueezeOp>(binder.getLoc(), unsqueezeResType, lfTensor, /*dim=*/zeroConst);
-    lowFreqTensor.dump();
+    VTType sliceResType = VTType::get(ctx, shapeNMB,  si32Ty);
+    Type unsqueezeResType = sliceResType.getWithSizesAndDtype(shape1xNMB, si32Ty);
+    Value lfTensor = b.create<Torch::AtenSliceTensorOp>(sliceResType, freqBins, /*dim=*/zeroConst, /*start=*/zeroConst, /*end=*/negTwoConst, /*step=*/oneConst);
+    Value lowFreqTensor = b.create<Torch::AtenUnsqueezeOp>(unsqueezeResType, lfTensor, /*dim=*/zeroConst);
 
-    Value cfTensor = rewriter.create<Torch::AtenSliceTensorOp>(binder.getLoc(), sliceResType, freqBins, /*dim=*/zeroConst, /*start=*/oneConst, /*end=*/negOneConst, /*step=*/oneConst);
-    cfTensor.dump();
-    Value centerFreqTensor = rewriter.create<Torch::AtenUnsqueezeOp>(binder.getLoc(), unsqueezeResType, cfTensor, /*dim=*/zeroConst);
-    centerFreqTensor.dump();
-    
-    Value hfTensor = rewriter.create<Torch::AtenSliceTensorOp>(binder.getLoc(), sliceResType, freqBins, /*dim=*/zeroConst, /*start=*/zeroConst, /*end=*/noneConst, /*step=*/oneConst);
-    hfTensor.dump();
-    Value highFreqTensor = rewriter.create<Torch::AtenUnsqueezeOp>(binder.getLoc(), unsqueezeResType, hfTensor, /*dim=*/zeroConst);
-    highFreqTensor.dump();
+    Value cfTensor = b.create<Torch::AtenSliceTensorOp>(sliceResType, freqBins, /*dim=*/zeroConst, /*start=*/oneConst, /*end=*/negOneConst, /*step=*/oneConst);
+    Value centerFreqTensor = b.create<Torch::AtenUnsqueezeOp>(unsqueezeResType, cfTensor, /*dim=*/zeroConst);
+ 
+    Value hfTensor = b.create<Torch::AtenSliceTensorOp>(sliceResType, freqBins, /*dim=*/zeroConst, /*start=*/zeroConst, /*end=*/noneConst, /*step=*/oneConst);
+    Value highFreqTensor = b.create<Torch::AtenUnsqueezeOp>(unsqueezeResType, hfTensor, /*dim=*/zeroConst);
 
-    Value lowToCenter = rewriter.create<Torch::AtenSubTensorOp>(binder.getLoc(), unsqueezeResType, centerFreqTensor, lowFreqTensor, /*alpha=*/oneConst);
-    lowToCenter.dump();
-    Value centerToHigh = rewriter.create<Torch::AtenSubTensorOp>(binder.getLoc(), unsqueezeResType, highFreqTensor, centerFreqTensor, /*alpha=*/oneConst);
-    centerToHigh.dump();
+    Value lowToCenter = b.create<Torch::AtenSubTensorOp>(unsqueezeResType, centerFreqTensor, lowFreqTensor, /*alpha=*/oneConst);
+    Value centerToHigh = b.create<Torch::AtenSubTensorOp>(unsqueezeResType, highFreqTensor, centerFreqTensor, /*alpha=*/oneConst);
 
-    Type zeroToNInitType = inputIntType.getWithSizesAndDtype(ArrayRef<int64_t> {numSpectrogramBinsInt}, f32Ty);
-    zeroToNInitType.dump();
-    Value zeroToNInit = rewriter.create<Torch::AtenArangeOp>(binder.getLoc(), zeroToNInitType, numSpectrogramBinsItem, /*dtype=*/sixConst, /*layout=*/noneConst, /*device=*/noneConst, /*pin_memory=*/noneConst);
-    zeroToNInit.dump();
-    
-    Type zeroToNBaseType = inputIntType.getWithSizesAndDtype(ArrayRef<int64_t> {numSpectrogramBinsInt}, f32Ty);
-    zeroToNBaseType.dump();
-    Value zeroToNBase = rewriter.create<Torch::AtenUnsqueezeOp>(binder.getLoc(),zeroToNBaseType, zeroToNInit, /*dim=*/oneConst);
-    zeroToNBase.dump();
-    
-    Type zeroToNumElesType = inputIntType.getWithSizesAndDtype(ArrayRef<int64_t> {numSpectrogramBinsInt, numMelBinsInt}, f32Ty);
-    zeroToNumElesType.dump();
-    Type listTy = rewriter.getType<Torch::ListType>(si64Ty); // List of si32 elems
-    listTy.dump();
-    Value expandShapeList = rewriter.create<Torch::PrimListConstructOp>(binder.getLoc(), rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()), SmallVector<Value> {numSpectrogramBinsItem, numMelBinsItem} );
-    expandShapeList.dump();
-    Value zeroToNumEles = rewriter.create<Torch::AtenExpandOp>(binder.getLoc(), zeroToNumElesType, zeroToNBase, expandShapeList, /*implicit=*/falseConst);
-    zeroToNumEles.dump();
+    Type zeroToNInitType = inputIntType.getWithSizesAndDtype(shapeNSB, f32Ty);
+    Value zeroToNInit = b.create<Torch::AtenArangeOp>(zeroToNInitType, numSpectrogramBinsItem, /*dtype=*/sixConst, /*layout=*/noneConst, /*device=*/noneConst, /*pin_memory=*/noneConst);
 
-    
-    Type maskType = inputIntType.getWithSizesAndDtype(ArrayRef<int64_t> {1, numMelBinsInt}, rewriter.getI1Type());
-    maskType.dump();
-    Value maskLowToCenterZero = rewriter.create<Torch::AtenEqScalarOp>(binder.getLoc(), maskType, lowToCenter, zeroConst);
-    maskLowToCenterZero.dump();
-    Value maskLowToCenterNonZero = rewriter.create<Torch::AtenNeScalarOp>(binder.getLoc(), maskType, lowToCenter, zeroConst);
-    maskLowToCenterNonZero.dump();
+    Type zeroToNBaseType = inputIntType.getWithSizesAndDtype(ArrayRef<int64_t> {numSpectrogramBinsInt, 1}, f32Ty);
+    Value zeroToNBase = b.create<Torch::AtenUnsqueezeOp>(zeroToNBaseType, zeroToNInit, /*dim=*/oneConst);
+    Type zeroToNumElesType = inputIntType.getWithSizesAndDtype(shapeNSBxNMB, f32Ty);
+    Value expandShapeList = b.create<Torch::PrimListConstructOp>(rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()), SmallVector<Value> {numSpectrogramBinsItem, numMelBinsItem});
+    Value zeroToNumEles = b.create<Torch::AtenExpandOp>(zeroToNumElesType, zeroToNBase, expandShapeList, /*implicit=*/falseConst);
+
+    Type maskType = inputIntType.getWithSizesAndDtype(shape1xNMB, i1Ty);
+    Value maskLowToCenterZero = b.create<Torch::AtenEqScalarOp>(maskType, lowToCenter, zeroConst);
 
     // L2C computation
-    // Type l2cNZResTy = unsqueezeResType.getWithSizesAndDtype(ArrayRef<int64_t> {}, )
-    Value lowToCenterNoZero = rewriter.create<Torch::AtenWhereScalarSelfOp>(binder.getLoc(), unsqueezeResType, maskLowToCenterZero, negOneConst, lowToCenter);
-    lowToCenterNoZero.dump();
-    Type maskL2CAfterCType = inputIntType.getWithSizesAndDtype(ArrayRef<int64_t> {numSpectrogramBinsInt, numMelBinsInt}, rewriter.getI1Type());
-    maskL2CAfterCType.dump();
-    Value maskL2CAfterC = rewriter.create<Torch::AtenGtTensorOp>(binder.getLoc(), maskL2CAfterCType, zeroToNumEles, centerFreqTensor);
-    maskL2CAfterC.dump();
+    Value lowToCenterNoZero = b.create<Torch::AtenWhereScalarSelfOp>(unsqueezeResType, maskLowToCenterZero, negOneConst, lowToCenter);
+    Type maskL2CAfterCType = inputIntType.getWithSizesAndDtype(shapeNSBxNMB, i1Ty);
+    Value maskL2CAfterC = b.create<Torch::AtenGtTensorOp>(maskL2CAfterCType, zeroToNumEles, centerFreqTensor);
     Type maxLFResTy = inputIntType.getWithSizesAndDtype(ArrayRef<int64_t> {1}, si32Ty);
-    maxLFResTy.dump();
-    Value maxLowerFreq = rewriter.create<Torch::AtenMaxOp>(binder.getLoc(), maxLFResTy, lowFreqTensor);
-    maxLowerFreq.dump();
+    Value maxLowerFreq = b.create<Torch::AtenMaxOp>(maxLFResTy, lowFreqTensor);
     Value maxLowerFreqItem = getItemOp<Torch::IntType>(binder, rewriter, maxLowerFreq);
-    maxLowerFreqItem.dump();
-    Value zeroToNumElesL2C = rewriter.create<Torch::AtenWhereScalarSelfOp>(binder.getLoc(), zeroToNumElesType, maskLowToCenterZero, maxLowerFreqItem, zeroToNumEles);
-    zeroToNumElesL2C.dump();
-    Value upslopeDiff = rewriter.create<Torch::AtenSubTensorOp>(binder.getLoc(), zeroToNumElesType, zeroToNumElesL2C, lowFreqTensor, /*alpha=*/oneConst);
-    upslopeDiff.dump();
-    Type l2cNZFltTy = inputIntType.getWithSizesAndDtype(ArrayRef<int64_t> {1, numMelBinsInt}, f32Ty);
-    l2cNZFltTy.dump();
-    Value l2cNZFlt = rewriter.create<Torch::AtenToDtypeOp>(binder.getLoc(), l2cNZFltTy, lowToCenterNoZero, /*dtype=*/sixConst, /*non_blocking=*/falseConst, /*copy=*/falseConst, /*memory_format=*/noneConst);
-    l2cNZFlt.dump();
-    Value upslopeL2C0 = rewriter.create<Torch::AtenDivTensorOp>(binder.getLoc(), zeroToNumElesType, upslopeDiff, l2cNZFlt);
-    upslopeL2C0.dump();
-    Type maskUpslopeL2C0PosType = inputIntType.getWithSizesAndDtype(ArrayRef<int64_t> {numSpectrogramBinsInt, numMelBinsInt}, rewriter.getI1Type());
-    maskUpslopeL2C0PosType.dump();
-    Value maskUpslopeL2C0Pos = rewriter.create<Torch::AtenGtScalarOp>(binder.getLoc(), maskUpslopeL2C0PosType, upslopeL2C0, zeroConst);
-    maskUpslopeL2C0Pos.dump();
-    Value upslopeL2C0Pos = rewriter.create<Torch::AtenWhereScalarOtherOp>(binder.getLoc(), zeroToNumElesType, maskUpslopeL2C0Pos, upslopeL2C0, zeroConst);
-    upslopeL2C0Pos.dump();
-    Value upslopeL2C0PosRanged = rewriter.create<Torch::AtenWhereScalarOtherOp>(binder.getLoc(), zeroToNumElesType, maskUpslopeL2C0Pos, upslopeL2C0, zeroConst);
-    upslopeL2C0PosRanged.dump();
-    Value maskIdxL2CAfterCList = rewriter.create<Torch::PrimListConstructOp>(binder.getLoc(), rewriter.getType<Torch::ListType>(maskL2CAfterC.getType()) , ValueRange {maskL2CAfterC});
-    maskIdxL2CAfterCList.dump();
-    // Type zConstTensorTy = inputIntType.getWithSizesAndDtype(ArrayRef<int64_t> {1}, f32Ty);
-    Value zeroConstTensor = Torch::createRank0Tensor(rewriter, binder.getLoc(), Torch::ValueTensorType::get(binder.op->getContext(), std::nullopt, f32Ty), zeroConst);
-    zeroConstTensor.dump();
-    Value upslopeL2C1 = rewriter.create<Torch::AtenIndexPutOp>(binder.getLoc(), zeroToNumElesType, upslopeL2C0PosRanged, maskIdxL2CAfterCList, zeroConstTensor, falseConst);
-    upslopeL2C1.dump();
-    Value maskIdxL2CZeroList = rewriter.create<Torch::PrimListConstructOp>(binder.getLoc(), rewriter.getType<Torch::ListType>(maskLowToCenterZero.getType()), ValueRange {maskLowToCenterZero});
-    maskIdxL2CZeroList.dump();
+    Value zeroToNumElesL2C = b.create<Torch::AtenWhereScalarSelfOp>(zeroToNumElesType, maskLowToCenterZero, maxLowerFreqItem, zeroToNumEles);
+    Value upslopeDiff = b.create<Torch::AtenSubTensorOp>(zeroToNumElesType, zeroToNumElesL2C, lowFreqTensor, /*alpha=*/oneConst);
+    Type l2cNZFltTy = inputIntType.getWithSizesAndDtype(shape1xNMB, f32Ty);
+    Value l2cNZFlt = b.create<Torch::AtenToDtypeOp>(l2cNZFltTy, lowToCenterNoZero, /*dtype=*/sixConst, /*non_blocking=*/falseConst, /*copy=*/falseConst, /*memory_format=*/noneConst);
+    Value upslopeL2C0 = b.create<Torch::AtenDivTensorOp>(zeroToNumElesType, upslopeDiff, l2cNZFlt);
+    Type maskUpslopeL2C0PosType = inputIntType.getWithSizesAndDtype(shapeNSBxNMB, i1Ty);
+    Value maskUpslopeL2C0Pos = b.create<Torch::AtenGtScalarOp>(maskUpslopeL2C0PosType, upslopeL2C0, zeroConst);
+    Value upslopeL2C0PosRanged = b.create<Torch::AtenWhereScalarOtherOp>(zeroToNumElesType, maskUpslopeL2C0Pos, upslopeL2C0, zeroConst);
+    Value maskIdxL2CAfterCList = b.create<Torch::PrimListConstructOp>(rewriter.getType<Torch::ListType>(maskL2CAfterC.getType()) , ValueRange {maskL2CAfterC});
+    Value zeroConstTensor = Torch::createRank0Tensor(rewriter, binder.getLoc(), VTType::get(ctx, std::nullopt, f32Ty), zeroConst);
+    Value upslopeL2C1 = b.create<Torch::AtenIndexPutOp>(zeroToNumElesType, upslopeL2C0PosRanged, maskIdxL2CAfterCList, zeroConstTensor, falseConst);
+    Value maskIdxL2CZeroList = b.create<Torch::PrimListConstructOp>(rewriter.getType<Torch::ListType>(maskLowToCenterZero.getType()), ValueRange {maskLowToCenterZero});
     Type centerFreqTensorL2CZeroType = inputIntType.getWithSizesAndDtype(ArrayRef<int64_t> {-1}, si32Ty);
-    centerFreqTensorL2CZeroType.dump();
-    Value centerFreqTensorL2CZero = rewriter.create<Torch::AtenIndexTensorOp>(binder.getLoc(), centerFreqTensorL2CZeroType, centerFreqTensor, maskIdxL2CZeroList);
-    centerFreqTensorL2CZero.dump();
-    Type maskSqueezeType = inputIntType.getWithSizesAndDtype(ArrayRef<int64_t> {numMelBinsInt}, rewriter.getI1Type());
-    maskSqueezeType.dump();
-    Value maskLowToCenterZeroSqueeze = rewriter.create<Torch::AtenSqueezeOp>(binder.getLoc(), maskSqueezeType, maskLowToCenterZero);
-    maskLowToCenterZeroSqueeze.dump();
-    Type maskL2CIntTy = inputIntType.getWithSizesAndDtype(ArrayRef<int64_t> {numMelBinsInt}, si32Ty);
-    maskL2CIntTy.dump();
-    Value maskLowToCenterInt = rewriter.create<Torch::AtenToDtypeOp>(binder.getLoc(), maskL2CIntTy, maskLowToCenterZeroSqueeze, /*dtype=*/int32TypeConst, /*non_blocking=*/falseConst, /*copy=*/falseConst, /*memory_format=*/noneConst);
-    maskLowToCenterInt.dump();
-    Value upslopeOneIdxList = rewriter.create<Torch::PrimListConstructOp>(binder.getLoc(), rewriter.getType<Torch::ListType>(centerFreqTensorL2CZero.getType()), ValueRange {centerFreqTensorL2CZero, maskLowToCenterInt});
-    upslopeOneIdxList.dump();
-    Value oneConstTensor = Torch::createRank0Tensor(rewriter, binder.getLoc(), Torch::ValueTensorType::get(binder.op->getContext(), std::nullopt, f32Ty), oneConst);
-    oneConstTensor.dump();
-    Value upslopeL2C = rewriter.create<Torch::AtenIndexPutOp>(binder.getLoc(), zeroToNumElesType, upslopeL2C1, upslopeOneIdxList, oneConstTensor, falseConst);
-    upslopeL2C.dump();
+    Value centerFreqTensorL2CZero = b.create<Torch::AtenIndexTensorOp>(centerFreqTensorL2CZeroType, centerFreqTensor, maskIdxL2CZeroList);
+    Type maskSqueezeType = inputIntType.getWithSizesAndDtype(shapeNMB, i1Ty);
+    Value maskLowToCenterZeroSqueeze = b.create<Torch::AtenSqueezeOp>(maskSqueezeType, maskLowToCenterZero);
+    Type maskL2CIntTy = inputIntType.getWithSizesAndDtype(shapeNMB, si32Ty);
+    Value maskLowToCenterInt = b.create<Torch::AtenToDtypeOp>(maskL2CIntTy, maskLowToCenterZeroSqueeze, /*dtype=*/int32TypeConst, /*non_blocking=*/falseConst, /*copy=*/falseConst, /*memory_format=*/noneConst);
+    Value upslopeOneIdxList = b.create<Torch::PrimListConstructOp>(rewriter.getType<Torch::ListType>(centerFreqTensorL2CZero.getType()), ValueRange {centerFreqTensorL2CZero, maskLowToCenterInt});
+    Value oneConstTensor = Torch::createRank0Tensor(rewriter, binder.getLoc(), VTType::get(ctx, std::nullopt, f32Ty), oneConst);
+    Value upslopeL2C = b.create<Torch::AtenIndexPutOp>(zeroToNumElesType, upslopeL2C1, upslopeOneIdxList, oneConstTensor, falseConst);
 
     // H2C computation
-    Value maskCenterToHighZero = rewriter.create<Torch::AtenEqScalarOp>(binder.getLoc(), maskType, centerToHigh, zeroConst);
-    maskCenterToHighZero.dump();
-    Value maskH2CBeforeC = rewriter.create<Torch::AtenLtTensorOp>(binder.getLoc(), maskL2CAfterCType, zeroToNumEles, centerFreqTensor);
-    maskH2CBeforeC.dump();
-
-    Value centerToHighNoZero = rewriter.create<Torch::AtenWhereScalarSelfOp>(binder.getLoc(), unsqueezeResType, maskCenterToHighZero, negOneConst, centerToHigh);
-    centerToHighNoZero.dump();
-    Value c2hNZFlt = rewriter.create<Torch::AtenToDtypeOp>(binder.getLoc(), l2cNZFltTy, centerToHighNoZero, /*dtype=*/sixConst, /*non_blocking=*/falseConst, /*copy=*/falseConst, /*memory_format=*/noneConst);
-    c2hNZFlt.dump();
-    Value zeroToNumElesC2H = rewriter.create<Torch::AtenWhereScalarSelfOp>(binder.getLoc(), zeroToNumElesType, maskCenterToHighZero, zeroConst, zeroToNumEles);
-    zeroToNumElesC2H.dump();
-
-    Value downslopeDiff = rewriter.create<Torch::AtenSubTensorOp>(binder.getLoc(), zeroToNumElesType, highFreqTensor, zeroToNumElesC2H, /*alpha=*/oneConst);
-    downslopeDiff.dump();
-
-    Value downslopeC2H0 = rewriter.create<Torch::AtenDivTensorOp>(binder.getLoc(), zeroToNumElesType, downslopeDiff, c2hNZFlt);
-    downslopeC2H0.dump();
-    Value maskDownslopeC2H0Pos = rewriter.create<Torch::AtenGtScalarOp>(binder.getLoc(), maskUpslopeL2C0PosType, downslopeC2H0, zeroConst);
-    maskDownslopeC2H0Pos.dump();
-     
-    Value downslopeC2H0Pos = rewriter.create<Torch::AtenWhereScalarOtherOp>(binder.getLoc(), zeroToNumElesType, maskDownslopeC2H0Pos, downslopeC2H0, zeroConst);
-    downslopeC2H0Pos.dump();
-    Value idxH2CBeforeCList = rewriter.create<Torch::PrimListConstructOp>(binder.getLoc(), rewriter.getType<Torch::ListType>(maskH2CBeforeC.getType()), ValueRange {maskH2CBeforeC});
-    idxH2CBeforeCList.dump();
-
-    Value downslopeC2H = rewriter.create<Torch::AtenIndexPutOp>(binder.getLoc(), zeroToNumElesType, downslopeC2H0Pos, idxH2CBeforeCList, zeroConstTensor, falseConst);
-    downslopeC2H.dump();
+    Value maskCenterToHighZero = b.create<Torch::AtenEqScalarOp>(maskType, centerToHigh, zeroConst);
+    Value maskH2CBeforeC = b.create<Torch::AtenLtTensorOp>(maskL2CAfterCType, zeroToNumEles, centerFreqTensor);
+    Value centerToHighNoZero = b.create<Torch::AtenWhereScalarSelfOp>(unsqueezeResType, maskCenterToHighZero, negOneConst, centerToHigh);
+    Value c2hNZFlt = b.create<Torch::AtenToDtypeOp>(l2cNZFltTy, centerToHighNoZero, /*dtype=*/sixConst, /*non_blocking=*/falseConst, /*copy=*/falseConst, /*memory_format=*/noneConst);
+    Value zeroToNumElesC2H = b.create<Torch::AtenWhereScalarSelfOp>(zeroToNumElesType, maskCenterToHighZero, zeroConst, zeroToNumEles);
+    Value downslopeDiff = b.create<Torch::AtenSubTensorOp>(zeroToNumElesType, highFreqTensor, zeroToNumElesC2H, /*alpha=*/oneConst);
+    Value downslopeC2H0 = b.create<Torch::AtenDivTensorOp>(zeroToNumElesType, downslopeDiff, c2hNZFlt);
+    Value maskDownslopeC2H0Pos = b.create<Torch::AtenGtScalarOp>(maskUpslopeL2C0PosType, downslopeC2H0, zeroConst);
+    Value downslopeC2H0Pos = b.create<Torch::AtenWhereScalarOtherOp>(zeroToNumElesType, maskDownslopeC2H0Pos, downslopeC2H0, zeroConst);
+    Value idxH2CBeforeCList = b.create<Torch::PrimListConstructOp>(rewriter.getType<Torch::ListType>(maskH2CBeforeC.getType()), ValueRange {maskH2CBeforeC});
+    Value downslopeC2H = b.create<Torch::AtenIndexPutOp>(zeroToNumElesType, downslopeC2H0Pos, idxH2CBeforeCList, zeroConstTensor, falseConst);
 
     // final result Calculation
-    Value maskH2CNonZero = rewriter.create<Torch::AtenNeScalarOp>(binder.getLoc(), maskL2CAfterCType, downslopeC2H, zeroConst);
-    maskH2CNonZero.dump();
-    Value idxH2CNZList = rewriter.create<Torch::PrimListConstructOp>(binder.getLoc(), rewriter.getType<Torch::ListType>(maskH2CNonZero.getType()), ValueRange {maskH2CNonZero});
-    idxH2CNZList.dump();
-    Value upslopeL2CMasked = rewriter.create<Torch::AtenIndexPutOp>(binder.getLoc(), zeroToNumElesType, upslopeL2C, idxH2CNZList, zeroConstTensor, falseConst);
-    upslopeL2CMasked.dump();
+    Value maskH2CNonZero = b.create<Torch::AtenNeScalarOp>(maskL2CAfterCType, downslopeC2H, zeroConst);
+    Value idxH2CNZList = b.create<Torch::PrimListConstructOp>(rewriter.getType<Torch::ListType>(maskH2CNonZero.getType()), ValueRange {maskH2CNonZero});
+    Value upslopeL2CMasked = b.create<Torch::AtenIndexPutOp>(zeroToNumElesType, upslopeL2C, idxH2CNZList, zeroConstTensor, falseConst);
 
-    Value slopesFinal = rewriter.create<Torch::AtenAddTensorOp>(binder.getLoc(), zeroToNumElesType, upslopeL2CMasked, downslopeC2H, /*alpha=*/oneConst);
-    slopesFinal.dump();
+    Value slopesFinal = b.create<Torch::AtenAddTensorOp>(zeroToNumElesType, upslopeL2CMasked, downslopeC2H, /*alpha=*/oneConst);
     // TODO: Set the right output type as given in attr
-    
+
     rewriter.replaceOp(binder.op, slopesFinal);
     return success();
-    // return failure();
     });
 
   patterns.onOp(
