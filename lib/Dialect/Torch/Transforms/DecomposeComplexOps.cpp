@@ -2658,6 +2658,35 @@ public:
 };
 } // namespace
 
+// decompose aten.linalg_slogdet into: aten.sgn, aten.log, aten.abs
+// aten.linalg_det
+namespace {
+
+class DecomposeAtenLinalgSlogdetOp
+    : public OpRewritePattern<AtenLinalgSlogdetOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLinalgSlogdetOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value, 2> results = op.getResults();
+    Location loc = op.getLoc();
+    Value input = op.getA();
+    Value determinant = rewriter.create<Torch::AtenLinalgDetOp>(
+        loc, results[0].getType(), input);
+    Value sign =
+        rewriter.create<AtenSgnOp>(loc, determinant.getType(), determinant);
+    Value abs_det =
+        rewriter.create<AtenAbsOp>(loc, determinant.getType(), determinant);
+    Value ln_abs_det =
+        rewriter.create<AtenLogOp>(loc, abs_det.getType(), abs_det);
+    rewriter.replaceAllUsesWith(results[0], sign);
+    rewriter.replaceAllUsesWith(results[1], ln_abs_det);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 
 class DecomposeAten_LinalgDetOp : public OpRewritePattern<Aten_LinalgDetOp> {
@@ -8801,6 +8830,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenTriuIndicesOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_LinalgDetOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgSlogdetOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenFakeQuantizePerTensorAffineCachemaskOp>(patterns);
     // More specific conv ops
