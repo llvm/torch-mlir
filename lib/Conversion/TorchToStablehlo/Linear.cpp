@@ -835,7 +835,8 @@ public:
         llvm::to_vector<4>(llvm::seq<int64_t>(-nSpatialDims, 0));
 
     bias = *hlo::unsqueezeTensor(rewriter, op, bias, inputUnsqzDims);
-    bias = hlo::promoteType(rewriter, op.getLoc(), bias, outTy);
+    bias =
+        hlo::promoteType(rewriter, op.getLoc(), bias, outTy.getElementType());
 
     DenseI64ArrayAttr bcastDimensions;
     rewriter.replaceOpWithNewOp<chlo::BroadcastAddOp>(
