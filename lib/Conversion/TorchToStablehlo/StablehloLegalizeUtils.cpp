@@ -279,6 +279,44 @@ FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
   return getDimSizesOfTensor(rewriter, op, value, dims, dimSizeIndexBits);
 }
 
+// Get the dimension sizes of the input tensor, given the dimension axes
+FailureOr<SmallVector<Value, 4>>
+getDimIndexOfTensor(PatternRewriter &rewriter, Operation *op, Value value,
+                    ArrayRef<int64_t> inpDims) {
+  auto valueTy = dyn_cast<RankedTensorType>(value.getType());
+  if (!valueTy) {
+    return rewriter.notifyMatchFailure(
+        op, "getDimIndexOfTensor(): the input is not a ranked tensor");
+  }
+
+  auto rank = valueTy.getRank();
+  auto dims = toPositiveDims(inpDims, rank);
+  SmallVector<Value, 4> dimSizes;
+  dimSizes.reserve(dims.size());
+
+  auto loc = op->getLoc();
+  for (auto d : dims) {
+    dimSizes.emplace_back(rewriter.create<tensor::DimOp>(loc, value, d));
+  }
+  return dimSizes;
+}
+
+// Get the dimension sizes of the input tensor
+FailureOr<SmallVector<Value, 4>>
+getDimIndexOfTensor(PatternRewriter &rewriter, Operation *op, Value value) {
+  auto valueTy = dyn_cast<RankedTensorType>(value.getType());
+  if (!valueTy) {
+    return rewriter.notifyMatchFailure(
+        op, "getDimIndexOfTensor(): the input is not a ranked tensor");
+  }
+
+  auto rank = valueTy.getRank();
+  // Get int vector [0, 1, ..., rank-1]
+  std::vector<int64_t> dims(rank);
+  std::iota(dims.begin(), dims.end(), 0);
+  return getDimIndexOfTensor(rewriter, op, value, dims);
+}
+
 FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
                                  Value tensor, ArrayRef<int64_t> inputUnsqzDims,
                                  size_t dimSizeIndexBits) {

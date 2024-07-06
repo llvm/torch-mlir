@@ -68,6 +68,15 @@ FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
                                                      Operation *op, Value value,
                                                      size_t dimSizeIndexBits);
 
+// Get the dimension sizes of the input tensor, given the dimension axes
+FailureOr<SmallVector<Value, 4>> getDimIndexOfTensor(PatternRewriter &rewriter,
+                                                     Operation *op, Value value,
+                                                     ArrayRef<int64_t> inpDims);
+
+// Get the dimension sizes of the input tensor
+FailureOr<SmallVector<Value, 4>>
+getDimIndexOfTensor(PatternRewriter &rewriter, Operation *op, Value value);
+
 // Get a tensor that unsqueezed the specified dimensions of the input tensor
 FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
                                  Value tensor, ArrayRef<int64_t> inputUnsqzDims,
