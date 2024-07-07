@@ -436,8 +436,8 @@ LogicalResult ConvertAtenOp<PrimsCollapseOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "only constant end is currently supported");
 
-  auto collapseTensorInfo = hlo::collapseTensor(
-      rewriter, op, adaptor.getA(), start, end, options.dimSizeIndexBits);
+  auto collapseTensorInfo =
+      hlo::collapseTensor(rewriter, op, adaptor.getA(), start, end);
   if (failed(collapseTensorInfo))
     return rewriter.notifyMatchFailure(op, "failed to create collapsed tensor");
 
@@ -467,8 +467,8 @@ LogicalResult ConvertAtenOp<PrimsSplitDimOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "only constant outerLength is currently supported");
 
-  auto splitTensorInfo = hlo::splitTensor(
-      rewriter, op, adaptor.getA(), dim, outerLength, options.dimSizeIndexBits);
+  auto splitTensorInfo =
+      hlo::splitTensor(rewriter, op, adaptor.getA(), dim, outerLength);
 
   if (failed(splitTensorInfo))
     return rewriter.notifyMatchFailure(op, "failed to create split tensor");

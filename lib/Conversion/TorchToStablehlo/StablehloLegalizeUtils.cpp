@@ -371,12 +371,9 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
 
 FailureOr<Value> collapseTensor(PatternRewriter &rewriter, Operation *op,
                                 Value tensor, int64_t collapseStartDim,
-                                int64_t collapseEndDim,
-                                size_t dimSizeIndexBits) {
+                                int64_t collapseEndDim) {
 
-  auto dimSizesInfo =
-      getDimSizesOfTensor(rewriter, op, tensor, dimSizeIndexBits);
-
+  auto dimSizesInfo = getDimIndexOfTensor(rewriter, op, tensor);
   if (failed(dimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
@@ -392,7 +389,6 @@ FailureOr<Value> collapseTensor(PatternRewriter &rewriter, Operation *op,
   auto loc = op->getLoc();
   auto rankTy = dyn_cast<RankedTensorType>(tensor.getType());
   auto oldShape = rankTy.getShape();
-  Type intType = rewriter.getIntegerType(dimSizeIndexBits);
 
   std::vector<Value> newDimSizes;
   std::vector<int64_t> newShape;
@@ -400,7 +396,7 @@ FailureOr<Value> collapseTensor(PatternRewriter &rewriter, Operation *op,
   newShape.reserve(newRank);
 
   Value collapseDimSize = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIntegerAttr(intType, 1));
+      loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
   int64_t collapseShape = 1;
 
   for (int64_t k = collapseStartDim; k <= collapseEndDim; ++k) {
@@ -438,10 +434,8 @@ FailureOr<Value> collapseTensor(PatternRewriter &rewriter, Operation *op,
 // TODO: support splitDim & outerLength to be Value
 FailureOr<Value> splitTensor(PatternRewriter &rewriter, Operation *op,
                              Value tensor, int64_t splitDim,
-                             int64_t outerLength, size_t dimSizeIndexBits) {
-  auto dimSizesInfo =
-      getDimSizesOfTensor(rewriter, op, tensor, dimSizeIndexBits);
-
+                             int64_t outerLength) {
+  auto dimSizesInfo = getDimIndexOfTensor(rewriter, op, tensor);
   if (failed(dimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
@@ -453,7 +447,6 @@ FailureOr<Value> splitTensor(PatternRewriter &rewriter, Operation *op,
   auto loc = op->getLoc();
   auto rankTy = dyn_cast<RankedTensorType>(tensor.getType());
   auto oldShape = rankTy.getShape();
-  Type intType = rewriter.getIntegerType(dimSizeIndexBits);
 
   if (splitDim < 0 || splitDim >= rank) {
     return rewriter.notifyMatchFailure(
@@ -462,7 +455,7 @@ FailureOr<Value> splitTensor(PatternRewriter &rewriter, Operation *op,
 
   int64_t newRank = rank + 1;
   auto outerLengthValue = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIntegerAttr(intType, outerLength));
+      loc, rewriter.getIntegerAttr(rewriter.getIndexType(), outerLength));
 
   auto innerLengthValue = rewriter.create<arith::DivSIOp>(
       loc, dimSizes[splitDim], outerLengthValue);
