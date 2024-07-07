@@ -522,16 +522,15 @@ public:
     auto weightTy = cast<RankedTensorType>(weight.getType());
     auto weightElemTy = weightTy.getElementType();
     auto rank = weightTy.getRank();
-    const auto &options = getOptions();
-    SmallVector<Value> weightShapeVec = *hlo::getDimSizesOfTensor(
-        rewriter, op, weight, options.dimSizeIndexBits);
+    SmallVector<Value> weightShapeVec =
+        *hlo::getDimIndexOfTensor(rewriter, op, weight);
     auto weightShape = weightTy.getShape();
     SmallVector<int64_t> weightShapeInt(rank);
     std::copy(weightShape.begin(), weightShape.end(), weightShapeInt.begin());
 
     // 1. [H, W, ..., OC, IC] => [H, W, ..., OC, G, IC//G]
     Value GValue = rewriter.create<mlir::arith::ConstantOp>(
-        op->getLoc(), rewriter.getI64IntegerAttr(groups));
+        op->getLoc(), rewriter.getIntegerAttr(rewriter.getIndexType(), groups));
     Value ICDivGValue = rewriter.create<mlir::arith::DivSIOp>(
         op->getLoc(), weightShapeVec[rank - 1], GValue);
     Value OCMulGValue = rewriter.create<mlir::arith::MulIOp>(
