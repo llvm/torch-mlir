@@ -398,18 +398,14 @@ func.func @torch.aten.squeeze.dim$0$static(%arg0: !torch.vtensor<[2,1,2,1,2],f32
 // CHECK:         %[[INT1:.*]] = torch.constant.int 1
 // CHECK:         %[[C0:.*]] = arith.constant 0 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<?x1x?x1x?xf32>
-// CHECK:         %[[T1:.*]] = arith.index_cast %[[DIM]] : index to i64
 // CHECK:         %[[C2:.*]] = arith.constant 2 : index
 // CHECK:         %[[DIM_0:.*]] = tensor.dim %[[T0]], %[[C2]] : tensor<?x1x?x1x?xf32>
-// CHECK:         %[[T2:.*]] = arith.index_cast %[[DIM_0]] : index to i64
 // CHECK:         %[[C3:.*]] = arith.constant 3 : index
 // CHECK:         %[[DIM_1:.*]] = tensor.dim %[[T0]], %[[C3]] : tensor<?x1x?x1x?xf32>
-// CHECK:         %[[T3:.*]] = arith.index_cast %[[DIM_1]] : index to i64
 // CHECK:         %[[C4:.*]] = arith.constant 4 : index
 // CHECK:         %[[DIM_2:.*]] = tensor.dim %[[T0]], %[[C4]] : tensor<?x1x?x1x?xf32>
-// CHECK:         %[[T4:.*]] = arith.index_cast %[[DIM_2]] : index to i64
-// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[T1]], %[[T2]], %[[T3]], %[[T4]] : tensor<4xi64>
-// CHECK:         %[[T5:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[FROM_ELEMENTS]] : (tensor<?x1x?x1x?xf32>, tensor<4xi64>) -> tensor<?x?x1x?xf32>
+// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[DIM]], %[[DIM_0]], %[[DIM_1]], %[[DIM_2]] : tensor<4xindex>
+// CHECK:         %[[T5:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[FROM_ELEMENTS]] : (tensor<?x1x?x1x?xf32>, tensor<4xindex>) -> tensor<?x?x1x?xf32>
 // CHECK:         %[[T6:.*]] = torch_c.from_builtin_tensor %[[T5]] : tensor<?x?x1x?xf32> -> !torch.vtensor<[?,?,1,?],f32>
 // CHECK:         return %[[T6]] : !torch.vtensor<[?,?,1,?],f32>
 func.func @torch.aten.squeeze.dim$1(%arg0: !torch.vtensor<[?,1,?,1,?],f32>) -> !torch.vtensor<[?,?,1,?],f32> {
@@ -426,18 +422,14 @@ func.func @torch.aten.squeeze.dim$1(%arg0: !torch.vtensor<[?,1,?,1,?],f32>) -> !
 // CHECK:         %[[INT:.*]]-2 = torch.constant.int -2
 // CHECK:         %[[C0:.*]] = arith.constant 0 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<?x1x?x1x?xf32>
-// CHECK:         %[[T1:.*]] = arith.index_cast %[[DIM]] : index to i64
 // CHECK:         %[[C1:.*]] = arith.constant 1 : index
 // CHECK:         %[[DIM_0:.*]] = tensor.dim %[[T0]], %[[C1]] : tensor<?x1x?x1x?xf32>
-// CHECK:         %[[T2:.*]] = arith.index_cast %[[DIM_0]] : index to i64
 // CHECK:         %[[C2:.*]] = arith.constant 2 : index
 // CHECK:         %[[DIM_1:.*]] = tensor.dim %[[T0]], %[[C2]] : tensor<?x1x?x1x?xf32>
-// CHECK:         %[[T3:.*]] = arith.index_cast %[[DIM_1]] : index to i64
 // CHECK:         %[[C4:.*]] = arith.constant 4 : index
 // CHECK:         %[[DIM_2:.*]] = tensor.dim %[[T0]], %[[C4]] : tensor<?x1x?x1x?xf32>
-// CHECK:         %[[T4:.*]] = arith.index_cast %[[DIM_2]] : index to i64
-// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[T1]], %[[T2]], %[[T3]], %[[T4]] : tensor<4xi64>
-// CHECK:         %[[T5:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[FROM_ELEMENTS]] : (tensor<?x1x?x1x?xf32>, tensor<4xi64>) -> tensor<?x1x?x?xf32>
+// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[DIM]], %[[DIM_0]], %[[DIM_1]], %[[DIM_2]] : tensor<4xindex>
+// CHECK:         %[[T5:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[FROM_ELEMENTS]] : (tensor<?x1x?x1x?xf32>, tensor<4xindex>) -> tensor<?x1x?x?xf32>
 // CHECK:         %[[T6:.*]] = torch_c.from_builtin_tensor %[[T5]] : tensor<?x1x?x?xf32> -> !torch.vtensor<[?,1,?,?],f32>
 // CHECK:         return %[[T6]] : !torch.vtensor<[?,1,?,?],f32>
 func.func @torch.aten.squeeze.dim$from_end(%arg0: !torch.vtensor<[?,1,?,1,?],f32>) -> !torch.vtensor<[?,1,?,?],f32> {
@@ -453,15 +445,12 @@ func.func @torch.aten.squeeze.dim$from_end(%arg0: !torch.vtensor<[?,1,?,1,?],f32
 // CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[2,1,2,1,2],f32> -> tensor<2x1x2x1x2xf32>
 // CHECK:         %[[C0:.*]] = arith.constant 0 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<2x1x2x1x2xf32>
-// CHECK:         %[[T1:.*]] = arith.index_cast %[[DIM]] : index to i64
 // CHECK:         %[[C2:.*]] = arith.constant 2 : index
 // CHECK:         %[[DIM_0:.*]] = tensor.dim %[[T0]], %[[C2]] : tensor<2x1x2x1x2xf32>
-// CHECK:         %[[T2:.*]] = arith.index_cast %[[DIM_0]] : index to i64
 // CHECK:         %[[C4:.*]] = arith.constant 4 : index
 // CHECK:         %[[DIM_1:.*]] = tensor.dim %[[T0]], %[[C4]] : tensor<2x1x2x1x2xf32>
-// CHECK:         %[[T3:.*]] = arith.index_cast %[[DIM_1]] : index to i64
-// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[T1]], %[[T2]], %[[T3]] : tensor<3xi64>
-// CHECK:         %[[T4:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[FROM_ELEMENTS]] : (tensor<2x1x2x1x2xf32>, tensor<3xi64>) -> tensor<2x2x2xf32>
+// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[DIM]], %[[DIM_0]], %[[DIM_1]] : tensor<3xindex>
+// CHECK:         %[[T4:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[FROM_ELEMENTS]] : (tensor<2x1x2x1x2xf32>, tensor<3xindex>) -> tensor<2x2x2xf32>
 // CHECK:         %[[T5:.*]] = torch_c.from_builtin_tensor %[[T4]] : tensor<2x2x2xf32> -> !torch.vtensor<[2,2,2],f32>
 // CHECK:         return %[[T5]] : !torch.vtensor<[2,2,2],f32>
 func.func @torch.aten.squeeze$static(%arg0: !torch.vtensor<[2,1,2,1,2],f32>) -> !torch.vtensor<[2,2,2],f32> {
@@ -477,19 +466,15 @@ func.func @torch.aten.squeeze$static(%arg0: !torch.vtensor<[2,1,2,1,2],f32>) -> 
 // CHECK:         %[[INT0:.*]] = torch.constant.int 0
 // CHECK:         %[[C0:.*]] = arith.constant 0 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<?x?x?x?xf32>
-// CHECK:         %[[T1:.*]] = arith.index_cast %[[DIM]] : index to i64
 // CHECK:         %[[C1:.*]] = arith.constant 1 : index
 // CHECK:         %[[DIM_0:.*]] = tensor.dim %[[T0]], %[[C1]] : tensor<?x?x?x?xf32>
-// CHECK:         %[[T2:.*]] = arith.index_cast %[[DIM_0]] : index to i64
 // CHECK:         %[[C2:.*]] = arith.constant 2 : index
 // CHECK:         %[[DIM_1:.*]] = tensor.dim %[[T0]], %[[C2]] : tensor<?x?x?x?xf32>
-// CHECK:         %[[T3:.*]] = arith.index_cast %[[DIM_1]] : index to i64
 // CHECK:         %[[C3:.*]] = arith.constant 3 : index
 // CHECK:         %[[DIM_2:.*]] = tensor.dim %[[T0]], %[[C3]] : tensor<?x?x?x?xf32>
-// CHECK:         %[[T4:.*]] = arith.index_cast %[[DIM_2]] : index to i64
-// CHECK:         %[[C1_I64:.*]] = arith.constant 1 : i64
-// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[C1_I64]], %[[T1]], %[[T2]], %[[T3]], %[[T4]] : tensor<5xi64>
-// CHECK:         %[[T5:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[FROM_ELEMENTS]] : (tensor<?x?x?x?xf32>, tensor<5xi64>) -> tensor<1x?x?x?x?xf32>
+// CHECK:         %[[C1_I64:.*]] = arith.constant 1 : index
+// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[C1_I64]], %[[DIM]], %[[DIM_0]], %[[DIM_1]], %[[DIM_2]] : tensor<5xindex>
+// CHECK:         %[[T5:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[FROM_ELEMENTS]] : (tensor<?x?x?x?xf32>, tensor<5xindex>) -> tensor<1x?x?x?x?xf32>
 // CHECK:         %[[T6:.*]] = torch_c.from_builtin_tensor %[[T5]] : tensor<1x?x?x?x?xf32> -> !torch.vtensor<[1,?,?,?,?],f32>
 // CHECK:         return %[[T6]] : !torch.vtensor<[1,?,?,?,?],f32>
 func.func @torch.aten.unsqueeze$dim$0(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[1,?,?,?,?],f32> {
@@ -506,19 +491,15 @@ func.func @torch.aten.unsqueeze$dim$0(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !
 // CHECK:         %[[INT1:.*]] = torch.constant.int 1
 // CHECK:         %[[C0:.*]] = arith.constant 0 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<?x?x?x?xf32>
-// CHECK:         %[[T1:.*]] = arith.index_cast %[[DIM]] : index to i64
 // CHECK:         %[[C1:.*]] = arith.constant 1 : index
 // CHECK:         %[[DIM_0:.*]] = tensor.dim %[[T0]], %[[C1]] : tensor<?x?x?x?xf32>
-// CHECK:         %[[T2:.*]] = arith.index_cast %[[DIM_0]] : index to i64
 // CHECK:         %[[C2:.*]] = arith.constant 2 : index
 // CHECK:         %[[DIM_1:.*]] = tensor.dim %[[T0]], %[[C2]] : tensor<?x?x?x?xf32>
-// CHECK:         %[[T3:.*]] = arith.index_cast %[[DIM_1]] : index to i64
 // CHECK:         %[[C3:.*]] = arith.constant 3 : index
 // CHECK:         %[[DIM_2:.*]] = tensor.dim %[[T0]], %[[C3]] : tensor<?x?x?x?xf32>
-// CHECK:         %[[T4:.*]] = arith.index_cast %[[DIM_2]] : index to i64
-// CHECK:         %[[C1_I64:.*]] = arith.constant 1 : i64
-// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[T1]], %[[C1_I64]], %[[T2]], %[[T3]], %[[T4]] : tensor<5xi64>
-// CHECK:         %[[T5:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[FROM_ELEMENTS]] : (tensor<?x?x?x?xf32>, tensor<5xi64>) -> tensor<?x1x?x?x?xf32>
+// CHECK:         %[[C1_I64:.*]] = arith.constant 1 : index
+// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[DIM]], %[[C1_I64]], %[[DIM_0]], %[[DIM_1]], %[[DIM_2]] : tensor<5xindex>
+// CHECK:         %[[T5:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[FROM_ELEMENTS]] : (tensor<?x?x?x?xf32>, tensor<5xindex>) -> tensor<?x1x?x?x?xf32>
 // CHECK:         %[[T6:.*]] = torch_c.from_builtin_tensor %[[T5]] : tensor<?x1x?x?x?xf32> -> !torch.vtensor<[?,1,?,?,?],f32>
 // CHECK:         return %[[T6]] : !torch.vtensor<[?,1,?,?,?],f32>
 func.func @torch.aten.unsqueeze$dim$1(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,1,?,?,?],f32> {
@@ -535,19 +516,15 @@ func.func @torch.aten.unsqueeze$dim$1(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !
 // CHECK:         %[[INT:.*]]-2 = torch.constant.int -2
 // CHECK:         %[[C0:.*]] = arith.constant 0 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<?x?x?x?xf32>
-// CHECK:         %[[T1:.*]] = arith.index_cast %[[DIM]] : index to i64
 // CHECK:         %[[C1:.*]] = arith.constant 1 : index
 // CHECK:         %[[DIM_0:.*]] = tensor.dim %[[T0]], %[[C1]] : tensor<?x?x?x?xf32>
-// CHECK:         %[[T2:.*]] = arith.index_cast %[[DIM_0]] : index to i64
 // CHECK:         %[[C2:.*]] = arith.constant 2 : index
 // CHECK:         %[[DIM_1:.*]] = tensor.dim %[[T0]], %[[C2]] : tensor<?x?x?x?xf32>
-// CHECK:         %[[T3:.*]] = arith.index_cast %[[DIM_1]] : index to i64
 // CHECK:         %[[C3:.*]] = arith.constant 3 : index
 // CHECK:         %[[DIM_2:.*]] = tensor.dim %[[T0]], %[[C3]] : tensor<?x?x?x?xf32>
-// CHECK:         %[[T4:.*]] = arith.index_cast %[[DIM_2]] : index to i64
-// CHECK:         %[[C1_I64:.*]] = arith.constant 1 : i64
-// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[T1]], %[[T2]], %[[T3]], %[[C1_I64]], %[[T4]] : tensor<5xi64>
-// CHECK:         %[[T5:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[FROM_ELEMENTS]] : (tensor<?x?x?x?xf32>, tensor<5xi64>) -> tensor<?x?x?x1x?xf32>
+// CHECK:         %[[C1_I64:.*]] = arith.constant 1 : index
+// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[DIM]], %[[DIM_0]], %[[DIM_1]], %[[C1_I64]], %[[DIM_2]] : tensor<5xindex>
+// CHECK:         %[[T5:.*]] = stablehlo.dynamic_reshape %[[T0]], %[[FROM_ELEMENTS]] : (tensor<?x?x?x?xf32>, tensor<5xindex>) -> tensor<?x?x?x1x?xf32>
 // CHECK:         %[[T6:.*]] = torch_c.from_builtin_tensor %[[T5]] : tensor<?x?x?x1x?xf32> -> !torch.vtensor<[?,?,?,1,?],f32>
 // CHECK:         return %[[T6]] : !torch.vtensor<[?,?,?,1,?],f32>
 func.func @torch.aten.unsqueeze$from_end(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?,1,?],f32> {

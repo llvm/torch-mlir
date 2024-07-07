@@ -146,9 +146,7 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
           rewriter.getI64Type()),
       stablehloPadding);
 
-  const auto &options = getOptions();
-  auto inputShapeInfo =
-      hlo::getDimSizesOfTensor(rewriter, op, input, options.dimSizeIndexBits);
+  auto inputShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, input);
   if (failed(inputShapeInfo)) {
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
@@ -536,9 +534,7 @@ public:
         hlo::getConstTensor<float>(rewriter, op, {1.0}, {}).value();
     windowSizeConst =
         hlo::promoteType(rewriter, op.getLoc(), windowSizeConst, outTy);
-    const auto &options = ConvertAtenOp<AtenOpT>::getOptions();
-    auto inputShapeVec = *hlo::getDimSizesOfTensor(rewriter, op, input,
-                                                   options.dimSizeIndexBits);
+    auto inputShapeVec = *hlo::getDimIndexOfTensor(rewriter, op, input);
     auto inputShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
         op->getLoc(), inputShapeVec);
 

@@ -83,18 +83,15 @@ func.func @torch.aten.max_pool2d$padding(%arg0: !torch.vtensor<[?,?,?,?],f32>) -
 // CHECK:         %[[T5:.*]] = stablehlo.constant dense<0xFF800000> : tensor<f32>
 // CHECK:         %[[C0:.*]] = arith.constant 0 : index
 // CHECK:         %[[DIM:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<?x?x?xf32>
-// CHECK:         %[[T6:.*]] = arith.index_cast %[[DIM]] : index to i64
 // CHECK:         %[[C1:.*]] = arith.constant 1 : index
 // CHECK:         %[[DIM_0:.*]] = tensor.dim %[[T0]], %[[C1]] : tensor<?x?x?xf32>
-// CHECK:         %[[T7:.*]] = arith.index_cast %[[DIM_0]] : index to i64
 // CHECK:         %[[C2:.*]] = arith.constant 2 : index
 // CHECK:         %[[DIM_1:.*]] = tensor.dim %[[T0]], %[[C2]] : tensor<?x?x?xf32>
-// CHECK:         %[[T8:.*]] = arith.index_cast %[[DIM_1]] : index to i64
-// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[T6]], %[[T7]], %[[T8]] : tensor<3xi64>
-// CHECK:         %[[T9:.*]] = arith.muli %[[T8]], %[[T7]] : i64
-// CHECK:         %[[FROM_ELEMENTS_2:.*]] = tensor.from_elements %[[T6]], %[[T9]] : tensor<2xi64>
-// CHECK:         %[[T10:.*]] = stablehlo.dynamic_iota %[[FROM_ELEMENTS_2]], dim = 1 : (tensor<2xi64>) -> tensor<?x?xi64>
-// CHECK:         %[[T11:.*]] = stablehlo.dynamic_reshape %[[T10]], %[[FROM_ELEMENTS]] : (tensor<?x?xi64>, tensor<3xi64>) -> tensor<?x?x?xi64>
+// CHECK:         %[[FROM_ELEMENTS:.*]] = tensor.from_elements %[[DIM]], %[[DIM_0]], %[[DIM_1]] : tensor<3xindex>
+// CHECK:         %[[T9:.*]] = arith.muli %[[DIM_1]], %[[DIM_0]] : index
+// CHECK:         %[[FROM_ELEMENTS_2:.*]] = tensor.from_elements %[[DIM]], %[[T9]] : tensor<2xindex>
+// CHECK:         %[[T10:.*]] = stablehlo.dynamic_iota %[[FROM_ELEMENTS_2]], dim = 1 : (tensor<2xindex>) -> tensor<?x?xi64>
+// CHECK:         %[[T11:.*]] = stablehlo.dynamic_reshape %[[T10]], %[[FROM_ELEMENTS]] : (tensor<?x?xi64>, tensor<3xindex>) -> tensor<?x?x?xi64>
 // CHECK:         %[[T12:.*]] = stablehlo.constant dense<0> : tensor<i64>
 // CHECK:         %[[T13:.*]]:2 = "stablehlo.reduce_window"(%[[T0]], %[[T11]], %[[T5]], %[[T12]]) <{padding = dense<0> : tensor<3x2xi64>, window_dilations = array<i64: 1, 1, 1>, window_dimensions = array<i64: 1, 3, 3>, window_strides = array<i64: 1, 2, 2>}> ({
 // CHECK:         ^bb0(%[[ARG1:.*]]: tensor<f32>, %[[ARG2:.*]]: tensor<i64>, %[[ARG3:.*]]: tensor<f32>, %[[ARG4:.*]]: tensor<i64>):
@@ -146,18 +143,14 @@ func.func @torch.aten.max_pool2d_with_indices(%arg0: !torch.vtensor<[?,?,?],f32>
 // CHECK:           %[[VAL_7:.*]] = stablehlo.constant dense<1.000000e+00> : tensor<f32>
 // CHECK:           %[[IDX_0:.*]] = arith.constant 0 : index
 // CHECK:           %[[VAL_8:.*]] = tensor.dim %[[VAL_1]], %[[IDX_0]] : tensor<?x?x?x?xf32>
-// CHECK:           %[[VAL_9:.*]] = arith.index_cast %[[VAL_8]] : index to i64
 // CHECK:           %[[IDX_1:.*]] = arith.constant 1 : index
 // CHECK:           %[[VAL_10:.*]] = tensor.dim %[[VAL_1]], %[[IDX_1]] : tensor<?x?x?x?xf32>
-// CHECK:           %[[VAL_11:.*]] = arith.index_cast %[[VAL_10]] : index to i64
 // CHECK:           %[[IDX_2:.*]] = arith.constant 2 : index
 // CHECK:           %[[VAL_12:.*]] = tensor.dim %[[VAL_1]], %[[IDX_2]] : tensor<?x?x?x?xf32>
-// CHECK:           %[[VAL_13:.*]] = arith.index_cast %[[VAL_12]] : index to i64
 // CHECK:           %[[IDX_3:.*]] = arith.constant 3 : index
 // CHECK:           %[[VAL_14:.*]] = tensor.dim %[[VAL_1]], %[[IDX_3]] : tensor<?x?x?x?xf32>
-// CHECK:           %[[VAL_15:.*]] = arith.index_cast %[[VAL_14]] : index to i64
-// CHECK:           %[[VAL_16:.*]] = tensor.from_elements %[[VAL_9]], %[[VAL_11]], %[[VAL_13]], %[[VAL_15]] : tensor<4xi64>
-// CHECK:           %[[VAL_17:.*]] = stablehlo.dynamic_broadcast_in_dim %[[VAL_7]], %[[VAL_16]], dims = [] : (tensor<f32>, tensor<4xi64>) -> tensor<?x?x?x?xf32>
+// CHECK:           %[[VAL_16:.*]] = tensor.from_elements %[[VAL_8]], %[[VAL_10]], %[[VAL_12]], %[[VAL_14]] : tensor<4xindex>
+// CHECK:           %[[VAL_17:.*]] = stablehlo.dynamic_broadcast_in_dim %[[VAL_7]], %[[VAL_16]], dims = [] : (tensor<f32>, tensor<4xindex>) -> tensor<?x?x?x?xf32>
 // CHECK:           %[[VAL_18:.*]] = stablehlo.constant dense<0.000000e+00> : tensor<f32>
 // CHECK:           %[[VAL_19:.*]] = "stablehlo.reduce_window"(%[[VAL_17]], %[[VAL_18]])
 // CHECK{LITERAL}:    <{padding = dense<[[0, 0], [0, 0], [1, 1], [1, 1]]> : tensor<4x2xi64>, window_dilations = array<i64: 1, 1, 1, 1>, window_dimensions = array<i64: 1, 1, 3, 3>, window_strides = array<i64: 1, 1, 2, 2>}> ({

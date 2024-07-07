@@ -68,21 +68,29 @@ FailureOr<SmallVector<Value, 4>> getDimSizesOfTensor(PatternRewriter &rewriter,
                                                      Operation *op, Value value,
                                                      size_t dimSizeIndexBits);
 
+// Get the dimension sizes of the input tensor, given the dimension axes
+FailureOr<SmallVector<Value, 4>> getDimIndexOfTensor(PatternRewriter &rewriter,
+                                                     Operation *op, Value value,
+                                                     ArrayRef<int64_t> inpDims);
+
+// Get the dimension sizes of the input tensor
+FailureOr<SmallVector<Value, 4>>
+getDimIndexOfTensor(PatternRewriter &rewriter, Operation *op, Value value);
+
 // Get a tensor that unsqueezed the specified dimensions of the input tensor
 FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
-                                 Value tensor, ArrayRef<int64_t> inputUnsqzDims,
-                                 size_t dimSizeIndexBits);
+                                 Value tensor,
+                                 ArrayRef<int64_t> inputUnsqzDims);
 
 // Get a tensor that collapse the specified dimensions of the input tensor
 FailureOr<Value> collapseTensor(PatternRewriter &rewriter, Operation *op,
                                 Value tensor, int64_t collapseStartDim,
-                                int64_t collapseEndDim,
-                                size_t dimSizeIndexBits);
+                                int64_t collapseEndDim);
 
 // Get a tensor that splits the specified dimensions of the input tensor
 FailureOr<Value> splitTensor(PatternRewriter &rewriter, Operation *op,
                              Value tensor, int64_t splitDim,
-                             int64_t outerLength, size_t dimSizeIndexBits);
+                             int64_t outerLength);
 
 Value getConstantOfShape(PatternRewriter &rewriter, Location loc,
                          const APFloat &constant, Value shape,

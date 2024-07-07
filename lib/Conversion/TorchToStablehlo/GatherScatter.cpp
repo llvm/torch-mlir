@@ -438,16 +438,14 @@ LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
     rewriter.create<stablehlo::ReturnOp>(op->getLoc(), addResult);
   }
 
-  auto outShapeInfo =
-      hlo::getDimSizesOfTensor(rewriter, op, weight, options.dimSizeIndexBits);
+  auto outShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, weight);
   if (failed(outShapeInfo)) {
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
   }
   auto outShapeVec = *outShapeInfo;
   auto one = rewriter.create<mlir::arith::ConstantOp>(
-      op->getLoc(), rewriter.getIntegerAttr(
-                        rewriter.getIntegerType(options.dimSizeIndexBits), 1));
+      op->getLoc(), rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
   outShapeVec[0] = one;
   auto outShapeTensor =
       rewriter.create<mlir::tensor::FromElementsOp>(op->getLoc(), outShapeVec);
@@ -537,16 +535,13 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
         op, "only constant boolean `sparse_grad` param supported");
   }
 
-  auto options = getOptions();
-  auto indexShapeInfo =
-      hlo::getDimSizesOfTensor(rewriter, op, index, options.dimSizeIndexBits);
+  auto indexShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, index);
   if (failed(indexShapeInfo)) {
     return rewriter.notifyMatchFailure(
         op, "failed to get dim sizes of `index` param");
   }
-  auto intType = rewriter.getIntegerType(options.dimSizeIndexBits);
   auto one = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIntegerAttr(intType, 1));
+      loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
   auto toConcatIndexShapeValueVec = *indexShapeInfo;
   toConcatIndexShapeValueVec.push_back(one);
   auto toConcatIndexShape =
@@ -672,24 +667,20 @@ public:
       return rewriter.notifyMatchFailure(op, "invalid `dim` param detected");
     }
 
-    auto options = this->getOptions();
-
-    auto indexShapeInfo =
-        hlo::getDimSizesOfTensor(rewriter, op, index, options.dimSizeIndexBits);
+    auto indexShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, index);
     if (failed(indexShapeInfo)) {
       return rewriter.notifyMatchFailure(
           op, "failed to get dim sizes of `index` param");
     }
-    auto intType = rewriter.getIntegerType(options.dimSizeIndexBits);
 
     // slice src tensor to have the same shape bound of index tensor in the
     // leading dimensions. PyTorch has guaranteed that src tensor size will not
     // be smaller than that of index tensor. REF:
     // https://pytorch.org/docs/stable/generated/torch.Tensor.scatter_.html#torch.Tensor.scatter_
     auto zero = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(intType, 0));
+        loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 0));
     auto one = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(intType, 1));
+        loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
     SmallVector<Value> sliceIndicies(srcType.getRank(), zero);
     SmallVector<Value> sliceStrides(srcType.getRank(), one);
 

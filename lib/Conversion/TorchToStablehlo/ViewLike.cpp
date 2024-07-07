@@ -323,8 +323,7 @@ LogicalResult ConvertAtenOp<AtenSqueezeOp>::matchAndRewrite(
     return success();
   }
 
-  auto newDimSizesInfo = hlo::getDimSizesOfTensor(rewriter, op, self, dims,
-                                                  options.dimSizeIndexBits);
+  auto newDimSizesInfo = hlo::getDimIndexOfTensor(rewriter, op, self, dims);
   if (failed(newDimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
@@ -375,8 +374,7 @@ LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
         op, getTypeConverter()->convertType(op.getType()), self);
     return success();
   }
-  auto newDimSizesInfo = hlo::getDimSizesOfTensor(rewriter, op, self, dims,
-                                                  options.dimSizeIndexBits);
+  auto newDimSizesInfo = hlo::getDimIndexOfTensor(rewriter, op, self, dims);
   if (failed(newDimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
@@ -406,8 +404,8 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   if (!isValidDim(dim, inputRank + 1))
     return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
-  auto unsqzTensorInfo = hlo::unsqueezeTensor(rewriter, op, adaptor.getSelf(),
-                                              {dim}, options.dimSizeIndexBits);
+  auto unsqzTensorInfo =
+      hlo::unsqueezeTensor(rewriter, op, adaptor.getSelf(), {dim});
   if (failed(unsqzTensorInfo))
     return rewriter.notifyMatchFailure(op,
                                        "failed to create unsqueezed tensor");
@@ -438,8 +436,8 @@ LogicalResult ConvertAtenOp<PrimsCollapseOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "only constant end is currently supported");
 
-  auto collapseTensorInfo = hlo::collapseTensor(
-      rewriter, op, adaptor.getA(), start, end, options.dimSizeIndexBits);
+  auto collapseTensorInfo =
+      hlo::collapseTensor(rewriter, op, adaptor.getA(), start, end);
   if (failed(collapseTensorInfo))
     return rewriter.notifyMatchFailure(op, "failed to create collapsed tensor");
 
@@ -469,8 +467,8 @@ LogicalResult ConvertAtenOp<PrimsSplitDimOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "only constant outerLength is currently supported");
 
-  auto splitTensorInfo = hlo::splitTensor(
-      rewriter, op, adaptor.getA(), dim, outerLength, options.dimSizeIndexBits);
+  auto splitTensorInfo =
+      hlo::splitTensor(rewriter, op, adaptor.getA(), dim, outerLength);
 
   if (failed(splitTensorInfo))
     return rewriter.notifyMatchFailure(op, "failed to create split tensor");
