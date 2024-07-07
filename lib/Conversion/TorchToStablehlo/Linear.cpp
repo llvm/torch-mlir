@@ -834,9 +834,7 @@ public:
     auto inputUnsqzDims =
         llvm::to_vector<4>(llvm::seq<int64_t>(-nSpatialDims, 0));
 
-    const auto &options = getOptions();
-    bias = *hlo::unsqueezeTensor(rewriter, op, bias, inputUnsqzDims,
-                                 options.dimSizeIndexBits);
+    bias = *hlo::unsqueezeTensor(rewriter, op, bias, inputUnsqzDims);
     bias = hlo::promoteType(rewriter, op.getLoc(), bias, outTy);
 
     DenseI64ArrayAttr bcastDimensions;

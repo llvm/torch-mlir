@@ -79,8 +79,8 @@ getDimIndexOfTensor(PatternRewriter &rewriter, Operation *op, Value value);
 
 // Get a tensor that unsqueezed the specified dimensions of the input tensor
 FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
-                                 Value tensor, ArrayRef<int64_t> inputUnsqzDims,
-                                 size_t dimSizeIndexBits);
+                                 Value tensor,
+                                 ArrayRef<int64_t> inputUnsqzDims);
 
 // Get a tensor that collapse the specified dimensions of the input tensor
 FailureOr<Value> collapseTensor(PatternRewriter &rewriter, Operation *op,

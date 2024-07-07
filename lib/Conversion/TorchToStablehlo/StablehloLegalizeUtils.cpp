@@ -318,8 +318,8 @@ getDimIndexOfTensor(PatternRewriter &rewriter, Operation *op, Value value) {
 }
 
 FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
-                                 Value tensor, ArrayRef<int64_t> inputUnsqzDims,
-                                 size_t dimSizeIndexBits) {
+                                 Value tensor,
+                                 ArrayRef<int64_t> inputUnsqzDims) {
   // Returns a new tensor with dims of size 1 inserted at the specified
   // position.
   //
@@ -327,8 +327,7 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
   // tensor) are specified with unsqzDims. Indices must be in-order, and in
   // range of tensor rank. Thus, unsqueeze a rank 1 tensor with {0, 2}, {0, 1,
   // 3}, {0, 1, 2} are all valid dimension sets, but {0, 3}, {2} are not.
-  auto dimSizesInfo =
-      getDimSizesOfTensor(rewriter, op, tensor, dimSizeIndexBits);
+  auto dimSizesInfo = getDimIndexOfTensor(rewriter, op, tensor);
   if (failed(dimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
@@ -345,9 +344,8 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
   auto loc = op->getLoc();
   auto rankTy = dyn_cast<RankedTensorType>(tensor.getType());
   auto oldShape = rankTy.getShape();
-  Type intType = rewriter.getIntegerType(dimSizeIndexBits);
   auto one = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIntegerAttr(intType, 1));
+      loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
 
   std::vector<Value> newDimSizes;
   std::vector<int64_t> newShape;

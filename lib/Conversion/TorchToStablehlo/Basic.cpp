@@ -35,8 +35,7 @@ using namespace mlir::torch::Torch;
 using namespace mlir::torch::torch_to_stablehlo;
 
 LogicalResult broadcastRanks(PatternRewriter &rewriter, Operation *op,
-                             mlir::Value &self, mlir::Value &other,
-                             size_t dimSizeIndexBits) {
+                             mlir::Value &self, mlir::Value &other) {
   auto selfTy = dyn_cast<RankedTensorType>(self.getType());
   auto otherTy = dyn_cast<RankedTensorType>(other.getType());
   auto selfRank = selfTy.getRank();
@@ -46,16 +45,16 @@ LogicalResult broadcastRanks(PatternRewriter &rewriter, Operation *op,
   if (selfRank > otherRank) {
     auto unsqueezeDims =
         llvm::to_vector<4>(llvm::seq<int64_t>(0, selfRank - otherRank));
-    auto unsqueezeInfo = hlo::unsqueezeTensor(rewriter, op, other,
-                                              unsqueezeDims, dimSizeIndexBits);
+    auto unsqueezeInfo =
+        hlo::unsqueezeTensor(rewriter, op, other, unsqueezeDims);
     if (failed(unsqueezeInfo))
       return failure();
     other = *unsqueezeInfo;
   } else if (otherRank > selfRank) {
     auto unsqueezeDims =
         llvm::to_vector<4>(llvm::seq<int64_t>(0, otherRank - selfRank));
-    auto unsqueezeInfo = hlo::unsqueezeTensor(rewriter, op, self, unsqueezeDims,
-                                              dimSizeIndexBits);
+    auto unsqueezeInfo =
+        hlo::unsqueezeTensor(rewriter, op, self, unsqueezeDims);
     if (failed(unsqueezeInfo))
       return failure();
     self = *unsqueezeInfo;
@@ -740,12 +739,10 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
   self = hlo::promoteType(rewriter, op.getLoc(), self, outType);
   other = hlo::promoteType(rewriter, op.getLoc(), other, outType);
 
-  if (failed(
-          broadcastRanks(rewriter, op, self, cond, options.dimSizeIndexBits)))
+  if (failed(broadcastRanks(rewriter, op, self, cond)))
     return op.emitError("failed broadcast self and condition ranks");
 
-  if (failed(
-          broadcastRanks(rewriter, op, other, cond, options.dimSizeIndexBits)))
+  if (failed(broadcastRanks(rewriter, op, other, cond)))
     return op.emitError("failed broadcast other and condition ranks");
 
   rewriter.replaceOpWithNewOp<chlo::BroadcastSelectOp>(

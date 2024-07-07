@@ -404,8 +404,8 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   if (!isValidDim(dim, inputRank + 1))
     return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
-  auto unsqzTensorInfo = hlo::unsqueezeTensor(rewriter, op, adaptor.getSelf(),
-                                              {dim}, options.dimSizeIndexBits);
+  auto unsqzTensorInfo =
+      hlo::unsqueezeTensor(rewriter, op, adaptor.getSelf(), {dim});
   if (failed(unsqzTensorInfo))
     return rewriter.notifyMatchFailure(op,
                                        "failed to create unsqueezed tensor");
