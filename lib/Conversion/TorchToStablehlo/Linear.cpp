@@ -148,10 +148,9 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
     std::vector<int64_t> newShape(rhsShape.begin(),
                                   rhsShape.begin() + leadingRank);
     newShape.insert(newShape.end(), lhsShape.begin(), lhsShape.end());
-    auto newDimSizes = *hlo::getDimSizesOfTensor(rewriter, op, rhs, leadingDims,
-                                                 dimSizeIndexBits);
-    auto lhsDimSizes =
-        *hlo::getDimSizesOfTensor(rewriter, op, lhs, dimSizeIndexBits);
+    auto newDimSizes =
+        *hlo::getDimIndexOfTensor(rewriter, op, rhs, leadingDims);
+    auto lhsDimSizes = *hlo::getDimIndexOfTensor(rewriter, op, lhs);
     newDimSizes.insert(newDimSizes.end(), lhsDimSizes.begin(),
                        lhsDimSizes.end());
     lhs = getBroadcastTensor(rewriter, op, lhs, newShape, newDimSizes,
@@ -160,10 +159,9 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
     std::vector<int64_t> newShape(lhsShape.begin(),
                                   lhsShape.begin() + leadingRank);
     newShape.insert(newShape.end(), rhsShape.begin(), rhsShape.end());
-    auto newDimSizes = *hlo::getDimSizesOfTensor(rewriter, op, lhs, leadingDims,
-                                                 dimSizeIndexBits);
-    auto rhsDimSizes =
-        *hlo::getDimSizesOfTensor(rewriter, op, rhs, dimSizeIndexBits);
+    auto newDimSizes =
+        *hlo::getDimIndexOfTensor(rewriter, op, lhs, leadingDims);
+    auto rhsDimSizes = *hlo::getDimIndexOfTensor(rewriter, op, rhs);
     newDimSizes.insert(newDimSizes.end(), rhsDimSizes.begin(),
                        rhsDimSizes.end());
     rhs = getBroadcastTensor(rewriter, op, rhs, newShape, newDimSizes,
@@ -207,10 +205,8 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
     return;
   }
 
-  auto lhsDimSizes =
-      *hlo::getDimSizesOfTensor(rewriter, op, lhs, dimSizeIndexBits);
-  auto rhsDimSizes =
-      *hlo::getDimSizesOfTensor(rewriter, op, rhs, dimSizeIndexBits);
+  auto lhsDimSizes = *hlo::getDimIndexOfTensor(rewriter, op, lhs);
+  auto rhsDimSizes = *hlo::getDimIndexOfTensor(rewriter, op, rhs);
 
   if (!lhsBroadcastDims.empty()) {
     SmallVector<int64_t> lhsNewShape(newBatchShape);
