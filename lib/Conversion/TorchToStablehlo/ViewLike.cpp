@@ -323,8 +323,7 @@ LogicalResult ConvertAtenOp<AtenSqueezeOp>::matchAndRewrite(
     return success();
   }
 
-  auto newDimSizesInfo = hlo::getDimSizesOfTensor(rewriter, op, self, dims,
-                                                  options.dimSizeIndexBits);
+  auto newDimSizesInfo = hlo::getDimIndexOfTensor(rewriter, op, self, dims);
   if (failed(newDimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
@@ -375,8 +374,7 @@ LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
         op, getTypeConverter()->convertType(op.getType()), self);
     return success();
   }
-  auto newDimSizesInfo = hlo::getDimSizesOfTensor(rewriter, op, self, dims,
-                                                  options.dimSizeIndexBits);
+  auto newDimSizesInfo = hlo::getDimIndexOfTensor(rewriter, op, self, dims);
   if (failed(newDimSizesInfo))
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
