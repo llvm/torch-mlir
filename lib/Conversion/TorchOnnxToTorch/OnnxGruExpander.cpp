@@ -189,6 +189,8 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   Location loc = binder.getLoc();
   mlir::ImplicitLocOpBuilder b(loc, rewriter);
 
+  auto intType = b.getType<IntType>();
+
   // Binding arguments
   ValueTensorType yTy, Y_hType;
   if (binder.tensorResultTypeAtIndex(yTy, 0) ||
@@ -203,8 +205,10 @@ LogicalResult OnnxGruExpander(OpBinder binder,
     return rewriter.notifyMatchFailure(binder.op,
                                        "Missing required input tensor");
 
-  if (binder.tensorOperandAtIndex(B, 3))
-    B = b.create<AtenZerosOp>(W.getType(), W);
+  if (binder.tensorOperandAtIndex(B, 3)) {
+    // if no b found, set to null and create one later
+    B = nullptr;
+  }
 
   int64_t hidden_size;
   if (binder.s64IntegerAttr(hidden_size, "hidden_size"))
@@ -241,7 +245,7 @@ LogicalResult OnnxGruExpander(OpBinder binder,
     return rewriter.notifyMatchFailure(binder.op,
                                        "Unsupported direction attribute value");
 
-  int64_t num_directions = 1 + (direction == "bidirectional");
+  int64_t num_directions = direction == "bidirectional" ? 2 : 1;
   // Validations
   auto XShape = xTy.getSizes();
   int64_t batch_size = (layout == 0) ? XShape[1] : XShape[0];
@@ -274,7 +278,6 @@ LogicalResult OnnxGruExpander(OpBinder binder,
       xTy.getDtype());
 
   if (binder.tensorOperandAtIndex(initial_h, 5)) {
-    auto intType = b.getType<IntType>();
     Value cstNumDirections =
         b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(num_directions));
     Value cstBatchSize =
@@ -311,7 +314,6 @@ LogicalResult OnnxGruExpander(OpBinder binder,
         llvm::SmallVector<int64_t>{inputType.getSizes().drop_front()},
         inputType.getDtype()));
 
-    auto intType = b.getType<IntType>();
     Value selectDim = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
     Value cstDirection =
         b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(direction));
@@ -319,13 +321,26 @@ LogicalResult OnnxGruExpander(OpBinder binder,
                                      cstDirection);
   };
 
+  // fill in B
+
+  if (B == nullptr) {
+    SmallVector<int64_t> BShape = {num_directions, 2 * hidden_size};
+    SmallVector<Value> BShapeListContents = {
+        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(num_directions)),
+        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(2 * hidden_size))};
+    Value BShapeList = b.create<PrimListConstructOp>(
+        b.getType<ListType>(intType), BShapeListContents);
+    auto BType = b.getType<ValueTensorType>(BShape, wTy.getDtype());
+    B = b.create<Torch::AtenZerosOp>(BType, BShapeList, cstXDtype, cstNone,
+                                     cstNone, cstNone);
+  }
+
   Value W_forward = getDirection(0, W);
   Value R_forward = getDirection(0, R);
   Value B_forward = getDirection(0, B);
   Value initial_h_forward = getDirection(0, initial_h);
 
   GruWeights weights;
-  auto intType = b.getType<IntType>();
 
   Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
   Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
