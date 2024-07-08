@@ -2248,16 +2248,22 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // get pads (earlier versions use an attribute, newer versions use a
         // tensor input)
-        SmallVector<int64_t> padInts;
         SmallVector<Value> padsTensorValue;
         if (binder.tensorOperandAtIndex(pads, 1)) {
           SmallVector<int64_t> defaultPads(2 * dataRank, 0);
+          SmallVector<int64_t> padInts;
           if (binder.s64IntegerArrayAttr(padInts, "pads", defaultPads))
-            return failure();
+            return rewriter.notifyMatchFailure(binder.op,
+                                               "pads binder failure");
           // opset_version 1 uses the attribute name "paddings"
-          if (padInts == defaultPads &&
-              binder.s64IntegerArrayAttr(padInts, "paddings", defaultPads))
-            return failure();
+          if (padInts == defaultPads) {
+            SmallVector<int64_t> paddingsInts;
+            if (binder.s64IntegerArrayAttr(paddingsInts, "paddings",
+                                           defaultPads))
+              return rewriter.notifyMatchFailure(binder.op,
+                                                 "paddings binder failure");
+            padInts = paddingsInts;
+          }
           for (auto p : padInts)
             padsTensorValue.push_back(rewriter.create<Torch::ConstantIntOp>(
                 loc, rewriter.getI64IntegerAttr(p)));
@@ -2355,6 +2361,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                     Torch::ListType::get(rewriter.getType<Torch::IntType>()),
                     padsRearrange)
                 .getResult();
+        // translate a few mismatching mode names ONNX -> Torch
+        mode = (mode == "edge") ? "replicate" : mode;
+        mode = (mode == "wrap") ? "circular" : mode;
+
         Value modeVal = rewriter.create<Torch::ConstantStrOp>(
             loc, rewriter.getStringAttr(mode));
 

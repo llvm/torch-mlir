@@ -82,6 +82,28 @@ func.func @matmul_commuting(%arg0: !torch.vtensor<[2,128,32,32],si8>) -> !torch.
 
 // -----
 
+func.func @mm_pad_commute(%arg0: !torch.vtensor<[8,8],si8>, %arg1: !torch.vtensor<[11,4],si8>) -> !torch.vtensor<[9,4],f32> {
+  %scale = torch.constant.float 0.5
+  %false = torch.constant.bool false
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %floatpad = torch.constant.float 3.5
+  %none = torch.constant.none
+  %zp = torch.constant.int -128
+  %6 = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %one : !torch.vtensor<[8,8],si8>, !torch.float, !torch.int -> !torch.vtensor<[8,8],!torch.qint8>
+  %7 = torch.aten.dequantize.tensor %6 : !torch.vtensor<[8,8],!torch.qint8> -> !torch.vtensor<[8,8],f32>
+  %list = torch.prim.ListConstruct %one, %two, %zero, %one : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %str = torch.constant.str "constant"
+  %pad = torch.aten.pad %7, %list, %str, %none : !torch.vtensor<[8,8],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[9,11],f32>
+  %12 = torch.aten._make_per_tensor_quantized_tensor %arg1, %scale, %zero : !torch.vtensor<[11,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[11,4],!torch.qint8>
+  %13 = torch.aten.dequantize.tensor %12 : !torch.vtensor<[11,4],!torch.qint8> -> !torch.vtensor<[11,4],f32>
+  %16 = torch.aten.mm %pad, %13 : !torch.vtensor<[9,11],f32>, !torch.vtensor<[11,4],f32> -> !torch.vtensor<[9,4],f32>
+  return %16 : !torch.vtensor<[9,4],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @convolution_bias
 func.func @convolution_bias(%arg0: !torch.vtensor<[1,3,8,8],si8>, %arg1: !torch.vtensor<[3,3,2,2],si8>, %arg2 : !torch.vtensor<[3], f32>) -> !torch.vtensor<[1,3,7,7],f32> {
   %scale = torch.constant.float 0.5

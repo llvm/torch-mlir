@@ -110,15 +110,23 @@ public:
         commutingOpStack.pop();
         llvm::SmallVector<Value> currOperands(currOp->getOperands());
         currOperands[0] = oldOpd;
+        // pad ops aren't quite commuting, so we include some extra logic to
+        // quantize the padding value
         if (isa<Torch::AtenPadOp, Torch::AtenConstantPadNdOp>(currOp)) {
           Value floatPadValue = currOperands.back();
-          Value intPadValue = rewriter.create<Torch::AtenAddFloatIntOp>(
-              loc, floatPadValue, zeroPoint);
-          intPadValue =
-              rewriter.create<Torch::AtenDivFloatOp>(loc, intPadValue, scale);
-          intPadValue =
-              rewriter.create<Torch::AtenIntScalarOp>(loc, intPadValue);
-          currOperands.back() = intPadValue;
+          Value quantPadValue;
+          if (isa<Torch::NoneType>(floatPadValue.getType()))
+            quantPadValue = rewriter.create<AtenFloatScalarOp>(loc, zeroPoint);
+          else {
+            floatPadValue =
+                rewriter.create<AtenFloatScalarOp>(loc, floatPadValue);
+            quantPadValue = rewriter.create<Torch::AtenDivFloatOp>(
+                loc, floatPadValue, scale);
+            quantPadValue = rewriter.create<Torch::AtenAddFloatIntOp>(
+                loc, quantPadValue, zeroPoint);
+          }
+          // quantPadValue is a float, but will get truncated
+          currOperands.back() = quantPadValue;
         }
         // get new result type
         auto oldType = cast<ValueTensorType>(currOp->getResultTypes()[0]);
@@ -387,7 +395,8 @@ public:
         RemoveUnused<Aten_MakePerTensorQuantizedTensorOp>,
         RemoveUnused<AtenTransposeIntOp>, RemoveUnused<AtenSliceTensorOp>,
         RemoveUnused<AtenReshapeOp>, RemoveUnused<PrimsCollapseOp>,
-        RemoveUnused<AtenViewOp>,
+        RemoveUnused<AtenViewOp>, RemoveUnused<AtenPadOp>,
+        RemoveUnused<AtenConstantPadNdOp>,
         QuantizeOperandsPastCommutingOps<AtenConvolutionOp, 5>,
         QuantizeOperandsPastCommutingOps<AtenReluOp, 0>,
         QuantizeOperandsPastCommutingOps<AtenMatmulOp, 2>,
