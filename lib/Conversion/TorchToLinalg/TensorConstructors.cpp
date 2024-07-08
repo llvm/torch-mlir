@@ -276,7 +276,6 @@ public:
         SmallVector<int64_t> lowPadding(numDims, 0);
         SmallVector<int64_t> highPadding(numDims, 0);
         highPadding[vDim] = padInts[3];
-        vLeftSlice.dump();
         vLeftSlice = torch_to_linalg::getPaddedTensor(
             op, rewriter, vLeftSlice, lowPadding, highPadding, bottomLeftValue);
       }

@@ -125,7 +125,30 @@ public:
             quantPadValue = rewriter.create<Torch::AtenAddFloatIntOp>(
                 loc, quantPadValue, zeroPoint);
           }
-          // quantPadValue is a float, but will get truncated
+          // clamp pad value to qint range
+          if (auto intType = dyn_cast<mlir::IntegerType>(intDType)) {
+            bool isSigned = intType.isSignedInteger();
+            int64_t width = intType.getWidth();
+            assert(width < 64 &&
+                   "quantized int bitwidth should be less than 64");
+            int64_t minInt = isSigned ? -(1 << (width - 1)) : 0;
+            int64_t maxInt = isSigned ? -minInt - 1 : ((1 << width) - 1);
+            Value minQValueFloat = rewriter.create<ConstantFloatOp>(
+                loc, rewriter.getF64FloatAttr(minInt));
+            Value maxQValueFloat = rewriter.create<ConstantFloatOp>(
+                loc, rewriter.getF64FloatAttr(maxInt));
+            SmallVector<int64_t> emptyShape;
+            auto floatTensorType = rewriter.getType<Torch::ValueTensorType>(
+                emptyShape, rewriter.getF64Type());
+            Value quantPadValueTensor = createRank0Tensor(
+                rewriter, loc, floatTensorType, quantPadValue);
+            Value clampedTensor = rewriter.create<Torch::AtenClampOp>(
+                loc, floatTensorType, quantPadValueTensor, minQValueFloat,
+                maxQValueFloat);
+            quantPadValue = rewriter.create<Torch::AtenItemOp>(
+                loc, rewriter.getType<Torch::FloatType>(), clampedTensor);
+          }
+          // quantPadValue is a float, but will get converted/truncated
           currOperands.back() = quantPadValue;
         }
         // get new result type
