@@ -6393,31 +6393,39 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
     // try to reduce the number of padding dims if possible
     if (matchPattern(op.getPad(), m_TorchListOfConstantInts(padInts))) {
       if ((padInts.size() % 2) == 1)
-        return rewriter.notifyMatchFailure(op, "expected an even number of pads");
+        return rewriter.notifyMatchFailure(op,
+                                           "expected an even number of pads");
 
-      for (unsigned i = padInts.size() - 1; i > 0; i-=2) {
-        if (padInts[i] == 0 && padInts[i-1] == 0)
-          usefulPadIndexEnd = i-1;
+      for (unsigned i = padInts.size() - 1; i > 0; i -= 2) {
+        if (padInts[i] == 0 && padInts[i - 1] == 0)
+          usefulPadIndexEnd = i - 1;
         else
           break;
       }
       if (usefulPadIndexEnd == 0) {
         rewriter.replaceOp(op, op.getSelf());
         return success();
-      } 
+      }
     }
 
-    // we don't have support for 1-D replicate pad, so pass it as 2d if possible.
+    // we don't have support for 1-D replicate pad, so pass it as 2d if
+    // possible.
     // TODO: add support for AtenReplicatePad1dOp and remove this.
     if (mode == "replicate" && usefulPadIndexEnd == 2 && padValues.size() >= 4)
       usefulPadIndexEnd = 4;
-    
-    // make a new list of padding ints if dimensionality reduction can be performed
+
+    // make a new list of padding ints if dimensionality reduction can be
+    // performed
     if (usefulPadIndexEnd < padValues.size()) {
-      ArrayRef<Value> usefulPadValues(padValues.begin(), padValues.begin() + usefulPadIndexEnd);
-      usefulPads = rewriter.create<PrimListConstructOp>(op.getLoc(), rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()), usefulPadValues);
-      unsigned numPadDims = usefulPadIndexEnd / 2;
+      ArrayRef<Value> usefulPadValues(padValues.begin(),
+                                      padValues.begin() + usefulPadIndexEnd);
+      usefulPads = rewriter.create<PrimListConstructOp>(
+          op.getLoc(),
+          rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
+          usefulPadValues);
     }
+
+    unsigned numPadDims = usefulPadIndexEnd / 2;
 
     if (mode == "reflect") {
       // only support for relectionpad 1d and 2d
