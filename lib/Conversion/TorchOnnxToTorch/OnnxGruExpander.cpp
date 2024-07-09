@@ -190,6 +190,9 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   mlir::ImplicitLocOpBuilder b(loc, rewriter);
 
   auto intType = b.getType<IntType>();
+  Value cstNone = b.create<ConstantNoneOp>();
+  Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
+  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
 
   // Binding arguments
   ValueTensorType yTy, Y_hType;
@@ -284,7 +287,6 @@ LogicalResult OnnxGruExpander(OpBinder binder,
         b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(batch_size));
     Value cstHiddenSize =
         b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
-    Value cstNone = b.create<ConstantNoneOp>();
     Value hShape = b.create<PrimListConstructOp>(
         b.getType<ListType>(intType),
         ValueRange({cstNumDirections, cstBatchSize, cstHiddenSize}));
