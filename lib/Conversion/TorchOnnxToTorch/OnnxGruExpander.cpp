@@ -193,6 +193,7 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   Value cstNone = b.create<ConstantNoneOp>();
   Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
   Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+  Value cstTwo = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(2));
 
   // Binding arguments
   ValueTensorType yTy, Y_hType;
@@ -324,7 +325,7 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   };
 
   // fill in B
-
+  Value cstXDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
   if (B == nullptr) {
     SmallVector<int64_t> BShape = {num_directions, 2 * hidden_size};
     SmallVector<Value> BShapeListContents = {
@@ -343,10 +344,6 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   Value initial_h_forward = getDirection(0, initial_h);
 
   GruWeights weights;
-
-  Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
-  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
-  Value cstTwo = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(2));
 
   // Slice a tensor into numSlices slices of size sliceSize
   // This is used for slicing the weights & biases into the individual gates
