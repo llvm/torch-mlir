@@ -88,11 +88,16 @@ def test_tanh_sigmoid_cat_custom_op():
 
 @run
 # CHECK-LABEL: test_custom_op_array_output
-# CHECK:  func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[2,3],f32>)
+# CHECK:  func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,3],f32>)
+# CHECK:  %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 1, max_val = 10} : !torch.int
 # CHECK:  %[[int:.+]] = torch.constant.int 4
-# CHECK:  %[[V0:.+]] = torch.operator "torch.my_custom_library.array_output_op"(%[[int]], %[[ARG0]]) : (!torch.int, !torch.vtensor<[2,3],f32>) -> !torch.list<vtensor>
-# CHECK: %[[V1:.+]]:4 = torch.prim.ListUnpack %[[V0]] : !torch.list<vtensor> -> !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>
-# CHECK: return %[[V1]]#0, %[[V1]]#1, %[[V1]]#2, %[[V1]]#3 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>
+# CHECK:  %[[V0:.+]] = torch.operator "torch.my_custom_library.array_output_op"(%[[int]], %[[ARG0]]) : (!torch.int, !torch.vtensor<[?,3],f32>) -> !torch.list<vtensor>
+# CHECK: %[[V1:.+]]:4 = torch.prim.ListUnpack %[[V0]] : !torch.list<vtensor> -> !torch.vtensor<[?,3],f32>, !torch.vtensor<[?,3],f32>, !torch.vtensor<[?,3],f32>, !torch.vtensor<[?,3],f32>
+# CHECK: torch.bind_symbolic_shape %[[V1]]#0, [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
+# CHECK: torch.bind_symbolic_shape %[[V1]]#1, [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
+# CHECK: torch.bind_symbolic_shape %[[V1]]#2, [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
+# CHECK: torch.bind_symbolic_shape %[[V1]]#3, [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
+# CHECK: return %[[V1]]#0, %[[V1]]#1, %[[V1]]#2, %[[V1]]#3 : !torch.vtensor<[?,3],f32>, !torch.vtensor<[?,3],f32>, !torch.vtensor<[?,3],f32>, !torch.vtensor<[?,3],f32>
 def test_custom_op_array_output():
     m = Library("my_custom_library", "DEF")
     m.define("array_output_op(int num_outs, Tensor a) -> Tensor[]")
@@ -113,10 +118,16 @@ def test_custom_op_array_output():
         def forward(self, a):
             return torch.ops.my_custom_library.array_output_op(4, a)
 
+    dim = Dim("n", min=1, max=10)
+    dynamic_shapes = {
+        "a": {0: dim},
+    }
+
     a = torch.rand(2, 3)
     m = fx.export_and_import(
         ArrayOutputCustomOp(),
         a,
         import_symbolic_shape_expressions=True,
+        dynamic_shapes=dynamic_shapes,
     )
     print(m)
