@@ -53,13 +53,8 @@ class RefBackendInvoker:
 
     def __getattr__(self, function_name: str):
         def invoke(*args):
-            for arg in args:
-                print(arg)
             mlir_args = [ir.DenseElementsAttr.get(arg, context=self.module.context) for arg in args]
-            for arg in mlir_args:
-                print(arg)
             rets = eval_module(self.module, mlir_args)
-            print(rets)
             rets = [convert_dense_elements_attr_to_numpy(i) for i in rets]
             if len(rets) == 1:
                 return rets[0]
