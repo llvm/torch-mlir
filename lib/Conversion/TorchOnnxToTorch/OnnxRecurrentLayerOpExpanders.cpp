@@ -30,7 +30,7 @@ Value getDirection(ImplicitLocOpBuilder b, int64_t direction, Value input) {
   Value cstDirection =
       b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(direction));
   return b.create<AtenSelectIntOp>(outputType, input, selectDim, cstDirection);
-};
+}
 
 struct RnnWeights {
   Value Wi;
