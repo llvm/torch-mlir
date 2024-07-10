@@ -86,6 +86,12 @@ def test_tanh_sigmoid_cat_custom_op():
 
 
 @run
+# CHECK-LABEL: test_custom_op_array_output
+# CHECK:  func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[2,3],f32>)
+# CHECK:  %[[int:.+]] = torch.constant.int 4
+# CHECK:  %[[V0:.+]] = torch.operator "torch.my_custom_library.array_output_op"(%[[int]], %[[ARG0]]) : (!torch.int, !torch.vtensor<[2,3],f32>) -> !torch.list<vtensor>
+# CHECK: %[[V1:.+]]:4 = torch.prim.ListUnpack %[[V0]] : !torch.list<vtensor> -> !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>
+# CHECK: return %[[V1]]#0, %[[V1]]#1, %[[V1]]#2, %[[V1]]#3 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>
 def test_custom_op_array_output():
     m = Library("my_custom_library", "DEF")
     m.define("array_output_op(int num_outs, Tensor a) -> Tensor[]")
@@ -104,7 +110,7 @@ def test_custom_op_array_output():
             super().__init__()
 
         def forward(self, a):
-            return torch.ops.my_custom_library.array_output_op(10, a)
+            return torch.ops.my_custom_library.array_output_op(4, a)
 
     a = torch.rand(2,3)
     m = fx.export_and_import(
@@ -113,4 +119,3 @@ def test_custom_op_array_output():
         import_symbolic_shape_expressions=True,
     )
     print(m)
-
