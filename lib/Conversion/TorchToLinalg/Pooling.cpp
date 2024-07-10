@@ -584,6 +584,186 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenMaxUnpool3dOp final
+    : public OpConversionPattern<AtenMaxUnpool3dOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenMaxUnpool3dOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    llvm::errs() << "ConvertAtenMaxUnpool3dOp 1\n";
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    llvm::errs() << "ConvertAtenMaxUnpool3dOp 2\n";
+    Location loc = op->getLoc();
+    const TypeConverter *typeConverter = getTypeConverter();
+    Value self = adaptor.getSelf();
+    auto selfType = cast<RankedTensorType>(self.getType());
+    if (!selfType.hasStaticShape())
+      return rewriter.notifyMatchFailure(op, "input type must be of static shape");
+
+    auto resType = typeConverter->convertType<RankedTensorType>(op.getType());
+    if (!resType)
+      return rewriter.notifyMatchFailure(op, "invalid result type");
+
+    if (!resType.hasStaticShape())
+      return rewriter.notifyMatchFailure(op, "output type must be of static shape");
+
+    llvm::errs() << "ConvertAtenMaxUnpool3dOp 3\n";
+
+    auto getParam = [&](Value val, SmallVectorImpl<int64_t> &ret) -> LogicalResult {
+      if (!matchPattern(val, m_TorchListOfConstantInts(ret)))
+        return rewriter.notifyMatchFailure(op, "only support constant int strides");
+      SmallVector<Value> temp;
+      llvm::errs() << "ConvertAtenMaxUnpool3dOp 3.1\n";
+      if (!getListConstructElements(val, temp))
+        return rewriter.notifyMatchFailure(op, "expected a ListConstruct");
+
+      llvm::errs() << "ConvertAtenMaxUnpool3dOp 3.2\n";
+      for (Value t : temp) {
+        llvm::errs() << "ConvertAtenMaxUnpool3dOp 3.3\n";
+        std::optional<int64_t> i = getConstantIntValue(t);
+        llvm::errs() << "ConvertAtenMaxUnpool3dOp 3.4 " << i << "\n";
+        if (!i)
+          return rewriter.notifyMatchFailure(op, "not a constant int");
+
+        ret.emplace_back(*i);
+      }
+      llvm::errs() << "ConvertAtenMaxUnpool3dOp 3.5\n";
+      return success();
+    };
+
+    // SmallVector<int64_t> outputSize;
+    SmallVector<int64_t> stride;
+    SmallVector<int64_t> padding;
+    // if (failed(getParam(op.getStride(), stride)) ||
+    //     failed(getParam(op.getPadding(), padding)))
+    //   return failure();
+
+    if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)))
+        return rewriter.notifyMatchFailure(op, "only support constant int strides");
+
+    if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)))
+        return rewriter.notifyMatchFailure(op, "only support constant int padding");
+
+    llvm::errs() << "ConvertAtenMaxUnpool3dOp 4\n";
+
+    if (stride.size() != 3 || padding.size() != 3)
+      return rewriter.notifyMatchFailure(op, "stride and padding must be of size 3");
+
+    llvm::errs() << "ConvertAtenMaxUnpool3dOp 5\n";
+
+    // SmallVector<Value> outputSize;
+    // if (!getListConstructElements(op.getOutputSize(), outputSize))
+    //   return rewriter.notifyMatchFailure(op, "output size must be a list");
+
+    // outputSize = getTypeConvertedValues(rewriter, loc, typeConverter, outputSize);
+    int64_t outRank = resType.getRank();
+    int64_t NC = outRank - 3;
+    // TODO: kernelSize is not encoded, so we have to reconstruct it from the
+    // other params.
+    // SmallVector<int64_t> kernelSize;
+    // SmallVector<int64_t> outSizePadded = outputSize;
+    // for (auto &&[i, inSize, outSize, str, pad] : llvm::enumerate(selfType.getShape().take_back(3), ArrayRef(outputSize).take_back(3), stride, padding)) {
+    //   // TODO: dilation is not encoded in the op, so we have to assume 1.
+    //   int64_t dilation = 1;
+    //   int64_t kernelDim = (outSize + pad * 2 - inSize * str - 1) / dilation + 1;
+    //   kernelSize.emplace_back(kernelDim);
+    //   outSizePadded[i + outRank - 3] = outSize + pad;
+    // }
+
+    Type indexType = rewriter.getIndexType();
+    SmallVector<Value> outSizePadded;
+    for (auto &&[i, size] : llvm::enumerate(resType.getShape())) {
+      int64_t pad = 0;
+      if (int64_t(i) >= NC)
+        pad = padding[i - NC];
+
+      outSizePadded.emplace_back(rewriter.create<arith::ConstantIndexOp>(loc, size + pad));
+    }
+    // for (int64_t dim : outSizePadded)
+    //   outSizeValues.emplace_back(rewriter.create<arith::ConstantIndexOp>(loc, dim));
+
+    Value init = rewriter.create<tensor::EmptyOp>(loc, getAsOpFoldResult(outSizePadded), selfType.getElementType());
+
+    SmallVector<AffineExpr> inputExprs;
+    SmallVector<AffineExpr> outputExprs;
+    for (auto i : llvm::seq<int64_t>(0, outRank)) {
+      AffineExpr dim = rewriter.getAffineDimExpr(i);
+      outputExprs.emplace_back(dim);
+      if (i < NC) {
+        inputExprs.emplace_back(dim);
+      } else {
+        int64_t j = i - NC;
+        inputExprs.emplace_back(dim.floorDiv(stride[j]));
+      }
+    }
+
+    SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
+        {inputExprs, inputExprs, outputExprs}, rewriter.getContext());
+
+    SmallVector<utils::IteratorType> iteratorTypes(
+        outRank, utils::IteratorType::parallel);
+
+    auto computeIndex = [&](OpBuilder &b, Location loc) -> Value {
+      Value ret;
+      for (auto i : llvm::seq<int64_t>(NC, outRank)) {
+        Value idx = b.create<linalg::IndexOp>(loc, i);
+        // Adjust for the pad
+        int64_t pad = padding[i - NC];
+        if (pad != 0) {
+          Value padVal = b.create<arith::ConstantIndexOp>(loc, pad);
+          idx = b.create<arith::SubIOp>(loc, idx, padVal);
+        }
+
+        if (!ret) {
+          ret = idx;
+        } else {
+          Value size = outSizePadded[i];
+          ret = b.create<arith::MulIOp>(loc, ret, size);
+          ret = b.create<arith::AddIOp>(loc, ret, idx);
+        }
+      }
+      return ret;
+    };
+
+    auto builder = [&](OpBuilder &b, Location loc, ValueRange args) {
+      // Compute current output flat index and compare it with the value from
+      // indices arg.
+      Value input = args[0];
+      Value zero = b.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(input.getType()));
+      Value index = b.create<arith::IndexCastOp>(loc, indexType, args[1]);
+      Value currentIndex = computeIndex(b, loc);
+      Value cmp = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, index, currentIndex);
+      Value out = b.create<arith::SelectOp>(loc, cmp, input, zero);
+      // currentIndex = castIndexToInt64(b, loc, currentIndex);
+      // out = b.create<arith::SIToFPOp>(loc, input.getType(), currentIndex);
+      b.create<linalg::YieldOp>(loc, out);
+    };
+
+    Value result = rewriter.create<linalg::GenericOp>(loc,
+      /*resultTensorTypes=*/init.getType(),
+      /*inputs=*/ValueRange({self, adaptor.getIndices()}),
+      /*outputs=*/init,
+      /*indexingMaps=*/indexingMaps,
+      /*iteratorTypes=*/iteratorTypes, builder).getResult(0);
+
+    if (llvm::any_of(padding, [](int64_t v) { return v != 0; })) {
+      // MaxPool input was padded, unpad it by taking the slice.
+
+    }
+
+    // auto parent = op->getParentOp();
+    rewriter.replaceOp(op, result);
+    llvm::errs() << "ConvertAtenMaxUnpool3dOp end\n";
+    // parent->dump();
+    return success();
+  }
+};
+}
+
+namespace {
 template <typename OpTy, typename PoolingOpTy, int Dim>
 class ConvertAtenAvgPoolOp : public OpConversionPattern<OpTy> {
 public:
@@ -1275,6 +1455,10 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
 
   target.addIllegalOp<AtenMaxPool2dWithIndicesOp>();
   patterns.add<ConvertAtenMaxPool2dWithIndicesOp>(typeConverter, context);
+
+  target.addIllegalOp<AtenMaxUnpool3dOp>();
+  patterns.add<ConvertAtenMaxUnpool3dOp>(typeConverter, context);
+
   target.addIllegalOp<AtenAvgPool1dOp, AtenAvgPool2dOp, AtenAvgPool3dOp>();
   patterns
       .add<ConvertAtenAvgPoolOp<AtenAvgPool1dOp, linalg::PoolingNcwSumOp, 1>>(
