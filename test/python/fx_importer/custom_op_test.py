@@ -19,6 +19,7 @@ def run(f):
     f()
     print()
 
+
 @run
 # CHECK-LABEL: test_tanh_sigmoid_cat_custom_op
 # CHECK:      func.func @main(
@@ -112,7 +113,7 @@ def test_custom_op_array_output():
         def forward(self, a):
             return torch.ops.my_custom_library.array_output_op(4, a)
 
-    a = torch.rand(2,3)
+    a = torch.rand(2, 3)
     m = fx.export_and_import(
         ArrayOutputCustomOp(),
         a,

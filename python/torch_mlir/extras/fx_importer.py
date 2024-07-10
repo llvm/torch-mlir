@@ -1099,9 +1099,10 @@ class ContextCache:
                 return self.get_vtensor_type(
                     val.size(), val.dtype, sparsity=sparsity, mutable=mutable
                 )
-            elif isinstance(val, list) and all(isinstance(x, TorchFakeTensor) for x in val):
+            elif isinstance(val, list) and all(
+                isinstance(x, TorchFakeTensor) for x in val
+            ):
                 return IrType.parse("!torch.list<vtensor>", context=self._c)
-
 
         # Note that None is a valid scalar here, so it is important that this
         # is always checked as the last fallback.
@@ -2031,15 +2032,12 @@ class GraphNodeImporter:
                     self._unpack_list_values[ref_node] = tuple(operation.results)
 
             try:
-                self.bind_node_value(
-                    node,
-                    self._unpack_list_values[ref_node][index]
-                )
+                self.bind_node_value(node, self._unpack_list_values[ref_node][index])
             except IndexError:
                 raise RuntimeError(
                     f"getitem failed. "
-                    f"getitem only supports lists of known length. (at {loc})")
-
+                    f"getitem only supports lists of known length. (at {loc})"
+                )
 
     def _unpack_node_result_types(
         self, node: torch.fx.Node, schema: FunctionSchema
@@ -2371,9 +2369,9 @@ PY_TYPE_TO_TORCH_OPTIONAL_LIST_TYPE = {
     "vtensor": "!torch.list<optional<vtensor>>",
 }
 
-TORCH_LIST_TYPES = (
-    set(PY_TYPE_TO_TORCH_LIST_TYPE.values()) |
-    set(PY_TYPE_TO_TORCH_OPTIONAL_LIST_TYPE.values()))
+TORCH_LIST_TYPES = set(PY_TYPE_TO_TORCH_LIST_TYPE.values()) | set(
+    PY_TYPE_TO_TORCH_OPTIONAL_LIST_TYPE.values()
+)
 
 SCALAR_TYPE_TO_TORCH_MLIR_TYPE = {
     torch.SymInt: "!torch.int",
