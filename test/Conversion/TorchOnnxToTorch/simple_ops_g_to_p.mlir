@@ -910,6 +910,34 @@ func.func @test_pad_optional_constant(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !
 
 // -----
 
+// CHECK-LABEL: @test_pad_wrap
+// CHECK-SAME:    %[[ARG0:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK-SAME:    %[[ARG1:.*]]: !torch.vtensor<[4],si64>
+// CHECK: %[[VAL:.+]] = torch.constant.none
+// CHECK: %[[STR:.+]] = torch.constant.str "circular"
+// CHECK: torch.aten.pad %[[ARG0]], %{{.*}}, %[[STR]], %[[VAL]] : !torch.vtensor<[3,4],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[5,4],f32>
+
+func.func @test_pad_wrap(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[4], si64>) -> !torch.vtensor<[5,4],f32> attributes {torch.onnx_meta.opset_version = 19 : si64} {
+  %0 = torch.operator "onnx.Pad"(%arg0, %arg1) {torch.onnx.mode = "wrap"} : (!torch.vtensor<[3,4],f32>, !torch.vtensor<[4], si64>) -> !torch.vtensor<[5,4],f32>
+  return %0 : !torch.vtensor<[5,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_pad_edge
+// CHECK-SAME:    %[[ARG0:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK-SAME:    %[[ARG1:.*]]: !torch.vtensor<[4],si64>
+// CHECK: %[[VAL:.+]] = torch.constant.none
+// CHECK: %[[STR:.+]] = torch.constant.str "replicate"
+// CHECK: torch.aten.pad %[[ARG0]], %{{.*}}, %[[STR]], %[[VAL]] : !torch.vtensor<[3,4],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[5,4],f32>
+
+func.func @test_pad_edge(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[4], si64>) -> !torch.vtensor<[5,4],f32> attributes {torch.onnx_meta.opset_version = 19 : si64} {
+  %0 = torch.operator "onnx.Pad"(%arg0, %arg1) {torch.onnx.mode = "edge"} : (!torch.vtensor<[3,4],f32>, !torch.vtensor<[4], si64>) -> !torch.vtensor<[5,4],f32>
+  return %0 : !torch.vtensor<[5,4],f32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_pow
   func.func @test_pow(%arg0: !torch.vtensor<[3,4,5],f32>, %arg1: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 15 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
     // CHECK: torch.aten.pow.Tensor_Tensor %arg0, %arg1 : !torch.vtensor<[3,4,5],f32>, !torch.vtensor<[3,4,5],f32> -> !torch.vtensor<[3,4,5],f32>
