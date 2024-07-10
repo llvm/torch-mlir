@@ -508,6 +508,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                       binder.op, resultType, operand);
                   return success();
                 });
+  patterns.onOp("RNN", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  return OnnxRnnExpander(binder, rewriter);
+                });
   patterns.onOp(
       "Scatter", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         int64_t axis;
