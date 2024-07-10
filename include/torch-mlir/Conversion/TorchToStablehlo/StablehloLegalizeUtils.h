@@ -50,7 +50,7 @@ Value scalarToStablehloTensor(ConversionPatternRewriter &rewriter,
                               Operation *op, Value scalarValue, Type dtype);
 
 Value promoteType(PatternRewriter &rewriter, Location loc, Value input,
-                  TensorType outType);
+                  Type outElementType);
 
 Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
                           TensorType outType);
