@@ -19,7 +19,6 @@ def run(f):
     f()
     print()
 
-
 @run
 # CHECK-LABEL: test_tanh_sigmoid_cat_custom_op
 # CHECK:      func.func @main(
@@ -84,3 +83,34 @@ def test_tanh_sigmoid_cat_custom_op():
         import_symbolic_shape_expressions=True,
     )
     print(m)
+
+
+@run
+def test_custom_op_array_output():
+    m = Library("my_custom_library", "DEF")
+    m.define("array_output_op(int num_outs, Tensor a) -> Tensor[]")
+
+    @impl(m, "array_output_op", "CompositeExplicitAutograd")
+    def custom_op(num_outs, a):
+        return [a] * num_outs
+
+    @impl_abstract("my_custom_library::array_output_op")
+    def custom_op_meta(num_outs, a):
+        result = custom_op(num_outs, a)
+        return [torch.empty_like(t) for t in result]
+
+    class ArrayOutputCustomOp(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, a):
+            return torch.ops.my_custom_library.array_output_op(10, a)
+
+    a = torch.rand(2,3)
+    m = fx.export_and_import(
+        ArrayOutputCustomOp(),
+        a,
+        import_symbolic_shape_expressions=True,
+    )
+    print(m)
+
