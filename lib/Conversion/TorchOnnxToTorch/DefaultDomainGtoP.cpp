@@ -2307,7 +2307,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         Value constantValue;
-        if (binder.getNumOperands() >= 3) {
+        if (binder.getNumOperands() >= 3 && mode == "constant") {
           if (!binder.tensorOperandAtIndex(constantValue, 2)) {
             auto constTy =
                 dyn_cast<Torch::BaseTensorType>(constantValue.getType());
@@ -2323,7 +2323,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           }
         }
 
-        if (!constantValue) {
+        if (!constantValue && mode == "constant") {
           auto dataTensorType = cast<Torch::ValueTensorType>(data.getType());
           if (isa<IntegerType>(dataTensorType.getDtype()))
             constantValue = rewriter.create<Torch::ConstantIntOp>(
@@ -2341,6 +2341,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             return rewriter.notifyMatchFailure(
                 binder.op, "expected integer or float data tensor");
         }
+
+        // for modes other than "constant" a value is not required
+        if (mode != "constant")
+          constantValue = rewriter.create<Torch::ConstantNoneOp>(loc);
 
         // The torch.pad op expects a different arrangement of padding pairs for
         // each dimension as compared to the onnx.pad op. Rearrange the pad
@@ -2361,6 +2365,15 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                     Torch::ListType::get(rewriter.getType<Torch::IntType>()),
                     padsRearrange)
                 .getResult();
+
+        // lowering to AtenConstantPadNdOp directly allows passing any torch
+        // scalar type for the value, whereas AtenPadOp requires a float type.
+        if (mode == "constant") {
+          rewriter.replaceOpWithNewOp<Torch::AtenConstantPadNdOp>(
+              binder.op, resultType, data, padsSizeList, constantValue);
+          return success();
+        }
+
         // translate a few mismatching mode names ONNX -> Torch
         mode = (mode == "edge") ? "replicate" : mode;
         mode = (mode == "wrap") ? "circular" : mode;
