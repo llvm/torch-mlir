@@ -610,6 +610,29 @@ def ElementwiseWhereScalarSelfStaticModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseNanToNumWithNoneModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([3, 4], torch.float32, True)])
+    def forward(self, a):
+        return torch.ops.aten.nan_to_num(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseNanToNumWithNoneModule())
+def ElementwiseNanToNumWithNoneModule_Basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor(
+            [
+                [float("nan"), 0.0, float("nan"), 1.0],
+                [float("inf"), 2.0, float("inf"), 3.0],
+                [float("-inf"), -1.0, float("-inf"), 4.0],
+            ]
+        )
+    )
+
+
 class ElementwiseNanToNumModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -617,7 +640,7 @@ class ElementwiseNanToNumModule(torch.nn.Module):
     @export
     @annotate_args([None, ([3, 4], torch.float32, True)])
     def forward(self, a):
-        return torch.ops.aten.nan_to_num(a, 0.0, 1.0, -1.0)
+        return torch.ops.aten.nan_to_num(a, 0.1, 1.0, -1.0)
 
 
 @register_test_case(module_factory=lambda: ElementwiseNanToNumModule())
@@ -625,9 +648,9 @@ def ElementwiseNanToNumModule_Basic(module, tu: TestUtils):
     module.forward(
         torch.tensor(
             [
-                [float("nan"), 0.0, float("nan"), 0.0],
-                [float("inf"), 0.0, float("inf"), 0.0],
-                [float("-inf"), 0.0, float("-inf"), 0.0],
+                [float("nan"), 0.0, float("nan"), 1.0],
+                [float("inf"), 2.0, float("inf"), 3.0],
+                [float("-inf"), -1.0, float("-inf"), 4.0],
             ]
         )
     )
