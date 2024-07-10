@@ -335,10 +335,10 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
                                      cstXDtype, cstNone, cstNone, cstNone);
   }
 
-  Value W_forward = getDirection(0, W);
-  Value R_forward = getDirection(0, R);
-  Value B_forward = getDirection(0, B);
-  Value initial_h_forward = getDirection(0, initial_h);
+  Value W_forward = getDirection(b, 0, W);
+  Value R_forward = getDirection(b, 0, R);
+  Value B_forward = getDirection(b, 0, B);
+  Value initial_h_forward = getDirection(b, 0, initial_h);
 
   Value cstHiddenSize =
       b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
@@ -690,9 +690,9 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
         "The third dimension of wTy (" + std::to_string(wTy.getSizes()[2]) +
             ") does not match input_size (" + std::to_string(input_size) + ")");
 
-  Value W_forward = getDirection(0, W);
-  Value R_forward = getDirection(0, R);
-  Value B_forward = getDirection(0, B);
+  Value W_forward = getDirection(b, 0, W);
+  Value R_forward = getDirection(b, 0, R);
+  Value B_forward = getDirection(b, 0, B);
 
   auto hTy = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{num_directions, batch_size, hidden_size},
@@ -727,8 +727,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
         b.create<AtenZerosOp>(hTy, hShape, cstDtype, cstNone, cstNone, cstNone);
   }
 
-  Value initial_h_forward = getDirection(0, initial_h);
-  Value initial_c_forward = getDirection(0, initial_c);
+  Value initial_h_forward = getDirection(b, 0, initial_h);
+  Value initial_c_forward = getDirection(b, 0, initial_c);
 
   if (num_directions != 1) {
     return rewriter.notifyMatchFailure(
@@ -1151,10 +1151,10 @@ LogicalResult OnnxGruExpander(OpBinder binder,
                                      cstNone, cstNone);
   }
 
-  Value W_forward = getDirection(0, W);
-  Value R_forward = getDirection(0, R);
-  Value B_forward = getDirection(0, B);
-  Value initial_h_forward = getDirection(0, initial_h);
+  Value W_forward = getDirection(b, 0, W);
+  Value R_forward = getDirection(b, 0, R);
+  Value B_forward = getDirection(b, 0, B);
+  Value initial_h_forward = getDirection(b, 0, initial_h);
 
   GruWeights weights;
 
