@@ -821,9 +821,7 @@ public:
       for (int64_t pad : padding)
         offsetVals.emplace_back(rewriter.getI64IntegerAttr(pad));
 
-      SmallVector<OpFoldResult>
-          sizeVals; // = getAsIndexOpFoldResult(rewriter.getContext(),
-                    // resType.getShape());
+      SmallVector<OpFoldResult> sizeVals;
       for (auto &&[i, dim] : llvm::enumerate(resType.getShape())) {
         if (!ShapedType::isDynamic(dim)) {
           sizeVals.emplace_back(rewriter.getI64IntegerAttr(dim));
