@@ -1019,6 +1019,30 @@ def ScatterValueIntModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ScatterAddStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([10, 8, 6], torch.float32, True),
+            ([2, 4, 3], torch.int64, True),
+            ([5, 8, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, input, index, src):
+        return torch.ops.aten.scatter_add(input, 0, index, src)
+
+
+@register_test_case(module_factory=lambda: ScatterAddStaticModule())
+def ScatterAddStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4), tu.rand(5, 8, 6))
+
+
+# ==============================================================================
+
 
 class ScatterReduceFloatModule(torch.nn.Module):
     include_self: bool
