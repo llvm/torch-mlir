@@ -2367,8 +2367,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                 .getResult();
 
         // lowering to AtenConstantPadNdOp directly allows passing any torch
-        // scalar type for the value, whereas AtenPadOp requires a float type.
-        if (mode == "constant") {
+        // scalar type for the value, whereas AtenPadOp takes an optional float
+        // type.
+        if (mode == "constant" &&
+            !isa<Torch::NoneType>(constantValue.getType())) {
           rewriter.replaceOpWithNewOp<Torch::AtenConstantPadNdOp>(
               binder.op, resultType, data, padsSizeList, constantValue);
           return success();
