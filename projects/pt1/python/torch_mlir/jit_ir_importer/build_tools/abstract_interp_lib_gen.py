@@ -1015,7 +1015,12 @@ def aten〇max_pool2d_with_indices_backward〡shape(grad_output: List[int], self
     return self
 
 def aten〇max_unpool3d〡shape(self: List[int], indices: List[int], output_size: List[int], stride: List[int], padding: List[int]) -> List[int]:
-    return output_size
+    assert (len(self) == 5 or len(self) == 4), "Input be of rank 4 or 5"
+    assert (len(self) == len(indices)), "Input and indices mus be of the same rank"
+    if len(self) == 5:
+        return [self[0], self[1], output_size[0], output_size[1], output_size[2]]
+    else:
+        return [self[0], output_size[0], output_size[1], output_size[2]]
 
 def aten〇upsample_nearest2d_backward〡shape(grad_output: List[int], output_size: List[int], input_size: List[int], scales_h: Optional[float] = None, scales_w: Optional[float] = None) -> List[int]:
     return input_size

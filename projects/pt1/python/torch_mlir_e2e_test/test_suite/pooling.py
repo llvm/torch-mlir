@@ -1698,3 +1698,32 @@ class AdaptiveMaxPool3dStaticWithIndices(torch.nn.Module):
 @register_test_case(module_factory=lambda: AdaptiveMaxPool3dStaticWithIndices())
 def AdaptiveMaxPool3dStaticWithIndices_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 512, 10, 16, 17))
+
+# ==============================================================================
+
+
+class MaxUnpool3dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, 2, 2, 4], torch.float32, True),
+            ([-1, -1, 2, 2, 4], torch.int64, True),
+        ]
+    )
+    def forward(self, x, indices):
+        return torch.ops.aten.max_unpool3d(x, indices, (4,5,6), (2,3,2), (0,0,1))
+
+
+@register_test_case(module_factory=lambda: MaxUnpool3dModule())
+def MaxUnpool3dModule_basic(module, tu: TestUtils):
+    input = tu.rand(2,2,4,5,6)
+    pool = torch.nn.MaxPool3d(
+            kernel_size=(2,2,2), stride=(2,3,2), padding=(0,0,1), return_indices=True
+        )
+    output, indices = pool(input)
+
+    module.forward(output, indices)

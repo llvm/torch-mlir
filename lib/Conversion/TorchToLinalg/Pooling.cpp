@@ -601,14 +601,15 @@ public:
     const TypeConverter *typeConverter = getTypeConverter();
     Value self = adaptor.getSelf();
     auto selfType = cast<RankedTensorType>(self.getType());
-    if (!selfType.hasStaticShape())
+
+    if (ShapedType::isDynamicShape(selfType.getShape().take_back(3)))
       return rewriter.notifyMatchFailure(op, "input type must be of static shape");
 
     auto resType = typeConverter->convertType<RankedTensorType>(op.getType());
     if (!resType)
       return rewriter.notifyMatchFailure(op, "invalid result type");
 
-    if (!resType.hasStaticShape())
+    if (ShapedType::isDynamicShape(resType.getShape().take_back(3)))
       return rewriter.notifyMatchFailure(op, "output type must be of static shape");
 
     llvm::errs() << "ConvertAtenMaxUnpool3dOp 3\n";
@@ -677,24 +678,26 @@ public:
     Type indexType = rewriter.getIndexType();
     SmallVector<Value> outSizePadded;
     for (auto &&[i, size] : llvm::enumerate(resType.getShape())) {
-      int64_t pad = 0;
-      if (int64_t(i) >= NC)
-        pad = padding[i - NC];
+      if (int64_t(i) < NC) {
+        outSizePadded.emplace_back(rewriter.create<tensor::DimOp>(loc, self, i));
+        continue;
+      }
+      int64_t pad = padding[i - NC];
 
       outSizePadded.emplace_back(rewriter.create<arith::ConstantIndexOp>(loc, size + pad));
     }
 
-    SmallVector<int64_t> kernelSize;
+    // SmallVector<int64_t> kernelSize;
 
-    llvm::errs() << "kernel size: ";
-    for (auto &&[inSize, outSize, str, pad] : llvm::zip_equal(selfType.getShape().take_back(3), resType.getShape().take_back(3), stride, padding)) {
-      // TODO: dilation is not encoded in the op, so we have to assume 1.
-      int64_t dilation = 1;
-      int64_t kernelDim = (outSize + pad * 2 - (inSize - 1) * str - 1) / dilation + 1;
-      kernelSize.emplace_back(kernelDim);
-      llvm::errs() << kernelDim << " ";
-    }
-    llvm::errs() << "\n";
+    // llvm::errs() << "kernel size: ";
+    // for (auto &&[inSize, outSize, str, pad] : llvm::zip_equal(selfType.getShape().take_back(3), resType.getShape().take_back(3), stride, padding)) {
+    //   // TODO: dilation is not encoded in the op, so we have to assume 1.
+    //   int64_t dilation = 1;
+    //   int64_t kernelDim = (outSize + pad * 2 - (inSize - 1) * str - 1) / dilation + 1;
+    //   kernelSize.emplace_back(kernelDim);
+    //   llvm::errs() << kernelDim << " ";
+    // }
+    // llvm::errs() << "\n";
 
 
     // for (int64_t dim : outSizePadded)
@@ -707,14 +710,19 @@ public:
     };
 
     SmallVector<int64_t> expectedInputShape = llvm::to_vector(resType.getShape().drop_back(3));
-    for (auto &&[str, kern, resSize] : llvm::zip_equal(stride, kernelSize, resType.getShape().take_back(3)))
-      expectedInputShape.emplace_back(divUp(resSize + (kern - 1), str));
+    for (auto &&[str, pad, resSize] : llvm::zip_equal(stride, padding, resType.getShape().take_back(3)))
+      expectedInputShape.emplace_back(divUp(resSize, str) + pad*2);
 
     auto padBorder = [&](Value src, ArrayRef<OpFoldResult> low, ArrayRef<OpFoldResult> high) -> Value {
       auto srcType = cast<ShapedType>(src.getType());
       SmallVector<int64_t> newShape;
-      for (auto &&[l, s, h] : llvm::zip_equal(low, srcType.getShape(), high))
+      for (auto &&[i, l, s, h] : llvm::enumerate(low, srcType.getShape(), high)) {
+        if (int64_t(i) < NC) {
+          newShape.emplace_back(s);
+          continue;
+        }
         newShape.emplace_back(*getConstantIntValue(l) + s + *getConstantIntValue(h));
+      }
 
       auto resType = srcType.clone(newShape);
       auto pad = rewriter.create<tensor::PadOp>(loc, resType, src, low, high);
@@ -726,6 +734,10 @@ public:
       ValueRange blockArgs = block->getArguments();
       SmallVector<Value> indices;
       for (auto &&[i, arg, size] : llvm::enumerate(blockArgs, selfType.getShape())) {
+        if (int64_t(i) < NC) {
+          indices.emplace_back(arg);
+          continue;
+        }
         Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
         Value bound = rewriter.create<arith::ConstantIndexOp>(loc, size - 1);
         Value boundIndex = rewriter.create<arith::SubIOp>(loc, arg, getValueOrCreateConstantIndexOp(rewriter, loc, low[i]));
@@ -750,225 +762,99 @@ public:
 
       SmallVector<OpFoldResult> low(outRank, rewriter.getI64IntegerAttr(0));
       SmallVector<OpFoldResult> high;
-      for (auto &&[inpSize, outSize] : llvm::zip_equal(selfType.getShape(), expectedInputShape))
-        high.emplace_back(rewriter.getI64IntegerAttr(outSize - inpSize));
-
-      self = padBorder(self, low, high);
-      indices = padBorder(indices, low, high);
-    }
-
-    Value result;
-
-    auto needReduction = [&]() -> bool {
-      for (auto &&[kern, str] : llvm::zip_equal(kernelSize, stride)) {
-        if (kern > str)
-          return true;
-      }
-      return false;
-    };
-
-    if (needReduction()) {
-      SmallVector<OpFoldResult> low(NC, rewriter.getI64IntegerAttr(0));
-      // low.resize(outRank, rewriter.getI64IntegerAttr(1));
-      SmallVector<OpFoldResult> high(outRank, rewriter.getI64IntegerAttr(0));
-      for (int64_t kern : kernelSize)
-        low.emplace_back(rewriter.getI64IntegerAttr(kern - 1));
-
-      self = padBorder(self, low, high);
-      indices = padBorder(indices, low, high);
-
-      SmallVector<Value> tempTensorSize;
-      for (auto &&[i, size] : llvm::enumerate(resType.getShape())) {
+      for (auto &&[i, inpSize, outSize] : llvm::enumerate(selfType.getShape(), expectedInputShape)) {
         if (int64_t(i) < NC) {
-          tempTensorSize.emplace_back(rewriter.create<arith::ConstantIndexOp>(loc, size));
+          high.emplace_back(rewriter.getI64IntegerAttr(0));
           continue;
         }
-        int64_t pad = padding[i - NC];
-        int64_t kern = kernelSize[i - NC];
-
-        tempTensorSize.emplace_back(rewriter.create<arith::ConstantIndexOp>(loc, (size + pad)*kern));
-      }
-      Value init = rewriter.create<tensor::EmptyOp>(loc, getAsOpFoldResult(tempTensorSize), selfType.getElementType());
-
-      SmallVector<AffineExpr> inputExprs;
-      SmallVector<AffineExpr> outputExprs;
-      for (auto i : llvm::seq<int64_t>(0, outRank)) {
-        AffineExpr dim = rewriter.getAffineDimExpr(i);
-        if (i < NC) {
-          inputExprs.emplace_back(dim);
-        } else {
-          int64_t j = i - NC;
-          // AffineExpr idx = dim.floorDiv(stride[j]);
-          // AffineExpr kern = rewriter.getAffineConstantExpr(kernelSize[j]);
-          inputExprs.emplace_back((dim % kernelSize[j]) + dim.floorDiv(kernelSize[j] * stride[j]));
-          // inputExprs.emplace_back((idx % kern) + idx.floorDiv(kern));
-          // outputExprs.emplace_back(idx.floorDiv(kern));
-        }
-        outputExprs.emplace_back(dim);
+        high.emplace_back(rewriter.getI64IntegerAttr(outSize - inpSize));
       }
 
-      SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
-          {inputExprs, inputExprs, outputExprs}, rewriter.getContext());
-
-      SmallVector<utils::IteratorType> iteratorTypes(
-          outRank, utils::IteratorType::parallel);
-
-      auto computeIndex = [&](OpBuilder &b, Location loc) -> Value {
-        Value ret;
-        for (auto i : llvm::seq<int64_t>(NC, outRank)) {
-          Value idx = b.create<linalg::IndexOp>(loc, i);
-          // Adjust for the pad
-          int64_t pad = padding[i - NC];
-          if (pad != 0) {
-            Value padVal = b.create<arith::ConstantIndexOp>(loc, pad);
-            idx = b.create<arith::SubIOp>(loc, idx, padVal);
-          }
-
-          Value kern = b.create<arith::ConstantIndexOp>(loc, kernelSize[i - NC]);
-          Value str = b.create<arith::ConstantIndexOp>(loc, stride[i - NC]);
-          idx = b.create<arith::DivSIOp>(loc, idx, kern);
-          idx = b.create<arith::DivSIOp>(loc, idx, str);
-
-          if (!ret) {
-            ret = idx;
-          } else {
-            Value size = outSizePadded[i];
-            ret = b.create<arith::MulIOp>(loc, ret, size);
-            ret = b.create<arith::AddIOp>(loc, ret, idx);
-          }
-        }
-        return ret;
-      };
-
-      auto builder = [&](OpBuilder &b, Location loc, ValueRange args) {
-        // Compute current output linear index and compare it with the value
-        // from indices arg.
-        Value input = args[0];
-        // Value prev = args[2];
-        Value zero = b.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(input.getType()));
-
-        Value index = b.create<arith::IndexCastOp>(loc, indexType, args[1]);
-        Value currentIndex = computeIndex(b, loc);
-        Value cmp = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, index, currentIndex);
-        Value out = b.create<arith::SelectOp>(loc, cmp, input, zero);
-        // currentIndex = castIndexToInt64(b, loc, currentIndex);
-        // out = b.create<arith::SIToFPOp>(loc, input.getType(), currentIndex);
-        b.create<linalg::YieldOp>(loc, out);
-      };
-
-      result = rewriter.create<linalg::GenericOp>(loc,
-        /*resultTensorTypes=*/init.getType(),
-        /*inputs=*/ValueRange({self, indices}),
-        /*outputs=*/init,
-        /*indexingMaps=*/indexingMaps,
-        /*iteratorTypes=*/iteratorTypes, builder).getResult(0);
-
-      init = createZeroInitTensor(rewriter, loc, outSizePadded, selfType.getElementType());
-
-      inputExprs.clear();
-      outputExprs.clear();
-      for (auto i : llvm::seq<int64_t>(0, outRank)) {
-        AffineExpr dim = rewriter.getAffineDimExpr(i);
-        inputExprs.emplace_back(dim);
-        if (i < NC) {
-          outputExprs.emplace_back(dim);
-        } else {
-          int64_t j = i - NC;
-          AffineExpr idx = dim.floorDiv(stride[j]);
-          outputExprs.emplace_back(idx.floorDiv(kernelSize[j]));
-        }
-      }
-      indexingMaps = AffineMap::inferFromExprList(
-          {inputExprs, outputExprs}, rewriter.getContext());
-
-      iteratorTypes.resize(NC);
-      iteratorTypes.resize(outRank, utils::IteratorType::reduction);
-
-      auto builder2 = [&](OpBuilder &b, Location loc, ValueRange args) {
-        Value input = args[0];
-        Value prev = args[1];
-        Value zero = b.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(input.getType()));
-        Value cmp = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OEQ, input, zero);
-        Value out = b.create<arith::SelectOp>(loc, cmp, prev, input);
-        b.create<linalg::YieldOp>(loc, out);
-      };
-
-      result = rewriter.create<linalg::GenericOp>(loc,
-        /*resultTensorTypes=*/init.getType(),
-        /*inputs=*/result,
-        /*outputs=*/init,
-        /*indexingMaps=*/indexingMaps,
-        /*iteratorTypes=*/iteratorTypes, builder2).getResult(0);
-
-    } else {
-      Value init = rewriter.create<tensor::EmptyOp>(loc, getAsOpFoldResult(outSizePadded), selfType.getElementType());
-
-      SmallVector<AffineExpr> inputExprs;
-      SmallVector<AffineExpr> outputExprs;
-      for (auto i : llvm::seq<int64_t>(0, outRank)) {
-        AffineExpr dim = rewriter.getAffineDimExpr(i);
-        if (i < NC) {
-          inputExprs.emplace_back(dim);
-        } else {
-          int64_t j = i - NC;
-          inputExprs.emplace_back(dim.floorDiv(stride[j]));
-        }
-        outputExprs.emplace_back(dim);
-      }
-
-      SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
-          {inputExprs, inputExprs, outputExprs}, rewriter.getContext());
-
-      SmallVector<utils::IteratorType> iteratorTypes(
-          outRank, utils::IteratorType::parallel);
-
-      auto computeIndex = [&](OpBuilder &b, Location loc) -> Value {
-        Value ret;
-        for (auto i : llvm::seq<int64_t>(NC, outRank)) {
-          Value idx = b.create<linalg::IndexOp>(loc, i);
-          // Adjust for the pad
-          int64_t pad = padding[i - NC];
-          if (pad != 0) {
-            Value padVal = b.create<arith::ConstantIndexOp>(loc, pad);
-            idx = b.create<arith::SubIOp>(loc, idx, padVal);
-          }
-
-          if (!ret) {
-            ret = idx;
-          } else {
-            Value size = outSizePadded[i];
-            ret = b.create<arith::MulIOp>(loc, ret, size);
-            ret = b.create<arith::AddIOp>(loc, ret, idx);
-          }
-        }
-        return ret;
-      };
-
-      auto builder = [&](OpBuilder &b, Location loc, ValueRange args) {
-        // Compute current output linear index and compare it with the value
-        // from indices arg.
-        Value input = args[0];
-        Value zero = b.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(input.getType()));
-        Value index = b.create<arith::IndexCastOp>(loc, indexType, args[1]);
-        Value currentIndex = computeIndex(b, loc);
-        Value cmp = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, index, currentIndex);
-        Value out = b.create<arith::SelectOp>(loc, cmp, input, zero);
-        // currentIndex = castIndexToInt64(b, loc, currentIndex);
-        // out = b.create<arith::SIToFPOp>(loc, input.getType(), currentIndex);
-        b.create<linalg::YieldOp>(loc, out);
-      };
-
-      result = rewriter.create<linalg::GenericOp>(loc,
-        /*resultTensorTypes=*/init.getType(),
-        /*inputs=*/ValueRange({self, indices}),
-        /*outputs=*/init,
-        /*indexingMaps=*/indexingMaps,
-        /*iteratorTypes=*/iteratorTypes, builder).getResult(0);
+      self = padBorder(self, low, high);
+      indices = padBorder(indices, low, high);
     }
+
+    Value init = rewriter.create<tensor::EmptyOp>(loc, getAsOpFoldResult(outSizePadded), selfType.getElementType());
+
+    SmallVector<AffineExpr> inputExprs;
+    SmallVector<AffineExpr> outputExprs;
+    for (auto i : llvm::seq<int64_t>(0, outRank)) {
+      AffineExpr dim = rewriter.getAffineDimExpr(i);
+      if (i < NC) {
+        inputExprs.emplace_back(dim);
+      } else {
+        int64_t j = i - NC;
+        inputExprs.emplace_back(dim.floorDiv(stride[j]));
+      }
+      outputExprs.emplace_back(dim);
+    }
+
+    SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
+        {inputExprs, inputExprs, outputExprs}, rewriter.getContext());
+
+    SmallVector<utils::IteratorType> iteratorTypes(
+        outRank, utils::IteratorType::parallel);
+
+    auto computeIndex = [&](OpBuilder &b, Location loc) -> Value {
+      Value ret;
+      for (auto i : llvm::seq<int64_t>(NC, outRank)) {
+        Value idx = b.create<linalg::IndexOp>(loc, i);
+        // Adjust for the pad
+        int64_t pad = padding[i - NC];
+        if (pad != 0) {
+          Value padVal = b.create<arith::ConstantIndexOp>(loc, pad);
+          idx = b.create<arith::SubIOp>(loc, idx, padVal);
+        }
+
+        if (!ret) {
+          ret = idx;
+        } else {
+          Value size = b.create<arith::ConstantIndexOp>(loc, resType.getShape()[i]);
+          ret = b.create<arith::MulIOp>(loc, ret, size);
+          ret = b.create<arith::AddIOp>(loc, ret, idx);
+        }
+      }
+      return ret;
+    };
+
+    auto builder = [&](OpBuilder &b, Location loc, ValueRange args) {
+      // Compute current output linear index and compare it with the value
+      // from indices arg.
+      Value input = args[0];
+      Value zero = b.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(input.getType()));
+      Value index = b.create<arith::IndexCastOp>(loc, indexType, args[1]);
+      Value currentIndex = computeIndex(b, loc);
+      Value cmp = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, index, currentIndex);
+      Value out = b.create<arith::SelectOp>(loc, cmp, input, zero);
+      // currentIndex = castIndexToInt64(b, loc, currentIndex);
+      // out = b.create<arith::SIToFPOp>(loc, input.getType(), currentIndex);
+      b.create<linalg::YieldOp>(loc, out);
+    };
+
+    Value result = rewriter.create<linalg::GenericOp>(loc,
+      /*resultTensorTypes=*/init.getType(),
+      /*inputs=*/ValueRange({self, indices}),
+      /*outputs=*/init,
+      /*indexingMaps=*/indexingMaps,
+      /*iteratorTypes=*/iteratorTypes, builder).getResult(0);
 
     if (llvm::any_of(padding, [](int64_t v) { return v != 0; })) {
       // MaxPool input was padded, unpad it by taking the slice.
+      SmallVector<OpFoldResult> offsetVals(NC, rewriter.getI64IntegerAttr(0));
+      for (int64_t pad : padding)
+        offsetVals.emplace_back(rewriter.getI64IntegerAttr(pad));
 
+      SmallVector<OpFoldResult> sizeVals;// = getAsIndexOpFoldResult(rewriter.getContext(), resType.getShape());
+      for (auto &&[i, dim] : llvm::enumerate(resType.getShape())) {
+        if (!ShapedType::isDynamic(dim)) {
+          sizeVals.emplace_back(rewriter.getI64IntegerAttr(dim));
+          continue;
+        }
+
+        sizeVals.emplace_back(rewriter.create<tensor::DimOp>(loc, self, i));
+      }
+      SmallVector<OpFoldResult> stridesVals(outRank, rewriter.getI64IntegerAttr(1));
+      result = rewriter.create<tensor::ExtractSliceOp>(loc, result, offsetVals, sizeVals, stridesVals);
     }
 
     // auto parent = op->getParentOp();
