@@ -1019,6 +1019,7 @@ def ScatterValueIntModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
 class ScatterAddStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
