@@ -585,6 +585,24 @@ public:
 } // namespace
 
 namespace {
+// Max unpooling operation, takes result of max_pooling op and indices and
+// tries to reconstructs original pooling input by filling out values by either
+// values from self or zero.
+// Upstream CPU implementation use parallel loop over the indices array to fill
+// out tensor but such approach requires random access writes, which is tricky
+// to represent in linalg.
+// Instead we are using a different method: we are mapping each input/index
+// value to multiple output values via affine maps in linalg.generic, then,
+// inside the body of generic, we compute out index and compare it with expected
+// index we got from input, returning either input or zero.
+// This method only works if we have non-overlapping pooling windows.
+// In case of overlap (e.g. kernel_size=2, stride=1) we need to map many-to-many
+// input to output values and do a reduction. To construct such mapping we need
+// to know original Kernel size, but it doesn't encoded in aten op. We cannot
+// reconstruct kernel_size either as such reconstruction is ambiguous (e.g. for
+// input_size=2, output_size=5 and stride=2, kernel_size can be either 2 or 3).
+// What worse, without knowing kernel size we cannot even reliably detect such
+// cases and this conversion will just return invalid values.
 class ConvertAtenMaxUnpool3dOp final
     : public OpConversionPattern<AtenMaxUnpool3dOp> {
 public:
@@ -688,8 +706,8 @@ public:
     };
 
     if (expectedInputShape != selfType.getShape()) {
-      // Input tensor sizes are smaller than output size, due to overlapping
-      // pooling windows, pad inputs with border values.
+      // Input tensor sizes are smaller than output size, pad inputs with border
+      // values.
       // TODO: this is probably expensive, and it may be possible to solve by
       // cleverly constructing affine maps for the next linalg.generic op,
       // but I'm not smart enough to figure this out.
