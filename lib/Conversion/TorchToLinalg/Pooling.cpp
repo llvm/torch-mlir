@@ -701,9 +701,43 @@ public:
 
     Value indices = adaptor.getIndices();
 
+    auto divUp = [](int64_t v1, int64_t v2) -> int64_t {
+      return (v1 + v2 - 1) / v2;
+    };
+
     SmallVector<int64_t> expectedInputShape = llvm::to_vector(resType.getShape().drop_back(3));
     for (auto &&[str, kern, resSize] : llvm::zip_equal(stride, kernelSize, resType.getShape().take_back(3)))
-      expectedInputShape.emplace_back((resSize + (kern - 1)) / str);
+      expectedInputShape.emplace_back(divUp(resSize + (kern - 1), str));
+
+    auto padBorder = [&](Value src, ArrayRef<OpFoldResult> low, ArrayRef<OpFoldResult> high) -> Value {
+      auto srcType = cast<ShapedType>(src.getType());
+      SmallVector<int64_t> newShape;
+      for (auto &&[l, s, h] : llvm::zip_equal(low, srcType.getShape(), high))
+        newShape.emplace_back(*getConstantIntValue(l) + s + *getConstantIntValue(h));
+
+      auto resType = srcType.clone(newShape);
+      auto pad = rewriter.create<tensor::PadOp>(loc, resType, src, low, high);
+      Region &region = pad.getRegion();
+      SmallVector<Type> blockArgTypes(outRank, indexType);
+      SmallVector<Location> blockArgLocs(outRank, loc);
+      OpBuilder::InsertionGuard g(rewriter);
+      Block* block = rewriter.createBlock(&region, region.end(), blockArgTypes, blockArgLocs);
+      ValueRange blockArgs = block->getArguments();
+      SmallVector<Value> indices;
+      for (auto &&[arg, size] : llvm::zip_equal(blockArgs, selfType.getShape())) {
+        Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+        Value bound = rewriter.create<arith::ConstantIndexOp>(loc, size - 1);
+        Value cmp1 = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, arg, bound);
+        Value cmp2 = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, arg, zero);
+        Value boundIndex = rewriter.create<arith::SelectOp>(loc, cmp1, bound, arg);
+        boundIndex = rewriter.create<arith::SelectOp>(loc, cmp2, zero, boundIndex);
+        indices.emplace_back(boundIndex);
+      }
+
+      Value borderVal = rewriter.create<tensor::ExtractOp>(loc, src, indices);
+      rewriter.create<tensor::YieldOp>(loc, borderVal);
+      return pad.getResult();
+    };
 
     if (expectedInputShape != selfType.getShape()) {
       // Input tensor sizes are smaller than output size, due to overlapping
@@ -717,30 +751,8 @@ public:
       for (auto &&[inpSize, outSize] : llvm::zip_equal(selfType.getShape(), expectedInputShape))
         high.emplace_back(rewriter.getI64IntegerAttr(outSize - inpSize));
 
-      auto padBorder = [&](Value src) -> Value {
-        auto resType = cast<ShapedType>(src.getType()).clone(expectedInputShape);
-        auto pad = rewriter.create<tensor::PadOp>(loc, resType, src, low, high);
-        Region &region = pad.getRegion();
-        SmallVector<Type> blockArgTypes(outRank, indexType);
-        SmallVector<Location> blockArgLocs(outRank, loc);
-        OpBuilder::InsertionGuard g(rewriter);
-        Block* block = rewriter.createBlock(&region, region.end(), blockArgTypes, blockArgLocs);
-        ValueRange blockArgs = block->getArguments();
-        SmallVector<Value> indices;
-        for (auto &&[arg, size] : llvm::zip_equal(blockArgs, selfType.getShape())) {
-          Value bound = rewriter.create<arith::ConstantIndexOp>(loc, size - 1);
-          Value cmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, arg, bound);
-          Value boundIndex = rewriter.create<arith::SelectOp>(loc, cmp, bound, arg);
-          indices.emplace_back(boundIndex);
-        }
-
-        Value borderVal = rewriter.create<tensor::ExtractOp>(loc, src, indices);
-        rewriter.create<tensor::YieldOp>(loc, borderVal);
-        return pad.getResult();
-      };
-
-      self = padBorder(self);
-      indices = padBorder(indices);
+      self = padBorder(self, low, high);
+      indices = padBorder(indices, low, high);
     }
 
     Value result;
@@ -754,6 +766,14 @@ public:
     };
 
     if (needReduction()) {
+      SmallVector<OpFoldResult> low(NC, rewriter.getI64IntegerAttr(0));
+      SmallVector<OpFoldResult> high(outRank, rewriter.getI64IntegerAttr(0));
+      for (int64_t kern : kernelSize)
+        low.emplace_back(rewriter.getI64IntegerAttr(kern));
+
+      self = padBorder(self, low, high);
+      indices = padBorder(indices, low, high);
+
       SmallVector<Value> tempTensorSize;
       for (auto &&[i, size] : llvm::enumerate(resType.getShape())) {
         if (int64_t(i) < NC) {
