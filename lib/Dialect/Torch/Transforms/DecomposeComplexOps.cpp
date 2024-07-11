@@ -3906,37 +3906,50 @@ public:
   LogicalResult matchAndRewrite(AtenNanToNumOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    mlir::FloatType f64Type = rewriter.getF64Type();
     Value nan = op.getNan();
     Value posinf = op.getPosinf();
     Value neginf = op.getNeginf();
-    auto baseType =
-        ValueTensorType::getWithLeastStaticInformation(op.getContext());
-    if (dyn_cast_or_null<ConstantNoneOp>(nan.getDefiningOp()))
-      nan = rewriter.create<ConstantFloatOp>(
-          loc, rewriter.getFloatAttr(
-                   f64Type, APFloat::getZero(f64Type.getFloatSemantics())));
-    if (dyn_cast_or_null<ConstantNoneOp>(posinf.getDefiningOp()))
+    auto outputType = cast<BaseTensorType>(op.getResult().getType());
+    if (!outputType.hasDtype() ||
+        !isa<mlir::FloatType>(outputType.getDtype())) {
+      return rewriter.notifyMatchFailure(
+          op, "expect output type to have float dtype");
+    }
+    mlir::FloatType outputElementType =
+        cast<mlir::FloatType>(outputType.getDtype());
+
+    if (isa<Torch::NoneType>(nan.getType())) {
+      nan =
+          rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+    }
+    if (isa<Torch::NoneType>(posinf.getType())) {
       posinf = rewriter.create<ConstantFloatOp>(
-          loc, rewriter.getFloatAttr(
-                   f64Type, APFloat::getInf(f64Type.getFloatSemantics())));
-    if (dyn_cast_or_null<ConstantNoneOp>(neginf.getDefiningOp()))
+          loc, rewriter.getF64FloatAttr(
+                   APFloat::getLargest(outputElementType.getFloatSemantics())
+                       .convertToDouble()));
+    }
+    if (isa<Torch::NoneType>(neginf.getType())) {
       neginf = rewriter.create<ConstantFloatOp>(
-          loc,
-          rewriter.getFloatAttr(
-              f64Type, APFloat::getInf(f64Type.getFloatSemantics(), true)));
+          loc, rewriter.getF64FloatAttr(
+                   APFloat::getLargest(outputElementType.getFloatSemantics(),
+                                       /*Negative=*/true)
+                       .convertToDouble()));
+    }
+
+    auto compareType = outputType.getWithSizesAndDtype(
+        outputType.getOptionalSizes(), rewriter.getI1Type());
     Value isNan =
-        rewriter.create<Torch::AtenIsnanOp>(loc, baseType, op.getSelf());
+        rewriter.create<Torch::AtenIsnanOp>(loc, compareType, op.getSelf());
     Value where = rewriter.create<Torch::AtenWhereScalarSelfOp>(
-        loc, baseType, isNan, nan, op.getSelf());
+        loc, outputType, isNan, nan, op.getSelf());
     Value isposinf =
-        rewriter.create<Torch::AtenIsposinfOp>(loc, baseType, where);
+        rewriter.create<Torch::AtenIsposinfOp>(loc, compareType, where);
     where = rewriter.create<Torch::AtenWhereScalarSelfOp>(
-        loc, baseType, isposinf, posinf, where);
+        loc, outputType, isposinf, posinf, where);
     Value isneginf =
-        rewriter.create<Torch::AtenIsneginfOp>(loc, baseType, where);
+        rewriter.create<Torch::AtenIsneginfOp>(loc, compareType, where);
     rewriter.replaceOpWithNewOp<Torch::AtenWhereScalarSelfOp>(
-        op, op.getType(), isneginf, neginf, where);
+        op, outputType, isneginf, neginf, where);
     return success();
   }
 };
