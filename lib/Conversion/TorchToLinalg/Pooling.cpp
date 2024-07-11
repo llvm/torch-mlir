@@ -619,26 +619,31 @@ public:
     auto selfType = cast<RankedTensorType>(self.getType());
 
     if (ShapedType::isDynamicShape(selfType.getShape().take_back(3)))
-      return rewriter.notifyMatchFailure(op, "input type must be of static shape");
+      return rewriter.notifyMatchFailure(op,
+                                         "input type must be of static shape");
 
     auto resType = typeConverter->convertType<RankedTensorType>(op.getType());
     if (!resType)
       return rewriter.notifyMatchFailure(op, "invalid result type");
 
     if (ShapedType::isDynamicShape(resType.getShape().take_back(3)))
-      return rewriter.notifyMatchFailure(op, "output type must be of static shape");
+      return rewriter.notifyMatchFailure(op,
+                                         "output type must be of static shape");
 
     SmallVector<int64_t> stride;
     SmallVector<int64_t> padding;
 
     if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)))
-        return rewriter.notifyMatchFailure(op, "only support constant int strides");
+      return rewriter.notifyMatchFailure(op,
+                                         "only support constant int strides");
 
     if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)))
-        return rewriter.notifyMatchFailure(op, "only support constant int padding");
+      return rewriter.notifyMatchFailure(op,
+                                         "only support constant int padding");
 
     if (stride.size() != 3 || padding.size() != 3)
-      return rewriter.notifyMatchFailure(op, "stride and padding must be of size 3");
+      return rewriter.notifyMatchFailure(
+          op, "stride and padding must be of size 3");
 
     int64_t outRank = resType.getRank();
     int64_t NC = outRank - 3;
@@ -647,12 +652,14 @@ public:
     SmallVector<Value> outSizePadded;
     for (auto &&[i, size] : llvm::enumerate(resType.getShape())) {
       if (int64_t(i) < NC) {
-        outSizePadded.emplace_back(rewriter.create<tensor::DimOp>(loc, self, i));
+        outSizePadded.emplace_back(
+            rewriter.create<tensor::DimOp>(loc, self, i));
         continue;
       }
       int64_t pad = padding[i - NC];
 
-      outSizePadded.emplace_back(rewriter.create<arith::ConstantIndexOp>(loc, size + pad));
+      outSizePadded.emplace_back(
+          rewriter.create<arith::ConstantIndexOp>(loc, size + pad));
     }
 
     Value indices = adaptor.getIndices();
@@ -661,19 +668,24 @@ public:
       return (v1 + v2 - 1) / v2;
     };
 
-    SmallVector<int64_t> expectedInputShape = llvm::to_vector(resType.getShape().drop_back(3));
-    for (auto &&[str, pad, resSize] : llvm::zip_equal(stride, padding, resType.getShape().take_back(3)))
-      expectedInputShape.emplace_back(divUp(resSize, str) + pad*2);
+    SmallVector<int64_t> expectedInputShape =
+        llvm::to_vector(resType.getShape().drop_back(3));
+    for (auto &&[str, pad, resSize] :
+         llvm::zip_equal(stride, padding, resType.getShape().take_back(3)))
+      expectedInputShape.emplace_back(divUp(resSize, str) + pad * 2);
 
-    auto padBorder = [&](Value src, ArrayRef<OpFoldResult> low, ArrayRef<OpFoldResult> high) -> Value {
+    auto padBorder = [&](Value src, ArrayRef<OpFoldResult> low,
+                         ArrayRef<OpFoldResult> high) -> Value {
       auto srcType = cast<ShapedType>(src.getType());
       SmallVector<int64_t> newShape;
-      for (auto &&[i, l, s, h] : llvm::enumerate(low, srcType.getShape(), high)) {
+      for (auto &&[i, l, s, h] :
+           llvm::enumerate(low, srcType.getShape(), high)) {
         if (int64_t(i) < NC) {
           newShape.emplace_back(s);
           continue;
         }
-        newShape.emplace_back(*getConstantIntValue(l) + s + *getConstantIntValue(h));
+        newShape.emplace_back(*getConstantIntValue(l) + s +
+                              *getConstantIntValue(h));
       }
 
       auto resType = srcType.clone(newShape);
@@ -682,21 +694,28 @@ public:
       SmallVector<Type> blockArgTypes(outRank, indexType);
       SmallVector<Location> blockArgLocs(outRank, loc);
       OpBuilder::InsertionGuard g(rewriter);
-      Block* block = rewriter.createBlock(&region, region.end(), blockArgTypes, blockArgLocs);
+      Block *block = rewriter.createBlock(&region, region.end(), blockArgTypes,
+                                          blockArgLocs);
       ValueRange blockArgs = block->getArguments();
       SmallVector<Value> indices;
-      for (auto &&[i, arg, size] : llvm::enumerate(blockArgs, selfType.getShape())) {
+      for (auto &&[i, arg, size] :
+           llvm::enumerate(blockArgs, selfType.getShape())) {
         if (int64_t(i) < NC) {
           indices.emplace_back(arg);
           continue;
         }
         Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
         Value bound = rewriter.create<arith::ConstantIndexOp>(loc, size - 1);
-        Value boundIndex = rewriter.create<arith::SubIOp>(loc, arg, getValueOrCreateConstantIndexOp(rewriter, loc, low[i]));
-        Value cmp1 = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, boundIndex, bound);
-        Value cmp2 = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, boundIndex, zero);
-        boundIndex = rewriter.create<arith::SelectOp>(loc, cmp1, bound, boundIndex);
-        boundIndex = rewriter.create<arith::SelectOp>(loc, cmp2, zero, boundIndex);
+        Value boundIndex = rewriter.create<arith::SubIOp>(
+            loc, arg, getValueOrCreateConstantIndexOp(rewriter, loc, low[i]));
+        Value cmp1 = rewriter.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::sgt, boundIndex, bound);
+        Value cmp2 = rewriter.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::slt, boundIndex, zero);
+        boundIndex =
+            rewriter.create<arith::SelectOp>(loc, cmp1, bound, boundIndex);
+        boundIndex =
+            rewriter.create<arith::SelectOp>(loc, cmp2, zero, boundIndex);
         indices.emplace_back(boundIndex);
       }
 
@@ -714,7 +733,8 @@ public:
 
       SmallVector<OpFoldResult> low(outRank, rewriter.getI64IntegerAttr(0));
       SmallVector<OpFoldResult> high;
-      for (auto &&[i, inpSize, outSize] : llvm::enumerate(selfType.getShape(), expectedInputShape)) {
+      for (auto &&[i, inpSize, outSize] :
+           llvm::enumerate(selfType.getShape(), expectedInputShape)) {
         if (int64_t(i) < NC) {
           high.emplace_back(rewriter.getI64IntegerAttr(0));
           continue;
@@ -726,7 +746,8 @@ public:
       indices = padBorder(indices, low, high);
     }
 
-    Value init = rewriter.create<tensor::EmptyOp>(loc, getAsOpFoldResult(outSizePadded), selfType.getElementType());
+    Value init = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(outSizePadded), selfType.getElementType());
 
     SmallVector<AffineExpr> inputExprs;
     SmallVector<AffineExpr> outputExprs;
@@ -761,7 +782,8 @@ public:
         if (!ret) {
           ret = idx;
         } else {
-          Value size = b.create<arith::ConstantIndexOp>(loc, resType.getShape()[i]);
+          Value size =
+              b.create<arith::ConstantIndexOp>(loc, resType.getShape()[i]);
           ret = b.create<arith::MulIOp>(loc, ret, size);
           ret = b.create<arith::AddIOp>(loc, ret, idx);
         }
@@ -773,20 +795,25 @@ public:
       // Compute current output linear index and compare it with the value
       // from indices arg.
       Value input = args[0];
-      Value zero = b.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(input.getType()));
+      Value zero = b.create<arith::ConstantOp>(
+          loc, rewriter.getZeroAttr(input.getType()));
       Value index = b.create<arith::IndexCastOp>(loc, indexType, args[1]);
       Value currentIndex = computeIndex(b, loc);
-      Value cmp = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, index, currentIndex);
+      Value cmp = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, index,
+                                          currentIndex);
       Value out = b.create<arith::SelectOp>(loc, cmp, input, zero);
       b.create<linalg::YieldOp>(loc, out);
     };
 
-    Value result = rewriter.create<linalg::GenericOp>(loc,
-      /*resultTensorTypes=*/init.getType(),
-      /*inputs=*/ValueRange({self, indices}),
-      /*outputs=*/init,
-      /*indexingMaps=*/indexingMaps,
-      /*iteratorTypes=*/iteratorTypes, builder).getResult(0);
+    Value result =
+        rewriter
+            .create<linalg::GenericOp>(loc,
+                                       /*resultTensorTypes=*/init.getType(),
+                                       /*inputs=*/ValueRange({self, indices}),
+                                       /*outputs=*/init,
+                                       /*indexingMaps=*/indexingMaps,
+                                       /*iteratorTypes=*/iteratorTypes, builder)
+            .getResult(0);
 
     if (llvm::any_of(padding, [](int64_t v) { return v != 0; })) {
       // MaxPool input was padded, unpad it by taking the slice.
@@ -794,7 +821,9 @@ public:
       for (int64_t pad : padding)
         offsetVals.emplace_back(rewriter.getI64IntegerAttr(pad));
 
-      SmallVector<OpFoldResult> sizeVals;// = getAsIndexOpFoldResult(rewriter.getContext(), resType.getShape());
+      SmallVector<OpFoldResult>
+          sizeVals; // = getAsIndexOpFoldResult(rewriter.getContext(),
+                    // resType.getShape());
       for (auto &&[i, dim] : llvm::enumerate(resType.getShape())) {
         if (!ShapedType::isDynamic(dim)) {
           sizeVals.emplace_back(rewriter.getI64IntegerAttr(dim));
@@ -803,15 +832,17 @@ public:
 
         sizeVals.emplace_back(rewriter.create<tensor::DimOp>(loc, self, i));
       }
-      SmallVector<OpFoldResult> stridesVals(outRank, rewriter.getI64IntegerAttr(1));
-      result = rewriter.create<tensor::ExtractSliceOp>(loc, result, offsetVals, sizeVals, stridesVals);
+      SmallVector<OpFoldResult> stridesVals(outRank,
+                                            rewriter.getI64IntegerAttr(1));
+      result = rewriter.create<tensor::ExtractSliceOp>(loc, result, offsetVals,
+                                                       sizeVals, stridesVals);
     }
 
     rewriter.replaceOp(op, result);
     return success();
   }
 };
-}
+} // namespace
 
 namespace {
 template <typename OpTy, typename PoolingOpTy, int Dim>
