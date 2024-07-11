@@ -728,10 +728,10 @@ public:
       for (auto &&[i, arg, size] : llvm::enumerate(blockArgs, selfType.getShape())) {
         Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
         Value bound = rewriter.create<arith::ConstantIndexOp>(loc, size - 1);
-        Value cmp1 = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, arg, bound);
-        Value cmp2 = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, arg, zero);
         Value boundIndex = rewriter.create<arith::SubIOp>(loc, arg, getValueOrCreateConstantIndexOp(rewriter, loc, low[i]));
-        boundIndex = rewriter.create<arith::SelectOp>(loc, cmp1, bound, arg);
+        Value cmp1 = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, boundIndex, bound);
+        Value cmp2 = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, boundIndex, zero);
+        boundIndex = rewriter.create<arith::SelectOp>(loc, cmp1, bound, boundIndex);
         boundIndex = rewriter.create<arith::SelectOp>(loc, cmp2, zero, boundIndex);
         indices.emplace_back(boundIndex);
       }
@@ -796,15 +796,15 @@ public:
         AffineExpr dim = rewriter.getAffineDimExpr(i);
         if (i < NC) {
           inputExprs.emplace_back(dim);
-          outputExprs.emplace_back(dim);
         } else {
           int64_t j = i - NC;
-          AffineExpr idx = dim.floorDiv(stride[j]);
-          AffineExpr kern = rewriter.getAffineConstantExpr(kernelSize[j]);
-          inputExprs.emplace_back((idx % kern) + idx.floorDiv(kern));
+          // AffineExpr idx = dim.floorDiv(stride[j]);
+          // AffineExpr kern = rewriter.getAffineConstantExpr(kernelSize[j]);
+          inputExprs.emplace_back((dim % kernelSize[j]) + dim.floorDiv(kernelSize[j] * stride[j]));
+          // inputExprs.emplace_back((idx % kern) + idx.floorDiv(kern));
           // outputExprs.emplace_back(idx.floorDiv(kern));
-          outputExprs.emplace_back(dim);
         }
+        outputExprs.emplace_back(dim);
       }
 
       SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
@@ -825,7 +825,9 @@ public:
           }
 
           Value kern = b.create<arith::ConstantIndexOp>(loc, kernelSize[i - NC]);
+          Value str = b.create<arith::ConstantIndexOp>(loc, stride[i - NC]);
           idx = b.create<arith::DivSIOp>(loc, idx, kern);
+          idx = b.create<arith::DivSIOp>(loc, idx, str);
 
           if (!ret) {
             ret = idx;
