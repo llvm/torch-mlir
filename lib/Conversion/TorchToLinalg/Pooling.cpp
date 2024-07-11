@@ -11,6 +11,7 @@
 
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
@@ -724,12 +725,13 @@ public:
       Block* block = rewriter.createBlock(&region, region.end(), blockArgTypes, blockArgLocs);
       ValueRange blockArgs = block->getArguments();
       SmallVector<Value> indices;
-      for (auto &&[arg, size] : llvm::zip_equal(blockArgs, selfType.getShape())) {
+      for (auto &&[i, arg, size] : llvm::enumerate(blockArgs, selfType.getShape())) {
         Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
         Value bound = rewriter.create<arith::ConstantIndexOp>(loc, size - 1);
         Value cmp1 = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sgt, arg, bound);
         Value cmp2 = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, arg, zero);
-        Value boundIndex = rewriter.create<arith::SelectOp>(loc, cmp1, bound, arg);
+        Value boundIndex = rewriter.create<arith::SubIOp>(loc, arg, getValueOrCreateConstantIndexOp(rewriter, loc, low[i]));
+        boundIndex = rewriter.create<arith::SelectOp>(loc, cmp1, bound, arg);
         boundIndex = rewriter.create<arith::SelectOp>(loc, cmp2, zero, boundIndex);
         indices.emplace_back(boundIndex);
       }
@@ -767,9 +769,10 @@ public:
 
     if (needReduction()) {
       SmallVector<OpFoldResult> low(NC, rewriter.getI64IntegerAttr(0));
+      // low.resize(outRank, rewriter.getI64IntegerAttr(1));
       SmallVector<OpFoldResult> high(outRank, rewriter.getI64IntegerAttr(0));
       for (int64_t kern : kernelSize)
-        low.emplace_back(rewriter.getI64IntegerAttr(kern));
+        low.emplace_back(rewriter.getI64IntegerAttr(kern - 1));
 
       self = padBorder(self, low, high);
       indices = padBorder(indices, low, high);
