@@ -7602,14 +7602,24 @@ public:
     Value addStart;
     int64_t steps;
     auto si64Type = rewriter.getIntegerType(/*width=*/64, /*isSigned*/ true);
+    auto fp32Type = rewriter.getF32Type();
+    auto arangeIntType =
+        getTensorTypeFromShapeValues({op.getSteps()}, si64Type);
+    auto arangeFp32Type =
+        getTensorTypeFromShapeValues({op.getSteps()}, fp32Type);
     if (matchPattern(op.getSteps(), m_TorchConstantInt(&steps)) && steps == 1) {
       // specically handle steps == 1
-      auto arangeType = getTensorTypeFromShapeValues({op.getSteps()}, si64Type);
       Value arange = rewriter.create<AtenArangeStartOp>(
-          loc, arangeType, zero, op.getSteps(), /*dtype=*/none, op.getLayout(),
-          op.getDevice(), op.getPinMemory());
-      addStart = rewriter.create<AtenAddScalarOp>(loc, arangeType, arange,
-                                                  op.getStart(), one);
+          loc, arangeIntType, zero, op.getSteps(), /*dtype=*/none,
+          op.getLayout(), op.getDevice(), op.getPinMemory());
+      if (isa<Torch::FloatType>(op.getEnd().getType()) ||
+          isa<Torch::FloatType>(op.getStart().getType())) {
+        addStart = rewriter.create<AtenAddScalarOp>(loc, arangeFp32Type, arange,
+                                                    op.getStart(), one);
+      } else {
+        addStart = rewriter.create<AtenAddScalarOp>(loc, arangeIntType, arange,
+                                                    op.getStart(), one);
+      }
     } else {
       // handle steps != 1 or dynamic steps
       Value neOrNot = rewriter.create<AtenNeIntOp>(loc, op.getSteps(), one);
@@ -7617,10 +7627,9 @@ public:
           loc, neOrNot,
           rewriter.getStringAttr("linspace's dynamic steps must not be 1"));
       // create arange: [0, ..., steps - 1]
-      auto arangeType = getTensorTypeFromShapeValues({op.getSteps()}, si64Type);
       Value arange = rewriter.create<AtenArangeStartOp>(
-          loc, arangeType, zero, op.getSteps(), /*dtype=*/none, op.getLayout(),
-          op.getDevice(), op.getPinMemory());
+          loc, arangeIntType, zero, op.getSteps(), /*dtype=*/none,
+          op.getLayout(), op.getDevice(), op.getPinMemory());
       // calculate (end - start) / (steps - 1)
       Value sub;
       if (isa<Torch::FloatType>(op.getEnd().getType()) ||
@@ -7634,15 +7643,16 @@ public:
           loc, sub, rewriter.create<AtenSubIntOp>(loc, op.getSteps(), one));
       // calculate [0, ..., steps - 1] * ((end - start) / (steps - 1)) + start
       Value mulScalar =
-          rewriter.create<AtenMulScalarOp>(loc, arangeType, arange, div);
-      addStart = rewriter.create<AtenAddScalarOp>(loc, arangeType, mulScalar,
-                                                  op.getStart(), one);
+          rewriter.create<AtenMulScalarOp>(loc, arangeFp32Type, arange, div);
+      addStart = rewriter.create<AtenAddScalarOp>(
+          loc, arangeFp32Type, mulScalar, op.getStart(), one);
     }
     // to dtype
     Value result;
     if (!isa<Torch::NoneType>(op.getDtype().getType())) {
       result = rewriter.create<AtenToDtypeOp>(
-          loc, op.getType(), addStart, op.getDtype(), /*non_blocking=*/falseVal,
+          loc, op.getType(), addStart, op.getDtype(),
+          /*non_blocking=*/falseVal,
           /*copy=*/falseVal, /*memory_format=*/none);
     } else {
       Value f32Type = rewriter.create<ConstantIntOp>(
