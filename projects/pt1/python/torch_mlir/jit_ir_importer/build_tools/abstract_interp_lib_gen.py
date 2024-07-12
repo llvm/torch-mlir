@@ -1771,6 +1771,9 @@ def aten〇native_group_norm〡shape(input: List[int], weight: Optional[List[int
 def aten〇instance_norm〡shape(input: List[int], weight: Optional[List[int]], bias: Optional[List[int]], running_mean: Optional[List[int]], running_var: Optional[List[int]], use_input_stats: bool, momentum: float, eps: float, cudnn_enabled: bool) -> List[int]:
     return upstream_shape_functions.unary(input)
 
+def aten〇_weight_norm_interface〡shape(v: List[int], g: List[int], dim: int = 0) -> Tuple[List[int], List[int]]:
+    return upstream_shape_functions.unary(v), upstream_shape_functions.unary(g)
+
 def aten〇slice〇Tensor〡shape(self: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
     return upstream_shape_functions.slice(self, dim, start, end, step)
 
@@ -2543,6 +2546,19 @@ def aten〇native_group_norm〡dtype(input_rank_dtype: Tuple[int, int], weight_r
 def aten〇instance_norm〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: Optional[Tuple[int, int]], bias_rank_dtype: Optional[Tuple[int, int]], running_mean_rank_dtype: Optional[Tuple[int, int]], running_var_rank_dtype: Optional[Tuple[int, int]], use_input_stats: bool, momentum: float, eps: float, cudnn_enabled: bool) -> int:
     input_rank, input_dtype = input_rank_dtype
     return input_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=2, error_types={*all_integer_dtypes()}))
+def aten〇_weight_norm_interface〡dtype(v_rank_dtype: Tuple[int, int], g_rank_dtype: Tuple[int, int], dim: int = 0) -> Tuple[int, int]:
+    v_rank, v_dtype = v_rank_dtype
+    g_rank, g_dtype = g_rank_dtype
+    assert v_dtype == g_dtype
+    assert not is_integer_dtype(g_dtype)
+    if g_dtype == torch.complex128:
+        return v_dtype, torch.float64
+    elif g_dtype == torch.complex64:
+        return v_dtype, torch.float32
+    else:
+        return v_dtype, g_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇bernoulli_〇float〡dtype(self_rank_dtype: Tuple[int, int], p: float = 0.5, generator: Any = None) -> int:
