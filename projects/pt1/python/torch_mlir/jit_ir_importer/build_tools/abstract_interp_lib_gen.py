@@ -2557,8 +2557,7 @@ def aten〇_weight_norm_interface〡dtype(v_rank_dtype: Tuple[int, int], g_rank_
         return v_dtype, torch.float64
     elif g_dtype == torch.complex64:
         return v_dtype, torch.float32
-    else:
-        return v_dtype, g_dtype
+    return v_dtype, g_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇bernoulli_〇float〡dtype(self_rank_dtype: Tuple[int, int], p: float = 0.5, generator: Any = None) -> int:
