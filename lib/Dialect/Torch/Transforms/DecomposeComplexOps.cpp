@@ -6379,17 +6379,91 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenPadOp op,
                                 PatternRewriter &rewriter) const override {
+    std::string mode;
+    if (!matchPattern(op.getMode(), m_TorchConstantStr(mode)))
+      return rewriter.notifyMatchFailure(op, "mode must be a constant string");
 
-    Value value = op.getValue();
-    if (isa<Torch::OptionalType>(value.getType()))
-      return rewriter.notifyMatchFailure(op, "optional type not supported");
-    if (isa<Torch::NoneType>(value.getType()))
-      value = rewriter.create<Torch::ConstantFloatOp>(
-          op.getLoc(), rewriter.getF64FloatAttr(0));
+    if (mode == "constant") {
+      Value value = op.getValue();
+      if (isa<Torch::OptionalType>(value.getType()))
+        return rewriter.notifyMatchFailure(op, "optional type not supported");
+      if (isa<Torch::NoneType>(value.getType()))
+        value = rewriter.create<Torch::ConstantFloatOp>(
+            op.getLoc(), rewriter.getF64FloatAttr(0));
 
-    rewriter.replaceOpWithNewOp<AtenConstantPadNdOp>(
-        op, op.getType(), op.getSelf(), op.getPad(), value);
-    return success();
+      rewriter.replaceOpWithNewOp<AtenConstantPadNdOp>(
+          op, op.getType(), op.getSelf(), op.getPad(), value);
+      return success();
+    }
+
+    SmallVector<Value> padValues;
+    if (!getListConstructElements(op.getPad(), padValues))
+      return failure();
+    SmallVector<int64_t> padInts;
+    Value usefulPads = op.getPad();
+    uint64_t usefulPadIndexEnd = padValues.size();
+
+    // try to reduce the number of padding dims if possible
+    if (matchPattern(op.getPad(), m_TorchListOfConstantInts(padInts))) {
+      if ((padInts.size() % 2) == 1)
+        return rewriter.notifyMatchFailure(op,
+                                           "expected an even number of pads");
+
+      for (uint64_t i = padInts.size() - 1; i > 0; i -= 2) {
+        if (padInts[i] != 0 || padInts[i - 1] != 0)
+          break;
+        usefulPadIndexEnd = i - 1;
+      }
+      if (usefulPadIndexEnd == 0) {
+        rewriter.replaceOp(op, op.getSelf());
+        return success();
+      }
+    }
+
+    // we don't have support for 1-D replicate pad, so pass it as 2d if
+    // possible.
+    // TODO: add support for AtenReplicatePad1dOp and remove this.
+    if (mode == "replicate" && usefulPadIndexEnd == 2 && padValues.size() >= 4)
+      usefulPadIndexEnd = 4;
+
+    // make a new list of padding ints if dimensionality reduction can be
+    // performed
+    if (usefulPadIndexEnd < padValues.size()) {
+      ArrayRef<Value> usefulPadValues(padValues.begin(),
+                                      padValues.begin() + usefulPadIndexEnd);
+      usefulPads = rewriter.create<PrimListConstructOp>(
+          op.getLoc(),
+          rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
+          usefulPadValues);
+    }
+
+    uint64_t numPadDims = usefulPadIndexEnd / 2;
+
+    if (mode == "reflect") {
+      // only support for relectionpad 1d and 2d
+      if (numPadDims == 2) {
+        rewriter.replaceOpWithNewOp<AtenReflectionPad2dOp>(
+            op, op.getType(), op.getSelf(), usefulPads);
+        return success();
+      }
+      if (numPadDims == 1) {
+        rewriter.replaceOpWithNewOp<AtenReflectionPad1dOp>(
+            op, op.getType(), op.getSelf(), usefulPads);
+        return success();
+      }
+      return failure();
+    }
+
+    if (mode == "replicate") {
+      // only support for replication pad 2d
+      if (numPadDims != 2)
+        return failure();
+      rewriter.replaceOpWithNewOp<AtenReplicationPad2dOp>(
+          op, op.getType(), op.getSelf(), usefulPads);
+      return success();
+    }
+
+    return rewriter.notifyMatchFailure(op, "unsupported mode: " + mode);
   }
 };
 } // namespace

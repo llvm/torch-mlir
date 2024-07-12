@@ -40,7 +40,8 @@ bool isQCommutingOp(mlir::Operation *op) {
   // if adding a new commuting op here, be sure to add a
   // RemoveUnused pattern for that op to clean up afterwards
   return llvm::isa<AtenTransposeIntOp, AtenReshapeOp, AtenSliceTensorOp,
-                   PrimsCollapseOp, AtenViewOp>(op);
+                   PrimsCollapseOp, AtenViewOp, AtenPadOp, AtenConstantPadNdOp>(
+      op);
 }
 
 // The following conversion takes patterns of the form [op0 -> MPTQT -> dequant
@@ -65,7 +66,7 @@ public:
     for (unsigned i : QuantInfo<SrcOp>::operandsToQuantize) {
       Value operand = operands[i];
       std::stack<mlir::Operation *> commutingOpStack;
-      Value dequantOpd, MPTQTOpd;
+      Value dequantOpd, MPTQTOpd, scale, zeroPoint;
       for (unsigned k = 0; k < depth + 1; k++) {
         auto currOp = operand.getDefiningOp();
         // Case 0 : currOp is a nullptr (e.g., operand is a block argument)
@@ -84,6 +85,8 @@ public:
           auto MPTQTOp =
               dequantOpd.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>();
           MPTQTOpd = MPTQTOp.getOperand(0);
+          scale = MPTQTOp.getOperand(1);
+          zeroPoint = MPTQTOp.getOperand(2);
         }
         // either a dequant was found or chain broken, so break loop
         break;
@@ -107,6 +110,47 @@ public:
         commutingOpStack.pop();
         llvm::SmallVector<Value> currOperands(currOp->getOperands());
         currOperands[0] = oldOpd;
+        // pad ops aren't quite commuting, so we include some extra logic to
+        // quantize the padding value
+        if (isa<Torch::AtenPadOp, Torch::AtenConstantPadNdOp>(currOp)) {
+          Value floatPadValue = currOperands.back();
+          Value quantPadValue;
+          if (isa<Torch::NoneType>(floatPadValue.getType()))
+            quantPadValue = rewriter.create<AtenFloatScalarOp>(loc, zeroPoint);
+          else {
+            floatPadValue =
+                rewriter.create<AtenFloatScalarOp>(loc, floatPadValue);
+            quantPadValue = rewriter.create<Torch::AtenDivFloatOp>(
+                loc, floatPadValue, scale);
+            quantPadValue = rewriter.create<Torch::AtenAddFloatIntOp>(
+                loc, quantPadValue, zeroPoint);
+          }
+          // clamp pad value to qint range
+          if (auto intType = dyn_cast<mlir::IntegerType>(intDType)) {
+            bool isSigned = intType.isSignedInteger();
+            int64_t width = intType.getWidth();
+            assert(width < 64 &&
+                   "quantized int bitwidth should be less than 64");
+            int64_t minInt = isSigned ? -(1 << (width - 1)) : 0;
+            int64_t maxInt = isSigned ? -minInt - 1 : ((1 << width) - 1);
+            Value minQValueFloat = rewriter.create<ConstantFloatOp>(
+                loc, rewriter.getF64FloatAttr(minInt));
+            Value maxQValueFloat = rewriter.create<ConstantFloatOp>(
+                loc, rewriter.getF64FloatAttr(maxInt));
+            SmallVector<int64_t> emptyShape;
+            auto floatTensorType = rewriter.getType<Torch::ValueTensorType>(
+                emptyShape, rewriter.getF64Type());
+            Value quantPadValueTensor = createRank0Tensor(
+                rewriter, loc, floatTensorType, quantPadValue);
+            Value clampedTensor = rewriter.create<Torch::AtenClampOp>(
+                loc, floatTensorType, quantPadValueTensor, minQValueFloat,
+                maxQValueFloat);
+            quantPadValue = rewriter.create<Torch::AtenItemOp>(
+                loc, rewriter.getType<Torch::FloatType>(), clampedTensor);
+          }
+          // quantPadValue is a float, but will get converted/truncated
+          currOperands.back() = quantPadValue;
+        }
         // get new result type
         auto oldType = cast<ValueTensorType>(currOp->getResultTypes()[0]);
         auto intType =
@@ -374,7 +418,8 @@ public:
         RemoveUnused<Aten_MakePerTensorQuantizedTensorOp>,
         RemoveUnused<AtenTransposeIntOp>, RemoveUnused<AtenSliceTensorOp>,
         RemoveUnused<AtenReshapeOp>, RemoveUnused<PrimsCollapseOp>,
-        RemoveUnused<AtenViewOp>,
+        RemoveUnused<AtenViewOp>, RemoveUnused<AtenPadOp>,
+        RemoveUnused<AtenConstantPadNdOp>,
         QuantizeOperandsPastCommutingOps<AtenConvolutionOp, 5>,
         QuantizeOperandsPastCommutingOps<AtenReluOp, 0>,
         QuantizeOperandsPastCommutingOps<AtenMatmulOp, 2>,
