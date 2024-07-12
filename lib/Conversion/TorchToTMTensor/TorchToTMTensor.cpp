@@ -373,16 +373,19 @@ static FailureOr<SmallVector<Value>> createTMTensorTopkOp(
 }
 
 namespace {
-class ConvertAtenScatterSrcOp : public OpConversionPattern<AtenScatterSrcOp> {
+template <typename AtenOpT>
+class ConvertAtenScatterOp : public OpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenScatterSrcOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    const TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter =
+        OpConversionPattern<AtenOpT>::getTypeConverter();
     Value self = adaptor.getSelf();
     Value index = adaptor.getIndex();
     Value src = adaptor.getSrc();
@@ -410,7 +413,19 @@ public:
         /*dimensionsMap=*/createDefaultDimMap(indices), /*uniqueIndices=*/false,
         [&](OpBuilder &b, Location loc, Value updatesElement,
             Value inputElement) {
-          b.create<TMTensor::YieldOp>(loc, updatesElement);
+          if (isa<AtenScatterSrcOp>(op)) {
+            b.create<TMTensor::YieldOp>(loc, updatesElement);
+          } else if (isa<AtenScatterAddOp>(op)) {
+            if (isa<mlir::IntegerType>(selfType.getElementType())) {
+              Value add =
+                  b.create<arith::AddIOp>(loc, inputElement, updatesElement);
+              b.create<TMTensor::YieldOp>(loc, add);
+            } else if (isa<mlir::FloatType>(selfType.getElementType())) {
+              Value add =
+                  b.create<arith::AddFOp>(loc, inputElement, updatesElement);
+              b.create<TMTensor::YieldOp>(loc, add);
+            }
+          }
         });
 
     auto resultType = cast<RankedTensorType>(
@@ -2169,7 +2184,11 @@ public:
                                                          context);
 
     target.addIllegalOp<AtenScatterSrcOp>();
-    patterns.add<ConvertAtenScatterSrcOp>(typeConverter, context);
+    patterns.add<ConvertAtenScatterOp<AtenScatterSrcOp>>(typeConverter,
+                                                         context);
+    target.addIllegalOp<AtenScatterAddOp>();
+    patterns.add<ConvertAtenScatterOp<AtenScatterAddOp>>(typeConverter,
+                                                         context);
     target.addIllegalOp<AtenKthvalueOp>();
     patterns.add<ConvertAtenKthvalueOp>(typeConverter, context);
 

@@ -1810,6 +1810,9 @@ def aten〇scatter〇src〡shape(self: List[int], dim: int, index: List[int], sr
 def aten〇scatter〇value〡shape(self: List[int], dim: int, index: List[int], value: float) -> List[int]:
     return self
 
+def aten〇scatter_add〡shape(self: List[int], dim: int, index: List[int], src: List[int]) -> List[int]:
+    return self
+
 def aten〇index_select〡shape(self: List[int], dim: int, index: List[int]) -> List[int]:
     return upstream_shape_functions.index_select(self, dim, index)
 
@@ -3112,6 +3115,12 @@ def aten〇scatter〇src〡dtype(self_rank_dtype: Tuple[int, int], dim: int, ind
 @check_dtype_function(
     [Invocation(TensorOfShape(3, dtype=dtype), 0, TensorOfShape(3, dtype=torch.int64), 1.0) for dtype in _SORTED_TORCH_TYPES])
 def aten〇scatter〇value〡dtype(self_rank_dtype: Tuple[int, int], dim: int, index_rank_dtype: Tuple[int, int], value: Union[int, float, complex]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(
+    [Invocation(TensorOfShape(3, dtype=dtype), 0, TensorOfShape(3, dtype=torch.int64), TensorOfShape(3, dtype=dtype)) for dtype in _SORTED_TORCH_TYPES])
+def aten〇scatter_add〡dtype(self_rank_dtype: Tuple[int, int], dim: int, index_rank_dtype: Tuple[int, int], src_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 

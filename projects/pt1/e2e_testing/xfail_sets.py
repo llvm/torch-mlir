@@ -2682,6 +2682,7 @@ ONNX_XFAIL_SET = {
     "ScatterReduceIntMaxModuleIncludeSelf",
     "ScatterReduceIntMinModuleIncludeSelf",
     "ScatterValueFloatModule_basic",
+    "ScatterAddStaticModule_basic",
     # Failure - onnx_lowering: onnx.ScatterND
     "IndexPut1DFloatAccumulateModule_basic",
     "IndexPut1DIntAccumulateModule_basic",
