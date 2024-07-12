@@ -2636,6 +2636,7 @@ ONNX_XFAIL_SET = {
     "ViewNoChange1dModule_basic",
     "ViewNoChange2dModule_basic",
     "ViewNoChange3dModule_basic",
+    "WeightNormInterfaceModule_basic",
     "_Convolution2DAllFalseModule_basic",
     "_Convolution2DBenchmarkModule_basic",
     "_Convolution2DCudnnModule_basic",
