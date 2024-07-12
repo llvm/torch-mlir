@@ -7592,7 +7592,6 @@ public:
     Location loc = op.getLoc();
     MLIRContext *context = getContext();
 
-    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
     Value none = rewriter.create<ConstantNoneOp>(loc);
     Value falseVal = rewriter.create<ConstantBoolOp>(loc, false);
     Value zero =
@@ -7602,12 +7601,14 @@ public:
 
     Value addStart;
     int64_t steps;
+    auto si64Type = rewriter.getIntegerType(/*width=*/64, /*isSigned*/ true);
     if (matchPattern(op.getSteps(), m_TorchConstantInt(&steps)) && steps == 1) {
       // specically handle steps == 1
+      auto arangeType = getTensorTypeFromShapeValues({op.getSteps()}, si64Type);
       Value arange = rewriter.create<AtenArangeStartOp>(
-          loc, baseType, zero, op.getSteps(), /*dtype=*/none, op.getLayout(),
+          loc, arangeType, zero, op.getSteps(), /*dtype=*/none, op.getLayout(),
           op.getDevice(), op.getPinMemory());
-      addStart = rewriter.create<AtenAddScalarOp>(loc, baseType, arange,
+      addStart = rewriter.create<AtenAddScalarOp>(loc, arangeType, arange,
                                                   op.getStart(), one);
     } else {
       // handle steps != 1 or dynamic steps
@@ -7616,8 +7617,9 @@ public:
           loc, neOrNot,
           rewriter.getStringAttr("linspace's dynamic steps must not be 1"));
       // create arange: [0, ..., steps - 1]
+      auto arangeType = getTensorTypeFromShapeValues({op.getSteps()}, si64Type);
       Value arange = rewriter.create<AtenArangeStartOp>(
-          loc, baseType, zero, op.getSteps(), /*dtype=*/none, op.getLayout(),
+          loc, arangeType, zero, op.getSteps(), /*dtype=*/none, op.getLayout(),
           op.getDevice(), op.getPinMemory());
       // calculate (end - start) / (steps - 1)
       Value sub;
@@ -7632,8 +7634,8 @@ public:
           loc, sub, rewriter.create<AtenSubIntOp>(loc, op.getSteps(), one));
       // calculate [0, ..., steps - 1] * ((end - start) / (steps - 1)) + start
       Value mulScalar =
-          rewriter.create<AtenMulScalarOp>(loc, baseType, arange, div);
-      addStart = rewriter.create<AtenAddScalarOp>(loc, baseType, mulScalar,
+          rewriter.create<AtenMulScalarOp>(loc, arangeType, arange, div);
+      addStart = rewriter.create<AtenAddScalarOp>(loc, arangeType, mulScalar,
                                                   op.getStart(), one);
     }
     // to dtype
@@ -8557,7 +8559,6 @@ public:
     Value falseVal = rewriter.create<ConstantBoolOp>(loc, false);
     Value one =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
 
     // input/scale
     Value divScale = rewriter.create<AtenDivScalarOp>(
@@ -8568,16 +8569,19 @@ public:
     Value addZeroPoint = rewriter.create<AtenAddScalarOp>(
         loc, op.getType(), round, op.getZeroPoint(), one);
     // max(quant_min, std::nearby_int(input/scale) + zero_point)
+    auto si64Type = IntegerType::get(context, 64, IntegerType::Signed);
+    auto tensorIntType =
+        ValueTensorType::get(context, ArrayRef<int64_t>{1}, si64Type);
     Value max = rewriter.create<AtenMaximumOp>(
         loc, op.getType(), addZeroPoint,
-        rewriter.create<AtenTensorIntOp>(loc, baseType, op.getQuantMin(),
+        rewriter.create<AtenTensorIntOp>(loc, tensorIntType, op.getQuantMin(),
                                          /*dtype=*/none,
                                          /*device=*/none,
                                          /*requires_grad=*/falseVal));
     // min(quant_max, max(quant_min, std::nearby_int(input/scale) + zero_point))
     Value min = rewriter.create<AtenMinimumOp>(
         loc, op.getType(), max,
-        rewriter.create<AtenTensorIntOp>(loc, baseType, op.getQuantMax(),
+        rewriter.create<AtenTensorIntOp>(loc, tensorIntType, op.getQuantMax(),
                                          /*dtype=*/none, /*device=*/none,
                                          /*requires_grad=*/falseVal));
     // min(quant_max, max(quant_min, std::nearby_int(input/scale) + zero_point))
