@@ -6388,7 +6388,7 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
       return failure();
     SmallVector<int64_t> padInts;
     Value usefulPads = op.getPad();
-    unsigned usefulPadIndexEnd = padValues.size();
+    uint64_t usefulPadIndexEnd = padValues.size();
 
     // try to reduce the number of padding dims if possible
     if (matchPattern(op.getPad(), m_TorchListOfConstantInts(padInts))) {
@@ -6396,11 +6396,10 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
         return rewriter.notifyMatchFailure(op,
                                            "expected an even number of pads");
 
-      for (unsigned i = padInts.size() - 1; i > 0; i -= 2) {
-        if (padInts[i] == 0 && padInts[i - 1] == 0)
-          usefulPadIndexEnd = i - 1;
-        else
+      for (uint64_t i = padInts.size() - 1; i > 0; i -= 2) {
+        if (padInts[i] != 0 || padInts[i - 1] != 0)
           break;
+        usefulPadIndexEnd = i - 1;
       }
       if (usefulPadIndexEnd == 0) {
         rewriter.replaceOp(op, op.getSelf());
@@ -6425,7 +6424,7 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
           usefulPadValues);
     }
 
-    unsigned numPadDims = usefulPadIndexEnd / 2;
+    uint64_t numPadDims = usefulPadIndexEnd / 2;
 
     if (mode == "reflect") {
       // only support for relectionpad 1d and 2d

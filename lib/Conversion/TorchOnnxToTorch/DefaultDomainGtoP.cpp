@@ -2234,6 +2234,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType) ||
             binder.customOpNameStringAttr(mode, "mode", "constant"))
           return failure();
+        bool cstMode = (mode == "constant");
 
         // get input rank
         auto dataOpTy = cast<Torch::ValueTensorType>(data.getType());
@@ -2307,7 +2308,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         Value constantValue;
-        if (binder.getNumOperands() >= 3 && mode == "constant") {
+        if (binder.getNumOperands() >= 3 && cstMode) {
           if (!binder.tensorOperandAtIndex(constantValue, 2)) {
             auto constTy =
                 dyn_cast<Torch::BaseTensorType>(constantValue.getType());
@@ -2323,7 +2324,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           }
         }
 
-        if (!constantValue && mode == "constant") {
+        if (!constantValue && cstMode) {
           auto dataTensorType = cast<Torch::ValueTensorType>(data.getType());
           if (isa<IntegerType>(dataTensorType.getDtype()))
             constantValue = rewriter.create<Torch::ConstantIntOp>(
@@ -2343,7 +2344,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         // for modes other than "constant" a value is not required
-        if (mode != "constant")
+        if (!cstMode)
           constantValue = rewriter.create<Torch::ConstantNoneOp>(loc);
 
         // The torch.pad op expects a different arrangement of padding pairs for
@@ -2369,8 +2370,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // lowering to AtenConstantPadNdOp directly allows passing any torch
         // scalar type for the value, whereas AtenPadOp takes an optional float
         // type.
-        if (mode == "constant" &&
-            !isa<Torch::NoneType>(constantValue.getType())) {
+        if (cstMode && !isa<Torch::NoneType>(constantValue.getType())) {
           rewriter.replaceOpWithNewOp<Torch::AtenConstantPadNdOp>(
               binder.op, resultType, data, padsSizeList, constantValue);
           return success();
