@@ -30,7 +30,7 @@ def _module_lowering(
     extra_library_file_name=None,
 ):
 
-    if output_type == OutputType.TORCH:
+    if output_type == OutputType.RAW:
         if verbose:
             print(torch_mod)
         return torch_mod
@@ -50,7 +50,7 @@ def _module_lowering(
 def export_and_import(
     f: Union[nn.Module, ExportedProgram],
     *args,
-    output_type: Union[str, OutputType] = OutputType.TORCH,
+    output_type: Union[str, OutputType] = OutputType.RAW,
     fx_importer: Optional[FxImporter] = None,
     dynamic_shapes: Optional[Union[Dict[str, Any], Tuple[Any]]] = None,
     experimental_support_mutation: bool = False,
@@ -99,7 +99,7 @@ def export_and_import(
 
 def stateless_fx_import(
     gm: torch.fx.GraphModule,
-    output_type: Union[str, OutputType] = OutputType.TORCH,
+    output_type: Union[str, OutputType] = OutputType.RAW,
     fx_importer: Optional[FxImporter] = None,
     hooks: Optional[FxImporterHooks] = None,
     model_name: str = "main",

@@ -82,12 +82,12 @@ def run_pipeline_with_repro_report(
 
 class OutputType(Enum):
 
-    # Output torch dialect. When converting from FX, this will be immediately
-    # after the import from FX to MLIR. When converting from torchscript,
-    # this will come after some cleanup passes which attempt to de-alias,
-    # decompose and infer shapes. These should be roughly the same level of
-    # abstraction since those steps are done within PyTorch itself
-    # when coming directly from Dynamo/FX.
+    # Output torch dialect in backend form. When converting from TorchDynamo,
+    # this comes after some decomposition and reduce op variants passes are
+    # applied to the raw torch dialect. When converting from TorchScript, this
+    # comes after some cleanup passes which attempt to de-alias, decompose and infer shapes.
+    # These should be roughly the same level of abstraction since those
+    # steps are done within PyTorch itself when coming directly from Dynamo/FX.
     TORCH = "torch"
 
     # The output type contains a mix of `linalg`-on-tensors ops, `scf`, and
@@ -104,7 +104,8 @@ class OutputType(Enum):
     # as taking the `TORCH` output type and lowering it to StableHLO.
     STABLEHLO = "stablehlo"
 
-    # Raw output of the JIT IR importer. This is not expected to be useful
+    # Raw output of the JIT IR importer in the TorchScript frontend or that of
+    # the FX IR importer in the TorchDynamo frontend. This is not expected to be useful
     # for end-users, but can be convenient for development or reporting bugs.
     RAW = "raw"
 
