@@ -433,7 +433,7 @@ def test_broadcast_unit_dim_to_dynamic_with_rank_increase():
 @run
 # CHECK-LABEL: test_gather_elements
 # CHECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?,3],f32>, %[[ARG1:.+]]: !torch.vtensor<[2,3],si64>) -> !torch.vtensor<[2,3],f32> {
-# CHECK:        %[[S0]] = torch.symbolic_int "s0" {min_val = 3, max_val = 9223372036854775806} : !torch.int
+# CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 3, max_val = 9223372036854775806} : !torch.int
 # CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
 # CHECK:        %[[GATHER:.+]] = torch.aten.gather %[[ARG0]], {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[?,3],f32>, !torch.int, !torch.vtensor<[2,3],si64>, !torch.bool -> !torch.vtensor<[2,3],f32>
 # CHECK:        return %[[GATHER]] : !torch.vtensor<[2,3],f32>
@@ -457,6 +457,39 @@ def test_gather_elements():
         GatherElements(),
         x,
         y,
+        dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_nonzero
+# CHECK:  func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?,3],f32>) -> !torch.vtensor<[?,2],si64> {
+# CHECK:    %[[U0:.+]] = torch.symbolic_int "u0" {min_val = 0, max_val = 9223372036854775806} : !torch.int
+# CHECK:    %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 3, max_val = 10} : !torch.int
+# CHECK:    torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
+# CHECK:    %[[NZERO:.+]] = torch.aten.nonzero %[[ARG0]] : !torch.vtensor<[?,3],f32> -> !torch.vtensor<[?,2],si64>
+# CHECK:    torch.bind_symbolic_shape %[[NZERO]], [%[[U0]]], affine_map<()[s0] -> (s0, 2)> : !torch.vtensor<[?,2],si64>
+# CHECK:    return %[[NZERO]] : !torch.vtensor<[?,2],si64>
+def test_nonzero():
+    class Nonzero(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
+            return torch.nonzero(x)
+
+    # Sample inputs
+    x = torch.randn(4, 3)
+
+    # Dynamic dim constraints
+    batch = Dim("batch", min=3, max=10)
+    dynamic_shapes = {"x": {0: batch}}
+
+    m = fx.export_and_import(
+        Nonzero(),
+        x,
         dynamic_shapes=dynamic_shapes,
         import_symbolic_shape_expressions=True,
     )
