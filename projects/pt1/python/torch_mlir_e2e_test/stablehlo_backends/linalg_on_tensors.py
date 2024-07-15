@@ -34,6 +34,7 @@ element_type_to_np_dtype = {
     "f64": np.float64,
 }
 
+
 def convert_dense_elements_attr_to_numpy(attr):
     assert isinstance(attr, ir.DenseElementsAttr)
     dense_attr = ir.DenseElementsAttr(attr)
@@ -48,19 +49,25 @@ def convert_dense_elements_attr_to_numpy(attr):
             ).reshape(dense_attr_type.shape)
     raise NotImplementedError("unsupported attribute {}".format(attr))
 
+
 class RefBackendInvoker:
     def __init__(self, module):
         self.module = module
 
     def __getattr__(self, function_name: str):
         def invoke(*args):
-            mlir_args = [ir.DenseElementsAttr.get(arg, context=self.module.context) for arg in args]
+            mlir_args = [
+                ir.DenseElementsAttr.get(arg, context=self.module.context)
+                for arg in args
+            ]
             rets = eval_module(self.module, mlir_args)
             rets = [convert_dense_elements_attr_to_numpy(i) for i in rets]
             if len(rets) == 1:
                 return rets[0]
             return rets
+
         return invoke
+
 
 # The pipeline of func.func passes that lower the STABLEHLO backend contract to the
 # Linalg-on-Tensors backend contract accepted by RefBackend.
@@ -82,6 +89,7 @@ SHAPE_LEGALIZE_TO_STABLEHLO_PIPELINE = ",".join(
     ]
 )
 
+
 def raise_if_not_supported_by_interpreter(module: Module):
     for func in module.body.operations:
         assert isinstance(func, FuncOp)
@@ -97,11 +105,18 @@ def raise_if_not_supported_by_interpreter(module: Module):
             if op.operation.name == "func.return":
                 continue
             if not op.operation.name.startswith("stablehlo."):
-                raise RuntimeError(f"stablehlo interpreter doesn't support {op.operation.name}")
+                raise RuntimeError(
+                    f"stablehlo interpreter doesn't support {op.operation.name}"
+                )
             if op.operation.name == "stablehlo.batch_norm_inference":
-                raise RuntimeError(f"stablehlo interpreter doesn't support {op.operation.name}")
+                raise RuntimeError(
+                    f"stablehlo interpreter doesn't support {op.operation.name}"
+                )
             if op.operation.name == "stablehlo.dot":
-                raise RuntimeError(f"stablehlo interpreter doesn't support {op.operation.name}")
+                raise RuntimeError(
+                    f"stablehlo interpreter doesn't support {op.operation.name}"
+                )
+
 
 class LinalgOnTensorsStablehloBackend(StablehloBackend):
     """Main entry-point for the linalg-on-tensors based Stablehlo backend.
