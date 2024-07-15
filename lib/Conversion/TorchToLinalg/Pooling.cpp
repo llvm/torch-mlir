@@ -626,10 +626,20 @@ public:
     if (!resType)
       return rewriter.notifyMatchFailure(op, "invalid result type");
 
-    if (ShapedType::isDynamicShape(resType.getShape().take_back(3)))
+    ArrayRef<int64_t> inferredOutSize = resType.getShape().take_back(3);
+    if (ShapedType::isDynamicShape(inferredOutSize))
       return rewriter.notifyMatchFailure(op,
                                          "output type must be of static shape");
 
+    {
+      SmallVector<int64_t> output;
+      if (!matchPattern(op.getOutputSize(), m_TorchListOfConstantInts(output)))
+        return rewriter.notifyMatchFailure(op,
+                                           "only support constant int output");
+
+      if (inferredOutSize != ArrayRef(output))
+        return rewriter.notifyMatchFailure(op, "Invalid output size");
+    }
     SmallVector<int64_t> stride;
     SmallVector<int64_t> padding;
 
@@ -671,7 +681,7 @@ public:
     SmallVector<int64_t> expectedInputShape =
         llvm::to_vector(resType.getShape().drop_back(3));
     for (auto &&[str, pad, resSize] :
-         llvm::zip_equal(stride, padding, resType.getShape().take_back(3)))
+         llvm::zip_equal(stride, padding, inferredOutSize))
       expectedInputShape.emplace_back(divUp(resSize, str) + pad * 2);
 
     auto padBorder = [&](Value src, ArrayRef<OpFoldResult> low,
