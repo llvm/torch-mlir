@@ -79,6 +79,14 @@ SHAPE_LEGALIZE_TO_STABLEHLO_PIPELINE = ",".join(
     ]
 )
 
+def raise_if_not_supported_ops(module: Module):
+    for func in module.body.operations:
+        assert isinstance(func, ir.dialects.func.FuncOp)
+        for op in func.entry_block.operations:
+            if not op.operation.name.startswith("stablehlo."):
+                raise RuntimeError(f"stablehlo interpreter doesn't support {op.operation.name}")
+            if op.operation.name == "stablehlo.batch_norm_inference":
+                raise RuntimeError(f"stablehlo interpreter doesn't support {op.operation.name}")
 
 class LinalgOnTensorsStablehloBackend(StablehloBackend):
     """Main entry-point for the linalg-on-tensors based Stablehlo backend.
@@ -112,11 +120,13 @@ class LinalgOnTensorsStablehloBackend(StablehloBackend):
             return (result, "linalg")
         except:
             pass
+
         run_pipeline_with_repro_report(
             copied_module,
             f"builtin.module({SHAPE_LEGALIZE_TO_STABLEHLO_PIPELINE})",
             "shape-legalize-to-stablehlo",
         )
+        raise_if_not_supported_ops(copied_module)
         # print(copied_module)
         return (copied_module, "stablehlo")
 
