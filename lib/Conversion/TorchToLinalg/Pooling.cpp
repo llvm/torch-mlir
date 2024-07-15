@@ -704,6 +704,9 @@ public:
       return (v1 + v2 - 1) / v2;
     };
 
+    // In case if input tensor size is not divisible by stride
+    // (e.g. pooling_input_size=5, kernel_size=2, stride=2, output_size=2)
+    // pad self and indices tensors to avoid out of bounds access.
     SmallVector<int64_t> expectedInputShape =
         llvm::to_vector(resType.getShape().drop_back(3));
     for (auto &&[str, pad, resSize] :
@@ -711,9 +714,6 @@ public:
       expectedInputShape.emplace_back(divUp(resSize, str) + pad * 2);
 
     if (expectedInputShape != selfType.getShape()) {
-      // In case if input tensor size is not divisble by stride
-      // (e.g. pooling_input_size=5, kernel_size=2, stride=2, output_size=2)
-      // pad self and indices tensors to avoid out of bounds access.
 
       // TODO: this is probably expensive, and it may be possible to solve by
       // cleverly constructing affine maps for the next linalg.generic op,
