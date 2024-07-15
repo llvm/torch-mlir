@@ -622,6 +622,11 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "input type must be of static shape");
 
+    Value indices = adaptor.getIndices();
+    auto indicesType = cast<RankedTensorType>(indices.getType());
+    if (selfType.getShape().take_back(3) != indicesType.getShape().take_back(3))
+      return rewriter.notifyMatchFailure(op, "input/indices shape mismatch");
+
     auto resType = typeConverter->convertType<RankedTensorType>(op.getType());
     if (!resType)
       return rewriter.notifyMatchFailure(op, "invalid result type");
@@ -674,24 +679,7 @@ public:
           rewriter.create<arith::ConstantIndexOp>(loc, size + pad));
     }
 
-    Value indices = adaptor.getIndices();
-
-    auto divUp = [](int64_t v1, int64_t v2) -> int64_t {
-      return (v1 + v2 - 1) / v2;
-    };
-
-    SmallVector<int64_t> expectedInputShape =
-        llvm::to_vector(resType.getShape().drop_back(3));
-    for (auto &&[str, pad, resSize] :
-         llvm::zip_equal(stride, padding, inferredOutSize))
-      expectedInputShape.emplace_back(divUp(resSize, str) + pad * 2);
-
-    // Pad last 3 src dims with border values, e.g.
-    // [[1,2,3]  becomes [[1,1,2,3,3]
-    //  [4,5,6]]          [1,1,2,3,3]
-    //                    [4,4,5,6,6]
-    //                    [4,4,5,6,6]]
-    auto padBorder = [&](Value src, ArrayRef<OpFoldResult> low,
+    auto createPad = [&](Value src, Value padVal, ArrayRef<OpFoldResult> low,
                          ArrayRef<OpFoldResult> high) -> Value {
       auto srcType = cast<ShapedType>(src.getType());
       SmallVector<int64_t> newShape(srcType.getShape().drop_back(3));
@@ -707,46 +695,26 @@ public:
       llvm::append_range(fullHigh, high);
 
       auto resType = srcType.clone(newShape);
-      auto pad =
-          rewriter.create<tensor::PadOp>(loc, resType, src, fullLow, fullHigh);
-      Region &region = pad.getRegion();
-      SmallVector<Type> blockArgTypes(outRank, indexType);
-      SmallVector<Location> blockArgLocs(outRank, loc);
-      OpBuilder::InsertionGuard g(rewriter);
-      Block *block = rewriter.createBlock(&region, region.end(), blockArgTypes,
-                                          blockArgLocs);
-      ValueRange blockArgs = block->getArguments();
-      SmallVector<Value> indices;
-      for (auto &&[i, arg, size] :
-           llvm::enumerate(blockArgs, selfType.getShape())) {
-        if (int64_t(i) < NC) {
-          indices.emplace_back(arg);
-          continue;
-        }
-        Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-        Value bound = rewriter.create<arith::ConstantIndexOp>(loc, size - 1);
-        Value boundIndex = rewriter.create<arith::SubIOp>(
-            loc, arg,
-            getValueOrCreateConstantIndexOp(rewriter, loc, fullLow[i]));
-        Value cmp1 = rewriter.create<arith::CmpIOp>(
-            loc, arith::CmpIPredicate::sgt, boundIndex, bound);
-        Value cmp2 = rewriter.create<arith::CmpIOp>(
-            loc, arith::CmpIPredicate::slt, boundIndex, zero);
-        boundIndex =
-            rewriter.create<arith::SelectOp>(loc, cmp1, bound, boundIndex);
-        boundIndex =
-            rewriter.create<arith::SelectOp>(loc, cmp2, zero, boundIndex);
-        indices.emplace_back(boundIndex);
-      }
-
-      Value borderVal = rewriter.create<tensor::ExtractOp>(loc, src, indices);
-      rewriter.create<tensor::YieldOp>(loc, borderVal);
-      return pad.getResult();
+      return rewriter
+          .create<tensor::PadOp>(loc, resType, src, fullLow, fullHigh, padVal)
+          .getResult();
     };
 
+    auto divUp = [](int64_t v1, int64_t v2) -> int64_t {
+      return (v1 + v2 - 1) / v2;
+    };
+
+    SmallVector<int64_t> expectedInputShape =
+        llvm::to_vector(resType.getShape().drop_back(3));
+    for (auto &&[str, pad, resSize] :
+         llvm::zip_equal(stride, padding, inferredOutSize))
+      expectedInputShape.emplace_back(divUp(resSize, str) + pad * 2);
+
     if (expectedInputShape != selfType.getShape()) {
-      // Input tensor sizes are smaller than output size, pad inputs with border
-      // values.
+      // In case if input tensor size is not divisble by stride
+      // (e.g. pooling_input_size=5, kernel_size=2, stride=2, output_size=2)
+      // pad self and indices tensors to avoid out of bounds access.
+
       // TODO: this is probably expensive, and it may be possible to solve by
       // cleverly constructing affine maps for the next linalg.generic op,
       // but I'm not smart enough to figure this out.
@@ -759,8 +727,15 @@ public:
         high.emplace_back(rewriter.getI64IntegerAttr(outSize - inpSize));
       }
 
-      self = padBorder(self, low, high);
-      indices = padBorder(indices, low, high);
+      // Pad the indices tensor with a value which cannot appear in real data
+      // (-1) so it will never match. In this case we can pad self with any
+      // value, as it will never affect the output.
+      Value zero = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getZeroAttr(selfType.getElementType()));
+      Value invalidIdx = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getIntegerAttr(indicesType.getElementType(), -1));
+      self = createPad(self, zero, low, high);
+      indices = createPad(indices, invalidIdx, low, high);
     }
 
     Value init = rewriter.create<tensor::EmptyOp>(
@@ -852,6 +827,9 @@ public:
       result = rewriter.create<tensor::ExtractSliceOp>(loc, result, offsetVals,
                                                        sizeVals, stridesVals);
     }
+
+    if (result.getType() != resType)
+      result = rewriter.create<tensor::CastOp>(loc, resType, result);
 
     rewriter.replaceOp(op, result);
     return success();
