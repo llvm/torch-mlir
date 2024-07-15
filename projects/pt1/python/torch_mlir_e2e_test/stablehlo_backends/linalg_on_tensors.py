@@ -5,6 +5,7 @@
 
 from torch_mlir import ir
 from torch_mlir.ir import *
+from torch_mlir.dialects.func import FuncOp
 from torch_mlir.passmanager import *
 from torch_mlir.compiler_utils import run_pipeline_with_repro_report
 
@@ -34,18 +35,18 @@ element_type_to_np_dtype = {
 }
 
 def convert_dense_elements_attr_to_numpy(attr):
+    assert isinstance(attr, ir.DenseElementsAttr)
     dense_attr = ir.DenseElementsAttr(attr)
-    # print(dense_attr.type)
-    # print(dense_attr.type.shape)
-    # print(dense_attr.type.element_type)
-    generic_format = str(dense_attr)
-    array, shape = generic_format.split(":")
-    obj = eval(array.split("<")[1].split(">")[0])
-    dtype = element_type_to_np_dtype[str(dense_attr.type.element_type)]
-    if isinstance(obj, list):
-        return np.array(obj, dtype=dtype)
-    else:
-        return np.full(dense_attr.type.shape, obj, dtype=dtype)
+    for DenseElementsAttrCls in [ir.DenseIntElementsAttr, ir.DenseFPElementsAttr]:
+        if DenseElementsAttrCls.isinstance(attr):
+            dense_attr = DenseElementsAttrCls(attr)
+            assert ir.ShapedType.isinstance(dense_attr.type)
+            dense_attr_type = ir.ShapedType(dense_attr.type)
+            return np.array(
+                [i for i in dense_attr],
+                dtype=element_type_to_np_dtype[str(dense_attr_type.element_type)],
+            ).reshape(dense_attr_type.shape)
+    raise NotImplementedError("unsupported attribute {}".format(attr))
 
 class RefBackendInvoker:
     def __init__(self, module):
@@ -74,18 +75,32 @@ STABLEHLO_TO_LINALG_FUNC_PIPELINE = ",".join(
 
 SHAPE_LEGALIZE_TO_STABLEHLO_PIPELINE = ",".join(
     [
+        "func.func(remove-shape-constraints)",
+        "canonicalize",
         "func.func(shape-legalize-to-stablehlo)",
         "canonicalize",
     ]
 )
 
-def raise_if_not_supported_ops(module: Module):
+def raise_if_not_supported_by_interpreter(module: Module):
     for func in module.body.operations:
-        assert isinstance(func, ir.dialects.func.FuncOp)
+        assert isinstance(func, FuncOp)
+        for arg in func.arguments:
+            assert isinstance(arg.type, ir.ShapedType)
+            if str(ir.ShapedType(arg.type).element_type) == "i1":
+                raise RuntimeError("i1")
+        for ret in list(func.entry_block.operations)[-1].operands:
+            assert isinstance(ret.type, ir.ShapedType)
+            if str(ir.ShapedType(ret.type).element_type) == "i1":
+                raise RuntimeError("i1")
         for op in func.entry_block.operations:
+            if op.operation.name == "func.return":
+                continue
             if not op.operation.name.startswith("stablehlo."):
                 raise RuntimeError(f"stablehlo interpreter doesn't support {op.operation.name}")
             if op.operation.name == "stablehlo.batch_norm_inference":
+                raise RuntimeError(f"stablehlo interpreter doesn't support {op.operation.name}")
+            if op.operation.name == "stablehlo.dot":
                 raise RuntimeError(f"stablehlo interpreter doesn't support {op.operation.name}")
 
 class LinalgOnTensorsStablehloBackend(StablehloBackend):
@@ -124,10 +139,9 @@ class LinalgOnTensorsStablehloBackend(StablehloBackend):
         run_pipeline_with_repro_report(
             copied_module,
             f"builtin.module({SHAPE_LEGALIZE_TO_STABLEHLO_PIPELINE})",
-            "shape-legalize-to-stablehlo",
+            "Shape legalize to stablehlo",
         )
-        raise_if_not_supported_ops(copied_module)
-        # print(copied_module)
+        raise_if_not_supported_by_interpreter(copied_module)
         return (copied_module, "stablehlo")
 
     def load(self, module):

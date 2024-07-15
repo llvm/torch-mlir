@@ -1500,7 +1500,12 @@ STABLEHLO_PASS_SET = {
     "RenormModuleFloat32_basic",
 }
 
-STABLEHLO_CRASHING_SET = {"IndexPutWithNoneAndBroadcastModule_basic"}
+STABLEHLO_CRASHING_SET = {
+    "IndexPutWithNoneAndBroadcastModule_basic",
+    # stablehlo intrepreter crash
+    "ElementwiseDivTensorUnsignedIntegerModule_basic",
+    "ScatterValueFloatModule_basic",
+}
 
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
