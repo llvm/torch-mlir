@@ -651,6 +651,8 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int padding");
 
+    // TODO: add support for asymmetric padding coming from "onnx.MaxUnpool"
+    // (padding.size() == 6).
     if (stride.size() != 3 || padding.size() != 3)
       return rewriter.notifyMatchFailure(
           op, "stride and padding must be of size 3");
@@ -684,22 +686,29 @@ public:
          llvm::zip_equal(stride, padding, inferredOutSize))
       expectedInputShape.emplace_back(divUp(resSize, str) + pad * 2);
 
+    // Pad last 3 src dims with border values, e.g.
+    // [[1,2,3]  becomes [[1,1,2,3,3]
+    //  [4,5,6]]          [1,1,2,3,3]
+    //                    [4,4,5,6,6]
+    //                    [4,4,5,6,6]]
     auto padBorder = [&](Value src, ArrayRef<OpFoldResult> low,
                          ArrayRef<OpFoldResult> high) -> Value {
       auto srcType = cast<ShapedType>(src.getType());
-      SmallVector<int64_t> newShape;
-      for (auto &&[i, l, s, h] :
-           llvm::enumerate(low, srcType.getShape(), high)) {
-        if (int64_t(i) < NC) {
-          newShape.emplace_back(s);
-          continue;
-        }
+      SmallVector<int64_t> newShape(srcType.getShape().drop_back(3));
+      for (auto &&[l, s, h] :
+           llvm::zip_equal(low, srcType.getShape().take_back(3), high)) {
         newShape.emplace_back(*getConstantIntValue(l) + s +
                               *getConstantIntValue(h));
       }
 
+      SmallVector<OpFoldResult> fullLow(NC, rewriter.getI64IntegerAttr(0));
+      SmallVector<OpFoldResult> fullHigh(NC, rewriter.getI64IntegerAttr(0));
+      llvm::append_range(fullLow, low);
+      llvm::append_range(fullHigh, high);
+
       auto resType = srcType.clone(newShape);
-      auto pad = rewriter.create<tensor::PadOp>(loc, resType, src, low, high);
+      auto pad =
+          rewriter.create<tensor::PadOp>(loc, resType, src, fullLow, fullHigh);
       Region &region = pad.getRegion();
       SmallVector<Type> blockArgTypes(outRank, indexType);
       SmallVector<Location> blockArgLocs(outRank, loc);
@@ -717,7 +726,8 @@ public:
         Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
         Value bound = rewriter.create<arith::ConstantIndexOp>(loc, size - 1);
         Value boundIndex = rewriter.create<arith::SubIOp>(
-            loc, arg, getValueOrCreateConstantIndexOp(rewriter, loc, low[i]));
+            loc, arg,
+            getValueOrCreateConstantIndexOp(rewriter, loc, fullLow[i]));
         Value cmp1 = rewriter.create<arith::CmpIOp>(
             loc, arith::CmpIPredicate::sgt, boundIndex, bound);
         Value cmp2 = rewriter.create<arith::CmpIOp>(
@@ -741,14 +751,11 @@ public:
       // cleverly constructing affine maps for the next linalg.generic op,
       // but I'm not smart enough to figure this out.
 
-      SmallVector<OpFoldResult> low(outRank, rewriter.getI64IntegerAttr(0));
+      SmallVector<OpFoldResult> low(3, rewriter.getI64IntegerAttr(0));
       SmallVector<OpFoldResult> high;
-      for (auto &&[i, inpSize, outSize] :
-           llvm::enumerate(selfType.getShape(), expectedInputShape)) {
-        if (int64_t(i) < NC) {
-          high.emplace_back(rewriter.getI64IntegerAttr(0));
-          continue;
-        }
+      for (auto &&[inpSize, outSize] :
+           llvm::zip_equal(selfType.getShape().take_back(3),
+                           ArrayRef(expectedInputShape).take_back(3))) {
         high.emplace_back(rewriter.getI64IntegerAttr(outSize - inpSize));
       }
 
