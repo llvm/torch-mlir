@@ -67,6 +67,7 @@ void mlir::torch::registerAllPasses() {
   mlir::stablehlo::registerStablehloAggressiveSimplificationPass();
   mlir::stablehlo::registerStablehloRefineShapesPass();
   mlir::stablehlo::registerStablehloConvertToSignlessPass();
+  mlir::stablehlo::registerShapeLegalizeToStablehloPass();
 #endif
 
 #ifdef TORCH_MLIR_ENABLE_REFBACKEND

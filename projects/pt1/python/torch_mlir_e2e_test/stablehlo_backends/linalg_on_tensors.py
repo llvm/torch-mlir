@@ -72,6 +72,13 @@ STABLEHLO_TO_LINALG_FUNC_PIPELINE = ",".join(
     ]
 )
 
+SHAPE_LEGALIZE_TO_STABLEHLO_PIPELINE = ",".join(
+    [
+        "func.func(shape-legalize-to-stablehlo)",
+        "canonicalize",
+    ]
+)
+
 
 class LinalgOnTensorsStablehloBackend(StablehloBackend):
     """Main entry-point for the linalg-on-tensors based Stablehlo backend.
@@ -92,6 +99,9 @@ class LinalgOnTensorsStablehloBackend(StablehloBackend):
           An opaque, backend specific compiled artifact object that can be
           passed to `load`.
         """
+        with imported_module.context:
+            # print(imported_module.operation.get_asm())
+            copied_module = Module.parse(imported_module.operation.get_asm())
         try:
             run_pipeline_with_repro_report(
                 imported_module,
@@ -99,11 +109,16 @@ class LinalgOnTensorsStablehloBackend(StablehloBackend):
                 "Lowering STABLEHLO backend contract to Linalg-on-Tensors backend contract",
             )
             result = self.refbackend.compile(imported_module)
-        except:
-            return (imported_module, "stablehlo")
-        else:
             return (result, "linalg")
-
+        except:
+            pass
+        run_pipeline_with_repro_report(
+            copied_module,
+            f"builtin.module({SHAPE_LEGALIZE_TO_STABLEHLO_PIPELINE})",
+            "shape-legalize-to-stablehlo",
+        )
+        # print(copied_module)
+        return (copied_module, "stablehlo")
 
     def load(self, module):
         """Loads a compiled artifact into the runtime."""
