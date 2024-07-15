@@ -761,10 +761,16 @@ public:
         outRank, utils::IteratorType::parallel);
 
     auto computeIndex = [&](OpBuilder &b, Location loc) -> Value {
+      // Next linalg.generic uses identity mapping for the unpooled tensor,
+      // compute linear index for output element, which we will the compare with
+      // values which came from indices tensor.
       Value ret;
       for (auto i : llvm::seq<int64_t>(NC, outRank)) {
         Value idx = b.create<linalg::IndexOp>(loc, i);
-        // Adjust for the pad
+        // If pool input was padded, adjust indices so they start at 0 in the
+        // non-padded area. Indices outside non-padded area will make no sense,
+        // but it doesnt matter as we will cut the padded area later by
+        // extract_slice.
         int64_t pad = padding[i - NC];
         if (pad != 0) {
           Value padVal = b.create<arith::ConstantIndexOp>(loc, pad);
