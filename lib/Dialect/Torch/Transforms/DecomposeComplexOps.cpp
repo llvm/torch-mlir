@@ -5554,6 +5554,63 @@ class DecomposeAtenInstanceNormOp
 } // namespace
 
 namespace {
+class DecomposeAten_WeightNormInterfaceOp
+    : public OpRewritePattern<Aten_WeightNormInterfaceOp> {
+  using OpRewritePattern<Aten_WeightNormInterfaceOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_WeightNormInterfaceOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    Value v = op.getV();
+    Value g = op.getG();
+    Value dim = op.getDim();
+
+    auto inputType = cast<BaseTensorType>(v.getType());
+    if (!inputType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "expected input to have sizes");
+
+    if (!cast<ConstantIntOp>(dim.getDefiningOp()))
+      return rewriter.notifyMatchFailure(op, "dim is not a ConstantIntOp");
+
+    auto sizes = inputType.getSizes();
+    SmallVector<Value> keepDims;
+    for (int64_t i = 0; i < static_cast<int64_t>(sizes.size()); ++i) {
+      if (i !=
+          static_cast<int64_t>(dim.getDefiningOp<ConstantIntOp>().getValue()))
+        keepDims.push_back(
+            rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i)));
+    }
+
+    Value ord =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
+    Value keepdim =
+        rewriter.create<ConstantBoolOp>(loc, rewriter.getBoolAttr(true));
+    Value dtypeNone = rewriter.create<ConstantNoneOp>(loc);
+
+    Value dimList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
+        keepDims);
+
+    Value norm = rewriter.create<AtenLinalgVectorNormOp>(
+        loc, v.getType(), v, ord, dimList, keepdim, dtypeNone);
+
+    auto vShape = rewriter.create<AtenSizeOp>(
+        loc, Torch::ListType::get(rewriter.getI64Type()), v);
+
+    Value gDivNorm =
+        rewriter.create<AtenDivTensorOp>(loc, g.getType(), g, norm);
+    Value broadcastedGDivNorm =
+        rewriter.create<AtenBroadcastToOp>(loc, v.getType(), gDivNorm, vShape);
+    Value vMulBroadcastedGDivNorm = rewriter.create<AtenMulTensorOp>(
+        loc, v.getType(), v, broadcastedGDivNorm);
+
+    rewriter.replaceOp(op, ArrayRef<Value>{vMulBroadcastedGDivNorm, norm});
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenNativeLayerNormOp
     : public OpRewritePattern<AtenNativeLayerNormOp> {
   using OpRewritePattern<AtenNativeLayerNormOp>::OpRewritePattern;
@@ -7194,7 +7251,6 @@ public:
     rewriter.replaceOpWithNewOp<AtenEmbeddingBagPaddingIdxOp>(
         op, returnTypes, weight, indices, offsets, scaleGradByFreq, mode,
         sparse, perSampleWeights, includeLastOffset, paddingIdx);
-
     return success();
   }
 };
@@ -8704,6 +8760,8 @@ public:
     legalOpsSet.clear();
     legalOpsSet.insert(legalOps.begin(), legalOps.end());
 
+    addPatternIfTargetOpIsIllegal<DecomposeAten_WeightNormInterfaceOp>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftmaxIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_SoftmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxOp>(patterns);

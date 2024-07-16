@@ -9118,6 +9118,32 @@ def Torch_AtenDiagEmbedOp : Torch_Op<"aten.diag_embed", [
   }];
 }
 
+def Torch_Aten_WeightNormInterfaceOp : Torch_Op<"aten._weight_norm_interface", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_weight_norm_interface : (Tensor, Tensor, int) -> (Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$v,
+    AnyTorchTensorType:$g,
+    Torch_IntType:$dim
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result0,
+    AnyTorchOptionalTensorType:$result1
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_WeightNormInterfaceOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 2);
+    }
+    void Aten_WeightNormInterfaceOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 2);
+    }
+  }];
+}
+
 def Torch_AtenConstantPadNdOp : Torch_Op<"aten.constant_pad_nd", [
     AllowsTypeRefinement,
     HasValueSemantics,

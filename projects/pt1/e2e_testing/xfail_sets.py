@@ -469,6 +469,7 @@ FX_IMPORTER_XFAIL_SET = {
     "UpSampleNearest2dDynamicFactor_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewSizeFromOtherTensor_basic",
+    "WeightNormInterfaceModule_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = {
@@ -2629,6 +2630,7 @@ ONNX_XFAIL_SET = {
     "ViewNoChange1dModule_basic",
     "ViewNoChange2dModule_basic",
     "ViewNoChange3dModule_basic",
+    "WeightNormInterfaceModule_basic",
     "_Convolution2DAllFalseModule_basic",
     "_Convolution2DBenchmarkModule_basic",
     "_Convolution2DCudnnModule_basic",
