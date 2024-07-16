@@ -830,6 +830,10 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "Conv2dBiasNoPaddingModule_basic",
+    "Conv2dNoPaddingModule_basic",
+    "Conv2dWithPaddingDilationStrideModule_basic",
+    "Conv2dWithPaddingModule_basic",
     "AddCDivModule_basic",
     "AddCMulModule_basic",
     "Add_MixPModule_basic",
@@ -1618,6 +1622,9 @@ STABLEHLO_CRASHING_SET = {
     # stablehlo intrepreter crash
     "ElementwiseDivTensorUnsignedIntegerModule_basic",
     "ScatterValueFloatModule_basic",
+    "ScatterValueIntModule_basic",
+    "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
+    "ViewCollapseDynamicWithAtenSizeIntModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
