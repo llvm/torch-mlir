@@ -562,6 +562,36 @@ func.func @test_matmulinteger_batched(%arg0: !torch.vtensor<[7,4,3],ui8>, %arg1:
 
 // -----
 
+// CHECK-LABEL:   func.func @test_multinomial_default
+func.func @test_multinomial_default(%arg0: !torch.vtensor<[3,5],f64>) -> !torch.vtensor<[3, 1],si32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 15 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+    // CHECK:           %[[VAL_1:.*]] = torch.constant.int 3
+    // CHECK:           %[[VAL_2:.*]] = torch.constant.int 1
+    // CHECK:           %[[VAL_3:.*]] = torch.constant.none
+    // CHECK:           %[[VAL_4:.*]] = torch.constant.bool true
+    // CHECK:           %[[VAL_5:.*]] = torch.aten.multinomial %arg0, %[[VAL_2]], %[[VAL_4]], %[[VAL_3]] : !torch.vtensor<[3,5],f64>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,1],si64>
+    // CHECK:           %[[VAL_6:.*]] = torch.constant.bool false
+    // CHECK:           %[[VAL_7:.*]] = torch.aten.to.dtype %[[VAL_5]], %[[VAL_1]], %[[VAL_6]], %[[VAL_6]], %[[VAL_3]] : !torch.vtensor<[3,1],si64>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[3,1],si32>
+    // CHECK:           return %[[VAL_7]] : !torch.vtensor<[3,1],si32>
+    %0 = torch.operator "onnx.Multinomial"(%arg0) : (!torch.vtensor<[3,5],f64>) -> !torch.vtensor<[3,1],si32>
+    return %0 : !torch.vtensor<[3,1],si32>
+}
+
+// CHECK-LABEL:   func.func @test_multinomial_dtype_double_samplenum_4
+func.func @test_multinomial_dtype_double_samplenum_4(%arg0: !torch.vtensor<[3,5],f64>) -> !torch.vtensor<[3, 4],f64> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 15 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+    // CHECK:           %[[VAL_1:.*]] = torch.constant.int 7
+    // CHECK:           %[[VAL_2:.*]] = torch.constant.int 4
+    // CHECK:           %[[VAL_3:.*]] = torch.constant.none
+    // CHECK:           %[[VAL_4:.*]] = torch.constant.bool true
+    // CHECK:           %[[VAL_5:.*]] = torch.aten.multinomial %arg0, %[[VAL_2]], %[[VAL_4]], %[[VAL_3]] : !torch.vtensor<[3,5],f64>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,4],si64>
+    // CHECK:           %[[VAL_6:.*]] = torch.constant.bool false
+    // CHECK:           %[[VAL_7:.*]] = torch.aten.to.dtype %[[VAL_5]], %[[VAL_1]], %[[VAL_6]], %[[VAL_6]], %[[VAL_3]] : !torch.vtensor<[3,4],si64>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[3,4],f64>
+    // CHECK:           return %[[VAL_7]] : !torch.vtensor<[3,4],f64>
+    %0 = torch.operator "onnx.Multinomial"(%arg0) {torch.onnx.dtype = 11 : si64, torch.onnx.sample_size = 4 : si64} : (!torch.vtensor<[3,5],f64>) -> !torch.vtensor<[3,4],f64>
+    return %0 : !torch.vtensor<[3,4],f64>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_maxpool_2d_default
 func.func @test_maxpool_2d_default(%arg0: !torch.vtensor<[1,3,32,32],f32>) -> !torch.vtensor<[1,3,31,31],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 12 : si64} {
   // CHECK: %[[I2:.*]] = torch.constant.int 2

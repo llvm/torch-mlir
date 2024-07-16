@@ -377,6 +377,53 @@ def BernoulliPModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class MultinomialModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float64, True),
+        ]
+    )
+    def forward(self, x):
+        a = torch.ops.aten.multinomial(x, 1024 * 1024, replacement=True)
+        return a.mean(dtype=torch.double)
+
+
+@register_test_case(module_factory=lambda: MultinomialModule())
+def MultinomialModule_basic(module, tu: TestUtils):
+    x = tu.rand(100).double()
+    module.forward(x)
+
+
+class MultinomialModule2D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float64, True),
+        ]
+    )
+    def forward(self, x):
+        a = torch.ops.aten.multinomial(x, 1024 * 1024, replacement=True)
+        return a.mean(dtype=torch.double)
+
+
+@register_test_case(module_factory=lambda: MultinomialModule2D())
+def MultinomialModule2D_basic(module, tu: TestUtils):
+    x = tu.rand(10, 100).double()
+    module.forward(x)
+
+
+# ==============================================================================
+
+
 class RandLikeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

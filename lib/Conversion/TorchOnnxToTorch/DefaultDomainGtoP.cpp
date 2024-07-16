@@ -592,6 +592,72 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   return success();
                 });
   patterns.onOp(
+      "Multinomial", 7,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value self;
+        int64_t onnxDtype, sampleSize;
+
+        if (binder.tensorOperand(self) ||
+            binder.s64IntegerAttr(onnxDtype, "dtype", 6) ||
+            binder.s64IntegerAttr(sampleSize, "sample_size", 1) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+
+        if (binder.op->hasAttr("torch.onnx.seed")) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented: support not present for seed attribute");
+        }
+
+        if (sampleSize <= 0) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "unsupported: sample_size <= 0");
+        }
+
+        std::optional<int64_t> torchDtype =
+            onnxDtypeIntToTorchDtypeInt(onnxDtype);
+        if (!torchDtype.has_value()) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented support for the given dtype conversion");
+        }
+
+        Value torchDtypeIntValue = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(torchDtype.value()));
+        Value numSamples = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(sampleSize));
+
+        // PRG is seeded globally by default
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        // Sample with replacement by default (no onnx equivalent in arguments)
+        Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(
+            binder.getLoc(), rewriter.getBoolAttr(true));
+
+        // Torch Multinomial always produces a LongTensor
+        Torch::ValueTensorType selfType =
+            cast<Torch::ValueTensorType>(self.getType());
+        Type int64Dtype =
+            IntegerType::get(selfType.getContext(), 64, IntegerType::Signed);
+        int64_t batchSize = selfType.getSizes()[0];
+        SmallVector<int64_t> outShapes({batchSize, sampleSize});
+        Torch::ValueTensorType multinomialOutputType =
+            Torch::ValueTensorType::get(selfType.getContext(), outShapes,
+                                        int64Dtype);
+        Value multinomialTensor = rewriter.create<Torch::AtenMultinomialOp>(
+            binder.getLoc(), multinomialOutputType, self, numSamples, cstTrue,
+            none);
+
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
+            binder.getLoc(), rewriter.getBoolAttr(false));
+        rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+            binder.op, resultType, multinomialTensor, torchDtypeIntValue,
+            cstFalse, cstFalse, none);
+
+        return success();
+      });
+  patterns.onOp(
       "NegativeLogLikelihoodLoss", 13,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
