@@ -1539,8 +1539,8 @@ public:
     Value input = op.getSelf();
     Location loc = op.getLoc();
     Type opType = op.getType();
-    auto resType = cast<BaseTensorType>(input.getType());
-    SmallVector<int64_t> inputShape(resType.getSizes());
+    auto inpType = cast<BaseTensorType>(input.getType());
+    SmallVector<int64_t> inputShape(inpType.getSizes());
     if (inputShape.empty()) {
       Value zero = rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(0));
