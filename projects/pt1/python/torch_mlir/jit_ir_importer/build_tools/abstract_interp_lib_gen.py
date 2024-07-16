@@ -1321,6 +1321,25 @@ def aten〇new_empty_strided〡shape(self: List[int], size: List[int], stride: L
 def aten〇diag_embed〡shape(self: List[int], offset: int = 0, dim1: int = -2, dim2: int = -1) -> List[int]:
     return _diag_embed_shape_helper(self, offset, dim1, dim2)
 
+@check_shape_function([
+    Invocation(TensorOfShape(2, 3, 4)), # Basic case.
+    Invocation(TensorOfShape(5, 3, 4), k = 5, dims=(1, 2,)), # multiple times rotation
+    Invocation(TensorOfShape(3, 5, 2), k = -2), # neagtive direction, remainder=2
+    Invocation(TensorOfShape(7, 2, 6, 3), k = -5), # neagtive direction, remainder=3
+    ErrorInvocation(TensorOfShape(2, 3, 4), dims=(0,)), # total lenght of the dims is < 2
+    ErrorInvocation(TensorOfShape(2)), # the input is one-dimensional
+])
+def aten〇rot90〡shape(self: List[int], k: int = 1, dims: List[int] = (0, 1,)) -> List[int]:
+    assert len(self) >= 2, "expected total dims >= 2 but got {}".format(len(self))
+    assert len(dims) == 2, "expected total rotation dims == 2, but got dims = {}".format(len(dims))
+
+    k = (k % 4 + 4) % 4 # equal to k % 4, but 'k % 4' cannot handle negative values for k.
+
+    if k == 1 or k == 3:
+        self[dims[0]], self[dims[1]] = self[dims[1]], self[dims[0]]
+    
+    return self
+
 def aten〇_to_copy〡shape(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, non_blocking: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -4971,6 +4990,10 @@ def aten〇new_empty_strided〡dtype(self_rank_dtype: Tuple[int, int], size: Lis
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇diag_embed〡dtype(self_rank_dtype: Tuple[int, int], offset: int = 0, dim1: int = -2, dim2: int = -1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+def aten〇rot90〡dtype(self_rank_dtype: Tuple[int, int], k: int = 1, dims: List[int] = (0, 1,)) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
