@@ -166,5 +166,10 @@ void TorchConversion::createTorchBackendToStablehloBackendPipeline(
   pm.addNestedPass<func::FuncOp>(
       stablehlo::createStablehloCanonicalizeDynamismPass());
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+
+  // Legalize deprecated ops to Stablehlo ops
+  pm.addNestedPass<func::FuncOp>(
+      stablehlo::createStablehloLegalizeDeprecatedOpsPass());
+  pm.addPass(createCanonicalizerPass());
 }
 #endif
