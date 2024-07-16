@@ -5311,3 +5311,36 @@ LogicalResult AtenTrilIndicesOp::verify() {
 
   return success();
 }
+
+// AtenRot90Op
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenRot90Op::verify() {
+  // Check rotation dimensions.
+  SmallVector<Value> dims;
+  if (!getListConstructElements(getDims(), dims))
+    return success();
+
+  if (dims.size() != 2)
+    return emitOpError("expected total rotation dims == 2, but got dims = ")
+           << dims.size();
+
+  // Check a rank of the input tensor.
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+  if (!selfType.hasSizes())
+    return success();
+
+  auto selfShape = selfType.getSizes();
+  int64_t selfRank = selfShape.size();
+
+  if (selfRank < 2)
+    return emitOpError("expected total dims >= 2, but got total dims = ")
+           << selfRank;
+
+  if (dims[0] == dims[1])
+    return emitOpError(
+               "expected rotation dims to be different, but got dim0 = ")
+           << dims[0] << " and dim1 = " << dims[1];
+
+  return success();
+}
