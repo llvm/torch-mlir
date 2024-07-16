@@ -188,8 +188,6 @@ public:
     } else if (isUnsigned) {
       Operation *matmulOp = rewriter.create<linalg::MatmulOp>(
           loc, zeroFill.getType(), ValueRange{lhs, rhs}, zeroFill);
-      // Remove redundant linalg.matmul_signed
-      // (https://github.com/llvm/llvm-project/pull/98615)
       linalg::TypeFn typeFn = linalg::TypeFn::cast_unsigned;
       auto typeFnAttr = linalg::TypeFnAttr::get(rewriter.getContext(), typeFn);
       matmulOp->setAttr("cast", typeFnAttr);
