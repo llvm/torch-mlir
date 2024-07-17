@@ -3360,6 +3360,87 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         return success();
       });
   patterns.onOp(
+      "SequenceMap", 17,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        llvm::SmallVector<Value> operands;
+        Torch::ListType resultType;
+        if (binder.tensorOperandsList(operands) || operands.size() == 0 ||
+            binder.tensorListResultType(resultType)) {
+          return failure();
+        }
+
+        Region *bodyRegion;
+        if (binder.getRegionAtIndex(bodyRegion, 0)) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Failed getting Body Region");
+        }
+
+        // construct an empty list, append results through the loop
+        auto resultTensorType =
+            dyn_cast<Torch::ValueTensorType>(resultType.getContainedType());
+        Value shapeList = createConstantIntList(binder, rewriter,
+                                                resultTensorType.getSizes());
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value self = rewriter.create<Torch::AtenEmptyMemoryFormatOp>(
+            binder.op->getLoc(), resultType.getContainedType(), shapeList,
+            /*dtype=*/cstNone, /*layout=*/cstNone, /*device=*/cstNone,
+            /*pinMemory=*/cstNone, /*memoryFormat=*/cstNone);
+        Value result = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(), resultType, llvm::SmallVector<Value>{self});
+
+        // create a for-like primLoopOp
+        // with the length of sequence as max iter_num
+        Value len = rewriter.create<Torch::AtenLenTOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(), operands[0]);
+        auto cstTrue = rewriter.create<Torch::ConstantBoolOp>(
+            binder.getLoc(), rewriter.getBoolAttr(true));
+        mlir::ImplicitLocOpBuilder b(binder.getLoc(), rewriter);
+        auto loop =
+            b.create<Torch::PrimLoopOp>(resultType, len, cstTrue, result);
+        rewriter.cloneRegionBefore(*bodyRegion, loop.getRegion(),
+                                   loop.getRegion().begin());
+
+        // primLoopOp loopBody expects torch.int as first arg
+        // remove inputs from the region and use it from outside
+        loop.getRegion().front().insertArgument(0U, resultType,
+                                                binder.getLoc());
+        Value sequenceArg = loop.getRegion().front().getArgument(0);
+        loop.getRegion().front().insertArgument(
+            0U, rewriter.getType<Torch::IntType>(), binder.getLoc());
+        Value indexArg = loop.getRegion().front().getArgument(0);
+
+        // get sequence[i] (and addtionalInput[i]) in each iteration
+        rewriter.setInsertionPointToStart(&loop.getRegion().front());
+        for (size_t i = 0; i < operands.size(); i++) {
+          Value argInput = loop.getRegion().front().getArgument(2);
+          if (isa<Torch::ListType>(operands[i].getType())) {
+            auto tensorType = dyn_cast<Torch::ValueTensorType>(
+                dyn_cast<Torch::ListType>(operands[i].getType())
+                    .getContainedType());
+            Value item = rewriter.create<Torch::Aten__Getitem__TOp>(
+                binder.getLoc(), tensorType, operands[i], indexArg);
+            argInput.replaceAllUsesWith(item);
+          } else {
+            argInput.replaceAllUsesWith(operands[i]);
+          }
+          loop.getRegion().eraseArgument(2);
+        }
+
+        // replace terminator
+        PatternRewriter::InsertionGuard guard(rewriter);
+        Operation *terminator = loop.getRegion().front().getTerminator();
+        rewriter.setInsertionPoint(terminator);
+        // update sequence input
+        auto terminatorOperands = terminator->getOperands();
+        Value append = rewriter.create<Torch::AtenAppendTOp>(
+            binder.getLoc(), resultType, sequenceArg, terminatorOperands[0]);
+        rewriter.replaceOpWithNewOp<Torch::PrimLoopConditionOp>(
+            terminator, cstTrue, append);
+
+        rewriter.replaceOp(binder.op, loop);
+        return success();
+      });
+  patterns.onOp(
       "Upsample", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         std::string mode;

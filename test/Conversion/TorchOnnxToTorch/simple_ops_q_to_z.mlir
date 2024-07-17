@@ -2575,6 +2575,124 @@ func.func @test_sequence_empty() -> !torch.list<vtensor<[],f32>> attributes {tor
 
 // -----
 
+// CHECK-LABEL: func.func @test_sequence_map_add
+func.func @test_sequence_map_add(%arg0: !torch.list<vtensor<[2,3],f32>>, %arg1: !torch.vtensor<[2,3],f32>) -> !torch.list<vtensor<[2,3],f32>> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[C2:.*]] = torch.constant.int 2
+  // CHECK: %[[C3:.*]] = torch.constant.int 3
+  // CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[C2]], %[[C3]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[NONE:.*]] = torch.constant.none
+  // CHECK: %[[ALLOC:.*]] = torch.aten.empty.memory_format %[[SHAPE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,3],f32>
+  // CHECK: %[[RESULT:.*]] = torch.prim.ListConstruct %[[ALLOC]] : (!torch.vtensor<[2,3],f32>) -> !torch.list<vtensor<[2,3],f32>>
+  // CHECK: %[[LEN:.*]] = torch.aten.len.t %arg0 : !torch.list<vtensor<[2,3],f32>> -> !torch.int
+  // CHECK: %[[TRUE:.*]] = torch.constant.bool true
+  // CHECK: %[[LOOP:.*]] = torch.prim.Loop %[[LEN]], %[[TRUE]], init(%[[RESULT]]) {
+  // CHECK: ^bb0(%[[ITER_NUM:.*]]: !torch.int, %[[SEQ:.*]]: !torch.list<vtensor<[2,3],f32>>):
+  // CHECK:   %[[SAMPLE:.*]] = torch.aten.__getitem__.t %arg0, %[[ITER_NUM]] : !torch.list<vtensor<[2,3],f32>>, !torch.int -> !torch.vtensor<[2,3],f32>
+  // CHECK:   %[[C1:.*]] = torch.constant.int 1
+  // CHECK:   %[[ADD:.*]] = torch.aten.add.Tensor %[[SAMPLE]], %arg1, %[[C1]] : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>, !torch.int -> !torch.vtensor<[2,3],f32>
+  // CHECK:   %[[APPEND:.*]] = torch.aten.append.t %[[SEQ]], %[[ADD]] : !torch.list<vtensor<[2,3],f32>>, !torch.vtensor<[2,3],f32> -> !torch.list<vtensor<[2,3],f32>>
+  // CHECK:   torch.prim.Loop.condition %[[TRUE]], iter(%[[APPEND]] : !torch.list<vtensor<[2,3],f32>>)
+  // CHECK: } : (!torch.int, !torch.bool, !torch.list<vtensor<[2,3],f32>>) -> !torch.list<vtensor<[2,3],f32>>
+  // CHECK: return %[[LOOP]] : !torch.list<vtensor<[2,3],f32>>
+  %0 = torch.operator "onnx.SequenceMap"(%arg0, %arg1) : (!torch.list<vtensor<[2,3],f32>>, !torch.vtensor<[2,3],f32>) -> !torch.list<vtensor<[2,3],f32>> {
+  ^bb0(%arg2: !torch.vtensor<[2,3],f32>, %arg3: !torch.vtensor<[2,3],f32>):
+    %1 = torch.operator "onnx.Add"(%arg2, %arg3) : (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,3],f32>
+    torch.operator_terminator %1 : !torch.vtensor<[2,3],f32>
+  }
+  return %0 : !torch.list<vtensor<[2,3],f32>>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_sequence_map_add_sequence_variadic
+func.func @test_sequence_map_add_sequence_variadic(%arg0: !torch.list<vtensor<[?],f32>>, %arg1: !torch.list<vtensor<[?],f32>>, %arg2: !torch.vtensor<[?],f32>) -> !torch.list<vtensor<[?],f32>> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[NEG1:.*]] = torch.constant.int -1
+  // CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[NEG1]] : (!torch.int) -> !torch.list<int>
+  // CHECK: %[[NONE:.*]] = torch.constant.none
+  // CHECK: %[[ALLOC:.*]] = torch.aten.empty.memory_format %[[SHAPE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?],f32>
+  // CHECK: %[[RESULT:.*]] = torch.prim.ListConstruct %[[ALLOC]] : (!torch.vtensor<[?],f32>) -> !torch.list<vtensor<[?],f32>>
+  // CHECK: %[[LEN:.*]] = torch.aten.len.t %arg0 : !torch.list<vtensor<[?],f32>> -> !torch.int
+  // CHECK: %[[TRUE:.*]] = torch.constant.bool true
+  // CHECK: %[[LOOP:.*]] = torch.prim.Loop %[[LEN]], %[[TRUE]], init(%[[RESULT]]) {
+  // CHECK: ^bb0(%[[ITER_NUM:.*]]: !torch.int, %[[SEQ:.*]]: !torch.list<vtensor<[?],f32>>):
+  // CHECK:   %[[SAMPLE:.*]] = torch.aten.__getitem__.t %arg0, %[[ITER_NUM]] : !torch.list<vtensor<[?],f32>>, !torch.int -> !torch.vtensor<[?],f32>
+  // CHECK:   %[[ADDITION_INPUT:.*]] = torch.aten.__getitem__.t %arg1, %[[ITER_NUM]] : !torch.list<vtensor<[?],f32>>, !torch.int -> !torch.vtensor<[?],f32>
+  // CHECK:   %[[C1:.*]] = torch.constant.int 1
+  // CHECK:   %[[ADD:.*]] = torch.aten.add.Tensor %[[SAMPLE]], %[[ADDITION_INPUT]], %[[C1]] : !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>, !torch.int -> !torch.vtensor<[?],f32>
+  // CHECK:   %[[C1_0:.*]] = torch.constant.int 1
+  // CHECK:   %[[ADD_0:.*]] = torch.aten.add.Tensor %[[ADD]], %arg2, %[[C1_0]] : !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>, !torch.int -> !torch.vtensor<[?],f32>
+  // CHECK:   %[[APPEND:.*]] = torch.aten.append.t %[[SEQ]], %[[ADD_0]] : !torch.list<vtensor<[?],f32>>, !torch.vtensor<[?],f32> -> !torch.list<vtensor<[?],f32>>
+  // CHECK:   torch.prim.Loop.condition %[[TRUE]], iter(%[[APPEND]] : !torch.list<vtensor<[?],f32>>)
+  // CHECK: } : (!torch.int, !torch.bool, !torch.list<vtensor<[?],f32>>) -> !torch.list<vtensor<[?],f32>>
+  // CHECK: return %[[LOOP]] : !torch.list<vtensor<[?],f32>>
+  %0 = torch.operator "onnx.SequenceMap"(%arg0, %arg1, %arg2) : (!torch.list<vtensor<[?],f32>>, !torch.list<vtensor<[?],f32>>, !torch.vtensor<[?],f32>) -> !torch.list<vtensor<[?],f32>> {
+  ^bb0(%arg3: !torch.vtensor<[?],f32>, %arg4: !torch.vtensor<[?],f32>, %arg5: !torch.vtensor<[?],f32>):
+    %1 = torch.operator "onnx.Add"(%arg3, %arg4) : (!torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32>
+    %2 = torch.operator "onnx.Add"(%1, %arg5) : (!torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32>
+    torch.operator_terminator %2 : !torch.vtensor<[?],f32>
+  }
+  return %0 : !torch.list<vtensor<[?],f32>>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_sequence_map_identity
+func.func @test_sequence_map_identity(%arg0: !torch.list<vtensor<[?,?,?],f32>>) -> !torch.list<vtensor<[?,?,?],f32>> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[NEG1:.*]] = torch.constant.int -1
+  // CHECK: %[[NEG1_0:.*]] = torch.constant.int -1
+  // CHECK: %[[NEG1_1:.*]] = torch.constant.int -1
+  // CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[NEG1]], %[[NEG1_0]], %[[NEG1_1]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[NONE:.*]] = torch.constant.none
+  // CHECK: %[[ALLOC:.*]] = torch.aten.empty.memory_format %[[SHAPE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?,?,?],f32>
+  // CHECK: %[[RESULT:.*]] = torch.prim.ListConstruct %[[ALLOC]] : (!torch.vtensor<[?,?,?],f32>) -> !torch.list<vtensor<[?,?,?],f32>>
+  // CHECK: %[[LEN:.*]] = torch.aten.len.t %arg0 : !torch.list<vtensor<[?,?,?],f32>> -> !torch.int
+  // CHECK: %[[TRUE:.*]] = torch.constant.bool true
+  // CHECK: %[[LOOP:.*]] = torch.prim.Loop %[[LEN]], %[[TRUE]], init(%[[RESULT]]) {
+  // CHECK: ^bb0(%[[ITER_NUM:.*]]: !torch.int, %[[SEQ:.*]]: !torch.list<vtensor<[?,?,?],f32>>):
+  // CHECK:   %[[SAMPLE:.*]] = torch.aten.__getitem__.t %arg0, %[[ITER_NUM]] : !torch.list<vtensor<[?,?,?],f32>>, !torch.int -> !torch.vtensor<[?,?,?],f32>
+  // CHECK:   %[[NONE_0:.*]] = torch.constant.none
+  // CHECK:   %[[CLONE:.*]] = torch.aten.clone %[[SAMPLE]], %[[NONE_0]] : !torch.vtensor<[?,?,?],f32>, !torch.none -> !torch.vtensor<[?,?,?],f32>
+  // CHECK:   %[[APPEND:.*]] = torch.aten.append.t %[[SEQ]], %[[CLONE]] : !torch.list<vtensor<[?,?,?],f32>>, !torch.vtensor<[?,?,?],f32> -> !torch.list<vtensor<[?,?,?],f32>>
+  // CHECK:   torch.prim.Loop.condition %[[TRUE]], iter(%[[APPEND]] : !torch.list<vtensor<[?,?,?],f32>>)
+  // CHECK: } : (!torch.int, !torch.bool, !torch.list<vtensor<[?,?,?],f32>>) -> !torch.list<vtensor<[?,?,?],f32>>
+  // CHECK: return %[[LOOP]] : !torch.list<vtensor<[?,?,?],f32>>
+  %0 = torch.operator "onnx.SequenceMap"(%arg0) : (!torch.list<vtensor<[?,?,?],f32>>) -> !torch.list<vtensor<[?,?,?],f32>> {
+  ^bb0(%arg1: !torch.vtensor<[?,?,?],f32>):
+    %1 = torch.operator "onnx.Identity"(%arg1) : (!torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32>
+    torch.operator_terminator %1 : !torch.vtensor<[?,?,?],f32>
+  }
+  return %0 : !torch.list<vtensor<[?,?,?],f32>>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_sequence_map_extract_shapes
+func.func @test_sequence_map_extract_shapes(%arg0: !torch.list<vtensor<[?,?,?],f32>>) -> !torch.list<vtensor<[3],si64>> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[C3:.*]] = torch.constant.int 3
+  // CHECK: %[[SHAPE]] = torch.prim.ListConstruct %[[C3]] : (!torch.int) -> !torch.list<int>
+  // CHECK: %[[NONE:.*]] = torch.constant.none
+  // CHECK: %[[ALLOC:.*]] = torch.aten.empty.memory_format %[[SHAPE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3],si64>
+  // CHECK: %[[RESULT:.*]] = torch.prim.ListConstruct %[[ALLOC]] : (!torch.vtensor<[3],si64>) -> !torch.list<vtensor<[3],si64>>
+  // CHECK: %[[LEN:.*]] = torch.aten.len.t %arg0 : !torch.list<vtensor<[?,?,?],f32>> -> !torch.int
+  // CHECK: %[[TRUE:.*]] = torch.constant.bool true
+  // CHECK: %[[LOOP:.*]] = torch.prim.Loop %[[LEN]], %[[TRUE]], init(%[[RESULT]]) {
+  // CHECK: ^bb0(%[[ITER_NUM:.*]]: !torch.int, %[[SEQ:.*]]: !torch.list<vtensor<[3],si64>>):
+  // CHECK:   %[[SAMPLE:.*]] = torch.aten.__getitem__.t %arg0, %[[ITER_NUM]] : !torch.list<vtensor<[?,?,?],f32>>, !torch.int -> !torch.vtensor<[?,?,?],f32>
+  // CHECK:   %[[SHAPE_0:.*]] = torch.aten._shape_as_tensor %[[SAMPLE]] : !torch.vtensor<[?,?,?],f32> -> !torch.vtensor<[3],si64>
+  // CHECK:   %[[APPEND:.*]] = torch.aten.append.t %[[SEQ]], %[[SHAPE_0]] : !torch.list<vtensor<[3],si64>>, !torch.vtensor<[3],si64> -> !torch.list<vtensor<[3],si64>>
+  // CHECK:   torch.prim.Loop.condition %[[TRUE]], iter(%[[APPEND]] : !torch.list<vtensor<[3],si64>>)
+  // CHECK: } : (!torch.int, !torch.bool, !torch.list<vtensor<[3],si64>>) -> !torch.list<vtensor<[3],si64>>
+  // CHECK: return %[[LOOP]] : !torch.list<vtensor<[3],si64>>
+  %0 = torch.operator "onnx.SequenceMap"(%arg0) : (!torch.list<vtensor<[?,?,?],f32>>) -> !torch.list<vtensor<[3],si64>> {
+  ^bb0(%arg1: !torch.vtensor<[?,?,?],f32>):
+    %1 = torch.operator "onnx.Shape"(%arg1) : (!torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[3],si64>
+    torch.operator_terminator %1 : !torch.vtensor<[3],si64>
+  }
+  return %0 : !torch.list<vtensor<[3],si64>>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_upsample_nearest
 func.func @test_upsample_nearest(%arg0: !torch.vtensor<[1,1,2,2],f32>, %arg1: !torch.vtensor<[4],f32>) -> !torch.vtensor<[1,1,4,6],f32> attributes {torch.onnx_meta.ir_version = 4 : si64, torch.onnx_meta.opset_version = 9 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[INT0:.*]] = torch.constant.int 0
