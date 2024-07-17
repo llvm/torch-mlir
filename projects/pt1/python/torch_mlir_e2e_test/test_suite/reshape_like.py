@@ -1461,3 +1461,46 @@ def InterpolateDynamicModule_scales_recompute_bilinear(module, tu: TestUtils):
     input = torch.arange(20).to(dtype=torch.float32)
     input = input.reshape((1, 1, 4, 5))
     module.forward(input)
+
+
+# ==============================================================================
+
+
+class Atleast1dModule0dInput(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.atleast_1d(x)
+
+
+@register_test_case(module_factory=lambda: Atleast1dModule0dInput())
+def Atleast1dModule0dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand())
+
+
+class Atleast1dModule1dInput(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.atleast_1d(x)
+
+
+@register_test_case(module_factory=lambda: Atleast1dModule1dInput())
+def Atleast1dModule1dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4))
