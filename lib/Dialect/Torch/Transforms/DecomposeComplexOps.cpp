@@ -8129,6 +8129,71 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.hann_window` into `aten.arange.start`, `aten.mul.Scalar`,
+// `aten.sin` and `aten.square` or into `aten.ones` in the trivial case
+class DecomposeAtenHannWindowPeriodicOp
+    : public OpRewritePattern<AtenHannWindowPeriodicOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenHannWindowPeriodicOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+    Type opType = op.getType();
+
+    Value opWindowLength = op.getWindowLength();
+    Value opDtype = op.getDtype();
+    Value opLayout = op.getLayout();
+    Value opDevice = op.getDevice();
+    Value opPinMemory = op.getPinMemory();
+
+    int64_t window_length;
+    if (!matchPattern(opWindowLength, m_TorchConstantInt(&window_length)) ||
+        window_length <= 0)
+      return rewriter.notifyMatchFailure(
+          op, "Expected a constant integer greater than zero");
+    bool periodic;
+    if (!matchPattern(op.getPeriodic(), m_TorchConstantBool(&periodic)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected a constant boolean value for periodic");
+
+    if (window_length == 1) {
+      Value one =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+      SmallVector<Value> sizes({one});
+      Value sizeList = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(IntType::get(context)), sizes);
+      rewriter.replaceOpWithNewOp<AtenOnesOp>(op, opType, sizeList, opDtype,
+                                              opLayout, opDevice, opPinMemory);
+      return success();
+    }
+
+    Value zero =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+
+    Value arange = rewriter.create<AtenArangeStartOp>(
+        loc, opType, zero, op.getWindowLength(), opDtype, opLayout, opDevice,
+        opPinMemory);
+
+    double denominator = !periodic ? window_length - 1 : window_length;
+
+    double piOverDenominator = 3.14159 / denominator;
+
+    Value cstFactor = rewriter.create<ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(piOverDenominator));
+
+    Value fraction =
+        rewriter.create<AtenMulScalarOp>(loc, opType, arange, cstFactor);
+    Value sine = rewriter.create<AtenSinOp>(loc, opType, fraction);
+
+    rewriter.replaceOpWithNewOp<AtenSquareOp>(op, opType, sine);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.scatter.value` op into `aten.scatter.src` op.
 class DecomposeAtenScatterValueOp
     : public OpRewritePattern<AtenScatterValueOp> {
@@ -8989,6 +9054,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenHannWindowPeriodicOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScalarTensor>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScatterValueOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSgnOp>(patterns);

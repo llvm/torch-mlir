@@ -290,6 +290,9 @@ def aten〇log〡shape(self: List[int]) -> List[int]:
 def aten〇log_sigmoid〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇hann_window〇periodic〡shape(window_length: int, periodic: bool, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> List[int]:
+    return [window_length]
+
 def aten〇hardshrink〡shape(self: List[int], lambd: float = 0.5) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -2443,6 +2446,15 @@ def aten〇log_sigmoid〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     assert not self_dtype == torch.bool
     return self_dtype
+
+@check_dtype_function([Invocation(10, False),                      Invocation(10, True),
+                       Invocation(10, False, dtype=torch.float32), Invocation(10, True, dtype=torch.float32),
+                       Invocation(10, False, dtype=torch.float64), Invocation(10, True, dtype=torch.float64)])
+def aten〇hann_window〇periodic〡dtype(window_length: int, periodic: bool, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
+    result_dtype = torch.float32 if dtype is None else dtype
+    assert is_float_dtype(result_dtype)
+    return result_dtype
+
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, lambd=0.5))
 def aten〇hardshrink〡dtype(self_rank_dtype: Tuple[int, int], lambd: Union[int, float, complex] = 0.5) -> int:
