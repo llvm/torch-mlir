@@ -2461,6 +2461,8 @@ ONNX_XFAIL_SET = {
     "MaxPool3dLargeDatadModule_basic",
     "MaxPool3dModuleRandomSimple_basic",
     "MaxPool3dModule_basic",
+    "MaxUnpool3dModule_basic",
+    "MaxUnpool3dModulePad0_basic",
     "MeanDimEmptyDimModule_basic",
     "Mlp1LayerModule_basic",
     "Mlp2LayerModuleNoBias_basic",
