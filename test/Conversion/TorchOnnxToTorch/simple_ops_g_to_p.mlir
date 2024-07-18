@@ -1785,37 +1785,47 @@ func.func @test_loop_forlike(%arg0: !torch.vtensor<[],si64>, %arg1: !torch.vtens
 // CHECK-SAME:                                                      %[[VAL_3:.*]]: !torch.vtensor<[1],f32>,
 // CHECK-SAME:                                                      %[[VAL_4:.*]]: !torch.vtensor<[1],f32>) -> !torch.vtensor<[1,3],si64> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
 func.func @test_nonmaxsuppression_identical_boxes(%arg0: !torch.vtensor<[1,10,4],f32>, %arg1: !torch.vtensor<[1,1,10],f32>, %arg2: !torch.vtensor<[1],si64>, %arg3: !torch.vtensor<[1],f32>, %arg4: !torch.vtensor<[1],f32>) -> !torch.vtensor<[1,3],si64> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK:           %[[VAL_6:.*]] = torch.constant.int 0
-  // CHECK:           %[[VAL_7:.*]] = torch.constant.int 1
-  // CHECK:           %[[VAL_8:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_6]] : !torch.vtensor<[1,10,4],f32>, !torch.int -> !torch.int
-  // CHECK:           %[[VAL_9:.*]] = torch.aten.eq.int %[[VAL_8]], %[[VAL_7]] : !torch.int, !torch.int -> !torch.bool
-  // CHECK:           torch.runtime.assert %[[VAL_9]], "squeeze operation possible for dim only when input_shape[dim] == 1."
-  // CHECK:           %[[VAL_10:.*]] = torch.aten.squeeze.dim %[[VAL_0]], %[[VAL_6]] : !torch.vtensor<[1,10,4],f32>, !torch.int -> !torch.vtensor<[10,4],f32>
-  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 0
-  // CHECK:           %[[VAL_12:.*]] = torch.constant.int 1
-  // CHECK:           %[[VAL_13:.*]] = torch.aten.size.int %[[VAL_1]], %[[VAL_11]] : !torch.vtensor<[1,1,10],f32>, !torch.int -> !torch.int
-  // CHECK:           %[[VAL_14:.*]] = torch.aten.eq.int %[[VAL_13]], %[[VAL_12]] : !torch.int, !torch.int -> !torch.bool
-  // CHECK:           torch.runtime.assert %[[VAL_14]], "squeeze operation possible for dim only when input_shape[dim] == 1."
-  // CHECK:           %[[VAL_15:.*]] = torch.aten.squeeze.dim %[[VAL_1]], %[[VAL_11]] : !torch.vtensor<[1,1,10],f32>, !torch.int -> !torch.vtensor<[1,10],f32>
-  // CHECK:           %[[VAL_16:.*]] = torch.constant.int 0
-  // CHECK:           %[[VAL_17:.*]] = torch.constant.int 1
-  // CHECK:           %[[VAL_18:.*]] = torch.aten.size.int %[[VAL_15]], %[[VAL_16]] : !torch.vtensor<[1,10],f32>, !torch.int -> !torch.int
-  // CHECK:           %[[VAL_19:.*]] = torch.aten.eq.int %[[VAL_18]], %[[VAL_17]] : !torch.int, !torch.int -> !torch.bool
-  // CHECK:           torch.runtime.assert %[[VAL_19]], "squeeze operation possible for dim only when input_shape[dim] == 1."
-  // CHECK:           %[[VAL_20:.*]] = torch.aten.squeeze.dim %[[VAL_15]], %[[VAL_16]] : !torch.vtensor<[1,10],f32>, !torch.int -> !torch.vtensor<[10],f32>
-  // CHECK:           %[[VAL_21:.*]] = torch.aten.item %[[VAL_2]] : !torch.vtensor<[1],si64> -> !torch.int
-  // CHECK:           %[[VAL_22:.*]] = torch.constant.int 0
-  // CHECK:           %[[VAL_23:.*]] = torch.aten.size.int %[[VAL_10]], %[[VAL_22]] : !torch.vtensor<[10,4],f32>, !torch.int -> !torch.int
-  // CHECK:           %[[VAL_24:.*]] = torch.aten.gt.int %[[VAL_23]], %[[VAL_21]] : !torch.int, !torch.int -> !torch.bool
-  // CHECK:           torch.runtime.assert %[[VAL_24]], "unimplemented: number of boxes should be <= max_output_boxes_per_class"
-  // CHECK:           %[[VAL_25:.*]] = torch.aten.item %[[VAL_4]] : !torch.vtensor<[1],f32> -> !torch.float
-  // CHECK:           %[[VAL_26:.*]] = torch.aten.max %[[VAL_20]] : !torch.vtensor<[10],f32> -> !torch.vtensor<*,f32>
-  // CHECK:           %[[VAL_27:.*]] = torch.aten.item %[[VAL_26]] : !torch.vtensor<*,f32> -> !torch.float
-  // CHECK:           %[[VAL_28:.*]] = torch.aten.gt.float %[[VAL_27]], %[[VAL_25]] : !torch.float, !torch.float -> !torch.bool
-  // CHECK:           torch.runtime.assert %[[VAL_28]], "unimplemented: score_threshold should be >= max(scores)"
-  // CHECK:           %[[VAL_29:.*]] = torch.aten.item %[[VAL_3]] : !torch.vtensor<[1],f32> -> !torch.float
-  // CHECK:           %[[VAL_30:.*]] = torch.torchvision.nms %[[VAL_10]], %[[VAL_20]], %[[VAL_29]] : !torch.vtensor<[10,4],f32>, !torch.vtensor<[10],f32>, !torch.float -> !torch.vtensor<[1,3],si64>
-  // CHECK:           return %[[VAL_30]] : !torch.vtensor<[1,3],si64>
+  // CHECK:           %[[VAL_5:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_6:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_7:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_5]] : !torch.vtensor<[1,10,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_8:.*]] = torch.aten.eq.int %[[VAL_7]], %[[VAL_6]] : !torch.int, !torch.int -> !torch.bool
+  // CHECK:           torch.runtime.assert %[[VAL_8]], "squeeze operation possible for dim only when input_shape[dim] == 1."
+  // CHECK:           %[[VAL_9:.*]] = torch.aten.squeeze.dim %[[VAL_0]], %[[VAL_5]] : !torch.vtensor<[1,10,4],f32>, !torch.int -> !torch.vtensor<[10,4],f32>
+  // CHECK:           %[[VAL_10:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_12:.*]] = torch.aten.size.int %[[VAL_1]], %[[VAL_10]] : !torch.vtensor<[1,1,10],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_13:.*]] = torch.aten.eq.int %[[VAL_12]], %[[VAL_11]] : !torch.int, !torch.int -> !torch.bool
+  // CHECK:           torch.runtime.assert %[[VAL_13]], "squeeze operation possible for dim only when input_shape[dim] == 1."
+  // CHECK:           %[[VAL_14:.*]] = torch.aten.squeeze.dim %[[VAL_1]], %[[VAL_10]] : !torch.vtensor<[1,1,10],f32>, !torch.int -> !torch.vtensor<[1,10],f32>
+  // CHECK:           %[[VAL_15:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_16:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_17:.*]] = torch.aten.size.int %[[VAL_14]], %[[VAL_15]] : !torch.vtensor<[1,10],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_18:.*]] = torch.aten.eq.int %[[VAL_17]], %[[VAL_16]] : !torch.int, !torch.int -> !torch.bool
+  // CHECK:           torch.runtime.assert %[[VAL_18]], "squeeze operation possible for dim only when input_shape[dim] == 1."
+  // CHECK:           %[[VAL_19:.*]] = torch.aten.squeeze.dim %[[VAL_14]], %[[VAL_15]] : !torch.vtensor<[1,10],f32>, !torch.int -> !torch.vtensor<[10],f32>
+  // CHECK:           %[[VAL_20:.*]] = torch.aten.item %[[VAL_2]] : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK:           %[[VAL_21:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_22:.*]] = torch.aten.size.int %[[VAL_9]], %[[VAL_21]] : !torch.vtensor<[10,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_23:.*]] = torch.aten.gt.int %[[VAL_22]], %[[VAL_20]] : !torch.int, !torch.int -> !torch.bool
+  // CHECK:           torch.runtime.assert %[[VAL_23]], "unimplemented: number of boxes should be <= max_output_boxes_per_class"
+  // CHECK:           %[[VAL_24:.*]] = torch.aten.item %[[VAL_4]] : !torch.vtensor<[1],f32> -> !torch.float
+  // CHECK:           %[[VAL_25:.*]] = torch.aten.max %[[VAL_19]] : !torch.vtensor<[10],f32> -> !torch.vtensor<*,f32>
+  // CHECK:           %[[VAL_26:.*]] = torch.aten.item %[[VAL_25]] : !torch.vtensor<*,f32> -> !torch.float
+  // CHECK:           %[[VAL_27:.*]] = torch.aten.gt.float %[[VAL_26]], %[[VAL_24]] : !torch.float, !torch.float -> !torch.bool
+  // CHECK:           torch.runtime.assert %[[VAL_27]], "unimplemented: score_threshold should be >= max(scores)"
+  // CHECK:           %[[VAL_28:.*]] = torch.aten.item %[[VAL_3]] : !torch.vtensor<[1],f32> -> !torch.float
+  // CHECK:           %[[VAL_29:.*]] = torch.torchvision.nms %[[VAL_9]], %[[VAL_19]], %[[VAL_28]] : !torch.vtensor<[10,4],f32>, !torch.vtensor<[10],f32>, !torch.float -> !torch.vtensor<[1,3],si64>
+  // CHECK:           %[[VAL_30:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_31:.*]] = torch.aten.unsqueeze %[[VAL_29]], %[[VAL_30]] : !torch.vtensor<[1,3],si64>, !torch.int -> !torch.vtensor<[1,1,3],si64>
+  // CHECK:           %[[VAL_32:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_33:.*]] = torch.aten.size.int %[[VAL_31]], %[[VAL_32]] : !torch.vtensor<[1,1,3],si64>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_34:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_35:.*]] = torch.prim.ListConstruct %[[VAL_33]], %[[VAL_34]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_36:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_37:.*]] = torch.aten.zeros %[[VAL_35]], %[[VAL_36]], %[[VAL_36]], %[[VAL_36]], %[[VAL_36]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[1,2],si64>
+  // CHECK:           %[[VAL_38:.*]] = torch.prim.ListConstruct %[[VAL_31]], %[[VAL_37]] : (!torch.vtensor<[1,1,3],si64>, !torch.vtensor<[1,2],si64>) -> !torch.list<vtensor>
+  // CHECK:           %[[VAL_39:.*]] = torch.aten.cat %[[VAL_38]], %[[VAL_30]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,3],si64>
+  // CHECK:           return %[[VAL_39]] : !torch.vtensor<[1,3],si64>
   %0 = torch.operator "onnx.NonMaxSuppression"(%arg0, %arg1, %arg2, %arg3, %arg4) : (!torch.vtensor<[1,10,4],f32>, !torch.vtensor<[1,1,10],f32>, !torch.vtensor<[1],si64>, !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>) -> !torch.vtensor<[1,3],si64>
   return %0 : !torch.vtensor<[1,3],si64>
 }
@@ -1827,39 +1837,49 @@ func.func @test_nonmaxsuppression_identical_boxes(%arg0: !torch.vtensor<[1,10,4]
 // CHECK-SAME:                                                 %[[VAL_1:.*]]: !torch.vtensor<[1,1,1],f32>,
 // CHECK-SAME:                                                 %[[VAL_2:.*]]: !torch.vtensor<[1],si64>,
 // CHECK-SAME:                                                 %[[VAL_3:.*]]: !torch.vtensor<[1],f32>,
-// CHECK-SAME:                                                 %[[VAL_4:.*]]: !torch.vtensor<[1],f32>) -> !torch.vtensor<[1,3],si64> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+// CHECK-SAME:                                                 %[[VAL_4:.*]]: !torch.vtensor<[1],f32>) -> !torch.vtensor<[1,3],si64> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""}
 func.func @test_nonmaxsuppression_single_box(%arg0: !torch.vtensor<[1,1,4],f32>, %arg1: !torch.vtensor<[1,1,1],f32>, %arg2: !torch.vtensor<[1],si64>, %arg3: !torch.vtensor<[1],f32>, %arg4: !torch.vtensor<[1],f32>) -> !torch.vtensor<[1,3],si64> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK:           %[[VAL_6:.*]] = torch.constant.int 0
-  // CHECK:           %[[VAL_7:.*]] = torch.constant.int 1
-  // CHECK:           %[[VAL_8:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_6]] : !torch.vtensor<[1,1,4],f32>, !torch.int -> !torch.int
-  // CHECK:           %[[VAL_9:.*]] = torch.aten.eq.int %[[VAL_8]], %[[VAL_7]] : !torch.int, !torch.int -> !torch.bool
-  // CHECK:           torch.runtime.assert %[[VAL_9]], "squeeze operation possible for dim only when input_shape[dim] == 1."
-  // CHECK:           %[[VAL_10:.*]] = torch.aten.squeeze.dim %[[VAL_0]], %[[VAL_6]] : !torch.vtensor<[1,1,4],f32>, !torch.int -> !torch.vtensor<[1,4],f32>
-  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 0
-  // CHECK:           %[[VAL_12:.*]] = torch.constant.int 1
-  // CHECK:           %[[VAL_13:.*]] = torch.aten.size.int %[[VAL_1]], %[[VAL_11]] : !torch.vtensor<[1,1,1],f32>, !torch.int -> !torch.int
-  // CHECK:           %[[VAL_14:.*]] = torch.aten.eq.int %[[VAL_13]], %[[VAL_12]] : !torch.int, !torch.int -> !torch.bool
-  // CHECK:           torch.runtime.assert %[[VAL_14]], "squeeze operation possible for dim only when input_shape[dim] == 1."
-  // CHECK:           %[[VAL_15:.*]] = torch.aten.squeeze.dim %[[VAL_1]], %[[VAL_11]] : !torch.vtensor<[1,1,1],f32>, !torch.int -> !torch.vtensor<[1,1],f32>
-  // CHECK:           %[[VAL_16:.*]] = torch.constant.int 0
-  // CHECK:           %[[VAL_17:.*]] = torch.constant.int 1
-  // CHECK:           %[[VAL_18:.*]] = torch.aten.size.int %[[VAL_15]], %[[VAL_16]] : !torch.vtensor<[1,1],f32>, !torch.int -> !torch.int
-  // CHECK:           %[[VAL_19:.*]] = torch.aten.eq.int %[[VAL_18]], %[[VAL_17]] : !torch.int, !torch.int -> !torch.bool
-  // CHECK:           torch.runtime.assert %[[VAL_19]], "squeeze operation possible for dim only when input_shape[dim] == 1."
-  // CHECK:           %[[VAL_20:.*]] = torch.aten.squeeze.dim %[[VAL_15]], %[[VAL_16]] : !torch.vtensor<[1,1],f32>, !torch.int -> !torch.vtensor<[1],f32>
-  // CHECK:           %[[VAL_21:.*]] = torch.aten.item %[[VAL_2]] : !torch.vtensor<[1],si64> -> !torch.int
-  // CHECK:           %[[VAL_22:.*]] = torch.constant.int 0
-  // CHECK:           %[[VAL_23:.*]] = torch.aten.size.int %[[VAL_10]], %[[VAL_22]] : !torch.vtensor<[1,4],f32>, !torch.int -> !torch.int
-  // CHECK:           %[[VAL_24:.*]] = torch.aten.gt.int %[[VAL_23]], %[[VAL_21]] : !torch.int, !torch.int -> !torch.bool
-  // CHECK:           torch.runtime.assert %[[VAL_24]], "unimplemented: number of boxes should be <= max_output_boxes_per_class"
-  // CHECK:           %[[VAL_25:.*]] = torch.aten.item %[[VAL_4]] : !torch.vtensor<[1],f32> -> !torch.float
-  // CHECK:           %[[VAL_26:.*]] = torch.aten.max %[[VAL_20]] : !torch.vtensor<[1],f32> -> !torch.vtensor<*,f32>
-  // CHECK:           %[[VAL_27:.*]] = torch.aten.item %[[VAL_26]] : !torch.vtensor<*,f32> -> !torch.float
-  // CHECK:           %[[VAL_28:.*]] = torch.aten.gt.float %[[VAL_27]], %[[VAL_25]] : !torch.float, !torch.float -> !torch.bool
-  // CHECK:           torch.runtime.assert %[[VAL_28]], "unimplemented: score_threshold should be >= max(scores)"
-  // CHECK:           %[[VAL_29:.*]] = torch.aten.item %[[VAL_3]] : !torch.vtensor<[1],f32> -> !torch.float
-  // CHECK:           %[[VAL_30:.*]] = torch.torchvision.nms %[[VAL_10]], %[[VAL_20]], %[[VAL_29]] : !torch.vtensor<[1,4],f32>, !torch.vtensor<[1],f32>, !torch.float -> !torch.vtensor<[1,3],si64>
-  // CHECK:           return %[[VAL_30]] : !torch.vtensor<[1,3],si64>
+  // CHECK:           %[[VAL_5:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_6:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_7:.*]] = torch.aten.size.int %[[VAL_0]], %[[VAL_5]] : !torch.vtensor<[1,1,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_8:.*]] = torch.aten.eq.int %[[VAL_7]], %[[VAL_6]] : !torch.int, !torch.int -> !torch.bool
+  // CHECK:           torch.runtime.assert %[[VAL_8]], "squeeze operation possible for dim only when input_shape[dim] == 1."
+  // CHECK:           %[[VAL_9:.*]] = torch.aten.squeeze.dim %[[VAL_0]], %[[VAL_5]] : !torch.vtensor<[1,1,4],f32>, !torch.int -> !torch.vtensor<[1,4],f32>
+  // CHECK:           %[[VAL_10:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_12:.*]] = torch.aten.size.int %[[VAL_1]], %[[VAL_10]] : !torch.vtensor<[1,1,1],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_13:.*]] = torch.aten.eq.int %[[VAL_12]], %[[VAL_11]] : !torch.int, !torch.int -> !torch.bool
+  // CHECK:           torch.runtime.assert %[[VAL_13]], "squeeze operation possible for dim only when input_shape[dim] == 1."
+  // CHECK:           %[[VAL_14:.*]] = torch.aten.squeeze.dim %[[VAL_1]], %[[VAL_10]] : !torch.vtensor<[1,1,1],f32>, !torch.int -> !torch.vtensor<[1,1],f32>
+  // CHECK:           %[[VAL_15:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_16:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_17:.*]] = torch.aten.size.int %[[VAL_14]], %[[VAL_15]] : !torch.vtensor<[1,1],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_18:.*]] = torch.aten.eq.int %[[VAL_17]], %[[VAL_16]] : !torch.int, !torch.int -> !torch.bool
+  // CHECK:           torch.runtime.assert %[[VAL_18]], "squeeze operation possible for dim only when input_shape[dim] == 1."
+  // CHECK:           %[[VAL_19:.*]] = torch.aten.squeeze.dim %[[VAL_14]], %[[VAL_15]] : !torch.vtensor<[1,1],f32>, !torch.int -> !torch.vtensor<[1],f32>
+  // CHECK:           %[[VAL_20:.*]] = torch.aten.item %[[VAL_2]] : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK:           %[[VAL_21:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_22:.*]] = torch.aten.size.int %[[VAL_9]], %[[VAL_21]] : !torch.vtensor<[1,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_23:.*]] = torch.aten.gt.int %[[VAL_22]], %[[VAL_20]] : !torch.int, !torch.int -> !torch.bool
+  // CHECK:           torch.runtime.assert %[[VAL_23]], "unimplemented: number of boxes should be <= max_output_boxes_per_class"
+  // CHECK:           %[[VAL_24:.*]] = torch.aten.item %[[VAL_4]] : !torch.vtensor<[1],f32> -> !torch.float
+  // CHECK:           %[[VAL_25:.*]] = torch.aten.max %[[VAL_19]] : !torch.vtensor<[1],f32> -> !torch.vtensor<*,f32>
+  // CHECK:           %[[VAL_26:.*]] = torch.aten.item %[[VAL_25]] : !torch.vtensor<*,f32> -> !torch.float
+  // CHECK:           %[[VAL_27:.*]] = torch.aten.gt.float %[[VAL_26]], %[[VAL_24]] : !torch.float, !torch.float -> !torch.bool
+  // CHECK:           torch.runtime.assert %[[VAL_27]], "unimplemented: score_threshold should be >= max(scores)"
+  // CHECK:           %[[VAL_28:.*]] = torch.aten.item %[[VAL_3]] : !torch.vtensor<[1],f32> -> !torch.float
+  // CHECK:           %[[VAL_29:.*]] = torch.torchvision.nms %[[VAL_9]], %[[VAL_19]], %[[VAL_28]] : !torch.vtensor<[1,4],f32>, !torch.vtensor<[1],f32>, !torch.float -> !torch.vtensor<[1,3],si64>
+  // CHECK:           %[[VAL_30:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_31:.*]] = torch.aten.unsqueeze %[[VAL_29]], %[[VAL_30]] : !torch.vtensor<[1,3],si64>, !torch.int -> !torch.vtensor<[1,1,3],si64>
+  // CHECK:           %[[VAL_32:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_33:.*]] = torch.aten.size.int %[[VAL_31]], %[[VAL_32]] : !torch.vtensor<[1,1,3],si64>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_34:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_35:.*]] = torch.prim.ListConstruct %[[VAL_33]], %[[VAL_34]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_36:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_37:.*]] = torch.aten.zeros %[[VAL_35]], %[[VAL_36]], %[[VAL_36]], %[[VAL_36]], %[[VAL_36]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[1,2],si64>
+  // CHECK:           %[[VAL_38:.*]] = torch.prim.ListConstruct %[[VAL_31]], %[[VAL_37]] : (!torch.vtensor<[1,1,3],si64>, !torch.vtensor<[1,2],si64>) -> !torch.list<vtensor>
+  // CHECK:           %[[VAL_39:.*]] = torch.aten.cat %[[VAL_38]], %[[VAL_30]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,3],si64>
+  // CHECK:           return %[[VAL_39]] : !torch.vtensor<[1,3],si64>
   %0 = torch.operator "onnx.NonMaxSuppression"(%arg0, %arg1, %arg2, %arg3, %arg4) : (!torch.vtensor<[1,1,4],f32>, !torch.vtensor<[1,1,1],f32>, !torch.vtensor<[1],si64>, !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>) -> !torch.vtensor<[1,3],si64>
   return %0 : !torch.vtensor<[1,3],si64>
 }
