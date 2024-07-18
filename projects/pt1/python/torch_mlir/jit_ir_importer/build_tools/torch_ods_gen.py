@@ -1090,6 +1090,11 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         has_verifier=True,
     )
 
+    emit(
+        "aten::tril_indices : (int, int, int, int?, int?, Device?, bool?) -> (Tensor)",
+        has_verifier=True,
+    )
+
     # backprop ops
     emit("aten::_softmax_backward_data : (Tensor, Tensor, int, int) -> (Tensor)")
     emit("aten::tanh_backward : (Tensor, Tensor) -> (Tensor)")
