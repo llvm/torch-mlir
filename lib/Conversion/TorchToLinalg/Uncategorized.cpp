@@ -2698,7 +2698,7 @@ static Value BilinearInterpolate(OpBuilder &b,
   auto inputRank = inputType.getRank();
 
   Value cstOneEps =
-      b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.000001));
+      b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.00001));
   Value cstOneFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.0));
   Value cstHalf = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.5));
   Value zero = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.0));
