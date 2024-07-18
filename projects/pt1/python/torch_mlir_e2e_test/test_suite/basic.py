@@ -5646,3 +5646,27 @@ def AtenKthvalueFloat64DynamicDimsModule_basic(module, tu: TestUtils):
     module.forward(
         torch.randperm(4 * 2 * 8 * 3, dtype=torch.float64).reshape(4, 2, 8, 3)
     )
+
+
+# ==============================================================================
+
+
+class UnfoldModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.unfold = torch.nn.Unfold(kernel_size=(2, 3))
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input):
+        return self.unfold(input)
+
+
+@register_test_case(module_factory=lambda: UnfoldModule())
+def UnfoldModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5, 3, 4))
