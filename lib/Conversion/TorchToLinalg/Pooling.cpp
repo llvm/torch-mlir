@@ -679,28 +679,7 @@ public:
           rewriter.create<arith::ConstantIndexOp>(loc, size + pad));
     }
 
-    auto createPad = [&](Value src, Value padVal, ArrayRef<OpFoldResult> low,
-                         ArrayRef<OpFoldResult> high) -> Value {
-      auto srcType = cast<ShapedType>(src.getType());
-      SmallVector<int64_t> newShape(srcType.getShape().drop_back(3));
-      for (auto &&[l, s, h] :
-           llvm::zip_equal(low, srcType.getShape().take_back(3), high)) {
-        newShape.emplace_back(*getConstantIntValue(l) + s +
-                              *getConstantIntValue(h));
-      }
-
-      SmallVector<OpFoldResult> fullLow(NC, rewriter.getI64IntegerAttr(0));
-      SmallVector<OpFoldResult> fullHigh(NC, rewriter.getI64IntegerAttr(0));
-      llvm::append_range(fullLow, low);
-      llvm::append_range(fullHigh, high);
-
-      auto resType = srcType.clone(newShape);
-      return rewriter
-          .create<tensor::PadOp>(loc, resType, src, fullLow, fullHigh, padVal)
-          .getResult();
-    };
-
-    auto divUp = [](int64_t v1, int64_t v2) -> int64_t {
+    auto ceilDiv = [](int64_t v1, int64_t v2) -> int64_t {
       return (v1 + v2 - 1) / v2;
     };
 
@@ -711,20 +690,19 @@ public:
         llvm::to_vector(resType.getShape().drop_back(3));
     for (auto &&[str, pad, resSize] :
          llvm::zip_equal(stride, padding, inferredOutSize))
-      expectedInputShape.emplace_back(divUp(resSize, str) + pad * 2);
+      expectedInputShape.emplace_back(ceilDiv(resSize, str) + pad * 2);
 
     if (expectedInputShape != selfType.getShape()) {
-
       // TODO: this is probably expensive, and it may be possible to solve by
       // cleverly constructing affine maps for the next linalg.generic op,
       // but I'm not smart enough to figure this out.
 
-      SmallVector<OpFoldResult> low(3, rewriter.getI64IntegerAttr(0));
-      SmallVector<OpFoldResult> high;
+      SmallVector<int64_t> low(outRank, 0);
+      SmallVector<int64_t> high(NC, 0);
       for (auto &&[inpSize, outSize] :
            llvm::zip_equal(selfType.getShape().take_back(3),
                            ArrayRef(expectedInputShape).take_back(3))) {
-        high.emplace_back(rewriter.getI64IntegerAttr(outSize - inpSize));
+        high.emplace_back(outSize - inpSize);
       }
 
       // Pad the indices tensor with a value which cannot appear in real data
@@ -734,8 +712,10 @@ public:
           loc, rewriter.getZeroAttr(selfType.getElementType()));
       Value invalidIdx = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getIntegerAttr(indicesType.getElementType(), -1));
-      self = createPad(self, zero, low, high);
-      indices = createPad(indices, invalidIdx, low, high);
+      self =
+          torch_to_linalg::getPaddedTensor(op, rewriter, self, low, high, zero);
+      indices = torch_to_linalg::getPaddedTensor(op, rewriter, indices, low,
+                                                 high, invalidIdx);
     }
 
     Value init = rewriter.create<tensor::EmptyOp>(
