@@ -709,6 +709,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::linalg_qr : (Tensor, str) -> (Tensor, Tensor)")
     emit("aten::linalg_det : (Tensor) -> (Tensor)")
     emit("aten::_linalg_det : (Tensor) -> (Tensor, Tensor, Tensor)")
+    emit("aten::linalg_slogdet : (Tensor) -> (Tensor, Tensor)")
     emit("aten::frobenius_norm.dim : (Tensor, int[], bool) -> (Tensor)")
     emit("aten::mse_loss : (Tensor, Tensor, int) -> (Tensor)")
     emit("aten::mse_loss_backward : (Tensor, Tensor, Tensor, int) -> (Tensor)")

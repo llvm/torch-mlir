@@ -242,6 +242,14 @@ def aten〇_linalg_det〡shape(A: List[int]) -> Tuple[List[int], List[int], List
 def aten〇_linalg_det〡dtype(A_rank_dtype: Tuple[int, int]) -> Tuple[int, int, int]:
     return (A_rank_dtype[1], A_rank_dtype[1], A_rank_dtype[1])
 
+def aten〇linalg_slogdet〡shape(A: List[int]) -> Tuple[List[int], List[int]]:
+    assert len(A) == 2 or len(A) == 3
+    assert A[-1] == A[-2]
+    if len(A) == 3:
+        return A[:1], A[:1]
+    shape = upstream_shape_functions.zero_dim_tensor(A)
+    return shape, shape
+
 def aten〇detach〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -3223,6 +3231,18 @@ def aten〇slice〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], dim: int = 0
      Invocation(TensorOfShape(1, dtype=torch.float64), TensorOfShape(1, dtype=torch.float32), dim=0, input_dtype=torch.float32)])
 def aten〇_softmax_backward_data〡dtype(grad_output_rank_dtype: Tuple[int, int], output_rank_dtype: Tuple[int, int], dim: int, input_dtype: int) -> int:
     return input_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(4,4),], error_types={*all_integer_dtypes(), torch.float16, torch.bfloat16}))
+def aten〇linalg_slogdet〡dtype(A_rank_dtype: Tuple[int, int]) -> Tuple[int, int]:
+    self_rank, self_dtype = A_rank_dtype
+    assert not is_integer_dtype(self_dtype)
+    assert self_dtype != torch.float16 and self_dtype != torch.bfloat16
+    det_type = self_dtype 
+    if self_dtype == torch.complex32 or self_dtype == torch.complex64:
+        det_type = torch.float32
+    if self_dtype == torch.complex128:
+        det_type = torch.float64
+    return self_dtype, det_type
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇square〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
