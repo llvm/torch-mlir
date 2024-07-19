@@ -186,10 +186,10 @@ public:
                   ValueRange{lhs, rhs, lhsZeroPoint, rhsZeroPoint}, zeroFill)
               .getResult(0);
     } else if (isUnsigned) {
-      matmul = rewriter
-                   .create<linalg::MatmulUnsignedOp>(
-                       loc, zeroFill.getType(), ValueRange{lhs, rhs}, zeroFill)
-                   .getResult(0);
+      auto matmulOp = rewriter.create<linalg::MatmulOp>(
+          loc, zeroFill.getType(), ValueRange{lhs, rhs}, zeroFill);
+      matmulOp.setCast(linalg::TypeFn::cast_unsigned);
+      matmul = matmulOp->getResult(0);
     } else {
       matmul = rewriter
                    .create<linalg::MatmulOp>(loc, zeroFill.getType(),
