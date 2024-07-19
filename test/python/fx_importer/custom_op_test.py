@@ -68,7 +68,7 @@ def test_tanh_sigmoid_cat_custom_op():
     dim_n = Dim("n", min=5, max=10)
     dim_x1 = Dim("x1", max=100)
     dim_y1 = Dim("y1", max=50)
-    dim_z1 = Dim("z1")
+    dim_z1 = Dim("z1", max=50)
     dynamic_shapes = {
         "x": {0: dim_n, 1: dim_x1},
         "y": {0: dim_n, 1: dim_y1},
