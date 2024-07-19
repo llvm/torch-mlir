@@ -62,7 +62,7 @@ def test_tanh_sigmoid_cat():
     dim_n = Dim("n", min=5, max=10)
     dim_x1 = Dim("x1", max=100)
     dim_y1 = Dim("y1", max=50)
-    dim_z1 = Dim("z1")
+    dim_z1 = Dim("z1", max=50)
     dynamic_shapes = {
         "x": {0: dim_n, 1: dim_x1},
         "y": {0: dim_n, 1: dim_y1},
@@ -148,7 +148,7 @@ def test_outer_with_squared_shape():
     x = torch.rand(10)
 
     # Dynamic dim constraints
-    batch = Dim("batch")
+    batch = Dim("batch", max=10)
     dynamic_shapes = {"x": {0: batch}}
 
     m = fx.export_and_import(
@@ -163,7 +163,7 @@ def test_outer_with_squared_shape():
 @run
 # CHECK-LABEL: test_slice_tensor_static_output
 # CHECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?,3],f32>) -> !torch.vtensor<[2,1],f32> {
-# CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 3, max_val = 9223372036854775806} : !torch.int
+# CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 3, max_val = 10} : !torch.int
 # CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
 # CHECK:        %[[SLICE1:.+]] = torch.aten.slice.Tensor %[[ARG0]], {{.*}}, {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[?,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3],f32>
 # CHECK:        %[[SLICE2:.+]] = torch.aten.slice.Tensor %[[SLICE1]], {{.*}}, {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[2,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,1],f32>
@@ -180,7 +180,7 @@ def test_slice_tensor_static_output():
     x = torch.randn(4, 3)
 
     # Dynamic dim constraints
-    batch = Dim("batch", min=3)
+    batch = Dim("batch", min=3, max=10)
     dynamic_shapes = {"x": {0: batch}}
 
     m = fx.export_and_import(
@@ -195,7 +195,7 @@ def test_slice_tensor_static_output():
 @run
 # CHECK-LABEL: test_slice_tensor_dynamic_output
 # CHECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
-# CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 5, max_val = 9223372036854775806} : !torch.int
+# CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 5, max_val = 10} : !torch.int
 # CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
 # CHECK:        %[[SLICE:.+]] = torch.aten.slice.Tensor %[[ARG0]], {{.*}}, {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[?],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?],f32>
 # CHECK:        torch.bind_symbolic_shape %[[SLICE]], [%[[S0]]], affine_map<()[s0] -> (s0 - 5)> : !torch.vtensor<[?],f32>
@@ -212,7 +212,7 @@ def test_slice_tensor_dynamic_output():
     x = torch.randn(10)
 
     # Dynamic dim constraints
-    dimx = Dim("dimx", min=5)
+    dimx = Dim("dimx", min=5, max=10)
     dynamic_shapes = {"x": {0: dimx}}
 
     m = fx.export_and_import(
@@ -246,7 +246,7 @@ def test_div_tensor_mixed_ranks():
     y = torch.randn(2, 3)
 
     # Dynamic dim constraints
-    batch = Dim("batch")
+    batch = Dim("batch", max=10)
     dynamic_shapes = {"x": None, "y": {0: batch}}
 
     m = fx.export_and_import(
@@ -313,7 +313,7 @@ def test_broadcast_unit_dim_to_static_with_unchanged_dim_dynamic():
     x = torch.randn(1, 2)
 
     # Dynamic dim constraints
-    dim_1 = Dim("dim_1")
+    dim_1 = Dim("dim_1", max=10)
     dynamic_shapes = {"x": {1: dim_1}}
 
     m = fx.export_and_import(
@@ -346,7 +346,7 @@ def test_broadcast_unit_dim_to_dynamic_with_unchanged_dim_static():
     y = torch.randn(10)
 
     # Dynamic dim constraints
-    dim_0 = Dim("dim_0")
+    dim_0 = Dim("dim_0", max=10)
     dynamic_shapes = {"x": {}, "y": {0: dim_0}}
 
     m = fx.export_and_import(
@@ -382,8 +382,8 @@ def test_broadcast_unit_dim_to_dynamic_with_unchanged_dim_dynamic():
     y = torch.randn(10)
 
     # Dynamic dim constraints
-    dim_0 = Dim("dim_0")
-    dim_1 = Dim("dim_1")
+    dim_0 = Dim("dim_0", max=10)
+    dim_1 = Dim("dim_1", max=10)
     dynamic_shapes = {"x": {1: dim_1}, "y": {0: dim_0}}
 
     m = fx.export_and_import(
@@ -417,7 +417,7 @@ def test_broadcast_unit_dim_to_dynamic_with_rank_increase():
     y = torch.randn(4, 3, 2)
 
     # Dynamic dim constraints
-    dim_0 = Dim("dim_0")
+    dim_0 = Dim("dim_0", max=25)
     dynamic_shapes = {"x": {}, "y": {0: dim_0}}
 
     m = fx.export_and_import(
@@ -433,7 +433,7 @@ def test_broadcast_unit_dim_to_dynamic_with_rank_increase():
 @run
 # CHECK-LABEL: test_gather_elements
 # CHECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?,3],f32>, %[[ARG1:.+]]: !torch.vtensor<[2,3],si64>) -> !torch.vtensor<[2,3],f32> {
-# CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 3, max_val = 9223372036854775806} : !torch.int
+# CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = 3, max_val = 100} : !torch.int
 # CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
 # CHECK:        %[[GATHER:.+]] = torch.aten.gather %[[ARG0]], {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[?,3],f32>, !torch.int, !torch.vtensor<[2,3],si64>, !torch.bool -> !torch.vtensor<[2,3],f32>
 # CHECK:        return %[[GATHER]] : !torch.vtensor<[2,3],f32>
@@ -450,7 +450,7 @@ def test_gather_elements():
     y = torch.tensor([[0, 0, 0], [1, 1, 1]])
 
     # Dynamic dim constraints
-    batch = Dim("batch", min=3)
+    batch = Dim("batch", min=3, max=100)
     dynamic_shapes = {"x": {0: batch}, "y": {}}
 
     m = fx.export_and_import(

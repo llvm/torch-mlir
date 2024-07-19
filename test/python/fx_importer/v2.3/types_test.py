@@ -42,7 +42,7 @@ def test_scalar_typed_node():
     m = fx.export_and_import(
         Basic(),
         torch.randn(3, 4),
-        dynamic_shapes={"x": {0: torch.export.Dim("b")}},
+        dynamic_shapes={"x": {0: torch.export.Dim("b", min=3, max=10)}},
         import_symbolic_shape_expressions=True,
     )
     print(m)

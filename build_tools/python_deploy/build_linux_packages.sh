@@ -439,11 +439,11 @@ function build_torch_mlir() {
     nightly)
       echo ":::: Using nightly dependencies"
       python -m pip install --no-cache-dir -r /main_checkout/torch-mlir/requirements.txt \
-        --extra-index-url https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+        --extra-index-url https://download.pytorch.org/whl/nightly/cpu/torch/
       CMAKE_GENERATOR=Ninja \
       TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
       python -m pip wheel -v --no-build-isolation -w /wheelhouse /main_checkout/torch-mlir \
-        -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html \
+        -f https://download.pytorch.org/whl/nightly/cpu/torch/ \
         -r /main_checkout/torch-mlir/whl-requirements.txt
       ;;
     stable)
