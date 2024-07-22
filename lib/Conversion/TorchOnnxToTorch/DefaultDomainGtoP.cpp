@@ -3032,43 +3032,26 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         boxes = squeezedBoxes.value();
         scores = squeezedScores.value();
 
-        // TODO: Add support for handling max_output_boxes_per_class
-        // and score_threshold arg.
-        // If num_boxes (N) > max_output_boxes_per_class then the op can't be
-        // lowered since the torchvision::nms op doesn't have support for
-        // handling the max_output_boxes_per_class arg.
-        Value maxOutputBoxesPerClass = rewriter.create<Torch::AtenItemOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(), operands[2]);
-        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(0));
-        Value numBoxes = rewriter.create<Torch::AtenSizeIntOp>(binder.getLoc(),
-                                                               boxes, cstZero);
-        Value boxesCond = rewriter.create<Torch::AtenGtIntOp>(
-            binder.getLoc(), numBoxes, maxOutputBoxesPerClass);
-        rewriter.create<Torch::RuntimeAssertOp>(
-            binder.getLoc(), boxesCond,
-            rewriter.getStringAttr("unimplemented: number of boxes should be "
-                                   "<= max_output_boxes_per_class"));
-
-        // If score_threshold < max(scores) then the op can't be lowered since
+        // TODO: Add support for handling score_threshold arg.
+        // If score_threshold < min(scores) then the op can't be lowered since
         // the torchvision::nms op doesn't have support for handling the
         // score_threshold arg.
         Value scoreThreshold = rewriter.create<Torch::AtenItemOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(), operands[4]);
-        Value maxScores = rewriter.create<Torch::AtenMaxOp>(
+        Value minScores = rewriter.create<Torch::AtenMinOp>(
             binder.getLoc(),
             Torch::ValueTensorType::get(binder.op->getContext(), {},
                                         rewriter.getF32Type()),
             scores);
-        maxScores = rewriter.create<Torch::AtenItemOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(), maxScores);
+        minScores = rewriter.create<Torch::AtenItemOp>(
+            binder.getLoc(), rewriter.getType<Torch::FloatType>(), minScores);
 
-        Value scoresCond = rewriter.create<Torch::AtenGtFloatOp>(
-            binder.getLoc(), maxScores, scoreThreshold);
+        Value scoresCond = rewriter.create<Torch::AtenGeFloatOp>(
+            binder.getLoc(), minScores, scoreThreshold);
         rewriter.create<Torch::RuntimeAssertOp>(
             binder.getLoc(), scoresCond,
             rewriter.getStringAttr(
-                "unimplemented: score_threshold should be >= max(scores)"));
+                "unimplemented: score_threshold should be <= min(scores)"));
 
         Value iouThreshold = rewriter.create<Torch::AtenItemOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(), operands[3]);
@@ -3088,11 +3071,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.op, "failed to  unsqueeze result tensor");
         result = unsqueezedResult.value();
 
-        SmallVector<Value> zerosShapeValues;
-        zerosShapeValues.push_back(rewriter.create<Torch::AtenSizeIntOp>(
+        Value numOutputBoxes = rewriter.create<Torch::AtenSizeIntOp>(
             binder.getLoc(), result,
             rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getI64IntegerAttr(0))));
+                binder.getLoc(), rewriter.getI64IntegerAttr(0)));
+        SmallVector<Value> zerosShapeValues{numOutputBoxes};
         zerosShapeValues.push_back(rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(2)));
         Value zerosShapeList = rewriter.create<Torch::PrimListConstructOp>(
@@ -3121,6 +3104,22 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Type listType = Torch::ListType::get(listElemType);
         Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
             binder.op->getLoc(), listType, SmallVector<Value>{result, zeros});
+
+        // TODO: Add support for handling max_output_boxes_per_class arg.
+        // If numOutputBoxes (N) > max_output_boxes_per_class then the op can't
+        // be lowered since the torchvision::nms op doesn't have support for
+        // handling the max_output_boxes_per_class arg. Also, we have already
+        // constrained the number of classes to be 1 above, so the number of
+        // output boxes inferred from the result is num_output_boxes_per_class.
+        Value maxOutputBoxesPerClass = rewriter.create<Torch::AtenItemOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(), operands[2]);
+        Value boxesCond = rewriter.create<Torch::AtenLeIntOp>(
+            binder.getLoc(), numOutputBoxes, maxOutputBoxesPerClass);
+        rewriter.create<Torch::RuntimeAssertOp>(
+            binder.getLoc(), boxesCond,
+            rewriter.getStringAttr(
+                "unimplemented: number of output boxes per class should be "
+                "<= max_output_boxes_per_class"));
 
         rewriter.replaceOpWithNewOp<Torch::AtenCatOp>(binder.op, resultType,
                                                       tensorList, dim);
