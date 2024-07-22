@@ -1103,6 +1103,10 @@ STABLEHLO_PASS_SET = {
     "GridSamplerBasic4_basic",
     "GtFloatIntModule_basic",
     "GtIntModule_basic",
+    "HstackBasicComplexModule_basic",
+    "HstackBasicFloatModule_basic",
+    "HstackBasicIntFloatModule_basic",
+    "HstackBasicIntModule_basic",
     "IndexTensorMultiIndexStaticModule_basic",
     "IndexTensorStaticModule_basic",
     "IntFloatModule_basic",
@@ -2045,6 +2049,11 @@ MAKE_FX_TOSA_PASS_SET = (
     # failed to legalize operation 'torch.aten.rrelu_with_noise'
     "ElementwiseRreluEvalModule_basic",
     "ElementwiseRreluEvalStaticModule_basic",
+    # incompatible return type failure for tosa.concat.
+    "HstackBasicComplexModule_basic",
+    "HstackBasicFloatModule_basic",
+    "HstackBasicIntFloatModule_basic",
+    "HstackBasicIntModule_basic",
     # Shape Related failures
     "PrimListUnpackNumMismatchModule_basic",
     "ReshapeExpandModule_basic",
@@ -2420,6 +2429,10 @@ ONNX_XFAIL_SET = {
     "GtFloatIntModule_basic",
     "GtIntModule_basic",
     "HardtanhBackward_basic",
+    "HstackBasicComplexModule_basic",
+    "HstackBasicFloatModule_basic",
+    "HstackBasicIntFloatModule_basic",
+    "HstackBasicIntModule_basic",
     "IndexPutImpl1DFloatAccumulateModule_basic",
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
     "IndexPutImpl1DIntAccumulateModule_basic",
