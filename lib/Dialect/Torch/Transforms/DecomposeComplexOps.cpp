@@ -1352,7 +1352,7 @@ class DecomposeAtenSplitWithSizesOp
 
     auto sliceTy =
         dyn_cast_or_null<Torch::BaseTensorType>(resultTy.getContainedType());
-    if (!isa<Torch::BaseTensorType>(sliceTy))
+    if (!sliceTy || !sliceTy.hasSizes())
       return rewriter.notifyMatchFailure(op, "Slice type is unknown");
 
     int64_t dimInt = 0;
