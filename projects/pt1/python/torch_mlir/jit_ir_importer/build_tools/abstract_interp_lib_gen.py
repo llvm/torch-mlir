@@ -138,14 +138,8 @@ def aten〇fake_quantize_per_tensor_affine_cachemask〡shape(self: List[int], sc
 def aten〇fake_quantize_per_tensor_affine〇tensor_qparams〡shape(self: List[int], scale: List[int], zero_point: List[int], quant_min: int, quant_max: int) -> List[int]:
     return upstream_shape_functions.unary(self)
 
-def aten〇_fake_quantize_per_tensor_affine_cachemask_tensor_qparams〡shape(self: List[int], scale: List[int], zero_point: List[int], fake_quant_enabled: List[int], quant_min: int, quant_max: int) -> Tuple[List[int], List[int]]:
-    return (upstream_shape_functions.unary(self), upstream_shape_functions.unary(self))
-
 def aten〇fake_quantize_per_channel_affine〡shape(self: List[int], scale: List[int], zero_point: List[int], axis: int, quant_min: int, quant_max: int) -> List[int]:
     return upstream_shape_functions.unary(self)
-
-def aten〇fake_quantize_per_channel_affine_cachemask〡shape(self: List[int], scale: List[int], zero_point: List[int], axis: int, quant_min: int, quant_max: int) -> Tuple[List[int], List[int]]:
-    return (upstream_shape_functions.unary(self), upstream_shape_functions.unary(self))
 
 def aten〇sin〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
@@ -2378,14 +2372,6 @@ def aten〇fake_quantize_per_tensor_affine〇tensor_qparams〡dtype(self_rank_dt
     assert self_dtype != torch.bfloat16
     return self_dtype
 
-# note: _fake_quantize_per_tensor_affine_cachemask_tensor_qparams doesn't support "meta" device, use "cpu" instead.
-@check_dtype_function(Invocation(TensorOfShape(3, 3, dtype=dtype, device="cpu"), TensorOfShape(1, dtype=torch.float32, device="cpu"), TensorOfShape(1, dtype=torch.int32, device="cpu"), TensorOfShape(1, dtype=torch.int32, device="cpu"), 0, 255) for dtype in [torch.float64, torch.float32, torch.float16])
-def aten〇_fake_quantize_per_tensor_affine_cachemask_tensor_qparams〡dtype(self_rank_dtype: Tuple[int, int], scale_rank_dtype: Tuple[int, int], zero_point_rank_dtype: Tuple[int, int], fake_quant_enabled_rank_dtype: Tuple[int, int], quant_min: int, quant_max: int) -> Tuple[int, int]:
-    self_rank, self_dtype = self_rank_dtype
-    assert is_float_dtype(self_dtype)
-    assert self_dtype != torch.bfloat16
-    return (self_rank_dtype[1], torch.bool)
-
 # note: fake_quantize_per_channel_affine doesn't support "meta" device, use "cpu" instead.
 @check_dtype_function(Invocation(TensorOfShape(3, 3, dtype=dtype, device="cpu"), TensorOfShape(3, dtype=torch.float32, device="cpu"), TensorOfShape(3, dtype=torch.int32, device="cpu"), 0, 0, 255) for dtype in [torch.float64, torch.float32, torch.float16])
 def aten〇fake_quantize_per_channel_affine〡dtype(self_rank_dtype: Tuple[int, int], scale_rank_dtype: Tuple[int, int], zero_point_rank_dtype: Tuple[int, int], axis: int, quant_min: int, quant_max: int) -> int:
@@ -2393,14 +2379,6 @@ def aten〇fake_quantize_per_channel_affine〡dtype(self_rank_dtype: Tuple[int, 
     assert is_float_dtype(self_dtype)
     assert self_dtype != torch.bfloat16
     return self_dtype
-
-# note: fake_quantize_per_channel_affine_cachemask doesn't support "meta" device, use "cpu" instead.
-@check_dtype_function(Invocation(TensorOfShape(3, 3, dtype=dtype, device="cpu"), TensorOfShape(3, dtype=torch.float32, device="cpu"), TensorOfShape(3, dtype=torch.int32, device="cpu"), 0, 0, 255) for dtype in [torch.float64, torch.float32, torch.float16])
-def aten〇fake_quantize_per_channel_affine_cachemask〡dtype(self_rank_dtype: Tuple[int, int], scale_rank_dtype: Tuple[int, int], zero_point_rank_dtype: Tuple[int, int], axis: int, quant_min: int, quant_max: int) -> Tuple[int, int]:
-    self_rank, self_dtype = self_rank_dtype
-    assert is_float_dtype(self_dtype)
-    assert self_dtype != torch.bfloat16
-    return (self_rank_dtype[1], torch.bool)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇cosh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
