@@ -3625,12 +3625,11 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
     return DenseElementsAttr::get(outType.toBuiltinTensor(),
                                   input.getSplatValue<Attribute>());
 
-  int count = 1;
+  int64_t count = 1;
   for (auto dim : outType.getSizes())
     count = count * dim;
-
   if (count == 0)
-    return {};
+    return nullptr;
 
   if (!dim)
     return nullptr;
@@ -3638,29 +3637,41 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
   if (dimInt < 0)
     dimInt += inType.getSizes().size();
 
-  bool unaryNonDim = true;
-  for (int i = 0, s = outType.getSizes().size(); i < s; ++i)
-    unaryNonDim &= outType.getSizes()[i] == 1 || i == dimInt;
-
   // Fold the slice if the output tensor is relatively small, currently
   // coded to 16:
-  if (input && start && step && dim && count < 16 && unaryNonDim &&
-      count < 16) {
-    int64_t inCount = input.getNumElements();
+  constexpr int64_t kMaxFold = 16;
+  if (input && start && step && dim && count <= kMaxFold) {
     int64_t begin = start.getValue().getSExtValue();
+    int64_t limit = end.getValue().getSExtValue();
     int64_t stride = step.getValue().getSExtValue();
     if (stride < 1)
-      return {};
-    int64_t limit = end.getValue().getSExtValue();
-    begin = begin < 0 ? begin + inCount : begin;
-    limit = limit < 0 ? limit + inCount : limit;
-    limit = limit < 0 ? inType.getSizes()[dimInt] : limit;
+      return nullptr;
+    begin = begin < 0 ? begin + inType.getSizes()[dimInt] : begin;
+    limit = limit < 0 ? limit + inType.getSizes()[dimInt] : limit;
     limit = std::min(limit, inType.getSizes()[dimInt]);
 
-    llvm::SmallVector<Attribute> values;
-    for (int i = begin; i < limit; i += stride)
-      values.push_back(input.getValues<Attribute>()[i]);
+    int64_t inputRank = inType.getSizes().size();
+    llvm::SmallVector<int64_t> inputStrides(inputRank, 1);
+    for (int64_t i = inputRank - 2; i >= 0; i--) {
+      inputStrides[i] = inputStrides[i + 1] * inType.getSizes()[i + 1];
+    }
 
+    llvm::SmallVector<Attribute> values;
+    values.reserve(count);
+    auto recursiveIter = [&](auto &self, int64_t currDim, int64_t currOffset) {
+      if (currDim >= inputRank)
+        return;
+      size_t _begin = (currDim == dimInt) ? begin : 0;
+      size_t _limit = (currDim == dimInt) ? limit : inType.getSizes()[currDim];
+      size_t _stride = (currDim == dimInt) ? stride : 1;
+      for (size_t i = _begin; i < _limit; i += _stride) {
+        if (currDim == inputRank - 1) {
+          values.push_back(input.getValues<Attribute>()[currOffset + i]);
+        }
+        self(self, currDim + 1, currOffset + inputStrides[currDim] * i);
+      }
+    };
+    recursiveIter(recursiveIter, 0, 0);
     return DenseElementsAttr::get(outType.toBuiltinTensor(), values);
   }
 
