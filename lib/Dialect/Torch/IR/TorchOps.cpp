@@ -128,6 +128,17 @@ static FloatAttr getF64FloatAttr(MLIRContext *context, double value) {
   return FloatAttr::get(Float64Type::get(context), value);
 }
 
+static DenseElementsAttr reshapeDenseElementsAttr(DenseElementsAttr attr,
+                                                  ShapedType newType) {
+  // TODO: DenseElementsAttr::reshape is broken for bool splats.
+  // Once that ticket is fixed, we can remove this conditional.
+  if (attr.isSplat() && newType.getElementType().isInteger(/*width=*/1)) {
+    auto splatValue = attr.getValues<bool>()[0];
+    return DenseElementsAttr::get(newType, {splatValue});
+  }
+  return attr.reshape(newType);
+}
+
 static Value getScalarIntValue(Value input, Location loc,
                                PatternRewriter &rewriter) {
   auto inputType = input.getType();
@@ -798,11 +809,22 @@ OpFoldResult AtenSqueezeOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSqueezeDimOp::fold(FoldAdaptor adaptor) {
-  if (getOperand(0).getType() != getResult().getType())
+  auto inType = dyn_cast<ValueTensorType>(getOperand(0).getType());
+  auto outType = dyn_cast<ValueTensorType>(getResult().getType());
+  if (!inType || !outType || !inType.areAllSizesKnown() ||
+      !outType.areAllSizesKnown() || !inType.hasDtype() ||
+      !outType.hasDtype()) {
     return nullptr;
-  if (auto tensorType = dyn_cast<BaseTensorType>(getOperand(0).getType())) {
-    if (tensorType.hasSizes() && tensorType.getSizes().size() == 0)
-      return getOperand(0);
+  }
+
+  if (inType == outType) {
+    return getOperand(0);
+  }
+
+  DenseElementsAttr input =
+      dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  if (input) {
+    return reshapeDenseElementsAttr(input, outType.toBuiltinTensor());
   }
   return nullptr;
 }
