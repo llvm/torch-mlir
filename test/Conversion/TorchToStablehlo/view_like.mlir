@@ -379,15 +379,25 @@ func.func @torch.aten.view$to_rank0(%arg0: !torch.vtensor<[1],f32>) -> !torch.vt
 // -----
 
 // CHECK-LABEL:  func.func @torch.aten.squeeze.dim$0$static(
-// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[2,1,2,1,2],f32>) -> !torch.vtensor<[2,1,2,1,2],f32> {
-// CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[2,1,2,1,2],f32> -> tensor<2x1x2x1x2xf32>
-// CHECK:         %[[INT0:.*]] = torch.constant.int 0
-// CHECK:         %[[T1:.*]] = torch_c.from_builtin_tensor %[[T0]] : tensor<2x1x2x1x2xf32> -> !torch.vtensor<[2,1,2,1,2],f32>
-// CHECK:         return %[[T1]] : !torch.vtensor<[2,1,2,1,2],f32>
-func.func @torch.aten.squeeze.dim$0$static(%arg0: !torch.vtensor<[2,1,2,1,2],f32>) -> !torch.vtensor<[2,1,2,1,2],f32> {
-  %int0 = torch.constant.int 0
-  %0 = torch.aten.squeeze.dim %arg0, %int0 : !torch.vtensor<[2,1,2,1,2],f32>, !torch.int -> !torch.vtensor<[2,1,2,1,2],f32>
-  return %0 : !torch.vtensor<[2,1,2,1,2],f32>
+// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[2,1,2,1,2],f32>) -> !torch.vtensor<[2,2,1,2],f32> {
+// CHECK:         %0 = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[2,1,2,1,2],f32> -> tensor<2x1x2x1x2xf32>
+// CHECK:         %int1 = torch.constant.int 1
+// CHECK:         %c0 = arith.constant 0 : index
+// CHECK:         %dim = tensor.dim %0, %c0 : tensor<2x1x2x1x2xf32>
+// CHECK:         %c2 = arith.constant 2 : index
+// CHECK:         %dim_0 = tensor.dim %0, %c2 : tensor<2x1x2x1x2xf32>
+// CHECK:         %c3 = arith.constant 3 : index
+// CHECK:         %dim_1 = tensor.dim %0, %c3 : tensor<2x1x2x1x2xf32>
+// CHECK:         %c4 = arith.constant 4 : index
+// CHECK:         %dim_2 = tensor.dim %0, %c4 : tensor<2x1x2x1x2xf32>
+// CHECK:         %from_elements = tensor.from_elements %dim, %dim_0, %dim_1, %dim_2 : tensor<4xindex>
+// CHECK:         %1 = stablehlo.dynamic_reshape %0, %from_elements : (tensor<2x1x2x1x2xf32>, tensor<4xindex>) -> tensor<2x2x1x2xf32>
+// CHECK:         %2 = torch_c.from_builtin_tensor %1 : tensor<2x2x1x2xf32> -> !torch.vtensor<[2,2,1,2],f32>
+// CHECK:         return %[[T2]] : !torch.vtensor<[2,2,1,2],f32>
+func.func @torch.aten.squeeze.dim$0$static(%arg0: !torch.vtensor<[2,1,2,1,2],f32>) -> !torch.vtensor<[2,2,1,2],f32> {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.squeeze.dim %arg0, %int1 : !torch.vtensor<[2,1,2,1,2],f32>, !torch.int -> !torch.vtensor<[2,2,1,2],f32>
+  return %0 : !torch.vtensor<[2,2,1,2],f32>
 }
 
 // -----
