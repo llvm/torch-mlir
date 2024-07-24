@@ -1369,6 +1369,8 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
     llvm::SmallVector<APFloat> folded;
     for (int i = 0, s = numValues; i < s; ++i) {
       auto inputs = getFoldValueAtIndexFp(operands, i);
+      if (inputs.size() != operands.size())
+        return nullptr;
       double fold = fpFolder(inputs);
 
       APFloat val(fold);
@@ -1385,6 +1387,8 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
     for (int i = 0, s = numValues; i < s; ++i) {
       auto inputs =
           getFoldValueAtIndexInt(operands, dty.getIntOrFloatBitWidth(), i);
+      if (inputs.size() != operands.size())
+        return nullptr;
       folded.push_back(intFolder(inputs));
     }
     return DenseElementsAttr::get(resultBTy, folded);
