@@ -2535,7 +2535,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         return success();
       });
   patterns.onOp(
-      "Flatten", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Flatten", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         // Flatten means to partition the input tensor's dimensions
         // into a "left range" spanning 0 to axis - 1 and a "right range"
         // spanning axis to rank - 1.  Each range is then collapsed
