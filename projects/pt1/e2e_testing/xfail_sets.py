@@ -1118,6 +1118,7 @@ STABLEHLO_PASS_SET = {
     "LinspaceTwoSizeModule_basic",
     "MaskedFillScalarFloatValueStaticModule_basic",
     "MaskedFillScalarIntValueStaticModule_basic",
+    "MaskedFillTensorIntValueStaticModule_basic",
     "MaskedScatterStaticBasic_basic",
     "Matmul4dStatic_basic",
     "Matmul_2d",
