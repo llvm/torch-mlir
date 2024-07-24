@@ -1964,6 +1964,17 @@ func.func @torch.aten.sub.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],
     return %2 : !torch.vtensor<[],si64>
 }
 
+// CHECK-LABEL:   func.func @torch.aten.sub.Tensor$mixed_dtype() -> !torch.vtensor<[],f64> {
+// CHECK:       %[[CST:.*]] = torch.vtensor.literal(dense<2.750000e+01> : tensor<f64>) : !torch.vtensor<[],f64>
+// CEHCK:       return %[[CST]]
+func.func @torch.aten.sub.Tensor$mixed_dtype() -> !torch.vtensor<[],f64> {
+  %int1 = torch.constant.int 1
+  %0 = torch.vtensor.literal(dense<28> : tensor<si64>) : !torch.vtensor<[],si64>
+  %1 = torch.vtensor.literal(dense<5.000000e-01> : tensor<f64>) : !torch.vtensor<[],f64>
+  %2 = torch.aten.sub.Tensor %0, %1, %int1 : !torch.vtensor<[],si64>, !torch.vtensor<[],f64>, !torch.int -> !torch.vtensor<[],f64>
+  return %2 : !torch.vtensor<[],f64>
+}
+
 // CHECK-LABEL:   func.func @torch.aten.sub.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {
 // CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<-6> : tensor<si64>) : !torch.vtensor<[],si64>
 // CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
