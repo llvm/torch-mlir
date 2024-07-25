@@ -4109,6 +4109,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value zero = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), 0);
 
         auto inputTy = cast<Torch::ValueTensorType>(input.getType());
+        if (!inputTy.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input type to have sizes");
+        }
         auto inputShape = inputTy.getSizes();
         int64_t inputDim = static_cast<int64_t>(inputShape.size());
 
@@ -4143,8 +4147,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         if (axisWasNone) {
           int64_t inputNumel = 1;
-          for (auto elem : inputShape)
+          for (auto elem : inputShape) {
+            if (elem == Torch::kUnknownSize) {
+              return rewriter.notifyMatchFailure(
+                  binder.op,
+                  "Expected all sizes in input shape to be statically known");
+            }
             inputNumel *= elem;
+          }
           auto flattenResultTy = rewriter.getType<Torch::ValueTensorType>(
               ArrayRef({inputNumel}), inputTy.getDtype());
           Value negativeOne =
