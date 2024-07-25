@@ -16,9 +16,6 @@ from torch_mlir._version import torch_version_for_comparison, version
 print(f"TORCH_VERSION_FOR_COMPARISON =", torch_version_for_comparison())
 
 LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
-    # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
-    # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
-    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "IscloseStaticModule_basic",
     "IscloseStaticModuleTrue_basic",
     # lowering to torch backend IR fails due to unsupported op: aten.upsample_[mode/dims].vec
@@ -250,9 +247,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "ScatterValueIntModule_basic",
     # AssertionError: Unregistered operation: torch.aten._unsafe_index_put
     "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
-    # Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR failed
-    # 'linalg.depthwise_conv_2d_nchw_chw' op inferred input/output operand #1 has shape's dimension #0 to be 4, but found 8
-    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     # AssertionError: Unregistered operation: torch.aten._embedding_bag_forward_only
     "AtenEmbeddingBagStaticModule_basic",
     # Lowering not present for this case
@@ -385,7 +379,6 @@ FX_IMPORTER_XFAIL_SET = {
     "Conv2dQInt8Module_depthwise",
     "Conv2dQInt8Module_grouped",
     "Conv2dQInt8Module_not_depthwise",
-    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "ConvTbcModule_basic",
     "ConvTranspose2DQInt8_basic",
     "ConvolutionBackwardModule2DPadded_basic",
@@ -2727,7 +2720,6 @@ ONNX_XFAIL_SET = {
     "BernoulliModule_basic",
     "Conv_Transpose1dModule_basic",
     "Conv_Transpose3dModule_basic",
-    "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
     "CopyWithDifferentDTypesAndSizesModule_basic",
     "CopyWithDifferentDTypesModule_basic",
     "CosineSimilarityStaticBroadcastModule_basic",
