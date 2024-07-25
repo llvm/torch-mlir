@@ -30,7 +30,7 @@ echo "Setting torch-mlir Python Package version to: ${TORCH_MLIR_PYTHON_PACKAGE_
 
 # Note that this typically is selected to match the version that the official
 # Python distributed is built at.
-export MACOSX_DEPLOYMENT_TARGET="${TORCH_MLIR_OSX_TARGET:-11.0}"
+export MACOSX_DEPLOYMENT_TARGET="${TORCH_MLIR_OSX_TARGET:-11.1}"
 export CMAKE_OSX_ARCHITECTURES="${TORCH_MLIR_OSX_ARCH:-arm64;x86_64}"
 echo "CMAKE_OSX_ARCHITECTURES: $CMAKE_OSX_ARCHITECTURES"
 echo "MACOSX_DEPLOYMENT_TARGET $MACOSX_DEPLOYMENT_TARGET"
