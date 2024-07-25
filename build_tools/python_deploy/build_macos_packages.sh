@@ -6,7 +6,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 # build_macos_packages.sh
-# One stop build of IREE Python packages for MacOS. This presumes that
+# One stop build of torch-mlir Python packages for MacOS. This presumes that
 # dependencies are installed from install_macos_deps.sh. This will build
 # for a list of Python versions synchronized with that script and corresponding
 # with directory names under:
