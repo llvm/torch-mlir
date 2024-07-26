@@ -4252,6 +4252,26 @@ public:
 };
 } // namespace
 
+// Decompose aten.masked_fill.Tensor into aten.where.self op.
+namespace {
+class DecomposeAtenMaskedFillTensorOp
+    : public OpRewritePattern<AtenMaskedFillTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMaskedFillTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    auto resType = cast<BaseTensorType>(op.getType());
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, op.getMask(),
+                                                 op.getValue(), op.getSelf());
+
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.masked_scatter:
 // def masked_scatter(self: Tensor, mask: Tensor, source: Tensor) -> Tensor:
 //     mask_int = mask + torch.zeros_like(self)
@@ -9182,6 +9202,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarSelfOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNanToNumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMaskedFillScalarOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMaskedFillTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMaskedScatterOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSizeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeOp>(patterns);
