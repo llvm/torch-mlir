@@ -3033,7 +3033,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         scores = squeezedScores.value();
 
         // TODO: Add support for handling score_threshold arg.
-        // If score_threshold < min(scores) then the op can't be lowered since
+        // If score_threshold > min(scores) then the op can't be lowered since
         // the torchvision::nms op doesn't have support for handling the
         // score_threshold arg.
         Value scoreThreshold = rewriter.create<Torch::AtenItemOp>(
