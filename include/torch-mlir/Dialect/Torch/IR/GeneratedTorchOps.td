@@ -17145,3 +17145,28 @@ def Torch_TorchvisionRoiPoolOp : Torch_Op<"torchvision.roi_pool", [
   }];
 }
 
+def Torch_TorchvisionNmsOp : Torch_Op<"torchvision.nms", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `torchvision::nms : (Tensor, Tensor, float) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$dets,
+    AnyTorchTensorType:$scores,
+    Torch_FloatType:$iou_threshold
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult TorchvisionNmsOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void TorchvisionNmsOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+

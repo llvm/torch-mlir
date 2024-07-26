@@ -99,6 +99,12 @@ def torchvision〇roi_pool〡shape(input: List[int], rois: List[int], spatial_sc
 def torchvision〇roi_pool〡dtype(input_rank_dtype: Tuple[int, int], rois_rank_dtype: Tuple[int, int], spatial_scale: float, pooled_height: int, pooled_width: int) -> Tuple[int, int]:
     return (input_rank_dtype[1], torch.int64) 
 
+def torchvision〇nms〡shape(dets: List[int], scores: List[int], iou_threshold: float) -> List[int]:
+    return [hacky_get_unknown_dimension_size(), len(dets)]
+
+def torchvision〇nms〡dtype(dets_rank_dtype: Tuple[int, int], scores_rank_dtype: Tuple[int, int], iou_threshold: float) -> int:
+    return torch.int
+
 @check_shape_function([
     Invocation(TensorOfShape(2, 3, 4)), # Basic case.
     Invocation(TensorOfShape(2, 3, 4), dim1=1, dim2=2), # Test explicit `dim1` and `dim2`.

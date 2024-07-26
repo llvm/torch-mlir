@@ -1197,6 +1197,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "torchvision::roi_pool : (Tensor, Tensor, float, int, int) -> (Tensor, Tensor)"
     )
+    emit("torchvision::nms : (Tensor, Tensor, float) -> (Tensor)")
 
 
 def dump_registered_ops(outfile: TextIO, registry: Registry):
