@@ -4273,9 +4273,6 @@ return success();
         int batch_size = (inputShape.size() > 1) ? inputShape[0] : 1;
 
         Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-        Value floatZero = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-            rewriter.getF64FloatAttr(0.0));
         Value zero = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
@@ -4338,8 +4335,9 @@ return success();
                               : pool_int64s.size();
 
             Value ngramLength = rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getI64IntegerAttr(j));
-            for (int start = start_idx; start < end_idx; start += (j + 1)) {
+                binder.getLoc(), rewriter.getI64IntegerAttr(ngram_length));
+            for (int start = start_idx; start < end_idx;
+                 start += ngram_length) {
               Value count = rewriter.create<Torch::ConstantIntOp>(
                   binder.getLoc(), rewriter.getI64IntegerAttr(0));
               int skip_count_bound =
@@ -4352,8 +4350,8 @@ return success();
                     binder.getLoc(), skipCount, one);
                 for (int start_input_idx = 0;
                      start_input_idx <=
-                     inputSizes[0] - ((ngram_length - 1) * (skip_count + 1)) -
-                         1;
+                     inputSizes.back() -
+                         ((ngram_length - 1) * (skip_count + 1)) - 1;
                      start_input_idx++) {
                   if (ngram_length >= min_gram_length &&
                       ngram_length <= max_gram_length) {
@@ -4386,8 +4384,8 @@ return success();
                     auto sizes =
                         dyn_cast<Torch::ValueTensorType>(inputNgram.getType())
                             .getSizes();
-                    Value foundNgram = rewriter.create<Torch::ConstantBoolOp>(
-                        binder.getLoc(), true);
+                    Value foundNgram = rewriter.create<Torch::ConstantIntOp>(
+                        binder.getLoc(), rewriter.getI64IntegerAttr(1));
                     for (int i = 0; i < sizes[0]; i++) {
                       Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
                           binder.getLoc(), rewriter.getType<Torch::IntType>(),
@@ -4406,11 +4404,11 @@ return success();
                           rewriter.getI64IntegerAttr(pool_int64s[start + i]));
                       Value isEqual = rewriter.create<Torch::AtenEqIntOp>(
                           binder.getLoc(), inputNgram_i, poolNgram_i);
-                      foundNgram = rewriter.create<Torch::Aten__And__BoolOp>(
+                      isEqual = rewriter.create<Torch::AtenIntBoolOp>(
+                          binder.getLoc(), isEqual);
+                      foundNgram = rewriter.create<Torch::AtenMulIntOp>(
                           binder.getLoc(), isEqual, foundNgram);
                     }
-                    foundNgram = rewriter.create<Torch::AtenIntBoolOp>(
-                        binder.getLoc(), foundNgram);
 
                     count = rewriter.create<Torch::AtenAddIntOp>(
                         binder.getLoc(), count, foundNgram);
@@ -4418,8 +4416,8 @@ return success();
                 }
               }
               // insert count "tf" into output
-              Value countFloat = rewriter.create<Torch::AtenAddFloatIntOp>(
-                  binder.getLoc(), floatZero, count);
+              Value countFloat = rewriter.create<Torch::AtenFloatScalarOp>(
+                  binder.getLoc(), count);
               Value dataList = rewriter.create<Torch::PrimListConstructOp>(
                   binder.getLoc(),
                   rewriter.getType<Torch::ListType>(
@@ -4466,7 +4464,7 @@ return success();
                 Value insertEnd = rewriter.create<Torch::AtenAddIntOp>(
                     binder.getLoc(), insertStart, one);
                 outputSequence = rewriter.create<Torch::AtenSliceScatterOp>(
-                    binder.getLoc(), resultType, outputSequence,
+                    binder.getLoc(), outputSequenceType, outputSequence,
                     countUnsqueezed,
                     /*dim=*/one, insertStart, insertEnd, /*step=*/one);
                 output = rewriter.create<Torch::AtenSliceScatterOp>(
