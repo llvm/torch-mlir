@@ -4260,14 +4260,13 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenMaskedFillTensorOp op,
                                 PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
     auto resType = cast<BaseTensorType>(op.getType());
     if (!resType.hasDtype()) {
       return rewriter.notifyMatchFailure(op, "result should have dtype");
     }
-    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, op.getMask(), op.getValue(),
-                                                 op.getSelf());
-    
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resType, op.getMask(),
+                                                 op.getValue(), op.getSelf());
+
     return success();
   }
 };
