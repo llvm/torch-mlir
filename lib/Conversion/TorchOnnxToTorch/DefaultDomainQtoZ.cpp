@@ -3649,7 +3649,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.op, resultType, permutedStft);
         return success();
       });
-<<<<<<< HEAD
+
   patterns.onOp(
       "ReverseSequence", 10,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
