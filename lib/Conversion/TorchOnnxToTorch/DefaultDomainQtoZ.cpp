@@ -3649,6 +3649,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.op, resultType, permutedStft);
         return success();
       });
+<<<<<<< HEAD
   patterns.onOp(
       "ReverseSequence", 10,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
@@ -4015,5 +4016,96 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         rewriter.replaceOpWithNewOp<Torch::AtenUnflattenIntOp>(
             binder.op, resultType, scatter, constZero, unflattenSizeList);
         return success();
+      });
+
+  
+  // split to sequence 
+  // Arguments:
+  // - input: the tensor to split
+  // -Split(optional): Length of each output
+  // Attributes:
+  // - axis: the axis along which to split the input
+  // - keepdims: to keep the split dimension or not. Ignored when 'split' is specified
+  // Outputs:
+  // - outputs: sequence of tensor
+  //
+
+patterns.onOp(
+      "SplitToSequence", 11,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value self;
+        Value split;
+        int64_t axis;
+        int64_t keepdims;
+        Torch::ListType resultType;
+
+        if (binder.op->getNumOperands() == 1)
+          return rewriter.notifyMatchFailure(
+              binder.op, "No of operands should be two.Keepdims attribute is "
+                         "not yet implemented");
+
+        if (binder.tensorOperandAtIndex(self, 0) ||
+            binder.tensorListResultType(resultType) ||
+            binder.s64IntegerAttr(keepdims, "keepdims", 1) ||
+            binder.tensorOperandAtIndex(split, 1) ||
+            binder.s64IntegerAttr(axis, "axis", 0))
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Not converting to AtenSplitToSequenceOp due to inputs ");
+
+        Value axisValue = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getI64IntegerAttr(axis));
+        auto splitTy = cast<Torch::ValueTensorType>(split.getType());
+
+        if (!splitTy || !splitTy.hasSizes())
+          return failure();
+
+        auto splitSizes = splitTy.getSizes();
+        unsigned splitDim = splitTy.getSizes().size();
+
+        if (splitDim > 1)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Split should be scalar or 1-D Tensor ");
+
+        if (splitDim == 1) {
+          if (splitSizes[0] == Torch::kUnknownSize) {
+            return rewriter.notifyMatchFailure(
+                binder.op, "Dynamic shapes for Split is not yet supported");
+          } else if (splitSizes[0] <=
+                     1) { // dealing with 1/0 element in 1-D tensor
+            Value splitInt = rewriter.create<Torch::AtenItemOp>(
+                binder.getLoc(), rewriter.getType<Torch::IntType>(), split);
+            rewriter.replaceOpWithNewOp<Torch::AtenSplitTensorOp>(
+                binder.op, resultType, self, splitInt, axisValue);
+            return success();
+          } else {
+            // Handling of multiple element in split
+            SmallVector<Value> SplitShape;
+            for (int64_t dim : splitSizes) {
+              SmallVector<int64_t, 1> intToSmallVectorImp;
+              intToSmallVectorImp.push_back(dim);
+              SplitShape = getAsConstantIntValues(rewriter, binder.getLoc(),
+                                                  intToSmallVectorImp);
+            }
+            Value SplitShapeList = rewriter.create<Torch::PrimListConstructOp>(
+                binder.getLoc(),
+                Torch::ListType::get(
+                    Torch::IntType::get(binder.op->getContext())),
+                SplitShape);
+            rewriter.replaceOpWithNewOp<Torch::AtenSplitSizesOp>(
+                binder.op, resultType, self, SplitShapeList, axisValue);
+            return success();
+          }
+        } else if (splitDim == 0) { // Handle 0-D tensor
+          Value splitInt = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(), split);
+          rewriter.replaceOpWithNewOp<Torch::AtenSplitTensorOp>(
+              binder.op, resultType, self, splitInt, axisValue);
+          return success();
+        } else {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Handling of this kind of inputs is not there");
+        }
       });
 }
