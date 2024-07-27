@@ -4018,19 +4018,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         return success();
       });
 
-  
-  // split to sequence 
+  // split to sequence
   // Arguments:
   // - input: the tensor to split
   // -Split(optional): Length of each output
   // Attributes:
   // - axis: the axis along which to split the input
-  // - keepdims: to keep the split dimension or not. Ignored when 'split' is specified
-  // Outputs:
+  // - keepdims: to keep the split dimension or not. Ignored when 'split' is
+  // specified Outputs:
   // - outputs: sequence of tensor
   //
 
-patterns.onOp(
+  patterns.onOp(
       "SplitToSequence", 11,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Value self;
