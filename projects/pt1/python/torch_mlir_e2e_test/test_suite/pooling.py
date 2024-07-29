@@ -116,7 +116,7 @@ class AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule(torch.nn.Module):
     @export
     @annotate_args(
         [
-            None, 
+            None,
             ([1, 3, 7, 7], torch.float32, True),
         ]
     )

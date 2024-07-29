@@ -7082,15 +7082,12 @@ class DecomposeAtenAdaptiveAvgPool2dOp
       Value condAnd = rewriter.create<Torch::AtenAddIntOp>(
           loc, rewriter.create<Torch::AtenIntBoolOp>(loc, cond1),
           rewriter.create<Torch::AtenIntBoolOp>(loc, cond));
-      Value finalCond = rewriter.create<Torch::AtenEqIntOp>(
-          loc, condAnd, constantTwo);
+      Value finalCond =
+          rewriter.create<Torch::AtenEqIntOp>(loc, condAnd, constantTwo);
 
       rewriter.create<RuntimeAssertOp>(
           loc, finalCond,
-          "unimplemented: only support following two cases: "
-          "1.input size is an integer multiple of output size;"
-          "2.uneven division but with fixed kernel/stride size.");
-
+          "unimplemented: only support cases with fixed kernel/stride size.");
       Value stride = rewriter.create<Torch::AtenFloordivIntOp>(
           loc, inputHW[i], outputShapeSizesTorchInt[i]);
       strideSize.emplace_back(stride);
