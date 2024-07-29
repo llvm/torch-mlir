@@ -618,13 +618,14 @@ public:
     Value self = adaptor.getSelf();
     auto selfType = cast<RankedTensorType>(self.getType());
 
-    if (ShapedType::isDynamicShape(selfType.getShape().take_back(3)))
+    ArrayRef<int64_t> inputSize = selfType.getShape().take_back(3);
+    if (ShapedType::isDynamicShape(inputSize))
       return rewriter.notifyMatchFailure(op,
                                          "input type must be of static shape");
 
     Value indices = adaptor.getIndices();
     auto indicesType = cast<RankedTensorType>(indices.getType());
-    if (selfType.getShape().take_back(3) != indicesType.getShape().take_back(3))
+    if (inputSize != indicesType.getShape().take_back(3))
       return rewriter.notifyMatchFailure(op, "input/indices shape mismatch");
 
     auto resType = typeConverter->convertType<RankedTensorType>(op.getType());
@@ -665,6 +666,19 @@ public:
     int64_t outRank = resType.getRank();
     int64_t NC = outRank - 3;
 
+    for (auto &&[inDim, outDim, str, pad] :
+         llvm::zip_equal(inputSize, inferredOutSize, stride, padding)) {
+      // Kernel size computation is ambiguous, this formula will return the
+      // biggest possible kernel size. As there is no way to know actual kernel
+      // size we have to treat it conservatively and always bail if kernel size
+      // potentially bigger than stride.
+      int64_t kernelSize = outDim - (inDim - 1) * str + 2 * pad;
+      if (kernelSize > str)
+        return rewriter.notifyMatchFailure(
+            op, "potential pooling windows overlapping is detected, this case "
+                "is not supported yet");
+    }
+
     Type indexType = rewriter.getIndexType();
     SmallVector<Value> outSizePadded;
     for (auto &&[i, size] : llvm::enumerate(resType.getShape())) {
@@ -699,9 +713,8 @@ public:
 
       SmallVector<int64_t> low(outRank, 0);
       SmallVector<int64_t> high(NC, 0);
-      for (auto &&[inpSize, outSize] :
-           llvm::zip_equal(selfType.getShape().take_back(3),
-                           ArrayRef(expectedInputShape).take_back(3))) {
+      for (auto &&[inpSize, outSize] : llvm::zip_equal(
+               inputSize, ArrayRef(expectedInputShape).take_back(3))) {
         high.emplace_back(outSize - inpSize);
       }
 
