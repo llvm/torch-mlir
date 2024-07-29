@@ -3161,4 +3161,3 @@ func.func @test_split_to_sequence_2(%arg0: !torch.vtensor<[2,6],f32>, %arg1: !to
     %0 = torch.operator "onnx.SplitToSequence"(%arg0, %arg1) {torch.onnx.axis = 0 : si64} : (!torch.vtensor<[4,6],f32>, !torch.vtensor<[2],si64>) -> !torch.list<vtensor<[2,6],f32>>
     return %0 : !torch.list<vtensor<[2,6],f32>>
   }
-
