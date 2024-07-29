@@ -3144,7 +3144,7 @@ func.func @test_split_to_sequence_2(%arg0: !torch.vtensor<[2,6],f32>, %arg1: !to
   return %1 : !torch.list<vtensor<[1,6],f32>>
 }
 
-// ---
+// ----
 
 // CHECK-LABEL:   func.func @test_split_to_sequence_with_list(
 // CHECK-SAME:                                        %[[VAL_0:.*]]: !torch.vtensor<[4,6],f32>,
