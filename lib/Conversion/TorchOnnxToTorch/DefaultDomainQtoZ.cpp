@@ -9,7 +9,6 @@
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
-#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -17,7 +16,6 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
-using namespace mlir::torch::Torch;
 
 // Simple rewrites for the default domain.
 // See: https://onnx.ai/onnx/operators/
@@ -3651,7 +3649,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.op, resultType, permutedStft);
         return success();
       });
-
   patterns.onOp(
       "ReverseSequence", 10,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
