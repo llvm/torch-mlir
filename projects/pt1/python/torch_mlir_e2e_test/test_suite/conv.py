@@ -1156,21 +1156,12 @@ def ConvTbcModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(9, 4, 5), tu.rand(3, 5, 6), tu.rand(6))
 
 
-class Conv2dQInt8Module(torch.nn.Module):
+class Conv2dQInt8ModuleBase(torch.nn.Module):
     def __init__(self, groups=1):
         self.groups = groups
         super().__init__()
 
-    @export
-    @annotate_args(
-        [
-            None,
-            ([-1, -1, -1, -1], torch.int8, True),
-            ([-1, -1, -1, -1], torch.int8, True),
-            ([-1], torch.float, True),
-        ]
-    )
-    def forward(self, inputVec, weight, bias):
+    def _forward(self, inputVec, weight, bias):
         inputVec = torch._make_per_tensor_quantized_tensor(inputVec, 0.01, 7)
         inputVec = torch.dequantize(inputVec)
 
@@ -1191,7 +1182,49 @@ class Conv2dQInt8Module(torch.nn.Module):
         )
 
 
-@register_test_case(module_factory=lambda: Conv2dQInt8Module())
+class Conv2dQInt8ModuleDyn(Conv2dQInt8ModuleBase):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.int8, True),
+            ([-1, -1, -1, -1], torch.int8, True),
+            ([-1], torch.float, True),
+        ]
+    )
+    def forward(self, inputVec, weight, bias):
+        return self._forward(inputVec, weight, bias)
+
+
+class Conv2dQInt8ModuleStatic(Conv2dQInt8ModuleBase):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 12, 12], torch.int8, True),
+            ([3, 1, 5, 3], torch.int8, True),
+            ([3], torch.float, True),
+        ]
+    )
+    def forward(self, inputVec, weight, bias):
+        return self._forward(inputVec, weight, bias)
+
+
+class Conv2dQInt8ModuleStatic_MoreOutChannels(Conv2dQInt8ModuleBase):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 12, 12], torch.int8, True),
+            ([6, 1, 5, 3], torch.int8, True),
+            ([6], torch.float, True),
+        ]
+    )
+    def forward(self, inputVec, weight, bias):
+        return self._forward(inputVec, weight, bias)
+
+
+@register_test_case(module_factory=lambda: Conv2dQInt8ModuleDyn())
 def Conv2dQInt8Module_basic(module, tu: TestUtils):
     inputVec = tu.randint(2, 4, 7, 8, low=-128, high=127).to(torch.int8)
     weight = tu.randint(3, 4, 3, 2, low=-128, high=127).to(torch.int8)
@@ -1199,10 +1232,28 @@ def Conv2dQInt8Module_basic(module, tu: TestUtils):
     module.forward(inputVec, weight, bias)
 
 
-@register_test_case(module_factory=lambda: Conv2dQInt8Module(groups=2))
+@register_test_case(module_factory=lambda: Conv2dQInt8ModuleDyn(groups=2))
 def Conv2dQInt8Module_grouped(module, tu: TestUtils):
     inputVec = tu.randint(2, 8, 7, 8, low=-128, high=127).to(torch.int8)
     weight = tu.randint(6, 4, 3, 2, low=-128, high=127).to(torch.int8)
+    bias = torch.rand(6)
+    module.forward(inputVec, weight, bias)
+
+
+@register_test_case(module_factory=lambda: Conv2dQInt8ModuleStatic(groups=3))
+def Conv2dQInt8Module_depthwise(module, tu: TestUtils):
+    inputVec = tu.randint(2, 3, 12, 12, low=-128, high=127).to(torch.int8)
+    weight = tu.randint(3, 1, 5, 3, low=-128, high=127).to(torch.int8)
+    bias = torch.rand(3)
+    module.forward(inputVec, weight, bias)
+
+
+@register_test_case(
+    module_factory=lambda: Conv2dQInt8ModuleStatic_MoreOutChannels(groups=3)
+)
+def Conv2dQInt8Module_not_depthwise(module, tu: TestUtils):
+    inputVec = tu.randint(2, 3, 12, 12, low=-128, high=127).to(torch.int8)
+    weight = tu.randint(6, 1, 5, 3, low=-128, high=127).to(torch.int8)
     bias = torch.rand(6)
     module.forward(inputVec, weight, bias)
 
