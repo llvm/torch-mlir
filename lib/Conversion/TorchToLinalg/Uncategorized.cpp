@@ -1442,7 +1442,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     scale = b.create<arith::TruncFOp>(loc, valueTy, scale);
 
     value = b.create<arith::DivFOp>(loc, value, scale);
-    value = b.create<math::RoundOp>(loc, value);
+    value = b.create<math::RoundEvenOp>(loc, value);
     value = b.create<arith::AddFOp>(loc, value, zp);
 
     auto destTy = payloadArgs[1].getType();
