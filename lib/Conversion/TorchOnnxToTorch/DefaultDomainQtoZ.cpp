@@ -4095,4 +4095,122 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "Handling of this kind of inputs is not there");
         }
       });
+  patterns.onOp(
+      "Unique", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value input;
+        int64_t axis, sorted;
+        SmallVector<Type> resultTypes;
+
+        if (binder.tensorOperand(input) ||
+            binder.s64IntegerAttr(sorted, "sorted", 1) ||
+            binder.tensorResultTypes(resultTypes))
+          return failure();
+
+        Value zero = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), 0);
+
+        auto inputTy = cast<Torch::ValueTensorType>(input.getType());
+        if (!inputTy.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input type to have sizes");
+        }
+        auto inputShape = inputTy.getSizes();
+        int64_t inputDim = static_cast<int64_t>(inputShape.size());
+
+        Value axisVal;
+        SmallVector<int64_t> outputTensorSizes(inputDim);
+        bool axisWasNone;
+        if (!binder.optionalS64IntegerAttr(axis, "axis")) {
+          if (axis < -1 * inputDim || axis > inputDim - 1)
+            return rewriter.notifyMatchFailure(binder.op,
+                                               "invalid value for axis");
+          axisVal = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(axis));
+          axisWasNone = false;
+        } else {
+          axisVal = zero;
+          axisWasNone = true;
+        }
+
+        Value sortedVal = rewriter.create<Torch::ConstantBoolOp>(
+            binder.getLoc(), rewriter.getBoolAttr(sorted));
+        Value trueVal =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+
+        // The shape of inverse_indices is the same as input shape, but
+        // resulTypes[2] must be used to avoid live value after conversion.
+        Torch::ValueTensorType outputTy;
+        outputTy = cast<Torch::ValueTensorType>(resultTypes[0]);
+        Torch::ValueTensorType countsTy =
+            cast<Torch::ValueTensorType>(resultTypes[3]);
+        Torch::ValueTensorType inverseTy =
+            cast<Torch::ValueTensorType>(resultTypes[2]);
+
+        if (axisWasNone) {
+          int64_t inputNumel = 1;
+          for (auto elem : inputShape) {
+            if (elem == Torch::kUnknownSize) {
+              return rewriter.notifyMatchFailure(
+                  binder.op,
+                  "Expected all sizes in input shape to be statically known");
+            }
+            inputNumel *= elem;
+          }
+          auto flattenResultTy = rewriter.getType<Torch::ValueTensorType>(
+              ArrayRef({inputNumel}), inputTy.getDtype());
+          Value negativeOne =
+              rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), -1);
+          input = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
+              binder.getLoc(), flattenResultTy, input, zero, negativeOne);
+        }
+
+        Torch::AtenUniqueDimOp intermResults =
+            rewriter.create<Torch::AtenUniqueDimOp>(
+                binder.getLoc(), outputTy, inverseTy, countsTy, input, axisVal,
+                sortedVal, trueVal, trueVal);
+
+        SmallVector<Value> uniqueResults = intermResults.getResults();
+
+        // Calculate the indices where each of the unique elements first
+        // appeared in the original input tensor. Also, the counts tensor and
+        // the indices tensor have the same Dtype, int64, so reuse that here.
+        auto arangeResultType = rewriter.getType<Torch::ValueTensorType>(
+            ArrayRef<int64_t>({inputShape[0]}), countsTy.getOptionalDtype());
+
+        Value inputDimZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(inputShape[0]));
+        Value int64Type = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(4));
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+
+        Value perm = rewriter.create<Torch::AtenArangeOp>(
+            binder.getLoc(), arangeResultType, inputDimZero,
+            /*dtype=*/int64Type,
+            /*layout=*/noneVal, /*device=*/noneVal, /*pin_memory=*/noneVal);
+
+        // Inverse has the same shape as input, but the dtype is not the same.
+        Value flipDims = createConstantIntList(binder, rewriter, {0});
+        Value inverse = rewriter.create<Torch::AtenFlipOp>(
+            binder.getLoc(),
+            inputTy.getWithSizesAndDtype(inputShape, countsTy.getDtype()),
+            uniqueResults[1], flipDims);
+        perm = rewriter.create<Torch::AtenFlipOp>(
+            binder.getLoc(), cast<Torch::ValueTensorType>(perm.getType()), perm,
+            flipDims);
+
+        auto newInverseTy = rewriter.getType<Torch::ValueTensorType>(
+            ArrayRef<int64_t>({outputTy.getSizes()[0]}), countsTy.getDtype());
+        Value newInverseSize =
+            createConstantIntList(binder, rewriter, {outputTy.getSizes()[0]});
+        Value newInverse = rewriter.create<Torch::AtenNewEmptyOp>(
+            binder.getLoc(), newInverseTy, inverse, newInverseSize,
+            /*dtype=*/int64Type, /*layout=*/noneVal, /*device=*/noneVal,
+            /*pin_memory=*/noneVal);
+
+        Value firstOccurIndices = rewriter.create<Torch::AtenScatterSrcOp>(
+            binder.getLoc(), resultTypes[1], newInverse, zero, inverse, perm);
+
+        rewriter.replaceOp(binder.op, {uniqueResults[0], firstOccurIndices,
+                                       uniqueResults[1], uniqueResults[2]});
+        return success();
+      });
 }
