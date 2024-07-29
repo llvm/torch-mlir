@@ -4019,7 +4019,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.op, resultType, scatter, constZero, unflattenSizeList);
         return success();
       });
-
   // split to sequence
   // Arguments:
   // - input: the tensor to split
@@ -4059,22 +4058,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             rewriter.getI64IntegerAttr(axis));
         auto splitTy = cast<Torch::ValueTensorType>(split.getType());
 
-        if ( binder.tensorListResultType(resultType) ||
-                      binder.s64IntegerAttr(keepdims, "keepdims", 1) ||
-                      binder.s64IntegerAttr(axis, "axis", 0))
-                    return failure();
-
-        if (binder.op->getNumOperands() == 1) 
-          return rewriter.notifyMatchFailure(
-              binder.op, "No of operand should be 2. Keepdims is not yet implemented");
-
-	if(binder.tensorOperandAtIndex(split, 1))
-        	return rewriter.notifyMatchFailure(binder.op, "split size is not specified");
-
-	Value vaxis = rewriter.create<Torch::ConstantIntOp>( binder.getLoc(), 
-				rewriter.getType<Torch::IntType>(), rewriter.getI64IntegerAttr(axis));
-
-	auto splitTy = cast<Torch::ValueTensorType>(split.getType());
         if (!splitTy || !splitTy.hasSizes())
           return failure();
 
