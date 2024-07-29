@@ -4081,21 +4081,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 binder.op, resultType, self, splitInt, axisValue);
             return success();
           } else {
-            // Handling of multiple element in split
-            SmallVector<Value> SplitShape;
-            for (int64_t dim : splitSizes) {
-              SmallVector<int64_t, 1> intToSmallVectorImp;
-              intToSmallVectorImp.push_back(dim);
-              SplitShape = getAsConstantIntValues(rewriter, binder.getLoc(),
-                                                  intToSmallVectorImp);
-            }
-            Value SplitShapeList = rewriter.create<Torch::PrimListConstructOp>(
-                binder.getLoc(),
-                Torch::ListType::get(
-                    Torch::IntType::get(binder.op->getContext())),
-                SplitShape);
+            // Handling multiple elment in split
+            Value shapeList =
+                createConstantIntList(binder, rewriter, splitSizes);
             rewriter.replaceOpWithNewOp<Torch::AtenSplitSizesOp>(
-                binder.op, resultType, self, SplitShapeList, axisValue);
+                binder.op, resultType, self, shapeList, axisValue);
             return success();
           }
         } else if (splitDim == 0) { // Handle 0-D tensor
