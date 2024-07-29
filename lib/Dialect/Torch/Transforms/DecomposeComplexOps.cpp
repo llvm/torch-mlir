@@ -7040,7 +7040,7 @@ class DecomposeAtenAdaptiveAvgPool2dOp
     // TODO: Add support for cases other than:
     // inH % outH != 0 or inW % outW != 0 where
     // the stride/kernel size is not fixed.
-    // The logic of stride/kernel size derivation is consistent
+    // The following logic of stride/kernel size derivation is consistent
     // with torch/_decomp/decomposations.py:adaptive_avg_pool2d.
     Value constantZero = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(0));
@@ -7083,8 +7083,7 @@ class DecomposeAtenAdaptiveAvgPool2dOp
           loc, rewriter.create<Torch::AtenIntBoolOp>(loc, cond1),
           rewriter.create<Torch::AtenIntBoolOp>(loc, cond));
       Value finalCond = rewriter.create<Torch::AtenEqIntOp>(
-          loc, condAnd,
-          rewriter.create<Torch::ConstantIntOp>(loc, constantTwo));
+          loc, condAnd, constantTwo);
 
       rewriter.create<RuntimeAssertOp>(
           loc, finalCond,

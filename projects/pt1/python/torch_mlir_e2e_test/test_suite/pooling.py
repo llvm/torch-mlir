@@ -127,9 +127,7 @@ class AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule(torch.nn.Module):
 @register_test_case(
     module_factory=lambda: AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule()
 )
-def AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule_basic(
-    module, tu: TestUtils
-):
+def AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 3, 7, 7))
 
 
