@@ -62,7 +62,7 @@ program representations can eventually bottom-out on the JIT IR via some path
 provided by PyTorch. The `torch` dialect is almost entirely in 1:1
 correspondence with the JIT IR -- this allows the importer to be extremely small
 (the core is
-[under 500 lines of code](https://github.com/llvm/torch-mlir/blob/e322f6a8784009b37aa354abfa9a40a80f30877d/python/torch_mlir/jit_ir_importer/csrc/node_importer.cpp#L1)).
+[under 500 lines of code](https://github.com/llvm/torch-mlir/blob/e322f6a8784009b37aa354abfa9a40a80f30877d/python/torch_mlir/dialects/torch/importer/jit_ir/csrc/node_importer.cpp)).
 
 ### Ops
 
