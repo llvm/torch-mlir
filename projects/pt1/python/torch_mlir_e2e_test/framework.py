@@ -322,7 +322,7 @@ def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
             golden_trace=None,
         )
     try:
-        if True: # verbose:
+        if verbose:
             print(f"Running {test.unique_name}...", file=sys.stderr)
         trace = config.run(compiled, golden_trace)
     except Exception as e:
@@ -335,10 +335,6 @@ def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
             trace=None,
             golden_trace=None,
         )
-    
-    if True: # verbose:
-        print(f"Finishing {test.unique_name}...", file=sys.stderr)
-
     return TestResult(
         unique_name=test.unique_name,
         compilation_error=None,

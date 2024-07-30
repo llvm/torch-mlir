@@ -4843,6 +4843,20 @@ void AtenMaxPool2dWithIndicesOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// Aten_AdaptiveAvgPool2dOp
+//===----------------------------------------------------------------------===//
+
+void Aten_AdaptiveAvgPool2dOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](Aten_AdaptiveAvgPool2dOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenAdaptiveAvgPool2dOp>(
+        op, op.getType(), op.getSelf(), op.getOutputSize());
+
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenLinalgCrossOp
 //===----------------------------------------------------------------------===//
 
