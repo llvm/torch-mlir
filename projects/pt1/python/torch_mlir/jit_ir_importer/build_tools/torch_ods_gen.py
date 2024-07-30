@@ -664,7 +664,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")
     emit(
         "aten::_adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)",
-        has_canonicalizer=True
+        has_canonicalizer=True,
     )
     emit("aten::_adaptive_avg_pool2d_backward : (Tensor, Tensor) -> (Tensor)")
     emit("aten::adaptive_avg_pool3d : (Tensor, int[]) -> (Tensor)")
