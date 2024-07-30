@@ -17,7 +17,7 @@ python -m e2e_testing.main --config=make_fx_tosa -v
 echo "::endgroup::"
 
 echo "::group::Run TOSA e2e integration tests"
-python -m e2e_testing.main --config=tosa -v
+python -m e2e_testing.main --config=tosa -v -s
 echo "::endgroup::"
 
 echo "::group::Run Stablehlo e2e integration tests"
