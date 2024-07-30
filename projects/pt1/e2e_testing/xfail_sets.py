@@ -1537,6 +1537,7 @@ TOSA_PASS_SET = {
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dOutputSizeDivisibleByInputStaticModule_basic",
+    "AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule_basic",
     "AddCDivModule_basic",
     "AddCDiv_Module_basic",
     "AddCMulModule_basic",
