@@ -2060,6 +2060,7 @@ MAKE_FX_TOSA_PASS_SET = (
     "ViewNoChange1dModule_basic",
     "ViewNoChange2dModule_basic",
     "ViewNoChange3dModule_basic",
+    "AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule_basic",
 }
 
 LTC_CRASHING_SET = {
