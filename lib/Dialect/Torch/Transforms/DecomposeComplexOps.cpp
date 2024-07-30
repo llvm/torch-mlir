@@ -7130,6 +7130,138 @@ class DecomposeAtenAdaptiveAvgPool2dOp
 } // namespace
 
 namespace {
+// Decompose `aten.adaptiveAvgPool2d` op into `aten.avgPool2d` op.
+//
+// For AdaptiveAvgPool2d op, when the input size is an integer multiple of
+// output size the kernelSize, stride and padding is calculated as follows:
+// strideH = inH // outH
+// strideW = inH // outH
+// kernelH = inH - [(outH - 1) * strideH] = strideH
+// kernelW = inW - [(outW - 1) * strideW] = strideW
+// paddingH = 0, paddingW = 0
+//
+class DecomposeAten_AdaptiveAvgPool2dOp
+    : public OpRewritePattern<Aten_AdaptiveAvgPool2dOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_AdaptiveAvgPool2dOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+
+    Value input = op.getSelf();
+    std::optional<unsigned> maybeRank = getTensorRank(input);
+    if (!maybeRank) {
+      return rewriter.notifyMatchFailure(op, "expected input to have a rank");
+    }
+    unsigned rank = *maybeRank;
+    SmallVector<Value, 2> inputHW;
+    Value dimH = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rank - 2));
+    inputHW.push_back(
+        /*inH=*/rewriter.create<AtenSizeIntOp>(loc, input, dimH));
+    Value dimW = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rank - 1));
+    inputHW.push_back(
+        /*inW=*/rewriter.create<AtenSizeIntOp>(loc, input, dimW));
+
+    Value outputShape = op.getOutputSize();
+    SmallVector<Value> outputShapeSizesTorchInt;
+    getListConstructElements(outputShape, outputShapeSizesTorchInt);
+
+    // TODO: Add support for cases other than:
+    // inH % outH != 0 or inW % outW != 0 where
+    // the stride/kernel size is not fixed.
+    // The following logic of stride/kernel size derivation is consistent
+    // with torch/_decomp/decomposations.py:adaptive_avg_pool2d.
+    Value constantZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value constantTwo = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(2));
+    Value constantFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    Value constantTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
+    Value constantNone = rewriter.create<Torch::ConstantNoneOp>(loc);
+
+    SmallVector<Value, 2> strideSize;
+    SmallVector<Value, 2> kernelSize;
+    for (unsigned i = 0; i < inputHW.size(); i++) {
+      Value remainder = rewriter.create<AtenRemainderIntOp>(
+          loc, inputHW[i], outputShapeSizesTorchInt[i]);
+
+      // Filter cases with fixed stride size.
+      Value cond1 = rewriter.create<Torch::AtenGtIntOp>(
+          loc, rewriter.getType<Torch::BoolType>(), outputShapeSizesTorchInt[i],
+          rewriter.create<Torch::AtenMulIntOp>(
+              loc, rewriter.getType<Torch::IntType>(), remainder,
+              rewriter.create<Torch::AtenSubIntOp>(
+                  loc, outputShapeSizesTorchInt[i], constantOne)));
+
+      // Filter cases with fixed kernel size.
+      Value cond2 =
+          rewriter.create<Torch::AtenEqIntOp>(loc, remainder, constantZero);
+      cond2 = rewriter.create<Torch::AtenIntBoolOp>(loc, cond2);
+      Value offset = rewriter.create<Torch::AtenIntBoolOp>(
+          loc, rewriter.create<Torch::Aten__Not__Op>(
+                   loc, rewriter.create<Torch::AtenBoolIntOp>(loc, remainder)));
+      Value remainder_not_zero =
+          rewriter.create<Torch::AtenAddIntOp>(loc, remainder, offset);
+      Value cond3 = rewriter.create<Torch::AtenEqIntOp>(
+          loc,
+          rewriter.create<Torch::AtenRemainderIntOp>(
+              loc, outputShapeSizesTorchInt[i], remainder_not_zero),
+          constantZero);
+      cond3 = rewriter.create<Torch::AtenIntBoolOp>(loc, cond3);
+      Value cond = rewriter.create<Torch::AtenBoolIntOp>(
+          loc, rewriter.create<Torch::AtenAddIntOp>(loc, cond2, cond3));
+
+      Value condAnd = rewriter.create<Torch::AtenAddIntOp>(
+          loc, rewriter.create<Torch::AtenIntBoolOp>(loc, cond1),
+          rewriter.create<Torch::AtenIntBoolOp>(loc, cond));
+      Value finalCond =
+          rewriter.create<Torch::AtenEqIntOp>(loc, condAnd, constantTwo);
+
+      rewriter.create<RuntimeAssertOp>(
+          loc, finalCond,
+          "unimplemented: only support cases with fixed kernel/stride size.");
+      Value stride = rewriter.create<Torch::AtenFloordivIntOp>(
+          loc, inputHW[i], outputShapeSizesTorchInt[i]);
+      strideSize.emplace_back(stride);
+
+      Value kernel = rewriter.create<Torch::AtenFloordivIntOp>(
+          loc, inputHW[i], outputShapeSizesTorchInt[i]);
+
+      // When remainder equals 0, it is no need for kernel to add 1
+      // and just keep the same as stride, otherwise it is necessary
+      // to add 1 (torch/_decomp/decomposations.py:adaptive_avg_pool2d).
+      Value boolMod = rewriter.create<Torch::AtenBoolIntOp>(
+          loc, rewriter.getType<Torch::BoolType>(), remainder);
+      Value intMod = rewriter.create<Torch::AtenIntBoolOp>(
+          loc, rewriter.getType<Torch::IntType>(), boolMod);
+
+      kernel = rewriter.create<Torch::AtenAddIntOp>(loc, kernel, intMod);
+      kernelSize.emplace_back(kernel);
+    }
+
+    Value kernelSizeList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)), kernelSize);
+    Value strideList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)), strideSize);
+    Value paddingSizeList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)),
+        ValueRange{constantZero, constantZero});
+
+    rewriter.replaceOpWithNewOp<AtenAvgPool2dOp>(
+        op, op.getType(), input, kernelSizeList, strideList, paddingSizeList,
+        /*ceilMode=*/constantFalse, /*countIncludePad=*/constantTrue,
+        /*divisorOverride=*/constantNone);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.clampMin` op into `aten.clamp` op.
 class DecomposeAtenClampMinOp : public OpRewritePattern<AtenClampMinOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -9367,6 +9499,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenToPrimDeviceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool2dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_AdaptiveAvgPool2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);

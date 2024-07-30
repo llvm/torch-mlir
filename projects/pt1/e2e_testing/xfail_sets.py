@@ -2261,6 +2261,7 @@ ONNX_XFAIL_SET = {
     "AdaptiveAvgPool2dDynamic_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeDynamicModule_basic",
     "AdaptiveAvgPool2dOutputSizeDivisibleByInputDynamicModule_basic",
+    "AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule_basic",
     "AdaptiveAvgPool3dDynamicNoBatch_basic",
     "AdaptiveAvgPool3dDynamic_basic",
     "AdaptiveMaxPool1dDynamicNoBatch_basic",
