@@ -733,6 +733,21 @@ OpFoldResult Aten__Not__Op::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// Aten__Or__Op
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__Or__BoolOp::fold(FoldAdaptor adaptor) {
+  auto valueA = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
+  auto valueB = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
+  if (!valueA || !valueB) {
+    return nullptr;
+  }
+
+  return IntegerAttr::get(IntegerType::get(getContext(), 1),
+                          valueA.getValue() | valueB.getValue());
+}
+
+//===----------------------------------------------------------------------===//
 // AtenNeBoolOp
 //===----------------------------------------------------------------------===//
 
