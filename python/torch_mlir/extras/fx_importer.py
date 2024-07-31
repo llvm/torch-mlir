@@ -1081,7 +1081,7 @@ class ContextCache:
         mutable: bool = False,
     ):
         if tensor_meta is not None:
-            # separatelly handle when tensor_meta is a list.
+            # separately handle when tensor_meta is a list.
             if isinstance(val, list) and all(
                 isinstance(x, TorchFakeTensor) for x in val
             ):
