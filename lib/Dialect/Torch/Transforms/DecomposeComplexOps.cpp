@@ -7071,7 +7071,6 @@ class DecomposeAtenAdaptiveAvgPool2dOp
       // cond2: whether input_size % output_size == 0.
       Value cond2 =
           rewriter.create<Torch::AtenEqIntOp>(loc, remainder, constantZero);
-      cond2 = rewriter.create<Torch::AtenIntBoolOp>(loc, cond2);
 
       // cond3: whether output_size % (input_size % output_size) == 0.
       Value offset = rewriter.create<Torch::AtenIntBoolOp>(
@@ -7086,11 +7085,7 @@ class DecomposeAtenAdaptiveAvgPool2dOp
           rewriter.create<Torch::AtenRemainderIntOp>(
               loc, outputShapeSizesTorchInt[i], remainder_not_zero),
           constantZero);
-      cond3 = rewriter.create<Torch::AtenIntBoolOp>(loc, cond3);
-      // TODO: support Aten__or__Op and replace the or operation with
-      // Aten__or__Op.
-      Value cond = rewriter.create<Torch::AtenBoolIntOp>(
-          loc, rewriter.create<Torch::AtenAddIntOp>(loc, cond2, cond3));
+      Value cond = rewriter.create<Torch::Aten__Or__BoolOp>(loc, cond2, cond3);
 
       rewriter.create<RuntimeAssertOp>(
           loc, cond,
