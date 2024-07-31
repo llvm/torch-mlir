@@ -15541,7 +15541,7 @@ def Torch_Aten__Or__BoolOp : Torch_Op<"aten.__or__.bool", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
-  let hasCanonicalizer = 1;
+  let hasFolder = 1;
 }
 
 def Torch_AtenLenTOp : Torch_Op<"aten.len.t", [

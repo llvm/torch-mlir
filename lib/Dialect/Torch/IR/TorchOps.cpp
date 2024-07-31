@@ -596,37 +596,6 @@ void RuntimeAssertOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
-// Aten__Or__BoolOp
-//===----------------------------------------------------------------------===//
-
-void Aten__Or__BoolOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
-                                                   MLIRContext *context) {
-  patterns.add(+[](Aten__Or__BoolOp op, PatternRewriter &rewriter) {
-    bool value_a;
-    if (!matchPattern(op.getA(), m_TorchConstantBool(&value_a))) {
-      return failure();
-    }
-    if (value_a) {
-      // rewriter.eraseOp(op);
-      rewriter.replaceOpWithNewOp<Torch::ConstantBoolOp>(op, true);
-      return success();
-    }
-
-    bool value_b;
-    if (!matchPattern(op.getB(), m_TorchConstantBool(&value_b))) {
-      return failure();
-    }
-    if (value_b) {
-      // rewriter.eraseOp(op);
-      rewriter.replaceOpWithNewOp<Torch::ConstantBoolOp>(op, true);
-      return success();
-    }
-
-    return failure();
-  });
-}
-
-//===----------------------------------------------------------------------===//
 // DerefineOp
 //===----------------------------------------------------------------------===//
 
@@ -761,6 +730,22 @@ OpFoldResult Aten__Not__Op::fold(FoldAdaptor adaptor) {
   if (!matchPattern(getOperand(), m_TorchConstantBool(&value)))
     return nullptr;
   return IntegerAttr::get(IntegerType::get(getContext(), 1), !value);
+}
+
+//===----------------------------------------------------------------------===//
+// Aten__Or__Op
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__Or__BoolOp::fold(FoldAdaptor adaptor) {
+  bool value_a, value_b;
+  if (!matchPattern(getA(), m_TorchConstantBool(&value_a))) {
+    return nullptr;
+  }
+  if (!matchPattern(getB(), m_TorchConstantBool(&value_b))) {
+    return nullptr;
+  }
+
+  return IntegerAttr::get(IntegerType::get(getContext(), 1), value_a | value_b);
 }
 
 //===----------------------------------------------------------------------===//
