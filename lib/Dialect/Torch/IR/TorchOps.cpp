@@ -737,15 +737,14 @@ OpFoldResult Aten__Not__Op::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult Aten__Or__BoolOp::fold(FoldAdaptor adaptor) {
-  bool value_a, value_b;
-  if (!matchPattern(getA(), m_TorchConstantBool(&value_a))) {
-    return nullptr;
-  }
-  if (!matchPattern(getB(), m_TorchConstantBool(&value_b))) {
+  auto valueA = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
+  auto valueB = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
+  if (!valueA || !valueB) {
     return nullptr;
   }
 
-  return IntegerAttr::get(IntegerType::get(getContext(), 1), value_a | value_b);
+  return IntegerAttr::get(IntegerType::get(getContext(), 1),
+                          valueA.getValue() | valueB.getValue());
 }
 
 //===----------------------------------------------------------------------===//
