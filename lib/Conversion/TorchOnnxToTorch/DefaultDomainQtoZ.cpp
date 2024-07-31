@@ -1597,8 +1597,51 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                   if (binder.tensorOperand(operand) ||
                       binder.tensorResultType(resultType))
                     return failure();
-                  rewriter.replaceOpWithNewOp<Torch::Aten_ShapeAsTensorOp>(
-                      binder.op, resultType, operand);
+
+                  auto inputType =
+                      dyn_cast<Torch::ValueTensorType>(operand.getType());
+                  int64_t inputRank = inputType.getSizes().size();
+
+                  auto shapeType = Torch::ValueTensorType::get(
+                      binder.op->getContext(), SmallVector<int64_t>{inputRank},
+                      resultType.getOptionalDtype());
+
+                  Value shape = rewriter.create<Torch::Aten_ShapeAsTensorOp>(
+                      binder.getLoc(), shapeType, operand);
+
+                  int64_t start = 0;
+                  int64_t end = -1;
+                  if (binder.s64IntegerAttr(start, "start", {}) &&
+                      binder.s64IntegerAttr(end, "end", {})) {
+                    rewriter.replaceOp(binder.op, shape);
+                    return success();
+                  }
+
+                  if (start < 0)
+                    start += inputRank;
+                  if (end < 0)
+                    end += inputRank;
+
+                  Value sv = rewriter.create<Torch::ConstantIntOp>(
+                      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                      rewriter.getI64IntegerAttr(start));
+
+                  Value ev = rewriter.create<Torch::ConstantIntOp>(
+                      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                      rewriter.getI64IntegerAttr(end));
+
+                  Value step = rewriter.create<Torch::ConstantIntOp>(
+                      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                      rewriter.getI64IntegerAttr(1));
+
+                  Value dim = rewriter.create<Torch::ConstantIntOp>(
+                      binder.getLoc(), rewriter.getType<Torch::IntType>(),
+                      rewriter.getI64IntegerAttr(0));
+
+                  shape = rewriter.create<Torch::AtenSliceTensorOp>(
+                      binder.getLoc(), resultType, shape, dim, sv, ev, step);
+
+                  rewriter.replaceOp(binder.op, shape);
                   return success();
                 });
 
