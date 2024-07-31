@@ -1136,7 +1136,8 @@ SmallVector<Value> clip(ConversionPatternRewriter &rewriter, Operation *op,
 Value getSummand(ConversionPatternRewriter &rewriter, Operation *op,
                  Value input, Value ix, Value iy, Value w, int64_t N,
                  int64_t oH, int64_t oW, int64_t iH, int64_t iW, Value Nidx,
-                 Value CIdx, RankedTensorType outType, Type elemTy) {
+                 Value CIdx, RankedTensorType outType, Type elemTy,
+                 size_t dimSizeIndexBits) {
   Location loc = op->getLoc();
   auto inputTensorType = cast<RankedTensorType>(input.getType());
   SmallVector<Value> clipValues =
@@ -1147,9 +1148,9 @@ Value getSummand(ConversionPatternRewriter &rewriter, Operation *op,
   SmallVector<Value> indexTensors{Nidx, CIdx, idxY, idxX};
 
   int maxIndexRank = -1;
-  auto gatherIndicesInfo =
-      broadcastAndConcatIndices(input.getDefiningOp(), rewriter, indexTensors,
-                                outType.getShape(), maxIndexRank);
+  auto gatherIndicesInfo = broadcastAndConcatIndices(
+      input.getDefiningOp(), rewriter, indexTensors, outType.getShape(),
+      dimSizeIndexBits, maxIndexRank);
   auto gatherIndices = *gatherIndicesInfo;
   int64_t numIndicesDim = indexTensors.size();
   int64_t indexVecDim = maxIndexRank;
@@ -1337,14 +1338,18 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
         rewriter.create<chlo::BroadcastSubOp>(loc, iy, iy_nw, bcastDimensions),
         bcastDimensions);
 
-    Value summand_nw = getSummand(rewriter, op, input, ix_nw, iy_nw, w_nw, N,
-                                  oH, oW, iH, iW, Nidx, Cidx, outTy, elemTy);
-    Value summand_ne = getSummand(rewriter, op, input, ix_ne, iy_ne, w_ne, N,
-                                  oH, oW, iH, iW, Nidx, Cidx, outTy, elemTy);
-    Value summand_sw = getSummand(rewriter, op, input, ix_sw, iy_sw, w_sw, N,
-                                  oH, oW, iH, iW, Nidx, Cidx, outTy, elemTy);
-    Value summand_se = getSummand(rewriter, op, input, ix_se, iy_se, w_se, N,
-                                  oH, oW, iH, iW, Nidx, Cidx, outTy, elemTy);
+    Value summand_nw =
+        getSummand(rewriter, op, input, ix_nw, iy_nw, w_nw, N, oH, oW, iH, iW,
+                   Nidx, Cidx, outTy, elemTy, options.dimSizeIndexBits);
+    Value summand_ne =
+        getSummand(rewriter, op, input, ix_ne, iy_ne, w_ne, N, oH, oW, iH, iW,
+                   Nidx, Cidx, outTy, elemTy, options.dimSizeIndexBits);
+    Value summand_sw =
+        getSummand(rewriter, op, input, ix_sw, iy_sw, w_sw, N, oH, oW, iH, iW,
+                   Nidx, Cidx, outTy, elemTy, options.dimSizeIndexBits);
+    Value summand_se =
+        getSummand(rewriter, op, input, ix_se, iy_se, w_se, N, oH, oW, iH, iW,
+                   Nidx, Cidx, outTy, elemTy, options.dimSizeIndexBits);
 
     // summand_nw + summand_ne + summand_sw + summand_se
     Value sum = rewriter.create<stablehlo::AddOp>(loc, summand_nw, summand_ne);
@@ -1359,9 +1364,9 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
     Value ix_round = rewriter.create<stablehlo::RoundOp>(loc, ix);
     Value iy_round = rewriter.create<stablehlo::RoundOp>(loc, iy);
     Value oneTensor = getConstantLike(rewriter, loc, 1.0, ix_round);
-    Value summand =
-        getSummand(rewriter, op, input, ix_round, iy_round, oneTensor, N, oH,
-                   oW, iH, iW, Nidx, Cidx, outTy, elemTy);
+    Value summand = getSummand(rewriter, op, input, ix_round, iy_round,
+                               oneTensor, N, oH, oW, iH, iW, Nidx, Cidx, outTy,
+                               elemTy, options.dimSizeIndexBits);
     rewriter.replaceOp(op, summand);
   }
   return success();
