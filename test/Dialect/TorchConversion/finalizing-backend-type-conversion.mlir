@@ -87,9 +87,9 @@ func.func @unable_to_convert_lone_tensor_load(%arg0: tensor<f32>) {
 // -----
 
 // CHECK-LABEL: @extfTruncf
-util.func @extfTruncf(%arg0: f32) -> f32 {
+func.func @extfTruncf(%arg0: f32) -> f32 {
   %f64 = arith.extf %arg0 : f32 to f64
   %f32 = arith.truncf %f64 : f64 to f32
-  // CHECK: util.return %arg0
-  util.return %f32 : f32
+  // CHECK: return %arg0
+  return %f32 : f32
 }
