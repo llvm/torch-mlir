@@ -29,6 +29,7 @@ using namespace mlir::torch::TorchConversion;
 
 namespace {
 
+// TODO: Consider upstreaming this to an `arith::ExtFOp` folder:
 struct ExtFTruncFPattern : public OpRewritePattern<arith::TruncFOp> {
   ExtFTruncFPattern(MLIRContext *context) : OpRewritePattern(context) {}
   LogicalResult matchAndRewrite(arith::TruncFOp truncf,
