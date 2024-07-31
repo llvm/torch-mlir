@@ -7046,8 +7046,6 @@ class DecomposeAtenAdaptiveAvgPool2dOp
         loc, rewriter.getI64IntegerAttr(0));
     Value constantOne = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(1));
-    Value constantTwo = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(2));
     Value constantFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
     Value constantTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
     Value constantNone = rewriter.create<Torch::ConstantNoneOp>(loc);
@@ -7060,19 +7058,27 @@ class DecomposeAtenAdaptiveAvgPool2dOp
 
       // Filter cases with fixed stride size.
       Value cond1 = rewriter.create<Torch::AtenGtIntOp>(
-          loc, rewriter.getType<Torch::BoolType>(), outputShapeSizesTorchInt[i],
+          loc, outputShapeSizesTorchInt[i],
           rewriter.create<Torch::AtenMulIntOp>(
-              loc, rewriter.getType<Torch::IntType>(), remainder,
+              loc, remainder,
               rewriter.create<Torch::AtenSubIntOp>(
                   loc, outputShapeSizesTorchInt[i], constantOne)));
+      rewriter.create<RuntimeAssertOp>(
+          loc, cond1,
+          "unimplemented: only support cases with fixed stride size.");
 
       // Filter cases with fixed kernel size.
+      // cond2: whether input_size % output_size == 0.
       Value cond2 =
           rewriter.create<Torch::AtenEqIntOp>(loc, remainder, constantZero);
       cond2 = rewriter.create<Torch::AtenIntBoolOp>(loc, cond2);
+
+      // cond3: whether output_size % (input_size % output_size) == 0.
       Value offset = rewriter.create<Torch::AtenIntBoolOp>(
           loc, rewriter.create<Torch::Aten__Not__Op>(
                    loc, rewriter.create<Torch::AtenBoolIntOp>(loc, remainder)));
+      // To avoid potential crash (eg. tosa) happens,choose to mod 1 when
+      // remainder equals 0, which has no side effect on effectiveness.
       Value remainder_not_zero =
           rewriter.create<Torch::AtenAddIntOp>(loc, remainder, offset);
       Value cond3 = rewriter.create<Torch::AtenEqIntOp>(
@@ -7081,18 +7087,15 @@ class DecomposeAtenAdaptiveAvgPool2dOp
               loc, outputShapeSizesTorchInt[i], remainder_not_zero),
           constantZero);
       cond3 = rewriter.create<Torch::AtenIntBoolOp>(loc, cond3);
+      // TODO: support Aten__or__Op and replace the or operation with
+      // Aten__or__Op.
       Value cond = rewriter.create<Torch::AtenBoolIntOp>(
           loc, rewriter.create<Torch::AtenAddIntOp>(loc, cond2, cond3));
 
-      Value condAnd = rewriter.create<Torch::AtenAddIntOp>(
-          loc, rewriter.create<Torch::AtenIntBoolOp>(loc, cond1),
-          rewriter.create<Torch::AtenIntBoolOp>(loc, cond));
-      Value finalCond =
-          rewriter.create<Torch::AtenEqIntOp>(loc, condAnd, constantTwo);
-
       rewriter.create<RuntimeAssertOp>(
-          loc, finalCond,
-          "unimplemented: only support cases with fixed kernel/stride size.");
+          loc, cond,
+          "unimplemented: only support cases with fixed kernel size.");
+
       Value stride = rewriter.create<Torch::AtenFloordivIntOp>(
           loc, inputHW[i], outputShapeSizesTorchInt[i]);
       strideSize.emplace_back(stride);
@@ -7103,10 +7106,8 @@ class DecomposeAtenAdaptiveAvgPool2dOp
       // When remainder equals 0, it is no need for kernel to add 1
       // and just keep the same as stride, otherwise it is necessary
       // to add 1 (torch/_decomp/decomposations.py:adaptive_avg_pool2d).
-      Value boolMod = rewriter.create<Torch::AtenBoolIntOp>(
-          loc, rewriter.getType<Torch::BoolType>(), remainder);
-      Value intMod = rewriter.create<Torch::AtenIntBoolOp>(
-          loc, rewriter.getType<Torch::IntType>(), boolMod);
+      Value boolMod = rewriter.create<Torch::AtenBoolIntOp>(loc, remainder);
+      Value intMod = rewriter.create<Torch::AtenIntBoolOp>(loc, boolMod);
 
       kernel = rewriter.create<Torch::AtenAddIntOp>(loc, kernel, intMod);
       kernelSize.emplace_back(kernel);
