@@ -528,3 +528,21 @@ class AtenItemFpOpModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenItemFpOpModule())
 def AtenItemFpOpModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1))
+
+
+# ==============================================================================
+
+
+class TrueFalseOrBoolOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([], torch.bool, True), ([], torch.bool, True)])
+    def forward(self, a, b):
+        return a | b
+
+
+@register_test_case(module_factory=lambda: TrueFalseOrBoolOpModule())
+def TrueFalseOrBoolOpModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(low=0, high=1).bool(), tu.randint(low=1, high=2).bool())

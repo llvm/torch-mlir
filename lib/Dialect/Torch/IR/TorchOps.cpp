@@ -596,6 +596,37 @@ void RuntimeAssertOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// Aten__Or__BoolOp
+//===----------------------------------------------------------------------===//
+
+void Aten__Or__BoolOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                   MLIRContext *context) {
+  patterns.add(+[](Aten__Or__BoolOp op, PatternRewriter &rewriter) {
+    bool value_a;
+    if (!matchPattern(op.getA(), m_TorchConstantBool(&value_a))) {
+      return failure();
+    }
+    if (value_a) {
+      // rewriter.eraseOp(op);
+      rewriter.replaceOpWithNewOp<Torch::ConstantBoolOp>(op, true);
+      return success();
+    }
+
+    bool value_b;
+    if (!matchPattern(op.getB(), m_TorchConstantBool(&value_b))) {
+      return failure();
+    }
+    if (value_b) {
+      // rewriter.eraseOp(op);
+      rewriter.replaceOpWithNewOp<Torch::ConstantBoolOp>(op, true);
+      return success();
+    }
+
+    return failure();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // DerefineOp
 //===----------------------------------------------------------------------===//
 
