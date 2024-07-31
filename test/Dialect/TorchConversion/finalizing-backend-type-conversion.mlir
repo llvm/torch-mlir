@@ -83,3 +83,13 @@ func.func @unable_to_convert_lone_tensor_load(%arg0: tensor<f32>) {
   "test.sink"(%0) : (!torch.vtensor<[],f32>) -> ()
   return
 }
+
+// -----
+
+// CHECK-LABEL: @extfTruncf
+util.func @extfTruncf(%arg0: f32) -> f32 {
+  %f64 = arith.extf %arg0 : f32 to f64
+  %f32 = arith.truncf %f64 : f64 to f32
+  // CHECK: util.return %arg0
+  util.return %f32 : f32
+}
