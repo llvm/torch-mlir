@@ -7038,32 +7038,80 @@ class DecomposeAtenAdaptiveAvgPool2dOp
     getListConstructElements(outputShape, outputShapeSizesTorchInt);
 
     // TODO: Add support for cases other than:
-    // inH % outH != 0 or inW % outW != 0
-
+    // inH % outH != 0 or inW % outW != 0 where
+    // the stride/kernel size is not fixed.
+    // The following logic of stride/kernel size derivation is consistent
+    // with torch/_decomp/decomposations.py:adaptive_avg_pool2d.
     Value constantZero = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(0));
+    Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
     Value constantFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
     Value constantTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
     Value constantNone = rewriter.create<Torch::ConstantNoneOp>(loc);
-    SmallVector<Value, 2> kernelSize;
 
+    SmallVector<Value, 2> strideSize;
+    SmallVector<Value, 2> kernelSize;
     for (unsigned i = 0; i < inputHW.size(); i++) {
       Value remainder = rewriter.create<AtenRemainderIntOp>(
           loc, inputHW[i], outputShapeSizesTorchInt[i]);
-      Value cond = rewriter.create<AtenEqIntOp>(loc, remainder, constantZero);
-      rewriter.create<RuntimeAssertOp>(loc, cond,
-                                       "unimplemented: only support cases "
-                                       "input size is an integer multiple of "
-                                       "output size");
-      Value stride = rewriter.create<AtenFloordivIntOp>(
+
+      // Filter cases with fixed stride size.
+      Value cond1 = rewriter.create<Torch::AtenGtIntOp>(
+          loc, outputShapeSizesTorchInt[i],
+          rewriter.create<Torch::AtenMulIntOp>(
+              loc, remainder,
+              rewriter.create<Torch::AtenSubIntOp>(
+                  loc, outputShapeSizesTorchInt[i], constantOne)));
+      rewriter.create<RuntimeAssertOp>(
+          loc, cond1,
+          "unimplemented: only support cases with fixed stride size.");
+
+      // Filter cases with fixed kernel size.
+      // cond2: whether input_size % output_size == 0.
+      Value cond2 =
+          rewriter.create<Torch::AtenEqIntOp>(loc, remainder, constantZero);
+      // cond3: whether output_size % (input_size % output_size) == 0.
+      // To avoid potential crash (eg. tosa) happens,choose to mod 1 (add
+      // offset) when remainder equals 0, which has no side effect on
+      // effectiveness.
+      Value offset = rewriter.create<Torch::AtenIntBoolOp>(
+          loc, rewriter.create<Torch::Aten__Not__Op>(
+                   loc, rewriter.create<Torch::AtenBoolIntOp>(loc, remainder)));
+      Value remainder_not_zero =
+          rewriter.create<Torch::AtenAddIntOp>(loc, remainder, offset);
+      Value cond3 = rewriter.create<Torch::AtenEqIntOp>(
+          loc,
+          rewriter.create<Torch::AtenRemainderIntOp>(
+              loc, outputShapeSizesTorchInt[i], remainder_not_zero),
+          constantZero);
+      Value cond = rewriter.create<Torch::Aten__Or__BoolOp>(loc, cond2, cond3);
+
+      rewriter.create<RuntimeAssertOp>(
+          loc, cond,
+          "unimplemented: only support cases with fixed kernel size.");
+
+      Value stride = rewriter.create<Torch::AtenFloordivIntOp>(
           loc, inputHW[i], outputShapeSizesTorchInt[i]);
-      Value kernelSizeValue = stride;
-      kernelSize.push_back(kernelSizeValue);
+      strideSize.emplace_back(stride);
+
+      Value kernel = rewriter.create<Torch::AtenFloordivIntOp>(
+          loc, inputHW[i], outputShapeSizesTorchInt[i]);
+
+      // When remainder equals 0, it is no need for kernel to add 1
+      // and just keep the same as stride, otherwise it is necessary
+      // to add 1 (torch/_decomp/decomposations.py:adaptive_avg_pool2d).
+      Value boolMod = rewriter.create<Torch::AtenBoolIntOp>(loc, remainder);
+      Value intMod = rewriter.create<Torch::AtenIntBoolOp>(loc, boolMod);
+
+      kernel = rewriter.create<Torch::AtenAddIntOp>(loc, kernel, intMod);
+      kernelSize.emplace_back(kernel);
     }
 
     Value kernelSizeList = rewriter.create<PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(context)), kernelSize);
-    Value strideList = kernelSizeList;
+    Value strideList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)), strideSize);
     Value paddingSizeList = rewriter.create<PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(context)),
         ValueRange{constantZero, constantZero});

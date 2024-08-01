@@ -108,6 +108,29 @@ def AdaptiveAvgPool2dOutputSizeDivisibleByInputStaticModule_basic(
     module.forward(tu.rand(1, 512, 15, 14))
 
 
+class AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.aap2d = torch.nn.AdaptiveAvgPool2d((2, 2))
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 3, 7, 7], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.aap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule()
+)
+def AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3, 7, 7))
+
+
 class AdaptiveAvgPool2dUnitOutputSizeStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
