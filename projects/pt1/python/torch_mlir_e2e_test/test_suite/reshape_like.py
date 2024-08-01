@@ -1504,3 +1504,126 @@ class Atleast1dModule1dInput(torch.nn.Module):
 @register_test_case(module_factory=lambda: Atleast1dModule1dInput())
 def Atleast1dModule1dInput_basic(module, tu: TestUtils):
     module.forward(tu.rand(4))
+
+
+# ==============================================================================
+
+
+class Rot90BasicModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.rot90(
+            a,
+            k=1,
+            dims=(
+                0,
+                1,
+            ),
+        )
+
+
+@register_test_case(module_factory=lambda: Rot90BasicModule())
+def Rot90BasicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5))
+
+
+class Rot90DynamicDymsModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.rot90(
+            a,
+            k=1,
+            dims=(
+                0,
+                1,
+            ),
+        )
+
+
+@register_test_case(module_factory=lambda: Rot90DynamicDymsModule())
+def Rot90DynamicDymsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 2, 4))
+
+
+class Rot90MultipleRotationsModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([7, 4, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.rot90(
+            a,
+            k=6,
+            dims=(
+                1,
+                2,
+            ),
+        )
+
+
+@register_test_case(module_factory=lambda: Rot90MultipleRotationsModule())
+def Rot90MultipleRotationsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(7, 4, 6))
+
+
+class Rot90NegativeRotationsModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([7, 4, 6, 5, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.rot90(
+            a,
+            k=-5,
+            dims=(
+                1,
+                2,
+            ),
+        )
+
+
+@register_test_case(module_factory=lambda: Rot90NegativeRotationsModule())
+def Rot90NegativeOddRotationsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(7, 4, 6, 5, 3))
+
+
+class Rot90NegativeEvenRotationsModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([6, 5, 1, 7, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.rot90(
+            a,
+            k=-6,
+            dims=(
+                1,
+                -2,
+            ),
+        )
+
+
+@register_test_case(module_factory=lambda: Rot90NegativeEvenRotationsModule())
+def Rot90NegativeEvenRotationsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 5, 1, 7, 3))
