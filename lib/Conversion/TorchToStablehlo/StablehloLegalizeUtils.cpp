@@ -179,12 +179,15 @@ Value promoteType(PatternRewriter &rewriter, Location loc, Value input,
 }
 
 Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
-                          TensorType outType) {
+                          TensorType outType,
+                          std::optional<Value> bcastSizeTensor) {
   // Two tensors are “broadcastable” if the following rules hold:
   //   - Each tensor has at least one dimension.
   //   - When iterating over the dimension sizes, starting at the trailing
   //   dimension, the dimension sizes must either be equal, one of them is 1, or
   //   one of them does not exist.
+  // If one provide bcastSizeTensor, we emit stablehlo::DynamicBroadcastInDimOp
+  // instead of stablehlo::BroadcastInDimOp to support dynamic shape.
   Operation *op = input.getDefiningOp();
   TensorType in_type = dyn_cast<TensorType>(input.getType());
 
@@ -222,6 +225,11 @@ Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
     return input;
   }
   auto bcast_attr = rewriter.getDenseI64ArrayAttr(bcastDims);
+  if (bcastSizeTensor.has_value()) {
+    auto bcast_op = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
+        op->getLoc(), outType, input, bcastSizeTensor.value(), bcast_attr);
+    return bcast_op.getResult();
+  }
   auto bcast_op = rewriter.create<stablehlo::BroadcastInDimOp>(
       op->getLoc(), outType, input, bcast_attr);
   return bcast_op.getResult();
@@ -312,6 +320,81 @@ getDimIndexOfTensor(PatternRewriter &rewriter, Operation *op, Value value) {
   std::vector<int64_t> dims(rank);
   std::iota(dims.begin(), dims.end(), 0);
   return getDimIndexOfTensor(rewriter, op, value, dims);
+}
+
+FailureOr<Value> getBroadcastResultShape(PatternRewriter &rewriter,
+                                         Operation *op, ArrayRef<Value> tensors,
+                                         size_t dimSizeIndexBits) {
+  SmallVector<ArrayRef<int64_t>> tensorSizes;
+
+  int maxRank = 0;
+  for (auto tensor : tensors) {
+    auto tensorType = cast<RankedTensorType>(tensor.getType());
+    auto tensorRank = tensorType.getRank();
+
+    tensorSizes.emplace_back(tensorType.getShape());
+    maxRank = std::max(maxRank, static_cast<int>(tensorRank));
+  }
+
+  SmallVector<Value> bcastSizeTensors;
+  for (int outDim = 0; outDim < maxRank; ++outDim) { // loop dimensions.
+    int dynamicDimCnt = 0;
+    int staticDimCnt = 0;
+    int64_t staticDimSize;
+    Value dimSizeTensor = rewriter.create<mlir::arith::ConstantOp>(
+        op->getLoc(),
+        rewriter.getIntegerAttr(rewriter.getIntegerType(dimSizeIndexBits), 1));
+
+    for (size_t i = 0; i < tensorSizes.size(); ++i) { // loop tensors.
+      int inDim = tensorSizes[i].size() - 1 - outDim;
+      if (inDim < 0)
+        continue;
+
+      // dim size: 1
+      if (tensorSizes[i][inDim] == 1)
+        continue;
+      // dim size: dynamic
+      if (tensorSizes[i][inDim] == ShapedType::kDynamic ||
+          tensorSizes[i][inDim] == kUnknownSize) {
+        dynamicDimCnt++;
+        auto dimSizeTensorInfo = hlo::getDimSizesOfTensor(
+            rewriter, op, tensors[i], {inDim}, dimSizeIndexBits);
+        if (failed(dimSizeTensorInfo)) {
+          return failure();
+        }
+        dimSizeTensor = (*dimSizeTensorInfo)[0];
+        continue;
+      }
+      // dim size: static
+      // we already found dynamic dim size, fail.
+      if (dynamicDimCnt > 0) {
+        return failure();
+      }
+      // we already found static dim size not equal with this, fail.
+      if (staticDimCnt > 0 && staticDimSize != tensorSizes[i][inDim]) {
+        return failure();
+      }
+
+      staticDimCnt++;
+      staticDimSize = tensorSizes[i][inDim];
+      auto dimSizeTensorInfo = hlo::getDimSizesOfTensor(
+          rewriter, op, tensors[i], {inDim}, dimSizeIndexBits);
+      if (failed(dimSizeTensorInfo)) {
+        return failure();
+      }
+      dimSizeTensor = (*dimSizeTensorInfo)[0];
+    }
+
+    // TODO: Relax this check, by assuming all dynamic shape is same.
+    // if (dynamicDimCnt > 1) {
+    //   return failure();
+    // }
+
+    bcastSizeTensors.push_back(dimSizeTensor);
+  }
+  std::reverse(bcastSizeTensors.begin(), bcastSizeTensors.end());
+  return rewriter.create<tensor::FromElementsOp>(op->getLoc(), bcastSizeTensors)
+      .getResult();
 }
 
 FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
