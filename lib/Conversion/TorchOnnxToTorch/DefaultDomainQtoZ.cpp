@@ -2772,7 +2772,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value scores, labels, weight;
         if (binder.tensorOperandAtIndex(scores, 0) ||
             binder.tensorOperandAtIndex(labels, 1) ||
-            binder.s64IntegerAttr(ignoreIndex, "ignore_index ", -100) ||
+            binder.s64IntegerAttr(ignoreIndex, "ignore_index", -100) ||
             binder.customOpNameStringAttr(reduction, "reduction", "mean") ||
             binder.tensorResultTypeAtIndex(resultType, 0)) {
           return failure();
