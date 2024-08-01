@@ -1616,6 +1616,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return success();
         }
 
+        if (start == 0 && end == -1) {
+          rewriter.replaceOp(binder.op, shape);
+          return success();
+        }
+
         if (start < 0)
           start += inputRank;
         if (end < 0)
