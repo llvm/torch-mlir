@@ -1627,11 +1627,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value ev = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(end));
 
-        Value step = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), 1);
+        Value step = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), 1);
 
-        Value dim = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), 0);
+        Value dim = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), 0);
 
         shape = rewriter.create<Torch::AtenSliceTensorOp>(
             binder.getLoc(), resultType, shape, dim, sv, ev, step);
