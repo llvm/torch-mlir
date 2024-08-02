@@ -1627,20 +1627,16 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           end += inputRank;
 
         Value sv = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getI64IntegerAttr(start));
+            binder.getLoc(), rewriter.getI64IntegerAttr(start));
 
         Value ev = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getI64IntegerAttr(end));
+            binder.getLoc(), rewriter.getI64IntegerAttr(end));
 
         Value step = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getI64IntegerAttr(1));
+            binder.getLoc(), 1);
 
         Value dim = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getI64IntegerAttr(0));
+            binder.getLoc(), 0);
 
         shape = rewriter.create<Torch::AtenSliceTensorOp>(
             binder.getLoc(), resultType, shape, dim, sv, ev, step);
