@@ -1649,7 +1649,27 @@ public:
 
     if (reduction == torch_upstream::Reduction::Sum ||
         reduction == torch_upstream::Reduction::Mean) {
-      Value numOfElems = getTensorSize(rewriter, loc, finalRes);
+
+      Value zeroIVal = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getZeroAttr(rewriter.getI32Type()));
+      auto countInfo = torch_to_linalg::ReductionOpInfo{false, target, dimSet};
+      Value numOfElems = torch_to_linalg::createReductionLinalgGeneric(
+          rewriter, loc, countInfo,
+          /*initElem=*/zeroIVal,
+          [&](OpBuilder &b, Location loc, ValueRange args) {
+            Value targetVal = args[0];
+            Value indTarget = rewriter.create<arith::IndexCastOp>(
+                loc, rewriter.getIndexType(), targetVal);
+            Value cmpEq = rewriter.create<arith::CmpIOp>(
+                loc, arith::CmpIPredicate::ne, indTarget, ignoreIndexVal);
+            cmpEq = rewriter.create<arith::ExtUIOp>(loc, rewriter.getI32Type(),
+                                                    cmpEq);
+            Value add = rewriter.create<arith::AddIOp>(loc, args[1], cmpEq);
+            rewriter.create<linalg::YieldOp>(loc, add);
+          });
+
+      numOfElems = rewriter.create<tensor::ExtractOp>(
+          loc, rewriter.getI32Type(), numOfElems, ArrayRef<Value>{});
       numOfElems = convertScalarToDtype(rewriter, loc, numOfElems, elementType);
 
       auto opInfo = torch_to_linalg::ReductionOpInfo{false, finalRes, dimSet};
