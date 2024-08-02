@@ -1335,9 +1335,10 @@ llvm::SmallVector<APInt> getFoldValueAtIndexInt(llvm::ArrayRef<Attribute> attrs,
 using NAryFoldFpOperator = std::function<double(ArrayRef<double>)>;
 using NAryFoldIntOperator = std::function<APInt(ArrayRef<APInt>)>;
 
-static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
-                                     NAryFoldFpOperator fpFolder,
-                                     NAryFoldIntOperator intFolder) {
+static OpFoldResult
+naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
+                 std::optional<NAryFoldFpOperator> fpFolder,
+                 std::optional<NAryFoldIntOperator> intFolder) {
   constexpr int64_t kMaxFold = 16;
   for (auto attr : operands) {
     if (!attr)
@@ -1381,12 +1382,15 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
   const int64_t numValues = allSplats ? 1 : resultBTy.getNumElements();
 
   if (fpTy) {
+    if (!fpFolder.has_value())
+      return nullptr;
+    auto folder = fpFolder.value();
     llvm::SmallVector<APFloat> folded;
     for (int i = 0, s = numValues; i < s; ++i) {
       auto inputs = getFoldValueAtIndexFp(operands, i);
       if (inputs.size() != operands.size())
         return nullptr;
-      double fold = fpFolder(inputs);
+      double fold = folder(inputs);
 
       APFloat val(fold);
       bool unused;
@@ -1398,13 +1402,16 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
   }
 
   if (intTy) {
+    if (!intFolder.has_value())
+      return nullptr;
+    auto folder = intFolder.value();
     llvm::SmallVector<APInt> folded;
     for (int i = 0, s = numValues; i < s; ++i) {
       auto inputs =
           getFoldValueAtIndexInt(operands, dty.getIntOrFloatBitWidth(), i);
       if (inputs.size() != operands.size())
         return nullptr;
-      folded.push_back(intFolder(inputs));
+      folded.push_back(folder(inputs));
     }
     return DenseElementsAttr::get(resultBTy, folded);
   }
@@ -1866,12 +1873,9 @@ OpFoldResult AtenLogOp::fold(FoldAdaptor adaptor) {
     assert(inputs.size() == 1);
     return std::log(inputs[0]);
   };
-  auto intFold = [](llvm::ArrayRef<APInt> inputs) -> APInt {
-    assert(false && "should not reach here");
-    return APInt(inputs[0].getBitWidth(), log(inputs[0].getLimitedValue()));
-  };
 
-  return naryFolderHelper(adaptor.getOperands(), resultType, fpFold, intFold);
+  return naryFolderHelper(adaptor.getOperands(), resultType, fpFold,
+                          std::nullopt);
 }
 
 //===----------------------------------------------------------------------===//
