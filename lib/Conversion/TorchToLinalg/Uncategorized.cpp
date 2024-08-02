@@ -1461,12 +1461,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::ConstantOp>(loc, b.getFloatAttr(valueTy, minI));
     Value maxVal =
         b.create<arith::ConstantOp>(loc, b.getFloatAttr(valueTy, maxI));
-    Value minCmp =
-        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT, value, minVal);
-    Value maxCmp =
-        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT, value, maxVal);
-    value = b.create<arith::SelectOp>(loc, minCmp, minVal, value);
-    value = b.create<arith::SelectOp>(loc, maxCmp, maxVal, value);
+    value = b.create<arith::MaximumFOp>(loc, value, minVal);
+    value = b.create<arith::MinimumFOp>(loc, value, maxVal);
 
     if (isUnsigned) {
       value = b.create<arith::FPToUIOp>(loc, destTy, value);
