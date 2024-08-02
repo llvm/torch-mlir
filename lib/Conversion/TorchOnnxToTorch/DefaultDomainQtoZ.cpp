@@ -560,6 +560,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.tensorResultType(resultType))
           return failure();
 
+        auto loc = binder.getLoc();
         Value data = valList[0];
         Value indices = valList[1];
         Value updates = valList[2];
@@ -570,8 +571,32 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               cast<Torch::ValueTensorType>(data.getType()).getSizes().size();
 
         Value constAxis = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            loc, rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), axis));
+
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getI64IntegerAttr(0));
+        Value one = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getI64IntegerAttr(1));
+
+        Value axisSize = rewriter.create<Torch::AtenSizeIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(), data,
+            constAxis);
+
+        auto indicesTy = cast<Torch::ValueTensorType>(indices.getType());
+        Value indicesAdd = rewriter.create<Torch::AtenAddScalarOp>(
+            loc, indicesTy, indices, axisSize, one);
+
+        Value inputNeg = rewriter.create<Torch::AtenLtScalarOp>(
+            loc,
+            rewriter.getType<Torch::ValueTensorType>(indicesTy.getSizes(),
+                                                     rewriter.getI1Type()),
+            indices, zero);
+
+        indices = rewriter.create<Torch::AtenWhereSelfOp>(
+            loc, indicesTy, inputNeg, indicesAdd, indices);
 
         if (reduction == "none") {
           rewriter.replaceOpWithNewOp<Torch::AtenScatterSrcOp>(
