@@ -1868,7 +1868,7 @@ OpFoldResult AtenLogOp::fold(FoldAdaptor adaptor) {
   };
   auto intFold = [](llvm::ArrayRef<APInt> inputs) -> APInt {
     assert(false && "should not reach here");
-    return inputs[0];
+    return APInt(inputs[0].getBitWidth(), log(inputs[0].getLimitedValue()));
   };
 
   return naryFolderHelper(adaptor.getOperands(), resultType, fpFold, intFold);
