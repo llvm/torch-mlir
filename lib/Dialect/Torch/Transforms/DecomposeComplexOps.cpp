@@ -7169,6 +7169,20 @@ class DecomposeAtenClampMaxOp : public OpRewritePattern<AtenClampMaxOp> {
 } // namespace
 
 namespace {
+class DecomposeAtenRad2degOp : public OpRewritePattern<AtenRad2degOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRad2degOp op,
+                                PatternRewriter &rewriter) const override {
+    Value constant180OverPi = rewriter.create<Torch::ConstantFloatOp>(
+        op.getLoc(), rewriter.getF64FloatAttr(180 / 3.14159));
+    rewriter.replaceOpWithNewOp<AtenMulScalarOp>(op, op.getType(), op.getSelf(),
+                                                 constant180OverPi);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenCosineSimilarityOp
     : public OpRewritePattern<AtenCosineSimilarityOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -9366,6 +9380,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRad2degOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTruncOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
