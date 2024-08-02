@@ -3,11 +3,38 @@
 // CHECK-LABEL: func.func @test_resize_sizes_linear
 func.func @test_resize_sizes_linear(%arg0: !torch.vtensor<[1,1,2,4],f32>, %arg1: !torch.vtensor<[4]
 ,si64>) -> !torch.vtensor<[?,?,?,?],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+    // CHECK: %[[x0:.*]] = torch_c.to_builtin_tensor %arg0
     // CHECK: %[[generic:.*]] = linalg.generic
-    // CHECK: %[[extracted:.*]] = tensor.extract %[[x0:.*]][%[[x1:.*]], %[[x2:.*]], %[[x3:.*]], %[[x4:.*]]] : tensor<1x1x2x4xf32>
-    // CHECK: %[[extracted_7:.*]] = tensor.extract %[[x0]][%[[x1]], %[[x2]]
-    // CHECK: %[[extracted_8:.*]] = tensor.extract %[[x0]][%[[x1]], %[[x2]]
-    // CHECK: %[[extracted_9:.*]] = tensor.extract %[[x0]][%[[x1]], %[[x2]]
+    // CHECK-DAG: %[[cst:.*]] = arith.constant 1.000000e+00 : f32
+    // CHECK-DAG: %[[cst_4:.*]] = arith.constant 5.000000e-01 : f32
+    // CHECK-DAG: %[[cst_5:.*]] = arith.constant 0.000000e+00 : f32
+    // CHECK-DAG: %[[x15:.*]] = linalg.index 0 : index
+    // CHECK-DAG: %[[x16:.*]] = linalg.index 1 : index
+    // CHECK-DAG: %[[x17:.*]] = linalg.index 2 : index
+    // CHECK-DAG: %[[x18:.*]] = linalg.index 3 : index
+    // CHECK: %[[x19:.*]] = arith.sitofp %[[x6:.*]] : i64 to f32
+    // CHECK: %[[x20:.*]] = arith.sitofp %[[x8:.*]] : i64 to f32
+    // CHECK-DAG: %[[x21:.*]] = arith.divf %[[x20]], %[[x19]] : f32
+    // CHECK-DAG: %[[x22:.*]] = arith.index_cast %[[x17]] : index to i64
+    // CHECK-DAG: %[[x23:.*]] = arith.sitofp %[[x22]] : i64 to f32
+    // CHECK-DAG: %[[x24:.*]] = arith.addf %[[x23]], %[[cst_4]] : f32
+    // CHECK-DAG: %[[x25:.*]] = arith.divf %[[x24]], %[[x21]] : f32
+    // CHECK-DAG: %[[x26:.*]] = arith.subf %[[x25]], %[[cst_4]] : f32
+    // CHECK-DAG: %[[x27:.*]] = arith.maximumf %[[x26]], %[[cst_5]] : f32
+    // CHECK-DAG: %[[x28:.*]] = arith.subf %[[x19]], %[[cst]] : f32
+    // CHECK-DAG: %[[x29:.*]] = arith.minimumf %[[x27]], %[[x28]] : f32
+    // CHECK-DAG: %[[x30:.*]] = math.floor %[[x29]] : f32
+    // CHECK-DAG: %[[x31:.*]] = arith.addf %[[cst]], %[[x29]] : f32
+    // CHECK-DAG: %[[x32:.*]] = math.floor %[[x31]] : f32
+    // CHECK-DAG: %[[x33:.*]] = arith.fptosi %[[x30]] : f32 to i64
+    // CHECK-DAG: %[[x34:.*]] = arith.index_cast %[[x33]] : i64 to index
+    // CHECK-DAG: %[[x35:.*]] = arith.minimumf %[[x31]], %[[x28]] : f32
+    // CHECK-DAG: %[[x36:.*]] = arith.fptosi %[[x35]] : f32 to i64
+    // CHECK-DAG: %[[x37:.*]] = arith.index_cast %[[x36]] : i64 to index
+    // CHECK: %[[extracted:.*]] = tensor.extract %[[x0]][%[[x15]], %[[x16]], %[[x34]], %[[low:.*]]] : tensor<1x1x2x4xf32>
+    // CHECK: %[[extracted_7:.*]] = tensor.extract %[[x0]][%[[x15]], %[[x16]], %[[x34]], %[[high:.*]]] : tensor<1x1x2x4xf32>
+    // CHECK: %[[extracted_8:.*]] = tensor.extract %[[x0]][%[[x15]], %[[x16]], %[[x37]], %[[low]]] : tensor<1x1x2x4xf32>
+    // CHECK: %[[extracted_9:.*]] = tensor.extract %[[x0]][%[[x15]], %[[x16]], %[[x37]], %[[high]]] : tensor<1x1x2x4xf32>
     // CHECK: %[[dx0p00:.*]] = arith.mulf %[[dx0:.*]], %[[extracted]]
     // CHECK: %[[dx1p01:.*]] = arith.mulf %[[dx1:.*]], %[[extracted_7]]
     // CHECK: %[[sum:.*]] = arith.addf %[[dx0p00]], %[[dx1p01]]

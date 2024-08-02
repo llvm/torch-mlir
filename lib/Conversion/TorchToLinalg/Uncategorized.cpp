@@ -2713,8 +2713,6 @@ static Value BilinearInterpolate(OpBuilder &b,
   auto inputType = cast<RankedTensorType>(input.getType());
   auto inputRank = inputType.getRank();
 
-  Value cstOneEps =
-      b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.000001));
   Value cstOneFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.0));
   Value cstHalf = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.5));
   Value zero = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.0));
@@ -2790,28 +2788,34 @@ static Value BilinearInterpolate(OpBuilder &b,
                                           outputSizeFP, cstOneFloat);
       preClip = b.create<arith::SelectOp>(loc, cmp, zero, preClip);
     }
-    // clip to 0,inf
+    // preClip is the fp position inside the input image to extract from.
+    // clip to [0,inf)
     Value max = b.create<arith::MaximumFOp>(loc, preClip, zero);
-    // length_original - 1.001
-    Value inputSubOneEps = b.create<arith::SubFOp>(loc, inputFP, cstOneEps);
     Value inputSubOne = b.create<arith::SubFOp>(loc, inputFP, cstOneFloat);
-    // clip to [0,length_original - 1.001]
-    projEps.push_back(b.create<arith::MinimumFOp>(loc, max, inputSubOneEps));
+    // clip to [0,length_original - 1].
+    // proj is properly within the input image.
     proj.push_back(b.create<arith::MinimumFOp>(loc, max, inputSubOne));
 
-    lowFP.push_back(b.create<math::FloorOp>(loc, projEps[i]));
-    Value projPlusOne = b.create<arith::AddFOp>(loc, cstOneFloat, projEps[i]);
+    // for bilinear interpolation, we look for the nearest indices below and
+    // above proj
+    lowFP.push_back(b.create<math::FloorOp>(loc, proj[i]));
+    Value projPlusOne = b.create<arith::AddFOp>(loc, cstOneFloat, proj[i]);
     highFP.push_back(b.create<math::FloorOp>(loc, projPlusOne));
 
     Value lowInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), lowFP[i]);
     low.push_back(b.create<arith::IndexCastOp>(loc, b.getIndexType(), lowInt));
 
-    Value highInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), highFP[i]);
+    // highFP could be out-of-bounds, so make sure to clip it down before
+    // extracting. If highFP actually gets clipped here, then high[i] will
+    // extract at the last pixel, but will treat it as if it were extracted from
+    // one further position when computing the interpolation weights.
+    Value highExtract =
+        b.create<arith::MinimumFOp>(loc, projPlusOne, inputSubOne);
+    highExtract = b.create<arith::FPToSIOp>(loc, b.getI64Type(), highExtract);
     high.push_back(
-        b.create<arith::IndexCastOp>(loc, b.getIndexType(), highInt));
+        b.create<arith::IndexCastOp>(loc, b.getIndexType(), highExtract));
   }
 
-  SmallVector<Value> cornerValues;
   indices[dimOffset] = low[0];
   indices[dimOffset + 1] = low[1];
   Value p00 = b.create<tensor::ExtractOp>(loc, input, indices);
