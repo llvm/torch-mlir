@@ -2697,10 +2697,10 @@ func.func @test_sequence_map_extract_shapes(%arg0: !torch.list<vtensor<[?,?,?],f
 func.func @test_shape_start_1_end_negative_1(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[1],si64> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 21 : si64} {
   // CHECK: %[[SHAPE:.+]] = torch.aten._shape_as_tensor %arg0
   // CHECK: %[[INT1_0:.+]] = torch.constant.int 1
-  // CHECK: %[[INT2_0:.+]] = torch.constant.int 2
+  // CHECK: %[[INT2_0:.+]] = torch.constant.int -1
   // CHECK: %[[INT1_1:.+]] = torch.constant.int 1
   // CHECK: %[[INT0_0:.+]] = torch.constant.int 0
-  // CHECK: %[[SLICE:.+]] = torch.aten.slice.Tensor %[[SHAPE]], %[[INT0_0]], %[[INT1_0]], %[[INT2]], %[[INT1_1]]
+  // CHECK: %[[SLICE:.+]] = torch.aten.slice.Tensor %[[SHAPE]], %[[INT0_0]], %[[INT1_0]], %[[INT2_0]], %[[INT1_1]]
   %0 = torch.operator "onnx.Shape"(%arg0) {torch.onnx.end = -1 : si64, torch.onnx.start = 1 : si64} : (!torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[1],si64>
   return %0 : !torch.vtensor<[1],si64>
 }
