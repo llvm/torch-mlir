@@ -1610,8 +1610,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         int64_t start = 0;
         int64_t end = -1;
-        if (binder.optionalS64IntegerAttr(start, "start", 0) ||
-            binder.optionalS64IntegerAttr(end, "end", -1))
+        if (binder.optionalS64IntegerAttr(start, "start") ||
+            binder.optionalS64IntegerAttr(end, "end"))
           return failure();
 
         if (start == 0 && end == -1) {
