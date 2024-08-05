@@ -1594,8 +1594,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       "Shape", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value operand;
+        int64_t start, end;
         if (binder.tensorOperand(operand) ||
-            binder.tensorResultType(resultType))
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(start, "start", 0) ||
+            binder.s64IntegerAttr(end, "end", -1))
           return failure();
 
         auto inputType = dyn_cast<Torch::ValueTensorType>(operand.getType());
