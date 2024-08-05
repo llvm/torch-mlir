@@ -2717,6 +2717,21 @@ func.func @test_sequence_map_extract_shapes(%arg0: !torch.list<vtensor<[?,?,?],f
 
 // -----
 
+// CHECK-LABEL: func.func @test_shape_start_1_end_negative_1
+func.func @test_shape_start_1_end_negative_1(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[1],si64> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 21 : si64} {
+  // CHECK: %[[SHAPE:.+]] = torch.aten._shape_as_tensor %arg0
+  // CHECK: %[[INT1_0:.+]] = torch.constant.int 1
+  // CHECK: %[[INT2_0:.+]] = torch.constant.int -1
+  // CHECK: %[[INT1_1:.+]] = torch.constant.int 1
+  // CHECK: %[[INT0_0:.+]] = torch.constant.int 0
+  // CHECK: %[[SLICE:.+]] = torch.aten.slice.Tensor %[[SHAPE]], %[[INT0_0]], %[[INT1_0]], %[[INT2_0]], %[[INT1_1]]
+  %0 = torch.operator "onnx.Shape"(%arg0) {torch.onnx.end = -1 : si64, torch.onnx.start = 1 : si64} : (!torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[1],si64>
+  return %0 : !torch.vtensor<[1],si64>
+}
+
+
+// -----
+
 // CHECK-LABEL: func.func @test_upsample_nearest
 func.func @test_upsample_nearest(%arg0: !torch.vtensor<[1,1,2,2],f32>, %arg1: !torch.vtensor<[4],f32>) -> !torch.vtensor<[1,1,4,6],f32> attributes {torch.onnx_meta.ir_version = 4 : si64, torch.onnx_meta.opset_version = 9 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[INT0:.*]] = torch.constant.int 0
@@ -3133,7 +3148,7 @@ func.func @test_scatternd_min(%arg0: !torch.vtensor<[4,4,4],f32>, %arg1: !torch.
     return %0 : !torch.vtensor<[4,4,4],f32>
 }
 
-// ----
+// -----
 
 // CHECK-LABEL: func.func @test_split_to_sequence_1
 func.func @test_split_to_sequence_1(%arg0: !torch.vtensor<[3,6],f32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.list<vtensor<[3,6],f32>> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
@@ -3151,7 +3166,7 @@ func.func @test_split_to_sequence_1(%arg0: !torch.vtensor<[3,6],f32>, %arg1: !to
   return %1 : !torch.list<vtensor<[3,6],f32>>
 }
 
-// ----
+// -----
 
 // CHECK-LABEL: func.func @test_split_to_sequence_2
 func.func @test_split_to_sequence_2(%arg0: !torch.vtensor<[2,6],f32>, %arg1: !torch.vtensor<[],si64>) -> !torch.list<vtensor<[1,6],f32>> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
@@ -3169,7 +3184,7 @@ func.func @test_split_to_sequence_2(%arg0: !torch.vtensor<[2,6],f32>, %arg1: !to
   return %1 : !torch.list<vtensor<[1,6],f32>>
 }
 
-// ----
+// -----
 
 // CHECK-LABEL:   func.func @test_split_to_sequence_with_list(
 // CHECK-SAME:                                        %[[VAL_0:.*]]: !torch.vtensor<[4,6],f32>,
