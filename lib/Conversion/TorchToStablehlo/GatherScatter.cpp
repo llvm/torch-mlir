@@ -703,7 +703,7 @@ LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
       /*inputBatchingDims=*/{},
       /*scatterIndicesBatchingDims=*/{},
       /*scatterDimsToOperandDim=*/{dim},
-      /*indexVectorDim=*/inputType.getRank() - 1);
+      /*indexVectorDim=*/1);
 
   Value src = adaptor.getSrc();
   auto scatterOp = rewriter.create<stablehlo::ScatterOp>(

@@ -1411,7 +1411,6 @@ STABLEHLO_PASS_SET = {
     "RandModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
     "SelectIntNegativeDimAndIndexStaticModule_basic",
-    "SelectScattertStaticModule_basic",
     "SqueezeDimModule_static",
     "SqueezeModule_static",
     "TriuBroadcastModule_basic",
