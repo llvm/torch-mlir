@@ -302,6 +302,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::relu6 : (Tensor) -> (Tensor)",
         "aten::leaky_relu : (Tensor, Scalar) -> (Tensor)",
         "aten::rrelu : (Tensor, Scalar, Scalar, bool, Generator?) -> (Tensor)",
+        "aten::rrelu_with_noise : (Tensor, Tensor, Scalar, Scalar, bool, Generator?) -> (Tensor)",
         "aten::celu : (Tensor, Scalar) -> (Tensor)",
         "aten::selu : (Tensor) -> (Tensor)",
         "aten::sigmoid : (Tensor) -> (Tensor)",
