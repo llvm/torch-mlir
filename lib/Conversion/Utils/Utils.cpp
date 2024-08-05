@@ -350,6 +350,8 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
   }
 
   if (auto dtypeComplex = dyn_cast<mlir::ComplexType>(dtype)) {
+
+    // Complex to complex.
     if (auto scalarComplex = dyn_cast<mlir::ComplexType>(scalarType)) {
       auto dtypeElemType = dtypeComplex.getElementType();
 
@@ -364,6 +366,25 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
 
       return b.create<complex::CreateOp>(loc, dtypeComplex, realVal, imgVal);
     }
+
+    // Float to complex type.
+    if (auto dtypeFloat = dyn_cast<mlir::FloatType>(scalarType)) {
+
+      auto complexElementType =
+          cast<mlir::FloatType>(dtypeComplex.getElementType());
+      Value realVal;
+      Value imgVal =
+          b.create<arith::ConstantOp>(loc, b.getZeroAttr(complexElementType));
+
+      if (complexElementType.getWidth() > dtypeFloat.getWidth()) {
+        realVal = b.create<arith::ExtFOp>(loc, complexElementType, scalar);
+      } else {
+        realVal = scalar;
+      }
+
+      return b.create<complex::CreateOp>(loc, dtypeComplex, realVal, imgVal);
+    }
+
     mlir::emitError(loc) << "unsupported scalar type for convertScalarToDtype "
                          << scalarType << "(scalar type) -> " << dtype
                          << "(dtype)";
