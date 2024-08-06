@@ -431,4 +431,24 @@ def VerifyBackendContractNoDecompositions
   }];
 }
 
+def RestructureNonConstantAxes
+    : Pass<"torch-restructure-non-constant-axes", "func::FuncOp"> {
+  let summary = "Ensure that every Reduction.cpp op has a constant reduction axis.";
+  let constructor = [{
+    mlir::torch::Torch::createRestructureNonConstantAxesPass()
+  }];
+  let description = [{
+    This pass ensures that every Reduction.cpp op has a constant reduction axis.
+
+    It does so using reshapes. For example, a <1,2,3,4,5> tensor will be reshaped to a <?,?,?> tensor
+    and reduced on axis 1 to produce a <?,1,?> tensor. The resulting tensor will be reshaped back to the original shape.
+
+    Then when the axis is supplied at runtime (say axis = -2), the shapes will be computed as so: 
+    <?,?,?> becomes <6,4,5>
+    which gets reduced to <6,1,5>
+    and rehsaped back to the original reduction op's output shape,
+    <1,2,3,1,5>
+  }];
+}
+
 #endif // TORCHMLIR_TORCH_PASSES
