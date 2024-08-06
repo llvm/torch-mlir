@@ -369,7 +369,6 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
 
     // Float to complex type.
     if (auto dtypeFloat = dyn_cast<mlir::FloatType>(scalarType)) {
-
       auto complexElementType =
           cast<mlir::FloatType>(dtypeComplex.getElementType());
       Value realVal;
@@ -378,6 +377,9 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
 
       if (complexElementType.getWidth() > dtypeFloat.getWidth()) {
         realVal = b.create<arith::ExtFOp>(loc, complexElementType, scalar);
+      } else if (complexElementType.getWidth() < dtypeFloat.getWidth()) {
+        realVal = b.create<arith::TruncFOp>(loc, complexElementType, scalar);
+        ;
       } else {
         realVal = scalar;
       }
