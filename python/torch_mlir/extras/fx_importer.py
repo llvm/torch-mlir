@@ -265,6 +265,8 @@ PY_BUILTIN_TO_TORCH_OP = {
     "ge": torch.ops.aten.ge,
     "ne": torch.ops.aten.ne,
     "gt": torch.ops.aten.gt,
+    "mod": torch.ops.aten.fmod,
+    "eq": torch.ops.aten.eq,
 }
 
 # torch with cuda has a __version__ that looks like  "2.1.0+cu113",
