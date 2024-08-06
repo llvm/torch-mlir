@@ -443,7 +443,7 @@ def RestructureNonConstantAxes
     It does so using reshapes. For example, a <1,2,3,4,5> tensor will be reshaped to a <?,?,?> tensor
     and reduced on axis 1 to produce a <?,1,?> tensor. The resulting tensor will be reshaped back to the original shape.
 
-    Then when the axis is supplied at runtime (say axis = -2), the shapes will be computed as so: 
+    Then when the axis is supplied at runtime (say axis = -2), the shapes will be computed as so:
     <?,?,?> becomes <6,4,5>
     which gets reduced to <6,1,5>
     and rehsaped back to the original reduction op's output shape,
