@@ -63,6 +63,15 @@ public:
     llvm::SmallVector<Value> operands(op->getOperands());
     bool dequanted = false;
 
+    // Prevent fusion for 1d convolution ops and just do it as an f32 conv since
+    // there isn't a linalg named op for quantized 1-d convolution yet.
+    // TODO: Remove this and add support for 1-d quantized convolution.
+    int64_t inputRank =
+        cast<ValueTensorType>(operands[0].getType()).getSizes().size();
+    if (isa<Torch::AtenConvolutionOp>(op) && inputRank < 4)
+      return rewriter.notifyMatchFailure(
+          op, "1-d quantized convolution is not supported");
+
     for (unsigned i : QuantInfo<SrcOp>::operandsToQuantize) {
       Value operand = operands[i];
       std::stack<mlir::Operation *> commutingOpStack;
