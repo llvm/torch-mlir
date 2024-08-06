@@ -644,7 +644,7 @@ func.func @test_selu(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,
 
 // CHECK-LABEL: func.func @test_reduce_max_empty_set_fp
 func.func @test_reduce_max_empty_set_fp(%arg0: !torch.vtensor<[2,0,4],f32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[2,1,4],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK-DAG: %[[INF:.+]] = torch.constant.float 0x7FF0000000000000
+  // CHECK-DAG: %[[INF:.+]] = torch.constant.float 0xFFF0000000000000
   // CHECK-DAG: %[[INT2:.+]] = torch.constant.int 2
   // CHECK-DAG: %[[INT1:.+]] = torch.constant.int 1
   // CHECK-DAG: %[[INT4:.+]] = torch.constant.int 4
@@ -660,7 +660,7 @@ func.func @test_reduce_max_empty_set_fp(%arg0: !torch.vtensor<[2,0,4],f32>, %arg
 
 // CHECK-LABEL: func.func @test_reduce_max_empty_set_int
 func.func @test_reduce_max_empty_set_int(%arg0: !torch.vtensor<[2,0,4],si32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[2,1,4],si32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK-DAG: %[[INF:.+]] = torch.constant.int 2147483647
+  // CHECK-DAG: %[[INF:.+]] = torch.constant.int -2147483648
   // CHECK-DAG: %[[INT2:.+]] = torch.constant.int 2
   // CHECK-DAG: %[[INT1:.+]] = torch.constant.int 1
   // CHECK-DAG: %[[INT4:.+]] = torch.constant.int 4
