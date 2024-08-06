@@ -373,9 +373,8 @@ def TMTensor_TopkOp : TMTensor_Op<"topk",
     std::optional<Value> indices() {
       if (getNumInputs() < 2) {
         return {};
-      } else {
-        return getInputOperand(1)->get();
       }
+        return getInputOperand(1)->get();
     }
     Value outputValues() {
       return getOutputOperand(0)->get();
