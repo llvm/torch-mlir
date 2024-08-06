@@ -339,43 +339,123 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp("BatchNormalization", 15,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value input, weight, bias, runningMean, runningVar;
-                  bool training;
-                  float momentum, eps;
-                  if (binder.s64BoolAttr(training, "training_mode", 0))
-                    return failure();
-                  if (training) {
-                    // TODO: Add support for training = true
-                    return rewriter.notifyMatchFailure(
-                        binder.op, "unsupported conversion: training = true");
-                  }
+  patterns.onOp(
+      "BatchNormalization", 15,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input, weight, bias, inputMean, inputVar;
+        bool training;
+        float momentum, eps;
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorOperandAtIndex(weight, 1) ||
+            binder.tensorOperandAtIndex(bias, 2) ||
+            binder.tensorOperandAtIndex(inputMean, 3) ||
+            binder.tensorOperandAtIndex(inputVar, 4) ||
+            binder.f32FloatAttr(momentum, "momentum", 0.9f) ||
+            binder.f32FloatAttr(eps, "epsilon", 1e-05f) ||
+            binder.s64BoolAttr(training, "training_mode", 0) ||
+            binder.tensorResultTypeAtIndex(resultType, 0))
+          return failure();
 
-                  if (binder.tensorOperandAtIndex(input, 0) ||
-                      binder.tensorOperandAtIndex(weight, 1) ||
-                      binder.tensorOperandAtIndex(bias, 2) ||
-                      binder.tensorOperandAtIndex(runningMean, 3) ||
-                      binder.tensorOperandAtIndex(runningVar, 4) ||
-                      binder.f32FloatAttr(momentum, "momentum", 0.9f) ||
-                      binder.f32FloatAttr(eps, "epsilon", 1e-05f) ||
-                      binder.tensorResultType(resultType))
-                    return failure();
+        Location loc = binder.getLoc();
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+        Value cstMomentum = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getF64FloatAttr(momentum));
+        Value cstEps = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getF64FloatAttr(eps));
 
-                  Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
-                      binder.getLoc(), false);
-                  Value cstMomentum = rewriter.create<Torch::ConstantFloatOp>(
-                      binder.getLoc(), rewriter.getF64FloatAttr(momentum));
-                  Value cstEps = rewriter.create<Torch::ConstantFloatOp>(
-                      binder.getLoc(), rewriter.getF64FloatAttr(eps));
+        // When training_mode=False, the op outputs only Y, where
+        // Y = (X - input_mean) / sqrt(input_var + epsilon) * scale +
+        // B
+        if (!training) {
+          rewriter.replaceOpWithNewOp<Torch::AtenBatchNormOp>(
+              binder.op, resultType, input, weight, bias, inputMean, inputVar,
+              /*training=*/cstFalse, cstMomentum, cstEps,
+              /*cudnn_enabled=*/cstFalse);
+          return success();
+        }
 
-                  rewriter.replaceOpWithNewOp<Torch::AtenBatchNormOp>(
-                      binder.op, resultType, input, weight, bias, runningMean,
-                      runningVar, /*training=*/cstFalse, cstMomentum, cstEps,
-                      /*cudnn_enabled=*/cstFalse);
-                  return success();
-                });
+        Torch::ValueTensorType meanResultType, varResultType;
+        if (binder.tensorResultTypeAtIndex(meanResultType, 1) ||
+            binder.tensorResultTypeAtIndex(varResultType, 2))
+          return failure();
+
+        // When training_mode=True, the outputs are as follows:
+        // Y, running_mean, running_var.
+        // Y = (X - current_mean) / sqrt(current_var + epsilon) *
+        // scale + B
+        // running_mean = input_mean * momentum + current_mean * (1 -
+        // momentum)
+        // running_var = input_var * momentum + current_var * (1 -
+        // momentum)
+        // and
+        // current_mean = ReduceMean(X, axis=all_except_channel_index)
+        // current_var = ReduceVar(X, axis=all_except_channel_index)
+
+        Torch::ValueTensorType inputType =
+            cast<Torch::ValueTensorType>(input.getType());
+        if (!inputType.hasSizes())
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: expected input to have sizes");
+
+        // Computing current_mean and current_var.
+        int64_t inputRank = inputType.getSizes().size();
+        // Reduce all dimensions except channel dim.
+        SmallVector<Value> dimsToReduce;
+        for (int64_t i = 0; i < inputRank; i++) {
+          if (i != 1)
+            dimsToReduce.push_back(rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(i)));
+        }
+        Value reduceDimsList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.getLoc(),
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            dimsToReduce);
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
+        Value currentMean = rewriter.create<Torch::AtenMeanDimOp>(
+            loc, meanResultType, input, reduceDimsList,
+            /*keepdim=*/cstFalse,
+            /*dtype=*/noneVal);
+        Value currentVar = rewriter.create<Torch::AtenVarDimOp>(
+            loc, varResultType, input, reduceDimsList,
+            /*unbiased=*/cstTrue,
+            /*keepdim=*/cstFalse);
+
+        // Computing running_mean.
+        Value inputMeanMulMomentum = rewriter.create<Torch::AtenMulScalarOp>(
+            loc, meanResultType, inputMean, cstMomentum);
+        Value currentMeanMulMomentum = rewriter.create<Torch::AtenMulScalarOp>(
+            loc, varResultType, currentMean, cstMomentum);
+        Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(1));
+        Value inpMeanMMSubCurMeanMM = rewriter.create<Torch::AtenSubTensorOp>(
+            loc, meanResultType, inputMeanMulMomentum, currentMeanMulMomentum,
+            constantOne);
+        Value runningMean = rewriter.create<Torch::AtenAddTensorOp>(
+            loc, meanResultType, inpMeanMMSubCurMeanMM, currentMean,
+            constantOne);
+
+        // Computing running_var.
+        Value inputVarMulMomentum = rewriter.create<Torch::AtenMulScalarOp>(
+            loc, varResultType, inputVar, cstMomentum);
+        Value currentVarMulMomentum = rewriter.create<Torch::AtenMulScalarOp>(
+            loc, varResultType, currentVar, cstMomentum);
+        Value inpVarMMSubCurVarMM = rewriter.create<Torch::AtenSubTensorOp>(
+            loc, varResultType, inputVarMulMomentum, currentVarMulMomentum,
+            constantOne);
+        Value runningVar = rewriter.create<Torch::AtenAddTensorOp>(
+            loc, varResultType, inpVarMMSubCurVarMM, currentVar, constantOne);
+
+        // Computing Y.
+        Value y = rewriter.create<Torch::AtenBatchNormOp>(
+            loc, resultType, input, weight, bias, currentMean, currentVar,
+            /*training=*/cstFalse, cstMomentum, cstEps,
+            /*cudnn_enabled=*/cstFalse);
+
+        rewriter.replaceOp(binder.op, {y, runningMean, runningVar});
+        return success();
+      });
   patterns.onOp(
       "AveragePool", 11,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
