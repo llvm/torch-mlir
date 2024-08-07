@@ -2689,7 +2689,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value onehot = rewriter.create<Torch::AtenOneHotOp>(
             binder.getLoc(), onehotTy, indices, depth);
 
-        for (int i = valuesTy.getSizes().size(); i > axis; ++i) {
+        for (int i = indicesTy.getSizes().size(); i > axis; --i) {
           std::swap(onehotShape[i - 1], onehotShape[i]);
           Value iv0 = rewriter.create<Torch::ConstantIntOp>(
               loc, rewriter.getI64IntegerAttr(i));
@@ -2698,7 +2698,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
           onehotTy =
               rewriter.getType<Torch::ValueTensorType>(onehotShape, i32Ty);
-          onehot = rewriter.create<Torch::AtenTransposeIntOp>(loc, resultType,
+          onehot = rewriter.create<Torch::AtenTransposeIntOp>(loc, onehotTy,
                                                               onehot, iv1, iv0);
         }
 
