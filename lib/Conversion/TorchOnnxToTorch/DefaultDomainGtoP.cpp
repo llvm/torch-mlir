@@ -1605,6 +1605,24 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value constAxis = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), axis));
+
+        auto indicesTy = cast<Torch::ValueTensorType>(indices.getType());
+        Value constZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value constOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value axisSize = rewriter.create<Torch::AtenSizeIntOp>(binder.getLoc(),
+                                                               data, constAxis);
+        Value indicesAdd = rewriter.create<Torch::AtenAddScalarOp>(
+            binder.getLoc(), indicesTy, indices, axisSize, constOne);
+
+        auto boolTy = rewriter.getType<Torch::ValueTensorType>(
+            indicesTy.getSizes(), rewriter.getI1Type());
+        Value lt = rewriter.create<Torch::AtenLtScalarOp>(
+            binder.getLoc(), boolTy, indices, constZero);
+        indices = rewriter.create<Torch::AtenWhereSelfOp>(
+            binder.getLoc(), indicesTy, lt, indicesAdd, indices);
+
         Value sparseGrad = rewriter.create<Torch::ConstantBoolOp>(
             binder.getLoc(), rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(false));
