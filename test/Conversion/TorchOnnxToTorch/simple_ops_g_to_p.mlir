@@ -1489,8 +1489,8 @@ func.func @test_onehot_negative_indices(%arg0: !torch.vtensor<[3],si64>, %arg1: 
   // CHECK: %[[SELECT:.*]] = torch.aten.select.int %arg2, %[[C0]], %[[C1]]: !torch.vtensor<[2],f32>, !torch.int, !torch.int -> !torch.vtensor<[1],f32>
   // CHECK: %[[ITEM_1:.*]] = torch.aten.item %[[SELECT]] : !torch.vtensor<[1],f32> -> !torch.float
   // CHECK: %[[ONEHOT:.*]] = torch.aten.one_hot %[[WHERE]], %[[INT]] : !torch.vtensor<[3],si64>, !torch.int -> !torch.vtensor<[3,?],si32>
-  // CHECK: %[[D0:.+]] = torch.constant.int 1 
-  // CHECK: %[[D1:.+]] = torch.constant.int 0 
+  // CHECK: %[[D0:.+]] = torch.constant.int 1
+  // CHECK: %[[D1:.+]] = torch.constant.int 0
   // CHECK: %[[TRANS:.+]] = torch.aten.transpose.int %[[ONEHOT]], %[[D1]], %[[D0]]
   // CHECK: %[[C11:.*]] = torch.constant.int 11
   // CHECK: %[[NONE_0:.*]] = torch.constant.none
