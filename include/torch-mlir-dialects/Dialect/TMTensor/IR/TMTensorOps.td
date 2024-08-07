@@ -374,7 +374,7 @@ def TMTensor_TopkOp : TMTensor_Op<"topk",
       if (getNumInputs() < 2) {
         return {};
       }
-        return getInputOperand(1)->get();
+      return getInputOperand(1)->get();
     }
     Value outputValues() {
       return getOutputOperand(0)->get();
