@@ -3229,6 +3229,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: non-floating point dtype");
 
+        Torch::ValueTensorType comparisonResultType =
+            rewriter.getType<Torch::ValueTensorType>(
+                ArrayRef<int64_t>(inputType.getSizes()), rewriter.getI1Type());
+
         // The formula of this operator is: If x < -lambd, y = x + bias; If x >
         // lambd, y = x - bias; Otherwise, y = 0.
         // The implementation is based on the following algorithm:
@@ -3261,13 +3265,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             loc, rewriter.getFloatAttr(rewriter.getF64Type(), -lambd));
 
         Value inputLTNegLambd = rewriter.create<Torch::AtenLtScalarOp>(
-            loc, inputType, input, constNegLambd);
+            loc, comparisonResultType, input, constNegLambd);
         Value inputPlusBias = rewriter.create<Torch::AtenAddScalarOp>(
             loc, inputType, input, constBias, /*alpha=*/constOne);
         Value inputSubBias = rewriter.create<Torch::AtenSubScalarOp>(
             loc, inputType, input, constBias, /*alpha=*/constOne);
         Value inputGTLambd = rewriter.create<Torch::AtenGtScalarOp>(
-            loc, inputType, input, constLambd);
+            loc, comparisonResultType, input, constLambd);
 
         Value inputSubBiasOrZero =
             rewriter.create<Torch::AtenWhereScalarOtherOp>(
