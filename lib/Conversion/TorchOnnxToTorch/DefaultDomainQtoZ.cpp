@@ -1345,14 +1345,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           }
 
           if (IntegerType intTy = dyn_cast<IntegerType>(dty)) {
-            auto mx =
+            auto minInt =
                 intTy.isSigned()
                     ? APInt::getSignedMinValue(intTy.getIntOrFloatBitWidth())
                     : APInt::getMinValue(intTy.getIntOrFloatBitWidth());
             scalar = rewriter.create<Torch::ConstantIntOp>(
                 binder.getLoc(), torchIntTy,
                 rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                        mx.getSExtValue()));
+                                        minInt.getSExtValue()));
           }
 
           llvm::SmallVector<Value> fillDims;
