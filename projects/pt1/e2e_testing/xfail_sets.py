@@ -117,6 +117,7 @@ TORCHDYNAMO_XFAIL_SET = {
     # END tests failing due to: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(float) [TensorVariable()] {}
     # START tests failing due to: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
     "AddIntModule_basic",
+    "AddFloatIntModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
     "BoolIntFalseModule_basic",
     "BoolIntTrueModule_basic",
@@ -339,6 +340,7 @@ TORCHDYNAMO_CRASHING_SET = {
 
 FX_IMPORTER_XFAIL_SET = {
     "ReduceAnyDimFloatModule_basic",
+    "AddFloatIntModule_basic",
     "AllBoolFalseModule_basic",
     "AllBoolTrueModule_basic",
     "AnyBoolFalseModule_basic",
@@ -855,6 +857,7 @@ STABLEHLO_PASS_SET = {
     "AdaptiveAvgPool2dOutputSizeDivisibleByInputStaticModule_basic",
     "AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule_basic",
     "AddIntModule_basic",
+    "AddFloatIntModule_basic",
     "AliasModule_basic",
     "TrueFalseOrBoolOpModule_basic",
     "AllBoolFalseModule_basic",
@@ -2100,6 +2103,7 @@ LTC_XFAIL_SET = {
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "MaxPool3dEmptyStrideStaticModule_basic",
     "AddIntModule_basic",
+    "AddFloatIntModule_basic",
     "ArangeStartOutViewModule_basic",
     "AtenIntBoolOpModule_basic",
     "BernoulliTensorModule_basic",
@@ -2288,6 +2292,7 @@ ONNX_XFAIL_SET = {
     "AdaptiveMaxPool3dStatic_basic",
     "AddCDivModule_basic",
     "AddIntModule_basic",
+    "AddFloatIntModule_basic",
     "Add_Module_basic",
     "AllBoolFalseModule_basic",
     "AllBoolTrueModule_basic",
@@ -2840,6 +2845,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AdaptiveMaxPool3dStaticWithIndices_basic",
     "AdaptiveMaxPool3dStatic_basic",
     "AddIntModule_basic",
+    "AddFloatIntModule_basic",
     "Add_MixPModule_basic",
     "AllBoolFalseModule_basic",
     "AllBoolTrueModule_basic",
@@ -3609,6 +3615,7 @@ ONNX_TOSA_XFAIL_SET = {
     "AdaptiveMaxPool3dStatic_basic",
     "AddCDivModule_basic",
     "AddIntModule_basic",
+    "AddFloatIntModule_basic",
     "AddSizeIntModule_basic",
     "AddSizeIntNegDimModule_basic",
     "Add_MixPModule_basic",
