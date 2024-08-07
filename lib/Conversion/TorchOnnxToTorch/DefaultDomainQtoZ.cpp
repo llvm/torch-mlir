@@ -1328,7 +1328,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         auto dataTy = cast<Torch::BaseTensorType>(data.getType());
         Torch::IntType torchIntTy = rewriter.getType<Torch::IntType>();
 
-        // If any of the input dims are 0 we set to the upper limit:
+        // If any of the input dims are 0 we set to the lower limit:
         if (llvm::any_of(dataTy.getSizes(), [](int64_t d) { return d == 0; }) &&
             (llvm::any_of(dataTy.getSizes(),
                           [](int64_t d) { return d == Torch::kUnknownSize; }) ||
@@ -1336,7 +1336,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           auto dty = dataTy.getDtype();
           Value scalar;
           if (FloatType fpTy = dyn_cast<FloatType>(dty)) {
-            auto inf = APFloat::getInf(fpTy.getFloatSemantics());
+            auto inf =
+                APFloat::getInf(fpTy.getFloatSemantics(), /*Negative=*/true);
             scalar = rewriter.create<Torch::ConstantFloatOp>(
                 binder.getLoc(), rewriter.getType<Torch::FloatType>(),
                 rewriter.getFloatAttr(rewriter.getF64Type(),
@@ -1344,14 +1345,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           }
 
           if (IntegerType intTy = dyn_cast<IntegerType>(dty)) {
-            auto mx =
+            auto minInt =
                 intTy.isSigned()
-                    ? APInt::getSignedMaxValue(intTy.getIntOrFloatBitWidth())
-                    : APInt::getMaxValue(intTy.getIntOrFloatBitWidth());
+                    ? APInt::getSignedMinValue(intTy.getIntOrFloatBitWidth())
+                    : APInt::getMinValue(intTy.getIntOrFloatBitWidth());
             scalar = rewriter.create<Torch::ConstantIntOp>(
                 binder.getLoc(), torchIntTy,
                 rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                        mx.getSExtValue()));
+                                        minInt.getSExtValue()));
           }
 
           llvm::SmallVector<Value> fillDims;
