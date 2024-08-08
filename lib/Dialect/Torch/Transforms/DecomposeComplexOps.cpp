@@ -8301,6 +8301,7 @@ class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
           op, "input tensor should have known sizes.");
     int64_t inputRank = inputType.getSizes().size();
     int64_t numClasses = Torch::kUnknownSize;
+    auto resultType = cast<ValueTensorType>(op.getType());
     matchPattern(op.getNumClasses(), m_TorchConstantInt(&numClasses));
     Value none = rewriter.create<ConstantNoneOp>(loc);
 
@@ -8313,14 +8314,15 @@ class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
         /*device=*/none, /*pin_memory=*/none);
 
     // unsqueeze input
-    llvm::SmallVector<int64_t> unsqueezeShape(inputType.getSizes());
-    unsqueezeShape.push_back(1);
-    auto unsqueezeType =
-        ValueTensorType::get(context, unsqueezeShape, si64Type);
-    Value unsqueezeTensor = rewriter.create<AtenUnsqueezeOp>(
-        loc, unsqueezeType, input,
-        rewriter.create<ConstantIntOp>(loc,
-                                       rewriter.getI64IntegerAttr(inputRank)));
+    Value rankV = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(inputRank));
+    auto unsqueeze = Torch::unsqueezeTensor(rewriter, op, input, rankV);
+    if (failed(unsqueeze))
+      return rewriter.notifyMatchFailure(op,
+                                         "cannot generate unsqueeze tensor");
+
+    Value unsqueezeTensor =
+        convertTensorToDtype(rewriter, loc, *unsqueeze, si64Type);
 
     // compare
     auto eqType = ValueTensorType::get(
@@ -8330,7 +8332,8 @@ class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
         loc, eqType, unsqueezeTensor, arangeTensor);
 
     // convert to si64
-    Value result = convertTensorToDtype(rewriter, loc, eqTensor, si64Type);
+    Value result =
+        convertTensorToDtype(rewriter, loc, eqTensor, resultType.getDtype());
     rewriter.replaceOp(op, result);
     return success();
   }

@@ -72,8 +72,11 @@ public:
   matchAndRewrite(AtenOp op,
                   typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.template replaceOpWithNewOp<BinOp>(op, adaptor.getA(),
-                                                adaptor.getB());
+    Value a = adaptor.getA();
+    Value b = adaptor.getB();
+    if (llvm::is_one_of<AtenOp, AtenAddFloatIntOp>::value)
+      b = convertScalarToDtype(rewriter, op.getLoc(), b, a.getType());
+    rewriter.template replaceOpWithNewOp<BinOp>(op, a, b);
     return success();
   }
 };
@@ -239,6 +242,25 @@ public:
 namespace {
 template <typename AtenOp>
 class ConvertAtenCastOp : public OpConversionPattern<AtenOp> {
+public:
+  using OpConversionPattern<AtenOp>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenOp op,
+                  typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Type resultType =
+        this->getTypeConverter()->convertType(op->getResult(0).getType());
+    Value result =
+        convertScalarToDtype(rewriter, op.getLoc(), adaptor.getA(), resultType);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+template <typename AtenOp>
+class ConvertAtenScalarArithOp : public OpConversionPattern<AtenOp> {
 public:
   using OpConversionPattern<AtenOp>::OpConversionPattern;
   LogicalResult
@@ -444,8 +466,11 @@ public:
     target.addIllegalOp<AtenAddOp>();
     patterns.add<ConvertAtenAddOp>(typeConverter, context);
 
-    target.addIllegalOp<AtenAddIntOp, AtenSubIntOp, AtenMulIntOp>();
+    target.addIllegalOp<AtenAddIntOp, AtenAddFloatIntOp, AtenSubIntOp,
+                        AtenMulIntOp>();
     patterns.add<ConvertAtenBinaryOp<AtenAddIntOp, arith::AddIOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<AtenAddFloatIntOp, arith::AddFOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenSubIntOp, arith::SubIOp>>(
         typeConverter, context);

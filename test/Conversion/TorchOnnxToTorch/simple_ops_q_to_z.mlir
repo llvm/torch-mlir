@@ -505,6 +505,18 @@ func.func @test_squeeze_two_axes(%arg0: !torch.vtensor<[3,1,4,5,1],f32>, %arg1: 
 
 // -----
 
+// CHECK-LABEL: func.func @test_unsqueeze_dyn_dims
+func.func @test_unsqueeze_dyn_dims(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,1,?],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 21 : si64, torch.onnx_meta.producer_name = "pytorch", torch.onnx_meta.producer_version = "1.11.0"} {
+  // CHECK: %[[x0:.*]] = torch.vtensor.literal(dense<1> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+  // CHECK: %[[int1:.*]] = torch.constant.int 1
+  // CHECK: %[[x1:.*]] = torch.aten.unsqueeze %arg0, %[[int1]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[?,1,?],f32>
+  %0 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<1> : tensor<1xsi64>} : () -> !torch.vtensor<[1],si64>
+  %1 = torch.operator "onnx.Unsqueeze"(%arg0, %0) : (!torch.vtensor<[?,?],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[?,1,?],f32>
+  return %1 : !torch.vtensor<[?,1,?],f32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_unsqueeze_axis_0
 func.func @test_unsqueeze_axis_0(%arg0: !torch.vtensor<[3,4,5],f32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[1,3,4,5],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[INT0:.*]] = torch.constant.int 0
@@ -644,7 +656,7 @@ func.func @test_selu(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,
 
 // CHECK-LABEL: func.func @test_reduce_max_empty_set_fp
 func.func @test_reduce_max_empty_set_fp(%arg0: !torch.vtensor<[2,0,4],f32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[2,1,4],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK-DAG: %[[INF:.+]] = torch.constant.float 0x7FF0000000000000
+  // CHECK-DAG: %[[INF:.+]] = torch.constant.float 0xFFF0000000000000
   // CHECK-DAG: %[[INT2:.+]] = torch.constant.int 2
   // CHECK-DAG: %[[INT1:.+]] = torch.constant.int 1
   // CHECK-DAG: %[[INT4:.+]] = torch.constant.int 4
@@ -660,7 +672,7 @@ func.func @test_reduce_max_empty_set_fp(%arg0: !torch.vtensor<[2,0,4],f32>, %arg
 
 // CHECK-LABEL: func.func @test_reduce_max_empty_set_int
 func.func @test_reduce_max_empty_set_int(%arg0: !torch.vtensor<[2,0,4],si32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[2,1,4],si32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK-DAG: %[[INF:.+]] = torch.constant.int 2147483647
+  // CHECK-DAG: %[[INF:.+]] = torch.constant.int -2147483648
   // CHECK-DAG: %[[INT2:.+]] = torch.constant.int 2
   // CHECK-DAG: %[[INT1:.+]] = torch.constant.int 1
   // CHECK-DAG: %[[INT4:.+]] = torch.constant.int 4
@@ -2377,12 +2389,12 @@ func.func @Shrink(%arg0: !torch.vtensor<[5],f32>) -> !torch.vtensor<[5],f32> att
   // CHECK: %float0.000000e00 = torch.constant.float 0.000000e+00
   // CHECK: %float1.000000e00 = torch.constant.float 1.000000e+00
   // CHECK: %float-1.500000e00 = torch.constant.float -1.500000e+00
-  // CHECK: %0 = torch.aten.lt.Scalar %arg0, %float-1.500000e00 : !torch.vtensor<[5],f32>, !torch.float -> !torch.vtensor<[5],f32>
+  // CHECK: %0 = torch.aten.lt.Scalar %arg0, %float-1.500000e00 : !torch.vtensor<[5],f32>, !torch.float -> !torch.vtensor<[5],i1>
   // CHECK: %1 = torch.aten.add.Scalar %arg0, %float1.500000e00_0, %float1.000000e00 : !torch.vtensor<[5],f32>, !torch.float, !torch.float -> !torch.vtensor<[5],f32>
   // CHECK: %2 = torch.aten.sub.Scalar %arg0, %float1.500000e00_0, %float1.000000e00 : !torch.vtensor<[5],f32>, !torch.float, !torch.float -> !torch.vtensor<[5],f32>
-  // CHECK: %3 = torch.aten.gt.Scalar %arg0, %float1.500000e00 : !torch.vtensor<[5],f32>, !torch.float -> !torch.vtensor<[5],f32>
-  // CHECK: %4 = torch.aten.where.ScalarOther %3, %2, %float0.000000e00 : !torch.vtensor<[5],f32>, !torch.vtensor<[5],f32>, !torch.float -> !torch.vtensor<[5],f32>
-  // CHECK: %5 = torch.aten.where.self %0, %1, %4 : !torch.vtensor<[5],f32>, !torch.vtensor<[5],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor<[5],f32>
+  // CHECK: %3 = torch.aten.gt.Scalar %arg0, %float1.500000e00 : !torch.vtensor<[5],f32>, !torch.float -> !torch.vtensor<[5],i1>
+  // CHECK: %4 = torch.aten.where.ScalarOther %3, %2, %float0.000000e00 : !torch.vtensor<[5],i1>, !torch.vtensor<[5],f32>, !torch.float -> !torch.vtensor<[5],f32>
+  // CHECK: %5 = torch.aten.where.self %0, %1, %4 : !torch.vtensor<[5],i1>, !torch.vtensor<[5],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor<[5],f32>
   // CHECK: return %5 : !torch.vtensor<[5],f32>
   %0 = torch.operator "onnx.Shrink"(%arg0) {torch.onnx.bias = 1.500000e+00 : f32, torch.onnx.lambd = 1.500000e+00 : f32} : (!torch.vtensor<[5],f32>) -> !torch.vtensor<[5],f32>
   return %0 : !torch.vtensor<[5],f32>
@@ -2397,12 +2409,12 @@ func.func @test_shrink_hard(%arg0: !torch.vtensor<[5],f32>) -> !torch.vtensor<[5
   // CHECK: %float0.000000e00_0 = torch.constant.float 0.000000e+00
   // CHECK: %float1.000000e00 = torch.constant.float 1.000000e+00
   // CHECK: %float-1.500000e00 = torch.constant.float -1.500000e+00
-  // CHECK: %0 = torch.aten.lt.Scalar %arg0, %float-1.500000e00 : !torch.vtensor<[5],f32>, !torch.float -> !torch.vtensor<[5],f32>
+  // CHECK: %0 = torch.aten.lt.Scalar %arg0, %float-1.500000e00 : !torch.vtensor<[5],f32>, !torch.float -> !torch.vtensor<[5],i1>
   // CHECK: %1 = torch.aten.add.Scalar %arg0, %float0.000000e00, %float1.000000e00 : !torch.vtensor<[5],f32>, !torch.float, !torch.float -> !torch.vtensor<[5],f32>
   // CHECK: %2 = torch.aten.sub.Scalar %arg0, %float0.000000e00, %float1.000000e00 : !torch.vtensor<[5],f32>, !torch.float, !torch.float -> !torch.vtensor<[5],f32>
-  // CHECK: %3 = torch.aten.gt.Scalar %arg0, %float1.500000e00 : !torch.vtensor<[5],f32>, !torch.float -> !torch.vtensor<[5],f32>
-  // CHECK: %4 = torch.aten.where.ScalarOther %3, %2, %float0.000000e00_0 : !torch.vtensor<[5],f32>, !torch.vtensor<[5],f32>, !torch.float -> !torch.vtensor<[5],f32>
-  // CHECK: %5 = torch.aten.where.self %0, %1, %4 : !torch.vtensor<[5],f32>, !torch.vtensor<[5],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor<[5],f32>
+  // CHECK: %3 = torch.aten.gt.Scalar %arg0, %float1.500000e00 : !torch.vtensor<[5],f32>, !torch.float -> !torch.vtensor<[5],i1>
+  // CHECK: %4 = torch.aten.where.ScalarOther %3, %2, %float0.000000e00_0 : !torch.vtensor<[5],i1>, !torch.vtensor<[5],f32>, !torch.float -> !torch.vtensor<[5],f32>
+  // CHECK: %5 = torch.aten.where.self %0, %1, %4 : !torch.vtensor<[5],i1>, !torch.vtensor<[5],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor<[5],f32>
   // CHECK: return %5 : !torch.vtensor<[5],f32>
   %0 = torch.operator "onnx.Shrink"(%arg0) {torch.onnx.lambd = 1.500000e+00 : f32} : (!torch.vtensor<[5],f32>) -> !torch.vtensor<[5],f32>
   return %0 : !torch.vtensor<[5],f32>

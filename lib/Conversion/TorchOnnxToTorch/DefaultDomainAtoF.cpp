@@ -759,6 +759,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value cstTwo = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(2));
         auto scalarTensorType = rewriter.getType<Torch::ValueTensorType>(
+            ArrayRef<int64_t>{}, rewriter.getIntegerType(64, /*signed*/ 1));
+        auto selectTensorType = rewriter.getType<Torch::ValueTensorType>(
             ArrayRef<int64_t>{1}, rewriter.getIntegerType(64, /*signed*/ 1));
 
         int64_t lastChangeDim = 0;
@@ -790,7 +792,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           Value kTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
               binder.getLoc(), scalarTensorType, k);
           Value sel = rewriter.create<Torch::AtenIndexSelectOp>(
-              binder.getLoc(), scalarTensorType, shape, cstZero, kTensor);
+              binder.getLoc(), selectTensorType, shape, cstZero, kTensor);
           Value outputDimSize = rewriter.create<Torch::AtenItemOp>(
               binder.getLoc(), rewriter.getType<Torch::IntType>(), sel);
           Value inputDimSize = rewriter.create<Torch::AtenSizeIntOp>(

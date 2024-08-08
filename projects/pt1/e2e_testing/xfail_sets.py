@@ -117,6 +117,7 @@ TORCHDYNAMO_XFAIL_SET = {
     # END tests failing due to: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(float) [TensorVariable()] {}
     # START tests failing due to: torch._dynamo.exc.Unsupported: call_function BuiltinVariable(int) [TensorVariable()] {}
     "AddIntModule_basic",
+    "AddFloatIntModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
     "BoolIntFalseModule_basic",
     "BoolIntTrueModule_basic",
@@ -339,6 +340,7 @@ TORCHDYNAMO_CRASHING_SET = {
 
 FX_IMPORTER_XFAIL_SET = {
     "ReduceAnyDimFloatModule_basic",
+    "AddFloatIntModule_basic",
     "AllBoolFalseModule_basic",
     "AllBoolTrueModule_basic",
     "AnyBoolFalseModule_basic",
@@ -855,6 +857,7 @@ STABLEHLO_PASS_SET = {
     "AdaptiveAvgPool2dOutputSizeDivisibleByInputStaticModule_basic",
     "AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule_basic",
     "AddIntModule_basic",
+    "AddFloatIntModule_basic",
     "AliasModule_basic",
     "TrueFalseOrBoolOpModule_basic",
     "AllBoolFalseModule_basic",
@@ -1320,6 +1323,8 @@ STABLEHLO_PASS_SET = {
     "TensorToFloatZeroRank_basic",
     "TensorToIntZeroRank_basic",
     "TensorsConcatModule_basic",
+    "TensorsConcatComplex128FloatModule_basic",
+    "TensorsConcatComplex64FloatModule_basic",
     "TensorsConcatNegativeDimModule_basic",
     "TensorsConcatNegativeDimStaticModule_basic",
     "TensorsConcatPromoteDTypeModule_basic",
@@ -1504,7 +1509,11 @@ STABLEHLO_PASS_SET = {
     "RenormModuleFloat32_basic",
 }
 
-STABLEHLO_CRASHING_SET = {"IndexPutWithNoneAndBroadcastModule_basic"}
+STABLEHLO_CRASHING_SET = {
+    "IndexPutWithNoneAndBroadcastModule_basic",
+    "ReduceMaxAlongDimUnsignedInt_basic",
+    "ReduceMinAlongDimUnsignedInt_basic",
+}
 
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
@@ -2098,6 +2107,7 @@ LTC_XFAIL_SET = {
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "MaxPool3dEmptyStrideStaticModule_basic",
     "AddIntModule_basic",
+    "AddFloatIntModule_basic",
     "ArangeStartOutViewModule_basic",
     "AtenIntBoolOpModule_basic",
     "BernoulliTensorModule_basic",
@@ -2286,6 +2296,7 @@ ONNX_XFAIL_SET = {
     "AdaptiveMaxPool3dStatic_basic",
     "AddCDivModule_basic",
     "AddIntModule_basic",
+    "AddFloatIntModule_basic",
     "Add_Module_basic",
     "AllBoolFalseModule_basic",
     "AllBoolTrueModule_basic",
@@ -2598,6 +2609,8 @@ ONNX_XFAIL_SET = {
     "SubFloatModule_basic",
     "SubIntModule_basic",
     "TanhBackward_basic",
+    "TensorsConcatComplex128FloatModule_basic",
+    "TensorsConcatComplex64FloatModule_basic",
     "TensorToBoolZeroRank_basic",
     "TensorToBool_basic",
     "TensorToFloatZeroRank_basic",
@@ -2836,6 +2849,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AdaptiveMaxPool3dStaticWithIndices_basic",
     "AdaptiveMaxPool3dStatic_basic",
     "AddIntModule_basic",
+    "AddFloatIntModule_basic",
     "Add_MixPModule_basic",
     "AllBoolFalseModule_basic",
     "AllBoolTrueModule_basic",
@@ -3605,6 +3619,7 @@ ONNX_TOSA_XFAIL_SET = {
     "AdaptiveMaxPool3dStatic_basic",
     "AddCDivModule_basic",
     "AddIntModule_basic",
+    "AddFloatIntModule_basic",
     "AddSizeIntModule_basic",
     "AddSizeIntNegDimModule_basic",
     "Add_MixPModule_basic",

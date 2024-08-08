@@ -788,15 +788,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
           llvm::SmallVector<int64_t> shuffledPadding(spatial * 2);
           llvm::SmallVector<int64_t> paddedShape(operandTy.getSizes());
-          shuffledPadding.resize(2 * rank);
           for (int i = 0; i < spatial; ++i) {
             paddedShape[i + 2] += padding[i] + padding[i + spatial];
-            shuffledPadding[2 * i] = padding[i];
-            shuffledPadding[2 * i + 1] = padding[i + spatial];
+            shuffledPadding[2 * i] = padding[spatial - i - 1];
+            shuffledPadding[2 * i + 1] = padding[2 * spatial - i - 1];
           }
 
           Value shuffledPaddingList =
-              createConstantIntList(binder, rewriter, padding);
+              createConstantIntList(binder, rewriter, shuffledPadding);
           Value zero;
           if (isa<FloatType>(resultTypeOut.getDtype())) {
             zero = rewriter.create<Torch::ConstantFloatOp>(
@@ -1605,6 +1604,24 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value constAxis = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), axis));
+
+        auto indicesTy = cast<Torch::ValueTensorType>(indices.getType());
+        Value constZero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value constOne = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value axisSize = rewriter.create<Torch::AtenSizeIntOp>(binder.getLoc(),
+                                                               data, constAxis);
+        Value indicesAdd = rewriter.create<Torch::AtenAddScalarOp>(
+            binder.getLoc(), indicesTy, indices, axisSize, constOne);
+
+        auto boolTy = rewriter.getType<Torch::ValueTensorType>(
+            indicesTy.getSizes(), rewriter.getI1Type());
+        Value lt = rewriter.create<Torch::AtenLtScalarOp>(
+            binder.getLoc(), boolTy, indices, constZero);
+        indices = rewriter.create<Torch::AtenWhereSelfOp>(
+            binder.getLoc(), indicesTy, lt, indicesAdd, indices);
+
         Value sparseGrad = rewriter.create<Torch::ConstantBoolOp>(
             binder.getLoc(), rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(false));
@@ -2689,7 +2706,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value onehot = rewriter.create<Torch::AtenOneHotOp>(
             binder.getLoc(), onehotTy, indices, depth);
 
-        for (int i = valuesTy.getSizes().size(); i > axis; ++i) {
+        for (int i = indicesTy.getSizes().size(); i > axis; --i) {
           std::swap(onehotShape[i - 1], onehotShape[i]);
           Value iv0 = rewriter.create<Torch::ConstantIntOp>(
               loc, rewriter.getI64IntegerAttr(i));
@@ -2698,7 +2715,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
           onehotTy =
               rewriter.getType<Torch::ValueTensorType>(onehotShape, i32Ty);
-          onehot = rewriter.create<Torch::AtenTransposeIntOp>(loc, resultType,
+          onehot = rewriter.create<Torch::AtenTransposeIntOp>(loc, onehotTy,
                                                               onehot, iv1, iv0);
         }
 
