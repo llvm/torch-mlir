@@ -333,9 +333,9 @@ diagonalizeInputAndRewriteEquation(Location loc, PatternRewriter &rewriter,
         continue;
 
       // Remove the ID and move to the end:
-      for (int i = d0 + 1; i < d1; ++i)
+      for (size_t i = d0 + 1; i < d1; ++i)
         inputStr[i - 1] = inputStr[i];
-      for (int i = d1 + 1, s = inputStr.size(); i < s; ++i)
+      for (size_t i = d1 + 1, s = inputStr.size(); i < s; ++i)
         inputStr[i - 2] = inputStr[i];
 
       inputStr[inputStr.size() - 2] = id;
@@ -343,7 +343,7 @@ diagonalizeInputAndRewriteEquation(Location loc, PatternRewriter &rewriter,
 
       auto inputTy = cast<ValueTensorType>(input.getType());
       llvm::SmallVector<int64_t> newShape;
-      for (int i = 0, s = inputTy.getSizes().size(); i < s; ++i) {
+      for (size_t i = 0, s = inputTy.getSizes().size(); i < s; ++i) {
         if (i == d0 || i == d1)
           continue;
         newShape.push_back(inputTy.getSizes()[i]);
