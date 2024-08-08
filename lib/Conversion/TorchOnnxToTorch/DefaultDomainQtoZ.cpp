@@ -214,6 +214,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.tensorResultType(resultType))
           return failure();
 
+        auto loc = binder.getLoc();
         Value operand = operands[0];
         Value scale = operands[1];
         Value zeropoint = operands[2];
@@ -225,33 +226,61 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(binder.op,
                                              "requires known result dtype");
 
-        if (scaleTy.getSizes().size() == 0) {
-          auto qTensorTy = getQTorchTypeFromTorchIntType(resultType);
-          if (!qTensorTy) {
-            return rewriter.notifyMatchFailure(binder.op,
-                                               "unsupported result dtype");
-          }
+        auto resultETy = resultType.getDtype();
 
-          auto torchqTy = Torch::getScalarTypeForType(qTensorTy.getDtype());
+        bool rank0 = scaleTy.getSizes().size() == 0;
+        bool length1 =
+            scaleTy.getSizes().size() == 1 && scaleTy.getSizes()[0] == 1;
 
-          Value tyConst = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(),
-              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                      static_cast<int64_t>(torchqTy)));
+        if (!rank0 && !length1)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "unimplemented: non-scalar scale");
 
-          scale = rewriter.create<Torch::AtenItemOp>(
-              binder.getLoc(), rewriter.getType<Torch::FloatType>(), scale);
-          zeropoint = rewriter.create<Torch::AtenItemOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(), zeropoint);
+        auto qTensorTy = getQTorchTypeFromTorchIntType(resultType);
+        if (!qTensorTy) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "unsupported result dtype");
+        }
 
-          auto quantize = rewriter.create<Torch::AtenQuantizePerTensorOp>(
-              binder.getLoc(), qTensorTy, operand, scale, zeropoint, tyConst);
-          rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(
-              binder.op, resultType, quantize);
+        auto torchqTy = Torch::getScalarTypeForType(qTensorTy.getDtype());
+
+        Value tyConst = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    static_cast<int64_t>(torchqTy)));
+
+        scale = rewriter.create<Torch::AtenItemOp>(
+            loc, rewriter.getType<Torch::FloatType>(), scale);
+
+        bool fpResult = isa<mlir::FloatType>(resultETy);
+        Type zeropointTy = rewriter.getType<Torch::IntType>();
+        if (fpResult)
+          zeropointTy = rewriter.getType<Torch::FloatType>();
+        zeropoint =
+            rewriter.create<Torch::AtenItemOp>(loc, zeropointTy, zeropoint);
+
+        if (fpResult) {
+          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+          Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+          Value one = rewriter.create<Torch::ConstantFloatOp>(
+              loc, rewriter.getF64FloatAttr(1.0));
+          Value div = rewriter.create<Torch::AtenDivScalarOp>(
+              loc, operand.getType(), operand, scale);
+          Value add = rewriter.create<Torch::AtenAddScalarOp>(
+              loc, operand.getType(), div, zeropoint, one);
+
+          rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+              binder.op, resultType, add, tyConst,
+              /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+              /*memory_format=*/none);
           return success();
         }
 
-        return failure();
+        auto quantize = rewriter.create<Torch::AtenQuantizePerTensorOp>(
+            loc, qTensorTy, operand, scale, zeropoint, tyConst);
+        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
+                                                          quantize);
+        return success();
       });
   patterns.onOp(
       "QLinearConv", 1,
