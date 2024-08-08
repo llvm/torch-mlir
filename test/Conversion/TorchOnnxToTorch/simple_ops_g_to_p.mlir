@@ -670,8 +670,8 @@ func.func @test_maxpool_3d_default(%arg0: !torch.vtensor<[1,3,32,32,32],f32>) ->
 // CHECK-LABEL: func.func @test_maxpool_pad
 func.func @test_maxpool_pad(%arg0: !torch.vtensor<[1,64,111,111],f32>) -> !torch.vtensor<[1,64,56,56],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 12 : si64} {
   // CHECK: %[[INT1_0:.+]] = torch.constant.int 1
-  // CHECK: %[[INT1_1:.+]] = torch.constant.int 1
-  // CHECK: %[[INT2_0:.+]] = torch.constant.int 2
+  // CHECK: %[[INT1_1:.+]] = torch.constant.int 2
+  // CHECK: %[[INT2_0:.+]] = torch.constant.int 1
   // CHECK: %[[INT2_1:.+]] = torch.constant.int 2
   // CHECK: %[[PADI:.+]] = torch.prim.ListConstruct %[[INT1_0]], %[[INT1_1]], %[[INT2_0]], %[[INT2_1]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
   // CHECK: %[[MIN:.+]] = torch.constant.float -1.7976931348623157E+308

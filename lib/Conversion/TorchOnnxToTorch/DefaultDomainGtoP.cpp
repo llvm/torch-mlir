@@ -788,15 +788,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
           llvm::SmallVector<int64_t> shuffledPadding(spatial * 2);
           llvm::SmallVector<int64_t> paddedShape(operandTy.getSizes());
-          shuffledPadding.resize(2 * rank);
           for (int i = 0; i < spatial; ++i) {
             paddedShape[i + 2] += padding[i] + padding[i + spatial];
-            shuffledPadding[2 * i] = padding[i];
-            shuffledPadding[2 * i + 1] = padding[i + spatial];
+            shuffledPadding[2 * i] = padding[spatial - i - 1];
+            shuffledPadding[2 * i + 1] = padding[2 * spatial - i - 1];
           }
 
           Value shuffledPaddingList =
-              createConstantIntList(binder, rewriter, padding);
+              createConstantIntList(binder, rewriter, shuffledPadding);
           Value zero;
           if (isa<FloatType>(resultTypeOut.getDtype())) {
             zero = rewriter.create<Torch::ConstantFloatOp>(
