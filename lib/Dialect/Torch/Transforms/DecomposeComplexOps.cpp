@@ -304,6 +304,84 @@ static bool parseEquation(const std::string &equation,
   return true;
 }
 
+static bool
+diagonalizeInputAndRewriteEquation(Location loc, PatternRewriter &rewriter,
+                                   std::string &equation,
+                                   SmallVector<Value> &inputTensors) {
+  SmallVector<char> resultTokens;
+  SmallVector<SmallVector<char>> inputTokens;
+
+  if (!parseEquation(equation, inputTokens, resultTokens)) {
+    return false;
+  }
+
+  for (int i = 0, d = inputTokens.size(); i < d; ++i) {
+    SmallVector<char> inputStr = inputTokens[i];
+    Value input = inputTensors[i];
+
+    for (int d0 = 0; d0 < inputStr.size(); ++d0) {
+      char id = inputStr[d0];
+
+      int d1;
+      for (d1 = d0 + 1; d1 < inputStr.size(); d1++) {
+        if (id == inputStr[d1])
+          break;
+      }
+
+      // No duplicate found so we can continue.
+      if (d1 == inputStr.size())
+        continue;
+
+      // Remove the ID and move to the end:
+      for (int i = d0 + 1; i < d1; ++i)
+        inputStr[i - 1] = inputStr[i];
+      for (int i = d1 + 1, s = inputStr.size(); i < s; ++i)
+        inputStr[i - 2] = inputStr[i];
+
+      inputStr[inputStr.size() - 2] = id;
+      inputStr.resize(inputStr.size() - 1);
+
+      auto inputTy = cast<ValueTensorType>(input.getType());
+      llvm::SmallVector<int64_t> newShape;
+      for (int i = 0, s = inputTy.getSizes().size(); i < s; ++i) {
+        if (i == d0 || i == d1)
+          continue;
+        newShape.push_back(inputTy.getSizes()[i]);
+      }
+      newShape.push_back(inputTy.getSizes()[d0]);
+
+      inputTy = rewriter.getType<ValueTensorType>(newShape, inputTy.getDtype());
+
+      Value zero = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(0));
+
+      Value d0Val = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(d0));
+      Value d1Val = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(d1));
+
+      input = rewriter.create<AtenDiagonalOp>(loc, inputTy, /*input=*/input,
+                                              /*offset=*/zero, /*dim1=*/d0Val,
+                                              /*dim2=*/d1Val);
+
+      // Frontmost token will have changed:
+      d0--;
+    }
+
+    inputTokens[i] = inputStr;
+    inputTensors[i] = input;
+  }
+
+  llvm::SmallVector<std::string> inputStrings;
+  for (auto inputStr : inputTokens)
+    inputStrings.emplace_back(inputStr.begin(), inputStr.end());
+
+  std::string resultString(resultTokens.begin(), resultTokens.end());
+
+  equation = llvm::join(inputStrings, ",") + " -> " + resultString;
+  return true;
+}
+
 // [*batchingDims, *lhsOtherDims, *lhsReduceDims, *lhsContractingDims] =>
 // [batchingDimsProd, lhsOtherDimsProd, lhsContractingDimsProd]
 static Value collapseDimForMatmul(PatternRewriter &rewriter, Location loc,
@@ -1777,6 +1855,13 @@ public:
             op, "Unexpected character in equations encountered");
       }
     }
+
+    if (!diagonalizeInputAndRewriteEquation(op.getLoc(), rewriter, equation,
+                                            inputTensors)) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Failed to handle diagonalization");
+    }
+
     SmallVector<char> resultTokens;
     SmallVector<SmallVector<char>> inputTokens;
     if (!parseEquation(equation, inputTokens, resultTokens)) {
