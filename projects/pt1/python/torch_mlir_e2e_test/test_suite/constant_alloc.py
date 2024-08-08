@@ -1928,7 +1928,7 @@ class EmptyStridedModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([2, 3, 4], torch.float32, True),
+            ([4, 3, 4], torch.float32, True),
         ]
     )
     def forward(self, a):

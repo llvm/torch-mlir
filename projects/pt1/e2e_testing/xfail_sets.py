@@ -34,6 +34,31 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
 }
 
 LINALG_CRASHING_SET = {
+    # Runtime op verification: Out of bounds access
+    "AtenDiagEmbedNegOffsetDiag_basic",
+    "AtenDiagEmbedNonDefault4DDiag_basic",
+    "AtenDiagEmbedOffsetDiag_basic",
+    "AtenDiagEmbedRevDimDiag_basic",
+    "AtenEmbeddingBagStaticModule_basic",
+    "AtenEmbeddingBagSumExample_basic",
+    "Aten_EmbeddingBagExample_basic",
+    # Runtime op verification: subview is out-of-bounds of the base memref
+    "Conv_Transpose1dModule_basic",
+    "Conv_Transpose1dStaticModule_basic",
+    "Conv_Transpose2dModule_basic",
+    "Conv_Transpose2dStaticModule_basic",
+    "Conv_Transpose3dModule_basic",
+    "Conv_Transpose3dStaticModule_basic",
+    "ConvolutionModule2DTransposeStridedStatic_basic",
+    "ConvolutionModule2DTransposeStrided_basic",
+    "GridSamplerBasic1_basic",
+    "GridSamplerBasic2_basic",
+    "GridSamplerBasic3_basic",
+    "GridSamplerBasic4_basic",
+    # Runtime op verification: stride mismatch in memref.cast
+    "ReduceAllDimEmpty_basic",
+    "TraceUnsignedIntModule_empty",
+    "TraceModule_empty",
     # Crashes due to copy to a smaller destination buffer than the source buffer.
     "SliceCopyStartGreaterThanDimSize_Module_basic",
 }
@@ -470,8 +495,11 @@ FX_IMPORTER_XFAIL_SET = {
     "WeightNormInterfaceModule_basic",
 }
 
-FX_IMPORTER_CRASHING_SET = {
+FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "HBC_basic",
+    # Runtime op verification: out-of-bounds access
+    "_SoftmaxModule_basic",
+    "UpSampleNearest2dDynamicFactor_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
@@ -890,7 +918,6 @@ STABLEHLO_PASS_SET = {
     "AtenIntBoolOpModule_basic",
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
-    "AtenItemFpOpModule_basic",
     "AtenItemIntOpModule_basic",
     "AtenMmFloatTypes_basic",
     "AtenMmIntTypes_basic",
@@ -1513,6 +1540,16 @@ STABLEHLO_CRASHING_SET = {
     "IndexPutWithNoneAndBroadcastModule_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
+    # LLVM ERROR: Failed to infer result type(s)
+    "ElementwiseClampMinTensorFloatModule_basic",
+    "ElementwiseClampMinTensorIntModule_basic",
+    "ElementwiseClampTensorFloatModule_basic",
+    "ElementwiseClampTensorIntModule_basic",
+}
+
+TOSA_CRASHING_SET = {
+    # Runtime op verification: Out of bounds access
+    "IndexTensorNegativeIndexModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -1999,6 +2036,15 @@ TOSA_PASS_SET = {
     "RenormModuleFloat32_basic",
     "IndexTensorStaticContiguousWithNoneModule_basic",
     "IndexTensorStaticNonContiguousWithNoneModule_basic",
+}
+
+MAKE_FX_TOSA_CRASHING_SET = TOSA_CRASHING_SET | {
+    # Runtime op verification: static result dims in reassoc group do not divide src dim evenly
+    "FlattenDynamicModule_basic",
+    "ReshapeDynamicModule_basic",
+    "ViewFlattenAndExpandModule_basic",
+    "ViewSizeDimLedAndFollowedByExpandedOnesModule_basic",
+    "ViewSizeDimLedByExpandedOnesModule_basic",
 }
 
 MAKE_FX_TOSA_PASS_SET = (
@@ -2806,7 +2852,7 @@ if torch_version_for_comparison() < version.parse("2.4.0.dev"):
     }
 
 
-ONNX_CRASHING_SET = {
+ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
     "ElementwisePreluModule_basic",
@@ -2825,6 +2871,8 @@ ONNX_CRASHING_SET = {
     "StdCorrectionEmptyDimModule_basic",
     "VarCorrectionEmptyDimModule_basic",
     "VarDimEmptyDimModule_basic",
+    # Runtime op verification: rank mismatch in memref.cast
+    "ViewSizeFromOtherTensor_basic",
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
