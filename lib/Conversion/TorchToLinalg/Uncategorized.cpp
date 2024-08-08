@@ -992,6 +992,18 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<math::PowFOp>(loc, lhs, rhs);
   }
 
+  if (auto conj = dyn_cast<AtenConjPhysicalOp>(op)) {
+    Type dtype = cast<RankedTensorType>(converter->convertType(conj.getType()))
+                     .getElementType();
+    if (!isa<mlir::ComplexType>(dtype)) {
+      // do nothing with the result
+      return payloadArgs[0];
+    }
+    Value conjVal;
+    conjVal = b.create<complex::ConjOp>(loc, payloadArgs[0]);
+    return conjVal;
+  }
+
   if (auto imag = dyn_cast<AtenImagOp>(op)) {
     Type dtype = cast<RankedTensorType>(converter->convertType(imag.getType()))
                      .getElementType();
@@ -1562,9 +1574,9 @@ public:
              AtenLogicalAndOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp,
              AtenTriuOp, AtenTrilOp, AtenBitwiseNotOp, AtenRoundOp,
              AtenFillScalarOp, AtenFillTensorOp, AtenAtanOp, AtenAcosOp,
-             AtenAtanhOp, AtenAcoshOp, AtenAsinOp, AtenAsinhOp, AtenRealOp,
-             AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
-             AtenQuantizePerTensorOp>(op))
+             AtenAtanhOp, AtenAcoshOp, AtenAsinOp, AtenAsinhOp,
+             AtenConjPhysicalOp, AtenRealOp, AtenImagOp, AtenDequantizeSelfOp,
+             AtenDequantizeTensorOp, AtenQuantizePerTensorOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -3279,8 +3291,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
       AtenTrilOp, AtenRemainderScalarOp, AtenFmodTensorOp,
       AtenRemainderTensorOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
-      AtenFillTensorOp, AtenRealOp, AtenImagOp, AtenDequantizeSelfOp,
-      AtenDequantizeTensorOp, AtenQuantizePerTensorOp>();
+      AtenFillTensorOp, AtenConjPhysicalOp, AtenRealOp, AtenImagOp,
+      AtenDequantizeSelfOp, AtenDequantizeTensorOp, AtenQuantizePerTensorOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);

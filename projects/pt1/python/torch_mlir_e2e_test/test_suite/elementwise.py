@@ -5166,6 +5166,98 @@ def ElementwiseNegModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseConjPhysicalBoolModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bool, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.conj_physical(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseConjPhysicalBoolModule())
+def ElementwiseConjPhysicalBoolModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[True, False], [False, True]]))
+
+
+# ==============================================================================
+
+
+class ElementwiseConjPhysicalIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.conj_physical(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseConjPhysicalIntModule())
+def ElementwiseConjPhysicalIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-100, high=100))
+
+
+# ==============================================================================
+
+
+class ElementwiseConjPhysicalRealModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.conj_physical(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseConjPhysicalRealModule())
+def ElementwiseConjPhysicalRealModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseConjPhysicalComplexModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.complex64, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.conj_physical(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseConjPhysicalComplexModule())
+def ElementwiseConjPhysicalComplexModule_basic(module, tu: TestUtils):
+    module.forward(torch.view_as_complex(tu.rand(3, 4, 2)))
+
+
+# ==============================================================================
+
+
 class ElementwiseAtenLogicalOrOpModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
