@@ -315,11 +315,11 @@ diagonalizeInputAndRewriteEquation(Location loc, PatternRewriter &rewriter,
     return false;
   }
 
-  for (int i = 0, d = inputTokens.size(); i < d; ++i) {
+  for (size_t i = 0, d = inputTokens.size(); i < d; ++i) {
     SmallVector<char> inputStr = inputTokens[i];
     Value input = inputTensors[i];
 
-    for (int d0 = 0; d0 < inputStr.size(); ++d0) {
+    for (size_t d0 = 0; d0 < inputStr.size(); ++d0) {
       char id = inputStr[d0];
 
       int d1;
