@@ -90,6 +90,12 @@ struct onnx_list_of_constant_ints_op_binder {
       }
       return true;
     }
+    if (ElementsAttr attr = dyn_cast_or_null<ElementsAttr>(
+            constOp->getAttr("torch.onnx.value"))) {
+      for (auto axis : attr.getValues<llvm::APInt>())
+        bind_values.push_back(axis.getSExtValue());
+      return true;
+    }
     return false;
   }
 };
