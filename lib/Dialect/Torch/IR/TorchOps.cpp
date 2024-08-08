@@ -3290,7 +3290,17 @@ void PrimListUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     if (op->getNumResults() != listConstruct.getElements().size())
       return failure();
 
-    rewriter.replaceOp(op, listConstruct.getElements());
+    SmallVector<Value> unpacked;
+    for (int i = 0, s = op->getNumResults(); i < s; ++i) {
+      auto element = listConstruct.getElements()[i];
+      if (element.getType() != op->getResult(i).getType() ) {
+        element = rewriter.create<TensorStaticInfoCastOp>(op.getLoc(), op->getResult(i).getType(), element);
+      }
+
+      unpacked.push_back(element);
+    }
+
+    rewriter.replaceOp(op, unpacked);
     return success();
   });
 }
