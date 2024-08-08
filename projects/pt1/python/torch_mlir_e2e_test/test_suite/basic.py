@@ -5135,10 +5135,11 @@ class ScaledDotProductAttentionDifferentModule(torch.nn.Module):
             ([2, 3, 8, 4], torch.float32, True),
             ([2, 3, 16, 4], torch.float32, True),
             ([2, 3, 16, 4], torch.float32, True),
+            ([8, 16], torch.float32, True),
         ]
     )
-    def forward(self, query, key, value):
-        return torch.ops.aten.scaled_dot_product_attention(query, key, value)
+    def forward(self, query, key, value, mask):
+        return torch.ops.aten.scaled_dot_product_attention(query, key, value, mask)
 
 
 @register_test_case(module_factory=lambda: ScaledDotProductAttentionDifferentModule())
@@ -5146,7 +5147,8 @@ def ScaledDotProductAttentionDifferentModule_basic(module, tu: TestUtils):
     query = torch.randn(2, 3, 8, 4, dtype=torch.float32)
     key = torch.randn(2, 3, 16, 4, dtype=torch.float32)
     value = torch.randn(2, 3, 16, 4, dtype=torch.float32)
-    module.forward(query, key, value)
+    mask = torch.randn(8, 16, dtype=torch.float32)
+    module.forward(query, key, value, mask)
 
 
 # ==============================================================================

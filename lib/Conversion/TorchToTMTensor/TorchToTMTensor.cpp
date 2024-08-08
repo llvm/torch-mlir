@@ -1578,7 +1578,16 @@ public:
   LogicalResult
   matchAndRewrite(AtenScaledDotProductAttentionOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Value mask = op.getAttnMask();
+
+    auto opTy = cast<ValueTensorType>(op.getType()).toBuiltinTensor();
+    auto query = adaptor.getQuery();
+    auto value = adaptor.getValue();
+    auto key = adaptor.getKey();
+    auto mask = adaptor.getAttnMask();
+    auto queryTy = cast<ShapedType>(query.getType());
+    auto valueTy = cast<ShapedType>(value.getType());
+    auto keyTy = cast<ShapedType>(key.getType());
+
     Value dropoutP = op.getDropoutP();
     Value isCausal = op.getIsCausal();
     Value scale = op.getScale();
@@ -1587,17 +1596,30 @@ public:
         cast<ShapedType>(adaptor.getQuery().getType()).getElementType();
 
     // Verify inputs (only support defaults)
-    if (!isa<Torch::NoneType>(mask.getType()))
-      return rewriter.notifyMatchFailure(op.getLoc(),
-                                         "attention masking not supported");
+    // if (!isa<Torch::NoneType>(mask.getType())){
+    //   return rewriter.notifyMatchFailure(op.getLoc(),
+    //                                      "attention masking not supported");
+    // }
+
+    // if (auto unrealizedCast =
+    // mask.getDefiningOp<mlir::UnrealizedConversionCastOp>()) {
+    //   mask = unrealizedCast.getInputs()[0];
+    // }
+
+    llvm::outs() << mask << "\n";
     double dropout;
     if (!matchPattern(dropoutP, m_TorchConstantFloat(&dropout)) ||
         dropout > 0.0)
       return rewriter.notifyMatchFailure(op.getLoc(), "dropout not supported");
     bool causal;
-    if (!matchPattern(isCausal, m_TorchConstantBool(&causal)) || causal)
+    if (!matchPattern(isCausal, m_TorchConstantBool(&causal)) || causal) {
+      if (!isa<Torch::NoneType>(mask.getType())) {
+        return rewriter.notifyMatchFailure(
+            op.getLoc(), "expected no attention mask when isCausal is true");
+      }
       return rewriter.notifyMatchFailure(
           op.getLoc(), "causal attention masking not supported");
+    }
     if (!isa<Torch::NoneType>(scale.getType())) {
       double scaleFloat;
       if (!matchPattern(scale, m_TorchConstantFloat(&scaleFloat)) ||
@@ -1610,14 +1632,6 @@ public:
         isGQAEnabled)
       return rewriter.notifyMatchFailure(
           op.getLoc(), "grouped query attention not supported");
-
-    auto opTy = cast<ValueTensorType>(op.getType()).toBuiltinTensor();
-    auto query = adaptor.getQuery();
-    auto value = adaptor.getValue();
-    auto key = adaptor.getKey();
-    auto queryTy = cast<ShapedType>(query.getType());
-    auto valueTy = cast<ShapedType>(value.getType());
-    auto keyTy = cast<ShapedType>(key.getType());
 
     if (queryTy.getRank() != valueTy.getRank() ||
         queryTy.getRank() != keyTy.getRank())
@@ -1672,13 +1686,23 @@ public:
     Value output = createZeroInitTensor(rewriter, op.getLoc(), outSizesDynamic,
                                         elementType);
 
+    SmallVector<Value> inputs = SmallVector<Value>{query, key, value};
+
+    if (!isa<mlir::torch::Torch::NoneType>(mask.getType())) {
+      // Use weights as is
+      inputs.push_back(mask);
+    }
+    // else {
+    //     // Use a default/optional value
+    //     inputs.push_back(rewriter.create<mlir::torch::Torch::ConstantNoneOp>(loc));
+    // }
+
     // Overwrite with tm_tensor::attention
-    Value attention =
-        rewriter
-            .create<AttentionOp>(loc, outType,
-                                 SmallVector<Value>{query, key, value},
-                                 SmallVector<Value>{output})
-            .getResult()[0];
+    Value attention = rewriter
+                          .create<AttentionOp>(loc, outType, inputs,
+                                               SmallVector<Value>{output})
+                          .getResult()[0];
+    llvm::outs() << "C\n";
 
     if (opTy != outType) {
       attention = rewriter.create<tensor::ExpandShapeOp>(loc, opTy, attention,

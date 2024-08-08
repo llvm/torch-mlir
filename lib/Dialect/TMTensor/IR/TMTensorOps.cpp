@@ -93,14 +93,31 @@ LogicalResult AttentionOp::verify() {
   Operation *op = getOperation();
   ShapedType queryType = getQueryType();
   ShapedType keyType = getKeyType();
+  ShapedType valueType = getValueType();
+  // ShapedType maskType = *getAttnMaskType();
+  // llvm::outs() << "B";
   ArrayRef<int64_t> queryShape = queryType.getShape();
   ArrayRef<int64_t> keyShape = keyType.getShape();
+  ArrayRef<int64_t> valueShape = valueType.getShape();
+  // ArrayRef<int64_t> maskShape = maskType.getShape();
   for (int i = 0, s = queryShape.size() - 2; i < s; ++i) {
-    if (keyShape[i] != queryShape[i])
+    if (keyShape[i] != queryShape[i]) {
       return op->emitOpError("query and key batch mismatch");
+    }
   }
-  if (keyShape.back() != queryShape.back())
+  if (keyShape.back() != queryShape.back()) {
     return op->emitOpError("query and key head dimension mismatch");
+  }
+
+  for (int i = 0, s = queryShape.size() - 2; i < s; ++i) {
+    if (valueShape[i] != queryShape[i]) {
+      return op->emitOpError("query and value batch dimension mismatch");
+    }
+  }
+  if (keyShape[keyShape.size() - 2] != valueShape[valueShape.size() - 2]) {
+    return op->emitOpError("key and value sequence length dimension mismatch");
+  }
+  // MASK SHAPE CHECK
   return success();
 }
 
@@ -168,10 +185,17 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
   Value query = getQuery();
   Value key = getKey();
   Value value = getValue();
+
+  auto optionalMask = getAttnMask();
+  Value mask = optionalMask ? *optionalMask : Value();
+  //   llvm::outs() << "D";
+
+  llvm::outs() << mask << " YIPPEE\n";
   Value output = getOutput();
   auto queryType = cast<MemRefType>(query.getType());
   auto keyType = cast<MemRefType>(key.getType());
   auto valueType = cast<MemRefType>(value.getType());
+  // auto maskType = cast<MemRefType>(mask.getType());
   auto queryRank = queryType.getRank();
   auto keyRank = keyType.getRank();
   auto valueRank = valueType.getRank();
@@ -214,14 +238,45 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
          /*transposed=*/true);
 
   // weight = softmax(weight)
-  Value one = b.create<arith::ConstantIndexOp>(loc, 1);
-  Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
   Value dim = weightDynSizes[weightRank - 1];
   Value scaleFactor = b.create<math::SqrtOp>(
       loc, b.create<arith::UIToFPOp>(
                loc, elementType,
                b.create<arith::IndexCastUIOp>(loc, b.getI32Type(),
                                               queryDynSizes[queryRank - 1])));
+
+  // weight = (weight - max(weight)) / math.sqrt(querySizes[-1])
+  Value one = b.create<arith::ConstantIndexOp>(loc, 1);
+  Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
+  b.create<scf::ParallelOp>(
+      loc, SmallVector<Value>(weightRank, zero), weightDynSizes,
+      SmallVector<Value>(weightRank, one),
+      [&](OpBuilder &b, Location loc, ValueRange localIVs) {
+        Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
+        x = b.create<arith::DivFOp>(loc, x, scaleFactor);
+        b.create<memref::StoreOp>(loc, x, weight, localIVs);
+      });
+
+  // Apply mask to weights if mask is given
+
+  if (mask) {
+    b.create<scf::ParallelOp>(
+        loc, SmallVector<Value>(weightRank, zero), weightDynSizes,
+        SmallVector<Value>(weightRank, one),
+        [&](OpBuilder &b, Location loc, ValueRange localIVs) {
+          // llvm::outs() << localIVs << "\n";
+          SmallVector<Value> maskIVs = {localIVs[1], localIVs[2]};
+          Value weightValue = b.create<memref::LoadOp>(loc, weight, localIVs);
+          Value maskValue = b.create<memref::LoadOp>(loc, mask, maskIVs);
+          llvm::outs() << weightValue << "           " << maskValue << "\n";
+          Value maskedWeight =
+              b.create<arith::AddFOp>(loc, weightValue, maskValue);
+          b.create<memref::StoreOp>(loc, maskedWeight, weight, localIVs);
+        });
+  }
+
+  llvm::outs() << "FIVE STEP\n";
+
   // calculate max(weight)
   Value init = b.create<memref::LoadOp>(loc, weight,
                                         SmallVector<Value>(weightRank, zero));
@@ -249,7 +304,6 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
       [&](OpBuilder &b, Location loc, ValueRange localIVs) {
         Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
         x = b.create<arith::SubFOp>(loc, x, globalMax);
-        x = b.create<arith::DivFOp>(loc, x, scaleFactor);
         b.create<memref::StoreOp>(loc, x, weight, localIVs);
       });
   // calculate exp(weight)

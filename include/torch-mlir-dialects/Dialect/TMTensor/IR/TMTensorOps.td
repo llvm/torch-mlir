@@ -287,6 +287,12 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
     Value getValue() {
       return getInputOperand(2)->get();
     }
+    std::optional<Value> getAttnMask() {
+      if (getNumInputs() < 4) {
+        return {};
+      }
+      return getInputOperand(3)->get();
+    }
     Value getOutput() {
       return getOutputOperand(0)->get();
     }
@@ -299,6 +305,12 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
     ShapedType getValueType() {
       return cast<ShapedType>(getValue().getType());
     }
+    std::optional<ShapedType> getAttnMaskType() {
+      if (getAttnMask()){
+        return cast<ShapedType>((*getAttnMask()).getType());
+      }
+      return {};
+    }
     ShapedType getOutputType() {
       return cast<ShapedType>(getOutput().getType());
     }
@@ -310,6 +322,12 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
     }
     int64_t getValueRank() {
       return getValueType().getRank();
+    }
+    std::optional<int64_t> getAttnMaskRank() {
+      if (getAttnMask()){
+        return (*getAttnMaskType()).getRank();
+      }
+      return {};
     }
     int64_t getOutputRank() {
       return getOutputType().getRank();
