@@ -2117,41 +2117,73 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType))
           return failure();
 
+        auto loc = binder.getLoc();
         Value operand = operands[0];
         Value scale = operands[1];
         Value zeropoint = operands[2];
 
         auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
 
+        auto operandETy = operandTy.getDtype();
         auto scaleTy = dyn_cast<Torch::ValueTensorType>(scale.getType());
         if (!scaleTy || !scaleTy.hasSizes())
           return rewriter.notifyMatchFailure(binder.op, "requires known rank");
         if (!resultType.hasDtype())
           return rewriter.notifyMatchFailure(binder.op,
                                              "requires known result dtype");
-        if (scaleTy.getSizes().size() == 0 ||
-            (scaleTy.getSizes().size() == 1 && scaleTy.getSizes()[0] == 1)) {
-          auto qTensorTy = getQTorchTypeFromTorchIntType(operandTy);
-          if (!qTensorTy) {
-            return rewriter.notifyMatchFailure(binder.op,
-                                               "unsupported result dtype");
-          }
 
-          scale = rewriter.create<Torch::AtenItemOp>(
-              binder.getLoc(), rewriter.getType<Torch::FloatType>(), scale);
-          zeropoint = rewriter.create<Torch::AtenItemOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(), zeropoint);
+        bool rank0 = scaleTy.getSizes().size() == 0;
+        bool length1 =
+            scaleTy.getSizes().size() == 1 && scaleTy.getSizes()[0] == 1;
 
-          auto quantize =
-              rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-                  binder.getLoc(), qTensorTy, operand, scale, zeropoint);
-          rewriter.replaceOpWithNewOp<Torch::AtenDequantizeSelfOp>(
-              binder.op, resultType, quantize);
+        if (!rank0 && !length1)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "unimplemented: non-scalar scale");
+        auto qTensorTy = getQTorchTypeFromTorchIntType(operandTy);
+        if (!qTensorTy) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "unsupported result dtype");
+        }
+
+        scale = rewriter.create<Torch::AtenItemOp>(
+            loc, rewriter.getType<Torch::FloatType>(), scale);
+
+        bool fpOperand = isa<mlir::FloatType>(operandETy);
+        Type zeropointTy = rewriter.getType<Torch::IntType>();
+        if (fpOperand)
+          zeropointTy = rewriter.getType<Torch::FloatType>();
+
+        zeropoint =
+            rewriter.create<Torch::AtenItemOp>(loc, zeropointTy, zeropoint);
+
+        if (fpOperand) {
+          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+          Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+          auto tyVal = Torch::getScalarTypeForType(resultType.getDtype());
+          Value tyConst = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                      static_cast<int64_t>(tyVal)));
+          Value toDtype = rewriter.create<Torch::AtenToDtypeOp>(
+              loc, resultType, operand, tyConst,
+              /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+              /*memory_format=*/none);
+
+          Value one = rewriter.create<Torch::ConstantFloatOp>(
+              loc, rewriter.getF64FloatAttr(1.0));
+          Value sub = rewriter.create<Torch::AtenSubScalarOp>(
+              loc, resultType, toDtype, zeropoint, one);
+          rewriter.replaceOpWithNewOp<Torch::AtenMulScalarOp>(
+              binder.op, resultType, sub, scale);
           return success();
         }
 
-        return rewriter.notifyMatchFailure(binder.op,
-                                           "unimplemented: non-scalar scale");
+        auto quantize =
+            rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
+                loc, qTensorTy, operand, scale, zeropoint);
+        rewriter.replaceOpWithNewOp<Torch::AtenDequantizeSelfOp>(
+            binder.op, resultType, quantize);
+        return success();
       });
   patterns.onOp("Div", 7,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {

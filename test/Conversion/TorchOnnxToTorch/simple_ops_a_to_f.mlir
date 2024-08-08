@@ -800,6 +800,22 @@ func.func @test_dequantizelinear_i32(%arg0: !torch.vtensor<[6],si32>, %arg1: !to
 
 // -----
 
+// CHECK-LABEL: @test_dequantizelinear_fp8
+func.func @test_dequantizelinear_fp8(%arg0: !torch.vtensor<[6],f8E4M3FN>, %arg1: !torch.vtensor<[],f32>, %arg2: !torch.vtensor<[],f8E4M3FN>) -> !torch.vtensor<[6],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK: %[[SCALE:.+]] = torch.aten.item %arg1 : !torch.vtensor<[],f32> -> !torch.float
+  // CHECK: %[[ZP:.+]] = torch.aten.item %arg2 : !torch.vtensor<[],f8E4M3FN> -> !torch.float
+  // CHECK: %[[NONE:.+]] = torch.constant.none
+  // CHECK: %[[FALSE:.+]] = torch.constant.bool false
+  // CHECK: %[[DTY:.+]] = torch.constant.int 6
+  // CHECK: %[[TO:.+]] = torch.aten.to.dtype %arg0, %[[DTY]], %[[FALSE]], %[[FALSE]], %[[NONE]]
+  // CHECK: %[[ONE:.+]] = torch.constant.float 1.000000e+00
+  // CHECK: %[[SUB:.+]] = torch.aten.sub.Scalar %[[TO]], %[[ZP]], %[[ONE]]
+  // CHECK: %[[MUL:.+]] = torch.aten.mul.Scalar %[[SUB]], %[[SCALE]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) : (!torch.vtensor<[6],f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f8E4M3FN>) -> !torch.vtensor<[6],f32>
+  return %0 : !torch.vtensor<[6],f32>
+}
+
+// -----
 
 // CHECK-LABEL: @test_div_bcast
 func.func @test_div_bcast(%arg0: !torch.vtensor<[3,4,5],f32>, %arg1: !torch.vtensor<[5],f32>) -> !torch.vtensor<[3,4,5],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 14 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
