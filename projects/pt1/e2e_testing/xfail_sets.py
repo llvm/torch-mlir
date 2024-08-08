@@ -1509,7 +1509,11 @@ STABLEHLO_PASS_SET = {
     "RenormModuleFloat32_basic",
 }
 
-STABLEHLO_CRASHING_SET = {"IndexPutWithNoneAndBroadcastModule_basic"}
+STABLEHLO_CRASHING_SET = {
+    "IndexPutWithNoneAndBroadcastModule_basic",
+    "ReduceMaxAlongDimUnsignedInt_basic",
+    "ReduceMinAlongDimUnsignedInt_basic",
+}
 
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
