@@ -322,7 +322,7 @@ diagonalizeInputAndRewriteEquation(Location loc, PatternRewriter &rewriter,
     for (size_t d0 = 0; d0 < inputStr.size(); ++d0) {
       char id = inputStr[d0];
 
-      int d1;
+      size_t d1;
       for (d1 = d0 + 1; d1 < inputStr.size(); d1++) {
         if (id == inputStr[d1])
           break;
