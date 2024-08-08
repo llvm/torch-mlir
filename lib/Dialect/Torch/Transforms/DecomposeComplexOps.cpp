@@ -8314,16 +8314,15 @@ class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
         /*device=*/none, /*pin_memory=*/none);
 
     // unsqueeze input
-    llvm::SmallVector<int64_t> unsqueezeShape(inputType.getSizes());
-    unsqueezeShape.push_back(1);
-    auto unsqueezeType =
-        ValueTensorType::get(context, unsqueezeShape, inputType.getDtype());
-    Value unsqueezeTensor = rewriter.create<AtenUnsqueezeOp>(
-        loc, unsqueezeType, input,
-        rewriter.create<ConstantIntOp>(loc,
-                                       rewriter.getI64IntegerAttr(inputRank)));
-    unsqueezeTensor =
-        convertTensorToDtype(rewriter, loc, unsqueezeTensor, si64Type);
+    Value rankV = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(inputRank));
+    auto unsqueeze = Torch::unsqueezeTensor(rewriter, op, input, rankV);
+    if (failed(unsqueeze))
+      return rewriter.notifyMatchFailure(op,
+                                         "cannot generate unsqueeze tensor");
+
+    Value unsqueezeTensor =
+        convertTensorToDtype(rewriter, loc, *unsqueeze, si64Type);
 
     // compare
     auto eqType = ValueTensorType::get(
