@@ -1695,7 +1695,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (binder.s64IntegerAttr(axis, "axis", 0))
           return rewriter.notifyMatchFailure(binder.op,
                                              "Failed to get axis attribute");
-        if (binder.s64IntegerAttr(numOutputs, "num_outputs", 2))
+
+        numOutputs = binder.op->getNumResults();
+        if (binder.s64IntegerAttr(numOutputs, "num_outputs", numOutputs))
           return rewriter.notifyMatchFailure(
               binder.op, "Failed to get num_outputs attribute");
 
