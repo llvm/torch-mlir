@@ -2350,6 +2350,10 @@ public:
           } else if (zeropointDTy.isSignedInteger(8)) {
             zeropoint =
                 b.create<arith::ExtSIOp>(loc, b.getI32Type(), zeropoint);
+          } else if (zeropointDTy.isInteger(64)) {
+            zeropoint =
+                b.create<arith::TruncIOp>(loc, b.getI32Type(), zeropoint);
+            op->emitWarning() << "truncated zero point from 64 to 32 bit";
           }
 
           Value sub = rewriter.create<arith::SubIOp>(loc, operand, zeropoint);

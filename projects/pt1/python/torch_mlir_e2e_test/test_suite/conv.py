@@ -1309,6 +1309,96 @@ def ConvTranspose2DQInt8_basic(module, tu: TestUtils):
     )
 
 
+class Conv2dQInt8PerChannelModuleBase(torch.nn.Module):
+    def __init__(self, groups=1):
+        self.groups = groups
+        super().__init__()
+
+    def _forward(self, inputVec, weight, scales, zeropoints, bias):
+        inputVec = torch._make_per_tensor_quantized_tensor(inputVec, 0.01, 7)
+        inputVec = torch.dequantize(inputVec)
+
+        weight = torch._make_per_channel_quantized_tensor(
+            weight, scales, zeropoints, axis=0
+        )
+        weight = torch.dequantize(weight)
+
+        bias = torch.quantize_per_tensor(bias, 0.0001, 0, torch.qint32)
+        bias = torch.dequantize(bias)
+
+        return torch.ops.aten.conv2d(
+            inputVec,
+            weight,
+            bias=bias,
+            stride=[1, 1],
+            padding=[0, 0],
+            dilation=[1, 1],
+            groups=self.groups,
+        )
+
+
+class Conv2dQInt8PerChannelModuleDyn(Conv2dQInt8PerChannelModuleBase):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.int8, True),
+            ([-1, -1, -1, -1], torch.int8, True),
+            ([-1], torch.float, True),
+            ([-1], torch.int8, True),
+            ([-1], torch.float, True),
+        ]
+    )
+    def forward(self, inputVec, weight, scales, zeropoints, bias):
+        return self._forward(inputVec, weight, scales, zeropoints, bias)
+
+
+class Conv2dQInt8PerChannelModuleStatic(Conv2dQInt8PerChannelModuleBase):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 12, 12], torch.int8, True),
+            ([3, 1, 5, 3], torch.int8, True),
+            ([3], torch.float, True),
+            ([3], torch.int8, True),
+            ([3], torch.float, True),
+        ]
+    )
+    def forward(self, inputVec, weight, scales, zeropoints, bias):
+        return self._forward(inputVec, weight, scales, zeropoints, bias)
+
+
+@register_test_case(module_factory=lambda: Conv2dQInt8PerChannelModuleDyn())
+def Conv2dQInt8PerChannelModule_basic(module, tu: TestUtils):
+    inputVec = tu.randint(2, 4, 7, 8, low=-128, high=127).to(torch.int8)
+    weight = tu.randint(3, 4, 3, 2, low=-128, high=127).to(torch.int8)
+    scales = tu.rand(3)
+    zeropoints = tu.rand(3).to(torch.int8)
+    bias = torch.rand(3)
+    module.forward(inputVec, weight, scales, zeropoints, bias)
+
+
+@register_test_case(module_factory=lambda: Conv2dQInt8PerChannelModuleDyn(groups=2))
+def Conv2dQInt8PerChannelModule_grouped(module, tu: TestUtils):
+    inputVec = tu.randint(2, 8, 7, 8, low=-128, high=127).to(torch.int8)
+    weight = tu.randint(6, 4, 3, 2, low=-128, high=127).to(torch.int8)
+    scales = tu.rand(6)
+    zeropoints = tu.rand(6).to(torch.int8)
+    bias = torch.rand(6)
+    module.forward(inputVec, weight, scales, zeropoints, bias)
+
+
+@register_test_case(module_factory=lambda: Conv2dQInt8PerChannelModuleStatic(groups=3))
+def Conv2dQInt8PerChannelModule_depthwise(module, tu: TestUtils):
+    inputVec = tu.randint(2, 3, 12, 12, low=-128, high=127).to(torch.int8)
+    weight = tu.randint(3, 1, 5, 3, low=-128, high=127).to(torch.int8)
+    scales = tu.rand(3)
+    zeropoints = tu.rand(3).to(torch.int8)
+    bias = torch.rand(3)
+    module.forward(inputVec, weight, scales, zeropoints, bias)
+
+
 # torchvision.deform_conv2d
 
 import torchvision
