@@ -2755,7 +2755,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                 });
 
   patterns.onOp(
-      "Hardmax", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Hardmax", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         // onnx.Hardmax can be expanded into the following python code:
         //
         // import torch.nn.functional as F
@@ -2776,33 +2776,64 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         int64_t axisValue;
         Value input, axis;
         if (binder.tensorOperand(input) ||
-            binder.s64IntegerAttr(axisValue, "axis") ||
+            binder.s64IntegerAttr(axisValue, "axis", -1) ||
             binder.tensorResultType(resultType))
           return failure();
 
         auto loc = binder.getLoc();
+        auto inputTy = cast<Torch::ValueTensorType>(input.getType());
 
-        std::optional<int64_t> axisIntTorch =
-            onnxDtypeIntToTorchDtypeInt(axisValue);
-        if (!axisIntTorch.has_value())
-          return rewriter.notifyMatchFailure(
-              binder.op, "unimplemented support for the given axis conversion");
+        if (axisValue < 0)
+          axisValue += inputTy.getSizes().size();
+
         axis = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(axisIntTorch.value()));
+            loc, rewriter.getI64IntegerAttr(axisValue));
 
         // torch.argmax
         Value constKeepDims = rewriter.create<Torch::ConstantBoolOp>(
             loc, rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(false));
+
+        SmallVector<int64_t> argmaxShape;
+        for (int i = 0, s = inputTy.getSizes().size(); i < s; ++i) {
+          if (i == axisValue)
+            continue;
+          argmaxShape.push_back(inputTy.getSizes()[i]);
+        }
+
+        auto argmaxTy = rewriter.getType<Torch::ValueTensorType>(
+            argmaxShape, rewriter.getI32Type());
         Value argmax = rewriter.create<Torch::AtenArgmaxOp>(
-            loc, resultType, input, axis, constKeepDims);
+            loc, argmaxTy, input, axis, constKeepDims);
 
         // one_hot
-        Value oneInt = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(1));
-        rewriter.replaceOpWithNewOp<Torch::AtenOneHotOp>(binder.op, resultType,
-                                                         argmax, oneInt);
+        SmallVector<int64_t> onehotShape(argmaxShape);
+        onehotShape.push_back(inputTy.getSizes()[axisValue]);
+        auto onehotTy = rewriter.getType<Torch::ValueTensorType>(
+            onehotShape, resultType.getDtype());
+        Value numClasses =
+            rewriter.create<Torch::AtenSizeIntOp>(binder.getLoc(), input, axis);
+        Value onehot = rewriter.create<Torch::AtenOneHotOp>(
+            binder.getLoc(), onehotTy, argmax, numClasses);
 
+        SmallVector<int64_t> permutation;
+        for (int i = 0; i < axisValue; ++i)
+          permutation.push_back(i);
+        permutation.push_back(onehotShape.size() - 1);
+        for (int i = axisValue, s = onehotShape.size(); i < s - 1; ++i)
+          permutation.push_back(i);
+
+        SmallVector<Value> permValues;
+        for (auto d : permutation) {
+          permValues.push_back(rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getI64IntegerAttr(d)));
+        }
+
+        Value permuteDims = rewriter.create<Torch::PrimListConstructOp>(
+            loc, Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+            permValues);
+        rewriter.replaceOpWithNewOp<Torch::AtenPermuteOp>(binder.op, resultType,
+                                                          onehot, permuteDims);
         return success();
       });
   patterns.onOp("LpNormalization", 1,
