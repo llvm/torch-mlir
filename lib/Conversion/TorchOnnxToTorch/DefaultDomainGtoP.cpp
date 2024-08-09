@@ -1442,10 +1442,16 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           flattenedIndices = rewriter.create<Torch::AtenUnsqueezeOp>(
               loc, flattenIndicesTy, reshapedIndices, constZero);
         } else if (indicesRank > 1) {
-          Value endDim = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(indicesRank - 2));
-          flattenedIndices = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
-              loc, flattenIndicesTy, reshapedIndices, batchDimCountVal, endDim);
+          if (batchDimCount > indicesRank - 2) {
+            flattenedIndices = rewriter.create<Torch::AtenUnsqueezeOp>(
+                loc, flattenIndicesTy, reshapedIndices, batchDimCountVal);
+          } else {
+            Value endDim = rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(indicesRank - 2));
+            flattenedIndices = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
+                loc, flattenIndicesTy, reshapedIndices, batchDimCountVal,
+                endDim);
+          }
         }
 
         // step 8. Expand `r-b-indices_shape[-1]` dims of flattened indices.
@@ -1467,8 +1473,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value endDim = rewriter.create<Torch::ConstantIntOp>(
             loc,
             rewriter.getI64IntegerAttr(batchDimCount + indicesLastDim - 1));
-        Value flattenedData = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
-            loc, flattenDataTy, data, batchDimCountVal, endDim);
+        Value flattenedData = data;
+
+        if (indicesLastDim != 1) {
+          flattenedData = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
+              loc, flattenDataTy, data, batchDimCountVal, endDim);
+        }
 
         // step 10. Now we have flattenedData and expandedIndices of same rank
         // to perform gather operation.
@@ -1484,6 +1494,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.op, resultType, gather, /*dim=*/constZero);
           return success();
         }
+
+        if (unflattenIndicesDims.empty()) {
+          rewriter.replaceOpWithNewOp<Torch::AtenSqueezeDimOp>(
+              binder.op, resultType, gather, /*dim=*/batchDimCountVal);
+          return success();
+        }
+
         Value unflattenSizeList = rewriter.create<Torch::PrimListConstructOp>(
             loc, intListTy, unflattenIndicesDims);
         rewriter.replaceOpWithNewOp<Torch::AtenUnflattenIntOp>(
