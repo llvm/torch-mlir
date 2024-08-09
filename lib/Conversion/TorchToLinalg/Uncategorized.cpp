@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/BuiltinTypes.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
 #include "PopulatePatterns.h"
@@ -305,6 +306,70 @@ Value createDivModePayload(OpBuilder &b, Location loc,
     }
   }
   return quotient;
+}
+
+template <typename OpT>
+Value createRemainderPayload(OpBuilder &b, Location loc,
+                             const TypeConverter *converter,
+                             ValueRange payloadArgs, OpT op,
+                             ArrayRef<Value> operands) {
+  static_assert(
+      llvm::is_one_of<OpT, AtenRemainderScalarOp, AtenRemainderTensorOp>(),
+      "op must be a tensor/scalar remainder op");
+  typename OpT::Adaptor adaptor(operands);
+  Type dtype = cast<RankedTensorType>(converter->convertType(op.getType()))
+                   .getElementType();
+  Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+  Value rhs = convertScalarToDtype(
+      b, loc,
+      std::is_same_v<OpT, AtenRemainderScalarOp> ? operands[1] : payloadArgs[1],
+      dtype);
+
+  // The remainder op we wish to create would look roughly like this:
+  // rem = a % b
+  // if rem != 0 AND (rem < 0 XOR b < 0) rem += b
+  // This is how python calucates remainders for floats and longs:
+  // https://github.com/python/cpython/blob/2afd1751dd9a35d4ec03b708e3e5cddd72c43f7e/Objects/floatobject.c#L645
+  // https://github.com/python/cpython/blob/2afd1751dd9a35d4ec03b708e3e5cddd72c43f7e/Objects/longobject.c#L3662
+  Value result;
+  if (isa<mlir::FloatType>(dtype)) {
+    Value remainder = b.create<arith::RemFOp>(loc, lhs, rhs);
+
+    Value zero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
+    Value remainderNotEqualToZero = b.create<arith::CmpFOp>(
+        loc, arith::CmpFPredicate::ONE, remainder, zero);
+    Value otherLessThanZero =
+        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OLT, rhs, zero);
+    Value remainderLessThanZero = b.create<arith::CmpFOp>(
+        loc, arith::CmpFPredicate::OLT, remainder, zero);
+    Value xorCondition =
+        b.create<arith::XOrIOp>(loc, otherLessThanZero, remainderLessThanZero);
+    Value condition =
+        b.create<arith::AndIOp>(loc, remainderNotEqualToZero, xorCondition);
+    Value fixedRemainder = b.create<arith::AddFOp>(loc, remainder, rhs);
+    result =
+        b.create<arith::SelectOp>(loc, condition, fixedRemainder, remainder);
+  } else {
+    assert(dtype.isInteger() &&
+           "dtype should be a float or integer (signless or signed)");
+    Value remainder = b.create<arith::RemSIOp>(loc, lhs, rhs);
+
+    Value zero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
+    Value remainderNotEqualToZero =
+        b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, remainder, zero);
+    Value otherLessThanZero =
+        b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, rhs, zero);
+    Value remainderLessThanZero = b.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::slt, remainder, zero);
+    Value xorCondition =
+        b.create<arith::XOrIOp>(loc, otherLessThanZero, remainderLessThanZero);
+    Value condition =
+        b.create<arith::AndIOp>(loc, remainderNotEqualToZero, xorCondition);
+    Value fixedRemainder = b.create<arith::AddIOp>(loc, remainder, rhs);
+    result =
+        b.create<arith::SelectOp>(loc, condition, fixedRemainder, remainder);
+  }
+  return result;
 }
 
 static Value createLinalgPayloadCalculationForElementwiseOp(
@@ -1188,44 +1253,12 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::DivFOp>(loc, self, other);
   }
   if (auto remScalar = dyn_cast<AtenRemainderScalarOp>(op)) {
-    Type newResultType =
-        cast<RankedTensorType>(converter->convertType(remScalar.getType()))
-            .getElementType();
-
-    Value self = convertScalarToDtype(b, loc, payloadArgs[0], newResultType);
-    Value other = convertScalarToDtype(b, loc, operands[1], newResultType);
-    Value result;
-
-    if (isa<mlir::FloatType>(newResultType)) {
-      result = b.create<arith::RemFOp>(loc, self, other);
-    } else if (isa<mlir::IntegerType>(newResultType)) {
-      result = b.create<arith::RemSIOp>(loc, self, other);
-    } else {
-      remScalar.emitError(
-          "Unsupported type encountered for AtenRemainderScalarOp.");
-    }
-
-    return result;
+    return createRemainderPayload(b, loc, converter, payloadArgs, remScalar,
+                                  operands);
   }
   if (auto remTensor = dyn_cast<AtenRemainderTensorOp>(op)) {
-    Type newResultType =
-        cast<RankedTensorType>(converter->convertType(remTensor.getType()))
-            .getElementType();
-
-    Value self = convertScalarToDtype(b, loc, payloadArgs[0], newResultType);
-    Value other = convertScalarToDtype(b, loc, payloadArgs[1], newResultType);
-    Value result;
-
-    if (isa<mlir::FloatType>(newResultType)) {
-      result = b.create<arith::RemFOp>(loc, self, other);
-    } else if (isa<mlir::IntegerType>(newResultType)) {
-      result = b.create<arith::RemSIOp>(loc, self, other);
-    } else {
-      remTensor.emitError(
-          "Unsupported type encountered for AtenRemainderTensorOp.");
-    }
-
-    return result;
+    return createRemainderPayload(b, loc, converter, payloadArgs, remTensor,
+                                  operands);
   }
   if (auto fmod = dyn_cast<AtenFmodTensorOp>(op)) {
     Type newResultType =
