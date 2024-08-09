@@ -2802,7 +2802,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         auto argmaxTy = rewriter.getType<Torch::ValueTensorType>(
-            argmaxShape, rewriter.getI32Type());
+            argmaxShape, rewriter.getIntegerType(32, IntegerType::Signed));
         Value argmax = rewriter.create<Torch::AtenArgmaxOp>(
             loc, argmaxTy, input, axis, constKeepDims);
 
