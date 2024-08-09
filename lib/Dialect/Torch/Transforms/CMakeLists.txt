@@ -17,6 +17,7 @@ add_mlir_library(TorchMLIRTorchPasses
   ReifyShapeCalculations.cpp
   ReifyDtypeCalculations.cpp
   ReifyAbstractInterpCalculationsUtils.cpp
+  RestructureNonConstantAxes.cpp
   ScalarizeShapes.cpp
   AbstractInterpLibrary.cpp
   SimplifyShapeCalculations.cpp

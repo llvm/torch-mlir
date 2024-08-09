@@ -149,6 +149,12 @@ StringRef getAbstractInterpLibrary();
 
 static const char kTorchOpPrefix[] = R"(torch.)";
 
+void populateRestructureNonConstantAxesPattern(RewritePatternSet &patterns,
+                                               MLIRContext *context);
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createRestructureNonConstantAxesPass();
+
 } // namespace Torch
 
 /// Registers all Torch transformation passes.
