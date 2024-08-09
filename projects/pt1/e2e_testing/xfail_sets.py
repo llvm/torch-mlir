@@ -2604,6 +2604,7 @@ ONNX_XFAIL_SET = {
     "TanhBackward_basic",
     "TensorsConcatComplex128FloatModule_basic",
     "TensorsConcatComplex64FloatModule_basic",
+    "TensorsConcatComplex128IntModule_basic",
     "TensorToBoolZeroRank_basic",
     "TensorToBool_basic",
     "TensorToFloatZeroRank_basic",
