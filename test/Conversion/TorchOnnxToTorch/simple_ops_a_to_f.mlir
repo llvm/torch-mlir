@@ -1275,9 +1275,8 @@ func.func @test_batchnorm_training(%arg0: !torch.vtensor<[1,16,27],f32>, %arg1: 
 // CHECK:           %[[CST2:.*]] = torch.constant.int 2
 // CHECK:           %[[REDUCE_DIMS:.*]] = torch.prim.ListConstruct %[[CST0]], %[[CST2]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[NONE:.*]] = torch.constant.none
-// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 // CHECK:           %[[CURRENT_MEAN:.*]] = torch.aten.mean.dim %arg0, %[[REDUCE_DIMS]], %[[FALSE]], %[[NONE]] : !torch.vtensor<[1,16,27],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[16],f32>
-// CHECK:           %[[CURRENT_VAR:.*]] = torch.aten.var.dim %arg0, %[[REDUCE_DIMS]], %[[TRUE]], %[[FALSE]] : !torch.vtensor<[1,16,27],f32>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[16],f32>
+// CHECK:           %[[CURRENT_VAR:.*]] = torch.aten.var.dim %arg0, %[[REDUCE_DIMS]], %[[FALSE]], %[[FALSE]] : !torch.vtensor<[1,16,27],f32>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[16],f32>
 // CHECK:           %[[MEAN_MUL_MOMENTUM:.*]] = torch.aten.mul.Scalar %arg3, %[[MOMENTUM]] : !torch.vtensor<[16],f32>, !torch.float -> !torch.vtensor<[16],f32>
 // CHECK:           %[[CURR_MEAN_MUL_MOMENTUM:.*]] = torch.aten.mul.Scalar %[[CURRENT_MEAN]], %[[MOMENTUM]] : !torch.vtensor<[16],f32>, !torch.float -> !torch.vtensor<[16],f32>
 // CHECK:           %[[CST1:.*]] = torch.constant.int 1

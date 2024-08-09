@@ -412,14 +412,13 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             dimsToReduce);
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-        Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
         Value currentMean = rewriter.create<Torch::AtenMeanDimOp>(
             loc, meanResultType, input, reduceDimsList,
             /*keepdim=*/cstFalse,
             /*dtype=*/noneVal);
         Value currentVar = rewriter.create<Torch::AtenVarDimOp>(
             loc, varResultType, input, reduceDimsList,
-            /*unbiased=*/cstTrue,
+            /*unbiased=*/cstFalse,
             /*keepdim=*/cstFalse);
 
         // Computing running_mean.
