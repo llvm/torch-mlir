@@ -542,7 +542,7 @@ class AtenItemFpOpModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([], torch.float, True),
+            ([1], torch.float, True),
         ]
     )
     def forward(self, val):

@@ -1658,8 +1658,8 @@ class ElementwiseClampTensorFloatModule(torch.nn.Module):
         [
             None,
             ([-1, -1], torch.float32, True),
-            ([], torch.float32, True),
-            ([], torch.float32, True),
+            ([1], torch.float32, True),
+            ([1], torch.float32, True),
         ]
     )
     def forward(self, x, min, max):
@@ -1688,8 +1688,8 @@ class ElementwiseClampTensorIntModule(torch.nn.Module):
         [
             None,
             ([-1, -1], torch.int64, True),
-            ([], torch.int64, True),
-            ([], torch.int64, True),
+            ([1], torch.int64, True),
+            ([1], torch.int64, True),
         ]
     )
     def forward(self, x, min, max):
@@ -1741,7 +1741,7 @@ class ElementwiseClampMinTensorFloatModule(torch.nn.Module):
         [
             None,
             ([-1, -1], torch.float32, True),
-            ([], torch.float32, True),
+            ([1], torch.float32, True),
         ]
     )
     def forward(self, x, min):
@@ -1765,7 +1765,7 @@ class ElementwiseClampMinTensorIntModule(torch.nn.Module):
         [
             None,
             ([-1, -1], torch.int64, True),
-            ([], torch.int64, True),
+            ([1], torch.int64, True),
         ]
     )
     def forward(self, x, min):
