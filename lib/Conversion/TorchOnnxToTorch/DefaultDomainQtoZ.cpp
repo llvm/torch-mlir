@@ -4355,7 +4355,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 binder.getLoc(),
                 Torch::ValueTensorType::get(binder.op->getContext(),
                                             ArrayRef<int64_t>{resultShape[1]},
-                                            inputType.getOptionalDtype()),
+                                            resultType.getOptionalDtype()),
                 outputForBatch, zero);
           }
           // ngram_counts[j] records the starting position of ngrams within the
@@ -4366,13 +4366,16 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           // the position ngram_indexes[ngram_i]
           int ngram_i = 0;
           for (int j = 0; j < (int)ngram_counts.size(); j++) {
-            if (j + 1 < min_gram_length || j + 1 > max_gram_length)
-              continue;
             int ngram_length = j + 1;
             int start_idx = ngram_counts[j];
             int end_idx = (j + 1) < (int)ngram_counts.size()
                               ? ngram_counts[j + 1]
                               : pool_int64s.size();
+            if (j + 1 < min_gram_length || j + 1 > max_gram_length) {
+              // progress the ngram counter for the skipped (j+1)grams
+              ngram_i += (end_idx - start_idx) / ngram_length;
+              continue;
+            }
 
             Value ngramLength = rewriter.create<Torch::ConstantIntOp>(
                 binder.getLoc(), rewriter.getI64IntegerAttr(ngram_length));
