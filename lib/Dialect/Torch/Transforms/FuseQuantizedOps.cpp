@@ -63,7 +63,6 @@ public:
 
   LogicalResult matchAndRewrite(SrcOp op,
                                 PatternRewriter &rewriter) const override {
-
     mlir::Location loc = op.getLoc();
     llvm::SmallVector<Value> operands(op->getOperands());
 
@@ -99,8 +98,7 @@ public:
           // require more complex fusion logic.
           if (llvm::isa<Aten_MakePerChannelQuantizedTensorOp>(
                   chain.dequantOpd.getDefiningOp()))
-            return rewriter.notifyMatchFailure(
-                op, "fusion with per-channel quantization is not supported");
+            break;
 
           auto MPTQTOp =
               chain.dequantOpd
@@ -113,12 +111,22 @@ public:
         break;
       }
 
-      // move to next operand if this trace was unsuccessful
-      if (!chain.MPTQTOpd)
-        continue;
+      // if tracing this operand was successful, add it to operandChains.
+      if (chain.MPTQTOpd)
+        operandChains.push_back(std::move(chain));
+    }
 
-      // a successful trace occured, so set dequant to true
-      operandChains.push_back(std::move(chain));
+    // Continuing the rewriting with only some of the operandsToQuantize traced
+    // successfully is possible but leads to "half-quantized" ops which are
+    // expected to cause problems in later lowering steps. We opt out of
+    // treating these cases for now.
+    if (operandChains.size() !=
+        std::size(QuantInfo<SrcOp>::operandsToQuantize)) {
+      if (!operandChains.empty())
+        op.emitWarning("Partially traced quantized operands. This op will "
+                       "remain in QDQ form.");
+      return rewriter.notifyMatchFailure(
+          op, "did not find a complete quantized chain for all operands");
     }
 
     for (auto &&[i, chain] : llvm::enumerate(operandChains)) {
@@ -197,10 +205,6 @@ public:
           cast<ValueTensorType>(operands[i].getType()).getSizes(), qTorchType);
       operands[i] = rewriter.create<Aten_MakePerTensorQuantizedTensorOp>(
           loc, newMPTQTType, oldOpd, MPTQTOperands[1], MPTQTOperands[2]);
-    }
-
-    if (operandChains.empty()) {
-      return rewriter.notifyMatchFailure(op, "No dequantizations found.");
     }
 
     rewriter.replaceOpWithNewOp<SrcOp>(op, op.getType(), operands);
