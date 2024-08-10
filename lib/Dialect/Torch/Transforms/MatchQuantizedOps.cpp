@@ -59,10 +59,11 @@ public:
       return success();
     }
 
-    if (op.getName() == "torch.quantized_decomposed.dequantize_per_tensor") {
-      auto clamp = rewriter.create<AtenClampOp>(
-          op.getLoc(), op.getOperand(0).getType(), op.getOperand(0),
-          op.getOperand(3), op.getOperand(4));
+    auto prepareDequantize = [&](Value quantMin, Value quantMax, Value &clamp,
+                                 Type &qTy) {
+      clamp =
+          rewriter.create<AtenClampOp>(op.getLoc(), op.getOperand(0).getType(),
+                                       op.getOperand(0), quantMin, quantMax);
 
       auto clampTy = cast<Torch::ValueTensorType>(clamp.getType());
       if (!clampTy.hasDtype())
@@ -75,12 +76,36 @@ public:
         return rewriter.notifyMatchFailure(op,
                                            "dequantization has unknown qtype");
 
-      Type qTy = Torch::ValueTensorType::get(
-          op.getContext(), clampTy.getOptionalSizes(), qetype);
+      qTy = Torch::ValueTensorType::get(op.getContext(),
+                                        clampTy.getOptionalSizes(), qetype);
+      return success();
+    };
+
+    if (op.getName() == "torch.quantized_decomposed.dequantize_per_tensor") {
+      Value clamp;
+      Type qTy;
+      if (failed(prepareDequantize(op.getOperand(3), op.getOperand(4), clamp,
+                                   qTy)))
+        return failure();
+
       auto quant = rewriter.create<Aten_MakePerTensorQuantizedTensorOp>(
           op.getLoc(), qTy, clamp, op.getOperand(1), op.getOperand(2));
       rewriter.replaceOpWithNewOp<AtenDequantizeTensorOp>(
           op, op.getResultTypes(), quant);
+      return success();
+    }
+
+    if (op.getName() == "torch.quantized_decomposed.dequantize_per_channel") {
+      Value clamp;
+      Type qTy;
+      if (failed(prepareDequantize(op.getOperand(4), op.getOperand(5), clamp,
+                                   qTy)))
+        return failure();
+      auto quant = rewriter.create<Aten_MakePerChannelQuantizedTensorOp>(
+          op.getLoc(), qTy, clamp, op.getOperand(1), op.getOperand(2),
+          op.getOperand(3));
+      rewriter.replaceOpWithNewOp<AtenDequantizeSelfOp>(op, op.getResultTypes(),
+                                                        quant);
       return success();
     }
 
