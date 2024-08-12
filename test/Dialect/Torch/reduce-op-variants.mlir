@@ -193,7 +193,7 @@ func.func @torch.aten.bernoulli_.float(%t: !torch.tensor) -> !torch.tensor {
 // CHECK:      %[[FALSE:.+]] = torch.constant.bool false
 // CHECK:      %[[NONE0:.+]] = torch.constant.none
 // CHECK:      %[[NONE1:.+]] = torch.constant.none
-// CHECK:      %[[ATTEN:.+]] = torch.aten.scaled_dot_product_attention %[[ARG0]], %[[ARG1]], %[[ARG2]], %[[NONE0]], %[[ZERO]], %[[FALSE]], %[[NONE1]]
+// CHECK:      %[[ATTEN:.+]] = torch.aten.scaled_dot_product_attention %[[ARG0]], %[[ARG1]], %[[ARG2]], %[[NONE0]], %[[ZERO]], %[[FALSE]], %[[NONE1]], %[[FALSE]]
 // CHECK:      return %[[ATTEN]]
 func.func @scaled_dot_product_flash_attention_for_cpu(%arg0: !torch.vtensor<[1,1,5,5],f32>, %arg1: !torch.vtensor<[1,1,5,5],f32>, %arg2: !torch.vtensor<[1,1,5,5],f32>) -> !torch.vtensor<[1,1,5,5],f32> {
   %float0.000000e00 = torch.constant.float 0.000000e+00
