@@ -1917,6 +1917,57 @@ func.func @test_reshape_zero_and_negative_dim(%arg0: !torch.vtensor<[2,3,4],f32>
 
 // -----
 
+// CHECK-LABEL : func.func @test_tfidfvectorizer_tf_batch_only_bigrams_skip5
+  func.func @test_tfidfvectorizer_tf_batch_onlybigrams_skip5(%arg0: !torch.vtensor<[2,6],si32>) -> !torch.vtensor<[2,7],f32> attributes {torch.onnx_meta.ir_version = 4 : si64, torch.onnx_meta.opset_version = 21 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+    // CHECK : %[[output_init:.*]] = torch.aten.zeros %[[x0:.*]], %[[none_0:.*]], %[[none_0]], %[[none_0]], %[[none_0]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,7],f32>
+    // CHECK : %[[int2_1:.*]] = torch.constant.int 2
+    // CHECK : %[[batch_loop:.*]] = torch.prim.Loop %[[int2_1]], %[[true:.*]], init(%[[output_init]]) {
+    // CHECK : ^bb0(%[[arg1:.*]]: !torch.int, %[[arg2:.*]]: !torch.vtensor<[2,7],f32>):
+    // CHECK :   %[[x3:.*]] = torch.aten.add.int %[[arg1]], %[[int1:.*]] : !torch.int, !torch.int -> !torch.int
+    // CHECK :   %[[x4:.*]] = torch.aten.slice.Tensor %arg0, %[[int0:.*]], %[[arg1]], %[[x3]], %[[int1]] : !torch.vtensor<[2,6],si32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,6],si32>
+    // CHECK :   %[[inputbatch:.*]] = torch.aten.squeeze.dim %[[x4]], %[[int0]] : !torch.vtensor<[1,6],si32>, !torch.int -> !torch.vtensor<[6],si32>
+    // CHECK :   %[[x6:.*]] = torch.aten.slice.Tensor %[[arg2]], %[[int0]], %[[arg1]], %[[x3]], %[[int1]] : !torch.vtensor<[2,7],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,7],f32>
+    // CHECK :   %[[outputbatch:.*]] = torch.aten.squeeze.dim %[[x6]], %[[int0]] : !torch.vtensor<[1,7],f32>, !torch.int -> !torch.vtensor<[7],f32>
+    // CHECK :   %[[int2_2:.*]] = torch.constant.int 2
+    // CHECK :   %[[int0_3:.*]] = torch.constant.int 0
+    // CHECK :   %[[max_skip_count:.*]] = torch.constant.int 6
+    // CHECK :   %[[skip_loop:.*]] = torch.prim.Loop %[[max_skip_count]], %[[true]], init(%[[int0_3]]) {
+    // CHECK :   ^bb0(%[[arg3:.*]]: !torch.int, %[[arg4:.*]]: !torch.int):
+    // CHECK :     %[[x29:.*]] = torch.aten.add.int %[[arg3]], %[[int1]] : !torch.int, !torch.int -> !torch.int
+    // CHECK :     %[[int6_12:.*]] = torch.constant.int 6
+    // CHECK :     %[[x30:.*]] = torch.aten.sub.int %[[int2_2]], %[[int1]] : !torch.int, !torch.int -> !torch.int
+    // CHECK :     %[[x31:.*]] = torch.aten.mul.int %[[x30]], %[[x29]] : !torch.int, !torch.int -> !torch.int
+    // CHECK :     %[[x32:.*]] = torch.aten.sub.int %[[int6_12]], %[[x31]] : !torch.int, !torch.int -> !torch.int
+    // CHECK :     %[[count_loop:.*]] = torch.prim.Loop %[[x32]], %[[true]], init(%[[arg4]]) {
+    // CHECK :     ^bb0(%[[arg5:.*]]: !torch.int, %[[arg6:.*]]: !torch.int):
+    // CHECK :       %[[input_2gram0:.*]] = torch.aten.select.int %[[inputbatch]], %[[int0]], %[[position0:.*]] : !torch.vtensor<[6],si32>, !torch.int, !torch.int -> !torch.vtensor<[1],si32>
+    // CHECK :       %[[inputval0:.*]] = torch.aten.item %[[input_2gram0]] : !torch.vtensor<[1],si32> -> !torch.int
+    // CHECK :       %[[eq0:.*]] = torch.aten.eq.int %[[inputval0]], %[[first2gram0:.*]] : !torch.int, !torch.int -> !torch.bool
+    // CHECK :       %[[eq0int:.*]] = torch.aten.Int.bool %[[eq0]] : !torch.bool -> !torch.int
+    // CHECK :       %[[alleq0:.*]] = torch.aten.mul.int %[[eq0int]], %[[int1_13:.*]] : !torch.int, !torch.int -> !torch.int
+    // CHECK :       %[[input_2gram1:.*]] = torch.aten.select.int %[[inputbatch]], %[[int0]], %[[position1:.*]] : !torch.vtensor<[6],si32>, !torch.int, !torch.int -> !torch.vtensor<[1],si32>
+    // CHECK :       %[[inputval1:.*]] = torch.aten.item %[[input_2gram1]] : !torch.vtensor<[1],si32> -> !torch.int
+    // CHECK :       %[[eq1:.*]] = torch.aten.eq.int %[[inputval1]], %[[first2gram1:.*]] : !torch.int, !torch.int -> !torch.bool
+    // CHECK :       %[[eq1int:.*]] = torch.aten.Int.bool %[[eq1]] : !torch.bool -> !torch.int
+    // CHECK :       %[[alleq1:.*]] = torch.aten.mul.int %[[eq1int]], %[[alleq0]] : !torch.int, !torch.int -> !torch.int
+    // CHECK :       %[[newcount:.*]] = torch.aten.add.int %[[arg6]], %[[alleq1]] : !torch.int, !torch.int -> !torch.int
+    // CHECK :       torch.prim.Loop.condition %[[true]], iter(%[[newcount]] : !torch.int)
+    // CHECK :      } : (!torch.int, !torch.bool, !torch.int) -> !torch.int
+    // CHECK :     torch.prim.Loop.condition %[[true]], iter(%[[skip_loop]] : !torch.int)
+    // CHECK :    } : (!torch.int, !torch.bool, !torch.int) -> !torch.int
+    // CHECK :    %[[count_insert0:.*]] = torch.aten.slice_scatter %[[outputbatch]], %[[counttensor0:.*]], %[[int0]], %[[ngram_indices0:.*]], %[[ngram_indices0plus1:.*]], %[[int1]] : !torch.vtensor<[7],f32>, !torch.vtensor<[1],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[7],f32>
+    // the skip_loop and count_loops repeat for each ngram in the pool_int64t's, then after the last ngram frequency is counted...
+    // CHECK :    %[[unqueezecounts:.*]] = torch.aten.unsqueeze % [[lastcountinsert:.*]], %[[int0]] : !torch.vtensor<[7],f32>, !torch.int -> !torch.vtensor<[1,7],f32>
+    // CHECK :    %[[count_into_output:.*]] = torch.aten.slice_scatter %[[arg2]], %[[unsqueezecounts]], %[[int0]], %[[arg1]], %[[arg1plus1:.*]], %[[int1]] : !torch.vtensor<[2,7],f32>, !torch.vtensor<[1,7],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,7],f32>
+    // CHECK :    torch.prim.Loop.condition %[[true]], iter(%[[count_into_output]] : !torch.vtensor<[2,7],f32>)
+    // CHECK :  } : (!torch.int, !torch.bool, !torch.vtensor<[2,7],f32>) -> !torch.vtensor<[2,7],f32>
+    // CHECK :  return %[[batchloop]] : !torch.vtensor<[2,7],f32>
+    %0 = torch.operator "onnx.TfIdfVectorizer"(%arg0) {torch.onnx.max_gram_length = 2 : si64, torch.onnx.max_skip_count = 5 : si64, torch.onnx.min_gram_length = 2 : si64, torch.onnx.mode = "TF", torch.onnx.ngram_counts = [0 : si64, 4 : si64], torch.onnx.ngram_indexes = [0 : si64, 1 : si64, 2 : si64, 3 : si64, 4 : si64, 5 : si64, 6 : si64], torch.onnx.pool_int64s = [2 : si64, 3 : si64, 5 : si64, 4 : si64, 5 : si64, 6 : si64, 7 : si64, 8 : si64, 6 : si64, 7 : si64]} : (!torch.vtensor<[2,6],si32>) -> !torch.vtensor<[2,7],f32>
+    return %0 : !torch.vtensor<[2,7],f32>
+  }
+
+// -----
+
  // CHECK-LABEL: func.func @test_range_int16_type
   func.func @test_range_int16_type(%arg0: !torch.vtensor<[],si16>, %arg1: !torch.vtensor<[],si16>, %arg2: !torch.vtensor<[],si16>) -> !torch.vtensor<[2],si16> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
     // CHECK: %[[NONE:.*]] torch.constant.none
