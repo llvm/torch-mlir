@@ -378,7 +378,7 @@ diagonalizeInputAndRewriteEquation(Location loc, PatternRewriter &rewriter,
 
   std::string resultString(resultTokens.begin(), resultTokens.end());
 
-  equation = llvm::join(inputStrings, ",") + " -> " + resultString;
+  equation = llvm::join(inputStrings, ",") + "->" + resultString;
   return true;
 }
 
@@ -601,12 +601,6 @@ static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
   generateOutDimShapeMap(lhsOtherDims);
   generateOutDimShapeMap(rhsOtherDims);
 
-  if (contractingDims.size() == 0 && lhsOtherDims.size() == 0 &&
-      rhsOtherDims.size() == 0) {
-    return rewriter.notifyMatchFailure(
-        loc, "Hadamard product is currently not supported");
-  }
-
   // shape: [*batchingDims, *lhsOtherDims, *lhsReduceDims, *lhsContractingDims]
   lhs = permuteTensorForMatmul(rewriter, loc, lhs, lhsTokens, batchingDims,
                                contractingDims, lhsOtherDims, lhsReduceDims,
@@ -626,7 +620,12 @@ static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
 
   // perform matmul
   auto outType = lhsType.getWithSizesAndDtype(std::nullopt, outputDType);
-  result = rewriter.create<Torch::AtenMatmulOp>(loc, outType, lhs, rhs);
+
+  if (contractingDims.size() != 0) {
+    result = rewriter.create<Torch::AtenMatmulOp>(loc, outType, lhs, rhs);
+  } else {
+    result = rewriter.create<Torch::AtenMulTensorOp>(loc, outType, lhs, rhs);
+  }
 
   // generate ideal result dims.
   generateIdealReusltDimTokens(batchingDims, lhsOtherDims, rhsOtherDims,
