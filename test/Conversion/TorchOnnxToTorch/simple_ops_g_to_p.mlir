@@ -2027,7 +2027,9 @@ func.func @test_mwm(%arg0: !torch.vtensor<[],si64>, %arg1: !torch.vtensor<[],si6
   // CHECK:           %[[VAL_103:.*]] = torch.prim.ListConstruct %[[VAL_102]] : (!torch.vtensor<[9,8],i1>) -> !torch.list<vtensor<[9,8],i1>>
   // CHECK:           %[[VAL_104:.*]] = torch.aten.index_put %[[VAL_90]], %[[VAL_103]], %[[VAL_79]], %[[VAL_50]] : !torch.vtensor<[9,8],f32>, !torch.list<vtensor<[9,8],i1>>, !torch.vtensor<[],f32>, !torch.bool -> !torch.vtensor<[9,8],f32>
   // CHECK:           %[[VAL_105:.*]] = torch.aten.add.Tensor %[[VAL_104]], %[[VAL_101]], %[[VAL_15]] : !torch.vtensor<[9,8],f32>, !torch.vtensor<[9,8],f32>, !torch.int -> !torch.vtensor<[9,8],f32>
-  // CHECK:           return %[[VAL_105]] : !torch.vtensor<[9,8],f32>
+  // CHECK:           %[[VAL_106:.*]] = torch.constant.int 6
+  // CHECK:           %[[VAL_107:.*]] = torch.aten.to.dtype %[[VAL_105]], %[[VAL_106]], %[[VAL_50]], %[[VAL_50]], %[[VAL_11]] : !torch.vtensor<[9,8],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[9,8],f32>
+  // CHECK:           return %[[VAL_107]] : !torch.vtensor<[9,8],f32>
   %none = torch.constant.none
   %0 = torch.operator "onnx.MelWeightMatrix"(%arg0, %arg1, %arg2, %arg3, %arg4) : (!torch.vtensor<[],si64>, !torch.vtensor<[],si64>, !torch.vtensor<[],si64>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>) -> !torch.vtensor<[9,8],f32>
   return %0 : !torch.vtensor<[9,8],f32>
