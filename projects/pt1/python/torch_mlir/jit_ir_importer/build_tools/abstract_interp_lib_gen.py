@@ -2225,8 +2225,45 @@ def aten〇norm〇Scalar〡shape(self: List[int], p: float = 2) -> List[int]:
 def aten〇norm〇ScalarOpt_dim〡shape(self: List[int], p: Optional[float], dim: List[int], keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, 0)
 
+@check_shape_function([
+    Invocation(TensorOfShape(1, 3, 10), [11])
+])
+def aten〇upsample_nearest1d〡shape(self: List[int], output_size: List[int], scales: Optional[float] = None) -> List[int]:
+    return [self[0], self[1], output_size[0]]
+
+@check_shape_function([
+    Invocation(TensorOfShape(1, 3, 10), [11], None),
+    Invocation(TensorOfShape(1, 3, 10), None, [2.0]),
+    Invocation(TensorOfShape(1, 3, 5), None, [2.5])
+])
+def aten〇upsample_nearest1d〇vec〡shape(input: List[int], output_size: Optional[List[int]], scale_factors: Optional[List[float]]) -> List[int]:
+    assert output_size is None or scale_factors is None
+    assert not (output_size is None and scale_factors is None)
+    if output_size is not None:
+        return [input[0], input[1], output_size[0]]
+    else:
+        assert scale_factors is not None
+        return [input[0], input[1], int(input[2] * scale_factors[0])]
+
+@check_shape_function([
+    Invocation(TensorOfShape(1, 3, 10, 10), [11, 12])
+])
 def aten〇upsample_nearest2d〡shape(self: List[int], output_size: List[int], scales_h: Optional[float] = None, scales_w: Optional[float] = None) -> List[int]:
     return [self[0], self[1], output_size[0], output_size[1]]
+
+@check_shape_function([
+    Invocation(TensorOfShape(1, 3, 10, 10), [11, 12], None),
+    Invocation(TensorOfShape(1, 3, 10, 9), None, [2.0, 2.3]),
+    Invocation(TensorOfShape(1, 3, 5, 6), None, [2.5, 1.0])
+])
+def aten〇upsample_nearest2d〇vec〡shape(input: List[int], output_size: Optional[List[int]], scale_factors: Optional[List[float]]) -> List[int]:
+    assert output_size is None or scale_factors is None
+    assert not (output_size is None and scale_factors is None)
+    if output_size is not None:
+        return [input[0], input[1], output_size[0], output_size[1]]
+    else:
+        assert scale_factors is not None
+        return [input[0], input[1], int(input[2] * scale_factors[0]), int(input[3] * scale_factors[1])]
 
 # ==============================================================================
 # Dtype Functions
@@ -3380,9 +3417,24 @@ def aten〇upsample_nearest2d_backward〡dtype(grad_output_rank_dtype: Tuple[int
     grad_output_rank, grad_output_dtype = grad_output_rank_dtype
     return grad_output_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5)], output_size=[11]))
+def aten〇upsample_nearest1d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int], scales: Optional[float] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5)], output_size=[11], scale_factors=None))
+def aten〇upsample_nearest1d〇vec〡dtype(input_rank_dtype: Tuple[int, int], output_size: Optional[List[int]], scale_factors: Optional[List[float]]) -> int:
+    self_rank, self_dtype = input_rank_dtype
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7)], output_size=[11, 13]))
 def aten〇upsample_nearest2d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int], scales_h: Optional[float] = None, scales_w: Optional[float] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7)], output_size=[11, 13], scale_factors=None))
+def aten〇upsample_nearest2d〇vec〡dtype(input_rank_dtype: Tuple[int, int], output_size: Optional[List[int]], scale_factors: Optional[List[float]]) -> int:
+    self_rank, self_dtype = input_rank_dtype
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1]))
