@@ -289,7 +289,8 @@ public:
         loc, f64Ty, rewriter.getF64FloatAttr(0.0));
     int64_t srcWidth = cast<mlir::FloatType>(elemTy).getWidth();
     if (srcWidth > 64)
-      op->emitWarning("Op bitwidth will be truncated from " + std::to_string(srcWidth) + " bits to 64 bits.");
+      op->emitWarning("Op bitwidth will be truncated from " +
+                      std::to_string(srcWidth) + " bits to 64 bits.");
     auto sumBody = [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
       Value input = payloadArgs[0];
       if (srcWidth < 64)
@@ -340,7 +341,8 @@ public:
                  if (srcWidth < 64)
                    currWeight = b.create<arith::ExtFOp>(loc, f64Ty, currWeight);
                  if (srcWidth > 64)
-                   currWeight = b.create<arith::TruncFOp>(loc, f64Ty, currWeight);
+                   currWeight =
+                       b.create<arith::TruncFOp>(loc, f64Ty, currWeight);
                  Value currMass = b.create<arith::DivFOp>(loc, currWeight, sum);
                  Value currCum =
                      b.create<scf::IfOp>(
