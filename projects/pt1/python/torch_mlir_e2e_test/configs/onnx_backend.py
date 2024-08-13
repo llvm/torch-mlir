@@ -64,7 +64,7 @@ def convert_onnx(model, inputs):
     for index, arg in enumerate(inputs):
         shape = map(lambda d: d if d >= 0 else 1, arg.shape)
         shape = tuple(shape)
-        examples.append(torch.zeros(size=shape, dtype=arg.dtype))
+        examples.append(torch.ones(size=shape, dtype=arg.dtype))
 
         input_name = "input_{}".format(index)
         input_names.append(input_name)
@@ -150,6 +150,7 @@ class OnnxBackendTestConfig(TestConfig):
 
     def compile(self, program: torch.nn.Module, verbose: bool = False) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
+        print(example_args)
         onnx_module = convert_onnx(program, example_args)
         backend_module = _module_lowering(
             verbose, OutputType.get(self.output_type), onnx_module
