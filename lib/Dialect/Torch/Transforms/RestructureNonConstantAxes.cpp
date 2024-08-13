@@ -62,6 +62,20 @@ public:
                                          "dim argument is already constant");
     }
 
+    // when keepdim is not constant, check the ranks of the input and output
+    // tensors
+    ValueTensorType selfTy =
+        llvm::cast<ValueTensorType>(op.getSelf().getType());
+    ValueTensorType resultTy =
+        llvm::cast<ValueTensorType>(op.getResult().getType());
+    if (selfTy.hasSizes() && resultTy.hasSizes() &&
+        selfTy.getSizes().size() != resultTy.getSizes().size()) {
+      return rewriter.notifyMatchFailure(
+          op,
+          "RestructureNonConstantAxes does not yet support keepdim=false, but "
+          "the input and output tensors have different ranks");
+    }
+
     Type intType = rewriter.getType<Torch::IntType>();
     Type boolType = rewriter.getType<Torch::BoolType>();
     auto createInt = [&](int value) {
@@ -101,13 +115,6 @@ public:
     Value afterProd = createInt(1);
     Value dimSize =
         rewriter.create<Torch::AtenSizeIntOp>(loc, intType, self, dim);
-
-    ValueTensorType selfTy = llvm::cast<Torch::ValueTensorType>(self.getType());
-
-    // e
-
-    ValueTensorType resultTy =
-        llvm::cast<Torch::ValueTensorType>(op.getResult().getType());
 
     for (size_t i = 0; i < selfTy.getSizes().size(); ++i) {
       Value idx = createInt(i);
