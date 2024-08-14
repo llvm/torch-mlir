@@ -202,7 +202,7 @@ public:
 
     // Reshape the result back to original shape
     Value originalShape = rewriter.create<Torch::AtenSizeOp>(
-        loc, rewriter.getType<Torch::ListType>(intType), self);
+        loc, rewriter.getType<Torch::ListType>(intType), op);
     Value result = rewriter.create<Torch::AtenViewOp>(
         loc, op->getResult(0).getType(), newReductionOp, originalShape);
 
