@@ -379,10 +379,22 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
         realVal = b.create<arith::ExtFOp>(loc, complexElementType, scalar);
       } else if (complexElementType.getWidth() < dtypeFloat.getWidth()) {
         realVal = b.create<arith::TruncFOp>(loc, complexElementType, scalar);
-        ;
       } else {
         realVal = scalar;
       }
+
+      return b.create<complex::CreateOp>(loc, dtypeComplex, realVal, imgVal);
+    }
+
+    // Int to complex type.
+    if (auto dtypeInt = dyn_cast<mlir::IntegerType>(scalarType)) {
+      auto complexElementType =
+          cast<mlir::FloatType>(dtypeComplex.getElementType());
+
+      Value realVal =
+          b.create<arith::SIToFPOp>(loc, complexElementType, scalar);
+      Value imgVal =
+          b.create<arith::ConstantOp>(loc, b.getZeroAttr(complexElementType));
 
       return b.create<complex::CreateOp>(loc, dtypeComplex, realVal, imgVal);
     }
