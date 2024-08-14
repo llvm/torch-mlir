@@ -436,7 +436,7 @@ static Value collapseDimForMatmul(PatternRewriter &rewriter, Location loc,
       resultShape.push_back(v);
       continue;
     }
-    resultShape.push_back(mlir::ShapedType::kDynamic);
+    resultShape.push_back(Torch::kUnknownSize);
   }
 
   auto outShapeValue = rewriter.create<Torch::PrimListConstructOp>(
@@ -675,7 +675,7 @@ static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
       resultShape.push_back(v);
       continue;
     }
-    resultShape.push_back(mlir::ShapedType::kDynamic);
+    resultShape.push_back(Torch::kUnknownSize);
   }
 
   auto outResultShape = rewriter.create<Torch::PrimListConstructOp>(
