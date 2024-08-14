@@ -7,6 +7,7 @@ add_mlir_library(TorchMLIRRefBackend
   DEPENDS
   MLIRTorchTypesIncGen
   TorchMLIRRefBackendPassIncGen
+  MLIRTorchConversionOpsIncGen
 
   LINK_COMPONENTS
   Core
