@@ -531,11 +531,13 @@ static Value permuteTensorForMatmul(PatternRewriter &rewriter, Location loc,
     dimTokenMap[dimTokens[idx]] = idx;
   }
 
+  SmallVector<int64_t> permuteShape;
   SmallVector<Value> permuteVec;
   auto appendDims = [&](SmallVector<char> dimTokens) {
     for (auto d : dimTokens) {
       permuteVec.push_back(rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(dimTokenMap[d])));
+      permuteShape.push_back(inputType.getSizes()[dimTokenMap[d]]);
     }
   };
 
@@ -550,12 +552,6 @@ static Value permuteTensorForMatmul(PatternRewriter &rewriter, Location loc,
   Value dstDims = rewriter.create<Torch::PrimListConstructOp>(
       loc, Torch::ListType::get(Torch::IntType::get(rewriter.getContext())),
       permuteVec);
-
-  SmallVector<int64_t> permuteShape;
-  for (auto d : dimTokens) {
-    auto axis = dimTokenMap[d];
-    permuteShape.push_back(inputType.getSizes()[axis]);
-  }
 
   auto outType = inputType.getWithSizesAndDtype(permuteShape,
                                                 inputType.getOptionalDtype());
