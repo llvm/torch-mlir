@@ -16,8 +16,6 @@ from torch_mlir._version import torch_version_for_comparison, version
 print(f"TORCH_VERSION_FOR_COMPARISON =", torch_version_for_comparison())
 
 LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
-    "IscloseStaticModule_basic",
-    "IscloseStaticModuleTrue_basic",
     # lowering to torch backend IR fails due to unsupported op: aten.upsample_[mode/dims].vec
     # these interpolate tests are added specifically to test onnx.Resize.
     "InterpolateDynamicModule_sizes_bilinear",
