@@ -166,7 +166,7 @@ public:
 
     // Reshape input
 
-    ValueTensorType newSelfTy = selfTy.getWithSizesAndDtype(
+    auto newSelfTy = selfTy.getWithSizesAndDtype(
         SmallVector<int64_t>{Torch::kUnknownSize, Torch::kUnknownSize,
                              Torch::kUnknownSize},
         selfTy.getDtype());
