@@ -113,8 +113,7 @@ public:
     // new shape = [beforeDim, dimSize, afterDim]
     Value beforeProd = createInt(1);
     Value afterProd = createInt(1);
-    Value dimSize =
-        rewriter.create<Torch::AtenSizeIntOp>(loc, intType, self, dim);
+    Value dimSize = createInt(1);
 
     auto createConditionalMult = [&](Value self, Value multiplier,
                                      Value condition) {
@@ -153,6 +152,13 @@ public:
           rewriter.create<Torch::AtenGtIntOp>(loc, boolType, idx, dim);
       isAfterDim =
           rewriter.create<Torch::AtenIntBoolOp>(loc, intType, isAfterDim);
+
+      Value isEqualToDim =
+          rewriter.create<Torch::AtenEqIntOp>(loc, boolType, idx, dim);
+      isEqualToDim =
+          rewriter.create<Torch::AtenIntBoolOp>(loc, intType, isEqualToDim);
+      dimSize = rewriter.create<Torch::AtenMulIntOp>(loc, intType, dimSize,
+                                                     isEqualToDim);
 
       beforeProd = createConditionalMult(beforeProd, size, isBeforeDim);
       afterProd = createConditionalMult(afterProd, size, isAfterDim);
