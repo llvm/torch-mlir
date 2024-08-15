@@ -165,11 +165,16 @@ public:
         ValueRange{beforeProd, dimSize, afterProd});
 
     // Reshape input
-    Value reshaped =
-        rewriter.create<Torch::AtenViewOp>(loc, self.getType(), self, newShape);
 
-    // construct new operange range where self is replaced with reshaped tensor,
-    // and dim is replaced with 1
+    ValueTensorType newSelfTy = selfTy.getWithSizesAndDtype(
+        SmallVector<int64_t>{Torch::kUnknownSize, Torch::kUnknownSize,
+                             Torch::kUnknownSize},
+        selfTy.getDtype());
+    Value reshapedSelf =
+        rewriter.create<Torch::AtenViewOp>(loc, newSelfTy, self, newShape);
+
+    // construct new operange range where self is replaced with reshapedSelf
+    // tensor, and dim is replaced with 1
     Value newDim;
     if (oldDimIsList) {
       newDim = rewriter.create<Torch::PrimListConstructOp>(
@@ -180,8 +185,8 @@ public:
     ValueRange oldOperands = op->getOperands();
     SmallVector<Value> newOperandsVect;
     for (size_t i = 0; i < oldOperands.size(); ++i) {
-      if (oldOperands[i] == self) {
-        newOperandsVect.push_back(reshaped);
+      if (oldOperands[i] == op.getSelf()) {
+        newOperandsVect.push_back(reshapedSelf);
       } else if (oldOperands[i] == op.getDim()) {
         newOperandsVect.push_back(newDim);
       } else {
