@@ -395,8 +395,8 @@ class SliceScatterNegativeEndModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([-1, -1], torch.float32, True),
-            ([-1, -1], torch.float32, True),
+            ([6, 8], torch.float32, True),
+            ([2, 8], torch.float32, True),
         ]
     )
     def forward(self, x, src):
