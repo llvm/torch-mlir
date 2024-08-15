@@ -201,8 +201,14 @@ public:
         rewriter.create<SrcOp>(loc, newResultTy, newOperands, op->getAttrs());
 
     // Reshape the result back to original shape
-    Value originalShape = rewriter.create<Torch::AtenSizeOp>(
-        loc, rewriter.getType<Torch::ListType>(intType), op);
+    ValueTensorType oldResultTy =
+        cast<ValueTensorType>(op.getResult().getType());
+    SmallVector<Value> shapeValues;
+    for (auto dim : oldResultTy.getSizes()) {
+      shapeValues.push_back(createInt(dim));
+    }
+    Value originalShape = rewriter.create<Torch::PrimListConstructOp>(
+        loc, rewriter.getType<Torch::ListType>(intType), shapeValues);
     Value result = rewriter.create<Torch::AtenViewOp>(
         loc, op->getResult(0).getType(), newReductionOp, originalShape);
 
