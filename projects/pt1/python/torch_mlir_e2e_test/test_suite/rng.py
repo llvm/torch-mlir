@@ -419,7 +419,7 @@ class MultinomialModule2DF32(MultinomialBase):
     def forward(self, x):
         # note: this should really call mean(-1)
         # for some reason, doing this causes a torchscript numerics error?
-        return self._forward(x).to(dtype=torch.float32).mean()
+        return self._forward(x).mean(dtype=torch.double)
 
 
 @register_test_case(module_factory=lambda: MultinomialModule2DF32())
@@ -439,7 +439,7 @@ class MultinomialModule2D(MultinomialBase):
     def forward(self, x):
         # note: this should really call mean(-1)
         # for some reason, doing this causes a torchscript numerics error?
-        return self._forward(x).to(dtype=torch.float32).mean()
+        return self._forward(x).mean(dtype=torch.double)
 
 
 @register_test_case(module_factory=lambda: MultinomialModule2D())
