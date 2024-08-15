@@ -2825,7 +2825,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (axes) {
           auto axesTy = cast<Torch::ValueTensorType>(axes.getType());
           assert(axesTy.getSizes().size() == 1);
-          assert(axesTy.getSizes[0] != Torch::kUnknownSize);
+          assert(axesTy.getSizes()[0] != Torch::kUnknownSize);
 
           auto dataTensorType = cast<Torch::ValueTensorType>(data.getType());
           int64_t rank = dataTensorType.getSizes().size();
@@ -2870,7 +2870,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             Value iv = rewriter.create<Torch::ConstantIntOp>(
                 loc, rewriter.getI64IntegerAttr(j));
 
-            for (int i = 0; i < axesExtracted.size(); ++i) {
+            for (size_t i = 0; i < axesExtracted.size(); ++i) {
               Value begin = begins[i];
               Value end = ends[i];
 
