@@ -15,9 +15,9 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
 
-Value mlir::torch::onnx_c::createConstantIntList(
-    OpBinder binder, ConversionPatternRewriter &rewriter,
-    ArrayRef<int64_t> cstInput) {
+Value mlir::torch::onnx_c::createConstantIntList(OpBinder binder,
+                                                 PatternRewriter &rewriter,
+                                                 ArrayRef<int64_t> cstInput) {
   SmallVector<Value> cstValue;
   for (int64_t i : cstInput) {
     cstValue.push_back(rewriter.create<Torch::ConstantIntOp>(
@@ -103,8 +103,8 @@ mlir::torch::onnx_c::onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx) {
 }
 
 LogicalResult mlir::torch::onnx_c::createTorchTransposeOp(
-    ConversionPatternRewriter &rewriter, Location loc, Value input,
-    int64_t dimA, int64_t dimB, Value &transposed) {
+    PatternRewriter &rewriter, Location loc, Value input, int64_t dimA,
+    int64_t dimB, Value &transposed) {
   Type transposedType;
   if (failed(getTransposedType(cast<Torch::BaseTensorType>(input.getType()),
                                dimA, dimB, transposedType)))
@@ -119,8 +119,8 @@ LogicalResult mlir::torch::onnx_c::createTorchTransposeOp(
 }
 
 LogicalResult mlir::torch::onnx_c::createTorchPermuteOp(
-    OpBinder binder, ConversionPatternRewriter &rewriter, Location loc,
-    Value input, SmallVector<int64_t> permuteDims, Value &permuted) {
+    OpBinder binder, PatternRewriter &rewriter, Location loc, Value input,
+    SmallVector<int64_t> permuteDims, Value &permuted) {
   Type permutedType;
   if (failed(
           Torch::getPermutedType(cast<Torch::BaseTensorType>(input.getType()),

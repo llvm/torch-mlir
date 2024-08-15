@@ -35,25 +35,20 @@ namespace mlir::torch::onnx_c {
 Value createActivationByName(ImplicitLocOpBuilder &b, StringRef name,
                              Value input);
 
-Value createConstantIntList(OpBinder binder,
-                            ConversionPatternRewriter &rewriter,
+Value createConstantIntList(OpBinder binder, PatternRewriter &rewriter,
                             ArrayRef<int64_t> cstInput);
 
 Torch::ValueTensorType getQTorchTypeFromTorchIntType(Type ty);
 
 template <typename T>
-Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
-                Value &ofItem) {
+Value getItemOp(OpBinder binder, PatternRewriter &rewriter, Value &ofItem) {
   return rewriter.create<Torch::AtenItemOp>(binder.getLoc(),
                                             rewriter.getType<T>(), ofItem);
 }
 
-LogicalResult OnnxLstmExpander(OpBinder binder,
-                               ConversionPatternRewriter &rewriter);
-LogicalResult OnnxGruExpander(OpBinder binder,
-                              ConversionPatternRewriter &rewriter);
-LogicalResult OnnxRnnExpander(OpBinder binder,
-                              ConversionPatternRewriter &rewriter);
+LogicalResult OnnxLstmExpander(OpBinder binder, PatternRewriter &rewriter);
+LogicalResult OnnxGruExpander(OpBinder binder, PatternRewriter &rewriter);
+LogicalResult OnnxRnnExpander(OpBinder binder, PatternRewriter &rewriter);
 
 bool areAllElementsDistinct(SmallVector<int64_t> array);
 
@@ -109,12 +104,11 @@ m_OnnxListOfConstantInts(SmallVectorImpl<int64_t> &bind_values) {
 
 std::optional<int64_t> onnxDtypeIntToTorchDtypeInt(int64_t dtypeIntOnnx);
 
-LogicalResult createTorchTransposeOp(ConversionPatternRewriter &rewriter,
-                                     Location loc, Value input, int64_t dimA,
-                                     int64_t dimB, Value &transposed);
+LogicalResult createTorchTransposeOp(PatternRewriter &rewriter, Location loc,
+                                     Value input, int64_t dimA, int64_t dimB,
+                                     Value &transposed);
 
-LogicalResult createTorchPermuteOp(OpBinder binder,
-                                   ConversionPatternRewriter &rewriter,
+LogicalResult createTorchPermuteOp(OpBinder binder, PatternRewriter &rewriter,
                                    Location loc, Value input,
                                    SmallVector<int64_t> permuteDims,
                                    Value &permuted);
