@@ -146,11 +146,11 @@ public:
 
       // Compute isBeforeDim and isAfterDim as 0 or 1
       Value isBeforeDim =
-          rewriter.create<Torch::AtenLtIntOp>(loc, intType, idx, dim);
+          rewriter.create<Torch::AtenLtIntOp>(loc, boolType, idx, dim);
       isBeforeDim =
           rewriter.create<Torch::AtenIntBoolOp>(loc, intType, isBeforeDim);
       Value isAfterDim =
-          rewriter.create<Torch::AtenGtIntOp>(loc, intType, idx, dim);
+          rewriter.create<Torch::AtenGtIntOp>(loc, boolType, idx, dim);
       isAfterDim =
           rewriter.create<Torch::AtenIntBoolOp>(loc, intType, isAfterDim);
 
