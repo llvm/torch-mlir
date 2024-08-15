@@ -304,6 +304,84 @@ static bool parseEquation(const std::string &equation,
   return true;
 }
 
+static bool
+diagonalizeInputAndRewriteEquation(Location loc, PatternRewriter &rewriter,
+                                   std::string &equation,
+                                   SmallVector<Value> &inputTensors) {
+  SmallVector<char> resultTokens;
+  SmallVector<SmallVector<char>> inputTokens;
+
+  if (!parseEquation(equation, inputTokens, resultTokens)) {
+    return false;
+  }
+
+  for (size_t i = 0, d = inputTokens.size(); i < d; ++i) {
+    SmallVector<char> inputStr = inputTokens[i];
+    Value input = inputTensors[i];
+
+    for (size_t d0 = 0; d0 < inputStr.size(); ++d0) {
+      char id = inputStr[d0];
+
+      size_t d1;
+      for (d1 = d0 + 1; d1 < inputStr.size(); d1++) {
+        if (id == inputStr[d1])
+          break;
+      }
+
+      // No duplicate found so we can continue.
+      if (d1 == inputStr.size())
+        continue;
+
+      // Remove the ID and move to the end:
+      for (size_t i = d0 + 1; i < d1; ++i)
+        inputStr[i - 1] = inputStr[i];
+      for (size_t i = d1 + 1, s = inputStr.size(); i < s; ++i)
+        inputStr[i - 2] = inputStr[i];
+
+      inputStr[inputStr.size() - 2] = id;
+      inputStr.resize(inputStr.size() - 1);
+
+      auto inputTy = cast<ValueTensorType>(input.getType());
+      llvm::SmallVector<int64_t> newShape;
+      for (size_t i = 0, s = inputTy.getSizes().size(); i < s; ++i) {
+        if (i == d0 || i == d1)
+          continue;
+        newShape.push_back(inputTy.getSizes()[i]);
+      }
+      newShape.push_back(inputTy.getSizes()[d0]);
+
+      inputTy = rewriter.getType<ValueTensorType>(newShape, inputTy.getDtype());
+
+      Value zero = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(0));
+
+      Value d0Val = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(d0));
+      Value d1Val = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(d1));
+
+      input = rewriter.create<AtenDiagonalOp>(loc, inputTy, /*input=*/input,
+                                              /*offset=*/zero, /*dim1=*/d0Val,
+                                              /*dim2=*/d1Val);
+
+      // Frontmost token will have changed:
+      d0--;
+    }
+
+    inputTokens[i] = inputStr;
+    inputTensors[i] = input;
+  }
+
+  llvm::SmallVector<std::string> inputStrings;
+  for (auto inputStr : inputTokens)
+    inputStrings.emplace_back(inputStr.begin(), inputStr.end());
+
+  std::string resultString(resultTokens.begin(), resultTokens.end());
+
+  equation = llvm::join(inputStrings, ",") + "->" + resultString;
+  return true;
+}
+
 // [*batchingDims, *lhsOtherDims, *lhsReduceDims, *lhsContractingDims] =>
 // [batchingDimsProd, lhsOtherDimsProd, lhsContractingDimsProd]
 static Value collapseDimForMatmul(PatternRewriter &rewriter, Location loc,
@@ -523,12 +601,6 @@ static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
   generateOutDimShapeMap(lhsOtherDims);
   generateOutDimShapeMap(rhsOtherDims);
 
-  if (contractingDims.size() == 0 && lhsOtherDims.size() == 0 &&
-      rhsOtherDims.size() == 0) {
-    return rewriter.notifyMatchFailure(
-        loc, "Hadamard product is currently not supported");
-  }
-
   // shape: [*batchingDims, *lhsOtherDims, *lhsReduceDims, *lhsContractingDims]
   lhs = permuteTensorForMatmul(rewriter, loc, lhs, lhsTokens, batchingDims,
                                contractingDims, lhsOtherDims, lhsReduceDims,
@@ -548,7 +620,12 @@ static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
 
   // perform matmul
   auto outType = lhsType.getWithSizesAndDtype(std::nullopt, outputDType);
-  result = rewriter.create<Torch::AtenMatmulOp>(loc, outType, lhs, rhs);
+
+  if (contractingDims.size() != 0) {
+    result = rewriter.create<Torch::AtenMatmulOp>(loc, outType, lhs, rhs);
+  } else {
+    result = rewriter.create<Torch::AtenMulTensorOp>(loc, outType, lhs, rhs);
+  }
 
   // generate ideal result dims.
   generateIdealReusltDimTokens(batchingDims, lhsOtherDims, rhsOtherDims,
@@ -1723,6 +1800,53 @@ public:
 } // namespace
 
 namespace {
+// Decompose aten.atleast_2d into: aten.reshape. See
+// https://github.com/pytorch/pytorch/blob/9a8ab778d34bd24c5caceb340837483decc4c311/torch/_refs/__init__.py#L2604
+// def atleast_2d(
+//     arg: Union[TensorLikeType, Sequence[TensorLikeType]], *args:
+//     TensorLikeType
+// ) -> Union[TensorLikeType, Tuple[TensorLikeType, ...]]:
+//     """Reference implementation of :func:`torch.atleast_2d`."""
+//     if not args and isinstance(arg, collections.abc.Sequence):
+//         args_ = arg
+//     else:
+//         assert not isinstance(arg, collections.abc.Sequence)
+//         args_ = (arg,) + args
+//     unsqueeze_atleast_1d = partial(_unsqueeze_atleast, atleast_1d, 0)
+//     res = tuple(a if a.ndim >= 2 else unsqueeze_atleast_1d(a) for a in args_)
+//     return res if len(res) > 1 else res[0]
+class DecomposeAtenAtleast2dOp : public OpRewritePattern<AtenAtleast2dOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAtleast2dOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Type opType = op.getType();
+
+    auto inputType = cast<BaseTensorType>(input.getType());
+    SmallVector<int64_t> inputShape(inputType.getSizes());
+
+    if (inputShape.size() >= 2) {
+      rewriter.replaceOp(op, input);
+      return success();
+    }
+    auto atleast1dResShape =
+        inputShape.empty() ? SmallVector<int64_t, 1>{1} : inputShape;
+    auto atleast1dResType = rewriter.getType<ValueTensorType>(
+        atleast1dResShape, inputType.getOptionalDtype());
+    auto atleast1dRes =
+        rewriter.create<AtenAtleast1dOp>(loc, atleast1dResType, input);
+    Value zero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    rewriter.replaceOpWithNewOp<AtenUnsqueezeOp>(op, opType, atleast1dRes,
+                                                 zero);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose AtenEinsumOp to AtenMatmulOp, and supports possible reduce
 // operation and permute operation. Currently, this pass doesn't support
 // Hadamard product. The basic idea is that:
@@ -1777,6 +1901,13 @@ public:
             op, "Unexpected character in equations encountered");
       }
     }
+
+    if (!diagonalizeInputAndRewriteEquation(op.getLoc(), rewriter, equation,
+                                            inputTensors)) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Failed to handle diagonalization");
+    }
+
     SmallVector<char> resultTokens;
     SmallVector<SmallVector<char>> inputTokens;
     if (!parseEquation(equation, inputTokens, resultTokens)) {
@@ -7169,6 +7300,20 @@ class DecomposeAtenClampMaxOp : public OpRewritePattern<AtenClampMaxOp> {
 } // namespace
 
 namespace {
+class DecomposeAtenRad2degOp : public OpRewritePattern<AtenRad2degOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRad2degOp op,
+                                PatternRewriter &rewriter) const override {
+    Value constant180OverPi = rewriter.create<Torch::ConstantFloatOp>(
+        op.getLoc(), rewriter.getF64FloatAttr(180 / 3.14159));
+    rewriter.replaceOpWithNewOp<AtenMulScalarOp>(op, op.getType(), op.getSelf(),
+                                                 constant180OverPi);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenCosineSimilarityOp
     : public OpRewritePattern<AtenCosineSimilarityOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -9331,6 +9476,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRreluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast1dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
@@ -9369,6 +9515,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRad2degOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTruncOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);

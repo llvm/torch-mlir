@@ -1809,10 +1809,16 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           flattenedIndices = rewriter.create<Torch::AtenUnsqueezeOp>(
               loc, flattenIndicesTy, reshapedIndices, constZero);
         } else if (indicesRank > 1) {
-          Value endDim = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(indicesRank - 2));
-          flattenedIndices = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
-              loc, flattenIndicesTy, reshapedIndices, batchDimCountVal, endDim);
+          if (batchDimCount > indicesRank - 2) {
+            flattenedIndices = rewriter.create<Torch::AtenUnsqueezeOp>(
+                loc, flattenIndicesTy, reshapedIndices, batchDimCountVal);
+          } else {
+            Value endDim = rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(indicesRank - 2));
+            flattenedIndices = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
+                loc, flattenIndicesTy, reshapedIndices, batchDimCountVal,
+                endDim);
+          }
         }
 
         // step 8. Expand `r-b-indices_shape[-1]` dims of flattened indices.
@@ -1834,8 +1840,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value endDim = rewriter.create<Torch::ConstantIntOp>(
             loc,
             rewriter.getI64IntegerAttr(batchDimCount + indicesLastDim - 1));
-        Value flattenedData = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
-            loc, flattenDataTy, data, batchDimCountVal, endDim);
+        Value flattenedData = data;
+
+        if (indicesLastDim != 1) {
+          flattenedData = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
+              loc, flattenDataTy, data, batchDimCountVal, endDim);
+        }
 
         // step 10. Now we have flattenedData and expandedIndices of same rank
         // to perform gather operation.
@@ -1851,6 +1861,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.op, resultType, gather, /*dim=*/constZero);
           return success();
         }
+
+        if (unflattenIndicesDims.empty()) {
+          rewriter.replaceOpWithNewOp<Torch::AtenSqueezeDimOp>(
+              binder.op, resultType, gather, /*dim=*/batchDimCountVal);
+          return success();
+        }
+
         Value unflattenSizeList = rewriter.create<Torch::PrimListConstructOp>(
             loc, intListTy, unflattenIndicesDims);
         rewriter.replaceOpWithNewOp<Torch::AtenUnflattenIntOp>(
@@ -2839,18 +2856,66 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.op, resultType, data, padsSizeList, modeVal, constantValue);
         return success();
       });
-  patterns.onOp("Pow", 1,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value lhs, rhs;
-                  if (binder.tensorOperands(lhs, rhs) ||
-                      binder.tensorResultType(resultType)) {
-                    return failure();
-                  }
-                  rewriter.replaceOpWithNewOp<Torch::AtenPowTensorTensorOp>(
-                      binder.op, resultType, lhs, rhs);
-                  return success();
-                });
+  patterns.onOp(
+      "Pow", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value lhs, rhs;
+        if (binder.tensorOperands(lhs, rhs) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+
+        auto loc = binder.getLoc();
+        auto lhsTy = cast<Torch::ValueTensorType>(lhs.getType());
+        auto rhsTy = cast<Torch::ValueTensorType>(rhs.getType());
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
+            loc, rewriter.getBoolAttr(false));
+        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        auto torchDtype = Torch::getScalarTypeForType(rewriter.getF32Type());
+        Value tyConst = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    static_cast<int64_t>(torchDtype)));
+
+        if (isa<IntegerType>(lhsTy.getDtype())) {
+          lhsTy = rewriter.getType<Torch::ValueTensorType>(
+              lhsTy.getSizes(), rewriter.getF32Type());
+          lhs = rewriter.create<Torch::AtenToDtypeOp>(loc, lhsTy, lhs, tyConst,
+                                                      cstFalse, cstFalse, none);
+        }
+
+        if (isa<IntegerType>(rhsTy.getDtype())) {
+          rhsTy = rewriter.getType<Torch::ValueTensorType>(
+              rhsTy.getSizes(), rewriter.getF32Type());
+          rhs = rewriter.create<Torch::AtenToDtypeOp>(loc, rhsTy, rhs, tyConst,
+                                                      cstFalse, cstFalse, none);
+        }
+
+        auto powType = resultType;
+        if (isa<IntegerType>(resultType.getDtype())) {
+          powType = rewriter.getType<Torch::ValueTensorType>(
+              resultType.getSizes(), rewriter.getF32Type());
+        }
+
+        Value pow = rewriter.create<Torch::AtenPowTensorTensorOp>(loc, powType,
+                                                                  lhs, rhs);
+
+        if (!isa<IntegerType>(resultType.getDtype())) {
+          rewriter.replaceOp(binder.op, pow);
+          return success();
+        }
+
+        auto outDtype = Torch::getScalarTypeForType(resultType.getDtype());
+        auto outTyConst = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    static_cast<int64_t>(outDtype)));
+
+        rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+            binder.op, resultType, pow, outTyConst, cstFalse, cstFalse, none);
+
+        return success();
+      });
   patterns.onOp(
       "Identity", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;

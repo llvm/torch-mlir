@@ -1073,6 +1073,35 @@ def TensorsConcatComplex128FloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class TensorsConcatComplex128IntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.complex128, True),
+            ([-1, -1, -1], torch.int64, True),
+            ([-1, -1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, a, b, c):
+        return torch.cat([a, b, c], 1)
+
+
+@register_test_case(module_factory=lambda: TensorsConcatComplex128IntModule())
+def TensorsConcatComplex128IntModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 1, 4, low=1, high=10).to(torch.complex128),
+        tu.rand(2, 3, 4, low=1, high=10).to(torch.int64),
+        tu.rand(2, 3, 4, low=1, high=10).to(torch.int32),
+    )
+
+
+# ==============================================================================
+
+
 class TensorsConcatNegativeDimModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

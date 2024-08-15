@@ -3285,6 +3285,60 @@ def ElementwiseRemainderScalarModule_Int_Float_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseRemainderScalarModule_Int_Float_NegativeDividend(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.int32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.remainder(x, 5.0)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderScalarModule_Int_Float_NegativeDividend()
+)
+def ElementwiseRemainderScalarModule_Int_Float_NegativeDividend_basic(
+    module, tu: TestUtils
+):
+    module.forward(tu.randint(30, low=-10, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseRemainderScalarModule_Int_Float_NegativeDivisor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.int32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.remainder(x, -5.0)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderScalarModule_Int_Float_NegativeDivisor()
+)
+def ElementwiseRemainderScalarModule_Int_Float_NegativeDivisor_basic(
+    module, tu: TestUtils
+):
+    module.forward(tu.randint(30, low=-10, high=-1).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class ElementwiseRemainderScalarModule_Float(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -3303,6 +3357,58 @@ class ElementwiseRemainderScalarModule_Float(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Float())
 def ElementwiseRemainderScalarModule_Float_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 3))
+
+
+# ==============================================================================
+
+
+class ElementwiseRemainderScalarModule_Float_NegativeDividend(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.remainder(x, 5.0)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderScalarModule_Float_NegativeDividend()
+)
+def ElementwiseRemainderScalarModule_Float_NegativeDividend_basic(
+    module, tu: TestUtils
+):
+    module.forward(tu.rand(10, 3, low=-10.0, high=10.0))
+
+
+# ==============================================================================
+
+
+class ElementwiseRemainderScalarModule_Float_NegativeDivisor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.remainder(x, -5.0)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderScalarModule_Float_NegativeDivisor()
+)
+def ElementwiseRemainderScalarModule_Float_NegativeDivisor_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 3, low=-10.0, high=10.0))
 
 
 # ==============================================================================
@@ -3331,6 +3437,56 @@ def ElementwiseRemainderScalarModule_Int_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseRemainderScalarModule_Int_NegativeDividend(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.remainder(x, 5)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderScalarModule_Int_NegativeDividend()
+)
+def ElementwiseRemainderScalarModule_Int_NegativeDividend_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 2, low=-10, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseRemainderScalarModule_Int_NegativeDivisor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.remainder(x, -5)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderScalarModule_Int_NegativeDivisor()
+)
+def ElementwiseRemainderScalarModule_Int_NegativeDivisor_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 2, low=-10, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class ElementwiseRemainderScalarModule_Bool(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -3348,6 +3504,31 @@ class ElementwiseRemainderScalarModule_Bool(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseRemainderScalarModule_Bool())
 def ElementwiseRemainderScalarModule_Bool_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([True, False, True, True, True]))
+
+
+# ==============================================================================
+
+
+class ElementwiseRemainderScalarModule_Bool_NegativeDivisor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.bool, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.remainder(x, -3)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderScalarModule_Bool_NegativeDivisor()
+)
+def ElementwiseRemainderScalarModule_Bool_NegativeDivisor_basic(module, tu: TestUtils):
     module.forward(torch.tensor([True, False, True, True, True]))
 
 
@@ -3415,7 +3596,9 @@ def ElementwiseFmodTensor_Int_basic(module, tu: TestUtils):
         tu.randint(100, low=0, high=1000).to(torch.int32),
         tu.randint(100, low=1, high=1000).to(torch.int32),
     )
-    # ==============================================================================
+
+
+# ==============================================================================
 
 
 class ElementwiseRemainderTensorModule_Int_Float(torch.nn.Module):
@@ -3437,6 +3620,67 @@ class ElementwiseRemainderTensorModule_Int_Float(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseRemainderTensorModule_Int_Float())
 def ElementwiseRemainderTensorModule_Int_Float_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, high=10).to(torch.int32), tu.rand(3, 4, high=10))
+
+
+# ==============================================================================
+
+
+class ElementwiseRemainderTensorModule_Int_Float_NegativeDividend(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.remainder(a, b)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderTensorModule_Int_Float_NegativeDividend()
+)
+def ElementwiseRemainderTensorModule_Int_Float_NegativeDividend_basic(
+    module, tu: TestUtils
+):
+    module.forward(
+        tu.randint(3, 4, low=-10, high=10).to(torch.int32), tu.rand(3, 4, high=10)
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseRemainderTensorModule_Int_Float_NegativeDivisor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.remainder(a, b)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderTensorModule_Int_Float_NegativeDivisor()
+)
+def ElementwiseRemainderTensorModule_Int_Float_NegativeDivisor_basic(
+    module, tu: TestUtils
+):
+    module.forward(
+        tu.randint(3, 4, low=-10, high=10).to(torch.int32),
+        tu.rand(3, 4, low=-10, high=-1),
+    )
 
 
 # ==============================================================================
@@ -3466,6 +3710,60 @@ def ElementwiseRemainderTensorModule_Float_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseRemainderTensorModule_Float_NegativeDividend(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.remainder(a, b)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderTensorModule_Float_NegativeDividend()
+)
+def ElementwiseRemainderTensorModule_Float_NegativeDividend_basic(
+    module, tu: TestUtils
+):
+    module.forward(tu.rand(3, 4, high=10), tu.rand(3, 4, high=10))
+
+
+# ==============================================================================
+
+
+class ElementwiseRemainderTensorModule_Float_NegativeDivisor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.remainder(a, b)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderTensorModule_Float_NegativeDivisor()
+)
+def ElementwiseRemainderTensorModule_Float_NegativeDivisor_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, high=10), tu.rand(3, 4, low=-10, high=-1))
+
+
+# ==============================================================================
+
+
 class ElementwiseRemainderTensorModule_Int(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -3487,6 +3785,64 @@ def ElementwiseRemainderTensorModule_Int_basic(module, tu: TestUtils):
     module.forward(
         tu.randint(3, 4, high=10, dtype=torch.int32),
         tu.randint(3, 4, high=10, dtype=torch.int32),
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseRemainderTensorModule_Int_NegativeDividend(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.remainder(a, b)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderTensorModule_Int_NegativeDividend()
+)
+def ElementwiseRemainderTensorModule_Int_NegativeDividend_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=-10, high=10, dtype=torch.int32),
+        tu.randint(3, 4, high=10, dtype=torch.int32),
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseRemainderTensorModule_Int_NegativeDivisor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.remainder(a, b)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderTensorModule_Int_NegativeDivisor()
+)
+def ElementwiseRemainderTensorModule_Int_NegativeDivisor_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=-10, high=10, dtype=torch.int32),
+        tu.randint(3, 4, low=-10, high=-1, dtype=torch.int32),
     )
 
 
@@ -4552,6 +4908,52 @@ class ElementwiseExpm1IntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseExpm1IntModule())
 def ElementwiseExpm1IntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseRad2DegModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.rad2deg(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRad2DegModule())
+def ElementwiseRad2DegModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseRad2DegIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.rad2deg(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRad2DegIntModule())
+def ElementwiseRad2DegIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
 
 
 # ==============================================================================
