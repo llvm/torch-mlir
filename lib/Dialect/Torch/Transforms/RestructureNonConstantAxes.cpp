@@ -116,48 +116,46 @@ public:
     Value dimSize =
         rewriter.create<Torch::AtenSizeIntOp>(loc, intType, self, dim);
 
+    auto createConditionalMult = [&](Value self, Value multiplier,
+                                     Value condition) {
+      // compute
+      // result = codition ? (self * multiplier) : self
+      // via
+      // result = self * (1 + (multiplier - 1) * condition)
+
+      // which translates to:
+
+      // result = multiplier - 1
+      Value result = rewriter.create<Torch::AtenSubIntOp>(
+          loc, intType, multiplier, createInt(1));
+      // result = result * condition
+      result =
+          rewriter.create<Torch::AtenMulIntOp>(loc, intType, result, condition);
+      // result = result + 1
+      result = rewriter.create<Torch::AtenAddIntOp>(loc, intType, result,
+                                                    createInt(1));
+      // result = self * result
+      result = rewriter.create<Torch::AtenMulIntOp>(loc, intType, self, result);
+      return result;
+    };
+
     for (size_t i = 0; i < selfTy.getSizes().size(); ++i) {
       Value idx = createInt(i);
       Value size =
           rewriter.create<Torch::AtenSizeIntOp>(loc, intType, self, idx);
-      Value isBeforeDim =
-          rewriter.create<Torch::AtenLtIntOp>(loc, boolType, idx, dim);
-      Value isAfterDim =
-          rewriter.create<Torch::AtenGtIntOp>(loc, boolType, idx, dim);
-      auto beforeProdIf =
-          rewriter.create<Torch::PrimIfOp>(loc, intType, isBeforeDim);
-      {
-        Region &thenRegion = beforeProdIf.getThenRegion();
-        rewriter.createBlock(&thenRegion);
-        Value thenResult = rewriter.create<Torch::AtenMulIntOp>(
-            loc, intType, beforeProd, size);
-        rewriter.create<Torch::PrimIfYieldOp>(loc, thenResult);
-      }
-      {
-        Region &elseRegion = beforeProdIf.getElseRegion();
-        rewriter.createBlock(&elseRegion);
-        rewriter.create<Torch::PrimIfYieldOp>(loc, beforeProd);
-      }
-      rewriter.setInsertionPointAfter(beforeProdIf);
-      beforeProd = beforeProdIf.getResult(0);
 
-      // Replace AtenWhereScalarOp with PrimIfOp for afterProd
-      auto afterProdIf =
-          rewriter.create<Torch::PrimIfOp>(loc, intType, isAfterDim);
-      {
-        Region &thenRegion = afterProdIf.getThenRegion();
-        rewriter.createBlock(&thenRegion);
-        Value thenResult =
-            rewriter.create<Torch::AtenMulIntOp>(loc, intType, afterProd, size);
-        rewriter.create<Torch::PrimIfYieldOp>(loc, thenResult);
-      }
-      {
-        Region &elseRegion = afterProdIf.getElseRegion();
-        rewriter.createBlock(&elseRegion);
-        rewriter.create<Torch::PrimIfYieldOp>(loc, afterProd);
-      }
-      rewriter.setInsertionPointAfter(afterProdIf);
-      afterProd = afterProdIf.getResult(0);
+      // Compute isBeforeDim and isAfterDim as 0 or 1
+      Value isBeforeDim =
+          rewriter.create<Torch::AtenLtIntOp>(loc, intType, idx, dim);
+      isBeforeDim =
+          rewriter.create<Torch::AtenIntBoolOp>(loc, intType, isBeforeDim);
+      Value isAfterDim =
+          rewriter.create<Torch::AtenGtIntOp>(loc, intType, idx, dim);
+      isAfterDim =
+          rewriter.create<Torch::AtenIntBoolOp>(loc, intType, isAfterDim);
+
+      beforeProd = createConditionalMult(beforeProd, size, isBeforeDim);
+      afterProd = createConditionalMult(afterProd, size, isAfterDim);
     }
 
     Value newShape = rewriter.create<Torch::PrimListConstructOp>(
