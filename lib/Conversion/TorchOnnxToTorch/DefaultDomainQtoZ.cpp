@@ -2623,7 +2623,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                   Value input;
                   float alpha;
                   if (binder.tensorOperand(input) ||
-                      binder.f32FloatAttr(alpha, "alpha", 1.0)) {
+                      binder.f32FloatAttr(alpha, "alpha", 1.0) ||
+                      binder.tensorResultType(resultType)) {
                     return failure();
                   }
                   Value cstAlpha = rewriter.create<Torch::ConstantFloatOp>(
