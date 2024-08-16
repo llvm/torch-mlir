@@ -157,8 +157,7 @@ public:
           rewriter.create<Torch::AtenEqIntOp>(loc, boolType, idx, dim);
       isEqualToDim =
           rewriter.create<Torch::AtenIntBoolOp>(loc, intType, isEqualToDim);
-      dimSize = rewriter.create<Torch::AtenMulIntOp>(loc, intType, dimSize,
-                                                     isEqualToDim);
+      dimSize = createConditionalMult(dimSize, size, isEqualToDim);
 
       beforeProd = createConditionalMult(beforeProd, size, isBeforeDim);
       afterProd = createConditionalMult(afterProd, size, isAfterDim);
