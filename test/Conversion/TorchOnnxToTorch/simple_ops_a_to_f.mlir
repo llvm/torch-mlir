@@ -58,7 +58,7 @@ func.func @test_adam_multiple(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtens
   // CHECK: %[[DIV:.+]] = torch.aten.div.Tensor %[[G1]], %[[ADD]]
   // CHECK: %[[X1:.+]] = torch.aten.sub.Tensor %arg3, %[[DIV]], %[[LR]]
 
-  %0:6 = torch.operator "onnx.Adam"(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6, %arg7, %arg8, %arg9) {torch.onnx.alpha = 0.949999988 : f32, torch.onnx.beta = 8.500000e-01 : f32, torch.onnx.norm_coefficient = 1.000000e-03 : f32} : (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>) -> (!torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>) 
+  %0:6 = torch.operator "onnx.Adam"(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6, %arg7, %arg8, %arg9) {torch.onnx.alpha = 0.949999988 : f32, torch.onnx.beta = 8.500000e-01 : f32, torch.onnx.norm_coefficient = 1.000000e-03 : f32} : (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>) -> (!torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>)
   // CHECK: return %[[X0]], %29, %[[G0]], %22, %[[GG0]], %25
   return %0#0, %0#1, %0#2, %0#3, %0#4, %0#5 : !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>
 }
