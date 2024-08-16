@@ -51,4 +51,4 @@ In Mark Step: true
 ```
 
 ## Example Models
-There are also examples of a [HuggingFace BERT](../examples/ltc_backend_bert.py) and [MNIST](../examples/ltc_backend_mnist.py) model running on the example LTC backend.
+There are also examples of a [HuggingFace BERT](../projects/pt1/examples/ltc_backend_bert.py) and [MNIST](../projects/pt1/examples/ltc_backend_mnist.py) model running on the example LTC backend.
