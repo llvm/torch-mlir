@@ -147,6 +147,170 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                   return success();
                 });
   // Add became forward compatible with Torch in version 7.
+  patterns.onOp(
+      "Adam", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        llvm::SmallVector<Value> operands;
+        if (binder.tensorOperandsList(operands))
+          return failure();
+
+        float alpha = 0.9;
+        float beta = 0.999;
+        float epsilon = 0.0;
+        float norm = 0.0;
+        float postNorm = 0.0;
+        if (binder.f32FloatAttr(alpha, "alpha", 0.9f) ||
+            binder.f32FloatAttr(beta, "beta", 0.999f) ||
+            binder.f32FloatAttr(epsilon, "epsilon", 0.0f) ||
+            binder.f32FloatAttr(norm, "norm", 0.0f) ||
+            binder.f32FloatAttr(postNorm, "postNorm", 0.0f))
+          return failure();
+
+        auto loc = binder.getLoc();
+        Value r = operands[0];
+        Value t = operands[1];
+
+        SmallVector<Value> inputs;
+        SmallVector<Value> grads;
+        SmallVector<Value> accGrads;
+        SmallVector<Value> accSqGrads;
+
+        size_t inputCount = (operands.size() - 2) / 4;
+        for (int i = 0; i < inputCount; ++i) {
+          inputs.push_back(operands[2 + i]);
+          grads.push_back(operands[2 + i + inputCount * 1]);
+          accGrads.push_back(operands[2 + i + inputCount * 2]);
+          accSqGrads.push_back(operands[2 + i + inputCount * 3]);
+        }
+
+        auto intTy = rewriter.getType<Torch::IntType>();
+        auto floatTy = rewriter.getType<Torch::FloatType>();
+
+        // Materialize scalar values:
+        Value zero = rewriter.create<Torch::ConstantIntOp>(loc, intTy, 0);
+        Value one = rewriter.create<Torch::ConstantFloatOp>(
+            loc, floatTy, rewriter.getF64FloatAttr(1.0));
+        Value alphaV = rewriter.create<Torch::ConstantFloatOp>(
+            loc, floatTy, rewriter.getF64FloatAttr(alpha));
+        Value alphaSubV = rewriter.create<Torch::ConstantFloatOp>(
+            loc, floatTy, rewriter.getF64FloatAttr(1.0 - alpha));
+
+        Value betaV = rewriter.create<Torch::ConstantFloatOp>(
+            loc, floatTy, rewriter.getF64FloatAttr(beta));
+        Value betaSubV = rewriter.create<Torch::ConstantFloatOp>(
+            loc, floatTy, rewriter.getF64FloatAttr(1.0 - beta));
+
+        Value normV = rewriter.create<Torch::ConstantFloatOp>(
+            loc, floatTy, rewriter.getF64FloatAttr(norm));
+        Value postNormSubV = rewriter.create<Torch::ConstantFloatOp>(
+            loc, floatTy, rewriter.getF64FloatAttr(1.0 - postNorm));
+
+        Value epsilonV = rewriter.create<Torch::ConstantFloatOp>(
+            loc, floatTy, rewriter.getF64FloatAttr(epsilon));
+
+        // Compute the updated learning rate:
+        //    newR = R > 0 ? R * sqrt( 1.0 - beta ^ T) / (1.0 - alpha ^ T) : R
+        auto powTy = rewriter.getType<Torch::ValueTensorType>(
+            ArrayRef<int64_t>{}, rewriter.getF32Type());
+        Value alphaT =
+            rewriter.create<Torch::AtenPowScalarOp>(loc, powTy, alphaV, t);
+        Value betaT =
+            rewriter.create<Torch::AtenPowScalarOp>(loc, powTy, betaV, t);
+
+        alphaT = rewriter.create<Torch::AtenSubScalarOp>(loc, alphaT.getType(),
+                                                         alphaT, one, one);
+        betaT = rewriter.create<Torch::AtenSubScalarOp>(loc, betaT.getType(),
+                                                        betaT, one, one);
+
+        alphaT =
+            rewriter.create<Torch::AtenNegOp>(loc, alphaT.getType(), alphaT);
+        betaT = rewriter.create<Torch::AtenNegOp>(loc, betaT.getType(), betaT);
+        betaT = rewriter.create<Torch::AtenSqrtOp>(loc, betaT.getType(), betaT);
+
+        auto boolTensorTy = rewriter.getType<Torch::ValueTensorType>(
+            ArrayRef<int64_t>{}, rewriter.getI1Type());
+        Value firstStep =
+            rewriter.create<Torch::AtenEqScalarOp>(loc, boolTensorTy, t, zero);
+
+        Value ratio = rewriter.create<Torch::AtenDivTensorOp>(
+            loc, betaT.getType(), betaT, alphaT);
+        ratio =
+            rewriter.create<Torch::AtenMulTensorOp>(loc, r.getType(), r, ratio);
+        Value lr = rewriter.create<Torch::AtenWhereSelfOp>(loc, ratio.getType(),
+                                                           firstStep, r, ratio);
+        lr = rewriter.create<Torch::AtenItemOp>(loc, floatTy, lr);
+
+        SmallVector<Value> newX;
+        SmallVector<Value> newG;
+        SmallVector<Value> newSG;
+
+        for (int i = 0, s = inputs.size(); i < s; ++i) {
+
+          Value x = inputs[i];
+          Value g = grads[i];
+          Value v = accGrads[i];
+          Value h = accSqGrads[i];
+
+          // Add gradient of 0.5 * norm_coefficient * ||X||_2^2, where ||X||_2
+          // is the 2-norm. G_regularized = norm_coefficient * X + G
+          if (norm != 0.0) {
+            g = rewriter.create<Torch::AtenAddTensorOp>(loc, g.getType(), g, x,
+                                                        normV);
+          }
+
+          // Update exponentially-averaged historical gradient. V_new = alpha *
+          // V + (1 - alpha) * G_regularized
+          v = rewriter.create<Torch::AtenMulScalarOp>(loc, v.getType(), v,
+                                                      alphaV);
+          v = rewriter.create<Torch::AtenAddTensorOp>(loc, v.getType(), v, g,
+                                                      alphaSubV);
+
+          // Update exponentially-averaged historical squared gradient. H_new =
+          // beta * H + (1 - beta) * G_regularized * G_regularized
+
+          Value gg =
+              rewriter.create<Torch::AtenMulTensorOp>(loc, g.getType(), g, g);
+          h = rewriter.create<Torch::AtenMulScalarOp>(loc, h.getType(), h,
+                                                      betaV);
+          h = rewriter.create<Torch::AtenAddTensorOp>(loc, h.getType(), h, gg,
+                                                      betaSubV);
+
+          // Compute the element-wise square-root of H_new. V_new will be
+          // element-wisely // divided by H_sqrt for a better update direction.
+          // H_sqrt = Sqrt(H_new) + epsilon
+          Value hSqrt = rewriter.create<Torch::AtenSqrtOp>(loc, h.getType(), h);
+          hSqrt = rewriter.create<Torch::AtenAddScalarOp>(loc, h.getType(),
+                                                          hSqrt, epsilonV, one);
+
+          // Compute new value of “X”. X_new = X - R_adjusted * V_new / H_sqrt
+          Value vh = rewriter.create<Torch::AtenDivTensorOp>(loc, v.getType(),
+                                                             v, hSqrt);
+          x = rewriter.create<Torch::AtenSubTensorOp>(loc, x.getType(), x, vh,
+                                                      lr);
+
+          // Post-update regularization. X_final = (1 - norm_coefficient_post) *
+          // X_new
+          if (postNorm != 0.0) {
+            x = rewriter.create<Torch::AtenMulScalarOp>(loc, x.getType(), x,
+                                                        postNormSubV);
+          }
+
+          newX.push_back(x);
+          newG.push_back(v);
+          newSG.push_back(h);
+        }
+
+        llvm::SmallVector<Value> results;
+        for (auto v : newX)
+          results.push_back(v);
+        for (auto v : newG)
+          results.push_back(v);
+        for (auto v : newSG)
+          results.push_back(v);
+
+        rewriter.replaceOp(binder.op, results);
+        return success();
+      });
+  // Add became forward compatible with Torch in version 7.
   patterns.onOp("Add", 7,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
