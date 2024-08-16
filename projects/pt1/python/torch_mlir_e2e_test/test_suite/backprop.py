@@ -322,3 +322,129 @@ class LeakyReluBackwardStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: LeakyReluBackwardStaticModule())
 def LeakyReluBackwardStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5), tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class RreluWithNoiseBackwardTrainModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, grad, input, noise):
+        return torch.ops.aten.rrelu_with_noise_backward(
+            grad,
+            input,
+            noise,
+            lower=0.1,
+            upper=0.9,
+            training=True,
+            self_is_result=False,
+        )
+
+
+@register_test_case(module_factory=lambda: RreluWithNoiseBackwardTrainModule())
+def RreluWithNoiseBackwardTrainModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5), tu.rand(3, 4, 5), tu.rand(3, 4, 5))
+
+
+class RreluWithNoiseBackwardTrainStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4, 5], torch.float32, True),
+            ([3, 4, 5], torch.float32, True),
+            ([3, 4, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, grad, input, noise):
+        return torch.ops.aten.rrelu_with_noise_backward(
+            grad,
+            input,
+            noise,
+            lower=0.1,
+            upper=0.9,
+            training=True,
+            self_is_result=False,
+        )
+
+
+@register_test_case(module_factory=lambda: RreluWithNoiseBackwardTrainStaticModule())
+def RreluWithNoiseBackwardTrainStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5), tu.rand(3, 4, 5), tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class RreluWithNoiseBackwardEvalModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, grad, input, noise):
+        return torch.ops.aten.rrelu_with_noise_backward(
+            grad,
+            input,
+            noise,
+            lower=0.1,
+            upper=0.9,
+            training=False,
+            self_is_result=False,
+        )
+
+
+@register_test_case(module_factory=lambda: RreluWithNoiseBackwardEvalModule())
+def RreluWithNoiseBackwardEvalModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5), tu.rand(3, 4, 5), tu.rand(3, 4, 5))
+
+
+class RreluWithNoiseBackwardEvalStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4, 5], torch.float32, True),
+            ([3, 4, 5], torch.float32, True),
+            ([3, 4, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, grad, input, noise):
+        return torch.ops.aten.rrelu_with_noise_backward(
+            grad,
+            input,
+            noise,
+            lower=0.1,
+            upper=0.9,
+            training=False,
+            self_is_result=False,
+        )
+
+
+@register_test_case(module_factory=lambda: RreluWithNoiseBackwardEvalStaticModule())
+def RreluWithNoiseBackwardEvalStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5), tu.rand(3, 4, 5), tu.rand(3, 4, 5))

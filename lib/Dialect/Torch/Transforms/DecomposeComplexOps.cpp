@@ -3409,6 +3409,59 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenRreluWithNoiseBackwardOp
+    : public OpRewritePattern<AtenRreluWithNoiseBackwardOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRreluWithNoiseBackwardOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value gradOutput = op.getGradOutput();
+    Value self = op.getSelf();
+    Value noise = op.getNoise();
+    auto resType = cast<BaseTensorType>(op.getType());
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+
+    bool training;
+    if (!matchPattern(op.getTraining(), m_TorchConstantBool(&training))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "training should be a bool constant");
+    }
+
+    bool selfIsResult = false;
+    if (!matchPattern(op.getSelfIsResult(),
+                      m_TorchConstantBool(&selfIsResult)) ||
+        selfIsResult)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: self_is_result should be false");
+
+    double lower, upper;
+    if (!matchPattern(op.getLower(), m_TorchConstantFloat(&lower)) ||
+        !matchPattern(op.getUpper(), m_TorchConstantFloat(&upper))) {
+      return rewriter.notifyMatchFailure(
+          op, "lower and upper should be float constants");
+    }
+
+    if (training && (upper - lower > 0.000001)) {
+      Value rreluWithNoiseBackwardOutput =
+          rewriter.create<AtenMulTensorOp>(loc, resType, gradOutput, noise);
+      rewriter.replaceOp(op, rreluWithNoiseBackwardOutput);
+    } else {
+      double negative_slope = (upper + lower) / 2;
+      Value cstNegativeSlope = rewriter.create<ConstantFloatOp>(
+          loc, rewriter.getF64FloatAttr(negative_slope));
+      rewriter.replaceOpWithNewOp<AtenLeakyReluBackwardOp>(
+          op, resType, gradOutput, self, cstNegativeSlope,
+          op.getSelfIsResult());
+    }
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenPreluOp : public OpRewritePattern<AtenPreluOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -9565,6 +9618,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenPreluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRreluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRreluWithNoiseOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRreluWithNoiseBackwardOp>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast2dOp>(patterns);
