@@ -175,7 +175,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         SmallVector<Value> accSqGrads;
 
         size_t inputCount = (operands.size() - 2) / 4;
-        for (int i = 0; i < inputCount; ++i) {
+        for (size_t i = 0; i < inputCount; ++i) {
           inputs.push_back(operands[2 + i]);
           grads.push_back(operands[2 + i + inputCount * 1]);
           accGrads.push_back(operands[2 + i + inputCount * 2]);
