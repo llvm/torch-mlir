@@ -1,5 +1,33 @@
 #!/usr/bin/env python
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# Also available under a BSD-style license. See LICENSE.
 
+# Script for generating the torch-mlir wheel.
+# ```
+# $ python setup.py bdist_wheel
+# ```
+#
+# It is recommended to build with Ninja and ccache. To do so, set environment
+# variables by prefixing to above invocations:
+# ```
+# CMAKE_GENERATOR=Ninja CMAKE_C_COMPILER_LAUNCHER=ccache CMAKE_CXX_COMPILER_LAUNCHER=ccache
+# ```
+#
+# On CIs, it is often advantageous to re-use/control the CMake build directory.
+# This can be set with the TORCH_MLIR_CMAKE_BUILD_DIR env var.
+# Additionally, the TORCH_MLIR_CMAKE_BUILD_DIR_ALREADY_BUILT env var will
+# prevent this script from attempting to build the directory, and will simply
+# use the (presumed already built) directory as-is.
+#
+# The package version can be set with the TORCH_MLIR_PYTHON_PACKAGE_VERSION
+# environment variable. For example, this can be "20220330.357" for a snapshot
+# release on 2022-03-30 with build number 357.
+#
+# Implementation notes:
+# The contents of the wheel is just the contents of the `python_packages`
+# directory that our CMake build produces. We go through quite a bit of effort
+# on the CMake side to organize that directory already, so we avoid duplicating
+# that here, and just package up its contents.
 import os
 import pathlib
 import shutil
