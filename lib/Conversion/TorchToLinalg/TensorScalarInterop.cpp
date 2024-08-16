@@ -151,8 +151,13 @@ public:
     Type outElementType = resultType.getElementType();
     Value elemValProm =
         convertScalarToDtype(rewriter, loc, elemVal, outElementType);
+
+    SmallVector<Value> sizes;
+    for (int dim : resultType.getShape()) {
+      sizes.push_back(rewriter.create<arith::ConstantIndexOp>(loc, dim));
+    }
     Value zeroDTensor =
-        createInitTensor(rewriter, loc, {}, outElementType, elemValProm);
+        createInitTensor(rewriter, loc, sizes, outElementType, elemValProm);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, zeroDTensor);
     return success();
   }
@@ -176,8 +181,12 @@ public:
     Value elemVal = adaptor.getA();
     Value elemValProm =
         convertScalarToDtype(rewriter, loc, elemVal, outElementType);
+    SmallVector<Value> sizes;
+    for (int dim : resultType.getShape()) {
+      sizes.push_back(rewriter.create<arith::ConstantIndexOp>(loc, dim));
+    }
     Value zeroDTensor =
-        createInitTensor(rewriter, loc, {}, outElementType, elemValProm);
+        createInitTensor(rewriter, loc, sizes, outElementType, elemValProm);
     rewriter.replaceOp(op, zeroDTensor);
     return success();
   }
