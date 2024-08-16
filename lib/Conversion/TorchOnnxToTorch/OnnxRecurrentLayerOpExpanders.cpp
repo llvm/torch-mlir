@@ -229,8 +229,10 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
 
   // Result types
   ValueTensorType yTy, Y_hType;
-  if (binder.tensorResultTypeAtIndex(yTy, 0) &&
-      binder.tensorResultTypeAtIndex(Y_hType, 1)) {
+  auto hasResult0 = binder.tensorResultTypeAtIndex(yTy, 0);
+  auto hasResult1 = binder.tensorResultTypeAtIndex(Y_hType, 1);
+
+  if (hasResult0 && hasResult1) {
     return rewriter.notifyMatchFailure(binder.op,
                                        "At least one output must be present");
   }
