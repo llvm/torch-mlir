@@ -89,6 +89,12 @@ public:
     Value self = op.getSelf();
     Value dim = op.getDim();
 
+    // fail at runtime if dim is a list with more than one element
+    if (isa<Torch::NoneType>(dim.getType())) {
+      return rewriter.notifyMatchFailure(
+          op, "RestructureNonConstantAxes does not support None dim");
+    }
+
     // handle when dim is a single element list
     bool oldDimIsList = isa<Torch::ListType>(dim.getType());
     if (oldDimIsList) {
