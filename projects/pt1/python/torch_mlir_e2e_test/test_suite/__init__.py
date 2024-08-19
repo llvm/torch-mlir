@@ -17,7 +17,7 @@ COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
-    "TimeOutModule_basic", # This test is expected to time out
+    "TimeOutModule_basic",  # This test is expected to time out
 }
 
 

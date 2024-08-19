@@ -9,6 +9,7 @@ from torch_mlir_e2e_test.framework import TestUtils
 from torch_mlir_e2e_test.registry import register_test_case
 from torch_mlir_e2e_test.annotations import annotate_args, export
 
+
 # ==============================================================================
 class TimeOutModule(torch.nn.Module):
     def __init__(self):
@@ -17,9 +18,9 @@ class TimeOutModule(torch.nn.Module):
     @export
     @annotate_args([None, ([-1, -1], torch.int64, True)])
     def forward(self, x):
-        x_val = x.size(0) # this is going to be 2
+        x_val = x.size(0)  # this is going to be 2
         sum = 100
-        while x_val < sum: # sum will always > 2
+        while x_val < sum:  # sum will always > 2
             sum += 1
         return sum
 
