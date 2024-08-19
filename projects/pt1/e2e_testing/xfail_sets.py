@@ -33,6 +33,13 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "UnfoldModule_basic",
 }
 
+if torch_version_for_comparison() < version.parse("2.5.0.dev"):
+    LINALG_XFAIL_SET = LINALG_XFAIL_SET | {
+        # Error: 'torch.aten.scaled_dot_product_attention' op expected 8 operands, but found 7
+        "ScaledDotProductAttentionDifferentModule_basic",
+        "ScaledDotProductAttentionSameModule_basic",
+    }
+
 LINALG_CRASHING_SET = {
     # Runtime op verification: Out of bounds access
     "AtenDiagEmbedNegOffsetDiag_basic",
