@@ -4959,6 +4959,52 @@ def ElementwiseRad2DegIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseDeg2RadIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.deg2rad(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseDeg2RadIntModule())
+def ElementwiseDeg2RadIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=3, high=15).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseDeg2RadFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.deg2rad(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseDeg2RadFloatModule())
+def ElementwiseDeg2RadFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
 class ElementwiseSinModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

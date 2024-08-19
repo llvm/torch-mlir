@@ -1599,6 +1599,8 @@ TOSA_PASS_SET = {
     "ElementwiseTruncIntModule_basic",
     "ElementwiseSgnModule_basic",
     "ElementwiseSignIntModule_basic",
+    "ElementwiseDeg2RadFloatModule_basic",
+    "ElementwiseDeg2RadIntModule_basic",
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dOutputSizeDivisibleByInputStaticModule_basic",
@@ -2109,6 +2111,8 @@ MAKE_FX_TOSA_PASS_SET = (
         "ScaledDotProductAttentionDifferentModule_basic",
         "RenormModuleFloat32NegativeDim_basic",
         "RenormModuleFloat32_basic",
+        "ElementwiseDeg2RadFloatModule_basic",
+        "ElementwiseDeg2RadIntModule_basic",
     }
 ) - {
     ### Test failing in make_fx_tosa but not in tosa
@@ -2510,6 +2514,8 @@ ONNX_XFAIL_SET = {
     "ElementwiseQuantizePerTensorUIntModule_basic",
     "ElementwiseRad2DegModule_basic",
     "ElementwiseRad2DegIntModule_basic",
+    "ElementwiseDeg2RadFloatModule_basic",
+    "ElementwiseDeg2RadIntModule_basic",
     "ElementwiseRemainderTensorModule_Int_basic",
     "ElementwiseRemainderTensorModule_Int_NegativeDividend_basic",
     "ElementwiseRemainderTensorModule_Int_NegativeDivisor_basic",
