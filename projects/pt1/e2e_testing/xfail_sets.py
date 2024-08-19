@@ -2303,7 +2303,9 @@ LTC_XFAIL_SET = {
     "ConvTranspose2DQInt8_basic",
 }
 
-ONNX_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
+ONNX_XFAIL_SET = {
+    # This test is expected to time out
+    "TimeOutModule_basic",
     # Failure - cast error
     "PermuteNegativeIndexModule_basic",
     # Failure - incorrect numerics
