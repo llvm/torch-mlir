@@ -2303,7 +2303,7 @@ LTC_XFAIL_SET = {
     "ConvTranspose2DQInt8_basic",
 }
 
-ONNX_XFAIL_SET = {
+ONNX_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # Failure - cast error
     "PermuteNegativeIndexModule_basic",
     # Failure - incorrect numerics
