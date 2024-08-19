@@ -91,7 +91,8 @@ def sparse_jit(f, *args, **kwargs):
 
 
 def run(f):
-    print(f"{f.__name__}")
+    # Prompt test name and torch version (for debugging).
+    print(f"{f.__name__} ({torch.__version__})")
     print("-" * len(f.__name__))
     f()
     print()
