@@ -287,8 +287,16 @@ public:
 
     Value initSum = rewriter.create<arith::ConstantOp>(
         loc, f64Ty, rewriter.getF64FloatAttr(0.0));
+    int64_t srcWidth = cast<mlir::FloatType>(elemTy).getWidth();
+    if (srcWidth > 64)
+      op->emitWarning("Op bitwidth will be truncated from " +
+                      std::to_string(srcWidth) + " bits to 64 bits.");
     auto sumBody = [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
       Value input = payloadArgs[0];
+      if (srcWidth < 64)
+        input = b.create<arith::ExtFOp>(loc, f64Ty, input);
+      if (srcWidth > 64)
+        input = b.create<arith::TruncFOp>(loc, f64Ty, input);
       Value result = payloadArgs[1];
       Value nextSum = b.create<arith::AddFOp>(loc, input, result);
       b.create<linalg::YieldOp>(loc, nextSum);
@@ -310,7 +318,7 @@ public:
 
       // compute cdf in loop
       Value initCdf = b.create<tensor::EmptyOp>(
-          loc, getAsOpFoldResult(ValueRange{numCategoriesIndex}), elemTy);
+          loc, getAsOpFoldResult(ValueRange{numCategoriesIndex}), f64Ty);
       Value cdf =
           b.create<scf::ForOp>(
                loc, cstZero, numCategories, cstOne, ValueRange{initCdf},
@@ -330,6 +338,11 @@ public:
                    ind = ValueRange{jIndex, iIndex};
                  }
                  Value currWeight = b.create<tensor::ExtractOp>(loc, self, ind);
+                 if (srcWidth < 64)
+                   currWeight = b.create<arith::ExtFOp>(loc, f64Ty, currWeight);
+                 if (srcWidth > 64)
+                   currWeight =
+                       b.create<arith::TruncFOp>(loc, f64Ty, currWeight);
                  Value currMass = b.create<arith::DivFOp>(loc, currWeight, sum);
                  Value currCum =
                      b.create<scf::IfOp>(
