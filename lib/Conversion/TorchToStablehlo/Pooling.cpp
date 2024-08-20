@@ -146,9 +146,7 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
           rewriter.getI64Type()),
       stablehloPadding);
 
-  const auto &options = getOptions();
-  auto inputShapeInfo =
-      hlo::getDimSizesOfTensor(rewriter, op, input, options.dimSizeIndexBits);
+  auto inputShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, input);
   if (failed(inputShapeInfo)) {
     return rewriter.notifyMatchFailure(
         op, "failed to get dimension sizes of the input");
@@ -524,7 +522,8 @@ public:
       } else {
         assert(false && "Unsupported pooling dimension");
       }
-      divisor = hlo::promoteType(rewriter, op.getLoc(), divisor, outTy);
+      divisor = hlo::promoteType(rewriter, op.getLoc(), divisor,
+                                 outTy.getElementType());
       DenseI64ArrayAttr bcastDimensions;
       rewriter.replaceOpWithNewOp<mlir::chlo::BroadcastDivOp>(
           op, outTy, reduceWindowSum.getResult(0), divisor, bcastDimensions);
@@ -534,11 +533,9 @@ public:
     // Use another mhlo.ReduceWindowOp to get the divisor
     Value windowSizeConst =
         hlo::getConstTensor<float>(rewriter, op, {1.0}, {}).value();
-    windowSizeConst =
-        hlo::promoteType(rewriter, op.getLoc(), windowSizeConst, outTy);
-    const auto &options = ConvertAtenOp<AtenOpT>::getOptions();
-    auto inputShapeVec = *hlo::getDimSizesOfTensor(rewriter, op, input,
-                                                   options.dimSizeIndexBits);
+    windowSizeConst = hlo::promoteType(rewriter, op.getLoc(), windowSizeConst,
+                                       outTy.getElementType());
+    auto inputShapeVec = *hlo::getDimIndexOfTensor(rewriter, op, input);
     auto inputShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
         op->getLoc(), inputShapeVec);
 
@@ -587,7 +584,8 @@ LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
   auto inputTy = cast<RankedTensorType>(input.getType());
   auto outTy =
       cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
-  input = hlo::promoteType(rewriter, op.getLoc(), input, outTy);
+  input =
+      hlo::promoteType(rewriter, op.getLoc(), input, outTy.getElementType());
   inputTy = cast<RankedTensorType>(input.getType());
   auto inputElemTy = inputTy.getElementType();
   auto inputRank = inputTy.getRank();

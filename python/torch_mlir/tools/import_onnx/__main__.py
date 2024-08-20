@@ -84,7 +84,7 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
         raw_model = onnx.load(args.input_file)
     else:
         raw_model = onnx.load(args.input_file, load_external_data=False)
-        onnx.load_external_data_for_model(raw_model, args.data_dir)
+        onnx.load_external_data_for_model(raw_model, str(args.data_dir))
 
     if args.opset_version:
         raw_model = onnx.version_converter.convert_version(

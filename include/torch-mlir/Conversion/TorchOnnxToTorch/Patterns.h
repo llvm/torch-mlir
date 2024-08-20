@@ -284,6 +284,16 @@ struct OpBinder {
     return failure();
   }
 
+  ParseResult optionalS64IntegerAttr(int64_t &value, StringRef nameSuffix) {
+    SmallString<64> name("torch.onnx.");
+    name.append(nameSuffix);
+    auto attr = op->getAttr(name);
+    if (!attr) {
+      return failure();
+    }
+    return s64IntegerAttr(value, nameSuffix);
+  }
+
   ParseResult f32FloatAttr(float &value, StringRef nameSuffix,
                            float defaultValue = 0.0f) {
     SmallString<64> name("torch.onnx.");

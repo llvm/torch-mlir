@@ -9,10 +9,12 @@
 
 #include "PassDetail.h"
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
@@ -26,6 +28,25 @@ using namespace mlir::torch::TorchConversion;
 //===----------------------------------------------------------------------===//
 
 namespace {
+
+// TODO: Consider upstreaming this to an `arith::ExtFOp` folder:
+struct ExtFTruncFPattern : public OpRewritePattern<arith::TruncFOp> {
+  ExtFTruncFPattern(MLIRContext *context) : OpRewritePattern(context) {}
+  LogicalResult matchAndRewrite(arith::TruncFOp truncf,
+                                PatternRewriter &rewriter) const override {
+    Value operand = truncf.getOperand();
+    auto extf = operand.getDefiningOp<arith::ExtFOp>();
+    if (!extf)
+      return failure();
+
+    auto parentOperand = extf.getOperand();
+    if (truncf.getType() != parentOperand.getType())
+      return failure();
+
+    rewriter.replaceOp(truncf, parentOperand);
+    return success();
+  }
+};
 
 void populateFuncBackendTypeConversionPatterns(TypeConverter &typeConverter,
                                                RewritePatternSet &patterns,
@@ -207,6 +228,11 @@ struct FinalizingBackendTypeConversionPass
         [&](Operation *op) { return typeConverter.isLegal(op); });
 
     if (failed(applyFullConversion(func, target, std::move(patterns))))
+      signalPassFailure();
+
+    RewritePatternSet greedyPatterns(context);
+    greedyPatterns.insert<ExtFTruncFPattern>(context);
+    if (failed(applyPatternsAndFoldGreedily(func, std::move(greedyPatterns))))
       signalPassFailure();
 
     // Drop attributes that are no longer used after conversion out of Torch.

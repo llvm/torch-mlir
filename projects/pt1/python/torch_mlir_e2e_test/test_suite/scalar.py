@@ -36,6 +36,30 @@ def AddIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AddFloatIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.float32, True),
+            ([], torch.int64, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return float(lhs) + int(rhs)
+
+
+@register_test_case(module_factory=lambda: AddFloatIntModule())
+def AddFloatIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(), tu.randint(low=-100, high=100))
+
+
+# ==============================================================================
+
+
 class SubIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -518,7 +542,7 @@ class AtenItemFpOpModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([], torch.float, True),
+            ([1], torch.float, True),
         ]
     )
     def forward(self, val):
@@ -528,3 +552,21 @@ class AtenItemFpOpModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenItemFpOpModule())
 def AtenItemFpOpModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1))
+
+
+# ==============================================================================
+
+
+class TrueFalseOrBoolOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([], torch.bool, True), ([], torch.bool, True)])
+    def forward(self, a, b):
+        return a | b
+
+
+@register_test_case(module_factory=lambda: TrueFalseOrBoolOpModule())
+def TrueFalseOrBoolOpModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(low=0, high=1).bool(), tu.randint(low=1, high=2).bool())

@@ -188,5 +188,20 @@ func.func @torch.permute$negative_index_valid (%arg0: !torch.vtensor<[1,2,3],f32
   %int1 = torch.constant.int 1
   %perm = torch.prim.ListConstruct %int0, %int1, %intm1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %3 = torch.aten.permute %arg0, %perm : !torch.vtensor<[1,2,3],f32>, !torch.list<int> -> !torch.vtensor<[1,2,3],f32>
-   return %3 : !torch.vtensor<[1,2,3],f32>
+  return %3 : !torch.vtensor<[1,2,3],f32>
+}
+
+// Check fake quantize ops
+func.func @torch.aten.fake_quantize_per_channel_affine (%arg0: !torch.vtensor<[3,3],f32>, %arg1: !torch.vtensor<[3],f32>, %arg2: !torch.vtensor<[3],si32>) -> !torch.vtensor<[3,3],f32> {
+  %int0 = torch.constant.int 0
+  %int255 = torch.constant.int 255
+  %1 = torch.aten.fake_quantize_per_channel_affine %arg0, %arg1, %arg2, %int0, %int0, %int255 : !torch.vtensor<[3,3],f32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],si32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,3],f32>
+  return %1 : !torch.vtensor<[3,3],f32>
+}
+
+func.func @torch.aten.fake_quantize_per_tensor_affine.tensor_qparams (%arg0: !torch.vtensor<[3,3],f32>, %arg1: !torch.vtensor<[3],f32>, %arg2: !torch.vtensor<[3],si32>) -> !torch.vtensor<[3,3],f32> {
+  %int0 = torch.constant.int 0
+  %int255 = torch.constant.int 255
+  %1 = torch.aten.fake_quantize_per_tensor_affine.tensor_qparams %arg0, %arg1, %arg2, %int0, %int255 : !torch.vtensor<[3,3],f32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],si32>, !torch.int, !torch.int -> !torch.vtensor<[3,3],f32>
+  return %1 : !torch.vtensor<[3,3],f32>
 }

@@ -102,7 +102,7 @@ def test_import_frozen_exported_program_with_dynamic_shapes():
         def forward(self, x):
             return torch.tanh(x)
 
-    batch = Dim("batch")
+    batch = Dim("batch", max=10)
     dynamic_shapes = {"x": {0: batch}}
     m = fx.export_and_import(
         Basic(),
@@ -135,7 +135,7 @@ def test_broadcast_with_dynamic_shapes():
     x = torch.randn(1, 2)
     y = torch.randn(10)
 
-    dim_0 = Dim("dim_0")
+    dim_0 = Dim("dim_0", max=10)
     dynamic_shapes = {
         "x": {},
         "y": {0: dim_0},

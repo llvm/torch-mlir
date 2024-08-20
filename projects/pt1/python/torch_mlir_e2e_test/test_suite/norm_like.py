@@ -726,3 +726,28 @@ class RenormModuleFloat32DynamicDims(torch.nn.Module):
 @register_test_case(module_factory=lambda: RenormModuleFloat32DynamicDims())
 def RenormModuleFloat32DynamicDims_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 3))
+
+
+# ==============================================================================
+class WeightNormInterfaceModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.dim = 2
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, v, g):
+        return torch.ops.aten._weight_norm_interface(v, g, self.dim)
+
+
+@register_test_case(module_factory=lambda: WeightNormInterfaceModule())
+def WeightNormInterfaceModule_basic(module, tu: TestUtils):
+    g = tu.rand(3, 10, 10)
+    v = tu.rand(1, 1, 10)
+    module.forward(g, v)

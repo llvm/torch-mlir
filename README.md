@@ -70,8 +70,8 @@ python -m pip install --upgrade pip
 Then, we can install torch-mlir with the corresponding torch and torchvision nightlies.
 ```
 pip install --pre torch-mlir torchvision \
-  --extra-index-url https://download.pytorch.org/whl/nightly/cpu
-pip install torch-mlir -f https://github.com/llvm/torch-mlir-release/releases/expanded_assets/dev-wheels
+  --extra-index-url https://download.pytorch.org/whl/nightly/cpu \
+  -f https://github.com/llvm/torch-mlir-release/releases/expanded_assets/dev-wheels
 ```
 
 ## Demos

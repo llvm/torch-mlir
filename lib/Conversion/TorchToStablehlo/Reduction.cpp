@@ -310,12 +310,10 @@ static Value reshapeReduceResultWhenKeepDim(ConversionPatternRewriter &rewriter,
                                             Location loc, Value reduceResult,
                                             ArrayRef<Value> inputShapeVec,
                                             Type outType,
-                                            ArrayRef<int64_t> dims,
-                                            size_t dimSizeIndexBits) {
+                                            ArrayRef<int64_t> dims) {
   SmallVector<Value> outShapeVec(inputShapeVec);
   Value one = rewriter.create<arith::ConstantOp>(
-      loc,
-      rewriter.getIntegerAttr(rewriter.getIntegerType(dimSizeIndexBits), 1));
+      loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
   for (auto dim : dims) {
     outShapeVec[dim] = one;
   }
@@ -432,16 +430,13 @@ public:
     }
 
     if (keepDim) {
-      const auto &options = ConvertAtenReductionOp<AtenOpT>::getOptions();
-      auto outShapeInfo = hlo::getDimSizesOfTensor(rewriter, op, input,
-                                                   options.dimSizeIndexBits);
+      auto outShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, input);
       if (failed(outShapeInfo)) {
         return rewriter.notifyMatchFailure(
             op, "failed to get dimension sizes of the input");
       }
       reduceResult = reshapeReduceResultWhenKeepDim(
-          rewriter, op->getLoc(), reduceResult, *outShapeInfo, outTy, {dim},
-          options.dimSizeIndexBits);
+          rewriter, op->getLoc(), reduceResult, *outShapeInfo, outTy, {dim});
     }
     rewriter.replaceOp(op, reduceResult);
     return success();
@@ -512,16 +507,13 @@ public:
     }
 
     if (keepDim) {
-      const auto &options = ConvertAtenReductionOp<AtenOpT>::getOptions();
-      auto outShapeInfo = hlo::getDimSizesOfTensor(rewriter, op, input,
-                                                   options.dimSizeIndexBits);
+      auto outShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, input);
       if (failed(outShapeInfo)) {
         return rewriter.notifyMatchFailure(
             op, "failed to get dimension sizes of the input");
       }
       reduceResult = reshapeReduceResultWhenKeepDim(
-          rewriter, op->getLoc(), reduceResult, *outShapeInfo, outTy, dims,
-          options.dimSizeIndexBits);
+          rewriter, op->getLoc(), reduceResult, *outShapeInfo, outTy, dims);
     }
     rewriter.replaceOp(op, reduceResult);
     return success();
@@ -573,8 +565,7 @@ public:
     }
 
     const auto &options = ConvertAtenReductionOp<AtenOpT>::getOptions();
-    auto inputShapeInfo =
-        hlo::getDimSizesOfTensor(rewriter, op, input, options.dimSizeIndexBits);
+    auto inputShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, input);
     if (failed(inputShapeInfo)) {
       return rewriter.notifyMatchFailure(
           op, "failed to get dimension sizes of the input");
@@ -592,9 +583,9 @@ public:
       }
 
       if (keepDim) {
-        reduceResult = reshapeReduceResultWhenKeepDim(
-            rewriter, op->getLoc(), reduceResult, inputShapeVec, valResultType,
-            {dim}, options.dimSizeIndexBits);
+        reduceResult =
+            reshapeReduceResultWhenKeepDim(rewriter, op->getLoc(), reduceResult,
+                                           inputShapeVec, valResultType, {dim});
       }
       rewriter.replaceOp(op, {reduceResult, Value()});
       return success();
@@ -603,16 +594,16 @@ public:
           createReduceOpReturnIndices(rewriter, op, input, inputShapeVec, dim,
                                       options.dimSizeIndexBits)
               .value();
+      SmallVector<Value> reduceResults(stablehloReduceResults);
       if (keepDim) {
-        stablehloReduceResults[0] = reshapeReduceResultWhenKeepDim(
-            rewriter, op->getLoc(), stablehloReduceResults[0], inputShapeVec,
-            valResultType, {dim}, options.dimSizeIndexBits);
-        stablehloReduceResults[1] = reshapeReduceResultWhenKeepDim(
-            rewriter, op->getLoc(), stablehloReduceResults[1], inputShapeVec,
-            idxResultType, {dim}, options.dimSizeIndexBits);
+        reduceResults[0] = reshapeReduceResultWhenKeepDim(
+            rewriter, op->getLoc(), reduceResults[0], inputShapeVec,
+            valResultType, {dim});
+        reduceResults[1] = reshapeReduceResultWhenKeepDim(
+            rewriter, op->getLoc(), reduceResults[1], inputShapeVec,
+            idxResultType, {dim});
       }
-      rewriter.replaceOp(
-          op, {stablehloReduceResults[0], stablehloReduceResults[1]});
+      rewriter.replaceOp(op, reduceResults);
       return success();
     }
   };
@@ -685,16 +676,13 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
   }
 
   if (keepDim) {
-    const auto &options = getOptions();
-    auto outShapeInfo =
-        hlo::getDimSizesOfTensor(rewriter, op, input, options.dimSizeIndexBits);
+    auto outShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, input);
     if (failed(outShapeInfo)) {
       return rewriter.notifyMatchFailure(
           op, "failed to get dimension sizes of the input");
     }
     reduceResult = reshapeReduceResultWhenKeepDim(
-        rewriter, op->getLoc(), reduceResult, *outShapeInfo, outTy, dims,
-        options.dimSizeIndexBits);
+        rewriter, op->getLoc(), reduceResult, *outShapeInfo, outTy, dims);
   }
   rewriter.replaceOp(op, reduceResult);
   return success();
@@ -709,7 +697,6 @@ template <>
 LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
     AtenFrobeniusNormDimOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  const TorchToStablehloOptions &options = getOptions();
 
   Value input = adaptor.getSelf();
   auto inputType = dyn_cast<RankedTensorType>(input.getType());
@@ -761,16 +748,14 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
   Value output = rewriter.create<stablehlo::SqrtOp>(op->getLoc(), reduceResult);
 
   if (keepDim) {
-    auto outShapeInfo =
-        hlo::getDimSizesOfTensor(rewriter, op, input, options.dimSizeIndexBits);
+    auto outShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, input);
     if (failed(outShapeInfo)) {
       return rewriter.notifyMatchFailure(
           op, "failed to get dimension sizes of the input");
     }
     output = reshapeReduceResultWhenKeepDim(
         rewriter, op->getLoc(), output, *outShapeInfo,
-        getTypeConverter()->convertType(op.getType()), dims,
-        options.dimSizeIndexBits);
+        getTypeConverter()->convertType(op.getType()), dims);
   }
   rewriter.replaceOp(op, output);
   return success();
@@ -783,7 +768,6 @@ template <>
 LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
     AtenLinalgVectorNormOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  const TorchToStablehloOptions &options = getOptions();
 
   Value input = adaptor.getSelf();
   auto inputType = dyn_cast<RankedTensorType>(input.getType());
@@ -861,15 +845,13 @@ LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
       op->getLoc(), reduceResult, reciprocalOrd, nullptr);
 
   if (keepDim) {
-    auto outShapeInfo =
-        hlo::getDimSizesOfTensor(rewriter, op, input, options.dimSizeIndexBits);
+    auto outShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, input);
     if (failed(outShapeInfo)) {
       return rewriter.notifyMatchFailure(
           op, "failed to get dimension sizes of the input");
     }
     output = reshapeReduceResultWhenKeepDim(rewriter, op->getLoc(), output,
-                                            *outShapeInfo, outType, dims,
-                                            options.dimSizeIndexBits);
+                                            *outShapeInfo, outType, dims);
   }
   rewriter.replaceOp(op, output);
   return success();

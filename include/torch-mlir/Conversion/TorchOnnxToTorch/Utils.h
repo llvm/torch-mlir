@@ -32,6 +32,9 @@ private:
 
 namespace mlir::torch::onnx_c {
 
+Value createActivationByName(ImplicitLocOpBuilder &b, StringRef name,
+                             Value input);
+
 Value createConstantIntList(OpBinder binder,
                             ConversionPatternRewriter &rewriter,
                             ArrayRef<int64_t> cstInput);
@@ -47,6 +50,10 @@ Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
 
 LogicalResult OnnxLstmExpander(OpBinder binder,
                                ConversionPatternRewriter &rewriter);
+LogicalResult OnnxGruExpander(OpBinder binder,
+                              ConversionPatternRewriter &rewriter);
+LogicalResult OnnxRnnExpander(OpBinder binder,
+                              ConversionPatternRewriter &rewriter);
 
 bool areAllElementsDistinct(SmallVector<int64_t> array);
 
@@ -81,6 +88,12 @@ struct onnx_list_of_constant_ints_op_binder {
       for (auto axis : denseAttr.getValues<llvm::APInt>()) {
         bind_values.push_back(axis.getSExtValue());
       }
+      return true;
+    }
+    if (ElementsAttr attr = dyn_cast_or_null<ElementsAttr>(
+            constOp->getAttr("torch.onnx.value"))) {
+      for (auto axis : attr.getValues<llvm::APInt>())
+        bind_values.push_back(axis.getSExtValue());
       return true;
     }
     return false;

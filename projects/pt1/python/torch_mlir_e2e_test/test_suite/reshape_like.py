@@ -1303,6 +1303,27 @@ def EinsumStaticFourDimensionModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5, 6), tu.rand(3, 7, 5, 6))
 
 
+class EinsumStaticDiagonalDimensionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 5, 4, 4], torch.float32, True),
+            ([5, 4, 5, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, tensor1, tensor2):
+        return torch.ops.aten.einsum("iijj,ijij->ji", [tensor1, tensor2])
+
+
+@register_test_case(module_factory=lambda: EinsumStaticDiagonalDimensionModule())
+def EinsumStaticDiagonalDimensionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 5, 4, 4), tu.rand(5, 4, 5, 4))
+
+
 class EinsumStaticContractRhsModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1461,3 +1482,109 @@ def InterpolateDynamicModule_scales_recompute_bilinear(module, tu: TestUtils):
     input = torch.arange(20).to(dtype=torch.float32)
     input = input.reshape((1, 1, 4, 5))
     module.forward(input)
+
+
+# ==============================================================================
+
+
+class Atleast1dModule0dInput(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.atleast_1d(x)
+
+
+@register_test_case(module_factory=lambda: Atleast1dModule0dInput())
+def Atleast1dModule0dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand())
+
+
+class Atleast1dModule1dInput(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.atleast_1d(x)
+
+
+@register_test_case(module_factory=lambda: Atleast1dModule1dInput())
+def Atleast1dModule1dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4))
+
+
+# ==============================================================================
+
+
+class Atleast2dModule0dInput(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.atleast_2d(x)
+
+
+@register_test_case(module_factory=lambda: Atleast2dModule0dInput())
+def Atleast2dModule0dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand())
+
+
+class Atleast2dModule1dInput(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.atleast_2d(x)
+
+
+@register_test_case(module_factory=lambda: Atleast2dModule1dInput())
+def Atleast2dModule1dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4))
+
+
+class Atleast2dModule2dInput(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.atleast_2d(x)
+
+
+@register_test_case(module_factory=lambda: Atleast2dModule2dInput())
+def Atleast2dModule2dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 4))

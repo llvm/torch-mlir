@@ -49,3 +49,45 @@ class DeterminantDynamicModule(torch.nn.Module):
 def DeterminantDynamicModule_F32(module, tu: TestUtils):
     A = tu.rand(3, 4, 4).to(dtype=torch.float32)
     module.forward(A)
+
+
+# ==============================================================================
+
+
+class SignAndLogarithmOfDeterminantModule(torch.nn.Module):
+    @export
+    @annotate_args([None, [(4, 4), torch.float32, True]])
+    def forward(self, A):
+        return torch.linalg.slogdet(A)
+
+
+@register_test_case(module_factory=lambda: SignAndLogarithmOfDeterminantModule())
+def SignAndLogarithmOfDeterminantModule_F32(module, tu: TestUtils):
+    A = tu.rand(4, 4).to(dtype=torch.float32)
+    module.forward(A)
+
+
+class SignAndLogarithmOfDeterminantBatchedModule(torch.nn.Module):
+    @export
+    @annotate_args([None, [(3, 4, 4), torch.float32, True]])
+    def forward(self, A):
+        return torch.linalg.slogdet(A)
+
+
+@register_test_case(module_factory=lambda: SignAndLogarithmOfDeterminantBatchedModule())
+def SignAndLogarithmOfDeterminantBatchedModule_F32(module, tu: TestUtils):
+    A = tu.rand(3, 4, 4).to(dtype=torch.float32)
+    module.forward(A)
+
+
+class SignAndLogarithmOfDeterminantDynamicModule(torch.nn.Module):
+    @export
+    @annotate_args([None, [(-1, -1, -1), torch.float32, True]])
+    def forward(self, A):
+        return torch.linalg.slogdet(A)
+
+
+@register_test_case(module_factory=lambda: SignAndLogarithmOfDeterminantBatchedModule())
+def SignAndLogarithmOfDeterminantDynamicModule_F32(module, tu: TestUtils):
+    A = tu.rand(3, 4, 4).to(dtype=torch.float32)
+    module.forward(A)

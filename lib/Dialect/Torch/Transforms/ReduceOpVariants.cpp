@@ -246,6 +246,9 @@ void TorchMatchSpecializedBackendOp::populateSpecializedConversions(
           llvm::SmallVector<Value> newOperands{
               oldOperands[0], oldOperands[1], oldOperands[2], oldOperands[5],
               oldOperands[3], oldOperands[4], oldOperands[6]};
+          Value enableGQA =
+              rewriter.create<ConstantBoolOp>(op->getLoc(), false);
+          newOperands.push_back(enableGQA);
 
           auto newOp = rewriter.create<Torch::AtenScaledDotProductAttentionOp>(
               op.getLoc(), op->getResultTypes()[0], newOperands,

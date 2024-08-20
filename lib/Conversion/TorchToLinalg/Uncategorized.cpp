@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/BuiltinTypes.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
 #include "PopulatePatterns.h"
@@ -305,6 +306,70 @@ Value createDivModePayload(OpBuilder &b, Location loc,
     }
   }
   return quotient;
+}
+
+template <typename OpT>
+Value createRemainderPayload(OpBuilder &b, Location loc,
+                             const TypeConverter *converter,
+                             ValueRange payloadArgs, OpT op,
+                             ArrayRef<Value> operands) {
+  static_assert(
+      llvm::is_one_of<OpT, AtenRemainderScalarOp, AtenRemainderTensorOp>(),
+      "op must be a tensor/scalar remainder op");
+  typename OpT::Adaptor adaptor(operands);
+  Type dtype = cast<RankedTensorType>(converter->convertType(op.getType()))
+                   .getElementType();
+  Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+  Value rhs = convertScalarToDtype(
+      b, loc,
+      std::is_same_v<OpT, AtenRemainderScalarOp> ? operands[1] : payloadArgs[1],
+      dtype);
+
+  // The remainder op we wish to create would look roughly like this:
+  // rem = a % b
+  // if rem != 0 AND (rem < 0 XOR b < 0) rem += b
+  // This is how python calucates remainders for floats and longs:
+  // https://github.com/python/cpython/blob/2afd1751dd9a35d4ec03b708e3e5cddd72c43f7e/Objects/floatobject.c#L645
+  // https://github.com/python/cpython/blob/2afd1751dd9a35d4ec03b708e3e5cddd72c43f7e/Objects/longobject.c#L3662
+  Value result;
+  if (isa<mlir::FloatType>(dtype)) {
+    Value remainder = b.create<arith::RemFOp>(loc, lhs, rhs);
+
+    Value zero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
+    Value remainderNotEqualToZero = b.create<arith::CmpFOp>(
+        loc, arith::CmpFPredicate::ONE, remainder, zero);
+    Value otherLessThanZero =
+        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OLT, rhs, zero);
+    Value remainderLessThanZero = b.create<arith::CmpFOp>(
+        loc, arith::CmpFPredicate::OLT, remainder, zero);
+    Value xorCondition =
+        b.create<arith::XOrIOp>(loc, otherLessThanZero, remainderLessThanZero);
+    Value condition =
+        b.create<arith::AndIOp>(loc, remainderNotEqualToZero, xorCondition);
+    Value fixedRemainder = b.create<arith::AddFOp>(loc, remainder, rhs);
+    result =
+        b.create<arith::SelectOp>(loc, condition, fixedRemainder, remainder);
+  } else {
+    assert(dtype.isInteger() &&
+           "dtype should be a float or integer (signless or signed)");
+    Value remainder = b.create<arith::RemSIOp>(loc, lhs, rhs);
+
+    Value zero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
+    Value remainderNotEqualToZero =
+        b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, remainder, zero);
+    Value otherLessThanZero =
+        b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, rhs, zero);
+    Value remainderLessThanZero = b.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::slt, remainder, zero);
+    Value xorCondition =
+        b.create<arith::XOrIOp>(loc, otherLessThanZero, remainderLessThanZero);
+    Value condition =
+        b.create<arith::AndIOp>(loc, remainderNotEqualToZero, xorCondition);
+    Value fixedRemainder = b.create<arith::AddIOp>(loc, remainder, rhs);
+    result =
+        b.create<arith::SelectOp>(loc, condition, fixedRemainder, remainder);
+  }
+  return result;
 }
 
 static Value createLinalgPayloadCalculationForElementwiseOp(
@@ -1188,44 +1253,12 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::DivFOp>(loc, self, other);
   }
   if (auto remScalar = dyn_cast<AtenRemainderScalarOp>(op)) {
-    Type newResultType =
-        cast<RankedTensorType>(converter->convertType(remScalar.getType()))
-            .getElementType();
-
-    Value self = convertScalarToDtype(b, loc, payloadArgs[0], newResultType);
-    Value other = convertScalarToDtype(b, loc, operands[1], newResultType);
-    Value result;
-
-    if (isa<mlir::FloatType>(newResultType)) {
-      result = b.create<arith::RemFOp>(loc, self, other);
-    } else if (isa<mlir::IntegerType>(newResultType)) {
-      result = b.create<arith::RemSIOp>(loc, self, other);
-    } else {
-      remScalar.emitError(
-          "Unsupported type encountered for AtenRemainderScalarOp.");
-    }
-
-    return result;
+    return createRemainderPayload(b, loc, converter, payloadArgs, remScalar,
+                                  operands);
   }
   if (auto remTensor = dyn_cast<AtenRemainderTensorOp>(op)) {
-    Type newResultType =
-        cast<RankedTensorType>(converter->convertType(remTensor.getType()))
-            .getElementType();
-
-    Value self = convertScalarToDtype(b, loc, payloadArgs[0], newResultType);
-    Value other = convertScalarToDtype(b, loc, payloadArgs[1], newResultType);
-    Value result;
-
-    if (isa<mlir::FloatType>(newResultType)) {
-      result = b.create<arith::RemFOp>(loc, self, other);
-    } else if (isa<mlir::IntegerType>(newResultType)) {
-      result = b.create<arith::RemSIOp>(loc, self, other);
-    } else {
-      remTensor.emitError(
-          "Unsupported type encountered for AtenRemainderTensorOp.");
-    }
-
-    return result;
+    return createRemainderPayload(b, loc, converter, payloadArgs, remTensor,
+                                  operands);
   }
   if (auto fmod = dyn_cast<AtenFmodTensorOp>(op)) {
     Type newResultType =
@@ -1442,7 +1475,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     scale = b.create<arith::TruncFOp>(loc, valueTy, scale);
 
     value = b.create<arith::DivFOp>(loc, value, scale);
-    value = b.create<math::RoundOp>(loc, value);
+    value = b.create<math::RoundEvenOp>(loc, value);
     value = b.create<arith::AddFOp>(loc, value, zp);
 
     auto destTy = payloadArgs[1].getType();
@@ -1461,12 +1494,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::ConstantOp>(loc, b.getFloatAttr(valueTy, minI));
     Value maxVal =
         b.create<arith::ConstantOp>(loc, b.getFloatAttr(valueTy, maxI));
-    Value minCmp =
-        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT, value, minVal);
-    Value maxCmp =
-        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT, value, maxVal);
-    value = b.create<arith::SelectOp>(loc, minCmp, minVal, value);
-    value = b.create<arith::SelectOp>(loc, maxCmp, maxVal, value);
+    value = b.create<arith::MaximumFOp>(loc, value, minVal);
+    value = b.create<arith::MinimumFOp>(loc, value, maxVal);
 
     if (isUnsigned) {
       value = b.create<arith::FPToUIOp>(loc, destTy, value);
@@ -1649,7 +1678,27 @@ public:
 
     if (reduction == torch_upstream::Reduction::Sum ||
         reduction == torch_upstream::Reduction::Mean) {
-      Value numOfElems = getTensorSize(rewriter, loc, finalRes);
+
+      Value zeroIVal = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getZeroAttr(rewriter.getI32Type()));
+      auto countInfo = torch_to_linalg::ReductionOpInfo{false, target, dimSet};
+      Value numOfElems = torch_to_linalg::createReductionLinalgGeneric(
+          rewriter, loc, countInfo,
+          /*initElem=*/zeroIVal,
+          [&](OpBuilder &b, Location loc, ValueRange args) {
+            Value targetVal = args[0];
+            Value indTarget = rewriter.create<arith::IndexCastOp>(
+                loc, rewriter.getIndexType(), targetVal);
+            Value cmpEq = rewriter.create<arith::CmpIOp>(
+                loc, arith::CmpIPredicate::ne, indTarget, ignoreIndexVal);
+            cmpEq = rewriter.create<arith::ExtUIOp>(loc, rewriter.getI32Type(),
+                                                    cmpEq);
+            Value add = rewriter.create<arith::AddIOp>(loc, args[1], cmpEq);
+            rewriter.create<linalg::YieldOp>(loc, add);
+          });
+
+      numOfElems = rewriter.create<tensor::ExtractOp>(
+          loc, rewriter.getI32Type(), numOfElems, ArrayRef<Value>{});
       numOfElems = convertScalarToDtype(rewriter, loc, numOfElems, elementType);
 
       auto opInfo = torch_to_linalg::ReductionOpInfo{false, finalRes, dimSet};
@@ -2334,6 +2383,10 @@ public:
           } else if (zeropointDTy.isSignedInteger(8)) {
             zeropoint =
                 b.create<arith::ExtSIOp>(loc, b.getI32Type(), zeropoint);
+          } else if (zeropointDTy.isInteger(64)) {
+            zeropoint =
+                b.create<arith::TruncIOp>(loc, b.getI32Type(), zeropoint);
+            op->emitWarning() << "truncated zero point from 64 to 32 bit";
           }
 
           Value sub = rewriter.create<arith::SubIOp>(loc, operand, zeropoint);
@@ -2673,8 +2726,6 @@ static Value BilinearInterpolate(OpBuilder &b,
   auto inputType = cast<RankedTensorType>(input.getType());
   auto inputRank = inputType.getRank();
 
-  Value cstOneEps =
-      b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.000001));
   Value cstOneFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.0));
   Value cstHalf = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.5));
   Value zero = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.0));
@@ -2750,28 +2801,34 @@ static Value BilinearInterpolate(OpBuilder &b,
                                           outputSizeFP, cstOneFloat);
       preClip = b.create<arith::SelectOp>(loc, cmp, zero, preClip);
     }
-    // clip to 0,inf
+    // preClip is the fp position inside the input image to extract from.
+    // clip to [0,inf)
     Value max = b.create<arith::MaximumFOp>(loc, preClip, zero);
-    // length_original - 1.001
-    Value inputSubOneEps = b.create<arith::SubFOp>(loc, inputFP, cstOneEps);
     Value inputSubOne = b.create<arith::SubFOp>(loc, inputFP, cstOneFloat);
-    // clip to [0,length_original - 1.001]
-    projEps.push_back(b.create<arith::MinimumFOp>(loc, max, inputSubOneEps));
+    // clip to [0,length_original - 1].
+    // proj is properly within the input image.
     proj.push_back(b.create<arith::MinimumFOp>(loc, max, inputSubOne));
 
-    lowFP.push_back(b.create<math::FloorOp>(loc, projEps[i]));
-    Value projPlusOne = b.create<arith::AddFOp>(loc, cstOneFloat, projEps[i]);
+    // for bilinear interpolation, we look for the nearest indices below and
+    // above proj
+    lowFP.push_back(b.create<math::FloorOp>(loc, proj[i]));
+    Value projPlusOne = b.create<arith::AddFOp>(loc, cstOneFloat, proj[i]);
     highFP.push_back(b.create<math::FloorOp>(loc, projPlusOne));
 
     Value lowInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), lowFP[i]);
     low.push_back(b.create<arith::IndexCastOp>(loc, b.getIndexType(), lowInt));
 
-    Value highInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), highFP[i]);
+    // highFP could be out-of-bounds, so make sure to clip it down before
+    // extracting. If highFP actually gets clipped here, then high[i] will
+    // extract at the last pixel, but will treat it as if it were extracted from
+    // one further position when computing the interpolation weights.
+    Value highExtract =
+        b.create<arith::MinimumFOp>(loc, projPlusOne, inputSubOne);
+    highExtract = b.create<arith::FPToSIOp>(loc, b.getI64Type(), highExtract);
     high.push_back(
-        b.create<arith::IndexCastOp>(loc, b.getIndexType(), highInt));
+        b.create<arith::IndexCastOp>(loc, b.getIndexType(), highExtract));
   }
 
-  SmallVector<Value> cornerValues;
   indices[dimOffset] = low[0];
   indices[dimOffset + 1] = low[1];
   Value p00 = b.create<tensor::ExtractOp>(loc, input, indices);
@@ -2951,11 +3008,28 @@ public:
     Value cstZeroF = getConstant(rewriter, loc, 0, elemTy);
     // get some shapes
     SmallVector<int64_t> inputShape(inputType.getShape());
+
     SmallVector<int64_t> sliceShape(inputShape);
-    sliceShape.pop_back();
-    SmallVector<int64_t> diagShape({isBatched ? inputType.getShape()[0] : 1});
+    sliceShape[sliceShape.size() - 2] = 1;
+
+    SmallVector<int64_t> diagShape(inputType.getShape());
+    diagShape[diagShape.size() - 2] = 1;
+    diagShape[diagShape.size() - 1] = 1;
+
+    ArrayRef<int64_t> diagCollapseShape(diagShape);
+    diagCollapseShape = diagCollapseShape.drop_back();
+
     auto sliceTy = RankedTensorType::get(sliceShape, elemTy);
     auto diagTy = RankedTensorType::get(diagShape, elemTy);
+    auto diagCollapseTy = RankedTensorType::get(diagCollapseShape, elemTy);
+
+    SmallVector<ReassociationIndices> diagReassociations;
+    diagReassociations.reserve(diagCollapseShape.size());
+    int64_t diagRank = diagCollapseShape.size();
+    for (int i = 0, s = diagRank - 1; i < s; ++i)
+      diagReassociations.push_back(ReassociationIndices{i});
+    diagReassociations.push_back(ReassociationIndices{diagRank - 1, diagRank});
+
     // get some sizes
     SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
     Value chDim = isBatched ? inputSizes[0] : cstOne;
@@ -2991,6 +3065,10 @@ public:
           // offsets = [0, row, row], sizes = [C, 1, 1] -> diag(row,row)
           Value diag = b.create<tensor::ExtractSliceOp>(
               loc, diagTy, vals[0], offsets, sizes, strides);
+
+          Value diagCollapse = b.create<tensor::CollapseShapeOp>(
+              loc, diagCollapseTy, diag, diagReassociations);
+
           SmallVector<OpFoldResult> diagOffsets(inputRank - 1, cstZeroFold);
           diagOffsets.back() = row;
           SmallVector<OpFoldResult> diagStrides(inputRank - 1, cstOneFold);
@@ -2998,7 +3076,7 @@ public:
           diagSizes.back() = cstOneFold;
           // offsets = [0, row], sizes = [C, 1] insert to [C,N]
           Value updatedDiags = b.create<tensor::InsertSliceOp>(
-              loc, diag, vals[1], diagOffsets, diagSizes, diagStrides);
+              loc, diagCollapse, vals[1], diagOffsets, diagSizes, diagStrides);
           // the subpivot matrix column size, as a Value, is matDim - row -
           // cstOne. This can't be statically converted to an int64_t, since row
           // is the loop index, so this is left as a dynamic dim.
@@ -3036,10 +3114,15 @@ public:
           if (isBatched) {
             rowIterator.push_back(allDims[1]);
             colIterator.push_back(allDims[0]);
+            colIterator.push_back(rewriter.getAffineConstantExpr(0));
             colIterator.push_back(allDims[2]);
             batchIterator.push_back(allDims[0]);
+            batchIterator.push_back(getAffineConstantExpr(0, context));
+            batchIterator.push_back(getAffineConstantExpr(0, context));
           } else {
+            colIterator.push_back(rewriter.getAffineConstantExpr(0));
             colIterator.push_back(allDims[1]);
+            batchIterator.push_back(getAffineConstantExpr(0, context));
             batchIterator.push_back(getAffineConstantExpr(0, context));
           }
           SmallVector<AffineMap> indexingMaps;
@@ -3102,6 +3185,10 @@ public:
     offsets.pop_back();
     strides.pop_back();
     sizes.pop_back();
+
+    lastDiag = rewriter.create<tensor::CollapseShapeOp>(
+        loc, diagCollapseTy, lastDiag, diagReassociations);
+
     Value allDiags = rewriter.create<tensor::InsertSliceOp>(
         loc, lastDiag, allDiagsExceptLast, offsets, sizes, strides);
     // linalg generic to do reduce prod for allDiags along back dim.
@@ -3112,7 +3199,8 @@ public:
                                       : getAffineConstantExpr(0, context);
     indexingMaps.push_back(AffineMap::get(inputRank - 1, 0, resultExpr));
     SmallVector<utils::IteratorType> iteratorTypes(
-        inputRank - 1, utils::IteratorType::parallel);
+        inputRank - 2, utils::IteratorType::parallel);
+    iteratorTypes.push_back(utils::IteratorType::reduction);
     Value initDet = createInitTensor(rewriter, loc, ValueRange{chDim}, elemTy,
                                      getConstant(rewriter, loc, 1.0, elemTy));
     Value determinant =
@@ -3132,10 +3220,11 @@ public:
                                                   determinant);
       return success();
     }
-    Value detVal = rewriter.create<tensor::ExtractOp>(
-        loc, determinant, SmallVector<Value>(1, cstZero));
-    rewriter.replaceOpWithNewOp<tensor::FromElementsOp>(op, newResultType,
-                                                        ValueRange{detVal});
+
+    determinant = rewriter.create<tensor::CollapseShapeOp>(
+        loc, newResultType, determinant,
+        llvm::ArrayRef<ReassociationIndices>{});
+    rewriter.replaceOp(op, ValueRange{determinant});
     return success();
   }
 };

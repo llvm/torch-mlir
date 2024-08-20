@@ -68,7 +68,7 @@ def test_tanh_sigmoid_cat_custom_op():
     dim_n = Dim("n", min=5, max=10)
     dim_x1 = Dim("x1", max=100)
     dim_y1 = Dim("y1", max=50)
-    dim_z1 = Dim("z1")
+    dim_z1 = Dim("z1", max=50)
     dynamic_shapes = {
         "x": {0: dim_n, 1: dim_x1},
         "y": {0: dim_n, 1: dim_y1},
@@ -82,5 +82,52 @@ def test_tanh_sigmoid_cat_custom_op():
         z,
         dynamic_shapes=dynamic_shapes,
         import_symbolic_shape_expressions=True,
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_custom_op_array_output
+# CHECK:  func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,3],f32>)
+# CHECK:  %[[S0:.+]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = 10} : !torch.int
+# CHECK:  %[[int:.+]] = torch.constant.int 4
+# CHECK:  %[[V0:.+]] = torch.operator "torch.my_custom_library.array_output_op"(%[[int]], %[[ARG0]]) : (!torch.int, !torch.vtensor<[?,3],f32>) -> !torch.list<vtensor>
+# CHECK: %[[V1:.+]]:4 = torch.prim.ListUnpack %[[V0]] : !torch.list<vtensor> -> !torch.vtensor<[?,3],f32>, !torch.vtensor<[?,3],f32>, !torch.vtensor<[?,3],f32>, !torch.vtensor<[?,3],f32>
+# CHECK: torch.bind_symbolic_shape %[[V1]]#0, [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
+# CHECK: torch.bind_symbolic_shape %[[V1]]#1, [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
+# CHECK: torch.bind_symbolic_shape %[[V1]]#2, [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
+# CHECK: torch.bind_symbolic_shape %[[V1]]#3, [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
+# CHECK: return %[[V1]]#0, %[[V1]]#1, %[[V1]]#2, %[[V1]]#3 : !torch.vtensor<[?,3],f32>, !torch.vtensor<[?,3],f32>, !torch.vtensor<[?,3],f32>, !torch.vtensor<[?,3],f32>
+def test_custom_op_array_output():
+    m = Library("my_custom_library", "DEF")
+    m.define("array_output_op(int num_outs, Tensor a) -> Tensor[]")
+
+    @impl(m, "array_output_op", "CompositeExplicitAutograd")
+    def custom_op(num_outs, a):
+        return [a] * num_outs
+
+    @impl_abstract("my_custom_library::array_output_op")
+    def custom_op_meta(num_outs, a):
+        result = custom_op(num_outs, a)
+        return [torch.empty_like(t) for t in result]
+
+    class ArrayOutputCustomOp(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, a):
+            return torch.ops.my_custom_library.array_output_op(4, a)
+
+    dim = Dim("n", max=10)
+    dynamic_shapes = {
+        "a": {0: dim},
+    }
+
+    a = torch.rand(2, 3)
+    m = fx.export_and_import(
+        ArrayOutputCustomOp(),
+        a,
+        import_symbolic_shape_expressions=True,
+        dynamic_shapes=dynamic_shapes,
     )
     print(m)

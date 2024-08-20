@@ -40,8 +40,14 @@ bool isQCommutingOp(mlir::Operation *op) {
   // if adding a new commuting op here, be sure to add a
   // RemoveUnused pattern for that op to clean up afterwards
   return llvm::isa<AtenTransposeIntOp, AtenReshapeOp, AtenSliceTensorOp,
-                   PrimsCollapseOp, AtenViewOp>(op);
+                   PrimsCollapseOp, AtenViewOp, AtenPadOp, AtenConstantPadNdOp>(
+      op);
 }
+
+struct QuantizedChain {
+  std::stack<mlir::Operation *> commutingOpStack;
+  Value dequantOpd, MPTQTOpd, scale, zeroPoint;
+};
 
 // The following conversion takes patterns of the form [op0 -> MPTQT -> dequant
 // -> Op1 -> Op2 -> ... Opk -> SrcOp] to [op0 -> Int(Op1) -> Int(Op2) -> ... ->
@@ -57,15 +63,22 @@ public:
 
   LogicalResult matchAndRewrite(SrcOp op,
                                 PatternRewriter &rewriter) const override {
-
     mlir::Location loc = op.getLoc();
     llvm::SmallVector<Value> operands(op->getOperands());
-    bool dequanted = false;
 
+    // Prevent fusion for 1d convolution ops and just do it as an f32 conv since
+    // there isn't a linalg named op for quantized 1-d convolution yet.
+    // TODO: Remove this and add support for 1-d quantized convolution.
+    int64_t inputRank =
+        cast<ValueTensorType>(operands[0].getType()).getSizes().size();
+    if (isa<Torch::AtenConvolutionOp>(op) && inputRank < 4)
+      return rewriter.notifyMatchFailure(
+          op, "1-d quantized convolution is not supported");
+
+    SmallVector<QuantizedChain, 2> operandChains;
     for (unsigned i : QuantInfo<SrcOp>::operandsToQuantize) {
       Value operand = operands[i];
-      std::stack<mlir::Operation *> commutingOpStack;
-      Value dequantOpd, MPTQTOpd;
+      QuantizedChain chain;
       for (unsigned k = 0; k < depth + 1; k++) {
         auto currOp = operand.getDefiningOp();
         // Case 0 : currOp is a nullptr (e.g., operand is a block argument)
@@ -73,40 +86,103 @@ public:
           break;
         // Case 1 : currOp is a q commuting op (continue loop)
         if (isQCommutingOp(currOp)) {
-          commutingOpStack.push(currOp);
+          chain.commutingOpStack.push(currOp);
           // set operand to currOp for next k-iteration
           operand = currOp->getOperand(0);
           continue;
         }
         // Case 2 : currOp is a dequant op (end loop)
         if (llvm::isa<AtenDequantizeSelfOp, AtenDequantizeTensorOp>(currOp)) {
-          dequantOpd = currOp->getOperand(0);
+          chain.dequantOpd = currOp->getOperand(0);
+          // Bail out if any operand is per-channel quantized, which would
+          // require more complex fusion logic.
+          if (llvm::isa<Aten_MakePerChannelQuantizedTensorOp>(
+                  chain.dequantOpd.getDefiningOp()))
+            break;
+
           auto MPTQTOp =
-              dequantOpd.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>();
-          MPTQTOpd = MPTQTOp.getOperand(0);
+              chain.dequantOpd
+                  .getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>();
+          chain.MPTQTOpd = MPTQTOp.getOperand(0);
+          chain.scale = MPTQTOp.getOperand(1);
+          chain.zeroPoint = MPTQTOp.getOperand(2);
         }
         // either a dequant was found or chain broken, so break loop
         break;
       }
 
-      // move to next operand if this trace was unsuccessful
-      if (!MPTQTOpd)
-        continue;
+      // if tracing this operand was successful, add it to operandChains.
+      if (chain.MPTQTOpd)
+        operandChains.push_back(std::move(chain));
+    }
 
-      // a successful trace occured, so set dequant to true
-      dequanted = true;
+    // Continuing the rewriting with only some of the operandsToQuantize traced
+    // successfully is possible but leads to "half-quantized" ops which are
+    // expected to cause problems in later lowering steps. We opt out of
+    // treating these cases for now.
+    if (operandChains.size() !=
+        std::size(QuantInfo<SrcOp>::operandsToQuantize)) {
+      if (!operandChains.empty())
+        op.emitWarning("Partially traced quantized operands. This op will "
+                       "remain in QDQ form.");
+      return rewriter.notifyMatchFailure(
+          op, "did not find a complete quantized chain for all operands");
+    }
 
+    for (auto &&[i, chain] : llvm::enumerate(operandChains)) {
       // rewrite stack
-      Value oldOpd = MPTQTOpd;
+      Value oldOpd = chain.MPTQTOpd;
       Type intDType =
-          cast<ValueTensorType>(MPTQTOpd.getType()).getOptionalDtype();
-      while (!commutingOpStack.empty()) {
+          cast<ValueTensorType>(chain.MPTQTOpd.getType()).getOptionalDtype();
+      while (!chain.commutingOpStack.empty()) {
         // get front of the commuting op stack and replace its first operand
         // with oldOpd
-        auto currOp = commutingOpStack.top();
-        commutingOpStack.pop();
+        auto currOp = chain.commutingOpStack.top();
+        chain.commutingOpStack.pop();
         llvm::SmallVector<Value> currOperands(currOp->getOperands());
         currOperands[0] = oldOpd;
+        // pad ops aren't quite commuting, so we include some extra logic to
+        // quantize the padding value
+        if (isa<Torch::AtenPadOp, Torch::AtenConstantPadNdOp>(currOp)) {
+          Value floatPadValue = currOperands.back();
+          Value quantPadValue;
+          if (isa<Torch::NoneType>(floatPadValue.getType()))
+            quantPadValue =
+                rewriter.create<AtenFloatScalarOp>(loc, chain.zeroPoint);
+          else {
+            floatPadValue =
+                rewriter.create<AtenFloatScalarOp>(loc, floatPadValue);
+            quantPadValue = rewriter.create<Torch::AtenDivFloatOp>(
+                loc, floatPadValue, chain.scale);
+            quantPadValue = rewriter.create<Torch::AtenAddFloatIntOp>(
+                loc, quantPadValue, chain.zeroPoint);
+          }
+          // clamp pad value to qint range
+          if (auto intType = dyn_cast<mlir::IntegerType>(intDType)) {
+            bool isSigned = intType.isSignedInteger();
+            int64_t width = intType.getWidth();
+            assert(width < 64 &&
+                   "quantized int bitwidth should be less than 64");
+            int64_t minInt = isSigned ? -(1 << (width - 1)) : 0;
+            int64_t maxInt = isSigned ? -minInt - 1 : ((1 << width) - 1);
+            Value minQValueFloat = rewriter.create<ConstantFloatOp>(
+                loc, rewriter.getF64FloatAttr(minInt));
+            Value maxQValueFloat = rewriter.create<ConstantFloatOp>(
+                loc, rewriter.getF64FloatAttr(maxInt));
+            SmallVector<int64_t> emptyShape;
+            auto floatTensorType = rewriter.getType<Torch::ValueTensorType>(
+                emptyShape, rewriter.getF64Type());
+            Value quantPadValueTensor = createRank0Tensor(
+                rewriter, loc, floatTensorType, quantPadValue);
+            Value clampedTensor = rewriter.create<Torch::AtenClampOp>(
+                loc, floatTensorType, quantPadValueTensor, minQValueFloat,
+                maxQValueFloat);
+            quantPadValue = rewriter.create<Torch::AtenItemOp>(
+                loc, rewriter.getType<Torch::FloatType>(), clampedTensor);
+          }
+          // quantPadValue is a float, but will get converted/truncated
+          currOperands.back() = quantPadValue;
+        }
         // get new result type
         auto oldType = cast<ValueTensorType>(currOp->getResultTypes()[0]);
         auto intType =
@@ -122,17 +198,13 @@ public:
       // stack is empty, so oldOpd is now the corrected verion of the
       // SrcOp's original operand
       // convert operand -> SrcOp to oldOpd -> newMPTQTOp -> SrcOp
-      auto MPTQTOperands = dequantOpd.getDefiningOp()->getOperands();
+      auto MPTQTOperands = chain.dequantOpd.getDefiningOp()->getOperands();
       auto qTorchType =
-          cast<ValueTensorType>(dequantOpd.getType()).getOptionalDtype();
+          cast<ValueTensorType>(chain.dequantOpd.getType()).getOptionalDtype();
       auto newMPTQTType = rewriter.getType<ValueTensorType>(
           cast<ValueTensorType>(operands[i].getType()).getSizes(), qTorchType);
       operands[i] = rewriter.create<Aten_MakePerTensorQuantizedTensorOp>(
           loc, newMPTQTType, oldOpd, MPTQTOperands[1], MPTQTOperands[2]);
-    }
-
-    if (!dequanted) {
-      return rewriter.notifyMatchFailure(op, "No dequantizations found.");
     }
 
     rewriter.replaceOpWithNewOp<SrcOp>(op, op.getType(), operands);
@@ -374,7 +446,8 @@ public:
         RemoveUnused<Aten_MakePerTensorQuantizedTensorOp>,
         RemoveUnused<AtenTransposeIntOp>, RemoveUnused<AtenSliceTensorOp>,
         RemoveUnused<AtenReshapeOp>, RemoveUnused<PrimsCollapseOp>,
-        RemoveUnused<AtenViewOp>,
+        RemoveUnused<AtenViewOp>, RemoveUnused<AtenPadOp>,
+        RemoveUnused<AtenConstantPadNdOp>,
         QuantizeOperandsPastCommutingOps<AtenConvolutionOp, 5>,
         QuantizeOperandsPastCommutingOps<AtenReluOp, 0>,
         QuantizeOperandsPastCommutingOps<AtenMatmulOp, 2>,

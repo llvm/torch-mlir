@@ -265,6 +265,8 @@ PY_BUILTIN_TO_TORCH_OP = {
     "ge": torch.ops.aten.ge,
     "ne": torch.ops.aten.ne,
     "gt": torch.ops.aten.gt,
+    "mod": torch.ops.aten.fmod,
+    "eq": torch.ops.aten.eq,
 }
 
 # torch with cuda has a __version__ that looks like  "2.1.0+cu113",
@@ -1081,6 +1083,11 @@ class ContextCache:
         mutable: bool = False,
     ):
         if tensor_meta is not None:
+            # separately handle when tensor_meta is a list.
+            if isinstance(val, list) and all(
+                isinstance(x, TorchFakeTensor) for x in val
+            ):
+                return IrType.parse("!torch.list<vtensor>", context=self._c)
             assert isinstance(tensor_meta, TensorMetadata)
             # Quantized tensor meta data is not preserved in our lowering,
             # so throw error instead of silently doing wrong thing.
@@ -1099,6 +1106,10 @@ class ContextCache:
                 return self.get_vtensor_type(
                     val.size(), val.dtype, sparsity=sparsity, mutable=mutable
                 )
+            elif isinstance(val, list) and all(
+                isinstance(x, TorchFakeTensor) for x in val
+            ):
+                return IrType.parse("!torch.list<vtensor>", context=self._c)
 
         # Note that None is a valid scalar here, so it is important that this
         # is always checked as the last fallback.
@@ -1227,6 +1238,7 @@ class GraphNodeImporter:
         "_v",
         "_symbol_to_value",
         "_multi_result_nodes",
+        "_unpack_list_values",
         "fx_importer",
     ]
 
@@ -1251,6 +1263,10 @@ class GraphNodeImporter:
         # Statically multi-result nodes which we have de-tupled are noted here.
         # They will have their getitem calls short-circuited.
         self._multi_result_nodes: Set[torch_fx.Node] = set()
+        # If a OP returns a list, then it needs to be unpacked entirely using
+        # prim.ListUnpack.  Cache the result of these nodes so that it only
+        # unpacks once instead of every time that getitem is used
+        self._unpack_list_values: Dict[torch_fx.Node, Tuple[Value]] = {}
 
     def bind_node_value(
         self,
@@ -1420,29 +1436,7 @@ class GraphNodeImporter:
                 elif op == "call_function":
                     target = node.target
                     if target == operator.getitem:
-                        # Special case handling of getitem for when it is resolving
-                        # against a function call that we know has returned multiple
-                        # results. We short-circuit this case because we have modeled
-                        # function calls to natively return multiple results vs tupling.
-                        getitem_ref, getitem_index = node.args
-                        if getitem_ref in self._multi_result_nodes:
-                            try:
-                                self.bind_node_value(
-                                    node,
-                                    self.resolve_node_value(getitem_ref, getitem_index),
-                                )
-                            except IndexError:
-                                raise RuntimeError(
-                                    f"getitem de-aliasing failed. This likely "
-                                    f"indicates a programmer error that usually "
-                                    f"would have happened at runtime. Please "
-                                    f"notify developers if this case happens "
-                                    f"(at {loc})."
-                                )
-                        else:
-                            raise NotImplementedError(
-                                f"General getitem access to non-multi-result ops"
-                            )
+                        self._import_getitem(loc, node)
                     elif target in SYMBOLIC_TORCH_OPS or (
                         is_symbolic(node.meta.get("val"))
                         and is_builtin_function_or_method(target)
@@ -1450,7 +1444,7 @@ class GraphNodeImporter:
                         self._import_symbolic_torch_op(loc, node, target)
                     elif isinstance(target, TorchOpOverload):
                         # Dispatch to an ATen op.
-                        self._import_torch_op_overload(loc, node, target)
+                        self._import_torch_op_overload(loc, node)
                     elif isinstance(target, HigherOrderOperator):
                         self._import_hop(loc, node, target)
                     else:
@@ -1621,59 +1615,18 @@ class GraphNodeImporter:
             self.bind_node_value(node, value, i + bind_none)
 
     def _import_torch_op_overload(
-        self, loc: Location, node: torch_fx.Node, target: TorchOpOverload
+        self,
+        loc: Location,
+        node: torch_fx.Node,
+        concrete_target: Optional[TorchOpOverload] = None,
     ):
-        # TODO: Convert this cascade of ifs to a table-driven
-        # replace lift_fresh_copy with clone op
-        if target == torch.ops.aten.lift_fresh_copy.default:
-            node.target = target = torch.ops.aten.clone.default
-            node.args = (node.args[0],)
-            node.kwargs = {"memory_format": None}
-        elif target == torch.ops.aten.lift_fresh_copy.out:
-            # TODO: It seems not possible to hit this case from user code.
-            # Retaining in case if it is triggered internally somehow, but
-            # it can most likely be removed once assuming full
-            # functionalization in all cases.
-            node.target = target = torch.ops.aten.clone.out
-            node.args = (node.args[0],)
-            node.kwargs = {"memory_format": None, "out": node.args[1]}
-        # TODO: generalize empty.memory_format in the future
-        # Currently, the aten.baddbmm.default op for Unet includes multiplying an
-        # empty.memory_format input with a constant, which creates NaN values
-        # because empty.memory_format contains uninitialized data. Converting
-        # aten.baddbmm.default -> aten.zeros.default fixes the correctness issue
-        elif target == torch.ops.aten.empty.memory_format:
-            if len(node.users) == 1:
-                for key_node in node.users:
-                    if key_node.target == torch.ops.aten.baddbmm.default:
-                        node.target = target = torch.ops.aten.zeros.default
-        elif target == torch.ops.aten._local_scalar_dense.default:
-            input_type = node.args[0].meta["tensor_meta"].dtype
-            if input_type.is_floating_point:
-                node.target = target = torch.ops.aten.Float.Tensor
-            else:
-                node.target = target = torch.ops.aten.Int.Tensor
-            node.args = (node.args[0],)
-        elif target == torch.ops.aten._assert_async.msg:
-            # TODO: A more suitable op to replace it?
-            return
-        elif target == torch.ops.aten._unsafe_index_put.default:
-            node.target = target = torch.ops.aten._unsafe_index_put.hacked_twin
-        elif target == torch.ops.aten._embedding_bag_forward_only.default:
-            node.target = target = torch.ops.aten.embedding_bag.padding_idx
-            embedding_bag_args = [
-                ("scale_grad_by_freq", False),
-                ("mode", 0),
-                ("sparse", False),
-                ("per_sample_weights", None),
-                ("include_last_offset", False),
-                ("padding_idx", None),
-            ]
-            node_kwargs = dict(node.kwargs)
-            for k, v in embedding_bag_args[len(node.args) - 3 :]:
-                if k not in node_kwargs:
-                    node_kwargs[k] = v
-            node.kwargs = node_kwargs
+        if concrete_target is None:
+            node = node_canonicalize(node)
+            if not node:
+                return
+            target = node.target
+        else:
+            target = concrete_target
 
         schema = target._schema
         assert isinstance(schema, FunctionSchema)
@@ -2007,6 +1960,51 @@ class GraphNodeImporter:
         with loc:
             return cvt(arg, self, self._cc)
 
+    def _import_getitem(self, loc: Location, node: torch.fx.Node):
+        ref_node, index = node.args
+        if ref_node in self._multi_result_nodes:
+            # Special case handling of getitem for when it is resolving
+            # against a function call that we know has returned multiple
+            # results. We short-circuit this case because we have modeled
+            # function calls to natively return multiple results vs tupling.
+            try:
+                self.bind_node_value(
+                    node,
+                    self.resolve_node_value(ref_node, index),
+                )
+            except IndexError:
+                raise RuntimeError(
+                    f"getitem de-aliasing failed. This likely "
+                    f"indicates a programmer error that usually "
+                    f"would have happened at runtime. Please "
+                    f"notify developers if this case happens "
+                    f"(at {loc})."
+                )
+        else:
+            # handle nodes that return a torch.list<...> at the MLIR level
+            # NOTE: the length of the list must be knowable at compile time.
+            if ref_node not in self._unpack_list_values:
+                node_result = self.resolve_node_value(ref_node, 0)
+                if str(node_result.type) in TORCH_LIST_TYPES:
+                    result_types = [
+                        self._cc.value_info_to_type(v) for v in ref_node.meta["val"]
+                    ]
+                    operation = Operation.create(
+                        "torch.prim.ListUnpack",
+                        results=result_types,
+                        operands=[node_result],
+                        loc=loc,
+                    )
+                    self._unpack_list_values[ref_node] = tuple(operation.results)
+
+            try:
+                self.bind_node_value(node, self._unpack_list_values[ref_node][index])
+            except IndexError:
+                raise RuntimeError(
+                    f"getitem failed. "
+                    f"getitem only supports lists of known length. (at {loc})"
+                )
+
     def _unpack_node_result_types(
         self, node: torch.fx.Node, schema: FunctionSchema
     ) -> List[IrType]:
@@ -2337,6 +2335,10 @@ PY_TYPE_TO_TORCH_OPTIONAL_LIST_TYPE = {
     "vtensor": "!torch.list<optional<vtensor>>",
 }
 
+TORCH_LIST_TYPES = set(PY_TYPE_TO_TORCH_LIST_TYPE.values()) | set(
+    PY_TYPE_TO_TORCH_OPTIONAL_LIST_TYPE.values()
+)
+
 SCALAR_TYPE_TO_TORCH_MLIR_TYPE = {
     torch.SymInt: "!torch.int",
     torch.SymFloat: "!torch.float",
@@ -2358,3 +2360,97 @@ TENSOR_SCALAR_OP_CONVERTER = {
     "torch.aten.sub.Tensor": "torch.aten.sub.Scalar",
     "torch.aten.floor_divide": "torch.aten.floor_divide.Scalar",
 }
+
+
+NODE_CANONICALIZE: Dict[TorchOpOverload, Callable] = {}
+
+
+def register_canonicalize(op: TorchOpOverload):
+    def wrapper(func):
+        NODE_CANONICALIZE[op] = func
+        return func
+
+    return wrapper
+
+
+@register_canonicalize(torch.ops.aten.lift_fresh_copy.default)
+def lift_fresh_copy_default(node: torch_fx.Node):
+    # replace lift_fresh_copy with clone op
+    node.target = torch.ops.aten.clone.default
+    node.args = (node.args[0],)
+    node.kwargs = {"memory_format": None}
+    return node
+
+
+@register_canonicalize(torch.ops.aten.lift_fresh_copy.out)
+def lift_fresh_copy_out(node: torch_fx.Node):
+    # TODO: It seems not possible to hit this case from user code.
+    # Retaining in case if it is triggered internally somehow, but
+    # it can most likely be removed once assuming full
+    # functionalization in all cases.
+    node.target = target = torch.ops.aten.clone.out
+    node.args = (node.args[0],)
+    node.kwargs = {"memory_format": None, "out": node.args[1]}
+    return node
+
+
+@register_canonicalize(torch.ops.aten.empty.memory_format)
+def empty_memory_format(node: torch_fx.Node):
+    # TODO: generalize empty.memory_format in the future
+    # Currently, the aten.baddbmm.default op for Unet includes multiplying an
+    # empty.memory_format input with a constant, which creates NaN values
+    # because empty.memory_format contains uninitialized data. Converting
+    # aten.baddbmm.default -> aten.zeros.default fixes the correctness issue
+    if len(node.users) == 1:
+        for key_node in node.users:
+            if key_node.target == torch.ops.aten.baddbmm.default:
+                node.target = torch.ops.aten.zeros.default
+    return node
+
+
+@register_canonicalize(torch.ops.aten._local_scalar_dense.default)
+def aten__local_scalar_dense_default(node: torch_fx.Node):
+    input_type = node.args[0].meta["tensor_meta"].dtype
+    if input_type.is_floating_point:
+        node.target = torch.ops.aten.Float.Tensor
+    else:
+        node.target = torch.ops.aten.Int.Tensor
+    node.args = (node.args[0],)
+    return node
+
+
+@register_canonicalize(torch.ops.aten._assert_async.msg)
+def aten__assert_async_msg(node: torch_fx.Node):
+    # TODO: A more suitable op to replace it?
+    return None
+
+
+@register_canonicalize(torch.ops.aten._unsafe_index_put.default)
+def aten__unsafe_index_put_default(node: torch_fx.Node):
+    node.target = torch.ops.aten._unsafe_index_put.hacked_twin
+    return node
+
+
+@register_canonicalize(torch.ops.aten._embedding_bag_forward_only.default)
+def aten__embedding_bag_forward_only_default(node: torch_fx.Node):
+    node.target = torch.ops.aten.embedding_bag.padding_idx
+    embedding_bag_args = [
+        ("scale_grad_by_freq", False),
+        ("mode", 0),
+        ("sparse", False),
+        ("per_sample_weights", None),
+        ("include_last_offset", False),
+        ("padding_idx", None),
+    ]
+    node_kwargs = dict(node.kwargs)
+    for k, v in embedding_bag_args[len(node.args) - 3 :]:
+        if k not in node_kwargs:
+            node_kwargs[k] = v
+    node.kwargs = node_kwargs
+    return node
+
+
+def node_canonicalize(node: torch_fx.Node):
+    if node.target in NODE_CANONICALIZE:
+        return NODE_CANONICALIZE[node.target](node)
+    return node
