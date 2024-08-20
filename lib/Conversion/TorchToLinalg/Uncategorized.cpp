@@ -7,7 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
 #include "PopulatePatterns.h"
@@ -2379,7 +2378,6 @@ public:
     Location loc = op->getLoc();
     Type int64type = rewriter.getI64Type();
     Type floatType = rewriter.getF32Type();
-    Value zeroIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value oneIndex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     Value zeroFloat = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getFloatAttr(floatType, 0.0));
@@ -2411,10 +2409,20 @@ public:
     auto gridType = cast<RankedTensorType>(grid.getType());
     auto gridRank = gridType.getRank();
     SmallVector<AffineMap> gridMaps{
+        AffineMap::get(
+            4, 0,
+            {rewriter.getAffineDimExpr(0), rewriter.getAffineDimExpr(2),
+             rewriter.getAffineDimExpr(3), rewriter.getAffineConstantExpr(0)},
+            op->getContext()),
+        AffineMap::get(
+            4, 0,
+            {rewriter.getAffineDimExpr(0), rewriter.getAffineDimExpr(2),
+             rewriter.getAffineDimExpr(3), rewriter.getAffineConstantExpr(1)},
+            op->getContext()),
         rewriter.getMultiDimIdentityMap(inputType.getRank())};
     SmallVector<utils::IteratorType> gridIterators(
         gridRank, utils::IteratorType::parallel);
-    auto createExtract = [](OpBuilder &b, Location loc, Value input, Value idxA,
+    auto lambdaExtract = [](OpBuilder &b, Location loc, Value input, Value idxA,
                             Value idxB, Value idxC, Value idxD) -> Value {
       SmallVector<Value> index{idxA, idxB, idxC, idxD};
       Value result = b.create<tensor::ExtractOp>(loc, input, index);
@@ -2468,16 +2476,11 @@ public:
     tensor::EmptyOp emptyOp =
         rewriter.create<tensor::EmptyOp>(loc, resultType, dynamicSizes);
     auto sGrid = rewriter.create<linalg::GenericOp>(
-        loc, TypeRange{resultType}, ValueRange(), ValueRange(emptyOp), gridMaps,
-        gridIterators, [&](OpBuilder &b, Location loc, ValueRange args) {
-          Value iterIdxZero = b.create<linalg::IndexOp>(loc, 0);
-          Value iterIdxTwo = b.create<linalg::IndexOp>(loc, 2);
-          Value iterIdxThree = b.create<linalg::IndexOp>(loc, 3);
-
-          Value gr1 = createExtract(b, loc, grid, iterIdxZero, iterIdxTwo,
-                                    iterIdxThree, zeroIndex);
-          Value gr0 = createExtract(b, loc, grid, iterIdxZero, iterIdxTwo,
-                                    iterIdxThree, oneIndex);
+        loc, TypeRange{resultType}, ValueRange{grid, grid}, ValueRange(emptyOp),
+        gridMaps, gridIterators,
+        [&](OpBuilder &b, Location loc, ValueRange args) {
+          Value gr0 = args[1];
+          Value gr1 = args[0];
           Value gr0Half = b.create<arith::DivFOp>(loc, gr0, twoFloat);
           Value gr1Half = b.create<arith::DivFOp>(loc, gr1, twoFloat);
           Value gr0HalfSelect =
@@ -2534,22 +2537,22 @@ public:
               b.create<arith::IndexCastOp>(loc, b.getIndexType(), upperValid1);
           Value N = b.create<linalg::IndexOp>(loc, 0);
           Value C = b.create<linalg::IndexOp>(loc, 1);
-          Value result00 = createExtract(b, loc, input, N, C, lw0, lw1);
+          Value result00 = lambdaExtract(b, loc, input, N, C, lw0, lw1);
           Value result00a = b.create<arith::SelectOp>(loc, checkLowerBound0,
                                                       zeroFloat, result00);
           Value result00b = b.create<arith::SelectOp>(loc, checkLowerBound1,
                                                       zeroFloat, result00a);
-          Value result01 = createExtract(b, loc, input, N, C, lw0, up1);
+          Value result01 = lambdaExtract(b, loc, input, N, C, lw0, up1);
           Value result01a = b.create<arith::SelectOp>(loc, notValidUpper1,
                                                       zeroFloat, result01);
           Value result01b = b.create<arith::SelectOp>(loc, checkLowerBound0,
                                                       zeroFloat, result01a);
-          Value result10 = createExtract(b, loc, input, N, C, up0, lw1);
+          Value result10 = lambdaExtract(b, loc, input, N, C, up0, lw1);
           Value result10a = b.create<arith::SelectOp>(loc, notValidUpper0,
                                                       zeroFloat, result10);
           Value result10b = b.create<arith::SelectOp>(loc, checkLowerBound1,
                                                       zeroFloat, result10a);
-          Value result11 = createExtract(b, loc, input, N, C, up0, up1);
+          Value result11 = lambdaExtract(b, loc, input, N, C, up0, up1);
           Value result11a = b.create<arith::SelectOp>(loc, notValidUpper0,
                                                       zeroFloat, result11);
           Value result11b = b.create<arith::SelectOp>(loc, notValidUpper1,
