@@ -231,7 +231,7 @@ class Test(NamedTuple):
     # module, actually).
     # The secon parameter is a `TestUtils` instance for convenience.
     program_invoker: Callable[[Any, TestUtils], None]
-    timeout: int
+    timeout_seconds: int
 
 
 class TestResult(NamedTuple):
@@ -324,7 +324,7 @@ class timeout:
 
 
 def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
-    with timeout(test.timeout):
+    with timeout(seconds=test.timeout_seconds):
         try:
             golden_trace = generate_golden_trace(test)
             if verbose:
@@ -333,7 +333,7 @@ def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
         except TimeoutError:
             return TestResult(
                 unique_name=test.unique_name,
-                compilation_error=f"Test timed out during compilation (timeout={test.timeout}s)",
+                compilation_error=f"Test timed out during compilation (timeout={test.timeout_seconds}s)",
                 runtime_error=None,
                 trace=None,
                 golden_trace=None,

@@ -12,19 +12,36 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 class TimeOutModule(torch.nn.Module):
+    """
+    This test ensures that the timeout mechanism works as expected.
+
+    The module runs an infinite loop that will never terminate,
+    and the test is expected to time out and get terminated
+    """
+
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([None, ([-1, -1], torch.int64, True)])
     def forward(self, x):
-        x_val = x.size(0)  # this is going to be 2
+        """
+        Run an infinite loop.
+
+        This may loop in the compiler or the runtime depending on whether
+        fx or torchscript is used.
+        """
+        # input_arg_2 is going to be 2
+        # but we can't just specify it as a
+        # constant because the compiler will
+        # attempt to get rid of the whole loop
+        input_arg_2 = x.size(0)
         sum = 100
-        while x_val < sum:  # sum will always > 2
+        while input_arg_2 < sum:  # sum will always > 2
             sum += 1
         return sum
 
 
 @register_test_case(module_factory=lambda: TimeOutModule(), timeout=10)
 def TimeOutModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(6, 8, high=10))
+    module.forward(torch.ones((42, 42)))
