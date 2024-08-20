@@ -40,7 +40,7 @@ def register_test_case(
                 unique_name=f.__name__,
                 program_factory=module_factory,
                 program_invoker=f,
-                timeout=timeout_seconds,
+                timeout_seconds=timeout_seconds,
             )
         )
         return f
