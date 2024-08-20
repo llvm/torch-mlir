@@ -638,7 +638,7 @@ class FxImporter:
 
         # Populate symbolic guards for dynamic shapes (if any)
         if import_symbolic_shape_expressions:
-            self._cc.set_symbolic_guards(prog)
+            self._cc.set_symbolic_guards(prog.range_constraints)
 
         # Invert the (producer, node_name) maps for mutated user inputs and mutated
         # buffers. This is because we hit-detect based on the input node name.
@@ -846,7 +846,7 @@ class FxImporter:
 
         # Populate symbolic guards for dynamic shapes (if any)
         if import_symbolic_shape_expressions:
-            self._cc.set_symbolic_guards(prog)
+            self._cc.set_symbolic_guards(prog.range_constraints)
 
         # If there is no "constants" attribute, consult the "state_dict". Otherwise, only look
         # at "constants". Relevant upstream patch: https://github.com/pytorch/pytorch/pull/118969
@@ -922,6 +922,11 @@ class FxImporter:
         it should be removed when no longer required for backwards compatibility.
         """
         ftype, loc = self._graph_to_function_meta(g)
+
+        # Populate symbolic guards for dynamic shapes.
+        range_constraints = g.owning_module.meta.get("range_constraints", {})
+        self._cc.set_symbolic_guards(range_constraints)
+
         # TODO: The FuncOp constructor requires a context-manager context.
         # Fix upstream and then unnest.
         # See: https://github.com/nod-ai/SHARK-Turbine/issues/138
@@ -1175,9 +1180,7 @@ class ContextCache:
                 return Location.file(filename, line, col=0, context=self._c)
         return Location.unknown(context=self._c)
 
-    def set_symbolic_guards(
-        self, prog: torch.export.ExportedProgram
-    ) -> Dict[str, RangeConstraint]:
+    def set_symbolic_guards(self, range_constraints) -> Dict[str, RangeConstraint]:
 
         def _sympy_int_to_int(val: sympy.Expr, adjust_func: Callable):
             # Convert simple sympy Integers into concrete int
@@ -1195,7 +1198,7 @@ class ContextCache:
             return adjust_func(val)
 
         contains_symbolic_ints = False
-        for val in prog.range_constraints.values():
+        for val in range_constraints.values():
             if (
                 isinstance(val.lower, (sympy.Integer, IntInfinity, NegativeIntInfinity))
                 and isinstance(
@@ -1221,7 +1224,7 @@ class ContextCache:
                     _sympy_int_to_int(v.lower, math.ceil),
                     _sympy_int_to_int(v.upper, math.floor),
                 )
-                for k, v in prog.range_constraints.items()
+                for k, v in range_constraints.items()
             }
 
     def get_symbolic_guards(self) -> Dict[str, RangeConstraint]:
