@@ -17,7 +17,9 @@
 namespace mlir {
 namespace torch {
 std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToTosaPass();
-}
+std::unique_ptr<OperationPass<func::FuncOp>>
+createConvertTorchToTosaPass(bool bypassIllegalOpsCheck);
+} // namespace torch
 } // namespace mlir
 
 #endif // TORCHMLIR_CONVERSION_TORCHTOTOSA_TORCHTOTOSA_H

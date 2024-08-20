@@ -983,6 +983,12 @@ public:
     auto newOutputTy = RankedTensorType::get(
         makeShapeLLVMCompatible(newOutputShape), resultElemTy);
 
+    if (newOutputTy.getNumDynamicDims() > 1) {
+      return rewriter.notifyMatchFailure(
+          op, "Squeeze op resulting in multiple dynamic dimensions in the "
+              "output is not supported.");
+    }
+
     auto reshapeOp = rewriter.create<tosa::ReshapeOp>(
         op->getLoc(),
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -5573,6 +5579,11 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
 namespace {
 class ConvertTorchToTosa : public ConvertTorchToTosaBase<ConvertTorchToTosa> {
 public:
+  ConvertTorchToTosa() = default;
+  ConvertTorchToTosa(bool bypassIllegalOpsCheck) {
+    this->bypassIllegalOpsCheck = bypassIllegalOpsCheck;
+  }
+
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<tosa::TosaDialect>();
     registry.insert<tensor::TensorDialect>();
@@ -5604,12 +5615,16 @@ public:
     target.addLegalOp<ConstantDeviceOp>();
     target.addLegalOp<PrimListConstructOp>();
     target.addLegalOp<PrimTupleConstructOp>();
-    target.addIllegalDialect<Torch::TorchDialect>();
+    // target.addIllegalDialect<Torch::TorchDialect>();
 
     RewritePatternSet patterns(context);
 
+#define ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                       \
+  if (!bypassIllegalOpsCheck)                                                  \
+    target.addIllegalOp<AtenOp>();
+
 #define INSERT_UNARY_FPONLY_PATTERN(AtenOp, TosaOp)                            \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenUnaryFPOnlyOp<AtenOp, TosaOp>>(typeConverter,        \
                                                          context);
     INSERT_UNARY_FPONLY_PATTERN(AtenLogOp, tosa::LogOp)
@@ -5617,7 +5632,7 @@ public:
 #undef INSERT_UNARY_FPONLY_PATTERN
 
 #define INSERT_UNARY_PATTERN(AtenOp, TosaOp)                                   \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenUnaryOp<AtenOp, TosaOp>>(typeConverter, context);
     INSERT_UNARY_PATTERN(AtenNegOp, tosa::NegateOp)
     INSERT_UNARY_PATTERN(AtenFloorOp, tosa::FloorOp)
@@ -5628,7 +5643,7 @@ public:
 #undef INSERT_UNARY_PATTERN
 
 #define INSERT_BINARY_PATTERN(AtenOp, TosaOp)                                  \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenBinaryOp<AtenOp, TosaOp>>(typeConverter, context);
     INSERT_BINARY_PATTERN(AtenMaximumOp, tosa::MaximumOp)
     INSERT_BINARY_PATTERN(AtenMinimumOp, tosa::MinimumOp)
@@ -5636,7 +5651,7 @@ public:
 #undef INSERT_BINARY_PATTERN
 
 #define INSERT_BINARY_ADDSUB_PATTERN(AtenOp, TosaOp)                           \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenAddSubOp<AtenOp, TosaOp>>(typeConverter, context);
     INSERT_BINARY_ADDSUB_PATTERN(AtenAddTensorOp, tosa::AddOp)
     INSERT_BINARY_ADDSUB_PATTERN(AtenAddScalarOp, tosa::AddOp)
@@ -5645,7 +5660,7 @@ public:
 #undef INSERT_BINARY_ADDSUB_PATTERN
 
 #define INSERT_BINARY_COMPARE_PATTERN(AtenOp, TosaOp)                          \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenCompareOp<AtenOp, TosaOp>>(typeConverter, context);
     INSERT_BINARY_COMPARE_PATTERN(AtenGtTensorOp, tosa::GreaterOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenGeScalarOp, tosa::GreaterEqualOp)
@@ -5662,21 +5677,21 @@ public:
 #undef INSERT_BINARY_COMPARE_PATTERN
 
 #define INSERT_BINARY_MUL_PATTERN(AtenOp)                                      \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenMulOp<AtenOp>>(typeConverter, context);
     INSERT_BINARY_MUL_PATTERN(AtenMulTensorOp);
     INSERT_BINARY_MUL_PATTERN(AtenMulScalarOp);
 #undef INSERT_BINARY_MUL_PATTERN
 
 #define INSERT_BINARY_DIV_PATTERN(AtenOp)                                      \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenDivOp<AtenOp>>(typeConverter, context);
     INSERT_BINARY_DIV_PATTERN(AtenDivTensorOp);
     INSERT_BINARY_DIV_PATTERN(AtenDivScalarOp);
 #undef INSERT_BINARY_DIV_PATTERN
 
 #define INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)              \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenMultipleDimsReductionOp<AtenOp, ConversionFunc>>(    \
       typeConverter, context);
     INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenMeanDimOp,
@@ -5688,7 +5703,7 @@ public:
 #undef INSERT_NDIMS_REDUCTION_OP_PATTERN
 
 #define INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)             \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenOneDimReductionOp<AtenOp, ConversionFunc>>(          \
       typeConverter, context);
     INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenAnyDimOp,
@@ -5700,7 +5715,7 @@ public:
 #undef INSERT_ONEDIM_REDUCTION_OP_PATTERN
 
 #define INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)            \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenAllDimsReductionOp<AtenOp, ConversionFunc>>(         \
       typeConverter, context);
     INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenAllOp,
@@ -5725,33 +5740,33 @@ public:
 #undef INSERT_INDICES_REDUCTION_OP_PATTERN
 
 #define INSERT_SQUEEZE_OP_PATTERN(AtenOp, TemplateForm)                        \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<TemplateForm<AtenOp>>(typeConverter, context);
     INSERT_SQUEEZE_OP_PATTERN(AtenSqueezeOp, ConvertAtenSqueezeAllDimsOp)
     INSERT_SQUEEZE_OP_PATTERN(AtenSqueezeDimOp, ConvertAtenSqueezeOneDimOp)
 #undef INSERT_SQUEEZE_OP_PATTERN
 
 #define INSERT_MATMUL_ATENOP_PATTERN(AtenOp)                                   \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenMatMulOp<AtenOp>>(typeConverter, context);
     INSERT_MATMUL_ATENOP_PATTERN(AtenMatmulOp);
 #undef INSERT_MATMUL_ATEMOP_PATTERN
 
 #define INSERT_MM_ATENOP_PATTERN(AtenOp)                                       \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenMmOp<AtenOp>>(typeConverter, context);
     INSERT_MM_ATENOP_PATTERN(AtenMmOp);
     INSERT_MM_ATENOP_PATTERN(AtenBmmOp);
 #undef INSERT_MM_ATEMOP_PATTERN
 
 #define INSERT_LINEAR_ATENOP_PATTERN(AtenOp)                                   \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenLinearOp<AtenOp>>(typeConverter, context);
     INSERT_LINEAR_ATENOP_PATTERN(AtenLinearOp);
 #undef INSERT_LINEAR_ATEMOP_PATTERN
 
 #define INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN(AtenOp, TosaOpT)                \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenAdaptivePoolingOp<AtenOp, TosaOpT>>(typeConverter,   \
                                                               context);
     INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN(AtenAdaptiveAvgPool2dOp,
@@ -5765,7 +5780,7 @@ public:
     patterns.add<ConvertAtenAvgPool2dOp>(typeConverter, context);
 
 #define INSERT_CONSTANT_FILL_PATTERN(AtenOp, fillVal)                          \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenConstPatternOp<AtenOp, fillVal>>(typeConverter,      \
                                                            context);
     INSERT_CONSTANT_FILL_PATTERN(AtenOnesOp, 1);
@@ -5773,21 +5788,22 @@ public:
 #undef INSERT_CONSTANT_FILL_PATTERN
 
 #define INSERT_FILL_SCALAR_PATTERN(AtenOp)                                     \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenFillScalarOp<AtenOp>>(typeConverter, context);
     INSERT_FILL_SCALAR_PATTERN(AtenFill_ScalarOp);
 #undef INSERT_FILL_SCALAR_PATTERN
 
 #define INSERT_MASKED_FILL_PATTERN(AtenOp)                                     \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenMaskedFillOp<AtenOp>>(typeConverter, context);
     INSERT_MASKED_FILL_PATTERN(AtenMaskedFillScalarOp);
     INSERT_MASKED_FILL_PATTERN(AtenMaskedFillTensorOp);
 #undef INSERT_MASKED_FILL_PATTERN
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context);
+
     INSERT_ATENOP_PATTERN(AtenTanhOp);
     INSERT_ATENOP_PATTERN(AtenHardtanhBackwardOp);
     INSERT_ATENOP_PATTERN(AtenSigmoidOp);
@@ -5837,7 +5853,7 @@ public:
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
-  target.addIllegalOp<AtenOp>();                                               \
+  ADD_ILLEGAL_ATENOP_CHECK(AtenOp)                                             \
   patterns.add<ConvertAtenCloneOp<AtenOp>>(typeConverter, context);
     INSERT_CLONE_ATENOP_PATTERN(AtenCloneOp);
 #undef INSERT_CLONE_ATENOP_PATTERN
@@ -5851,5 +5867,10 @@ public:
 
 std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::createConvertTorchToTosaPass() {
-  return std::make_unique<ConvertTorchToTosa>();
+  return std::make_unique<ConvertTorchToTosa>(false);
+}
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::torch::createConvertTorchToTosaPass(bool bypassIllegalOpsCheck) {
+  return std::make_unique<ConvertTorchToTosa>(bypassIllegalOpsCheck);
 }
