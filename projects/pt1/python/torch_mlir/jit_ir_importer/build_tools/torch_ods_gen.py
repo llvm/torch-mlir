@@ -754,7 +754,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::squeeze.dim : (Tensor, int) -> (Tensor)", has_folder=True)
     emit("aten::squeeze : (Tensor) -> (Tensor)", has_folder=True)
     emit("aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)")
-    emit("aten::unflatten.int : (Tensor, int, int[]) -> (Tensor)", has_canonicalizer=True)
+    emit(
+        "aten::unflatten.int : (Tensor, int, int[]) -> (Tensor)", has_canonicalizer=True
+    )
     emit("aten::dim : (Tensor) -> (int)", has_folder=True)
     emit("aten::size : (Tensor) -> (int[])", has_canonicalizer=True)
     emit("aten::Bool.Tensor : (Tensor) -> (bool)")
