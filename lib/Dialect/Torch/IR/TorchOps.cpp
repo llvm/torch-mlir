@@ -2193,6 +2193,7 @@ void AtenUnflattenIntOp::getCanonicalizationPatterns(
     Value cstMOne = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), -1);
     // the runtime asserts below are introduced to catch malformed unflatten ops
     // possibly generated from onnx IR.
+    FailureOr<Value> maybeUnsqueeze;
     if (dim0 == 1) {
       // check if the remaining size value is either -1 or equal to original
       // size at dim
@@ -2208,9 +2209,7 @@ void AtenUnflattenIntOp::getCanonicalizationPatterns(
       rewriter.create<Torch::RuntimeAssertOp>(
           op.getLoc(), isMOneOrSameSize,
           rewriter.getStringAttr("unflatten sizes must be compatible"));
-      rewriter.replaceOpWithNewOp<AtenUnsqueezeOp>(op, op.getType(), self,
-                                                   unflattenDim);
-      return success();
+      maybeUnsqueeze = Torch::unsqueezeTensor(rewriter, op, self, unflattenDim);
     }
     if (dim1 == 1) {
       // check if the remaining size value is either -1 or equal to original
@@ -2230,11 +2229,13 @@ void AtenUnflattenIntOp::getCanonicalizationPatterns(
       Value cstOne = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), 1);
       Value dimPlusOne =
           rewriter.create<AtenAddIntOp>(op.getLoc(), unflattenDim, cstOne);
-      rewriter.replaceOpWithNewOp<AtenUnsqueezeOp>(op, op.getType(), self,
-                                                   dimPlusOne);
-      return success();
+      maybeUnsqueeze = Torch::unsqueezeTensor(rewriter, op, self, dimPlusOne);
     }
-    return failure();
+    if (failed(maybeUnsqueeze))
+      return rewriter.notifyMatchFailure(op, "failed to create unsqueeze op");
+    rewriter.replaceOpWithNewOp<Torch::TensorStaticInfoCastOp>(
+        op, op.getType(), maybeUnsqueeze.value());
+    return success();
   });
 }
 
