@@ -42,6 +42,6 @@ class TimeOutModule(torch.nn.Module):
         return sum
 
 
-@register_test_case(module_factory=lambda: TimeOutModule(), timeout=10)
+@register_test_case(module_factory=lambda: TimeOutModule(), timeout_seconds=10)
 def TimeOutModule_basic(module, tu: TestUtils):
     module.forward(torch.ones((42, 42)))
