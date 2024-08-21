@@ -198,6 +198,7 @@ def fx_import_aot_autograd_backend_with_dynamic_shape(
 @run
 # CHECK-LABEL: test_stateless_fx_import_with_dynamic_shape
 # CHECK:      func.func @[[basic:[a-zA-Z0-9_]+]](%arg0: !torch.int, %arg1: !torch.int, %arg2: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32>
+# CHECK-SAME:   attributes {arg_index_to_symbol_names = {"0" = "s0", "1" = "s1"}}
 # CHECK-NEXT:   %0 = torch.symbolic_int "s0" {min_val = 2, max_val = 9223372036854775806} : !torch.int
 # CHECK-NEXT:   %1 = torch.symbolic_int "s1" {min_val = 2, max_val = 9223372036854775806} : !torch.int
 # CHECK-NEXT:   torch.bind_symbolic_shape %arg2, [%0, %1], affine_map<()[s0, s1] -> (s0, s1)> : !torch.vtensor<[?,?],f32>

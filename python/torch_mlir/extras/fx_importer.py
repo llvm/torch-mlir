@@ -124,6 +124,7 @@ from ..ir import (
     Module,
     Operation,
     StringAttr,
+    DictAttr,
     SymbolTable,
     Type as IrType,
     UnitAttr,
@@ -1421,6 +1422,7 @@ class GraphNodeImporter:
     ):
         with InsertionPoint(self._b):
             loc = Location.unknown()
+            arg_to_symbol_map = dict()
 
             # Import dynamic shape symbols and guards (if any)
             if import_symbolic_shape_expressions:
@@ -1439,6 +1441,13 @@ class GraphNodeImporter:
                     # Associate the placeholder node with corresponding block
                     # argument.
                     self.bind_node_value(node, self._b.arguments[num_placeholders])
+                    val = node.meta.get("val")
+                    # Attach symbol name as an attribute to the corresponding
+                    # MLIR block argument.
+                    if isinstance(val, torch.SymInt):
+                        arg_to_symbol_map[str(num_placeholders)] = StringAttr.get(
+                            str(val)
+                        )
                     num_placeholders += 1
                 elif op == "call_function":
                     target = node.target
@@ -1466,6 +1475,12 @@ class GraphNodeImporter:
 
                 if import_symbolic_shape_expressions:
                     self._create_bind_symbolic_shape_ops(loc, node)
+
+            if len(arg_to_symbol_map) > 0:
+                owner = self._b.owner
+                owner.attributes["arg_index_to_symbol_names"] = DictAttr.get(
+                    arg_to_symbol_map
+                )
 
     def _promote_symbolic_scalar_int_float(self, loc, graph, param):
         temp_target = torch.ops.aten.Float.Scalar
