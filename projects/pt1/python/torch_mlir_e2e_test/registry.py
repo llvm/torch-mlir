@@ -16,7 +16,7 @@ _SEEN_UNIQUE_NAMES = set()
 
 
 def register_test_case(
-    module_factory: Callable[[], torch.nn.Module], timeout_seconds: int = 300
+    module_factory: Callable[[], torch.nn.Module], timeout_seconds: int = 120
 ):
     """Convenient decorator-based test registration.
 
