@@ -27,6 +27,7 @@ from itertools import repeat
 import os
 import sys
 import traceback
+import signal
 
 import multiprocess as mp
 from multiprocess import set_start_method
@@ -230,6 +231,7 @@ class Test(NamedTuple):
     # module, actually).
     # The secon parameter is a `TestUtils` instance for convenience.
     program_invoker: Callable[[Any, TestUtils], None]
+    timeout_seconds: int
 
 
 class TestResult(NamedTuple):
@@ -305,43 +307,79 @@ def generate_golden_trace(test: Test) -> Trace:
     return trace
 
 
+class timeout:
+    def __init__(self, seconds=1, error_message="Timeout"):
+        self.seconds = seconds
+        self.error_message = error_message
+
+    def handle_timeout(self, signum, frame):
+        raise TimeoutError(self.error_message)
+
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.handle_timeout)
+        signal.alarm(self.seconds)
+
+    def __exit__(self, type, value, traceback):
+        signal.alarm(0)
+
+
 def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
-    try:
-        golden_trace = generate_golden_trace(test)
-        if verbose:
-            print(f"Compiling {test.unique_name}...", file=sys.stderr)
-        compiled = config.compile(test.program_factory(), verbose=verbose)
-    except Exception as e:
-        return TestResult(
-            unique_name=test.unique_name,
-            compilation_error="".join(
-                traceback.format_exception(type(e), e, e.__traceback__)
-            ),
-            runtime_error=None,
-            trace=None,
-            golden_trace=None,
-        )
-    try:
-        if verbose:
-            print(f"Running {test.unique_name}...", file=sys.stderr)
-        trace = config.run(compiled, golden_trace)
-    except Exception as e:
+    with timeout(seconds=test.timeout_seconds):
+        try:
+            golden_trace = generate_golden_trace(test)
+            if verbose:
+                print(f"Compiling {test.unique_name}...", file=sys.stderr)
+            compiled = config.compile(test.program_factory(), verbose=verbose)
+        except TimeoutError:
+            return TestResult(
+                unique_name=test.unique_name,
+                compilation_error=f"Test timed out during compilation (timeout={test.timeout_seconds}s)",
+                runtime_error=None,
+                trace=None,
+                golden_trace=None,
+            )
+        except Exception as e:
+            return TestResult(
+                unique_name=test.unique_name,
+                compilation_error="".join(
+                    traceback.format_exception(type(e), e, e.__traceback__)
+                ),
+                runtime_error=None,
+                trace=None,
+                golden_trace=None,
+            )
+        try:
+            if verbose:
+                print(f"Running {test.unique_name}...", file=sys.stderr)
+            trace = config.run(compiled, golden_trace)
+
+            # Disable the alarm
+            signal.alarm(0)
+        except TimeoutError:
+            return TestResult(
+                unique_name=test.unique_name,
+                compilation_error=None,
+                runtime_error="Test timed out during execution (timeout={test.timeout}s)",
+                trace=None,
+                golden_trace=None,
+            )
+        except Exception as e:
+            return TestResult(
+                unique_name=test.unique_name,
+                compilation_error=None,
+                runtime_error="".join(
+                    traceback.format_exception(type(e), e, e.__traceback__)
+                ),
+                trace=None,
+                golden_trace=None,
+            )
         return TestResult(
             unique_name=test.unique_name,
             compilation_error=None,
-            runtime_error="".join(
-                traceback.format_exception(type(e), e, e.__traceback__)
-            ),
-            trace=None,
-            golden_trace=None,
+            runtime_error=None,
+            trace=clone_trace(trace),
+            golden_trace=clone_trace(golden_trace),
         )
-    return TestResult(
-        unique_name=test.unique_name,
-        compilation_error=None,
-        runtime_error=None,
-        trace=clone_trace(trace),
-        golden_trace=clone_trace(golden_trace),
-    )
 
 
 def run_tests(
