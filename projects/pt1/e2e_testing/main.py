@@ -81,7 +81,7 @@ def _get_argparse():
         "-c",
         "--config",
         choices=config_choices,
-        default="linalg",
+        default="fx_importer",
         help=f"""
 Meaning of options:
 # "linalg": run through torch-mlir"s default Linalg-on-Tensors backend.
