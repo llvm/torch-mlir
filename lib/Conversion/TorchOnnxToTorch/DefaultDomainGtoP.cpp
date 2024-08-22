@@ -717,8 +717,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             b.create<Torch::ConstantFloatOp>(rewriter.getF64FloatAttr(10));
         Value oneFltConst =
             b.create<Torch::ConstantFloatOp>(rewriter.getF64FloatAttr(1));
-        Value LnToLog10Const =
-            b.create<Torch::ConstantFloatOp>(rewriter.getF64FloatAttr(0.43429448190325182765));
+        Value LnToLog10Const = b.create<Torch::ConstantFloatOp>(
+            rewriter.getF64FloatAttr(M_LOG10E));
 
         Value lfDiv7Hfloat =
             b.create<Torch::AtenDivFloatOp>(lowerEdgeHzItem, sevenHConst);
@@ -727,8 +727,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             b.create<Torch::PrimNumToTensorScalarOp>(freqType, lfDiv7Hfloat);
         Value lfDiv7HAdd1 = b.create<Torch::AtenAddScalarOp>(
             freqType, lfDiv7H, oneConst, /*alpha =*/oneConst);
-        Value lfDiv7HAdd1Log10 =
-            b.create<Torch::AtenLog10Op>(freqType, lfDiv7HAdd1);
+        Value lfDiv7HAdd1Ln =
+            b.create<Torch::AtenLogOp>(freqType, lfDiv7HAdd1);
+        Value lfDiv7HAdd1Log10 = b.create<Torch::AtenMulScalarOp>(freqType, lfDiv7HAdd1Ln, LnToLog10Const);
+
         Value lfMel = b.create<Torch::AtenMulScalarOp>(
             freqType, lfDiv7HAdd1Log10, twoFiveNineFiveConst);
 
@@ -738,8 +740,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             b.create<Torch::PrimNumToTensorScalarOp>(freqType, hfDiv7Hfloat);
         Value hfDiv7HAdd1 = b.create<Torch::AtenAddScalarOp>(
             freqType, hfDiv7H, oneConst, /*alpha =*/oneConst);
-        Value hfDiv7HAdd1Log10 =
-            b.create<Torch::AtenLog10Op>(freqType, hfDiv7HAdd1);
+        Value hfDiv7HAdd1Ln =
+            b.create<Torch::AtenLogOp>(freqType, hfDiv7HAdd1);
+        Value hfDiv7HAdd1Log10 = b.create<Torch::AtenMulScalarOp>(freqType, hfDiv7HAdd1Ln, LnToLog10Const);
+
         Value hfMel = b.create<Torch::AtenMulScalarOp>(
             freqType, hfDiv7HAdd1Log10, twoFiveNineFiveConst);
 
