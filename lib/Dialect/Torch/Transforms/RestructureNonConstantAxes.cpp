@@ -57,9 +57,17 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
 
+    Value self = op.getSelf();
+    Value dim = op.getDim();
+
     if (isDimConstant(op)) {
       return rewriter.notifyMatchFailure(op,
                                          "dim argument is already constant");
+    }
+
+    if (isa<Torch::NoneType>(dim.getType())) {
+      return rewriter.notifyMatchFailure(
+          op, "RestructureNonConstantAxes does not support None dim");
     }
 
     // when keepdim is not constant, check the ranks of the input and output
@@ -83,17 +91,8 @@ public:
           loc, intType,
           rewriter.getIntegerAttr(rewriter.getIntegerType(64), value));
     };
-
     Value zero = createInt(0);
     Value one = createInt(1);
-    Value self = op.getSelf();
-    Value dim = op.getDim();
-
-    // fail at runtime if dim is a list with more than one element
-    if (isa<Torch::NoneType>(dim.getType())) {
-      return rewriter.notifyMatchFailure(
-          op, "RestructureNonConstantAxes does not support None dim");
-    }
 
     // handle when dim is a single element list
     bool oldDimIsList = isa<Torch::ListType>(dim.getType());
