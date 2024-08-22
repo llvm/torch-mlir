@@ -78,6 +78,16 @@ except ModuleNotFoundError:
     # conditional.
     ml_dtypes = None
 
+try:
+    from torch.utils._sympy.numbers import int_oo, IntInfinity, NegativeIntInfinity
+except ModuleNotFoundError:
+    # This commit on PyTorch repo introduced IntInfinity and NegativeIntInfinity:
+    # https://github.com/pytorch/pytorch/commit/2229884102ac95c9dda0aeadbded1b04295d892e
+    # Required module may not be present in the stable version of PyTorch.
+    int_oo = None
+    IntInfinity = None
+    NegativeIntInfinity = None
+
 from torch.fx.node import (
     Argument as NodeArgument,
 )
@@ -124,6 +134,8 @@ from ..ir import (
 from ..dialects import (
     func as func_dialect,
 )
+
+from .._mlir_libs._torchMlir import get_int64_max, get_int64_min
 
 __all__ = [
     "FxImporter",
@@ -1165,22 +1177,32 @@ class ContextCache:
         self, prog: torch.export.ExportedProgram
     ) -> Dict[str, RangeConstraint]:
 
+        # Recent PyTorch versions use `int_oo` to represent integer infinity.
+        # Older PyTorch versions like PyTorch stable version may not have
+        # `int_oo` defined just yet.
+        infs = (sympy.oo, int_oo) if int_oo is not None else (sympy.oo,)
+
         def _sympy_int_to_int(val: sympy.Expr, adjust_func: Callable):
             # Convert simple sympy Integers into concrete int
-            if val == sympy.oo:
-                return math.inf
-            if val == -sympy.oo:
-                return -math.inf
+            if val in infs:
+                return get_int64_max()
+            if val in tuple(-inf for inf in infs):
+                return get_int64_min()
             if isinstance(val, sympy.Integer):
                 return int(val)
             # TODO: Remove this adjustment when fractional ranges are removed
             return adjust_func(val)
 
         contains_symbolic_ints = False
+        sym_int_types = (
+            (sympy.Integer, IntInfinity, NegativeIntInfinity)
+            if IntInfinity is not None
+            else sympy.Integer
+        )
         for val in prog.range_constraints.values():
             if (
-                isinstance(val.lower, sympy.Integer)
-                and isinstance(val.upper, sympy.Integer)
+                isinstance(val.lower, sym_int_types)
+                and isinstance(val.upper, sym_int_types)
                 and not val.is_bool
             ):
                 contains_symbolic_ints = True
