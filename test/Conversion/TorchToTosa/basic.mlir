@@ -1356,3 +1356,20 @@ func.func @torch.aten.__interpolate.size_list_scale_list.nearest(%arg0: !torch.v
   %1 = torch.aten.__interpolate.size_list_scale_list %arg0, %none, %0, %str, %false, %none, %false : !torch.vtensor<[1,16,135,240],f32>, !torch.none, !torch.list<float>, !torch.str, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,16,270,480],f32>
   return %1 : !torch.vtensor<[1,16,270,480],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.tril$basic(
+// CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[2,4],si32>) -> !torch.vtensor<[2,4],si32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[2,4],si32> -> tensor<2x4xi32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{value = dense<{{\[\[}}1, 1, 0, 0], [1, 1, 1, 0]]> : tensor<2x4xi32>}> : () -> tensor<2x4xi32>
+// CHECK:           %[[VAL_4:.*]] = tosa.mul %[[VAL_1]], %[[VAL_3]] {shift = 0 : i8} : (tensor<2x4xi32>, tensor<2x4xi32>) -> tensor<2x4xi32>
+// CHECK:           %[[VAL_5:.*]] = torch_c.from_builtin_tensor %[[VAL_4]] : tensor<2x4xi32> -> !torch.vtensor<[2,4],si32>
+// CHECK:           return %[[VAL_5]] : !torch.vtensor<[2,4],si32>
+// CHECK:         }
+func.func @torch.aten.tril$basic(%arg0: !torch.vtensor<[2,4], si32>) -> !torch.vtensor<[2,4], si32> {
+  %int0 = torch.constant.int 1
+  %0 = torch.aten.tril %arg0, %int0 : !torch.vtensor<[2,4],si32>, !torch.int -> !torch.vtensor<[2,4],si32>
+  return %0 : !torch.vtensor<[2,4],si32>
+}
