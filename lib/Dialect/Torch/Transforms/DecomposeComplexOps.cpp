@@ -6233,7 +6233,6 @@ class DecomposeAtenGroupNormOp : public OpRewritePattern<AtenGroupNormOp> {
   LogicalResult matchAndRewrite(AtenGroupNormOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    MLIRContext *context = op.getContext();
 
     Value input = op.getInput();
     Value weight = op.getWeight();
@@ -6250,8 +6249,8 @@ class DecomposeAtenGroupNormOp : public OpRewritePattern<AtenGroupNormOp> {
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
     Value cstOne =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-    auto inputType = cast<BaseTensorType>(input.getType());
 
+    auto inputType = cast<BaseTensorType>(input.getType());
     if (!inputType.hasSizes())
       return rewriter.notifyMatchFailure(op, "input should have sizes.");
 
@@ -6270,7 +6269,6 @@ class DecomposeAtenGroupNormOp : public OpRewritePattern<AtenGroupNormOp> {
         loc, ArrayRef<Type>{op.getResult().getType(), baseType, baseType},
         input, weight, bias, N, C, HxW, numGroups, eps);
 
-    newOp.dump();
     rewriter.replaceOp(op, newOp.getResult0());
     return success();
   }
@@ -6286,14 +6284,12 @@ class DecomposeAtenNativeGroupNormOp
     Location loc = op.getLoc();
     MLIRContext *context = op.getContext();
 
-    op.dump();
     Value input = op.getInput();
     Value weight = op.getWeight();
     Value bias = op.getBias();
     Value numGroups = op.getGroup();
     Value eps = op.getEps();
 
-    llvm::outs()<<"Debug Stmt -1\n";
     // Check the rank of the input/outputs tensor.
     auto inputType = cast<BaseTensorType>(input.getType());
     auto outputType = cast<BaseTensorType>(op.getResult0().getType());
@@ -6304,10 +6300,6 @@ class DecomposeAtenNativeGroupNormOp
       return rewriter.notifyMatchFailure(
           op, "input/outputs tensor should have known sizes.");
     }
-    meanType.dump();
-    rsqrtVarType.dump();
-
-    llvm::outs()<<"Debug Stmt 0\n";
 
     Value none = rewriter.create<ConstantNoneOp>(loc);
     Value cstZero =
@@ -6318,7 +6310,6 @@ class DecomposeAtenNativeGroupNormOp
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
     Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
     Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
-    auto baseType = ValueTensorType::getWithLeastStaticInformation(context);
 
     // GroupNorm requires the channel dimension (C) to be exactly divisible by
     // the number of groups.
@@ -6331,14 +6322,35 @@ class DecomposeAtenNativeGroupNormOp
         rewriter.getStringAttr("the number of channels must be divisible by "
                                "the number of groups"));
 
-    llvm::outs()<<"Debug Stmt 1\n";
     // Reshape the input tensor to (N, numGroups, -1) to apply normalization.
+    int64_t numGroupsInt;
+    if (!matchPattern(numGroups, m_TorchConstantInt(&numGroupsInt)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: num_groups must be a constant int");
+
     SmallVector<Value> newShape;
+    SmallVector<int64_t> inputShapeInt{inputType.getSizes()};
+    SmallVector<int64_t> reshapeInputShape{inputShapeInt[0], numGroupsInt};
+    int64_t reshapeInputLastDim = 1;
+    for (size_t i = 1; i < inputShapeInt.size(); i++) {
+      if (inputShapeInt[i] == Torch::kUnknownSize) {
+        reshapeInputLastDim = Torch::kUnknownSize;
+        break;
+      }
+      reshapeInputLastDim *= inputShapeInt[i];
+    }
+    reshapeInputLastDim = reshapeInputLastDim == Torch::kUnknownSize
+                              ? reshapeInputLastDim
+                              : reshapeInputLastDim / numGroupsInt;
+    reshapeInputShape.push_back(reshapeInputLastDim);
+
     newShape.push_back(rewriter.create<AtenSizeIntOp>(loc, input, cstZero));
     newShape.push_back(numGroups);
     newShape.push_back(cstNegtiveOne);
+    Type reshapeInputType = inputType.getWithSizesAndDtype(
+        reshapeInputShape, inputType.getOptionalDtype());
     Value reshapedInput = rewriter.create<AtenViewOp>(
-        loc, baseType, input,
+        loc, reshapeInputType, input,
         rewriter.create<PrimListConstructOp>(
             loc, Torch::ListType::get(IntType::get(context)), newShape));
 
@@ -6347,22 +6359,28 @@ class DecomposeAtenNativeGroupNormOp
     Value dimList = rewriter.create<PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
         ArrayRef<Value>{cstNegtiveOne});
-    auto mean = rewriter.create<AtenMeanDimOp>(
-        loc, baseType, reshapedInput, /*dims=*/dimList, /*keepdim=*/cstTrue,
-        /*dtype=*/none);
-    auto var = rewriter.create<AtenVarDimOp>(
-        loc, baseType, reshapedInput, /*dims=*/dimList, /*unbiased=*/cstFalse,
-        /*keepdim=*/cstTrue);
 
-    llvm::outs()<<"Debug Stmt 2\n";
+    reshapeInputShape[2] = 1;
+    Type reductionType = inputType.getWithSizesAndDtype(
+        reshapeInputShape, inputType.getOptionalDtype());
+    auto mean =
+        rewriter.create<AtenMeanDimOp>(loc, reductionType, reshapedInput,
+                                       /*dims=*/dimList, /*keepdim=*/cstTrue,
+                                       /*dtype=*/none);
+    auto var =
+        rewriter.create<AtenVarDimOp>(loc, reductionType, reshapedInput,
+                                      /*dims=*/dimList, /*unbiased=*/cstFalse,
+                                      /*keepdim=*/cstTrue);
+
     // Compute the normalized output: (input - mean) * rsqrt(var + eps)
-    auto varPlusEps = rewriter.create<AtenAddScalarOp>(loc, baseType, var, eps,
-                                                       /*alpha=*/cstOne);
-    auto invStd = rewriter.create<AtenRsqrtOp>(loc, baseType, varPlusEps);
+    auto varPlusEps =
+        rewriter.create<AtenAddScalarOp>(loc, reductionType, var, eps,
+                                         /*alpha=*/cstOne);
+    auto invStd = rewriter.create<AtenRsqrtOp>(loc, reductionType, varPlusEps);
     auto inputSubMean = rewriter.create<AtenSubTensorOp>(
-        loc, baseType, reshapedInput, mean, /*alpha=*/cstOne);
-    auto normalizedOutput =
-        rewriter.create<AtenMulTensorOp>(loc, baseType, inputSubMean, invStd);
+        loc, reshapeInputType, reshapedInput, mean, /*alpha=*/cstOne);
+    auto normalizedOutput = rewriter.create<AtenMulTensorOp>(
+        loc, reshapeInputType, inputSubMean, invStd);
 
     // Reshape normalized output back to the original input shape
     auto inputShape = rewriter.create<AtenSizeOp>(
@@ -6370,32 +6388,34 @@ class DecomposeAtenNativeGroupNormOp
     auto reshapedOutput = rewriter.create<AtenViewOp>(
         loc, inputType, normalizedOutput, /*shape=*/inputShape);
 
-    llvm::outs()<<"Debug Stmt 3\n";
     // Apply weight and bias if they are not None
     // Reshape weight and bias to C,1,1,...
     SmallVector<Value> viewShape = {channel};
+    SmallVector<int64_t> viewShapeInt{inputShapeInt[1]};
     for (unsigned i = 2; i < inputType.getSizes().size(); i++) {
       viewShape.push_back(cstOne);
+      viewShapeInt.push_back(1);
     }
     Value viewShapeSizeList = rewriter.create<PrimListConstructOp>(
         loc, ListType::get(IntType::get(context)), viewShape);
 
+    Type viewType = inputType.getWithSizesAndDtype(
+        viewShapeInt, inputType.getOptionalDtype());
     Value groupNormOutput = reshapedOutput;
     if (!isa<Torch::NoneType>(weight.getType())) {
       auto weightReshaped = rewriter.create<AtenViewOp>(
-          loc, baseType, weight, /*shape=*/viewShapeSizeList);
+          loc, viewType, weight, /*shape=*/viewShapeSizeList);
       groupNormOutput = rewriter.create<AtenMulTensorOp>(
           loc, inputType, groupNormOutput, weightReshaped);
     }
     if (!isa<Torch::NoneType>(bias.getType())) {
       auto biasReshaped = rewriter.create<AtenViewOp>(
-          loc, baseType, bias, /*shape=*/viewShapeSizeList);
+          loc, viewType, bias, /*shape=*/viewShapeSizeList);
       groupNormOutput = rewriter.create<AtenAddTensorOp>(
           loc, inputType, groupNormOutput, biasReshaped,
           /*alpha=*/cstOne);
     }
 
-    llvm::outs()<<"Debug Stmt 4\n";
     Value squeezedMean =
         rewriter.create<AtenSqueezeDimOp>(loc, meanType, mean, cstNegtiveOne);
     Value squeezedRsqrtVar = rewriter.create<AtenSqueezeDimOp>(
