@@ -640,8 +640,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         Value numMelBinsItem =
             getItemOp<Torch::IntType>(binder, rewriter, operands[0]);
-        // Value dftLengthItem =
-        //     getItemOp<Torch::IntType>(binder, rewriter, operands[1]);
         Value sampleRateItem =
             getItemOp<Torch::IntType>(binder, rewriter, operands[2]);
         Value lowerEdgeHzItem =
@@ -656,10 +654,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // Recurring shapes
         SmallVector<int64_t> unranked({});
         SmallVector<int64_t> shapeNMB({numMelBinsInt});
-        // SmallVector<int64_t> shapeNMBp2({numMelBinsInt + 2});
         SmallVector<int64_t> shape1xNMB({1, numMelBinsInt});
         SmallVector<int64_t> shapeNSB({numSpectrogramBinsInt});
-        SmallVector<int64_t> shapeNSBx1({numSpectrogramBinsInt,1});
+        SmallVector<int64_t> shapeNSBx1({numSpectrogramBinsInt, 1});
         SmallVector<int64_t> shapeNSBxNMB(
             {numSpectrogramBinsInt, numMelBinsInt});
 
@@ -672,10 +669,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // Value constants
         Value noneConst = b.create<Torch::ConstantNoneOp>();
-        // Value negTwoConst =
-        //     b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(-2));
-        // Value negOneConst =
-        //     b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(-1));
         Value zeroConst =
             b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(0));
         Value oneConst =
@@ -694,17 +687,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Type freqBinsFltType =
             Torch::ValueTensorType::get(ctx, shapeNMB, f32Ty);
 
-        Value dftLengthDivTwoTensor = b.create<Torch::AtenFloorDivideScalarOp>(dftLenType, operands[1], twoConst);
-        
-        // Value dftLengthDivTwoFlt =
-        //     b.create<Torch::AtenDivIntOp>(dftLengthItem, twoConst);
-        // Value dftLengthDivTwo =
-        //     b.create<Torch::AtenIntFloatOp>(dftLengthDivTwoFlt);
-
-        // expect int
-        Value numSpectrogramBinsTensor = b.create<Torch::AtenAddScalarOp>(dftLenType, dftLengthDivTwoTensor, oneConst, /*alpha =*/oneConst);
-            // b.create<Torch::AtenAddIntOp>(dftLengthDivTwo, oneConst);
-        Value numSpectrogramBinsItem = getItemOp<Torch::IntType>(binder, rewriter, numSpectrogramBinsTensor);
+        Value dftLengthDivTwoTensor = b.create<Torch::AtenFloorDivideScalarOp>(
+            dftLenType, operands[1], twoConst);
+        Value numSpectrogramBinsTensor = b.create<Torch::AtenAddScalarOp>(
+            dftLenType, dftLengthDivTwoTensor, oneConst, /*alpha =*/oneConst);
+        Value numSpectrogramBinsItem = getItemOp<Torch::IntType>(
+            binder, rewriter, numSpectrogramBinsTensor);
 
         // From Ref Impl of Onnx.MelWeightMatrix:
         // https://github.com/onnx/onnx/blob/main/onnx/reference/ops/op_mel_weight_matrix.py#L25-L32
@@ -727,9 +715,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             b.create<Torch::PrimNumToTensorScalarOp>(freqType, lfDiv7Hfloat);
         Value lfDiv7HAdd1 = b.create<Torch::AtenAddScalarOp>(
             freqType, lfDiv7H, oneConst, /*alpha =*/oneConst);
-        Value lfDiv7HAdd1Ln =
-            b.create<Torch::AtenLogOp>(freqType, lfDiv7HAdd1);
-        Value lfDiv7HAdd1Log10 = b.create<Torch::AtenMulScalarOp>(freqType, lfDiv7HAdd1Ln, LnToLog10Const);
+        Value lfDiv7HAdd1Ln = b.create<Torch::AtenLogOp>(freqType, lfDiv7HAdd1);
+        Value lfDiv7HAdd1Log10 = b.create<Torch::AtenMulScalarOp>(
+            freqType, lfDiv7HAdd1Ln, LnToLog10Const);
 
         Value lfMel = b.create<Torch::AtenMulScalarOp>(
             freqType, lfDiv7HAdd1Log10, twoFiveNineFiveConst);
@@ -740,16 +728,17 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             b.create<Torch::PrimNumToTensorScalarOp>(freqType, hfDiv7Hfloat);
         Value hfDiv7HAdd1 = b.create<Torch::AtenAddScalarOp>(
             freqType, hfDiv7H, oneConst, /*alpha =*/oneConst);
-        Value hfDiv7HAdd1Ln =
-            b.create<Torch::AtenLogOp>(freqType, hfDiv7HAdd1);
-        Value hfDiv7HAdd1Log10 = b.create<Torch::AtenMulScalarOp>(freqType, hfDiv7HAdd1Ln, LnToLog10Const);
+        Value hfDiv7HAdd1Ln = b.create<Torch::AtenLogOp>(freqType, hfDiv7HAdd1);
+        Value hfDiv7HAdd1Log10 = b.create<Torch::AtenMulScalarOp>(
+            freqType, hfDiv7HAdd1Ln, LnToLog10Const);
 
         Value hfMel = b.create<Torch::AtenMulScalarOp>(
             freqType, hfDiv7HAdd1Log10, twoFiveNineFiveConst);
 
         Value hfSubLf = b.create<Torch::AtenSubTensorOp>(
             hfMel.getType(), hfMel, lfMel, /*alpha=*/oneConst);
-        Value numMelBinsPlus2 = b.create< Torch::AtenAddIntOp>(numMelBinsItem, twoConst);
+        Value numMelBinsPlus2 =
+            b.create<Torch::AtenAddIntOp>(numMelBinsItem, twoConst);
         Value melStep = b.create<Torch::AtenDivScalarOp>(
             hfSubLf.getType(), hfSubLf, numMelBinsPlus2);
 
@@ -768,154 +757,200 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             /*layout=*/noneConst, /*device=*/noneConst,
             /*pin_memory=*/noneConst);
 
-        Value dftLenPlusOne = b.create<Torch::AtenAddScalarOp>(dftLenType, operands[1], oneConst, /*alpha=*/oneConst);
-        Value dftLenPlusOneItem = getItemOp<Torch::IntType>(binder, rewriter, dftLenPlusOne);
+        // Common values used in conversion
+        Value dftLenPlusOne = b.create<Torch::AtenAddScalarOp>(
+            dftLenType, operands[1], oneConst, /*alpha=*/oneConst);
+        Value dftLenPlusOneItem =
+            getItemOp<Torch::IntType>(binder, rewriter, dftLenPlusOne);
         Value falseConst = b.create<Torch::ConstantBoolOp>(false);
-        Torch::ValueTensorType unsqueezeBinsResType = Torch::ValueTensorType::get(ctx, shape1xNMB, si32Ty);
-
-
-        // // Mel to Hz conv
-        // Value freqBinsMulMelStep = b.create<Torch::AtenMulTensorOp>(freqBinsFltType, freqBinsInit, melStep);
-        // Value freqBinsScaled = b.create<Torch::AtenAddTensorOp>(freqBinsFltType, freqBinsMulMelStep, lfMel, /*alpha=*/oneConst);
-        // Value fbDiv = b.create<Torch::AtenDivScalarOp>(freqBinsFltType, freqBinsScaled, twoFiveNineFiveConst);
-        // Value fbClone = b.create<Torch::AtenCloneOp>(freqBinsFltType, freqBinsScaled, /*memory_format=*/noneConst);
-        // Value tenTensor = b.create<Torch::AtenFillScalarOp>(freqBinsFltType, fbClone, tenConst);
-        // Value fbPow = b.create<Torch::AtenPowTensorTensorOp>(freqBinsFltType, tenTensor, fbDiv);
-        // Value fbPowSubOne = b.create<Torch::AtenSubScalarOp>(freqBinsFltType, fbPow, oneConst, /*alpha=*/oneConst);
-        // Value freqBinsHz = b.create<Torch::AtenMulScalarOp>(freqBinsFltType, fbPowSubOne, sevenHConst);
-        // Value fbMulDft = b.create<Torch::AtenMulScalarOp>(freqBinsFltType, freqBinsHz, dftLenPlusOneItem);
-        // Value freqBinsNormalized = b.create<Torch::AtenDivScalarOp>(freqBinsFltType, fbMulDft, sampleRateItem);
-
-
+        Torch::ValueTensorType unsqueezeBinsResType =
+            Torch::ValueTensorType::get(ctx, shape1xNMB, si32Ty);
 
         // Low bins Mel to hz
-        Value lowBinsMulMelStep = b.create<Torch::AtenMulTensorOp>(freqBinsFltType, lowBinsInit, melStep);
-        Value lowBinsScaled = b.create<Torch::AtenAddTensorOp>(freqBinsFltType, lowBinsMulMelStep, lfMel, /*alpha=*/oneConst);
-        Value lbDiv = b.create<Torch::AtenDivScalarOp>(freqBinsFltType, lowBinsScaled, twoFiveNineFiveConst);
-        Value lbClone = b.create<Torch::AtenCloneOp>(freqBinsFltType, lowBinsScaled, /*memory_format=*/noneConst);
-        Value lbTenTensor = b.create<Torch::AtenFillScalarOp>(freqBinsFltType, lbClone, tenConst);
-        Value lbPow = b.create<Torch::AtenPowTensorTensorOp>(freqBinsFltType, lbTenTensor, lbDiv);
-        Value lbPowSubOne = b.create<Torch::AtenSubScalarOp>(freqBinsFltType, lbPow, oneConst, /*alpha=*/oneConst);
-        Value lowBinsHz = b.create<Torch::AtenMulScalarOp>(freqBinsFltType, lbPowSubOne, sevenHConst);
+        Value lowBinsMulMelStep = b.create<Torch::AtenMulTensorOp>(
+            freqBinsFltType, lowBinsInit, melStep);
+        Value lowBinsScaled = b.create<Torch::AtenAddTensorOp>(
+            freqBinsFltType, lowBinsMulMelStep, lfMel, /*alpha=*/oneConst);
+        Value lbDiv = b.create<Torch::AtenDivScalarOp>(
+            freqBinsFltType, lowBinsScaled, twoFiveNineFiveConst);
+        Value lbClone = b.create<Torch::AtenCloneOp>(
+            freqBinsFltType, lowBinsScaled, /*memory_format=*/noneConst);
+        Value lbTenTensor = b.create<Torch::AtenFillScalarOp>(
+            freqBinsFltType, lbClone, tenConst);
+        Value lbPow = b.create<Torch::AtenPowTensorTensorOp>(
+            freqBinsFltType, lbTenTensor, lbDiv);
+        Value lbPowSubOne = b.create<Torch::AtenSubScalarOp>(
+            freqBinsFltType, lbPow, oneConst, /*alpha=*/oneConst);
+        Value lowBinsHz = b.create<Torch::AtenMulScalarOp>(
+            freqBinsFltType, lbPowSubOne, sevenHConst);
         // Normalize freqBinsHz
-        Value lbMulDft = b.create<Torch::AtenMulScalarOp>(freqBinsFltType, lowBinsHz, dftLenPlusOneItem);
-        Value lowBinsNormalized = b.create<Torch::AtenDivScalarOp>(freqBinsFltType, lbMulDft, sampleRateItem);
+        Value lbMulDft = b.create<Torch::AtenMulScalarOp>(
+            freqBinsFltType, lowBinsHz, dftLenPlusOneItem);
+        Value lowBinsNormalized = b.create<Torch::AtenDivScalarOp>(
+            freqBinsFltType, lbMulDft, sampleRateItem);
         // cast to int32
         Value lowBinsInt = b.create<Torch::AtenToDtypeOp>(
             freqBinsIntType, lowBinsNormalized, /*dtype=*/int32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
-        Value lowBins = b.create<Torch::AtenUnsqueezeOp>(unsqueezeBinsResType, lowBinsInt, /*dim=*/zeroConst);
-
+        Value lowBins = b.create<Torch::AtenUnsqueezeOp>(
+            unsqueezeBinsResType, lowBinsInt, /*dim=*/zeroConst);
 
         // Center bins mel to hz
-        Value centerBinsInitInc = b.create<Torch::AtenAddScalarOp>(freqBinsIntType, centerBinsInit, oneConst, /*alpha=*/oneConst);
-        Value centerBinsMulMelStep = b.create<Torch::AtenMulTensorOp>(freqBinsFltType, centerBinsInitInc, melStep);
-        Value centerBinsScaled = b.create<Torch::AtenAddTensorOp>(freqBinsFltType, centerBinsMulMelStep, lfMel, /*alpha=*/oneConst);
-        Value cbDiv = b.create<Torch::AtenDivScalarOp>(freqBinsFltType, centerBinsScaled, twoFiveNineFiveConst);
-        Value cbClone = b.create<Torch::AtenCloneOp>(freqBinsFltType, centerBinsScaled, /*memory_format=*/noneConst);
-        Value cbTenTensor = b.create<Torch::AtenFillScalarOp>(freqBinsFltType, cbClone, tenConst);
-        Value cbPow = b.create<Torch::AtenPowTensorTensorOp>(freqBinsFltType, cbTenTensor, cbDiv);
-        Value cbPowSubOne = b.create<Torch::AtenSubScalarOp>(freqBinsFltType, cbPow, oneConst, /*alpha=*/oneConst);
-        Value centerBinsHz = b.create<Torch::AtenMulScalarOp>(freqBinsFltType, cbPowSubOne, sevenHConst);
+        Value centerBinsInitInc = b.create<Torch::AtenAddScalarOp>(
+            freqBinsIntType, centerBinsInit, oneConst, /*alpha=*/oneConst);
+        Value centerBinsMulMelStep = b.create<Torch::AtenMulTensorOp>(
+            freqBinsFltType, centerBinsInitInc, melStep);
+        Value centerBinsScaled = b.create<Torch::AtenAddTensorOp>(
+            freqBinsFltType, centerBinsMulMelStep, lfMel, /*alpha=*/oneConst);
+        Value cbDiv = b.create<Torch::AtenDivScalarOp>(
+            freqBinsFltType, centerBinsScaled, twoFiveNineFiveConst);
+        Value cbClone = b.create<Torch::AtenCloneOp>(
+            freqBinsFltType, centerBinsScaled, /*memory_format=*/noneConst);
+        Value cbTenTensor = b.create<Torch::AtenFillScalarOp>(
+            freqBinsFltType, cbClone, tenConst);
+        Value cbPow = b.create<Torch::AtenPowTensorTensorOp>(
+            freqBinsFltType, cbTenTensor, cbDiv);
+        Value cbPowSubOne = b.create<Torch::AtenSubScalarOp>(
+            freqBinsFltType, cbPow, oneConst, /*alpha=*/oneConst);
+        Value centerBinsHz = b.create<Torch::AtenMulScalarOp>(
+            freqBinsFltType, cbPowSubOne, sevenHConst);
         // Normalize freqBinsHz
-        Value cbMulDft = b.create<Torch::AtenMulScalarOp>(freqBinsFltType, centerBinsHz, dftLenPlusOneItem);
-        Value centerBinsNormalized = b.create<Torch::AtenDivScalarOp>(freqBinsFltType, cbMulDft, sampleRateItem);
+        Value cbMulDft = b.create<Torch::AtenMulScalarOp>(
+            freqBinsFltType, centerBinsHz, dftLenPlusOneItem);
+        Value centerBinsNormalized = b.create<Torch::AtenDivScalarOp>(
+            freqBinsFltType, cbMulDft, sampleRateItem);
         // cast to int32
         Value centerBinsInt = b.create<Torch::AtenToDtypeOp>(
             freqBinsIntType, centerBinsNormalized, /*dtype=*/int32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
-        Value centerBins = b.create<Torch::AtenUnsqueezeOp>(unsqueezeBinsResType, centerBinsInt, /*dim=*/zeroConst);
+        Value centerBins = b.create<Torch::AtenUnsqueezeOp>(
+            unsqueezeBinsResType, centerBinsInt, /*dim=*/zeroConst);
 
         // High bins mel to hz
-        Value highBinsInitInc = b.create<Torch::AtenAddScalarOp>(freqBinsIntType, highBinsInit, twoConst, /*alpha=*/oneConst);
-        Value highBinsMulMelStep = b.create<Torch::AtenMulTensorOp>(freqBinsFltType, highBinsInitInc, melStep);
-        Value highBinsScaled = b.create<Torch::AtenAddTensorOp>(freqBinsFltType, highBinsMulMelStep, lfMel, /*alpha=*/oneConst);
-        Value hbDiv = b.create<Torch::AtenDivScalarOp>(freqBinsFltType, highBinsScaled, twoFiveNineFiveConst);
-        Value hbClone = b.create<Torch::AtenCloneOp>(freqBinsFltType, highBinsScaled, /*memory_format=*/noneConst);
-        Value hbTenTensor = b.create<Torch::AtenFillScalarOp>(freqBinsFltType, hbClone, tenConst);
-        Value hbPow = b.create<Torch::AtenPowTensorTensorOp>(freqBinsFltType, hbTenTensor, hbDiv);
-        Value hbPowSubOne = b.create<Torch::AtenSubScalarOp>(freqBinsFltType, hbPow, oneConst, /*alpha=*/oneConst);
-        Value highBinsHz = b.create<Torch::AtenMulScalarOp>(freqBinsFltType, hbPowSubOne, sevenHConst);
+        Value highBinsInitInc = b.create<Torch::AtenAddScalarOp>(
+            freqBinsIntType, highBinsInit, twoConst, /*alpha=*/oneConst);
+        Value highBinsMulMelStep = b.create<Torch::AtenMulTensorOp>(
+            freqBinsFltType, highBinsInitInc, melStep);
+        Value highBinsScaled = b.create<Torch::AtenAddTensorOp>(
+            freqBinsFltType, highBinsMulMelStep, lfMel, /*alpha=*/oneConst);
+        Value hbDiv = b.create<Torch::AtenDivScalarOp>(
+            freqBinsFltType, highBinsScaled, twoFiveNineFiveConst);
+        Value hbClone = b.create<Torch::AtenCloneOp>(
+            freqBinsFltType, highBinsScaled, /*memory_format=*/noneConst);
+        Value hbTenTensor = b.create<Torch::AtenFillScalarOp>(
+            freqBinsFltType, hbClone, tenConst);
+        Value hbPow = b.create<Torch::AtenPowTensorTensorOp>(
+            freqBinsFltType, hbTenTensor, hbDiv);
+        Value hbPowSubOne = b.create<Torch::AtenSubScalarOp>(
+            freqBinsFltType, hbPow, oneConst, /*alpha=*/oneConst);
+        Value highBinsHz = b.create<Torch::AtenMulScalarOp>(
+            freqBinsFltType, hbPowSubOne, sevenHConst);
         // Normalize freqBinsHz
-        Value hbMulDft = b.create<Torch::AtenMulScalarOp>(freqBinsFltType, highBinsHz, dftLenPlusOneItem);
-        Value highBinsNormalized = b.create<Torch::AtenDivScalarOp>(freqBinsFltType, hbMulDft, sampleRateItem);
+        Value hbMulDft = b.create<Torch::AtenMulScalarOp>(
+            freqBinsFltType, highBinsHz, dftLenPlusOneItem);
+        Value highBinsNormalized = b.create<Torch::AtenDivScalarOp>(
+            freqBinsFltType, hbMulDft, sampleRateItem);
         // cast to int32
         Value highBinsInt = b.create<Torch::AtenToDtypeOp>(
             freqBinsIntType, highBinsNormalized, /*dtype=*/int32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
-        Value highBins = b.create<Torch::AtenUnsqueezeOp>(unsqueezeBinsResType, highBinsInt, /*dim=*/zeroConst);
+        Value highBins = b.create<Torch::AtenUnsqueezeOp>(
+            unsqueezeBinsResType, highBinsInt, /*dim=*/zeroConst);
 
-        Type iotaInitType= inputIntType.getWithSizesAndDtype(shapeNSB, si32Ty);
+        Type iotaInitType = inputIntType.getWithSizesAndDtype(shapeNSB, si32Ty);
         Value iotaInit = b.create<Torch::AtenArangeOp>(
             iotaInitType, numSpectrogramBinsItem,
             /*dtype=*/int32DTypeConst,
             /*layout=*/noneConst, /*device=*/noneConst,
             /*pin_memory=*/noneConst);
 
-        Torch::ValueTensorType unsqueezeIotaResType = Torch::ValueTensorType::get(ctx, shapeNSBx1, si32Ty);
-        Value iota = b.create<Torch::AtenUnsqueezeOp>(unsqueezeIotaResType, iotaInit, /*dim=*/oneConst);
+        Torch::ValueTensorType unsqueezeIotaResType =
+            Torch::ValueTensorType::get(ctx, shapeNSBx1, si32Ty);
+        Value iota = b.create<Torch::AtenUnsqueezeOp>(
+            unsqueezeIotaResType, iotaInit, /*dim=*/oneConst);
 
-        Value lowToCenter = b.create<Torch::AtenSubTensorOp>(unsqueezeBinsResType, centerBins, lowBins, /*alpha=*/oneConst);
-        Value centerToHigh = b.create<Torch::AtenSubTensorOp>(unsqueezeBinsResType, highBins, centerBins,/*alpha=*/oneConst);
+        Value lowToCenter = b.create<Torch::AtenSubTensorOp>(
+            unsqueezeBinsResType, centerBins, lowBins, /*alpha=*/oneConst);
+        Value centerToHigh = b.create<Torch::AtenSubTensorOp>(
+            unsqueezeBinsResType, highBins, centerBins, /*alpha=*/oneConst);
 
-        Value oneConstTensor = Torch::createRank0Tensor(rewriter, binder.getLoc(), Torch::ValueTensorType::get(ctx, std::nullopt, f32Ty), oneConst);        
+        Value oneConstTensor = Torch::createRank0Tensor(
+            rewriter, binder.getLoc(),
+            Torch::ValueTensorType::get(ctx, std::nullopt, f32Ty), oneConst);
 
         Type scaledType = inputIntType.getWithSizesAndDtype(shape1xNMB, f32Ty);
-        Value upscaleInit = b.create<Torch::AtenMaximumOp>(unsqueezeBinsResType, oneConstTensor, lowToCenter);
+        Value upscaleInit = b.create<Torch::AtenMaximumOp>(
+            unsqueezeBinsResType, oneConstTensor, lowToCenter);
         Value upscale = b.create<Torch::AtenToDtypeOp>(
             scaledType, upscaleInit, /*dtype=*/float32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
 
-        Value downscaleInit = b.create<Torch::AtenMaximumOp>(unsqueezeBinsResType, oneConstTensor, centerToHigh);
+        Value downscaleInit = b.create<Torch::AtenMaximumOp>(
+            unsqueezeBinsResType, oneConstTensor, centerToHigh);
         Value downscale = b.create<Torch::AtenToDtypeOp>(
             scaledType, downscaleInit, /*dtype=*/float32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
 
-        Torch::ValueTensorType binsDiffType = Torch::ValueTensorType::get(ctx, shapeNSBxNMB, si32Ty);
-        Torch::ValueTensorType diffFloatType = Torch::ValueTensorType::get(ctx, shapeNSBxNMB, f32Ty);
+        Torch::ValueTensorType binsDiffType =
+            Torch::ValueTensorType::get(ctx, shapeNSBxNMB, si32Ty);
+        Torch::ValueTensorType diffFloatType =
+            Torch::ValueTensorType::get(ctx, shapeNSBxNMB, f32Ty);
 
-        Value iotaSubLBInt = b.create<Torch::AtenSubTensorOp>(binsDiffType, iota, lowBins, /*alpha=*/oneConst);
+        Value iotaSubLBInt = b.create<Torch::AtenSubTensorOp>(
+            binsDiffType, iota, lowBins, /*alpha=*/oneConst);
         Value iotaSubLB = b.create<Torch::AtenToDtypeOp>(
             diffFloatType, iotaSubLBInt, /*dtype=*/float32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
-        Value rampUp = b.create<Torch::AtenDivTensorOp>(diffFloatType, iotaSubLB, upscale);
+        Value rampUp =
+            b.create<Torch::AtenDivTensorOp>(diffFloatType, iotaSubLB, upscale);
 
-        Value hbSubIotaInt = b.create<Torch::AtenSubTensorOp>(binsDiffType, highBins, iota, /*alpha=*/oneConst);
+        Value hbSubIotaInt = b.create<Torch::AtenSubTensorOp>(
+            binsDiffType, highBins, iota, /*alpha=*/oneConst);
         Value hbSubIota = b.create<Torch::AtenToDtypeOp>(
             diffFloatType, hbSubIotaInt, /*dtype=*/float32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
-        Value rampDown = b.create<Torch::AtenDivTensorOp>(diffFloatType, hbSubIota, downscale);
+        Value rampDown = b.create<Torch::AtenDivTensorOp>(diffFloatType,
+                                                          hbSubIota, downscale);
 
-        // ramp values 
-        Type iotaCmpBinsType = inputIntType.getWithSizesAndDtype(shapeNSBxNMB, i1Ty);
+        // ramp values
+        Type iotaCmpBinsType =
+            inputIntType.getWithSizesAndDtype(shapeNSBxNMB, i1Ty);
 
-        // iota >= center_bins
-        Value iotaGtEqCBins = b.create<Torch::AtenGeTensorOp>(iotaCmpBinsType, iota, centerBins);
-        Value iotaEqCBins = b.create<Torch::AtenEqTensorOp>(iotaCmpBinsType, iota, centerBins);
-        Value iotaLtLBins = b.create<Torch::AtenLtTensorOp>(iotaCmpBinsType, iota, lowBins);
-        Value iotaGtLBins = b.create<Torch::AtenGtTensorOp>(iotaCmpBinsType, iota, highBins);
+        // Iota Cmp Bins
+        Value iotaGtEqCBins =
+            b.create<Torch::AtenGeTensorOp>(iotaCmpBinsType, iota, centerBins);
+        Value iotaEqCBins =
+            b.create<Torch::AtenEqTensorOp>(iotaCmpBinsType, iota, centerBins);
+        Value iotaLtLBins =
+            b.create<Torch::AtenLtTensorOp>(iotaCmpBinsType, iota, lowBins);
+        Value iotaGtLBins =
+            b.create<Torch::AtenGtTensorOp>(iotaCmpBinsType, iota, highBins);
 
+        // Create output freq ramps Low-Center-High
+        Type rampInitType =
+            inputIntType.getWithSizesAndDtype(shapeNSBxNMB, f32Ty);
+        Value rampInit = b.create<Torch::AtenWhereSelfOp>(
+            rampInitType, iotaGtEqCBins, rampDown, rampUp);
+        Value rampInitLt = b.create<Torch::AtenWhereScalarSelfOp>(
+            rampInitType, iotaLtLBins, zeroConst, rampInit);
+        Value rampInitLtGt = b.create<Torch::AtenWhereScalarSelfOp>(
+            rampInitType, iotaGtLBins, zeroConst, rampInitLt);
 
-        // rampinit 
-        Type rampInitType = inputIntType.getWithSizesAndDtype(shapeNSBxNMB, f32Ty);
-        Value rampInit = b.create<Torch::AtenWhereSelfOp>(rampInitType, iotaGtEqCBins, rampDown, rampUp);
-        // less than low zeros
-        Value rampInitLt = b.create<Torch::AtenWhereScalarSelfOp>(rampInitType, iotaLtLBins, zeroConst, rampInit);
-        // gt than high zeros
-        Value rampInitLtGt = b.create<Torch::AtenWhereScalarSelfOp>(rampInitType, iotaGtLBins, zeroConst, rampInitLt);
-
-        Type C2HCmpBinsType = inputIntType.getWithSizesAndDtype(shape1xNMB, i1Ty);
-        Value C2HEqZero = b.create<Torch::AtenEqScalarOp>(C2HCmpBinsType, centerToHigh, zeroConst);
-        Value lgAnd = b.create<Torch::AtenLogicalAndOp>(iotaCmpBinsType, iotaEqCBins, C2HEqZero);
-
-        Value rampOutput = b.create<Torch::AtenWhereScalarSelfOp>(rampInitType, lgAnd, oneFltConst, rampInitLtGt);
+        Type C2HCmpBinsType =
+            inputIntType.getWithSizesAndDtype(shape1xNMB, i1Ty);
+        Value C2HEqZero = b.create<Torch::AtenEqScalarOp>(
+            C2HCmpBinsType, centerToHigh, zeroConst);
+        Value cornerCases = b.create<Torch::AtenLogicalAndOp>(
+            iotaCmpBinsType, iotaEqCBins, C2HEqZero);
+        Value rampOutput = b.create<Torch::AtenWhereScalarSelfOp>(
+            rampInitType, cornerCases, oneFltConst, rampInitLtGt);
 
         Value outputDTypeConst = b.create<Torch::ConstantIntOp>(
             rewriter.getType<Torch::IntType>(),
@@ -927,186 +962,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         rewriter.replaceOp(binder.op, finalOutput);
         return success();
-
-
-
-
-
-        // Torch::ValueTensorType unsqueezeResType = Torch::ValueTensorType::get(ctx, shape1xNMB, si32Ty);
-        // Value centerFreqTensor = b.create<Torch::AtenUnsqueezeOp>(unsqueezeResType, cfTensor, /*dim=*/zeroConst);
-
-        // Torch::ValueTensorType sliceResType = Torch::ValueTensorType::get(ctx, shapeNMB, si32Ty);
-
-        // Value lfTensor = b.create<Torch::AtenSliceTensorOp>(
-        //     sliceResType, freqBins, /*dim=*/zeroConst, /*start=*/zeroConst,
-        //     /*end=*/negTwoConst, /*step=*/oneConst);
-        // Value lowFreqTensor = b.create<Torch::AtenUnsqueezeOp>(
-        //     unsqueezeResType, lfTensor, /*dim=*/zeroConst);
-
-        // Value cfTensor = b.create<Torch::AtenSliceTensorOp>(
-        //     sliceResType, freqBins, /*dim=*/zeroConst, /*start=*/oneConst,
-        //     /*end=*/negOneConst, /*step=*/oneConst);
-        // Value centerFreqTensor = b.create<Torch::AtenUnsqueezeOp>(
-        //     unsqueezeResType, cfTensor, /*dim=*/zeroConst);
-
-        // Value hfTensor = b.create<Torch::AtenSliceTensorOp>(
-        //     sliceResType, freqBins, /*dim=*/zeroConst, /*start=*/zeroConst,
-        //     /*end=*/noneConst, /*step=*/oneConst);
-        // Value highFreqTensor = b.create<Torch::AtenUnsqueezeOp>(
-        //     unsqueezeResType, hfTensor, /*dim=*/zeroConst);
-
-        // Value lowToCenter =
-        //     b.create<Torch::AtenSubTensorOp>(unsqueezeResType, centerFreqTensor,
-        //                                      lowFreqTensor, /*alpha=*/oneConst);
-        // Value centerToHigh = b.create<Torch::AtenSubTensorOp>(
-        //     unsqueezeResType, highFreqTensor, centerFreqTensor,
-        //     /*alpha=*/oneConst);
-
-        // Type zeroToNInitType =
-        //     inputIntType.getWithSizesAndDtype(shapeNSB, f32Ty);
-        // Value zeroToNInit = b.create<Torch::AtenArangeOp>(
-        //     zeroToNInitType, numSpectrogramBinsItem,
-        //     /*dtype=*/float32DTypeConst,
-        //     /*layout=*/noneConst, /*device=*/noneConst,
-        //     /*pin_memory=*/noneConst);
-
-        // Type zeroToNBaseType = inputIntType.getWithSizesAndDtype(
-        //     ArrayRef<int64_t>{numSpectrogramBinsInt, 1}, f32Ty);
-        // Value zeroToNBase = b.create<Torch::AtenUnsqueezeOp>(
-        //     zeroToNBaseType, zeroToNInit, /*dim=*/oneConst);
-        // Type zeroToNumElesType =
-        //     inputIntType.getWithSizesAndDtype(shapeNSBxNMB, f32Ty);
-        // Value expandShapeList = b.create<Torch::PrimListConstructOp>(
-        //     rewriter.getType<Torch::ListType>(
-        //         rewriter.getType<Torch::IntType>()),
-        //     SmallVector<Value>{numSpectrogramBinsItem, numMelBinsItem});
-        // Value zeroToNumEles = b.create<Torch::AtenExpandOp>(
-        //     zeroToNumElesType, zeroToNBase, expandShapeList,
-        //     /*implicit=*/falseConst);
-
-        // Type maskType = inputIntType.getWithSizesAndDtype(shape1xNMB, i1Ty);
-        // Value maskLowToCenterZero =
-        //     b.create<Torch::AtenEqScalarOp>(maskType, lowToCenter, zeroConst);
-
-        // // L2C computation
-        // Value lowToCenterNoZero = b.create<Torch::AtenWhereScalarSelfOp>(
-        //     unsqueezeResType, maskLowToCenterZero, negOneConst, lowToCenter);
-        // Type maskL2CAfterCType =
-        //     inputIntType.getWithSizesAndDtype(shapeNSBxNMB, i1Ty);
-        // Value maskL2CAfterC = b.create<Torch::AtenGtTensorOp>(
-        //     maskL2CAfterCType, zeroToNumEles, centerFreqTensor);
-        // Type maxLFResTy =
-        //     inputIntType.getWithSizesAndDtype(ArrayRef<int64_t>{1}, si32Ty);
-        // Value maxLowerFreq =
-        //     b.create<Torch::AtenMaxOp>(maxLFResTy, lowFreqTensor);
-        // Value maxLowerFreqItem =
-        //     getItemOp<Torch::IntType>(binder, rewriter, maxLowerFreq);
-        // Value zeroToNumElesL2C = b.create<Torch::AtenWhereScalarSelfOp>(
-        //     zeroToNumElesType, maskLowToCenterZero, maxLowerFreqItem,
-        //     zeroToNumEles);
-        // Value upslopeDiff = b.create<Torch::AtenSubTensorOp>(
-        //     zeroToNumElesType, zeroToNumElesL2C, lowFreqTensor,
-        //     /*alpha=*/oneConst);
-        // Type l2cNZFltTy = inputIntType.getWithSizesAndDtype(shape1xNMB, f32Ty);
-        // Value l2cNZFlt = b.create<Torch::AtenToDtypeOp>(
-        //     l2cNZFltTy, lowToCenterNoZero, /*dtype=*/float32DTypeConst,
-        //     /*non_blocking=*/falseConst, /*copy=*/falseConst,
-        //     /*memory_format=*/noneConst);
-        // Value upslopeL2C0 = b.create<Torch::AtenDivTensorOp>(
-        //     zeroToNumElesType, upslopeDiff, l2cNZFlt);
-        // Type maskUpslopeL2C0PosType =
-        //     inputIntType.getWithSizesAndDtype(shapeNSBxNMB, i1Ty);
-        // Value maskUpslopeL2C0Pos = b.create<Torch::AtenGtScalarOp>(
-        //     maskUpslopeL2C0PosType, upslopeL2C0, zeroConst);
-        // Value upslopeL2C0PosRanged = b.create<Torch::AtenWhereScalarOtherOp>(
-        //     zeroToNumElesType, maskUpslopeL2C0Pos, upslopeL2C0, zeroConst);
-        // Value maskIdxL2CAfterCList = b.create<Torch::PrimListConstructOp>(
-        //     rewriter.getType<Torch::ListType>(maskL2CAfterC.getType()),
-        //     ValueRange{maskL2CAfterC});
-        // Value zeroConstTensor = Torch::createRank0Tensor(
-        //     rewriter, binder.getLoc(),
-        //     Torch::ValueTensorType::get(ctx, std::nullopt, f32Ty), zeroConst);
-        // Value upslopeL2C1 = b.create<Torch::AtenIndexPutOp>(
-        //     zeroToNumElesType, upslopeL2C0PosRanged, maskIdxL2CAfterCList,
-        //     zeroConstTensor, falseConst);
-        // Value maskIdxL2CZeroList = b.create<Torch::PrimListConstructOp>(
-        //     rewriter.getType<Torch::ListType>(maskLowToCenterZero.getType()),
-        //     ValueRange{maskLowToCenterZero});
-        // Type centerFreqTensorL2CZeroType =
-        //     inputIntType.getWithSizesAndDtype(ArrayRef<int64_t>{-1}, si32Ty);
-        // Value centerFreqTensorL2CZero = b.create<Torch::AtenIndexTensorOp>(
-        //     centerFreqTensorL2CZeroType, centerFreqTensor, maskIdxL2CZeroList);
-        // Type maskSqueezeType =
-        //     inputIntType.getWithSizesAndDtype(shapeNMB, i1Ty);
-        // Value maskLowToCenterZeroSqueeze = b.create<Torch::AtenSqueezeOp>(
-        //     maskSqueezeType, maskLowToCenterZero);
-        // Type maskL2CIntTy = inputIntType.getWithSizesAndDtype(shapeNMB, si32Ty);
-        // Value maskLowToCenterInt = b.create<Torch::AtenToDtypeOp>(
-        //     maskL2CIntTy, maskLowToCenterZeroSqueeze, /*dtype=*/int32DTypeConst,
-        //     /*non_blocking=*/falseConst, /*copy=*/falseConst,
-        //     /*memory_format=*/noneConst);
-        // Value upslopeOneIdxList = b.create<Torch::PrimListConstructOp>(
-        //     rewriter.getType<Torch::ListType>(
-        //         centerFreqTensorL2CZero.getType()),
-        //     ValueRange{centerFreqTensorL2CZero, maskLowToCenterInt});
-
-        // Value upslopeL2C = b.create<Torch::AtenIndexPutOp>(
-        //     zeroToNumElesType, upslopeL2C1, upslopeOneIdxList, oneConstTensor,
-        //     falseConst);
-
-        // // H2C computation
-        // Value maskCenterToHighZero =
-        //     b.create<Torch::AtenEqScalarOp>(maskType, centerToHigh, zeroConst);
-        // Value maskH2CBeforeC = b.create<Torch::AtenLtTensorOp>(
-        //     maskL2CAfterCType, zeroToNumEles, centerFreqTensor);
-        // Value centerToHighNoZero = b.create<Torch::AtenWhereScalarSelfOp>(
-        //     unsqueezeResType, maskCenterToHighZero, negOneConst, centerToHigh);
-        // Value c2hNZFlt = b.create<Torch::AtenToDtypeOp>(
-        //     l2cNZFltTy, centerToHighNoZero, /*dtype=*/float32DTypeConst,
-        //     /*non_blocking=*/falseConst, /*copy=*/falseConst,
-        //     /*memory_format=*/noneConst);
-        // Value zeroToNumElesC2H = b.create<Torch::AtenWhereScalarSelfOp>(
-        //     zeroToNumElesType, maskCenterToHighZero, zeroConst, zeroToNumEles);
-        // Value downslopeDiff = b.create<Torch::AtenSubTensorOp>(
-        //     zeroToNumElesType, highFreqTensor, zeroToNumElesC2H,
-        //     /*alpha=*/oneConst);
-        // Value downslopeC2H0 = b.create<Torch::AtenDivTensorOp>(
-        //     zeroToNumElesType, downslopeDiff, c2hNZFlt);
-        // Value maskDownslopeC2H0Pos = b.create<Torch::AtenGtScalarOp>(
-        //     maskUpslopeL2C0PosType, downslopeC2H0, zeroConst);
-        // Value downslopeC2H0Pos = b.create<Torch::AtenWhereScalarOtherOp>(
-        //     zeroToNumElesType, maskDownslopeC2H0Pos, downslopeC2H0, zeroConst);
-        // Value idxH2CBeforeCList = b.create<Torch::PrimListConstructOp>(
-        //     rewriter.getType<Torch::ListType>(maskH2CBeforeC.getType()),
-        //     ValueRange{maskH2CBeforeC});
-        // Value downslopeC2H = b.create<Torch::AtenIndexPutOp>(
-        //     zeroToNumElesType, downslopeC2H0Pos, idxH2CBeforeCList,
-        //     zeroConstTensor, falseConst);
-
-        // // final result Calculation
-        // Value maskH2CNonZero = b.create<Torch::AtenNeScalarOp>(
-        //     maskL2CAfterCType, downslopeC2H, zeroConst);
-        // Value idxH2CNZList = b.create<Torch::PrimListConstructOp>(
-        //     rewriter.getType<Torch::ListType>(maskH2CNonZero.getType()),
-        //     ValueRange{maskH2CNonZero});
-        // Value upslopeL2CMasked = b.create<Torch::AtenIndexPutOp>(
-        //     zeroToNumElesType, upslopeL2C, idxH2CNZList, zeroConstTensor,
-        //     falseConst);
-
-        // Value slopesFinal = b.create<Torch::AtenAddTensorOp>(
-        //     zeroToNumElesType, upslopeL2CMasked, downslopeC2H,
-        //     /*alpha=*/oneConst);
-
-        // Value outputDTypeConst = b.create<Torch::ConstantIntOp>(
-        //     rewriter.getType<Torch::IntType>(),
-        //     rewriter.getI64IntegerAttr(torchDTypeInt.value()));
-        // Value finalOutput = b.create<Torch::AtenToDtypeOp>(
-        //     resultType, slopesFinal, /*dtype=*/outputDTypeConst,
-        //     /*non_blocking=*/falseConst, /*copy=*/falseConst,
-        //     /*memory_format=*/noneConst);
-
-        // rewriter.replaceOp(binder.op, finalOutput);
-        // return success();
       });
 
   patterns.onOp(
