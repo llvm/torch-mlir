@@ -14,7 +14,7 @@ configure_lit_site_cfg(
 set(TORCH_MLIR_TEST_DEPENDS
         FileCheck count not
         TorchMLIRPythonModules
-        torch-mlir-opt 
+        torch-mlir-opt
         torch-mlir-capi-torch-test
         )
 

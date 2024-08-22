@@ -118,10 +118,6 @@ else()
   set(MLIR_INCLUDE_DIRS "${MLIR_INCLUDE_DIR};${MLIR_GENERATED_INCLUDE_DIR}")
 endif()
 
-if (TORCH_MLIR_ENABLE_STABLEHLO)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo)
-endif()
-
 set(TORCH_MLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(TORCH_MLIR_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 message(STATUS "Building torch-mlir project at ${TORCH_MLIR_SOURCE_DIR} (into ${TORCH_MLIR_BINARY_DIR})")
@@ -225,6 +221,7 @@ endif()
 # do not even compile on all platforms.
 if (TORCH_MLIR_ENABLE_STABLEHLO)
   set(STABLEHLO_BUILD_EMBEDDED ON)
+  set(STABLEHLO_ENABLE_BINDINGS_PYTHON ON)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo
     ${CMAKE_CURRENT_BINARY_DIR}/stablehlo
     EXCLUDE_FROM_ALL)

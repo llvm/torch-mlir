@@ -2,7 +2,6 @@
 
 Collected links and contacts for how to add ops to torch-mlir.
 
-
 <details>
 <summary>Turbine Camp: Start Here</summary>
 This document was previously known as `turbine-camp.md` to Nod.ai. "Turbine Camp" is part of Nod.ai's onboarding process. Welcome to turbine camp. This document originated at Nod.ai as a part of onboardding process, where new nod-ai folks learn about the architecture of our work by adding support for 2 ops to torch-mlir. I decided to put this into torch mlir because a lot of this is about torch-mlir.
@@ -27,6 +26,7 @@ The details of how we do it and helpful commands to help you set up each repo is
 PS: IREE is pronounced Eerie, and hence the ghost icon.
 
 ## How to begin
+0. Set up torch-mlir according to the instructions here: https://github.com/llvm/torch-mlir/blob/main/docs/development.md
 1. You will start by adding support for 2 ops in torch-mlir, to get you familiar with the center of our pipeline. Begin by reading [torch-mlir's documentation on how to implement a new torch op](https://github.com/llvm/torch-mlir/blob/main/docs/Torch-ops-E2E-implementation.md), and set up `llvm/torch_mlir` using https://github.com/llvm/torch-mlir/blob/main/docs/development.md
 2. Pick 1 of the yet-unimplemented from the following. You should choose something that looks easy to you. **Make sure you create an issue by clicking the little "target" icon to the right of the op, thereby marking the op as yours**
     - [TorchToLinalg ops tracking issue](https://github.com/nod-ai/SHARK-Turbine/issues/347)

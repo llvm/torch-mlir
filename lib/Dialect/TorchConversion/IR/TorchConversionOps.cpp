@@ -9,10 +9,8 @@
 
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 
-#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/TypeUtilities.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "llvm/ADT/StringMap.h"
 
@@ -25,7 +23,18 @@ static bool haveSameSizeAndElementType(TensorType lhs, TensorType rhs) {
   if (lhs.hasRank() != rhs.hasRank())
     return false;
   bool sameSize = lhs.hasRank() ? lhs.getShape().equals(rhs.getShape()) : true;
-  bool sameElementType = lhs.getElementType() == rhs.getElementType();
+  bool sameElementType = false;
+  // Namely, it is worth mentioning that the backends can have different
+  // expectations for signedness when converting from and to the builtin MLIR
+  // types. Therefore, the verifier cannot expect the input and output types to
+  // match in their signedness.
+  if (isa<IntegerType>(lhs.getElementType()) &&
+      isa<IntegerType>(rhs.getElementType())) {
+    sameElementType = lhs.getElementType().getIntOrFloatBitWidth() ==
+                      rhs.getElementType().getIntOrFloatBitWidth();
+  } else {
+    sameElementType = lhs.getElementType() == rhs.getElementType();
+  }
   return sameElementType && sameSize;
 }
 
@@ -34,25 +43,13 @@ static bool haveSameSizeAndElementType(TensorType lhs, TensorType rhs) {
 //===----------------------------------------------------------------------===//
 
 LogicalResult ToBuiltinTensorOp::verify() {
-  auto resultType = getResult().getType().cast<TensorType>();
+  auto resultType = cast<TensorType>(getResult().getType());
   auto operandType =
-      getOperand().getType().cast<Torch::ValueTensorType>().toBuiltinTensor();
+      cast<Torch::ValueTensorType>(getOperand().getType()).toBuiltinTensor();
   if (!haveSameSizeAndElementType(resultType, operandType)) {
     return emitError()
            << "operand and result must have the same size and dtype";
   }
-  return success();
-}
-
-LogicalResult ToBuiltinTensorOp::inferReturnTypes(
-    MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
-    SmallVectorImpl<Type> &inferredReturnTypes) {
-  auto resultType =
-      operands[0].getType().cast<Torch::ValueTensorType>().toBuiltinTensor();
-  if (!resultType)
-    return failure();
-  inferredReturnTypes.push_back(resultType);
   return success();
 }
 
@@ -62,8 +59,8 @@ LogicalResult ToBuiltinTensorOp::inferReturnTypes(
 
 LogicalResult FromBuiltinTensorOp::verify() {
   auto resultType =
-      getResult().getType().cast<Torch::ValueTensorType>().toBuiltinTensor();
-  auto operandType = getOperand().getType().cast<TensorType>();
+      cast<Torch::ValueTensorType>(getResult().getType()).toBuiltinTensor();
+  auto operandType = cast<TensorType>(getOperand().getType());
   if (!haveSameSizeAndElementType(resultType, operandType)) {
     return emitError()
            << "operand and result must have the same size and dtype";
@@ -76,7 +73,7 @@ LogicalResult FromBuiltinTensorOp::verify() {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult FromI1Op::fold(FoldAdaptor adaptor) {
-  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::BoolAttr>();
+  auto attr = dyn_cast_or_null<mlir::BoolAttr>(adaptor.getOperand());
   if (attr) {
     return attr;
   } else {
@@ -89,7 +86,7 @@ OpFoldResult FromI1Op::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ToI1Op::fold(FoldAdaptor adaptor) {
-  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::BoolAttr>();
+  auto attr = dyn_cast_or_null<mlir::BoolAttr>(adaptor.getOperand());
   if (attr) {
     return attr;
   } else {
@@ -102,7 +99,7 @@ OpFoldResult ToI1Op::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult FromI64Op::fold(FoldAdaptor adaptor) {
-  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::IntegerAttr>();
+  auto attr = dyn_cast_or_null<mlir::IntegerAttr>(adaptor.getOperand());
   if (attr) {
     return attr;
   } else {
@@ -115,7 +112,7 @@ OpFoldResult FromI64Op::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ToI64Op::fold(FoldAdaptor adaptor) {
-  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::IntegerAttr>();
+  auto attr = dyn_cast_or_null<mlir::IntegerAttr>(adaptor.getOperand());
   if (attr) {
     return attr;
   } else {
@@ -128,7 +125,7 @@ OpFoldResult ToI64Op::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult ToF64Op::fold(FoldAdaptor adaptor) {
-  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::FloatAttr>();
+  auto attr = dyn_cast_or_null<mlir::FloatAttr>(adaptor.getOperand());
   if (attr) {
     return attr;
   } else {
@@ -141,7 +138,7 @@ OpFoldResult ToF64Op::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult FromF64Op::fold(FoldAdaptor adaptor) {
-  auto attr = adaptor.getOperand().dyn_cast_or_null<mlir::FloatAttr>();
+  auto attr = dyn_cast_or_null<mlir::FloatAttr>(adaptor.getOperand());
   if (attr) {
     return attr;
   } else {

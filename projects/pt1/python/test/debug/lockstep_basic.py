@@ -15,8 +15,9 @@ from torch_mlir_e2e_test.debug.lockstep import make_lockstep_debug_backend
 
 @make_simple_dynamo_backend
 @make_lockstep_debug_backend()
-def miscompile_div_as_mul_backend(gm: torch.fx.GraphModule,
-                                  example_inputs: List[torch.Tensor]):
+def miscompile_div_as_mul_backend(
+    gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]
+):
     # Copy `gm` and rewrite `div` to `mul`.
     new_g = torch.fx.Graph()
     new_g.output(new_g.graph_copy(gm.graph, {}))
@@ -41,7 +42,7 @@ def f(x, y):
     return a, b, c
 
 
-args = (torch.tensor([1., 2., 3.]), torch.tensor([4., 5., 6.]))
+args = (torch.tensor([1.0, 2.0, 3.0]), torch.tensor([4.0, 5.0, 6.0]))
 try:
     print(f(*args))
 except AssertionError as e:

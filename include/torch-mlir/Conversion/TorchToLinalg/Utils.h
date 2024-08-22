@@ -97,6 +97,10 @@ getBackendTypeForScalarType(MLIRContext *context,
 
 bool isUnsignedTorchType(Type type);
 
+LogicalResult permuteTensor(Operation *op, PatternRewriter &rewriter,
+                            Location loc, SmallVector<int64_t> dimensions,
+                            Value input, Value &result);
+
 } // namespace torch_to_linalg
 } // namespace torch
 } // namespace mlir

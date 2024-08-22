@@ -13,16 +13,17 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 
 class NeIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int64, True),
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return int(lhs) != int(rhs)
 
@@ -36,16 +37,17 @@ def NeIntModule_basic(module, tu: TestUtils):
 
 
 class EqIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int64, True),
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return int(lhs) == int(rhs)
 
@@ -59,16 +61,17 @@ def EqIntModule_basic(module, tu: TestUtils):
 
 
 class GtIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int64, True),
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return int(lhs) > int(rhs)
 
@@ -82,16 +85,17 @@ def GtIntModule_basic(module, tu: TestUtils):
 
 
 class GeIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int64, True),
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return torch.ops.aten.ge(int(lhs), int(rhs))
 
@@ -105,16 +109,17 @@ def GeIntModule_basic(module, tu: TestUtils):
 
 
 class GeFloatModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.float64, True),
-        ([], torch.float64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.float64, True),
+            ([], torch.float64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return float(lhs) >= float(rhs)
 
@@ -128,16 +133,17 @@ def GeFloatModule_basic(module, tu: TestUtils):
 
 
 class GeFloatIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.float64, True),
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.float64, True),
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return float(lhs) >= int(rhs)
 
@@ -151,16 +157,17 @@ def GeFloatIntModule_basic(module, tu: TestUtils):
 
 
 class NeFloatIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.float64, True),
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.float64, True),
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return float(lhs) != int(rhs)
 
@@ -174,16 +181,17 @@ def NeFloatIntModule_basic(module, tu: TestUtils):
 
 
 class GtFloatIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.float64, True),
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.float64, True),
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return float(lhs) > int(rhs)
 

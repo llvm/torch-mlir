@@ -46,16 +46,17 @@ using namespace mlir::torch::TMTensor;
 static void getEffectsImpl(
     SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
         &effects,
-    ValueRange results, ValueRange inputBuffers, ValueRange outputBuffers) {
-  for (Value value : results) {
+    ResultRange results, ArrayRef<OpOperand *> inputBuffers,
+    ArrayRef<OpOperand *> outputBuffers) {
+  for (OpResult value : results) {
     effects.emplace_back(MemoryEffects::Allocate::get(), value,
                          SideEffects::DefaultResource::get());
   }
-  for (Value value : inputBuffers) {
+  for (OpOperand *value : inputBuffers) {
     effects.emplace_back(MemoryEffects::Read::get(), value,
                          SideEffects::DefaultResource::get());
   }
-  for (Value value : outputBuffers) {
+  for (OpOperand *value : outputBuffers) {
     effects.emplace_back(MemoryEffects::Read::get(), value,
                          SideEffects::DefaultResource::get());
     effects.emplace_back(MemoryEffects::Write::get(), value,
@@ -77,7 +78,7 @@ Value TMTensor::getDimValue(OpBuilder &builder, Location loc, Value v,
 
 OpFoldResult TMTensor::getDim(OpBuilder &builder, Location loc, Value v,
                               int64_t dim) {
-  auto t = v.getType().cast<ShapedType>();
+  auto t = cast<ShapedType>(v.getType());
   if (t.isDynamicDim(dim)) {
     return getDimValue(builder, loc, v, dim);
   }
@@ -123,7 +124,7 @@ bool AttentionOp::payloadUsesValueFromOperand(OpOperand *opOperand) {
 static void matmul(OpBuilder &b, Location loc, Value lhs, ValueRange lhsSizes,
                    Value rhs, ValueRange rhsSizes, Value output,
                    ValueRange outputSizes, bool transposed = false) {
-  auto elementType = lhs.getType().cast<MemRefType>().getElementType();
+  auto elementType = cast<MemRefType>(lhs.getType()).getElementType();
   Value one = b.create<arith::ConstantIndexOp>(loc, 1);
   Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
   auto rank = outputSizes.size();
@@ -168,9 +169,9 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
   Value key = getKey();
   Value value = getValue();
   Value output = getOutput();
-  auto queryType = query.getType().cast<MemRefType>();
-  auto keyType = key.getType().cast<MemRefType>();
-  auto valueType = value.getType().cast<MemRefType>();
+  auto queryType = cast<MemRefType>(query.getType());
+  auto keyType = cast<MemRefType>(key.getType());
+  auto valueType = cast<MemRefType>(value.getType());
   auto queryRank = queryType.getRank();
   auto keyRank = keyType.getRank();
   auto valueRank = valueType.getRank();
@@ -330,12 +331,12 @@ LogicalResult ScanOp::verify() {
   if (getNumOutputs() != 2) {
     return emitOpError("expected two output operands");
   }
-  if (!input().getType().isa<ShapedType>()) {
+  if (!isa<ShapedType>(input().getType())) {
     return emitOpError("expected first input element type to be shaped");
   }
-  auto accumulatorType = accumulator().getType().cast<ShapedType>();
-  auto inputType = input().getType().cast<ShapedType>();
-  auto outputType = output().getType().cast<ShapedType>();
+  auto accumulatorType = cast<ShapedType>(accumulator().getType());
+  auto inputType = cast<ShapedType>(input().getType());
+  auto outputType = cast<ShapedType>(output().getType());
   ArrayRef<int64_t> inputShapes = inputType.getShape();
   ArrayRef<int64_t> outputShapes = outputType.getShape();
   if (accumulatorType.getElementType() != inputType.getElementType()) {
@@ -706,7 +707,7 @@ LogicalResult ScatterOp::generateScalarImplementation(OpBuilder &b,
   loadIndices.push_back(Value());
 
   // Populate with empty values.
-  auto originalTy = original().getType().cast<ShapedType>();
+  auto originalTy = cast<ShapedType>(original().getType());
   starts.resize(originalTy.getRank(), Value());
   auto updateIvs = ivs.drop_front(1);
 
@@ -797,7 +798,7 @@ LogicalResult SortOp::verify() {
   if (yieldOp.getNumOperands() != 1) {
     return op->emitOpError("should yield exactly one operand");
   }
-  auto ty = yieldOp.getOperand(0).getType().dyn_cast<IntegerType>();
+  auto ty = dyn_cast<IntegerType>(yieldOp.getOperand(0).getType());
   if (!ty || ty.getWidth() != 1) {
     return op->emitOpError("should yield i1 type");
   }
@@ -910,12 +911,219 @@ bool SortOp::payloadUsesValueFromOperand(OpOperand *opOperand) {
   return true;
 }
 
+//===----------------------------------------------------------------------===//
+// TopkOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult TopkOp::verify() {
+  Operation *op = getOperation();
+  if (getNumInputs() != 1 && getNumInputs() != 2) {
+    return op->emitOpError("expected one or two input operands");
+  }
+  if (getNumOutputs() != 2) {
+    return op->emitOpError("expected two output operands");
+  }
+  // First check added to eliminate comparison of different int types
+  if (getInputRank() < 0 ||
+      (getDimension() >= static_cast<uint64_t>(getInputRank()))) {
+    return op->emitOpError("dimension exceeds rank");
+  }
+  // Ensure input/output element types match
+  auto inputValuesType = cast<ShapedType>(values().getType());
+  auto outputValuesType = cast<ShapedType>(outputValues().getType());
+  if (inputValuesType.getElementType() != outputValuesType.getElementType()) {
+    return op->emitOpError("expected input/output value types to be identical");
+  }
+  // Indices must be int if provided
+  auto outputIndicesType = cast<ShapedType>(outputIndices().getType());
+  if (auto inputIndices = indices()) {
+    auto inputIndicesType = cast<ShapedType>(inputIndices->getType());
+    if (!inputIndicesType.getElementType().isInteger(32) ||
+        !outputIndicesType.getElementType().isInteger(32)) {
+      return op->emitOpError("expected input/output indices types to be int32");
+    }
+  }
+
+  // Ranks must match
+  if (inputValuesType.getRank() != outputValuesType.getRank()) {
+    return op->emitOpError("expected input/output to have the same rank");
+  }
+  if (auto inputIndices = indices()) {
+    auto inputIndicesType = cast<ShapedType>(inputIndices->getType());
+    if (inputIndicesType.getRank() != outputIndicesType.getRank()) {
+      return op->emitOpError("expected input/output to have the same rank");
+    }
+  }
+  // Input indicies and values must have the same shape.
+  if (auto inputIndices = indices()) {
+    auto inputIndicesType = cast<ShapedType>(inputIndices->getType());
+    if (failed(verifyCompatibleShape(inputValuesType, inputIndicesType)))
+      return op->emitOpError("input indices/values shape must match");
+  }
+  // Output indicies and values must have the same shape.
+  if (failed(verifyCompatibleShape(outputValuesType, outputIndicesType)))
+    return op->emitOpError("output indices/values shape must match");
+  // Input shape must match the output shape except for the dimension()
+  uint64_t dim = getDimension();
+  if (!llvm::all_of(llvm::enumerate(llvm::zip(inputValuesType.getShape(),
+                                              outputValuesType.getShape())),
+                    [dim](auto e) {
+                      if (e.index() == dim) {
+                        return true;
+                      }
+                      std::tuple<int64_t, int64_t> s = e.value();
+                      return succeeded(verifyCompatibleShape(std::get<0>(s),
+
+                                                             std::get<1>(s)));
+                    })) {
+    return op->emitOpError("incompatible input/output shapes");
+  }
+  // Check region compatibility
+  Block &block = getRegion().front();
+  if (block.getNumArguments() != 2) {
+    return op->emitOpError("region block should have 2 arguments");
+  }
+  if (block.getArgument(0).getType() != inputValuesType.getElementType() ||
+      block.getArgument(1).getType() != inputValuesType.getElementType()) {
+    return op->emitOpError("region block types must match input");
+  }
+  auto terminatorOp = llvm::dyn_cast<YieldOp>(block.getTerminator());
+  if (!terminatorOp || !terminatorOp.getOperand(0).getType().isInteger(1)) {
+    return op->emitOpError("region block must end with a linalg_ext.yield i1!");
+  }
+  return success();
+}
+
+SmallVector<utils::IteratorType> TopkOp::getLoopIteratorTypes() {
+  SmallVector<utils::IteratorType> iteratorTypes(getInputRank(),
+                                                 utils::IteratorType::parallel);
+  iteratorTypes[getDimension()] = utils::IteratorType::reduction;
+  return iteratorTypes;
+}
+
+SmallVector<Range> TopkOp::getIterationDomain(OpBuilder &builder) {
+  int64_t operandRank = getInputRank();
+  SmallVector<Range> loopBounds(operandRank);
+  Location loc = getLoc();
+  Value zero = builder.create<arith::ConstantIndexOp>(loc, 0);
+  Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
+  Value source = values();
+  for (auto dim : llvm::enumerate(getInputType().getShape())) {
+    loopBounds[dim.index()].offset = zero;
+    loopBounds[dim.index()].size =
+        getDimValue(builder, loc, source, dim.index());
+    loopBounds[dim.index()].stride = one;
+  }
+  return loopBounds;
+}
+
+LogicalResult TopkOp::generateScalarImplementation(OpBuilder &b, Location loc,
+                                                   ValueRange ivs) {
+  uint64_t kDim = getDimension();
+  Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
+  Value one = b.create<arith::ConstantIndexOp>(loc, 1);
+  Value initialValue = b.create<memref::LoadOp>(loc, values(), ivs);
+
+  // If the indices tensor is not provided, the value index is derived from the
+  // loop induction variables.
+  Value initialIndex;
+  if (indices()) {
+    initialIndex = b.create<memref::LoadOp>(loc, *indices(), ivs);
+  } else {
+    Value rawInitialIndex = ivs[kDim];
+    initialIndex =
+        b.create<arith::IndexCastOp>(loc, b.getI32Type(), rawInitialIndex);
+  }
+
+  // Compute K (ub) from the selected dim of the output
+  Value ub = b.create<memref::DimOp>(loc, outputValues(), getDimension());
+
+  // Inner K loop functions:
+  //   Load current K value and index
+  //   Compare N/K using inserted block compare
+  //   Check if N == K using strict weak ordering, select which index came first
+  //   Select new K value from N/K comparison
+  //   Select new K index from N/K comparison or which index came first
+  //   Store new k value and index
+  //   Yield loop carry values after K selection
+  Value kValue, kIndex;
+  auto scfFor = b.create<scf::ForOp>(
+      loc, zero, ub, one, ValueRange{initialValue, initialIndex},
+      [&](OpBuilder &b, Location loc, Value iv, ValueRange loopCarryValues) {
+        SmallVector<Value> indices(ivs);
+        indices[kDim] = iv;
+        kValue = b.create<memref::LoadOp>(loc, outputValues(), indices);
+        kIndex = b.create<memref::LoadOp>(loc, outputIndices(), indices);
+      });
+
+  SmallVector<Value> indices(ivs);
+  indices[kDim] = scfFor.getInductionVar();
+  auto loopCarryValues = scfFor.getRegionIterArgs();
+
+  // Retrieve region as black box comparision function f(x,y). Plug into op.
+  auto &srcBlock = getRegion().front();
+  IRMapping bvmF; // f(x,y)
+  IRMapping bvmR; // f(y,x)
+  {
+    // Save previous insertion point. Continue within loop body.
+    OpBuilder::InsertionGuard guard(b);
+    b.setInsertionPointToEnd(&scfFor.getRegion().front());
+    SmallVector<Value> forwardValues{loopCarryValues[0], kValue};
+    SmallVector<Value> reverseValues{kValue, loopCarryValues[0]};
+    for (auto it : llvm::zip(srcBlock.getArguments(), forwardValues)) {
+      bvmF.map(std::get<0>(it), std::get<1>(it));
+    }
+    for (auto it : llvm::zip(srcBlock.getArguments(), reverseValues)) {
+      bvmR.map(std::get<0>(it), std::get<1>(it));
+    }
+    for (auto &blockOp : srcBlock.without_terminator()) {
+      b.clone(blockOp, bvmF);
+      b.clone(blockOp, bvmR);
+    }
+    Value forwardCmpRes = bvmF.lookup(srcBlock.getTerminator()->getOperand(0));
+    Value reverseCmpRes = bvmR.lookup(srcBlock.getTerminator()->getOperand(0));
+
+    // Check value equality using strictly weak ordering from the region:
+    //   f(x,y) --> forwardCmpRes
+    //   f(y,x) --> reverseCmpRes
+    //   if forwardCmpRes == reverseCmpRes then select which came first
+    Value cmpValuesEqual = b.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::eq, forwardCmpRes, reverseCmpRes);
+    Value cmpFirstIndex = b.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::slt, loopCarryValues[1], kIndex);
+    Value combinedCmpEqRes =
+        b.create<arith::AndIOp>(loc, cmpValuesEqual, cmpFirstIndex);
+    // True if N > K or N came before K
+    Value indexCmpRes =
+        b.create<arith::OrIOp>(loc, forwardCmpRes, combinedCmpEqRes);
+    // Select results for K based on comparisons
+    Value resultKValue = b.create<arith::SelectOp>(loc, forwardCmpRes,
+                                                   loopCarryValues[0], kValue);
+    Value resultKIndex =
+        b.create<arith::SelectOp>(loc, indexCmpRes, loopCarryValues[1], kIndex);
+    b.create<memref::StoreOp>(loc, resultKValue, outputValues(), indices);
+    b.create<memref::StoreOp>(loc, resultKIndex, outputIndices(), indices);
+    // Select loop carry, opposite of K results
+    Value resultCarryValue = b.create<arith::SelectOp>(
+        loc, forwardCmpRes, kValue, loopCarryValues[0]);
+    Value resultCarryIndex =
+        b.create<arith::SelectOp>(loc, indexCmpRes, kIndex, loopCarryValues[1]);
+    b.create<scf::YieldOp>(loc, ValueRange{resultCarryValue, resultCarryIndex});
+  }
+  return success();
+}
+
+bool TopkOp::payloadUsesValueFromOperand(OpOperand *opOperand) {
+  // Set to true so that output operands are always initialized.
+  return true;
+}
+
 #define DEFINE_OP_GET_EFFECTS(OP_NAME)                                         \
   void OP_NAME::getEffects(                                                    \
       SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>      \
           &effects) {                                                          \
-    SmallVector<Value> inputBuffers = getInputBufferOperands();                \
-    SmallVector<Value> outputBuffers = getOutputBufferOperands();              \
+    OpOperandVector inputBuffers = getInputBufferOperands();                   \
+    OpOperandVector outputBuffers = getOutputBufferOperands();                 \
     getEffectsImpl(effects, getOperation()->getResults(), inputBuffers,        \
                    outputBuffers);                                             \
   }
@@ -924,6 +1132,7 @@ DEFINE_OP_GET_EFFECTS(AttentionOp)
 DEFINE_OP_GET_EFFECTS(ScanOp)
 DEFINE_OP_GET_EFFECTS(ScatterOp)
 DEFINE_OP_GET_EFFECTS(SortOp)
+DEFINE_OP_GET_EFFECTS(TopkOp)
 
 namespace {
 /// This is derived from mlir/lib/Dialect/Linalg/IR/LinalgOps.cpp without any
@@ -936,7 +1145,7 @@ struct FoldTensorCastOp : public OpInterfaceRewritePattern<TMTensorOp> {
     // If no operand comes from a tensor::CastOp and can be folded then fail.
     bool hasTensorCastOperand =
         llvm::any_of(op.getInputAndOutputOperands(), [&](OpOperand *opOperand) {
-          if (opOperand->get().isa<BlockArgument>())
+          if (isa<BlockArgument>(opOperand->get()))
             return false;
           auto castOp = opOperand->get().getDefiningOp<tensor::CastOp>();
           return castOp && canFoldIntoConsumerOp(castOp);

@@ -11,6 +11,7 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -18,7 +19,7 @@ class TestModule(torch.nn.Module):
         # CHECK: torch.nn_module {
         # CHECK:   torch.slot "t1", %[[T]]
         # CHECK:   torch.slot "t2", %[[T]]
-        self.t1 = self.t2 = torch.tensor([10., 20.])
+        self.t1 = self.t2 = torch.tensor([10.0, 20.0])
 
 
 test_module = TestModule()

@@ -10,7 +10,6 @@
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"       // from @llvm-project
 #include "mlir/Dialect/Tosa/Utils/QuantUtils.h" // from @llvm-project
-#include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 
 namespace mlir {
 namespace tosa {
@@ -45,7 +44,7 @@ Value buildRescaleToInt32(PatternRewriter &rewriter, Operation *op,
                           Value input_val, double input_scale,
                           int64_t input_zp) {
   // Output is always int32 type
-  auto input_type = input_val.getType().dyn_cast<mlir::ShapedType>();
+  auto input_type = dyn_cast<mlir::ShapedType>(input_val.getType());
   assert(input_type);
   auto output_type = input_type.clone(rewriter.getI32Type());
 
@@ -58,9 +57,9 @@ Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
                                Value conv_val, ShapedType input_type,
                                ShapedType weight_type, ShapedType output_type) {
   auto input_qtype =
-      input_type.getElementType().dyn_cast<mlir::quant::UniformQuantizedType>();
-  auto output_qtype = output_type.getElementType()
-                          .dyn_cast<mlir::quant::UniformQuantizedType>();
+      dyn_cast<mlir::quant::UniformQuantizedType>(input_type.getElementType());
+  auto output_qtype =
+      dyn_cast<mlir::quant::UniformQuantizedType>(output_type.getElementType());
 
   double input_scale = input_qtype.getScale();
 
@@ -71,8 +70,8 @@ Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
   int32_t scale_width = scale32 ? 32 : 16;
 
   if (auto weight_per_tensor_qtype =
-          weight_type.getElementType()
-              .dyn_cast<mlir::quant::UniformQuantizedType>()) {
+          dyn_cast<mlir::quant::UniformQuantizedType>(
+              weight_type.getElementType())) {
     // Per-tensor quantization
     double weight_scale = weight_per_tensor_qtype.getScale();
 
@@ -94,8 +93,8 @@ Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
     return rescale_op.getResult();
 
   } else if (auto weight_per_channel_qtype =
-                 weight_type.getElementType()
-                     .dyn_cast<mlir::quant::UniformQuantizedPerAxisType>()) {
+                 dyn_cast<mlir::quant::UniformQuantizedPerAxisType>(
+                     weight_type.getElementType())) {
     // Per-channel quantization
     SmallVector<int32_t> multiplier_arr;
     SmallVector<int8_t> shift_arr;
@@ -287,19 +286,19 @@ static LogicalResult checkValidityOfCast(Type src, Type dest) {
       (src.isInteger(1) && dest.isInteger(64)) ||
       (src.isInteger(1) && dest.isF32()) ||
       // f64 -> *
-      (src.isF64() && dest.isF32()) || 
+      (src.isF64() && dest.isF32()) ||
       (src.isF64() && dest.isBF16()) ||
       // f32 -> *
-      (src.isF32() && dest.isF64()) || 
+      (src.isF32() && dest.isF64()) ||
       (src.isF32() && dest.isBF16()) ||
-      (src.isF32() && dest.isF16()) || 
+      (src.isF32() && dest.isF16()) ||
       (src.isF32() && dest.isInteger(8)) ||
       (src.isF32() && dest.isInteger(64)) ||
       (src.isF32() && dest.isInteger(1)) ||
       // bf16 -> *
       (src.isBF16() && dest.isInteger(8)) ||
       (src.isBF16() && dest.isInteger(16)) ||
-      (src.isBF16() && dest.isInteger(32)) || 
+      (src.isBF16() && dest.isInteger(32)) ||
       (src.isBF16() && dest.isF32())) {
     return success();
   }
@@ -311,7 +310,7 @@ static LogicalResult checkValidityOfCast(Type src, Type dest) {
 LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
                                    Value src, Type destType, Value &result) {
 
-  Type srcElemTy = src.getType().dyn_cast<TensorType>().getElementType();
+  Type srcElemTy = dyn_cast<TensorType>(src.getType()).getElementType();
   Type destElemTy = dyn_cast<TensorType>(destType).getElementType();
 
   if (failed(checkValidityOfCast(srcElemTy, destElemTy)))
@@ -319,7 +318,7 @@ LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
         op, "casting to result dtype is invalid or unsupported");
 
   if (destElemTy.isInteger(1)) {
-    auto srcType = src.getType().dyn_cast<TensorType>();
+    auto srcType = dyn_cast<TensorType>(src.getType());
     SmallVector<int64_t> srcShape(srcType.getShape());
     uint64_t num_total_elements = 1;
     for (int64_t a : srcShape)
@@ -355,7 +354,7 @@ LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
 
 Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType) {
   Operation *op = input.getDefiningOp();
-  TensorType inType = input.getType().cast<TensorType>();
+  TensorType inType = cast<TensorType>(input.getType());
 
   if (inType.getElementType() != outType.getElementType()) {
     TensorType promotedType =

@@ -18,6 +18,7 @@ mb = ModuleBuilder()
 # `torch.Tensor` is just a pointer to a TensorImpl under the hood, and so
 # naively duplicating a Tensor retains the identity of the TensorImpl.
 
+
 # CHECK-LABEL: torch.class_type @__torch__.TestModule {
 class TestModule(torch.nn.Module):
     def __init__(self):

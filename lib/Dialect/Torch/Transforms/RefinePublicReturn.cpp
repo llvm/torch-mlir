@@ -9,8 +9,6 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -84,7 +82,7 @@ class RefinePublicReturnPass
         }
       }
 
-      if (auto tensorType = newOperand.getType().dyn_cast<BaseTensorType>()) {
+      if (auto tensorType = dyn_cast<BaseTensorType>(newOperand.getType())) {
         newOperands.push_back(
             copyTensorToType(builder, returnOp->getLoc(),
                              tensorType.getWithValueSemantics(), newOperand));

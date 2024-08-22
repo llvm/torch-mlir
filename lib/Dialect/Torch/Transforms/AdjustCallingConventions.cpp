@@ -9,13 +9,8 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
@@ -49,7 +44,7 @@ public:
     // The incoporation of the torch.type_bound arg attr is context-dependent.
 
     for (auto type : llvm::enumerate(func.getArgumentTypes())) {
-      if (type.value().isa<NonValueTensorType>()) {
+      if (isa<NonValueTensorType>(type.value())) {
         auto typeBoundAttr =
             func.getArgAttrOfType<TypeAttr>(type.index(), typeBoundIdent);
         Type bound = typeBoundAttr ? typeBoundAttr.getValue() : Type();
@@ -61,13 +56,13 @@ public:
                                                ? typeBoundAttr.getValue()
                                                : type.value());
         continue;
-      } else if (auto none = type.value().dyn_cast<Torch::NoneType>()) {
+      } else if (auto none = dyn_cast<Torch::NoneType>(type.value())) {
         continue;
       }
       // TODO: add tuple type.
       conversion.addInputs(type.index(), type.value());
     }
-    rewriter.applySignatureConversion(&func.getBody(), conversion,
+    rewriter.applySignatureConversion(&func.getBody().front(), conversion,
                                       typeConverter);
 
     SmallVector<Type> newResultTypes;
@@ -111,11 +106,11 @@ public:
 
     SmallVector<Value> newOperands;
     for (auto operand : llvm::enumerate(adaptor.getOperands())) {
-      if (operand.value().getType().isa<Torch::NoneType>())
+      if (isa<Torch::NoneType>(operand.value().getType()))
         continue;
       auto it = typeBoundMap.find({call.getCallee(), operand.index()});
       if (it != typeBoundMap.end()) {
-        if (auto valueTensorType = it->second.dyn_cast<ValueTensorType>()) {
+        if (auto valueTensorType = dyn_cast<ValueTensorType>(it->second)) {
           newOperands.push_back(copyTensorToType(
               rewriter, call->getLoc(), valueTensorType, operand.value()));
           continue;
@@ -167,9 +162,9 @@ public:
     for (auto operand : adaptor.getOperands()) {
       if (!operand)
         continue;
-      if (operand.getType().isa<Torch::NoneType>())
+      if (isa<Torch::NoneType>(operand.getType()))
         continue;
-      if (auto tuple = operand.getType().dyn_cast<Torch::TupleType>()) {
+      if (auto tuple = dyn_cast<Torch::TupleType>(operand.getType())) {
         Location loc = op.getLoc();
         for (auto en : llvm::enumerate(tuple.getContainedTypes())) {
           auto i = rewriter.create<ConstantIntOp>(
@@ -207,7 +202,7 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
       [](OpBuilder &builder, Torch::BaseTensorType type, ValueRange inputs,
          Location loc) -> Value {
         assert(inputs.size() == 1);
-        assert(inputs[0].getType().isa<BaseTensorType>());
+        assert(isa<BaseTensorType>(inputs[0].getType()));
         return copyTensorToType(builder, loc, type, inputs[0]);
       });
   patterns.add<AdjustCallingConventionForFunc>(typeConverter, context);
@@ -220,11 +215,11 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
     for (int i = 0, e = func.getNumArguments(); i != e; i++) {
       if (func.getArgAttr(i, "torch.type_bound"))
         return false;
-      if (func.getArgumentTypes()[i].isa<Torch::NoneType>())
+      if (isa<Torch::NoneType>(func.getArgumentTypes()[i]))
         return false;
     }
     for (int i = 0, e = func.getNumResults(); i != e; i++) {
-      if (func.getFunctionType().getResults()[i].isa<Torch::NoneType>())
+      if (isa<Torch::NoneType>(func.getFunctionType().getResults()[i]))
         return false;
     }
     return true;

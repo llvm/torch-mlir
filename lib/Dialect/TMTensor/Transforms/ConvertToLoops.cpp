@@ -80,7 +80,7 @@ struct ScalarLoopOpInterfaceLowerToLoopsPattern : public RewritePattern {
       return failure();
     }
     if (llvm::any_of(scalarLoopOp->getResults(),
-                     [&](Value v) { return v.getType().isa<ShapedType>(); })) {
+                     [&](Value v) { return isa<ShapedType>(v.getType()); })) {
       return rewriter.notifyMatchFailure(
           scalarLoopOp, "lower to loops needs to have tensor semantics");
     }

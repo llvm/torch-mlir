@@ -185,13 +185,14 @@ static bool isValidTorchDtype(Type dtype) {
     dtype = cast<ComplexType>(dtype).getElementType();
   }
   // Torch quantized types.
-  if (isa<Torch::QInt8Type, Torch::QUInt8Type, Torch::QInt32Type>(dtype))
+  if (isa<Torch::QInt8Type, Torch::QUInt8Type, Torch::QInt16Type,
+          Torch::QInt32Type>(dtype))
     return true;
   // Builtin floating point types.
   if (isa<Float16Type, BFloat16Type, Float32Type, Float64Type>(dtype))
     return true;
-  if (dtype.isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
-                Float8E4M3FNUZType, Float8E4M3B11FNUZType>())
+  if (isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
+          Float8E4M3FNUZType, Float8E4M3B11FNUZType>(dtype))
     return true;
 
   if (isa<Torch::StringType>(dtype))
@@ -228,17 +229,29 @@ Type BaseTensorType::getWithSizesAndDtypeFrom(BaseTensorType other) const {
 
 Type BaseTensorType::getWithSizesAndDtype(
     std::optional<ArrayRef<int64_t>> optionalSizes, Type optionalDtype) const {
-  if (isa<NonValueTensorType>())
+  if (mlir::isa<NonValueTensorType>(*this))
     return NonValueTensorType::get(getContext(), optionalSizes, optionalDtype);
-  if (isa<ValueTensorType>())
+  if (mlir::isa<ValueTensorType>(*this))
     return ValueTensorType::get(getContext(), optionalSizes, optionalDtype);
   llvm_unreachable("not a BaseTensorType!");
 }
 
+Type BaseTensorType::getWithSizesAndDtypeAndSparsity(
+    std::optional<ArrayRef<int64_t>> optionalSizes, Type optionalDtype,
+    Attribute optionalSparsity) const {
+  if (mlir::isa<NonValueTensorType>(*this))
+    return NonValueTensorType::get(getContext(), optionalSizes, optionalDtype,
+                                   optionalSparsity);
+  if (mlir::isa<ValueTensorType>(*this))
+    return ValueTensorType::get(getContext(), optionalSizes, optionalDtype,
+                                optionalSparsity);
+  llvm_unreachable("not a BaseTensorType!");
+}
+
 ValueTensorType BaseTensorType::getWithValueSemantics() const {
-  if (auto tensor = dyn_cast<NonValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<NonValueTensorType>(*this))
     return tensor.getWithValueSemantics();
-  if (auto tensor = dyn_cast<ValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<ValueTensorType>(*this))
     return tensor;
   llvm_unreachable("not a BaseTensorType!");
 }
@@ -441,12 +454,7 @@ ValueTensorType::getWithLeastStaticInformation(MLIRContext *context) {
 }
 
 static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
-  if (auto floatType = dyn_cast<mlir::FloatType>(dtype)) {
-    return dtype;
-  } else if (auto integerType = dyn_cast<IntegerType>(dtype)) {
-    return IntegerType::get(context, integerType.getWidth(),
-                            IntegerType::Signless);
-  } else if (isa<mlir::ComplexType>(dtype)) {
+  if (isa<mlir::FloatType, IntegerType, mlir::ComplexType>(dtype)) {
     return dtype;
   }
 
@@ -455,6 +463,9 @@ static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
 
   if (isa<QInt8Type>(dtype))
     return IntegerType::get(context, 8, IntegerType::Signless);
+
+  if (isa<QInt16Type>(dtype))
+    return IntegerType::get(context, 16, IntegerType::Signless);
 
   if (isa<QInt32Type>(dtype))
     return IntegerType::get(context, 32, IntegerType::Signless);
@@ -468,11 +479,11 @@ static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
 TensorType ValueTensorType::toBuiltinTensor() const {
   if (!hasDtype())
     return nullptr;
-  if (!hasSizes())
-    return UnrankedTensorType::get(getDtype());
   Type elementType = convertDtypeToBuiltinElementType(getContext(), getDtype());
   if (!elementType)
     return nullptr;
+  if (!hasSizes())
+    return UnrankedTensorType::get(elementType);
   return RankedTensorType::get(makeShapeLLVMCompatible(getSizes()), elementType,
                                getOptionalSparsity());
 }

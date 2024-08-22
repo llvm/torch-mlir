@@ -13,9 +13,6 @@ While this is running, you can already setup the Python venv and dependencies in
 
 ## Setup your Python VirtualEnvironment and Dependencies
 
-Also, ensure that you have the appropriate `python-dev` package installed
-to access the Python development libraries / headers.
-
 ```shell
 python -m venv mlir_venv
 source mlir_venv/bin/activate
@@ -26,6 +23,28 @@ python -m pip install -r requirements.txt
 python -m pip install -r torchvision-requirements.txt
 ```
 
+Also, ensure that you have the appropriate `python-dev` package installed
+to access the Python development libraries / headers. For example, you can install
+it with the following `apt` command on Ubuntu/Debian.
+
+```shell
+sudo apt install python3-dev
+```
+
+
+## (Optional) Set up pre-commit
+
+This project uses [pre-commit](https://pre-commit.com/) in its CI. You can
+install it locally too in order to lint and fix your code prior to the CI
+complaining about it.
+
+```shell
+pip install pre-commit
+# You can run interactively with `pre-commit run`
+# or install hooks so it runs automatically:
+pre-commit install
+```
+
 ## CMake Build
 
 Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
@@ -33,6 +52,42 @@ Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is 
 ### Building torch-mlir in-tree
 
 The following command generates configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.  On Windows, use the "Developer PowerShell for Visual Studio" to ensure that the compiler and linker binaries are in the `PATH` variable.
+
+This requires `lld`, `clang`, `ccache`, and other dependencies for building `libtorch` / `PyTorch` wheels from source. If you run into issues because of these, try the [simplified build command](#simplified-build).
+
+```shell
+cmake -GNinja -Bbuild \
+  externals/llvm-project/llvm \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DPython3_FIND_VIRTUALENV=ONLY \
+  -DLLVM_ENABLE_PROJECTS=mlir \
+  -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
+  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD" \
+  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+  -DLLVM_TARGETS_TO_BUILD=host \
+  `# use clang`\
+  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+  `# use ccache to cache build results` \
+  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+  `# use LLD to link in seconds, rather than minutes` \
+  `# if using clang <= 13, replace --ld-path=ld.lld with -fuse-ld=lld` \
+  -DCMAKE_EXE_LINKER_FLAGS_INIT="--ld-path=ld.lld" \
+  -DCMAKE_MODULE_LINKER_FLAGS_INIT="--ld-path=ld.lld" \
+  -DCMAKE_SHARED_LINKER_FLAGS_INIT="--ld-path=ld.lld" \
+  `# Enabling libtorch binary cache instead of downloading the latest libtorch everytime.` \
+  `# Testing against a mismatched version of libtorch may cause failures` \
+  -DLIBTORCH_CACHE=ON \
+  `# Enable an experimental path to build libtorch (and PyTorch wheels) from source,` \
+  `# instead of downloading them` \
+  -DLIBTORCH_SRC_BUILD=ON \
+  `# Set the variant of libtorch to build / link against. (shared|static and optionally cxxabi11)` \
+  -DLIBTORCH_VARIANT=shared
+```
+
+# Simplified build
+
+If you're running into issues with the above build command, consider using the following:
 
 ```shell
 cmake -GNinja -Bbuild \
@@ -44,32 +99,6 @@ cmake -GNinja -Bbuild \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DLLVM_TARGETS_TO_BUILD=host \
   externals/llvm-project/llvm
-```
-#### Flags that can reduce build time:
-* Enabling clang on Linux
-```shell
-  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-```
-* Enabling ccache
-```shell
-  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-```
-* Enabling LLD (links in seconds compared to minutes)
-```shell
-  -DCMAKE_EXE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_MODULE_LINKER_FLAGS_INIT="-fuse-ld=lld" -DCMAKE_SHARED_LINKER_FLAGS_INIT="-fuse-ld=lld"
-# Use --ld-path= instead of -fuse-ld=lld for clang > 13
-```
-* Enabling libtorch binary cache
-By default we download the latest version of libtorch everytime you build so we are always on the latest version. Set `-DLIBTORCH_CACHE=ON` to
-not download the latest version everytime. If libtorch gets out of date and you test against a newer PyTorch you may notice failures.
-```shell
-  -DLIBTORCH_CACHE=ON
-```
-* Enabling building libtorch as part of your build
-By default we download the latest version of libtorch. We have an experimental path to build libtorch (and PyTorch wheels) from source.
-```shell
-  -DLIBTORCH_SRC_BUILD=ON  # Build Libtorch from source
-  -DLIBTORCH_VARIANT=shared # Set the variant of libtorch to build / link against. (`shared`|`static` and optionally `cxxabi11`)
 ```
 
 #### Flags to enable MLIR debugging:
@@ -349,6 +378,15 @@ python -m pip install -r requirements.txt
 CMAKE_GENERATOR=Ninja python setup.py bdist_wheel
 ```
 
+To package a completed CMake build directory,
+you can use the `TORCH_MLIR_CMAKE_BUILD_DIR` and `TORCH_MLIR_CMAKE_ALREADY_BUILT` environment variables:
+```shell
+TORCH_MLIR_CMAKE_BUILD_DIR=build/ TORCH_MLIR_CMAKE_ALREADY_BUILT=1 python setup.py bdist_wheel
+```
+
+Note: The setup.py script is only used for building the Python packages,
+not support commands like `setup.py develop` to build the development environment.
+
 # Testing
 
 Torch-MLIR has two types of tests:
@@ -390,6 +428,20 @@ Alternatively, you can run the tests via Python directly:
 cd projects/pt1
 python -m e2e_testing.main -f 'AtenEmbeddingBag'
 ```
+
+The default mode of running tests uses the multi-processing framework and is
+not tolerant of certain types of errors. If encountering native crashes/hangs,
+enable debug variables to run sequentially/in-process with more verbosity:
+
+```
+export TORCH_MLIR_TEST_CONCURRENCY=1
+export TORCH_MLIR_TEST_VERBOSE=1
+```
+
+In this way, you can run under `gdb`, etc and get useful results. Having env
+vars like this makes it easy to set in GH action files, etc. Note that the
+verbose flags are very verbose. Basic sequential progress reports will be
+printed regardless when not running in parallel.
 
 ## Running unit tests.
 

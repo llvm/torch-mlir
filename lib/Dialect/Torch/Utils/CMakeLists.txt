@@ -1,5 +1,6 @@
 add_mlir_dialect_library(TorchMLIRTorchUtils
   Utils.cpp
+  SparsityUtils.cpp
   TorchUpstream.cpp
 
   ADDITIONAL_HEADER_DIRS

@@ -9,17 +9,14 @@
 
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -80,7 +77,7 @@ public:
     if (!matchPattern(dimValue, m_TorchConstantInt(&dim)))
       return op.emitError("unimplemented: dim is not constant");
     int64_t inputRank =
-        adaptor.getSelf().getType().cast<RankedTensorType>().getRank();
+        cast<RankedTensorType>(adaptor.getSelf().getType()).getRank();
     dim = toPositiveDim(dim, inputRank);
     if (!isValidDim(dim, inputRank))
       return rewriter.notifyMatchFailure(op, "dim is statically invalid");
@@ -88,7 +85,7 @@ public:
     Value indices = adaptor.getIndex();
     Value self = adaptor.getSelf();
     RankedTensorType newResultTy =
-        getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+        cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
     int64_t rank = newResultTy.getRank();
 
     SmallVector<Value> sizes = getTensorSizes(rewriter, loc, indices);
@@ -128,9 +125,9 @@ public:
     Value weight = adaptor.getWeight();
     Value indices = adaptor.getIndices();
     RankedTensorType newResultType =
-        typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+        cast<RankedTensorType>(typeConverter->convertType(op.getType()));
 
-    auto weightTy = weight.getType().cast<RankedTensorType>();
+    auto weightTy = cast<RankedTensorType>(weight.getType());
     if (weightTy.getRank() != 2)
       return rewriter.notifyMatchFailure(op, "weight must be rank 2");
     Value embeddingDim = getDimOp(rewriter, loc, weight, 1);
@@ -140,7 +137,7 @@ public:
     sizes.push_back(embeddingDim);
     int64_t resultRank = sizes.size();
 
-    auto indicesTy = indices.getType().cast<RankedTensorType>();
+    auto indicesTy = cast<RankedTensorType>(indices.getType());
     int64_t indicesRank = indicesTy.getRank();
     SmallVector<AffineExpr> indicesExprs;
     for (int i = 0; i < indicesRank; i++)
@@ -274,15 +271,15 @@ public:
           "include_last_offset is expected to be a constant boolean value.");
     }
 
-    auto weightTy = weight.getType().cast<RankedTensorType>();
+    auto weightTy = cast<RankedTensorType>(weight.getType());
     if (weightTy.getRank() != 2)
       return rewriter.notifyMatchFailure(op, "weight must be rank 2");
 
-    auto indicesTy = indices.getType().cast<RankedTensorType>();
+    auto indicesTy = cast<RankedTensorType>(indices.getType());
     if (indicesTy.getRank() != 1)
       return rewriter.notifyMatchFailure(op, "indices must be a vector");
 
-    auto offsetsTy = offsets.getType().cast<RankedTensorType>();
+    auto offsetsTy = cast<RankedTensorType>(offsets.getType());
     if (offsetsTy.getRank() != 1)
       return rewriter.notifyMatchFailure(op, "offsets much be a vector");
 
@@ -470,10 +467,10 @@ public:
     Location loc = op.getLoc();
     Value input = adaptor.getSelf();
     Value indices = adaptor.getIndex();
-    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    auto indicesTy = cast<RankedTensorType>(indices.getType());
+    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Type elementType = resultType.getElementType();
     unsigned inputRank = inputType.getRank();
 
@@ -483,6 +480,13 @@ public:
     dimInt = toPositiveDim(dimInt, inputRank);
     if (!isValidDim(dimInt, inputRank))
       return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+
+    if (indicesTy.getRank() == 0) {
+      llvm::SmallVector<ReassociationIndices> reassociations;
+      indicesTy = RankedTensorType::get({1}, indicesTy.getElementType());
+      indices = rewriter.create<tensor::ExpandShapeOp>(loc, indicesTy, indices,
+                                                       reassociations);
+    }
 
     SmallVector<Value> resultShape = getTensorSizes(rewriter, loc, input);
     resultShape[dimInt] = getTensorSizes(rewriter, loc, indices)[0];
@@ -596,10 +600,9 @@ public:
           op, "aten.index.Tensor: index tensor must not be None");
     }
 
-    RankedTensorType inputType = input.getType().cast<RankedTensorType>();
-    RankedTensorType resultType = getTypeConverter()
-                                      ->convertType(op->getResult(0).getType())
-                                      .cast<RankedTensorType>();
+    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
+    RankedTensorType resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Type elementType = resultType.getElementType();
     int inputRank = inputType.getRank();
     int resultRank = resultType.getRank();
@@ -617,7 +620,7 @@ public:
       int maxRank = -1;
       for (auto indexTensor : indexTensors) {
         RankedTensorType indexTensorType =
-            indexTensor.getType().cast<RankedTensorType>();
+            cast<RankedTensorType>(indexTensor.getType());
         maxRank = std::max(maxRank, (int)indexTensorType.getRank());
       }
 
@@ -631,7 +634,7 @@ public:
           int64_t staticDimSize = -1;
           for (auto indexTensor : indexTensors) {
             RankedTensorType indexTensorType =
-                indexTensor.getType().cast<RankedTensorType>();
+                cast<RankedTensorType>(indexTensor.getType());
             int64_t indexTensorRank = indexTensorType.getRank();
             if ((maxRank - indexTensorRank) > (i - startIndex))
               continue;
@@ -706,7 +709,7 @@ public:
 
     for (auto indexTensor : indexTensors) {
       RankedTensorType indexTensorType =
-          indexTensor.getType().cast<RankedTensorType>();
+          cast<RankedTensorType>(indexTensor.getType());
       auto indexTensorShape =
           makeShapeTorchCompatible(indexTensorType.getShape());
       int rank = indexTensorShape.size();
@@ -820,7 +823,7 @@ public:
     Value input = adaptor.getSelf();
 
     Type resultType = getTypeConverter()->convertType(op.getResult().getType());
-    auto inputType = input.getType().cast<RankedTensorType>();
+    auto inputType = cast<RankedTensorType>(input.getType());
     auto inputRank = inputType.getRank();
     Type elementType = inputType.getElementType();
 
@@ -842,7 +845,7 @@ public:
     outputSizeIntValues = getTypeConvertedValues(
         rewriter, loc, getTypeConverter(), outputSizeTorchInt);
 
-    if (!op.getScalesH().getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getScalesH().getType())) {
       // Convert float values to int values.
       // int_value = (int64_t)ceil(float_value)
       Value ceilVal = rewriter.create<math::CeilOp>(loc, adaptor.getScalesH());
@@ -855,7 +858,7 @@ public:
       scaleFactorsInt.push_back(scaleFactorVal);
     }
 
-    if (!op.getScalesW().getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getScalesW().getType())) {
       // Convert float values to int values.
       // int_value = (int64_t)ceil(float_value)
       Value ceilVal = rewriter.create<math::CeilOp>(loc, adaptor.getScalesW());
@@ -981,7 +984,7 @@ public:
     Value gradOutput = adaptor.getGradOutput();
 
     Type resultType = getTypeConverter()->convertType(op.getResult().getType());
-    auto gradOutputType = gradOutput.getType().cast<RankedTensorType>();
+    auto gradOutputType = cast<RankedTensorType>(gradOutput.getType());
     auto gradOutputRank = gradOutputType.getRank();
     Type elementType = gradOutputType.getElementType();
 
@@ -1003,7 +1006,7 @@ public:
     unsigned hDimOffset = 2;
 
     SmallVector<Value, 2> scaleFactorsFloatValues;
-    if (!op.getScalesH().getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getScalesH().getType())) {
       scaleFactorsFloatValues.push_back(adaptor.getScalesH());
     } else {
       auto scaleFactorVal = rewriter.create<arith::DivFOp>(
@@ -1016,7 +1019,7 @@ public:
       scaleFactorsFloatValues.push_back(scaleFactorVal);
     }
 
-    if (!op.getScalesW().getType().isa<Torch::NoneType>()) {
+    if (!isa<Torch::NoneType>(op.getScalesW().getType())) {
       scaleFactorsFloatValues.push_back(adaptor.getScalesW());
     } else {
       auto scaleFactorVal = rewriter.create<arith::DivFOp>(

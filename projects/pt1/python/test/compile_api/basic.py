@@ -9,11 +9,14 @@ import torch
 
 from torch_mlir import torchscript
 
+
 class TanhModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
+
     def forward(self, x):
         return torch.ops.aten.tanh(x)
+
 
 tanh_example_input = torch.ones(2, 3)
 
@@ -35,15 +38,22 @@ print(torchscript.compile(TanhModule(), placeholder))
 # CHECK: torch.aten.tanh %{{.*}} : !torch.vtensor<[?,2],f32> -> !torch.vtensor<[?,2],f32>
 
 # Basic smoke test for the raw output type.
-print(torchscript.compile(TanhModule(), tanh_example_input, output_type=torchscript.OutputType.RAW))
+print(
+    torchscript.compile(
+        TanhModule(), tanh_example_input, output_type=torchscript.OutputType.RAW
+    )
+)
 # CHECK: torch.nn_module {
 # CHECK: } : !torch.nn.Module<"{{.*}}.TanhModule">
+
 
 class MmModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-    def forward(self, lhs, rhs  ):
+
+    def forward(self, lhs, rhs):
         return torch.ops.aten.mm(lhs, rhs)
+
 
 # N > 1 inputs.
 mm_example_inputs = [torch.ones(2, 3), torch.ones(3, 4)]
@@ -52,7 +62,10 @@ print(torchscript.compile(MmModule(), mm_example_inputs))
 # CHECK: torch.aten.mm %{{.*}}, %{{.*}} : !torch.vtensor<[2,3],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[2,4],f32>
 
 # Mixes Tensor's and TensorPlaceholder's.
-mm_dynamic_inputs = [mm_example_inputs[0], torchscript.TensorPlaceholder.like(mm_example_inputs[1], dynamic_axes=[1])]
+mm_dynamic_inputs = [
+    mm_example_inputs[0],
+    torchscript.TensorPlaceholder.like(mm_example_inputs[1], dynamic_axes=[1]),
+]
 print(torchscript.compile(MmModule(), mm_dynamic_inputs))
 # CHECK-LABEL: @forward
 # CHECK: torch.aten.mm %{{.*}}, %{{.*}} : !torch.vtensor<[2,3],f32>, !torch.vtensor<[3,?],f32> -> !torch.vtensor<[2,?],f32>

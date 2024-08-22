@@ -14,6 +14,8 @@ except ImportError:
 import logging
 import operator
 import re
+import sympy
+import math
 from dataclasses import dataclass
 from types import BuiltinMethodType, BuiltinFunctionType
 from typing import (
@@ -81,6 +83,14 @@ from torch.fx.node import (
 )
 
 from ..ir import (
+    AffineAddExpr,
+    AffineConstantExpr,
+    AffineExpr,
+    AffineMap,
+    AffineMapAttr,
+    AffineModExpr,
+    AffineMulExpr,
+    AffineSymbolExpr,
     Attribute,
     Block,
     Context,
@@ -89,6 +99,10 @@ from ..ir import (
     FloatAttr,
     BF16Type,
     ComplexType,
+    Float8E5M2Type,
+    Float8E4M3FNType,
+    Float8E5M2FNUZType,
+    Float8E4M3FNUZType,
     F16Type,
     F32Type,
     F64Type,
@@ -103,6 +117,7 @@ from ..ir import (
     StringAttr,
     SymbolTable,
     Type as IrType,
+    UnitAttr,
     Value,
 )
 
@@ -137,6 +152,16 @@ TORCH_DTYPE_TO_MLIR_TYPE_ASM = {
     torch.complex64: "complex<f32>",
     torch.complex128: "complex<f64>",
 }
+# Type entries added only in torch with higher version
+OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE_ASM = {
+    "float8_e5m2": "f8E5M2",
+    "float8_e4m3fn": "f8E4M3FN",
+    "float8_e5m2fnuz": "f8E5M2FNUZ",
+    "float8_e4m3fnuz": "f8E4M3FNUZ",
+}
+for dtype_str, dtype_asm in OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE_ASM.items():
+    if hasattr(torch, dtype_str):
+        TORCH_DTYPE_TO_MLIR_TYPE_ASM[getattr(torch, dtype_str)] = dtype_asm
 
 TORCH_DTYPE_TO_MLIR_TYPE: Dict[torch.dtype, Callable[[], IrType]] = {
     torch.float16: lambda: F16Type.get(),
@@ -155,6 +180,16 @@ TORCH_DTYPE_TO_MLIR_TYPE: Dict[torch.dtype, Callable[[], IrType]] = {
     torch.complex64: lambda: ComplexType.get(F32Type.get()),
     torch.complex128: lambda: ComplexType.get(F64Type.get()),
 }
+# Type entries added only in torch with higher version
+OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE = {
+    "float8_e5m2": lambda: Float8E5M2Type.get(),
+    "float8_e4m3fn": lambda: Float8E4M3FNType.get(),
+    "float8_e5m2fnuz": lambda: Float8E5M2FNUZType.get(),
+    "float8_e4m3fnuz": lambda: Float8E4M3FNUZType.get(),
+}
+for dtype_str, mlir_type in OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE.items():
+    if hasattr(torch, dtype_str):
+        TORCH_DTYPE_TO_MLIR_TYPE[getattr(torch, dtype_str)] = mlir_type
 
 TORCH_DTYPE_TO_NPY_TYPE = {
     # torch.qint8: None, # no equivalent np datatype
@@ -193,6 +228,16 @@ TORCH_DTYPE_TO_INT = {
     # torch.qint32 14
     torch.bfloat16: 15,
 }
+# Type entries added only in torch with higher version
+OPTIONAL_TORCH_DTYPE_TO_INT = {
+    "float8_e5m2": 23,
+    "float8_e4m3fn": 24,
+    "float8_e5m2fnuz": 25,
+    "float8_e4m3fnuz": 26,
+}
+for dtype_str, dtype_int in OPTIONAL_TORCH_DTYPE_TO_INT.items():
+    if hasattr(torch, dtype_str):
+        TORCH_DTYPE_TO_INT[getattr(torch, dtype_str)] = dtype_int
 
 TORCH_MEMORY_FORMAT_TO_INT = {
     torch.contiguous_format: 0,
@@ -220,6 +265,8 @@ PY_BUILTIN_TO_TORCH_OP = {
     "ge": torch.ops.aten.ge,
     "ne": torch.ops.aten.ne,
     "gt": torch.ops.aten.gt,
+    "mod": torch.ops.aten.fmod,
+    "eq": torch.ops.aten.eq,
 }
 
 # torch with cuda has a __version__ that looks like  "2.1.0+cu113",
@@ -236,12 +283,6 @@ _IS_TORCH_2_1_OR_EARLIER = torch.__version__.split("+")[0] <= "2.1.0"
 # set and just check key existence in SYMBOLIC_OP_TO_TORCH_OP
 
 if _IS_TORCH_2_1_OR_EARLIER:
-    SYMBOLIC_TORCH_OPS = {
-        torch.ops.aten.sym_size,
-        torch.ops.aten.sym_stride,
-        torch.ops.aten.sym_numel,
-    }
-
     SYMBOLIC_OP_TO_TORCH_OP = {
         (torch.ops.aten.sym_size, 1): torch.ops.aten.size.default,
         (torch.ops.aten.sym_size, 2): torch.ops.aten.size.int,
@@ -249,13 +290,9 @@ if _IS_TORCH_2_1_OR_EARLIER:
         (torch.ops.aten.sym_stride, 2): torch.ops.aten.stride.int,
         (torch.ops.aten.sym_numel, 1): torch.ops.aten.numel.default,
     }
-else:
-    SYMBOLIC_TORCH_OPS = {
-        torch.ops.aten.sym_size.int,
-        torch.ops.aten.sym_stride.int,
-        torch.ops.aten.sym_numel.default,
-    }
 
+    SYMBOLIC_TORCH_OPS = {key[0] for key in SYMBOLIC_OP_TO_TORCH_OP}
+else:
     SYMBOLIC_OP_TO_TORCH_OP = {
         torch.ops.aten.sym_size.default: torch.ops.aten.size.default,
         torch.ops.aten.sym_size.int: torch.ops.aten.size.int,
@@ -264,64 +301,115 @@ else:
         torch.ops.aten.sym_numel.default: torch.ops.aten.numel.default,
     }
 
+    SYMBOLIC_TORCH_OPS = {key for key in SYMBOLIC_OP_TO_TORCH_OP}
 
-@dataclass(frozen=True)
-class SparsityMeta:
+
+@dataclass
+class RangeConstraint:
+    min_val: int
+    max_val: int
+
+
+def sympy_expr_to_semi_affine_expr(
+    expr: sympy.Expr, symbols_map: Dict[str, AffineSymbolExpr]
+) -> AffineExpr:
+    """Translate sympy expressions to MLIR (semi-)affine expressions.
+
+    Recursively traverse the sympy expr AST and build the affine expr.
+    This is not a perfect translation. Sympy expressions are much more
+    expressive and not as constrained as affine (linear) expressions are.
+    However, for the most part, we don't need to support all of sympy.
+    PyTorch only uses a subset of sympy for capturing and expressing
+    symbolic shapes, and among what's supported, we expect the semi-affine
+    expressions (https://mlir.llvm.org/docs/Dialects/Affine/#semi-affine-maps)
+    to be sufficient.
     """
-    Class for keeping track of sparsity meta data.
+    if isinstance(expr, sympy.Symbol):
+        return symbols_map[str(expr)]
+    elif isinstance(expr, (int, sympy.Integer)):
+        return AffineConstantExpr.get(expr)
+    # This handles both add (`s0 + c`) and subtract (`s0 - c`).
+    # The expression is `sympy.Add` in both cases but with args
+    # (s0, c) in first case and (s0, -c) in the second case.
+    elif isinstance(expr, sympy.Add):
+        affine_expr = AffineConstantExpr.get(0)
+        for arg in expr.args:
+            affine_expr = AffineAddExpr.get(
+                affine_expr, sympy_expr_to_semi_affine_expr(arg, symbols_map)
+            )
+        return affine_expr
+    elif isinstance(expr, sympy.Mul):
+        affine_expr = AffineConstantExpr.get(1)
+        for arg in expr.args:
+            affine_expr = AffineMulExpr.get(
+                affine_expr, sympy_expr_to_semi_affine_expr(arg, symbols_map)
+            )
+        return affine_expr
+    elif isinstance(expr, sympy.Pow):
+        base, exp = expr.args
+        # Only integer exponent is supported
+        # So, s1 ** s0 isn't allowed.
+        assert isinstance(exp, (int, sympy.Integer))
+        assert exp > 0, "Only positive exponents supported in sympy.Pow"
+        affine_expr = AffineConstantExpr.get(1)
+        for _ in range(exp):
+            affine_expr = AffineMulExpr.get(
+                affine_expr, sympy_expr_to_semi_affine_expr(base, symbols_map)
+            )
+        return affine_expr
+    elif isinstance(expr, sympy.Mod):
+        dividend, divisor = expr.args
+        return AffineModExpr.get(
+            sympy_expr_to_semi_affine_expr(dividend, symbols_map),
+            sympy_expr_to_semi_affine_expr(divisor, symbols_map),
+        )
+    else:
+        raise NotImplementedError(
+            f"Translation of sympy.Expr of type {type(expr)} not implemented yet."
+        )
 
-    NOTE: this will be fully replaced by
-          torch.fx.passes.shape_prop.SparseTensorMetadata
-    """
 
-    layout: torch.layout
-    batch_dim: int
-    sparse_dim: int
-    dense_dim: int
-    blocksize: Optional[Tuple[int, int]]
-    pos_dtype: torch.dtype
-    crd_dtype: torch.dtype
-
-
-def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
-    """Returns sparse tensor encoding for the given sparse layout as string."""
-    assert sparsity is not None
+def sparsity_encoding(t: torch.Tensor) -> str:
+    """Returns sparse tensor encoding for the given tensor as string."""
 
     # Sparse tensors have the form
     #   [ <batch_dimensions> , <sparse_dimensions>, <dense_dimensions> ]
     # which map directly to MLIR types.
-    batch_dim, sparse_dim, dense_dim = (
-        sparsity.batch_dim,
-        sparsity.sparse_dim,
-        sparsity.dense_dim,
+    dim, batch_dim, sparse_dim, dense_dim = (
+        t.ndim,
+        t.ndim - t.sparse_dim() - t.dense_dim(),
+        t.sparse_dim(),
+        t.dense_dim(),
     )
-    dim = batch_dim + sparse_dim + dense_dim
-    assert dim == len(shape)
-    blocksize = sparsity.blocksize
-
     dims = ",".join(f"d{d}" for d in range(dim))
 
-    if sparsity.layout is torch.sparse_coo:
-        assert sparse_dim >= 2 and blocksize is None
+    if t.layout is torch.sparse_coo:
+        assert sparse_dim >= 2
         trail_dim = batch_dim + sparse_dim - 1
         coords = ",".join(
             f"d{d}:singleton(nonunique,soa)" for d in range(batch_dim + 1, trail_dim)
         )
         sep = "," if sparse_dim > 2 else ""
         lvls = f"d{batch_dim}:compressed(nonunique),{coords}{sep}d{trail_dim}:singleton(soa)"
-    elif sparsity.layout is torch.sparse_csr:
-        assert sparse_dim == 2 and blocksize is None
+        idx_dtype = t._indices().dtype  # supports uncoalesced COO tensors
+    elif t.layout is torch.sparse_csr:
+        assert sparse_dim == 2
         lvls = f"d{batch_dim}:dense,d{batch_dim+1}:compressed"
-    elif sparsity.layout is torch.sparse_csc:
-        assert sparse_dim == 2 and blocksize is None
+        idx_dtype = t.col_indices().dtype
+    elif t.layout is torch.sparse_csc:
+        assert sparse_dim == 2
         lvls = f"d{batch_dim+1}:dense,d{batch_dim}:compressed"
+        idx_dtype = t.row_indices().dtype
     else:
-        assert sparse_dim == 2 and blocksize is not None
-        if sparsity.layout is torch.sparse_bsr:
+        assert sparse_dim == 2
+        blocksize = t.values().shape[batch_dim + 1 : batch_dim + 3]
+        if t.layout is torch.sparse_bsr:
             i, j = batch_dim, batch_dim + 1
+            idx_dtype = t.col_indices().dtype
         else:
-            assert sparsity.layout is torch.sparse_bsc
+            assert t.layout is torch.sparse_bsc
             j, i = batch_dim, batch_dim + 1
+            idx_dtype = t.row_indices().dtype
         m, n = blocksize
         lvls = (
             f"d{i} floordiv {m}:dense,d{j} floordiv {n}:compressed,"
@@ -336,8 +424,7 @@ def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
         dense = ",".join(f"d{d}:dense" for d in range(batch_dim + sparse_dim, dim))
         lvls = f"{lvls},{dense}"
 
-    posw = torch.iinfo(sparsity.pos_dtype).bits
-    crdw = torch.iinfo(sparsity.crd_dtype).bits
+    posw = crdw = torch.iinfo(idx_dtype).bits
     return f"#sparse_tensor.encoding<{{map=({dims})->({lvls}),posWidth={posw},crdWidth={crdw}}}>"
 
 
@@ -485,6 +572,7 @@ class FxImporter:
         *,
         func_name: str = "main",
         func_visibility: Optional[str] = None,
+        import_symbolic_shape_expressions: bool = False,
     ) -> Operation:
         """Imports an ExportedProgram according to our chosen canonical representation.
 
@@ -533,6 +621,10 @@ class FxImporter:
         )
 
         sig = prog.graph_signature
+
+        # Populate symbolic guards for dynamic shapes (if any)
+        if import_symbolic_shape_expressions:
+            self._cc.set_symbolic_guards(prog)
 
         # Invert the (producer, node_name) maps for mutated user inputs and mutated
         # buffers. This is because we hit-detect based on the input node name.
@@ -650,6 +742,10 @@ class FxImporter:
             func_op = func_dialect.FuncOp(
                 func_name, ftype, ip=self._m_ip, visibility=func_visibility
             )
+            # Programs imported from FX have strong guarantees. Setting this attribute
+            # causes various lowerings to be able to emit more efficient code or
+            # handle more cases. See isAssumingStrictSymbolicShapes().
+            func_op.attributes["torch.assume_strict_symbolic_shapes"] = UnitAttr.get()
             entry_block = Block.create_at_start(func_op.body, ftype.inputs)
 
         node_importer = GraphNodeImporter(
@@ -685,7 +781,9 @@ class FxImporter:
 
         # Import all nodes and return.
         node_importer.import_nodes(
-            all_producer_nodes.values(), skip_placeholders_outputs=True
+            all_producer_nodes.values(),
+            skip_placeholders_outputs=True,
+            import_symbolic_shape_expressions=import_symbolic_shape_expressions,
         )
         node_importer.return_node_values(loc, user_outputs)
         self.symbol_table.insert(func_op)
@@ -697,6 +795,7 @@ class FxImporter:
         *,
         func_name: str = "main",
         func_visibility: Optional[str] = None,
+        import_symbolic_shape_expressions: bool = False,
     ) -> Operation:
         """Imports a consolidated torch.export.ExportedProgram instance.
 
@@ -730,6 +829,10 @@ class FxImporter:
         sig = prog.graph_signature
         state_dict = prog.state_dict
         arg_replacements: Dict[str, Any] = {}
+
+        # Populate symbolic guards for dynamic shapes (if any)
+        if import_symbolic_shape_expressions:
+            self._cc.set_symbolic_guards(prog)
 
         # If there is no "constants" attribute, consult the "state_dict". Otherwise, only look
         # at "constants". Relevant upstream patch: https://github.com/pytorch/pytorch/pull/118969
@@ -777,7 +880,10 @@ class FxImporter:
                 g.erase_node(node)
 
         return self.import_stateless_graph(
-            g, func_name=func_name, func_visibility=func_visibility
+            g,
+            func_name=func_name,
+            func_visibility=func_visibility,
+            import_symbolic_shape_expressions=import_symbolic_shape_expressions,
         )
 
     def import_graph_module(self, gm: GraphModule) -> Operation:
@@ -794,6 +900,7 @@ class FxImporter:
         *,
         func_name: str = "main",
         func_visibility: Optional[str] = None,
+        import_symbolic_shape_expressions: bool = False,
     ) -> Operation:
         """Low-level import of a functionalized, assumed stateless Graph as a func.
 
@@ -818,7 +925,9 @@ class FxImporter:
             self._cc,
             entry_block,
         )
-        node_importer.import_nodes(g.nodes)
+        node_importer.import_nodes(
+            g.nodes, import_symbolic_shape_expressions=import_symbolic_shape_expressions
+        )
         self.symbol_table.insert(func)
         return func
 
@@ -847,6 +956,17 @@ class FxImporter:
                         result_types.append(
                             IrType.parse("!torch.none", context=self._c)
                         )
+                    elif isinstance(result_node, torch.Tensor):
+                        result_types.append(
+                            self._cc.tensor_to_vtensor_type(result_node)
+                        )
+                    elif type(result_node) in SCALAR_TYPE_TO_TORCH_MLIR_TYPE:
+                        result_types.append(
+                            IrType.parse(
+                                SCALAR_TYPE_TO_TORCH_MLIR_TYPE[type(result_node)],
+                                self._c,
+                            )
+                        )
                     else:
                         result_types.append(self._cc.node_val_to_type(result_node))
         return (
@@ -862,6 +982,7 @@ class ContextCache:
         "_c",
         "_dtype_to_type",
         "_tensor_metadata_cache",
+        "_symbolic_guards",
         "_py_attr_tracker",
         # Types.
         "torch_bool_type",
@@ -880,6 +1001,7 @@ class ContextCache:
         self._tensor_metadata_cache: Dict[
             Tuple[torch.Size, torch.dtype, Optional[SparsityMeta], bool], IrType
         ] = {}
+        self._symbolic_guards: Dict = {}
         self._py_attr_tracker = py_attr_tracker or RefTracker()
 
         # Common types.
@@ -904,20 +1026,27 @@ class ContextCache:
         shape: torch.Size,
         dtype: torch.dtype,
         *,
-        sparsity: Optional[SparsityMeta] = None,
+        val: Optional[torch.Tensor] = None,
         mutable: bool = False,
     ):
         """Return IrType for !torch.vtensor with the given shape and dtype"""
         stem = "torch.tensor" if mutable else "torch.vtensor"
         shape_asm = self.format_asm_shape(shape)
         mlir_dtype = str(self.dtype_to_type(dtype))
-        if sparsity is not None:
-            encoding = sparsity_encoding(shape, sparsity)
-            assert encoding is not None
+        if val is not None and val.layout in [
+            torch.sparse_coo,
+            torch.sparse_csr,
+            torch.sparse_csc,
+            torch.sparse_bsr,
+            torch.sparse_bsc,
+        ]:
+            # This is a sparse tensor.
+            encoding = sparsity_encoding(val)
             return IrType.parse(
                 f"!{stem}<[{shape_asm}],{str(mlir_dtype)},{encoding}>",
                 context=self._c,
             )
+        # This is a dense tensor.
         return IrType.parse(
             f"!{stem}<[{shape_asm}],{str(mlir_dtype)}>", context=self._c
         )
@@ -926,24 +1055,25 @@ class ContextCache:
         try:
             tensor_meta = node.meta.get("tensor_meta")
             val = node.meta.get("val")
-            sparsity = node.meta.get("sparsity", None)
         except KeyError as e:
             raise RuntimeError(
                 f"FIXME: Illegal access to torch.fx.Node.meta: {e} ({node.meta.keys()} : {node.meta})"
             )
-        return self.value_info_to_type(
-            val, tensor_meta=tensor_meta, sparsity=sparsity, mutable=mutable
-        )
+        return self.value_info_to_type(val, tensor_meta=tensor_meta, mutable=mutable)
 
     def value_info_to_type(
         self,
         val,
         *,
         tensor_meta: Optional[TensorMetadata] = None,
-        sparsity=None,
         mutable: bool = False,
     ):
         if tensor_meta is not None:
+            # separately handle when tensor_meta is a list.
+            if isinstance(val, list) and all(
+                isinstance(x, TorchFakeTensor) for x in val
+            ):
+                return IrType.parse("!torch.list<vtensor>", context=self._c)
             assert isinstance(tensor_meta, TensorMetadata)
             # Quantized tensor meta data is not preserved in our lowering,
             # so throw error instead of silently doing wrong thing.
@@ -953,15 +1083,19 @@ class ContextCache:
                 )
             else:
                 return self.tensor_metadata_to_type(
-                    tensor_meta, sparsity=sparsity, mutable=mutable
+                    tensor_meta, val=val, mutable=mutable
                 )
         elif val is not None:
             # some nodes with symbolic inputs pass a 'val' attribute rather than
             # tensor_meta
             if isinstance(val, TorchFakeTensor):
                 return self.get_vtensor_type(
-                    val.size(), val.dtype, sparsity=sparsity, mutable=mutable
+                    val.size(), val.dtype, val=val, mutable=mutable
                 )
+            elif isinstance(val, list) and all(
+                isinstance(x, TorchFakeTensor) for x in val
+            ):
+                return IrType.parse("!torch.list<vtensor>", context=self._c)
 
         # Note that None is a valid scalar here, so it is important that this
         # is always checked as the last fallback.
@@ -978,19 +1112,17 @@ class ContextCache:
         self,
         tm: TensorMetadata,
         *,
-        sparsity: Optional[SparsityMeta] = None,
+        val: Optional[torch.Tensor] = None,
         mutable: bool = False,
     ) -> IrType:
         tm_shape = tuple(
             item.node if is_symbolic(item) else item for item in list(tm.shape)
         )
 
-        key = (tm_shape, tm.dtype, sparsity, mutable)
+        key = (tm_shape, tm.dtype, val, mutable)
         t = self._tensor_metadata_cache.get(key)
         if t is None:
-            t = self.get_vtensor_type(
-                tm.shape, tm.dtype, sparsity=sparsity, mutable=mutable
-            )
+            t = self.get_vtensor_type(tm.shape, tm.dtype, val=val, mutable=mutable)
             self._tensor_metadata_cache[key] = t
         return t
 
@@ -1005,9 +1137,14 @@ class ContextCache:
             self._dtype_to_type[dtype] = t
         return t
 
+    def create_vtensor_type(self, dtype: torch.dtype, size: torch.Size) -> IrType:
+        dtype_asm = str(self.dtype_to_type(dtype))
+        return IrType.parse(
+            f"!torch.vtensor<{list(size)},{dtype_asm}>", context=self._c
+        )
+
     def tensor_to_vtensor_type(self, tensor: torch.Tensor) -> IrType:
-        dtype_asm = str(self.dtype_to_type(tensor.dtype))
-        return IrType.parse(f"!torch.vtensor<{list(tensor.size())},{dtype_asm}>")
+        return self.create_vtensor_type(tensor.dtype, tensor.size())
 
     def get_node_location(self, node: torch_fx.Node) -> Optional[Location]:
         stack_trace = node.meta.get("stack_trace")
@@ -1024,6 +1161,52 @@ class ContextCache:
                 return Location.file(filename, line, col=0, context=self._c)
         return Location.unknown(context=self._c)
 
+    def set_symbolic_guards(
+        self, prog: torch.export.ExportedProgram
+    ) -> Dict[str, RangeConstraint]:
+
+        def _sympy_int_to_int(val: sympy.Expr, adjust_func: Callable):
+            # Convert simple sympy Integers into concrete int
+            if val == sympy.oo:
+                return math.inf
+            if val == -sympy.oo:
+                return -math.inf
+            if isinstance(val, sympy.Integer):
+                return int(val)
+            # TODO: Remove this adjustment when fractional ranges are removed
+            return adjust_func(val)
+
+        contains_symbolic_ints = False
+        for val in prog.range_constraints.values():
+            if (
+                isinstance(val.lower, sympy.Integer)
+                and isinstance(val.upper, sympy.Integer)
+                and not val.is_bool
+            ):
+                contains_symbolic_ints = True
+                break
+        if contains_symbolic_ints:
+            # Build a map from shape symbol name to `RangeConstraint` object
+            # capturing `min_val`` and `max_val`` constraints for that
+            # symbol. Translate sympy integers to regular integers.
+            #
+            # Example:
+            #       {
+            #          's0': RangeConstraint(min_val=5, max_val=10),
+            #          's1': RangeConstraint(min_val=0, max_val=100),
+            #          's3': RangeConstraint(min_val=0, max_val=9223372036854775806),
+            #       }
+            self._symbolic_guards = {
+                str(k): RangeConstraint(
+                    _sympy_int_to_int(v.lower, math.ceil),
+                    _sympy_int_to_int(v.upper, math.floor),
+                )
+                for k, v in prog.range_constraints.items()
+            }
+
+    def get_symbolic_guards(self) -> Dict[str, RangeConstraint]:
+        return self._symbolic_guards
+
 
 class GraphNodeImporter:
     """Imports graph nodes into an MLIR function.
@@ -1037,7 +1220,9 @@ class GraphNodeImporter:
         "_cc",
         "_on_node_produced",
         "_v",
+        "_symbol_to_value",
         "_multi_result_nodes",
+        "_unpack_list_values",
         "fx_importer",
     ]
 
@@ -1055,11 +1240,17 @@ class GraphNodeImporter:
         # Map of (Node, result_index) to MLIR Value or a callback that lazily
         # constructs and returns a value.
         self._v: Dict[Union[Callable[[], Value], Tuple[torch_fx.Node, int]], Value] = {}
+        # Map of Shape Symbol to MLIR Value
+        self._symbol_to_value: Dict[str, Value] = {}
         # Map of node name to hook that should be called when it is produced.
         self._on_node_produced: Dict[str, Callable[[Value], None]] = {}
         # Statically multi-result nodes which we have de-tupled are noted here.
         # They will have their getitem calls short-circuited.
         self._multi_result_nodes: Set[torch_fx.Node] = set()
+        # If a OP returns a list, then it needs to be unpacked entirely using
+        # prim.ListUnpack.  Cache the result of these nodes so that it only
+        # unpacks once instead of every time that getitem is used
+        self._unpack_list_values: Dict[torch_fx.Node, Tuple[Value]] = {}
 
     def bind_node_value(
         self,
@@ -1094,6 +1285,28 @@ class GraphNodeImporter:
         value = binding()
         self._v[key] = value
         return value
+
+    def bind_symbol_value(
+        self,
+        shape_symbol: str,
+        value: Value,
+    ):
+        """Binds a shape symbol to a global SSA value (and asserts if already bound)."""
+        assert (
+            shape_symbol not in self._symbol_to_value
+        ), f"Symbol already has a value: {shape_symbol}"
+        self._symbol_to_value[shape_symbol] = value
+
+    def resolve_symbol_value(self, shape_symbol: str) -> Value:
+        """Resolves a shape symbol to a value."""
+        try:
+            binding = self._symbol_to_value[shape_symbol]
+        except KeyError:
+            raise KeyError(
+                f"Shape symbol {shape_symbol} has not been bound to an MLIR value"
+            )
+        if isinstance(binding, Value):
+            return binding
 
     def import_mutable_to_vtensor(
         self, loc: Location, node: Node, mutable_value: Value, producer_node_name: str
@@ -1177,10 +1390,20 @@ class GraphNodeImporter:
             func_dialect.ReturnOp(operands, loc=loc)
 
     def import_nodes(
-        self, nodes: Iterable[Node], *, skip_placeholders_outputs: bool = False
+        self,
+        nodes: Iterable[Node],
+        *,
+        skip_placeholders_outputs: bool = False,
+        import_symbolic_shape_expressions: bool = False,
     ):
         with InsertionPoint(self._b):
             loc = Location.unknown()
+
+            # Import dynamic shape symbols and guards (if any)
+            if import_symbolic_shape_expressions:
+                symbolic_guards = self._cc.get_symbolic_guards()
+                self._import_shape_symbols_with_guards(loc, symbolic_guards)
+
             num_placeholders = 0
             for node in nodes:
                 op = node.op
@@ -1197,29 +1420,7 @@ class GraphNodeImporter:
                 elif op == "call_function":
                     target = node.target
                     if target == operator.getitem:
-                        # Special case handling of getitem for when it is resolving
-                        # against a function call that we know has returned multiple
-                        # results. We short-circuit this case because we have modeled
-                        # function calls to natively return multiple results vs tupling.
-                        getitem_ref, getitem_index = node.args
-                        if getitem_ref in self._multi_result_nodes:
-                            try:
-                                self.bind_node_value(
-                                    node,
-                                    self.resolve_node_value(getitem_ref, getitem_index),
-                                )
-                            except IndexError:
-                                raise RuntimeError(
-                                    f"getitem de-aliasing failed. This likely "
-                                    f"indicates a programmer error that usually "
-                                    f"would have happened at runtime. Please "
-                                    f"notify developers if this case happens "
-                                    f"(at {loc})."
-                                )
-                        else:
-                            raise NotImplementedError(
-                                f"General getitem access to non-multi-result ops"
-                            )
+                        self._import_getitem(loc, node)
                     elif target in SYMBOLIC_TORCH_OPS or (
                         is_symbolic(node.meta.get("val"))
                         and is_builtin_function_or_method(target)
@@ -1227,7 +1428,7 @@ class GraphNodeImporter:
                         self._import_symbolic_torch_op(loc, node, target)
                     elif isinstance(target, TorchOpOverload):
                         # Dispatch to an ATen op.
-                        self._import_torch_op_overload(loc, node, target)
+                        self._import_torch_op_overload(loc, node)
                     elif isinstance(target, HigherOrderOperator):
                         self._import_hop(loc, node, target)
                     else:
@@ -1239,6 +1440,9 @@ class GraphNodeImporter:
                     # results.
                     operands = [self._import_argument(loc, arg) for arg in node.args[0]]
                     func_dialect.ReturnOp(operands, loc=loc)
+
+                if import_symbolic_shape_expressions:
+                    self._create_bind_symbolic_shape_ops(loc, node)
 
     def _promote_symbolic_scalar_int_float(self, loc, graph, param):
         temp_target = torch.ops.aten.Float.Scalar
@@ -1395,31 +1599,18 @@ class GraphNodeImporter:
             self.bind_node_value(node, value, i + bind_none)
 
     def _import_torch_op_overload(
-        self, loc: Location, node: torch_fx.Node, target: TorchOpOverload
+        self,
+        loc: Location,
+        node: torch_fx.Node,
+        concrete_target: Optional[TorchOpOverload] = None,
     ):
-        # replace lift_fresh_copy with clone op
-        if target == torch.ops.aten.lift_fresh_copy.default:
-            node.target = target = torch.ops.aten.clone.default
-            node.args = (node.args[0],)
-            node.kwargs = {"memory_format": None}
-        elif target == torch.ops.aten.lift_fresh_copy.out:
-            # TODO: It seems not possible to hit this case from user code.
-            # Retaining in case if it is triggered internally somehow, but
-            # it can most likely be removed once assuming full
-            # functionalization in all cases.
-            node.target = target = torch.ops.aten.clone.out
-            node.args = (node.args[0],)
-            node.kwargs = {"memory_format": None, "out": node.args[1]}
-        # TODO: generalize empty.memory_format in the future
-        # Currently, the aten.baddbmm.default op for Unet includes multiplying an
-        # empty.memory_format input with a constant, which creates NaN values
-        # because empty.memory_format contains uninitialized data. Converting
-        # aten.baddbmm.default -> aten.zeros.default fixes the correctness issue
-        elif target == torch.ops.aten.empty.memory_format:
-            if len(node.users) == 1:
-                for key_node in node.users:
-                    if key_node.target == torch.ops.aten.baddbmm.default:
-                        node.target = target = torch.ops.aten.zeros.default
+        if concrete_target is None:
+            node = node_canonicalize(node)
+            if not node:
+                return
+            target = node.target
+        else:
+            target = concrete_target
 
         schema = target._schema
         assert isinstance(schema, FunctionSchema)
@@ -1450,15 +1641,15 @@ class GraphNodeImporter:
         # Unroll operands from formal parameters, args and kwargs.
         operands = []
         for i, parameter in enumerate(schema.arguments):
-            if parameter.kwarg_only and parameter.name in node.kwargs:
+            if i < len(node.args):
+                operands.append(
+                    self._import_argument(loc, node.args[i], parameter.type)
+                )
+            elif parameter.name in node.kwargs:
                 operands.append(
                     self._import_argument(
                         loc, node.kwargs[parameter.name], parameter.type
                     )
-                )
-            elif i < len(node.args):
-                operands.append(
-                    self._import_argument(loc, node.args[i], parameter.type)
                 )
             else:
                 operands.append(
@@ -1474,6 +1665,69 @@ class GraphNodeImporter:
         # Record value mapping.
         for i, value in enumerate(operation.results):
             self.bind_node_value(node, value, i)
+
+    def _import_shape_symbols_with_guards(
+        self, loc: Location, symbolic_guards: Dict[str, RangeConstraint]
+    ):
+        for symbol, constraints in symbolic_guards.items():
+            # Create torch.sym_int ops
+            operation = Operation.create(
+                name="torch.symbolic_int",
+                attributes={
+                    "symbol_name": StringAttr.get(symbol),
+                    "min_val": self._cc.integer_attr(constraints.min_val, 64),
+                    "max_val": self._cc.integer_attr(constraints.max_val, 64),
+                },
+                results=[self._cc.torch_int_type],
+                loc=loc,
+            )
+            self.bind_symbol_value(symbol, operation.result)
+
+    def _create_bind_symbolic_shape_ops(self, loc: Location, node: torch_fx.Node):
+        node_val = node.meta.get("val")
+        if (node_val is not None) and isinstance(node_val, TorchFakeTensor):
+            # Only create bind ops if the shapes contain symbolic sizes.
+            # Query the bool attribute `_has_symbolic_sizes_strides` on node.meta["val"].
+            if node_val._has_symbolic_sizes_strides:
+                # Read node metadata to obtain shape symbols and expressions
+                symbols_set = set()
+                shape_exprs = []
+                for s in node_val.size():
+                    if isinstance(s, torch.SymInt):
+                        symbols_set.update(s.node.expr.free_symbols)
+                        shape_exprs.append(s.node.expr)
+                    else:
+                        assert isinstance(s, int)
+                        shape_exprs.append(s)
+
+                # Map from sympy shape symbols to local symbols in the affine map
+                symbols_set = sorted(symbols_set, key=lambda x: x.name)
+                symbols_map = {
+                    str(symbol): AffineSymbolExpr.get(i)
+                    for i, symbol in enumerate(symbols_set)
+                }
+
+                # Convert symbolic shape expressions into affine expressions
+                affine_exprs = [
+                    sympy_expr_to_semi_affine_expr(expr, symbols_map)
+                    for expr in shape_exprs
+                ]
+
+                affine_map = AffineMap.get(0, len(symbols_set), affine_exprs)
+
+                # Build operand list
+                operand_list = []
+                operand_list.append(self.resolve_node_value(node))
+                for symbol in symbols_map.keys():
+                    operand_list.append(self.resolve_symbol_value(symbol))
+
+                # Create torch.bind_symbolic_shape ops
+                Operation.create(
+                    name="torch.bind_symbolic_shape",
+                    attributes={"shape_expressions": AffineMapAttr.get(affine_map)},
+                    operands=operand_list,
+                    loc=loc,
+                )
 
     def _import_argument(
         self, loc: Location, arg: NodeArgument, expected_jit_type=None
@@ -1495,23 +1749,74 @@ class GraphNodeImporter:
                 with loc:
                     self.bind_node_value(arg, self._import_literal(obj))
 
-            return self.resolve_node_value(arg)
+            argument_value = self.resolve_node_value(arg)
         elif isinstance(arg, torch_fx.immutable_collections.immutable_list):
-            return self._import_list_argument(loc, arg, expected_jit_type)
+            argument_value = self._import_list_argument(loc, arg, expected_jit_type)
         elif isinstance(expected_jit_type, torch.TensorType) and not isinstance(
             arg, torch.Tensor
         ):
             # promote scalars to tensor types as appropriate
-            return self._import_scalar_as_tensor(loc, arg)
-        else:
+            argument_value = self._import_scalar_as_tensor(loc, arg)
+        elif LITERAL_CONVERTER_MAP.lookup(type(arg)) is not None:
             with loc:
-                return self._import_literal(arg)
+                argument_value = self._import_literal(arg)
+        else:
+            raise TypeError(f"Unsupported argument type {arg.__class__}")
+        with loc:
+            return self._convert_type(argument_value, expected_jit_type)
+
+    def _convert_type(
+        self,
+        val: Value,
+        expected_type,
+        dtype: Optional[torch.dtype] = None,
+        size: Optional[torch.Size] = None,
+    ):
+        """
+        When the type of 'value' and the type in the schema do not match,
+        attempt to perform automatic type conversion.
+
+        example: test/python/fx_importer/basic_test.py::test_full
+        """
+        if not expected_type:
+            return val
+        op_name = None
+        result_type = None
+        # TODO: If additional types require conversion in the future,
+        #  consider implementing a table-driven approach.
+        operands = [val]
+        if val.type == self._cc.torch_bool_type:
+            if isinstance(expected_type, torch.FloatType):
+                op_name = "torch.aten.Float.bool"
+                result_type = self._cc.torch_float_type
+            elif isinstance(expected_type, (torch.IntType, torch.NumberType)):
+                op_name = "torch.aten.Int.bool"
+                result_type = self._cc.torch_int_type
+        elif expected_type is torch.Tensor:
+            op_name = "torch.prims.convert_element_type"
+            result_type = self._cc.create_vtensor_type(dtype, size)
+            operands.append(
+                LITERAL_CONVERTER_MAP.lookup(torch.dtype)(dtype, self, self._cc)
+            )
+        if op_name is None:
+            return val
+        return Operation.create(
+            name=op_name, results=[result_type], operands=operands
+        ).result
 
     def _import_literal(self, py_value: Any) -> Value:
+        orig_value = None
+        if isinstance(py_value, torch.Tensor) and py_value.dtype == torch.bool:
+            orig_value = py_value
+            py_value = py_value.to(torch.uint8)
         # Apply the conversion callback.
         user_value = self.fx_importer._hooks.resolve_literal(self, py_value)
         if user_value is not None:
             assert isinstance(user_value, Value)
+            if orig_value is not None:
+                user_value = self._convert_type(
+                    user_value, torch.Tensor, orig_value.dtype, orig_value.size()
+                )
             return user_value
 
         # Default conversion path.
@@ -1520,7 +1825,12 @@ class GraphNodeImporter:
             raise TypeError(
                 f"Unsupported argument -> literal conversion for {py_value.__class__}"
             )
-        return converter(py_value, self, self._cc)
+        result = converter(py_value, self, self._cc)
+        if orig_value is not None:
+            result = self._convert_type(
+                result, torch.Tensor, orig_value.dtype, orig_value.size()
+            )
+        return result
 
     def _import_input(self, py_value: Any, info: InputInfo) -> Value:
         # Try the hook.
@@ -1634,6 +1944,51 @@ class GraphNodeImporter:
         with loc:
             return cvt(arg, self, self._cc)
 
+    def _import_getitem(self, loc: Location, node: torch.fx.Node):
+        ref_node, index = node.args
+        if ref_node in self._multi_result_nodes:
+            # Special case handling of getitem for when it is resolving
+            # against a function call that we know has returned multiple
+            # results. We short-circuit this case because we have modeled
+            # function calls to natively return multiple results vs tupling.
+            try:
+                self.bind_node_value(
+                    node,
+                    self.resolve_node_value(ref_node, index),
+                )
+            except IndexError:
+                raise RuntimeError(
+                    f"getitem de-aliasing failed. This likely "
+                    f"indicates a programmer error that usually "
+                    f"would have happened at runtime. Please "
+                    f"notify developers if this case happens "
+                    f"(at {loc})."
+                )
+        else:
+            # handle nodes that return a torch.list<...> at the MLIR level
+            # NOTE: the length of the list must be knowable at compile time.
+            if ref_node not in self._unpack_list_values:
+                node_result = self.resolve_node_value(ref_node, 0)
+                if str(node_result.type) in TORCH_LIST_TYPES:
+                    result_types = [
+                        self._cc.value_info_to_type(v) for v in ref_node.meta["val"]
+                    ]
+                    operation = Operation.create(
+                        "torch.prim.ListUnpack",
+                        results=result_types,
+                        operands=[node_result],
+                        loc=loc,
+                    )
+                    self._unpack_list_values[ref_node] = tuple(operation.results)
+
+            try:
+                self.bind_node_value(node, self._unpack_list_values[ref_node][index])
+            except IndexError:
+                raise RuntimeError(
+                    f"getitem failed. "
+                    f"getitem only supports lists of known length. (at {loc})"
+                )
+
     def _unpack_node_result_types(
         self, node: torch.fx.Node, schema: FunctionSchema
     ) -> List[IrType]:
@@ -1668,14 +2023,17 @@ def _make_constant_op(
     )
 
 
-def create_mlir_tensor_type(tensor: torch.Tensor) -> IrType:
+def _create_mlir_tensor_type(dtype: torch.dtype, size: torch.Size) -> IrType:
     try:
-        dtype = tensor.dtype
         element_type = TORCH_DTYPE_TO_MLIR_TYPE[dtype]()
-        tensor_type = RankedTensorType.get(tuple(tensor.size()), element_type)
+        tensor_type = RankedTensorType.get(size, element_type)
         return tensor_type
     except KeyError:
         raise TypeError(f"Could not map Torch dtype {dtype} to an MLIR type")
+
+
+def create_mlir_tensor_type(tensor: torch.Tensor) -> IrType:
+    return _create_mlir_tensor_type(tensor.dtype, tensor.size())
 
 
 def _make_vtensor_literal_op(
@@ -1820,8 +2178,7 @@ def _emit_operation(
 
 # Opaque value to indicate something is empty. Used in cases where 'None'
 # may have a different meaning.
-class EmptyType:
-    ...
+class EmptyType: ...
 
 
 Empty = EmptyType()
@@ -1962,6 +2319,10 @@ PY_TYPE_TO_TORCH_OPTIONAL_LIST_TYPE = {
     "vtensor": "!torch.list<optional<vtensor>>",
 }
 
+TORCH_LIST_TYPES = set(PY_TYPE_TO_TORCH_LIST_TYPE.values()) | set(
+    PY_TYPE_TO_TORCH_OPTIONAL_LIST_TYPE.values()
+)
+
 SCALAR_TYPE_TO_TORCH_MLIR_TYPE = {
     torch.SymInt: "!torch.int",
     torch.SymFloat: "!torch.float",
@@ -1983,3 +2344,97 @@ TENSOR_SCALAR_OP_CONVERTER = {
     "torch.aten.sub.Tensor": "torch.aten.sub.Scalar",
     "torch.aten.floor_divide": "torch.aten.floor_divide.Scalar",
 }
+
+
+NODE_CANONICALIZE: Dict[TorchOpOverload, Callable] = {}
+
+
+def register_canonicalize(op: TorchOpOverload):
+    def wrapper(func):
+        NODE_CANONICALIZE[op] = func
+        return func
+
+    return wrapper
+
+
+@register_canonicalize(torch.ops.aten.lift_fresh_copy.default)
+def lift_fresh_copy_default(node: torch_fx.Node):
+    # replace lift_fresh_copy with clone op
+    node.target = torch.ops.aten.clone.default
+    node.args = (node.args[0],)
+    node.kwargs = {"memory_format": None}
+    return node
+
+
+@register_canonicalize(torch.ops.aten.lift_fresh_copy.out)
+def lift_fresh_copy_out(node: torch_fx.Node):
+    # TODO: It seems not possible to hit this case from user code.
+    # Retaining in case if it is triggered internally somehow, but
+    # it can most likely be removed once assuming full
+    # functionalization in all cases.
+    node.target = target = torch.ops.aten.clone.out
+    node.args = (node.args[0],)
+    node.kwargs = {"memory_format": None, "out": node.args[1]}
+    return node
+
+
+@register_canonicalize(torch.ops.aten.empty.memory_format)
+def empty_memory_format(node: torch_fx.Node):
+    # TODO: generalize empty.memory_format in the future
+    # Currently, the aten.baddbmm.default op for Unet includes multiplying an
+    # empty.memory_format input with a constant, which creates NaN values
+    # because empty.memory_format contains uninitialized data. Converting
+    # aten.baddbmm.default -> aten.zeros.default fixes the correctness issue
+    if len(node.users) == 1:
+        for key_node in node.users:
+            if key_node.target == torch.ops.aten.baddbmm.default:
+                node.target = torch.ops.aten.zeros.default
+    return node
+
+
+@register_canonicalize(torch.ops.aten._local_scalar_dense.default)
+def aten__local_scalar_dense_default(node: torch_fx.Node):
+    input_type = node.args[0].meta["tensor_meta"].dtype
+    if input_type.is_floating_point:
+        node.target = torch.ops.aten.Float.Tensor
+    else:
+        node.target = torch.ops.aten.Int.Tensor
+    node.args = (node.args[0],)
+    return node
+
+
+@register_canonicalize(torch.ops.aten._assert_async.msg)
+def aten__assert_async_msg(node: torch_fx.Node):
+    # TODO: A more suitable op to replace it?
+    return None
+
+
+@register_canonicalize(torch.ops.aten._unsafe_index_put.default)
+def aten__unsafe_index_put_default(node: torch_fx.Node):
+    node.target = torch.ops.aten._unsafe_index_put.hacked_twin
+    return node
+
+
+@register_canonicalize(torch.ops.aten._embedding_bag_forward_only.default)
+def aten__embedding_bag_forward_only_default(node: torch_fx.Node):
+    node.target = torch.ops.aten.embedding_bag.padding_idx
+    embedding_bag_args = [
+        ("scale_grad_by_freq", False),
+        ("mode", 0),
+        ("sparse", False),
+        ("per_sample_weights", None),
+        ("include_last_offset", False),
+        ("padding_idx", None),
+    ]
+    node_kwargs = dict(node.kwargs)
+    for k, v in embedding_bag_args[len(node.args) - 3 :]:
+        if k not in node_kwargs:
+            node_kwargs[k] = v
+    node.kwargs = node_kwargs
+    return node
+
+
+def node_canonicalize(node: torch_fx.Node):
+    if node.target in NODE_CANONICALIZE:
+        return NODE_CANONICALIZE[node.target](node)
+    return node

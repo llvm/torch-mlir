@@ -14,60 +14,30 @@
 #include "Utils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include <iostream>
+#include <cmath>
 #include <numeric>
+#include <type_traits>
 
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 using namespace mlir::torch::torch_to_stablehlo;
 
-namespace {
-
-template <typename T>
-static Value getConstantLike(OpBuilder &b, Location loc, T constant,
-                             Value val) {
-  Type ty = getElementTypeOrSelf(val.getType());
-  auto getAttr = [&]() -> Attribute {
-    if (isa<mlir::IntegerType>(ty))
-      return b.getIntegerAttr(ty, constant);
-    if (isa<mlir::FloatType>(ty))
-      return b.getFloatAttr(ty, constant);
-    if (auto complexTy = dyn_cast<mlir::ComplexType>(ty))
-      return complex::NumberAttr::get(complexTy, constant, 0);
-    llvm_unreachable("unhandled element type");
-  };
-  return b.create<mlir::chlo::ConstantLikeOp>(loc, cast<TypedAttr>(getAttr()),
-                                              val);
-}
-
-Value getConstantLike(OpBuilder &b, Location loc, const APFloat &constant,
-                      Value val) {
-  Type ty = getElementTypeOrSelf(val.getType());
-  return b.create<mlir::chlo::ConstantLikeOp>(loc, b.getFloatAttr(ty, constant),
-                                              val);
-}
-
-} // namespace
-
 LogicalResult broadcastRanks(PatternRewriter &rewriter, Operation *op,
-                             mlir::Value &self, mlir::Value &other,
-                             size_t dimSizeIndexBits) {
-  auto selfTy = self.getType().template dyn_cast<RankedTensorType>();
-  auto otherTy = other.getType().template dyn_cast<RankedTensorType>();
+                             mlir::Value &self, mlir::Value &other) {
+  auto selfTy = dyn_cast<RankedTensorType>(self.getType());
+  auto otherTy = dyn_cast<RankedTensorType>(other.getType());
   auto selfRank = selfTy.getRank();
   auto otherRank = otherTy.getRank();
   if (selfRank == 0 || otherRank == 0)
@@ -75,16 +45,16 @@ LogicalResult broadcastRanks(PatternRewriter &rewriter, Operation *op,
   if (selfRank > otherRank) {
     auto unsqueezeDims =
         llvm::to_vector<4>(llvm::seq<int64_t>(0, selfRank - otherRank));
-    auto unsqueezeInfo = hlo::unsqueezeTensor(rewriter, op, other,
-                                              unsqueezeDims, dimSizeIndexBits);
+    auto unsqueezeInfo =
+        hlo::unsqueezeTensor(rewriter, op, other, unsqueezeDims);
     if (failed(unsqueezeInfo))
       return failure();
     other = *unsqueezeInfo;
   } else if (otherRank > selfRank) {
     auto unsqueezeDims =
         llvm::to_vector<4>(llvm::seq<int64_t>(0, otherRank - selfRank));
-    auto unsqueezeInfo = hlo::unsqueezeTensor(rewriter, op, self, unsqueezeDims,
-                                              dimSizeIndexBits);
+    auto unsqueezeInfo =
+        hlo::unsqueezeTensor(rewriter, op, self, unsqueezeDims);
     if (failed(unsqueezeInfo))
       return failure();
     self = *unsqueezeInfo;
@@ -171,14 +141,15 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value self = adaptor.getSelf();
-    auto selfType = self.getType().cast<TensorType>();
+    auto selfType = cast<TensorType>(self.getType());
     if (!selfType) {
       return op.emitError("only Tensor types supported in StableHLO");
     }
-    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                       ->convertType(op.getType())
-                       .template cast<TensorType>();
-    self = hlo::promoteType(rewriter, op.getLoc(), self, outType);
+    auto outType = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
+    self =
+        hlo::promoteType(rewriter, op.getLoc(), self, outType.getElementType());
     rewriter.replaceOpWithNewOp<StablehloOpT>(op, outType, self);
     return success();
   }
@@ -197,12 +168,12 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value self = adaptor.getSelf();
-    auto selfTy = self.getType().cast<TensorType>();
+    auto selfTy = cast<TensorType>(self.getType());
 
     if (!selfTy)
       return op.emitError("only Tensor types supported in StableHLO");
 
-    if (selfTy.getElementType().isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(selfTy.getElementType())) {
       rewriter.replaceOpWithNewOp<StablehloOpT>(
           op,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -212,6 +183,38 @@ public:
     } else {
       return op.emitError(
           "only floating-point datatype legalization supported");
+    }
+  }
+};
+} // namespace
+
+// These legalizations are for unary ops with promoting to floating point
+// datatypes.
+namespace {
+template <typename AtenOpT, typename StablehloOpT>
+class ConvertAtenUnaryPromoteToFPOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value self = adaptor.getSelf();
+    auto selfTy = cast<TensorType>(self.getType());
+    if (!selfTy)
+      return op.emitError("only Tensor types supported in StableHLO");
+    auto resultTy = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
+
+    if (isa<mlir::FloatType>(resultTy.getElementType())) {
+      Value src = hlo::promoteType(rewriter, op.getLoc(), self,
+                                   resultTy.getElementType());
+      rewriter.replaceOpWithNewOp<StablehloOpT>(op, resultTy, src);
+      return success();
+    } else {
+      return op.emitError(
+          "only result to be floating-point datatype legalization supported");
     }
   }
 };
@@ -229,9 +232,9 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
-    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                       ->convertType(op.getType())
-                       .template dyn_cast<TensorType>();
+    auto outType = dyn_cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     if (!outType)
       return op.emitError("only Tensor types supported in StableHLO");
@@ -273,22 +276,28 @@ public:
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto inputType =
-        adaptor.getA().getType().template dyn_cast<RankedTensorType>();
+    auto inputType = dyn_cast<RankedTensorType>(adaptor.getA().getType());
     if (!inputType)
-
       op.emitError("only Tensor types supported in StableHLO");
+
     Location loc = op.getLoc();
     Value input = adaptor.getA();
     SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
     int64_t inputRank = inputSizes.size();
-    Type inputDtype =
-        op.getA().getType().template cast<BaseTensorType>().getDtype();
+    Type inputDtype = cast<BaseTensorType>(op.getA().getType()).getDtype();
 
     Value constantOne =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(1));
     for (int64_t i = 0; i < inputRank; i++)
       checkDimEqualHelper(rewriter, loc, inputSizes[i], constantOne);
+
+    // handle unsigned interger
+    if (inputType.getElementType().isUnsignedInteger()) {
+      input = rewriter.create<stablehlo::ConvertOp>(
+          loc, input,
+          rewriter.getIntegerType(
+              inputType.getElementType().getIntOrFloatBitWidth()));
+    }
 
     Value constantZero =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
@@ -296,8 +305,10 @@ public:
     Value result = rewriter.create<tensor::ExtractOp>(loc, input, indices);
     Type resultType =
         this->getTypeConverter()->convertType(op->getResult(0).getType());
-    rewriter.replaceOp(op, convertScalarToDtype(rewriter, loc, result,
-                                                resultType, inputDtype));
+    rewriter.replaceOp(
+        op,
+        convertScalarToDtype(rewriter, loc, result, resultType, inputDtype,
+                             /*srcOriginalDtype=*/inputType.getElementType()));
     return success();
   }
 };
@@ -314,19 +325,19 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
-    auto lhsTy = lhs.getType().cast<TensorType>();
+    auto lhsTy = cast<TensorType>(lhs.getType());
     Value rhs = adaptor.getOther();
-    auto rhsTy = rhs.getType().cast<TensorType>();
+    auto rhsTy = cast<TensorType>(rhs.getType());
 
     if (!lhsTy || !rhsTy)
       return op.emitError("only Tensor types supported");
 
-    auto outTy = OpConversionPattern<AtenOpT>::getTypeConverter()
-                     ->convertType(op.getType())
-                     .template cast<TensorType>();
+    auto outTy = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
-    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outTy);
-    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outTy);
+    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outTy.getElementType());
+    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outTy.getElementType());
 
     rewriter.replaceOpWithNewOp<ChloOpT>(op, outTy, lhs, rhs,
                                          /*broadcast_attr*/ nullptr);
@@ -347,16 +358,16 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
-    RankedTensorType lhsType = lhs.getType().dyn_cast<RankedTensorType>();
+    RankedTensorType lhsType = dyn_cast<RankedTensorType>(lhs.getType());
     Value rhs = adaptor.getOther();
-    RankedTensorType rhsType = rhs.getType().dyn_cast<RankedTensorType>();
+    RankedTensorType rhsType = dyn_cast<RankedTensorType>(rhs.getType());
 
     if (!lhsType)
       return op.emitError("only Tensor types supported in StableHLO");
 
-    TensorType outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                             ->convertType(op.getType())
-                             .template cast<TensorType>();
+    TensorType outType = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     Type outElemTy = outType.getElementType();
     if (!outElemTy.isIntOrFloat()) {
@@ -372,8 +383,8 @@ public:
       }
     }
 
-    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outType);
-    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outType);
+    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outElemTy);
+    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outElemTy);
 
     if (!skipMultiplyAlpha(op.getAlpha())) {
       Value alpha = hlo::scalarToStablehloTensor(rewriter, op,
@@ -402,16 +413,16 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
-    auto lhsType = lhs.getType().dyn_cast<TensorType>();
+    auto lhsType = dyn_cast<TensorType>(lhs.getType());
     Value rhs = adaptor.getOther();
-    TensorType rhsType = rhs.getType().dyn_cast<TensorType>();
+    TensorType rhsType = dyn_cast<TensorType>(rhs.getType());
 
     if (!lhsType)
       return op.emitError("only Tensor types supported in StableHLO");
 
-    auto outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                       ->convertType(op.getType())
-                       .template cast<TensorType>();
+    auto outType = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     Type outElemTy = outType.getElementType();
     if (!outElemTy.isIntOrFloat()) {
@@ -419,31 +430,38 @@ public:
           "only floating-point or integer datatype legalization supported");
     }
 
-    if (std::is_same<AtenOpT, AtenSquareOp>()) {
+    if constexpr (std::is_same<AtenOpT, AtenSquareOp>()) {
       rhs = lhs;
-    } else if (!rhsType) {
-      rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
-                                         outElemTy);
+    } else {
+      if (!rhsType) {
+        rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
+                                           outElemTy);
+      }
     }
     DenseI64ArrayAttr bcastDimensions;
-    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outType);
-    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outType);
+    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outElemTy);
+    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outElemTy);
     auto loc = op.getLoc();
     Value result =
         rewriter.create<ChloOpT>(loc, outType, lhs, rhs, bcastDimensions);
 
-    if (!isa<AtenDivTensorModeOp>(op)) {
+    if constexpr (!std::is_same<AtenDivTensorModeOp, AtenOpT>() &&
+                  !std::is_same<AtenDivScalarModeOp, AtenOpT>()) {
       rewriter.replaceOp(op, result);
       return success();
     }
 
-    AtenDivTensorModeOp divTensorModeOp =
-        llvm::dyn_cast<AtenDivTensorModeOp>(op.getOperation());
+    auto tensorOp = dyn_cast<AtenDivTensorModeOp>(op.getOperation());
+    auto opRoundingMode =
+        tensorOp
+            ? tensorOp.getRoundingMode()
+            : cast<AtenDivScalarModeOp>(op.getOperation()).getRoundingMode();
+
     std::string roundingMode;
-    if (!matchPattern(divTensorModeOp.getRoundingMode(),
-                      m_TorchConstantStr(roundingMode)))
+    if (!matchPattern(opRoundingMode, m_TorchConstantStr(roundingMode))) {
       return rewriter.notifyMatchFailure(
           op, "only support constant str rounding mode");
+    }
 
     // if trunc and int, do nothing
     if (roundingMode == "trunc" && isa<mlir::FloatType>(outElemTy)) {
@@ -460,16 +478,17 @@ public:
       if (isa<mlir::FloatType>(outElemTy))
         result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
       else if (!outElemTy.isUnsignedInteger()) {
-        TensorType defaultIntToFloatType =
-            outType.cloneWith(outType.getShape(), rewriter.getF64Type());
+        Type defaultIntToFloatType = rewriter.getF64Type();
         lhs =
             hlo::promoteType(rewriter, op.getLoc(), lhs, defaultIntToFloatType);
         rhs =
             hlo::promoteType(rewriter, op.getLoc(), rhs, defaultIntToFloatType);
-        result = rewriter.create<ChloOpT>(loc, defaultIntToFloatType, lhs, rhs,
-                                          bcastDimensions);
+        result = rewriter.create<ChloOpT>(
+            loc, outType.cloneWith(outType.getShape(), defaultIntToFloatType),
+            lhs, rhs, bcastDimensions);
         result = rewriter.create<stablehlo::FloorOp>(loc, result).getResult();
-        result = hlo::promoteType(rewriter, op.getLoc(), result, outType);
+        result = hlo::promoteType(rewriter, op.getLoc(), result,
+                                  outType.getElementType());
       }
     }
     rewriter.replaceOp(op, result);
@@ -491,29 +510,46 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
     Value rhs = adaptor.getOther();
-    RankedTensorType lhsTy = lhs.getType().dyn_cast<RankedTensorType>();
-    RankedTensorType rhsTy = rhs.getType().dyn_cast<RankedTensorType>();
+    RankedTensorType lhsTy = dyn_cast<RankedTensorType>(lhs.getType());
+    RankedTensorType rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
 
-    if (!lhsTy)
+    if (!lhsTy) {
       return op.emitError("only Tensor types supported in StableHLO");
+    }
+    if (!rhsTy) {
+      rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
+                                         rhs.getType());
+      // use lhs's element type as compute type
+      rhs =
+          hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy.getElementType());
+      rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
+    }
 
-    RankedTensorType outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                                   ->convertType(op.getType())
-                                   .template cast<RankedTensorType>();
+    auto outType = cast<RankedTensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
     Type lhsElemTy = lhsTy.getElementType();
-    if (!lhsElemTy.isIntOrFloat()) {
+    Type rhsElemTy = rhsTy.getElementType();
+    if (!lhsElemTy.isIntOrFloat() || !rhsElemTy.isIntOrFloat()) {
       return op.emitError(
           "only floating-point or integer datatype legalization supported");
     }
 
-    if (!rhsTy) {
-      rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
-                                         lhsElemTy);
+    if (isa<mlir::IntegerType>(lhsElemTy) && isa<mlir::FloatType>(rhsElemTy)) {
+      lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, rhsElemTy);
+    } else if (isa<mlir::FloatType>(lhsElemTy) &&
+               isa<mlir::IntegerType>(rhsElemTy)) {
+      rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsElemTy);
+    } else {
+      if (lhsElemTy.getIntOrFloatBitWidth() >
+          rhsElemTy.getIntOrFloatBitWidth()) {
+        rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsElemTy);
+      } else {
+        lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, rhsElemTy);
+      }
     }
-
-    // TODO: what is the PyTorch default type promotion?
-    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy);
+    lhsElemTy = dyn_cast<RankedTensorType>(lhs.getType()).getElementType();
 
     chlo::ComparisonTypeAttr compareTypeAttr;
     chlo::ComparisonDirectionAttr compareDirectionAttr;
@@ -526,32 +562,32 @@ public:
           op->getContext(), chlo::ComparisonType::SIGNED);
     }
 
-    if (std::is_same<AtenOpT, AtenLtTensorOp>() ||
-        std::is_same<AtenOpT, AtenLtScalarOp>()) {
+    if constexpr (std::is_same<AtenOpT, AtenLtTensorOp>() ||
+                  std::is_same<AtenOpT, AtenLtScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::LT);
-    } else if (std::is_same<AtenOpT, AtenGtTensorOp>() ||
-               std::is_same<AtenOpT, AtenGtScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenGtTensorOp>() ||
+                         std::is_same<AtenOpT, AtenGtScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::GT);
-    } else if (std::is_same<AtenOpT, AtenGeTensorOp>() ||
-               std::is_same<AtenOpT, AtenGeScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenGeTensorOp>() ||
+                         std::is_same<AtenOpT, AtenGeScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::GE);
-    } else if (std::is_same<AtenOpT, AtenEqTensorOp>() ||
-               std::is_same<AtenOpT, AtenEqScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenEqTensorOp>() ||
+                         std::is_same<AtenOpT, AtenEqScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::EQ);
-    } else if (std::is_same<AtenOpT, AtenNeTensorOp>() ||
-               std::is_same<AtenOpT, AtenNeScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenNeTensorOp>() ||
+                         std::is_same<AtenOpT, AtenNeScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::NE);
-    } else if (std::is_same<AtenOpT, AtenLtTensorOp>() ||
-               std::is_same<AtenOpT, AtenLtScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenLtTensorOp>() ||
+                         std::is_same<AtenOpT, AtenLtScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::LT);
-    } else if (std::is_same<AtenOpT, AtenLeTensorOp>() ||
-               std::is_same<AtenOpT, AtenLeScalarOp>()) {
+    } else if constexpr (std::is_same<AtenOpT, AtenLeTensorOp>() ||
+                         std::is_same<AtenOpT, AtenLeScalarOp>()) {
       compareDirectionAttr = chlo::ComparisonDirectionAttr::get(
           op->getContext(), chlo::ComparisonDirection::LE);
     } else {
@@ -580,21 +616,21 @@ public:
     Value lhs = adaptor.getSelf();
     Value rhs = adaptor.getOther();
 
-    RankedTensorType lhsTy = lhs.getType().dyn_cast<RankedTensorType>();
-    RankedTensorType rhsTy = rhs.getType().dyn_cast<RankedTensorType>();
+    RankedTensorType lhsTy = dyn_cast<RankedTensorType>(lhs.getType());
+    RankedTensorType rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
 
     if (!lhsTy)
       return op.emitError("lhs must be a ranked tensor type");
 
-    TensorType outType = OpConversionPattern<AtenOpT>::getTypeConverter()
-                             ->convertType(op.getType())
-                             .template cast<TensorType>();
+    TensorType outType = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
     Type outElemTy = outType.getElementType();
-    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outType);
+    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outElemTy);
     if (!rhsTy) {
       rhs = hlo::scalarToStablehloTensor(rewriter, op, rhs, outElemTy);
     }
-    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outType);
+    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outElemTy);
 
     DenseI64ArrayAttr bcastDimensions;
     rewriter.replaceOpWithNewOp<ChloOpT>(op, outType, lhs, rhs,
@@ -623,11 +659,10 @@ public:
       return rewriter.notifyMatchFailure(op, "dim1 must be constant");
     }
 
-    auto inType = self.getType().cast<RankedTensorType>();
+    auto inType = cast<RankedTensorType>(self.getType());
     auto inputRank = inType.getRank();
-    auto outType = getTypeConverter()
-                       ->convertType(op->getResult(0).getType())
-                       .cast<RankedTensorType>();
+    auto outType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
 
     dim0 = toPositiveDim(dim0, inputRank);
     if (!isValidDim(dim0, inputRank)) {
@@ -655,7 +690,7 @@ LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   Value self = adaptor.getSelf();
   auto outType =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   rewriter.replaceOpWithNewOp<stablehlo::ConvertOp>(op, outType, self);
   return success();
 }
@@ -665,7 +700,7 @@ LogicalResult ConvertAtenOp<AtenSizeIntOp>::matchAndRewrite(
     AtenSizeIntOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return op.emitError("only tensor types are currently supported");
 
@@ -703,17 +738,17 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
   Value other = adaptor.getOther();
 
   auto outType =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   // promote self and other types
-  self = hlo::promoteType(rewriter, op.getLoc(), self, outType);
-  other = hlo::promoteType(rewriter, op.getLoc(), other, outType);
+  self =
+      hlo::promoteType(rewriter, op.getLoc(), self, outType.getElementType());
+  other =
+      hlo::promoteType(rewriter, op.getLoc(), other, outType.getElementType());
 
-  if (failed(
-          broadcastRanks(rewriter, op, self, cond, options.dimSizeIndexBits)))
+  if (failed(broadcastRanks(rewriter, op, self, cond)))
     return op.emitError("failed broadcast self and condition ranks");
 
-  if (failed(
-          broadcastRanks(rewriter, op, other, cond, options.dimSizeIndexBits)))
+  if (failed(broadcastRanks(rewriter, op, other, cond)))
     return op.emitError("failed broadcast other and condition ranks");
 
   rewriter.replaceOpWithNewOp<chlo::BroadcastSelectOp>(
@@ -728,13 +763,13 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
     AtenBroadcastToOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value self = adaptor.getSelf();
-  auto selfTy = self.getType().cast<RankedTensorType>();
-  auto outType = getTypeConverter()
-                     ->convertType(op->getResult(0).getType())
-                     .cast<RankedTensorType>();
+  auto selfTy = cast<RankedTensorType>(self.getType());
+  auto outType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(0).getType()));
 
   if (options.enableStaticShape && selfTy.hasStaticShape()) {
-    Value bcastOp = hlo::promoteAndBroadcast(rewriter, self, outType);
+    Value bcastOp =
+        hlo::promoteAndBroadcast(rewriter, self, outType, std::nullopt);
     rewriter.replaceOp(op, bcastOp);
     return success();
   }
@@ -795,10 +830,9 @@ LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   Value self = adaptor.getSelf();
   // Not a ranked tensor type
-  auto inType = self.getType().dyn_cast<RankedTensorType>();
-  auto outType = getTypeConverter()
-                     ->convertType(op->getResult(0).getType())
-                     .cast<RankedTensorType>();
+  auto inType = dyn_cast<RankedTensorType>(self.getType());
+  auto outType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(0).getType()));
   if (!inType)
     return op.emitError("only ranked tensor types with static shapes are "
                         "currently supported");
@@ -825,15 +859,14 @@ template <>
 LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
     ValueTensorLiteralOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  RankedTensorType resultType = getTypeConverter()
-                                    ->convertType(op->getResult(0).getType())
-                                    .cast<RankedTensorType>();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(0).getType()));
 
   // Tensors with integer types need to be converted to signless integer
   // element type. All tensors with element types other than integer can reuse
   // existing elements attribute.
   // TODO: what about unsigned integer?
-  if (auto elements = op.getValueAttr().dyn_cast<DenseIntElementsAttr>()) {
+  if (auto elements = dyn_cast<DenseIntElementsAttr>(op.getValueAttr())) {
     Type builtinTensorElemTy = resultType.getElementType();
     unsigned bitWidth = builtinTensorElemTy.getIntOrFloatBitWidth();
 
@@ -856,9 +889,8 @@ template <>
 LogicalResult ConvertAtenOp<AtenTensorIntOp>::matchAndRewrite(
     AtenTensorIntOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  RankedTensorType resultType = getTypeConverter()
-                                    ->convertType(op->getResult(0).getType())
-                                    .cast<RankedTensorType>();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(0).getType()));
   Type outElementType = resultType.getElementType();
   Value innerValue = adaptor.getT();
   Value stablehloTensor =
@@ -874,15 +906,16 @@ LogicalResult ConvertAtenOp<AtenReciprocalOp>::matchAndRewrite(
     AtenReciprocalOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
-  auto inputTy = input.getType().cast<RankedTensorType>();
+  auto inputTy = cast<RankedTensorType>(input.getType());
   auto outTy =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
-  if (!inputTy.getElementType().isa<mlir::FloatType>()) {
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  if (!isa<mlir::FloatType>(inputTy.getElementType())) {
     return op.emitError("only floating-point datatype legalization supported "
                         "for AtenReciprocalOp");
   }
 
-  Value oneTensor = getConstantLike(rewriter, op->getLoc(), 1, input);
+  Value oneTensor =
+      hlo::getConstantLike<int64_t>(rewriter, op->getLoc(), 1, input);
   rewriter.replaceOpWithNewOp<stablehlo::DivOp>(op, outTy, oneTensor, input);
   return success();
 }
@@ -893,16 +926,16 @@ LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
     AtenPowTensorScalarOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value lhs = adaptor.getSelf();
-  auto lhsType = lhs.getType().dyn_cast<TensorType>();
+  auto lhsType = dyn_cast<TensorType>(lhs.getType());
   Value rhs = adaptor.getExponent();
-  TensorType rhsType = rhs.getType().dyn_cast<TensorType>();
+  TensorType rhsType = dyn_cast<TensorType>(rhs.getType());
 
   if (!lhsType)
     return op.emitError("only Tensor types supported in StableHLO");
 
-  auto outType = OpConversionPattern<AtenPowTensorScalarOp>::getTypeConverter()
-                     ->convertType(op.getType())
-                     .template cast<TensorType>();
+  auto outType = cast<TensorType>(
+      OpConversionPattern<AtenPowTensorScalarOp>::getTypeConverter()
+          ->convertType(op.getType()));
 
   Type outElemTy = outType.getElementType();
   if (!outElemTy.isIntOrFloat()) {
@@ -914,8 +947,45 @@ LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
     rhs = hlo::scalarToStablehloTensor(rewriter, op, rhs, outElemTy);
   }
   DenseI64ArrayAttr bcastDimensions;
-  lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outType);
-  rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outType);
+  lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outElemTy);
+  rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outElemTy);
+  auto loc = op.getLoc();
+  Value result = rewriter.create<chlo::BroadcastPowOp>(loc, outType, lhs, rhs,
+                                                       bcastDimensions);
+
+  rewriter.replaceOp(op, result);
+  return success();
+}
+
+// AtenPowScalarOp
+template <>
+LogicalResult ConvertAtenOp<AtenPowScalarOp>::matchAndRewrite(
+    AtenPowScalarOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value lhs = adaptor.getSelf();
+  auto lhsType = dyn_cast<TensorType>(lhs.getType());
+  Value rhs = adaptor.getExponent();
+  auto rhsType = dyn_cast<TensorType>(rhs.getType());
+
+  if (!rhsType)
+    return op.emitError("only Tensor types supported in StableHLO");
+
+  auto outType = cast<TensorType>(
+      OpConversionPattern<AtenPowScalarOp>::getTypeConverter()->convertType(
+          op.getType()));
+
+  Type outElemTy = outType.getElementType();
+  if (!outElemTy.isIntOrFloat()) {
+    return op.emitError(
+        "only floating-point or integer datatype legalization supported");
+  }
+
+  if (!lhsType) {
+    lhs = hlo::scalarToStablehloTensor(rewriter, op, lhs, outElemTy);
+  }
+  DenseI64ArrayAttr bcastDimensions;
+  lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outElemTy);
+  rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outElemTy);
   auto loc = op.getLoc();
   Value result = rewriter.create<chlo::BroadcastPowOp>(loc, outType, lhs, rhs,
                                                        bcastDimensions);
@@ -929,9 +999,8 @@ template <>
 LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
     PrimNumToTensorScalarOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  RankedTensorType outputType = getTypeConverter()
-                                    ->convertType(op->getResult(0).getType())
-                                    .cast<RankedTensorType>();
+  RankedTensorType outputType = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(0).getType()));
   auto outputElemType = outputType.getElementType();
   Value stablehloTensor = hlo::scalarToStablehloTensor(
       rewriter, op, adaptor.getA(), outputElemType);
@@ -945,8 +1014,7 @@ LogicalResult ConvertAtenOp<AtenScalarImplicitOp>::matchAndRewrite(
     AtenScalarImplicitOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Location loc = op.getLoc();
-  Type inputDtype =
-      op.getA().getType().template cast<BaseTensorType>().getDtype();
+  Type inputDtype = cast<BaseTensorType>(op.getA().getType()).getDtype();
   Type resultType =
       this->getTypeConverter()->convertType(op->getResult(0).getType());
   auto result = rewriter.create<tensor::ExtractOp>(loc, adaptor.getA());
@@ -964,7 +1032,7 @@ LogicalResult ConvertAtenOp<AtenContiguousOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = adaptor.getSelf().getType().dyn_cast<TensorType>();
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return op.emitError("only tensor types are currently supported");
 
@@ -982,45 +1050,115 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
     AtenReluOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value lhs = adaptor.getSelf();
-  auto lhsTy = lhs.getType().cast<RankedTensorType>();
+  auto lhsTy = cast<RankedTensorType>(lhs.getType());
   auto lhsElemTy = lhsTy.getElementType();
 
   if (!isa<mlir::FloatType>(lhsElemTy)) {
     return op->emitError("only float tensor in relu op is supported");
   }
 
-  Value zeroTensor;
-  zeroTensor = getConstantLike(
-      rewriter, op->getLoc(),
-      APFloat::getZero(cast<mlir::FloatType>(lhsElemTy).getFloatSemantics(),
-                       false),
-      lhs);
+  Value zeroTensor =
+      hlo::getConstantLike<int64_t>(rewriter, op->getLoc(), 0, lhs);
   rewriter.replaceOpWithNewOp<stablehlo::MaxOp>(op, lhs, zeroTensor);
   return success();
 }
 
 // Convert a Aten::GELU to HLO
-// Gelu(x) = x * 1/2 * [1 + erf(x/(sqrt(2)))]
+// Gelu(x, "none") = x * 0.5 * (1 + erf(x/(sqrt(2))))
+// Gelu(x, "tanh") = x * 0.5 * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
 template <>
 LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
     AtenGeluOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Location loc = op.getLoc();
   Value input = adaptor.getSelf();
-  auto inputTy = input.getType().template dyn_cast<RankedTensorType>();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
   if (!inputTy) {
     return op.emitError("only ranked tensor type is supported.");
   }
 
-  Value one = getConstantLike(rewriter, loc, 1.0, input);
-  Value two = getConstantLike(rewriter, loc, 2.0, input);
-  Value half = getConstantLike(rewriter, loc, 0.5, input);
-  auto rsqrtTwo = rewriter.create<mlir::stablehlo::RsqrtOp>(loc, two);
-  auto erfElement = rewriter.create<stablehlo::MulOp>(loc, input, rsqrtTwo);
-  auto erf = rewriter.create<mlir::chlo::ErfOp>(loc, erfElement);
-  auto erfAdd = rewriter.create<stablehlo::AddOp>(loc, erf, one);
-  auto halfMul = rewriter.create<stablehlo::MulOp>(loc, erfAdd, half);
-  rewriter.replaceOpWithNewOp<stablehlo::MulOp>(op, input, halfMul);
+  std::string approximate;
+  if (!matchPattern(op.getApproximate(), m_TorchConstantStr(approximate))) {
+    return op.emitError("approximate must be constant string");
+  }
+  if (approximate != "none" && approximate != "tanh") {
+    return op.emitError("unsupported approximate: ") << approximate;
+  }
+
+  Value one = hlo::getConstantLike(rewriter, loc, 1.0, input);
+  Value two = hlo::getConstantLike(rewriter, loc, 2.0, input);
+  Value three = hlo::getConstantLike(rewriter, loc, 3.0, input);
+  Value half = hlo::getConstantLike(rewriter, loc, 0.5, input);
+  // 2/pi
+  Value twoDivPi = hlo::getConstantLike(rewriter, loc, M_2_PI, input);
+  Value t = hlo::getConstantLike(rewriter, loc, 0.044715, input);
+
+  // x * 0.5
+  auto inputMulHalf = rewriter.create<stablehlo::MulOp>(loc, input, half);
+  if (approximate == "none") {
+    auto rsqrtTwo = rewriter.create<stablehlo::RsqrtOp>(loc, two);
+    auto erfElement = rewriter.create<stablehlo::MulOp>(loc, input, rsqrtTwo);
+    auto erf = rewriter.create<chlo::ErfOp>(loc, erfElement);
+    auto erfAdd = rewriter.create<stablehlo::AddOp>(loc, erf, one);
+    rewriter.replaceOpWithNewOp<stablehlo::MulOp>(op, erfAdd, inputMulHalf);
+    return success();
+  } else {
+    auto sqrtTwoPi = rewriter.create<stablehlo::SqrtOp>(loc, twoDivPi);
+    // x^3
+    auto powThree = rewriter.create<stablehlo::PowOp>(loc, input, three);
+    // x + 0.044715 * x^3
+    auto add = rewriter.create<stablehlo::AddOp>(
+        loc, input, rewriter.create<stablehlo::MulOp>(loc, t, powThree));
+    auto tanh = rewriter.create<stablehlo::TanhOp>(
+        loc, rewriter.create<stablehlo::MulOp>(loc, sqrtTwoPi, add));
+    auto tanhAdd = rewriter.create<stablehlo::AddOp>(loc, tanh, one);
+    rewriter.replaceOpWithNewOp<stablehlo::MulOp>(op, tanhAdd, inputMulHalf);
+    return success();
+  }
+}
+
+// AtenLog2Op
+template <>
+LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewrite(
+    AtenLog2Op op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value input = adaptor.getSelf();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
+  if (!inputTy) {
+    return op.emitError("only ranked tensor type is supported.");
+  }
+  auto outTy = cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+  input =
+      hlo::promoteType(rewriter, op.getLoc(), input, outTy.getElementType());
+
+  auto two = hlo::getConstantLike(rewriter, op.getLoc(), 2.0, input);
+  auto log2Op = rewriter.create<stablehlo::LogOp>(op.getLoc(), two);
+  auto logInputOp = rewriter.create<stablehlo::LogOp>(op.getLoc(), input);
+
+  rewriter.replaceOpWithNewOp<stablehlo::DivOp>(op, outTy, logInputOp, log2Op);
+  return success();
+}
+
+// AtenLog10Op
+template <>
+LogicalResult ConvertAtenOp<AtenLog10Op>::matchAndRewrite(
+    AtenLog10Op op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value input = adaptor.getSelf();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
+  if (!inputTy) {
+    return op.emitError("only ranked tensor type is supported.");
+  }
+
+  auto outTy = cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+  input =
+      hlo::promoteType(rewriter, op.getLoc(), input, outTy.getElementType());
+
+  auto ten = hlo::getConstantLike(rewriter, op.getLoc(), 10.0, input);
+  auto log10Op = rewriter.create<stablehlo::LogOp>(op.getLoc(), ten);
+  auto logInputOp = rewriter.create<stablehlo::LogOp>(op.getLoc(), input);
+
+  rewriter.replaceOpWithNewOp<stablehlo::DivOp>(op, outTy, logInputOp, log10Op);
   return success();
 }
 
@@ -1030,8 +1168,8 @@ LogicalResult ConvertAtenOp<AtenErfOp>::matchAndRewrite(
     AtenErfOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
-  auto inputType = input.getType().cast<TensorType>();
-  if (!inputType.getElementType().isa<mlir::FloatType>()) {
+  auto inputType = cast<TensorType>(input.getType());
+  if (!isa<mlir::FloatType>(inputType.getElementType())) {
     return rewriter.notifyMatchFailure(op, "only float tensor is supported");
   }
   rewriter.replaceOpWithNewOp<chlo::ErfOp>(
@@ -1045,7 +1183,7 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
     AtenBatchNormOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getInput();
-  auto inputTy = input.getType().cast<RankedTensorType>();
+  auto inputTy = cast<RankedTensorType>(input.getType());
   Value weight = adaptor.getWeight();
   Value bias = adaptor.getBias();
   Value runningMean = adaptor.getRunningMean();
@@ -1058,10 +1196,10 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
   // all of NC, NCL, NCHW, NCDHW's feature index is 1.
   int64_t feature_index = 1;
 
-  if (!inputTy.getElementType().template isa<mlir::FloatType>()) {
+  if (!isa<mlir::FloatType>(inputTy.getElementType())) {
     return op.emitError("only input tensor of float type is supported");
   }
-  auto inputElemTy = inputTy.getElementType().cast<mlir::FloatType>();
+  auto inputElemTy = cast<mlir::FloatType>(inputTy.getElementType());
 
   Value channelDim =
       rewriter.create<tensor::DimOp>(op->getLoc(), input, feature_index);
@@ -1104,20 +1242,20 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
                               inputTy.getElementType()));
   }
 
-  auto weightTy = weight.getType().cast<RankedTensorType>();
-  auto biasTy = bias.getType().cast<RankedTensorType>();
-  auto runningMeanTy = runningMean.getType().cast<RankedTensorType>();
-  auto runningVarTy = runningVar.getType().cast<RankedTensorType>();
+  auto weightTy = cast<RankedTensorType>(weight.getType());
+  auto biasTy = cast<RankedTensorType>(bias.getType());
+  auto runningMeanTy = cast<RankedTensorType>(runningMean.getType());
+  auto runningVarTy = cast<RankedTensorType>(runningVar.getType());
 
   if (weightTy.getRank() != 1 || biasTy.getRank() != 1 ||
       runningMeanTy.getRank() != 1 || runningVarTy.getRank() != 1) {
     return rewriter.notifyMatchFailure(
         op, "expect weight, bias, running_mean and running_var to be rank 1");
   }
-  if (!weightTy.getElementType().template isa<mlir::FloatType>() ||
-      !biasTy.getElementType().template isa<mlir::FloatType>() ||
-      !runningMeanTy.getElementType().template isa<mlir::FloatType>() ||
-      !runningVarTy.getElementType().template isa<mlir::FloatType>()) {
+  if (!isa<mlir::FloatType>(weightTy.getElementType()) ||
+      !isa<mlir::FloatType>(biasTy.getElementType()) ||
+      !isa<mlir::FloatType>(runningMeanTy.getElementType()) ||
+      !isa<mlir::FloatType>(runningVarTy.getElementType())) {
     return op.emitError("only float weight/bias/runningMean/runningVar tensor "
                         "of float type is supported");
   }
@@ -1137,42 +1275,44 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
                                        "non-bool cudnn_enabled unsupported");
   }
   if (training) {
-    Type outputTy = getTypeConverter()->convertType(op.getType());
-    Type batchMeanOrVarTy =
-        RankedTensorType::get(weightTy.getShape(), inputTy.getElementType());
+    TensorType outputTy =
+        cast<TensorType>(getTypeConverter()->convertType(op.getType()));
 
     Value output;
     // supported mixed types, like input type is fp16 and weight type is fp32.
     if (inputTy.getElementType() != weightTy.getElementType()) {
-      RankedTensorType convertedType = inputTy;
-      if (weightTy.getElementType().cast<FloatType>().getWidth() >
-          inputTy.getElementType().cast<FloatType>().getWidth()) {
-        convertedType = RankedTensorType::get(inputTy.getShape(),
-                                              weightTy.getElementType());
+      Type computeType = inputTy.getElementType();
+      if (weightTy.getElementType().getIntOrFloatBitWidth() >
+          inputTy.getElementType().getIntOrFloatBitWidth()) {
+        computeType = weightTy.getElementType();
       }
-      input = hlo::promoteType(rewriter, op.getLoc(), input, convertedType);
-      weight = hlo::promoteType(rewriter, op.getLoc(), weight, convertedType);
-      bias = hlo::promoteType(rewriter, op.getLoc(), bias, convertedType);
+      input = hlo::promoteType(rewriter, op.getLoc(), input, computeType);
+      weight = hlo::promoteType(rewriter, op.getLoc(), weight, computeType);
+      bias = hlo::promoteType(rewriter, op.getLoc(), bias, computeType);
       auto batchNormTrainingResult =
           rewriter.create<stablehlo::BatchNormTrainingOp>(
-              op.getLoc(), outputTy, batchMeanOrVarTy, batchMeanOrVarTy, input,
+              op.getLoc(),
+              RankedTensorType::get(inputTy.getShape(), computeType),
+              RankedTensorType::get(weightTy.getShape(), computeType),
+              RankedTensorType::get(weightTy.getShape(), computeType), input,
               weight, bias, rewriter.getF32FloatAttr(eps),
               rewriter.getI64IntegerAttr(feature_index));
       output = hlo::promoteType(rewriter, op.getLoc(),
                                 batchNormTrainingResult.getResult(0),
-                                cast<TensorType>(outputTy));
+                                outputTy.getElementType());
     } else {
       auto batchNormTrainingResult =
           rewriter.create<stablehlo::BatchNormTrainingOp>(
-              op.getLoc(), outputTy, batchMeanOrVarTy, batchMeanOrVarTy, input,
-              weight, bias, rewriter.getF32FloatAttr(eps),
+              op.getLoc(), outputTy, weightTy, weightTy, input, weight, bias,
+              rewriter.getF32FloatAttr(eps),
               rewriter.getI64IntegerAttr(feature_index));
       output = batchNormTrainingResult.getResult(0);
     }
     rewriter.replaceOp(op, output);
     return success();
   } else {
-    Type outputTy = getTypeConverter()->convertType(op.getType());
+    TensorType outputTy =
+        cast<TensorType>(getTypeConverter()->convertType(op.getType()));
     SmallVector<int64_t, 4> castShape{inputTy.getShape().begin(),
                                       inputTy.getShape().end()};
     castShape[1] = weightTy.getShape()[0];
@@ -1185,26 +1325,25 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
     Value output;
     // supported mixed types, like input type is fp16 and weight type is fp32.
     if (inputTy.getElementType() != weightTy.getElementType()) {
-      RankedTensorType convertedType = inputTy;
-      if (weightTy.getElementType().cast<FloatType>().getWidth() >
-          inputTy.getElementType().cast<FloatType>().getWidth()) {
-        convertedType = RankedTensorType::get(inputTy.getShape(),
-                                              weightTy.getElementType());
+      Type computeType = inputTy.getElementType();
+      if (weightTy.getElementType().getIntOrFloatBitWidth() >
+          inputTy.getElementType().getIntOrFloatBitWidth()) {
+        computeType = weightTy.getElementType();
       }
-      input =
-          hlo::promoteType(rewriter, op.getLoc(), inputCasted, convertedType);
-      weight = hlo::promoteType(rewriter, op.getLoc(), weight, convertedType);
-      bias = hlo::promoteType(rewriter, op.getLoc(), bias, convertedType);
+      input = hlo::promoteType(rewriter, op.getLoc(), inputCasted, computeType);
+      weight = hlo::promoteType(rewriter, op.getLoc(), weight, computeType);
+      bias = hlo::promoteType(rewriter, op.getLoc(), bias, computeType);
       runningMean =
-          hlo::promoteType(rewriter, op.getLoc(), runningMean, convertedType);
+          hlo::promoteType(rewriter, op.getLoc(), runningMean, computeType);
       runningVar =
-          hlo::promoteType(rewriter, op.getLoc(), runningVar, convertedType);
+          hlo::promoteType(rewriter, op.getLoc(), runningVar, computeType);
       Value bnResult = rewriter.create<stablehlo::BatchNormInferenceOp>(
-          op.getLoc(), convertedType, input, weight, bias, runningMean,
-          runningVar, rewriter.getF32FloatAttr(eps),
+          op.getLoc(), RankedTensorType::get(inputTy.getShape(), computeType),
+          input, weight, bias, runningMean, runningVar,
+          rewriter.getF32FloatAttr(eps),
           rewriter.getI64IntegerAttr(feature_index));
       output = hlo::promoteType(rewriter, op.getLoc(), bnResult,
-                                cast<TensorType>(outputTy));
+                                outputTy.getElementType());
     } else {
       output = rewriter.create<stablehlo::BatchNormInferenceOp>(
           op.getLoc(), inputCasted.getType(), inputCasted, weight, bias,
@@ -1224,7 +1363,7 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
     AtenNativeLayerNormOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getInput();
-  auto inputTy = input.getType().cast<RankedTensorType>();
+  auto inputTy = cast<RankedTensorType>(input.getType());
   auto inputShape = inputTy.getShape();
   auto inputRank = inputTy.getRank();
   Value weight = adaptor.getWeight();
@@ -1249,12 +1388,12 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
       failed(checkNotNone(rewriter, op, bias))) {
     return op->emitError("none weight or bias is unsupported");
   }
-  auto weightTy = weight.getType().cast<RankedTensorType>();
-  auto biasTy = bias.getType().cast<RankedTensorType>();
+  auto weightTy = cast<RankedTensorType>(weight.getType());
+  auto biasTy = cast<RankedTensorType>(bias.getType());
 
-  if (!inputTy.getElementType().isa<mlir::FloatType>() ||
-      !biasTy.getElementType().isa<mlir::FloatType>() ||
-      !weightTy.getElementType().isa<mlir::FloatType>()) {
+  if (!isa<mlir::FloatType>(inputTy.getElementType()) ||
+      !isa<mlir::FloatType>(biasTy.getElementType()) ||
+      !isa<mlir::FloatType>(weightTy.getElementType())) {
     return op->emitError("currently only float data type are supported");
   }
   int64_t normalizedShapeRank = normalizedShape.size();
@@ -1301,13 +1440,13 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
 
   // Generate "scale" and "offset" Value for stablehlo.BatchNormTrainingOp.
   SmallVector<APFloat> zeroConstVec(
-      numFeatureDimSize, APFloat::getZero(inputTy.getElementType()
-                                              .cast<mlir::FloatType>()
-                                              .getFloatSemantics()));
+      numFeatureDimSize,
+      APFloat::getZero(
+          cast<mlir::FloatType>(inputTy.getElementType()).getFloatSemantics()));
   SmallVector<APFloat> oneConstVec(
       numFeatureDimSize,
       APFloat(
-          inputTy.getElementType().cast<mlir::FloatType>().getFloatSemantics(),
+          cast<mlir::FloatType>(inputTy.getElementType()).getFloatSemantics(),
           1));
   auto oneOrZeroConstType =
       RankedTensorType::get({numFeatureDimSize}, inputTy.getElementType());
@@ -1327,9 +1466,9 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
 
   // Reshape back
   auto outputTy =
-      getTypeConverter()->convertType(op.getType(0)).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType(0)));
   auto outputMeanOrVarTy =
-      getTypeConverter()->convertType(op.getType(1)).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType(1)));
 
   auto output = rewriter.create<stablehlo::DynamicReshapeOp>(
       op->getLoc(), outputTy, batchNormTrainingResult.getResult(0),
@@ -1350,8 +1489,10 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
           .value());
 
   // Apply affine transform: output x weight + bias [element-wise]
-  auto bcastedWeight = hlo::promoteAndBroadcast(rewriter, weight, outputTy);
-  auto bcastedBias = hlo::promoteAndBroadcast(rewriter, bias, outputTy);
+  auto bcastedWeight =
+      hlo::promoteAndBroadcast(rewriter, weight, outputTy, std::nullopt);
+  auto bcastedBias =
+      hlo::promoteAndBroadcast(rewriter, bias, outputTy, std::nullopt);
   auto outputMulWeight =
       rewriter.create<stablehlo::MulOp>(op->getLoc(), output, bcastedWeight);
   auto finalOuput = rewriter.create<stablehlo::AddOp>(
@@ -1366,7 +1507,7 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
     AtenCatOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto outType =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   int64_t dim;
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) {
     return rewriter.notifyMatchFailure(op,
@@ -1386,7 +1527,7 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
 
   // Promote type
   for (auto &v : builtinTensors) {
-    v = hlo::promoteType(rewriter, op->getLoc(), v, outType);
+    v = hlo::promoteType(rewriter, op->getLoc(), v, outType.getElementType());
   }
 
   rewriter.replaceOpWithNewOp<stablehlo::ConcatenateOp>(
@@ -1400,7 +1541,7 @@ LogicalResult ConvertAtenOp<AtenNumelOp>::matchAndRewrite(
     AtenNumelOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
-  auto selfTy = self.getType().dyn_cast<RankedTensorType>();
+  auto selfTy = dyn_cast<RankedTensorType>(self.getType());
   size_t rank = selfTy.getRank();
 
   Type intType = rewriter.getIntegerType(options.dimSizeIndexBits);
@@ -1428,7 +1569,7 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
     AtenClampOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
-  auto inputType = input.getType().cast<RankedTensorType>();
+  auto inputType = cast<RankedTensorType>(input.getType());
   auto inputElemType = inputType.getElementType();
   Value minValue = adaptor.getMin();
   Value maxValue = adaptor.getMax();
@@ -1465,6 +1606,47 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
   return success();
 }
 
+// AtenClampTensorOp
+template <>
+LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
+    AtenClampTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value input = adaptor.getSelf();
+  auto inputType = cast<RankedTensorType>(input.getType());
+  auto inputElemType = inputType.getElementType();
+  Value minValue = adaptor.getMin();
+  Value maxValue = adaptor.getMax();
+  auto minIsNotNone = checkNotNone(rewriter, op, minValue);
+  auto maxIsNotNone = checkNotNone(rewriter, op, maxValue);
+  if (failed(minIsNotNone) && failed(maxIsNotNone)) {
+    return rewriter.notifyMatchFailure(
+        op, "this op should be folded as its `min` and `max` both are none");
+  } else if (failed(minIsNotNone)) {
+    auto minInfo = getMinValueOfDtype(op, inputElemType, rewriter);
+    if (failed(minInfo)) {
+      return rewriter.notifyMatchFailure(
+          op, "failed to generate min value of dtype");
+    }
+    minValue = *minInfo;
+  } else if (failed(maxIsNotNone)) {
+    auto maxInfo = getMaxValueOfDtype(op, inputElemType, rewriter);
+    if (failed(maxInfo)) {
+      return rewriter.notifyMatchFailure(
+          op, "failed to generate max value of dtype");
+    }
+    maxValue = *maxInfo;
+  }
+  if (inputType.hasStaticShape()) {
+    minValue =
+        hlo::promoteAndBroadcast(rewriter, minValue, inputType, std::nullopt);
+    maxValue =
+        hlo::promoteAndBroadcast(rewriter, maxValue, inputType, std::nullopt);
+  }
+  rewriter.replaceOpWithNewOp<stablehlo::ClampOp>(op, minValue, input,
+                                                  maxValue);
+  return success();
+}
+
 // AtenArangeStartStepOp
 // aten.arange.start_step = range(ceil((end-start)/step)) * step + start.
 template <>
@@ -1474,9 +1656,8 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
   Location loc = op->getLoc();
 
   // Get element type of resultType as dtype
-  auto outType = this->getTypeConverter()
-                     ->convertType(op.getType())
-                     .cast<RankedTensorType>();
+  auto outType = cast<RankedTensorType>(
+      this->getTypeConverter()->convertType(op.getType()));
   auto dtype = outType.getElementType();
   if (!isa<mlir::IntegerType>(dtype) && !isa<mlir::FloatType>(dtype)) {
     return rewriter.notifyMatchFailure(
@@ -1515,13 +1696,53 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
+    AtenConstantPadNdOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value self = adaptor.getSelf();
+  auto selfTy = cast<RankedTensorType>(self.getType());
+  auto selfElemTy = selfTy.getElementType();
+  int64_t rank = selfTy.getRank();
+
+  SmallVector<int64_t> padInts;
+  if (!matchPattern(op.getPad(), m_TorchListOfConstantInts(padInts)))
+    return rewriter.notifyMatchFailure(op,
+                                       "only support constant int pad ranges");
+  uint64_t padRank = padInts.size() / 2;
+  if (padRank * 2 != padInts.size())
+    return rewriter.notifyMatchFailure(op, "pad range size is not even");
+  if (rank < 0 || padRank > (uint64_t)rank)
+    return rewriter.notifyMatchFailure(op, "padding exceeds tensor rank");
+
+  // Initialize low/high paddings with 0 for all the dims.
+  SmallVector<int64_t> lowPadding(/*Size=*/rank, /*Value=*/0);
+  SmallVector<int64_t> highPadding(/*Size=*/rank, /*Value=*/0);
+  // Add the requested padding - note op.pad() is highest dim first ordered
+  // pairs of low,high.
+  // Add the requested padding - note op.pad() is highest dim first ordered
+  // pairs of low,high.
+  for (uint64_t i = 0; i < padRank; ++i) {
+    lowPadding[rank - i - 1] = padInts[i * 2];
+    highPadding[rank - i - 1] = padInts[i * 2 + 1];
+  }
+
+  Value constantValue = hlo::scalarToStablehloTensor(
+      rewriter, op, adaptor.getValue(), selfElemTy);
+
+  SmallVector<int64_t> interiorPadding(rank, 0);
+  rewriter.replaceOpWithNewOp<stablehlo::PadOp>(
+      op, self, constantValue, lowPadding, highPadding, interiorPadding);
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
     AtenGeluBackwardOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Location loc = op.getLoc();
   Value input = adaptor.getSelf();
   auto outType =
-      this->getTypeConverter()->convertType(op.getType()).cast<TensorType>();
+      cast<TensorType>(this->getTypeConverter()->convertType(op.getType()));
   if (!outType) {
     return op.emitError("only tensor type is supported");
   }
@@ -1532,12 +1753,13 @@ LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "Unsupported value of approximate");
   }
   // Create constant value
-  Value kAlpha = getConstantLike(rewriter, loc, 0.70710678118654752440, input);
+  Value kAlpha =
+      hlo::getConstantLike(rewriter, loc, 0.70710678118654752440, input);
   Value cstAlpha0 =
-      getConstantLike(rewriter, loc, 1.12837916709551257390, input);
-  Value half = getConstantLike(rewriter, loc, .5, input);
-  Value one = getConstantLike(rewriter, loc, 1.0, input);
-  Value negHalf = getConstantLike(rewriter, loc, -0.5, input);
+      hlo::getConstantLike(rewriter, loc, 1.12837916709551257390, input);
+  Value half = hlo::getConstantLike(rewriter, loc, .5, input);
+  Value one = hlo::getConstantLike(rewriter, loc, 1.0, input);
+  Value negHalf = hlo::getConstantLike(rewriter, loc, -0.5, input);
 
   // Compute
   Value kBeta0 =
@@ -1569,51 +1791,21 @@ LogicalResult ConvertAtenOp<AtenPowTensorTensorOp>::matchAndRewrite(
     AtenPowTensorTensorOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value lhs = adaptor.getSelf();
-  auto lhsTy = lhs.getType().cast<TensorType>();
+  auto lhsTy = cast<TensorType>(lhs.getType());
   Value rhs = adaptor.getExponent();
-  auto rhsTy = rhs.getType().cast<TensorType>();
+  auto rhsTy = cast<TensorType>(rhs.getType());
 
   if (!lhsTy || !rhsTy)
     return op.emitError("only Tensor types supported");
 
   auto outTy =
-      this->getTypeConverter()->convertType(op.getType()).cast<TensorType>();
+      cast<TensorType>(this->getTypeConverter()->convertType(op.getType()));
 
-  lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outTy);
-  rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outTy);
+  lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outTy.getElementType());
+  rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outTy.getElementType());
 
   rewriter.replaceOpWithNewOp<chlo::BroadcastPowOp>(op, outTy, lhs, rhs,
                                                     /*broadcast_attr*/ nullptr);
-  return success();
-}
-
-template <>
-LogicalResult ConvertAtenOp<AtenUniformOp>::matchAndRewrite(
-    AtenUniformOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Value self = adaptor.getSelf();
-  Value generator = adaptor.getGenerator();
-  Location loc = op.getLoc();
-
-  if (!generator.getType().isa<Torch::NoneType>())
-    return rewriter.notifyMatchFailure(
-        op, "The generator has to be None because only global default "
-            "generator is supported");
-
-  auto elements = self.getType().cast<RankedTensorType>().getShape();
-  if (llvm::any_of(elements,
-                   [](int64_t dim) { return dim == ShapedType::kDynamic; }))
-    return rewriter.notifyMatchFailure(op, "Dynamic shape support TBD");
-  auto shape_tensor = rewriter.create<stablehlo::ConstantOp>(
-      loc, rewriter.getI64TensorAttr(elements));
-  auto outTy = getTypeConverter()->convertType(op.getType());
-  auto outElemTy = cast<RankedTensorType>(outTy).getElementType();
-  Value from =
-      hlo::scalarToStablehloTensor(rewriter, op, adaptor.getFrom(), outElemTy);
-  Value to =
-      hlo::scalarToStablehloTensor(rewriter, op, adaptor.getTo(), outElemTy);
-  rewriter.replaceOpWithNewOp<stablehlo::RngOp>(
-      op, outTy, from, to, shape_tensor, stablehlo::RngDistribution::UNIFORM);
   return success();
 }
 
@@ -1629,14 +1821,14 @@ LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
 
   // The pin_memory should be either `False` or `none`.
   bool pinMemory;
-  if (!op.getPinMemory().getType().template isa<Torch::NoneType>() &&
+  if (!isa<Torch::NoneType>(op.getPinMemory().getType()) &&
       (!matchPattern(op.getPinMemory(), m_TorchConstantBool(&pinMemory)) ||
        pinMemory))
     return rewriter.notifyMatchFailure(
         op, "unimplemented: pin_memory must be either None or false");
 
   // Only `none`, `contiguous` and `preserve` memory_format is supported.
-  if (!op.getMemoryFormat().getType().isa<Torch::NoneType>()) {
+  if (!isa<Torch::NoneType>(op.getMemoryFormat().getType())) {
     int64_t memoryFormat;
     if (!matchPattern(op.getMemoryFormat(), m_TorchConstantInt(&memoryFormat)))
       return rewriter.notifyMatchFailure(
@@ -1649,7 +1841,7 @@ LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
               "memory_format is supported");
   }
 
-  if (!op.getDevice().getType().isa<Torch::NoneType>()) {
+  if (!isa<Torch::NoneType>(op.getDevice().getType())) {
     std::string device;
     if (!matchPattern(op.getDevice(), m_TorchConstantDevice(device)))
       return rewriter.notifyMatchFailure(
@@ -1658,7 +1850,7 @@ LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
 
   // TODO: Add support for non-strided layout.
   // torch.layout is by default strided i.e. 0.
-  if (!op.getLayout().getType().isa<Torch::NoneType>()) {
+  if (!isa<Torch::NoneType>(op.getLayout().getType())) {
     int64_t tensorLayout;
     if (!matchPattern(op.getLayout(), m_TorchConstantInt(&tensorLayout)))
       return rewriter.notifyMatchFailure(
@@ -1681,9 +1873,9 @@ LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
     resultSizeIndex.push_back(castIntToIndex(rewriter, loc, size));
 
   auto resultType =
-      typeConverter->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(typeConverter->convertType(op.getType()));
   Type resultElementType;
-  if (op.getDtype().getType().isa<Torch::NoneType>()) {
+  if (isa<Torch::NoneType>(op.getDtype().getType())) {
     resultElementType = resultType.getElementType();
   } else {
     int64_t dtypeInt;
@@ -1736,7 +1928,7 @@ LogicalResult ConvertAtenOp<AtenFillScalarOp>::matchAndRewrite(
     AtenFillScalarOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto outType =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   auto dtype = outType.getElementType();
   Value scalarTensor =
       hlo::scalarToStablehloTensor(rewriter, op, adaptor.getValue(), dtype);
@@ -1756,7 +1948,7 @@ LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   Value self = adaptor.getSelf();
   auto outType =
-      getTypeConverter()->convertType(op.getType()).cast<RankedTensorType>();
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
 
   SmallVector<int64_t> dims;
   if (!matchPattern(op.getDims(), m_TorchListOfConstantInts(dims))) {
@@ -1770,6 +1962,158 @@ LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewrite(
   }
 
   rewriter.replaceOpWithNewOp<stablehlo::ReverseOp>(op, outType, self, dims);
+  return success();
+}
+
+// AtenRemainderTensorOp
+template <>
+LogicalResult ConvertAtenOp<AtenRemainderTensorOp>::matchAndRewrite(
+    AtenRemainderTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value lhs = adaptor.getSelf();
+  Value rhs = adaptor.getOther();
+
+  auto resultType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  lhs = hlo::promoteType(rewriter, op->getLoc(), lhs,
+                         resultType.getElementType());
+  rhs = hlo::promoteType(rewriter, op->getLoc(), rhs,
+                         resultType.getElementType());
+  rewriter.replaceOpWithNewOp<stablehlo::RemOp>(op, lhs, rhs);
+  return success();
+}
+
+// AtenFmodTensorOp
+// torch.fmod(a, b) == a - a.div(b, rounding_mode="trunc") * b
+template <>
+LogicalResult ConvertAtenOp<AtenFmodTensorOp>::matchAndRewrite(
+    AtenFmodTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto loc = op->getLoc();
+  Value lhs = adaptor.getSelf();
+  Value rhs = adaptor.getOther();
+
+  auto resultType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  lhs = hlo::promoteType(rewriter, op->getLoc(), lhs,
+                         resultType.getElementType());
+  rhs = hlo::promoteType(rewriter, op->getLoc(), rhs,
+                         resultType.getElementType());
+
+  stablehlo::MulOp mul;
+  auto div = rewriter.create<stablehlo::DivOp>(loc, lhs, rhs);
+  if (isa<mlir::FloatType>(resultType.getElementType())) {
+    // rounding mode is trunc
+    auto sign = rewriter.create<stablehlo::SignOp>(loc, div);
+    auto abs = rewriter.create<stablehlo::AbsOp>(loc, div);
+    auto floor = rewriter.create<stablehlo::FloorOp>(loc, abs);
+    auto trunc = rewriter.create<stablehlo::MulOp>(loc, sign, floor);
+    mul = rewriter.create<stablehlo::MulOp>(loc, trunc, rhs);
+  } else {
+    mul = rewriter.create<stablehlo::MulOp>(loc, div, rhs);
+  }
+  rewriter.replaceOpWithNewOp<stablehlo::SubtractOp>(op, lhs, mul);
+  return success();
+}
+
+// AtenBitwiseLeftShiftTensorOp
+template <>
+LogicalResult ConvertAtenOp<AtenBitwiseLeftShiftTensorOp>::matchAndRewrite(
+    AtenBitwiseLeftShiftTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value lhs = adaptor.getSelf();
+  Value rhs = adaptor.getOther();
+
+  auto resultType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  rhs = hlo::promoteAndBroadcast(rewriter, rhs, resultType, std::nullopt);
+  rewriter.replaceOpWithNewOp<stablehlo::ShiftLeftOp>(op, lhs, rhs);
+  return success();
+}
+
+// AtenBitwiseRightShiftTensorOp
+template <>
+LogicalResult ConvertAtenOp<AtenBitwiseRightShiftTensorOp>::matchAndRewrite(
+    AtenBitwiseRightShiftTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value lhs = adaptor.getSelf();
+  Value rhs = adaptor.getOther();
+
+  auto resultType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  rhs = hlo::promoteAndBroadcast(rewriter, rhs, resultType, std::nullopt);
+  rewriter.replaceOpWithNewOp<stablehlo::ShiftRightArithmeticOp>(op, lhs, rhs);
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
+    AtenTrilOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  Location loc = op.getLoc();
+
+  Value self = adaptor.getSelf();
+
+  auto selfTy = cast<RankedTensorType>(self.getType());
+  if (!selfTy.hasStaticShape()) {
+    return op->emitError("dynamic shaped input is not supported");
+  }
+
+  ArrayRef<int64_t> selfShape = selfTy.getShape();
+  int64_t selfRank = selfTy.getRank();
+  auto iotaElementTy = mlir::IntegerType::get(op.getContext(), 64);
+  auto iotaTy = RankedTensorType::get(
+      {selfShape[selfRank - 2], selfShape[selfRank - 1]}, iotaElementTy);
+  Value colIdxTensor =
+      rewriter.create<stablehlo::IotaOp>(loc, iotaTy, 1).getResult();
+  Value rowIdxTensor =
+      rewriter.create<stablehlo::IotaOp>(loc, iotaTy, 0).getResult();
+
+  Value diagonal = adaptor.getDiagonal();
+  Value diagonalTensor =
+      rewriter.create<tensor::FromElementsOp>(loc, diagonal).getResult();
+
+  auto bcastDimensions = rewriter.getDenseI64ArrayAttr({1});
+  Value shiftedRowIdxTensor = rewriter.create<chlo::BroadcastAddOp>(
+      loc, rowIdxTensor, diagonalTensor, bcastDimensions);
+
+  auto cmpDirectionAttr = stablehlo::ComparisonDirectionAttr::get(
+      rewriter.getContext(), stablehlo::ComparisonDirection::LE);
+  auto cmpTypeAttr = stablehlo::ComparisonTypeAttr::get(
+      rewriter.getContext(), stablehlo::ComparisonType::SIGNED);
+  auto cmpTy = iotaTy.clone(rewriter.getI1Type());
+  Value cmpRes = rewriter.create<stablehlo::CompareOp>(
+      loc, cmpTy, colIdxTensor, shiftedRowIdxTensor, cmpDirectionAttr,
+      cmpTypeAttr);
+
+  auto resTy =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+
+  auto bcastTy = resTy.clone(rewriter.getI1Type());
+  auto bcastAttr = rewriter.getDenseI64ArrayAttr({selfRank - 2, selfRank - 1});
+  Value bcastedCmpRes = rewriter.create<stablehlo::BroadcastInDimOp>(
+      loc, bcastTy, cmpRes, bcastAttr);
+
+  auto resElemTy = resTy.getElementType();
+  Value zeroTensor;
+  if (isa<mlir::FloatType>(resElemTy)) {
+    auto constAttr = SplatElementsAttr::get(
+        resTy, llvm::APFloat::getZero(
+                   cast<FloatType>(resElemTy).getFloatSemantics(), false));
+    zeroTensor = rewriter.create<stablehlo::ConstantOp>(loc, resTy, constAttr);
+  } else if (isa<mlir::IntegerType>(resElemTy)) {
+    auto constAttr = SplatElementsAttr::get(
+        resTy,
+        llvm::APInt::getZero(cast<mlir::IntegerType>(resElemTy).getWidth()));
+    zeroTensor = rewriter.create<stablehlo::ConstantOp>(loc, resTy, constAttr);
+  } else {
+    return op.emitError("element type is not float or integer");
+  }
+
+  rewriter.replaceOpWithNewOp<stablehlo::SelectOp>(
+      op.getOperation(), resTy, bcastedCmpRes, self, zeroTensor);
+
   return success();
 }
 
@@ -1790,25 +2134,41 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_UNARY_PATTERN(AtenLogicalNotOp, stablehlo::NotOp);
   INSERT_UNARY_PATTERN(AtenBitwiseNotOp, stablehlo::NotOp);
   INSERT_UNARY_PATTERN(AtenAbsOp, stablehlo::AbsOp);
+  INSERT_UNARY_PATTERN(AtenExpm1Op, stablehlo::Expm1Op);
 #undef INSERT_UNARY_PATTERN
 
 #define INSERT_UNARY_FPONLY_PATTERN(AtenOp, StablehloOp)                       \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenUnaryFPOnlyOp<AtenOp, StablehloOp>>(typeConverter,   \
                                                               context)
-  INSERT_UNARY_FPONLY_PATTERN(AtenLogOp, stablehlo::LogOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenLog1pOp, stablehlo::Log1pOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenExpOp, stablehlo::ExpOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenSqrtOp, stablehlo::SqrtOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenRsqrtOp, stablehlo::RsqrtOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenSigmoidOp, stablehlo::LogisticOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenTanhOp, stablehlo::TanhOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenSinOp, stablehlo::SineOp);
-  INSERT_UNARY_FPONLY_PATTERN(AtenCosOp, stablehlo::CosineOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenCeilOp, stablehlo::CeilOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenFloorOp, stablehlo::FloorOp);
   INSERT_UNARY_FPONLY_PATTERN(AtenRoundOp, stablehlo::RoundNearestEvenOp);
 #undef INSERT_UNARY_FPONLY_PATTERN
+
+#define INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenOp, StablehloOp)                \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenUnaryPromoteToFPOp<AtenOp, StablehloOp>>(            \
+      typeConverter, context)
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenLogOp, stablehlo::LogOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenLog1pOp, stablehlo::Log1pOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenExpOp, stablehlo::ExpOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSqrtOp, stablehlo::SqrtOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenRsqrtOp, stablehlo::RsqrtOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSigmoidOp, stablehlo::LogisticOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenTanhOp, stablehlo::TanhOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSinOp, stablehlo::SineOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenCosOp, stablehlo::CosineOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenTanOp, chlo::TanOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAsinOp, chlo::AsinOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenSinhOp, chlo::SinhOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAcosOp, chlo::AcosOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenCoshOp, chlo::CoshOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAtanOp, chlo::AtanOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAsinhOp, chlo::AsinhOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAcoshOp, chlo::AcoshOp);
+  INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenAtanhOp, chlo::AtanhOp);
+#undef INSERT_UNARY_PROMOTE_TO_FP_PATTERN
 
 #define INSERT_CONSTANT_FILL_PATTERN(AtenOp, fillVal)                          \
   target.addIllegalOp<AtenOp>();                                               \
@@ -1845,6 +2205,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_BINARY_MULDIV_PATTERN(AtenDivTensorOp, chlo::BroadcastDivOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenDivTensorModeOp, chlo::BroadcastDivOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenDivScalarOp, chlo::BroadcastDivOp);
+  INSERT_BINARY_MULDIV_PATTERN(AtenDivScalarModeOp, chlo::BroadcastDivOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenRemainderScalarOp, chlo::BroadcastRemOp);
 #undef INSERT_BINARY_MULDIV_PATTERN
 
@@ -1889,17 +2250,22 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenTensorIntOp);
   INSERT_ATENOP_PATTERN(AtenReciprocalOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
+  INSERT_ATENOP_PATTERN(AtenPowScalarOp);
   INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
   INSERT_ATENOP_PATTERN(AtenScalarImplicitOp);
   INSERT_ATENOP_PATTERN(AtenContiguousOp);
+  INSERT_ATENOP_PATTERN(AtenConstantPadNdOp);
 
   INSERT_ATENOP_PATTERN(AtenReluOp);
   INSERT_ATENOP_PATTERN(AtenGeluOp);
+  INSERT_ATENOP_PATTERN(AtenLog2Op);
+  INSERT_ATENOP_PATTERN(AtenLog10Op);
   INSERT_ATENOP_PATTERN(AtenErfOp);
   INSERT_ATENOP_PATTERN(AtenGeluBackwardOp);
 
   INSERT_ATENOP_PATTERN(AtenCatOp);
   INSERT_ATENOP_PATTERN(AtenClampOp);
+  INSERT_ATENOP_PATTERN(AtenClampTensorOp);
   INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
 
   INSERT_ATENOP_PATTERN(AtenBatchNormOp);
@@ -1909,10 +2275,16 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenToDtypeOp);
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
   INSERT_ATENOP_PATTERN(AtenPowTensorTensorOp);
-  INSERT_ATENOP_PATTERN(AtenUniformOp);
+
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
   INSERT_ATENOP_PATTERN(AtenFlipOp);
+  INSERT_ATENOP_PATTERN(AtenRemainderTensorOp);
+  INSERT_ATENOP_PATTERN(AtenFmodTensorOp);
+  INSERT_ATENOP_PATTERN(AtenBitwiseLeftShiftTensorOp);
+  INSERT_ATENOP_PATTERN(AtenBitwiseRightShiftTensorOp);
+
+  INSERT_ATENOP_PATTERN(AtenTrilOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \
@@ -1925,5 +2297,6 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_BINARY_BROADCAST_PATTERN(AtenBitwiseAndTensorOp, chlo::BroadcastAndOp);
   INSERT_BINARY_BROADCAST_PATTERN(AtenBitwiseOrTensorOp, chlo::BroadcastOrOp);
   INSERT_BINARY_BROADCAST_PATTERN(AtenBitwiseXorTensorOp, chlo::BroadcastXorOp);
+  INSERT_BINARY_BROADCAST_PATTERN(AtenAtan2Op, chlo::BroadcastAtan2Op);
 #undef INSERT_BINARY_BROADCAST_PATTERN
 }

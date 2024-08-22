@@ -122,14 +122,14 @@ LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
     auto func = dyn_cast<func::FuncOp>(op);
     if (!func)
       return op->emitError() << "'torch.type_bound' must be attached to a func";
-    TypeAttr attr = namedAttr.getValue().dyn_cast<TypeAttr>();
+    TypeAttr attr = dyn_cast<TypeAttr>(namedAttr.getValue());
     if (!attr)
       return op->emitError() << "'torch.type_bound' must be TypeAttr";
-    auto type = attr.getValue().dyn_cast<BaseTensorType>();
+    auto type = dyn_cast<BaseTensorType>(attr.getValue());
     if (!type)
       return op->emitError() << "'torch.type_bound' must be of "
                                 "!torch.tensor/!torch.vtensor type";
-    if (!func.getFunctionType().getInput(argIndex).isa<BaseTensorType>())
+    if (!isa<BaseTensorType>(func.getFunctionType().getInput(argIndex)))
       return op->emitError() << "'torch.type_bound' must be attached to an "
                                 "argument of !torch.tensor/!torch.vtensor type";
     return success();

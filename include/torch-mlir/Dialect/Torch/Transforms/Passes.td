@@ -362,14 +362,14 @@ def LowerToBackendContract
   let summary = "Perform simplifications until the backend contract is satisfied.";
   let constructor = [{
     mlir::torch::Torch::createLowerToBackendContractPass(
-      /*maxIterations=*/10, /*decompose=*/true, /*backendLegalOps=*/{}, /*extraLibrary=*/"")
+      /*maxIterations=*/10, /*decompose=*/true, /*shapeDtypeRefine*/true, /*backendLegalOps=*/{}, /*extraLibrary=*/"")
   }];
   let description = [{
     This pass performs the bulk of the lowering of the program's computations
     to the backend contract. This pass does not do any global program
     restructuring -- it works entirely within a single semantic model
     of a `builtin.module` with `torch.global_slot` ops and `func.func` ops.
-    
+
     This pass runs a set of simplifications within that semantic model until
     the backend contract is satisfied, and fails if it cannot be satisfied.
     In particular, the backend contract consists of:
@@ -405,6 +405,8 @@ def LowerToBackendContract
            "Maximum number of invocations of the simplification pipeline.">,
     Option<"decompose", "decompose", "bool", /*default=*/"true",
            "Decompose ops.">,
+    Option<"shapeDtypeRefine", "shape-dtype-refine", "bool", /*default=*/"true",
+           "Do shape and dtype refinement.">,
     ListOption<"backendLegalOps", "backend-legal-ops", "std::string",
                "List of ops to be considered legal for the backend, such as 'aten.foo'.">,
     Option<"extraLibrary", "extra-library", "std::string", /*default=*/"",

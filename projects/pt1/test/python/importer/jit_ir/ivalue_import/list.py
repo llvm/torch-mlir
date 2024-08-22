@@ -11,10 +11,13 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.l = [1, 2]
+
+
 # CHECK: torch.class_type @[[CLASSTYPE:.*]] {
 # CHECK:   torch.attr "l" : !torch.list<int>
 # CHECK: }

@@ -81,7 +81,7 @@ LogicalResult Torch::wrapWithCalculateOpIfLibraryFunctionAvailable(
   if (name.starts_with("valsem."))
     name = name.drop_front(strlen("valsem."));
   if (isa<OperatorOp>(op))
-    name = cast<OperatorOp>(op)->getAttr("name").cast<StringAttr>().getValue();
+    name = cast<StringAttr>(cast<OperatorOp>(op)->getAttr("name")).getValue();
   std::string libFuncName =
       (getLibraryFunctionPrefix(libFuncKind) + Twine(name)).str();
   auto libFunc = library.lookupSymbol<func::FuncOp>(libFuncName);
@@ -118,7 +118,7 @@ LogicalResult Torch::wrapWithCalculateOpIfLibraryFunctionAvailable(
     assert(call.getNumResults() == 1 &&
            "Multiple results are packed in a tuple in Python!");
     Value result = call.getResult(0);
-    if (auto tupleType = result.getType().dyn_cast<Torch::TupleType>()) {
+    if (auto tupleType = dyn_cast<Torch::TupleType>(result.getType())) {
       auto unpack = b.create<PrimTupleUnpackOp>(
           loc, tupleType.getContainedTypes(), result);
       llvm::append_range(unpackedResults, unpack.getResults());
@@ -191,8 +191,8 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
   // to match the library function signature.
   if (auto unionType = dyn_cast<Torch::UnionType>(desiredType)) {
     if (llvm::all_of(unionType.getContainedTypes(), [](Type containedType) {
-          return containedType
-              .isa<Torch::IntType, Torch::FloatType, Torch::NoneType>();
+          return isa<Torch::IntType, Torch::FloatType, Torch::NoneType>(
+              containedType);
         }))
       return b.create<DerefineOp>(loc, desiredType, operand).getResult();
   }
@@ -275,7 +275,7 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
     // for i in range(len(operand)):
     //     adjusted_list.append(adjust(operand[i]))
     // return adjusted_list
-    auto providedType = operand.getType().cast<Torch::ListType>();
+    auto providedType = cast<Torch::ListType>(operand.getType());
     Value adjustedList =
         b.create<PrimListConstructOp>(loc, desiredListType, ValueRange({}));
     // Create a for-like PrimLoopOp.
@@ -312,7 +312,7 @@ Torch::adjustFunctionArg(OpBuilder &b, Location loc, Value operand,
   // signature uses `Scalar` (see comments in torch_ods_gen.py for
   // explanation).
   if (isa<Torch::FloatType>(desiredType) &&
-      operand.getType().isa<Torch::IntType>()) {
+      isa<Torch::IntType>(operand.getType())) {
     return b.create<AtenFloatScalarOp>(loc, desiredType, operand).getResult();
   }
 

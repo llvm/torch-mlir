@@ -45,6 +45,7 @@ from torch import Tensor
 # The typical iteration flow is to add invocations to the list and then re-run
 # `build_tools/update_abstract_interp_lib.sh` to re-run the tests.
 
+
 class TensorOfShape:
     """Symbolic placeholder for a tensor argument to an operation.
 
@@ -60,30 +61,40 @@ class TensorOfShape:
     This class also tracks a dtype of the tensor, since some ops require a
     specific dtype.
     """
-    def __init__(self, *shape: int, dtype: torch.dtype = torch.float32,
-                 device: Optional[torch.device] = None):
+
+    def __init__(
+        self,
+        *shape: int,
+        dtype: torch.dtype = torch.float32,
+        device: Optional[torch.device] = None,
+    ):
         self.shape = list(shape)
         self.dtype = dtype
         self.device = "meta" if device is None else device
+
     def __repr__(self):
         args_str = ", ".join(repr(x) for x in self.shape)
         return f"TensorOfShape({args_str}, dtype={self.dtype}, device={self.device})"
+
 
 def LongTensorOfShape(*args, **kwargs):
     """Helper for indicating a TensorOfShape with integer type."""
     return TensorOfShape(*args, **kwargs, dtype=torch.long)
 
+
 def NonZeroDTensorWithDtype(dtype, device: Optional[torch.device] = None):
     """Helper for indicating a non-zero dim tensor with custom type."""
     return TensorOfShape(1, dtype=dtype, device=device)
+
 
 def ZeroDTensorWithDtype(dtype, device: Optional[torch.device] = None):
     """Helper for indicating a zero dim tensor with custom type."""
     return TensorOfShape(dtype=dtype, device=device)
 
+
 def _recursively_transform_tensor_args(
-        o: Any,
-        tensor_transformer: Callable[[TensorOfShape], Any]) -> Any:
+    o: Any, tensor_transformer: Callable[[TensorOfShape], Any]
+) -> Any:
     """Replace `TensorOfShape` with the result of `tensor_transformer`"""
     if o is None or isinstance(o, (float, int, str)):
         return o
@@ -92,8 +103,11 @@ def _recursively_transform_tensor_args(
     if isinstance(o, list):
         return [_recursively_transform_tensor_args(x, tensor_transformer) for x in o]
     if isinstance(o, tuple):
-        return tuple(_recursively_transform_tensor_args(x, tensor_transformer) for x in o)
+        return tuple(
+            _recursively_transform_tensor_args(x, tensor_transformer) for x in o
+        )
     raise Exception(f"Unhandled type {type(o)}")
+
 
 class Invocation:
     """Representation of a single op invocation (i.e. list of args to the op).
@@ -111,6 +125,7 @@ class Invocation:
     exception for greater precision when interpreting errors raised during
     testing.
     """
+
     def __init__(self, *args: Any, **kwargs: Any):
         self.args = list(args)
         # We assume kwargs don't contain tensors, so they don't need any
@@ -134,14 +149,12 @@ class Invocation:
         # are ok since they make it a bit easier to write some shape
         # functions.
         tensor_transformer = lambda o: list(o.shape)
-        return _recursively_transform_tensor_args(
-            self.args, tensor_transformer)
+        return _recursively_transform_tensor_args(self.args, tensor_transformer)
 
     def to_dtype_function_args(self):
         """Gets positional arguments appropriate for a dtype function."""
         tensor_transformer = lambda o: (len(o.shape), o.dtype)
-        return _recursively_transform_tensor_args(
-            self.args, tensor_transformer)
+        return _recursively_transform_tensor_args(self.args, tensor_transformer)
 
     def to_real_op_args(self):
         """Gets positional arguments appropriate for the real op."""
@@ -155,6 +168,7 @@ class Invocation:
             kwargs_str = ", " + ", ".join(f"{k}={v}" for k, v in self.kwargs.items())
         return f"Invocation({args_str}{kwargs_str})"
 
+
 class ErrorInvocation(Invocation):
     """An Invocation that raises an exception.
 
@@ -165,8 +179,10 @@ class ErrorInvocation(Invocation):
     spurioiusly make the two appear to "agree" that an exception needs to be
     raised).
     """
+
     def is_expected_to_raise_exception(self) -> bool:
         return True
+
 
 def _normalize_multiple_results_to_list(t: Any):
     """Returns a flat list of results.
@@ -182,9 +198,13 @@ def _normalize_multiple_results_to_list(t: Any):
         return [t]
     raise ValueError(f"Unexpected type {type(t)}")
 
+
 def _report(f, invocation: Invocation, error_message: str):
-    fn_type =  f.__name__.split("〡")[-1]
-    raise ValueError(f"For {fn_type} function {f.__name__!r} with invocation {invocation}: {error_message}")
+    fn_type = f.__name__.split("〡")[-1]
+    raise ValueError(
+        f"For {fn_type} function {f.__name__!r} with invocation {invocation}: {error_message}"
+    )
+
 
 def _get_fn_and_golden_results(f, invocation: List[Invocation]):
     """Run the invocation on the library function and torch op.
@@ -201,35 +221,63 @@ def _get_fn_and_golden_results(f, invocation: List[Invocation]):
     op = getattr(getattr(getattr(torch.ops, ns), unqual), overload)
     fn_error, op_error, fn_results, golden_results = None, None, None, None
     try:
-        fn_results = _normalize_multiple_results_to_list(f(
-            *(getattr(invocation, f"to_{fn_type}_function_args")()),
-            **invocation.kwargs))
+        fn_results = _normalize_multiple_results_to_list(
+            f(
+                *(getattr(invocation, f"to_{fn_type}_function_args")()),
+                **invocation.kwargs,
+            )
+        )
     except Exception as e:
         fn_error = f"{e}"
     try:
-        golden_results = _normalize_multiple_results_to_list(op(
-            *invocation.to_real_op_args(),
-            **invocation.kwargs))
+        golden_results = _normalize_multiple_results_to_list(
+            op(*invocation.to_real_op_args(), **invocation.kwargs)
+        )
     except Exception as e:
         op_error = f"{e}"
 
     # Check for error behavior.
     if invocation.is_expected_to_raise_exception():
         if fn_error is None and op_error is None:
-            _report(f, invocation, f"Expected to raise an exception, but neither {fn_type} function or op raised an exception")
+            _report(
+                f,
+                invocation,
+                f"Expected to raise an exception, but neither {fn_type} function or op raised an exception",
+            )
         if fn_error is None:
-            _report(f, invocation, f"Op raised error {op_error!r}, but shape/dtype function did not.")
+            _report(
+                f,
+                invocation,
+                f"Op raised error {op_error!r}, but shape/dtype function did not.",
+            )
         if op_error is None:
-            _report(f, invocation, f"{fn_type} function raised error {fn_error!r}, but op did not.")
+            _report(
+                f,
+                invocation,
+                f"{fn_type} function raised error {fn_error!r}, but op did not.",
+            )
     else:
         if fn_error is not None and op_error is not None:
-            _report(f, invocation, f"Both {fn_type} function and op raised errors, but were not expected to. {fn_type} function raised error {fn_error!r} and op raised error {op_error!r}.")
+            _report(
+                f,
+                invocation,
+                f"Both {fn_type} function and op raised errors, but were not expected to. {fn_type} function raised error {fn_error!r} and op raised error {op_error!r}.",
+            )
         if fn_error is not None:
-            _report(f, invocation, f"{fn_type} function raised error {fn_error!r} but op did not raise any error.")
+            _report(
+                f,
+                invocation,
+                f"{fn_type} function raised error {fn_error!r} but op did not raise any error.",
+            )
         if op_error is not None:
-            _report(f, invocation, f"Op raised error {op_error!r} but {fn_type} function did not raise any error.")
+            _report(
+                f,
+                invocation,
+                f"Op raised error {op_error!r} but {fn_type} function did not raise any error.",
+            )
 
     return fn_results, golden_results
+
 
 def check_shape_function(invocations: List[Invocation]):
     """Decorator that automatically tests a shape function.
@@ -238,6 +286,7 @@ def check_shape_function(invocations: List[Invocation]):
     `〇` instead of `.`, is tested against the corresponding op in
     `torch.ops.*` function using the given invocations.
     """
+
     def decorator(f):
         for invocation in invocations:
             result_shapes, golden_results = _get_fn_and_golden_results(f, invocation)
@@ -245,17 +294,33 @@ def check_shape_function(invocations: List[Invocation]):
                 continue
             # Check for matching results.
             if len(result_shapes) != len(golden_results):
-                _report(f, invocation, f"Expected {len(golden_results)} result shapes, got {len(result_shapes)}")
+                _report(
+                    f,
+                    invocation,
+                    f"Expected {len(golden_results)} result shapes, got {len(result_shapes)}",
+                )
             for result_shape, golden_result in zip(result_shapes, golden_results):
                 result_rank = len(result_shape)
                 golden_rank = len(golden_result.shape)
                 if result_rank != golden_rank:
-                    _report(f, invocation, f"Expected result rank {golden_rank}, got {result_rank}")
-                for dimension_size, golden_dimension_size in zip(result_shape, golden_result.shape):
+                    _report(
+                        f,
+                        invocation,
+                        f"Expected result rank {golden_rank}, got {result_rank}",
+                    )
+                for dimension_size, golden_dimension_size in zip(
+                    result_shape, golden_result.shape
+                ):
                     if dimension_size != golden_dimension_size:
-                        _report(f, invocation, f"Expected result shape {golden_result.shape}, got {result_shape}")
+                        _report(
+                            f,
+                            invocation,
+                            f"Expected result shape {golden_result.shape}, got {result_shape}",
+                        )
         return f
+
     return decorator
+
 
 @torch.jit.script
 def _convert_dtype_to_int(dtype: torch.dtype) -> int:
@@ -266,6 +331,7 @@ def _convert_dtype_to_int(dtype: torch.dtype) -> int:
     """
     return dtype
 
+
 def check_dtype_function(invocations: List[Invocation]):
     """Decorator that automatically tests a dtype function.
 
@@ -273,6 +339,7 @@ def check_dtype_function(invocations: List[Invocation]):
     `〇` instead of `.`, is tested against the corresponding op in
     `torch.ops.*` function using the given invocations.
     """
+
     def decorator(f):
         for invocation in invocations:
             result_dtypes, golden_results = _get_fn_and_golden_results(f, invocation)
@@ -280,7 +347,11 @@ def check_dtype_function(invocations: List[Invocation]):
                 continue
 
             if len(result_dtypes) != len(golden_results):
-                _report(f, invocation, f"Expected {len(golden_results)} result dtypes, got {len(result_dtypes)}")
+                _report(
+                    f,
+                    invocation,
+                    f"Expected {len(golden_results)} result dtypes, got {len(result_dtypes)}",
+                )
             for result_dtype, golden_result in zip(result_dtypes, golden_results):
                 if isinstance(golden_result, torch.Tensor):
                     golden_dtype = golden_result.dtype
@@ -294,7 +365,14 @@ def check_dtype_function(invocations: List[Invocation]):
                 # support returning the default `int` value, the comparisons of
                 # the result and golden dtypes are done using their underlying
                 # `int` representation.
-                if _convert_dtype_to_int(result_dtype) != _convert_dtype_to_int(golden_dtype):
-                    _report(f, invocation, f"Expected result dtype {golden_dtype}, got {result_dtype}")
+                if _convert_dtype_to_int(result_dtype) != _convert_dtype_to_int(
+                    golden_dtype
+                ):
+                    _report(
+                        f,
+                        invocation,
+                        f"Expected result dtype {golden_dtype}, got {result_dtype}",
+                    )
         return f
+
     return decorator

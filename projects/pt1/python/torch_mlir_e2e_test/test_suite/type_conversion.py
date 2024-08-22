@@ -13,7 +13,6 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 
 class TypeConversionF32ToF64Module(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -29,7 +28,6 @@ def TypeConversionF32ToF64Module_basic(module, tu: TestUtils):
 
 
 class TypeConversionF64ToF32Module(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -45,7 +43,6 @@ def TypeConversionF64ToF32Module_basic(module, tu: TestUtils):
 
 
 class TypeConversionI32ToI64Module(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -61,7 +58,6 @@ def TypeConversionI32ToI64Module_basic(module, tu: TestUtils):
 
 
 class TypeConversionI64ToI32Module(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -77,7 +73,6 @@ def TypeConversionI64ToI32Module_basic(module, tu: TestUtils):
 
 
 class TypeConversionI1ToI32Module(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -94,7 +89,6 @@ def TypeConversionI1ToI32Module_basic(module, tu: TestUtils):
 
 
 class TypeConversionI1ToI64Module(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -111,7 +105,6 @@ def TypeConversionI1ToI64Module_basic(module, tu: TestUtils):
 
 
 class TypeConversionI1ToF32Module(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -128,7 +121,6 @@ def TypeConversionI1ToF32Module_basic(module, tu: TestUtils):
 
 
 class TypeConversionI1ToF64Module(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
@@ -144,47 +136,70 @@ def TypeConversionI1ToF64Module_basic(module, tu: TestUtils):
     module.forward(tensor)
 
 
+class TypeConversionUint8ToF32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3], torch.uint8, True),
+        ]
+    )
+    def forward(self, x):
+        return x.to(torch.float)
+
+
+@register_test_case(module_factory=lambda: TypeConversionUint8ToF32Module())
+def TypeConversionUint8ToF32Module_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 1, 255]).to(torch.uint8))
+
+
 # ==============================================================================
 
 
 class ToDtypeLayoutNoneModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([None, ([-1, -1], torch.float32, True)])
     def forward(self, x):
-        return torch.ops.aten.to(x,
-                                 dtype=torch.float64,
-                                 layout=None,
-                                 device=None,
-                                 pin_memory=None,
-                                 non_blocking=False,
-                                 copy=False,
-                                 memory_format=None)
+        return torch.ops.aten.to(
+            x,
+            dtype=torch.float64,
+            layout=None,
+            device=None,
+            pin_memory=None,
+            non_blocking=False,
+            copy=False,
+            memory_format=None,
+        )
 
 
 @register_test_case(module_factory=lambda: ToDtypeLayoutNoneModule())
 def ToDtypeLayoutNoneModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
 
-class ToDtypeLayoutCPUModule(torch.nn.Module):
 
+class ToDtypeLayoutCPUModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([None, ([-1, -1], torch.float32, True)])
     def forward(self, x):
-        return torch.ops.aten.to(x,
-                                 dtype=torch.float64,
-                                 layout=None,
-                                 device="cpu",
-                                 pin_memory=None,
-                                 non_blocking=False,
-                                 copy=False,
-                                 memory_format=None)
+        return torch.ops.aten.to(
+            x,
+            dtype=torch.float64,
+            layout=None,
+            device="cpu",
+            pin_memory=None,
+            non_blocking=False,
+            copy=False,
+            memory_format=None,
+        )
 
 
 @register_test_case(module_factory=lambda: ToDtypeLayoutCPUModule())
@@ -193,21 +208,22 @@ def ToDtypeLayoutCPUModule_basic(module, tu: TestUtils):
 
 
 class ToDtypeLayoutStridedModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([None, ([-1, -1], torch.float32, True)])
     def forward(self, x):
-        return torch.ops.aten.to(x,
-                                 dtype=torch.float64,
-                                 layout=torch.strided,
-                                 device=None,
-                                 pin_memory=None,
-                                 non_blocking=False,
-                                 copy=False,
-                                 memory_format=None)
+        return torch.ops.aten.to(
+            x,
+            dtype=torch.float64,
+            layout=torch.strided,
+            device=None,
+            pin_memory=None,
+            non_blocking=False,
+            copy=False,
+            memory_format=None,
+        )
 
 
 @register_test_case(module_factory=lambda: ToDtypeLayoutStridedModule())
@@ -216,21 +232,22 @@ def ToDtypeLayoutStridedModule_basic(module, tu: TestUtils):
 
 
 class ToDtypeBoolLayoutNoneStaticModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
     @annotate_args([None, ([3, 5], torch.int64, True)])
     def forward(self, x):
-        return torch.ops.aten.to(x,
-                                 dtype=torch.bool,
-                                 layout=None,
-                                 device=None,
-                                 pin_memory=None,
-                                 non_blocking=False,
-                                 copy=False,
-                                 memory_format=None)
+        return torch.ops.aten.to(
+            x,
+            dtype=torch.bool,
+            layout=None,
+            device=None,
+            pin_memory=None,
+            non_blocking=False,
+            copy=False,
+            memory_format=None,
+        )
 
 
 @register_test_case(module_factory=lambda: ToDtypeBoolLayoutNoneStaticModule())
@@ -239,16 +256,17 @@ def ToDtypeBoolLayoutNoneStaticModule_basic(module, tu: TestUtils):
 
 
 class TypeAsSameModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.float32, True),
-        ([-1, -1], torch.float32, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
     def forward(self, x, y):
         return torch.ops.aten.type_as(x, y)
 
@@ -257,17 +275,19 @@ class TypeAsSameModule(torch.nn.Module):
 def TypeAsSameModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5), tu.rand(3, 5))
 
-class TypeAsDifferentModule(torch.nn.Module):
 
+class TypeAsDifferentModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.int, True),
-        ([-1, -1], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int, True),
+            ([-1, -1], torch.int64, True),
+        ]
+    )
     def forward(self, x, y):
         return torch.ops.aten.type_as(x, y)
 
@@ -276,14 +296,14 @@ class TypeAsDifferentModule(torch.nn.Module):
 def TypeAsDifferentModule_basic(module, tu: TestUtils):
     module.forward(
         tu.randint(3, 5, low=0, high=10, dtype=torch.int),
-        tu.randint(3, 5, low=0, high=10, dtype=torch.int64)
+        tu.randint(3, 5, low=0, high=10, dtype=torch.int64),
     )
+
 
 # ==============================================================================
 
 
 class PrimsConvertElementTypeModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 

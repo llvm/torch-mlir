@@ -259,7 +259,7 @@ LogicalResult Torch::updateCalculateOpResultTypes(Operation *calculateOp,
   Type originalResultType = result.getType();
   Type updatedType;
   if (auto originalBaseTensorType =
-          originalResultType.template dyn_cast<BaseTensorType>()) {
+          dyn_cast<BaseTensorType>(originalResultType)) {
     // If we didn't get any new information, there is nothing left for us to do.
     updatedType = meetTensorTypes(originalBaseTensorType,
                                   cast<BaseTensorType>(newResultType));
@@ -267,7 +267,7 @@ LogicalResult Torch::updateCalculateOpResultTypes(Operation *calculateOp,
       return rewriter.notifyMatchFailure(
           calculateOp, "New type information does not refine old type");
   } else if (auto originalResultType =
-                 result.getType().template dyn_cast<Torch::NumberType>()) {
+                 dyn_cast<Torch::NumberType>(result.getType())) {
     if (!isa<Torch::FloatType, Torch::IntType>(newResultType)) {
       return rewriter.notifyMatchFailure(
           calculateOp,

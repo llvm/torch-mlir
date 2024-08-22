@@ -30,17 +30,22 @@ mb = ModuleBuilder()
 # CHECK:             return %[[RET]] : !torch.none
 # CHECK:           }
 
-def calls_method(c: 'TestModule', x):
+
+def calls_method(c: "TestModule", x):
     return c.method(x)
+
 
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
+
     def forward(self, x):
         return calls_method(self, x)
-    @torch.jit.export # Needed so that scripting sees it.
+
+    @torch.jit.export  # Needed so that scripting sees it.
     def method(self, x):
         return
+
 
 test_module = TestModule()
 recursivescriptmodule = torch.jit.script(test_module)

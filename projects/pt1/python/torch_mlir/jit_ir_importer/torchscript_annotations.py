@@ -24,34 +24,38 @@ from torch_mlir.jit_ir_importer import ClassAnnotator
 
 # Utilities for extracting decorated information into ClassAnnotator.
 
+
 def _recursively_extract_annotations(
-        module: torch.nn.Module, scripted: torch.jit.ScriptModule,
-        class_annotator: ClassAnnotator):
+    module: torch.nn.Module,
+    scripted: torch.jit.ScriptModule,
+    class_annotator: ClassAnnotator,
+):
     assert module.__class__.__name__ == scripted.original_name or (
-        isinstance(module, torch.jit.RecursiveScriptModule) and module is
-        scripted), "script module does not come from specified module"
+        isinstance(module, torch.jit.RecursiveScriptModule) and module is scripted
+    ), "script module does not come from specified module"
 
     # Extract information on methods.
     for method_name, scripted_method in scripted.__dict__.items():
         if not isinstance(scripted_method, torch.ScriptMethod):
             continue
         method = getattr(module, method_name)
-        if hasattr(method, '_torch_mlir_export'):
+        if hasattr(method, "_torch_mlir_export"):
             class_annotator.exportPath(scripted._c._type(), [method_name])
-        if hasattr(method, '_torch_mlir_arg_annotations'):
+        if hasattr(method, "_torch_mlir_arg_annotations"):
             class_annotator.annotateArgs(
-                scripted._c._type(), [method_name],
-                method._torch_mlir_arg_annotations)
+                scripted._c._type(), [method_name], method._torch_mlir_arg_annotations
+            )
     # Recurse.
     for name, child in module.named_children():
         scripted_child = getattr(scripted, name)
-        _recursively_extract_annotations(child, scripted_child,
-                                         class_annotator)
+        _recursively_extract_annotations(child, scripted_child, class_annotator)
 
 
-def extract_annotations(program: torch.nn.Module,
-                        scripted: torch.jit.ScriptModule,
-                        class_annotator: ClassAnnotator):
+def extract_annotations(
+    program: torch.nn.Module,
+    scripted: torch.jit.ScriptModule,
+    class_annotator: ClassAnnotator,
+):
     """Populate the ClassAnnotator with annotations extracted from `program`."""
     class_annotator.exportNone(scripted._c._type())
     _recursively_extract_annotations(program, scripted, class_annotator)

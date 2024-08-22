@@ -6,6 +6,7 @@ add_mlir_conversion_library(TorchMLIRTorchToStablehlo
   Linear.cpp
   ViewLike.cpp
   Reduction.cpp
+  Rng.cpp
   Pooling.cpp
   Utils.cpp
 

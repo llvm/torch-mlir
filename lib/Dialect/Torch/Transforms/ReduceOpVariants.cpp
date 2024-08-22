@@ -26,9 +26,9 @@ static void createOverwriteTensorContents(PatternRewriter &rewriter,
                                           Location loc, Value overwriterTensor,
                                           Value overwrittenTensor) {
   Type overwriterTensorType = overwriterTensor.getType();
-  Type overwrittenTensorType = overwrittenTensor.getType()
-                                   .dyn_cast<NonValueTensorType>()
-                                   .getWithValueSemantics();
+  Type overwrittenTensorType =
+      dyn_cast<NonValueTensorType>(overwrittenTensor.getType())
+          .getWithValueSemantics();
   if (overwriterTensorType != overwrittenTensorType) {
     overwriterTensor = rewriter.create<TensorStaticInfoCastOp>(
         loc, overwrittenTensorType, overwriterTensor);
@@ -58,7 +58,7 @@ operatorOpHasValueSemantics(OperatorOp opOp,
                             std::optional<SymbolTable> extraLibrary) {
   if (!extraLibrary.has_value())
     return false;
-  auto opName = opOp->getAttr("name").cast<StringAttr>().getValue();
+  auto opName = cast<StringAttr>(opOp->getAttr("name")).getValue();
   std::string libFuncName = (mlir::torch::Torch::getLibraryFunctionPrefix(
                                  LibraryFunctionKind::HasValueSemantics) +
                              Twine(opName))
@@ -96,8 +96,8 @@ public:
         opOperand.set(rewriter.create<CopyToValueTensorOp>(op->getLoc(),
                                                            opOperand.get()));
       } else if (auto listType = dyn_cast<ListType>(operandType)) {
-        if (!(listType.getContainedType().isa<NonValueTensorType>() ||
-              listType.getContainedType().isa<OptionalType>()))
+        if (!(isa<NonValueTensorType>(listType.getContainedType()) ||
+              isa<OptionalType>(listType.getContainedType())))
           continue;
 
         // Construct a new list whose elements are value tensors copied from
@@ -116,9 +116,9 @@ public:
 
         // TODO: Handle optional type in list type.
         if (auto optionalType =
-                listType.getContainedType().dyn_cast<OptionalType>()) {
+                dyn_cast<OptionalType>(listType.getContainedType())) {
           if (!llvm::all_of(listConstruct.getElements(), [](Value val) {
-                return val.getType().isa<NonValueTensorType, Torch::NoneType>();
+                return isa<NonValueTensorType, Torch::NoneType>(val.getType());
               })) {
             rewriter.cancelOpModification(op);
             return rewriter.notifyMatchFailure(
@@ -129,7 +129,7 @@ public:
 
         auto newListElements = llvm::to_vector(llvm::map_range(
             listConstruct.getElements(), [&](Value tensor) -> Value {
-              if (tensor.getType().isa<NonValueTensorType>()) {
+              if (isa<NonValueTensorType>(tensor.getType())) {
                 return rewriter.create<CopyToValueTensorOp>(op->getLoc(),
                                                             tensor);
               }
@@ -147,7 +147,7 @@ public:
       } else if (auto optionalType = dyn_cast<OptionalType>(operandType)) {
         // TODO: A more general way to handle the optional type is to
         // introduce a `copy.to_optional_vtensor` op.
-        if (!optionalType.getContainedType().isa<NonValueTensorType>())
+        if (!isa<NonValueTensorType>(optionalType.getContainedType()))
           continue;
 
         // Create a new optional value whose input is a value tensor copied
@@ -160,7 +160,7 @@ public:
                   "derefine");
         }
 
-        if (!derefine.getOperand().getType().isa<NonValueTensorType>())
+        if (!isa<NonValueTensorType>(derefine.getOperand().getType()))
           continue;
         auto newOperand = rewriter.create<CopyToValueTensorOp>(
             op->getLoc(), derefine.getOperand());
@@ -172,7 +172,7 @@ public:
     // Convert all results.
     rewriter.setInsertionPointAfter(op);
     for (Value result : op->getResults()) {
-      auto tensorType = result.getType().dyn_cast<NonValueTensorType>();
+      auto tensorType = dyn_cast<NonValueTensorType>(result.getType());
       if (!tensorType)
         continue;
       result.setType(tensorType.getWithValueSemantics());
@@ -246,6 +246,9 @@ void TorchMatchSpecializedBackendOp::populateSpecializedConversions(
           llvm::SmallVector<Value> newOperands{
               oldOperands[0], oldOperands[1], oldOperands[2], oldOperands[5],
               oldOperands[3], oldOperands[4], oldOperands[6]};
+          Value enableGQA =
+              rewriter.create<ConstantBoolOp>(op->getLoc(), false);
+          newOperands.push_back(enableGQA);
 
           auto newOp = rewriter.create<Torch::AtenScaledDotProductAttentionOp>(
               op.getLoc(), op->getResultTypes()[0], newOperands,

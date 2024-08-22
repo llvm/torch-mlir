@@ -25,6 +25,11 @@ void getBackendTypeConversionDependentDialects(DialectRegistry &registry);
 /// boundary (which currently consist only of builtin types).
 void setupBackendTypeConversion(ConversionTarget &target,
                                 TypeConverter &typeConverter);
+
+#ifdef TORCH_MLIR_ENABLE_STABLEHLO
+void setupBackendTypeConversionForStablehlo(ConversionTarget &target,
+                                            TypeConverter &typeConverter);
+#endif
 } // namespace TorchConversion
 } // namespace torch
 } // namespace mlir

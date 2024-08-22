@@ -20,7 +20,6 @@ declare_mlir_python_sources(TorchMLIRPythonSources.TopLevel
   SOURCES
     torchscript.py
     _dynamo_fx_importer.py
-    compiler_utils.py
     dynamo.py
     _version.py
 )
@@ -57,7 +56,7 @@ endif()
 # Can we build the JIT IR importer with `declare_mlir_python_extension`?
 # Then it would "just work".
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
-  add_dependencies(TorchMLIRPythonTorchExtensionsSources 
+  add_dependencies(TorchMLIRPythonTorchExtensionsSources
     TorchMLIRJITIRImporter
     TorchMLIRJITIRImporterPybind
     TorchMLIRE2ETestPythonModules
@@ -66,7 +65,7 @@ endif()
 
 if(TORCH_MLIR_ENABLE_LTC)
   # Add Torch-MLIR LTC backend as dependency
-  add_dependencies(TorchMLIRPythonTorchExtensionsSources 
+  add_dependencies(TorchMLIRPythonTorchExtensionsSources
     torch_mlir_ltc_backend
     reference_lazy_backend
   )

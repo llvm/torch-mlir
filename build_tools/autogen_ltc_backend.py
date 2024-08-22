@@ -30,6 +30,7 @@ if not TORCH_INCLUDE_DIR.is_dir():
 TORCHGEN_DIR = Path(torchgen.__path__[0]).resolve()
 TORCH_MLIR_DIR = Path(__file__).resolve().parent.parent
 
+
 def reindent(text, prefix=""):
     return indent(dedent(text), prefix)
 
@@ -75,7 +76,11 @@ class GenMlirLazyIr(torchgen.dest.GenLazyIR):
         )
 
         # Only create this variable if it's used to avoid Wunused-variable
-        operand_idx_counter = "size_t i = 0;" if "i++" in (emplace_arguments_str + emplace_kwarguments) else ""
+        operand_idx_counter = (
+            "size_t i = 0;"
+            if "i++" in (emplace_arguments_str + emplace_kwarguments)
+            else ""
+        )
 
         return reindent(
             f"""
@@ -111,12 +116,16 @@ class GenTorchMlirLTC:
         )
         assert self.torch_ops_file.exists()
         self.binary_dir = Path(binary_dir)
-        assert self.binary_dir.is_dir(), f"Binary directory not found: {self.binary_dir}"
+        assert (
+            self.binary_dir.is_dir()
+        ), f"Binary directory not found: {self.binary_dir}"
         self.source_yaml = self.binary_dir.joinpath("generated_native_functions.yaml")
         self.backend_path = TORCH_MLIR_DIR.joinpath(
             "projects", "ltc", "csrc", "base_lazy_backend"
         )
-        assert self.backend_path.is_dir(), f"Backend path not found: {self.backend_path}"
+        assert (
+            self.backend_path.is_dir()
+        ), f"Backend path not found: {self.backend_path}"
         self.generated_path = self.binary_dir.joinpath(
             "projects", "ltc", "csrc", "base_lazy_backend", "generated"
         )
@@ -168,8 +177,9 @@ class GenTorchMlirLTC:
         if ts_native_yaml_path.exists():
             ts_native_yaml = yaml.load(ts_native_yaml_path.read_text(), yaml.CLoader)
         else:
-            logging.warning(f"Could not find `ts_native_functions.yaml` at {ts_native_yaml_path}")
-
+            logging.warning(
+                f"Could not find `ts_native_functions.yaml` at {ts_native_yaml_path}"
+            )
 
         parsed_yaml = parse_native_yaml(native_yaml_path, tags_yaml_path)
         self.native_functions = parsed_yaml.native_functions

@@ -11,16 +11,19 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 class Submodule(torch.nn.Module):
     def __init__(self, n):
         super().__init__()
         self.n = n
+
 
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.s0 = Submodule(0)
         self.s1 = Submodule(1)
+
 
 # CHECK-LABEL: torch.class_type @__torch__.TestModule {
 # CHECK:         %[[T:.*]] = torch.constant.bool true

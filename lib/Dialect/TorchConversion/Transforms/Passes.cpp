@@ -9,11 +9,7 @@
 
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 #include "mlir/Conversion/Passes.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Func/Transforms/Passes.h"
-#include "mlir/Dialect/Linalg/Passes.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
-#include "mlir/Dialect/Tosa/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
@@ -152,10 +148,11 @@ void TorchConversion::createTorchBackendToStablehloBackendPipeline(
 
   // Finish the type conversion from `torch` types to the types of the
   // StableHLO backend contract.
-  pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
+  pm.addPass(
+      TorchConversion::createFuncBackendTypeConversionForStablehloPass());
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(
-      TorchConversion::createFinalizingBackendTypeConversionPass());
+      TorchConversion::createFinalizingBackendTypeConversionForStablehloPass());
 
   // Verify that we have lowered to Stablehlo ops.
   pm.addPass(TorchConversion::createVerifyStablehloBackendContractPass());
@@ -169,5 +166,12 @@ void TorchConversion::createTorchBackendToStablehloBackendPipeline(
   pm.addNestedPass<func::FuncOp>(
       stablehlo::createStablehloCanonicalizeDynamismPass());
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+
+  // Legalize deprecated ops to Stablehlo ops
+  stablehlo::StablehloLegalizeDeprecatedOpsPassOptions stablehloOptions;
+  stablehloOptions.failOnUnusedOps = false;
+  pm.addNestedPass<func::FuncOp>(
+      stablehlo::createStablehloLegalizeDeprecatedOpsPass(stablehloOptions));
+  pm.addPass(createCanonicalizerPass());
 }
 #endif

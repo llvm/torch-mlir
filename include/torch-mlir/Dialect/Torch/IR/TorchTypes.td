@@ -129,6 +129,7 @@ class AnyTorchTensorType<string name, string typeMnemonic>
     | torch.bool        | i1                 |
     | torch.qint8       | !torch.qint8       |
     | torch.quint8      | !torch.quint8      |
+    | torch.qint32      | !torch.qint32      |
     | torch.complex64   | complex<f32>       |
     | torch.complex128  | complex<f64>       |
     |-------------------|--------------------|
@@ -198,7 +199,7 @@ def Torch_ValueTensorType : AnyTorchTensorType<"ValueTensor", "vtensor"> {
 }
 
 def AnyTorchTensorType : Type<
-    CPred<"$_self.isa<::mlir::torch::Torch::BaseTensorType>()">,
+    CPred<"isa<::mlir::torch::Torch::BaseTensorType>($_self)">,
     "Any Torch tensor type"
 >;
 
@@ -314,6 +315,16 @@ def Torch_QInt8Type : Torch_Type<"QInt8", "qint8"> {
   }];
 }
 
+def Torch_QInt16Type : Torch_Type<"QInt16", "qint16"> {
+  let summary = "Type modeling `ScalarType::QInt16`, which doesn't yet exist";
+  let description = [{
+    Pytorch does not have 16-bit integer quantization support.
+
+    This torch type is added to provide a target for 16-bit quantization
+    schemes coming from imported onnx models.
+  }];
+}
+
 def Torch_QUInt8Type : Torch_Type<"QUInt8", "quint8"> {
   let summary = "Type modeling `ScalarType::QUInt8`";
   let description = [{
@@ -409,11 +420,11 @@ def AnyTorchOptionalDeviceType:
 def AnyTorchOptionalGeneratorType:
       OptionalOf<Torch_GeneratorType, "Optional torch Generator type">;
 
-def IsListTypePred : CPred<"$_self.isa<::mlir::torch::Torch::ListType>()">;
+def IsListTypePred : CPred<"isa<::mlir::torch::Torch::ListType>($_self)">;
 class ListOf<list<Type> allowedTypes, string descr> :
     ContainerType<AnyTypeOf<allowedTypes>,
             IsListTypePred,
-            "$_self.cast<::mlir::torch::Torch::ListType>().getContainedType()",
+            "cast<::mlir::torch::Torch::ListType>($_self).getContainedType()",
             descr, "::mlir::torch::Torch::ListType">;
 
 def AnyTorchListOfTorchBoolType : ListOf<[Torch_BoolType], "Bool list type (bool[])">;

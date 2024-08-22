@@ -14,13 +14,10 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
-#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
@@ -46,6 +43,7 @@ public:
     registry.insert<tensor::TensorDialect>();
     registry.insert<arith::ArithDialect>();
     registry.insert<cf::ControlFlowDialect>();
+    registry.insert<scf::SCFDialect>();
     registry.insert<complex::ComplexDialect>();
     TorchConversion::getBackendTypeConversionDependentDialects(registry);
   }
@@ -53,10 +51,10 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
-    target.addLegalDialect<linalg::LinalgDialect, func::FuncDialect,
-                           cf::ControlFlowDialect, math::MathDialect,
-                           tensor::TensorDialect, arith::ArithDialect,
-                           complex::ComplexDialect>();
+    target.addLegalDialect<
+        linalg::LinalgDialect, func::FuncDialect, cf::ControlFlowDialect,
+        math::MathDialect, scf::SCFDialect, sparse_tensor::SparseTensorDialect,
+        tensor::TensorDialect, arith::ArithDialect, complex::ComplexDialect>();
     target.addLegalOp<TorchConversion::GetNextSeedOp>();
 
     TypeConverter typeConverter;

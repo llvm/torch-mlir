@@ -13,16 +13,17 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 
 class AddIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int64, True),
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return int(lhs) + int(rhs)
 
@@ -35,17 +36,42 @@ def AddIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class SubIntModule(torch.nn.Module):
-
+class AddFloatIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int64, True),
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.float32, True),
+            ([], torch.int64, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return float(lhs) + int(rhs)
+
+
+@register_test_case(module_factory=lambda: AddFloatIntModule())
+def AddFloatIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(), tu.randint(low=-100, high=100))
+
+
+# ==============================================================================
+
+
+class SubIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return int(lhs) - int(rhs)
 
@@ -59,16 +85,17 @@ def SubIntModule_basic(module, tu: TestUtils):
 
 
 class SubFloatModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.float64, True),
-        ([], torch.float64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.float64, True),
+            ([], torch.float64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return float(lhs) - float(rhs)
 
@@ -80,17 +107,19 @@ def SubFloatModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
-class MulFloatModule(torch.nn.Module):
 
+class MulFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.float64, True),
-        ([], torch.float64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.float64, True),
+            ([], torch.float64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return float(lhs) * float(rhs)
 
@@ -104,16 +133,17 @@ def MulFloatModule_basic(module, tu: TestUtils):
 
 
 class MulIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int64, True),
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return int(lhs) * int(rhs)
 
@@ -127,16 +157,17 @@ def MulIntModule_basic(module, tu: TestUtils):
 
 
 class DivIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int64, True),
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         # Cast the result to float to make e2e test baseline result to be a float.
         # Without the cast, baseline result is a Tensor which is unexpected.
@@ -152,16 +183,17 @@ def DivIntModule_basic(module, tu: TestUtils):
 
 
 class DivFloatModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.float64, True),
-        ([], torch.float64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.float64, True),
+            ([], torch.float64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         return float(lhs) / float(rhs)
 
@@ -175,16 +207,17 @@ def DivFloatModule_basic(module, tu: TestUtils):
 
 
 class CeilFloatModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.float64, True),
-        ([], torch.float64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.float64, True),
+            ([], torch.float64, True),
+        ]
+    )
     def forward(self, lhs, rhs):
         sub = float(lhs) - float(rhs)
         # Cast the result to int to make e2e test baseline result to be an int.
@@ -204,15 +237,16 @@ def CeilFloatModule_basic(module, tu: TestUtils):
 
 
 class SqrtIntModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, a):
         return float(torch.ops.aten.sqrt(int(a)))
 
@@ -223,14 +257,15 @@ def SqrtIntModule_basic(module, tu: TestUtils):
 
 
 class SqrtIntConstantModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-    ])
+    @annotate_args(
+        [
+            None,
+        ]
+    )
     def forward(self):
         return float(torch.ops.aten.sqrt(5))
 
@@ -244,15 +279,16 @@ def SqrtIntConstantModule_basic(module, tu: TestUtils):
 
 
 class BoolFloatFalseModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.float64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.float64, True),
+        ]
+    )
     def forward(self, a):
         sub = float(a) - float(a)
         return bool(torch.ops.aten.Bool(float(sub)))
@@ -264,15 +300,16 @@ def BoolFloatFalseModule_basic(module, tu: TestUtils):
 
 
 class BoolFloatTrueModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.float64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.float64, True),
+        ]
+    )
     def forward(self, a):
         return bool(torch.ops.aten.Bool(float(a)))
 
@@ -283,14 +320,15 @@ def BoolFloatTrueModule_basic(module, tu: TestUtils):
 
 
 class BoolFloatConstantModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-    ])
+    @annotate_args(
+        [
+            None,
+        ]
+    )
     def forward(self):
         return bool(torch.ops.aten.Bool(5.0))
 
@@ -304,15 +342,16 @@ def BoolFloatConstantModule_basic(module, tu: TestUtils):
 
 
 class BoolIntFalseModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, a):
         sub = int(a) - int(a)
         return bool(torch.ops.aten.Bool(int(sub)))
@@ -324,15 +363,16 @@ def BoolIntFalseModule_basic(module, tu: TestUtils):
 
 
 class BoolIntTrueModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int64, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+        ]
+    )
     def forward(self, a):
         return bool(torch.ops.aten.Bool(int(a)))
 
@@ -343,14 +383,15 @@ def BoolIntTrueModule_basic(module, tu: TestUtils):
 
 
 class BoolIntConstantModule(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-    ])
+    @annotate_args(
+        [
+            None,
+        ]
+    )
     def forward(self):
         return bool(torch.ops.aten.Bool(5))
 
@@ -359,17 +400,21 @@ class BoolIntConstantModule(torch.nn.Module):
 def BoolIntConstantModule_basic(module, tu: TestUtils):
     module.forward()
 
+
 # ==============================================================================
+
 
 class AtenIntBoolOpModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.bool, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([], torch.bool, True),
+        ]
+    )
     def forward(self, x):
         return int(torch.ops.aten.Int(x))
 
@@ -384,9 +429,11 @@ class AtenIntBoolOpConstTrueModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-    ])
+    @annotate_args(
+        [
+            None,
+        ]
+    )
     def forward(self):
         return int(torch.ops.aten.Int(True))
 
@@ -401,9 +448,11 @@ class AtenIntBoolOpConstFalseModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-    ])
+    @annotate_args(
+        [
+            None,
+        ]
+    )
     def forward(self):
         return int(torch.ops.aten.Int(False))
 
@@ -412,20 +461,24 @@ class AtenIntBoolOpConstFalseModule(torch.nn.Module):
 def AtenIntBoolOpConstFalseModule_basic(module, tu: TestUtils):
     module.forward()
 
+
 # ==============================================================================
+
 
 class AtenIntTensorByteDtypeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.uint8, True),
-    ])
-
+    @annotate_args(
+        [
+            None,
+            ([], torch.uint8, True),
+        ]
+    )
     def forward(self, val):
         return int(val)
+
 
 @register_test_case(module_factory=lambda: AtenIntTensorByteDtypeModule())
 def AtenIntTensorByteDtypeModule_basic(module, tu: TestUtils):
@@ -434,57 +487,86 @@ def AtenIntTensorByteDtypeModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
 class AtenIntTensorCharDtypeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int8, True),
-    ])
-
+    @annotate_args(
+        [
+            None,
+            ([], torch.int8, True),
+        ]
+    )
     def forward(self, val):
         return int(val)
+
 
 @register_test_case(module_factory=lambda: AtenIntTensorCharDtypeModule())
 def AtenIntTensorCharDtypeModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(low=-100, high=100).to(dtype=torch.int8))
 
+
 # ==============================================================================
+
 
 class AtenItemIntOpModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.int8, True),
-    ])
-
+    @annotate_args(
+        [
+            None,
+            ([], torch.int8, True),
+        ]
+    )
     def forward(self, val):
         return int(val)
+
 
 @register_test_case(module_factory=lambda: AtenItemIntOpModule())
 def AtenItemIntOpModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(low=-100, high=100).to(dtype=torch.int8))
 
+
 # ==============================================================================
+
 
 class AtenItemFpOpModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([], torch.float, True),
-    ])
-
+    @annotate_args(
+        [
+            None,
+            ([1], torch.float, True),
+        ]
+    )
     def forward(self, val):
         return float(val)
+
 
 @register_test_case(module_factory=lambda: AtenItemFpOpModule())
 def AtenItemFpOpModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1))
+
+
+# ==============================================================================
+
+
+class TrueFalseOrBoolOpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([], torch.bool, True), ([], torch.bool, True)])
+    def forward(self, a, b):
+        return a | b
+
+
+@register_test_case(module_factory=lambda: TrueFalseOrBoolOpModule())
+def TrueFalseOrBoolOpModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(low=0, high=1).bool(), tu.randint(low=1, high=2).bool())

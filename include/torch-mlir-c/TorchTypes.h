@@ -221,6 +221,19 @@ MLIR_CAPI_EXPORTED MlirType torchMlirTorchQUInt8TypeGet(MlirContext context);
 MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchQUInt8TypeGetTypeID(void);
 
 //===----------------------------------------------------------------------===//
+// torch.qint16 type.
+//===----------------------------------------------------------------------===//
+
+/// Checks whether the given type is a !torch.qint16 type
+MLIR_CAPI_EXPORTED bool torchMlirTypeIsATorchQInt16(MlirType t);
+
+/// Gets the !torch.qint16 type.
+MLIR_CAPI_EXPORTED MlirType torchMlirTorchQInt16TypeGet(MlirContext context);
+
+/// Gets the !torch.qint16 typeid.
+MLIR_CAPI_EXPORTED MlirTypeID torchMlirTorchQInt16TypeGetTypeID(void);
+
+//===----------------------------------------------------------------------===//
 // torch.tensor type.
 //===----------------------------------------------------------------------===//
 

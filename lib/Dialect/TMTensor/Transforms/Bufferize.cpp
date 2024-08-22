@@ -29,7 +29,7 @@ using namespace ::mlir;
 using namespace ::mlir::torch::TMTensor;
 
 static Value cloneMemref(Location loc, Value memref, OpBuilder &b) {
-  auto memrefType = memref.getType().cast<MemRefType>();
+  auto memrefType = cast<MemRefType>(memref.getType());
   auto alloc = b.create<memref::AllocOp>(
       loc, memref::getMixedSizes(b, loc, memref), memrefType.getElementType());
   b.create<memref::CopyOp>(loc, memref, alloc);

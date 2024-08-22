@@ -22,10 +22,20 @@ __all__ = [
 
 def assert_arg_type_is_supported(ty):
     SUPPORTED = [
-        np.float16, np.float32, np.float64, np.uint8, np.int8, np.int32,
-        np.int64, np.bool_, np.complex64, np.complex128
+        np.float16,
+        np.float32,
+        np.float64,
+        np.uint8,
+        np.int8,
+        np.int32,
+        np.int64,
+        np.bool_,
+        np.complex64,
+        np.complex128,
     ]
-    assert ty in SUPPORTED, f"Only numpy arrays with dtypes in {SUPPORTED} are supported, but got {ty}"
+    assert (
+        ty in SUPPORTED
+    ), f"Only numpy arrays with dtypes in {SUPPORTED} are supported, but got {ty}"
 
 
 memref_type_to_np_dtype = {
@@ -37,14 +47,14 @@ memref_type_to_np_dtype = {
     "mri32": np.int32,
     "mri64": np.int64,
     "mrc32": np.complex64,
-    "mrc64": np.complex128
+    "mrc64": np.complex128,
 }
 elemental_type_to_ctype = {
     "i1": ctypes.c_bool,
     "i8": ctypes.c_byte,
     "i64": ctypes.c_int,
     "f32": ctypes.c_float,
-    "f64": ctypes.c_double
+    "f64": ctypes.c_double,
 }
 
 CONSUME_RETURN_FUNC_PREFIX = "refbackend_consume_func_return_"
@@ -56,7 +66,7 @@ def get_return_funcs(module):
     with module.context:
         for func in module.body:
             # Returns strings of the form `"refbackend.."` so `"` is deleted.
-            func_name = str(func.attributes["sym_name"]).replace('"', '')
+            func_name = str(func.attributes["sym_name"]).replace('"', "")
             if func_name[:return_prefix_len] == CONSUME_RETURN_FUNC_PREFIX:
                 return_funcs.append(func_name)
 
@@ -79,7 +89,6 @@ def get_ctype_func(func_name):
 
 
 class RefBackendInvoker:
-
     def __init__(self, module):
         self.ee = ExecutionEngine(module)
         self.result = None
@@ -90,27 +99,31 @@ class RefBackendInvoker:
             ctype_wrapper, ret_types = get_ctype_func(ret_func)
 
             def consume_return_funcs(*args):
-                self.result = tuple([
-                    arg if type in elemental_type_to_ctype
-                    else unranked_memref_to_numpy(
-                        arg, memref_type_to_np_dtype[type])
-                    for arg, type in zip(args, ret_types)
-                ])
+                self.result = tuple(
+                    [
+                        (
+                            arg
+                            if type in elemental_type_to_ctype
+                            else unranked_memref_to_numpy(
+                                arg, memref_type_to_np_dtype[type]
+                            )
+                        )
+                        for arg, type in zip(args, ret_types)
+                    ]
+                )
                 if len(self.result) == 1:
                     self.result = self.result[0]
 
-            self.ee.register_runtime(ret_func,
-                                     ctype_wrapper(consume_return_funcs))
+            self.ee.register_runtime(ret_func, ctype_wrapper(consume_return_funcs))
 
     def __getattr__(self, function_name: str):
-
         def invoke(*args):
             ffi_args = []
             for arg in args:
                 assert_arg_type_is_supported(arg.dtype)
                 ffi_args.append(
-                    ctypes.pointer(
-                        ctypes.pointer(get_unranked_memref_descriptor(arg))))
+                    ctypes.pointer(ctypes.pointer(get_unranked_memref_descriptor(arg)))
+                )
 
             self.ee.invoke(function_name, *ffi_args)
             result = self.result
@@ -121,74 +134,84 @@ class RefBackendInvoker:
         return invoke
 
 
-LOWERING_PIPELINE = "builtin.module(" + ",".join([
-    "func.func(refback-generalize-tensor-pad)",
-    "func.func(refback-generalize-tensor-concat)",
-    # Apply some optimizations. It would be great if MLIR had more useful
-    # optimizations that worked out of the box here.
-    # Note: When measured, this doesn't seem to actually help that much
-    # for the linalg-on-tensors backend.
-    # This is likely because if things are naturally fusable we usually already
-    # emit things in that form from the high level (e.g. single linalg-generic).
-    # Other backends are likely to benefit more.
-    "func.func(linalg-generalize-named-ops)",
-    "func.func(linalg-fuse-elementwise-ops)",
-    "convert-shape-to-std",
-    # MLIR Sparsifier mini-pipeline. Note that this is the bare minimum
-    # to ensure operations on sparse tensors are lowered to loops.
-    "sparse-assembler{direct-out}",
-    "sparsification-and-bufferization",
-    "sparse-storage-specifier-to-llvm",
-    "inline",  # inline sparse helper methods where useful
-    # Bufferize.
-    "func.func(scf-bufferize)",
-    "func.func(tm-tensor-bufferize)",
-    "func.func(empty-tensor-to-alloc-tensor)",
-    "func.func(linalg-bufferize)",
-    "func-bufferize",
-    "arith-bufferize",
-    "refback-mlprogram-bufferize",
-    "func.func(tensor-bufferize)",
-    "func.func(finalizing-bufferize)",
-    "func.func(buffer-deallocation)",
-    # Munge to make it ExecutionEngine compatible.
-    # Specifically, we rewrite calling convention boundaries to be in terms
-    # of unranked memref, and we rewrite the return to actually be a
-    # callback that consumes the return (the final munged function always
-    # returns void at the C level -- we get the return value by providing the
-    # callback).
-    "refback-munge-calling-conventions",
-    # Insert global variable and instruction sequence for getting the next
-    # global seed used in stateful rng.
-    # Lower to LLVM
-    "func.func(tm-tensor-to-loops)",
-    "func.func(refback-munge-memref-copy)",
-    "func.func(convert-linalg-to-loops)",
-    "func.func(lower-affine)",
-    "convert-scf-to-cf",
-    "func.func(refback-expand-ops-for-llvm)",
-    "func.func(arith-expand)",
-    "func.func(convert-math-to-llvm)",
-    # Handle some complex mlir::math ops (e.g. atan2)
-    "convert-math-to-libm",
-    "expand-strided-metadata",
-    "finalize-memref-to-llvm",
-    "lower-affine",
-    "convert-bufferization-to-memref",
-    "finalize-memref-to-llvm",
-    "func.func(convert-arith-to-llvm)",
-    "convert-func-to-llvm",
-    "convert-cf-to-llvm",
-    "convert-complex-to-llvm",
-    "reconcile-unrealized-casts",
-]) + ")"
+def lowering_pipeline(generate_runtime_verification: bool):
+    passes = [
+        # Apply some optimizations. It would be great if MLIR had more useful
+        # optimizations that worked out of the box here.
+        # Note: When measured, this doesn't seem to actually help that much
+        # for the linalg-on-tensors backend.
+        # This is likely because if things are naturally fusable we usually already
+        # emit things in that form from the high level (e.g. single linalg-generic).
+        # Other backends are likely to benefit more.
+        "func.func(linalg-generalize-named-ops)",
+        "func.func(linalg-fuse-elementwise-ops)",
+        "convert-shape-to-std",
+        # MLIR Sparsifier mini-pipeline. Note that this is the bare minimum
+        # to ensure operations on sparse tensors are lowered to loops.
+        "sparse-assembler{direct-out}",
+        "sparsification-and-bufferization",
+        "sparse-storage-specifier-to-llvm",
+        # Buffer deallocation pass does not know how to handle realloc.
+        "func.func(expand-realloc)",
+        # Generalize pad and concat after sparse compiler, as they are handled
+        # differently when the operations involve sparse operand.
+        "func.func(refback-generalize-tensor-pad)",
+        "func.func(refback-generalize-tensor-concat)",
+        # Bufferize.
+        "func.func(tm-tensor-bufferize)",
+        "one-shot-bufferize{copy-before-write bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map}",
+        "refback-mlprogram-bufferize",
+        "func.func(finalizing-bufferize)",
+        "func.func(buffer-deallocation)",
+        # Buffer-deallocation does not work with the inlined code generated
+        # by sparse tensor dialect.
+        "inline",  # inline sparse helper methods where useful
+        # Munge to make it ExecutionEngine compatible.
+        # Specifically, we rewrite calling convention boundaries to be in terms
+        # of unranked memref, and we rewrite the return to actually be a
+        # callback that consumes the return (the final munged function always
+        # returns void at the C level -- we get the return value by providing the
+        # callback).
+        "refback-munge-calling-conventions",
+        # Insert global variable and instruction sequence for getting the next
+        # global seed used in stateful rng.
+        # Lower to LLVM
+        "func.func(tm-tensor-to-loops)",
+        "func.func(refback-munge-memref-copy)",
+        "func.func(convert-linalg-to-loops)",
+        "func.func(lower-affine)",
+        "convert-scf-to-cf",
+    ]
+    if generate_runtime_verification:
+        passes += ["generate-runtime-verification"]
+    passes += [
+        "func.func(refback-expand-ops-for-llvm)",
+        "func.func(arith-expand)",
+        "func.func(convert-math-to-llvm)",
+        # Handle some complex mlir::math ops (e.g. atan2)
+        "convert-math-to-libm",
+        "expand-strided-metadata",
+        "finalize-memref-to-llvm",
+        "lower-affine",
+        "convert-bufferization-to-memref",
+        "finalize-memref-to-llvm",
+        "func.func(convert-arith-to-llvm)",
+        "convert-vector-to-llvm",
+        "convert-func-to-llvm",
+        "convert-cf-to-llvm",
+        "convert-complex-to-llvm",
+        "reconcile-unrealized-casts",
+    ]
+
+    return "builtin.module(" + ",".join(passes) + ")"
 
 
 class RefBackendLinalgOnTensorsBackend(LinalgOnTensorsBackend):
     """Main entry-point for the reference backend."""
 
-    def __init__(self):
+    def __init__(self, generate_runtime_verification: bool = True):
         super().__init__()
+        self.generate_runtime_verification = generate_runtime_verification
 
     def compile(self, imported_module: Module):
         """Compiles an imported module, with a flat list of functions.
@@ -204,7 +227,8 @@ class RefBackendLinalgOnTensorsBackend(LinalgOnTensorsBackend):
           passed to `load`.
         """
         run_pipeline_with_repro_report(
-            imported_module, LOWERING_PIPELINE,
+            imported_module,
+            lowering_pipeline(self.generate_runtime_verification),
             "Lowering Linalg-on-Tensors IR to LLVM with RefBackend",
             enable_ir_printing=False,
         )
