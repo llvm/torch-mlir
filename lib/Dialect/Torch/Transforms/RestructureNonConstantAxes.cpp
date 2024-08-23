@@ -115,18 +115,12 @@ public:
         rewriter.create<Torch::AtenIntBoolOp>(loc, intType, isNegative), rank);
     dim = rewriter.create<Torch::AtenAddIntOp>(loc, intType, dim, rankOffset);
 
-    // new shape = [beforeDim, dimSize, afterDim]
-    Value beforeProd = createInt(1);
-    Value afterProd = createInt(1);
-    Value dimSize = createInt(1);
-
     auto createConditionalMult = [&](Value self, Value multiplier,
                                      Value condition) {
-      // compute
+      // compute:
       // result = codition ? (self * multiplier) : self
       // via
       // result = self * (1 + (multiplier - 1) * condition)
-
       // which translates to:
 
       // result = multiplier - 1
@@ -143,12 +137,16 @@ public:
       return result;
     };
 
+    // new shape = [beforeDim, dimSize, afterDim]
+    Value beforeProd = createInt(1);
+    Value afterProd = createInt(1);
+    Value dimSize = createInt(1);
+
     for (size_t i = 0; i < selfTy.getSizes().size(); ++i) {
       Value idx = createInt(i);
       Value size =
           rewriter.create<Torch::AtenSizeIntOp>(loc, intType, self, idx);
 
-      // Compute isBeforeDim and isAfterDim as 0 or 1
       Value isBeforeDim =
           rewriter.create<Torch::AtenLtIntOp>(loc, boolType, idx, dim);
       isBeforeDim =
@@ -173,7 +171,6 @@ public:
         ValueRange{beforeProd, dimSize, afterProd});
 
     // Reshape input
-
     auto newSelfTy = selfTy.getWithSizesAndDtype(
         SmallVector<int64_t>{Torch::kUnknownSize, Torch::kUnknownSize,
                              Torch::kUnknownSize},
@@ -204,7 +201,6 @@ public:
     ValueRange newOperands = ValueRange(newOperandsVect);
 
     // construct new reduction op result type
-
     ValueTensorType newResultTy =
         cast<ValueTensorType>(resultTy.getWithSizesAndDtype(
             SmallVector<int64_t>{Torch::kUnknownSize, 1, Torch::kUnknownSize},
@@ -230,17 +226,23 @@ public:
   };
 };
 
+template <typename... OpTypes>
+void addConstantifyDimArgumentPatterns(RewritePatternSet &patterns,
+                                       MLIRContext *context) {
+  // simple variadic template to sugar up adding the patterns
+  (patterns.add<ConstantifyDimArgument<OpTypes>>(context), ...);
+}
+
 void populateRestructureNonConstantAxesPattern(RewritePatternSet &patterns,
                                                MLIRContext *context) {
   // these are the reduction ops with a dim argument
 
-  // these ops aren't currently supported because they have multiple results
-  // patterns.insert<ConstantifyDimArgument<AtenMaxDimOp>>(context);
-  // patterns.insert<ConstantifyDimArgument<AtenMinDimOp>>(context);
-  patterns.insert<ConstantifyDimArgument<AtenSumDimIntListOp>>(context);
-  patterns.insert<ConstantifyDimArgument<AtenAllDimOp>>(context);
-  patterns.insert<ConstantifyDimArgument<AtenLinalgVectorNormOp>>(context);
-  patterns.insert<ConstantifyDimArgument<AtenFrobeniusNormDimOp>>(context);
+  addConstantifyDimArgumentPatterns<
+      // not supported because they have multiple results
+      // AtenMaxDimOp,
+      // AtenMinDimOp,
+      AtenSumDimIntListOp, AtenAllDimOp, AtenLinalgVectorNormOp,
+      AtenFrobeniusNormDimOp>(patterns, context);
 }
 
 class RestructureNonConstantAxesPass
