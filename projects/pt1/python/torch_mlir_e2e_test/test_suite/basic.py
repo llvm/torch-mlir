@@ -1308,6 +1308,132 @@ def TensorsStackPromoteDTypeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AtenVstackModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y, z):
+        return torch.ops.aten.vstack([x, y, z])
+
+
+@register_test_case(module_factory=lambda: AtenVstackModule())
+def AtenVstackModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3, 4), tu.rand(2, 3, 4), tu.rand(3, 3, 4))
+
+
+# ==============================================================================
+
+
+class AtenVstackStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 3, 4], torch.float32, True),
+            ([2, 3, 4], torch.float32, True),
+            ([3, 3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y, z):
+        return torch.ops.aten.vstack([x, y, z])
+
+
+@register_test_case(module_factory=lambda: AtenVstackStaticModule())
+def AtenVstackStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3, 4), tu.rand(2, 3, 4), tu.rand(3, 3, 4))
+
+
+# ==============================================================================
+
+
+class AtenVstackSingleElementListModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.vstack([x])
+
+
+@register_test_case(module_factory=lambda: AtenVstackSingleElementListModule())
+def AtenVstackSingleElementListModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 6))
+
+
+# ==============================================================================
+
+
+class AtenVstackMatchingZerothDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.vstack([x, y])
+
+
+@register_test_case(module_factory=lambda: AtenVstackMatchingZerothDimModule())
+def AtenVstackMatchingZerothDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4), tu.rand(5, 3, 4))
+
+
+# ==============================================================================
+
+
+class AtenVstackPromoteDTypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.bool, True),
+            ([-1, -1, -1], torch.int32, True),
+            ([-1, -1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, x, y, z):
+        return torch.ops.aten.vstack([x, y, z])
+
+
+@register_test_case(module_factory=lambda: AtenVstackPromoteDTypeModule())
+def AtenVstackPromoteDTypeModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(2, 3, 4, low=0, high=2).bool(),
+        tu.randint(2, 3, 4, low=0, high=100).int(),
+        tu.randint(2, 3, 4, low=0, high=100).long(),
+    )
+
+
+# ==============================================================================
+
+
 class GatherModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
