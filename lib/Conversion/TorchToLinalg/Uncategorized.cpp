@@ -780,6 +780,22 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       return b.create<arith::SubIOp>(loc, lhs, scaled);
     }
   }
+  if (auto lshiftScalar = dyn_cast<Aten__Lshift__ScalarOp>(op)) {
+    Type dtype =
+        cast<RankedTensorType>(converter->convertType(lshiftScalar.getType()))
+            .getElementType();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype);
+    return b.create<arith::ShLIOp>(loc, self, other);
+  }
+  if (auto rshiftScalar = dyn_cast<Aten__Rshift__ScalarOp>(op)) {
+    Type dtype =
+        cast<RankedTensorType>(converter->convertType(rshiftScalar.getType()))
+            .getElementType();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value other = convertScalarToDtype(b, loc, operands[1], dtype);
+    return b.create<arith::ShRUIOp>(loc, self, other);
+  }
   if (auto subScalar = dyn_cast<AtenSubScalarOp>(op)) {
     Type dtype =
         cast<RankedTensorType>(converter->convertType(subScalar.getType()))
