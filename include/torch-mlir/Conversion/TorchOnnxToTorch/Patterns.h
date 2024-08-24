@@ -11,6 +11,7 @@
 #define TORCHMLIR_CONVERSION_TORCHONNX_CONVERSION_UTILS_H
 
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -403,10 +404,10 @@ struct OpBinder {
 /// attributes.
 /// It also lets us add some ergonomics for trivial cases.
 class OnnxCustomOpConversionPattern
-    : public OpConversionPattern<Torch::OperatorOp> {
+    : public OpRewritePattern<Torch::OperatorOp> {
 public:
   using HandlerFn = LogicalResult (*)(OpBinder binder,
-                                      ConversionPatternRewriter &rewriter);
+                                      PatternRewriter &rewriter);
   struct HandlerReg {
     HandlerReg(HandlerFn callback, int64_t sinceVersion)
         : callback(callback), sinceVersion(sinceVersion) {}
@@ -416,15 +417,14 @@ public:
 
   OnnxCustomOpConversionPattern(MLIRContext *context, std::string domainPrefix,
                                 int64_t domainVersion)
-      : OpConversionPattern(context), domainPrefix(std::move(domainPrefix)),
+      : OpRewritePattern(context), domainPrefix(std::move(domainPrefix)),
         domainVersion(domainVersion) {
     // Onnx lowerings could produce other Onnx operations during the rewrite.
     setHasBoundedRewriteRecursion();
   }
 
-  LogicalResult
-  matchAndRewrite(Torch::OperatorOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override;
+  LogicalResult matchAndRewrite(Torch::OperatorOp op,
+                                PatternRewriter &rewriter) const override;
 
   /// Adds all fully qualified operator names to the given set.
   /// This is typically used for implementing a dynamic legality

@@ -19,8 +19,7 @@ using namespace mlir::torch::onnx_c;
 #define DEBUG_TYPE "torch-onnx"
 
 LogicalResult OnnxCustomOpConversionPattern::matchAndRewrite(
-    Torch::OperatorOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
+    Torch::OperatorOp op, PatternRewriter &rewriter) const {
   auto foundIt = namedHandlers.find(op.getNameAttr());
   if (foundIt == namedHandlers.end())
     return failure();

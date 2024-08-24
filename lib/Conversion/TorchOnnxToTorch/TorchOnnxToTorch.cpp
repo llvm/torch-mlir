@@ -9,6 +9,7 @@
 
 #include "./PassDetail.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Passes.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
@@ -72,10 +73,22 @@ public:
 
     RewritePatternSet patterns(context);
     patterns.insert(std::move(defaultDomainPatterns));
+    // if (failed(applyPartialConversion(getOperation(), target,
+    //                                   std::move(patterns)))) {
 
-    if (failed(applyPartialConversion(getOperation(), target,
-                                      std::move(patterns))))
-      return signalPassFailure();
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns));
+
+    bool failed = false;
+    getOperation().walk([&](Torch::OperatorOp op) {
+      auto name = op.getName();
+      if (name.starts_with("onnx.")) {
+        op.emitError("Failed to convert onnx op");
+        failed = true;
+      }
+    });
+
+    if (failed)
+      signalPassFailure();
   }
 };
 

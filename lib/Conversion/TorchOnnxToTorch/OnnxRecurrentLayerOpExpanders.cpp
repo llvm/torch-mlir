@@ -167,8 +167,7 @@ static Value StaticTranspose(ImplicitLocOpBuilder b, Value value, int64_t dim0,
   return b.create<AtenTransposeIntOp>(valueTy, value, dim0v, dim1v);
 }
 
-LogicalResult OnnxRnnExpander(OpBinder binder,
-                              ConversionPatternRewriter &rewriter) {
+LogicalResult OnnxRnnExpander(OpBinder binder, PatternRewriter &rewriter) {
   Location loc = binder.getLoc();
   mlir::ImplicitLocOpBuilder b(loc, rewriter);
 
@@ -653,8 +652,7 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
 // @endcode
 //
 // @param binder The OpBinder object used for binding operands.
-LogicalResult OnnxLstmExpander(OpBinder binder,
-                               ConversionPatternRewriter &rewriter) {
+LogicalResult OnnxLstmExpander(OpBinder binder, PatternRewriter &rewriter) {
   Location loc = binder.getLoc();
   mlir::ImplicitLocOpBuilder b(loc, rewriter);
 
@@ -1063,8 +1061,7 @@ GruLayerOutput gru_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
   return output;
 }
 
-LogicalResult OnnxGruExpander(OpBinder binder,
-                              ConversionPatternRewriter &rewriter) {
+LogicalResult OnnxGruExpander(OpBinder binder, PatternRewriter &rewriter) {
   Location loc = binder.getLoc();
   mlir::ImplicitLocOpBuilder b(loc, rewriter);
 
