@@ -2700,15 +2700,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value data, pads, axes;
         std::string mode;
 
-        // TODO: The `axes` parameter is not supported yet.
-        if (!binder.tensorOperandAtIndex(axes, 3)) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "The axes parameter is not supported yet");
-        }
         if (binder.tensorOperandAtIndex(data, 0) ||
             binder.tensorResultType(resultType) ||
             binder.customOpNameStringAttr(mode, "mode", "constant"))
           return failure();
+
+        (void)binder.tensorOperandAtIndex(axes, 3);
+
         bool cstMode = (mode == "constant");
 
         // get input rank
@@ -2822,6 +2820,90 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (!cstMode)
           constantValue = rewriter.create<Torch::ConstantNoneOp>(loc);
 
+        llvm::SmallVector<Value> begins;
+        llvm::SmallVector<Value> ends;
+        for (uint32_t i = 0; i < padsSize / 2; ++i)
+          begins.push_back(padsTensorValue[i]);
+        for (uint32_t i = padsSize / 2; i < padsSize; ++i)
+          ends.push_back(padsTensorValue[i]);
+
+        // If we have the axes we need to compute the appropriate pads:
+        if (axes) {
+          auto axesTy = cast<Torch::ValueTensorType>(axes.getType());
+          assert(axesTy.getSizes().size() == 1);
+          assert(axesTy.getSizes()[0] != Torch::kUnknownSize);
+
+          auto dataTensorType = cast<Torch::ValueTensorType>(data.getType());
+          int64_t rank = dataTensorType.getSizes().size();
+          auto boolTy = rewriter.getType<Torch::BoolType>();
+          auto intTy = rewriter.getType<Torch::IntType>();
+          Value constZero = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(0));
+
+          // Extract the values:
+          int64_t numAxes = axesTy.getSizes()[0];
+          Type axesElemType = Torch::ValueTensorType::get(
+              axesTy.getContext(), ArrayRef<int64_t>{},
+              axesTy.getOptionalDtype());
+          llvm::SmallVector<Value> axesExtracted;
+          Value rankV = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(rank));
+          for (uint32_t i = 0; i < numAxes; ++i) {
+            Value index = rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(i));
+            auto select = rewriter.create<Torch::AtenSelectIntOp>(
+                loc, axesElemType, axes, constZero, index);
+            Value selectInt = rewriter.create<Torch::AtenItemOp>(
+                loc, rewriter.getType<Torch::IntType>(), select);
+
+            Value negAxis = rewriter.create<Torch::AtenLtIntOp>(
+                loc, boolTy, selectInt, constZero);
+            negAxis =
+                rewriter.create<Torch::AtenIntBoolOp>(loc, intTy, negAxis);
+            Value axis = rewriter.create<Torch::AtenMulIntOp>(loc, intTy,
+                                                              negAxis, rankV);
+            axis = rewriter.create<Torch::AtenAddIntOp>(loc, intTy, axis,
+                                                        selectInt);
+            axesExtracted.push_back(axis);
+          }
+
+          llvm::SmallVector<Value> newBegins;
+          llvm::SmallVector<Value> newEnds;
+
+          for (int j = 0; j < rank; ++j) {
+            Value newBegin = constZero;
+            Value newEnd = constZero;
+            Value iv = rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(j));
+
+            for (size_t i = 0; i < axesExtracted.size(); ++i) {
+              Value begin = begins[i];
+              Value end = ends[i];
+
+              Value sameAxis = rewriter.create<Torch::AtenEqIntOp>(
+                  loc, boolTy, axesExtracted[i], iv);
+              sameAxis =
+                  rewriter.create<Torch::AtenIntBoolOp>(loc, intTy, sameAxis);
+
+              begin = rewriter.create<Torch::AtenMulIntOp>(loc, intTy, sameAxis,
+                                                           begin);
+              end = rewriter.create<Torch::AtenMulIntOp>(loc, intTy, sameAxis,
+                                                         end);
+
+              newBegin = rewriter.create<Torch::AtenAddIntOp>(loc, intTy,
+                                                              newBegin, begin);
+              newEnd =
+                  rewriter.create<Torch::AtenAddIntOp>(loc, intTy, newEnd, end);
+            }
+
+            newBegins.push_back(newBegin);
+            newEnds.push_back(newEnd);
+          }
+
+          begins = std::move(newBegins);
+          ends = std::move(newEnds);
+        }
+
         // The torch.pad op expects a different arrangement of padding pairs for
         // each dimension as compared to the onnx.pad op. Rearrange the pad
         // tensor as shown below:
@@ -2829,9 +2911,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // [x1_begin, x2_begin, ..., x1_end, x2_end,...] ->
         // [xn_begin, xn_end, ...., x2_begin, x2_end, x1_begin, x1_end]
         SmallVector<Value> padsRearrange;
-        for (uint32_t i = padsSize - 1; i >= padsSize / 2; i--) {
-          padsRearrange.emplace_back(padsTensorValue[i - padsSize / 2]);
-          padsRearrange.emplace_back(padsTensorValue[i]);
+        for (int32_t i = begins.size() - 1; i >= 0; i--) {
+          padsRearrange.emplace_back(begins[i]);
+          padsRearrange.emplace_back(ends[i]);
         }
 
         Value padsSizeList =
