@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-from typing import Optional, Union, Dict, Tuple, Any, Callable
+from typing import List, Optional, Union, Dict, Tuple, Any, Callable
 from packaging import version
 
 import warnings
@@ -12,6 +12,7 @@ import torch
 import torch.export
 import torch.nn as nn
 from torch.export import ExportedProgram
+from torch.fx.experimental.symbolic_shapes import ShapeEnv
 
 from torch_mlir.extras.fx_importer import FxImporter, FxImporterHooks
 from torch_mlir import ir
@@ -102,6 +103,33 @@ def export_and_import(
     )
 
 
+def _get_shape_env_from_inputs(inputs: List[torch.Tensor]) -> Optional[ShapeEnv]:
+    """
+    Finds the ShapeEnv object from the inputs. Returns None if it could not be
+    found. This method is adapted from the module torch._inductor.compile_fx.
+    """
+    fake_mode = torch._dynamo.utils.detect_fake_mode(inputs)
+    if fake_mode is not None:
+        return fake_mode.shape_env
+    for input in inputs:
+        if isinstance(input, torch.SymInt):
+            return input.node.shape_env
+    return None
+
+
+def _get_range_constraints(
+    gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]
+):
+    """
+    Given a graph module and list of example inputs, this function returns the
+    set of range constraints representing bounds on the sizes of input tensors.
+    """
+    shape_env = _get_shape_env_from_inputs(example_inputs)
+    assert shape_env is not None
+    range_constraints = {k: v for k, v in shape_env.var_to_range.items()}
+    return range_constraints
+
+
 def stateless_fx_import(
     gm: torch.fx.GraphModule,
     output_type: Union[str, OutputType] = OutputType.RAW,
@@ -110,6 +138,8 @@ def stateless_fx_import(
     model_name: str = "main",
     enable_graph_printing: bool = False,
     enable_ir_printing: bool = False,
+    import_symbolic_shape_expressions: bool = False,
+    example_inputs: List[Any] = None,
 ):
     if enable_graph_printing:
         gm.print_readable()
@@ -117,7 +147,21 @@ def stateless_fx_import(
     torch_d.register_dialect(context)
     if fx_importer is None:
         fx_importer = FxImporter(context=context, hooks=hooks)
-    fx_importer.import_stateless_graph(gm.graph, func_name=model_name)
+
+    # Graph module does not contain the range constraints. We compute the
+    # constraints here using the shape environment that is associated with
+    # example inputs.
+    assert (
+        not import_symbolic_shape_expressions or example_inputs is not None
+    ), "importing symbolic shape expressions requires example args to be provided"
+
+    gm.meta["range_constraints"] = _get_range_constraints(gm, example_inputs)
+
+    fx_importer.import_stateless_graph(
+        gm.graph,
+        func_name=model_name,
+        import_symbolic_shape_expressions=import_symbolic_shape_expressions,
+    )
     return _module_lowering(
         enable_ir_printing, OutputType.get(output_type), fx_importer.module
     )

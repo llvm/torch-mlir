@@ -78,6 +78,15 @@ except ModuleNotFoundError:
     # conditional.
     ml_dtypes = None
 
+try:
+    from torch.utils._sympy.numbers import IntInfinity, NegativeIntInfinity
+except ModuleNotFoundError:
+    # This commit on PyTorch repo introduced IntInfinity and NegativeIntInfinity:
+    # https://github.com/pytorch/pytorch/commit/2229884102ac95c9dda0aeadbded1b04295d892e
+    # Required module may not be present in the stable version of PyTorch.
+    IntInfinity = None
+    NegativeIntInfinity = None
+
 from torch.fx.node import (
     Argument as NodeArgument,
 )
@@ -115,6 +124,7 @@ from ..ir import (
     Module,
     Operation,
     StringAttr,
+    DictAttr,
     SymbolTable,
     Type as IrType,
     UnitAttr,
@@ -272,6 +282,11 @@ PY_BUILTIN_TO_TORCH_OP = {
 # torch with cuda has a __version__ that looks like  "2.1.0+cu113",
 # so split by + and 0 index will always give the base version
 _IS_TORCH_2_1_OR_EARLIER = torch.__version__.split("+")[0] <= "2.1.0"
+
+# The value here is chosen to match that of sys.maxint (or sys.maxsize in case
+# of Python3.x). This is to maintain compatibility with older version of PyTorch.
+MLIR_INT_INFINITY = (2**63 - 1) - 1
+MLIR_NEGATIVE_INT_INFINITY = -MLIR_INT_INFINITY - 1
 
 # The following are maps from symbolic ops to their non symbolic equivalents.
 # In <=2.1.0, imported fx graphs come with a type inspecific torch.ops.aten.sym_size
@@ -624,7 +639,7 @@ class FxImporter:
 
         # Populate symbolic guards for dynamic shapes (if any)
         if import_symbolic_shape_expressions:
-            self._cc.set_symbolic_guards(prog)
+            self._cc.set_symbolic_guards(prog.range_constraints)
 
         # Invert the (producer, node_name) maps for mutated user inputs and mutated
         # buffers. This is because we hit-detect based on the input node name.
@@ -832,7 +847,7 @@ class FxImporter:
 
         # Populate symbolic guards for dynamic shapes (if any)
         if import_symbolic_shape_expressions:
-            self._cc.set_symbolic_guards(prog)
+            self._cc.set_symbolic_guards(prog.range_constraints)
 
         # If there is no "constants" attribute, consult the "state_dict". Otherwise, only look
         # at "constants". Relevant upstream patch: https://github.com/pytorch/pytorch/pull/118969
@@ -908,6 +923,11 @@ class FxImporter:
         it should be removed when no longer required for backwards compatibility.
         """
         ftype, loc = self._graph_to_function_meta(g)
+
+        # Populate symbolic guards for dynamic shapes.
+        range_constraints = g.owning_module.meta.get("range_constraints", {})
+        self._cc.set_symbolic_guards(range_constraints)
+
         # TODO: The FuncOp constructor requires a context-manager context.
         # Fix upstream and then unnest.
         # See: https://github.com/nod-ai/SHARK-Turbine/issues/138
@@ -1161,26 +1181,30 @@ class ContextCache:
                 return Location.file(filename, line, col=0, context=self._c)
         return Location.unknown(context=self._c)
 
-    def set_symbolic_guards(
-        self, prog: torch.export.ExportedProgram
-    ) -> Dict[str, RangeConstraint]:
+    def set_symbolic_guards(self, range_constraints) -> Dict[str, RangeConstraint]:
 
         def _sympy_int_to_int(val: sympy.Expr, adjust_func: Callable):
             # Convert simple sympy Integers into concrete int
-            if val == sympy.oo:
-                return math.inf
-            if val == -sympy.oo:
-                return -math.inf
+            if IntInfinity is not None and isinstance(val, IntInfinity):
+                return MLIR_INT_INFINITY
+            if NegativeIntInfinity is not None and isinstance(val, NegativeIntInfinity):
+                return MLIR_NEGATIVE_INT_INFINITY
             if isinstance(val, sympy.Integer):
                 return int(val)
+            if val == sympy.oo:
+                return MLIR_INT_INFINITY
+            if val == -sympy.oo:
+                return MLIR_NEGATIVE_INT_INFINITY
             # TODO: Remove this adjustment when fractional ranges are removed
             return adjust_func(val)
 
         contains_symbolic_ints = False
-        for val in prog.range_constraints.values():
+        for val in range_constraints.values():
             if (
-                isinstance(val.lower, sympy.Integer)
-                and isinstance(val.upper, sympy.Integer)
+                isinstance(val.lower, (sympy.Integer, IntInfinity, NegativeIntInfinity))
+                and isinstance(
+                    val.upper, (sympy.Integer, IntInfinity, NegativeIntInfinity)
+                )
                 and not val.is_bool
             ):
                 contains_symbolic_ints = True
@@ -1201,7 +1225,7 @@ class ContextCache:
                     _sympy_int_to_int(v.lower, math.ceil),
                     _sympy_int_to_int(v.upper, math.floor),
                 )
-                for k, v in prog.range_constraints.items()
+                for k, v in range_constraints.items()
             }
 
     def get_symbolic_guards(self) -> Dict[str, RangeConstraint]:
@@ -1398,6 +1422,7 @@ class GraphNodeImporter:
     ):
         with InsertionPoint(self._b):
             loc = Location.unknown()
+            arg_to_symbol_map = dict()
 
             # Import dynamic shape symbols and guards (if any)
             if import_symbolic_shape_expressions:
@@ -1416,6 +1441,13 @@ class GraphNodeImporter:
                     # Associate the placeholder node with corresponding block
                     # argument.
                     self.bind_node_value(node, self._b.arguments[num_placeholders])
+                    val = node.meta.get("val")
+                    # Attach symbol name as an attribute to the corresponding
+                    # MLIR block argument.
+                    if isinstance(val, torch.SymInt):
+                        arg_to_symbol_map[str(num_placeholders)] = StringAttr.get(
+                            str(val)
+                        )
                     num_placeholders += 1
                 elif op == "call_function":
                     target = node.target
@@ -1443,6 +1475,12 @@ class GraphNodeImporter:
 
                 if import_symbolic_shape_expressions:
                     self._create_bind_symbolic_shape_ops(loc, node)
+
+            if len(arg_to_symbol_map) > 0:
+                owner = self._b.owner
+                owner.attributes["arg_index_to_symbol_names"] = DictAttr.get(
+                    arg_to_symbol_map
+                )
 
     def _promote_symbolic_scalar_int_float(self, loc, graph, param):
         temp_target = torch.ops.aten.Float.Scalar

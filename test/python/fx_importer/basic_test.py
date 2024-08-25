@@ -88,12 +88,13 @@ def test_import_frozen_exported_program_with_func_name():
 
 @run
 # CHECK-LABEL: test_import_frozen_exported_program_with_dynamic_shapes
-# CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,4],f32>) -> !torch.vtensor<[?,4],f32>
+# CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,5],f32>) -> !torch.vtensor<[?,?,5],f32>
 # CHECK:     %[[S0:.*]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
-# CHECK:     torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0, 4)> : !torch.vtensor<[?,4],f32>
-# CHECK:     %[[TANH:.*]] = torch.aten.tanh %[[ARG0]] : !torch.vtensor<[?,4],f32> -> !torch.vtensor<[?,4],f32>
-# CHECK:     torch.bind_symbolic_shape %[[TANH]], [%[[S0]]], affine_map<()[s0] -> (s0, 4)> : !torch.vtensor<[?,4],f32>
-# CHECK:     return %[[TANH]] : !torch.vtensor<[?,4],f32>
+# CHECK:     %[[S1:.*]] = torch.symbolic_int "s1" {min_val = 2, max_val = 9223372036854775806} : !torch.int
+# CHECK:     torch.bind_symbolic_shape %[[ARG0]], [%[[S0]], %[[S1]]], affine_map<()[s0, s1] -> (s0, s1, 5)> : !torch.vtensor<[?,?,5],f32>
+# CHECK:     %[[TANH:.*]] = torch.aten.tanh %[[ARG0]] : !torch.vtensor<[?,?,5],f32> -> !torch.vtensor<[?,?,5],f32>
+# CHECK:     torch.bind_symbolic_shape %[[TANH]], [%[[S0]], %[[S1]]], affine_map<()[s0, s1] -> (s0, s1, 5)> : !torch.vtensor<[?,?,5],f32>
+# CHECK:     return %[[TANH]] : !torch.vtensor<[?,?,5],f32>
 def test_import_frozen_exported_program_with_dynamic_shapes():
     class Basic(nn.Module):
         def __init__(self):
@@ -103,10 +104,11 @@ def test_import_frozen_exported_program_with_dynamic_shapes():
             return torch.tanh(x)
 
     batch = Dim("batch", max=10)
-    dynamic_shapes = {"x": {0: batch}}
+    channel = Dim("channel", min=2)
+    dynamic_shapes = {"x": {0: batch, 1: channel}}
     m = fx.export_and_import(
         Basic(),
-        torch.randn(3, 4),
+        torch.randn(3, 4, 5),
         dynamic_shapes=dynamic_shapes,
         func_name="test_net",
         import_symbolic_shape_expressions=True,
@@ -172,6 +174,44 @@ def test_stateless_fx_import():
     set_model_name("basic_forward")
 
     @torch._dynamo.optimize(backend=fx_import_backend)
+    def basic_forward(x):
+        return torch.tanh(x)
+
+    basic_forward(torch.randn(3, 4))
+
+
+@make_boxed_compiler
+def fx_import_aot_autograd_backend_with_dynamic_shape(
+    gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]
+):
+    print(gm.print_readable(False), flush=True)
+    m = fx.stateless_fx_import(
+        gm,
+        model_name=get_aot_graph_name(),
+        import_symbolic_shape_expressions=True,
+        example_inputs=example_inputs,
+    )
+    print(m, flush=True)
+    return gm
+
+
+@run
+# CHECK-LABEL: test_stateless_fx_import_with_dynamic_shape
+# CHECK:      func.func @[[basic:[a-zA-Z0-9_]+]](%arg0: !torch.int, %arg1: !torch.int, %arg2: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32>
+# CHECK-SAME:   attributes {arg_index_to_symbol_names = {"0" = "s0", "1" = "s1"}}
+# CHECK-NEXT:   %0 = torch.symbolic_int "s0" {min_val = 2, max_val = 9223372036854775806} : !torch.int
+# CHECK-NEXT:   %1 = torch.symbolic_int "s1" {min_val = 2, max_val = 9223372036854775806} : !torch.int
+# CHECK-NEXT:   torch.bind_symbolic_shape %arg2, [%0, %1], affine_map<()[s0, s1] -> (s0, s1)> : !torch.vtensor<[?,?],f32>
+# CHECK-NEXT:   %2 = torch.aten.tanh %arg2 : !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
+# CHECK-NEXT:   torch.bind_symbolic_shape %2, [%0, %1], affine_map<()[s0, s1] -> (s0, s1)> : !torch.vtensor<[?,?],f32>
+# CHECK-NEXT:   return %2 : !torch.vtensor<[?,?],f32>
+def test_stateless_fx_import_with_dynamic_shape():
+    fx_import_backend = aot_autograd(
+        fw_compiler=fx_import_aot_autograd_backend_with_dynamic_shape
+    )
+    set_model_name("basic_forward")
+
+    @torch._dynamo.optimize(backend=fx_import_backend, dynamic=True)
     def basic_forward(x):
         return torch.tanh(x)
 
