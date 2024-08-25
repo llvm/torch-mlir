@@ -70,8 +70,6 @@ def _get_argparse():
         "native_torch",
         "torchscript",
         "lazy_tensor_core",
-        "onnx",
-        "onnx_tosa",
         "fx_importer",
         "fx_importer_stablehlo",
         "fx_importer_tosa",
