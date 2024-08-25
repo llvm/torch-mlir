@@ -48,7 +48,13 @@ option(TORCH_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
 
 # PyTorch native extension gate. If OFF, then no features which depend on
 # native extensions will be built.
+# TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS will be disabled by default shortly,
+# once some reorganizations of the testing codebase makes that possible.
 option(TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS "Enables PyTorch native extension features" ON)
+# NOTE: The JIT_IR_IMPORTER paths have become unsupportable due to age and lack of maintainers.
+# Turning this off disables the old TorchScript path, leaving FX based import as the current supported option.
+# The option will be retained for a time, and if a maintainer is interested in setting up testing for it,
+# please reach out on the list and speak up for it.
 cmake_dependent_option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" OFF TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS OFF)
 cmake_dependent_option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" OFF TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS OFF)
 
