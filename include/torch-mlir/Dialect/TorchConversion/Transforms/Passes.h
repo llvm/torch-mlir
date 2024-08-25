@@ -34,15 +34,6 @@ void createTorchBackendToTosaBackendPipeline(OpPassManager &pm);
 /// TOSA + linalg backend contract.
 void createTorchBackendToTosaLinalgBackendPipeline(OpPassManager &pm);
 
-struct TosaBackendPipelineOptions
-    : public PassPipelineOptions<TosaBackendPipelineOptions> {
-  Option<bool> bypassIllegalOpsCheck{
-      *this, "bypass-illegal-ops-check",
-      llvm::cl::desc(
-          "Bypass the checks for illegal ops during pattern rewrite."),
-      llvm::cl::init(false)};
-};
-
 // Do not register the stablehlo options if the stablehlo target is disabled
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 struct StablehloBackendPipelineOptions

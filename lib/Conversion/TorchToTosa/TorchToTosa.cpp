@@ -2798,6 +2798,12 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
   if (dim == selfRank)
     outShape.push_back(1);
 
+  if (std::count(outShape.begin(), outShape.end(), -1) > 1) {
+    return rewriter.notifyMatchFailure(
+        op, "Unsqueeze op resulting in multiple dynamic dimensions in the "
+            "output is not supported.");
+  }
+
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
       op, getTypeConverter()->convertType(op.getType()), adaptor.getSelf(),
       rewriter.getDenseI64ArrayAttr(outShape));
@@ -3381,7 +3387,12 @@ public:
     }
 
     if (argMaxOp.getType() != indicesType) {
-      argMaxOp = rewriter.create<tosa::ReshapeOp>(
+      if (indicesType.getNumDynamicDims() > 1) {
+      return rewriter.notifyMatchFailure(
+          op, "AtenMaxDimOp resulting in multiple dynamic dimensions in the "
+              "output is not supported.");
+    }
+    argMaxOp = rewriter.create<tosa::ReshapeOp>(
           op->getLoc(), indicesType, argMaxOp,
           rewriter.getDenseI64ArrayAttr(reducedShape));
     }
@@ -5615,7 +5626,8 @@ public:
     target.addLegalOp<ConstantDeviceOp>();
     target.addLegalOp<PrimListConstructOp>();
     target.addLegalOp<PrimTupleConstructOp>();
-    // target.addIllegalDialect<Torch::TorchDialect>();
+    if (!bypassIllegalOpsCheck)
+      target.addIllegalDialect<Torch::TorchDialect>();
 
     RewritePatternSet patterns(context);
 

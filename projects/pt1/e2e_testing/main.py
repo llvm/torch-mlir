@@ -85,6 +85,7 @@ def _get_argparse():
         "fx_importer",
         "fx_importer_stablehlo",
         "fx_importer_tosa",
+        "fx_importer_tosa_linalg",
     ]
     parser = argparse.ArgumentParser(description="Run torchscript e2e tests.")
     parser.add_argument(
@@ -105,6 +106,7 @@ Meaning of options:
 "fx_importer": run the model through the fx importer frontend and execute the graph using Linalg-on-Tensors.
 "fx_importer_stablehlo": run the model through the fx importer frontend and execute the graph using Stablehlo backend.
 "fx_importer_tosa": run the model through the fx importer frontend and execute the graph using the TOSA backend.
+"fx_importer_tosa_linalg": run the model through the fx importer frontend and execute the graph using the TOSA+Linalg backend.
 "onnx_tosa": Import ONNX to Torch via the torch-onnx-to-torch path and execute the graph using the TOSA backend.
 """,
     )
@@ -194,6 +196,10 @@ def main():
         config = FxImporterTestConfig(LinalgOnTensorsTosaBackend(), "tosa")
         xfail_set = FX_IMPORTER_TOSA_XFAIL_SET
         crashing_set = FX_IMPORTER_TOSA_CRASHING_SET
+    elif args.config == "fx_importer_tosa_linalg":
+        config = FxImporterTestConfig(LinalgOnTensorsTosaBackend(), "tosa_linalg")
+        xfail_set = FX_IMPORTER_XFAIL_SET
+        crashing_set = FX_IMPORTER_CRASHING_SET
     elif args.config == "torchdynamo":
         # TODO: Enanble runtime verification and extend crashing set.
         config = TorchDynamoTestConfig(
