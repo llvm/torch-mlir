@@ -505,6 +505,8 @@ FX_IMPORTER_XFAIL_SET = {
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewSizeFromOtherTensor_basic",
     "WeightNormInterfaceModule_basic",
+    "ScaledDotProductAttentionDifferentModule_basic",
+    "ScaledDotProductAttentionSameModule_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
@@ -2105,7 +2107,6 @@ MAKE_FX_TOSA_PASS_SET = (
         "ViewSizeDimLedAndFollowedByCollapsedOnesModule_basic",
         "ViewSizeDimLedByCollapsedOnesModule_basic",
         "ViewSizeFromOtherTensor_basic",
-        "ScaledDotProductAttentionDifferentModule_basic",
         "RenormModuleFloat32NegativeDim_basic",
         "RenormModuleFloat32_basic",
     }
@@ -2147,6 +2148,11 @@ MAKE_FX_TOSA_PASS_SET = (
     "ViewNoChange3dModule_basic",
     "AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule_basic",
 }
+
+if torch_version_for_comparison() < version.parse("2.5.0.dev"):
+    MAKE_FX_TOSA_PASS_SET = MAKE_FX_TOSA_PASS_SET | {
+        "ScaledDotProductAttentionDifferentModule_basic",
+    }
 
 LTC_CRASHING_SET = {
     # TODO: update test to move all inputs to the lazy device. Otherwise test fails with:
