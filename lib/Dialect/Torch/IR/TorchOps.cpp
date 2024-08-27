@@ -743,9 +743,9 @@ OpFoldResult Aten__Or__BoolOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   if ((valueA && valueA.getValue() == 1) || (valueB && valueB.getValue() == 1))
     return IntegerAttr::get(IntegerType::get(getContext(), 1), 1);
-  if (valueA.getValue() == 0)
+  if (valueA && valueA.getValue() == 0)
     return getB();
-  if (valueB.getValue() == 0)
+  if (valueB && valueB.getValue() == 0)
     return getA();
   // unreachable
   return nullptr;
