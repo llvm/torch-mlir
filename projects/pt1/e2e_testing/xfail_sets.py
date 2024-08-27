@@ -948,6 +948,8 @@ STABLEHLO_PASS_SET = {
     "AvgPool2dStaticModule_basic",
     "AvgPool2dCountIncludePadFalseStaticModule_basic",
     "AvgPool3dStaticModule_basic",
+    "BatchMatmulNoBroadcast_basic",
+    "BroadcastMatmulStatic_basic",
     "BaddbmmBroadcast1DInputModule_basic",
     "BaddbmmBroadcast2DInputModule_basic",
     "BaddbmmStaticModule_basic",
