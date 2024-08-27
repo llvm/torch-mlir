@@ -121,11 +121,14 @@ def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "func::FuncOp"> {
     guards in case of shape mismatches.
   }];
   let constructor = "mlir::torch::createConvertTorchToTosaPass()";
-  // Specify any options.
-  let options = [
-    Option<"bypassIllegalOpsCheck", "bypass-illegal-ops-check", "bool", /*default=*/"false",
-           "Bypass the checks for illegal ops during pattern rewrite">,
-  ];
+}
+
+def ConvertTorchToTosaLinalg : Pass<"convert-torch-to-tosa-linalg", "func::FuncOp"> {
+  let summary = "Convert Torch ops to a mix of TOSA ops and LINALG_ON_TENSORS ops";
+  let description = [{
+    This pass tries to lower torch ops to tosa ops if possible. Otherwise lowers to a mix of linalg, tensor, scf, and other dialects.
+  }];
+  let constructor = "mlir::torch::createConvertTorchToTosaLinalgPass()";
 }
 
 def ConvertTorchToTMTensor : Pass<"convert-torch-to-tmtensor", "func::FuncOp"> {

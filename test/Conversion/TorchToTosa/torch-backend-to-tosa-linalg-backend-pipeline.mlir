@@ -1,7 +1,5 @@
 // RUN: torch-mlir-opt -pass-pipeline='builtin.module(torch-backend-to-tosa-linalg-backend-pipeline)' -split-input-file -verify-diagnostics %s | FileCheck %s
 
-// RUN: torch-mlir-opt -pass-pipeline='builtin.module(torch-backend-to-tosa-backend-pipeline)' -split-input-file -verify-diagnostics %s | FileCheck %s -check-prefix=CHECK-TOSA-BACKEND
-
 //-----
 
 // CHECK-LABEL:   func.func @torch.aten.size.int(
@@ -14,7 +12,6 @@
 // CHECK:           return %[[VAL_3]] : i64
 func.func @torch.aten.size.int(%arg0: !torch.vtensor<[4,2],f32>) -> !torch.int {
     %c2 = torch.constant.int 2
-    // CHECK-TOSA-BACKEND: expected-error @below {{failed to legalize operation 'torch.aten.size.int' that was explicitly marked illegal}}
     %0 = torch.aten.size.int %arg0, %c2 : !torch.vtensor<[4,2],f32>, !torch.int -> !torch.int
     return %0 : !torch.int
 }

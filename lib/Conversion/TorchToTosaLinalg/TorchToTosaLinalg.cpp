@@ -7,10 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "torch-mlir/Conversion/TorchToTosaLinalg/TorchToTosaLinalg.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
+#include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 
 #include "../PassDetail.h"
-#include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
@@ -19,6 +20,8 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Tosa/IR/TosaOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
@@ -29,19 +32,17 @@ using namespace mlir::torch::Torch;
 // -----------------------------------------------------------------------------
 // The pass
 // -----------------------------------------------------------------------------
-// Patterns for individual ops should live in one of the other files, and
-// added via the relevant `populate*PatternsAndLegality` functions.
-// This file is just for the pass definition itself.
 
 namespace {
-class ConvertTorchToLinalg
-    : public ConvertTorchToLinalgBase<ConvertTorchToLinalg> {
+class ConvertTorchToTosaLinalg
+    : public ConvertTorchToTosaLinalgBase<ConvertTorchToTosaLinalg> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<linalg::LinalgDialect>();
     registry.insert<math::MathDialect>();
     registry.insert<func::FuncDialect>();
     registry.insert<tensor::TensorDialect>();
+    registry.insert<tosa::TosaDialect>();
     registry.insert<arith::ArithDialect>();
     registry.insert<cf::ControlFlowDialect>();
     registry.insert<scf::SCFDialect>();
@@ -52,11 +53,14 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
-    target.addLegalDialect<
-        linalg::LinalgDialect, func::FuncDialect, cf::ControlFlowDialect,
-        math::MathDialect, scf::SCFDialect, sparse_tensor::SparseTensorDialect,
-        tensor::TensorDialect, arith::ArithDialect, complex::ComplexDialect>();
+    target.addLegalDialect<linalg::LinalgDialect, func::FuncDialect,
+                           cf::ControlFlowDialect, math::MathDialect,
+                           scf::SCFDialect, sparse_tensor::SparseTensorDialect,
+                           tosa::TosaDialect, tensor::TensorDialect,
+                           arith::ArithDialect, complex::ComplexDialect>();
     target.addLegalOp<TorchConversion::GetNextSeedOp>();
+
+    target.addIllegalDialect<Torch::TorchDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
@@ -64,6 +68,7 @@ public:
 
     RewritePatternSet patterns(context);
 
+    torch::populateTorchToTosaConversionPatterns(typeConverter, patterns);
     torch::populateTorchToLinalgOnTensorsPatternsAndLegality(typeConverter,
                                                              patterns, target);
 
@@ -74,31 +79,7 @@ public:
 };
 } // namespace
 
-//  Add any new populate*PatternsAndLegality functionality here
-void mlir::torch::populateTorchToLinalgOnTensorsPatternsAndLegality(
-    TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target) {
-  torch_to_linalg::populateTensorScalarInteropPatternsAndLegality(
-      typeConverter, patterns, target);
-  torch_to_linalg::populateLinearPatternsAndLegality(typeConverter, patterns,
-                                                     target);
-  torch_to_linalg::populatePoolingPatternsAndLegality(typeConverter, patterns,
-                                                      target);
-  torch_to_linalg::populateRandomPatternsAndLegality(typeConverter, patterns,
-                                                     target);
-  torch_to_linalg::populateUncategorizedPatternsAndLegality(typeConverter,
-                                                            patterns, target);
-  torch_to_linalg::populateReductionPatternsAndLegality(typeConverter, patterns,
-                                                        target);
-  torch_to_linalg::populateDataMovementPatternsAndLegality(typeConverter,
-                                                           patterns, target);
-  torch_to_linalg::populateIndirectDataMovementPatternsAndLegality(
-      typeConverter, patterns, target);
-  torch_to_linalg::populateTensorConstructorsPatternsAndLegality(
-      typeConverter, patterns, target);
-}
-
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToLinalgPass() {
-  return std::make_unique<ConvertTorchToLinalg>();
+mlir::torch::createConvertTorchToTosaLinalgPass() {
+  return std::make_unique<ConvertTorchToTosaLinalg>();
 }
