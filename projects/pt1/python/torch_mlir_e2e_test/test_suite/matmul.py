@@ -50,7 +50,7 @@ class BroadcastMatmulStatic(torch.nn.Module):
     )
     def forward(self, lhs, rhs):
         return torch.matmul(lhs, rhs)
-                                                               
+
 
 @register_test_case(module_factory=lambda: BroadcastMatmulStatic())
 def BroadcastMatmulStatic_basic(module, tu: TestUtils):

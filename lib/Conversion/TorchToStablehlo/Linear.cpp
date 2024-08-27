@@ -292,8 +292,7 @@ public:
     }
 
     const auto &options = ConvertAtenOp<AtenOpT>::getOptions();
-    int64_t nBatchDims, lhsContractingDim, rhsContractingDim, lhsResultDim,
-        rhsResultDim;
+    int64_t nBatchDims, lhsContractingDim, rhsContractingDim;
     SmallVector<int64_t> batchDims;
     if (rhsRank <= 2) {
       nBatchDims = 0;
