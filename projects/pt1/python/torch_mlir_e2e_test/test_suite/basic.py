@@ -5761,3 +5761,55 @@ class UnfoldModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: UnfoldModule())
 def UnfoldModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 5, 3, 4))
+
+
+# ==============================================================================
+
+
+class AtenPolarFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.unfold = torch.nn.Unfold(kernel_size=(2, 3))
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, abs_, angle):
+        return torch.ops.aten.polar(torch.ops.aten.abs(abs_), angle)
+
+
+@register_test_case(module_factory=lambda: AtenPolarFloatModule())
+def AtenPolarFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5, 3, 4), tu.rand(2, 5, 3, 4))
+
+
+# ==============================================================================
+
+
+class AtenPolarDoubleModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.unfold = torch.nn.Unfold(kernel_size=(2, 3))
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float64, True),
+            ([-1, -1, -1, -1], torch.float64, True),
+        ]
+    )
+    def forward(self, abs_, angle):
+        return torch.ops.aten.polar(torch.ops.aten.abs(abs_), angle)
+
+
+@register_test_case(module_factory=lambda: AtenPolarDoubleModule())
+def AtenPolarDoubleModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 5, 3, 4).to(torch.float64), tu.rand(2, 5, 3, 4).to(torch.float64)
+    )
