@@ -36,6 +36,33 @@ def AtenDotModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class BroadcastMatmul(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            # ([-1, -1, -1, -1], torch.float32, True),
+            # ([-1, -1, -1, -1], torch.float32, True),
+            ([5, 1, 3, 4], torch.float32, True),
+            ([1, 10, 4, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.matmul(lhs, rhs)
+                                                               
+
+@register_test_case(module_factory=lambda: BroadcastMatmul())
+def BroadcastMatmul_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 1, 3, 4), tu.rand(1, 10, 4, 5))
+    # module.forward(tu.rand(5, 1, 3, 4), tu.rand(4, 5))
+
+
+# ==============================================================================
+
+
 class MatmulDot(torch.nn.Module):
     def __init__(self):
         super().__init__()

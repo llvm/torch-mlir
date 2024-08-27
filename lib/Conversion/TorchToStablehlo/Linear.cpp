@@ -126,6 +126,7 @@ RankedTensorType castContractingDim(PatternRewriter &rewriter, Operation *op,
 void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
                      Value &inpRhs, int64_t leadingRank,
                      size_t dimSizeIndexBits) {
+  printf("pos0");
   Value lhs = inpLhs;
   Value rhs = inpRhs;
   auto lhsRankTy = dyn_cast<RankedTensorType>(inpLhs.getType());
@@ -144,29 +145,42 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
   auto lhsShape = lhsRankTy.getShape();
   auto rhsShape = rhsRankTy.getShape();
 
+  auto loc = op->getLoc();
+
+  // Adapte it with shape.concat.
   if (lhsRank < rhsRank) {
-    std::vector<int64_t> newShape(rhsShape.begin(),
-                                  rhsShape.begin() + leadingRank);
-    newShape.insert(newShape.end(), lhsShape.begin(), lhsShape.end());
-    auto newDimSizes =
-        *hlo::getDimIndexOfTensor(rewriter, op, rhs, leadingDims);
+    auto newDimSizes = *hlo::getDimIndexOfTensor(rewriter, op, rhs, leadingDims);
     auto lhsDimSizes = *hlo::getDimIndexOfTensor(rewriter, op, lhs);
     newDimSizes.insert(newDimSizes.end(), lhsDimSizes.begin(),
                        lhsDimSizes.end());
-    lhs = getBroadcastTensor(rewriter, op, lhs, newShape, newDimSizes,
-                             broadcastDims);
-  } else {
-    std::vector<int64_t> newShape(lhsShape.begin(),
-                                  lhsShape.begin() + leadingRank);
-    newShape.insert(newShape.end(), rhsShape.begin(), rhsShape.end());
-    auto newDimSizes =
-        *hlo::getDimIndexOfTensor(rewriter, op, lhs, leadingDims);
+    auto newShape = rewriter.create<tensor::FromElementsOp>(loc, newDimSizes);
+    
+    SmallVector<int64_t> shape;
+    for (int64_t i = 0; i < rhsRank; ++i) {
+      shape.push_back(ShapedType::kDynamic);
+    }
+    auto outTy = RankedTensorType::get(shape, lhsRankTy.getElementType());
+
+    lhs = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
+      loc, outTy, lhs, newShape, rewriter.getDenseI64ArrayAttr(broadcastDims)
+    );
+  } else if (lhsRank > rhsRank){
+    auto newDimSizes = *hlo::getDimIndexOfTensor(rewriter, op, lhs, leadingDims);
     auto rhsDimSizes = *hlo::getDimIndexOfTensor(rewriter, op, rhs);
     newDimSizes.insert(newDimSizes.end(), rhsDimSizes.begin(),
                        rhsDimSizes.end());
-    rhs = getBroadcastTensor(rewriter, op, rhs, newShape, newDimSizes,
-                             broadcastDims);
-  }
+    auto newShape = rewriter.create<tensor::FromElementsOp>(loc, newDimSizes);
+    
+    SmallVector<int64_t> shape;
+    for (int64_t i = 0; i < lhsRank; ++i) {
+      shape.push_back(ShapedType::kDynamic);
+    }    
+    auto outTy = RankedTensorType::get(shape, rhsRankTy.getElementType());
+
+    rhs = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
+      loc, outTy, rhs, newShape, rewriter.getDenseI64ArrayAttr(broadcastDims)
+    );
+  } 
 
   if (lhsRank <= 2 || rhsRank <= 2) {
     inpLhs = lhs;
@@ -174,64 +188,58 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
     return;
   }
 
-  lhsShape = cast<RankedTensorType>(lhs.getType()).getShape();
-  rhsShape = cast<RankedTensorType>(rhs.getType()).getShape();
+  // Get the common batch dimensions.
+  int64_t targetRank = std::max(lhsRank, rhsRank);
+  auto batchDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, nBatchDims));
+  auto lhsBatchDims = *hlo::getDimIndexOfTensor(rewriter, op, lhs, batchDims);
+  auto rhsBatchDims = *hlo::getDimIndexOfTensor(rewriter, op, rhs, batchDims);
+  auto lhsBatchShape = rewriter.create<tensor::FromElementsOp>(loc, lhsBatchDims);
+  auto rhsBatchShape = rewriter.create<tensor::FromElementsOp>(loc, rhsBatchDims);
+  auto targetBatchShape = rewriter.create<shape::BroadcastOp>(
+    loc,
+    shape::getExtentTensorType(op->getContext(), targetRank - 2),
+    ValueRange{lhsBatchShape, rhsBatchShape},
+    nullptr 
+  );
 
-  // check shape compatibility, check if we should broadcast
-  // first, we should got a new batch shape. Check from (0, nBatchDims)
-  SmallVector<int64_t> lhsBroadcastDims;
-  SmallVector<int64_t> rhsBroadcastDims;
-  SmallVector<int64_t> newBatchShape;
-
-  for (int64_t i = 0; i < nBatchDims; i++) {
-    if (lhsShape[i] != rhsShape[i]) {
-      if (lhsShape[i] == 1) {
-        lhsBroadcastDims.push_back(i);
-        newBatchShape.push_back(rhsShape[i]);
-      } else if (rhsShape[i] == 1) {
-        rhsBroadcastDims.push_back(i);
-        newBatchShape.push_back(lhsShape[i]);
-      } else {
-        assert(false && "shape mismatch in matmul op");
-      }
-    } else {
-      newBatchShape.push_back(lhsShape[i]);
-    }
+  // Construct the target shape of lhs and rhs.    
+  SmallVector<int64_t> newBroadcastDims;
+  for (int64_t i = 0; i < targetRank; ++i) {
+    newBroadcastDims.push_back(i);
+  }
+  SmallVector<int64_t> dynamicShape;
+  for (int64_t i = 0; i < targetRank; ++i) {
+    dynamicShape.push_back(ShapedType::kDynamic);
   }
 
-  if (lhsBroadcastDims.empty() && rhsBroadcastDims.empty()) {
-    inpLhs = lhs;
-    inpRhs = rhs;
-    return;
-  }
+  auto computeRanks = llvm::to_vector<4>(llvm::seq<int64_t>(targetRank - 2, targetRank)); 
+  auto lhsComputeDims = *hlo::getDimIndexOfTensor(rewriter, op, lhs, computeRanks);
+  auto lhsComputeShape = rewriter.create<tensor::FromElementsOp>(loc, lhsComputeDims);
+  auto lhsTargetShape = rewriter.create<shape::ConcatOp>(
+    loc,
+    shape::getExtentTensorType(op->getContext(), targetRank),
+    ValueRange{targetBatchShape, lhsComputeShape}
+  );
+  
+  
+  auto lhsOutTy = RankedTensorType::get(dynamicShape, lhsRankTy.getElementType());
+  lhs = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
+    loc, lhsOutTy, lhs, lhsTargetShape, rewriter.getDenseI64ArrayAttr(newBroadcastDims)
+  );
 
-  auto lhsDimSizes = *hlo::getDimIndexOfTensor(rewriter, op, lhs);
-  auto rhsDimSizes = *hlo::getDimIndexOfTensor(rewriter, op, rhs);
+  // auto computeRanks = llvm::to_vector<4>(llvm::seq<int64_t>(rhsRank - 2, rhsRank)); 
+  auto rhsComputeDims = *hlo::getDimIndexOfTensor(rewriter, op, rhs, computeRanks);
+  auto rhsComputeShape = rewriter.create<tensor::FromElementsOp>(loc, rhsComputeDims);
+  auto rhsTargetShape = rewriter.create<shape::ConcatOp>(
+    loc,
+    shape::getExtentTensorType(op->getContext(), targetRank),
+    ValueRange{targetBatchShape, rhsComputeShape}
+  );
 
-  if (!lhsBroadcastDims.empty()) {
-    SmallVector<int64_t> lhsNewShape(newBatchShape);
-    lhsNewShape.insert(lhsNewShape.end(), lhsShape.begin() + nBatchDims,
-                       lhsShape.end());
-    for (auto i : lhsBroadcastDims) {
-      lhsDimSizes[i] = rhsDimSizes[i];
-    }
-    broadcastDims =
-        llvm::to_vector<4>(llvm::seq<int64_t>(0, lhsNewShape.size()));
-    lhs = getBroadcastTensor(rewriter, op, lhs, lhsNewShape, lhsDimSizes,
-                             broadcastDims);
-  }
-  if (!rhsBroadcastDims.empty()) {
-    SmallVector<int64_t> rhsNewShape(newBatchShape);
-    rhsNewShape.insert(rhsNewShape.end(), rhsShape.begin() + nBatchDims,
-                       rhsShape.end());
-    for (auto i : rhsBroadcastDims) {
-      rhsDimSizes[i] = lhsDimSizes[i];
-    }
-    broadcastDims =
-        llvm::to_vector<4>(llvm::seq<int64_t>(0, rhsNewShape.size()));
-    rhs = getBroadcastTensor(rewriter, op, rhs, rhsNewShape, rhsDimSizes,
-                             broadcastDims);
-  }
+  auto rhsOutTy = RankedTensorType::get(dynamicShape, rhsRankTy.getElementType());
+  rhs = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
+    loc, rhsOutTy, rhs, rhsTargetShape, rewriter.getDenseI64ArrayAttr(newBroadcastDims)
+  );
 
   inpLhs = lhs;
   inpRhs = rhs;
@@ -299,8 +307,10 @@ public:
       assert(rhsRank > 2 && lhsRank > 2);
       auto leadingRank = std::max(lhsRank - rhsRank, rhsRank - lhsRank);
       nBatchDims = std::max(lhsRank - 2, rhsRank - 2);
+      printf("pos1");
       getBmmBroadcast(rewriter, op, lhs, rhs, leadingRank,
                       options.dimSizeIndexBits);
+      printf("pos2");
     }
     auto batchDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, nBatchDims));
 
@@ -313,6 +323,11 @@ public:
       lhsContractingDim = nBatchDims;
     }
 
+    // After DynamicDimBroadCast, the rank of lhs and rhs are the same.
+    // But the DimSize may be different. So we should keeps the dimSize
+    // same.
+
+
     stablehlo::DotDimensionNumbersAttr dotDimensionNumbers =
         stablehlo::DotDimensionNumbersAttr::get(
             rewriter.getContext(),
@@ -323,10 +338,12 @@ public:
     auto outTy =
         castContractingDim(rewriter, op, lhs, rhs, lhsResultDim, rhsResultDim,
                            lhsContractingDim, rhsContractingDim);
+    printf("pos3");
     output = rewriter
                  .create<stablehlo::DotGeneralOp>(op->getLoc(), outTy, lhs, rhs,
                                                   dotDimensionNumbers, nullptr)
                  .getResult();
+    printf("pos4");
     return success();
   }
 
