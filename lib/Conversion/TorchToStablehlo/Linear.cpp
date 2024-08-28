@@ -141,8 +141,6 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
   auto leadingDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, leadingRank));
   auto broadcastDims = llvm::to_vector<4>(
       llvm::seq<int64_t>(leadingRank, minRank + leadingRank));
-  auto lhsShape = lhsRankTy.getShape();
-  auto rhsShape = rhsRankTy.getShape();
 
   auto loc = op->getLoc();
 
@@ -301,7 +299,7 @@ public:
       batchDims = {};
     } else if (lhsRank <= 2) {
       nBatchDims = 0;
-      lhsRank = lhsRank - 1;
+      lhsContractingDim = lhsRank - 1;
       rhsContractingDim = rhsRank - 2;
       batchDims = {};
     } else {
