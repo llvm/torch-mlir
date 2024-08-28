@@ -138,7 +138,7 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
     auto newShape = rewriter.create<tensor::FromElementsOp>(loc, newDimSizes);
 
     SmallVector<int64_t> shape;
-    for (int64_t i = 0; i < newDimSizes.size(); ++i) {
+    for (size_t i = 0; i < newDimSizes.size(); ++i) {
       shape.push_back(ShapedType::kDynamic);
     }
     auto outTy = RankedTensorType::get(shape, lhsRankTy.getElementType());
@@ -155,7 +155,7 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
     auto newShape = rewriter.create<tensor::FromElementsOp>(loc, newDimSizes);
 
     SmallVector<int64_t> shape;
-    for (int64_t i = 0; i < newDimSizes.size(); ++i) {
+    for (size_t i = 0; i < newDimSizes.size(); ++i) {
       shape.push_back(ShapedType::kDynamic);
     }
     auto outTy = RankedTensorType::get(shape, rhsRankTy.getElementType());
@@ -173,8 +173,8 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
 
   auto newLhsRankTy = dyn_cast<RankedTensorType>(lhs.getType());
   auto newRhsRankTy = dyn_cast<RankedTensorType>(rhs.getType());
-  auto lhsShape = lhsRankTy.getShape();
-  auto rhsShape = rhsRankTy.getShape();
+  auto lhsShape = newLhsRankTy.getShape();
+  auto rhsShape = newRhsRankTy.getShape();
   bool needBroadcast = false;
   for (int64_t i = 0; i < nBatchDims; ++i) {
     if (lhsShape[i] != ShapedType::kDynamic &&
