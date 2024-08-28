@@ -22,6 +22,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
@@ -60,7 +61,22 @@ public:
                            arith::ArithDialect, complex::ComplexDialect>();
     target.addLegalOp<TorchConversion::GetNextSeedOp>();
 
-    target.addIllegalDialect<Torch::TorchDialect>();
+    // The following ops are never the primary reason why lowering fails.
+    // The backend contract only allows functions to return tensors thus there
+    // is always another op using them.
+    // When we have a chain of torch.constant.int followed by a unsupported
+    // torch op, we want the pass to mention the unsupported torch op
+    // in the error message.
+    target.addLegalOp<ConstantNoneOp>();
+    target.addLegalOp<ConstantBoolOp>();
+    target.addLegalOp<ConstantIntOp>();
+    target.addLegalOp<ConstantFloatOp>();
+    target.addLegalOp<ConstantStrOp>();
+    target.addLegalOp<ConstantDeviceOp>();
+    target.addLegalOp<PrimListConstructOp>();
+    target.addLegalOp<PrimTupleConstructOp>();
+
+    // target.addIllegalDialect<Torch::TorchDialect>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });

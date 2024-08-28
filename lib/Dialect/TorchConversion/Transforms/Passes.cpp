@@ -144,12 +144,19 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
 void TorchConversion::createTorchBackendToTosaLinalgBackendPipeline(
     OpPassManager &pm) {
 
+  // We want to fuse quantized operations together before lowering to
+  // linalg.
+  pm.addNestedPass<func::FuncOp>(Torch::createFuseQuantizedOpsPass());
+  pm.addNestedPass<func::FuncOp>(Torch::createScalarizeShapesPass());
+
   // Lower to tosa+linalg + guards which is the input to codegen backends.
   // We do this first as it tends to involve pattern-matching against constants,
   // (e.g. dimensions which must be constant in a ranked programming model)
   // and those constants get somewhat obscured by TorchToArith.
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToTMTensorPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
 
-  // Tosa pipeline passes
+  // Tosa+Linalg pipeline pass
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTosaLinalgPass());
   // Perform rank broadcasting so TosaToLinalg pass works
   pm.addNestedPass<func::FuncOp>(createTosaMakeBroadcastablePass());
@@ -158,8 +165,6 @@ void TorchConversion::createTorchBackendToTosaLinalgBackendPipeline(
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   // The resolution of `dim` ops tends to create identical ops. CSE them.
   pm.addNestedPass<func::FuncOp>(createCSEPass());
-
-  // Linalg pipeline passes
   pm.addNestedPass<func::FuncOp>(createConvertTorchToSCFPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToArithPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTensorPass());
