@@ -76,6 +76,7 @@ RankedTensorType castContractingDim(PatternRewriter &rewriter, Operation *op,
       rhs = rewriter.create<tensor::CastOp>(op->getLoc(), newRankTy, rhs);
     }
   }
+
   SmallVector<int64_t> outShape;
   // set batch dims, will skip invalid dimensions
   for (int64_t k = 0; k < static_cast<int64_t>(lhsShape.size()); ++k) {
@@ -103,6 +104,7 @@ RankedTensorType castContractingDim(PatternRewriter &rewriter, Operation *op,
       rhsResultDim >= 0) {
     outShape.push_back(rhsShape[rhsResultDim]);
   }
+
   return RankedTensorType::get(outShape, lhsTy.getElementType());
 }
 
@@ -136,7 +138,7 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
     auto newShape = rewriter.create<tensor::FromElementsOp>(loc, newDimSizes);
 
     SmallVector<int64_t> shape;
-    for (int64_t i = 0; i < rhsRank; ++i) {
+    for (int64_t i = 0; i < newDimSizes.size(); ++i) {
       shape.push_back(ShapedType::kDynamic);
     }
     auto outTy = RankedTensorType::get(shape, lhsRankTy.getElementType());
@@ -153,7 +155,7 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
     auto newShape = rewriter.create<tensor::FromElementsOp>(loc, newDimSizes);
 
     SmallVector<int64_t> shape;
-    for (int64_t i = 0; i < lhsRank; ++i) {
+    for (int64_t i = 0; i < newDimSizes.size(); ++i) {
       shape.push_back(ShapedType::kDynamic);
     }
     auto outTy = RankedTensorType::get(shape, rhsRankTy.getElementType());
@@ -164,6 +166,26 @@ void getBmmBroadcast(PatternRewriter &rewriter, Operation *op, Value &inpLhs,
   }
 
   if (lhsRank <= 2 || rhsRank <= 2) {
+    inpLhs = lhs;
+    inpRhs = rhs;
+    return;
+  }
+
+  auto newLhsRankTy = dyn_cast<RankedTensorType>(lhs.getType());
+  auto newRhsRankTy = dyn_cast<RankedTensorType>(rhs.getType());
+  auto lhsShape = lhsRankTy.getShape();
+  auto rhsShape = rhsRankTy.getShape();
+  bool needBroadcast = false;
+  for (int64_t i = 0; i < nBatchDims; ++i) {
+    if (lhsShape[i] != ShapedType::kDynamic &&
+        rhsShape[i] != ShapedType::kDynamic && lhsShape[i] == rhsShape[i]) {
+      continue;
+    } else {
+      needBroadcast = true;
+    }
+  }
+
+  if (!needBroadcast) {
     inpLhs = lhs;
     inpRhs = rhs;
     return;
@@ -281,10 +303,13 @@ public:
       rhsContractingDim = 0;
       batchDims = {};
     } else if (lhsRank <= 2) {
-      nBatchDims = 0;
-      lhsContractingDim = lhsRank - 1;
-      rhsContractingDim = rhsRank - 2;
-      batchDims = {};
+      auto leadingRank = rhsRank - 2;
+      getBmmBroadcast(rewriter, op, lhs, rhs, leadingRank,
+                      options.dimSizeIndexBits);
+      nBatchDims = leadingRank;
+      lhsContractingDim = nBatchDims + 1;
+      rhsContractingDim = nBatchDims;
+      batchDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, nBatchDims));
     } else {
       assert(rhsRank > 2 && lhsRank > 2);
       auto leadingRank = std::max(lhsRank - rhsRank, rhsRank - lhsRank);
@@ -295,6 +320,13 @@ public:
       rhsContractingDim = nBatchDims;
       batchDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, nBatchDims));
     }
+    auto lhsResultDim = lhsContractingDim - 1;
+    auto rhsResultDim = rhsContractingDim + 1;
+
+    if (lhsRank == 1) {
+      lhsResultDim = nBatchDims + 1;
+      lhsContractingDim = nBatchDims;
+    }
 
     stablehlo::DotDimensionNumbersAttr dotDimensionNumbers =
         stablehlo::DotDimensionNumbersAttr::get(
@@ -304,11 +336,9 @@ public:
             /*lhsContractingDimensions=*/{lhsContractingDim},
             /*rhsContractingDimensions=*/{rhsContractingDim});
 
-    SmallVector<int64_t> resShape;
-    for (int64_t i = 0; i < std::max(lhsRank, rhsRank); ++i) {
-      resShape.push_back(ShapedType::kDynamic);
-    }
-    auto outTy = RankedTensorType::get(resShape, lhsTy.getElementType());
+    auto outTy =
+        castContractingDim(rewriter, op, lhs, rhs, lhsResultDim, rhsResultDim,
+                           lhsContractingDim, rhsContractingDim);
 
     output = rewriter
                  .create<stablehlo::DotGeneralOp>(op->getLoc(), outTy, lhs, rhs,

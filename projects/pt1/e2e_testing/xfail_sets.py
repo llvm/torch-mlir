@@ -31,6 +31,7 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "DeformConv2D_basic",
     "ReduceAnyDimFloatModule_basic",
     "UnfoldModule_basic",
+    "Matmul1d3dStatic_basic",
 }
 
 LINALG_CRASHING_SET = {
@@ -55,6 +56,7 @@ LINALG_CRASHING_SET = {
     "GridSamplerBasic2_basic",
     "GridSamplerBasic3_basic",
     "GridSamplerBasic4_basic",
+    "BroadcastMatmul_basic",
     # Runtime op verification: stride mismatch in memref.cast
     "ReduceAllDimEmpty_basic",
     "TraceUnsignedIntModule_empty",
@@ -949,7 +951,8 @@ STABLEHLO_PASS_SET = {
     "AvgPool2dCountIncludePadFalseStaticModule_basic",
     "AvgPool3dStaticModule_basic",
     "BatchMatmulNoBroadcast_basic",
-    "BroadcastMatmulStatic_basic",
+    "Matmul1d3dStatic_basic",
+    "Matmul2d3dStatic_basic",
     "BaddbmmBroadcast1DInputModule_basic",
     "BaddbmmBroadcast2DInputModule_basic",
     "BaddbmmStaticModule_basic",
@@ -1560,6 +1563,7 @@ STABLEHLO_CRASHING_SET = {
 TOSA_CRASHING_SET = {
     # Runtime op verification: Out of bounds access
     "IndexTensorNegativeIndexModule_basic",
+    "Matmul1d3dStatic_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -1876,6 +1880,7 @@ TOSA_PASS_SET = {
     "Matmul_3d",
     "Matmul_dot",
     "MatmulStaticBroadcast_basic",
+    "Matmul2d3dStatic_basic",
     "MaxPool2dEmptyStrideStaticModule_basic",
     "MaxPool2dStaticCeilModeTrueModule_basic",
     "MaxPool2dStaticModule_basic",
@@ -2550,6 +2555,7 @@ ONNX_XFAIL_SET = {
     "LinalgVectorNormComplexModule_basic",
     "LogSoftmaxBackwardModule_basic",
     "MaskedScatterStaticBasic_basic",
+    "Matmul1d3dStatic_basic",
     "MaxPool1dCeilModeTrueModule_basic",
     "MaxPool1dModule_basic",
     "MaxPool2dCeilModeTrueModule_basic",
