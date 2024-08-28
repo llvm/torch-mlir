@@ -2115,6 +2115,7 @@ MAKE_FX_TOSA_PASS_SET = (
     # Dynamic shape, has extra unsupported broadcast ops
     "Matmul_3d",
     "MatmulStaticBroadcast_basic",
+    "Matmul2d3dStatic_basic",
     # Unimplemented operator 'aten._index_put_impl_.hacked_twin'
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
     "IndexPutImpl1DIntNonAccumulateModule_basic",
