@@ -28,23 +28,6 @@ using namespace mlir::torch::Torch;
 using namespace mlir::torch::torch_to_stablehlo;
 
 namespace {
-Value getBroadcastTensor(PatternRewriter &rewriter, Operation *op, Value tensor,
-                         ArrayRef<int64_t> shape, ArrayRef<Value> dimSizes,
-                         ArrayRef<int64_t> broadcastDims) {
-  auto tensorTy = dyn_cast<RankedTensorType>(tensor.getType());
-  auto loc = op->getLoc();
-  Value stablehloShape = rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
-
-  RankedTensorType outTy =
-      RankedTensorType::get(shape, tensorTy.getElementType());
-
-  auto broadcastAttr = rewriter.getDenseI64ArrayAttr(broadcastDims);
-
-  auto broadcast = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
-      loc, outTy, tensor, stablehloShape, broadcastAttr);
-  return broadcast;
-}
-
 Value getPermutedTensor(PatternRewriter &rewriter, Operation *op, Value input,
                         ArrayRef<int64_t> inpTransDims) {
   auto inputTy = dyn_cast<RankedTensorType>(input.getType());
