@@ -3561,15 +3561,31 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value signal = operands[0];
         Value frameStep = operands[1];
         auto signalTy = cast<Torch::ValueTensorType>(signal.getType());
+        if (!signalTy || !signalTy.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected signal type having sizes");
+        }
         auto signalShape = signalTy.getSizes();
+        if (signalShape.size() != 2 && signalShape.size() != 3) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "signal has invalid shape.");
+        }
+        if (!resultType || !resultType.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected result type having sizes");
+        }
         auto resultShape = resultType.getSizes();
+        if (resultShape.size() != 4) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "result has invalid shape.");
+        }
 
         // There are two possible cases for optional inputs frameLength and
         // window, which are that either 4 operands will be passed with window
         // being !torch.none, or three operands will be passed, with window
         // present and frameLength absent. In the former case, we simply create
         // a rectangular window consisting of ones, and in the latter, we set
-        // frameLength equal to the the inputShape[-2] or windowShape[0]
+        // frameLength equal to the the inputShape[1] or windowShape[0]
         // depending upon whether window was present or not. Note that it is
         // possible that both window and frameLength can be none, which would
         // mean that either only two operands were passed, or, in case of three
@@ -3588,14 +3604,19 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
 
         ArrayRef<int64_t> windowShape;
+        if (!windowIsNone) {
+          windowShape =
+              cast<Torch::ValueTensorType>(window.getType()).getSizes();
+          if (windowShape.size() != 1) {
+            return rewriter.notifyMatchFailure(binder.op,
+                                               "window has invalid shape.");
+          }
+        }
         if (frameLengthIsNone) {
           if (windowIsNone) {
             frameLength = rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getI64IntegerAttr(
-                                     signalShape[signalShape.size() - 2]));
+                binder.getLoc(), rewriter.getI64IntegerAttr(signalShape[1]));
           } else {
-            windowShape =
-                cast<Torch::ValueTensorType>(window.getType()).getSizes();
             frameLength = rewriter.create<Torch::ConstantIntOp>(
                 binder.getLoc(), rewriter.getI64IntegerAttr(windowShape[0]));
           }
@@ -3655,19 +3676,22 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // component. This complex input has to be made torch compatible before
         // being passed into torch.stft, so it is necessary to call
         // AtenViewAsComplexOp. In case of real input, the shape of the signal
-        // will be [batch][length][1], and therefore it will have to be squeezed
-        // at dim=2, before being passed into torch.stft.
-        if (signalShape[2] == 2) {
-          signal = rewriter.create<Torch::AtenViewAsComplexOp>(
-              binder.getLoc(), complexSignalTy, signal);
-        } else {
-          Value two = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(2));
-          auto newSignalTy = signalTy.getWithSizesAndDtype(
-              ArrayRef<int64_t>({signalShape[0], signalShape[1]}),
-              signalTy.getDtype());
-          signal = rewriter.create<Torch::AtenSqueezeDimOp>(
-              binder.getLoc(), newSignalTy, signal, two);
+        // will be [batch][length] or [batch][length][1], and therefore it will
+        // have to be squeezed at dim=2 in the latter case, before being passed
+        // into torch.stft.
+        if (signalShape.size() == 3) {
+          if (signalShape[2] == 2) {
+            signal = rewriter.create<Torch::AtenViewAsComplexOp>(
+                binder.getLoc(), complexSignalTy, signal);
+          } else {
+            Value two = rewriter.create<Torch::ConstantIntOp>(
+                binder.getLoc(), rewriter.getI64IntegerAttr(2));
+            auto newSignalTy = signalTy.getWithSizesAndDtype(
+                ArrayRef<int64_t>({signalShape[0], signalShape[1]}),
+                signalTy.getDtype());
+            signal = rewriter.create<Torch::AtenSqueezeDimOp>(
+                binder.getLoc(), newSignalTy, signal, two);
+          }
         }
 
         // In case the window is not given, we use frameLength
