@@ -338,6 +338,26 @@ def ElementwiseIntTensorLtFloatScalarModule_basic(module, tu: TestUtils):
     module.forward(torch.tensor([0, 1, 2, 3], dtype=torch.int64))
 
 
+class ElementwiseIntTensorLtFloatScalarModuleStatic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.int64, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.lt(x, 1.1)
+
+
+@register_test_case(module_factory=lambda: ElementwiseIntTensorLtFloatScalarModuleStatic())
+def ElementwiseIntTensorLtFloatScalarModuleStatic_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 1, 2, 3], dtype=torch.int64))
+
+
 class ElementwiseFloatTensorGtIntScalarModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

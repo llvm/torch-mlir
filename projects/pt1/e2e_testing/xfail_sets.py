@@ -1063,6 +1063,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseFmodTensor_Int_basic",
     "ElementwiseGeluApproximateTanhModule_basic",
     "ElementwiseGeluModule_basic",
+    "ElementwiseIntTensorLtFloatScalarModuleStatic_basic",
     "ElementwiseLeakyReluStaticModule_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseLog10Module_basic",
