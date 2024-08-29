@@ -140,4 +140,3 @@ torch-mlir's representation:
 
 * `ConstantOfShape`: Mapped to `torch.vtensor.literal` with
   a corresponding `value` attribute.
-

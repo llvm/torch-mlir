@@ -30,7 +30,7 @@ class TORCH_API TorchMlirBackendData : public BackendData {
 public:
   struct Info : public BackendData::Info {
     at::Tensor tensor;
-    c10::optional<at::Scalar> scalar;
+    std::optional<at::Scalar> scalar;
     bool requires_grad;
     std::string name;
 
@@ -111,7 +111,7 @@ public:
 
   virtual at::Tensor MakeTensorFromComputationData(
       const BackendDataPtr data,
-      c10::optional<at::ScalarType> logical_scalar_type) const override;
+      std::optional<at::ScalarType> logical_scalar_type) const override;
 
   /**
    * Lowering, Compilation, Execution

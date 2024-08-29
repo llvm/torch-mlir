@@ -12,12 +12,10 @@
 #include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
-#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
 using namespace mlir;
@@ -140,11 +138,11 @@ public:
 
       // If the target type is non-torch type, then use TypeConverter to convert
       // the type of the source.
-      if (targetType.isa<mlir::FloatType>()) {
+      if (isa<mlir::FloatType>(targetType)) {
         targetType = Torch::FloatType::get(op->getContext());
         torchArg = typeConverter->materializeSourceConversion(
             rewriter, scfWhileOp.getLoc(), targetType, {to});
-      } else if (targetType.isa<mlir::IntegerType>()) {
+      } else if (isa<mlir::IntegerType>(targetType)) {
         unsigned bitWidth = targetType.getIntOrFloatBitWidth();
         if (bitWidth == 1)
           targetType = Torch::BoolType::get(op->getContext());
@@ -179,7 +177,7 @@ public:
 
           // If the argument is a torch tensor, directly add it in the list of
           // iter args.
-          if (torchType.isa<Torch::BaseTensorType>()) {
+          if (isa<Torch::BaseTensorType>(torchType)) {
             loopConditionIterArgs.push_back(torchArg);
             continue;
           }
@@ -254,7 +252,7 @@ public:
     // "block" arguments
     for (const auto &barg : enumerate(op.getRegion().front().getArguments())) {
       Value to = block->getArgument(barg.index());
-      if (to.getType().isa<mlir::IndexType>())
+      if (isa<mlir::IndexType>(to.getType()))
         to =
             rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), to);
       Type targetType = to.getType();
@@ -262,11 +260,11 @@ public:
 
       // If the target type is non-torch type, then use TypeConverter to convert
       // the type of the source.
-      if (targetType.isa<mlir::FloatType>()) {
+      if (isa<mlir::FloatType>(targetType)) {
         targetType = Torch::FloatType::get(op->getContext());
         torchArg = typeConverter->materializeSourceConversion(
             rewriter, scfForOp.getLoc(), targetType, {to});
-      } else if (targetType.isa<mlir::IntegerType>()) {
+      } else if (isa<mlir::IntegerType>(targetType)) {
         unsigned bitWidth = targetType.getIntOrFloatBitWidth();
         if (bitWidth == 1)
           targetType = Torch::BoolType::get(op->getContext());

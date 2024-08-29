@@ -22,8 +22,8 @@ import torch
 # Attribute names used for annotations.
 # These should be kept in sync with their use in
 # `torch_mlir/torchscript_annotations.py`.
-TORCH_MLIR_EXPORT_ATTR_NAME = '_torch_mlir_export'
-TORCH_MLIR_ARG_ANNOTATIONS_ATTR_NAME = '_torch_mlir_arg_annotations'
+TORCH_MLIR_EXPORT_ATTR_NAME = "_torch_mlir_export"
+TORCH_MLIR_ARG_ANNOTATIONS_ATTR_NAME = "_torch_mlir_arg_annotations"
 
 
 def export(fn):
@@ -44,7 +44,7 @@ def export(fn):
     return fn
 
 
-ArgAnnotation = Tuple[List[int], torch.dtype]
+ArgAnnotation = Tuple[List[int], torch.dtype, bool]
 
 
 # TODO: Replace with py3 extended argument annotations when available.
@@ -55,9 +55,9 @@ def annotate_args(annotations: List[Optional[ArgAnnotation]]):
     The `annotations` should be a list of the same length as the number of
     argument to the method (including `self`). Each list entry is either:
     - None, corresponding to providing the compiler with no information.
-    - A 2-tuple consisting of a shape and a dtype, such as
-      `([2, 3, 4], torch.float32)`. A dimension with an unknown size can be
-      indicated by using `-1` as the size. This provides the compiler a
+    - A 3-tuple consisting of a shape, a dtype and a flag of value semantics,
+      such as `([2, 3, 4], torch.float32, True)`. A dimension with an unknown size
+      can be indicated by using `-1` as the size. This provides the compiler a
       guarantee that the argument will always dynamically have the described
       shape and dtype.
     """

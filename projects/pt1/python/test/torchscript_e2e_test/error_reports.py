@@ -122,7 +122,7 @@ class ErroneousModule(torch.nn.Module):
     @torch.jit.export
     def test_tensor_value_mismatch(self):
         if torch.jit.is_scripting():
-            return torch.tensor([1., 2., 3.])
+            return torch.tensor([1.0, 2.0, 3.0])
         else:
             return torch.tensor([1.5, 2.5, 3.5])
 
@@ -132,9 +132,9 @@ class ErroneousModule(torch.nn.Module):
     @torch.jit.export
     def test_tensor_shape_mismatch(self):
         if torch.jit.is_scripting():
-            return torch.tensor([1., 2.])
+            return torch.tensor([1.0, 2.0])
         else:
-            return torch.tensor([1., 2., 3.])
+            return torch.tensor([1.0, 2.0, 3.0])
 
 
 @register_test_case(module_factory=lambda: ErroneousModule())
@@ -157,5 +157,5 @@ def main():
     report_results(results, set(), verbose=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

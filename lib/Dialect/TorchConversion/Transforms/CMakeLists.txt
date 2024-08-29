@@ -7,14 +7,9 @@ set(LinkedLibs
   MLIRTosaTransforms
   MLIRVectorTransforms
   TorchMLIRTorchConversionDialect
-  TorchMLIRTorchConversionToMLProgram
   TorchMLIRTorchDialect
   TorchMLIRTorchPasses
-  TorchMLIRTorchToArith
-  TorchMLIRTorchToLinalg
-  TorchMLIRTorchToSCF
-  TorchMLIRTorchToTMTensor
-  TorchMLIRTorchToTosa
+  TorchMLIRConversionPasses
   )
 
 if(TORCH_MLIR_ENABLE_STABLEHLO)
@@ -26,7 +21,7 @@ endif()
 
 add_mlir_library(TorchMLIRTorchConversionPasses
   BackendTypeConversion.cpp
-  BackendTypeConversionPasses.cpp  
+  BackendTypeConversionPasses.cpp
   Passes.cpp
   ConvertCustomQuantOp.cpp
   UnpackQuantTensor.cpp

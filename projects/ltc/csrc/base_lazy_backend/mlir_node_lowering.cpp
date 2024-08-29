@@ -159,7 +159,7 @@ c10::TensorType &cast_tensor_type(c10::TypePtr value_type) {
   return *tensor_type.get();
 }
 
-c10::optional<std::vector<int64_t>>
+std::optional<std::vector<int64_t>>
 get_tensor_type_shape(c10::TensorType &tensor_type) {
   auto &symbolic_shape = tensor_type.symbolic_sizes();
   if (!symbolic_shape.rank()) {

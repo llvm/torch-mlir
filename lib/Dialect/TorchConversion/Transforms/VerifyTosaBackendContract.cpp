@@ -13,8 +13,6 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
-#include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 

@@ -13,7 +13,7 @@ import torch._lazy
 import torch.nn.functional as F
 
 
-def main(device='lazy'):
+def main(device="lazy"):
     """
     Load model to specified device. Ensure that any backends have been initialized by this point.
 
@@ -65,7 +65,7 @@ def main(device='lazy'):
             torch._lazy.mark_step()
 
     # Get debug information from LTC
-    if 'torch_mlir._mlir_libs._REFERENCE_LAZY_BACKEND' in sys.modules:
+    if "torch_mlir._mlir_libs._REFERENCE_LAZY_BACKEND" in sys.modules:
         computation = lazy_backend.get_latest_computation()
         if computation:
             print(computation.debug_string())
@@ -90,6 +90,7 @@ if __name__ == "__main__":
     if args.device in ("TS", "MLIR_EXAMPLE"):
         if args.device == "TS":
             import torch._lazy.ts_backend
+
             torch._lazy.ts_backend.init()
 
         elif args.device == "MLIR_EXAMPLE":

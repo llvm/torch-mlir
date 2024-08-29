@@ -11,3 +11,4 @@ from .torchscript import TorchScriptTestConfig
 from .stablehlo_backend import StablehloBackendTestConfig
 from .tosa_backend import TosaBackendTestConfig
 from .torchdynamo import TorchDynamoTestConfig
+from .fx_importer_backend import FxImporterTestConfig

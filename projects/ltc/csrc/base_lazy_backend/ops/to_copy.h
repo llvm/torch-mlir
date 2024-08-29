@@ -25,11 +25,11 @@ namespace lazy {
 class ToCopy : public torch::lazy::TorchMlirNode {
 public:
   ToCopy(const torch::lazy::Value &self,
-         const c10::optional<at::ScalarType> &dtype,
-         const c10::optional<at::Layout> &layout,
-         const c10::optional<at::Device> &device,
-         const c10::optional<bool> &pin_memory, const bool &non_blocking,
-         const c10::optional<at::MemoryFormat> &memory_format,
+         const std::optional<at::ScalarType> &dtype,
+         const std::optional<at::Layout> &layout,
+         const std::optional<at::Device> &device,
+         const std::optional<bool> &pin_memory, const bool &non_blocking,
+         const std::optional<at::MemoryFormat> &memory_format,
          std::vector<torch::lazy::Shape> &&shapes)
       : torch::lazy::TorchMlirNode(
             torch::lazy::OpKind(at::aten::_to_copy), {self}, std::move(shapes),
@@ -95,12 +95,12 @@ public:
     return _to_copy_out;
   }
 
-  c10::optional<at::ScalarType> dtype;
-  c10::optional<at::Layout> layout;
-  c10::optional<at::Device> device;
-  c10::optional<bool> pin_memory;
+  std::optional<at::ScalarType> dtype;
+  std::optional<at::Layout> layout;
+  std::optional<at::Device> device;
+  std::optional<bool> pin_memory;
   bool non_blocking;
-  c10::optional<at::MemoryFormat> memory_format;
+  std::optional<at::MemoryFormat> memory_format;
 };
 } // namespace lazy
 } // namespace torch

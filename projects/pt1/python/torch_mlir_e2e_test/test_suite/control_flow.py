@@ -13,15 +13,13 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 # ==============================================================================
 
+
 class TorchPrimLoopForLikeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.int64, True)
-    ])
+    @annotate_args([None, ([-1, -1], torch.int64, True)])
     def forward(self, x):
         x_val = x.size(0)
         sum = 0
@@ -34,20 +32,18 @@ class TorchPrimLoopForLikeModule(torch.nn.Module):
 def TorchPrimLoopForLikeModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(6, 8, high=10))
 
+
 # ==============================================================================
 class TorchPrimLoopWhileLikeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.int64, True)
-    ])
+    @annotate_args([None, ([-1, -1], torch.int64, True)])
     def forward(self, x):
         x_val = x.size(0)
         sum = 0
-        while(x_val > sum):
+        while x_val > sum:
             sum += 1
         return sum
 
@@ -59,19 +55,23 @@ def TorchPrimLoopWhileLikeModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
 class TorchPrimLoopForLikeTensorArgModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([7,9], torch.float32, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([7, 9], torch.float32, True),
+        ]
+    )
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         for i in range(50):
             x = x + i
         return x
+
 
 @register_test_case(module_factory=lambda: TorchPrimLoopForLikeTensorArgModule())
 def TorchPrimLoopForLikeTensorArgModule_basic(module, tu: TestUtils):

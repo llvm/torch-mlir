@@ -35,7 +35,7 @@ static LogicalResult refineDtypeCalculateResult(DtypeCalculateOp op,
 
   // Calculate the updated type incorporating the new information.
   Type impliedTypeFromDtype;
-  if (result.getType().isa<Torch::NumberType>()) {
+  if (isa<Torch::NumberType>(result.getType())) {
     FailureOr<Type> torchType =
         getTorchTypeForScalarType(op->getContext(), dtypeScalarType);
     if (failed(torchType)) {
@@ -45,7 +45,7 @@ static LogicalResult refineDtypeCalculateResult(DtypeCalculateOp op,
     }
     impliedTypeFromDtype = *torchType;
   } else if (auto originalResultType =
-                 result.getType().dyn_cast<BaseTensorType>()) {
+                 dyn_cast<BaseTensorType>(result.getType())) {
     FailureOr<Type> builtinType =
         getTypeForScalarType(op->getContext(), dtypeScalarType);
     if (failed(builtinType)) {
@@ -53,8 +53,9 @@ static LogicalResult refineDtypeCalculateResult(DtypeCalculateOp op,
           op, "Failed to convert `dtypeScalarType` to a builtin type");
     }
     impliedTypeFromDtype =
-        originalResultType.cast<BaseTensorType>().getWithSizesAndDtype(
-            originalResultType.getOptionalSizes(), *builtinType);
+        cast<BaseTensorType>(originalResultType)
+            .getWithSizesAndDtype(originalResultType.getOptionalSizes(),
+                                  *builtinType);
   } else {
     return rewriter.notifyMatchFailure(op,
                                        "Unimplemented: Expected result type to "
@@ -167,22 +168,21 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(PrimNumToTensorScalarOp op,
                                 PatternRewriter &rewriter) const override {
-    auto originalResultType = op.getResult().getType().cast<BaseTensorType>();
+    auto originalResultType = cast<BaseTensorType>(op.getResult().getType());
     if (originalResultType.hasDtype())
       return rewriter.notifyMatchFailure(
           op, "`PrimNumToTensorScalarOp` already has a dtype");
 
-    if (op.getA().getType().isa<Torch::NumberType>()) {
+    if (isa<Torch::NumberType>(op.getA().getType())) {
       return rewriter.notifyMatchFailure(op,
                                          "`PrimNumToTensorScalarOp`'s input "
                                          "should have concrete Scalar Type.");
     }
     Type inputType = getBuiltInTypeForTorchScalar(op.getA().getType());
-    auto impliedTypeFromInputType =
-        originalResultType.cast<BaseTensorType>()
+    auto impliedTypeFromInputType = cast<BaseTensorType>(
+        cast<BaseTensorType>(originalResultType)
             .getWithSizesAndDtype(originalResultType.getOptionalSizes(),
-                                  inputType)
-            .cast<BaseTensorType>();
+                                  inputType));
 
     op.getResult().setType(impliedTypeFromInputType);
     return success();

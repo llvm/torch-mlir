@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 import pdb
+
 # This file implements a pure-Python importer from a restricted subset of
 # FX IR into MLIR.
 #
@@ -77,8 +78,12 @@ def _verify_fx_graph_conforms_to_subset(g: torch.fx.Graph):
                 if len(node.args) != len(node.target._schema.arguments):
                     assert len(node.args) < len(node.target._schema.arguments)
                     for i, argument in enumerate(
-                            node.target._schema.arguments[len(node.args):]):
-                        if not argument.has_default_value():
+                        node.target._schema.arguments[len(node.args) :]
+                    ):
+                        if (
+                            not argument.has_default_value()
+                            and argument.name not in node.kwargs
+                        ):
                             raise Exception(
                                 f"Unsupported: missing default value for argument {i} in schema for {node.target}"
                             )
@@ -152,12 +157,12 @@ def _convert_dtype_to_mlir_type(dtype: torch.dtype) -> str:
     if dtype == torch.complex128:
         return "complex<f64>"
 
-
     raise Exception(f"Unsupported dtype: {dtype}")
 
 
 def _import_fake_tensor_as_mlir_type(
-        fake_tensor: torch._subclasses.FakeTensor) -> ir.Type:
+    fake_tensor: torch._subclasses.FakeTensor,
+) -> ir.Type:
     # TODO: Find story for how to get dynamically shaped tensors here.
     shape = ",".join(str(d) for d in fake_tensor.shape)
     dtype = _convert_dtype_to_mlir_type(fake_tensor.dtype)
@@ -178,7 +183,8 @@ def _extract_function_type_from_graph(g: torch.fx.Graph) -> ir.FunctionType:
         if node.op == "output":
             # TODO(DNS): Test this or add verifier that it can't happen.
             result_types = torch.fx.map_arg(
-                node.args[0], lambda n: _mlir_types_for_node(n)[0])
+                node.args[0], lambda n: _mlir_types_for_node(n)[0]
+            )
     # Note: We import directly to the backend contract -- multiple results
     # are modeled with func.func native multiple results rather than as a
     # singleton value / tuple.
@@ -191,64 +197,40 @@ def _extract_function_type_from_graph(g: torch.fx.Graph) -> ir.FunctionType:
 
 DTYPE_TO_INT = {
     # TODO(DNS): Fill in from AT_FORALL_SCALAR_TYPES_WITH_COMPLEX_AND_QINTS
-    torch.uint8:
-    0,
-    torch.int8:
-    1,
-    torch.int16:
-    2,
-    torch.int32:
-    3,
-    torch.int64:
-    4,
-    torch.float16:
-    5,
-    torch.float32:
-    6,
-    torch.float64:
-    7,
+    torch.uint8: 0,
+    torch.int8: 1,
+    torch.int16: 2,
+    torch.int32: 3,
+    torch.int64: 4,
+    torch.float16: 5,
+    torch.float32: 6,
+    torch.float64: 7,
     # torch.complex_half 8
-    torch.complex64:
-    9,
-    torch.complex128:
-    10,
-    torch.bool:
-    11,
-    torch.qint8:
-    12,
-    torch.quint8:
-    13,
+    torch.complex64: 9,
+    torch.complex128: 10,
+    torch.bool: 11,
+    torch.qint8: 12,
+    torch.quint8: 13,
     # torch.qint32 14
-    torch.bfloat16:
-    15,
+    torch.bfloat16: 15,
 }
 
 MEMORY_FORMAT_TO_INT = {
     # https://github.com/pytorch/pytorch/c10/core/MemoryFormat.h#L28
-    torch.contiguous_format:
-    0,
-    torch.preserve_format:
-    1,
-    torch.channels_last:
-    2,
-    torch.channels_last_3d:
-    3,
+    torch.contiguous_format: 0,
+    torch.preserve_format: 1,
+    torch.channels_last: 2,
+    torch.channels_last_3d: 3,
 }
 
 LAYOUT_TO_INT = {
     # https://github.com/pytorch/pytorch/blob/master/torch/csrc/utils/tensor_layouts.cpp
-    torch.strided:
-    0,
-    torch.sparse_coo:
-    1,
-    torch.sparse_csr:
-    2,
-    torch.sparse_csc:
-    3,
-    torch.sparse_bsr:
-    4,
-    torch.sparse_bsc:
-    5,
+    torch.strided: 0,
+    torch.sparse_coo: 1,
+    torch.sparse_csr: 2,
+    torch.sparse_csc: 3,
+    torch.sparse_bsr: 4,
+    torch.sparse_bsc: 5,
 }
 
 
@@ -264,7 +246,6 @@ def _mlir_location_for_node(node: torch.fx.Node) -> ir.Location:
 
 
 class _FXGraphImporter:
-
     def __init__(self, g: torch.fx.Graph, func_name: str):
         self._g = g
         self._func_name = func_name
@@ -276,8 +257,9 @@ class _FXGraphImporter:
         # FakeTensor's in case of a tuple return with multiple elements.
         self._env: Dict[Tuple[torch.fx.Node, int], ir.Value] = {}
         self._module = ir.Module.create(ir.Location.unknown())
-        self._module.operation.attributes[
-            "torch.debug_module_name"] = ir.StringAttr.get(func_name)
+        self._module.operation.attributes["torch.debug_module_name"] = (
+            ir.StringAttr.get(func_name)
+        )
         function_type = _extract_function_type_from_graph(g)
         func = func_dialect.FuncOp(
             func_name,
@@ -285,8 +267,7 @@ class _FXGraphImporter:
             loc=ir.Location.unknown(),  # TODO: Can we do better?
             ip=ir.InsertionPoint(self._module.body),
         )
-        self._body_block = ir.Block.create_at_start(func.body,
-                                                    function_type.inputs)
+        self._body_block = ir.Block.create_at_start(func.body, function_type.inputs)
 
     def import_graph(self) -> ir.Module:
         with ir.InsertionPoint(self._body_block):
@@ -294,14 +275,15 @@ class _FXGraphImporter:
             for node in self._g.nodes:
                 with _mlir_location_for_node(node):
                     if node.op == "placeholder":
-                        self._env[(
-                            node, 0
-                        )] = self._body_block.arguments[num_placeholders_seen]
+                        self._env[(node, 0)] = self._body_block.arguments[
+                            num_placeholders_seen
+                        ]
                         num_placeholders_seen += 1
                     if node.op == "call_function":
                         if node.target is operator.getitem:
-                            self._env[(node, 0)] = self._env[(node.args[0],
-                                                              node.args[1])]
+                            self._env[(node, 0)] = self._env[
+                                (node.args[0], node.args[1])
+                            ]
                         else:
                             self._import_op_overload_call(node)
                     if node.op == "output":
@@ -309,9 +291,7 @@ class _FXGraphImporter:
                         # a tuple of return values (without the single-element special
                         # case)
                         # DNS: Test or verify no literals as results.
-                        operands = [
-                            self._import_argument(arg) for arg in node.args[0]
-                        ]
+                        operands = [self._import_argument(arg) for arg in node.args[0]]
                         func_dialect.ReturnOp(operands)
         return self._module
 
@@ -328,7 +308,8 @@ class _FXGraphImporter:
 
         # DNS: Unregistered ops
         assert ir.Context.current.is_registered_operation(
-            mlir_op_name), f"Unregistered operation: {mlir_op_name}"
+            mlir_op_name
+        ), f"Unregistered operation: {mlir_op_name}"
 
         # Construct the Operation.
         result_types = _mlir_types_for_node(node)
@@ -352,9 +333,9 @@ class _FXGraphImporter:
         for i, value in enumerate(operation.results):
             self._env[(node, i)] = value
 
-    def _import_argument(self,
-                         arg: torch.fx.node.Argument,
-                         expected_type_for_literal=None) -> ir.Value:
+    def _import_argument(
+        self, arg: torch.fx.node.Argument, expected_type_for_literal=None
+    ) -> ir.Value:
         """Import an FX `Argument`, which is analogous to an MLIR `Value`.
 
         Args:
@@ -371,22 +352,21 @@ class _FXGraphImporter:
         assert expected_type_for_literal is not None
         return self._import_literal(arg, expected_type_for_literal)
 
-    def _import_literal(self, arg: torch.fx.node.Argument,
-                        expected_type) -> ir.Value:
+    def _import_literal(self, arg: torch.fx.node.Argument, expected_type) -> ir.Value:
         if arg is None:
             return torch_dialect.ConstantNoneOp().result
         if isinstance(expected_type, torch.OptionalType):
             return self._import_argument(arg, expected_type.getElementType())
         if isinstance(arg, bool):
             return torch_dialect.ConstantBoolOp(
-                ir.IntegerAttr.get(ir.IntegerType.get_signless(1), arg)).result
+                ir.IntegerAttr.get(ir.IntegerType.get_signless(1), arg)
+            ).result
         if isinstance(arg, int):
             return torch_dialect.ConstantIntOp(
-                ir.IntegerAttr.get(ir.IntegerType.get_signless(64),
-                                   arg)).result
+                ir.IntegerAttr.get(ir.IntegerType.get_signless(64), arg)
+            ).result
         if isinstance(arg, float):
-            return torch_dialect.ConstantFloatOp(
-                ir.FloatAttr.get_f64(arg)).result
+            return torch_dialect.ConstantFloatOp(ir.FloatAttr.get_f64(arg)).result
         if isinstance(arg, str):
             return torch_dialect.ConstantStrOp(ir.StringAttr.get(arg)).result
         if isinstance(arg, torch.dtype):
@@ -394,12 +374,10 @@ class _FXGraphImporter:
             return self._import_argument(DTYPE_TO_INT[arg], expected_type)
         if isinstance(arg, torch.device):
             # TODO(DNS): Device index? arg.index
-            return torch_dialect.ConstantDeviceOp(ir.StringAttr.get(
-                arg.type)).result
+            return torch_dialect.ConstantDeviceOp(ir.StringAttr.get(arg.type)).result
         if isinstance(arg, torch.memory_format):
             assert isinstance(expected_type, torch.IntType)
-            return self._import_argument(MEMORY_FORMAT_TO_INT[arg],
-                                         expected_type)
+            return self._import_argument(MEMORY_FORMAT_TO_INT[arg], expected_type)
         if isinstance(arg, torch.layout):
             assert isinstance(expected_type, torch.IntType)
             return self._import_argument(LAYOUT_TO_INT[arg], expected_type)
@@ -409,14 +387,14 @@ class _FXGraphImporter:
             if isinstance(element_type, torch.TensorType):
                 assert all(
                     torch.fx.node.map_aggregate(
-                        arg, lambda a: _is_valid_meta_val(a.meta.get("val"))))
+                        arg, lambda a: _is_valid_meta_val(a.meta.get("val"))
+                    )
+                )
                 els = [self._env[e, 0] for e in arg]
 
             else:
                 element_type = _torch_type_to_mlir_type(element_type)
-                els = [
-                    self._import_argument(e, element_type) for e in arg
-                ]
+                els = [self._import_argument(e, element_type) for e in arg]
 
             # import pydevd_pycharm
             # pydevd_pycharm.settrace('localhost', port=8888, stdoutToServer=True, stderrToServer=True)

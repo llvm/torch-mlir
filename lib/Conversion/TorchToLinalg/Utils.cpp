@@ -13,11 +13,8 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
@@ -37,9 +34,8 @@ Value torch_to_linalg::getPaddedTensor(
     SmallVectorImpl<int64_t> &lowPaddingInts,
     SmallVectorImpl<int64_t> &highPaddingInts, Value pad) {
   Location loc = op->getLoc();
-  Type rankedTensorType =
-      tensor::PadOp::inferResultType(input.getType().cast<RankedTensorType>(),
-                                     lowPaddingInts, highPaddingInts);
+  Type rankedTensorType = tensor::PadOp::inferResultType(
+      cast<RankedTensorType>(input.getType()), lowPaddingInts, highPaddingInts);
   SmallVector<OpFoldResult> lowPaddings =
       getIndexIntsAsOpFoldResult(b, lowPaddingInts);
   SmallVector<OpFoldResult> highPaddings =
@@ -56,12 +52,12 @@ Value torch_to_linalg::getPaddedTensor(
 Value torch_to_linalg::getZeroPaddedTensor(
     Operation *op, OpBuilder &b, Value &input,
     SmallVectorImpl<int64_t> &paddingInts) {
-  assert(input.getType().isa<RankedTensorType>() &&
+  assert(isa<RankedTensorType>(input.getType()) &&
          "input must be RankedTensorType");
   Location loc = op->getLoc();
   Value c0 = b.create<arith::ConstantOp>(
       loc,
-      b.getZeroAttr(input.getType().cast<RankedTensorType>().getElementType()));
+      b.getZeroAttr(cast<RankedTensorType>(input.getType()).getElementType()));
   return getPaddedTensor(op, b, input, paddingInts, paddingInts, c0);
 }
 
@@ -71,31 +67,25 @@ Value torch_to_linalg::getZeroPaddedTensor(
 Value torch_to_linalg::getDynamicZeroPaddedTensor(
     Operation *op, OpBuilder &b, Value &input, SmallVectorImpl<Value> &padding,
     int unpaddedDims, Value pad) {
-  assert(input.getType().isa<RankedTensorType>() &&
+  assert(isa<RankedTensorType>(input.getType()) &&
          "input must be RankedTensorType");
-  unsigned int inRank = input.getType().cast<RankedTensorType>().getRank();
   Location loc = op->getLoc();
 
   SmallVector<Value> inputDims = getTensorSizes(b, loc, input);
   Value c0 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(0));
   SmallVector<Value> paddingIncludingUnchanged(unpaddedDims, c0);
   paddingIncludingUnchanged.append(padding);
-  assert(unpaddedDims + padding.size() == inRank &&
+  assert(static_cast<int64_t>(unpaddedDims + padding.size()) ==
+             cast<RankedTensorType>(input.getType()).getRank() &&
          "sum of unpaddedDims and padding.size() must equal to inputRank");
   for (auto pad = paddingIncludingUnchanged.begin();
        pad < paddingIncludingUnchanged.end(); pad++)
     *pad = castIntToIndex(b, loc, *pad);
 
-  Type elementType = input.getType().cast<RankedTensorType>().getElementType();
-  // TODO: audit possibility of sparsity on this tensor
-  Type inputType =
-      RankedTensorType::get(makeShapeLLVMCompatible(llvm::ArrayRef<int64_t>(
-                                SmallVector<int64_t>(inRank, kUnknownSize))),
-                            elementType);
-
   SmallVector<OpFoldResult> paddingValues =
       getAsOpFoldResult(paddingIncludingUnchanged);
-  return b.create<tensor::PadOp>(loc, inputType, input, /*low=*/paddingValues,
+
+  return b.create<tensor::PadOp>(loc, Type{}, input, /*low=*/paddingValues,
                                  /*high=*/paddingValues, pad);
 }
 
@@ -107,25 +97,25 @@ Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
   Value c1 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(1));
   Value c2 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(2));
 
-  Value doublePadding = b.create<arith::MulIOp>(loc, paddingInt, c2);
+  Value doublePadding = b.createOrFold<arith::MulIOp>(loc, paddingInt, c2);
   // in + 2 * padding
-  Value inAddDoublePadding =
-      b.create<arith::AddIOp>(loc, castIndexToInt64(b, loc, in), doublePadding);
+  Value inAddDoublePadding = b.createOrFold<arith::AddIOp>(
+      loc, castIndexToInt64(b, loc, in), doublePadding);
 
   // dilation * (kernelSize - 1)
-  Value kernelSizeSub1 = b.create<arith::SubIOp>(loc, kernelSizeInt, c1);
+  Value kernelSizeSub1 = b.createOrFold<arith::SubIOp>(loc, kernelSizeInt, c1);
   Value dilationTimesKernelSize =
-      b.create<arith::MulIOp>(loc, dilationInt, kernelSizeSub1);
+      b.createOrFold<arith::MulIOp>(loc, dilationInt, kernelSizeSub1);
 
-  Value temp =
-      b.create<arith::SubIOp>(loc, inAddDoublePadding, dilationTimesKernelSize);
-  Value dividend = b.create<arith::SubIOp>(loc, temp, c1);
+  Value temp = b.createOrFold<arith::SubIOp>(loc, inAddDoublePadding,
+                                             dilationTimesKernelSize);
+  Value dividend = b.createOrFold<arith::SubIOp>(loc, temp, c1);
   Value division;
   if (ceilMode)
-    division = b.create<arith::CeilDivSIOp>(loc, dividend, strideInt);
+    division = b.createOrFold<arith::CeilDivSIOp>(loc, dividend, strideInt);
   else
-    division = b.create<arith::FloorDivSIOp>(loc, dividend, strideInt);
-  Value out = b.create<arith::AddIOp>(loc, division, c1);
+    division = b.createOrFold<arith::FloorDivSIOp>(loc, dividend, strideInt);
+  Value out = b.createOrFold<arith::AddIOp>(loc, division, c1);
   return castIntToIndex(b, loc, out);
 }
 
@@ -158,7 +148,7 @@ Value torch_to_linalg::getOutputDimForConvTransposeOps(
 Value torch_to_linalg::createReductionLinalgGeneric(
     OpBuilder &b, Location loc, const ReductionOpInfo &opInfo, Value initElem,
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild) {
-  auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
+  auto inputType = cast<RankedTensorType>(opInfo.tensorOperand.getType());
 
   // Get the result shape by obtaining the size of each
   // dimension in the input tensor that is not getting reduced.
@@ -237,7 +227,7 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
   SmallVector<int64_t> operandRanks;
   operandRanks.resize(tensorOperands.size());
   llvm::transform(tensorOperands, operandRanks.begin(), [](Value tensor) {
-    return tensor.getType().dyn_cast<RankedTensorType>().getRank();
+    return dyn_cast<RankedTensorType>(tensor.getType()).getRank();
   });
 
   auto resultRankIt =
@@ -253,7 +243,7 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
   bool elideDynamicBroadcastCheck = isAssumingStrictSymbolicShapes(b);
   for (Value tensorOperand : tensorOperands) {
     SmallVector<AffineExpr> exprs;
-    auto type = tensorOperand.getType().cast<RankedTensorType>();
+    auto type = cast<RankedTensorType>(tensorOperand.getType());
     for (auto size :
          llvm::enumerate(makeShapeTorchCompatible(type.getShape()))) {
       // If the size is statically known to be 1, we don't want any
@@ -327,7 +317,7 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
     Operation *op, PatternRewriter &rewriter, Value input,
     SmallVector<Value> broadcastToShape, RankedTensorType broadcastType,
     Value &result, SmallVector<bool> useBroadcastToShape) {
-  RankedTensorType inputType = input.getType().cast<RankedTensorType>();
+  RankedTensorType inputType = cast<RankedTensorType>(input.getType());
   int64_t inputRank = inputType.getRank();
   int64_t outputRank = broadcastToShape.size();
   ArrayRef<int64_t> outputShape = broadcastType.getShape();
@@ -525,7 +515,7 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
 
 Value torch_to_linalg::removeSizeInformation(OpBuilder &b, Location loc,
                                              Value tensor) {
-  auto tensorType = tensor.getType().cast<RankedTensorType>();
+  auto tensorType = cast<RankedTensorType>(tensor.getType());
   auto rank = tensorType.getRank();
   SmallVector<int64_t> unknownSizes(rank, kUnknownSize);
   return b.create<tensor::CastOp>(
@@ -554,7 +544,7 @@ FailureOr<Type> torch_to_linalg::getBackendTypeForScalarType(
   }
   Type type = *maybeType;
   // The linalg-on-tensors backend currently expects integers to be signless.
-  if (auto intType = type.dyn_cast<IntegerType>()) {
+  if (auto intType = dyn_cast<IntegerType>(type)) {
     type = IntegerType::get(context, intType.getWidth(), IntegerType::Signless);
   }
   return type;
@@ -569,10 +559,64 @@ bool torch_to_linalg::isUnsignedTorchType(Type type) {
     return false;
   if (isa<QUInt8Type>(type))
     return true;
+  if (isa<QInt16Type>(type))
+    return false;
   if (isa<QInt32Type>(type))
     return false;
   if (auto intTy = dyn_cast<IntegerType>(type))
     return intTy.isUnsigned();
   llvm_unreachable("Unknown type checked for signedness");
   return false;
+}
+
+LogicalResult torch_to_linalg::permuteTensor(Operation *op,
+                                             PatternRewriter &rewriter,
+                                             Location loc,
+                                             SmallVector<int64_t> dimensions,
+                                             Value input, Value &result) {
+  auto inType = cast<RankedTensorType>(input.getType());
+  int64_t inputRank = inType.getRank();
+  Type elementType = inType.getElementType();
+
+  // Check if the dimensions are a valid constants.
+  int64_t numDimensions = dimensions.size();
+  if (inputRank != numDimensions)
+    return rewriter.notifyMatchFailure(
+        op, "size of `dims` must be equal to the rank of the input");
+  for (uint32_t i = 0; i < numDimensions; i++) {
+    if (dimensions[i] < 0)
+      dimensions[i] = toPositiveDim(dimensions[i], inputRank);
+    if (!isValidDim(dimensions[i], inputRank))
+      return rewriter.notifyMatchFailure(op, "dimension out of range");
+  }
+
+  SmallVector<Value> outputDims;
+  for (uint32_t i = 0; i < inputRank; i++)
+    outputDims.push_back(getDimOp(rewriter, loc, input, dimensions[i]));
+
+  Value outVector = rewriter.create<tensor::EmptyOp>(
+      loc, getAsOpFoldResult(outputDims), elementType);
+  SmallVector<AffineExpr> idExprs;
+  SmallVector<AffineExpr> swapExprs;
+  for (uint32_t i = 0; i < inputRank; i++)
+    idExprs.push_back(getAffineDimExpr(i, rewriter.getContext()));
+  for (uint32_t i = 0; i < inputRank; i++)
+    swapExprs.push_back(idExprs[dimensions[i]]);
+
+  AffineMap inputMap =
+      AffineMap::get(inputRank, /*symbolCount=*/0, idExprs, op->getContext());
+  AffineMap outputMap =
+      AffineMap::get(inputRank, /*symbolCount=*/0, swapExprs, op->getContext());
+  SmallVector<AffineMap> indexingMaps{inputMap, outputMap};
+  SmallVector<utils::IteratorType> iteratorTypes(inputRank,
+                                                 utils::IteratorType::parallel);
+  result = rewriter
+               .create<linalg::GenericOp>(
+                   loc, outVector.getType(), input, outVector, indexingMaps,
+                   iteratorTypes,
+                   [](OpBuilder &b, Location loc, ValueRange args) {
+                     b.create<linalg::YieldOp>(loc, args[0]);
+                   })
+               .getResult(0);
+  return success();
 }

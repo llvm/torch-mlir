@@ -28,4 +28,3 @@ set_target_properties(torch_mlir_custom_op_example PROPERTIES
 )
 torch_mlir_python_target_compile_options(torch_mlir_custom_op_example)
 mlir_check_all_link_libraries(torch_mlir_custom_op_example)
-

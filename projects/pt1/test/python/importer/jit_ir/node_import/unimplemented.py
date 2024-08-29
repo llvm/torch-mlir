@@ -3,6 +3,7 @@ from torch_mlir import torchscript
 
 # RUN: %PYTHON %s | torch-mlir-opt | FileCheck %s
 
+
 class Inner(object):
     # CHECK-LABEL: func.func private @__torch__.Inner.foo(
     # CHECK-SAME:      %[[ARG:.*]]: !torch.nn.Module<"__torch__.Inner">) {
@@ -38,6 +39,7 @@ class Model(torch.nn.Module):
     def forward(self, data):
         with torch.no_grad():
             return data
+
 
 output_type = torchscript.OutputType.RAW
 mod = torchscript.compile(Model(), [torch.tensor([0, 1, 2, 3])], output_type)

@@ -42,6 +42,9 @@ struct TorchLoweringPipelineOptions
   Option<bool> decompose{*this, "decompose-complex-ops",
                          llvm::cl::desc("Decompose complex operations."),
                          llvm::cl::init(true)};
+  Option<bool> shapeDtypeRefine{
+      *this, "shape-dtype-refine",
+      llvm::cl::desc("Do shape and dtype refinement."), llvm::cl::init(true)};
   // A list of ops that should be considered legal for the backend.
   // TODO: The meaning of this list should be formalized.
   // A sketch of the semantics would be:
@@ -68,6 +71,11 @@ struct TorchLoweringPipelineOptions
 /// Creates a pipeline that lowers the object graph IR that is produced by
 /// TorchScript import into the form expected by torch-verify-backend-contract.
 void createTorchScriptModuleToTorchBackendPipeline(
+    OpPassManager &pm, const TorchLoweringPipelineOptions &options);
+
+/// Creates a pipeline that lowers the graph IR that is produced by
+/// TorchDynamo export into the form expected by torch-verify-backend-contract.
+void createTorchDynamoExportToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options);
 
 /// Creates a pipeline that lowers a flat list of funcs and global slots
@@ -130,10 +138,9 @@ createDropAbstractInterpCalculationsPass();
 
 std::unique_ptr<OperationPass<ModuleOp>> createEraseModuleInitializerPass();
 
-std::unique_ptr<OperationPass<ModuleOp>>
-createLowerToBackendContractPass(int maxIterations, bool decompose,
-                                 ArrayRef<std::string> backendLegalOps,
-                                 StringRef extraLibrary);
+std::unique_ptr<OperationPass<ModuleOp>> createLowerToBackendContractPass(
+    int maxIterations, bool decompose, bool shapeDtypeRefine,
+    ArrayRef<std::string> backendLegalOps, StringRef extraLibrary);
 
 std::unique_ptr<OperationPass<ModuleOp>>
 createVerifyBackendContractNoDecompositionsPass();
@@ -141,6 +148,12 @@ createVerifyBackendContractNoDecompositionsPass();
 StringRef getAbstractInterpLibrary();
 
 static const char kTorchOpPrefix[] = R"(torch.)";
+
+void populateRestructureNonConstantAxesPattern(RewritePatternSet &patterns,
+                                               MLIRContext *context);
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createRestructureNonConstantAxesPass();
 
 } // namespace Torch
 

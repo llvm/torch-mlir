@@ -11,17 +11,11 @@
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 
-#include <climits>
-#include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <numeric>
 
-#include "mlir/Dialect/Quant/QuantTypes.h" // from @llvm-project
 #include "mlir/Dialect/Tensor/IR/Tensor.h" // from @llvm-project
-#include "mlir/IR/BuiltinTypes.h"          // from @llvm-project
-#include "mlir/IR/Matchers.h"              // from @llvm-project
-#include "mlir/IR/PatternMatch.h"          // from @llvm-project
 #include "llvm/Support/FormatVariadic.h"
 
 namespace mlir {
@@ -114,20 +108,20 @@ tosa::MulOp createMulOpAndCast(PatternRewriter &rewriter, Operation *op,
 }
 
 template <>
-tosa::DivOp createBinaryOpAndCast<DivOp>(PatternRewriter &rewriter,
-                                         Operation *op, TensorType outType,
-                                         Value lhs, Value rhs) {
-  auto lhsElemTy = lhs.getType().cast<TensorType>().getElementType();
-  auto rhsElemTy = rhs.getType().cast<TensorType>().getElementType();
-  if (lhsElemTy.isa<mlir::FloatType>() || rhsElemTy.isa<mlir::FloatType>()) {
-    (void)rewriter.notifyMatchFailure(op,
-                                      "tosa.div only supports integer type");
+tosa::IntDivOp
+createBinaryOpAndCast<IntDivOp>(PatternRewriter &rewriter, Operation *op,
+                                TensorType outType, Value lhs, Value rhs) {
+  auto lhsElemTy = cast<TensorType>(lhs.getType()).getElementType();
+  auto rhsElemTy = cast<TensorType>(rhs.getType()).getElementType();
+  if (isa<mlir::FloatType>(lhsElemTy) || isa<mlir::FloatType>(rhsElemTy)) {
+    (void)rewriter.notifyMatchFailure(
+        op, "tosa.int_div only supports integer type");
   }
 
   lhs = promoteType(rewriter, lhs, outType);
   rhs = promoteType(rewriter, rhs, outType);
-  return tosa::CreateOpAndInfer<tosa::DivOp>(rewriter, op->getLoc(), outType,
-                                             lhs, rhs);
+  return tosa::CreateOpAndInfer<tosa::IntDivOp>(rewriter, op->getLoc(), outType,
+                                                lhs, rhs);
 }
 
 std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
@@ -148,8 +142,8 @@ std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
   //        [2,1]                      [[0, 3, 2],[0, 3, 1]]
   //    ]] 1*4*2                   ]] 1*4*2*3
 
-  auto paramsType = paramsValue.getType().dyn_cast<RankedTensorType>();
-  auto indexType = indexValue.getType().dyn_cast<RankedTensorType>();
+  auto paramsType = dyn_cast<RankedTensorType>(paramsValue.getType());
+  auto indexType = dyn_cast<RankedTensorType>(indexValue.getType());
   auto paramsShape = paramsType.getShape(); // [1 4 3]
   auto indexShape = indexType.getShape();   // [1 4 2]
   int paramsRank = paramsShape.size();      // 3
@@ -213,9 +207,9 @@ std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
 std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
                                        Type outType, Value paramsValue,
                                        Value indicesValue) {
-  auto resultType = outType.dyn_cast<ShapedType>();
-  auto paramsType = paramsValue.getType().dyn_cast<RankedTensorType>();
-  auto indicesType = indicesValue.getType().dyn_cast<RankedTensorType>();
+  auto resultType = dyn_cast<ShapedType>(outType);
+  auto paramsType = dyn_cast<RankedTensorType>(paramsValue.getType());
+  auto indicesType = dyn_cast<RankedTensorType>(indicesValue.getType());
 
   if (!resultType || !paramsType || !indicesType)
     return std::nullopt;
@@ -419,10 +413,10 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
                                         Operation *op, Type outType,
                                         Value paramsValue, Value indicesValue,
                                         Value fillValues) {
-  auto resultType = outType.dyn_cast<ShapedType>();
-  auto paramsType = paramsValue.getType().dyn_cast<RankedTensorType>();
-  auto indicesType = indicesValue.getType().dyn_cast<RankedTensorType>();
-  auto fillValuesType = fillValues.getType().dyn_cast<RankedTensorType>();
+  auto resultType = dyn_cast<ShapedType>(outType);
+  auto paramsType = dyn_cast<RankedTensorType>(paramsValue.getType());
+  auto indicesType = dyn_cast<RankedTensorType>(indicesValue.getType());
+  auto fillValuesType = dyn_cast<RankedTensorType>(fillValues.getType());
 
   if (!resultType || !paramsType || !indicesType)
     return std::nullopt;
@@ -572,7 +566,7 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
         tosaFillValuesTileOp.getResult(),
         rewriter.getDenseI64ArrayAttr(newTosaFillValuesShape));
     fillValues = newTosaFillValuesReshapeOp.getResult();
-    fillValuesType = fillValues.getType().dyn_cast<RankedTensorType>();
+    fillValuesType = dyn_cast<RankedTensorType>(fillValues.getType());
   }
 
   // fillK: range of each index, total number of fillInput(could be scatter)
@@ -691,7 +685,7 @@ std::optional<Value> convertReduceOpCommon(
     Type reduce_element_type, bool is_quantized, double input_scale,
     int64_t input_zp, double output_scale, int64_t output_zp) {
   RankedTensorType input_type =
-      input_value.getType().dyn_cast<RankedTensorType>();
+      dyn_cast<RankedTensorType>(input_value.getType());
   if (!input_type)
     return std::nullopt;
 
@@ -754,7 +748,7 @@ convertReduceAllOp(PatternRewriter &rewriter, Operation *op,
                    RankedTensorType output_type, Value input_value,
                    ElementsAttr axes_elems, bool keep_dims) {
   RankedTensorType input_type =
-      input_value.getType().dyn_cast<RankedTensorType>();
+      dyn_cast<RankedTensorType>(input_value.getType());
   if (!input_type)
     return std::nullopt;
 
@@ -769,7 +763,7 @@ convertReduceAnyOp(PatternRewriter &rewriter, Operation *op,
                    RankedTensorType output_type, Value input_value,
                    ElementsAttr axes_elems, bool keep_dims) {
   RankedTensorType input_type =
-      input_value.getType().dyn_cast<RankedTensorType>();
+      dyn_cast<RankedTensorType>(input_value.getType());
   if (!input_type)
     return std::nullopt;
 
@@ -784,7 +778,7 @@ convertReduceMinOp(PatternRewriter &rewriter, Operation *op,
                    RankedTensorType output_type, Value input_value,
                    ElementsAttr axes_elems, bool keep_dims) {
   RankedTensorType input_type =
-      input_value.getType().dyn_cast<RankedTensorType>();
+      dyn_cast<RankedTensorType>(input_value.getType());
   if (!input_type)
     return std::nullopt;
 
@@ -799,7 +793,7 @@ convertReduceMaxOp(PatternRewriter &rewriter, Operation *op,
                    RankedTensorType output_type, Value input_value,
                    ElementsAttr axes_elems, bool keep_dims) {
   RankedTensorType input_type =
-      input_value.getType().dyn_cast<RankedTensorType>();
+      dyn_cast<RankedTensorType>(input_value.getType());
   if (!input_type)
     return std::nullopt;
 
@@ -814,14 +808,14 @@ convertReduceProdOp(PatternRewriter &rewriter, Operation *op,
                     RankedTensorType output_type, Value input_value,
                     ElementsAttr axes_elems, bool keep_dims) {
   RankedTensorType input_type =
-      input_value.getType().dyn_cast<RankedTensorType>();
+      dyn_cast<RankedTensorType>(input_value.getType());
   if (!input_type)
     return std::nullopt;
 
   bool input_is_qtype =
-      input_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
+      isa<mlir::quant::UniformQuantizedType>(input_type.getElementType());
   bool output_is_qtype =
-      output_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
+      isa<mlir::quant::UniformQuantizedType>(output_type.getElementType());
 
   if (input_is_qtype || output_is_qtype) {
     op->emitOpError("ConvertReduceProdOp: input/output tensor should "
@@ -840,14 +834,14 @@ convertReduceSumOp(PatternRewriter &rewriter, Operation *op,
                    RankedTensorType output_type, Value input_value,
                    ElementsAttr axes_elems, bool keep_dims) {
   RankedTensorType input_type =
-      input_value.getType().dyn_cast<RankedTensorType>();
+      dyn_cast<RankedTensorType>(input_value.getType());
   if (!input_type)
     return std::nullopt;
 
   bool input_is_qtype =
-      input_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
+      isa<mlir::quant::UniformQuantizedType>(input_type.getElementType());
   bool output_is_qtype =
-      output_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
+      isa<mlir::quant::UniformQuantizedType>(output_type.getElementType());
 
   if (input_is_qtype != output_is_qtype) {
     op->emitOpError("ConvertReduceSumOp: input/output tensor should "
@@ -863,9 +857,9 @@ convertReduceSumOp(PatternRewriter &rewriter, Operation *op,
 
   if (input_is_qtype) {
     auto input_qtype =
-        input_type.getElementType().cast<mlir::quant::UniformQuantizedType>();
+        cast<mlir::quant::UniformQuantizedType>(input_type.getElementType());
     auto output_qtype =
-        output_type.getElementType().cast<mlir::quant::UniformQuantizedType>();
+        cast<mlir::quant::UniformQuantizedType>(output_type.getElementType());
 
     int32_t input_shift = 20;
 
@@ -895,14 +889,14 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
   // op2 = mul(op1, 1.0 / num_elements_on_reduced_axis)
 
   RankedTensorType input_type =
-      input_value.getType().dyn_cast<RankedTensorType>();
+      dyn_cast<RankedTensorType>(input_value.getType());
   if (!input_type)
     return std::nullopt;
 
   bool input_is_qtype =
-      input_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
+      isa<mlir::quant::UniformQuantizedType>(input_type.getElementType());
   bool output_is_qtype =
-      output_type.getElementType().isa<mlir::quant::UniformQuantizedType>();
+      isa<mlir::quant::UniformQuantizedType>(output_type.getElementType());
 
   if (input_is_qtype != output_is_qtype) {
     op->emitOpError("ConvertReduceSumOp: input/output tensor should "
@@ -911,7 +905,7 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
   }
 
   // Only supports float type mean() if it's non-quantized
-  if (!input_is_qtype && !output_type.getElementType().isa<mlir::FloatType>()) {
+  if (!input_is_qtype && !isa<mlir::FloatType>(output_type.getElementType())) {
     op->emitWarning(
         "Failed convertReduceMean: input unquantized type but output element "
         "not FloatType!");
@@ -940,9 +934,9 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
 
   if (input_is_qtype) {
     auto input_qtype =
-        input_type.getElementType().cast<mlir::quant::UniformQuantizedType>();
+        cast<mlir::quant::UniformQuantizedType>(input_type.getElementType());
     auto output_qtype =
-        output_type.getElementType().cast<mlir::quant::UniformQuantizedType>();
+        cast<mlir::quant::UniformQuantizedType>(output_type.getElementType());
 
     // Combine 'div_scale' as part of output rescale
     output_scale = div_scale * input_qtype.getScale() / output_qtype.getScale();
@@ -976,12 +970,12 @@ convertLinalgVectorNormOp(PatternRewriter &rewriter, Operation *op,
                           RankedTensorType output_type, Value input_value,
                           ElementsAttr axes_elems, bool keep_dims) {
   RankedTensorType input_type =
-      input_value.getType().dyn_cast<RankedTensorType>();
+      dyn_cast<RankedTensorType>(input_value.getType());
   if (!input_type)
     return std::nullopt;
 
   Type elemType = output_type.getElementType();
-  if (!elemType.isa<mlir::FloatType>()) {
+  if (!isa<mlir::FloatType>(elemType)) {
     op->emitOpError("Only floating-point datatype legalization supported for "
                     "AtenLinalgVectorNorm op");
     return std::nullopt;

@@ -22,7 +22,7 @@ TORCH_API torch::lazy::DeviceData *
 device_data_cast(const torch::lazy::Value &value);
 TORCH_API torch::lazy::DeviceData *device_data_cast(
     const at::Tensor &tensor,
-    c10::optional<torch::lazy::BackendDevice> device = c10::nullopt);
+    std::optional<torch::lazy::BackendDevice> device = c10::nullopt);
 
 } // namespace lazy
 } // namespace torch

@@ -13,6 +13,7 @@ mb = ModuleBuilder()
 # else branch and making all defined values optional, so no special handling
 # is needed.
 
+
 # CHECK-LABEL: @__torch__.prim_If(
 # CHECK-SAME:           %[[B:.*]]: !torch.bool,
 # CHECK-SAME:           %[[I:.*]]: !torch.int) -> !torch.int {
@@ -32,6 +33,7 @@ def prim_If(b: bool, i: int):
     else:
         return i * i
 
+
 # CHECK-LABEL:   func.func @__torch__.prim_If_derefine(
 # CHECK-SAME:                           %[[B:.*]]: !torch.bool,
 # CHECK-SAME:                           %[[I:.*]]: !torch.int) -> !torch.optional<int> {
@@ -50,6 +52,7 @@ def prim_If_derefine(b: bool, i: int):
     if b:
         return None
     return i
+
 
 mb.module.operation.print()
 print()

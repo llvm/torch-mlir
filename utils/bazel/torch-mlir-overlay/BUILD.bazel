@@ -64,6 +64,7 @@ gentbl_cc_library(
     td_file = "include/torch-mlir/Dialect/Torch/IR/TorchOps.td",
     deps = [
         ":MLIRTorchOpsIncGenTdFiles",
+        "@llvm-project//mlir:BuiltinDialectTdFiles",
     ],
 )
 
@@ -90,6 +91,7 @@ gentbl_cc_library(
 cc_library(
     name = "TorchMLIRTorchDialectUtils",
     srcs = [
+        "lib/Dialect/Torch/Utils/SparsityUtils.cpp",
         "lib/Dialect/Torch/Utils/TorchUpstream.cpp",
         "lib/Dialect/Torch/Utils/Utils.cpp",
     ],
@@ -97,6 +99,7 @@ cc_library(
         "include/torch-mlir/Dialect/Torch/IR/TorchOps.h",
         "include/torch-mlir/Dialect/Torch/IR/TorchTraits.h",
         "include/torch-mlir/Dialect/Torch/IR/TorchTypes.h",
+        "include/torch-mlir/Dialect/Torch/Utils/SparsityUtils.h",
         "include/torch-mlir/Dialect/Torch/Utils/TorchUpstream.h",
         "include/torch-mlir/Dialect/Torch/Utils/Utils.h",
     ],
@@ -108,6 +111,8 @@ cc_library(
         "@llvm-project//mlir:ControlFlowInterfaces",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:InferTypeOpInterface",
+        "@llvm-project//mlir:SparseTensorDialect",
+        "@llvm-project//mlir:SparseTensorEnums",
     ],
 )
 
@@ -325,7 +330,10 @@ gentbl_cc_library(
     strip_include_prefix = "include",
     tbl_outs = [
         (
-            ["-gen-pass-decls"],
+            [
+                "-gen-pass-decls",
+                "-DTORCH_MLIR_ENABLE_STABLEHLO",
+            ],
             "include/torch-mlir/Dialect/TorchConversion/Transforms/Passes.h.inc",
         ),
     ],
@@ -492,6 +500,9 @@ cc_library(
         "lib/Conversion/TorchToStablehlo/*.cpp",
     ]),
     hdrs = glob(["include/torch-mlir/Conversion/TorchToStablehlo/*.h"]),
+    defines = [
+        "TORCH_MLIR_ENABLE_STABLEHLO",
+    ],
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRConversionPassesIncGen",
@@ -552,6 +563,9 @@ cc_library(
         "lib/Dialect/TorchConversion/Transforms/*.h",
     ]),
     hdrs = glob(["include/torch-mlir/Dialect/TorchConversion/Transforms/*.h"]),
+    defines = [
+        "TORCH_MLIR_ENABLE_STABLEHLO",
+    ],
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRTorchBackendTypeConversion",
@@ -738,6 +752,7 @@ cc_library(
         "@llvm-project//mlir:ControlFlowInterfaces",
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:DialectUtils",
+        "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:LinalgDialect",
         "@llvm-project//mlir:ViewLikeInterface",
     ],
@@ -886,6 +901,7 @@ cc_library(
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:DialectUtils",
         "@llvm-project//mlir:IR",
+        "@llvm-project//mlir:TensorInferTypeOpInterfaceImpl",
         "@stablehlo//:linalg_passes",
         "@stablehlo//:stablehlo_passes",
     ],

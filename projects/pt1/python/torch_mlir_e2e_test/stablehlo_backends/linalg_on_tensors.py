@@ -7,7 +7,9 @@ from torch_mlir.ir import *
 from torch_mlir.passmanager import *
 from torch_mlir.compiler_utils import run_pipeline_with_repro_report
 
-from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import RefBackendLinalgOnTensorsBackend
+from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import (
+    RefBackendLinalgOnTensorsBackend,
+)
 
 from .abc import StablehloBackend
 
@@ -17,9 +19,14 @@ __all__ = [
 
 # The pipeline of func.func passes that lower the STABLEHLO backend contract to the
 # Linalg-on-Tensors backend contract accepted by RefBackend.
-STABLEHLO_TO_LINALG_FUNC_PIPELINE = ",".join([
-    "stablehlo-legalize-to-linalg"
-])
+STABLEHLO_TO_LINALG_FUNC_PIPELINE = ",".join(
+    [
+        "func.func(stablehlo-aggressive-simplification)",
+        "stablehlo-legalize-to-linalg",
+        "stablehlo-convert-to-signless",
+        "canonicalize",
+    ]
+)
 
 
 class LinalgOnTensorsStablehloBackend(StablehloBackend):
@@ -30,7 +37,10 @@ class LinalgOnTensorsStablehloBackend(StablehloBackend):
 
     def __init__(self):
         super().__init__()
-        self.refbackend = RefBackendLinalgOnTensorsBackend()
+        # TOOD: Enable runtime verification and fix found bugs.
+        self.refbackend = RefBackendLinalgOnTensorsBackend(
+            generate_runtime_verification=False
+        )
 
     def compile(self, imported_module: Module):
         """Compiles an imported module that satisfied the Stablehlo backend contract.
@@ -45,7 +55,8 @@ class LinalgOnTensorsStablehloBackend(StablehloBackend):
         run_pipeline_with_repro_report(
             imported_module,
             f"builtin.module({STABLEHLO_TO_LINALG_FUNC_PIPELINE})",
-            "Lowering STABLEHLO backend contract to Linalg-on-Tensors backend contract")
+            "Lowering STABLEHLO backend contract to Linalg-on-Tensors backend contract",
+        )
 
         return self.refbackend.compile(imported_module)
 

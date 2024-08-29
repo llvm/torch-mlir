@@ -11,12 +11,13 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         # CHECK: Unhandled tensor that shares storage with another tensor.
         # CHECK-NEXT: Found at path '<root>.t2' from root object '__torch__.TestModule'
-        self.t1 = torch.tensor([10., 20.])
+        self.t1 = torch.tensor([10.0, 20.0])
         self.t2 = self.t1[0]
 
 

@@ -17,18 +17,41 @@ class IndexSelectSingleIdxModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([4, 5, 6], torch.float32, True),
-        ([1], torch.int64, True),
-    ])
-
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+            ([1], torch.int64, True),
+        ]
+    )
     def forward(self, input, indices):
         return torch.index_select(input, 1, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectSingleIdxModule())
 def IndexSelectSingleIdxModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5, 6), torch.tensor([2]))
+
+
+class IndexSelectRank0IdxModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+            ([], torch.int64, True),
+        ]
+    )
+    def forward(self, input, indices):
+        return torch.index_select(input, 1, indices)
+
+
+@register_test_case(module_factory=lambda: IndexSelectRank0IdxModule())
+def IndexSelectRank0IdxModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6), torch.tensor(2))
 
 
 class IndexSelectNegativeDimModule(torch.nn.Module):
@@ -36,14 +59,16 @@ class IndexSelectNegativeDimModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([4, 5, 6], torch.float32, True),
-        ([1], torch.int64, True),
-    ])
-
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+            ([1], torch.int64, True),
+        ]
+    )
     def forward(self, input, indices):
         return torch.index_select(input, -1, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectNegativeDimModule())
 def IndexSelectNegativeDimModule_basic(module, tu: TestUtils):
@@ -55,14 +80,16 @@ class IndexSelectTwoIdxModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([4, 5, 6], torch.float32, True),
-        ([2], torch.int64, True),
-    ])
-
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+            ([2], torch.int64, True),
+        ]
+    )
     def forward(self, input, indices):
         return torch.index_select(input, 2, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectTwoIdxModule())
 def IndexSelectTwoIdxModule_basic(module, tu: TestUtils):
@@ -74,14 +101,16 @@ class IndexSelectWholeDimensionModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([4, 5, 6], torch.float32, True),
-        ([4], torch.int64, True),
-    ])
-
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+            ([4], torch.int64, True),
+        ]
+    )
     def forward(self, input, indices):
         return torch.index_select(input, 0, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectWholeDimensionModule())
 def IndexSelectWholeDimensionModule_basic(module, tu: TestUtils):
@@ -93,14 +122,16 @@ class IndexSelectWholeTensorModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([3], torch.float32, True),
-        ([3], torch.int64, True),
-    ])
-
+    @annotate_args(
+        [
+            None,
+            ([3], torch.float32, True),
+            ([3], torch.int64, True),
+        ]
+    )
     def forward(self, input, indices):
         return torch.index_select(input, 0, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectWholeTensorModule())
 def IndexSelectWholeTensorModule_basic(module, tu: TestUtils):
@@ -112,14 +143,16 @@ class IndexSelectDynamicModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-        ([-1], torch.int64, True),
-    ])
-
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1], torch.int64, True),
+        ]
+    )
     def forward(self, input, indices):
         return torch.index_select(input, 2, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectDynamicModule())
 def IndexSelectDynamicModulebasic(module, tu: TestUtils):
@@ -131,14 +164,16 @@ class IndexSelectDynamicInputSizeModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1, -1], torch.float32, True),
-        ([2], torch.int64, True),
-    ])
-
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([2], torch.int64, True),
+        ]
+    )
     def forward(self, input, indices):
         return torch.index_select(input, 2, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectDynamicInputSizeModule())
 def IndexSelectDynamicInputSizeModule_basic(module, tu: TestUtils):
@@ -150,14 +185,16 @@ class IndexSelectDynamicIndexSizeModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([4, 5, 6], torch.float32, True),
-        ([-1], torch.int64, True),
-    ])
-
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+            ([-1], torch.int64, True),
+        ]
+    )
     def forward(self, input, indices):
         return torch.index_select(input, 1, indices)
+
 
 @register_test_case(module_factory=lambda: IndexSelectDynamicIndexSizeModule())
 def IndexSelectDynamicIndexSizeModule_basic(module, tu: TestUtils):

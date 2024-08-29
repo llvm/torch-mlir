@@ -362,14 +362,14 @@ def LowerToBackendContract
   let summary = "Perform simplifications until the backend contract is satisfied.";
   let constructor = [{
     mlir::torch::Torch::createLowerToBackendContractPass(
-      /*maxIterations=*/10, /*decompose=*/true, /*backendLegalOps=*/{}, /*extraLibrary=*/"")
+      /*maxIterations=*/10, /*decompose=*/true, /*shapeDtypeRefine*/true, /*backendLegalOps=*/{}, /*extraLibrary=*/"")
   }];
   let description = [{
     This pass performs the bulk of the lowering of the program's computations
     to the backend contract. This pass does not do any global program
     restructuring -- it works entirely within a single semantic model
     of a `builtin.module` with `torch.global_slot` ops and `func.func` ops.
-    
+
     This pass runs a set of simplifications within that semantic model until
     the backend contract is satisfied, and fails if it cannot be satisfied.
     In particular, the backend contract consists of:
@@ -405,6 +405,8 @@ def LowerToBackendContract
            "Maximum number of invocations of the simplification pipeline.">,
     Option<"decompose", "decompose", "bool", /*default=*/"true",
            "Decompose ops.">,
+    Option<"shapeDtypeRefine", "shape-dtype-refine", "bool", /*default=*/"true",
+           "Do shape and dtype refinement.">,
     ListOption<"backendLegalOps", "backend-legal-ops", "std::string",
                "List of ops to be considered legal for the backend, such as 'aten.foo'.">,
     Option<"extraLibrary", "extra-library", "std::string", /*default=*/"",
@@ -426,6 +428,26 @@ def VerifyBackendContractNoDecompositions
     This pass performs a set of inspections to check that program satisfies backend
     contract assuming that no decompositions were applied. In case of check failure
     it prints out the error message and returns `signalPassFailure()` status.
+  }];
+}
+
+def RestructureNonConstantAxes
+    : Pass<"torch-restructure-non-constant-axes", "func::FuncOp"> {
+  let summary = "Ensure that every Reduction.cpp op has a constant reduction axis.";
+  let constructor = [{
+    mlir::torch::Torch::createRestructureNonConstantAxesPass()
+  }];
+  let description = [{
+    This pass ensures that every Reduction.cpp op has a constant reduction axis.
+
+    It does so using reshapes. For example, a <1,2,3,4,5> tensor will be reshaped to a <?,?,?> tensor
+    and reduced on axis 1 to produce a <?,1,?> tensor. The resulting tensor will be reshaped back to the original shape.
+
+    Then when the axis is supplied at runtime (say axis = -2), the shapes will be computed as so:
+    <?,?,?> becomes <6,4,5>
+    which gets reduced to <6,1,5>
+    and rehsaped back to the original reduction op's output shape,
+    <1,2,3,1,5>
   }];
 }
 

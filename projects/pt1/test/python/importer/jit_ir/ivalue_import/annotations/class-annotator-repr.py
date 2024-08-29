@@ -6,6 +6,7 @@ import typing
 
 import torch
 from torch_mlir.jit_ir_importer import ClassAnnotator, ModuleBuilder
+
 # RUN: %PYTHON %s | FileCheck %s
 
 mb = ModuleBuilder()
@@ -40,13 +41,17 @@ annotator = ClassAnnotator()
 class_type = recursivescriptmodule._c._type()
 
 annotator.exportNone(class_type)
-annotator.exportPath(class_type, ['s', 'exported'])
-annotator.exportPath(class_type, ['s', 'forward'])
-annotator.annotateArgs(class_type, ['forward'], [
-    None,
-    ((1024, 2), torch.float32, False),
-    ((42, -1, 7), torch.int8, True),
-])
+annotator.exportPath(class_type, ["s", "exported"])
+annotator.exportPath(class_type, ["s", "forward"])
+annotator.annotateArgs(
+    class_type,
+    ["forward"],
+    [
+        None,
+        ((1024, 2), torch.float32, False),
+        ((42, -1, 7), torch.int8, True),
+    ],
+)
 
 # "Change detector" test + "documentation" for the repr of `ClassAnnotator`.
 # This is semi-load-bearing because users interact with this class and repr

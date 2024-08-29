@@ -30,13 +30,13 @@ namespace detail {
 LogicalResult verifyTMTensorOpInterface(Operation *op);
 }
 
-#include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h.inc" // IWYU pragma: export
-
 /// Include the generated interface declarations.
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOpInterfaces.h.inc" // IWYU pragma: export
 
 } // namespace TMTensor
 } // namespace torch
 } // namespace mlir
+
+#include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h.inc" // IWYU pragma: export
 
 #endif // TORCH_MLIR_DIALECTS_DIALECT_TMTENSOR_IR_TMTENSORINTERFACES_H_

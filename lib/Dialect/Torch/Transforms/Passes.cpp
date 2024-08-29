@@ -18,6 +18,10 @@ void mlir::torch::registerTorchPasses() {
       "Pipeline lowering TorchScript object graph IR to Torch backend form.",
       mlir::torch::Torch::createTorchScriptModuleToTorchBackendPipeline);
   mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
+      "torchdynamo-export-to-torch-backend-pipeline",
+      "Pipeline lowering TorchDynamo exported graph IR to Torch backend form.",
+      mlir::torch::Torch::createTorchDynamoExportToTorchBackendPipeline);
+  mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
       "torch-function-to-torch-backend-pipeline",
       "Pipeline lowering a Torch function to Torch backend form.",
       mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline);
@@ -59,6 +63,18 @@ void mlir::torch::Torch::createTorchScriptModuleToTorchBackendPipeline(
   createTorchFunctionToTorchBackendPipeline(pm, options);
 }
 
+void mlir::torch::Torch::createTorchDynamoExportToTorchBackendPipeline(
+    OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
+  pm.addNestedPass<func::FuncOp>(
+      createReduceOpVariantsPass(options.extraLibrary));
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  if (options.decompose) {
+    pm.addNestedPass<func::FuncOp>(
+        Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
+    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  }
+}
+
 void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
   // Incorporate user annotations and remove signature Python-isms.
@@ -66,8 +82,8 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   // Perform the bulk of lowering to the backend contract.
   // See the pass documentation for more information.
   pm.addPass(createLowerToBackendContractPass(
-      options.maxIterations, options.decompose, options.backendLegalOps,
-      options.extraLibrary));
+      options.maxIterations, options.decompose, options.shapeDtypeRefine,
+      options.backendLegalOps, options.extraLibrary));
 }
 
 // A simplification pipeline to establish the invariants of the backend
@@ -119,11 +135,13 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
   // Update the return op to return value tensors.
   pm.addPass(Torch::createRefinePublicReturnPass());
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
-  // Do shape and dtype refinement.
-  // Shape refinement should be run before dtype refinement because Torch type
-  // promotion rules actually depend on the shape of the operand.
-  createTorchShapeRefinementPipeline(pm, options);
-  createTorchDtypeRefinementPipeline(pm, options);
+  if (options.shapeDtypeRefine) {
+    // Do shape and dtype refinement.
+    // Shape refinement should be run before dtype refinement because Torch type
+    // promotion rules actually depend on the shape of the operand.
+    createTorchShapeRefinementPipeline(pm, options);
+    createTorchDtypeRefinementPipeline(pm, options);
+  }
   // Propagate to ABI return types the shape/dtype information discovered by
   // the previous pass. Doing this is ABI-compatible for our backends.
   pm.addPass(Torch::createRefinePublicReturnPass());

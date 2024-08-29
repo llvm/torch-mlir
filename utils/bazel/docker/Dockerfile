@@ -22,7 +22,7 @@ RUN echo $REPO_NAME >> /etc/apt/sources.list.d/llvm.list && \
 
 # Install bazel
 ARG ARCH="x86_64"
-ARG BAZEL_VERSION=5.2.0
+ARG BAZEL_VERSION=6.4.0
 RUN wget -q https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -O /usr/bin/bazel \
     && chmod a+x /usr/bin/bazel
 

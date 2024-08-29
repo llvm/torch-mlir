@@ -72,6 +72,9 @@ bool isBuiltInType(Type type);
 // std::nullopt is returned if the tensorRank can't be determined.
 std::optional<unsigned> getTensorRank(Value tensor);
 
+// Helper function to get the number of elements in a tensor.
+std::optional<int64_t> getTensorNumel(Value tensor);
+
 bool isViewLikeOp(Operation *op);
 
 Value getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter, Location loc,
@@ -83,6 +86,10 @@ int64_t getNumberOfElements(RankedTensorType inputType);
 
 SmallVector<int64_t> makeShapeLLVMCompatible(ArrayRef<int64_t> shape);
 SmallVector<int64_t> makeShapeTorchCompatible(ArrayRef<int64_t> shape);
+
+ValueTensorType getTensorTypeFromShapeValues(ArrayRef<Value> shapes,
+                                             Type dtype);
+Value getTensorDimSize(PatternRewriter &rewriter, Value tensor, int64_t dim);
 
 // Helper function to squeeze the input tensor at given dim.
 // Return the squeezed tensor or failure.
@@ -138,7 +145,13 @@ LogicalResult getTransposedType(BaseTensorType inType, int64_t dimA,
 // control the behavior. Such support would be done in coordination with
 // the fx_importer and APIs, which could add hints to the IR (based on
 // Torch flags, user options, etc).
+// Note: The special case of int8 intentionally deviates from the reference, and
+// uses int32 instead of int64 accumulation.
 Type getDefaultAccType(PatternRewriter &rewriter, Type inputType);
+
+LogicalResult getPermutedType(BaseTensorType inType,
+                              SmallVector<int64_t> permuteDims,
+                              Type &permutedType);
 
 } // namespace Torch
 } // namespace torch

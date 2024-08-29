@@ -88,7 +88,7 @@ def TMTensor_ScanOp : TMTensor_Op<"scan",
       return getOutputOperand(0)->get();
     }
     ShapedType getOperandType() {
-      return input().getType().cast<ShapedType>();
+      return cast<ShapedType>(input().getType());
     }
     int64_t getOperandRank() {
       return getOperandType().getRank();
@@ -151,10 +151,10 @@ def TMTensor_ScatterOp : TMTensor_Op<"scatter",
   let extraClassDeclaration = extraTMTensorOpClassDeclaration # [{
 
     int64_t getIndexDepth() {
-      return getInputOperand(1)
+      return cast<ShapedType>(getInputOperand(1)
           ->get()
           .getType()
-          .cast<ShapedType>()
+          )
           .getShape()
           .back();
     }
@@ -164,7 +164,7 @@ def TMTensor_ScatterOp : TMTensor_Op<"scatter",
     }
 
     ShapedType getUpdateType() {
-      return updates().getType().cast<ShapedType>();
+      return cast<ShapedType>(updates().getType());
     }
 
     Value indices() {
@@ -172,7 +172,7 @@ def TMTensor_ScatterOp : TMTensor_Op<"scatter",
     }
 
     ShapedType getIndicesType() {
-      return indices().getType().cast<ShapedType>();
+      return cast<ShapedType>(indices().getType());
     }
 
     Value original() {
@@ -180,11 +180,11 @@ def TMTensor_ScatterOp : TMTensor_Op<"scatter",
     }
 
     ShapedType getOriginalType() {
-      return original().getType().cast<ShapedType>();
+      return cast<ShapedType>(original().getType());
     }
 
     int64_t getUpdateSliceRank() {
-      return updates().getType().cast<ShapedType>().getRank() - 1;
+      return cast<ShapedType>(updates().getType()).getRank() - 1;
     }
 
     bool isScalarUpdate() {
@@ -224,7 +224,7 @@ def TMTensor_SortOp : TMTensor_Op<"sort",
       return getOutputs()[index];
     }
     ShapedType getOperandType(int index) {
-      return operand(index).getType().cast<ShapedType>();
+      return cast<ShapedType>(operand(index).getType());
     }
     int64_t getOperandRank() {
       return getOperandType(0).getRank();
@@ -291,16 +291,16 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
       return getOutputOperand(0)->get();
     }
     ShapedType getQueryType() {
-      return getQuery().getType().cast<ShapedType>();
+      return cast<ShapedType>(getQuery().getType());
     }
     ShapedType getKeyType() {
-      return getKey().getType().cast<ShapedType>();
+      return cast<ShapedType>(getKey().getType());
     }
     ShapedType getValueType() {
-      return getValue().getType().cast<ShapedType>();
+      return cast<ShapedType>(getValue().getType());
     }
     ShapedType getOutputType() {
-      return getOutput().getType().cast<ShapedType>();
+      return cast<ShapedType>(getOutput().getType());
     }
     int64_t getQueryRank() {
       return getQueryType().getRank();
@@ -314,6 +314,81 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
     int64_t getOutputRank() {
       return getOutputType().getRank();
     }
+    // Method to implement for specifying output range for
+    // DestinationStyleOpInterface
+    std::pair<int64_t, int64_t> getDpsInitsPositionRange() {
+      std::pair<unsigned, unsigned> outputsIndexAndLength =
+        getODSOperandIndexAndLength(1);
+      return std::make_pair<int64_t, int64_t>(
+          outputsIndexAndLength.first,
+          outputsIndexAndLength.first + outputsIndexAndLength.second);
+    }
+  }];
+}
+
+def TMTensor_TopkOp : TMTensor_Op<"topk",
+    [DeclareOpInterfaceMethods<TMTensorInterface,
+        ["payloadUsesValueFromOperand"]>,
+    DeclareOpInterfaceMethods<ScalarLoopOpInterface,
+        ["generateScalarImplementation"]>]> {
+  let summary = "Top-K operator";
+  let description = [{
+    A Top-K operation for N-D tensors. Reduces the target dimension from the input
+    size N down to K elements based on the supplied binary region.
+
+    Accepts an N-D tensor input consisting of values and an optioanl N-D tensor
+    for indices of those values (i32 type). If input indices aren't provided, the
+    index mapping is inferred based on the k dim.  Both input values/indices
+    tensors and output values/indicies tensors must have the same shape. Top-K is
+    computed along the target dimension (from dimension()). Returns two output
+    tensors of values and the indicies of Top-K results. The output dimensions
+    must match the input save for the dimension that is reduced to K results.
+
+    Region accepts lhs=[next N input] and rhs=[exiting K output] and yeilds an
+    i1. If true, the two values are swapped:
+      - For Top-K compoarision: >
+      - For Min-K comparision: <
+    Note: when the two values are equal, the first occurence is always selected.
+  }];
+
+  let arguments = (ins Variadic<AnyShaped>:$inputs,
+                       Variadic<AnyShaped>:$outputs,
+                       I64Attr:$dimension
+  );
+
+  let results = (outs Variadic<AnyRankedTensor>:$results);
+  let regions = (region AnyRegion:$region);
+  let assemblyFormat = [{
+    attr-dict
+    `dimension` `(` $dimension `)`
+    `ins` `(` $inputs `:` type($inputs) `)`
+    `outs` `(` $outputs `:` type($outputs) `)`
+    $region (`->` type($results)^)?
+  }];
+
+  let extraClassDeclaration = extraTMTensorOpClassDeclaration # [{
+    Value values() {
+      return getInputOperand(0)->get();
+    }
+    std::optional<Value> indices() {
+      if (getNumInputs() < 2) {
+        return {};
+      }
+      return getInputOperand(1)->get();
+    }
+    Value outputValues() {
+      return getOutputOperand(0)->get();
+    }
+    Value outputIndices() {
+      return getOutputOperand(1)->get();
+    }
+    ShapedType getInputType() {
+      return cast<ShapedType>(values().getType());
+    }
+    int64_t getInputRank() {
+      return getInputType().getRank();
+    }
+
     // Method to implement for specifying output range for
     // DestinationStyleOpInterface
     std::pair<int64_t, int64_t> getDpsInitsPositionRange() {

@@ -282,7 +282,7 @@ function _check_file_not_changed_by() {
 
 function test_in_tree() {
   local torch_version="$1"
-  
+
   echo ":::: Test in-tree"
   cmake --build /main_checkout/torch-mlir/build --target check-torch-mlir-all
 
@@ -308,10 +308,8 @@ function test_in_tree() {
       echo ":::: Run Onnx e2e integration tests"
       python -m e2e_testing.main --config=onnx -v
 
-      # Dynamo is changing a lot in nightly versions, and thus the implementation
-      # tends to become incompatible to the stable version.
-      echo ":::: Run TorchDynamo e2e integration tests"
-      python -m e2e_testing.main --config=torchdynamo -v
+      echo ":::: Run FxImporter e2e integration tests"
+      python -m e2e_testing.main --config=fx_importer -v
       ;;
     stable)
       echo ":::: Test with stable torch"
@@ -434,16 +432,18 @@ function clean_build() {
 }
 
 function build_torch_mlir() {
+  # Disable LTC build for releases
+  export TORCH_MLIR_ENABLE_LTC=0
   local torch_version="$1"
   case $torch_version in
     nightly)
       echo ":::: Using nightly dependencies"
       python -m pip install --no-cache-dir -r /main_checkout/torch-mlir/requirements.txt \
-        --extra-index-url https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html
+        --extra-index-url https://download.pytorch.org/whl/nightly/cpu/torch/
       CMAKE_GENERATOR=Ninja \
       TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
-      python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir \
-        -f https://download.pytorch.org/whl/nightly/cpu/torch_nightly.html \
+      python -m pip wheel -v --no-build-isolation -w /wheelhouse /main_checkout/torch-mlir \
+        -f https://download.pytorch.org/whl/nightly/cpu/torch/ \
         -r /main_checkout/torch-mlir/whl-requirements.txt
       ;;
     stable)
@@ -452,7 +452,7 @@ function build_torch_mlir() {
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
       CMAKE_GENERATOR=Ninja \
       TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
-      python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir
+      python -m pip wheel -v --no-build-isolation -w /wheelhouse /main_checkout/torch-mlir
       ;;
     *)
       echo "Unrecognized torch version '$torch_version'"
@@ -476,7 +476,7 @@ function build_torch_mlir_core() {
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
   TORCH_MLIR_ENABLE_JIT_IR_IMPORTER=0 \
   TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS=1 \
-  python -m pip wheel -v -w /wheelhouse /main_checkout/torch-mlir
+  python -m pip wheel -v --no-build-isolation -w /wheelhouse /main_checkout/torch-mlir
 }
 
 function clean_wheels() {

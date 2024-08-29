@@ -25,9 +25,7 @@ class TorchConversion_Op<string mnemonic, list<Trait> traits = []>
 // Conversions to backend types.
 //===----------------------------------------------------------------------===//
 
-def TorchConversion_ToBuiltinTensorOp : TorchConversion_Op<"to_builtin_tensor", [
-    DeclareOpInterfaceMethods<InferTypeOpInterface>
-  ]> {
+def TorchConversion_ToBuiltinTensorOp : TorchConversion_Op<"to_builtin_tensor"> {
   let summary = "Convert a `!torch.vtensor` to a `tensor`";
   let description = [{
     This op only operates on ValueTensorType, to avoid conflating conversions
@@ -80,6 +78,7 @@ def TorchConversion_ToI1Op : TorchConversion_Op<"to_i1", [
   let assemblyFormat = [{
     $operand attr-dict
   }];
+  let hasFolder = 1;
 }
 
 def TorchConversion_FromI1Op : TorchConversion_Op<"from_i1", [
@@ -98,6 +97,7 @@ def TorchConversion_FromI1Op : TorchConversion_Op<"from_i1", [
   let assemblyFormat = [{
     $operand attr-dict
   }];
+  let hasFolder = 1;
 }
 
 def TorchConversion_ToI64Op : TorchConversion_Op<"to_i64", [

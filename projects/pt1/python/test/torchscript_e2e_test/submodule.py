@@ -12,12 +12,14 @@ from torch_mlir_e2e_test.reporting import report_results
 from torch_mlir_e2e_test.registry import register_test_case, GLOBAL_TEST_REGISTRY
 from torch_mlir_e2e_test.configs import TorchScriptTestConfig
 
+
 class Submodule2(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     def forward(self, lhs, rhs):
         return torch.mm(lhs, rhs)
+
 
 class Submodule(torch.nn.Module):
     def __init__(self):
@@ -43,5 +45,5 @@ def main():
     report_results(results, set())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -259,16 +259,16 @@ LogicalResult Torch::updateCalculateOpResultTypes(Operation *calculateOp,
   Type originalResultType = result.getType();
   Type updatedType;
   if (auto originalBaseTensorType =
-          originalResultType.template dyn_cast<BaseTensorType>()) {
+          dyn_cast<BaseTensorType>(originalResultType)) {
     // If we didn't get any new information, there is nothing left for us to do.
     updatedType = meetTensorTypes(originalBaseTensorType,
-                                  newResultType.cast<BaseTensorType>());
+                                  cast<BaseTensorType>(newResultType));
     if (!updatedType || updatedType == originalBaseTensorType)
       return rewriter.notifyMatchFailure(
           calculateOp, "New type information does not refine old type");
   } else if (auto originalResultType =
-                 result.getType().template dyn_cast<Torch::NumberType>()) {
-    if (!newResultType.isa<Torch::FloatType, Torch::IntType>()) {
+                 dyn_cast<Torch::NumberType>(result.getType())) {
+    if (!isa<Torch::FloatType, Torch::IntType>(newResultType)) {
       return rewriter.notifyMatchFailure(
           calculateOp,
           "Refinement of `NumberType` must be a `FloatType` or `IntType`");
@@ -291,10 +291,10 @@ LogicalResult Torch::updateCalculateOpResultTypes(Operation *calculateOp,
     }
     if (!originalTypedValue) {
       rewriter.setInsertionPointAfter(calculateOp);
-      if (originalResultType.isa<BaseTensorType>()) {
+      if (isa<BaseTensorType>(originalResultType)) {
         originalTypedValue = rewriter.create<TensorStaticInfoCastOp>(
             loc, originalResultType, result);
-      } else if (originalResultType.isa<Torch::NumberType>()) {
+      } else if (isa<Torch::NumberType>(originalResultType)) {
         originalTypedValue =
             rewriter.create<DerefineOp>(loc, originalResultType, result);
       } else {
@@ -314,14 +314,14 @@ LogicalResult Torch::updateCalculateOpResultTypes(Operation *calculateOp,
   OpOperand &use = yieldValues->getOpOperand(resultNum);
   Value def = use.get();
   Value newYieldedValue;
-  if (def.isa<OpResult>() &&
-      def.cast<OpResult>()
+  if (isa<OpResult>(def) &&
+      cast<OpResult>(def)
           .getDefiningOp()
           ->hasTrait<mlir::torch::Torch::OpTrait::AllowsTypeRefinement>()) {
     newYieldedValue = def;
   } else {
     rewriter.setInsertionPoint(yieldValues);
-    if (updatedType.isa<BaseTensorType>()) {
+    if (isa<BaseTensorType>(updatedType)) {
       newYieldedValue =
           rewriter.create<TensorStaticInfoCastOp>(loc, updatedType, def);
     } else {

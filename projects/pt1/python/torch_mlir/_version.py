@@ -6,6 +6,7 @@
 from packaging import version
 import torch
 
+
 def torch_version_for_comparison():
     # Ignore +cpu, +cu117m, etc. in comparisons
     return version.parse(torch.__version__.split("+", 1)[0])

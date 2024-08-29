@@ -10,11 +10,19 @@ import torch
 
 from torch_mlir import torchscript
 
+
 def simple(x):
     return x * x
 
-example_input = torch.randn(1,)
-graph = functorch.make_fx(simple)(torch.randn(1,))
+
+example_input = torch.randn(
+    1,
+)
+graph = functorch.make_fx(simple)(
+    torch.randn(
+        1,
+    )
+)
 
 # Simplest case: One example argument.
 print(torchscript.compile(graph, example_input))

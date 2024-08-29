@@ -29,7 +29,6 @@
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IRMapping.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "llvm/Support/Debug.h"
@@ -64,8 +63,8 @@ public:
 };
 
 static bool isTypeTriviallySafe(Type type) {
-  return type.isa<Torch::IntType, Torch::FloatType, Torch::BoolType,
-                  Torch::StringType, Torch::NoneType, Torch::ValueTensorType>();
+  return isa<Torch::IntType, Torch::FloatType, Torch::BoolType,
+             Torch::StringType, Torch::NoneType, Torch::ValueTensorType>(type);
 }
 
 static bool isUseTreatedWithValueSemantics(OpOperand &use) {
@@ -183,13 +182,13 @@ LogicalResult InlineGlobalSlotsAnalysis::initialize(Operation *top) {
 }
 
 LogicalResult InlineGlobalSlotsAnalysis::visit(ProgramPoint point) {
-  if (Value value = point.dyn_cast<Value>()) {
+  if (Value value = dyn_cast<Value>(point)) {
     bool isSafe = isValueSafeTransferFunction(value);
     auto *state = getOrCreate<InlineGlobalSlotsAnalysisState>(value);
     propagateIfChanged(state, state->setSafe(isSafe));
 
     // Handle GlobalSlotGetOp's.
-    if (auto opResult = value.dyn_cast<OpResult>()) {
+    if (auto opResult = dyn_cast<OpResult>(value)) {
       if (auto globalSlotGet =
               dyn_cast<Torch::GlobalSlotGetOp>(opResult.getOwner())) {
         auto *flatSymbolRefPoint = getProgramPoint<FlatSymbolRefProgramPoint>(
@@ -205,7 +204,7 @@ LogicalResult InlineGlobalSlotsAnalysis::visit(ProgramPoint point) {
 
     return success();
   }
-  if (auto *genericProgramPoint = point.dyn_cast<GenericProgramPoint *>()) {
+  if (auto *genericProgramPoint = dyn_cast<GenericProgramPoint *>(point)) {
     if (auto *flatSymbolRefPoint =
             dyn_cast<FlatSymbolRefProgramPoint>(genericProgramPoint)) {
       if (initializeGlobalSlotsOp) {
@@ -248,8 +247,8 @@ bool InlineGlobalSlotsAnalysis::isValueSafeTransferFunction(Value value) {
         }))
       continue;
     if (auto initialize = dyn_cast<Torch::InitializeGlobalSlotsOp>(op)) {
-      auto symName = initialize.getSlotSymNames()[use.getOperandNumber()]
-                         .cast<FlatSymbolRefAttr>();
+      auto symName = cast<FlatSymbolRefAttr>(
+          initialize.getSlotSymNames()[use.getOperandNumber()]);
       auto *state = getOrCreateFor<InlineGlobalSlotsAnalysisState>(
           value, getProgramPoint<FlatSymbolRefProgramPoint>(symName));
       if (state->isSafe)
@@ -333,10 +332,10 @@ class InlineGlobalSlotsPass
     DenseSet</*FlatSymbolRefAttr*/ Attribute> safeToInline;
     for (int i = 0, e = initialize->getNumOperands(); i != e; i++) {
       auto slotSymName =
-          initialize.getSlotSymNames()[i].cast<FlatSymbolRefAttr>();
+          cast<FlatSymbolRefAttr>(initialize.getSlotSymNames()[i]);
       Value operand = initialize.getOperand(i);
       auto symbolRefPoint = solver.getProgramPoint<FlatSymbolRefProgramPoint>(
-          initialize.getSlotSymNames()[i].cast<FlatSymbolRefAttr>());
+          cast<FlatSymbolRefAttr>(initialize.getSlotSymNames()[i]));
       auto *state =
           solver.lookupState<InlineGlobalSlotsAnalysisState>(symbolRefPoint);
       // We roll the analysis of whether a slot is set or public into the
@@ -396,7 +395,7 @@ class InlineGlobalSlotsPass
     // This could be left to SymbolDCE but it's not hard to do here.
     for (FlatSymbolRefAttr symName :
          llvm::map_range(safeToInline, [](Attribute attr) {
-           return attr.cast<FlatSymbolRefAttr>();
+           return cast<FlatSymbolRefAttr>(attr);
          })) {
       auto globalSlot =
           symbolTable.lookup<Torch::GlobalSlotOp>(symName.getValue());
@@ -408,7 +407,7 @@ class InlineGlobalSlotsPass
     SmallVector<Value> newInitialValues;
     for (int i = 0, e = initialize.getNumOperands(); i != e; i++) {
       auto slotSymName =
-          initialize.getSlotSymNames()[i].cast<FlatSymbolRefAttr>();
+          cast<FlatSymbolRefAttr>(initialize.getSlotSymNames()[i]);
       if (!safeToInline.count(slotSymName)) {
         newSlotSymNames.push_back(slotSymName);
         newInitialValues.push_back(initialize.getOperand(i));

@@ -59,7 +59,7 @@ public:
     if (failed(getConstantIntegerFromDefiningOp(bitWidth, unpackedBitWidth)))
       return failure();
 
-    auto rhsType = rhs.getType().dyn_cast<ValueTensorType>();
+    auto rhsType = dyn_cast<ValueTensorType>(rhs.getType());
     if (!rhsType)
       return failure();
 
@@ -88,7 +88,7 @@ public:
     ValueTensorType newRhsType = ValueTensorType::get(
         rewriter.getContext(), tensorShape, unpackedElementType);
 
-    auto elements = constOp.getValueAttr().dyn_cast<DenseIntElementsAttr>();
+    auto elements = dyn_cast<DenseIntElementsAttr>(constOp.getValueAttr());
     if (!elements)
       return failure();
 

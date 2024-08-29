@@ -13,6 +13,7 @@ from torch._dynamo.backends.common import aot_autograd
 import functorch
 
 import warnings
+
 # https://github.com/pytorch/pytorch/issues/89064
 warnings.filterwarnings("ignore", module="torch.jit._check")
 
@@ -64,6 +65,7 @@ def _get_decomposition_table():
         aten.sigmoid_backward,
         aten._native_batch_norm_legit,
         aten.squeeze,
+        aten._scaled_dot_product_flash_attention_for_cpu,
     ]
     # TODO: enable test once 2.1.0 is stable
     if torch_version_for_comparison() >= version.parse("2.1.0.dev"):
@@ -91,8 +93,7 @@ def _adjust_calling_convention(gm: torch.fx.GraphModule) -> bool:
     did_convert_list_to_tuple = False
     for node in gm.graph.nodes:
         if node.op == "output":
-            assert len(node.args) == 1, \
-                "Output node must have a single argument"
+            assert len(node.args) == 1, "Output node must have a single argument"
             node_arg = node.args[0]
             if isinstance(node_arg, tuple):
                 if len(node_arg) == 1:
@@ -106,7 +107,7 @@ def _adjust_calling_convention(gm: torch.fx.GraphModule) -> bool:
                     did_convert_list_to_tuple = True
                     break
                 else:
-                    node.args= (tuple(node_arg),)
+                    node.args = (tuple(node_arg),)
                     did_convert_list_to_tuple = True
                     break
 
@@ -129,10 +130,12 @@ def make_simple_dynamo_backend(user_backend):
     Returns:
         A function with the signature used by TorchDynamo backends.
     """
-    def wrapper_backend(gm: torch.fx.GraphModule,
-                        example_inputs: List[torch.Tensor]):
-        did_unwrap_single_element, did_convert_list_to_tuple = \
-            _adjust_calling_convention(gm)
+
+    def wrapper_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
+        (
+            did_unwrap_single_element,
+            did_convert_list_to_tuple,
+        ) = _adjust_calling_convention(gm)
         strip_overloads(gm)
         user_callable = user_backend(gm, example_inputs)
 
@@ -147,6 +150,9 @@ def make_simple_dynamo_backend(user_backend):
             if did_convert_list_to_tuple:
                 result = list(result)
             return result
+
         return dynamo_callable
-    return aot_autograd(fw_compiler=wrapper_backend,
-                        decompositions=_get_decomposition_table)
+
+    return aot_autograd(
+        fw_compiler=wrapper_backend, decompositions=_get_decomposition_table
+    )

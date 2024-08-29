@@ -3,8 +3,8 @@
 // CHECK-LABEL:   func.func @torch.aten.mm$basic(
 // CHECK-SAME:                        %[[LHS_VTENSOR:.*]]: !torch.vtensor<[?,?],f32>,
 // CHECK-SAME:                        %[[RHS_VTENSOR:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,2],f32> {
-// CHECK:           %[[LHS:.*]] = torch_c.to_builtin_tensor %[[LHS_VTENSOR]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
-// CHECK:           %[[RHS:.*]] = torch_c.to_builtin_tensor %[[RHS_VTENSOR]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
+// CHECK-DAG:       %[[LHS:.*]] = torch_c.to_builtin_tensor %[[LHS_VTENSOR]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
+// CHECK-DAG:       %[[RHS:.*]] = torch_c.to_builtin_tensor %[[RHS_VTENSOR]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
 // CHECK:           %[[C0:.*]] = arith.constant 0 : index
 // CHECK:           %[[LHS_DIM_0:.*]] = tensor.dim %[[LHS]], %[[C0]] : tensor<?x?xf32>
 // CHECK:           %[[C1:.*]] = arith.constant 1 : index
@@ -55,7 +55,7 @@ func.func @torch.aten.mm$basic_strict(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !
 // -----
 
 // CHECK-LABEL: func.func @torch.aten.mm$basic_unsigned(
-// CHECK: linalg.matmul_unsigned
+// CHECK: linalg.matmul {cast = #linalg.type_fn<cast_unsigned>}
 func.func @torch.aten.mm$basic_unsigned(%arg0: !torch.vtensor<[?,?],ui32>, %arg1: !torch.vtensor<[?,?],ui32>) -> !torch.vtensor<[?,2],ui32>
   attributes {torch.assume_strict_symbolic_shapes}
 {

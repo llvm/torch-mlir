@@ -104,7 +104,7 @@ that this is minimal.
 
 ## Adding to the abstract interpretation library
 
-See [Adding a Shape and Dtype Function](adding_a_shape_and_dtype_function.md)
+See [Adding Abstract Interpretation Functions](adding_abstract_interpretation_functions.md)
 for details on how to add a shape and dtype function for an operator.
 
 ## Rationale

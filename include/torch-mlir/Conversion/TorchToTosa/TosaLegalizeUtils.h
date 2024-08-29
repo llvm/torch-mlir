@@ -94,7 +94,7 @@ TosaOp CreateOpAndInfer(PatternRewriter &rewriter, Location loc, Type result_ty,
 
   // Compute the knowledge based on the inferred type.
   auto inferredKnowledge = ValueKnowledge::getPessimisticValueState();
-  inferredKnowledge.dtype = result_ty.cast<ShapedType>().getElementType();
+  inferredKnowledge.dtype = cast<ShapedType>(result_ty).getElementType();
   inferredKnowledge.hasRank = predictedShape.hasRank();
   if (predictedShape.hasRank()) {
     for (auto dim : predictedShape.getDims()) {

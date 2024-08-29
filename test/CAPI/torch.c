@@ -36,7 +36,7 @@ static void testTensor(MlirContext ctx, intptr_t numSizes, int64_t *sizes,
     fprintf(stderr, #TTT "Type %s rank: %zu\n", testName,                      \
             torchMlirTorch##TTT##TypeGetRank(TTT##Type));                      \
     int64_t *TTT##Sizes = malloc(sizeof(int64_t) * numSizes);                  \
-    torchMlirTorch##TTT##TypeGetSizes(TTT##Type, TTT##Sizes);    \
+    torchMlirTorch##TTT##TypeGetSizes(TTT##Type, TTT##Sizes);                  \
     for (int i = 0; i < numSizes; ++i) {                                       \
       fprintf(stderr, #TTT "Type %s pos %d size: %ld\n", testName, i,          \
               TTT##Sizes[i]);                                                  \
@@ -157,22 +157,26 @@ static void testTypeMetaDataAccessors(MlirContext ctx) {
   MlirType dictType1 = torchMlirTorchDictTypeGet(strType, floatType);
 
   fprintf(stderr, "dict keyType: ");
-  mlirTypePrint(torchMlirTorchDictTypeGetKeyType(dictType1), printToStderr, NULL);
+  mlirTypePrint(torchMlirTorchDictTypeGetKeyType(dictType1), printToStderr,
+                NULL);
   fprintf(stderr, "\n");
   // CHECK: dict keyType: !torch.str
   fprintf(stderr, "dict valueType: ");
-  mlirTypePrint(torchMlirTorchDictTypeGetValueType(dictType1), printToStderr, NULL);
+  mlirTypePrint(torchMlirTorchDictTypeGetValueType(dictType1), printToStderr,
+                NULL);
   fprintf(stderr, "\n");
   // CHECK: dict valueType: !torch.float
 
   MlirType dictType2 = torchMlirTorchDictTypeGet(floatType, strType);
 
   fprintf(stderr, "dict keyType: ");
-  mlirTypePrint(torchMlirTorchDictTypeGetKeyType(dictType2), printToStderr, NULL);
+  mlirTypePrint(torchMlirTorchDictTypeGetKeyType(dictType2), printToStderr,
+                NULL);
   fprintf(stderr, "\n");
   // CHECK: dict keyType: !torch.float
   fprintf(stderr, "dict valueType: ");
-  mlirTypePrint(torchMlirTorchDictTypeGetValueType(dictType2), printToStderr, NULL);
+  mlirTypePrint(torchMlirTorchDictTypeGetValueType(dictType2), printToStderr,
+                NULL);
   fprintf(stderr, "\n");
   // CHECK: dict valueType: !torch.str
 }

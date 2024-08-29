@@ -75,7 +75,7 @@ torch::lazy::DeviceData *device_data_cast(const torch::lazy::Value &value) {
 
 torch::lazy::DeviceData *
 device_data_cast(const at::Tensor &tensor,
-                 c10::optional<torch::lazy::BackendDevice> device) {
+                 std::optional<torch::lazy::BackendDevice> device) {
   if (!device) {
     device = torch::lazy::GetBackendDevice(tensor);
   }

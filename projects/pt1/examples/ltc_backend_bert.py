@@ -23,34 +23,43 @@ import torch._lazy
 from datasets import load_dataset
 from datasets.dataset_dict import DatasetDict
 from torch.utils.data import DataLoader
-from transformers import BertForSequenceClassification, \
-    BertConfig, BertTokenizer, AdamW, get_scheduler
+from transformers import (
+    BertForSequenceClassification,
+    BertConfig,
+    BertTokenizer,
+    AdamW,
+    get_scheduler,
+)
 
 
 def tokenize_dataset(dataset: DatasetDict) -> DatasetDict:
-    tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+    tokenizer = BertTokenizer.from_pretrained("bert-base-cased")
 
     def tokenize_function(examples):
-        return tokenizer(examples["text"], padding="max_length",
-                         truncation=True)
+        return tokenizer(examples["text"], padding="max_length", truncation=True)
 
     tokenized_datasets = dataset.map(tokenize_function, batched=True)
-    tokenized_datasets = tokenized_datasets.remove_columns(['text'])
-    tokenized_datasets = tokenized_datasets.rename_column('label', 'labels')
-    tokenized_datasets.set_format('torch')
+    tokenized_datasets = tokenized_datasets.remove_columns(["text"])
+    tokenized_datasets = tokenized_datasets.rename_column("label", "labels")
+    tokenized_datasets.set_format("torch")
 
     return tokenized_datasets
 
 
-def train(model: BertForSequenceClassification,
-          num_epochs: int,
-          num_training_steps: int,
-          train_dataloader: DataLoader,
-          device: torch.device) -> List[torch.Tensor]:
+def train(
+    model: BertForSequenceClassification,
+    num_epochs: int,
+    num_training_steps: int,
+    train_dataloader: DataLoader,
+    device: torch.device,
+) -> List[torch.Tensor]:
     optimizer = AdamW(model.parameters(), lr=5e-5)
-    lr_scheduler = get_scheduler('linear', optimizer=optimizer,
-                                 num_warmup_steps=0,
-                                 num_training_steps=num_training_steps)
+    lr_scheduler = get_scheduler(
+        "linear",
+        optimizer=optimizer,
+        num_warmup_steps=0,
+        num_training_steps=num_training_steps,
+    )
 
     model.train()
     losses = []
@@ -66,14 +75,14 @@ def train(model: BertForSequenceClassification,
             lr_scheduler.step()
             optimizer.zero_grad()
 
-            if 'lazy' in str(model.device):
+            if "lazy" in str(model.device):
                 print("Calling Mark Step")
                 torch._lazy.mark_step()
 
     return losses
 
 
-def main(device='lazy', full_size=False):
+def main(device="lazy", full_size=False):
     """
     Load model to specified device. Ensure that any backends have been initialized by this point.
 
@@ -82,15 +91,14 @@ def main(device='lazy', full_size=False):
     """
     torch.manual_seed(0)
 
-    tokenized_datasets = tokenize_dataset(load_dataset('imdb'))
-    small_train_dataset = tokenized_datasets['train'].shuffle(seed=42) \
-        .select(range(2))
+    tokenized_datasets = tokenize_dataset(load_dataset("imdb"))
+    small_train_dataset = tokenized_datasets["train"].shuffle(seed=42).select(range(2))
 
-    train_dataloader = DataLoader(small_train_dataset, shuffle=True,
-                                  batch_size=8)
+    train_dataloader = DataLoader(small_train_dataset, shuffle=True, batch_size=8)
     if full_size:
-        model = BertForSequenceClassification.from_pretrained('bert-base-cased',
-                                                              num_labels=2)
+        model = BertForSequenceClassification.from_pretrained(
+            "bert-base-cased", num_labels=2
+        )
     else:
         configuration = BertConfig(
             vocab_size=28996,
@@ -98,7 +106,7 @@ def main(device='lazy', full_size=False):
             num_hidden_layers=1,
             num_attention_heads=2,
             intermediate_size=32,
-            hidden_act='gelu',
+            hidden_act="gelu",
             hidden_dropout_prob=0.0,
             attention_probs_dropout_prob=0.0,
             max_position_embeddings=512,
@@ -113,12 +121,12 @@ def main(device='lazy', full_size=False):
     losses = train(model, num_epochs, num_training_steps, train_dataloader, device)
 
     # Get debug information from LTC
-    if 'torch_mlir._mlir_libs._REFERENCE_LAZY_BACKEND' in sys.modules:
+    if "torch_mlir._mlir_libs._REFERENCE_LAZY_BACKEND" in sys.modules:
         computation = lazy_backend.get_latest_computation()
         if computation:
             print(computation.debug_string())
 
-    print('Loss: ', losses)
+    print("Loss: ", losses)
 
     return model, losses
 
@@ -136,7 +144,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-f",
         "--full_size",
-        action='store_true',
+        action="store_true",
         default=False,
         help="Use full sized BERT model instead of one with smaller parameterization",
     )
@@ -145,6 +153,7 @@ if __name__ == "__main__":
     if args.device in ("TS", "MLIR_EXAMPLE"):
         if args.device == "TS":
             import torch._lazy.ts_backend
+
             torch._lazy.ts_backend.init()
 
         elif args.device == "MLIR_EXAMPLE":

@@ -1,0 +1,17 @@
+name: pre-commit
+
+on:
+  pull_request:
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        # requites to grab the history of the PR
+        fetch-depth: 0
+    - uses: actions/setup-python@v3
+    - uses: pre-commit/action@v3.0.1
+      with:
+        extra_args: --color=always --from-ref ${{ github.event.pull_request.base.sha }} --to-ref ${{ github.event.pull_request.head.sha }}

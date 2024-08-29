@@ -40,3 +40,24 @@ func.func @dequantize_per_tensor(%arg0: !torch.vtensor<[1,3,8,8],si8>) -> !torch
   %13 = torch.operator "torch.quantized_decomposed.dequantize_per_tensor"(%arg0, %float, %zp, %min, %max, %dtype) : (!torch.vtensor<[1,3,8,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.vtensor<[1,3,8,8],f32>
   return %13 : !torch.vtensor<[1,3,8,8],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @dequantize_per_channel
+// CHECK-SAME:                     %[[ARG0:.*]]: !torch.vtensor<[32,3,8,8],si8>,
+// CHECK-SAME:                     %[[ARG1:.*]]: !torch.vtensor<[32],f32>,
+// CHECK-SAME:                     %[[ARG2:.*]]: !torch.vtensor<[32],si8>) -> !torch.vtensor<[32,3,8,8],f32> {
+func.func @dequantize_per_channel(%arg0: !torch.vtensor<[32,3,8,8],si8>, %arg1: !torch.vtensor<[32],f32>, %arg2: !torch.vtensor<[32],si8>) -> !torch.vtensor<[32,3,8,8],f32> {
+  %min = torch.constant.int -128
+  %max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %axis = torch.constant.int 0
+  // CHECK-DAG: %[[MIN:.+]] = torch.constant.int -128
+  // CHECK-DAG: %[[MAX:.+]] = torch.constant.int 127
+  // CHECK-DAG: %[[AXIS:.+]] = torch.constant.int 0
+  // CHECK-DAG: %[[CLAMP:.+]] = torch.aten.clamp %arg0, %[[MIN]], %[[MAX]] : !torch.vtensor<[32,3,8,8],si8>, !torch.int, !torch.int -> !torch.vtensor<[32,3,8,8],si8>
+  // CHECK-DAG: %[[QINT:.+]] = torch.aten._make_per_channel_quantized_tensor %[[CLAMP]], %[[ARG1]], %[[ARG2]], %[[AXIS]] : !torch.vtensor<[32,3,8,8],si8>, !torch.vtensor<[32],f32>, !torch.vtensor<[32],si8>, !torch.int -> !torch.vtensor<[32,3,8,8],!torch.qint8>
+  // CHECK: %[[DEQUANT:.+]] = torch.aten.dequantize.self %[[QINT]] : !torch.vtensor<[32,3,8,8],!torch.qint8> -> !torch.vtensor<[32,3,8,8],f32>
+  %13 = torch.operator "torch.quantized_decomposed.dequantize_per_channel"(%arg0, %arg1, %arg2, %axis, %min, %max, %dtype) : (!torch.vtensor<[32,3,8,8],si8>, !torch.vtensor<[32],f32>, !torch.vtensor<[32],si8>, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.vtensor<[32,3,8,8],f32>
+  return %13 : !torch.vtensor<[32,3,8,8],f32>
+}

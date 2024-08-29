@@ -43,6 +43,7 @@ declare_mlir_python_sources(TorchMLIRPythonSources.PublicAPI
   ROOT_DIR "${TORCH_MLIR_PYTHON_ROOT_DIR}"
   ADD_TO_PARENT TorchMLIRPythonSources
   SOURCES
+    compiler_utils.py
     fx.py
     extras/fx_decomp_util.py
 )
@@ -101,6 +102,10 @@ set(_source_components
   TorchMLIRPythonTorchExtensionsSources
 )
 
+if(TORCH_MLIR_ENABLE_STABLEHLO)
+  list(APPEND _source_components StablehloPythonExtensions)
+endif()
+
 add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
   INSTALL_COMPONENT TorchMLIRPythonModules
   INSTALL_DESTINATION python_packages/torch_mlir/torch_mlir/_mlir_libs
@@ -115,4 +120,4 @@ add_mlir_python_modules(TorchMLIRPythonModules
   DECLARED_SOURCES ${_source_components}
   COMMON_CAPI_LINK_LIBS
     TorchMLIRAggregateCAPI
-  )
+)

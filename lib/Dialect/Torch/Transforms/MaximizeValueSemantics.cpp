@@ -9,8 +9,6 @@
 
 #include "PassDetail.h"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -23,7 +21,7 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 static Value assertNonValueTensor(Value tensor) {
-  assert(tensor.getType().isa<NonValueTensorType>() &&
+  assert(isa<NonValueTensorType>(tensor.getType()) &&
          "tensor is expected to be a non-value tensor");
   return tensor;
 }
@@ -102,7 +100,7 @@ public:
         // to use value semantics (which happens for example with ops
         // that take two aliases as input), then it is possible that the
         // op no longer generates an alias.
-        if (userResult.getType().isa<NonValueTensorType>())
+        if (isa<NonValueTensorType>(userResult.getType()))
           availableAliases.insert(userResult);
         result.viewLikeOps.push_back(user);
       } else if (auto copyToValueTensor = dyn_cast<CopyToValueTensorOp>(user)) {
@@ -140,7 +138,7 @@ public:
       auto returnOp = ops.returnOp.value();
       for (auto operand : llvm::enumerate(returnOp->getOperands())) {
         auto type = operand.value().getType();
-        if (!type.isa<NonValueTensorType>())
+        if (!isa<NonValueTensorType>(type))
           continue;
         originalReturnTypes[operand.index()] = type;
       }
@@ -177,7 +175,7 @@ public:
     for (Operation *viewLikeOp : ops.viewLikeOps) {
       rewriter.modifyOpInPlace(viewLikeOp, [&] {
         Value result = viewLikeOp->getResult(0);
-        auto resultType = result.getType().dyn_cast<NonValueTensorType>();
+        auto resultType = dyn_cast<NonValueTensorType>(result.getType());
         if (resultType)
           result.setType(resultType.getWithValueSemantics());
       });
@@ -189,7 +187,7 @@ public:
         auto it = originalReturnTypes.find(i);
         if (it == originalReturnTypes.end())
           continue;
-        auto originalType = it->second.cast<NonValueTensorType>();
+        auto originalType = cast<NonValueTensorType>(it->second);
         rewriter.setInsertionPoint(returnOp);
         Value newReturnValue = copyTensorToType(rewriter, returnOp->getLoc(),
                                                 originalType, operand.get());
@@ -230,7 +228,7 @@ public:
       if (isViewLikeOp(op)) {
         // We currently only support view-like ops with one tensor output.
         if (op->getNumResults() != 1 ||
-            !op->getResult(0).getType().isa<BaseTensorType>()) {
+            !isa<BaseTensorType>(op->getResult(0).getType())) {
           return rewriter.notifyMatchFailure(
               copy, "unsupported: view-like ops must have one tensor output, "
                     "and the tensor output must be the first result");
@@ -242,7 +240,7 @@ public:
         // non-value tensor and the output being a value tensor. If this is the
         // case then there is no need to look at the users of the result of the
         // op.
-        if (opResult.getType().isa<NonValueTensorType>()) {
+        if (isa<NonValueTensorType>(opResult.getType())) {
           if (operand.getOperandNumber() == 0) {
             validViewLikeOps.insert(op);
             llvm::append_range(workList, opResult.getUses());
@@ -339,7 +337,7 @@ public:
     for (Operation *op : viewLikeOps) {
       rewriter.modifyOpInPlace(op, [&]() {
         if (auto nonValueTensorType =
-                op->getResult(0).getType().dyn_cast<NonValueTensorType>()) {
+                dyn_cast<NonValueTensorType>(op->getResult(0).getType())) {
           originalTypes[op->getResult(0)] = nonValueTensorType;
           op->getResult(0).setType(nonValueTensorType.getWithValueSemantics());
         }
@@ -352,7 +350,7 @@ public:
         auto it = originalTypes.find(operand.get());
         if (it == originalTypes.end())
           continue;
-        auto originalType = it->second.cast<BaseTensorType>();
+        auto originalType = cast<BaseTensorType>(it->second);
         rewriter.setInsertionPoint(op);
         Value newReturnValue = copyTensorToType(rewriter, op->getLoc(),
                                                 originalType, operand.get());

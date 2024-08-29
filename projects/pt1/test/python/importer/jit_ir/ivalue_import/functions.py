@@ -26,14 +26,18 @@ mb = ModuleBuilder()
 # CHECK:           torch.method "forward", @__torch__.TestModule.forward
 # CHECK:         }
 
+
 def identity(x):
     return x
+
 
 class TestModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
+
     def forward(self, x):
         return identity(x)
+
 
 test_module = TestModule()
 recursivescriptmodule = torch.jit.script(test_module)

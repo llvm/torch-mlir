@@ -100,10 +100,12 @@ void TorchDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.cpp.inc"
+
       >();
   addTypes<
 #define GET_TYPEDEF_LIST
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.cpp.inc"
+
       >();
   addInterfaces<TorchInlinerInterface>();
 }
@@ -120,14 +122,14 @@ LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
     auto func = dyn_cast<func::FuncOp>(op);
     if (!func)
       return op->emitError() << "'torch.type_bound' must be attached to a func";
-    TypeAttr attr = namedAttr.getValue().dyn_cast<TypeAttr>();
+    TypeAttr attr = dyn_cast<TypeAttr>(namedAttr.getValue());
     if (!attr)
       return op->emitError() << "'torch.type_bound' must be TypeAttr";
-    auto type = attr.getValue().dyn_cast<BaseTensorType>();
+    auto type = dyn_cast<BaseTensorType>(attr.getValue());
     if (!type)
       return op->emitError() << "'torch.type_bound' must be of "
                                 "!torch.tensor/!torch.vtensor type";
-    if (!func.getFunctionType().getInput(argIndex).isa<BaseTensorType>())
+    if (!isa<BaseTensorType>(func.getFunctionType().getInput(argIndex)))
       return op->emitError() << "'torch.type_bound' must be attached to an "
                                 "argument of !torch.tensor/!torch.vtensor type";
     return success();
@@ -144,35 +146,34 @@ LogicalResult TorchDialect::verifyRegionArgAttribute(Operation *op,
 Operation *TorchDialect::materializeConstant(OpBuilder &builder,
                                              Attribute value, Type type,
                                              Location loc) {
-  if (auto integerType = type.dyn_cast<Torch::IntType>())
-    return builder.create<Torch::ConstantIntOp>(loc, value.cast<IntegerAttr>());
+  if (auto integerType = dyn_cast<Torch::IntType>(type))
+    return builder.create<Torch::ConstantIntOp>(loc, cast<IntegerAttr>(value));
 
-  if (auto floatType = type.dyn_cast<Torch::FloatType>())
-    return builder.create<Torch::ConstantFloatOp>(loc, value.cast<FloatAttr>());
+  if (auto floatType = dyn_cast<Torch::FloatType>(type))
+    return builder.create<Torch::ConstantFloatOp>(loc, cast<FloatAttr>(value));
 
-  if (auto numberType = type.dyn_cast<Torch::NumberType>()) {
-    if (auto floatValue = value.dyn_cast<mlir::FloatAttr>()) {
+  if (auto numberType = dyn_cast<Torch::NumberType>(type)) {
+    if (auto floatValue = dyn_cast<mlir::FloatAttr>(value)) {
       return builder.create<Torch::ConstantNumberOp>(loc, floatValue);
-    } else if (auto intValue = value.dyn_cast<mlir::IntegerAttr>()) {
+    } else if (auto intValue = dyn_cast<mlir::IntegerAttr>(value)) {
       return builder.create<Torch::ConstantNumberOp>(loc, intValue);
     }
   }
 
-  if (type.isa<Torch::BoolType>()) {
-    return builder.create<Torch::ConstantBoolOp>(loc,
-                                                 value.cast<IntegerAttr>());
+  if (isa<Torch::BoolType>(type)) {
+    return builder.create<Torch::ConstantBoolOp>(loc, cast<IntegerAttr>(value));
   }
 
-  if (type.isa<Torch::NoneType>())
+  if (isa<Torch::NoneType>(type))
     return builder.create<ConstantNoneOp>(loc);
 
-  if (auto stringAttr = value.dyn_cast<StringAttr>())
+  if (auto stringAttr = dyn_cast<StringAttr>(value))
     return builder.create<ConstantStrOp>(loc, stringAttr);
 
-  if (auto elementsAttr = value.dyn_cast<ElementsAttr>()) {
+  if (auto elementsAttr = dyn_cast<ElementsAttr>(value)) {
     // Only !torch.vtensor can be constant folded. !torch.tensor has
     // non-trivial aliasing semantics which prevent deduplicating it.
-    assert(type.isa<ValueTensorType>() && "should be a vtensor type!");
+    assert(isa<ValueTensorType>(type) && "should be a vtensor type!");
     return builder.create<ValueTensorLiteralOp>(loc, elementsAttr);
   }
 

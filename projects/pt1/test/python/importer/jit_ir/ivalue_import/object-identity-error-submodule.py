@@ -11,14 +11,16 @@ from torch_mlir.jit_ir_importer import ModuleBuilder
 
 mb = ModuleBuilder()
 
+
 class Submodule(torch.nn.Module):
     def __init__(self):
         super().__init__()
-        self.t1 = torch.tensor([10., 20.])
+        self.t1 = torch.tensor([10.0, 20.0])
         # Test a nontrivial recursive case of the diagnostic.
         # CHECK: Unhandled tensor that shares storage with another tensor.
         # CHECK-NEXT: Found at path '<root>.m.t2' from root object '__torch__.TestModule'
         self.t2 = self.t1[0]
+
 
 class TestModule(torch.nn.Module):
     def __init__(self):

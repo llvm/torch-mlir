@@ -9,17 +9,14 @@
 
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -65,11 +62,10 @@ public:
         cast<RankedTensorType>(typec->convertType(op.getResult(0).getType()));
     auto idxResultType =
         cast<RankedTensorType>(typec->convertType(op.getResult(1).getType()));
-    RankedTensorType inputType =
-        input.getType().template cast<RankedTensorType>();
+    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
     Type idxElementType =
         getElementTypeOrSelf(typec->convertType(idxResultType));
-    if (!idxElementType.isa<IntegerType>())
+    if (!isa<IntegerType>(idxElementType))
       return rewriter.notifyMatchFailure(
           op, opName + " to linalg.* requires integer-like result type");
 
@@ -88,13 +84,10 @@ public:
 
     Type inElementType = inputType.getElementType();
     bool isUnsigned = false;
-    if (!inElementType.isa<mlir::FloatType>()) {
-      if (inElementType.isa<mlir::IntegerType>()) {
-        auto integerTy = op.getSelf()
-                             .getType()
-                             .template cast<BaseTensorType>()
-                             .getDtype()
-                             .template dyn_cast<mlir::IntegerType>();
+    if (!isa<mlir::FloatType>(inElementType)) {
+      if (isa<mlir::IntegerType>(inElementType)) {
+        auto integerTy = dyn_cast<mlir::IntegerType>(
+            cast<BaseTensorType>(op.getSelf().getType()).getDtype());
         isUnsigned = integerTy.isUnsigned();
       } else {
         return rewriter.notifyMatchFailure(
@@ -120,22 +113,21 @@ public:
         loc, getAsOpFoldResult(resultShape), inElementType);
 
     Value fillValue;
-    if (inElementType.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(inElementType)) {
       fillValue = rewriter.create<arith::ConstantOp>(
-          loc,
-          rewriter.getFloatAttr(
-              inElementType,
-              APFloat::getInf(
-                  inElementType.cast<mlir::FloatType>().getFloatSemantics(),
-                  /*Negative=*/isMax)));
+          loc, rewriter.getFloatAttr(
+                   inElementType,
+                   APFloat::getInf(
+                       cast<mlir::FloatType>(inElementType).getFloatSemantics(),
+                       /*Negative=*/isMax)));
     } else if (!isUnsigned) {
-      auto width = inElementType.cast<mlir::IntegerType>().getWidth();
+      auto width = cast<mlir::IntegerType>(inElementType).getWidth();
       auto init = isMax ? APSInt::getSignedMinValue(width)
                         : APSInt::getSignedMaxValue(width);
       fillValue = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getIntegerAttr(inElementType, init));
     } else if (isUnsigned) {
-      auto width = inElementType.cast<mlir::IntegerType>().getWidth();
+      auto width = cast<mlir::IntegerType>(inElementType).getWidth();
       auto init = isMax ? APInt::getMinValue(width) : APInt::getMaxValue(width);
       fillValue = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getIntegerAttr(inElementType, init));
@@ -179,7 +171,7 @@ public:
               rewriter.create<linalg::IndexOp>(loc, dim));
 
           Value resultVal, predicate;
-          if (inElementType.isa<mlir::FloatType>()) {
+          if (isa<mlir::FloatType>(inElementType)) {
             arith::CmpFPredicate predType;
             if (isMax) {
               predType = arith::CmpFPredicate::OGT;
@@ -283,27 +275,37 @@ public:
 
 } // namespace
 
+static Value createAbsOpForNormOps(OpBuilder &b, Location loc, Value elem,
+                                   Type resultElementType) {
+  if (isa<mlir::ComplexType>(elem.getType())) {
+    return b.create<complex::AbsOp>(loc, elem);
+  }
+
+  Value self = convertScalarToDtype(b, loc, elem, resultElementType);
+  return b.create<math::AbsFOp>(loc, self);
+}
+
 static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
                                           Operation *op, Type elementType) {
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op))
     return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
 
-  if (isa<AtenProdDimIntOp>(op)) {
-    if (elementType.isa<mlir::FloatType>())
+  if (isa<AtenProdOp, AtenProdDimIntOp>(op)) {
+    if (isa<mlir::FloatType>(elementType))
       return b.create<arith::ConstantOp>(loc, b.getFloatAttr(elementType, 1.0));
-    else if (elementType.isa<mlir::IntegerType>())
+    else if (isa<mlir::IntegerType>(elementType))
       return b.create<arith::ConstantOp>(loc, b.getIntegerAttr(elementType, 1));
   }
 
   if (isa<AtenMaxOp>(op)) {
-    if (elementType.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(elementType))
       return b.create<arith::ConstantOp>(
           loc, b.getFloatAttr(
                    elementType,
                    APFloat::getInf(
-                       elementType.cast<mlir::FloatType>().getFloatSemantics(),
+                       cast<mlir::FloatType>(elementType).getFloatSemantics(),
                        /*Negative=*/true)));
-    else if (elementType.isa<mlir::IntegerType>() &&
+    else if (isa<mlir::IntegerType>(elementType) &&
              elementType.getIntOrFloatBitWidth() != 8)
       return b.create<arith::ConstantOp>(
           loc, b.getIntegerAttr(elementType,
@@ -312,14 +314,14 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
   }
 
   if (isa<AtenMinOp>(op)) {
-    if (elementType.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(elementType))
       return b.create<arith::ConstantOp>(
           loc, b.getFloatAttr(
                    elementType,
                    APFloat::getInf(
-                       elementType.cast<mlir::FloatType>().getFloatSemantics(),
+                       cast<mlir::FloatType>(elementType).getFloatSemantics(),
                        /*Negative=*/false)));
-    else if (elementType.isa<mlir::IntegerType>() &&
+    else if (isa<mlir::IntegerType>(elementType) &&
              elementType.getIntOrFloatBitWidth() != 8)
       return b.create<arith::ConstantOp>(
           loc, b.getIntegerAttr(elementType,
@@ -331,8 +333,12 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
       isa<AtenNormScalarOp>(op))
     return b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
 
-  if (isa<AtenAllDimOp>(op)) {
+  if (isa<AtenAllOp, AtenAllDimOp>(op)) {
     return b.create<arith::ConstantOp>(loc, b.getBoolAttr(true));
+  }
+
+  if (isa<AtenAnyOp>(op)) {
+    return b.create<arith::ConstantOp>(loc, b.getBoolAttr(false));
   }
 
   op->emitError("unimplemented lowering in createInitElementForReduceOp");
@@ -348,30 +354,27 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
-    if (resultElementType.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(resultElementType))
       return b.create<arith::AddFOp>(loc, self, result);
-    else if (resultElementType.isa<mlir::IntegerType>())
+    else if (isa<mlir::IntegerType>(resultElementType))
       return b.create<arith::AddIOp>(loc, self, result);
-  } else if (isa<AtenProdDimIntOp>(op)) {
+  } else if (isa<AtenProdOp, AtenProdDimIntOp>(op)) {
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
-    if (resultElementType.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(resultElementType))
       return b.create<arith::MulFOp>(loc, self, result);
-    else if (resultElementType.isa<mlir::IntegerType>())
+    else if (isa<mlir::IntegerType>(resultElementType))
       return b.create<arith::MulIOp>(loc, self, result);
   } else if (auto max = dyn_cast<AtenMaxOp>(op)) {
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
-    if (resultElementType.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(resultElementType))
       return b.create<arith::MaximumFOp>(loc, self, result);
-    else if (resultElementType.isa<mlir::IntegerType>()) {
-      IntegerType intType = max.getSelf()
-                                .getType()
-                                .cast<BaseTensorType>()
-                                .getDtype()
-                                .dyn_cast<mlir::IntegerType>();
+    else if (isa<mlir::IntegerType>(resultElementType)) {
+      IntegerType intType = dyn_cast<mlir::IntegerType>(
+          cast<BaseTensorType>(max.getSelf().getType()).getDtype());
       if (intType.isUnsigned())
         return b.create<arith::MaxUIOp>(loc, self, result);
       if (intType.isSigned())
@@ -381,14 +384,11 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
-    if (resultElementType.isa<mlir::FloatType>())
+    if (isa<mlir::FloatType>(resultElementType))
       return b.create<arith::MinimumFOp>(loc, self, result);
-    else if (resultElementType.isa<mlir::IntegerType>()) {
-      IntegerType intType = min.getSelf()
-                                .getType()
-                                .cast<BaseTensorType>()
-                                .getDtype()
-                                .dyn_cast<mlir::IntegerType>();
+    else if (isa<mlir::IntegerType>(resultElementType)) {
+      IntegerType intType = dyn_cast<mlir::IntegerType>(
+          cast<BaseTensorType>(min.getSelf().getType()).getDtype());
       if (intType.isUnsigned())
         return b.create<arith::MinUIOp>(loc, self, result);
       if (intType.isSigned())
@@ -400,18 +400,10 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     Value elem = payloadArgs[0];
     Value result = payloadArgs[1];
 
-    // TODO: Fix this part to support complex elements.
-    if (elem.getType().isa<mlir::ComplexType>()) {
-      op->emitError("lowering of complex input type for torch.aten.norm.Scalar "
-                    "is currently unimplemented");
-      return nullptr;
-    }
-
-    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
-
-    auto abs = b.create<math::AbsFOp>(loc, self);
     AtenNormScalarOp::Adaptor adaptor(operands);
     Value p = convertScalarToDtype(b, loc, adaptor.getP(), resultElementType);
+
+    auto abs = createAbsOpForNormOps(b, loc, elem, resultElementType);
     auto pow = b.create<math::PowFOp>(loc, abs, p);
     return b.create<arith::AddFOp>(loc, pow, result);
   } else if (isa<AtenLinalgVectorNormOp>(op)) {
@@ -419,27 +411,34 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     // TODO: Short-circuit operations if `ord` is zero or one.
     Value elem = payloadArgs[0];
     Value result = payloadArgs[1];
-    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
-    auto abs = b.create<math::AbsFOp>(loc, self);
+
     AtenLinalgVectorNormOp::Adaptor adaptor(operands);
     Value ord =
         convertScalarToDtype(b, loc, adaptor.getOrd(), resultElementType);
+
+    auto abs = createAbsOpForNormOps(b, loc, elem, resultElementType);
     auto pow = b.create<math::PowFOp>(loc, abs, ord);
     return b.create<arith::AddFOp>(loc, pow, result);
   } else if (isa<AtenFrobeniusNormDimOp>(op)) {
     Value elem = payloadArgs[0];
     Value result = payloadArgs[1];
-    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
-    auto abs = b.create<math::AbsFOp>(loc, self);
+
     TypedAttr twoAttr = b.getFloatAttr(resultElementType, 2.0);
     auto ord = b.create<arith::ConstantOp>(loc, twoAttr);
+
+    auto abs = createAbsOpForNormOps(b, loc, elem, resultElementType);
     auto pow = b.create<math::PowFOp>(loc, abs, ord);
     return b.create<arith::AddFOp>(loc, pow, result);
-  } else if (isa<AtenAllDimOp>(op)) {
+  } else if (isa<AtenAllOp, AtenAllDimOp>(op)) {
     Value elem = payloadArgs[0];
     Value result = payloadArgs[1];
     Value self = convertScalarToDtype(b, loc, elem, resultElementType);
-    return b.create<arith::MulIOp>(loc, self, result);
+    return b.create<arith::AndIOp>(loc, self, result);
+  } else if (isa<AtenAnyOp>(op)) {
+    Value elem = payloadArgs[0];
+    Value result = payloadArgs[1];
+    Value self = convertScalarToDtype(b, loc, elem, resultElementType);
+    return b.create<arith::OrIOp>(loc, self, result);
   }
   op->emitError("unimplemented lowering in createLinalgPayloadForReduceOp");
   return nullptr;
@@ -459,7 +458,7 @@ private:
     auto opInfo = torch_to_linalg::ReductionOpInfo{false, Value{}, {}};
     typename T::Adaptor adaptor(operands);
     opInfo.tensorOperand = adaptor.getSelf();
-    auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
+    auto inputType = cast<RankedTensorType>(opInfo.tensorOperand.getType());
 
     if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&opInfo.keepDim)))
       return rewriter.notifyMatchFailure(op,
@@ -467,8 +466,7 @@ private:
 
     SmallVector<int64_t> dimList;
     int64_t dim;
-    bool isNoneOrEmptyDimList =
-        op.getDim().getType().template isa<Torch::NoneType>();
+    bool isNoneOrEmptyDimList = isa<Torch::NoneType>(op.getDim().getType());
     if (matchPattern(op.getDim(), m_TorchListOfConstantInts(dimList))) {
       // Fix negative dimensions, if any, before adding to the list.
       for (int64_t dim : dimList) {
@@ -506,12 +504,13 @@ private:
                          ConversionPatternRewriter &rewriter) const {
     auto opInfo = torch_to_linalg::ReductionOpInfo{false, Value{}, {}};
 
-    if (isa<AtenMaxOp, AtenMinOp, AtenSumOp, AtenNormScalarOp>(op)) {
+    if (isa<AtenAnyOp, AtenAllOp, AtenMaxOp, AtenMinOp, AtenSumOp, AtenProdOp,
+            AtenNormScalarOp>(op)) {
       opInfo.tensorOperand = operands[0];
-      auto inputType = opInfo.tensorOperand.getType().cast<RankedTensorType>();
+      auto inputType = cast<RankedTensorType>(opInfo.tensorOperand.getType());
 
-      // `AtenSumOp`, `AtenMaxOp`, and `AtenMinOp` each reduce along all the
-      // dimensions of the input tensor.
+      // `AtenAny`, `AtenAll`, `AtenSumOp`, `AtenProdOp`, `AtenMaxOp`, and
+      // `AtenMinOp` each reduce along all the dimensions of the input tensor.
       for (int64_t i = 0; i < inputType.getRank(); i++)
         opInfo.dimSet.insert(i);
 
@@ -621,10 +620,10 @@ private:
                                ConversionPatternRewriter &rewriter) const {
     if ((isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op) ||
          isa<AtenNormScalarOp>(op)) &&
-        !elemType.isa<mlir::FloatType>())
+        !isa<mlir::FloatType>(elemType))
       return rewriter.notifyMatchFailure(
           op, "only float types are valid for vector norm ops");
-    if (isa<AtenAllDimOp>(op) && elemType.isa<mlir::IntegerType>() &&
+    if (isa<AtenAllDimOp>(op) && isa<mlir::IntegerType>(elemType) &&
         elemType.getIntOrFloatBitWidth() == 8)
       return rewriter.notifyMatchFailure(op, "uint8 is not supported");
 
@@ -649,9 +648,8 @@ public:
       return opInfo;
 
     Location loc = op->getLoc();
-    auto resultType = getTypeConverter()
-                          ->convertType(op->getResult(0).getType())
-                          .cast<RankedTensorType>();
+    auto resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
     Type elemType = resultType.getElementType();
     LogicalResult elemTypeCheck =
         validateReductionElementType(op, elemType, rewriter);
@@ -710,7 +708,10 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenMinDimOp>();
   patterns.add<ConvertAtenMinMaxDimOp<AtenMinDimOp>>(typeConverter, context);
   target.addIllegalOp<AtenSumOp>();
+  target.addIllegalOp<AtenAnyOp>();
+  target.addIllegalOp<AtenAllOp>();
   target.addIllegalOp<AtenSumDimIntListOp>();
+  target.addIllegalOp<AtenProdOp>();
   target.addIllegalOp<AtenProdDimIntOp>();
   target.addIllegalOp<AtenMaxOp>();
   target.addIllegalOp<AtenMinOp>();

@@ -375,3 +375,22 @@ func.func @foo(%arg0: !torch.vtensor<[64,64],f32,#SV>) -> !torch.vtensor<[64,64]
 
 // expected-error @+1 {{invalid sparsity encoding attribute}}
 func.func private @tensor.sparse() -> !torch.vtensor<[64,64],f32,12345>
+
+
+// -----
+
+func.func @torch.symbolic_int$no_shape_symbols(%arg0: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
+  %0 = torch.symbolic_int "s0" {min_val = 3, max_val = 6} : !torch.int
+  // expected-error @+1 {{op requires non-empty shapeSymbols}}
+  torch.bind_symbolic_shape %arg0, [], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
+  return %arg0 : !torch.vtensor<[?],f32>
+}
+
+// -----
+
+func.func @torch.symbolic_int$no_shape_symbols(%arg0: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
+  %int0 = torch.constant.int 0
+  // expected-error @+1 {{shape symbol must be produced by a SymbolicIntOp}}
+  torch.bind_symbolic_shape %arg0, [%int0], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
+  return %arg0 : !torch.vtensor<[?],f32>
+}

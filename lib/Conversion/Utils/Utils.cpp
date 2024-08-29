@@ -10,10 +10,10 @@
 #include "torch-mlir/Conversion/Utils/Utils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
-#include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
@@ -27,11 +27,11 @@ LogicalResult verifyLinalgCompatibleTypes(Operation *op,
   // TODO: Remove this check but use a separate verification pass to verify the
   // invariants expected by later passes.
   auto isValidLinalgType = [](Type type) {
-    if (type.isa<NonValueTensorType>())
+    if (isa<NonValueTensorType>(type))
       return false;
-    auto tensor = type.dyn_cast<ValueTensorType>();
+    auto tensor = dyn_cast<ValueTensorType>(type);
     return !tensor ||
-           tensor.toBuiltinTensor().dyn_cast_or_null<RankedTensorType>();
+           dyn_cast_or_null<RankedTensorType>(tensor.toBuiltinTensor());
   };
 
   bool valid = llvm::all_of(op->getOperandTypes(), isValidLinalgType) &&
@@ -43,8 +43,8 @@ LogicalResult verifyLinalgCompatibleTypes(Operation *op,
 
 LogicalResult checkNotNone(PatternRewriter &rewriter, Operation *op, Value v) {
   Type type = v.getType();
-  if (type.isa<OptionalType>() || type.isa<Torch::NoneType>() ||
-      type.isa<mlir::NoneType>())
+  if (isa<OptionalType>(type) || isa<Torch::NoneType>(type) ||
+      isa<mlir::NoneType>(type))
     return rewriter.notifyMatchFailure(op, "unimplemented None type arg");
   return success();
 }
@@ -52,7 +52,7 @@ LogicalResult checkNotNone(PatternRewriter &rewriter, Operation *op, Value v) {
 // Generate IR: dim = dim >= 0 ? dim : dim + inputRank
 Value toPositiveDimDynamic(OpBuilder &b, Location loc, Value dim,
                            Value inputRank) {
-  assert(dim.getType().isa<IntegerType>() &&
+  assert(isa<IntegerType>(dim.getType()) &&
          "dim arg of toPositiveDim must be integer type");
   Value dimAddInputRank = b.create<arith::AddIOp>(loc, dim, inputRank);
   Value cst0 =
@@ -66,7 +66,7 @@ Value toPositiveDimDynamic(OpBuilder &b, Location loc, Value dim,
 
 // Generate IR: assert(dim >= 0 && dim < inputRank)
 void assertIsValidDim(OpBuilder &b, Location loc, Value dim, Value inputRank) {
-  assert(dim.getType().isa<IntegerType>() &&
+  assert(isa<IntegerType>(dim.getType()) &&
          "dim arg of assertIsValidDim must be integer type");
   Value cst0 =
       b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
@@ -104,7 +104,7 @@ void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
   Type lhsType = lhsDim.getType();
   Type rhsType = rhsDim.getType();
   auto checkIntOrIndex = [](Type type) {
-    assert((type.isa<IntegerType>() || type.isa<IndexType>()) &&
+    assert((isa<IntegerType>(type) || isa<IndexType>(type)) &&
            "must be either integer or index type");
   };
   checkIntOrIndex(lhsType);
@@ -132,20 +132,20 @@ Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
                            Type elemTy) {
   Value initTensor =
       b.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
-  RankedTensorType type = initTensor.getType().cast<RankedTensorType>();
+  RankedTensorType type = cast<RankedTensorType>(initTensor.getType());
   Value c0 =
       b.create<arith::ConstantOp>(loc, b.getZeroAttr(type.getElementType()));
   return b.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
 }
 
 Value castIntToIndex(OpBuilder &b, Location loc, Value v) {
-  assert(v.getType().isa<IntegerType>() && "must be called with integer type");
-  return b.create<arith::IndexCastOp>(loc, b.getIndexType(), v);
+  assert(isa<IntegerType>(v.getType()) && "must be called with integer type");
+  return b.createOrFold<arith::IndexCastOp>(loc, b.getIndexType(), v);
 }
 
 Value castIndexToInt64(OpBuilder &b, Location loc, Value idx) {
-  assert(idx.getType().isa<IndexType>() && "must be called with integer type");
-  return b.create<arith::IndexCastOp>(loc, b.getI64Type(), idx);
+  assert(isa<IndexType>(idx.getType()) && "must be called with integer type");
+  return b.createOrFold<arith::IndexCastOp>(loc, b.getI64Type(), idx);
 }
 
 SmallVector<Value>
@@ -172,7 +172,7 @@ Value getDimOp(OpBuilder &b, Location loc, Value v, int dim) {
 
 SmallVector<Value> getTensorSizesUntilDim(OpBuilder &b, Location loc,
                                           Value tensor, int dim) {
-  RankedTensorType type = tensor.getType().cast<RankedTensorType>();
+  RankedTensorType type = cast<RankedTensorType>(tensor.getType());
   assert(dim < type.getRank() &&
          "The given dim must be smaller than tensor rank");
   (void)type;
@@ -183,7 +183,7 @@ SmallVector<Value> getTensorSizesUntilDim(OpBuilder &b, Location loc,
 }
 
 SmallVector<Value> getTensorSizes(OpBuilder &b, Location loc, Value tensor) {
-  RankedTensorType type = tensor.getType().cast<RankedTensorType>();
+  RankedTensorType type = cast<RankedTensorType>(tensor.getType());
   return getTensorSizesUntilDim(b, loc, tensor, type.getRank() - 1);
 }
 
@@ -198,13 +198,13 @@ Value getTensorSize(OpBuilder &b, Location loc, Value tensor) {
 // Creates a constant of type `elemType` with value `val`.
 Value getConstant(OpBuilder &b, Location loc, int64_t val, Type elemType) {
   TypedAttr attr = {};
-  if (elemType.isa<mlir::FloatType>())
+  if (isa<mlir::FloatType>(elemType))
     attr = b.getFloatAttr(elemType, val);
-  if (elemType.isa<mlir::IndexType>())
+  if (isa<mlir::IndexType>(elemType))
     attr = b.getIndexAttr(val);
-  if (elemType.isa<mlir::IntegerType>())
-    attr = b.getIntegerAttr(
-        elemType, APInt(elemType.cast<IntegerType>().getWidth(), val));
+  if (isa<mlir::IntegerType>(elemType))
+    attr = b.getIntegerAttr(elemType,
+                            APInt(cast<IntegerType>(elemType).getWidth(), val));
   if (!attr)
     return nullptr;
   return b.create<arith::ConstantOp>(loc, elemType, attr);
@@ -264,7 +264,7 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
     return scalar;
 
   auto isByteOrChar = [](Type type) {
-    if (auto integerTy = type.dyn_cast<mlir::IntegerType>()) {
+    if (auto integerTy = dyn_cast<mlir::IntegerType>(type)) {
       return integerTy.getWidth() == 8;
     }
     return false;
@@ -303,10 +303,10 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
   if (dtype.isSignlessInteger(1)) {
     Type scalarType = scalar.getType();
     Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(scalarType));
-    if (scalarType.isa<mlir::FloatType>()) {
+    if (isa<mlir::FloatType>(scalarType)) {
       return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UNE, scalar,
                                      cstZero);
-    } else if (scalarType.isa<mlir::IntegerType>()) {
+    } else if (isa<mlir::IntegerType>(scalarType)) {
       return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, scalar,
                                      cstZero);
     } else {
@@ -317,14 +317,14 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
     }
   }
 
-  if (auto dtypeFloat = dtype.dyn_cast<mlir::FloatType>()) {
-    if (auto scalarFloat = scalarType.dyn_cast<mlir::FloatType>()) {
+  if (auto dtypeFloat = dyn_cast<mlir::FloatType>(dtype)) {
+    if (auto scalarFloat = dyn_cast<mlir::FloatType>(scalarType)) {
       if (scalarFloat.getWidth() > dtypeFloat.getWidth())
         return b.create<arith::TruncFOp>(loc, dtype, scalar);
       // Only scalarFloat width < dtypeFloat width can reach here.
       return b.create<arith::ExtFOp>(loc, dtype, scalar);
     }
-    assert(scalarType.isa<mlir::IntegerType>());
+    assert(isa<mlir::IntegerType>(scalarType));
     if (scalarType.isSignlessInteger(1) ||
         (srcOriginalDtype.has_value() && srcOriginalDtype->isUnsignedInteger()))
       return b.create<arith::UIToFPOp>(loc, dtype, scalar);
@@ -333,11 +333,11 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
     return b.create<arith::SIToFPOp>(loc, dtype, scalar);
   }
 
-  if (auto dtypeInteger = dtype.dyn_cast<mlir::IntegerType>()) {
-    if (auto scalarFloat = scalarType.dyn_cast<mlir::FloatType>())
+  if (auto dtypeInteger = dyn_cast<mlir::IntegerType>(dtype)) {
+    if (auto scalarFloat = dyn_cast<mlir::FloatType>(scalarType))
       return b.create<arith::FPToSIOp>(loc, dtype, scalar);
-    assert(scalarType.isa<mlir::IntegerType>());
-    auto scalarInteger = scalarType.cast<mlir::IntegerType>();
+    assert(isa<mlir::IntegerType>(scalarType));
+    auto scalarInteger = cast<mlir::IntegerType>(scalarType);
     if (scalarInteger.getWidth() > dtypeInteger.getWidth())
       return b.create<arith::TruncIOp>(loc, dtype, scalar);
     if (scalarType.isSignlessInteger(1) ||
@@ -349,13 +349,68 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
     return b.create<arith::ExtSIOp>(loc, dtype, scalar);
   }
 
+  if (auto dtypeComplex = dyn_cast<mlir::ComplexType>(dtype)) {
+
+    // Complex to complex.
+    if (auto scalarComplex = dyn_cast<mlir::ComplexType>(scalarType)) {
+      auto dtypeElemType = dtypeComplex.getElementType();
+
+      // Extract the real and imaginary parts of the scalar.
+      // Cast them to the target element type, and create a new complex
+      // value with the target complex type.
+      Value realVal = b.create<complex::ReOp>(loc, scalar);
+      Value imgVal = b.create<complex::ImOp>(loc, scalar);
+
+      realVal = convertScalarToDtype(b, loc, realVal, dtypeElemType);
+      imgVal = convertScalarToDtype(b, loc, imgVal, dtypeElemType);
+
+      return b.create<complex::CreateOp>(loc, dtypeComplex, realVal, imgVal);
+    }
+
+    // Float to complex type.
+    if (auto dtypeFloat = dyn_cast<mlir::FloatType>(scalarType)) {
+      auto complexElementType =
+          cast<mlir::FloatType>(dtypeComplex.getElementType());
+      Value realVal;
+      Value imgVal =
+          b.create<arith::ConstantOp>(loc, b.getZeroAttr(complexElementType));
+
+      if (complexElementType.getWidth() > dtypeFloat.getWidth()) {
+        realVal = b.create<arith::ExtFOp>(loc, complexElementType, scalar);
+      } else if (complexElementType.getWidth() < dtypeFloat.getWidth()) {
+        realVal = b.create<arith::TruncFOp>(loc, complexElementType, scalar);
+      } else {
+        realVal = scalar;
+      }
+
+      return b.create<complex::CreateOp>(loc, dtypeComplex, realVal, imgVal);
+    }
+
+    // Int to complex type.
+    if (auto dtypeInt = dyn_cast<mlir::IntegerType>(scalarType)) {
+      auto complexElementType =
+          cast<mlir::FloatType>(dtypeComplex.getElementType());
+
+      Value realVal =
+          b.create<arith::SIToFPOp>(loc, complexElementType, scalar);
+      Value imgVal =
+          b.create<arith::ConstantOp>(loc, b.getZeroAttr(complexElementType));
+
+      return b.create<complex::CreateOp>(loc, dtypeComplex, realVal, imgVal);
+    }
+
+    mlir::emitError(loc) << "unsupported scalar type for convertScalarToDtype "
+                         << scalarType << "(scalar type) -> " << dtype
+                         << "(dtype)";
+  }
+
   llvm_unreachable("convertScalarToDtype should handle all the types");
 }
 
 Value toPositiveValidDim(ConversionPatternRewriter &rewriter, Location loc,
                          Value torchOptionalInt, Value builtinInt,
                          Value defaultValue, Value dimSize) {
-  if (torchOptionalInt.getType().isa<Torch::NoneType>())
+  if (isa<Torch::NoneType>(torchOptionalInt.getType()))
     return defaultValue;
   auto dimSizeAsInt = castIndexToInt64(rewriter, loc, dimSize);
   Value positiveDim =

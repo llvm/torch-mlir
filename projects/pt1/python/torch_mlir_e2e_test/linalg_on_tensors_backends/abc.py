@@ -13,12 +13,12 @@ from torch_mlir.ir import Module
 # A type shared between the result of `LinalgOnTensorsBackend.compile` and the
 # input to `LinalgOnTensorsBackend.load`. Each backend will likely have a
 # different definition of this type.
-CompiledArtifact = TypeVar('CompiledArtifact')
+CompiledArtifact = TypeVar("CompiledArtifact")
 
 # A wrapper around a backend-specific loaded program representation
 # that uniformly translates the `x.method(...)` interface expected of
 # Torch modules into appropriate lower-level operations.
-Invoker = TypeVar('Invoker')
+Invoker = TypeVar("Invoker")
 
 
 class LinalgOnTensorsBackend(abc.ABC):
@@ -27,6 +27,7 @@ class LinalgOnTensorsBackend(abc.ABC):
     Backends are recommended to raise meaningful exceptions in case of error,
     ideally with easy reproduction instructions.
     """
+
     @abc.abstractmethod
     def compile(self, module: Module) -> CompiledArtifact:
         """Compile the provided MLIR module into a compiled artifact.

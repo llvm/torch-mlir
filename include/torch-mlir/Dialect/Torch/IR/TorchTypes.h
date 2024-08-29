@@ -53,6 +53,9 @@ public:
   /// convenient API.
   Type getOptionalDtype() const;
 
+  /// Get the raw optional sparse tensor encoding.
+  Attribute getOptionalSparsity() const;
+
   /// Return true if this type has a list of sizes.
   bool hasSizes() const { return getOptionalSizes().has_value(); }
 
@@ -93,6 +96,10 @@ public:
   Type getWithSizesAndDtype(std::optional<ArrayRef<int64_t>> optionalSizes,
                             Type optionalDtype) const;
 
+  Type getWithSizesAndDtypeAndSparsity(
+      std::optional<ArrayRef<int64_t>> optionalSizes, Type optionalDtype,
+      Attribute optionalSparsity) const;
+
   /// Return a type with the same shape and dtype as this one, but with
   /// value semantics.
   ValueTensorType getWithValueSemantics() const;
@@ -129,23 +136,31 @@ namespace Torch {
 
 inline std::optional<ArrayRef<int64_t>>
 BaseTensorType::getOptionalSizes() const {
-  if (auto tensor = dyn_cast<NonValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<NonValueTensorType>(*this))
     return tensor.getOptionalSizes();
-  if (auto tensor = dyn_cast<ValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<ValueTensorType>(*this))
     return tensor.getOptionalSizes();
   llvm_unreachable("not a BaseTensorType!");
 }
 
 inline Type BaseTensorType::getOptionalDtype() const {
-  if (auto tensor = dyn_cast<NonValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<NonValueTensorType>(*this))
     return tensor.getOptionalDtype();
-  if (auto tensor = dyn_cast<ValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<ValueTensorType>(*this))
     return tensor.getOptionalDtype();
   llvm_unreachable("not a BaseTensorType!");
 }
 
+inline Attribute BaseTensorType::getOptionalSparsity() const {
+  if (auto tensor = mlir::dyn_cast<NonValueTensorType>(*this))
+    return tensor.getOptionalSparsity();
+  if (auto tensor = mlir::dyn_cast<ValueTensorType>(*this))
+    return tensor.getOptionalSparsity();
+  llvm_unreachable("not a BaseTensorType!");
+}
+
 inline bool BaseTensorType::classof(Type type) {
-  return type.isa<NonValueTensorType, ValueTensorType>();
+  return mlir::isa<NonValueTensorType, ValueTensorType>(type);
 }
 
 } // namespace Torch

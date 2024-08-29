@@ -9,16 +9,21 @@ from typing import Dict, List, Tuple, Union, Callable
 
 import io
 import itertools
+import difflib
 
 from .utils import TextEmitter
 
 # Note that this utility exists only in the c-extension.
-from torch_mlir._mlir_libs._jit_ir_importer import get_registered_ops # pytype: disable=import-error
+from torch_mlir._mlir_libs._jit_ir_importer import (
+    get_registered_ops,
+)  # pytype: disable=import-error
+
 
 def _rename_python_keyword_parameter_name(parameter_name: str) -> str:
     if parameter_name == "from":
-        parameter_name = "from_" # Avoid using a Python keyword.
+        parameter_name = "from_"  # Avoid using a Python keyword.
     return parameter_name
+
 
 def _get_default_value(arg: "SIG_ATTR_TYPE") -> str:
     default = ""
@@ -38,14 +43,14 @@ def _get_default_value(arg: "SIG_ATTR_TYPE") -> str:
             if default_list == "[]":
                 default_debug = "()"
             else:
-                default_debug = default_list.replace(
-                    "[", "(").replace("]", ",)")
+                default_debug = default_list.replace("[", "(").replace("]", ",)")
         elif arg["pytype"] == "str":
             default_debug = repr(arg["default_debug"]).replace("'", '"')
         else:
             default_debug = arg["default_debug"]
         default = f" = {default_debug}"
     return default
+
 
 def _pytype_to_fn_pytype_common(pytype: str) -> str:
     if "number" in pytype:
@@ -62,6 +67,7 @@ def _pytype_to_fn_pytype_common(pytype: str) -> str:
     if pytype == "Optional[Generator]":
         return "Any"
     return pytype
+
 
 def _pytype_to_shape_fn_pytype(pytype: str) -> str:
     """Convert a JitOperator pytype to the type relevant in shape functions.
@@ -84,6 +90,7 @@ def _pytype_to_shape_fn_pytype(pytype: str) -> str:
         return pytype.replace("Tensor", "List[int]")
     return _pytype_to_fn_pytype_common(pytype)
 
+
 def _pytype_to_dtype_fn_pytype(pytype: str) -> str:
     """Convert a JitOperator pytype to the type relevant in dtype functions.
 
@@ -95,13 +102,15 @@ def _pytype_to_dtype_fn_pytype(pytype: str) -> str:
         return pytype.replace("Tensor", "Tuple[int, int]")
     return _pytype_to_fn_pytype_common(pytype)
 
+
 def _pytype_to_decomposition_fn_pytype(pytype: str) -> str:
-    """Convert a JitOperator pytype to the type relevant in decomposition functions.
-    """
+    """Convert a JitOperator pytype to the type relevant in decomposition functions."""
     return _pytype_to_fn_pytype_common(pytype)
+
 
 class JitOperator:
     """Information about a single registered `torch::jit::Operator`"""
+
     def __init__(self, op_info: "OP_INFO_DICT"):
         """Create a JitOperator from the raw OP_INFO_DICT extracted from
         the PyTorch JIT operator registry.
@@ -168,6 +177,7 @@ class JitOperator:
         are useful in the repr for cross referencing, and it's useful to have
         them in a single point of truth.
         """
+
         def uppercase_first_letter(s):
             if not s:
                 return s
@@ -182,15 +192,19 @@ class JitOperator:
         for op_name_atom in op_name_atoms:
             for s in op_name_atom.split("_"):
                 op_class_name_atoms.append(s if s else "_")
-        cpp_class_name = "".join(
-            uppercase_first_letter(s) for s in op_class_name_atoms) + "Op"
+        cpp_class_name = (
+            "".join(uppercase_first_letter(s) for s in op_class_name_atoms) + "Op"
+        )
         # Disallow leading underscores in C++ to avoid illegal names.
         cpp_class_name = cpp_class_name.lstrip("_")
         return op_name, cpp_class_name
 
-    def _get_function_signature(self, function_kind: str,
-                                parameter_decl_builder: Callable[["SIG_ATTR_TYPE"], str],
-                                ret_decl_builder: Callable[["SIG_ATTR_TYPE"], str]) -> str:
+    def _get_function_signature(
+        self,
+        function_kind: str,
+        parameter_decl_builder: Callable[["SIG_ATTR_TYPE"], str],
+        ret_decl_builder: Callable[["SIG_ATTR_TYPE"], str],
+    ) -> str:
         mlir_op_name, _ = self.get_mlir_names()
         # Replace `.` with a valid Python identifier character.
         # `〇` vaguely looks like `.`.
@@ -217,6 +231,7 @@ class JitOperator:
         ops have extra default arguments and stuff that are tedious to write out
         right.
         """
+
         def parameter_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
             pytype = _pytype_to_shape_fn_pytype(arg["pytype"])
             default = _get_default_value(arg)
@@ -224,10 +239,11 @@ class JitOperator:
             return f"{parameter_name}: {pytype}{default}"
 
         def ret_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
-            return  _pytype_to_shape_fn_pytype(arg["pytype"])
+            return _pytype_to_shape_fn_pytype(arg["pytype"])
 
         return self._get_function_signature(
-            "shape", parameter_decl_builder, ret_decl_builder)
+            "shape", parameter_decl_builder, ret_decl_builder
+        )
 
     def get_dtype_function_signature(self):
         """Gets the Python function signature for this op's dtype function.
@@ -237,6 +253,7 @@ class JitOperator:
         ops have extra default arguments and stuff that are tedious to write out
         right.
         """
+
         def parameter_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
             pytype = _pytype_to_dtype_fn_pytype(arg["pytype"])
             default = _get_default_value(arg)
@@ -255,7 +272,8 @@ class JitOperator:
             return _pytype_to_dtype_fn_pytype(arg["pytype"])
 
         return self._get_function_signature(
-            "dtype", parameter_decl_builder, ret_decl_builder)
+            "dtype", parameter_decl_builder, ret_decl_builder
+        )
 
     def get_decomposition_function_signature(self):
         """Gets the Python function signature for this op's decomposition function.
@@ -265,6 +283,7 @@ class JitOperator:
         ops have extra default arguments and stuff that are tedious to write out
         right.
         """
+
         def parameter_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
             pytype = _pytype_to_decomposition_fn_pytype(arg["pytype"])
             default = _get_default_value(arg)
@@ -275,7 +294,8 @@ class JitOperator:
             return _pytype_to_decomposition_fn_pytype(arg["pytype"])
 
         return self._get_function_signature(
-            "decomposition", parameter_decl_builder, ret_decl_builder)
+            "decomposition", parameter_decl_builder, ret_decl_builder
+        )
 
     def get_has_value_semantics_function_signature(self):
         """Gets the Python function signature for this op's has_value_semantics function.
@@ -285,6 +305,7 @@ class JitOperator:
         ops have extra default arguments and stuff that are tedious to write out
         right.
         """
+
         def parameter_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
             return ""
 
@@ -292,7 +313,8 @@ class JitOperator:
             return ""
 
         return self._get_function_signature(
-            "has_value_semantics", parameter_decl_builder, ret_decl_builder)
+            "has_value_semantics", parameter_decl_builder, ret_decl_builder
+        )
 
     def __repr__(self):
         f = io.StringIO()
@@ -316,7 +338,9 @@ class JitOperator:
             p(f"is_mutable = {self.is_mutable}")
             if any(ret["type"] == "Tensor" for ret in self.returns):
                 p(f"shape_function_signature = {self.get_shape_function_signature()}")
-                p(f"decomposition_function_signature = {self.get_decomposition_function_signature()}")
+                p(
+                    f"decomposition_function_signature = {self.get_decomposition_function_signature()}"
+                )
             if any(ret["type"] in ["Tensor", "Scalar"] for ret in self.returns):
                 p(f"dtype_function_signature = {self.get_dtype_function_signature()}")
 
@@ -352,7 +376,9 @@ class JitOperator:
         # Note that this is different from MLIR's NoSideEffect which is much
         # stronger (for example, it cannot be applied to ops that might emit errors
         # when operand shapes mismatch).
-        if any("alias_info" in x for x in itertools.chain(self.arguments, self.returns)):
+        if any(
+            "alias_info" in x for x in itertools.chain(self.arguments, self.returns)
+        ):
             return False
         # It seems the FunctionSchema of "prim::unchecked_cast : (t) -> (t)" has
         # incorrect alias information. The result can alias with other tensors
@@ -361,8 +387,10 @@ class JitOperator:
             return False
         # The `is` operator compares object identity, so it does not have
         # value semantics.
-        if self.unique_key in ("aten::__is__ : (t1, t2) -> (bool)",
-                               "aten::__isnot__ : (t1, t2) -> (bool)"):
+        if self.unique_key in (
+            "aten::__is__ : (t1, t2) -> (bool)",
+            "aten::__isnot__ : (t1, t2) -> (bool)",
+        ):
             return False
         return True
 
@@ -388,6 +416,7 @@ class JitOperator:
 
 class Registry:
     """An indexed collection of JitOperators"""
+
     def __init__(self, operators: List[JitOperator]):
         self.by_unique_key = {}
         self.by_triple = {}
@@ -406,6 +435,18 @@ class Registry:
     def get_by_triple(self, key: Tuple[str, str, str]):
         """Looks up a JitOperator by its unique "triple"."""
         return self.by_triple[key]
+
+    def assert_key_in_registry(self, key: str):
+        if key in self.by_unique_key:
+            return
+        print(
+            f'ERROR: Op does not match any Torch ops in Registry\nGiven op:\n\t"{key}"'
+        )
+        matches = difflib.get_close_matches(key, self.by_unique_key.keys(), n=5)
+        if len(matches):
+            print("Possible matches:")
+            print("\n".join(f'\t"{match}"' for match in matches))
+        exit(1)
 
 
 # A Dict[str, _] mapping attribute names to:

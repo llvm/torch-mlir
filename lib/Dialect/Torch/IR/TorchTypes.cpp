@@ -29,7 +29,7 @@ bool Torch::isValidSubtype(Type subtype, Type type) {
 
   // For a UnionType to be a subtype, all of its contained types must be
   // subtypes.
-  if (auto unionType = subtype.dyn_cast<UnionType>()) {
+  if (auto unionType = dyn_cast<UnionType>(subtype)) {
     for (auto containedType : unionType.getContainedTypes()) {
       if (!isValidSubtype(containedType, type))
         return false;
@@ -37,17 +37,17 @@ bool Torch::isValidSubtype(Type subtype, Type type) {
     return true;
   }
 
-  if (auto any = type.dyn_cast<AnyType>())
+  if (auto any = dyn_cast<AnyType>(type))
     return true;
 
-  if (auto number = type.dyn_cast<NumberType>())
-    return subtype.isa<IntType>() || subtype.isa<Torch::FloatType>();
+  if (auto number = dyn_cast<NumberType>(type))
+    return isa<IntType>(subtype) || isa<Torch::FloatType>(subtype);
 
-  if (auto optional = type.dyn_cast<OptionalType>())
+  if (auto optional = dyn_cast<OptionalType>(type))
     return isValidSubtype(subtype, optional.getContainedType()) ||
-           subtype.isa<Torch::NoneType>();
+           isa<Torch::NoneType>(subtype);
 
-  if (auto unionType = type.dyn_cast<UnionType>()) {
+  if (auto unionType = dyn_cast<UnionType>(type)) {
     for (auto containedType : unionType.getContainedTypes()) {
       if (isValidSubtype(subtype, containedType))
         return true;
@@ -55,10 +55,10 @@ bool Torch::isValidSubtype(Type subtype, Type type) {
     return false;
   }
 
-  if (auto tuple = type.dyn_cast<Torch::TupleType>()) {
-    if (!subtype.isa<Torch::TupleType>())
+  if (auto tuple = dyn_cast<Torch::TupleType>(type)) {
+    if (!isa<Torch::TupleType>(subtype))
       return false;
-    auto subtypes = subtype.cast<Torch::TupleType>().getContainedTypes();
+    auto subtypes = cast<Torch::TupleType>(subtype).getContainedTypes();
     auto types = tuple.getContainedTypes();
     if (subtypes.size() != types.size())
       return false;
@@ -69,14 +69,14 @@ bool Torch::isValidSubtype(Type subtype, Type type) {
     return true;
   }
 
-  auto subtypeTensorType = subtype.dyn_cast<BaseTensorType>();
-  auto typeTensorType = type.dyn_cast<BaseTensorType>();
+  auto subtypeTensorType = dyn_cast<BaseTensorType>(subtype);
+  auto typeTensorType = dyn_cast<BaseTensorType>(type);
   if (subtypeTensorType && typeTensorType) {
     // Check that both tensors have the same `BaseTensorType` subtype.
     // TODO: This is not subtyping according to PEP 483. See description
     // of NonValueTensorType.
-    if (subtypeTensorType.isa<ValueTensorType>() !=
-        typeTensorType.isa<ValueTensorType>())
+    if (isa<ValueTensorType>(subtypeTensorType) !=
+        isa<ValueTensorType>(typeTensorType))
       return false;
 
     // `type` must not have more static information than `subtype`, and `type`
@@ -181,23 +181,24 @@ void Torch::UnionType::print(AsmPrinter &printer) const {
 
 static bool isValidTorchDtype(Type dtype) {
   // For complex types, get the underlying element type
-  if (dtype.isa<ComplexType>()) {
-    dtype = dtype.cast<ComplexType>().getElementType();
+  if (isa<ComplexType>(dtype)) {
+    dtype = cast<ComplexType>(dtype).getElementType();
   }
   // Torch quantized types.
-  if (dtype.isa<Torch::QInt8Type, Torch::QUInt8Type, Torch::QInt32Type>())
+  if (isa<Torch::QInt8Type, Torch::QUInt8Type, Torch::QInt16Type,
+          Torch::QInt32Type>(dtype))
     return true;
   // Builtin floating point types.
-  if (dtype.isa<Float16Type, BFloat16Type, Float32Type, Float64Type>())
+  if (isa<Float16Type, BFloat16Type, Float32Type, Float64Type>(dtype))
     return true;
-  if (dtype.isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
-                Float8E4M3FNUZType, Float8E4M3B11FNUZType>())
+  if (isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
+          Float8E4M3FNUZType, Float8E4M3B11FNUZType>(dtype))
     return true;
 
-  if (dtype.isa<Torch::StringType>())
+  if (isa<Torch::StringType>(dtype))
     return true;
   // Builtin integer types.
-  if (IntegerType type = dtype.dyn_cast<IntegerType>()) {
+  if (IntegerType type = dyn_cast<IntegerType>(dtype)) {
     if (type.isSignless() && type.getWidth() == 1)
       return true;
     if (type.isSigned()) {
@@ -228,17 +229,29 @@ Type BaseTensorType::getWithSizesAndDtypeFrom(BaseTensorType other) const {
 
 Type BaseTensorType::getWithSizesAndDtype(
     std::optional<ArrayRef<int64_t>> optionalSizes, Type optionalDtype) const {
-  if (isa<NonValueTensorType>())
+  if (mlir::isa<NonValueTensorType>(*this))
     return NonValueTensorType::get(getContext(), optionalSizes, optionalDtype);
-  if (isa<ValueTensorType>())
+  if (mlir::isa<ValueTensorType>(*this))
     return ValueTensorType::get(getContext(), optionalSizes, optionalDtype);
   llvm_unreachable("not a BaseTensorType!");
 }
 
+Type BaseTensorType::getWithSizesAndDtypeAndSparsity(
+    std::optional<ArrayRef<int64_t>> optionalSizes, Type optionalDtype,
+    Attribute optionalSparsity) const {
+  if (mlir::isa<NonValueTensorType>(*this))
+    return NonValueTensorType::get(getContext(), optionalSizes, optionalDtype,
+                                   optionalSparsity);
+  if (mlir::isa<ValueTensorType>(*this))
+    return ValueTensorType::get(getContext(), optionalSizes, optionalDtype,
+                                optionalSparsity);
+  llvm_unreachable("not a BaseTensorType!");
+}
+
 ValueTensorType BaseTensorType::getWithValueSemantics() const {
-  if (auto tensor = dyn_cast<NonValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<NonValueTensorType>(*this))
     return tensor.getWithValueSemantics();
-  if (auto tensor = dyn_cast<ValueTensorType>())
+  if (auto tensor = mlir::dyn_cast<ValueTensorType>(*this))
     return tensor;
   llvm_unreachable("not a BaseTensorType!");
 }
@@ -273,7 +286,7 @@ verifyTensorType(function_ref<InFlightDiagnostic()> emitError,
         }
       }
     }
-    if (!optionalSparsity.isa<sparse_tensor::SparseTensorEncodingAttr>()) {
+    if (!isa<sparse_tensor::SparseTensorEncodingAttr>(optionalSparsity)) {
       emitError() << "invalid sparsity encoding attribute";
       return failure();
     }
@@ -441,12 +454,7 @@ ValueTensorType::getWithLeastStaticInformation(MLIRContext *context) {
 }
 
 static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
-  if (auto floatType = dtype.dyn_cast<mlir::FloatType>()) {
-    return dtype;
-  } else if (auto integerType = dtype.dyn_cast<IntegerType>()) {
-    return IntegerType::get(context, integerType.getWidth(),
-                            IntegerType::Signless);
-  } else if (dtype.isa<mlir::ComplexType>()) {
+  if (isa<mlir::FloatType, IntegerType, mlir::ComplexType>(dtype)) {
     return dtype;
   }
 
@@ -455,6 +463,9 @@ static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
 
   if (isa<QInt8Type>(dtype))
     return IntegerType::get(context, 8, IntegerType::Signless);
+
+  if (isa<QInt16Type>(dtype))
+    return IntegerType::get(context, 16, IntegerType::Signless);
 
   if (isa<QInt32Type>(dtype))
     return IntegerType::get(context, 32, IntegerType::Signless);
@@ -468,11 +479,11 @@ static Type convertDtypeToBuiltinElementType(MLIRContext *context, Type dtype) {
 TensorType ValueTensorType::toBuiltinTensor() const {
   if (!hasDtype())
     return nullptr;
-  if (!hasSizes())
-    return UnrankedTensorType::get(getDtype());
   Type elementType = convertDtypeToBuiltinElementType(getContext(), getDtype());
   if (!elementType)
     return nullptr;
+  if (!hasSizes())
+    return UnrankedTensorType::get(elementType);
   return RankedTensorType::get(makeShapeLLVMCompatible(getSizes()), elementType,
                                getOptionalSparsity());
 }
@@ -502,8 +513,8 @@ void ValueTensorType::print(AsmPrinter &printer) const {
 }
 
 Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
-  assert(((lhs.isa<ValueTensorType>() && rhs.isa<ValueTensorType>()) ||
-          (lhs.isa<NonValueTensorType>() && rhs.isa<NonValueTensorType>())) &&
+  assert(((isa<ValueTensorType>(lhs) && isa<ValueTensorType>(rhs)) ||
+          (isa<NonValueTensorType>(lhs) && isa<NonValueTensorType>(rhs))) &&
          "expected lhs and rhs to have same sense of value semantics");
 
   // First, calculate the dtype.
@@ -566,21 +577,21 @@ Type Torch::meetTensorTypes(BaseTensorType lhs, BaseTensorType rhs) {
 // linkage) and the predicates themselves can't be added/used in the
 // specification of the parameters of the Torch_DictType.
 static bool isAnyTorchDictKeyType(Type type) {
-  return type.isa<Torch::AnyType>() || type.isa<Torch::IntType>() ||
-         type.isa<Torch::BoolType>() || type.isa<Torch::FloatType>() ||
-         type.isa<Torch::StringType>() || type.isa<Torch::BaseTensorType>();
+  return isa<Torch::AnyType>(type) || isa<Torch::IntType>(type) ||
+         isa<Torch::BoolType>(type) || isa<Torch::FloatType>(type) ||
+         isa<Torch::StringType>(type) || isa<Torch::BaseTensorType>(type);
 }
 
 static bool isAnyTorchType(Type type) {
   return isValidSubtype(type, Torch::NumberType::get(type.getContext())) ||
-         type.isa<Torch::BaseTensorType>() || type.isa<Torch::AnyType>() ||
-         type.isa<Torch::BoolType>() || type.isa<Torch::DictType>() ||
-         type.isa<Torch::DeviceType>() || type.isa<Torch::GeneratorType>() ||
-         type.isa<Torch::ListType>() || type.isa<Torch::LinearParamsType>() ||
-         type.isa<Torch::NumberType>() || type.isa<Torch::NnModuleType>() ||
-         type.isa<Torch::NoneType>() || type.isa<Torch::OptionalType>() ||
-         type.isa<Torch::StringType>() || type.isa<Torch::TupleType>() ||
-         type.isa<Torch::UnionType>();
+         isa<Torch::BaseTensorType>(type) || isa<Torch::AnyType>(type) ||
+         isa<Torch::BoolType>(type) || isa<Torch::DictType>(type) ||
+         isa<Torch::DeviceType>(type) || isa<Torch::GeneratorType>(type) ||
+         isa<Torch::ListType>(type) || isa<Torch::LinearParamsType>(type) ||
+         isa<Torch::NumberType>(type) || isa<Torch::NnModuleType>(type) ||
+         isa<Torch::NoneType>(type) || isa<Torch::OptionalType>(type) ||
+         isa<Torch::StringType>(type) || isa<Torch::TupleType>(type) ||
+         isa<Torch::UnionType>(type);
 }
 
 LogicalResult

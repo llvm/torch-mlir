@@ -13,19 +13,20 @@ from torch_mlir_e2e_test.annotations import annotate_args, export
 
 
 class TestMultipleTensorReturn(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.float32, True),
-        ([-1, -1], torch.float64, True),
-        ([-1, -1], torch.int32, True),
-        ([-1, -1], torch.int64, True),
-        ([-1, -1], torch.bool, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float64, True),
+            ([-1, -1], torch.int32, True),
+            ([-1, -1], torch.int64, True),
+            ([-1, -1], torch.bool, True),
+        ]
+    )
     def forward(self, a, b, c, d, e):
         return a, b, c, d, e
 
@@ -37,54 +38,56 @@ def TestMultipleTensorReturn_basic(module, tu: TestUtils):
         tu.rand(2, 3).to(torch.float64),
         tu.rand(2, 3).to(torch.int32),
         tu.rand(2, 3).to(torch.int64),
-        tu.rand(2, 3).to(torch.bool))
+        tu.rand(2, 3).to(torch.bool),
+    )
 
 
 class TestMultipleTensorAndPrimitiveTypesReturn(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.int32, True),
-        ([-1, -1], torch.float64, True),
-        ([-1, -1], torch.bool, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+            ([-1, -1], torch.float64, True),
+            ([-1, -1], torch.bool, True),
+        ]
+    )
     def forward(self, a, b, c):
         d = 1
         e = 2.3
         return a, b, c, d, e
 
 
-@register_test_case(
-    module_factory=lambda: TestMultipleTensorAndPrimitiveTypesReturn())
+@register_test_case(module_factory=lambda: TestMultipleTensorAndPrimitiveTypesReturn())
 def TestMultipleTensorAndPrimitiveTypesReturn_basic(module, tu: TestUtils):
     module.forward(
         tu.rand(3, 4).to(torch.int32),
         tu.rand(2, 3).to(torch.float64),
-        tu.rand(2, 3).to(torch.bool))
+        tu.rand(2, 3).to(torch.bool),
+    )
+
 
 class TestF16Return(torch.nn.Module):
-
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.float16, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float16, True),
+        ]
+    )
     def forward(self, a):
         return a
 
 
-@register_test_case(
-    module_factory=lambda: TestF16Return())
+@register_test_case(module_factory=lambda: TestF16Return())
 def TestF16Return_basic(module, tu: TestUtils):
-    module.forward(
-        tu.rand(3, 4).to(torch.float16))
+    module.forward(tu.rand(3, 4).to(torch.float16))
 
 
 # ==============================================================================
