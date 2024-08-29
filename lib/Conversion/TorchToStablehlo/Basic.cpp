@@ -521,10 +521,11 @@ public:
       rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
                                          rhsType);
 
-      // Avoid cast float scalar to int directly, which may influence the correctness.
+      // Avoid cast float scalar to int directly, which may influence the
+      // correctness.
       if (!isa<mlir::FloatType>(rhsType)) {
-        rhs =
-          hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy.getElementType());
+        rhs = hlo::promoteType(rewriter, op.getLoc(), rhs,
+                               lhsTy.getElementType());
       }
 
       rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
