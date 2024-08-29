@@ -2596,7 +2596,9 @@ def aten〇softshrink〡dtype(self_rank_dtype: Tuple[int, int], lambd: Union[int
 
 
 def aten〇polar〡dtype(abs_rank_dtype: Tuple[int, int], angle_rank_dtype: Tuple[int, int]) -> int:
-    abs_rank, abs_dtype = abs_rank_dtype
+    _, abs_dtype = abs_rank_dtype
+    _, angle_dtype = angle_rank_dtype
+    assert (abs_dtype == angle_dtype)
     if abs_dtype == torch.float64:
         return torch.complex128
     elif abs_dtype == torch.float32:
