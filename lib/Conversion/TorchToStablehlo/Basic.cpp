@@ -504,6 +504,13 @@ class ConvertAtenCompareOp : public OpConversionPattern<AtenOpT> {
 public:
   using OpConversionPattern<AtenOpT>::OpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
+  ConvertAtenCompareOp(mlir::TypeConverter &TypeConverter,
+                       mlir::MLIRContext *context,
+                       const TorchToStablehloOptions &options)
+      : OpConversionPattern<AtenOpT>(TypeConverter, context) {
+    this->options = options;
+  }
+  TorchToStablehloOptions options;
 
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
@@ -517,15 +524,38 @@ public:
       return op.emitError("only Tensor types supported in StableHLO");
     }
     if (!rhsTy) {
-      auto rhsType = rhs.getType();
+      auto lhsEleType = lhsTy.getElementType();
+      auto rhsEleType = rhs.getType();
       rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
-                                         rhsType);
+                                         rhsEleType);
 
-      // Avoid cast float scalar to int directly, which may influence the
-      // correctness.
-      if (!isa<mlir::FloatType>(rhsType)) {
-        rhs = hlo::promoteType(rewriter, op.getLoc(), rhs,
-                               lhsTy.getElementType());
+      // When enabling defaultComputeOnFp32, carefully deciding the compute type
+      // for rhs when the scalar is float type. If the lhs is an integer tensor
+      // or with lower precision, use float as the default type for rhs rather
+      // than using the tensor type directly.
+      //  1. It can avoid scalar like 1.1 being converted to 1 when lhs is an
+      //  integer tensor.
+      //  2. Use fp32 to provide the friendness for some backends not support
+      //  fp64.
+      auto getTargetEleType = [lhsEleType, rhsEleType, &rewriter]() {
+        Type targetType = rhsEleType;
+        auto lhsWidth = lhsEleType.getIntOrFloatBitWidth();
+        auto rhsWidth = rhsEleType.getIntOrFloatBitWidth();
+
+        if (isa<mlir::FloatType>(rhsEleType)) {
+          if (isa<mlir::IntegerType>(lhsEleType) ||
+              (isa<mlir::FloatType>(lhsEleType) && lhsWidth < rhsWidth)) {
+            targetType = rhsWidth > 32 ? rewriter.getF32Type() : rhsEleType;
+          }
+        }
+        return targetType;
+      };
+
+      if (this->options.defaultComputeOnFp32) {
+        auto targetType = getTargetEleType();
+        if (targetType != rhsEleType) {
+          rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, targetType);
+        }
       }
 
       rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
@@ -2217,7 +2247,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
 
 #define INSERT_BINARY_COMPARE_PATTERN(AtenOp)                                  \
   target.addIllegalOp<AtenOp>();                                               \
-  patterns.add<ConvertAtenCompareOp<AtenOp>>(typeConverter, context)
+  patterns.add<ConvertAtenCompareOp<AtenOp>>(typeConverter, context, options)
 
   INSERT_BINARY_COMPARE_PATTERN(AtenGtTensorOp);
   INSERT_BINARY_COMPARE_PATTERN(AtenGtScalarOp);
