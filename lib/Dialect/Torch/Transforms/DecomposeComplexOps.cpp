@@ -5874,6 +5874,31 @@ class DecomposeAtenLayerNormOp : public OpRewritePattern<AtenLayerNormOp> {
     return success();
   }
 };
+
+// aten.log1p(x) = aten.log(x + 1).
+class DecomposeAtenLog1pOp : public OpRewritePattern<AtenLog1pOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLog1pOp op,
+                                PatternRewriter &rewriter) const override {
+    Value self = op.getSelf();
+    BaseTensorType tensorType = cast<BaseTensorType>(self.getType());
+    if (!tensorType.hasDtype() || !isa<mlir::FloatType>(tensorType.getDtype()))
+      return rewriter.notifyMatchFailure(op, "Only support floating type");
+
+    Location loc = op.getLoc();
+    Type resultType = op.getType();
+
+    Value one =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value XplusOne =
+        rewriter.create<AtenAddScalarOp>(loc, resultType, self, one,
+                                         /*alpha=*/one);
+    rewriter.replaceOpWithNewOp<AtenLogOp>(op, resultType, XplusOne);
+    return success();
+  }
+};
+
 } // namespace
 
 namespace {
@@ -9498,6 +9523,7 @@ public:
         DecomposeAtenAddCLikeOp<AtenAddcmulOp, AtenMulTensorOp>>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenAddCLikeOp<AtenAddcdivOp, AtenDivTensorOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLog1pOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenInstanceNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLayerNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeLayerNormOp>(patterns);

@@ -1823,10 +1823,6 @@ LogicalResult ConvertAtenOp<AtenRsubScalarOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types supported in TOSA Rsub");
 
-  if (!isa<mlir::FloatType>(selfTy.getElementType()))
-    return rewriter.notifyMatchFailure(
-        op, "Only floating-point datatype legalization supported");
-
   Value otherTensor, alphaTensor;
 
   if (failed(torchScalarToTosaTensor(rewriter, op, otherScalar, otherTensor,
