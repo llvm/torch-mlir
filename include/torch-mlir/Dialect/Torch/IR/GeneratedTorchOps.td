@@ -5099,6 +5099,29 @@ def Torch_AtenPreluOp : Torch_Op<"aten.prelu", [
   }];
 }
 
+def Torch_AtenRad2degOp : Torch_Op<"aten.rad2deg", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::rad2deg : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenRad2degOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenRad2degOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenRealOp : Torch_Op<"aten.real", [
     AllowsTypeRefinement,
     ReadOnly
@@ -7729,6 +7752,7 @@ def Torch_Aten_AdaptiveAvgPool2dOp : Torch_Op<"aten._adaptive_avg_pool2d", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_Aten_AdaptiveAvgPool2dBackwardOp : Torch_Op<"aten._adaptive_avg_pool2d_backward", [
@@ -8247,6 +8271,54 @@ def Torch_Aten__Or__TensorOp : Torch_Op<"aten.__or__.Tensor", [
     }
   }];
   let hasCanonicalizer = 1;
+}
+
+def Torch_Aten__Lshift__ScalarOp : Torch_Op<"aten.__lshift__.Scalar", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::__lshift__.Scalar : (Tensor, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchScalarType:$other
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten__Lshift__ScalarOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void Aten__Lshift__ScalarOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
+def Torch_Aten__Rshift__ScalarOp : Torch_Op<"aten.__rshift__.Scalar", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::__rshift__.Scalar : (Tensor, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchScalarType:$other
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten__Rshift__ScalarOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void Aten__Rshift__ScalarOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
 }
 
 def Torch_Aten_SoftmaxOp : Torch_Op<"aten._softmax", [
@@ -10253,6 +10325,29 @@ def Torch_AtenAtleast1dOp : Torch_Op<"aten.atleast_1d", [
   }];
 }
 
+def Torch_AtenAtleast2dOp : Torch_Op<"aten.atleast_2d", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::atleast_2d : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenAtleast2dOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenAtleast2dOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenEinsumOp : Torch_Op<"aten.einsum", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -11911,6 +12006,29 @@ def Torch_AtenViewOp : Torch_Op<"aten.view", [
   let hasFolder = 1;
 }
 
+def Torch_AtenViewDtypeOp : Torch_Op<"aten.view.dtype", [
+    AllowsTypeRefinement,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::view.dtype : (Tensor, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dtype
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenViewDtypeOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenViewDtypeOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_Aten_UnsafeViewOp : Torch_Op<"aten._unsafe_view", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -12784,6 +12902,35 @@ def Torch_AtenUniqueConsecutiveOp : Torch_Op<"aten.unique_consecutive", [
   }];
 }
 
+def Torch_AtenUniqueDimOp : Torch_Op<"aten.unique_dim", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::unique_dim : (Tensor, int, bool, bool, bool) -> (Tensor, Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim,
+    Torch_BoolType:$sorted,
+    Torch_BoolType:$return_inverse,
+    Torch_BoolType:$return_counts
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result0,
+    AnyTorchOptionalTensorType:$result1,
+    AnyTorchOptionalTensorType:$result2
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenUniqueDimOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 5, 3);
+    }
+    void AtenUniqueDimOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 5, 3);
+    }
+  }];
+}
+
 def Torch_AtenLinspaceOp : Torch_Op<"aten.linspace", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -13552,6 +13699,56 @@ def Torch_AtenAsStridedScatterOp : Torch_Op<"aten.as_strided_scatter", [
   }];
 }
 
+def Torch_AtenUpsampleNearest1dOp : Torch_Op<"aten.upsample_nearest1d", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::upsample_nearest1d : (Tensor, int[], float?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$output_size,
+    AnyTorchOptionalFloatType:$scales
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenUpsampleNearest1dOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenUpsampleNearest1dOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
+def Torch_AtenUpsampleNearest1dVecOp : Torch_Op<"aten.upsample_nearest1d.vec", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::upsample_nearest1d.vec : (Tensor, int[]?, float[]?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchOptionalListOfTorchIntType:$output_size,
+    AnyTorchOptionalListOfTorchFloatType:$scale_factors
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenUpsampleNearest1dVecOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenUpsampleNearest1dVecOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_AtenUpsampleNearest2dOp : Torch_Op<"aten.upsample_nearest2d", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -13578,12 +13775,37 @@ def Torch_AtenUpsampleNearest2dOp : Torch_Op<"aten.upsample_nearest2d", [
   }];
 }
 
+def Torch_AtenUpsampleNearest2dVecOp : Torch_Op<"aten.upsample_nearest2d.vec", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::upsample_nearest2d.vec : (Tensor, int[]?, float[]?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchOptionalListOfTorchIntType:$output_size,
+    AnyTorchOptionalListOfTorchFloatType:$scale_factors
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenUpsampleNearest2dVecOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenUpsampleNearest2dVecOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_AtenScaledDotProductAttentionOp : Torch_Op<"aten.scaled_dot_product_attention", [
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?) -> (Tensor)`";
+  let summary = "Generated op for `aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?, bool) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$query,
     AnyTorchTensorType:$key,
@@ -13591,7 +13813,8 @@ def Torch_AtenScaledDotProductAttentionOp : Torch_Op<"aten.scaled_dot_product_at
     AnyTorchOptionalTensorType:$attn_mask,
     Torch_FloatType:$dropout_p,
     Torch_BoolType:$is_causal,
-    AnyTorchOptionalFloatType:$scale
+    AnyTorchOptionalFloatType:$scale,
+    Torch_BoolType:$enable_gqa
   );
   let results = (outs
     AnyTorchOptionalTensorType:$result
@@ -13599,10 +13822,10 @@ def Torch_AtenScaledDotProductAttentionOp : Torch_Op<"aten.scaled_dot_product_at
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
     ParseResult AtenScaledDotProductAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 7, 1);
+      return parseDefaultTorchOp(parser, result, 8, 1);
     }
     void AtenScaledDotProductAttentionOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 7, 1);
+      printDefaultTorchOp(printer, *this, 8, 1);
     }
   }];
 }
@@ -15519,6 +15742,31 @@ def Torch_Aten__Not__Op : Torch_Op<"aten.__not__", [
   let hasFolder = 1;
 }
 
+def Torch_Aten__Or__BoolOp : Torch_Op<"aten.__or__.bool", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::__or__.bool : (bool, bool) -> (bool)`";
+  let arguments = (ins
+    Torch_BoolType:$a,
+    Torch_BoolType:$b
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten__Or__BoolOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void Aten__Or__BoolOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenLenTOp : Torch_Op<"aten.len.t", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -17141,6 +17389,31 @@ def Torch_TorchvisionRoiPoolOp : Torch_Op<"torchvision.roi_pool", [
     }
     void TorchvisionRoiPoolOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 5, 2);
+    }
+  }];
+}
+
+def Torch_TorchvisionNmsOp : Torch_Op<"torchvision.nms", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `torchvision::nms : (Tensor, Tensor, float) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$dets,
+    AnyTorchTensorType:$scores,
+    Torch_FloatType:$iou_threshold
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult TorchvisionNmsOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void TorchvisionNmsOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
 }

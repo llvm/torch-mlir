@@ -11,6 +11,7 @@
 
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
@@ -223,28 +224,41 @@ template <> struct DimensionTraits<AtenMaxPool2dOp> {
   static_assert(Dim == Dim);
 };
 
+template <>
+struct DimensionTraits<AtenMaxPool2dWithIndicesOp>
+    : DimensionTraits<AtenMaxPool2dOp> {};
+
 template <> struct DimensionTraits<AtenMaxPool3dOp> {
   static constexpr int64_t Dim = 3;
   // unused const variable warning suppression:
   static_assert(Dim == Dim);
 };
 
+template <>
+struct DimensionTraits<AtenMaxPool3dWithIndicesOp>
+    : DimensionTraits<AtenMaxPool3dOp> {};
+
 template <typename OpTy>
 class ConvertAtenMaxPoolOp : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
 
+  static const bool withIndices =
+      llvm::is_one_of<OpTy, AtenMaxPool2dWithIndicesOp,
+                      AtenMaxPool3dWithIndicesOp>::value;
+
 private:
   static const int64_t Dim = DimensionTraits<OpTy>::Dim;
 
-  LogicalResult createPoolingMax3D(AtenMaxPool3dOp &op,
-                                   typename OpTy::Adaptor adaptor,
+  LogicalResult createPoolingMax3D(OpTy &op, typename OpTy::Adaptor adaptor,
                                    ConversionPatternRewriter &rewriter,
                                    SmallVectorImpl<Value> &kernelSizeIntValues,
                                    SmallVectorImpl<int64_t> &strideInts,
                                    SmallVectorImpl<int64_t> &paddingInts,
                                    SmallVectorImpl<int64_t> &dilationInts,
-                                   bool ceilMode) const {
-    SmallVector<Value, 5> outTensorShape;
+                                   bool ceilMode,
+                                   SmallVectorImpl<Value> &outTensorShape,
+                                   Value &paddedInput, Value &poolingOp) const {
+    static_assert(Dim == 3, "op must be MaxPool3d or MaxPool3dWithIndices");
     Value self = adaptor.getSelf();
     Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
     TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
@@ -254,8 +268,8 @@ private:
     Value initValue =
         rewriter.create<arith::ConstantOp>(op->getLoc(), smallestFPValueAttr);
 
-    Value paddedInput = padInputTensor(op, rewriter, self, ceilMode, 3,
-                                       strideInts, paddingInts, initValue);
+    paddedInput = padInputTensor(op, rewriter, self, ceilMode, 3, strideInts,
+                                 paddingInts, initValue);
 
     auto outTensorInitialized = computeOutputTensor(
         op, rewriter, self, 3, ceilMode, strideInts, paddingInts, dilationInts,
@@ -308,25 +322,160 @@ private:
         SmallVector<utils::IteratorType>(5, utils::IteratorType::parallel);
     iteratorTypes.append(3, utils::IteratorType::reduction);
     SmallVector<AffineMap> indexingMaps = {mapInput, mapKernel, mapOutput};
-    Value poolingOp =
+    poolingOp = rewriter
+                    .create<linalg::GenericOp>(
+                        op->getLoc(),
+                        /* result types */ outTensorInitialized.getType(),
+                        /* operands */ ValueRange({paddedInput, windowTensor}),
+                        /* outputs */ outTensorInitialized,
+                        /*indexingMaps=*/indexingMaps,
+                        /*iteratorTypes=*/iteratorTypes,
+                        [&](OpBuilder &b, Location loc, ValueRange args) {
+                          Value currentVal = args[0], accMaxValue = args[2];
+                          Value max_result = b.create<arith::MaximumFOp>(
+                              loc, currentVal, accMaxValue);
+                          b.create<linalg::YieldOp>(loc, max_result);
+                        })
+                    .getResult(0);
+
+    return success();
+  }
+
+  // Returns the corresponding indices of the input tensor for the max pooling
+  // result tensor.
+  //
+  // For finding the indices, we follow the below method:
+  //
+  // Take maxpool2d as an example to illustrate. Let's say the input tensor is a
+  // 4-d tensor. The maxpool2d and indices will also be a 4-d tensor. Then:
+  // for i in range(N):
+  //     for j in range(C):
+  //         for m in range(Hout):
+  //             for n in range(Wout):
+  //                 for p in range(kH):
+  //                     for r in range(kW):
+  //                         indexH = m * stride[0] + p * dilation[0]
+  //                         indexW = n * stride[0] + r * dilation[0]
+  //                         if paddedInput[i, j, indexH, indexW] ==
+  //                            maxPool2d[i, j, m, n]:
+  //                              indices[i, j, m, n] =
+  //                                (indexH - padding[0]) * W +
+  //                                (indexW - padding[1])
+  //
+  LogicalResult
+  computeMaxPoolingIndices(Value maxPool, Value paddedInput, OpTy &op,
+                           typename OpTy::Adaptor adaptor,
+                           ConversionPatternRewriter &rewriter,
+                           SmallVectorImpl<Value> &outTensorShape,
+                           SmallVectorImpl<Value> &kernelSizeIntValues,
+                           SmallVectorImpl<int64_t> &strideInts,
+                           SmallVectorImpl<int64_t> &paddingInts,
+                           SmallVectorImpl<int64_t> &dilationInts, int64_t rank,
+                           Value &indicesResult) const {
+    Location loc = op->getLoc();
+    RankedTensorType indicesRankedTensorType = cast<RankedTensorType>(
+        this->getTypeConverter()->convertType(op->getResult(1).getType()));
+    Value cstMinusOne =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(-1));
+    Value indicesTensor =
+        createInitTensor(rewriter, loc, outTensorShape,
+                         indicesRankedTensorType.getElementType(), cstMinusOne);
+
+    SmallVector<Value> kernelSize =
+        castIntVectorToIndexVector(rewriter, loc, kernelSizeIntValues);
+    SmallVector<Value> padding =
+        getAsConstantIndexValues(rewriter, loc, paddingInts);
+    SmallVector<Value> dilation =
+        getAsConstantIndexValues(rewriter, loc, dilationInts);
+    SmallVector<Value> kernelStride =
+        getAsConstantIndexValues(rewriter, loc, strideInts);
+
+    Value windowTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(kernelSize),
+        indicesRankedTensorType.getElementType());
+
+    SmallVector<AffineExpr> inputExprs, outputExprs, kernelExprs;
+    for (unsigned i = 0; i < rank; i++) {
+      inputExprs.push_back(rewriter.getAffineDimExpr(i));
+      outputExprs.push_back(rewriter.getAffineDimExpr(i));
+    }
+    for (unsigned i = 0; i < rank - 2; i++) {
+      kernelExprs.push_back(rewriter.getAffineDimExpr(i + rank));
+    }
+
+    // If computing indices for maxpool2d, we have six dimensions here. Each
+    // corresponding to N, C, Hout, Wout, kH, and kW, respectively, as described
+    // in the algorithm above.
+    SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
+        {inputExprs, kernelExprs, outputExprs}, rewriter.getContext());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        rank, utils::IteratorType::parallel);
+    iteratorTypes.append(rank - 2, utils::IteratorType::reduction);
+
+    // Extract pooling dimensions of input shape.
+    SmallVector<Value> inputSubShape;
+    for (unsigned i = 0; i < rank - 2; i++) {
+      inputSubShape.push_back(
+          getDimOp(rewriter, loc, adaptor.getSelf(), i + 2));
+    }
+
+    indicesResult =
         rewriter
             .create<linalg::GenericOp>(
-                op->getLoc(),
-                /* result types */ outTensorInitialized.getType(),
-                /* operands */ ValueRange({paddedInput, windowTensor}),
-                /* outputs */ outTensorInitialized,
+                loc, /*resultTensorTypes=*/indicesTensor.getType(),
+                /*inputs=*/ValueRange({maxPool, windowTensor}),
+                /*outputs=*/indicesTensor,
                 /*indexingMaps=*/indexingMaps,
                 /*iteratorTypes=*/iteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value currentVal = args[0], accMaxValue = args[2];
-                  Value max_result =
-                      b.create<arith::MaximumFOp>(loc, currentVal, accMaxValue);
-                  ;
-                  b.create<linalg::YieldOp>(loc, max_result);
+                  Value maxVal = args[0], res = args[2];
+
+                  SmallVector<Value> inputDims;
+                  inputDims.append({b.create<linalg::IndexOp>(loc, 0),
+                                    b.create<linalg::IndexOp>(loc, 1)});
+                  for (unsigned i = 2; i < rank; i++) {
+                    Value mainIndex = b.create<linalg::IndexOp>(loc, i);
+                    Value subIndex =
+                        b.create<linalg::IndexOp>(loc, i + rank - 2);
+                    Value origin = b.create<arith::MulIOp>(loc, mainIndex,
+                                                           kernelStride[i - 2]);
+                    Value offset =
+                        b.create<arith::MulIOp>(loc, subIndex, dilation[i - 2]);
+                    inputDims.push_back(
+                        b.create<arith::AddIOp>(loc, origin, offset));
+                  }
+
+                  Value input =
+                      b.create<tensor::ExtractOp>(loc, paddedInput, inputDims);
+                  Value pred = b.create<arith::CmpFOp>(
+                      loc, arith::CmpFPredicate::OEQ, input, maxVal);
+
+                  Value outIndex =
+                      b.create<arith::ConstantOp>(loc, b.getIndexAttr(0));
+                  Value curInputStride =
+                      b.create<arith::ConstantOp>(loc, b.getIndexAttr(1));
+                  for (unsigned i = 0; i < rank - 2; i++) {
+                    Value minusPadding = b.create<arith::SubIOp>(
+                        loc, inputDims[rank - 1 - i], padding[rank - 3 - i]);
+                    Value timesStride = b.create<arith::MulIOp>(
+                        loc, minusPadding, curInputStride);
+                    outIndex =
+                        b.create<arith::AddIOp>(loc, outIndex, timesStride);
+                    curInputStride = b.create<arith::MulIOp>(
+                        loc, curInputStride, inputSubShape[rank - 3 - i]);
+                  }
+                  Value result = b.create<arith::SelectOp>(
+                      loc, pred, castIndexToInt64(b, loc, outIndex), res);
+
+                  Value predInvalidIndex = b.create<arith::CmpIOp>(
+                      loc, arith::CmpIPredicate::eq, res, cstMinusOne);
+                  Value out = b.create<arith::SelectOp>(loc, predInvalidIndex,
+                                                        result, res);
+
+                  b.create<linalg::YieldOp>(loc, out);
                 })
             .getResult(0);
-    Type newResultType = this->getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, poolingOp);
+
     return success();
   }
 
@@ -360,224 +509,321 @@ public:
 
     Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
 
-    if constexpr (Dim == 1) {
-      SmallVector<Value, 4> outTensorShape;
-      Value maxPool1d, paddedInput;
-      TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
+    TypedAttr smallestValueAttr;
+
+    if (auto fpty = dyn_cast<mlir::FloatType>(elementType)) {
+      smallestValueAttr = rewriter.getFloatAttr(
           elementType,
-          APFloat::getInf(
-              cast<mlir::FloatType>(elementType).getFloatSemantics(),
-              /*Negative=*/true));
+          APFloat::getInf(fpty.getFloatSemantics(), /*Negative=*/true));
+    } else if (auto intTy = dyn_cast<mlir::IntegerType>(elementType)) {
+      int64_t bw = intTy.getIntOrFloatBitWidth();
+      smallestValueAttr = rewriter.getIntegerAttr(
+          elementType, intTy.isUnsigned() ? APInt::getMinValue(bw)
+                                          : APInt::getSignedMinValue(bw));
+    }
+
+    if (!smallestValueAttr)
+      return rewriter.notifyMatchFailure(op, "invalid element type");
+
+    // `maxPool` contains the result of maxpool 1d/2d/3d operation over the
+    // input, `paddedInput` means the padded result of input tensor.
+    Value maxPool, paddedInput;
+    Type maxPoolResultType =
+        typeConverter->convertType(op->getResult(0).getType());
+    SmallVector<Value, 5> outTensorShape;
+    if constexpr (Dim == 1) {
       if (failed(createPoolingOp<linalg::PoolingNcwMaxOp>(
               op, rewriter, self, /*supportNonFPInput=*/true, ceilMode,
               /*dimensionality=*/1, kernelSizeIntValues, strideInts,
-              paddingInts, dilationInts, smallestFPValueAttr, outTensorShape,
-              paddedInput, maxPool1d)))
+              paddingInts, dilationInts, smallestValueAttr, outTensorShape,
+              paddedInput, maxPool)))
         return rewriter.notifyMatchFailure(op, "unable to compute maxpool1d");
-      Type newResultType = this->getTypeConverter()->convertType(op.getType());
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, maxPool1d);
-      return success();
     } else if constexpr (Dim == 2) {
-      SmallVector<Value, 4> outTensorShape;
-      // `maxpool2d` contains the result of maxpool2d operation over the input.
-      Value maxPool2d, paddedInput;
-      TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
-          elementType,
-          APFloat::getInf(
-              cast<mlir::FloatType>(elementType).getFloatSemantics(),
-              /*Negative=*/true));
       if (failed(createPoolingOp<linalg::PoolingNchwMaxOp>(
               op, rewriter, self, /*supportNonFPInput=*/true, ceilMode,
               /*dimensionality=*/2, kernelSizeIntValues, strideInts,
-              paddingInts, dilationInts, smallestFPValueAttr, outTensorShape,
-              paddedInput, maxPool2d)))
+              paddingInts, dilationInts, smallestValueAttr, outTensorShape,
+              paddedInput, maxPool)))
         return rewriter.notifyMatchFailure(op, "unable to compute maxpool2d");
-      Type newResultType = this->getTypeConverter()->convertType(op.getType());
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, maxPool2d);
-      return success();
     } else {
-      return createPoolingMax3D(op, adaptor, rewriter, kernelSizeIntValues,
-                                strideInts, paddingInts, dilationInts,
-                                ceilMode);
+      if (failed(createPoolingMax3D(op, adaptor, rewriter, kernelSizeIntValues,
+                                    strideInts, paddingInts, dilationInts,
+                                    ceilMode, outTensorShape, paddedInput,
+                                    maxPool)))
+        return rewriter.notifyMatchFailure(op, "unable to compute maxpool3d");
     }
+
+    Value outMaxPool = rewriter.create<tensor::CastOp>(
+        op->getLoc(), maxPoolResultType, maxPool);
+    SmallVector<Value> outResult({outMaxPool});
+    if (withIndices) {
+      Value indicesResult;
+      if (failed(computeMaxPoolingIndices(
+              maxPool, paddedInput, op, adaptor, rewriter, outTensorShape,
+              kernelSizeIntValues, strideInts, paddingInts, dilationInts,
+              selfRank, indicesResult)))
+        return rewriter.notifyMatchFailure(op,
+                                           "unable to compute maxpool indices");
+      Type indicesResultType =
+          typeConverter->convertType(op->getResult(1).getType());
+      Value outIndices = rewriter.create<tensor::CastOp>(
+          op->getLoc(), indicesResultType, indicesResult);
+      outResult.push_back(outIndices);
+    }
+    rewriter.replaceOp(op, outResult);
+
+    return success();
   }
 };
 } // namespace
 
 namespace {
-// Returns the result of maxpool2d over the input tensor. And the corresponding
-// indices of the input tensor for the values of the result tensor.
-//
-// The result of the maxpool2d operation is calculated using the helper function
-// written above. For finding the indices, we follow the below method:
-//
-// Let's say the input tensor is a 4-d tensor. The maxpool2d and indices will
-// also be a 4-d tensor. Then:
-// for i in range(N):
-//     for j in range(C):
-//         for m in range(Hout):
-//             for n in range(Wout):
-//                 for p in range(kH):
-//                     for r in range(kW):
-//                         indexH = m * stride[0] + p * dilation[0]
-//                         indexW = n * stride[0] + r * dilation[0]
-//                         if paddedInput[i, j, indexH, indexW] ==
-//                            maxPool2d[i, j, m, n]:
-//                             indices[i, j, m, n] = (indexH - padding[0]) * W +
-//                                                   (indexW - padding[1])
-//
-class ConvertAtenMaxPool2dWithIndicesOp
-    : public OpConversionPattern<AtenMaxPool2dWithIndicesOp> {
+// Max unpooling operation, takes result of max_pooling op and indices and
+// tries to reconstructs original pooling input by filling out values by either
+// values from self or zero.
+// Upstream CPU implementation use parallel loop over the indices array to fill
+// out tensor but such approach requires random access writes, which is tricky
+// to represent in linalg.
+// Instead we are using a different method: we are mapping each input/index
+// value to multiple output values via affine maps in linalg.generic, then,
+// inside the body of generic, we compute out index and compare it with expected
+// index we got from input, returning either input or zero.
+// This method only works if we have non-overlapping pooling windows.
+// In case of overlap (e.g. kernel_size=2, stride=1) we need to map many-to-many
+// input to output values and do a reduction. To construct such mapping we need
+// to know original Kernel size, but it doesn't encoded in aten op. We cannot
+// reconstruct kernel_size either as such reconstruction is ambiguous (e.g. for
+// input_size=2, output_size=5 and stride=2, kernel_size can be either 2 or 3).
+// What worse, without knowing kernel size we cannot even reliably detect such
+// cases and this conversion will just return invalid values.
+class ConvertAtenMaxUnpool3dOp final
+    : public OpConversionPattern<AtenMaxUnpool3dOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenMaxPool2dWithIndicesOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenMaxUnpool3dOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
+
     Location loc = op->getLoc();
     const TypeConverter *typeConverter = getTypeConverter();
     Value self = adaptor.getSelf();
-    RankedTensorType selfType = cast<RankedTensorType>(self.getType());
-    Type elementType = selfType.getElementType();
-    RankedTensorType indicesRankedTensorType = cast<RankedTensorType>(
-        getTypeConverter()->convertType(op->getResult(1).getType()));
+    auto selfType = cast<RankedTensorType>(self.getType());
 
-    // TODO: Add support for 3D inputs.
-    if (selfType.getRank() == 3)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only support 4D input");
-
-    bool ceilMode;
-    SmallVector<Value, 2> kernelSizeIntValues;
-    SmallVector<int64_t, 2> strideInts, paddingInts, dilationInts;
-    if (!matchPattern(op.getDilation(),
-                      m_TorchListOfConstantInts(dilationInts)))
+    ArrayRef<int64_t> inputSize = selfType.getShape().take_back(3);
+    if (ShapedType::isDynamicShape(inputSize))
       return rewriter.notifyMatchFailure(op,
-                                         "only support constant int dilations");
-    if (failed(checkAndGetPoolingParameters<AtenMaxPool2dWithIndicesOp>(
-            op, rewriter, typeConverter, ceilMode, kernelSizeIntValues,
-            strideInts, paddingInts)))
-      return rewriter.notifyMatchFailure(op, "invalid pooling parameters");
+                                         "input type must be of static shape");
 
-    // `maxpool2d` contains the result of maxpool2d operation over the input.
-    auto smallestFPValueAttr = rewriter.getFloatAttr(
-        elementType,
-        APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
-                        /*Negative=*/true));
-    Value maxPool2d, paddedInput;
-    SmallVector<Value, 4> outTensorShape;
-    if (failed(createPoolingOp<linalg::PoolingNchwMaxOp>(
-            op, rewriter, self, /*supportNonFPInput=*/false, ceilMode,
-            /*dimensionality=*/2, kernelSizeIntValues, strideInts, paddingInts,
-            dilationInts, smallestFPValueAttr, outTensorShape, paddedInput,
-            maxPool2d)))
-      return rewriter.notifyMatchFailure(op, "unable to compute maxpool2d");
+    Value indices = adaptor.getIndices();
+    auto indicesType = cast<RankedTensorType>(indices.getType());
+    if (inputSize != indicesType.getShape().take_back(3))
+      return rewriter.notifyMatchFailure(op, "input/indices shape mismatch");
 
-    Value cstMinusOne =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(-1));
-    Value indicesTensor =
-        createInitTensor(rewriter, loc, outTensorShape,
-                         indicesRankedTensorType.getElementType(), cstMinusOne);
+    auto resType = typeConverter->convertType<RankedTensorType>(op.getType());
+    if (!resType)
+      return rewriter.notifyMatchFailure(op, "invalid result type");
 
-    SmallVector<Value> kernelSize =
-        castIntVectorToIndexVector(rewriter, loc, kernelSizeIntValues);
-    SmallVector<Value> padding =
-        getAsConstantIndexValues(rewriter, loc, paddingInts);
-    SmallVector<Value> dilation =
-        getAsConstantIndexValues(rewriter, loc, dilationInts);
-    SmallVector<Value> stride =
-        getAsConstantIndexValues(rewriter, loc, strideInts);
+    ArrayRef<int64_t> inferredOutSize = resType.getShape().take_back(3);
+    if (ShapedType::isDynamicShape(inferredOutSize))
+      return rewriter.notifyMatchFailure(op,
+                                         "output type must be of static shape");
 
-    Value windowTensor = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(kernelSize),
-        indicesRankedTensorType.getElementType());
+    {
+      SmallVector<int64_t> output;
+      if (!matchPattern(op.getOutputSize(), m_TorchListOfConstantInts(output)))
+        return rewriter.notifyMatchFailure(op,
+                                           "only support constant int output");
 
-    SmallVector<AffineExpr> inputExprs, outputExprs, kernelExprs;
-    for (unsigned i = 0; i < 4; i++) {
-      inputExprs.push_back(rewriter.getAffineDimExpr(i));
-      outputExprs.push_back(rewriter.getAffineDimExpr(i));
+      if (inferredOutSize != ArrayRef(output))
+        return rewriter.notifyMatchFailure(op, "Invalid output size");
     }
-    kernelExprs.push_back(rewriter.getAffineDimExpr(4));
-    kernelExprs.push_back(rewriter.getAffineDimExpr(5));
+    SmallVector<int64_t> stride;
+    SmallVector<int64_t> padding;
 
-    // Here we have six dimensions, each corresponding to N, C, Hout, Wout, kH,
-    // and kW, respectively, as described in the algorithm above.
+    if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)))
+      return rewriter.notifyMatchFailure(op,
+                                         "only support constant int strides");
+
+    if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)))
+      return rewriter.notifyMatchFailure(op,
+                                         "only support constant int padding");
+
+    // TODO: add support for asymmetric padding coming from "onnx.MaxUnpool"
+    // (padding.size() == 6).
+    if (stride.size() != 3 || padding.size() != 3)
+      return rewriter.notifyMatchFailure(
+          op, "stride and padding must be of size 3");
+
+    int64_t outRank = resType.getRank();
+    int64_t NC = outRank - 3;
+
+    for (auto &&[inDim, outDim, str, pad] :
+         llvm::zip_equal(inputSize, inferredOutSize, stride, padding)) {
+      // Kernel size computation is ambiguous, this formula will return the
+      // biggest possible kernel size. As there is no way to know actual kernel
+      // size we have to treat it conservatively and always bail if kernel size
+      // potentially bigger than stride.
+      int64_t kernelSize = outDim - (inDim - 1) * str + 2 * pad;
+      if (kernelSize > str)
+        return rewriter.notifyMatchFailure(
+            op, "potential pooling windows overlapping is detected, this case "
+                "is not supported yet");
+    }
+
+    Type indexType = rewriter.getIndexType();
+    SmallVector<Value> outSizePadded;
+    for (auto &&[i, size] : llvm::enumerate(resType.getShape())) {
+      if (int64_t(i) < NC) {
+        outSizePadded.emplace_back(
+            rewriter.create<tensor::DimOp>(loc, self, i));
+        continue;
+      }
+      int64_t pad = padding[i - NC];
+
+      outSizePadded.emplace_back(
+          rewriter.create<arith::ConstantIndexOp>(loc, size + pad));
+    }
+
+    auto ceilDiv = [](int64_t v1, int64_t v2) -> int64_t {
+      return (v1 + v2 - 1) / v2;
+    };
+
+    // In case if input tensor size is not divisible by stride
+    // (e.g. pooling_input_size=5, kernel_size=2, stride=2, output_size=2)
+    // pad self and indices tensors to avoid out of bounds access.
+    SmallVector<int64_t> expectedInputShape =
+        llvm::to_vector(resType.getShape().drop_back(3));
+    for (auto &&[str, pad, resSize] :
+         llvm::zip_equal(stride, padding, inferredOutSize))
+      expectedInputShape.emplace_back(ceilDiv(resSize, str) + pad * 2);
+
+    if (expectedInputShape != selfType.getShape()) {
+      // TODO: this is probably expensive, and it may be possible to solve by
+      // cleverly constructing affine maps for the next linalg.generic op,
+      // but I'm not smart enough to figure this out.
+
+      SmallVector<int64_t> low(outRank, 0);
+      SmallVector<int64_t> high(NC, 0);
+      for (auto &&[inpSize, outSize] : llvm::zip_equal(
+               inputSize, ArrayRef(expectedInputShape).take_back(3))) {
+        high.emplace_back(outSize - inpSize);
+      }
+
+      // Pad the indices tensor with a value which cannot appear in real data
+      // (-1) so it will never match. In this case we can pad self with any
+      // value, as it will never affect the output.
+      Value zero = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getZeroAttr(selfType.getElementType()));
+      Value invalidIdx = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getIntegerAttr(indicesType.getElementType(), -1));
+      self =
+          torch_to_linalg::getPaddedTensor(op, rewriter, self, low, high, zero);
+      indices = torch_to_linalg::getPaddedTensor(op, rewriter, indices, low,
+                                                 high, invalidIdx);
+    }
+
+    Value init = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(outSizePadded), selfType.getElementType());
+
+    SmallVector<AffineExpr> inputExprs;
+    SmallVector<AffineExpr> outputExprs;
+    for (auto i : llvm::seq<int64_t>(0, outRank)) {
+      AffineExpr dim = rewriter.getAffineDimExpr(i);
+      if (i < NC) {
+        inputExprs.emplace_back(dim);
+      } else {
+        int64_t j = i - NC;
+        inputExprs.emplace_back(dim.floorDiv(stride[j]));
+      }
+      outputExprs.emplace_back(dim);
+    }
+
     SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
-        {inputExprs, kernelExprs, outputExprs}, rewriter.getContext());
+        {inputExprs, inputExprs, outputExprs}, rewriter.getContext());
+
     SmallVector<utils::IteratorType> iteratorTypes(
-        4, utils::IteratorType::parallel);
-    iteratorTypes.push_back(utils::IteratorType::reduction);
-    iteratorTypes.push_back(utils::IteratorType::reduction);
+        outRank, utils::IteratorType::parallel);
 
-    // Input format is : [N, C, H, W]
-    Value inputShapeW = getDimOp(rewriter, loc, self, 3);
+    auto computeIndex = [&](OpBuilder &b, Location loc) -> Value {
+      // Next linalg.generic uses identity mapping for the unpooled tensor,
+      // compute linear index for output element, which we will the compare with
+      // values which came from indices tensor.
+      Value ret;
+      for (auto i : llvm::seq<int64_t>(NC, outRank)) {
+        Value idx = b.create<linalg::IndexOp>(loc, i);
+        // If pool input was padded, adjust indices so they start at 0 in the
+        // non-padded area. Indices outside non-padded area will make no sense,
+        // but it doesnt matter as we will cut the padded area later by
+        // extract_slice.
+        int64_t pad = padding[i - NC];
+        if (pad != 0) {
+          Value padVal = b.create<arith::ConstantIndexOp>(loc, pad);
+          idx = b.create<arith::SubIOp>(loc, idx, padVal);
+        }
 
-    Value indicesResult =
+        if (!ret) {
+          ret = idx;
+        } else {
+          Value size =
+              b.create<arith::ConstantIndexOp>(loc, resType.getShape()[i]);
+          ret = b.create<arith::MulIOp>(loc, ret, size);
+          ret = b.create<arith::AddIOp>(loc, ret, idx);
+        }
+      }
+      return ret;
+    };
+
+    auto builder = [&](OpBuilder &b, Location loc, ValueRange args) {
+      // Compute current output linear index and compare it with the value
+      // from indices arg.
+      Value input = args[0];
+      Value zero = b.create<arith::ConstantOp>(
+          loc, rewriter.getZeroAttr(input.getType()));
+      Value index = b.create<arith::IndexCastOp>(loc, indexType, args[1]);
+      Value currentIndex = computeIndex(b, loc);
+      Value cmp = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, index,
+                                          currentIndex);
+      Value out = b.create<arith::SelectOp>(loc, cmp, input, zero);
+      b.create<linalg::YieldOp>(loc, out);
+    };
+
+    Value result =
         rewriter
-            .create<linalg::GenericOp>(
-                loc, /*resultTensorTypes=*/indicesTensor.getType(),
-                /*inputs=*/ValueRange({maxPool2d, windowTensor}),
-                /*outputs=*/indicesTensor,
-                /*indexingMaps=*/indexingMaps,
-                /*iteratorTypes=*/iteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value maxVal = args[0], res = args[2];
-
-                  Value i = b.create<linalg::IndexOp>(loc, 0);
-                  Value j = b.create<linalg::IndexOp>(loc, 1);
-                  Value m = b.create<linalg::IndexOp>(loc, 2);
-                  Value n = b.create<linalg::IndexOp>(loc, 3);
-                  Value p = b.create<linalg::IndexOp>(loc, 4);
-                  Value r = b.create<linalg::IndexOp>(loc, 5);
-
-                  Value mTimesStride =
-                      b.create<arith::MulIOp>(loc, m, stride[0]);
-                  Value pTimesDilation =
-                      b.create<arith::MulIOp>(loc, p, dilation[0]);
-                  Value indexH = b.create<arith::AddIOp>(loc, mTimesStride,
-                                                         pTimesDilation);
-                  Value nTimesStride =
-                      b.create<arith::MulIOp>(loc, n, stride[1]);
-                  Value rTimesDilation =
-                      b.create<arith::MulIOp>(loc, r, dilation[1]);
-                  Value indexW = b.create<arith::AddIOp>(loc, nTimesStride,
-                                                         rTimesDilation);
-                  Value input = b.create<tensor::ExtractOp>(
-                      loc, paddedInput, ValueRange{i, j, indexH, indexW});
-                  Value pred = b.create<arith::CmpFOp>(
-                      loc, arith::CmpFPredicate::OEQ, input, maxVal);
-
-                  Value indexHMinusPadding =
-                      b.create<arith::SubIOp>(loc, indexH, padding[0]);
-                  Value indexWMinusPadding =
-                      b.create<arith::SubIOp>(loc, indexW, padding[1]);
-                  Value outIndex = b.create<arith::MulIOp>(
-                      loc, indexHMinusPadding, inputShapeW);
-                  outIndex = b.create<arith::AddIOp>(loc, outIndex,
-                                                     indexWMinusPadding);
-                  Value result = b.create<arith::SelectOp>(
-                      loc, pred, castIndexToInt64(b, loc, outIndex), res);
-
-                  Value predInvalidIndex = b.create<arith::CmpIOp>(
-                      loc, arith::CmpIPredicate::eq, res, cstMinusOne);
-                  Value out = b.create<arith::SelectOp>(loc, predInvalidIndex,
-                                                        result, res);
-
-                  b.create<linalg::YieldOp>(loc, out);
-                })
+            .create<linalg::GenericOp>(loc,
+                                       /*resultTensorTypes=*/init.getType(),
+                                       /*inputs=*/ValueRange({self, indices}),
+                                       /*outputs=*/init,
+                                       /*indexingMaps=*/indexingMaps,
+                                       /*iteratorTypes=*/iteratorTypes, builder)
             .getResult(0);
 
-    Type maxPool2dResultType =
-        getTypeConverter()->convertType(op->getResult(0).getType());
-    Type indicesResultType =
-        getTypeConverter()->convertType(op->getResult(1).getType());
-    Value outMaxpool2d =
-        rewriter.create<tensor::CastOp>(loc, maxPool2dResultType, maxPool2d);
-    Value outIndices =
-        rewriter.create<tensor::CastOp>(loc, indicesResultType, indicesResult);
+    if (llvm::any_of(padding, [](int64_t v) { return v != 0; })) {
+      // MaxPool input was padded, unpad it by taking the slice.
+      SmallVector<OpFoldResult> offsetVals(NC, rewriter.getI64IntegerAttr(0));
+      for (int64_t pad : padding)
+        offsetVals.emplace_back(rewriter.getI64IntegerAttr(pad));
 
-    rewriter.replaceOp(op, {outMaxpool2d, outIndices});
+      SmallVector<OpFoldResult> sizeVals;
+      for (auto &&[i, dim] : llvm::enumerate(resType.getShape())) {
+        if (!ShapedType::isDynamic(dim)) {
+          sizeVals.emplace_back(rewriter.getI64IntegerAttr(dim));
+          continue;
+        }
+
+        sizeVals.emplace_back(rewriter.create<tensor::DimOp>(loc, self, i));
+      }
+      SmallVector<OpFoldResult> stridesVals(outRank,
+                                            rewriter.getI64IntegerAttr(1));
+      result = rewriter.create<tensor::ExtractSliceOp>(loc, result, offsetVals,
+                                                       sizeVals, stridesVals);
+    }
+
+    if (result.getType() != resType)
+      result = rewriter.create<tensor::CastOp>(loc, resType, result);
+
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -1274,7 +1520,15 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dOp>>(typeConverter, context);
 
   target.addIllegalOp<AtenMaxPool2dWithIndicesOp>();
-  patterns.add<ConvertAtenMaxPool2dWithIndicesOp>(typeConverter, context);
+  target.addIllegalOp<AtenMaxPool3dWithIndicesOp>();
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dWithIndicesOp>>(typeConverter,
+                                                                 context);
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dWithIndicesOp>>(typeConverter,
+                                                                 context);
+
+  target.addIllegalOp<AtenMaxUnpool3dOp>();
+  patterns.add<ConvertAtenMaxUnpool3dOp>(typeConverter, context);
+
   target.addIllegalOp<AtenAvgPool1dOp, AtenAvgPool2dOp, AtenAvgPool3dOp>();
   patterns
       .add<ConvertAtenAvgPoolOp<AtenAvgPool1dOp, linalg::PoolingNcwSumOp, 1>>(

@@ -64,6 +64,10 @@ void mlir::torch::registerTorchConversionPasses() {
 
 void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
     OpPassManager &pm) {
+  // Fix non constant dims passed to reduction ops
+  pm.addNestedPass<func::FuncOp>(
+      torch::Torch::createRestructureNonConstantAxesPass());
+
   // We want to fuse quantized operations together before lowering to linalg.
   pm.addNestedPass<func::FuncOp>(Torch::createFuseQuantizedOpsPass());
   pm.addNestedPass<func::FuncOp>(Torch::createScalarizeShapesPass());

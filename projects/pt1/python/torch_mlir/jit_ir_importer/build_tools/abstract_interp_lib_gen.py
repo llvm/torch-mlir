@@ -99,6 +99,12 @@ def torchvision〇roi_pool〡shape(input: List[int], rois: List[int], spatial_sc
 def torchvision〇roi_pool〡dtype(input_rank_dtype: Tuple[int, int], rois_rank_dtype: Tuple[int, int], spatial_scale: float, pooled_height: int, pooled_width: int) -> Tuple[int, int]:
     return (input_rank_dtype[1], torch.int64) 
 
+def torchvision〇nms〡shape(dets: List[int], scores: List[int], iou_threshold: float) -> List[int]:
+    return [hacky_get_unknown_dimension_size(), len(dets)]
+
+def torchvision〇nms〡dtype(dets_rank_dtype: Tuple[int, int], scores_rank_dtype: Tuple[int, int], iou_threshold: float) -> int:
+    return torch.int
+
 @check_shape_function([
     Invocation(TensorOfShape(2, 3, 4)), # Basic case.
     Invocation(TensorOfShape(2, 3, 4), dim1=1, dim2=2), # Test explicit `dim1` and `dim2`.
@@ -146,6 +152,9 @@ def aten〇fake_quantize_per_channel_affine〡shape(self: List[int], scale: List
 
 def aten〇fake_quantize_per_channel_affine_cachemask〡shape(self: List[int], scale: List[int], zero_point: List[int], axis: int, quant_min: int, quant_max: int) -> Tuple[List[int], List[int]]:
     return (upstream_shape_functions.unary(self), upstream_shape_functions.unary(self))
+
+def aten〇rad2deg〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
 
 def aten〇sin〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
@@ -1037,6 +1046,19 @@ def aten〇max_pool2d_with_indices〡shape(self: List[int], kernel_size: List[in
 def aten〇max_pool2d_with_indices_backward〡shape(grad_output: List[int], self: List[int], kernel_size: List[int], stride: List[int], padding: List[int], dilation: List[int], ceil_mode: bool, indices: List[int]) -> List[int]:
     return self
 
+def aten〇max_pool3d_with_indices〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0, 0,), dilation: List[int] = (1, 1, 1,), ceil_mode: bool = False) -> Tuple[List[int], List[int]]:
+    maxpool3d = indices = _max_pool3d(self, kernel_size, stride, padding, dilation, ceil_mode)
+    return maxpool3d, indices
+
+def aten〇max_unpool3d〡shape(self: List[int], indices: List[int], output_size: List[int], stride: List[int], padding: List[int]) -> List[int]:
+    assert (len(self) == 5 or len(self) == 4), "Input be of rank 4 or 5"
+    assert (len(output_size) == 3), "output_size must have 3 elements"
+    assert (len(self) == len(indices)), "Input and indices must be of the same rank"
+    if len(self) == 5:
+        return [self[0], self[1], output_size[0], output_size[1], output_size[2]]
+    else:
+        return [self[0], output_size[0], output_size[1], output_size[2]]
+
 def aten〇upsample_nearest2d_backward〡shape(grad_output: List[int], output_size: List[int], input_size: List[int], scales_h: Optional[float] = None, scales_w: Optional[float] = None) -> List[int]:
     return input_size
 
@@ -1259,7 +1281,7 @@ def aten〇linear〡shape(input: List[int], weight: List[int], bias: Optional[Li
     Invocation(TensorOfShape(3, 2, 8, 4), TensorOfShape(3, 2, 8, 4), TensorOfShape(3, 2, 8, 4)), # Same shape
     Invocation(TensorOfShape(3, 2, 16, 8), TensorOfShape(3, 2, 8, 8), TensorOfShape(3, 2, 8, 4)), # Different shape
 ])
-def aten〇scaled_dot_product_attention〡shape(query: List[int], key: List[int], value: List[int], attn_mask: Optional[List[int]] = None, dropout_p: float = 0., is_causal: bool = False, scale: Optional[float] = None) -> List[int]:
+def aten〇scaled_dot_product_attention〡shape(query: List[int], key: List[int], value: List[int], attn_mask: Optional[List[int]] = None, dropout_p: float = 0., is_causal: bool = False, scale: Optional[float] = None, enable_gqa: bool = False) -> List[int]:
     outshape = query
     outshape[-1] = value[-1]
     return outshape
@@ -2103,6 +2125,15 @@ def aten〇atleast_1d〡shape(self: List[int]) -> List[int]:
     else:
         return self
 
+def aten〇atleast_2d〡shape(self: List[int]) -> List[int]:
+    if len(self) == 0:
+        return [1, 1]
+    elif len(self) == 1:
+        x = self[0]
+        return [1, x]
+    else:
+        return self
+
 def aten〇stack〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.stack(tensors, dim)
 
@@ -2210,8 +2241,45 @@ def aten〇norm〇Scalar〡shape(self: List[int], p: float = 2) -> List[int]:
 def aten〇norm〇ScalarOpt_dim〡shape(self: List[int], p: Optional[float], dim: List[int], keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, 0)
 
+@check_shape_function([
+    Invocation(TensorOfShape(1, 3, 10), [11])
+])
+def aten〇upsample_nearest1d〡shape(self: List[int], output_size: List[int], scales: Optional[float] = None) -> List[int]:
+    return [self[0], self[1], output_size[0]]
+
+@check_shape_function([
+    Invocation(TensorOfShape(1, 3, 10), [11], None),
+    Invocation(TensorOfShape(1, 3, 10), None, [2.0]),
+    Invocation(TensorOfShape(1, 3, 5), None, [2.5])
+])
+def aten〇upsample_nearest1d〇vec〡shape(input: List[int], output_size: Optional[List[int]], scale_factors: Optional[List[float]]) -> List[int]:
+    assert output_size is None or scale_factors is None
+    assert not (output_size is None and scale_factors is None)
+    if output_size is not None:
+        return [input[0], input[1], output_size[0]]
+    else:
+        assert scale_factors is not None
+        return [input[0], input[1], int(input[2] * scale_factors[0])]
+
+@check_shape_function([
+    Invocation(TensorOfShape(1, 3, 10, 10), [11, 12])
+])
 def aten〇upsample_nearest2d〡shape(self: List[int], output_size: List[int], scales_h: Optional[float] = None, scales_w: Optional[float] = None) -> List[int]:
     return [self[0], self[1], output_size[0], output_size[1]]
+
+@check_shape_function([
+    Invocation(TensorOfShape(1, 3, 10, 10), [11, 12], None),
+    Invocation(TensorOfShape(1, 3, 10, 9), None, [2.0, 2.3]),
+    Invocation(TensorOfShape(1, 3, 5, 6), None, [2.5, 1.0])
+])
+def aten〇upsample_nearest2d〇vec〡shape(input: List[int], output_size: Optional[List[int]], scale_factors: Optional[List[float]]) -> List[int]:
+    assert output_size is None or scale_factors is None
+    assert not (output_size is None and scale_factors is None)
+    if output_size is not None:
+        return [input[0], input[1], output_size[0], output_size[1]]
+    else:
+        assert scale_factors is not None
+        return [input[0], input[1], int(input[2] * scale_factors[0]), int(input[3] * scale_factors[1])]
 
 # ==============================================================================
 # Dtype Functions
@@ -2427,6 +2495,12 @@ def aten〇exp〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇expm1〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
+    return _get_dtype_of_floating_point_op(self_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}))
+def aten〇rad2deg〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert is_integer_dtype(self_dtype) or is_float_dtype(self_dtype)
     return _get_dtype_of_floating_point_op(self_dtype)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
@@ -3048,6 +3122,15 @@ def aten〇max_pool2d_with_indices〡dtype(self_rank_dtype: Tuple[int, int], ker
     self_rank, self_dtype = self_rank_dtype
     return self_dtype, torch.int64
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7, 8)], kernel_size=[2, 2, 2]))
+def aten〇max_pool3d_with_indices〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0, 0,), dilation: List[int] = (1, 1, 1,), ceil_mode: bool = False) -> Tuple[int, int]:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype, torch.int64
+
+def aten〇max_unpool3d〡dtype(self_rank_dtype: Tuple[int, int], indices_rank_dtype: Tuple[int, int], output_size: List[int], stride: List[int], padding: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 7)], output_size=[2]))
 def aten〇adaptive_max_pool1d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int]) -> Tuple[int, int]:
     self_rank, self_dtype = self_rank_dtype
@@ -3361,9 +3444,24 @@ def aten〇upsample_nearest2d_backward〡dtype(grad_output_rank_dtype: Tuple[int
     grad_output_rank, grad_output_dtype = grad_output_rank_dtype
     return grad_output_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5)], output_size=[11]))
+def aten〇upsample_nearest1d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int], scales: Optional[float] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5)], output_size=[11], scale_factors=None))
+def aten〇upsample_nearest1d〇vec〡dtype(input_rank_dtype: Tuple[int, int], output_size: Optional[List[int]], scale_factors: Optional[List[float]]) -> int:
+    self_rank, self_dtype = input_rank_dtype
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7)], output_size=[11, 13]))
 def aten〇upsample_nearest2d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int], scales_h: Optional[float] = None, scales_w: Optional[float] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7)], output_size=[11, 13], scale_factors=None))
+def aten〇upsample_nearest2d〇vec〡dtype(input_rank_dtype: Tuple[int, int], output_size: Optional[List[int]], scale_factors: Optional[List[float]]) -> int:
+    self_rank, self_dtype = input_rank_dtype
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1]))
@@ -3469,7 +3567,7 @@ def aten〇isclose〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: T
     return torch.bool
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(3, 4, 32, 16), (3, 4, 32, 16), (3, 4, 32, 16)]))
-def aten〇scaled_dot_product_attention〡dtype(query_rank_dtype: Tuple[int, int], key_rank_dtype: Tuple[int, int], value_rank_dtype: Tuple[int, int], attn_mask_rank_dtype: Optional[Tuple[int, int]] = None, dropout_p: float = 0., is_causal: bool = False, scale: Optional[float] = None) -> int:
+def aten〇scaled_dot_product_attention〡dtype(query_rank_dtype: Tuple[int, int], key_rank_dtype: Tuple[int, int], value_rank_dtype: Tuple[int, int], attn_mask_rank_dtype: Optional[Tuple[int, int]] = None, dropout_p: float = 0., is_causal: bool = False, scale: Optional[float] = None, enable_gqa: bool = False) -> int:
     _, query_dtype = query_rank_dtype
     return query_dtype
 
@@ -5182,6 +5280,11 @@ def aten〇cat〡dtype(tensors_rank_dtype: List[Tuple[int, int]], dim: int = 0) 
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇atleast_1d〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇atleast_2d〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 

@@ -78,6 +78,16 @@ except ModuleNotFoundError:
     # conditional.
     ml_dtypes = None
 
+try:
+    from torch.utils._sympy.numbers import int_oo, IntInfinity, NegativeIntInfinity
+except ModuleNotFoundError:
+    # This commit on PyTorch repo introduced IntInfinity and NegativeIntInfinity:
+    # https://github.com/pytorch/pytorch/commit/2229884102ac95c9dda0aeadbded1b04295d892e
+    # Required module may not be present in the stable version of PyTorch.
+    int_oo = None
+    IntInfinity = None
+    NegativeIntInfinity = None
+
 from torch.fx.node import (
     Argument as NodeArgument,
 )
@@ -124,6 +134,8 @@ from ..ir import (
 from ..dialects import (
     func as func_dialect,
 )
+
+from .._mlir_libs._torchMlir import get_int64_max, get_int64_min
 
 __all__ = [
     "FxImporter",
@@ -265,6 +277,8 @@ PY_BUILTIN_TO_TORCH_OP = {
     "ge": torch.ops.aten.ge,
     "ne": torch.ops.aten.ne,
     "gt": torch.ops.aten.gt,
+    "mod": torch.ops.aten.fmod,
+    "eq": torch.ops.aten.eq,
 }
 
 # torch with cuda has a __version__ that looks like  "2.1.0+cu113",
@@ -367,63 +381,47 @@ def sympy_expr_to_semi_affine_expr(
         )
 
 
-@dataclass(frozen=True)
-class SparsityMeta:
-    """
-    Class for keeping track of sparsity meta data.
-
-    NOTE: this will be fully replaced by
-          torch.fx.passes.shape_prop.SparseTensorMetadata
-    """
-
-    layout: torch.layout
-    batch_dim: int
-    sparse_dim: int
-    dense_dim: int
-    blocksize: Optional[Tuple[int, int]]
-    pos_dtype: torch.dtype
-    crd_dtype: torch.dtype
-
-
-def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
-    """Returns sparse tensor encoding for the given sparse layout as string."""
-    assert sparsity is not None
+def sparsity_encoding(t: torch.Tensor) -> str:
+    """Returns sparse tensor encoding for the given tensor as string."""
 
     # Sparse tensors have the form
     #   [ <batch_dimensions> , <sparse_dimensions>, <dense_dimensions> ]
     # which map directly to MLIR types.
-    batch_dim, sparse_dim, dense_dim = (
-        sparsity.batch_dim,
-        sparsity.sparse_dim,
-        sparsity.dense_dim,
+    dim, batch_dim, sparse_dim, dense_dim = (
+        t.ndim,
+        t.ndim - t.sparse_dim() - t.dense_dim(),
+        t.sparse_dim(),
+        t.dense_dim(),
     )
-    dim = batch_dim + sparse_dim + dense_dim
-    assert dim == len(shape)
-    blocksize = sparsity.blocksize
-
     dims = ",".join(f"d{d}" for d in range(dim))
 
-    if sparsity.layout is torch.sparse_coo:
-        assert sparse_dim >= 2 and blocksize is None
+    if t.layout is torch.sparse_coo:
+        assert sparse_dim >= 2
         trail_dim = batch_dim + sparse_dim - 1
         coords = ",".join(
             f"d{d}:singleton(nonunique,soa)" for d in range(batch_dim + 1, trail_dim)
         )
         sep = "," if sparse_dim > 2 else ""
         lvls = f"d{batch_dim}:compressed(nonunique),{coords}{sep}d{trail_dim}:singleton(soa)"
-    elif sparsity.layout is torch.sparse_csr:
-        assert sparse_dim == 2 and blocksize is None
+        idx_dtype = t._indices().dtype  # supports uncoalesced COO tensors
+    elif t.layout is torch.sparse_csr:
+        assert sparse_dim == 2
         lvls = f"d{batch_dim}:dense,d{batch_dim+1}:compressed"
-    elif sparsity.layout is torch.sparse_csc:
-        assert sparse_dim == 2 and blocksize is None
+        idx_dtype = t.col_indices().dtype
+    elif t.layout is torch.sparse_csc:
+        assert sparse_dim == 2
         lvls = f"d{batch_dim+1}:dense,d{batch_dim}:compressed"
+        idx_dtype = t.row_indices().dtype
     else:
-        assert sparse_dim == 2 and blocksize is not None
-        if sparsity.layout is torch.sparse_bsr:
+        assert sparse_dim == 2
+        blocksize = t.values().shape[batch_dim + 1 : batch_dim + 3]
+        if t.layout is torch.sparse_bsr:
             i, j = batch_dim, batch_dim + 1
+            idx_dtype = t.col_indices().dtype
         else:
-            assert sparsity.layout is torch.sparse_bsc
+            assert t.layout is torch.sparse_bsc
             j, i = batch_dim, batch_dim + 1
+            idx_dtype = t.row_indices().dtype
         m, n = blocksize
         lvls = (
             f"d{i} floordiv {m}:dense,d{j} floordiv {n}:compressed,"
@@ -438,8 +436,7 @@ def sparsity_encoding(shape: torch.Size, sparsity: SparsityMeta) -> str:
         dense = ",".join(f"d{d}:dense" for d in range(batch_dim + sparse_dim, dim))
         lvls = f"{lvls},{dense}"
 
-    posw = torch.iinfo(sparsity.pos_dtype).bits
-    crdw = torch.iinfo(sparsity.crd_dtype).bits
+    posw = crdw = torch.iinfo(idx_dtype).bits
     return f"#sparse_tensor.encoding<{{map=({dims})->({lvls}),posWidth={posw},crdWidth={crdw}}}>"
 
 
@@ -1041,20 +1038,27 @@ class ContextCache:
         shape: torch.Size,
         dtype: torch.dtype,
         *,
-        sparsity: Optional[SparsityMeta] = None,
+        val: Optional[torch.Tensor] = None,
         mutable: bool = False,
     ):
         """Return IrType for !torch.vtensor with the given shape and dtype"""
         stem = "torch.tensor" if mutable else "torch.vtensor"
         shape_asm = self.format_asm_shape(shape)
         mlir_dtype = str(self.dtype_to_type(dtype))
-        if sparsity is not None:
-            encoding = sparsity_encoding(shape, sparsity)
-            assert encoding is not None
+        if val is not None and val.layout in [
+            torch.sparse_coo,
+            torch.sparse_csr,
+            torch.sparse_csc,
+            torch.sparse_bsr,
+            torch.sparse_bsc,
+        ]:
+            # This is a sparse tensor.
+            encoding = sparsity_encoding(val)
             return IrType.parse(
                 f"!{stem}<[{shape_asm}],{str(mlir_dtype)},{encoding}>",
                 context=self._c,
             )
+        # This is a dense tensor.
         return IrType.parse(
             f"!{stem}<[{shape_asm}],{str(mlir_dtype)}>", context=self._c
         )
@@ -1063,24 +1067,25 @@ class ContextCache:
         try:
             tensor_meta = node.meta.get("tensor_meta")
             val = node.meta.get("val")
-            sparsity = node.meta.get("sparsity", None)
         except KeyError as e:
             raise RuntimeError(
                 f"FIXME: Illegal access to torch.fx.Node.meta: {e} ({node.meta.keys()} : {node.meta})"
             )
-        return self.value_info_to_type(
-            val, tensor_meta=tensor_meta, sparsity=sparsity, mutable=mutable
-        )
+        return self.value_info_to_type(val, tensor_meta=tensor_meta, mutable=mutable)
 
     def value_info_to_type(
         self,
         val,
         *,
         tensor_meta: Optional[TensorMetadata] = None,
-        sparsity=None,
         mutable: bool = False,
     ):
         if tensor_meta is not None:
+            # separately handle when tensor_meta is a list.
+            if isinstance(val, list) and all(
+                isinstance(x, TorchFakeTensor) for x in val
+            ):
+                return IrType.parse("!torch.list<vtensor>", context=self._c)
             assert isinstance(tensor_meta, TensorMetadata)
             # Quantized tensor meta data is not preserved in our lowering,
             # so throw error instead of silently doing wrong thing.
@@ -1090,14 +1095,14 @@ class ContextCache:
                 )
             else:
                 return self.tensor_metadata_to_type(
-                    tensor_meta, sparsity=sparsity, mutable=mutable
+                    tensor_meta, val=val, mutable=mutable
                 )
         elif val is not None:
             # some nodes with symbolic inputs pass a 'val' attribute rather than
             # tensor_meta
             if isinstance(val, TorchFakeTensor):
                 return self.get_vtensor_type(
-                    val.size(), val.dtype, sparsity=sparsity, mutable=mutable
+                    val.size(), val.dtype, val=val, mutable=mutable
                 )
             elif isinstance(val, list) and all(
                 isinstance(x, TorchFakeTensor) for x in val
@@ -1119,19 +1124,17 @@ class ContextCache:
         self,
         tm: TensorMetadata,
         *,
-        sparsity: Optional[SparsityMeta] = None,
+        val: Optional[torch.Tensor] = None,
         mutable: bool = False,
     ) -> IrType:
         tm_shape = tuple(
             item.node if is_symbolic(item) else item for item in list(tm.shape)
         )
 
-        key = (tm_shape, tm.dtype, sparsity, mutable)
+        key = (tm_shape, tm.dtype, val, mutable)
         t = self._tensor_metadata_cache.get(key)
         if t is None:
-            t = self.get_vtensor_type(
-                tm.shape, tm.dtype, sparsity=sparsity, mutable=mutable
-            )
+            t = self.get_vtensor_type(tm.shape, tm.dtype, val=val, mutable=mutable)
             self._tensor_metadata_cache[key] = t
         return t
 
@@ -1174,22 +1177,32 @@ class ContextCache:
         self, prog: torch.export.ExportedProgram
     ) -> Dict[str, RangeConstraint]:
 
+        # Recent PyTorch versions use `int_oo` to represent integer infinity.
+        # Older PyTorch versions like PyTorch stable version may not have
+        # `int_oo` defined just yet.
+        infs = (sympy.oo, int_oo) if int_oo is not None else (sympy.oo,)
+
         def _sympy_int_to_int(val: sympy.Expr, adjust_func: Callable):
             # Convert simple sympy Integers into concrete int
-            if val == sympy.oo:
-                return math.inf
-            if val == -sympy.oo:
-                return -math.inf
+            if val in infs:
+                return get_int64_max()
+            if val in tuple(-inf for inf in infs):
+                return get_int64_min()
             if isinstance(val, sympy.Integer):
                 return int(val)
             # TODO: Remove this adjustment when fractional ranges are removed
             return adjust_func(val)
 
         contains_symbolic_ints = False
+        sym_int_types = (
+            (sympy.Integer, IntInfinity, NegativeIntInfinity)
+            if IntInfinity is not None
+            else sympy.Integer
+        )
         for val in prog.range_constraints.values():
             if (
-                isinstance(val.lower, sympy.Integer)
-                and isinstance(val.upper, sympy.Integer)
+                isinstance(val.lower, sym_int_types)
+                and isinstance(val.upper, sym_int_types)
                 and not val.is_bool
             ):
                 contains_symbolic_ints = True
@@ -1437,7 +1450,7 @@ class GraphNodeImporter:
                         self._import_symbolic_torch_op(loc, node, target)
                     elif isinstance(target, TorchOpOverload):
                         # Dispatch to an ATen op.
-                        self._import_torch_op_overload(loc, node, target)
+                        self._import_torch_op_overload(loc, node)
                     elif isinstance(target, HigherOrderOperator):
                         self._import_hop(loc, node, target)
                     else:
@@ -1608,59 +1621,18 @@ class GraphNodeImporter:
             self.bind_node_value(node, value, i + bind_none)
 
     def _import_torch_op_overload(
-        self, loc: Location, node: torch_fx.Node, target: TorchOpOverload
+        self,
+        loc: Location,
+        node: torch_fx.Node,
+        concrete_target: Optional[TorchOpOverload] = None,
     ):
-        # TODO: Convert this cascade of ifs to a table-driven
-        # replace lift_fresh_copy with clone op
-        if target == torch.ops.aten.lift_fresh_copy.default:
-            node.target = target = torch.ops.aten.clone.default
-            node.args = (node.args[0],)
-            node.kwargs = {"memory_format": None}
-        elif target == torch.ops.aten.lift_fresh_copy.out:
-            # TODO: It seems not possible to hit this case from user code.
-            # Retaining in case if it is triggered internally somehow, but
-            # it can most likely be removed once assuming full
-            # functionalization in all cases.
-            node.target = target = torch.ops.aten.clone.out
-            node.args = (node.args[0],)
-            node.kwargs = {"memory_format": None, "out": node.args[1]}
-        # TODO: generalize empty.memory_format in the future
-        # Currently, the aten.baddbmm.default op for Unet includes multiplying an
-        # empty.memory_format input with a constant, which creates NaN values
-        # because empty.memory_format contains uninitialized data. Converting
-        # aten.baddbmm.default -> aten.zeros.default fixes the correctness issue
-        elif target == torch.ops.aten.empty.memory_format:
-            if len(node.users) == 1:
-                for key_node in node.users:
-                    if key_node.target == torch.ops.aten.baddbmm.default:
-                        node.target = target = torch.ops.aten.zeros.default
-        elif target == torch.ops.aten._local_scalar_dense.default:
-            input_type = node.args[0].meta["tensor_meta"].dtype
-            if input_type.is_floating_point:
-                node.target = target = torch.ops.aten.Float.Tensor
-            else:
-                node.target = target = torch.ops.aten.Int.Tensor
-            node.args = (node.args[0],)
-        elif target == torch.ops.aten._assert_async.msg:
-            # TODO: A more suitable op to replace it?
-            return
-        elif target == torch.ops.aten._unsafe_index_put.default:
-            node.target = target = torch.ops.aten._unsafe_index_put.hacked_twin
-        elif target == torch.ops.aten._embedding_bag_forward_only.default:
-            node.target = target = torch.ops.aten.embedding_bag.padding_idx
-            embedding_bag_args = [
-                ("scale_grad_by_freq", False),
-                ("mode", 0),
-                ("sparse", False),
-                ("per_sample_weights", None),
-                ("include_last_offset", False),
-                ("padding_idx", None),
-            ]
-            node_kwargs = dict(node.kwargs)
-            for k, v in embedding_bag_args[len(node.args) - 3 :]:
-                if k not in node_kwargs:
-                    node_kwargs[k] = v
-            node.kwargs = node_kwargs
+        if concrete_target is None:
+            node = node_canonicalize(node)
+            if not node:
+                return
+            target = node.target
+        else:
+            target = concrete_target
 
         schema = target._schema
         assert isinstance(schema, FunctionSchema)
@@ -2394,3 +2366,97 @@ TENSOR_SCALAR_OP_CONVERTER = {
     "torch.aten.sub.Tensor": "torch.aten.sub.Scalar",
     "torch.aten.floor_divide": "torch.aten.floor_divide.Scalar",
 }
+
+
+NODE_CANONICALIZE: Dict[TorchOpOverload, Callable] = {}
+
+
+def register_canonicalize(op: TorchOpOverload):
+    def wrapper(func):
+        NODE_CANONICALIZE[op] = func
+        return func
+
+    return wrapper
+
+
+@register_canonicalize(torch.ops.aten.lift_fresh_copy.default)
+def lift_fresh_copy_default(node: torch_fx.Node):
+    # replace lift_fresh_copy with clone op
+    node.target = torch.ops.aten.clone.default
+    node.args = (node.args[0],)
+    node.kwargs = {"memory_format": None}
+    return node
+
+
+@register_canonicalize(torch.ops.aten.lift_fresh_copy.out)
+def lift_fresh_copy_out(node: torch_fx.Node):
+    # TODO: It seems not possible to hit this case from user code.
+    # Retaining in case if it is triggered internally somehow, but
+    # it can most likely be removed once assuming full
+    # functionalization in all cases.
+    node.target = target = torch.ops.aten.clone.out
+    node.args = (node.args[0],)
+    node.kwargs = {"memory_format": None, "out": node.args[1]}
+    return node
+
+
+@register_canonicalize(torch.ops.aten.empty.memory_format)
+def empty_memory_format(node: torch_fx.Node):
+    # TODO: generalize empty.memory_format in the future
+    # Currently, the aten.baddbmm.default op for Unet includes multiplying an
+    # empty.memory_format input with a constant, which creates NaN values
+    # because empty.memory_format contains uninitialized data. Converting
+    # aten.baddbmm.default -> aten.zeros.default fixes the correctness issue
+    if len(node.users) == 1:
+        for key_node in node.users:
+            if key_node.target == torch.ops.aten.baddbmm.default:
+                node.target = torch.ops.aten.zeros.default
+    return node
+
+
+@register_canonicalize(torch.ops.aten._local_scalar_dense.default)
+def aten__local_scalar_dense_default(node: torch_fx.Node):
+    input_type = node.args[0].meta["tensor_meta"].dtype
+    if input_type.is_floating_point:
+        node.target = torch.ops.aten.Float.Tensor
+    else:
+        node.target = torch.ops.aten.Int.Tensor
+    node.args = (node.args[0],)
+    return node
+
+
+@register_canonicalize(torch.ops.aten._assert_async.msg)
+def aten__assert_async_msg(node: torch_fx.Node):
+    # TODO: A more suitable op to replace it?
+    return None
+
+
+@register_canonicalize(torch.ops.aten._unsafe_index_put.default)
+def aten__unsafe_index_put_default(node: torch_fx.Node):
+    node.target = torch.ops.aten._unsafe_index_put.hacked_twin
+    return node
+
+
+@register_canonicalize(torch.ops.aten._embedding_bag_forward_only.default)
+def aten__embedding_bag_forward_only_default(node: torch_fx.Node):
+    node.target = torch.ops.aten.embedding_bag.padding_idx
+    embedding_bag_args = [
+        ("scale_grad_by_freq", False),
+        ("mode", 0),
+        ("sparse", False),
+        ("per_sample_weights", None),
+        ("include_last_offset", False),
+        ("padding_idx", None),
+    ]
+    node_kwargs = dict(node.kwargs)
+    for k, v in embedding_bag_args[len(node.args) - 3 :]:
+        if k not in node_kwargs:
+            node_kwargs[k] = v
+    node.kwargs = node_kwargs
+    return node
+
+
+def node_canonicalize(node: torch_fx.Node):
+    if node.target in NODE_CANONICALIZE:
+        return NODE_CANONICALIZE[node.target](node)
+    return node

@@ -1011,6 +1011,97 @@ def TensorsConcatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class TensorsConcatComplex64FloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.complex64, True),
+            ([-1, -1, -1], torch.float64, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float16, True),
+        ]
+    )
+    def forward(self, a, b, c, d):
+        return torch.cat([a, b, c, d], 1)
+
+
+@register_test_case(module_factory=lambda: TensorsConcatComplex64FloatModule())
+def TensorsConcatComplex64FloatModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 1, 4, low=1, high=10).to(torch.complex64),
+        tu.rand(2, 3, 4, low=1, high=10).to(torch.float64),
+        tu.rand(2, 3, 4, low=1, high=10).to(torch.float32),
+        tu.rand(2, 3, 4, low=1, high=10).to(torch.float16),
+    )
+
+
+# ==============================================================================
+
+
+class TensorsConcatComplex128FloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.complex128, True),
+            ([-1, -1, -1], torch.float64, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float16, True),
+        ]
+    )
+    def forward(self, a, b, c, d):
+        return torch.cat([a, b, c, d], 1)
+
+
+@register_test_case(module_factory=lambda: TensorsConcatComplex128FloatModule())
+def TensorsConcatComplex128FloatModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 1, 4, low=1, high=10).to(torch.complex128),
+        tu.rand(2, 3, 4, low=1, high=10).to(torch.float64),
+        tu.rand(2, 3, 4, low=1, high=10).to(torch.float32),
+        tu.rand(2, 3, 4, low=1, high=10).to(torch.float16),
+    )
+
+
+# ==============================================================================
+
+
+class TensorsConcatComplex128IntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.complex128, True),
+            ([-1, -1, -1], torch.int64, True),
+            ([-1, -1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, a, b, c):
+        return torch.cat([a, b, c], 1)
+
+
+@register_test_case(module_factory=lambda: TensorsConcatComplex128IntModule())
+def TensorsConcatComplex128IntModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 1, 4, low=1, high=10).to(torch.complex128),
+        tu.rand(2, 3, 4, low=1, high=10).to(torch.int64),
+        tu.rand(2, 3, 4, low=1, high=10).to(torch.int32),
+    )
+
+
+# ==============================================================================
+
+
 class TensorsConcatNegativeDimModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -5646,3 +5737,27 @@ def AtenKthvalueFloat64DynamicDimsModule_basic(module, tu: TestUtils):
     module.forward(
         torch.randperm(4 * 2 * 8 * 3, dtype=torch.float64).reshape(4, 2, 8, 3)
     )
+
+
+# ==============================================================================
+
+
+class UnfoldModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.unfold = torch.nn.Unfold(kernel_size=(2, 3))
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input):
+        return self.unfold(input)
+
+
+@register_test_case(module_factory=lambda: UnfoldModule())
+def UnfoldModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5, 3, 4))

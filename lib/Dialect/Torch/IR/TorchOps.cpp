@@ -128,6 +128,17 @@ static FloatAttr getF64FloatAttr(MLIRContext *context, double value) {
   return FloatAttr::get(Float64Type::get(context), value);
 }
 
+static DenseElementsAttr reshapeDenseElementsAttr(DenseElementsAttr attr,
+                                                  ShapedType newType) {
+  // TODO: DenseElementsAttr::reshape is broken for bool splats.
+  // Once that ticket is fixed, we can remove this conditional.
+  if (attr.isSplat() && newType.getElementType().isInteger(/*width=*/1)) {
+    auto splatValue = attr.getValues<bool>()[0];
+    return DenseElementsAttr::get(newType, {splatValue});
+  }
+  return attr.reshape(newType);
+}
+
 static Value getScalarIntValue(Value input, Location loc,
                                PatternRewriter &rewriter) {
   auto inputType = input.getType();
@@ -722,6 +733,21 @@ OpFoldResult Aten__Not__Op::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// Aten__Or__Op
+//===----------------------------------------------------------------------===//
+
+OpFoldResult Aten__Or__BoolOp::fold(FoldAdaptor adaptor) {
+  auto valueA = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
+  auto valueB = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
+  if (!valueA || !valueB) {
+    return nullptr;
+  }
+
+  return IntegerAttr::get(IntegerType::get(getContext(), 1),
+                          valueA.getValue() | valueB.getValue());
+}
+
+//===----------------------------------------------------------------------===//
 // AtenNeBoolOp
 //===----------------------------------------------------------------------===//
 
@@ -798,11 +824,22 @@ OpFoldResult AtenSqueezeOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSqueezeDimOp::fold(FoldAdaptor adaptor) {
-  if (getOperand(0).getType() != getResult().getType())
+  auto inType = dyn_cast<ValueTensorType>(getOperand(0).getType());
+  auto outType = dyn_cast<ValueTensorType>(getResult().getType());
+  if (!inType || !outType || !inType.areAllSizesKnown() ||
+      !outType.areAllSizesKnown() || !inType.hasDtype() ||
+      !outType.hasDtype()) {
     return nullptr;
-  if (auto tensorType = dyn_cast<BaseTensorType>(getOperand(0).getType())) {
-    if (tensorType.hasSizes() && tensorType.getSizes().size() == 0)
-      return getOperand(0);
+  }
+
+  if (inType == outType) {
+    return getOperand(0);
+  }
+
+  DenseElementsAttr input =
+      dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  if (input) {
+    return reshapeDenseElementsAttr(input, outType.toBuiltinTensor());
   }
   return nullptr;
 }
@@ -1202,30 +1239,6 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
 // NAry folder helpers
 //===----------------------------------------------------------------------===//
 
-static bool checkSameDTypes(llvm::ArrayRef<Attribute> attrs) {
-  bool allFp = true;
-  bool allInt = true;
-
-  for (auto attr : attrs) {
-    if (!attr)
-      return false;
-
-    Type attrty;
-    if (auto dense = dyn_cast_or_null<ElementsAttr>(attr))
-      attrty = dense.getType();
-    if (auto fp = dyn_cast_or_null<mlir::FloatAttr>(attr))
-      attrty = fp.getType();
-    if (auto integer = dyn_cast_or_null<mlir::IntegerAttr>(attr))
-      attrty = integer.getType();
-    if (auto shaped = dyn_cast_or_null<ShapedType>(attrty))
-      attrty = shaped.getElementType();
-    allFp &= isa<mlir::FloatType>(attrty);
-    allInt &= isa<mlir::IntegerType>(attrty);
-  }
-
-  return allFp || allInt;
-}
-
 static bool checkAllSplats(llvm::ArrayRef<Attribute> attrs) {
   for (auto attr : attrs) {
     if (auto dense = dyn_cast_or_null<ElementsAttr>(attr)) {
@@ -1241,15 +1254,38 @@ llvm::SmallVector<double> getFoldValueAtIndexFp(llvm::ArrayRef<Attribute> attrs,
                                                 int64_t idx = 0) {
   llvm::SmallVector<double> splattrs;
 
+  // Note that i1 is neither signed nor unsigned.
+  // But we should trait i1 as unsigned, otherwise that
+  // APInt(1,1).getSExtValue() return allOnes 64-bit integer.
+  // So here only distinguish signed integer.
+  auto convertAPIntToDouble = [](APInt value, bool isSigned) -> double {
+    if (isSigned)
+      return static_cast<double>(value.getSExtValue());
+    else
+      return static_cast<double>(value.getZExtValue());
+  };
+
   for (auto attr : attrs) {
-    if (auto dense = dyn_cast<ElementsAttr>(attr)) {
+    if (auto dense = dyn_cast<DenseFPElementsAttr>(attr)) {
       if (dense.isSplat()) {
         splattrs.push_back(dense.getSplatValue<APFloat>().convertToDouble());
       } else {
         splattrs.push_back(dense.getValues<APFloat>()[idx].convertToDouble());
       }
-    } else if (auto intattr = dyn_cast<FloatAttr>(attr)) {
-      splattrs.push_back(intattr.getValueAsDouble());
+    } else if (auto dense = dyn_cast<DenseIntElementsAttr>(attr)) {
+      bool isSigned = cast<IntegerType>(dense.getElementType()).isSigned();
+      if (dense.isSplat()) {
+        splattrs.push_back(
+            convertAPIntToDouble(dense.getSplatValue<APInt>(), isSigned));
+      } else {
+        splattrs.push_back(
+            convertAPIntToDouble(dense.getValues<APInt>()[idx], isSigned));
+      }
+    } else if (auto fpattr = dyn_cast<FloatAttr>(attr)) {
+      splattrs.push_back(fpattr.getValueAsDouble());
+    } else if (auto intattr = dyn_cast<IntegerAttr>(attr)) {
+      bool isSigned = cast<IntegerType>(intattr.getType()).isSigned();
+      splattrs.push_back(convertAPIntToDouble(intattr.getValue(), isSigned));
     } else {
       return {};
     }
@@ -1264,13 +1300,9 @@ llvm::SmallVector<APInt> getFoldValueAtIndexInt(llvm::ArrayRef<Attribute> attrs,
   llvm::SmallVector<APInt> splattrs;
 
   for (auto attr : attrs) {
-    // Note that i1 is neither signed nor unsigned.
-    // But we should trait i1 as unsigned, otherwise that
-    // APInt(1,1).getSExtValue() return allOnes 64-bit integer.
-    // So here only distinguish signed integer.
     bool isSigned = false;
-    if (auto dense = dyn_cast<ElementsAttr>(attr)) {
-      isSigned = dyn_cast<IntegerType>(dense.getElementType()).isSigned();
+    if (auto dense = dyn_cast<DenseIntElementsAttr>(attr)) {
+      isSigned = cast<IntegerType>(dense.getElementType()).isSigned();
       if (dense.isSplat()) {
         splattrs.push_back(dense.getSplatValue<APInt>());
       } else {
@@ -1283,6 +1315,10 @@ llvm::SmallVector<APInt> getFoldValueAtIndexInt(llvm::ArrayRef<Attribute> attrs,
       return {};
     }
 
+    // Note that i1 is neither signed nor unsigned.
+    // But we should trait i1 as unsigned, otherwise that
+    // APInt(1,1).getSExtValue() return allOnes 64-bit integer.
+    // So here only distinguish signed integer.
     auto &apint = splattrs.back();
     if (apint.getBitWidth() < bitwidth) {
       if (isSigned) {
@@ -1299,15 +1335,18 @@ llvm::SmallVector<APInt> getFoldValueAtIndexInt(llvm::ArrayRef<Attribute> attrs,
 using NAryFoldFpOperator = std::function<double(ArrayRef<double>)>;
 using NAryFoldIntOperator = std::function<APInt(ArrayRef<APInt>)>;
 
-static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
-                                     NAryFoldFpOperator fpFolder,
-                                     NAryFoldIntOperator intFolder) {
-  constexpr int64_t maxFold = 16;
-  if (!checkSameDTypes(operands))
-    return nullptr;
+static OpFoldResult
+naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
+                 std::optional<NAryFoldFpOperator> fpFolder,
+                 std::optional<NAryFoldIntOperator> intFolder) {
+  constexpr int64_t kMaxFold = 16;
+  for (auto attr : operands) {
+    if (!attr)
+      return nullptr;
+  }
 
   auto resultTy = dyn_cast<ValueTensorType>(ty);
-  if (!resultTy || !resultTy.hasDtype() || !resultTy.hasSizes())
+  if (!resultTy || !resultTy.hasDtype() || !resultTy.areAllSizesKnown())
     return nullptr;
 
   auto dty = resultTy.getDtype();
@@ -1319,10 +1358,7 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
     return nullptr;
 
   bool allSplats = checkAllSplats(operands);
-  bool withinMaxFold =
-      resultBTy.hasStaticShape() && resultBTy.getNumElements() <= maxFold;
-
-  if (!allSplats && !withinMaxFold)
+  if (!(allSplats || resultBTy.getNumElements() <= kMaxFold))
     return nullptr;
 
   // We do not support broadcasting in the non-splat case so validate same
@@ -1346,10 +1382,15 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
   const int64_t numValues = allSplats ? 1 : resultBTy.getNumElements();
 
   if (fpTy) {
+    if (!fpFolder.has_value())
+      return nullptr;
+    auto folder = fpFolder.value();
     llvm::SmallVector<APFloat> folded;
     for (int i = 0, s = numValues; i < s; ++i) {
       auto inputs = getFoldValueAtIndexFp(operands, i);
-      double fold = fpFolder(inputs);
+      if (inputs.size() != operands.size())
+        return nullptr;
+      double fold = folder(inputs);
 
       APFloat val(fold);
       bool unused;
@@ -1361,11 +1402,16 @@ static OpFoldResult naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
   }
 
   if (intTy) {
+    if (!intFolder.has_value())
+      return nullptr;
+    auto folder = intFolder.value();
     llvm::SmallVector<APInt> folded;
     for (int i = 0, s = numValues; i < s; ++i) {
       auto inputs =
           getFoldValueAtIndexInt(operands, dty.getIntOrFloatBitWidth(), i);
-      folded.push_back(intFolder(inputs));
+      if (inputs.size() != operands.size())
+        return nullptr;
+      folded.push_back(folder(inputs));
     }
     return DenseElementsAttr::get(resultBTy, folded);
   }
@@ -1627,12 +1673,8 @@ static OpFoldResult comparisonScaleFolder(DenseElementsAttr lhs, Attribute rhs,
   constexpr int64_t kMaxFold = 16;
   if (!lhs || !rhs || !resultTy)
     return nullptr;
-  if (!resultTy.hasSizes() || !resultTy.hasDtype())
+  if (!resultTy.areAllSizesKnown() || !resultTy.hasDtype())
     return nullptr;
-
-  for (auto size : resultTy.getSizes())
-    if (size == Torch::kUnknownSize)
-      return nullptr;
 
   auto ctx = lhs.getContext();
   auto tensorETy = cast<RankedTensorType>(lhs.getType()).getElementType();
@@ -1821,75 +1863,19 @@ OpFoldResult AtenNeScalarOp::fold(FoldAdaptor adaptor) {
 // AtenLogOp
 //===----------------------------------------------------------------------===//
 
-using UnaryPromoteFpOperator = std::function<double(double)>;
-using UnaryPromoteIntOperator = std::function<double(APInt, bool)>;
-
-static OpFoldResult unaryPromoteFolder(DenseElementsAttr operand,
-                                       ValueTensorType resultTy,
-                                       UnaryPromoteFpOperator fpFolder,
-                                       UnaryPromoteIntOperator intFolder) {
-  constexpr int64_t kMaxFold = 16;
-  if (!resultTy.hasDtype() || !resultTy.hasSizes())
-    return nullptr;
-  if (!isa<mlir::FloatType>(resultTy.getDtype()))
-    return nullptr;
-
-  auto fpTy = dyn_cast<mlir::FloatType>(operand.getType().getElementType());
-  auto intTy = dyn_cast<mlir::IntegerType>(operand.getType().getElementType());
-  if (!fpTy && !intTy)
-    return nullptr;
-
-  auto resultBTy = resultTy.toBuiltinTensor();
-  bool splat = operand.isSplat();
-  bool withinMaxFold =
-      resultBTy.hasStaticShape() && resultBTy.getNumElements() <= kMaxFold;
-  if (!splat && !withinMaxFold)
-    return nullptr;
-
-  const int64_t numValues = splat ? 1 : resultBTy.getNumElements();
-
-  llvm::SmallVector<Attribute> operands = {operand};
-  llvm::SmallVector<APFloat> folded;
-  for (int i = 0, s = numValues; i < s; ++i) {
-    double fold = 0.0;
-    if (fpTy) {
-      auto inputs = getFoldValueAtIndexFp(operands, i);
-      fold = fpFolder(inputs[0]);
-    }
-    if (intTy) {
-      auto inputs =
-          getFoldValueAtIndexInt(operands, intTy.getIntOrFloatBitWidth(), i);
-      fold = intFolder(inputs[0], intTy.isSigned());
-    }
-
-    APFloat val(fold);
-    bool unused;
-    val.convert(
-        cast<mlir::FloatType>(resultBTy.getElementType()).getFloatSemantics(),
-        APFloat::rmNearestTiesToEven, &unused);
-    folded.push_back(val);
-  }
-  return DenseElementsAttr::get(resultBTy, folded);
-}
-
 OpFoldResult AtenLogOp::fold(FoldAdaptor adaptor) {
   auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
   auto resultType = dyn_cast<ValueTensorType>(getType());
   if (!self || !resultType)
     return nullptr;
 
-  // Note that i1 is neither signed nor unsigned.
-  // But we should trait i1 as unsigned, otherwise that
-  // APInt(1,1).getSExtValue() return allOnes 64-bit integer.
-  auto intFold = [](APInt a, bool isSigned) -> double {
-    if (isSigned)
-      return std::log(a.getSExtValue());
-    else
-      return std::log(a.getZExtValue());
+  auto fpFold = [](llvm::ArrayRef<double> inputs) -> double {
+    assert(inputs.size() == 1);
+    return std::log(inputs[0]);
   };
-  auto fpFold = [](double a) -> double { return std::log(a); };
 
-  return unaryPromoteFolder(self, resultType, fpFold, intFold);
+  return naryFolderHelper(adaptor.getOperands(), resultType, fpFold,
+                          std::nullopt);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3304,7 +3290,18 @@ void PrimListUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     if (op->getNumResults() != listConstruct.getElements().size())
       return failure();
 
-    rewriter.replaceOp(op, listConstruct.getElements());
+    SmallVector<Value> unpacked;
+    for (int i = 0, s = op->getNumResults(); i < s; ++i) {
+      auto element = listConstruct.getElements()[i];
+      if (element.getType() != op->getResult(i).getType()) {
+        element = rewriter.create<TensorStaticInfoCastOp>(
+            op.getLoc(), op->getResult(i).getType(), element);
+      }
+
+      unpacked.push_back(element);
+    }
+
+    rewriter.replaceOp(op, unpacked);
     return success();
   });
 }
@@ -4872,6 +4869,20 @@ void AtenMaxPool2dWithIndicesOp::getCanonicalizationPatterns(
 
     op.getResult0().replaceAllUsesWith(result);
     rewriter.eraseOp(op);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// Aten_AdaptiveAvgPool2dOp
+//===----------------------------------------------------------------------===//
+
+void Aten_AdaptiveAvgPool2dOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add(+[](Aten_AdaptiveAvgPool2dOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenAdaptiveAvgPool2dOp>(
+        op, op.getType(), op.getSelf(), op.getOutputSize());
+
     return success();
   });
 }

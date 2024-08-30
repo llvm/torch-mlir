@@ -1507,20 +1507,67 @@ func.func @torch.aten.Float.Tensor(%arg0: !torch.float) -> !torch.float {
 }
 
 // CHECK-LABEL:   func.func @torch.aten.squeeze$zero_rank(
-// CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[],f32>) -> !torch.tensor<[],f32> {
-// CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[],f32>
-func.func @torch.aten.squeeze$zero_rank(%arg0: !torch.tensor<[],f32>) -> !torch.tensor<[],f32> {
-  %0 = torch.aten.squeeze %arg0 : !torch.tensor<[],f32> -> !torch.tensor<[],f32>
-  return %0 : !torch.tensor<[],f32>
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+// CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[],f32>
+func.func @torch.aten.squeeze$zero_rank(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+  %0 = torch.aten.squeeze %arg0 : !torch.vtensor<[],f32> -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
 }
 
 // CHECK-LABEL:   func.func @torch.aten.squeeze.dim$zero_rank(
-// CHECK-SAME:            %[[ARG:.*]]: !torch.tensor<[],f32>) -> !torch.tensor<[],f32> {
-// CHECK-NEXT:      return %[[ARG]] : !torch.tensor<[],f32>
-func.func @torch.aten.squeeze.dim$zero_rank(%arg0: !torch.tensor<[],f32>) -> !torch.tensor<[],f32> {
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+// CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[],f32>
+func.func @torch.aten.squeeze.dim$zero_rank(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
   %int0 = torch.constant.int 0
-  %0 = torch.aten.squeeze.dim %arg0, %int0 : !torch.tensor<[],f32>, !torch.int -> !torch.tensor<[],f32>
-  return %0 : !torch.tensor<[],f32>
+  %0 = torch.aten.squeeze.dim %arg0, %int0 : !torch.vtensor<[],f32>, !torch.int -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.squeeze.dim$cst() -> !torch.vtensor<[2],si64> {
+// CHECK-NEXT:       %[[CST:.+]] = torch.vtensor.literal(dense<[127, 128]> : tensor<2xsi64>) : !torch.vtensor<[2],si64>
+// CHECK-NEXT:       return %[[CST]]
+func.func @torch.aten.squeeze.dim$cst() -> !torch.vtensor<[2],si64> {
+  %int1 = torch.constant.int 1
+  %0 = torch.vtensor.literal(dense<[[127], [128]]> : tensor<2x1xsi64>) : !torch.vtensor<[2,1],si64>
+  %1 = torch.aten.squeeze.dim %0, %int1 : !torch.vtensor<[2,1],si64>, !torch.int -> !torch.vtensor<[2],si64>
+  return %1 : !torch.vtensor<[2],si64>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.squeeze.dim$cst_i1() -> !torch.vtensor<[3],i1> {
+// CHECK-NEXT:       %[[CST:.+]] = torch.vtensor.literal(dense<[true, false, true]> : tensor<3xi1>) : !torch.vtensor<[3],i1>
+// CHECK-NEXT:       return %[[CST]]
+func.func @torch.aten.squeeze.dim$cst_i1() -> !torch.vtensor<[3],i1> {
+  %int1 = torch.constant.int 1
+  %0 = torch.vtensor.literal(dense<[[true], [false], [true]]> : tensor<3x1xi1>) : !torch.vtensor<[3,1],i1>
+  %1 = torch.aten.squeeze.dim %0, %int1 : !torch.vtensor<[3,1],i1>, !torch.int -> !torch.vtensor<[3],i1>
+  return %1 : !torch.vtensor<[3],i1>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.squeeze.dim$cst_splat_i1() -> !torch.vtensor<[3],i1> {
+// CHECK-NEXT:       %[[CST:.+]] = torch.vtensor.literal(dense<true> : tensor<3xi1>) : !torch.vtensor<[3],i1>
+// CHECK-NEXT:       return %[[CST]]
+func.func @torch.aten.squeeze.dim$cst_splat_i1() -> !torch.vtensor<[3],i1> {
+  %int1 = torch.constant.int 1
+  %0 = torch.vtensor.literal(dense<true> : tensor<3x1xi1>) : !torch.vtensor<[3,1],i1>
+  %1 = torch.aten.squeeze.dim %0, %int1 : !torch.vtensor<[3,1],i1>, !torch.int -> !torch.vtensor<[3],i1>
+  return %1 : !torch.vtensor<[3],i1>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.squeeze.dim$same_shape(
+// CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[2,1],si64>) -> !torch.vtensor<[2,1],si64> {
+// CHECK-NEXT:        return %[[ARG]]
+func.func @torch.aten.squeeze.dim$same_shape(%arg0: !torch.vtensor<[2,1],si64>) -> !torch.vtensor<[2,1],si64> {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.squeeze.dim %arg0, %int0 : !torch.vtensor<[2,1],si64>, !torch.int -> !torch.vtensor<[2,1],si64>
+  return %0 : !torch.vtensor<[2,1],si64>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.squeeze.dim$not_fold
+// CHECK:             torch.aten.squeeze.dim
+func.func @torch.aten.squeeze.dim$not_fold(%arg0: !torch.vtensor<[2,1],si64>) -> !torch.vtensor<[2],si64> {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.squeeze.dim %arg0, %int1 : !torch.vtensor<[2,1],si64>, !torch.int -> !torch.vtensor<[2],si64>
+  return %0 : !torch.vtensor<[2],si64>
 }
 
 // CHECK-LABEL:   func.func @torch.aten.tensor$one_elem(
@@ -1843,6 +1890,18 @@ func.func @prim.ListUnpack$fold_list(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !t
   return %1#0, %1#1 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>
 }
 
+// CHECK-LABEL:   func.func @prim.ListUnpack$fold_list_cast(
+// CHECK-SAME:        %[[ARG0:.*]]: !torch.vtensor<[2,3],f32>,
+// CHECK-SAME:        %[[ARG1:.*]]: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[?,?],f32>,  !torch.vtensor<[?,?],f32>) {
+// CHECK:           %[[CAST0:.+]] = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[2,3],f32> to !torch.vtensor<[?,?],f32>
+// CHECK:           %[[CAST1:.+]] = torch.tensor_static_info_cast %arg1 : !torch.vtensor<[2,3],f32> to !torch.vtensor<[?,?],f32>
+// CHECK:           return %[[CAST0]], %[[CAST1]] : !torch.vtensor<[?,?],f32>,  !torch.vtensor<[?,?],f32>
+func.func @prim.ListUnpack$fold_list_cast(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32>) {
+  %0 = torch.prim.ListConstruct %arg0, %arg1 : (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>) -> !torch.list<vtensor>
+  %1:2 = torch.prim.ListUnpack %0 : !torch.list<vtensor> -> !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32>
+  return %1#0, %1#1 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32>
+}
+
 // CHECK-LABEL:   func.func @torch.aten.div.Tensor_mode$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
 // CHECK:             %[[CST:.*]] = torch.vtensor.literal(dense<3> : tensor<si64>) : !torch.vtensor<[],si64>
 // CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
@@ -1915,6 +1974,17 @@ func.func @torch.aten.sub.Tensor$canonicalize_literal_0d() -> !torch.vtensor<[],
     %1 = torch.prim.NumToTensor.Scalar %int2 : !torch.int -> !torch.vtensor<[],si64>
     %2 = torch.aten.sub.Tensor %0, %1, %int3 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[],si64>
     return %2 : !torch.vtensor<[],si64>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.sub.Tensor$mixed_dtype() -> !torch.vtensor<[],f64> {
+// CHECK:       %[[CST:.*]] = torch.vtensor.literal(dense<2.750000e+01> : tensor<f64>) : !torch.vtensor<[],f64>
+// CEHCK:       return %[[CST]]
+func.func @torch.aten.sub.Tensor$mixed_dtype() -> !torch.vtensor<[],f64> {
+  %int1 = torch.constant.int 1
+  %0 = torch.vtensor.literal(dense<28> : tensor<si64>) : !torch.vtensor<[],si64>
+  %1 = torch.vtensor.literal(dense<5.000000e-01> : tensor<f64>) : !torch.vtensor<[],f64>
+  %2 = torch.aten.sub.Tensor %0, %1, %int1 : !torch.vtensor<[],si64>, !torch.vtensor<[],f64>, !torch.int -> !torch.vtensor<[],f64>
+  return %2 : !torch.vtensor<[],f64>
 }
 
 // CHECK-LABEL:   func.func @torch.aten.sub.Scalar$canonicalize_numtotensor_0d() -> !torch.vtensor<[],si64> {

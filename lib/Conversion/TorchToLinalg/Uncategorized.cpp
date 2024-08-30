@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/BuiltinTypes.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
 #include "PopulatePatterns.h"
@@ -305,6 +306,70 @@ Value createDivModePayload(OpBuilder &b, Location loc,
     }
   }
   return quotient;
+}
+
+template <typename OpT>
+Value createRemainderPayload(OpBuilder &b, Location loc,
+                             const TypeConverter *converter,
+                             ValueRange payloadArgs, OpT op,
+                             ArrayRef<Value> operands) {
+  static_assert(
+      llvm::is_one_of<OpT, AtenRemainderScalarOp, AtenRemainderTensorOp>(),
+      "op must be a tensor/scalar remainder op");
+  typename OpT::Adaptor adaptor(operands);
+  Type dtype = cast<RankedTensorType>(converter->convertType(op.getType()))
+                   .getElementType();
+  Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+  Value rhs = convertScalarToDtype(
+      b, loc,
+      std::is_same_v<OpT, AtenRemainderScalarOp> ? operands[1] : payloadArgs[1],
+      dtype);
+
+  // The remainder op we wish to create would look roughly like this:
+  // rem = a % b
+  // if rem != 0 AND (rem < 0 XOR b < 0) rem += b
+  // This is how python calucates remainders for floats and longs:
+  // https://github.com/python/cpython/blob/2afd1751dd9a35d4ec03b708e3e5cddd72c43f7e/Objects/floatobject.c#L645
+  // https://github.com/python/cpython/blob/2afd1751dd9a35d4ec03b708e3e5cddd72c43f7e/Objects/longobject.c#L3662
+  Value result;
+  if (isa<mlir::FloatType>(dtype)) {
+    Value remainder = b.create<arith::RemFOp>(loc, lhs, rhs);
+
+    Value zero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
+    Value remainderNotEqualToZero = b.create<arith::CmpFOp>(
+        loc, arith::CmpFPredicate::ONE, remainder, zero);
+    Value otherLessThanZero =
+        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OLT, rhs, zero);
+    Value remainderLessThanZero = b.create<arith::CmpFOp>(
+        loc, arith::CmpFPredicate::OLT, remainder, zero);
+    Value xorCondition =
+        b.create<arith::XOrIOp>(loc, otherLessThanZero, remainderLessThanZero);
+    Value condition =
+        b.create<arith::AndIOp>(loc, remainderNotEqualToZero, xorCondition);
+    Value fixedRemainder = b.create<arith::AddFOp>(loc, remainder, rhs);
+    result =
+        b.create<arith::SelectOp>(loc, condition, fixedRemainder, remainder);
+  } else {
+    assert(dtype.isInteger() &&
+           "dtype should be a float or integer (signless or signed)");
+    Value remainder = b.create<arith::RemSIOp>(loc, lhs, rhs);
+
+    Value zero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(dtype));
+    Value remainderNotEqualToZero =
+        b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, remainder, zero);
+    Value otherLessThanZero =
+        b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, rhs, zero);
+    Value remainderLessThanZero = b.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::slt, remainder, zero);
+    Value xorCondition =
+        b.create<arith::XOrIOp>(loc, otherLessThanZero, remainderLessThanZero);
+    Value condition =
+        b.create<arith::AndIOp>(loc, remainderNotEqualToZero, xorCondition);
+    Value fixedRemainder = b.create<arith::AddIOp>(loc, remainder, rhs);
+    result =
+        b.create<arith::SelectOp>(loc, condition, fixedRemainder, remainder);
+  }
+  return result;
 }
 
 static Value createLinalgPayloadCalculationForElementwiseOp(
@@ -780,6 +845,28 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       return b.create<arith::SubIOp>(loc, lhs, scaled);
     }
   }
+  if (auto lshiftScalar = dyn_cast<Aten__Lshift__ScalarOp>(op)) {
+    Type dtype =
+        cast<RankedTensorType>(converter->convertType(lshiftScalar.getType()))
+            .getElementType();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value other =
+        convertScalarToDtype(b, loc, operands[1], dtype,
+                             /*srcOriginalDtype=*/operands[1].getType(),
+                             /*dstOriginalDtype=*/dtype);
+    return b.create<arith::ShLIOp>(loc, self, other);
+  }
+  if (auto rshiftScalar = dyn_cast<Aten__Rshift__ScalarOp>(op)) {
+    Type dtype =
+        cast<RankedTensorType>(converter->convertType(rshiftScalar.getType()))
+            .getElementType();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value other =
+        convertScalarToDtype(b, loc, operands[1], dtype,
+                             /*srcOriginalDtype=*/operands[1].getType(),
+                             /*dstOriginalDtype=*/dtype);
+    return b.create<arith::ShRUIOp>(loc, self, other);
+  }
   if (auto subScalar = dyn_cast<AtenSubScalarOp>(op)) {
     Type dtype =
         cast<RankedTensorType>(converter->convertType(subScalar.getType()))
@@ -1188,44 +1275,12 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return b.create<arith::DivFOp>(loc, self, other);
   }
   if (auto remScalar = dyn_cast<AtenRemainderScalarOp>(op)) {
-    Type newResultType =
-        cast<RankedTensorType>(converter->convertType(remScalar.getType()))
-            .getElementType();
-
-    Value self = convertScalarToDtype(b, loc, payloadArgs[0], newResultType);
-    Value other = convertScalarToDtype(b, loc, operands[1], newResultType);
-    Value result;
-
-    if (isa<mlir::FloatType>(newResultType)) {
-      result = b.create<arith::RemFOp>(loc, self, other);
-    } else if (isa<mlir::IntegerType>(newResultType)) {
-      result = b.create<arith::RemSIOp>(loc, self, other);
-    } else {
-      remScalar.emitError(
-          "Unsupported type encountered for AtenRemainderScalarOp.");
-    }
-
-    return result;
+    return createRemainderPayload(b, loc, converter, payloadArgs, remScalar,
+                                  operands);
   }
   if (auto remTensor = dyn_cast<AtenRemainderTensorOp>(op)) {
-    Type newResultType =
-        cast<RankedTensorType>(converter->convertType(remTensor.getType()))
-            .getElementType();
-
-    Value self = convertScalarToDtype(b, loc, payloadArgs[0], newResultType);
-    Value other = convertScalarToDtype(b, loc, payloadArgs[1], newResultType);
-    Value result;
-
-    if (isa<mlir::FloatType>(newResultType)) {
-      result = b.create<arith::RemFOp>(loc, self, other);
-    } else if (isa<mlir::IntegerType>(newResultType)) {
-      result = b.create<arith::RemSIOp>(loc, self, other);
-    } else {
-      remTensor.emitError(
-          "Unsupported type encountered for AtenRemainderTensorOp.");
-    }
-
-    return result;
+    return createRemainderPayload(b, loc, converter, payloadArgs, remTensor,
+                                  operands);
   }
   if (auto fmod = dyn_cast<AtenFmodTensorOp>(op)) {
     Type newResultType =
@@ -1442,7 +1497,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     scale = b.create<arith::TruncFOp>(loc, valueTy, scale);
 
     value = b.create<arith::DivFOp>(loc, value, scale);
-    value = b.create<math::RoundOp>(loc, value);
+    value = b.create<math::RoundEvenOp>(loc, value);
     value = b.create<arith::AddFOp>(loc, value, zp);
 
     auto destTy = payloadArgs[1].getType();
@@ -1461,12 +1516,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::ConstantOp>(loc, b.getFloatAttr(valueTy, minI));
     Value maxVal =
         b.create<arith::ConstantOp>(loc, b.getFloatAttr(valueTy, maxI));
-    Value minCmp =
-        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULT, value, minVal);
-    Value maxCmp =
-        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UGT, value, maxVal);
-    value = b.create<arith::SelectOp>(loc, minCmp, minVal, value);
-    value = b.create<arith::SelectOp>(loc, maxCmp, maxVal, value);
+    value = b.create<arith::MaximumFOp>(loc, value, minVal);
+    value = b.create<arith::MinimumFOp>(loc, value, maxVal);
 
     if (isUnsigned) {
       value = b.create<arith::FPToUIOp>(loc, destTy, value);
@@ -1475,6 +1526,48 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
 
     return value;
+  }
+
+  if (auto isClose = dyn_cast<AtenIscloseOp>(op)) {
+    double rtol, atol;
+    bool equalNan;
+    if (!matchPattern(isClose.getRtol(), m_TorchConstantFloat(&rtol))) {
+      isClose.emitError("rtol must be a scalar constant");
+      return nullptr;
+    }
+    if (!matchPattern(isClose.getAtol(), m_TorchConstantFloat(&atol))) {
+      isClose.emitError("atol must be a scalar constant");
+      return nullptr;
+    }
+    if (!matchPattern(isClose.getEqualNan(), m_TorchConstantBool(&equalNan))) {
+      isClose.emitError("unimplemented: equal_nan is expected to be false");
+      return nullptr;
+    }
+    auto lhsType = mlir::dyn_cast<mlir::FloatType>(payloadArgs[0].getType());
+    auto rhsType = mlir::dyn_cast<mlir::FloatType>(payloadArgs[1].getType());
+    if (!lhsType || !rhsType) {
+      isClose.emitError("unimplemented: only FP element type is supported");
+      return nullptr;
+    }
+    // Choose the widest float type as compute type.
+    auto computeType =
+        lhsType.getWidth() > rhsType.getWidth() ? lhsType : rhsType;
+    computeType = computeType.getWidth() >= 32 ? computeType : b.getF32Type();
+    auto cvtArg0 = convertScalarToDtype(b, loc, payloadArgs[0], computeType);
+    auto cvtArg1 = convertScalarToDtype(b, loc, payloadArgs[1], computeType);
+    // Reference to the definition of torch.isclose:
+    //   ∣input − other∣ <= atol + rtol × ∣other∣
+    auto diff = b.create<arith::SubFOp>(loc, computeType, cvtArg0, cvtArg1);
+    auto absDiff = b.create<math::AbsFOp>(loc, computeType, diff);
+    auto cstRtol =
+        b.create<arith::ConstantOp>(loc, b.getFloatAttr(computeType, rtol));
+    auto absOther = b.create<math::AbsFOp>(loc, computeType, cvtArg1);
+    auto mul = b.create<arith::MulFOp>(loc, computeType, cstRtol, absOther);
+    auto cstAtol =
+        b.create<arith::ConstantOp>(loc, b.getFloatAttr(computeType, atol));
+    auto threshold = b.create<arith::AddFOp>(loc, computeType, cstAtol, mul);
+    return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULE, absDiff,
+                                   threshold);
   }
 
   op->emitError("unimplemented lowering in "
@@ -1523,7 +1616,8 @@ public:
              AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
              AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
              AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
-             AtenBitwiseRightShiftTensorOp, AtenGtScalarOp, AtenGeScalarOp,
+             AtenBitwiseRightShiftTensorOp, Aten__Lshift__ScalarOp,
+             Aten__Rshift__ScalarOp, AtenGtScalarOp, AtenGeScalarOp,
              AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
              AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
              AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp, AtenSubScalarOp,
@@ -1535,7 +1629,7 @@ public:
              AtenFillScalarOp, AtenFillTensorOp, AtenAtanOp, AtenAcosOp,
              AtenAtanhOp, AtenAcoshOp, AtenAsinOp, AtenAsinhOp, AtenRealOp,
              AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
-             AtenQuantizePerTensorOp>(op))
+             AtenQuantizePerTensorOp, AtenIscloseOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -1649,7 +1743,27 @@ public:
 
     if (reduction == torch_upstream::Reduction::Sum ||
         reduction == torch_upstream::Reduction::Mean) {
-      Value numOfElems = getTensorSize(rewriter, loc, finalRes);
+
+      Value zeroIVal = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getZeroAttr(rewriter.getI32Type()));
+      auto countInfo = torch_to_linalg::ReductionOpInfo{false, target, dimSet};
+      Value numOfElems = torch_to_linalg::createReductionLinalgGeneric(
+          rewriter, loc, countInfo,
+          /*initElem=*/zeroIVal,
+          [&](OpBuilder &b, Location loc, ValueRange args) {
+            Value targetVal = args[0];
+            Value indTarget = rewriter.create<arith::IndexCastOp>(
+                loc, rewriter.getIndexType(), targetVal);
+            Value cmpEq = rewriter.create<arith::CmpIOp>(
+                loc, arith::CmpIPredicate::ne, indTarget, ignoreIndexVal);
+            cmpEq = rewriter.create<arith::ExtUIOp>(loc, rewriter.getI32Type(),
+                                                    cmpEq);
+            Value add = rewriter.create<arith::AddIOp>(loc, args[1], cmpEq);
+            rewriter.create<linalg::YieldOp>(loc, add);
+          });
+
+      numOfElems = rewriter.create<tensor::ExtractOp>(
+          loc, rewriter.getI32Type(), numOfElems, ArrayRef<Value>{});
       numOfElems = convertScalarToDtype(rewriter, loc, numOfElems, elementType);
 
       auto opInfo = torch_to_linalg::ReductionOpInfo{false, finalRes, dimSet};
@@ -2334,6 +2448,10 @@ public:
           } else if (zeropointDTy.isSignedInteger(8)) {
             zeropoint =
                 b.create<arith::ExtSIOp>(loc, b.getI32Type(), zeropoint);
+          } else if (zeropointDTy.isInteger(64)) {
+            zeropoint =
+                b.create<arith::TruncIOp>(loc, b.getI32Type(), zeropoint);
+            op->emitWarning() << "truncated zero point from 64 to 32 bit";
           }
 
           Value sub = rewriter.create<arith::SubIOp>(loc, operand, zeropoint);
@@ -2378,9 +2496,7 @@ public:
     Location loc = op->getLoc();
     Type int64type = rewriter.getI64Type();
     Type floatType = rewriter.getF32Type();
-    Value zeroIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value oneIndex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value twoIndex = rewriter.create<arith::ConstantIndexOp>(loc, 2);
     Value zeroFloat = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getFloatAttr(floatType, 0.0));
     Value oneFloat = rewriter.create<arith::ConstantOp>(
@@ -2389,7 +2505,6 @@ public:
         loc, rewriter.getFloatAttr(floatType, 2.0));
     Value input = adaptor.getInput();
     auto inputType = cast<RankedTensorType>(input.getType());
-    auto inputShape = inputType.getShape();
     Value innerDim0a = rewriter.create<tensor::DimOp>(loc, input, 2);
     Value innerDim1a = rewriter.create<tensor::DimOp>(loc, input, 3);
     Value innerDim0b =
@@ -2410,42 +2525,21 @@ public:
         rewriter.create<arith::DivFOp>(loc, innerDim1d, twoFloat);
     Value grid = adaptor.getGrid();
     auto gridType = cast<RankedTensorType>(grid.getType());
-    auto gridShape = gridType.getShape();
     auto gridRank = gridType.getRank();
-    SmallVector<Value> extractGridOffsets0(gridRank, zeroIndex);
-    SmallVector<Value> extractGridShape = getTensorSizes(rewriter, loc, grid);
-    SmallVector<Value> extractGridStride(gridRank, oneIndex);
-    int64_t lastGridDim = gridRank - 1;
-    extractGridShape[lastGridDim] = oneIndex;
-    extractGridStride[lastGridDim] = twoIndex;
-    SmallVector<Value> extractGridOffsets1(gridRank, zeroIndex);
-    extractGridOffsets1[lastGridDim] = oneIndex;
-    SmallVector<int64_t> gridShapeExtracted(gridShape);
-    gridShapeExtracted.back() = 1;
-    SmallVector<int64_t> gridShapeCollapsed{gridShape[0], gridShape[1],
-                                            gridShape[2]};
-    auto grid0 = rewriter.create<tensor::ExtractSliceOp>(
-        loc, grid, extractGridOffsets0, extractGridShape, extractGridStride);
-    auto grid1 = rewriter.create<tensor::ExtractSliceOp>(
-        loc, grid, extractGridOffsets1, extractGridShape, extractGridStride);
-    SmallVector<ReassociationIndices> associations{ReassociationIndices{0},
-                                                   ReassociationIndices{1},
-                                                   ReassociationIndices{2, 3}};
-    auto gridCollapsed0 =
-        rewriter.create<tensor::CollapseShapeOp>(loc, grid0, associations);
-    auto gridCollapsed1 =
-        rewriter.create<tensor::CollapseShapeOp>(loc, grid1, associations);
-    AffineMap gridMap = AffineMap::get(4, 0,
-                                       {rewriter.getAffineDimExpr(0),
-                                        rewriter.getAffineDimExpr(2),
-                                        rewriter.getAffineDimExpr(3)},
-                                       op->getContext());
-    SmallVector<AffineMap> gridMaps{gridMap, gridMap,
-                                    rewriter.getMultiDimIdentityMap(gridRank)};
+    SmallVector<AffineMap> gridMaps{
+        AffineMap::get(
+            4, 0,
+            {rewriter.getAffineDimExpr(0), rewriter.getAffineDimExpr(2),
+             rewriter.getAffineDimExpr(3), rewriter.getAffineConstantExpr(0)},
+            op->getContext()),
+        AffineMap::get(
+            4, 0,
+            {rewriter.getAffineDimExpr(0), rewriter.getAffineDimExpr(2),
+             rewriter.getAffineDimExpr(3), rewriter.getAffineConstantExpr(1)},
+            op->getContext()),
+        rewriter.getMultiDimIdentityMap(inputType.getRank())};
     SmallVector<utils::IteratorType> gridIterators(
         gridRank, utils::IteratorType::parallel);
-    SmallVector<int64_t> resultShape{inputShape[0], inputShape[1], gridShape[1],
-                                     gridShape[2]};
     auto lambdaExtract = [](OpBuilder &b, Location loc, Value input, Value idxA,
                             Value idxB, Value idxC, Value idxD) -> Value {
       SmallVector<Value> index{idxA, idxB, idxC, idxD};
@@ -2486,22 +2580,22 @@ public:
 
     auto resultType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op.getResult().getType()));
-    SmallVector<Value> resultSize{};
-    if (resultType.isDynamicDim(0))
-      resultSize.push_back(rewriter.create<tensor::DimOp>(loc, input, 0));
-    if (resultType.isDynamicDim(1))
-      resultSize.push_back(rewriter.create<tensor::DimOp>(loc, input, 1));
-    if (resultType.isDynamicDim(2))
-      resultSize.push_back(rewriter.create<tensor::DimOp>(loc, grid, 1));
-    if (resultType.isDynamicDim(3))
-      resultSize.push_back(rewriter.create<tensor::DimOp>(loc, grid, 2));
     Value alignCorners = adaptor.getAlignCorners();
     Value interMode = adaptor.getInterpolationMode();
-    Value resultFinal =
-        rewriter.create<tensor::EmptyOp>(loc, resultType, resultSize);
+    SmallVector<Value> dynamicSizes{};
+    if (resultType.isDynamicDim(0))
+      dynamicSizes.push_back(rewriter.create<tensor::DimOp>(loc, input, 0));
+    if (resultType.isDynamicDim(1))
+      dynamicSizes.push_back(rewriter.create<tensor::DimOp>(loc, input, 1));
+    if (resultType.isDynamicDim(2))
+      dynamicSizes.push_back(rewriter.create<tensor::DimOp>(loc, grid, 1));
+    if (resultType.isDynamicDim(3))
+      dynamicSizes.push_back(rewriter.create<tensor::DimOp>(loc, grid, 2));
+    tensor::EmptyOp emptyOp =
+        rewriter.create<tensor::EmptyOp>(loc, resultType, dynamicSizes);
     auto sGrid = rewriter.create<linalg::GenericOp>(
-        loc, TypeRange{resultType}, ValueRange{gridCollapsed0, gridCollapsed1},
-        ValueRange(resultFinal), gridMaps, gridIterators,
+        loc, TypeRange{resultType}, ValueRange{grid, grid}, ValueRange(emptyOp),
+        gridMaps, gridIterators,
         [&](OpBuilder &b, Location loc, ValueRange args) {
           Value gr0 = args[1];
           Value gr1 = args[0];
@@ -2697,8 +2791,6 @@ static Value BilinearInterpolate(OpBuilder &b,
   auto inputType = cast<RankedTensorType>(input.getType());
   auto inputRank = inputType.getRank();
 
-  Value cstOneEps =
-      b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.000001));
   Value cstOneFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.0));
   Value cstHalf = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.5));
   Value zero = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.0));
@@ -2774,28 +2866,34 @@ static Value BilinearInterpolate(OpBuilder &b,
                                           outputSizeFP, cstOneFloat);
       preClip = b.create<arith::SelectOp>(loc, cmp, zero, preClip);
     }
-    // clip to 0,inf
+    // preClip is the fp position inside the input image to extract from.
+    // clip to [0,inf)
     Value max = b.create<arith::MaximumFOp>(loc, preClip, zero);
-    // length_original - 1.001
-    Value inputSubOneEps = b.create<arith::SubFOp>(loc, inputFP, cstOneEps);
     Value inputSubOne = b.create<arith::SubFOp>(loc, inputFP, cstOneFloat);
-    // clip to [0,length_original - 1.001]
-    projEps.push_back(b.create<arith::MinimumFOp>(loc, max, inputSubOneEps));
+    // clip to [0,length_original - 1].
+    // proj is properly within the input image.
     proj.push_back(b.create<arith::MinimumFOp>(loc, max, inputSubOne));
 
-    lowFP.push_back(b.create<math::FloorOp>(loc, projEps[i]));
-    Value projPlusOne = b.create<arith::AddFOp>(loc, cstOneFloat, projEps[i]);
+    // for bilinear interpolation, we look for the nearest indices below and
+    // above proj
+    lowFP.push_back(b.create<math::FloorOp>(loc, proj[i]));
+    Value projPlusOne = b.create<arith::AddFOp>(loc, cstOneFloat, proj[i]);
     highFP.push_back(b.create<math::FloorOp>(loc, projPlusOne));
 
     Value lowInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), lowFP[i]);
     low.push_back(b.create<arith::IndexCastOp>(loc, b.getIndexType(), lowInt));
 
-    Value highInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), highFP[i]);
+    // highFP could be out-of-bounds, so make sure to clip it down before
+    // extracting. If highFP actually gets clipped here, then high[i] will
+    // extract at the last pixel, but will treat it as if it were extracted from
+    // one further position when computing the interpolation weights.
+    Value highExtract =
+        b.create<arith::MinimumFOp>(loc, projPlusOne, inputSubOne);
+    highExtract = b.create<arith::FPToSIOp>(loc, b.getI64Type(), highExtract);
     high.push_back(
-        b.create<arith::IndexCastOp>(loc, b.getIndexType(), highInt));
+        b.create<arith::IndexCastOp>(loc, b.getIndexType(), highExtract));
   }
 
-  SmallVector<Value> cornerValues;
   indices[dimOffset] = low[0];
   indices[dimOffset + 1] = low[1];
   Value p00 = b.create<tensor::ExtractOp>(loc, input, indices);
@@ -2975,11 +3073,28 @@ public:
     Value cstZeroF = getConstant(rewriter, loc, 0, elemTy);
     // get some shapes
     SmallVector<int64_t> inputShape(inputType.getShape());
+
     SmallVector<int64_t> sliceShape(inputShape);
-    sliceShape.pop_back();
-    SmallVector<int64_t> diagShape({isBatched ? inputType.getShape()[0] : 1});
+    sliceShape[sliceShape.size() - 2] = 1;
+
+    SmallVector<int64_t> diagShape(inputType.getShape());
+    diagShape[diagShape.size() - 2] = 1;
+    diagShape[diagShape.size() - 1] = 1;
+
+    ArrayRef<int64_t> diagCollapseShape(diagShape);
+    diagCollapseShape = diagCollapseShape.drop_back();
+
     auto sliceTy = RankedTensorType::get(sliceShape, elemTy);
     auto diagTy = RankedTensorType::get(diagShape, elemTy);
+    auto diagCollapseTy = RankedTensorType::get(diagCollapseShape, elemTy);
+
+    SmallVector<ReassociationIndices> diagReassociations;
+    diagReassociations.reserve(diagCollapseShape.size());
+    int64_t diagRank = diagCollapseShape.size();
+    for (int i = 0, s = diagRank - 1; i < s; ++i)
+      diagReassociations.push_back(ReassociationIndices{i});
+    diagReassociations.push_back(ReassociationIndices{diagRank - 1, diagRank});
+
     // get some sizes
     SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
     Value chDim = isBatched ? inputSizes[0] : cstOne;
@@ -3015,6 +3130,10 @@ public:
           // offsets = [0, row, row], sizes = [C, 1, 1] -> diag(row,row)
           Value diag = b.create<tensor::ExtractSliceOp>(
               loc, diagTy, vals[0], offsets, sizes, strides);
+
+          Value diagCollapse = b.create<tensor::CollapseShapeOp>(
+              loc, diagCollapseTy, diag, diagReassociations);
+
           SmallVector<OpFoldResult> diagOffsets(inputRank - 1, cstZeroFold);
           diagOffsets.back() = row;
           SmallVector<OpFoldResult> diagStrides(inputRank - 1, cstOneFold);
@@ -3022,7 +3141,7 @@ public:
           diagSizes.back() = cstOneFold;
           // offsets = [0, row], sizes = [C, 1] insert to [C,N]
           Value updatedDiags = b.create<tensor::InsertSliceOp>(
-              loc, diag, vals[1], diagOffsets, diagSizes, diagStrides);
+              loc, diagCollapse, vals[1], diagOffsets, diagSizes, diagStrides);
           // the subpivot matrix column size, as a Value, is matDim - row -
           // cstOne. This can't be statically converted to an int64_t, since row
           // is the loop index, so this is left as a dynamic dim.
@@ -3060,10 +3179,15 @@ public:
           if (isBatched) {
             rowIterator.push_back(allDims[1]);
             colIterator.push_back(allDims[0]);
+            colIterator.push_back(rewriter.getAffineConstantExpr(0));
             colIterator.push_back(allDims[2]);
             batchIterator.push_back(allDims[0]);
+            batchIterator.push_back(getAffineConstantExpr(0, context));
+            batchIterator.push_back(getAffineConstantExpr(0, context));
           } else {
+            colIterator.push_back(rewriter.getAffineConstantExpr(0));
             colIterator.push_back(allDims[1]);
+            batchIterator.push_back(getAffineConstantExpr(0, context));
             batchIterator.push_back(getAffineConstantExpr(0, context));
           }
           SmallVector<AffineMap> indexingMaps;
@@ -3126,6 +3250,10 @@ public:
     offsets.pop_back();
     strides.pop_back();
     sizes.pop_back();
+
+    lastDiag = rewriter.create<tensor::CollapseShapeOp>(
+        loc, diagCollapseTy, lastDiag, diagReassociations);
+
     Value allDiags = rewriter.create<tensor::InsertSliceOp>(
         loc, lastDiag, allDiagsExceptLast, offsets, sizes, strides);
     // linalg generic to do reduce prod for allDiags along back dim.
@@ -3136,7 +3264,8 @@ public:
                                       : getAffineConstantExpr(0, context);
     indexingMaps.push_back(AffineMap::get(inputRank - 1, 0, resultExpr));
     SmallVector<utils::IteratorType> iteratorTypes(
-        inputRank - 1, utils::IteratorType::parallel);
+        inputRank - 2, utils::IteratorType::parallel);
+    iteratorTypes.push_back(utils::IteratorType::reduction);
     Value initDet = createInitTensor(rewriter, loc, ValueRange{chDim}, elemTy,
                                      getConstant(rewriter, loc, 1.0, elemTy));
     Value determinant =
@@ -3156,10 +3285,11 @@ public:
                                                   determinant);
       return success();
     }
-    Value detVal = rewriter.create<tensor::ExtractOp>(
-        loc, determinant, SmallVector<Value>(1, cstZero));
-    rewriter.replaceOpWithNewOp<tensor::FromElementsOp>(op, newResultType,
-                                                        ValueRange{detVal});
+
+    determinant = rewriter.create<tensor::CollapseShapeOp>(
+        loc, newResultType, determinant,
+        llvm::ArrayRef<ReassociationIndices>{});
+    rewriter.replaceOp(op, ValueRange{determinant});
     return success();
   }
 };
@@ -3181,17 +3311,18 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp,
       AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
       AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
-      AtenBitwiseRightShiftTensorOp, AtenGtScalarOp, AtenGeScalarOp,
-      AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
-      AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp,
-      AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
+      AtenBitwiseRightShiftTensorOp, Aten__Lshift__ScalarOp,
+      Aten__Rshift__ScalarOp, AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp,
+      AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
+      AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp, AtenLtTensorOp,
+      AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
       AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
       AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
       AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
       AtenTrilOp, AtenRemainderScalarOp, AtenFmodTensorOp,
       AtenRemainderTensorOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
       AtenFillTensorOp, AtenRealOp, AtenImagOp, AtenDequantizeSelfOp,
-      AtenDequantizeTensorOp, AtenQuantizePerTensorOp>();
+      AtenDequantizeTensorOp, AtenQuantizePerTensorOp, AtenIscloseOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);

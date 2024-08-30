@@ -37,7 +37,10 @@ class LinalgOnTensorsStablehloBackend(StablehloBackend):
 
     def __init__(self):
         super().__init__()
-        self.refbackend = RefBackendLinalgOnTensorsBackend()
+        # TOOD: Enable runtime verification and fix found bugs.
+        self.refbackend = RefBackendLinalgOnTensorsBackend(
+            generate_runtime_verification=False
+        )
 
     def compile(self, imported_module: Module):
         """Compiles an imported module that satisfied the Stablehlo backend contract.

@@ -19,14 +19,14 @@ if [[ "$(whoami)" != "root" ]]; then
 fi
 
 PYTHON_INSTALLER_URLS=(
-  "https://www.python.org/ftp/python/3.11.2/python-3.11.2-macos11.pkg"
-  "https://www.python.org/ftp/python/3.10.10/python-3.10.10-macos11.pkg"
+  "https://www.python.org/ftp/python/3.11.9/python-3.11.9-macos11.pkg"
+  "https://www.python.org/ftp/python/3.10.11/python-3.10.11-macos11.pkg"
   "https://www.python.org/ftp/python/3.9.13/python-3.9.13-macos11.pkg"
 )
 
 PYTHON_SPECS=(
-  3.11@https://www.python.org/ftp/python/3.11.2/python-3.11.2-macos11.pkg
-  3.10@https://www.python.org/ftp/python/3.10.5/python-3.10.5-macos11.pkg
+  3.11@https://www.python.org/ftp/python/3.11.9/python-3.11.9-macos11.pkg
+  3.10@https://www.python.org/ftp/python/3.10.11/python-3.10.11-macos11.pkg
   3.9@https://www.python.org/ftp/python/3.9.13/python-3.9.13-macos11.pkg
 )
 

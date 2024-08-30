@@ -491,6 +491,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::floor_divide : (Tensor, Tensor) -> (Tensor)")
     emit("aten::softplus : (Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::prelu : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::rad2deg : (Tensor) -> (Tensor)")
     emit("aten::real : (Tensor) -> (Tensor)")
     emit("aten::imag : (Tensor) -> (Tensor)")
     emit("aten::view_as_complex : (Tensor) -> (Tensor)")
@@ -662,7 +663,10 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     )
     emit("aten::adaptive_avg_pool1d : (Tensor, int[]) -> (Tensor)")
     emit("aten::adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")
-    emit("aten::_adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)")
+    emit(
+        "aten::_adaptive_avg_pool2d : (Tensor, int[]) -> (Tensor)",
+        has_canonicalizer=True,
+    )
     emit("aten::_adaptive_avg_pool2d_backward : (Tensor, Tensor) -> (Tensor)")
     emit("aten::adaptive_avg_pool3d : (Tensor, int[]) -> (Tensor)")
     emit("aten::_adaptive_avg_pool3d : (Tensor, int[]) -> (Tensor)")
@@ -684,6 +688,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::__and__.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::__and__.Scalar : (Tensor, Scalar) -> (Tensor)", has_canonicalizer=True)
     emit("aten::__or__.Tensor : (Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
+    emit("aten::__lshift__.Scalar : (Tensor, Scalar) -> (Tensor)")
+    emit("aten::__rshift__.Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::_softmax : (Tensor, int, bool) -> (Tensor)")
     emit("aten::mean : (Tensor, int?) -> (Tensor)")
     emit("aten::std : (Tensor, bool) -> (Tensor)")
@@ -791,6 +797,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::argmin : (Tensor, int?, bool) -> (Tensor)")
     emit("aten::one_hot : (Tensor, int) -> (Tensor)")
     emit("aten::atleast_1d : (Tensor) -> (Tensor)")
+    emit("aten::atleast_2d : (Tensor) -> (Tensor)")
     emit("aten::einsum : (str, Tensor[], int[]?) -> (Tensor)")
     emit("aten::trace : (Tensor) -> (Tensor)")
     emit("aten::bucketize.Tensor : (Tensor, Tensor, bool, bool) -> (Tensor)")
@@ -875,6 +882,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::_cast_Long : (Tensor, bool) -> (Tensor)", has_canonicalizer=True)
     emit("aten::type_as : (Tensor, Tensor) -> (Tensor)")
     emit("aten::view : (Tensor, int[]) -> (Tensor)", has_folder=True)
+    emit("aten::view.dtype : (Tensor, int) -> (Tensor)")
     emit("aten::_unsafe_view : (Tensor, int[]) -> (Tensor)")
     emit("aten::where.self : (Tensor, Tensor, Tensor) -> (Tensor)", has_folder=True)
     emit(
@@ -937,6 +945,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::unique_consecutive : (Tensor, bool, bool, int?) -> (Tensor, Tensor, Tensor)"
     )
     emit(
+        "aten::unique_dim : (Tensor, int, bool, bool, bool) -> (Tensor, Tensor, Tensor)"
+    )
+    emit(
         "aten::linspace : (Scalar, Scalar, int, int?, int?, Device?, bool?) -> (Tensor)"
     )
     emit("aten::linalg_cross : (Tensor, Tensor, int) -> (Tensor)", has_verifier=True)
@@ -975,9 +986,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::slice_scatter : (Tensor, Tensor, int, int?, int?, int) -> (Tensor)")
     emit("aten::diagonal_scatter : (Tensor, Tensor, int, int, int) -> (Tensor)")
     emit("aten::as_strided_scatter : (Tensor, Tensor, int[], int[], int?) -> (Tensor)")
+    emit("aten::upsample_nearest1d : (Tensor, int[], float?) -> (Tensor)")
+    emit("aten::upsample_nearest1d.vec : (Tensor, int[]?, float[]?) -> (Tensor)")
     emit("aten::upsample_nearest2d : (Tensor, int[], float?, float?) -> (Tensor)")
+    emit("aten::upsample_nearest2d.vec : (Tensor, int[]?, float[]?) -> (Tensor)")
     emit(
-        "aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?) -> (Tensor)"
+        "aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?, bool) -> (Tensor)"
     )
     emit("aten::grid_sampler : (Tensor, Tensor, int, int, bool) -> (Tensor)")
 
@@ -1074,6 +1088,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::__is__ : (t1, t2) -> (bool)", has_folder=True)
     emit("aten::__isnot__ : (t1, t2) -> (bool)", has_folder=True)
     emit("aten::__not__ : (bool) -> (bool)", has_folder=True)
+    emit("aten::__or__.bool : (bool, bool) -> (bool)", has_folder=True)
     emit("aten::len.t : (t[]) -> (int)", has_folder=True, has_canonicalizer=True)
     emit("aten::__getitem__.t : (t[], int) -> (t)", has_canonicalizer=True)
     emit("aten::_set_item.t : (t[], int, t) -> (t[])")
@@ -1197,6 +1212,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "torchvision::roi_pool : (Tensor, Tensor, float, int, int) -> (Tensor, Tensor)"
     )
+    emit("torchvision::nms : (Tensor, Tensor, float) -> (Tensor)")
 
 
 def dump_registered_ops(outfile: TextIO, registry: Registry):
