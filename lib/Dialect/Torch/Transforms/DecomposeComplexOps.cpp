@@ -5874,7 +5874,6 @@ class DecomposeAtenLayerNormOp : public OpRewritePattern<AtenLayerNormOp> {
     return success();
   }
 };
-
 } // namespace
 
 namespace {
