@@ -1779,6 +1779,7 @@ TOSA_PASS_SET = {
     "ElementwiseLeakyReluStaticModule_basic",
     "ElementwiseLerpScalarIntModule_basic",
     "ElementwiseLerpScalarFloatModule_basic",
+    "ElementwiseLog1pModule_basic",
     "ElementwiseLog2Module_basic",
     "ElementwiseLogModule_basic",
     "ElementwiseLtDiffWidthScalarModule_basic",
@@ -1794,6 +1795,7 @@ TOSA_PASS_SET = {
     "ElementwiseMinOtherModule_basic",
     "ElementwiseMinimumIntModule_basic",
     "ElementwiseMinimumModule_basic",
+    "ElementwiseMishModule_basic",
     "ElementwiseMulScalarModule_basic",
     "ElementwiseMulScalarModule_float",
     "ElementwiseMulScalarModule_float",
@@ -1963,6 +1965,7 @@ TOSA_PASS_SET = {
     "RsubFloatModule_basic",
     "RsubFloatModule_noalpha_basic",
     "RsubInt0d_NumToTensor_Module_basic",
+    "RsubIntModule_basic",
     "ScalarTensorDefaultDtypeModule_basic",
     "ScalarTensorFloat32Module_basic",
     "ScalarTensorInt32Module_basic",
@@ -1971,6 +1974,7 @@ TOSA_PASS_SET = {
     "SiluModule_basic",
     "SliceOutOfUpperBoundIndexStaticModule_basic",
     "SliceStaticModule_basic",
+    "SoftplusModule_basic",
     "SplitTensorGetItem_Module_basic",
     "SplitTensorLastSmallerModule_basic",
     "SplitTensorListUnpackModule_basic",
@@ -2112,10 +2116,6 @@ MAKE_FX_TOSA_PASS_SET = (
         "ViewSizeFromOtherTensor_basic",
         "RenormModuleFloat32NegativeDim_basic",
         "RenormModuleFloat32_basic",
-        "ElementwiseLog1pModule_basic",
-        "ElementwiseMishModule_basic",
-        "RsubIntModule_basic",
-        "SoftplusModule_basic",
     }
 ) - {
     ### Test failing in make_fx_tosa but not in tosa
