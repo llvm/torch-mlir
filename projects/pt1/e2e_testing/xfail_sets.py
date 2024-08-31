@@ -2112,6 +2112,10 @@ MAKE_FX_TOSA_PASS_SET = (
         "ViewSizeFromOtherTensor_basic",
         "RenormModuleFloat32NegativeDim_basic",
         "RenormModuleFloat32_basic",
+        "ElementwiseLog1pModule_basic",
+        "ElementwiseMishModule_basic",
+        "RsubIntModule_basic",
+        "SoftplusModule_basic",
     }
 ) - {
     ### Test failing in make_fx_tosa but not in tosa
