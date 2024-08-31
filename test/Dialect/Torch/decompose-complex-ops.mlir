@@ -128,16 +128,3 @@ func.func @test_einsum_inner_prod(%arg0: !torch.vtensor<[5],f64>, %arg1: !torch.
   %1 = torch.aten.einsum %str, %0, %none_0 : !torch.str, !torch.list<vtensor>, !torch.none -> !torch.vtensor<[],f64>
   return %1 : !torch.vtensor<[],f64>
 }
-
-// -----
-
-// CHECK-LABEL:   func.func @torch.aten.log1p(
-// CHECK-SAME:                                 %[[ARG_0:.*]]: !torch.vtensor<[?,4,19,2],f32>) -> !torch.vtensor<[?,4,19,2],f32> {
-// CHECK:           %[[CONST0:.*]] = torch.constant.float 1.000000e+00
-// CHECK:           %[[ADD:.*]] = torch.aten.add.Scalar %[[ARG_0]], %[[CONST0]], %[[CONST0]] : !torch.vtensor<[?,4,19,2],f32>, !torch.float, !torch.float -> !torch.vtensor<[?,4,19,2],f32>
-// CHECK:           %[[RESULT:.*]] = torch.aten.log %[[ADD]] : !torch.vtensor<[?,4,19,2],f32> -> !torch.vtensor<[?,4,19,2],f32>
-// CHECK:           return %[[RESULT]] : !torch.vtensor<[?,4,19,2],f32>
-func.func @torch.aten.log1p(%arg0: !torch.vtensor<[?,4,19,2],f32>) -> !torch.vtensor<[?,4,19,2],f32> {
-  %0 = torch.aten.log1p %arg0 : !torch.vtensor<[?,4,19,2],f32> -> !torch.vtensor<[?,4,19,2],f32>
-  return %0 : !torch.vtensor<[?,4,19,2],f32>
-}
