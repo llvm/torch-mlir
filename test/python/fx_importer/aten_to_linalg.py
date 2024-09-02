@@ -348,7 +348,7 @@ def test_native_dropout():
 
         def forward(self, input):
             return torch.nn.functional.dropout(input, p=0.5, training=True, inplace=False)
-    native_dropout = Transform(Native_dropout(), torch.randn(128, 128))
+    native_dropout = Transform(Native_dropout(), torch.randn(4096, 53))
     native_dropout.run()
 
 # @run
@@ -1950,3 +1950,13 @@ def normalfloatTensor():
 
 
 
+@run
+def test_dropout():
+    class Dropout(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x:float) -> float:
+            return torch.nn.Dropout(x)
+    dropout = Transform(Dropout(), 0.3)
+    dropout.run()
