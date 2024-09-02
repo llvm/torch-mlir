@@ -3813,6 +3813,24 @@ public:
 };
 } // namespace
 
+// Decompose `aten.stack` into `aten.cat`.
+namespace {
+class DecomposeAtenColumnStackOp : public OpRewritePattern<AtenColumnStackOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenColumnStackOp op,
+                                PatternRewriter &rewriter) const override {
+
+    rewriter.replaceOpWithNewOp<AtenCatOp>(
+        op, op.getType(), op.getTensors(),
+        rewriter.create<Torch::ConstantIntOp>(op.getLoc(),
+                                              rewriter.getI64IntegerAttr(1)));
+
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.roll into aten.slice and aten.cat ops.
 // https://pytorch.org/docs/stable/generated/torch.roll.html
 namespace {
@@ -9463,6 +9481,7 @@ public:
     addPatternIfTargetOpIsIllegal<
         DecomposeConstantTensorAllocLikeOp<AtenZerosLikeOp, 0>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStackOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenColumnStackOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRollOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatInterleaveSelfIntOp>(

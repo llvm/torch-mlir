@@ -5813,3 +5813,115 @@ def AtenPolarDoubleModule_basic(module, tu: TestUtils):
     module.forward(
         tu.rand(2, 5, 3, 4).to(torch.float64), tu.rand(2, 5, 3, 4).to(torch.float64)
     )
+
+
+# ==============================================================================
+
+
+class TensorsColumnStackFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y, z):
+        return torch.column_stack([x, y, z])
+
+
+@register_test_case(module_factory=lambda: TensorsColumnStackFloatModule())
+def TensorsColumnStackFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 2, 4), tu.rand(2, 1, 4), tu.rand(2, 3, 4))
+
+
+# ==============================================================================
+
+
+class TensorsColumnStackIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.int32, True),
+            ([-1, -1, -1], torch.int32, True),
+            ([-1, -1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, x, y, z):
+        return torch.column_stack([x, y, z])
+
+
+@register_test_case(module_factory=lambda: TensorsColumnStackIntModule())
+def TensorsColumnStackIntModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(2, 2, 4).to(torch.int32),
+        tu.randint(2, 1, 4).to(torch.int32),
+        tu.randint(2, 3, 4).to(torch.int32),
+    )
+
+
+# ==============================================================================
+
+
+class TensorsColumnStackIntFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.int32, True),
+            ([-1, -1, -1], torch.float64, True),
+        ]
+    )
+    def forward(self, x, y, z):
+        return torch.column_stack([x, y, z])
+
+
+@register_test_case(module_factory=lambda: TensorsColumnStackIntFloatModule())
+def TensorsColumnStackIntFloatModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 2, 4).to(torch.float32),
+        tu.randint(2, 1, 4).to(torch.int32),
+        tu.rand(2, 3, 4).to(torch.float64),
+    )
+
+
+# ==============================================================================
+
+
+class TensorsColumnStackIntFloatComplexModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.int32, True),
+            ([-1, -1, -1], torch.complex64, True),
+        ]
+    )
+    def forward(self, x, y, z):
+        return torch.column_stack([x, y, z])
+
+
+@register_test_case(module_factory=lambda: TensorsColumnStackIntFloatComplexModule())
+def TensorsColumnStackIntFloatComplexModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 2, 4).to(torch.float32),
+        tu.randint(2, 1, 4).to(torch.int32),
+        tu.randint(2, 3, 4).to(torch.complex64),
+    )

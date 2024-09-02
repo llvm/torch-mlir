@@ -14095,6 +14095,29 @@ def Torch_AtenStackOp : Torch_Op<"aten.stack", [
   }];
 }
 
+def Torch_AtenColumnStackOp : Torch_Op<"aten.column_stack", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::column_stack : (Tensor[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchListOfTensorType:$tensors
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenColumnStackOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenColumnStackOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenAppendTOp : Torch_Op<"aten.append.t", [
     AllowsTypeRefinement
   ]> {

@@ -2122,6 +2122,9 @@ def aten〇index〇Tensor_hacked_twin〡shape(self: List[int], indices: List[Lis
 def aten〇cat〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.cat(tensors, dim)
 
+def aten〇column_stack〡shape(tensors: List[List[int]]) -> List[int]:
+    return upstream_shape_functions.cat(tensors, dim=1)
+
 def aten〇atleast_1d〡shape(self: List[int]) -> List[int]:
     if len(self) == 0:
         return [1]
@@ -5283,6 +5286,21 @@ def aten〇linear〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: 
      Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32),
                  NonZeroDTensorWithDtype(torch.complex64)])])
 def aten〇cat〡dtype(tensors_rank_dtype: List[Tuple[int, int]], dim: int = 0) -> int:
+    ranks: List[Optional[int]] = []
+    dtypes: List[int] = []
+    assert len(tensors_rank_dtype) != 0
+    for tensor_rank_dtype in tensors_rank_dtype:
+        tensor_rank, tensor_dtype = tensor_rank_dtype
+        ranks.append(tensor_rank)
+        dtypes.append(tensor_dtype)
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    [Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float16), NonZeroDTensorWithDtype(torch.float64)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32),
+                 NonZeroDTensorWithDtype(torch.complex64)])])
+def aten〇column_stack〡dtype(tensors_rank_dtype: List[Tuple[int, int]]) -> int:
     ranks: List[Optional[int]] = []
     dtypes: List[int] = []
     assert len(tensors_rank_dtype) != 0
