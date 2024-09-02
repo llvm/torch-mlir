@@ -1941,7 +1941,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             indicesCt = Torch::kUnknownSize;
             break;
           }
-
           indicesCt *= sz;
         }
 
@@ -1976,8 +1975,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return success();
         }
 
-        rewriter.replaceOpWithNewOp<Torch::AtenSqueezeOp>(binder.op, resultType,
-                                                          gather);
+        // indicesRank = 0 will select 1 from the axis dim and squeeze it
+        // Use AtenSqueezeDimOp for the case of result with dynamic shape
+        rewriter.replaceOpWithNewOp<Torch::AtenSqueezeDimOp>(
+            binder.op, resultType, gather, index);
         return success();
       });
   patterns.onOp(
