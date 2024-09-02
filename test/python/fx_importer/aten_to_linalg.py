@@ -1949,12 +1949,6 @@ def normalfloatTensor():
     normalfloatTensor.run()
 
 
-
-
-
-
-
-<<<<<<< HEAD
 @run
 def test_dropout():
     class Dropout(torch.nn.Module):
@@ -1965,7 +1959,4 @@ def test_dropout():
             return torch.nn.Dropout(x)
     dropout = Transform(Dropout(), 0.3)
     dropout.run()
-=======
->>>>>>> add Cumsum elu glu logical_not transpose smooth_l1_loss
-=======
->>>>>>> all kernel aten to linalg
+
