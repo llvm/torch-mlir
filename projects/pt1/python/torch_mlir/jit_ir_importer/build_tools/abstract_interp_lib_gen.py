@@ -322,6 +322,9 @@ def aten〇hardshrink〡shape(self: List[int], lambd: float = 0.5) -> List[int]:
 def aten〇softshrink〡shape(self: List[int], lambd: float = 0.5) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇polar〡shape(abs: List[int], angle: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(abs)
+
 def aten〇mish〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -2594,6 +2597,17 @@ def aten〇hardshrink〡dtype(self_rank_dtype: Tuple[int, int], lambd: Union[int
 def aten〇softshrink〡dtype(self_rank_dtype: Tuple[int, int], lambd: Union[int, float, complex] = 0.5) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
+
+
+def aten〇polar〡dtype(abs_rank_dtype: Tuple[int, int], angle_rank_dtype: Tuple[int, int]) -> int:
+    _, abs_dtype = abs_rank_dtype
+    _, angle_dtype = angle_rank_dtype
+    assert (abs_dtype == angle_dtype)
+    if abs_dtype == torch.float64:
+        return torch.complex128
+    elif abs_dtype == torch.float32:
+        return torch.complex64
+    return abs_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇logit〡dtype(self_rank_dtype: Tuple[int, int], eps: Optional[float] = None) -> int:
