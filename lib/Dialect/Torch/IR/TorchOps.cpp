@@ -739,12 +739,16 @@ OpFoldResult Aten__Not__Op::fold(FoldAdaptor adaptor) {
 OpFoldResult Aten__Or__BoolOp::fold(FoldAdaptor adaptor) {
   auto valueA = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
   auto valueB = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
-  if (!valueA || !valueB) {
+  if (!valueA && !valueB)
     return nullptr;
-  }
-
-  return IntegerAttr::get(IntegerType::get(getContext(), 1),
-                          valueA.getValue() | valueB.getValue());
+  if ((valueA && valueA.getValue() == 1) || (valueB && valueB.getValue() == 1))
+    return IntegerAttr::get(IntegerType::get(getContext(), 1), 1);
+  if (valueA && valueA.getValue() == 0)
+    return getB();
+  if (valueB && valueB.getValue() == 0)
+    return getA();
+  // unreachable
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2159,6 +2163,85 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       return failure();
     rewriter.eraseOp(op);
     return failure();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenUnflattenIntOp
+//===----------------------------------------------------------------------===//
+
+void AtenUnflattenIntOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  // if there are only two sizes and one of them is statically 1, then convert
+  // to an unqueeze.
+  patterns.add(+[](AtenUnflattenIntOp op, PatternRewriter &rewriter) {
+    SmallVector<Value> sizeValues;
+    if (!getListConstructElements(op.getSizes(), sizeValues))
+      return rewriter.notifyMatchFailure(op,
+                                         "sizes must come from list construct");
+    if (sizeValues.size() != 2)
+      return failure();
+    int64_t dim0, dim1;
+    bool dim0Constant = matchPattern(sizeValues[0], m_TorchConstantInt(&dim0));
+    bool dim1Constant = matchPattern(sizeValues[1], m_TorchConstantInt(&dim1));
+    if (!dim0Constant && !dim1Constant)
+      return failure();
+    if (dim0 != 1 && dim1 != 1)
+      return failure();
+    Value unflattenDim = op.getDim();
+    Value self = op.getSelf();
+    Value cstMOne = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), -1);
+    // the runtime asserts below are introduced to catch malformed unflatten ops
+    // possibly generated from onnx IR.
+    Value unsqueeze;
+    if (dim0 == 1) {
+      // unsqueeze at dim
+      FailureOr<Value> maybeUnsqueeze =
+          Torch::unsqueezeTensor(rewriter, op, self, unflattenDim);
+      if (failed(maybeUnsqueeze))
+        return rewriter.notifyMatchFailure(op, "failed to create unsqueeze op");
+      unsqueeze = maybeUnsqueeze.value();
+      // check if the remaining size value is either -1 or equal to original
+      // size at dim
+      Value selfSizeAtDim =
+          rewriter.create<AtenSizeIntOp>(op.getLoc(), self, unflattenDim);
+      Value isSameSize = rewriter.create<AtenEqIntOp>(
+          op.getLoc(), selfSizeAtDim, sizeValues[1]);
+      Value isMinusOne =
+          rewriter.create<AtenEqIntOp>(op.getLoc(), cstMOne, sizeValues[1]);
+      Value isMOneOrSameSize = rewriter.create<Aten__Or__BoolOp>(
+          op.getLoc(), isMinusOne, isSameSize);
+      rewriter.create<Torch::RuntimeAssertOp>(
+          op.getLoc(), isMOneOrSameSize,
+          rewriter.getStringAttr("unflatten sizes must be compatible"));
+    }
+    if (dim1 == 1) {
+      // unsqueeze at dim + 1
+      Value cstOne = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), 1);
+      Value dimPlusOne =
+          rewriter.create<AtenAddIntOp>(op.getLoc(), unflattenDim, cstOne);
+      FailureOr<Value> maybeUnsqueeze =
+          Torch::unsqueezeTensor(rewriter, op, self, dimPlusOne);
+      if (failed(maybeUnsqueeze))
+        return rewriter.notifyMatchFailure(op, "failed to create unsqueeze op");
+      unsqueeze = maybeUnsqueeze.value();
+      // check if the remaining size value is either -1 or equal to original
+      // size at dim
+      Value selfSizeAtDim =
+          rewriter.create<AtenSizeIntOp>(op.getLoc(), self, unflattenDim);
+      Value isSameSize = rewriter.create<AtenEqIntOp>(
+          op.getLoc(), selfSizeAtDim, sizeValues[0]);
+      Value isMinusOne =
+          rewriter.create<AtenEqIntOp>(op.getLoc(), cstMOne, sizeValues[0]);
+      Value isMOneOrSameSize = rewriter.create<Aten__Or__BoolOp>(
+          op.getLoc(), isMinusOne, isSameSize);
+      rewriter.create<Torch::RuntimeAssertOp>(
+          op.getLoc(), isMOneOrSameSize,
+          rewriter.getStringAttr("unflatten sizes must be compatible"));
+    }
+    rewriter.replaceOpWithNewOp<Torch::TensorStaticInfoCastOp>(op, op.getType(),
+                                                               unsqueeze);
+    return success();
   });
 }
 
