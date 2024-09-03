@@ -3508,6 +3508,44 @@ OpFoldResult AtenFloordivIntOp::fold(FoldAdaptor adaptor) {
       [](int64_t a, int64_t b) { return std::floor(a / (double)b); });
 }
 
+void AtenFloordivIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                    MLIRContext *context) {
+  patterns.add(+[](AtenFloordivIntOp op, PatternRewriter &rewriter) {
+    int64_t lhs, rhs;
+    bool lConstant = matchPattern(op.getA(), m_TorchConstantInt(&lhs));
+    bool rConstant = matchPattern(op.getB(), m_TorchConstantInt(&rhs));
+    if (lConstant && rConstant)
+      return failure();
+    if (lConstant || rConstant) {
+      int64_t firstConstant = lConstant ? lhs : rhs;
+      Value firstOperand = lConstant ? op.getB() : op.getA();
+      if (firstOperand.getDefiningOp() &&
+          firstOperand.getDefiningOp<AtenMulIntOp>()) {
+        auto prevMulIntOp = firstOperand.getDefiningOp<AtenMulIntOp>();
+        int64_t prevLhs, prevRhs;
+        bool prevLConstant =
+            matchPattern(prevMulIntOp.getA(), m_TorchConstantInt(&prevLhs));
+        bool prevRConstant =
+            matchPattern(prevMulIntOp.getB(), m_TorchConstantInt(&prevRhs));
+        if (prevLConstant && prevRConstant)
+          return failure();
+        if ((prevLConstant || prevRConstant) &&
+            prevMulIntOp->hasOneUse() == 1) {
+          int64_t secondConstant = prevLConstant ? prevLhs : prevRhs;
+          if (secondConstant == firstConstant) {
+            rewriter.replaceAllUsesWith(
+                op.getResult(), prevMulIntOp.getOperand(prevLConstant ? 1 : 0));
+            rewriter.eraseOp(op);
+            rewriter.eraseOp(prevMulIntOp);
+            return success();
+          }
+        }
+      }
+    }
+    return failure();
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // AtenRemainderIntOp
 //===----------------------------------------------------------------------===//
@@ -3797,6 +3835,45 @@ OpFoldResult AtenMulIntOp::fold(FoldAdaptor adaptor) {
   if (lConstant && rConstant)
     return getI64IntegerAttr(getContext(), lhs * rhs);
   return nullptr;
+}
+
+void AtenMulIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                               MLIRContext *context) {
+  patterns.add(+[](AtenMulIntOp op, PatternRewriter &rewriter) {
+    int64_t lhs, rhs;
+    bool lConstant = matchPattern(op.getA(), m_TorchConstantInt(&lhs));
+    bool rConstant = matchPattern(op.getB(), m_TorchConstantInt(&rhs));
+    if (lConstant && rConstant)
+      return failure();
+    if (lConstant || rConstant) {
+      int64_t firstConstant = lConstant ? lhs : rhs;
+      Value firstOperand = lConstant ? op.getB() : op.getA();
+      if (firstOperand.getDefiningOp() &&
+          firstOperand.getDefiningOp<AtenMulIntOp>()) {
+        auto prevMulIntOp = firstOperand.getDefiningOp<AtenMulIntOp>();
+        int64_t prevLhs, prevRhs;
+        bool prevLConstant =
+            matchPattern(prevMulIntOp.getA(), m_TorchConstantInt(&prevLhs));
+        bool prevRConstant =
+            matchPattern(prevMulIntOp.getB(), m_TorchConstantInt(&prevRhs));
+        if (prevLConstant && prevRConstant)
+          return failure();
+        if ((prevLConstant || prevRConstant) &&
+            prevMulIntOp->hasOneUse() == 1) {
+          auto newConstant = rewriter.create<Torch::ConstantIntOp>(
+              op.getLoc(), rewriter.getI64IntegerAttr(
+                               prevLConstant ? prevLhs * firstConstant
+                                             : prevRhs * firstConstant));
+          rewriter.replaceOpWithNewOp<AtenMulIntOp>(
+              op, op.getType(), prevMulIntOp.getOperand(prevLConstant ? 1 : 0),
+              newConstant);
+          rewriter.eraseOp(prevMulIntOp);
+          return success();
+        }
+      }
+    }
+    return failure();
+  });
 }
 
 //===----------------------------------------------------------------------===//

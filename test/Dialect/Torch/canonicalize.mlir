@@ -1168,6 +1168,19 @@ func.func @torch.aten.mul.int() -> !torch.int {
     return %ret : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.aten.mul.int$canonicalize(
+// CHECK-SAME:           %[[ARG:.*]]: !torch.int) -> !torch.int {
+// CHECK:           %[[CST30:.*]] = torch.constant.int 30
+// CHECK:           %[[RET:.*]] = torch.aten.mul.int %[[ARG]], %[[CST30]] : !torch.int, !torch.int -> !torch.int
+// CHECK:           return %[[RET]] : !torch.int
+func.func @torch.aten.mul.int$canonicalize(%arg0: !torch.int) -> !torch.int {
+    %cst6 = torch.constant.int 6
+    %cst5 = torch.constant.int 5
+    %1 = torch.aten.mul.int %arg0, %cst5: !torch.int, !torch.int -> !torch.int
+    %ret = torch.aten.mul.int %1, %cst6: !torch.int, !torch.int -> !torch.int
+    return %ret : !torch.int
+}
+
 // CHECK-LABEL:   func.func @torch.aten.mul.float() -> !torch.float {
 // CHECK:           %[[CST30:.*]] = torch.constant.float 3.000000e+01
 // CHECK:           return %[[CST30]] : !torch.float
@@ -1204,6 +1217,16 @@ func.func @torch.aten.floordiv.int() -> !torch.int {
     %cst18 = torch.constant.int 18
     %cst5 = torch.constant.int 5
     %ret = torch.aten.floordiv.int %cst18, %cst5: !torch.int, !torch.int -> !torch.int
+    return %ret : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.floordiv.int$canonicalize(
+// CHECK-SAME:           %[[ARG:.*]]: !torch.int) -> !torch.int {
+// CHECK:           return %[[ARG]] : !torch.int
+func.func @torch.aten.floordiv.int$canonicalize(%arg0: !torch.int) -> !torch.int {
+    %cst6 = torch.constant.int 6
+    %1 = torch.aten.mul.int %arg0, %cst6: !torch.int, !torch.int -> !torch.int
+    %ret = torch.aten.floordiv.int %1, %cst6: !torch.int, !torch.int -> !torch.int
     return %ret : !torch.int
 }
 
@@ -3121,7 +3144,6 @@ func.func @torch.aten.clone$no_fold(%arg0: !torch.vtensor<[1,2,50,4],f32>) -> (!
   %1 = torch.copy.to_tensor %0 : !torch.tensor
   return %1 : !torch.tensor
 }
-
 
 // -----
 

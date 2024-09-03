@@ -15492,6 +15492,7 @@ def Torch_AtenFloordivIntOp : Torch_Op<"aten.floordiv.int", [
     }
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenRemainderIntOp : Torch_Op<"aten.remainder.int", [
@@ -15641,6 +15642,7 @@ def Torch_AtenMulIntOp : Torch_Op<"aten.mul.int", [
     }
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenDivIntOp : Torch_Op<"aten.div.int", [
