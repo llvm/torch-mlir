@@ -135,7 +135,6 @@ from ..dialects import (
     func as func_dialect,
 )
 
-from .._mlir_libs._torchMlir import get_int64_max, get_int64_min
 
 __all__ = [
     "FxImporter",
@@ -1186,9 +1185,9 @@ class ContextCache:
         def _sympy_int_to_int(val: sympy.Expr, adjust_func: Callable):
             # Convert simple sympy Integers into concrete int
             if val in infs:
-                return get_int64_max()
+                return torch.iinfo(torch.int64).max
             if val in tuple(-inf for inf in infs):
-                return get_int64_min()
+                return torch.iinfo(torch.int64).min
             if isinstance(val, sympy.Integer):
                 return int(val)
             # TODO: Remove this adjustment when fractional ranges are removed
