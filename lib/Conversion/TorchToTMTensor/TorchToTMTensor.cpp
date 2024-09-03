@@ -1595,31 +1595,59 @@ public:
     Type elementType =
         cast<ShapedType>(adaptor.getQuery().getType()).getElementType();
 
-    // Verify inputs (only support defaults)
-    // if (!isa<Torch::NoneType>(mask.getType())){
-    //   return rewriter.notifyMatchFailure(op.getLoc(),
-    //                                      "attention masking not supported");
-    // }
-
-    // if (auto unrealizedCast =
-    // mask.getDefiningOp<mlir::UnrealizedConversionCastOp>()) {
-    //   mask = unrealizedCast.getInputs()[0];
-    // }
-
-    llvm::outs() << mask << "\n";
     double dropout;
     if (!matchPattern(dropoutP, m_TorchConstantFloat(&dropout)) ||
         dropout > 0.0)
       return rewriter.notifyMatchFailure(op.getLoc(), "dropout not supported");
+
     bool causal;
     if (!matchPattern(isCausal, m_TorchConstantBool(&causal)) || causal) {
       if (!isa<Torch::NoneType>(mask.getType())) {
         return rewriter.notifyMatchFailure(
             op.getLoc(), "expected no attention mask when isCausal is true");
       }
-      return rewriter.notifyMatchFailure(
-          op.getLoc(), "causal attention masking not supported");
+
+      auto batchSize = rewriter.getIndexAttr(queryTy.getDimSize(0));
+      auto numHeads = rewriter.getIndexAttr(queryTy.getDimSize(1));
+      auto seqLenQ = rewriter.getIndexAttr(queryTy.getDimSize(2));
+      auto seqLenK = rewriter.getIndexAttr(keyTy.getDimSize(2));
+
+      SmallVector<OpFoldResult> maskSizes = {batchSize, numHeads, seqLenQ,
+                                             seqLenK};
+
+      Type maskType = getElementTypeOrSelf(queryTy);
+      Value emptyMask =
+          rewriter.create<tensor::EmptyOp>(op.getLoc(), maskSizes, maskType);
+
+      Value zero = rewriter.create<arith::ConstantOp>(
+          op.getLoc(),
+          rewriter.getFloatAttr(getElementTypeOrSelf(maskType), 0.0));
+      Value negInf = rewriter.create<arith::ConstantOp>(
+          op.getLoc(),
+          rewriter.getFloatAttr(getElementTypeOrSelf(maskType), -INFINITY));
+
+      mask = rewriter.create<linalg::FillOp>(op.getLoc(), zero, emptyMask)
+                 .getResult(0);
+
+      int64_t rank = cast<ShapedType>(queryTy).getRank();
+      AffineMap maskMap = rewriter.getMultiDimIdentityMap(rank);
+      SmallVector<utils::IteratorType> iteratorTypes(
+          rank, utils::IteratorType::parallel);
+      auto genericOp = rewriter.create<linalg::GenericOp>(
+          op.getLoc(), mask.getType(), ValueRange{}, mask,
+          SmallVector<AffineMap>{maskMap}, iteratorTypes,
+          [&](OpBuilder &b, Location loc, ValueRange args) {
+            Value i = b.create<linalg::IndexOp>(loc, 2); // Query position
+            Value j = b.create<linalg::IndexOp>(loc, 3); // Key position
+
+            Value cond =
+                b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, i, j);
+            Value select = b.create<arith::SelectOp>(loc, cond, zero, negInf);
+            b.create<linalg::YieldOp>(loc, select);
+          });
+      mask = genericOp.getResult(0);
     }
+
     if (!isa<Torch::NoneType>(scale.getType())) {
       double scaleFloat;
       if (!matchPattern(scale, m_TorchConstantFloat(&scaleFloat)) ||
@@ -1673,6 +1701,9 @@ public:
     query = collapseBatch(query);
     key = collapseBatch(key);
     value = collapseBatch(value);
+    if (!isa<mlir::torch::Torch::NoneType>(mask.getType())) {
+      mask = collapseBatch(mask);
+    }
 
     SmallVector<int64_t> outSizes(cast<ShapedType>(query.getType()).getShape());
     SmallVector<int64_t> valueSizes(
@@ -1689,20 +1720,14 @@ public:
     SmallVector<Value> inputs = SmallVector<Value>{query, key, value};
 
     if (!isa<mlir::torch::Torch::NoneType>(mask.getType())) {
-      // Use weights as is
       inputs.push_back(mask);
     }
-    // else {
-    //     // Use a default/optional value
-    //     inputs.push_back(rewriter.create<mlir::torch::Torch::ConstantNoneOp>(loc));
-    // }
 
     // Overwrite with tm_tensor::attention
     Value attention = rewriter
                           .create<AttentionOp>(loc, outType, inputs,
                                                SmallVector<Value>{output})
                           .getResult()[0];
-    llvm::outs() << "C\n";
 
     if (opTy != outType) {
       attention = rewriter.create<tensor::ExpandShapeOp>(loc, opTy, attention,

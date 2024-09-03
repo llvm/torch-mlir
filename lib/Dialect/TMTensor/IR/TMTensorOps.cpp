@@ -188,14 +188,12 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
 
   auto optionalMask = getAttnMask();
   Value mask = optionalMask ? *optionalMask : Value();
-  //   llvm::outs() << "D";
 
-  llvm::outs() << mask << " YIPPEE\n";
   Value output = getOutput();
   auto queryType = cast<MemRefType>(query.getType());
   auto keyType = cast<MemRefType>(key.getType());
   auto valueType = cast<MemRefType>(value.getType());
-  // auto maskType = cast<MemRefType>(mask.getType());
+  auto maskType = mask ? cast<MemRefType>(mask.getType()) : MemRefType();
   auto queryRank = queryType.getRank();
   auto keyRank = keyType.getRank();
   auto valueRank = valueType.getRank();
@@ -259,23 +257,40 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
 
   // Apply mask to weights if mask is given
 
-  if (mask) {
-    b.create<scf::ParallelOp>(
-        loc, SmallVector<Value>(weightRank, zero), weightDynSizes,
-        SmallVector<Value>(weightRank, one),
-        [&](OpBuilder &b, Location loc, ValueRange localIVs) {
-          // llvm::outs() << localIVs << "\n";
-          SmallVector<Value> maskIVs = {localIVs[1], localIVs[2]};
-          Value weightValue = b.create<memref::LoadOp>(loc, weight, localIVs);
-          Value maskValue = b.create<memref::LoadOp>(loc, mask, maskIVs);
-          llvm::outs() << weightValue << "           " << maskValue << "\n";
-          Value maskedWeight =
-              b.create<arith::AddFOp>(loc, weightValue, maskValue);
-          b.create<memref::StoreOp>(loc, maskedWeight, weight, localIVs);
-        });
-  }
+  Value cstZero = b.create<arith::ConstantOp>(loc, elementType,
+                                              b.getFloatAttr(elementType, 0.0));
+  Value cstNegInf = b.create<arith::ConstantOp>(
+      loc, elementType, b.getFloatAttr(elementType, -INFINITY));
 
-  llvm::outs() << "FIVE STEP\n";
+  if (mask) {
+    if (maskType.getElementType().isInteger(1)) {
+      b.create<scf::ParallelOp>(
+          loc, SmallVector<Value>(weightRank, zero), weightDynSizes,
+          SmallVector<Value>(weightRank, one),
+          [&](OpBuilder &b, Location loc, ValueRange localIVs) {
+            // SmallVector<Value> maskIVs = {localIVs[2], localIVs[3]};
+            Value weightValue = b.create<memref::LoadOp>(loc, weight, localIVs);
+            Value maskValue = b.create<memref::LoadOp>(loc, mask, localIVs);
+            Value maskAdd =
+                b.create<arith::SelectOp>(loc, maskValue, cstZero, cstNegInf);
+            Value maskedWeight =
+                b.create<arith::AddFOp>(loc, weightValue, maskAdd);
+            b.create<memref::StoreOp>(loc, maskedWeight, weight, localIVs);
+          });
+    } else {
+      b.create<scf::ParallelOp>(
+          loc, SmallVector<Value>(weightRank, zero), weightDynSizes,
+          SmallVector<Value>(weightRank, one),
+          [&](OpBuilder &b, Location loc, ValueRange localIVs) {
+            // SmallVector<Value> maskIVs = {localIVs[2], localIVs[3]};
+            Value weightValue = b.create<memref::LoadOp>(loc, weight, localIVs);
+            Value maskValue = b.create<memref::LoadOp>(loc, mask, localIVs);
+            Value maskedWeight =
+                b.create<arith::AddFOp>(loc, weightValue, maskValue);
+            b.create<memref::StoreOp>(loc, maskedWeight, weight, localIVs);
+          });
+    }
+  }
 
   // calculate max(weight)
   Value init = b.create<memref::LoadOp>(loc, weight,
