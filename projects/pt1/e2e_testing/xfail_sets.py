@@ -1963,6 +1963,7 @@ TOSA_PASS_SET = {
     "RsubFloatModule_basic",
     "RsubFloatModule_noalpha_basic",
     "RsubInt0d_NumToTensor_Module_basic",
+    "RsubIntModule_basic",
     "ScalarTensorDefaultDtypeModule_basic",
     "ScalarTensorFloat32Module_basic",
     "ScalarTensorInt32Module_basic",

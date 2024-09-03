@@ -1060,13 +1060,21 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::le.int : (int, int) -> (bool)", has_folder=True)
     emit("aten::ne.int : (int, int) -> (bool)", has_folder=True)
     emit("aten::eq.int : (int, int) -> (bool)", has_folder=True)
-    emit("aten::floordiv.int : (int, int) -> (int)", has_folder=True)
+    emit(
+        "aten::floordiv.int : (int, int) -> (int)",
+        has_folder=True,
+        has_canonicalizer=True,
+    )
     emit("aten::remainder.int : (int, int) -> (int)", has_folder=True)
     emit("aten::remainder.Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::remainder.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::add.int : (int, int) -> (int)", has_folder=True)
     emit("aten::sub.int : (int, int) -> (int)", has_folder=True)
-    emit("aten::mul.int : (int, int) -> (int)", has_folder=True)
+    emit(
+        "aten::mul.int : (int, int) -> (int)",
+        has_folder=True,
+        has_canonicalizer=True,
+    )
     emit("aten::div.int : (int, int) -> (float)", has_folder=True)
     emit("aten::neg.int : (int) -> (int)", has_folder=True)
     emit("aten::log.int : (int) -> (float)")
