@@ -1886,6 +1886,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         // Default permutation is to reverse orders:
         int64_t rank = tensorType.getRank();
+
+        // Case: Rank-0 Input
+        if (rank == 0) {
+          rewriter.replaceOp(binder.op, operand);
+          return success();
+        }
+
         llvm::SmallVector<int64_t> reverse(rank);
         for (int64_t i = 0; i < rank; ++i) {
           reverse[i] = rank - i - 1;

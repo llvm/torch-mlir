@@ -1612,6 +1612,15 @@ func.func @test_transpose_default(%arg0: !torch.vtensor<[2,3,4],f32>) -> !torch.
 
 // -----
 
+// CHECK-LABEL: func.func @test_transpose_zero_rank_input
+func.func @test_transpose_zero_rank_input(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64} {
+  // CHECK: return %arg0 : !torch.vtensor<[],f32>
+  %0 = torch.operator "onnx.Transpose"(%arg0) : (!torch.vtensor<[],f32>) -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_transpose_all_permutations_4
 func.func @test_transpose_all_permutations_4(%arg0: !torch.vtensor<[2,3,4],f32>) -> !torch.vtensor<[4,2,3],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64} {
   // CHECK-DAG:  %[[I0:.+]] = torch.constant.int 0
