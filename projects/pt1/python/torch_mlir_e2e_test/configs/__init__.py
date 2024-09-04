@@ -5,5 +5,6 @@
 
 from .lazy_tensor_core import LazyTensorCoreTestConfig
 from .native_torch import NativeTorchTestConfig
+from .onnx_backend import OnnxBackendTestConfig
 from .torchscript import TorchScriptTestConfig
 from .fx_importer_backend import FxImporterTestConfig

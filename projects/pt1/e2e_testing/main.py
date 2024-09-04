@@ -20,6 +20,7 @@ from torch_mlir_e2e_test.registry import GLOBAL_TEST_REGISTRY
 from torch_mlir_e2e_test.configs import (
     LazyTensorCoreTestConfig,
     NativeTorchTestConfig,
+    OnnxBackendTestConfig,
     TorchScriptTestConfig,
     FxImporterTestConfig,
 )
@@ -70,6 +71,8 @@ def _get_argparse():
         "native_torch",
         "torchscript",
         "lazy_tensor_core",
+        "onnx",
+        "onnx_tosa",
         "fx_importer",
         "fx_importer_stablehlo",
         "fx_importer_tosa",
@@ -89,11 +92,11 @@ Meaning of options:
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
 "lazy_tensor_core": run the model through the Lazy Tensor Core frontend and execute the traced graph.
 # "torchdynamo": run the model through the TorchDynamo frontend and execute the graph using Linalg-on-Tensors.
-# "onnx": export to the model via onnx and reimport using the torch-onnx-to-torch path.
+"onnx": export to the model via onnx and reimport using the torch-onnx-to-torch path.
 "fx_importer": run the model through the fx importer frontend and execute the graph using Linalg-on-Tensors.
 "fx_importer_stablehlo": run the model through the fx importer frontend and execute the graph using Stablehlo backend.
 "fx_importer_tosa": run the model through the fx importer frontend and execute the graph using the TOSA backend.
-# "onnx_tosa": Import ONNX to Torch via the torch-onnx-to-torch path and execute the graph using the TOSA backend.
+"onnx_tosa": Import ONNX to Torch via the torch-onnx-to-torch path and execute the graph using the TOSA backend.
 """,
     )
     parser.add_argument(
