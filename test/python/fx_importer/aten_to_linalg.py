@@ -273,10 +273,6 @@ def test_cumsum():
             return torch.cumsum(x, dim)
     cumsum = Transform(Cumsum(), torch.randn(1024), 0)
     cumsum.run()
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> all kernel aten to linalg
 
 # @run
 def test_permute():
@@ -344,7 +340,7 @@ def test_embedding_dense_backward():
 #     layer_norm_backward = Transform(Layer_norm_backward(), torch.randn(256, 128), torch.randn(256, 128), (128,), torch.randn(128), torch.randn(128))
 #     layer_norm_backward.run() #参数设置问题
     
-# @run
+@run
 def test_native_dropout():
     class Native_dropout(torch.nn.Module):
         def __init__(self):
@@ -1937,7 +1933,7 @@ def normalTensorfloat():
     normalTensorfloat = Transform(NormalTensorfloat(), torch.randn(128, 128), 5)
     normalTensorfloat.run()
 
-@run
+# @run
 def normalfloatTensor():
     class NormalfloatTensor(torch.nn.Module):
         def __init__(self):
@@ -1947,16 +1943,4 @@ def normalfloatTensor():
             return torch.normal(mean, std)
     normalfloatTensor = Transform(NormalfloatTensor(), 0.0, torch.randn(128, 128))
     normalfloatTensor.run()
-
-
-@run
-def test_dropout():
-    class Dropout(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-
-        def forward(self, x:float) -> float:
-            return torch.nn.Dropout(x)
-    dropout = Transform(Dropout(), 0.3)
-    dropout.run()
 
