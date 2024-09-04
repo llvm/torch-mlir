@@ -1607,13 +1607,31 @@ public:
             op.getLoc(), "expected no attention mask when isCausal is true");
       }
 
-      auto batchSize = rewriter.getIndexAttr(queryTy.getDimSize(0));
-      auto numHeads = rewriter.getIndexAttr(queryTy.getDimSize(1));
-      auto seqLenQ = rewriter.getIndexAttr(queryTy.getDimSize(2));
-      auto seqLenK = rewriter.getIndexAttr(keyTy.getDimSize(2));
+      SmallVector<OpFoldResult> maskSizes;
 
-      SmallVector<OpFoldResult> maskSizes = {batchSize, numHeads, seqLenQ,
-                                             seqLenK};
+      if (queryTy.hasStaticShape() && keyTy.hasStaticShape()) {
+        auto seqLenQ =
+            rewriter.getIndexAttr(queryTy.getDimSize(queryTy.getRank() - 2));
+        auto seqLenK =
+            rewriter.getIndexAttr(keyTy.getDimSize(keyTy.getRank() - 2));
+        maskSizes = {seqLenQ, seqLenK};
+        for (int i = queryTy.getRank() - 3; i >= 0; --i) {
+          auto batchSize = rewriter.getIndexAttr(queryTy.getDimSize(i));
+          maskSizes.insert(maskSizes.begin(), batchSize);
+        }
+      } else { // Dynamic shape case: <?x?x...x?xf32> for example
+        for (int i = 0; i < queryTy.getRank() - 2; ++i) {
+          Value batchSize =
+              rewriter.create<tensor::DimOp>(op.getLoc(), query, i);
+          maskSizes.push_back(batchSize);
+        }
+        Value seqLenQ = rewriter.create<tensor::DimOp>(op.getLoc(), query,
+                                                       queryTy.getRank() - 2);
+        Value seqLenK = rewriter.create<tensor::DimOp>(op.getLoc(), key,
+                                                       keyTy.getRank() - 2);
+        maskSizes.push_back(seqLenQ);
+        maskSizes.push_back(seqLenK);
+      }
 
       Type maskType = getElementTypeOrSelf(queryTy);
       Value emptyMask =
@@ -1637,8 +1655,8 @@ public:
           op.getLoc(), mask.getType(), ValueRange{}, mask,
           SmallVector<AffineMap>{maskMap}, iteratorTypes,
           [&](OpBuilder &b, Location loc, ValueRange args) {
-            Value i = b.create<linalg::IndexOp>(loc, 2); // Query position
-            Value j = b.create<linalg::IndexOp>(loc, 3); // Key position
+            Value i = b.create<linalg::IndexOp>(loc, queryTy.getRank() - 2);
+            Value j = b.create<linalg::IndexOp>(loc, queryTy.getRank() - 1);
 
             Value cond =
                 b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, i, j);

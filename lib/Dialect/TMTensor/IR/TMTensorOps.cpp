@@ -94,12 +94,16 @@ LogicalResult AttentionOp::verify() {
   ShapedType queryType = getQueryType();
   ShapedType keyType = getKeyType();
   ShapedType valueType = getValueType();
-  // ShapedType maskType = *getAttnMaskType();
-  // llvm::outs() << "B";
+
+  auto optionalMaskType = getAttnMaskType();
+  ShapedType maskType = optionalMaskType ? *optionalMaskType : ShapedType();
+
   ArrayRef<int64_t> queryShape = queryType.getShape();
   ArrayRef<int64_t> keyShape = keyType.getShape();
   ArrayRef<int64_t> valueShape = valueType.getShape();
-  // ArrayRef<int64_t> maskShape = maskType.getShape();
+  ArrayRef<int64_t> maskShape =
+      optionalMaskType ? maskType.getShape() : ArrayRef<int64_t>();
+
   for (int i = 0, s = queryShape.size() - 2; i < s; ++i) {
     if (keyShape[i] != queryShape[i]) {
       return op->emitOpError("query and key batch mismatch");
@@ -117,7 +121,21 @@ LogicalResult AttentionOp::verify() {
   if (keyShape[keyShape.size() - 2] != valueShape[valueShape.size() - 2]) {
     return op->emitOpError("key and value sequence length dimension mismatch");
   }
-  // MASK SHAPE CHECK
+  if (optionalMaskType) {
+    for (int i = 0, s = maskShape.size() - 2; i < s; ++i) {
+      if (maskShape[i] != queryShape[i]) {
+        return op->emitOpError("query and mask batch dimension mismatch");
+      }
+    }
+    if (maskShape[maskShape.size() - 2] != queryShape[queryShape.size() - 2]) {
+      return op->emitOpError(
+          "mask sequence length and query sequence length mismatch");
+    }
+    if (maskShape[maskShape.size() - 1] != keyShape[keyShape.size() - 2]) {
+      return op->emitOpError(
+          "mask sequence lengt and key sequence length mismatch");
+    }
+  }
   return success();
 }
 
