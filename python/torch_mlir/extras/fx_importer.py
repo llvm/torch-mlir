@@ -470,7 +470,7 @@ class FxImporterHooks:
         ...
 
     def resolve_literal(
-        self, gni: "GraphNodeImporter", literal: Any
+        self, gni: "GraphNodeImporter", literal: Any, info: Optional[InputInfo]
     ) -> Optional[Value]:
         """User overridable hook to resolve a literal value."""
         return None
@@ -1826,13 +1826,13 @@ class GraphNodeImporter:
             name=op_name, results=[result_type], operands=operands
         ).result
 
-    def _import_literal(self, py_value: Any) -> Value:
+    def _import_literal(self, py_value: Any, info: Optional[InputInfo] = None) -> Value:
         orig_value = None
         if isinstance(py_value, torch.Tensor) and py_value.dtype == torch.bool:
             orig_value = py_value
             py_value = py_value.to(torch.uint8)
         # Apply the conversion callback.
-        user_value = self.fx_importer._hooks.resolve_literal(self, py_value)
+        user_value = self.fx_importer._hooks.resolve_literal(self, py_value, info)
         if user_value is not None:
             assert isinstance(user_value, Value)
             if orig_value is not None:
@@ -1866,7 +1866,7 @@ class GraphNodeImporter:
             raise ValueError(
                 f"Cannot import {info.input_spec} as a literal because it is mutable"
             )
-        return self._import_literal(py_value)
+        return self._import_literal(py_value, info)
 
     def _import_scalar_as_tensor(self, loc: Location, arg: NodeArgument) -> Value:
         tensor_arg = torch.tensor(arg)
