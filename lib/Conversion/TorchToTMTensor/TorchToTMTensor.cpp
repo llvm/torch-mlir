@@ -793,7 +793,6 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    MLIRContext *context = op->getContext();
     Value input = op.getSelf();
     Value values = op.getValues();
     auto inputType = cast<ValueTensorType>(input.getType());
@@ -915,9 +914,6 @@ public:
         rewriter.create<AtenViewOp>(loc, valuesType, values, valuesDimsList);
 
     // `TMTensor::ScatterOp` expects indices of element type i32.
-    indices = convertTensorToDtype(
-        rewriter, loc, indices,
-        mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
 
     input = typeConverter->materializeTargetConversion(
         rewriter, loc, typeConverter->convertType(input.getType()), input);
