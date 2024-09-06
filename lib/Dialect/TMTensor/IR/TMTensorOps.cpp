@@ -220,6 +220,8 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
 
   Value zeroF = b.create<arith::ConstantOp>(loc, elementType,
                                             b.getFloatAttr(elementType, 0.0));
+  Value negInfF = b.create<arith::ConstantOp>(
+      loc, elementType, b.getFloatAttr(elementType, -INFINITY));
 
   // TODO: This needs to be fixed, it assumes everything is dynamic however if
   // any shapes are static the `memref.alloc` generated is illegal.
@@ -274,23 +276,16 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
       });
 
   // Apply mask to weights if mask is given
-
-  Value cstZero = b.create<arith::ConstantOp>(loc, elementType,
-                                              b.getFloatAttr(elementType, 0.0));
-  Value cstNegInf = b.create<arith::ConstantOp>(
-      loc, elementType, b.getFloatAttr(elementType, -INFINITY));
-
   if (mask) {
     if (maskType.getElementType().isInteger(1)) {
       b.create<scf::ParallelOp>(
           loc, SmallVector<Value>(weightRank, zero), weightDynSizes,
           SmallVector<Value>(weightRank, one),
           [&](OpBuilder &b, Location loc, ValueRange localIVs) {
-            // SmallVector<Value> maskIVs = {localIVs[2], localIVs[3]};
             Value weightValue = b.create<memref::LoadOp>(loc, weight, localIVs);
             Value maskValue = b.create<memref::LoadOp>(loc, mask, localIVs);
             Value maskAdd =
-                b.create<arith::SelectOp>(loc, maskValue, cstZero, cstNegInf);
+                b.create<arith::SelectOp>(loc, maskValue, zeroF, negInfF);
             Value maskedWeight =
                 b.create<arith::AddFOp>(loc, weightValue, maskAdd);
             b.create<memref::StoreOp>(loc, maskedWeight, weight, localIVs);
@@ -300,7 +295,6 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
           loc, SmallVector<Value>(weightRank, zero), weightDynSizes,
           SmallVector<Value>(weightRank, one),
           [&](OpBuilder &b, Location loc, ValueRange localIVs) {
-            // SmallVector<Value> maskIVs = {localIVs[2], localIVs[3]};
             Value weightValue = b.create<memref::LoadOp>(loc, weight, localIVs);
             Value maskValue = b.create<memref::LoadOp>(loc, mask, localIVs);
             Value maskedWeight =
@@ -394,10 +388,19 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
       [&](OpBuilder &b, Location loc, ValueRange localIVs) {
         SmallVector<Value> sumIVs(localIVs);
         sumIVs.pop_back();
+
         Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
         Value sum = b.create<memref::LoadOp>(loc, expWeightSum, sumIVs);
-        x = b.create<arith::DivFOp>(loc, x, sum);
-        b.create<memref::StoreOp>(loc, x, weight, localIVs);
+        Value divResult = b.create<arith::DivFOp>(loc, x, sum);
+
+        // Set to 0 if sum is 0 (can occur during boolean mask / large negative
+        // QK)
+        Value isSumZero =
+            b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OEQ, sum, zeroF);
+        Value result =
+            b.create<arith::SelectOp>(loc, isSumZero, zeroF, divResult);
+
+        b.create<memref::StoreOp>(loc, result, weight, localIVs);
       });
 
   // output = weight @ value

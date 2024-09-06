@@ -252,11 +252,9 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
         ["generateScalarImplementation"]>]> {
   let summary = "Attention operator";
   let description = [{
-    This operator takes in 3 tensors: query(Q), key(K) and value(V) and computes
-    the attention. Each of the inputs has shape BxNxd where B is the
-    of the batch dimension, N is the sequence length and d is head dimension.
-    Typically N >>> d. Mathematically, the attention is defined as
-    matmul(softmax(matmul(Q, transpose(K))), V) and has shape BxNxd. Usually,
+    This operator takes in 3 to 4 tensors: query(Q), key(K), value(V), and an optional mask(M) to compute
+    the attention. These tensors must take on shapes BxMxK1 for Q, BxK2xK1 for K, BxK2xN for V, and BxMxK2 for M. For all these shapes, B represents the batch dimension, M represents sequence length, N represents head dimension, and K1 and K2 are hidden dimensions.  Mathematically, the attention is defined as
+    matmul(softmax(matmul(Q, transpose(K))+M), V) and has shape BxMxN. Usually,
     this operator also performs scaling, masking and dropout, but we leave
     that out of the current implementation.
   }];
