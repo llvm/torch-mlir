@@ -1530,61 +1530,121 @@ def Atleast1dModule1dInput_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class Atleast2dModule0dInput(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
+class Rot90BasicModule(torch.nn.Module):
     @export
     @annotate_args(
         [
             None,
-            ([], torch.float32, True),
+            ([4, 5], torch.float32, True),
         ]
     )
-    def forward(self, x):
-        return torch.ops.aten.atleast_2d(x)
+    def forward(self, a):
+        return torch.ops.aten.rot90(
+            a,
+            k=1,
+            dims=(
+                0,
+                1,
+            ),
+        )
 
 
-@register_test_case(module_factory=lambda: Atleast2dModule0dInput())
-def Atleast2dModule0dInput_basic(module, tu: TestUtils):
-    module.forward(tu.rand())
+@register_test_case(module_factory=lambda: Rot90BasicModule())
+def Rot90BasicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5))
 
 
-class Atleast2dModule1dInput(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
+class Rot90DynamicDimsModule(torch.nn.Module):
     @export
     @annotate_args(
         [
             None,
-            ([4], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
         ]
     )
-    def forward(self, x):
-        return torch.ops.aten.atleast_2d(x)
+    def forward(self, a):
+        return torch.ops.aten.rot90(
+            a,
+            k=1,
+            dims=(
+                0,
+                1,
+            ),
+        )
 
 
-@register_test_case(module_factory=lambda: Atleast2dModule1dInput())
-def Atleast2dModule1dInput_basic(module, tu: TestUtils):
-    module.forward(tu.rand(4))
+@register_test_case(module_factory=lambda: Rot90DynamicDimsModule())
+def Rot90DynamicDimsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 2, 4))
 
 
-class Atleast2dModule2dInput(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
+class Rot90MultipleRotationsModule(torch.nn.Module):
     @export
     @annotate_args(
         [
             None,
-            ([4, 4], torch.float32, True),
+            ([7, 4, 6], torch.float32, True),
         ]
     )
-    def forward(self, x):
-        return torch.ops.aten.atleast_2d(x)
+    def forward(self, a):
+        return torch.ops.aten.rot90(
+            a,
+            k=6,
+            dims=(
+                1,
+                2,
+            ),
+        )
 
 
-@register_test_case(module_factory=lambda: Atleast2dModule2dInput())
-def Atleast2dModule2dInput_basic(module, tu: TestUtils):
-    module.forward(tu.rand(4, 4))
+@register_test_case(module_factory=lambda: Rot90MultipleRotationsModule())
+def Rot90MultipleRotationsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(7, 4, 6))
+
+
+class Rot90NegativeOddRotationsModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([7, 4, 6, 5, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.rot90(
+            a,
+            k=-5,
+            dims=(
+                1,
+                2,
+            ),
+        )
+
+
+@register_test_case(module_factory=lambda: Rot90NegativeOddRotationsModule())
+def Rot90NegativeOddRotationsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(7, 4, 6, 5, 3))
+
+
+class Rot90NegativeEvenRotationsModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([6, 5, 1, 7, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.rot90(
+            a,
+            k=-6,
+            dims=(
+                1,
+                -2,
+            ),
+        )
+
+
+@register_test_case(module_factory=lambda: Rot90NegativeEvenRotationsModule())
+def Rot90NegativeEvenRotationsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 5, 1, 7, 3))

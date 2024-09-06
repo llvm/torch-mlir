@@ -5500,6 +5500,72 @@ public:
 };
 } // namespace
 
+// Decompose aten.rot90
+// github:
+// https://github.com/pytorch/pytorch/blob/207564bab1c4fe42750931765734ee604032fb69/torch/_refs/__init__.py#L3830
+namespace {
+class DecomposeAtenRot90Op : public OpRewritePattern<AtenRot90Op> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRot90Op op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+
+    // Convert dims from Value to SmallVector.
+    SmallVector<Value> dims;
+    if (!getListConstructElements(op.getDims(), dims))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: dims not list of Scalar");
+
+    // Convert k from Value to int
+    int64_t k;
+    if (!matchPattern(op.getK(), m_TorchConstantInt(&k)))
+      return rewriter.notifyMatchFailure(op,
+                                         "Unimplemented: k not constant int");
+
+    k = (k % 4 + 4) %
+        4; // This is equal to python code k = k % 4, because python and c++
+           // have different implementation for operand %.
+
+    if (k == 1) {
+      Value flipDimList = rewriter.create<Torch::PrimListConstructOp>(
+          loc,
+          rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
+          ArrayRef{dims[1]});
+
+      Value flip =
+          rewriter.create<AtenFlipOp>(loc, self.getType(), self, flipDimList);
+
+      rewriter.replaceOpWithNewOp<Torch::AtenTransposeIntOp>(
+          op, op.getType(), flip, dims[0], dims[1]);
+    } else if (k == 2) {
+      rewriter.replaceOpWithNewOp<AtenFlipOp>(op, op.getType(), self,
+                                              op.getDims());
+    } else if (k == 3) {
+      Value flipDimList = rewriter.create<Torch::PrimListConstructOp>(
+          loc,
+          rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
+          ArrayRef{dims[0]});
+
+      Value flip =
+          rewriter.create<AtenFlipOp>(loc, self.getType(), self, flipDimList);
+
+      rewriter.replaceOpWithNewOp<Torch::AtenTransposeIntOp>(
+          op, op.getType(), flip, dims[0], dims[1]);
+    } else {
+      rewriter.replaceOpWithNewOp<AtenCloneOp>(
+          op, op.getType(), self,
+          /*memory_format=*/
+          rewriter.create<Torch::ConstantIntOp>(loc,
+                                                rewriter.getI64IntegerAttr(0)));
+    }
+
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.std.correction to sqrt(var.correction(x))
 namespace {
 class DecomposeAtenStdCorrectionOp
@@ -9603,6 +9669,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRot90Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSplitWithSizesOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNarrowOp>(patterns);
