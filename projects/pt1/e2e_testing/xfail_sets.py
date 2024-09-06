@@ -3153,7 +3153,13 @@ if torch_version_for_comparison() < version.parse("2.4.0.dev"):
 if torch_version_for_comparison() >= version.parse("2.5.0.dev"):
     ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
         # ERROR: value (Tensor with shape=[2, 3, 8, 20], dtype=torch.float32, min=+nan, max=+nan, mean=+nan) is not close to golden value (Tensor with shape=[2, 3, 8, 20], dtype=torch.float32, min=-2.394, max=+2.454, mean=-0.02828)
-        "ScaledDotProductAttentionBoolMaskModule_basic",
+        # "ScaledDotProductAttentionBoolMaskModule_basic",
+        "CountNonzeroDimIntListModuleBool_Basic",
+        "CountNonzeroModuleBool_Basic",
+        "CountNonzeroDimIntListModuleI64_basic",
+        "CountNonzeroDimIntListModuleF32_basic",
+        "CountNonzeroModuleI64_basic",
+        "CountNonzeroModuleF32_basic",
     }
 
 if torch_version_for_comparison() < version.parse("2.4.0.dev"):
