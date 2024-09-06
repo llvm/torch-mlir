@@ -5308,6 +5308,104 @@ public:
 };
 } // namespace
 
+// Decompose aten.count_nonzero
+//  Decomposing:
+//    1) use AtenNeScalarOp to compare elementwise with 0 scalar
+//    4) use AtenSumOp to sum along given dim
+namespace {
+class DecomposeAtenCountNonzeroOp
+    : public OpRewritePattern<AtenCountNonzeroOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCountNonzeroOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto self = op.getSelf();
+    auto inputType = cast<BaseTensorType>(self.getType());
+    auto dim = op.getDim();
+    if (!isa<Torch::NoneType>(dim.getType()) &&
+        !isa<Torch::IntType>(dim.getType())) {
+      return rewriter.notifyMatchFailure(op,
+                                         "expected `dim` to be `None` or `int` "
+                                         "or constructed from list construct");
+    }
+    auto boolTensorType = rewriter.getType<ValueTensorType>(
+        cast<BaseTensorType>(inputType).getOptionalSizes(),
+        rewriter.getI1Type());
+
+    auto cstZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    auto sumPositiveNegativeMap =
+        rewriter.create<AtenNeScalarOp>(loc, boolTensorType, self, cstZero);
+    auto none = rewriter.create<ConstantNoneOp>(loc);
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    if (isa<Torch::NoneType>(dim.getType()))
+      rewriter.replaceOpWithNewOp<AtenSumOp>(op, op.getResult().getType(),
+                                             sumPositiveNegativeMap, none);
+    else {
+      SmallVector<Value> dimIntVector{dim};
+      auto dimIntList = rewriter.create<Torch::PrimListConstructOp>(
+          loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
+          dimIntVector);
+      rewriter.replaceOpWithNewOp<AtenSumDimIntListOp>(
+          op, op.getResult().getType(), sumPositiveNegativeMap, dimIntList,
+          cstFalse, none);
+    }
+
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.count_nonzero.dim_IntList
+//  Decomposing:
+//    1) use AtenNeScalarOp to compare elementwise with 0 scalar
+//    4) use AtenSumDimIntListOp to sum along given dim_IntList
+namespace {
+class DecomposeAtenCountNonzeroDimIntListOp
+    : public OpRewritePattern<AtenCountNonzeroDimIntListOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCountNonzeroDimIntListOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto self = op.getSelf();
+    auto inputType = cast<BaseTensorType>(self.getType());
+    auto dimList = op.getDim();
+    if (!isa<Torch::NoneType>(dimList.getType()) &&
+        !isa<Torch::IntType>(
+            cast<Torch::ListType>(dimList.getType()).getContainedType())) {
+      return rewriter.notifyMatchFailure(op,
+                                         "expected `dim` to be `None` or `int` "
+                                         "or constructed from list construct");
+    }
+    SmallVector<Value> dimListElements;
+    if (!getListConstructElements(dimList, dimListElements)) {
+      return rewriter.notifyMatchFailure(
+          op, "expected `dim` to be constructed from list construct");
+    }
+
+    auto boolTensorType = rewriter.getType<ValueTensorType>(
+        cast<BaseTensorType>(inputType).getOptionalSizes(),
+        rewriter.getI1Type());
+
+    auto cstZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    auto sumPositiveNegativeMap =
+        rewriter.create<AtenNeScalarOp>(loc, boolTensorType, self, cstZero);
+    auto none = rewriter.create<ConstantNoneOp>(loc);
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+    auto newOp = rewriter.create<AtenSumDimIntListOp>(
+        loc, op.getResult().getType(), sumPositiveNegativeMap, dimList,
+        cstFalse, none);
+
+    rewriter.replaceOp(op, newOp);
+
+    return success();
+  }
+};
+} // namespace
+
 // productDimSize = product(size(dim) for dim in dims)
 // aten.mean(x, dims) = aten.sum(x, dims) / productDimSize.
 namespace {
@@ -9699,6 +9797,9 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAddmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenCountNonzeroOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenCountNonzeroDimIntListOp>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);

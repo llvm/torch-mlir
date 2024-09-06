@@ -5508,3 +5508,64 @@ LogicalResult AtenRot90Op::verify() {
 
   return success();
 }
+
+//===----------------------------------------------------------------------===//
+// AtenCountNonzeroOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenCountNonzeroOp::verify() {
+
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+
+  if (!selfType.hasDtype() || !selfType.hasSizes())
+    return success();
+
+  int64_t selfRank;
+  selfRank = selfType.getSizes().size();
+
+  int64_t dim;
+  if (!matchPattern(getDim(), m_TorchConstantInt(&dim)))
+    return success();
+
+  if (!isa<Torch::IntType>(getDim().getType()) &&
+      !isa<Torch::NoneType>(getDim().getType()))
+    return emitOpError("Parameter dim must be none or int type");
+
+  if (dim >= selfRank || dim < -selfRank)
+    return emitOpError(
+               "Parameter dim out of range\nExpected to be in range of [ ")
+           << -selfRank << " , " << selfRank - 1 << " ], but got " << dim;
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// AtenCountNonzeroDimIntListOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenCountNonzeroDimIntListOp::verify() {
+
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+
+  if (!selfType.hasDtype() || !selfType.hasSizes())
+    return success();
+
+  int64_t selfRank;
+  selfRank = selfType.getSizes().size();
+
+  SmallVector<int64_t> dims;
+
+  if (!matchPattern(getDim(), m_TorchListOfConstantInts(dims)))
+    return emitOpError("Expected dim to be constructed from list construct");
+
+  if (!isa<Torch::IntType>(getDim().getType().getContainedType()))
+    return emitOpError("List elements must be int type");
+
+  for (auto d : dims) {
+    if (d >= selfRank || d < -selfRank)
+      return emitOpError(
+                 "Parameter dim out of range\nExpected to be in range of [ ")
+             << -selfRank << " , " << selfRank - 1 << " ], but got " << d;
+  }
+
+  return success();
+}

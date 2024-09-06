@@ -135,6 +135,39 @@ def aten〇diagonal〡shape(self: List[int], offset: int = 0, dim1: int = 0, dim
 
     return diagonal
 
+@check_shape_function([
+    Invocation(TensorOfShape(2, 3, 4)), # Basic case.
+    Invocation(TensorOfShape(2, 3, 4), dim=1), # Test explicit `dim1`.
+    Invocation(TensorOfShape(2, 3, 4), dim=-1), # Test explicit `dim1`.
+    Invocation(TensorOfShape(2, 3, 4), dim=0), # Test explicit `dim`.
+    Invocation(TensorOfShape(2, 3, 4), dim=-3), # Negative `dim`.
+    Invocation(TensorOfShape(2, 3, 4), dim=2), # Maximum valid `dim`.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim=-4), # `dim` out of bounds.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim=3), # `dim` out of bounds.
+])
+def aten〇count_nonzero〡shape(self: List[int], dim: Optional[int] = None) -> List[int]:
+    if dim is None: return []
+    assert not (dim < -len(self) or dim >= len(self))
+    return upstream_shape_functions.argmax(self, dim, False)
+
+
+@check_shape_function([
+    Invocation(TensorOfShape(2, 3, 4), dim = []), # Basic case.
+    Invocation(TensorOfShape(2, 3, 4), dim=[1]), # Test explicit `dim1`.
+    Invocation(TensorOfShape(2, 3, 4), dim=[-1]), # Test explicit `dim1`.
+    Invocation(TensorOfShape(2, 3, 4), dim=[0,1]), # Test explicit `dim`.
+    Invocation(TensorOfShape(2, 3, 4), dim=[-3]), # Negative `dim`.
+    Invocation(TensorOfShape(2, 3, 4), dim=[2]), # Maximum valid `dim`.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim=[-4]), # `dim` out of bounds.
+     ErrorInvocation(TensorOfShape(2, 3, 4), dim=[1,-4]), # `dim` out of bounds.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim=[3]), # `dim` out of bounds.
+])
+def aten〇count_nonzero〇dim_IntList〡shape(self: List[int], dim: List[int]) -> List[int]:
+    if dim is None: return []
+    for d in dim:
+        assert not (d < -len(self) or d >= len(self))
+    return upstream_shape_functions.sum_mean_dim(self, dim,False,0)
+
 def aten〇fake_quantize_per_tensor_affine〡shape(self: List[int], scale: float, zero_point: int, quant_min: int, quant_max: int) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -3469,6 +3502,12 @@ def aten〇tril〡dtype(self_rank_dtype: Tuple[int, int], diagonal: int = 0) -> 
 def aten〇diagonal〡dtype(self_rank_dtype: Tuple[int, int], offset: int = 0, dim1: int = 0, dim2: int = 1) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+def aten〇count_nonzero〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[int] = None) -> int:
+    return torch.int64
+
+def aten〇count_nonzero〇dim_IntList〡dtype(self_rank_dtype: Tuple[int, int], dim: List[int]) -> int:
+    return torch.int64
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇uniform〡dtype(self_rank_dtype: Tuple[int, int], from_: float = 0., to: float = 1., generator: Any = None) -> int:

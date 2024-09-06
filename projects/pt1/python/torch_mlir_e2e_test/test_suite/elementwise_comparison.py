@@ -1074,3 +1074,102 @@ class ElementwiseIsinfModule(torch.nn.Module):
 def ElementwiseIsinfModule_basic(module, tu: TestUtils):
     x = torch.tensor([1.0, torch.nan, torch.inf, -torch.inf])
     module.forward(x)
+
+
+# ==============================================================================
+
+
+class CountNonzeroModuleF32(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.dim = -3
+
+    @export
+    @annotate_args([None, ([2, 3, 4], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.count_nonzero(x, self.dim)
+
+
+@register_test_case(module_factory=lambda: CountNonzeroModuleF32())
+def CountNonzeroModuleF32_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4).to(torch.float32))
+
+
+class CountNonzeroModuleI64(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.dim = 2
+
+    @export
+    @annotate_args([None, ([2, 3, 4], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.count_nonzero(x, self.dim)
+
+
+@register_test_case(module_factory=lambda: CountNonzeroModuleI64())
+def CountNonzeroModuleI64_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3, 4, low=-2, high=2).to(torch.int64))
+
+
+class CountNonzeroDimIntListModuleF32(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.dim = [-1, 1]
+
+    @export
+    @annotate_args([None, ([2, 3, 4], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.count_nonzero(x, self.dim)
+
+
+@register_test_case(module_factory=lambda: CountNonzeroDimIntListModuleF32())
+def CountNonzeroDimIntListModuleF32_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4).to(torch.float32))
+
+
+class CountNonzeroDimIntListModuleI64(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.dim = [-2, -0, -1]
+
+    @export
+    @annotate_args([None, ([2, 3, 4], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.count_nonzero(x, self.dim)
+
+
+@register_test_case(module_factory=lambda: CountNonzeroDimIntListModuleI64())
+def CountNonzeroDimIntListModuleI64_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3, 4).to(torch.int64))
+
+
+class CountNonzeroModuleBool(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.dim = -3
+
+    @export
+    @annotate_args([None, ([2, 3, 4], torch.bool, True)])
+    def forward(self, x):
+        return torch.ops.aten.count_nonzero(x)
+
+
+@register_test_case(module_factory=lambda: CountNonzeroModuleBool())
+def CountNonzeroModuleBool_Basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3, 4).to(torch.bool))
+
+
+class CountNonzeroDimIntListModuleBool(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.dim = [-2, -0, -1]
+
+    @export
+    @annotate_args([None, ([2, 3, 4], torch.bool, True)])
+    def forward(self, x):
+        return torch.ops.aten.count_nonzero(x, self.dim)
+
+
+@register_test_case(module_factory=lambda: CountNonzeroDimIntListModuleBool())
+def CountNonzeroDimIntListModuleBool_Basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3, 4).to(torch.bool))
