@@ -36,11 +36,11 @@ if torch_version_for_comparison() < version.parse("2.5.0.dev"):
         # Error: 'torch.aten.scaled_dot_product_attention' op expected 8 operands, but found 7
         # WORKS FOR TORCH VERSION 2.5.0.dev20240902, REMOVE WHEN ENABLE_GQA IS PUT IN STABLE
         "ScaledDotProductAttentionBoolMaskModule_basic"
+        "ScaledDotProductAttentionDifferentCausalModule_basic",
         "ScaledDotProductAttentionDifferentModule_basic",
-        "ScaledDotProductAttentionDifferentModuleCausal_basic",
         "ScaledDotProductAttentionMaskModule_basic",
+        "ScaledDotProductAttentionSameCausalModule_basic",
         "ScaledDotProductAttentionSameModule_basic",
-        "ScaledDotProductAttentionSameModuleCausal_basic",
     }
 
 LINALG_CRASHING_SET = {
@@ -504,12 +504,12 @@ FX_IMPORTER_XFAIL_SET = {
     "ViewSizeFromOtherTensor_basic",
     "WeightNormInterfaceModule_basic",
     # REMOVE ON WHEN ENABLE_GQA IS ADDED
-    "ScaledDotProductAttentionBoolMaskModule_basic"
+    "ScaledDotProductAttentionBoolMaskModule_basic",
+    "ScaledDotProductAttentionDifferentCausalModule_basic",
     "ScaledDotProductAttentionDifferentModule_basic",
-    "ScaledDotProductAttentionDifferentModuleCausal_basic",
     "ScaledDotProductAttentionMaskModule_basic",
+    "ScaledDotProductAttentionSameCausalModule_basic",
     "ScaledDotProductAttentionSameModule_basic",
-    "ScaledDotProductAttentionSameModuleCausal_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
@@ -2186,12 +2186,12 @@ MAKE_FX_TOSA_PASS_SET = (
 if torch_version_for_comparison() < version.parse("2.5.0.dev"):
     MAKE_FX_TOSA_PASS_SET = MAKE_FX_TOSA_PASS_SET | {
         # REMOVE ON WHEN ENABLE_GQA IS ADDED
-        "ScaledDotProductAttentionBoolMaskModule_basic"
+        "ScaledDotProductAttentionBoolMaskModule_basic",
+        "ScaledDotProductAttentionDifferentCausalModule_basic",
         "ScaledDotProductAttentionDifferentModule_basic",
-        "ScaledDotProductAttentionDifferentModuleCausal_basic",
         "ScaledDotProductAttentionMaskModule_basic",
+        "ScaledDotProductAttentionSameCausalModule_basic",
         "ScaledDotProductAttentionSameModule_basic",
-        "ScaledDotProductAttentionSameModuleCausal_basic",
     }
 
 LTC_CRASHING_SET = {
@@ -3023,12 +3023,12 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ReduceAnyDimFloatModule_basic",
     "RenormModuleFloat16_basic",
     # REMOVE ON WHEN ENABLE_GQA IS ADDED
-    "ScaledDotProductAttentionBoolMaskModule_basic"
+    "ScaledDotProductAttentionBoolMaskModule_basic",
+    "ScaledDotProductAttentionDifferentCausalModule_basic",
     "ScaledDotProductAttentionDifferentModule_basic",
-    "ScaledDotProductAttentionDifferentModuleCausal_basic",
     "ScaledDotProductAttentionMaskModule_basic",
+    "ScaledDotProductAttentionSameCausalModule_basic",
     "ScaledDotProductAttentionSameModule_basic",
-    "ScaledDotProductAttentionSameModuleCausal_basic",
     "ScatterAddStaticModule_basic",
     "TensorsConcatComplex128FloatModule_basic",
     "TensorsConcatComplex128IntModule_basic",
@@ -4570,12 +4570,12 @@ ONNX_TOSA_XFAIL_SET = {
     "ScalarImplicitFloatModule_basic",
     "ScalarImplicitIntModule_basic",
     # REMOVE ON WHEN ENABLE_GQA IS ADDED
-    "ScaledDotProductAttentionBoolMaskModule_basic"
+    "ScaledDotProductAttentionBoolMaskModule_basic",
+    "ScaledDotProductAttentionDifferentCausalModule_basic",
     "ScaledDotProductAttentionDifferentModule_basic",
-    "ScaledDotProductAttentionDifferentModuleCausal_basic",
     "ScaledDotProductAttentionMaskModule_basic",
+    "ScaledDotProductAttentionSameCausalModule_basic",
     "ScaledDotProductAttentionSameModule_basic",
-    "ScaledDotProductAttentionSameModuleCausal_basic",
     "ScatterReduceFloatMaxModule",
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMeanModule",
