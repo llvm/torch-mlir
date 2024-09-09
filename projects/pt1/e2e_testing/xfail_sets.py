@@ -2188,6 +2188,13 @@ MAKE_FX_TOSA_PASS_SET = (
     "AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule_basic",
 }
 
+if torch_version_for_comparison() < version.parse("2.5.0.dev"):
+    MAKE_FX_TOSA_PASS_SET = MAKE_FX_TOSA_PASS_SET | {
+        "ScaledDotProductAttentionDifferentModule_basic",
+        "ScaledDotProductAttentionMaskModule_basic",
+        "ScaledDotProductAttentionSameModule_basic",
+    }
+
 LTC_CRASHING_SET = {
     # TODO: update test to move all inputs to the lazy device. Otherwise test fails with:
     # Check failed: lazy_tensor Input tensor is not a lazy tensor: CPUBoolType.
