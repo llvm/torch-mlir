@@ -19,13 +19,9 @@ from torch_mlir_e2e_test.registry import GLOBAL_TEST_REGISTRY
 # Available test configs.
 from torch_mlir_e2e_test.configs import (
     LazyTensorCoreTestConfig,
-    LinalgOnTensorsBackendTestConfig,
-    StablehloBackendTestConfig,
     NativeTorchTestConfig,
     OnnxBackendTestConfig,
     TorchScriptTestConfig,
-    TosaBackendTestConfig,
-    TorchDynamoTestConfig,
     FxImporterTestConfig,
 )
 
@@ -74,12 +70,7 @@ def _get_argparse():
     config_choices = [
         "native_torch",
         "torchscript",
-        "linalg",
-        "stablehlo",
-        "make_fx_tosa",
-        "tosa",
         "lazy_tensor_core",
-        "torchdynamo",
         "onnx",
         "onnx_tosa",
         "fx_importer",
@@ -91,16 +82,16 @@ def _get_argparse():
         "-c",
         "--config",
         choices=config_choices,
-        default="linalg",
+        default="fx_importer",
         help=f"""
 Meaning of options:
-"linalg": run through torch-mlir"s default Linalg-on-Tensors backend.
-"tosa": run through torch-mlir"s default TOSA backend.
-"stablehlo": run through torch-mlir"s default Stablehlo backend.
+# "linalg": run through torch-mlir"s default Linalg-on-Tensors backend.
+# "tosa": run through torch-mlir"s default TOSA backend.
+# "stablehlo": run through torch-mlir"s default Stablehlo backend.
 "native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
 "lazy_tensor_core": run the model through the Lazy Tensor Core frontend and execute the traced graph.
-"torchdynamo": run the model through the TorchDynamo frontend and execute the graph using Linalg-on-Tensors.
+# "torchdynamo": run the model through the TorchDynamo frontend and execute the graph using Linalg-on-Tensors.
 "onnx": export to the model via onnx and reimport using the torch-onnx-to-torch path.
 "fx_importer": run the model through the fx importer frontend and execute the graph using Linalg-on-Tensors.
 "fx_importer_stablehlo": run the model through the fx importer frontend and execute the graph using Stablehlo backend.
@@ -154,23 +145,23 @@ def main():
     all_test_unique_names = set(test.unique_name for test in GLOBAL_TEST_REGISTRY)
 
     # Find the selected config.
-    if args.config == "linalg":
-        config = LinalgOnTensorsBackendTestConfig(RefBackendLinalgOnTensorsBackend())
-        xfail_set = LINALG_XFAIL_SET
-        crashing_set = LINALG_CRASHING_SET
-    elif args.config == "stablehlo":
-        config = StablehloBackendTestConfig(LinalgOnTensorsStablehloBackend())
-        xfail_set = all_test_unique_names - STABLEHLO_PASS_SET
-        crashing_set = STABLEHLO_CRASHING_SET
-    elif args.config == "tosa":
-        config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend())
-        xfail_set = all_test_unique_names - TOSA_PASS_SET
-        crashing_set = TOSA_CRASHING_SET
-    elif args.config == "make_fx_tosa":
-        config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend(), use_make_fx=True)
-        xfail_set = all_test_unique_names - MAKE_FX_TOSA_PASS_SET
-        crashing_set = MAKE_FX_TOSA_CRASHING_SET
-    elif args.config == "native_torch":
+    # if args.config == "linalg":
+    #     config = LinalgOnTensorsBackendTestConfig(RefBackendLinalgOnTensorsBackend())
+    #     xfail_set = LINALG_XFAIL_SET
+    #     crashing_set = LINALG_CRASHING_SET
+    # elif args.config == "stablehlo":
+    #     config = StablehloBackendTestConfig(LinalgOnTensorsStablehloBackend())
+    #     xfail_set = all_test_unique_names - STABLEHLO_PASS_SET
+    #     crashing_set = STABLEHLO_CRASHING_SET
+    # elif args.config == "tosa":
+    #     config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend())
+    #     xfail_set = all_test_unique_names - TOSA_PASS_SET
+    #     crashing_set = TOSA_CRASHING_SET
+    # elif args.config == "make_fx_tosa":
+    #     config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend(), use_make_fx=True)
+    #     xfail_set = all_test_unique_names - MAKE_FX_TOSA_PASS_SET
+    #     crashing_set = MAKE_FX_TOSA_CRASHING_SET
+    if args.config == "native_torch":
         config = NativeTorchTestConfig()
         xfail_set = set()
         crashing_set = set()
@@ -194,13 +185,13 @@ def main():
         config = FxImporterTestConfig(LinalgOnTensorsTosaBackend(), "tosa")
         xfail_set = FX_IMPORTER_TOSA_XFAIL_SET
         crashing_set = FX_IMPORTER_TOSA_CRASHING_SET
-    elif args.config == "torchdynamo":
-        # TODO: Enanble runtime verification and extend crashing set.
-        config = TorchDynamoTestConfig(
-            RefBackendLinalgOnTensorsBackend(generate_runtime_verification=False)
-        )
-        xfail_set = TORCHDYNAMO_XFAIL_SET
-        crashing_set = TORCHDYNAMO_CRASHING_SET
+    # elif args.config == "torchdynamo":
+    #     # TODO: Enanble runtime verification and extend crashing set.
+    #     config = TorchDynamoTestConfig(
+    #         RefBackendLinalgOnTensorsBackend(generate_runtime_verification=False)
+    #     )
+    #     xfail_set = TORCHDYNAMO_XFAIL_SET
+    #     crashing_set = TORCHDYNAMO_CRASHING_SET
     elif args.config == "onnx":
         config = OnnxBackendTestConfig(RefBackendLinalgOnTensorsBackend())
         xfail_set = ONNX_XFAIL_SET

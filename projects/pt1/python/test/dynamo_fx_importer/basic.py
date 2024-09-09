@@ -19,7 +19,6 @@ from torch._functorch.aot_autograd import (
 
 from torch_mlir.compiler_utils import TorchMlirCompilerError
 from torch_mlir._dynamo_fx_importer import import_fx_graph_as_func
-from torch_mlir_e2e_test.configs.torchdynamo import jit
 
 
 @make_boxed_compiler
