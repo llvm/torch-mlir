@@ -222,7 +222,7 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
                                             b.getFloatAttr(elementType, 0.0));
   Value negInfF = b.create<arith::ConstantOp>(
       loc, elementType,
-      b.getFloatAttr(elementType, -numeric_limits<double>::infinity()));
+      b.getFloatAttr(elementType, -std::numeric_limits<double>::infinity()));
 
   // TODO: This needs to be fixed, it assumes everything is dynamic however if
   // any shapes are static the `memref.alloc` generated is illegal.
@@ -293,110 +293,111 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
           b.create<memref::StoreOp>(loc, maskedWeight, weight, localIVs);
         });
   }
-}
 
-// calculate max(weight)
-Value init =
-    b.create<memref::LoadOp>(loc, weight, SmallVector<Value>(weightRank, zero));
-Value globalMax =
-    b.create<scf::ParallelOp>(
-         loc, SmallVector<Value>(weightRank, zero), weightDynSizes,
-         SmallVector<Value>(weightRank, one), init,
-         [&](OpBuilder &b, Location loc, ValueRange localIVs, ValueRange accs) {
-           auto reduceOp = b.create<scf::ReduceOp>(loc, init);
-           // Build reduce body.
-           Block &reductionBody = reduceOp.getReductions()[0].front();
-           auto bodyBuilder = OpBuilder::atBlockEnd(&reductionBody);
-           Value acc = reductionBody.getArgument(0);
-           Value x = bodyBuilder.create<memref::LoadOp>(loc, weight, localIVs);
-           Value max = bodyBuilder.create<arith::MaximumFOp>(loc, x, acc);
-           bodyBuilder.create<scf::ReduceReturnOp>(loc, max);
-         })
-        .getResult(0);
-// weight = (weight - max(weight)) / math.sqrt(querySizes[-1])
-b.create<scf::ParallelOp>(loc, SmallVector<Value>(weightRank, zero),
-                          weightDynSizes, SmallVector<Value>(weightRank, one),
-                          [&](OpBuilder &b, Location loc, ValueRange localIVs) {
-                            Value x =
-                                b.create<memref::LoadOp>(loc, weight, localIVs);
-                            x = b.create<arith::SubFOp>(loc, x, globalMax);
-                            b.create<memref::StoreOp>(loc, x, weight, localIVs);
-                          });
-// calculate exp(weight)
-SmallVector<Value> min(weightRank, zero),
-    max(weightDynSizes.begin(), weightDynSizes.end()), steps(weightRank, one);
-b.create<scf::ParallelOp>(loc, min, max, steps,
-                          [&](OpBuilder &b, Location loc, ValueRange localIVs) {
-                            Value x =
-                                b.create<memref::LoadOp>(loc, weight, localIVs);
-                            x = b.create<math::ExpOp>(loc, x);
-                            b.create<memref::StoreOp>(loc, x, weight, localIVs);
-                          });
-
-llvm::SmallVector<Value> expWeightDynDims(weightFilteredDynSizes);
-if (weightSizes.back() == ShapedType::kDynamic)
-  expWeightDynDims.resize(expWeightDynDims.size() - 1);
-
-Value expWeightSum = b.create<memref::AllocOp>(
-    loc,
-    MemRefType::get(
-        SmallVector<int64_t>(weightSizes.begin(), weightSizes.end() - 1),
-        elementType),
-    expWeightDynDims);
-b.create<scf::ParallelOp>(loc, SmallVector<Value>(weightRank - 1, zero),
-                          SmallVector<Value>{weightDynSizes.begin(),
-                                             weightDynSizes.end() - 1},
-                          SmallVector<Value>(weightRank - 1, one),
-                          [&](OpBuilder &b, Location loc, ValueRange localIVs) {
-                            b.create<memref::StoreOp>(loc, zeroF, expWeightSum,
-                                                      localIVs);
-                          });
-// Loop over all dims but -1
-b.create<scf::ParallelOp>(
-    loc, SmallVector<Value>(weightRank - 1, zero),
-    SmallVector<Value>(weightDynSizes.begin(), weightDynSizes.end() - 1),
-    SmallVector<Value>(weightRank - 1, one),
-    [&](OpBuilder &b, Location loc, ValueRange outsideDims) {
-      // Sum over last dim
+  // calculate max(weight)
+  Value init = b.create<memref::LoadOp>(loc, weight,
+                                        SmallVector<Value>(weightRank, zero));
+  Value globalMax =
       b.create<scf::ParallelOp>(
-          loc, zero, dim, one,
-          [&](OpBuilder &b, Location loc, ValueRange localIVs) {
-            SmallVector<Value> coords(outsideDims);
-            coords.push_back(localIVs[0]);
-            Value x = b.create<memref::LoadOp>(loc, expWeightSum, outsideDims);
-            Value y = b.create<memref::LoadOp>(loc, weight, coords);
-            Value sum = b.create<arith::AddFOp>(loc, x, y);
-            b.create<memref::StoreOp>(loc, sum, expWeightSum, outsideDims);
-          });
-    });
-// calculate exp(weight) / sum(exp(weight))
-b.create<scf::ParallelOp>(
-    loc, SmallVector<Value>(weightRank, zero),
-    SmallVector<Value>(weightDynSizes.begin(), weightDynSizes.end()),
-    SmallVector<Value>(weightRank, one),
-    [&](OpBuilder &b, Location loc, ValueRange localIVs) {
-      SmallVector<Value> sumIVs(localIVs);
-      sumIVs.pop_back();
+           loc, SmallVector<Value>(weightRank, zero), weightDynSizes,
+           SmallVector<Value>(weightRank, one), init,
+           [&](OpBuilder &b, Location loc, ValueRange localIVs,
+               ValueRange accs) {
+             auto reduceOp = b.create<scf::ReduceOp>(loc, init);
+             // Build reduce body.
+             Block &reductionBody = reduceOp.getReductions()[0].front();
+             auto bodyBuilder = OpBuilder::atBlockEnd(&reductionBody);
+             Value acc = reductionBody.getArgument(0);
+             Value x =
+                 bodyBuilder.create<memref::LoadOp>(loc, weight, localIVs);
+             Value max = bodyBuilder.create<arith::MaximumFOp>(loc, x, acc);
+             bodyBuilder.create<scf::ReduceReturnOp>(loc, max);
+           })
+          .getResult(0);
+  // weight = (weight - max(weight)) / math.sqrt(querySizes[-1])
+  b.create<scf::ParallelOp>(
+      loc, SmallVector<Value>(weightRank, zero), weightDynSizes,
+      SmallVector<Value>(weightRank, one),
+      [&](OpBuilder &b, Location loc, ValueRange localIVs) {
+        Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
+        x = b.create<arith::SubFOp>(loc, x, globalMax);
+        b.create<memref::StoreOp>(loc, x, weight, localIVs);
+      });
+  // calculate exp(weight)
+  SmallVector<Value> min(weightRank, zero),
+      max(weightDynSizes.begin(), weightDynSizes.end()), steps(weightRank, one);
+  b.create<scf::ParallelOp>(
+      loc, min, max, steps,
+      [&](OpBuilder &b, Location loc, ValueRange localIVs) {
+        Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
+        x = b.create<math::ExpOp>(loc, x);
+        b.create<memref::StoreOp>(loc, x, weight, localIVs);
+      });
 
-      Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
-      Value sum = b.create<memref::LoadOp>(loc, expWeightSum, sumIVs);
-      Value divResult = b.create<arith::DivFOp>(loc, x, sum);
+  llvm::SmallVector<Value> expWeightDynDims(weightFilteredDynSizes);
+  if (weightSizes.back() == ShapedType::kDynamic)
+    expWeightDynDims.resize(expWeightDynDims.size() - 1);
 
-      // Set to 0 if sum is 0 (can occur during boolean mask / large negative
-      // QK)
-      Value isSumZero =
-          b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OEQ, sum, zeroF);
-      Value result =
-          b.create<arith::SelectOp>(loc, isSumZero, zeroF, divResult);
+  Value expWeightSum = b.create<memref::AllocOp>(
+      loc,
+      MemRefType::get(
+          SmallVector<int64_t>(weightSizes.begin(), weightSizes.end() - 1),
+          elementType),
+      expWeightDynDims);
+  b.create<scf::ParallelOp>(
+      loc, SmallVector<Value>(weightRank - 1, zero),
+      SmallVector<Value>{weightDynSizes.begin(), weightDynSizes.end() - 1},
+      SmallVector<Value>(weightRank - 1, one),
+      [&](OpBuilder &b, Location loc, ValueRange localIVs) {
+        b.create<memref::StoreOp>(loc, zeroF, expWeightSum, localIVs);
+      });
+  // Loop over all dims but -1
+  b.create<scf::ParallelOp>(
+      loc, SmallVector<Value>(weightRank - 1, zero),
+      SmallVector<Value>(weightDynSizes.begin(), weightDynSizes.end() - 1),
+      SmallVector<Value>(weightRank - 1, one),
+      [&](OpBuilder &b, Location loc, ValueRange outsideDims) {
+        // Sum over last dim
+        b.create<scf::ParallelOp>(
+            loc, zero, dim, one,
+            [&](OpBuilder &b, Location loc, ValueRange localIVs) {
+              SmallVector<Value> coords(outsideDims);
+              coords.push_back(localIVs[0]);
+              Value x =
+                  b.create<memref::LoadOp>(loc, expWeightSum, outsideDims);
+              Value y = b.create<memref::LoadOp>(loc, weight, coords);
+              Value sum = b.create<arith::AddFOp>(loc, x, y);
+              b.create<memref::StoreOp>(loc, sum, expWeightSum, outsideDims);
+            });
+      });
+  // calculate exp(weight) / sum(exp(weight))
+  b.create<scf::ParallelOp>(
+      loc, SmallVector<Value>(weightRank, zero),
+      SmallVector<Value>(weightDynSizes.begin(), weightDynSizes.end()),
+      SmallVector<Value>(weightRank, one),
+      [&](OpBuilder &b, Location loc, ValueRange localIVs) {
+        SmallVector<Value> sumIVs(localIVs);
+        sumIVs.pop_back();
 
-      b.create<memref::StoreOp>(loc, result, weight, localIVs);
-    });
+        Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
+        Value sum = b.create<memref::LoadOp>(loc, expWeightSum, sumIVs);
+        Value divResult = b.create<arith::DivFOp>(loc, x, sum);
 
-// output = weight @ value
-matmul(b, loc, weight, weightDynSizes, value, valueDynSizes, output,
-       outputDynSizes, /*transposed=*/false);
+        // Set to 0 if sum is 0 (can occur during boolean mask / large negative
+        // QK)
+        Value isSumZero =
+            b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OEQ, sum, zeroF);
+        Value result =
+            b.create<arith::SelectOp>(loc, isSumZero, zeroF, divResult);
 
-return success();
+        b.create<memref::StoreOp>(loc, result, weight, localIVs);
+      });
+
+  // output = weight @ value
+  matmul(b, loc, weight, weightDynSizes, value, valueDynSizes, output,
+         outputDynSizes, /*transposed=*/false);
+
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
