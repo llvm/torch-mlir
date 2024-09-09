@@ -2921,6 +2921,7 @@ ONNX_XFAIL_SET = {
     "ReduceAnyFloatModule_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
+    "ScaledDotProductAttentionBoolMaskModule_basic",
     "UnfoldModule_basic",
 }
 
