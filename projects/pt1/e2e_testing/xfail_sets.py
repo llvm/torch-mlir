@@ -2185,7 +2185,7 @@ MAKE_FX_TOSA_PASS_SET = (
     "AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule_basic",
 }
 
-if torch_version_for_comparison() < version.parse("2.5.0.dev"):
+if torch_version_for_comparison() >= version.parse("2.5.0.dev"):
     MAKE_FX_TOSA_PASS_SET = MAKE_FX_TOSA_PASS_SET | {
         # REMOVE ON WHEN ENABLE_GQA IS ADDED
         "ScaledDotProductAttentionBoolMaskModule_basic",
