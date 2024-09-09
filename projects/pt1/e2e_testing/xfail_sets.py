@@ -3040,11 +3040,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     # REMOVE WHEN ENABLE_GQA IS ADDED
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
-    # "ScaledDotProductAttentionDifferentModule_basic", (PASSES)
-    # "ScaledDotProductAttentionMaskModule_basic", (PASSES)
     "ScaledDotProductAttentionSameCausalModule_basic",
     "ScaledDotProductAttentionSameDynamicModule_basic",
-    # "ScaledDotProductAttentionSameModule_basic", (PASSES)
     "ScatterAddStaticModule_basic",
     "TensorsConcatComplex128FloatModule_basic",
     "TensorsConcatComplex128IntModule_basic",
@@ -4585,11 +4582,8 @@ ONNX_TOSA_XFAIL_SET = {
     # REMOVE WHEN ENABLE_GQA IS ADDED
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
-    # "ScaledDotProductAttentionDifferentModule_basic", (PASSES)
-    # "ScaledDotProductAttentionMaskModule_basic", (PASSES)
     "ScaledDotProductAttentionSameCausalModule_basic",
     "ScaledDotProductAttentionSameDynamicModule_basic",
-    # "ScaledDotProductAttentionSameModule_basic", (PASSES)
     "ScatterReduceFloatMaxModule",
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMeanModule",
