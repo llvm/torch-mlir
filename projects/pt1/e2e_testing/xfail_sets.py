@@ -40,6 +40,7 @@ if torch_version_for_comparison() < version.parse("2.5.0.dev"):
         "ScaledDotProductAttentionDifferentModule_basic",
         "ScaledDotProductAttentionMaskModule_basic",
         "ScaledDotProductAttentionSameCausalModule_basic",
+        "ScaledDotProductAttentionSameDynamicModule_basic",
         "ScaledDotProductAttentionSameModule_basic",
     }
 
@@ -509,6 +510,7 @@ FX_IMPORTER_XFAIL_SET = {
     "ScaledDotProductAttentionDifferentModule_basic",
     "ScaledDotProductAttentionMaskModule_basic",
     "ScaledDotProductAttentionSameCausalModule_basic",
+    "ScaledDotProductAttentionSameDynamicModule_basic",
     "ScaledDotProductAttentionSameModule_basic",
 }
 
@@ -2191,6 +2193,7 @@ if torch_version_for_comparison() < version.parse("2.5.0.dev"):
         "ScaledDotProductAttentionDifferentModule_basic",
         "ScaledDotProductAttentionMaskModule_basic",
         "ScaledDotProductAttentionSameCausalModule_basic",
+        "ScaledDotProductAttentionSameDynamicModule_basic",
         "ScaledDotProductAttentionSameModule_basic",
     }
 
@@ -3028,6 +3031,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ScaledDotProductAttentionDifferentModule_basic",
     "ScaledDotProductAttentionMaskModule_basic",
     "ScaledDotProductAttentionSameCausalModule_basic",
+    "ScaledDotProductAttentionSameDynamicModule_basic",
     "ScaledDotProductAttentionSameModule_basic",
     "ScatterAddStaticModule_basic",
     "TensorsConcatComplex128FloatModule_basic",
@@ -4575,6 +4579,7 @@ ONNX_TOSA_XFAIL_SET = {
     "ScaledDotProductAttentionDifferentModule_basic",
     "ScaledDotProductAttentionMaskModule_basic",
     "ScaledDotProductAttentionSameCausalModule_basic",
+    "ScaledDotProductAttentionSameDynamicModule_basic",
     "ScaledDotProductAttentionSameModule_basic",
     "ScatterReduceFloatMaxModule",
     "ScatterReduceFloatMaxModuleIncludeSelf",
