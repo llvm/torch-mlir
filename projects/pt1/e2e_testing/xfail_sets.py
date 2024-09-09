@@ -2188,18 +2188,6 @@ MAKE_FX_TOSA_PASS_SET = (
     "AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule_basic",
 }
 
-if torch_version_for_comparison() >= version.parse("2.5.0.dev"):
-    MAKE_FX_TOSA_PASS_SET = MAKE_FX_TOSA_PASS_SET | {
-        # REMOVE ON WHEN ENABLE_GQA IS ADDED
-        "ScaledDotProductAttentionBoolMaskModule_basic",
-        "ScaledDotProductAttentionDifferentCausalModule_basic",
-        "ScaledDotProductAttentionDifferentModule_basic",
-        "ScaledDotProductAttentionMaskModule_basic",
-        "ScaledDotProductAttentionSameCausalModule_basic",
-        "ScaledDotProductAttentionSameDynamicModule_basic",
-        "ScaledDotProductAttentionSameModule_basic",
-    }
-
 LTC_CRASHING_SET = {
     # TODO: update test to move all inputs to the lazy device. Otherwise test fails with:
     # Check failed: lazy_tensor Input tensor is not a lazy tensor: CPUBoolType.
@@ -3031,11 +3019,11 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     # REMOVE ON WHEN ENABLE_GQA IS ADDED
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
-    "ScaledDotProductAttentionDifferentModule_basic",
-    "ScaledDotProductAttentionMaskModule_basic",
+    # "ScaledDotProductAttentionDifferentModule_basic", (PASSES)
+    # "ScaledDotProductAttentionMaskModule_basic", (PASSES)
     "ScaledDotProductAttentionSameCausalModule_basic",
     "ScaledDotProductAttentionSameDynamicModule_basic",
-    "ScaledDotProductAttentionSameModule_basic",
+    # "ScaledDotProductAttentionSameModule_basic", (PASSES)
     "ScatterAddStaticModule_basic",
     "TensorsConcatComplex128FloatModule_basic",
     "TensorsConcatComplex128IntModule_basic",
