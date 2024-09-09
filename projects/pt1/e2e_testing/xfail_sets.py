@@ -4564,11 +4564,11 @@ ONNX_TOSA_XFAIL_SET = {
     # REMOVE ON WHEN ENABLE_GQA IS ADDED
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
-    "ScaledDotProductAttentionDifferentModule_basic",
-    "ScaledDotProductAttentionMaskModule_basic",
+    # "ScaledDotProductAttentionDifferentModule_basic", (PASSES)
+    # "ScaledDotProductAttentionMaskModule_basic", (PASSES)
     "ScaledDotProductAttentionSameCausalModule_basic",
     "ScaledDotProductAttentionSameDynamicModule_basic",
-    "ScaledDotProductAttentionSameModule_basic",
+    # "ScaledDotProductAttentionSameModule_basic", (PASSES)
     "ScatterReduceFloatMaxModule",
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMeanModule",
