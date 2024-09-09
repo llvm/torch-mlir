@@ -211,7 +211,7 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
   auto queryType = cast<MemRefType>(query.getType());
   auto keyType = cast<MemRefType>(key.getType());
   auto valueType = cast<MemRefType>(value.getType());
-  auto maskType = dyn_cast<MemRefType>(mask.getType());
+  auto maskType = mask ? cast<MemRefType>(mask.getType()) : MemRefType();
   auto queryRank = queryType.getRank();
   auto keyRank = keyType.getRank();
   auto valueRank = valueType.getRank();
@@ -285,7 +285,7 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
           Value weightValue = b.create<memref::LoadOp>(loc, weight, localIVs);
           Value maskValue = b.create<memref::LoadOp>(loc, mask, localIVs);
           if (maskType.getElementType().isInteger(1)) {
-            Value maskValue =
+            maskValue =
                 b.create<arith::SelectOp>(loc, maskValue, zeroF, negInfF);
           }
           Value maskedWeight =
