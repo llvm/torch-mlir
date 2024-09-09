@@ -126,20 +126,6 @@ def AdjustCallingConventions
   }];
 }
 
-def InlineGlobalSlots : Pass<"torch-inline-global-slots", "ModuleOp"> {
-  let summary = "Inlines torch.global_slot ops.";
-  let constructor = "mlir::torch::Torch::createInlineGlobalSlotsPass()";
-  let description = [{
-    Inlines torch.global_slot ops when it is safe to do so.
-
-    Note: This pass inlines everything that is safe to inline. That is, it
-    doesn't have a cost model. This is likely to pessimize programs with
-    significant amounts of computation inside torch.initialize.global_slotsr
-    regions (but this currently doesn't happen due to how TorchScript modules
-    are imported -- the contents are just constants).
-  }];
-}
-
 def ReduceOpVariants : Pass<"torch-reduce-op-variants", "func::FuncOp"> {
   let summary = "Reduces variants of ops to a smaller set of ops.";
   let constructor = [{

@@ -114,9 +114,6 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
   // General cleanup.
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
-  // Inline global slots to expose a bunch of simplification opportunities
-  // from constant hyperparameters, weights, etc.
-  pm.addPass(createInlineGlobalSlotsPass());
   // Erase the module initializer if we have proven that all the global slots
   // are gone.
   pm.addPass(createEraseModuleInitializerPass());
