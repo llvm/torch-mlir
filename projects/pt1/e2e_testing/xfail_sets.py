@@ -504,7 +504,7 @@ FX_IMPORTER_XFAIL_SET = {
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewSizeFromOtherTensor_basic",
     "WeightNormInterfaceModule_basic",
-    # REMOVE ON WHEN ENABLE_GQA IS ADDED
+    # REMOVE WHEN ENABLE_GQA IS ADDED
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
     "ScaledDotProductAttentionDifferentModule_basic",
@@ -792,6 +792,14 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "RsubInt0d_NumToTensor_Module_basic",
     "ScalarConstantTupleModule_basic",
     "ScalarImplicitFloatModule_basic",
+    # REMOVE WHEN ENABLE_GQA IS ADDED
+    "ScaledDotProductAttentionBoolMaskModule_basic",
+    "ScaledDotProductAttentionDifferentCausalModule_basic",
+    "ScaledDotProductAttentionDifferentModule_basic",
+    "ScaledDotProductAttentionMaskModule_basic",
+    "ScaledDotProductAttentionSameCausalModule_basic",
+    "ScaledDotProductAttentionSameDynamicModule_basic",
+    "ScaledDotProductAttentionSameModule_basic",
     "ScatterReduceFloatMaxModule",
     "ScatterReduceFloatMaxModuleIncludeSelf",
     "ScatterReduceFloatMeanModule",
@@ -1350,13 +1358,6 @@ STABLEHLO_PASS_SET = {
     "ScalarTensorFloat32Module_basic",
     "ScalarTensorInt32Module_basic",
     "ScalarTensorInt64Module_basic",
-    "ScaledDotProductAttentionBoolMaskModule_basic",
-    "ScaledDotProductAttentionDifferentCausalModule_basic",
-    "ScaledDotProductAttentionDifferentModule_basic",
-    "ScaledDotProductAttentionMaskModule_basic",
-    "ScaledDotProductAttentionSameCausalModule_basic",
-    "ScaledDotProductAttentionSameDynamicModule_basic",
-    "ScaledDotProductAttentionSameModule_basic",
     "SliceModule_basic",
     "SliceNegIdxModule_basic",
     "SliceOutOfLowerBoundStartIndexModule_basic",
@@ -3036,7 +3037,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ReduceAminmaxSingleDim_basic",
     "ReduceAnyDimFloatModule_basic",
     "RenormModuleFloat16_basic",
-    # REMOVE ON WHEN ENABLE_GQA IS ADDED
+    # REMOVE WHEN ENABLE_GQA IS ADDED
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
     # "ScaledDotProductAttentionDifferentModule_basic", (PASSES)
@@ -4581,7 +4582,7 @@ ONNX_TOSA_XFAIL_SET = {
     "ScalarConstantTupleModule_basic",
     "ScalarImplicitFloatModule_basic",
     "ScalarImplicitIntModule_basic",
-    # REMOVE ON WHEN ENABLE_GQA IS ADDED
+    # REMOVE WHEN ENABLE_GQA IS ADDED
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
     # "ScaledDotProductAttentionDifferentModule_basic", (PASSES)
