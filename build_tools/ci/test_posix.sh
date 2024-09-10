@@ -25,6 +25,11 @@ case $torch_version in
     echo "::group::Run FxImporter e2e integration tests"
     python -m e2e_testing.main --config=fx_importer -v
     echo "::endgroup::"
+
+    # TODO: Need to verify in the stable version
+    echo "::group::Run FxImporter2Stablehlo e2e integration tests"
+    python -m e2e_testing.main --config=fx_importer_stablehlo -v
+    echo "::endgroup::"
     ;;
   stable)
     ;;
