@@ -552,8 +552,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ElementwiseRreluEvalStaticModule_basic",
     "ElementwiseRreluTrainModule_basic",
     "ElementwiseRreluTrainStaticModule_basic",
-    "ExponentialModule_basic",
-    "IndexPutWithNoneAndBroadcastModule_basic",
     "MaxPool1dCeilModeTrueModule_basic",
     "MaxPool1dStaticCeilModeTrueModule_basic",
     "MaxUnpool3dModulePad0_basic",
@@ -811,8 +809,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ReduceAllDimEmpty_basic",
     "ReduceAllDimFloat_basic",
     "ReduceAllDimInt_basic",
-    "ReduceMaxAlongDimUnsignedInt_basic",
-    "ReduceMinAlongDimUnsignedInt_basic",
     "ReduceProdDimIntFloatModule_basic",
     "ReflectionPad1dModule2dInput_Right",
     "ReflectionPad1dModule2dInput_basic",
@@ -919,6 +915,14 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
     "ResNet18StaticModule_basic",
     "MobilenetV3Module_basic",
     "Conv2dBiasNoPaddingModule_basic",
+    # llvm-project/llvm/include/llvm/ADT/ArrayRef.h:257:
+    #  const T &llvm::ArrayRef<long>::operator[](size_t) const [T = long]:
+    #  Assertion `Index < Length && "Invalid index!"
+    "IndexPutWithNoneAndBroadcastModule_basic",
+    # Assertion `newMaterialization.getType() == outputType
+    #  materialization callback produced value of incorrect type failed
+    "ReduceMaxAlongDimUnsignedInt_basic",
+    "ReduceMinAlongDimUnsignedInt_basic",
 }
 
 STABLEHLO_PASS_SET = {
