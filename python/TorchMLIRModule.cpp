@@ -28,8 +28,4 @@ PYBIND11_MODULE(_torchMlir, m) {
         }
       },
       py::arg("context"), py::arg("load") = true);
-
-  m.def("get_int64_max", []() { return INT64_MAX; });
-
-  m.def("get_int64_min", []() { return INT64_MIN; });
 }
