@@ -34,18 +34,10 @@ func.func @torch.aten.mm$basic$dynamic(%arg0: !torch.vtensor<[?,3],f32>, %arg1: 
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[10,3,4],f32>, %[[ARG1:.*]]: !torch.vtensor<[10,4,5],f32>) -> !torch.vtensor<[10,3,5],f32> {
 // CHECK-DAG:     %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[10,3,4],f32> -> tensor<10x3x4xf32>
 // CHECK-DAG:     %[[T1:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[10,4,5],f32> -> tensor<10x4x5xf32>
-// CHECK:         %[[C0:.*]] = arith.constant 0 : index
-// CHECK:         %[[T2:.*]] = tensor.dim %[[T1]], %[[C0]] : tensor<10x4x5xf32>
-// CHECK:         %[[C1:.*]] = arith.constant 1 : index
-// CHECK:         %[[T4:.*]] = tensor.dim %[[T1]], %[[C1]] : tensor<10x4x5xf32>
-// CHECK:         %[[C2:.*]] = arith.constant 2 : index
-// CHECK:         %[[T6:.*]] = tensor.dim %[[T1]], %[[C2]] : tensor<10x4x5xf32>
-// CHECK:         %[[T8:.*]] = tensor.from_elements %[[T2]], %[[T4]], %[[T6]] : tensor<3xindex>
-// CHECK:         %[[T9:.*]] = stablehlo.dynamic_broadcast_in_dim %[[T1]], %[[T8]], dims = [0, 1, 2] : (tensor<10x4x5xf32>, tensor<3xindex>) -> tensor<10x4x5xf32>
-// CHECK:         %[[T10:.*]] = stablehlo.dot_general %[[T0]], %[[T9]], batching_dims = [0] x [0], contracting_dims = [2] x [1] : (tensor<10x3x4xf32>, tensor<10x4x5xf32>) -> tensor<10x3x5xf32>
-// CHECK:         %[[T11:.*]] = tensor.cast %[[T10]] : tensor<10x3x5xf32> to tensor<10x3x5xf32>
-// CHECK:         %[[T12:.*]] = torch_c.from_builtin_tensor %[[T11]] : tensor<10x3x5xf32> -> !torch.vtensor<[10,3,5],f32>
-// CHECK:         return %[[T12]] : !torch.vtensor<[10,3,5],f32>
+// CHECK:         %[[T2:.*]] = stablehlo.dot_general %[[T0]], %[[T1]], batching_dims = [0] x [0], contracting_dims = [2] x [1] : (tensor<10x3x4xf32>, tensor<10x4x5xf32>) -> tensor<10x3x5xf32>
+// CHECK:         %[[T3:.*]] = tensor.cast %[[T2:.*]] : tensor<10x3x5xf32> to tensor<10x3x5xf32>
+// CHECK:         %[[T4:.*]] = torch_c.from_builtin_tensor %[[T3]] : tensor<10x3x5xf32> -> !torch.vtensor<[10,3,5],f32>
+// CHECK:         return %[[T4]] : !torch.vtensor<[10,3,5],f32>
 func.func @torch.aten.bmm$basic$static(%arg0: !torch.vtensor<[10,3,4],f32>, %arg1: !torch.vtensor<[10,4,5],f32>) -> !torch.vtensor<[10,3,5],f32> {
   %0 = torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[10,3,4],f32>, !torch.vtensor<[10,4,5],f32> -> !torch.vtensor<[10,3,5],f32>
   return %0 : !torch.vtensor<[10,3,5],f32>
@@ -58,17 +50,30 @@ func.func @torch.aten.bmm$basic$static(%arg0: !torch.vtensor<[10,3,4],f32>, %arg
 // CHECK-DAG:     %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?,4],f32> -> tensor<?x?x4xf32>
 // CHECK-DAG:     %[[T1:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[?,4,?],f32> -> tensor<?x4x?xf32>
 // CHECK:         %[[C0:.*]] = arith.constant 0 : index
-// CHECK:         %[[T2:.*]] = tensor.dim %[[T1]], %[[C0]] : tensor<?x4x?xf32>
+// CHECK:         %[[T2:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<?x?x4xf32>
+// CHECK:         %[[C0_0:.*]] = arith.constant 0 : index
+// CHECK:         %[[T3:.*]] = tensor.dim %[[T1]], %[[C0_0]] : tensor<?x4x?xf32>
+// CHECK:         %[[T4:.*]] = tensor.from_elements %[[T2]] : tensor<1xindex>
+// CHECK:         %[[T5:.*]] = tensor.from_elements %[[T3]] : tensor<1xindex>
+// CHECK:         %[[T6:.*]] = shape.broadcast %[[T4]], %[[T5]] : tensor<1xindex>, tensor<1xindex> -> tensor<1xindex>
 // CHECK:         %[[C1:.*]] = arith.constant 1 : index
-// CHECK:         %[[T4:.*]] = tensor.dim %[[T1]], %[[C1]] : tensor<?x4x?xf32>
+// CHECK:         %[[T7:.*]] = tensor.dim %[[T0]], %[[C1]] : tensor<?x?x4xf32>
 // CHECK:         %[[C2:.*]] = arith.constant 2 : index
-// CHECK:         %[[T6:.*]] = tensor.dim %[[T1]], %[[C2]] : tensor<?x4x?xf32>
-// CHECK:         %[[T8:.*]] = tensor.from_elements %[[T2]], %[[T4]], %[[T6]] : tensor<3xindex>
-// CHECK:         %[[T9:.*]] = stablehlo.dynamic_broadcast_in_dim %[[T1]], %[[T8]], dims = [0, 1, 2] : (tensor<?x4x?xf32>, tensor<3xindex>) -> tensor<?x4x?xf32>
-// CHECK:         %[[T10:.*]] = stablehlo.dot_general %[[T0]], %[[T9]], batching_dims = [0] x [0], contracting_dims = [2] x [1] : (tensor<?x?x4xf32>, tensor<?x4x?xf32>) -> tensor<?x?x?xf32>
-// CHECK:         %[[T11:.*]] = tensor.cast %[[T10]] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
-// CHECK:         %[[T12:.*]] = torch_c.from_builtin_tensor %[[T11]] : tensor<?x?x?xf32> -> !torch.vtensor<[?,?,?],f32>
-// CHECK:         return %[[T12]] : !torch.vtensor<[?,?,?],f32>
+// CHECK:         %[[T8:.*]] = tensor.dim %[[T0]], %[[C2]] : tensor<?x?x4xf32>
+// CHECK:         %[[T9:.*]] = tensor.from_elements %[[T7]], %[[T8]] : tensor<2xindex>
+// CHECK:         %[[T10:.*]] = shape.concat %[[T6]], %[[T9]] : tensor<1xindex>, tensor<2xindex> -> tensor<3xindex>
+// CHECK:         %[[T11:.*]] = stablehlo.dynamic_broadcast_in_dim %[[T0]], %[[T10]], dims = [0, 1, 2] : (tensor<?x?x4xf32>, tensor<3xindex>) -> tensor<?x?x?xf32>
+// CHECK:         %[[C1_0:.*]] = arith.constant 1 : index
+// CHECK:         %[[T12:.*]] = tensor.dim %[[T1]], %[[C1_0]] : tensor<?x4x?xf32>
+// CHECK:         %[[C2_0:.*]] = arith.constant 2 : index
+// CHECK:         %[[T13:.*]] = tensor.dim %[[T1]], %[[C2_0]] : tensor<?x4x?xf32>
+// CHECK:         %[[T14:.*]] = tensor.from_elements %[[T12]], %[[T13]] : tensor<2xindex>
+// CHECK:         %[[T15:.*]] = shape.concat %[[T6]], %[[T14]] : tensor<1xindex>, tensor<2xindex> -> tensor<3xindex>
+// CHECK:         %[[T16:.*]] = stablehlo.dynamic_broadcast_in_dim %[[T1]], %[[T15]],  dims = [0, 1, 2] : (tensor<?x4x?xf32>, tensor<3xindex>) -> tensor<?x?x?xf32>
+// CHECK:         %[[T17:.*]] = stablehlo.dot_general %[[T11]], %[[T16]], batching_dims = [0] x [0], contracting_dims = [2] x [1] : (tensor<?x?x?xf32>, tensor<?x?x?xf32>) -> tensor<?x?x?xf32>
+// CHECK:         %[[T18:.*]] = tensor.cast %[[T17]] : tensor<?x?x?xf32> to tensor<?x?x?xf32>
+// CHECK:         %[[T19:.*]] = torch_c.from_builtin_tensor %[[T18]] : tensor<?x?x?xf32> -> !torch.vtensor<[?,?,?],f32>
+// CHECK:         return %[[T19]] : !torch.vtensor<[?,?,?],f32>
 func.func @torch.aten.bmm$basic$dynamic(%arg0: !torch.vtensor<[?,?,4],f32>, %arg1: !torch.vtensor<[?,4,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
   %0 = torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[?,?,4],f32>, !torch.vtensor<[?,4,?],f32> -> !torch.vtensor<[?,?,?],f32>
   return %0 : !torch.vtensor<[?,?,?],f32>
@@ -87,11 +92,12 @@ func.func @torch.aten.bmm$basic$dynamic(%arg0: !torch.vtensor<[?,?,4],f32>, %arg
 // CHECK:         %[[C1:.*]] = arith.constant 1 : index
 // CHECK:         %[[T6:.*]] = tensor.dim %[[T0]], %[[C1]] : tensor<256x120xf32>
 // CHECK:         %[[T8:.*]] = tensor.from_elements %[[T2]], %[[T4]], %[[T6]] : tensor<3xindex>
-// CHECK:         %[[T9:.*]] = stablehlo.dynamic_broadcast_in_dim %[[T0]], %[[T8]], dims = [1, 2] : (tensor<256x120xf32>, tensor<3xindex>) -> tensor<4x256x120xf32>
-// CHECK:         %[[T10:.*]] = stablehlo.dot_general %[[T9]], %[[T1]], batching_dims = [0] x [0], contracting_dims = [2] x [1] : (tensor<4x256x120xf32>, tensor<4x120x256xf32>) -> tensor<4x256x256xf32>
-// CHECK:         %[[T11:.*]] = tensor.cast %[[T10]] : tensor<4x256x256xf32> to tensor<4x256x256xf32>
-// CHECK:         %[[T12:.*]] = torch_c.from_builtin_tensor %[[T11]] : tensor<4x256x256xf32> -> !torch.vtensor<[4,256,256],f32>
-// CHECK:         return %[[T12]] : !torch.vtensor<[4,256,256],f32>
+// CHECK:         %[[T9:.*]] = stablehlo.dynamic_broadcast_in_dim %[[T0]], %[[T8]], dims = [1, 2] : (tensor<256x120xf32>, tensor<3xindex>) -> tensor<?x?x?xf32>
+// CHECK:         %[[T10:.*]] = tensor.cast %[[T9]] : tensor<?x?x?xf32> to tensor<?x?x120xf32>
+// CHECK:         %[[T11:.*]] = stablehlo.dot_general %[[T10]], %[[T1]], batching_dims = [0] x [0], contracting_dims = [2] x [1] : (tensor<?x?x120xf32>, tensor<4x120x256xf32>) -> tensor<4x?x256xf32>
+// CHECK:         %[[T12:.*]] = tensor.cast %[[T11]] : tensor<4x?x256xf32> to tensor<4x256x256xf32>
+// CHECK:         %[[T13:.*]] = torch_c.from_builtin_tensor %[[T12]] : tensor<4x256x256xf32> -> !torch.vtensor<[4,256,256],f32>
+// CHECK:         return %[[T13]] : !torch.vtensor<[4,256,256],f32>
 func.func @torch.aten.matmul$basic$static(%arg0: !torch.vtensor<[256,120],f32>, %arg1: !torch.vtensor<[4,120,256],f32>) -> !torch.vtensor<[4,256,256],f32> {
   %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[256,120],f32>, !torch.vtensor<[4,120,256],f32> -> !torch.vtensor<[4,256,256],f32>
   return %0 : !torch.vtensor<[4,256,256],f32>
@@ -103,18 +109,10 @@ func.func @torch.aten.matmul$basic$static(%arg0: !torch.vtensor<[256,120],f32>, 
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[4,?,256],f32>, %[[ARG1:.*]]: !torch.vtensor<[256,?],f32>) -> !torch.vtensor<[4,?,?],f32> {
 // CHECK-DAG:     %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4,?,256],f32> -> tensor<4x?x256xf32>
 // CHECK-DAG:     %[[T1:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[256,?],f32> -> tensor<256x?xf32>
-// CHECK:         %[[C0:.*]] = arith.constant 0 : index
-// CHECK:         %[[T2:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<4x?x256xf32>
-// CHECK:         %[[C0_0:.*]] = arith.constant 0 : index
-// CHECK:         %[[T4:.*]] = tensor.dim %[[T1]], %[[C0_0]] : tensor<256x?xf32>
-// CHECK:         %[[C1:.*]] = arith.constant 1 : index
-// CHECK:         %[[T6:.*]] = tensor.dim %[[T1]], %[[C1]] : tensor<256x?xf32>
-// CHECK:         %[[T8:.*]] = tensor.from_elements %[[T2]], %[[T4]], %[[T6]] : tensor<3xindex>
-// CHECK:         %[[T9:.*]] = stablehlo.dynamic_broadcast_in_dim %[[T1]], %[[T8]], dims = [1, 2] : (tensor<256x?xf32>, tensor<3xindex>) -> tensor<4x256x?xf32>
-// CHECK:         %[[T10:.*]] = stablehlo.dot_general %[[T0]], %[[T9]], batching_dims = [0] x [0], contracting_dims = [2] x [1] : (tensor<4x?x256xf32>, tensor<4x256x?xf32>) -> tensor<4x?x?xf32>
-// CHECK:         %[[T11:.*]] = tensor.cast %[[T10]] : tensor<4x?x?xf32> to tensor<4x?x?xf32>
-// CHECK:         %[[T12:.*]] = torch_c.from_builtin_tensor %[[T11]] : tensor<4x?x?xf32> -> !torch.vtensor<[4,?,?],f32>
-// CHECK:         return %[[T12]] : !torch.vtensor<[4,?,?],f32>
+// CHECK:         %[[T2:.*]] = stablehlo.dot_general %[[T0]], %[[T1]], contracting_dims = [2] x [0] : (tensor<4x?x256xf32>, tensor<256x?xf32>) -> tensor<4x?x?xf32>
+// CHECK:         %[[T3:.*]] = tensor.cast %[[T2]] : tensor<4x?x?xf32> to tensor<4x?x?xf32>
+// CHECK:         %[[T4:.*]] = torch_c.from_builtin_tensor %[[T3]] : tensor<4x?x?xf32> -> !torch.vtensor<[4,?,?],f32>
+// CHECK:         return %[[T4]] : !torch.vtensor<[4,?,?],f32>
 func.func @torch.aten.matmul$basic$dynamic(%arg0: !torch.vtensor<[4,?,256],f32>, %arg1: !torch.vtensor<[256,?],f32>) -> !torch.vtensor<[4,?,?],f32> {
   %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[4,?,256],f32>, !torch.vtensor<[256,?],f32> -> !torch.vtensor<[4,?,?],f32>
   return %0 : !torch.vtensor<[4,?,?],f32>
@@ -126,16 +124,10 @@ func.func @torch.aten.matmul$basic$dynamic(%arg0: !torch.vtensor<[4,?,256],f32>,
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[1,?,256],f32>, %[[ARG1:.*]]: !torch.vtensor<[256],f32>) -> !torch.vtensor<[1,?],f32> {
 // CHECK-DAG:     %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1,?,256],f32> -> tensor<1x?x256xf32>
 // CHECK-DAG:     %[[T1:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[256],f32> -> tensor<256xf32>
-// CHECK:         %[[C0:.*]] = arith.constant 0 : index
-// CHECK:         %[[T2:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<1x?x256xf32>
-// CHECK:         %[[C0_0:.*]] = arith.constant 0 : index
-// CHECK:         %[[T4:.*]] = tensor.dim %[[T1]], %[[C0_0]] : tensor<256xf32>
-// CHECK:         %[[T6:.*]] = tensor.from_elements %[[T2]], %[[T4]] : tensor<2xindex>
-// CHECK:         %[[T7:.*]] = stablehlo.dynamic_broadcast_in_dim %[[T1]], %[[T6]], dims = [1] : (tensor<256xf32>, tensor<2xindex>) -> tensor<1x256xf32>
-// CHECK:         %[[T8:.*]] = stablehlo.dot_general %[[T0]], %[[T7]], batching_dims = [0] x [0], contracting_dims = [2] x [1] : (tensor<1x?x256xf32>, tensor<1x256xf32>) -> tensor<1x?xf32>
-// CHECK:         %[[T9:.*]] = tensor.cast %[[T8]] : tensor<1x?xf32> to tensor<1x?xf32>
-// CHECK:         %[[T10:.*]] = torch_c.from_builtin_tensor %[[T9]] : tensor<1x?xf32> -> !torch.vtensor<[1,?],f32>
-// CHECK:         return %[[T10]] : !torch.vtensor<[1,?],f32>
+// CHECK:         %[[T2:.*]] = stablehlo.dot_general %[[T0]], %[[T1]], contracting_dims = [2] x [0] : (tensor<1x?x256xf32>, tensor<256xf32>) -> tensor<1x?xf32>
+// CHECK:         %[[T3:.*]] = tensor.cast %[[T2]] : tensor<1x?xf32> to tensor<1x?xf32>
+// CHECK:         %[[T4:.*]] = torch_c.from_builtin_tensor %[[T3]] : tensor<1x?xf32> -> !torch.vtensor<[1,?],f32>
+// CHECK:         return %[[T4]] : !torch.vtensor<[1,?],f32>
 func.func @torch.aten.matmul$3dx1d(%arg0: !torch.vtensor<[1,?,256],f32>, %arg1: !torch.vtensor<[256],f32>) -> !torch.vtensor<[1,?],f32> {
   %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[1,?,256],f32>, !torch.vtensor<[256],f32> -> !torch.vtensor<[1,?],f32>
   return %0 : !torch.vtensor<[1,?],f32>
@@ -152,11 +144,12 @@ func.func @torch.aten.matmul$3dx1d(%arg0: !torch.vtensor<[1,?,256],f32>, %arg1: 
 // CHECK:         %[[C0_0:.*]] = arith.constant 0 : index
 // CHECK:         %[[T4:.*]] = tensor.dim %[[T0]], %[[C0_0]] : tensor<256xf32>
 // CHECK:         %[[T6:.*]] = tensor.from_elements %[[T2]], %[[T4]] : tensor<2xindex>
-// CHECK:         %[[T7:.*]] = stablehlo.dynamic_broadcast_in_dim %[[T0]], %[[T6]], dims = [1] : (tensor<256xf32>, tensor<2xindex>) -> tensor<?x256xf32>
-// CHECK:         %[[T8:.*]] = stablehlo.dot_general %[[T7]], %[[T1]], batching_dims = [0] x [0], contracting_dims = [1] x [1] : (tensor<?x256xf32>, tensor<?x256x?xf32>) -> tensor<?x?xf32>
-// CHECK:         %[[T9:.*]] = tensor.cast %[[T8]] : tensor<?x?xf32> to tensor<?x?xf32>
-// CHECK:         %[[T10:.*]] = torch_c.from_builtin_tensor %[[T9]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
-// CHECK:         return %[[T10]] : !torch.vtensor<[?,?],f32>
+// CHECK:         %[[T7:.*]] = stablehlo.dynamic_broadcast_in_dim %[[T0]], %[[T6]], dims = [1] : (tensor<256xf32>, tensor<2xindex>) -> tensor<?x?xf32>
+// CHECK:         %[[T8:.*]] = tensor.cast %[[T7]] : tensor<?x?xf32> to tensor<?x256xf32>
+// CHECK:         %[[T9:.*]] = stablehlo.dot_general %[[T8]], %[[T1]], batching_dims = [0] x [0], contracting_dims = [1] x [1] : (tensor<?x256xf32>, tensor<?x256x?xf32>) -> tensor<?x?xf32>
+// CHECK:         %[[T10:.*]] = tensor.cast %[[T9]] : tensor<?x?xf32> to tensor<?x?xf32>
+// CHECK:         %[[T11:.*]] = torch_c.from_builtin_tensor %[[T10]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
+// CHECK:         return %[[T11]] : !torch.vtensor<[?,?],f32>
 func.func @torch.aten.matmul$1dx3d(%arg0: !torch.vtensor<[256],f32>, %arg1: !torch.vtensor<[?,256,?],f32>) -> !torch.vtensor<[?,?],f32> {
   %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[256],f32>, !torch.vtensor<[?,256,?],f32> -> !torch.vtensor<[?,?],f32>
   return %0 : !torch.vtensor<[?,?],f32>
@@ -213,18 +206,10 @@ func.func @torch.aten.matmul$1dx1d(%arg0: !torch.vtensor<[256],f32>, %arg1: !tor
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,?,256],f32>) -> !torch.vtensor<[?,?,256],f32> {
 // CHECK-DAG:     %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?,256],f32> -> tensor<?x?x256xf32>
 // CHECK:         %[[T1:.*]] = stablehlo.constant dense<1.000000e+00> : tensor<256x256xf32>
-// CHECK:         %[[C0:.*]] = arith.constant 0 : index
-// CHECK:         %[[T2:.*]] = tensor.dim %[[T0]], %[[C0]] : tensor<?x?x256xf32>
-// CHECK:         %[[C0_0:.*]] = arith.constant 0 : index
-// CHECK:         %[[T4:.*]] = tensor.dim %[[T1]], %[[C0_0]] : tensor<256x256xf32>
-// CHECK:         %[[C1:.*]] = arith.constant 1 : index
-// CHECK:         %[[T6:.*]] = tensor.dim %[[T1]], %[[C1]] : tensor<256x256xf32>
-// CHECK:         %[[T8:.*]] = tensor.from_elements %[[T2]], %[[T4]], %[[T6]] : tensor<3xindex>
-// CHECK:         %[[T9:.*]] = stablehlo.dynamic_broadcast_in_dim %[[T1]], %[[T8]], dims = [1, 2] : (tensor<256x256xf32>, tensor<3xindex>) -> tensor<?x256x256xf32>
-// CHECK:         %[[T10:.*]] = stablehlo.dot_general %[[T0]], %[[T9]], batching_dims = [0] x [0], contracting_dims = [2] x [1] : (tensor<?x?x256xf32>, tensor<?x256x256xf32>) -> tensor<?x?x256xf32>
-// CHECK:         %[[T11:.*]] = tensor.cast %[[T10]] : tensor<?x?x256xf32> to tensor<?x?x256xf32>
-// CHECK:         %[[T12:.*]] = torch_c.from_builtin_tensor %[[T11]] : tensor<?x?x256xf32> -> !torch.vtensor<[?,?,256],f32>
-// CHECK:         return %[[T12]] : !torch.vtensor<[?,?,256],f32>
+// CHECK:         %[[T2:.*]] = stablehlo.dot_general %[[T0]], %[[T1]], contracting_dims = [2] x [0] : (tensor<?x?x256xf32>, tensor<256x256xf32>) -> tensor<?x?x256xf32>
+// CHECK:         %[[T3:.*]] = tensor.cast %[[T2]] : tensor<?x?x256xf32> to tensor<?x?x256xf32>
+// CHECK:         %[[T4:.*]] = torch_c.from_builtin_tensor %[[T3]] : tensor<?x?x256xf32> -> !torch.vtensor<[?,?,256],f32>
+// CHECK:         return %[[T4]] : !torch.vtensor<[?,?,256],f32>
 func.func @torch.aten.matmul$proj(%arg0: !torch.vtensor<[?,?,256],f32>) -> !torch.vtensor<[?,?,256],f32> {
   %0 = torch.vtensor.literal(dense<1.000000e+00> : tensor<256x256xf32>) : !torch.vtensor<[256,256],f32>
   %1 = torch.aten.matmul %arg0, %0 : !torch.vtensor<[?,?,256],f32>, !torch.vtensor<[256,256],f32> -> !torch.vtensor<[?,?,256],f32>

@@ -36,6 +36,102 @@ def AtenDotModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class BroadcastMatmul(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.matmul(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: BroadcastMatmul())
+def BroadcastMatmul_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 1, 3, 4), tu.rand(1, 10, 4, 5))
+
+
+# ==============================================================================
+
+
+class BatchMatmulNoBroadcast(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.matmul(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: BatchMatmulNoBroadcast())
+def BatchMatmulNoBroadcast_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 1, 3, 4), tu.rand(4, 5))
+
+
+# ==============================================================================
+
+
+class Matmul2d3dStatic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([256, 120], torch.float32, True),
+            ([4, 120, 256], torch.float32, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.matmul(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: Matmul2d3dStatic())
+def Matmul2d3dStatic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(256, 120), tu.rand(4, 120, 256))
+
+
+# ==============================================================================
+
+
+class Matmul1d3dStatic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([256], torch.float32, True),
+            ([-1, 256, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.matmul(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: Matmul1d3dStatic())
+def Matmul1d3dStatic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(256), tu.rand(4, 256, 3))
+
+
+# ==============================================================================
+
+
 class MatmulDot(torch.nn.Module):
     def __init__(self):
         super().__init__()
