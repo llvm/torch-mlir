@@ -519,9 +519,6 @@ public:
     if (!rhsTy) {
       rhs = hlo::scalarToStablehloTensor(rewriter, op, adaptor.getOther(),
                                          rhs.getType());
-      // use lhs's element type as compute type
-      rhs =
-          hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy.getElementType());
       rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
     }
 
@@ -542,12 +539,9 @@ public:
                isa<mlir::IntegerType>(rhsElemTy)) {
       rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsElemTy);
     } else {
-      if (lhsElemTy.getIntOrFloatBitWidth() >
-          rhsElemTy.getIntOrFloatBitWidth()) {
-        rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsElemTy);
-      } else {
-        lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, rhsElemTy);
-      }
+      // use lhs's element type as compute type
+      rhs =
+          hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy.getElementType());
     }
     lhsElemTy = dyn_cast<RankedTensorType>(lhs.getType()).getElementType();
 
