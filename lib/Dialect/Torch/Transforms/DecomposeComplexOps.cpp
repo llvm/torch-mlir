@@ -3813,6 +3813,58 @@ public:
 };
 } // namespace
 
+// Decompose `aten.hstack` into `aten.at_least1d` and `aten.cat`.
+// https://github.com/pytorch/pytorch/blob/207564bab1c4fe42750931765734ee604032fb69/torch/_refs/__init__.py#L3908
+namespace {
+class DecomposeAtenHstackOp : public OpRewritePattern<AtenHstackOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenHstackOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+
+    // Get SmallVector<Value> from Value.
+    SmallVector<Value> tensors;
+    if (!getListConstructElements(op.getTensors(), tensors))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: the tensor list is not from list construct");
+
+    // Execute AtenAtleast1dOp on every tensor inside tensors.
+    SmallVector<Value> atleast1dTensors;
+    for (auto tensor : tensors) {
+      std::optional<unsigned> tensorRank = getTensorRank(tensor);
+
+      // Check if the tensor is already of rank >= 1.
+      if (*tensorRank < 1) {
+        auto atleast1dTensor =
+            rewriter.create<AtenAtleast1dOp>(loc, tensor.getType(), tensor);
+        atleast1dTensors.push_back(atleast1dTensor);
+      } else {
+        atleast1dTensors.push_back(tensor);
+      }
+    }
+
+    // Make Value list from atleast1dTensors variable.
+    auto elemType = cast<BaseTensorType>(atleast1dTensors[0].getType())
+                        .getWithSizesAndDtype(std::nullopt, nullptr);
+    Value atleast1dTensorList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(elemType), atleast1dTensors);
+
+    // Replace hstack with cat operator.
+    if (getTensorRank(atleast1dTensors[0]) == 1)
+      rewriter.replaceOpWithNewOp<AtenCatOp>(
+          op, op.getType(), atleast1dTensorList,
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0)));
+    else
+      rewriter.replaceOpWithNewOp<AtenCatOp>(
+          op, op.getType(), atleast1dTensorList,
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1)));
+
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.roll into aten.slice and aten.cat ops.
 // https://pytorch.org/docs/stable/generated/torch.roll.html
 namespace {
@@ -9567,6 +9619,7 @@ public:
     addPatternIfTargetOpIsIllegal<
         DecomposeConstantTensorAllocLikeOp<AtenZerosLikeOp, 0>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStackOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenHstackOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRollOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatInterleaveSelfIntOp>(
