@@ -1308,6 +1308,107 @@ def TensorsStackPromoteDTypeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class HstackBasicIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 4], torch.bool, True),
+            ([2, 3, 4], torch.int32, True),
+            ([2, 3, 4], torch.int64, True),
+        ]
+    )
+    def forward(self, x, y, z):
+        return torch.ops.aten.hstack([x, y, z])
+
+
+@register_test_case(module_factory=lambda: HstackBasicIntModule())
+def HstackBasicIntModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(2, 3, 4, low=0, high=2).bool(),
+        tu.randint(2, 3, 4, low=0, high=100).int(),
+        tu.randint(2, 3, 4, low=0, high=100).long(),
+    )
+
+
+class HstackBasicFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 6, 4], torch.int32, True),
+            ([2, 3, 4], torch.float64, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.hstack([x, y])
+
+
+@register_test_case(module_factory=lambda: HstackBasicFloatModule())
+def HstackBasicFloatModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 6, 4).int(),
+        tu.rand(2, 3, 4).double(),
+    )
+
+
+class HstackBasicIntFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.int32, True),
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.hstack([x, y])
+
+
+@register_test_case(module_factory=lambda: HstackBasicIntFloatModule())
+def HstackBasicIntFloatModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, 6, 4, 2, low=1, high=50).int(),
+        tu.rand(4, 3, 4, 2),
+    )
+
+
+class HstackBasicComplexModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.complex64, True),
+            ([-1, -1, -1, -1], torch.complex128, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.hstack([x, y])
+
+
+@register_test_case(module_factory=lambda: HstackBasicComplexModule())
+def HstackBasicComplexModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(4, 6, 4, 2).type(torch.complex64),
+        tu.rand(4, 3, 4, 2).type(torch.complex128),
+    )
+
+
+# ==============================================================================
+
+
 class GatherModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

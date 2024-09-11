@@ -2162,6 +2162,19 @@ def aten〇atleast_2d〡shape(self: List[int]) -> List[int]:
 def aten〇stack〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.stack(tensors, dim)
 
+
+@check_shape_function([
+    Invocation([LongTensorOfShape(2, 4, 3), LongTensorOfShape(2, 5, 3)]), # Basic case.
+])
+def aten〇hstack〡shape(tensors: List[List[int]]) -> List[int]:
+
+    tensors_atleast1d = [aten〇atleast_1d〡shape(tensor) for tensor in tensors]
+
+    if len(tensors_atleast1d[0]) == 1:
+        return upstream_shape_functions.cat(tensors_atleast1d, dim=0)    
+    
+    return upstream_shape_functions.cat(tensors_atleast1d, dim=1)
+
 def aten〇fft_fft〡shape(self: List[int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> List[int]:
     return self
 
@@ -5383,6 +5396,23 @@ def aten〇atleast_1d〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def aten〇atleast_2d〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+@check_dtype_function(
+    [Invocation([NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.int32), NonZeroDTensorWithDtype(torch.int64)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float16), NonZeroDTensorWithDtype(torch.float64)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32),
+                 NonZeroDTensorWithDtype(torch.complex64)])])
+def aten〇hstack〡dtype(tensors_rank_dtype: List[Tuple[int, int]]) -> int:
+    ranks: List[Optional[int]] = []
+    dtypes: List[int] = []
+    assert len(tensors_rank_dtype) != 0
+    for tensor_rank_dtype in tensors_rank_dtype:
+        tensor_rank, tensor_dtype = tensor_rank_dtype
+        ranks.append(tensor_rank)
+        dtypes.append(tensor_dtype)
+
+    return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
     [Invocation("i,j->ij", [TensorOfShape(1, dtype=torch.float32),
