@@ -1942,7 +1942,7 @@ class SafeSoftmaxNonNoneDtypeModule(torch.nn.Module):
         ]
     )
     def forward(self, tensor):
-        return torch.ops.aten.softmax(tensor, dim=2, dtype=torch.float64)
+        return torch.ops.aten._safe_softmax(tensor, dim=2, dtype=torch.float64)
 
 
 @register_test_case(module_factory=lambda: SafeSoftmaxNonNoneDtypeModule())

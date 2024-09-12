@@ -2770,6 +2770,8 @@ ONNX_XFAIL_SET = {
     "ReshapeAliasExpandModule_basic",
     "ReshapeExpandModule_basic",
     "Rot90DynamicDimsModule_basic",
+    "SafeSoftmaxModule_basic",
+    "SafeSoftmaxNonNoneDtypeModule_basic",
     "ScalarConstantTupleModule_basic",
     "ScalarImplicitFloatModule_basic",
     "ScalarImplicitIntModule_basic",
