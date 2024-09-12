@@ -535,13 +535,9 @@ public:
 
     if (isa<mlir::IntegerType>(lhsElemTy) && isa<mlir::FloatType>(rhsElemTy)) {
       lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, rhsElemTy);
-    } else if (isa<mlir::FloatType>(lhsElemTy) &&
-               isa<mlir::IntegerType>(rhsElemTy)) {
-      rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsElemTy);
     } else {
       // use lhs's element type as compute type
-      rhs =
-          hlo::promoteType(rewriter, op.getLoc(), rhs, lhsTy.getElementType());
+      rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, lhsElemTy);
     }
     lhsElemTy = dyn_cast<RankedTensorType>(lhs.getType()).getElementType();
 
