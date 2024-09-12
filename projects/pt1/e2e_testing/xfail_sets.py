@@ -504,14 +504,6 @@ FX_IMPORTER_XFAIL_SET = {
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewSizeFromOtherTensor_basic",
     "WeightNormInterfaceModule_basic",
-    # REMOVE WHEN ENABLE_GQA IS ADDED
-    "ScaledDotProductAttentionBoolMaskModule_basic",
-    "ScaledDotProductAttentionDifferentCausalModule_basic",
-    "ScaledDotProductAttentionDifferentModule_basic",
-    "ScaledDotProductAttentionMaskModule_basic",
-    "ScaledDotProductAttentionSameCausalModule_basic",
-    "ScaledDotProductAttentionSameDynamicModule_basic",
-    "ScaledDotProductAttentionSameModule_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
