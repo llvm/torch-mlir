@@ -818,6 +818,9 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ReplicationPad2dModule_top0",
     "RsubInt0d_NumToTensor_Module_basic",
     "ScalarImplicitFloatModule_basic",
+    # need aten.all.dim lowering to stablehlo
+    "SafeSoftmaxModule_basic",
+    "SafeSoftmaxNonNoneDtypeModule_basic",
     # REMOVE WHEN ENABLE_GQA IS ADDED
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
