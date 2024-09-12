@@ -235,11 +235,6 @@ if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS:
             f"torch=={torch.__version__}".split("+", 1)[0],
         ]
     )
-    EXT_MODULES.extend(
-        [
-            CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
-        ]
-    )
 
 
 setup(
