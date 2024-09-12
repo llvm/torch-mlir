@@ -3367,7 +3367,6 @@ def aten〇slice〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], dim: int = 0
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
-# @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇as_strided〡dtype(self_rank_dtype: Tuple[int, int], size: List[int], stride: List[int], storage_offset: Optional[int] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
