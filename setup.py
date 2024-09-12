@@ -120,7 +120,7 @@ class CMakeBuild(build_py):
             f"-DCMAKE_C_VISIBILITY_PRESET=hidden",
             f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
             f"-DTORCH_MLIR_ENABLE_LTC={'ON' if TORCH_MLIR_ENABLE_LTC else 'OFF'}",
-            f"-DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS={'OFF' if TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else 'ON'}",
+            f"-DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=OFF",
         ]
         if LLVM_INSTALL_DIR:
             cmake_config_args += [
@@ -233,6 +233,11 @@ if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS:
     INSTALL_REQUIRES.extend(
         [
             f"torch=={torch.__version__}".split("+", 1)[0],
+        ]
+    )
+    EXT_MODULES.extend(
+        [
+            CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
         ]
     )
 
