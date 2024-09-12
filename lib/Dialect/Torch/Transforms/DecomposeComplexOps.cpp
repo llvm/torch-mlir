@@ -2148,6 +2148,62 @@ public:
 };
 } // namespace
 
+// Ref:
+// https://github.com/pytorch/pytorch/blob/5314ae2660a778b87987030182f787bb6cb092c0/aten/src/ATen/native/transformers/attention.cpp#L663-L673
+namespace {
+class DecomposeAten_SafeSoftmaxOp
+    : public OpRewritePattern<Aten_SafeSoftmaxOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_SafeSoftmaxOp op,
+                                PatternRewriter &rewriter) const override {
+    BaseTensorType resultTensorType = cast<BaseTensorType>(op.getType());
+    if (!resultTensorType.hasDtype() || !resultTensorType.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "expected result type to have sizes and dtype");
+    }
+    SmallVector<int64_t> sizes(resultTensorType.getSizes());
+
+    int64_t dimInt;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dimInt)))
+      return rewriter.notifyMatchFailure(op, "Unsupported: non-constant dim");
+
+    dimInt = toPositiveDim(dimInt, sizes.size());
+    if (!isValidDim(dimInt, sizes.size()))
+      return rewriter.notifyMatchFailure(op, "dim int is not valid");
+
+    Location loc = op.getLoc();
+    Value softmax = rewriter.create<AtenSoftmaxIntOp>(
+        loc, op.getType(), op.getSelf(), op.getDim(), op.getDtype());
+
+    Type resultTensorDtype = resultTensorType.getDtype();
+
+    Value negInfinity = getConstantWithGivenDtypeAndValue(
+        rewriter, loc, -std::numeric_limits<double>::infinity(),
+        resultTensorDtype);
+
+    auto boolDtype = rewriter.getI1Type();
+    auto boolTensorType =
+        resultTensorType.getWithSizesAndDtype(sizes, boolDtype);
+    Value masked = rewriter.create<AtenEqScalarOp>(loc, boolTensorType,
+                                                   op.getSelf(), negInfinity);
+
+    sizes[dimInt] = 1;
+    auto maskedRowsType =
+        resultTensorType.getWithSizesAndDtype(sizes, boolDtype);
+    Value cstTrue =
+        rewriter.create<Torch::ConstantBoolOp>(loc, rewriter.getBoolAttr(true));
+    Value maskedRows = rewriter.create<AtenAllDimOp>(
+        loc, maskedRowsType, masked, op.getDim(), cstTrue);
+    Value cstZero = getConstantWithGivenDtypeAndValue(rewriter, loc, 0.0,
+                                                      resultTensorDtype);
+    rewriter.replaceOpWithNewOp<AtenWhereScalarSelfOp>(
+        op, resultTensorType, maskedRows, cstZero, softmax);
+    return success();
+  }
+};
+} // namespace
+
 // Aten_SoftmaxBackwardDataOp(gradOutput, output, dim) =>
 //    newGrad = gradOutput * output
 //    result = newGrad - output * sum(newGrad, dim))
@@ -9608,6 +9664,7 @@ public:
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftmaxIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_SoftmaxOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_SafeSoftmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSoftmaxIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSigmoidOp>(patterns);

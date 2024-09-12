@@ -504,14 +504,6 @@ FX_IMPORTER_XFAIL_SET = {
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewSizeFromOtherTensor_basic",
     "WeightNormInterfaceModule_basic",
-    # REMOVE WHEN ENABLE_GQA IS ADDED
-    "ScaledDotProductAttentionBoolMaskModule_basic",
-    "ScaledDotProductAttentionDifferentCausalModule_basic",
-    "ScaledDotProductAttentionDifferentModule_basic",
-    "ScaledDotProductAttentionMaskModule_basic",
-    "ScaledDotProductAttentionSameCausalModule_basic",
-    "ScaledDotProductAttentionSameDynamicModule_basic",
-    "ScaledDotProductAttentionSameModule_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
@@ -826,6 +818,9 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ReplicationPad2dModule_top0",
     "RsubInt0d_NumToTensor_Module_basic",
     "ScalarImplicitFloatModule_basic",
+    # need aten.all.dim lowering to stablehlo
+    "SafeSoftmaxModule_basic",
+    "SafeSoftmaxNonNoneDtypeModule_basic",
     # REMOVE WHEN ENABLE_GQA IS ADDED
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
@@ -2770,6 +2765,8 @@ ONNX_XFAIL_SET = {
     "ReshapeAliasExpandModule_basic",
     "ReshapeExpandModule_basic",
     "Rot90DynamicDimsModule_basic",
+    "SafeSoftmaxModule_basic",
+    "SafeSoftmaxNonNoneDtypeModule_basic",
     "ScalarConstantTupleModule_basic",
     "ScalarImplicitFloatModule_basic",
     "ScalarImplicitIntModule_basic",

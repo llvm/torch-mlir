@@ -348,6 +348,9 @@ def aten〇glu〡shape(self: List[int], dim: int = -1) -> List[int]:
 def aten〇_softmax〡shape(self: List[int], dim: int, half_to_float: bool) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇_safe_softmax〡shape(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇softmax〇int〡shape(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -5424,6 +5427,12 @@ def aten〇_softmax〡dtype(self_rank_dtype: Tuple[int, int], dim: int, half_to_
     if half_to_float:
         assert self_dtype == torch.float16
         return torch.float32
+    return self_dtype
+
+def aten〇_safe_softmax〡dtype(self_rank_dtype: Tuple[int, int], dim: int, dtype: Optional[int] = None) -> int:
+    if dtype is not None:
+        return dtype
+    self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
 @check_dtype_function(

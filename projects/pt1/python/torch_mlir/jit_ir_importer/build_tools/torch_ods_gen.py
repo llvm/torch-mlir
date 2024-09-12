@@ -692,6 +692,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::__lshift__.Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::__rshift__.Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::_softmax : (Tensor, int, bool) -> (Tensor)")
+    emit("aten::_safe_softmax : (Tensor, int, int?) -> (Tensor)")
     emit("aten::mean : (Tensor, int?) -> (Tensor)")
     emit("aten::std : (Tensor, bool) -> (Tensor)")
     emit("aten::std.dim : (Tensor, int[]?, bool, bool) -> (Tensor)")
