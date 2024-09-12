@@ -2148,6 +2148,36 @@ public:
 };
 } // namespace
 
+// Ref:
+// https://github.com/pytorch/pytorch/blob/5314ae2660a778b87987030182f787bb6cb092c0/aten/src/ATen/native/transformers/attention.cpp#L663-L673
+namespace {
+class DecomposeAten_SafeSoftmaxOp
+    : public OpRewritePattern<Aten_SafeSoftmaxOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_SafeSoftmaxOp op,
+                                PatternRewriter &rewriter) const override {
+    Value softmax = rewriter.create<AtenSoftmaxIntOp>(
+        op->getLoc(), op.getType(), op.getSelf(), op.getDim(), op.getDtype());
+
+    BaseTensorType resultTensorType = cast<BaseTensorType>(op.getType());
+    if (!resultTensorType.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "expected result type to have a dtype");
+    }
+    Type resultTensorDtype = resultTensorType.getDtype();
+
+    Value negInfinity = getConstantWithGivenDtypeAndValue(
+        rewriter, op.getLoc(), -std::numeric_limits<double>::infinity(),
+        resultTensorDtype);
+
+    // rewriter.replaceOpWithNewOp<TensorStaticInfoCastOp>(op, resultTensorType,
+    //                                                     result);
+    return success();
+  }
+};
+} // namespace
+
 // Aten_SoftmaxBackwardDataOp(gradOutput, output, dim) =>
 //    newGrad = gradOutput * output
 //    result = newGrad - output * sum(newGrad, dim))
@@ -9608,6 +9638,7 @@ public:
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftmaxIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_SoftmaxOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_SafeSoftmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSoftmaxIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSigmoidOp>(patterns);
