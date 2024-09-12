@@ -62,7 +62,9 @@ def check_env_flag(name: str, default=None) -> bool:
 
 PACKAGE_VERSION = os.getenv("TORCH_MLIR_PYTHON_PACKAGE_VERSION", "0.0.1")
 TORCH_MLIR_ENABLE_LTC = check_env_flag("TORCH_MLIR_ENABLE_LTC", True)
-TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS = check_env_flag("TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS", False)
+TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS = check_env_flag(
+    "TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS", False
+)
 LLVM_INSTALL_DIR = os.getenv("LLVM_INSTALL_DIR", None)
 SRC_DIR = pathlib.Path(__file__).parent.absolute()
 CMAKE_BUILD_TYPE = os.getenv("CMAKE_BUILD_TYPE", "Release")
@@ -205,12 +207,16 @@ if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS:
     import torch
 
     NAME = "torch-mlir"
-    INSTALL_REQUIRES.extend([
-        f"torch=={torch.__version__}".split("+", 1)[0],
-    ])
-    EXT_MODULES.extend([
-        CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
-    ])
+    INSTALL_REQUIRES.extend(
+        [
+            f"torch=={torch.__version__}".split("+", 1)[0],
+        ]
+    )
+    EXT_MODULES.extend(
+        [
+            CMakeExtension("torch_mlir._mlir_libs._jit_ir_importer"),
+        ]
+    )
 
 setup(
     name=NAME,
