@@ -968,6 +968,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::alias_copy : (Tensor) -> (Tensor)")
     emit("aten::alias : (Tensor) -> (Tensor)", has_folder=True)
     emit("aten::as_strided_copy : (Tensor, int[], int[], int?) -> (Tensor)")
+    emit("aten::as_strided : (Tensor, int[], int[], int?) -> (Tensor)")
     emit("aten::diagonal : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::diagonal_copy : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::expand_copy : (Tensor, int[], bool) -> (Tensor)")
@@ -994,9 +995,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::upsample_nearest1d.vec : (Tensor, int[]?, float[]?) -> (Tensor)")
     emit("aten::upsample_nearest2d : (Tensor, int[], float?, float?) -> (Tensor)")
     emit("aten::upsample_nearest2d.vec : (Tensor, int[]?, float[]?) -> (Tensor)")
-    emit(
-        "aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?, bool) -> (Tensor)"
-    )
+    # emit(
+    #     "aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?, bool) -> (Tensor)"
+    # )
     emit("aten::grid_sampler : (Tensor, Tensor, int, int, bool) -> (Tensor)")
 
     # Dict ops.
