@@ -2710,7 +2710,7 @@ def aten〇_weight_norm_interface〡dtype(v_rank_dtype: Tuple[int, int], g_rank_
     elif g_dtype == torch.complex64:
         return v_dtype, torch.float32
     elif g_dtype == torch.bfloat16:
-        return v_dtype, torch.float32
+        return v_dtype, torch.bfloat16
     return v_dtype, g_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))

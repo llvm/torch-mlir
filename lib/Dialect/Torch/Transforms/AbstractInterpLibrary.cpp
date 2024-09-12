@@ -11480,7 +11480,7 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "      } else {\n"
 "        %11 = torch.aten.eq.int %2#1, %int15 : !torch.int, !torch.int -> !torch.bool\n"
 "        %12:2 = torch.prim.If %11 -> (!torch.bool, !torch.tuple<int, int>) {\n"
-"          %13 = torch.prim.TupleConstruct %1#1, %int6 : !torch.int, !torch.int -> !torch.tuple<int, int>\n"
+"          %13 = torch.prim.TupleConstruct %1#1, %int15 : !torch.int, !torch.int -> !torch.tuple<int, int>\n"
 "          torch.prim.If.yield %true, %13 : !torch.bool, !torch.tuple<int, int>\n"
 "        } else {\n"
 "          torch.prim.If.yield %false, %0 : !torch.bool, !torch.tuple<int, int>\n"

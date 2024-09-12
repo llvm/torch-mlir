@@ -41,7 +41,7 @@ if [ ! -z ${TORCH_MLIR_EXT_MODULES} ]; then
   ext_module="${TORCH_MLIR_EXT_MODULES} "
 fi
 
-PYTHONPATH="${pypath}" python \
+PYTHONPATH="${pypath}" python3 \
   -m torch_mlir.jit_ir_importer.build_tools.abstract_interp_lib_gen \
   --pytorch_op_extensions=${ext_module:-""} \
   --torch_transforms_cpp_dir="${torch_transforms_cpp_dir}"
