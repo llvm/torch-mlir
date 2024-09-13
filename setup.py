@@ -225,7 +225,6 @@ EXT_MODULES = [
 ]
 NAME = "torch-mlir-core"
 
-print("TEST")
 # If building PyTorch extensions, customize.
 if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS:
     import torch
