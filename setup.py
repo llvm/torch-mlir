@@ -220,15 +220,16 @@ INSTALL_REQUIRES = [
     "numpy",
     "packaging",
 ]
-EXT_MODULES = [
-    CMakeExtension("torch_mlir._mlir_libs._torchMlir"),
-]
+EXT_MODULES = []
+if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS:
+    EXT_MODULES = [
+        CMakeExtension("torch_mlir._mlir_libs._torchMlir"),
+    ]
 NAME = "torch-mlir-core"
 
 print("TEST")
 # If building PyTorch extensions, customize.
 if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS:
-    print("HEREE")
     import torch
 
     NAME = "torch-mlir"
