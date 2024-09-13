@@ -120,7 +120,7 @@ class CMakeBuild(build_py):
             f"-DCMAKE_C_VISIBILITY_PRESET=hidden",
             f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
             f"-DTORCH_MLIR_ENABLE_LTC={'ON' if TORCH_MLIR_ENABLE_LTC else 'OFF'}",
-            f"-DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=OFF",
+            f"-DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS={'OFF' if TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else 'ON'}",
         ]
         if LLVM_INSTALL_DIR:
             cmake_config_args += [
