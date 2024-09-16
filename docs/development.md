@@ -138,7 +138,7 @@ cmake --build build --target tools/torch-mlir/all
 cmake --build build --target check-torch-mlir
 
 # Run Python regression tests.
-cmake --build build --target check-torch-mlir-python
+cmake --build build --target check-torch_mlir-python
 
 # Build everything (including LLVM if in-tree)
 cmake --build build
@@ -454,7 +454,7 @@ ninja check-torch-mlir-all
 This can be broken down into
 
 ```
-ninja check-torch-mlir check-torch-mlir-python
+ninja check-torch-mlir check-torch_mlir-python
 ```
 
 To run more fine-grained tests, you can do, for `check-torch-mlir`:
