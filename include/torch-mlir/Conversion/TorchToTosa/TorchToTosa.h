@@ -18,6 +18,11 @@
 namespace mlir {
 namespace torch {
 
+/// Collect a set of legal/illegal ops for converting Torch operations to Tosa
+/// dialect.
+void populateTorchToTosaConversionLegalOps(ConversionTarget &target);
+void populateTorchToTosaConversionIllegalOps(ConversionTarget &target);
+
 /// Collect a set of patterns to convert Torch operations to Tosa dialect.
 void populateTorchToTosaConversionPatterns(TypeConverter &typeConverter,
                                            RewritePatternSet &patterns);

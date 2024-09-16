@@ -256,27 +256,32 @@ public:
 };
 } // namespace
 
-void mlir::torch::torch_to_linalg::
-    populateTensorScalarInteropPatternsAndLegality(TypeConverter &typeConverter,
-                                                   RewritePatternSet &patterns,
-                                                   ConversionTarget &target) {
-  MLIRContext *context = patterns.getContext();
+void mlir::torch::torch_to_linalg::populateTensorScalarInteropOpsLegality(
+    ConversionTarget &target) {
   target.addIllegalOp<AtenSizeIntOp>();
-  patterns.add<ConvertAtenSizeIntOp>(typeConverter, context);
   target.addIllegalOp<AtenNumelOp>();
-  patterns.add<ConvertAtenNumelOp>(typeConverter, context);
   target.addIllegalOp<AtenIntTensorOp, AtenFloatTensorOp, AtenBoolTensorOp>();
+  target.addIllegalOp<AtenTensorIntOp, AtenTensorFloatOp>();
+  target.addIllegalOp<PrimNumToTensorScalarOp>();
+  target.addIllegalOp<AtenFullOp>();
+  target.addIllegalOp<AtenScalarImplicitOp, AtenFloatImplicitOp,
+                      AtenIntImplicitOp>();
+}
+
+void mlir::torch::torch_to_linalg::populateTensorScalarInteropPatterns(
+    TypeConverter &typeConverter, RewritePatternSet &patterns) {
+  MLIRContext *context = patterns.getContext();
+  patterns.add<ConvertAtenSizeIntOp>(typeConverter, context);
+
+  patterns.add<ConvertAtenNumelOp>(typeConverter, context);
   patterns.add<ConvertAtenTensorToScalarLikeOp<AtenIntTensorOp>>(typeConverter,
                                                                  context);
   patterns.add<ConvertAtenTensorToScalarLikeOp<AtenFloatTensorOp>>(
       typeConverter, context);
   patterns.add<ConvertAtenTensorToScalarLikeOp<AtenBoolTensorOp>>(typeConverter,
                                                                   context);
-  target.addIllegalOp<AtenTensorIntOp, AtenTensorFloatOp>();
   patterns.add<ConvertAtenScalarToTensorLike>(typeConverter, context);
-  target.addIllegalOp<PrimNumToTensorScalarOp>();
   patterns.add<ConvertPrimNumToTensorScalarOp>(typeConverter, context);
-  target.addIllegalOp<AtenFullOp>();
   patterns.add<ConvertAtenFullOp>(typeConverter, context);
 
   patterns.add<ConvertAtenImplicitLikeOp<AtenScalarImplicitOp>>(typeConverter,
@@ -285,6 +290,4 @@ void mlir::torch::torch_to_linalg::
                                                                context);
   patterns.add<ConvertAtenImplicitLikeOp<AtenIntImplicitOp>>(typeConverter,
                                                              context);
-  target.addIllegalOp<AtenScalarImplicitOp, AtenFloatImplicitOp,
-                      AtenIntImplicitOp>();
 }

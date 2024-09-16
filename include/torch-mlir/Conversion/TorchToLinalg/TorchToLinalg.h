@@ -17,9 +17,9 @@
 
 namespace mlir {
 namespace torch {
-void populateTorchToLinalgOnTensorsPatternsAndLegality(
-    TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target);
+void populateTorchToLinalgOnTensorsPatterns(TypeConverter &typeConverter,
+                                            RewritePatternSet &patterns);
+void populateTorchToLinalgOnTensorsOpsLegality(ConversionTarget &target);
 std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToLinalgPass();
 } // namespace torch
 } // namespace mlir

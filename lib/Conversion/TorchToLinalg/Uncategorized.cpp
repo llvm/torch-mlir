@@ -3339,10 +3339,8 @@ public:
 };
 } // namespace
 
-void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
-    TypeConverter &typeConverter, RewritePatternSet &patterns,
+void mlir::torch::torch_to_linalg::populateUncategorizedOpsLegality(
     ConversionTarget &target) {
-  MLIRContext *context = patterns.getContext();
   target.addIllegalOp<
       AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenAtanhOp, AtenAcoshOp,
       AtenAsinOp, AtenAsinhOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp,
@@ -3366,39 +3364,35 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenTrilOp, AtenRemainderScalarOp, AtenRemainderTensorOp,
       AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
       AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
-      AtenQuantizePerTensorOp, AtenIscloseOp>();
+      AtenQuantizePerTensorOp, AtenIscloseOp, AtenNllLossForwardOp,
+      AtenDetachOp, AtenBatchNormOp, AtenLogitOp, PrimsCollapseOp,
+      PrimsSplitDimOp, AtenNllLossBackwardOp, TensorStaticInfoCastOp,
+      AtenIntReprOp, Aten_MakePerChannelQuantizedTensorOp,
+      Aten_MakePerTensorQuantizedTensorOp, AtenGridSamplerOp,
+      Aten__InterpolateSizeListScaleListOp, AtenLinalgDetOp, AtenPolarOp>();
+}
+
+void mlir::torch::torch_to_linalg::populateUncategorizedPatterns(
+    TypeConverter &typeConverter, RewritePatternSet &patterns) {
+  MLIRContext *context = patterns.getContext();
+
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
-  target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);
-  target.addIllegalOp<AtenDetachOp>();
   patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);
-  target.addIllegalOp<AtenBatchNormOp>();
   patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
-  target.addIllegalOp<AtenLogitOp>();
   patterns.add<ConvertLogitOp>(typeConverter, context);
-  target.addIllegalOp<PrimsCollapseOp>();
   patterns.add<ConvertPrimsCollapseOp>(typeConverter, context);
-  target.addIllegalOp<PrimsSplitDimOp>();
   patterns.add<ConvertPrimsSplitDimOp>(typeConverter, context);
-  target.addIllegalOp<AtenNllLossBackwardOp>();
   patterns.add<ConvertAtenNllLossBackwardOp>(typeConverter, context);
   patterns.add<ConvertTensorStaticInfoCastOp>(typeConverter, context);
-  target.addIllegalOp<TensorStaticInfoCastOp>();
   patterns.add<ConvertAtenIntReprOp>(typeConverter, context);
-  target.addIllegalOp<AtenIntReprOp>();
   patterns.add<ConvertCastEquivalentOp<Aten_MakePerChannelQuantizedTensorOp>>(
       typeConverter, context);
-  target.addIllegalOp<Aten_MakePerChannelQuantizedTensorOp>();
   patterns.add<ConvertCastEquivalentOp<Aten_MakePerTensorQuantizedTensorOp>>(
       typeConverter, context);
-  target.addIllegalOp<Aten_MakePerTensorQuantizedTensorOp>();
   patterns.add<ConvertDequantizePerChannel>(typeConverter, context);
-  target.addIllegalOp<AtenGridSamplerOp>();
   patterns.add<ConvertAtenGridSamplerOp>(typeConverter, context);
-  target.addIllegalOp<Aten__InterpolateSizeListScaleListOp>();
   patterns.add<ConvertInterpolateOp>(typeConverter, context);
-  target.addIllegalOp<AtenLinalgDetOp>();
   patterns.add<ConvertAtenLinalgDetOp>(typeConverter, context);
-  target.addIllegalOp<AtenPolarOp>();
   patterns.add<ConvertAtenPolarOp>(typeConverter, context);
 }

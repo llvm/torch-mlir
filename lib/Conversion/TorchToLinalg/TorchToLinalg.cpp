@@ -64,8 +64,8 @@ public:
 
     RewritePatternSet patterns(context);
 
-    torch::populateTorchToLinalgOnTensorsPatternsAndLegality(typeConverter,
-                                                             patterns, target);
+    torch::populateTorchToLinalgOnTensorsPatterns(typeConverter, patterns);
+    torch::populateTorchToLinalgOnTensorsOpsLegality(target);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
@@ -75,27 +75,31 @@ public:
 } // namespace
 
 //  Add any new populate*PatternsAndLegality functionality here
-void mlir::torch::populateTorchToLinalgOnTensorsPatternsAndLegality(
-    TypeConverter &typeConverter, RewritePatternSet &patterns,
+void mlir::torch::populateTorchToLinalgOnTensorsPatterns(
+    TypeConverter &typeConverter, RewritePatternSet &patterns) {
+  torch_to_linalg::populateTensorScalarInteropPatterns(typeConverter, patterns);
+  torch_to_linalg::populateLinearPatterns(typeConverter, patterns);
+  torch_to_linalg::populatePoolingPatterns(typeConverter, patterns);
+  torch_to_linalg::populateRandomPatterns(typeConverter, patterns);
+  torch_to_linalg::populateUncategorizedPatterns(typeConverter, patterns);
+  torch_to_linalg::populateReductionPatterns(typeConverter, patterns);
+  torch_to_linalg::populateDataMovementPatterns(typeConverter, patterns);
+  torch_to_linalg::populateIndirectDataMovementPatterns(typeConverter,
+                                                        patterns);
+  torch_to_linalg::populateTensorConstructorsPatterns(typeConverter, patterns);
+}
+
+void mlir::torch::populateTorchToLinalgOnTensorsOpsLegality(
     ConversionTarget &target) {
-  torch_to_linalg::populateTensorScalarInteropPatternsAndLegality(
-      typeConverter, patterns, target);
-  torch_to_linalg::populateLinearPatternsAndLegality(typeConverter, patterns,
-                                                     target);
-  torch_to_linalg::populatePoolingPatternsAndLegality(typeConverter, patterns,
-                                                      target);
-  torch_to_linalg::populateRandomPatternsAndLegality(typeConverter, patterns,
-                                                     target);
-  torch_to_linalg::populateUncategorizedPatternsAndLegality(typeConverter,
-                                                            patterns, target);
-  torch_to_linalg::populateReductionPatternsAndLegality(typeConverter, patterns,
-                                                        target);
-  torch_to_linalg::populateDataMovementPatternsAndLegality(typeConverter,
-                                                           patterns, target);
-  torch_to_linalg::populateIndirectDataMovementPatternsAndLegality(
-      typeConverter, patterns, target);
-  torch_to_linalg::populateTensorConstructorsPatternsAndLegality(
-      typeConverter, patterns, target);
+  torch_to_linalg::populateTensorScalarInteropOpsLegality(target);
+  torch_to_linalg::populateLinearOpsLegality(target);
+  torch_to_linalg::populatePoolingOpsLegality(target);
+  torch_to_linalg::populateRandomOpsLegality(target);
+  torch_to_linalg::populateUncategorizedOpsLegality(target);
+  torch_to_linalg::populateReductionOpsLegality(target);
+  torch_to_linalg::populateDataMovementOpsLegality(target);
+  torch_to_linalg::populateIndirectDataMovementOpsLegality(target);
+  torch_to_linalg::populateTensorConstructorsOpsLegality(target);
 }
 
 std::unique_ptr<OperationPass<func::FuncOp>>

@@ -60,23 +60,7 @@ public:
                            tosa::TosaDialect, tensor::TensorDialect,
                            arith::ArithDialect, complex::ComplexDialect>();
     target.addLegalOp<TorchConversion::GetNextSeedOp>();
-
-    // The following ops are never the primary reason why lowering fails.
-    // The backend contract only allows functions to return tensors thus there
-    // is always another op using them.
-    // When we have a chain of torch.constant.int followed by a unsupported
-    // torch op, we want the pass to mention the unsupported torch op
-    // in the error message.
-    target.addLegalOp<ConstantNoneOp>();
-    target.addLegalOp<ConstantBoolOp>();
-    target.addLegalOp<ConstantIntOp>();
-    target.addLegalOp<ConstantFloatOp>();
-    target.addLegalOp<ConstantStrOp>();
-    target.addLegalOp<ConstantDeviceOp>();
-    target.addLegalOp<PrimListConstructOp>();
-    target.addLegalOp<PrimTupleConstructOp>();
-
-    // target.addIllegalDialect<Torch::TorchDialect>();
+    torch::populateTorchToTosaConversionLegalOps(target);
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
@@ -85,8 +69,8 @@ public:
     RewritePatternSet patterns(context);
 
     torch::populateTorchToTosaConversionPatterns(typeConverter, patterns);
-    torch::populateTorchToLinalgOnTensorsPatternsAndLegality(typeConverter,
-                                                             patterns, target);
+    torch::populateTorchToLinalgOnTensorsPatterns(typeConverter, patterns);
+    torch::populateTorchToLinalgOnTensorsOpsLegality(target);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))

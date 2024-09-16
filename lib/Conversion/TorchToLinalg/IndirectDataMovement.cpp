@@ -1104,23 +1104,25 @@ public:
 };
 } // namespace
 
-void mlir::torch::torch_to_linalg::
-    populateIndirectDataMovementPatternsAndLegality(
-        TypeConverter &typeConverter, RewritePatternSet &patterns,
-        ConversionTarget &target) {
-  MLIRContext *context = patterns.getContext();
+void mlir::torch::torch_to_linalg::populateIndirectDataMovementOpsLegality(
+    ConversionTarget &target) {
   target.addIllegalOp<AtenGatherOp>();
-  patterns.add<ConvertAtenGatherOp>(typeConverter, context);
   target.addIllegalOp<AtenEmbeddingOp>();
-  patterns.add<ConvertAtenEmbeddingOp>(typeConverter, context);
   target.addIllegalOp<AtenIndexSelectOp>();
-  patterns.add<ConvertAtenIndexSelectOp>(typeConverter, context);
   target.addIllegalOp<AtenIndexTensorHackedTwinOp>();
-  patterns.add<ConvertAtenIndexTensorHackedTwinOp>(typeConverter, context);
   target.addIllegalOp<AtenEmbeddingBagPaddingIdxOp>();
-  patterns.add<ConvertAtenEmbeddingBagPaddingIdxOp>(typeConverter, context);
   target.addIllegalOp<AtenUpsampleNearest2dOp>();
-  patterns.add<ConvertAtenUpsampleNearest2dOp>(typeConverter, context);
   target.addIllegalOp<AtenUpsampleNearest2dBackwardOp>();
+}
+
+void mlir::torch::torch_to_linalg::populateIndirectDataMovementPatterns(
+    TypeConverter &typeConverter, RewritePatternSet &patterns) {
+  MLIRContext *context = patterns.getContext();
+  patterns.add<ConvertAtenGatherOp>(typeConverter, context);
+  patterns.add<ConvertAtenEmbeddingOp>(typeConverter, context);
+  patterns.add<ConvertAtenIndexSelectOp>(typeConverter, context);
+  patterns.add<ConvertAtenIndexTensorHackedTwinOp>(typeConverter, context);
+  patterns.add<ConvertAtenEmbeddingBagPaddingIdxOp>(typeConverter, context);
+  patterns.add<ConvertAtenUpsampleNearest2dOp>(typeConverter, context);
   patterns.add<ConvertAtenUpsampleNearest2dBackwardOp>(typeConverter, context);
 }
