@@ -58,8 +58,10 @@ from .xfail_sets import (
     FX_IMPORTER_CRASHING_SET,
     FX_IMPORTER_STABLEHLO_XFAIL_SET,
     FX_IMPORTER_STABLEHLO_CRASHING_SET,
+    FX_IMPORTER_TOSA_CRASHING_SET,
     FX_IMPORTER_TOSA_XFAIL_SET,
     ONNX_TOSA_XFAIL_SET,
+    ONNX_TOSA_CRASHING_SET,
 )
 
 # Import tests to register them in the global registry.
@@ -191,7 +193,7 @@ def main():
     elif args.config == "fx_importer_tosa":
         config = FxImporterTestConfig(LinalgOnTensorsTosaBackend(), "tosa")
         xfail_set = FX_IMPORTER_TOSA_XFAIL_SET
-        crashing_set = set()
+        crashing_set = FX_IMPORTER_TOSA_CRASHING_SET
     elif args.config == "torchdynamo":
         # TODO: Enanble runtime verification and extend crashing set.
         config = TorchDynamoTestConfig(
@@ -206,7 +208,7 @@ def main():
     elif args.config == "onnx_tosa":
         config = OnnxBackendTestConfig(LinalgOnTensorsTosaBackend(), output_type="tosa")
         xfail_set = ONNX_TOSA_XFAIL_SET
-        crashing_set = set()
+        crashing_set = ONNX_TOSA_CRASHING_SET
 
     do_not_attempt = set(
         args.crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed or []

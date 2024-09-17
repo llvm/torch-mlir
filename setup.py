@@ -61,9 +61,11 @@ def check_env_flag(name: str, default=None) -> bool:
 
 
 PACKAGE_VERSION = os.getenv("TORCH_MLIR_PYTHON_PACKAGE_VERSION", "0.0.1")
+
+# If true, enable LTC build by default
 TORCH_MLIR_ENABLE_LTC = check_env_flag("TORCH_MLIR_ENABLE_LTC", True)
 TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS = check_env_flag(
-    "TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS", False
+    "TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS", True
 )
 LLVM_INSTALL_DIR = os.getenv("LLVM_INSTALL_DIR", None)
 SRC_DIR = pathlib.Path(__file__).parent.absolute()

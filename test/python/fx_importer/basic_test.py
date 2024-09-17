@@ -88,12 +88,13 @@ def test_import_frozen_exported_program_with_func_name():
 
 @run
 # CHECK-LABEL: test_import_frozen_exported_program_with_dynamic_shapes
-# CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,4],f32>) -> !torch.vtensor<[?,4],f32>
+# CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,5],f32>) -> !torch.vtensor<[?,?,5],f32>
 # CHECK:     %[[S0:.*]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
-# CHECK:     torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0, 4)> : !torch.vtensor<[?,4],f32>
-# CHECK:     %[[TANH:.*]] = torch.aten.tanh %[[ARG0]] : !torch.vtensor<[?,4],f32> -> !torch.vtensor<[?,4],f32>
-# CHECK:     torch.bind_symbolic_shape %[[TANH]], [%[[S0]]], affine_map<()[s0] -> (s0, 4)> : !torch.vtensor<[?,4],f32>
-# CHECK:     return %[[TANH]] : !torch.vtensor<[?,4],f32>
+# CHECK:     %[[S1:.*]] = torch.symbolic_int "s1" {min_val = 2, max_val = {{[0-9]+}}} : !torch.int
+# CHECK:     torch.bind_symbolic_shape %[[ARG0]], [%[[S0]], %[[S1]]], affine_map<()[s0, s1] -> (s0, s1, 5)> : !torch.vtensor<[?,?,5],f32>
+# CHECK:     %[[TANH:.*]] = torch.aten.tanh %[[ARG0]] : !torch.vtensor<[?,?,5],f32> -> !torch.vtensor<[?,?,5],f32>
+# CHECK:     torch.bind_symbolic_shape %[[TANH]], [%[[S0]], %[[S1]]], affine_map<()[s0, s1] -> (s0, s1, 5)> : !torch.vtensor<[?,?,5],f32>
+# CHECK:     return %[[TANH]] : !torch.vtensor<[?,?,5],f32>
 def test_import_frozen_exported_program_with_dynamic_shapes():
     class Basic(nn.Module):
         def __init__(self):
@@ -103,10 +104,11 @@ def test_import_frozen_exported_program_with_dynamic_shapes():
             return torch.tanh(x)
 
     batch = Dim("batch", max=10)
-    dynamic_shapes = {"x": {0: batch}}
+    channel = Dim("channel", min=2)
+    dynamic_shapes = {"x": {0: batch, 1: channel}}
     m = fx.export_and_import(
         Basic(),
-        torch.randn(3, 4),
+        torch.randn(3, 4, 5),
         dynamic_shapes=dynamic_shapes,
         func_name="test_net",
         import_symbolic_shape_expressions=True,

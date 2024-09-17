@@ -1292,14 +1292,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
       });
   patterns.onOp(
       "Conv", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        std::string autoPad;
-        if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
-          return failure();
-        if (autoPad != "NOTSET") {
-          // TODO: Add support for `auto_pad` != "NOTSET"
-          return rewriter.notifyMatchFailure(
-              binder.op, "unsupported conversion: auto_pad != NOTSET");
-        }
         Torch::ValueTensorType resultType;
         Value input, weight;
         int64_t group;
@@ -1349,20 +1341,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           defaultStrides.push_back(1);
           defaultDilations.push_back(1);
         }
-        // Padding for the beginning and ending along each spatial axis, it can
-        // take any value greater than or equal to 0. The value represent the
-        // number of pixels added to the beginning and end part of the
-        // corresponding axis. pads format should be as follow [x1_begin,
-        // x2_begin…x1_end, x2_end,…], where xi_begin the number of pixels added
-        // at the beginning of axis i and xi_end, the number of pixels added at
-        // the end of axis i.
-        if (binder.s64IntegerArrayAttr(padding, "pads", defaultPadding)) {
-          return failure();
-        }
-        if (padding.size() != rank - 2 && padding.size() != 2 * (rank - 2)) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "padding list size does not match the number of axes");
-        }
         if (binder.s64IntegerArrayAttr(dilations, "dilations",
                                        defaultDilations)) {
           return failure();
@@ -1378,6 +1356,46 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         if (strides.size() != rank - 2) {
           return rewriter.notifyMatchFailure(
               binder.op, "strides list size does not match the number of axes");
+        }
+        std::string autoPad;
+        if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
+          return failure();
+        auto inputTensorType = cast<Torch::ValueTensorType>(input.getType());
+        // Padding for the beginning and ending along each spatial axis, it can
+        // take any value greater than or equal to 0. The value represent the
+        // number of pixels added to the beginning and end part of the
+        // corresponding axis. pads format should be as follow [x1_begin,
+        // x2_begin…x1_end, x2_end,…], where xi_begin the number of pixels added
+        // at the beginning of axis i and xi_end, the number of pixels added at
+        // the end of axis i.
+        if (autoPad == "NOTSET") {
+          if (binder.s64IntegerArrayAttr(padding, "pads", defaultPadding)) {
+            return failure();
+          }
+        } else if (autoPad == "VALID") {
+          padding = defaultPadding;
+        } else {
+          const bool isSameLower = autoPad == "SAME_LOWER";
+          const unsigned spatialRank = rank - 2;
+          ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+          padding.resize_for_overwrite(2 * spatialRank);
+          for (unsigned dimIdx = 0; dimIdx < spatialRank; dimIdx++) {
+            const int64_t dilatedKernelSize =
+                dilations[dimIdx] * (weightShape[dimIdx + 2] - 1) + 1;
+            int64_t totalPad = ((inputShape[dimIdx + 2] + strides[dimIdx] - 1) /
+                                    strides[dimIdx] -
+                                1) *
+                                   strides[dimIdx] +
+                               dilatedKernelSize - inputShape[dimIdx + 2];
+            totalPad = totalPad >= 0 ? totalPad : 0;
+            padding[dimIdx] =
+                isSameLower ? ((totalPad + 1) / 2) : (totalPad / 2);
+            padding[spatialRank + dimIdx] = totalPad - padding[dimIdx];
+          }
+        }
+        if (padding.size() != rank - 2 && padding.size() != 2 * (rank - 2)) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "padding list size does not match the number of axes");
         }
 
         SmallVector<Value> cstPadding, cstStrides, cstDilations,
@@ -1452,8 +1470,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             Value modeVal = rewriter.create<Torch::ConstantStrOp>(
                 binder.getLoc(), rewriter.getStringAttr("constant"));
             Value constantValue;
-            auto inputTensorType =
-                cast<Torch::ValueTensorType>(input.getType());
+
             if (isa<IntegerType>(inputTensorType.getDtype()))
               constantValue = rewriter.create<Torch::ConstantIntOp>(
                   binder.getLoc(), rewriter.getI64IntegerAttr(0));
@@ -2785,14 +2802,14 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         // Get fill_value if it is present.
         // Assumption : resultDType and value attr type match.
         auto attr = binder.op->getAttr("torch.onnx.value");
-        auto resultDType = resultType.getDtype();
 
         // Extract the fill value and dtype
         // ONNX requires value attr to be a tensor
+        Value splatvalue;
+        // if no value attr is provided, default is 0.0 float value
         if (!attr) {
-          attr =
-              DenseElementsAttr::get(resultType.toBuiltinTensor(),
-                                     rewriter.getFloatAttr(resultDType, 0.0));
+          splatvalue = rewriter.create<Torch::ConstantFloatOp>(
+              binder.getLoc(), rewriter.getF64FloatAttr(0.0));
         }
 
         // If its a dense resource attr we need to convert to a dense type:
@@ -2813,19 +2830,18 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         }
 
         Attribute splattr;
-        if (isa<SplatElementsAttr>(attr)) {
+        if (attr && isa<SplatElementsAttr>(attr)) {
           auto denseAttr = cast<DenseElementsAttr>(attr);
           splattr = denseAttr.getSplatValue<Attribute>();
         }
 
-        if (!isa<FloatAttr, IntegerAttr>(splattr)) {
+        if (splattr && !isa<FloatAttr, IntegerAttr>(splattr)) {
           return rewriter.notifyMatchFailure(
               binder.op,
               "`value` attr tensor only supports types int and float for now.");
         }
 
-        Value splatvalue;
-        if (auto intattr = dyn_cast<IntegerAttr>(splattr)) {
+        if (auto intattr = dyn_cast_or_null<IntegerAttr>(splattr)) {
           IntegerType intty = cast<IntegerType>(intattr.getType());
           int64_t value;
           if (intty.isUnsignedInteger()) {
@@ -2839,7 +2855,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), value);
         }
 
-        if (auto fpattr = dyn_cast<FloatAttr>(splattr))
+        if (auto fpattr = dyn_cast_or_null<FloatAttr>(splattr))
           splatvalue = rewriter.create<Torch::ConstantFloatOp>(
               binder.getLoc(),
               rewriter.getF64FloatAttr(fpattr.getValueAsDouble()));

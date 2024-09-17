@@ -40,10 +40,8 @@ func.func @torch.prim.NumToTensor.Scalar$basic() -> !torch.vtensor<[], si64> {
 
 // CHECK-LABEL:   func.func @torch.aten.contiguous(
 // CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[4,64],f32>) -> !torch.vtensor<[4,64],f32> {
-// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[4,64],f32> -> tensor<4x64xf32>
 // CHECK:           %int0 = torch.constant.int 0
-// CHECK:           %[[VAL_2:.*]] = torch_c.from_builtin_tensor %[[VAL_1]] : tensor<4x64xf32> -> !torch.vtensor<[4,64],f32>
-// CHECK:           return %[[VAL_2]] : !torch.vtensor<[4,64],f32>
+// CHECK:           return %[[VAL_0]] : !torch.vtensor<[4,64],f32>
 func.func @torch.aten.contiguous(%arg0: !torch.vtensor<[4,64],f32>) -> !torch.vtensor<[4,64],f32> {
   %int0 = torch.constant.int 0
   %0 = torch.aten.contiguous %arg0, %int0 : !torch.vtensor<[4,64],f32>, !torch.int -> !torch.vtensor<[4,64],f32>

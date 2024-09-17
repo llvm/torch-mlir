@@ -1062,6 +1062,93 @@ func.func @test_conv_with_asymmetric_padding(%arg0: !torch.vtensor<[1,1,7,5],f32
 
 // -----
 
+// CHECK-LABEL: @test_conv_with_autopad
+func.func @test_conv_with_autopad(%arg0: !torch.vtensor<[1,1,12,7],f32>, %arg1: !torch.vtensor<[1,1,2,3],f32>) -> !torch.vtensor<[1,1,3,3],f32> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[C1:.*]] = torch.constant.int 0
+  // CHECK: %[[C1_0:.*]] = torch.constant.int 1
+  // CHECK: %[[PADDING:.*]] = torch.prim.ListConstruct %[[C1]], %[[C1_0]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[C1_1:.*]] = torch.constant.int 1
+  // CHECK: %[[C1_2:.*]] = torch.constant.int 1
+  // CHECK: %[[C2:.*]] = torch.constant.int 4
+  // CHECK: %[[C2_0:.*]] = torch.constant.int 3
+  // CHECK: %[[C0:.*]] = torch.constant.int 0
+  // CHECK: %[[DILATIONS:.*]] = torch.prim.ListConstruct %[[C1_1]], %[[C1_2]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[STRIDE:.*]] = torch.prim.ListConstruct %[[C2]], %[[C2_0]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[OUTPUT_PADDING:.*]] = torch.prim.ListConstruct %[[C0]], %[[C0]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[TRANSPOSED:.*]] = torch.constant.bool false
+  // CHECK: %[[BIAS:.*]] = torch.constant.none
+  // CHECK: %[[GROUPS:.*]] = torch.constant.int 1
+  // CHECK: torch.aten.convolution %arg0, %arg1, %[[BIAS]], %[[STRIDE]], %[[PADDING]], %[[DILATIONS]], %[[TRANSPOSED]], %[[OUTPUT_PADDING]], %[[GROUPS]] : !torch.vtensor<[1,1,12,7],f32>, !torch.vtensor<[1,1,2,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,3,3],f32>
+  %0 = torch.operator "onnx.Conv"(%arg0, %arg1) {torch.onnx.kernel_shape = [2 : si64, 3 : si64], torch.onnx.auto_pad = "SAME_LOWER", torch.onnx.strides = [4 : si64, 3 : si64]} : (!torch.vtensor<[1,1,12,7],f32>, !torch.vtensor<[1,1,2,3],f32>) -> !torch.vtensor<[1,1,3,3],f32>
+  return %0 : !torch.vtensor<[1,1,3,3],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_conv_with_autopad_asymmetric
+func.func @test_conv_with_autopad_asymmetric(%arg0: !torch.vtensor<[1,1,15,9],f32>, %arg1: !torch.vtensor<[1,1,4,4],f32>) -> !torch.vtensor<[1,1,4,3],f32> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[int1:.*]] = torch.constant.int 1
+  // CHECK: %[[int2:.*]] = torch.constant.int 2
+  // CHECK: %[[int0:.*]] = torch.constant.int 0
+  // CHECK: %[[int0_0:.*]] = torch.constant.int 0
+  // CHECK: %[[int1_1:.*]] = torch.constant.int 1
+  // CHECK: %[[int0_2:.*]] = torch.constant.int 0
+  // CHECK: %[[FakePADS:.*]] = torch.prim.ListConstruct %[[int0]], %[[int0_2]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[OGPADS:.*]] = torch.prim.ListConstruct %[[int1]], %[[int2]], %[[int0_0]], %[[int1_1]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[str:.*]] = torch.constant.str "constant"
+  // CHECK: %[[float0:.*]] = torch.constant.float 0.000
+  // CHECK: %[[PrePad:.*]] = torch.aten.pad %arg0, %[[OGPADS]], %[[str]], %[[float0]] : !torch.vtensor<[1,1,15,9],f32>, !torch.list<int>, !torch.str, !torch.float -> !torch.vtensor<[1,1,16,12],f32>
+  // CHECK: %[[C1_1:.*]] = torch.constant.int 1
+  // CHECK: %[[C1_2:.*]] = torch.constant.int 1
+  // CHECK: %[[C4:.*]] = torch.constant.int 4
+  // CHECK: %[[C4_0:.*]] = torch.constant.int 4
+  // CHECK: %[[C0:.*]] = torch.constant.int 0
+  // CHECK: %[[DILATIONS:.*]] = torch.prim.ListConstruct %[[C1_1]], %[[C1_2]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[STRIDE:.*]] = torch.prim.ListConstruct %[[C4]], %[[C4_0]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[OUTPUT_PADDING:.*]] = torch.prim.ListConstruct %[[C0]], %[[C0]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[TRANSPOSED:.*]] = torch.constant.bool false
+  // CHECK: %[[BIAS:.*]] = torch.constant.none
+  // CHECK: %[[GROUPS:.*]] = torch.constant.int 1
+  // CHECK: %[[Conv:.*]] = torch.aten.convolution %[[PrePad]], %arg1, %[[BIAS]], %[[STRIDE]], %[[FakePADS]], %[[DILATIONS]], %[[TRANSPOSED]], %[[OUTPUT_PADDING]], %[[GROUPS]] : !torch.vtensor<[1,1,16,12],f32>, !torch.vtensor<[1,1,4,4],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,4,3],f32>
+  // CHECK: return %[[Conv]]
+  %0 = torch.operator "onnx.Conv"(%arg0, %arg1) {torch.onnx.kernel_shape = [4 : si64, 4 : si64], torch.onnx.auto_pad = "SAME_UPPER", torch.onnx.strides = [4 : si64, 4 : si64]} : (!torch.vtensor<[1,1,15,9],f32>, !torch.vtensor<[1,1,4,4],f32>) -> !torch.vtensor<[1,1,4,3],f32>
+  return %0 : !torch.vtensor<[1,1,4,3],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_conv_with_autopad_asymmetric_lower
+func.func @test_conv_with_autopad_asymmetric_lower(%arg0: !torch.vtensor<[1,1,15,9],f32>, %arg1: !torch.vtensor<[1,1,4,4],f32>) -> !torch.vtensor<[1,1,4,3],f32> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[int2:.*]] = torch.constant.int 2
+  // CHECK: %[[int1:.*]] = torch.constant.int 1
+  // CHECK: %[[int0:.*]] = torch.constant.int 0
+  // CHECK: %[[int1_0:.*]] = torch.constant.int 1
+  // CHECK: %[[int0_1:.*]] = torch.constant.int 0
+  // CHECK: %[[int0_2:.*]] = torch.constant.int 0
+  // CHECK: %[[FakePADS:.*]] = torch.prim.ListConstruct %[[int0]], %[[int0_2]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[OGPADS:.*]] = torch.prim.ListConstruct %[[int2]], %[[int1]], %[[int1_0]], %[[int0_1]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[str:.*]] = torch.constant.str "constant"
+  // CHECK: %[[float0:.*]] = torch.constant.float 0.000
+  // CHECK: %[[PrePad:.*]] = torch.aten.pad %arg0, %[[OGPADS]], %[[str]], %[[float0]] : !torch.vtensor<[1,1,15,9],f32>, !torch.list<int>, !torch.str, !torch.float -> !torch.vtensor<[1,1,16,12],f32>
+  // CHECK: %[[C1_1:.*]] = torch.constant.int 1
+  // CHECK: %[[C1_2:.*]] = torch.constant.int 1
+  // CHECK: %[[C4:.*]] = torch.constant.int 4
+  // CHECK: %[[C4_0:.*]] = torch.constant.int 4
+  // CHECK: %[[C0:.*]] = torch.constant.int 0
+  // CHECK: %[[DILATIONS:.*]] = torch.prim.ListConstruct %[[C1_1]], %[[C1_2]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[STRIDE:.*]] = torch.prim.ListConstruct %[[C4]], %[[C4_0]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[OUTPUT_PADDING:.*]] = torch.prim.ListConstruct %[[C0]], %[[C0]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[TRANSPOSED:.*]] = torch.constant.bool false
+  // CHECK: %[[BIAS:.*]] = torch.constant.none
+  // CHECK: %[[GROUPS:.*]] = torch.constant.int 1
+  // CHECK: %[[Conv:.*]] = torch.aten.convolution %[[PrePad]], %arg1, %[[BIAS]], %[[STRIDE]], %[[FakePADS]], %[[DILATIONS]], %[[TRANSPOSED]], %[[OUTPUT_PADDING]], %[[GROUPS]] : !torch.vtensor<[1,1,16,12],f32>, !torch.vtensor<[1,1,4,4],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,4,3],f32>
+  // CHECK: return %[[Conv]]
+  %0 = torch.operator "onnx.Conv"(%arg0, %arg1) {torch.onnx.kernel_shape = [4 : si64, 4 : si64], torch.onnx.auto_pad = "SAME_LOWER", torch.onnx.strides = [4 : si64, 4 : si64]} : (!torch.vtensor<[1,1,15,9],f32>, !torch.vtensor<[1,1,4,4],f32>) -> !torch.vtensor<[1,1,4,3],f32>
+  return %0 : !torch.vtensor<[1,1,4,3],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @test_conv_with_bias_strides_padding
 func.func @test_conv_with_bias_strides_padding(%arg0: !torch.vtensor<[?,?,224,224],f32>, %arg1: !torch.vtensor<[64,3,7,7],f32>, %arg2: !torch.vtensor<[64],f32>) -> !torch.vtensor<[?,64,112,112],f32> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[C3:.*]] = torch.constant.int 3
@@ -1927,6 +2014,24 @@ func.func @test_flatten_1d_axis_1(%arg0: !torch.vtensor<[2],f32>) -> !torch.vten
   return %0 : !torch.vtensor<[2,1],f32>
 }
 
+// -----
+
+// CHECK-LABEL: func.func @test_constant_of_shape_arg_input
+func.func @test_constant_of_shape_arg_input(%arg0: !torch.vtensor<[2], si64>) -> !torch.vtensor<[?,?], f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0:.*]] = torch.constant.int 0
+  // CHECK: %[[INT0_0:.*]] = torch.constant.int 0
+  // CHECK: %[[EXTRACT_0:.*]] = torch.aten.select.int %arg0, %[[INT0]], %[[INT0_0]] : !torch.vtensor<[2],si64>, !torch.int, !torch.int -> !torch.vtensor<[],si64>
+  // CHECK: %[[ELE_0:.*]] = torch.aten.item %[[EXTRACT_0]] : !torch.vtensor<[],si64> -> !torch.int
+  // CHECK: %[[INT1:.*]] = torch.constant.int 1
+  // CHECK: %[[EXTRACT_1:.*]] = torch.aten.select.int %arg0, %[[INT0]], %[[INT1]] : !torch.vtensor<[2],si64>, !torch.int, !torch.int -> !torch.vtensor<[],si64>
+  // CHECK: %[[ELE_1:.*]] = torch.aten.item %[[EXTRACT_1]] : !torch.vtensor<[],si64> -> !torch.int
+  // CHECK: %[[DIM_LIST:.*]] = torch.prim.ListConstruct %[[ELE_0]], %[[ELE_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[NONE:.*]] = torch.constant.none
+  // CHECK: %[[FILL_VAL:.*]] = torch.constant.float 0.000000e+00
+  // CHECK: %[[ATEN_FULL:.*]] = torch.aten.full %[[DIM_LIST]], %[[FILL_VAL]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?,?],f32>
+  %0 = "torch.operator"(%arg0) <{name = "onnx.ConstantOfShape"}> : (!torch.vtensor<[2], si64>) -> !torch.vtensor<[?,?], f32>
+  return %0 : !torch.vtensor<[?,?], f32>
+}
 // -----
 
 // CHECK-LABEL: func.func @test_constant_of_shape_dense_float_default

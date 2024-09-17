@@ -739,12 +739,16 @@ OpFoldResult Aten__Not__Op::fold(FoldAdaptor adaptor) {
 OpFoldResult Aten__Or__BoolOp::fold(FoldAdaptor adaptor) {
   auto valueA = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
   auto valueB = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
-  if (!valueA || !valueB) {
+  if (!valueA && !valueB)
     return nullptr;
-  }
-
-  return IntegerAttr::get(IntegerType::get(getContext(), 1),
-                          valueA.getValue() | valueB.getValue());
+  if ((valueA && valueA.getValue() == 1) || (valueB && valueB.getValue() == 1))
+    return IntegerAttr::get(IntegerType::get(getContext(), 1), 1);
+  if (valueA && valueA.getValue() == 0)
+    return getB();
+  if (valueB && valueB.getValue() == 0)
+    return getA();
+  // unreachable
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2163,6 +2167,85 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenUnflattenIntOp
+//===----------------------------------------------------------------------===//
+
+void AtenUnflattenIntOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  // if there are only two sizes and one of them is statically 1, then convert
+  // to an unqueeze.
+  patterns.add(+[](AtenUnflattenIntOp op, PatternRewriter &rewriter) {
+    SmallVector<Value> sizeValues;
+    if (!getListConstructElements(op.getSizes(), sizeValues))
+      return rewriter.notifyMatchFailure(op,
+                                         "sizes must come from list construct");
+    if (sizeValues.size() != 2)
+      return failure();
+    int64_t dim0, dim1;
+    bool dim0Constant = matchPattern(sizeValues[0], m_TorchConstantInt(&dim0));
+    bool dim1Constant = matchPattern(sizeValues[1], m_TorchConstantInt(&dim1));
+    if (!dim0Constant && !dim1Constant)
+      return failure();
+    if (dim0 != 1 && dim1 != 1)
+      return failure();
+    Value unflattenDim = op.getDim();
+    Value self = op.getSelf();
+    Value cstMOne = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), -1);
+    // the runtime asserts below are introduced to catch malformed unflatten ops
+    // possibly generated from onnx IR.
+    Value unsqueeze;
+    if (dim0 == 1) {
+      // unsqueeze at dim
+      FailureOr<Value> maybeUnsqueeze =
+          Torch::unsqueezeTensor(rewriter, op, self, unflattenDim);
+      if (failed(maybeUnsqueeze))
+        return rewriter.notifyMatchFailure(op, "failed to create unsqueeze op");
+      unsqueeze = maybeUnsqueeze.value();
+      // check if the remaining size value is either -1 or equal to original
+      // size at dim
+      Value selfSizeAtDim =
+          rewriter.create<AtenSizeIntOp>(op.getLoc(), self, unflattenDim);
+      Value isSameSize = rewriter.create<AtenEqIntOp>(
+          op.getLoc(), selfSizeAtDim, sizeValues[1]);
+      Value isMinusOne =
+          rewriter.create<AtenEqIntOp>(op.getLoc(), cstMOne, sizeValues[1]);
+      Value isMOneOrSameSize = rewriter.create<Aten__Or__BoolOp>(
+          op.getLoc(), isMinusOne, isSameSize);
+      rewriter.create<Torch::RuntimeAssertOp>(
+          op.getLoc(), isMOneOrSameSize,
+          rewriter.getStringAttr("unflatten sizes must be compatible"));
+    }
+    if (dim1 == 1) {
+      // unsqueeze at dim + 1
+      Value cstOne = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), 1);
+      Value dimPlusOne =
+          rewriter.create<AtenAddIntOp>(op.getLoc(), unflattenDim, cstOne);
+      FailureOr<Value> maybeUnsqueeze =
+          Torch::unsqueezeTensor(rewriter, op, self, dimPlusOne);
+      if (failed(maybeUnsqueeze))
+        return rewriter.notifyMatchFailure(op, "failed to create unsqueeze op");
+      unsqueeze = maybeUnsqueeze.value();
+      // check if the remaining size value is either -1 or equal to original
+      // size at dim
+      Value selfSizeAtDim =
+          rewriter.create<AtenSizeIntOp>(op.getLoc(), self, unflattenDim);
+      Value isSameSize = rewriter.create<AtenEqIntOp>(
+          op.getLoc(), selfSizeAtDim, sizeValues[0]);
+      Value isMinusOne =
+          rewriter.create<AtenEqIntOp>(op.getLoc(), cstMOne, sizeValues[0]);
+      Value isMOneOrSameSize = rewriter.create<Aten__Or__BoolOp>(
+          op.getLoc(), isMinusOne, isSameSize);
+      rewriter.create<Torch::RuntimeAssertOp>(
+          op.getLoc(), isMOneOrSameSize,
+          rewriter.getStringAttr("unflatten sizes must be compatible"));
+    }
+    rewriter.replaceOpWithNewOp<Torch::TensorStaticInfoCastOp>(op, op.getType(),
+                                                               unsqueeze);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSelectIntOp
 //===----------------------------------------------------------------------===//
 
@@ -3422,7 +3505,11 @@ atenBinaryFloatOperatorFoldHelper(ArrayRef<Attribute> operands,
 // AtenAliasOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult AtenAliasOp::fold(FoldAdaptor adaptor) { return getOperand(); }
+OpFoldResult AtenAliasOp::fold(FoldAdaptor adaptor) {
+  if (getOperand().getType() != getResult().getType())
+    return {};
+  return getOperand();
+}
 
 //===----------------------------------------------------------------------===//
 // AtenFloordivIntOp
@@ -3432,6 +3519,44 @@ OpFoldResult AtenFloordivIntOp::fold(FoldAdaptor adaptor) {
   return atenBinaryIntOperatorFoldHelper(
       adaptor.getOperands(),
       [](int64_t a, int64_t b) { return std::floor(a / (double)b); });
+}
+
+void AtenFloordivIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                    MLIRContext *context) {
+  patterns.add(+[](AtenFloordivIntOp op, PatternRewriter &rewriter) {
+    int64_t lhs, rhs;
+    bool lConstant = matchPattern(op.getA(), m_TorchConstantInt(&lhs));
+    bool rConstant = matchPattern(op.getB(), m_TorchConstantInt(&rhs));
+    if (lConstant && rConstant)
+      return failure();
+    if (lConstant || rConstant) {
+      int64_t firstConstant = lConstant ? lhs : rhs;
+      Value firstOperand = lConstant ? op.getB() : op.getA();
+      if (firstOperand.getDefiningOp() &&
+          firstOperand.getDefiningOp<AtenMulIntOp>()) {
+        auto prevMulIntOp = firstOperand.getDefiningOp<AtenMulIntOp>();
+        int64_t prevLhs, prevRhs;
+        bool prevLConstant =
+            matchPattern(prevMulIntOp.getA(), m_TorchConstantInt(&prevLhs));
+        bool prevRConstant =
+            matchPattern(prevMulIntOp.getB(), m_TorchConstantInt(&prevRhs));
+        if (prevLConstant && prevRConstant)
+          return failure();
+        if ((prevLConstant || prevRConstant) &&
+            prevMulIntOp->hasOneUse() == 1) {
+          int64_t secondConstant = prevLConstant ? prevLhs : prevRhs;
+          if (secondConstant == firstConstant) {
+            rewriter.replaceAllUsesWith(
+                op.getResult(), prevMulIntOp.getOperand(prevLConstant ? 1 : 0));
+            rewriter.eraseOp(op);
+            rewriter.eraseOp(prevMulIntOp);
+            return success();
+          }
+        }
+      }
+    }
+    return failure();
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -3695,6 +3820,45 @@ OpFoldResult AtenMulIntOp::fold(FoldAdaptor adaptor) {
   if (lConstant && rConstant)
     return getI64IntegerAttr(getContext(), lhs * rhs);
   return nullptr;
+}
+
+void AtenMulIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                               MLIRContext *context) {
+  patterns.add(+[](AtenMulIntOp op, PatternRewriter &rewriter) {
+    int64_t lhs, rhs;
+    bool lConstant = matchPattern(op.getA(), m_TorchConstantInt(&lhs));
+    bool rConstant = matchPattern(op.getB(), m_TorchConstantInt(&rhs));
+    if (lConstant && rConstant)
+      return failure();
+    if (lConstant || rConstant) {
+      int64_t firstConstant = lConstant ? lhs : rhs;
+      Value firstOperand = lConstant ? op.getB() : op.getA();
+      if (firstOperand.getDefiningOp() &&
+          firstOperand.getDefiningOp<AtenMulIntOp>()) {
+        auto prevMulIntOp = firstOperand.getDefiningOp<AtenMulIntOp>();
+        int64_t prevLhs, prevRhs;
+        bool prevLConstant =
+            matchPattern(prevMulIntOp.getA(), m_TorchConstantInt(&prevLhs));
+        bool prevRConstant =
+            matchPattern(prevMulIntOp.getB(), m_TorchConstantInt(&prevRhs));
+        if (prevLConstant && prevRConstant)
+          return failure();
+        if ((prevLConstant || prevRConstant) &&
+            prevMulIntOp->hasOneUse() == 1) {
+          auto newConstant = rewriter.create<Torch::ConstantIntOp>(
+              op.getLoc(), rewriter.getI64IntegerAttr(
+                               prevLConstant ? prevLhs * firstConstant
+                                             : prevRhs * firstConstant));
+          rewriter.replaceOpWithNewOp<AtenMulIntOp>(
+              op, op.getType(), prevMulIntOp.getOperand(prevLConstant ? 1 : 0),
+              newConstant);
+          rewriter.eraseOp(prevMulIntOp);
+          return success();
+        }
+      }
+    }
+    return failure();
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -5308,6 +5472,39 @@ LogicalResult AtenTrilIndicesOp::verify() {
       dtype != (int)torch_upstream::ScalarType::Long)
     return emitOpError(
         "'triu_indices' implemented only for torch.int32 and torch.int64");
+
+  return success();
+}
+
+// AtenRot90Op
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenRot90Op::verify() {
+  // Check rotation dimensions.
+  SmallVector<Value> dims;
+  if (!getListConstructElements(getDims(), dims))
+    return success();
+
+  if (dims.size() != 2)
+    return emitOpError("expected total rotation dims == 2, but got dims = ")
+           << dims.size();
+
+  // Check a rank of the input tensor.
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+  if (!selfType.hasSizes())
+    return success();
+
+  auto selfShape = selfType.getSizes();
+  int64_t selfRank = selfShape.size();
+
+  if (selfRank < 2)
+    return emitOpError("expected total dims >= 2, but got total dims = ")
+           << selfRank;
+
+  if (dims[0] == dims[1])
+    return emitOpError(
+               "expected rotation dims to be different, but got dim0 = ")
+           << dims[0] << " and dim1 = " << dims[1];
 
   return success();
 }

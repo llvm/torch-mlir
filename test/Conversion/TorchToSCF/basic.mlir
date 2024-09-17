@@ -124,8 +124,8 @@ func.func @torch.prim.loop$while(%arg0: !torch.int) -> !torch.float {
 // CHECK-NEXT:      %[[VAL_1:.*]] = torch_c.to_f64 %[[TORCH_VAL_1]]
 // CHECK-NEXT:      scf.yield %[[BLOCK_CONDITION]], %[[VAL_0]], %[[VAL_1]] : i1, f64, f64
 // CHECK-NEXT:    }
-// CHECK-NEXT:    %[[TORCH_LOOP_0:.*]] = torch_c.from_f64 %[[LOOP]]#0
-// CHECK-NEXT:    %[[TORCH_LOOP_1:.*]] = torch_c.from_f64 %[[LOOP]]#1
+// CHECK-DAG:    %[[TORCH_LOOP_0:.*]] = torch_c.from_f64 %[[LOOP]]#0
+// CHECK-DAG:    %[[TORCH_LOOP_1:.*]] = torch_c.from_f64 %[[LOOP]]#1
 // CHECK-NEXT:    return %[[TORCH_LOOP_0]], %[[TORCH_LOOP_1]] : !torch.float, !torch.float
 func.func @torch.prim.loop$while_with_multiple_values() -> (!torch.float, !torch.float) {
   %float3.200000e00 = torch.constant.float 3.200000e+00
@@ -198,8 +198,8 @@ func.func @torch.prim.Loop$for(%arg0: !torch.int) -> !torch.float {
 // CHECK-NEXT:      %[[VAL_1:.*]] = torch_c.to_f64 %[[TORCH_VAL_1]]
 // CHECK-NEXT:      scf.yield %[[VAL_0]], %[[VAL_1]] : f64, f64
 // CHECK-NEXT:    }
-// CHECK-NEXT:    %[[RETURN_0:.*]] = torch_c.from_f64 %[[LOOP]]#0
-// CHECK-NEXT:    %[[RETURN_1:.*]] = torch_c.from_f64 %[[LOOP]]#1
+// CHECK-DAG:    %[[RETURN_0:.*]] = torch_c.from_f64 %[[LOOP]]#0
+// CHECK-DAG:    %[[RETURN_1:.*]] = torch_c.from_f64 %[[LOOP]]#1
 // CHECK-NEXT:    return %[[RETURN_0]], %[[RETURN_1]] : !torch.float, !torch.float
 // CHECK-NEXT:  }
 func.func @torch.prim.Loop$for_with_multiple_results(%arg0: !torch.int) -> (!torch.float, !torch.float) {

@@ -845,6 +845,28 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       return b.create<arith::SubIOp>(loc, lhs, scaled);
     }
   }
+  if (auto lshiftScalar = dyn_cast<Aten__Lshift__ScalarOp>(op)) {
+    Type dtype =
+        cast<RankedTensorType>(converter->convertType(lshiftScalar.getType()))
+            .getElementType();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value other =
+        convertScalarToDtype(b, loc, operands[1], dtype,
+                             /*srcOriginalDtype=*/operands[1].getType(),
+                             /*dstOriginalDtype=*/dtype);
+    return b.create<arith::ShLIOp>(loc, self, other);
+  }
+  if (auto rshiftScalar = dyn_cast<Aten__Rshift__ScalarOp>(op)) {
+    Type dtype =
+        cast<RankedTensorType>(converter->convertType(rshiftScalar.getType()))
+            .getElementType();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value other =
+        convertScalarToDtype(b, loc, operands[1], dtype,
+                             /*srcOriginalDtype=*/operands[1].getType(),
+                             /*dstOriginalDtype=*/dtype);
+    return b.create<arith::ShRUIOp>(loc, self, other);
+  }
   if (auto subScalar = dyn_cast<AtenSubScalarOp>(op)) {
     Type dtype =
         cast<RankedTensorType>(converter->convertType(subScalar.getType()))
@@ -1260,29 +1282,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return createRemainderPayload(b, loc, converter, payloadArgs, remTensor,
                                   operands);
   }
-  if (auto fmod = dyn_cast<AtenFmodTensorOp>(op)) {
-    Type newResultType =
-        cast<RankedTensorType>(converter->convertType(fmod.getType()))
-            .getElementType();
-
-    Value self = convertScalarToDtype(b, loc, payloadArgs[0], newResultType);
-    Value other = convertScalarToDtype(b, loc, payloadArgs[1], newResultType);
-    Value result;
-
-    if (isa<mlir::FloatType>(newResultType)) {
-      Value n = b.create<arith::DivFOp>(loc, self, other);
-      n = b.create<math::TruncOp>(loc, n);
-      Value n_y = b.create<arith::MulFOp>(loc, n, other);
-      result = b.create<arith::SubFOp>(loc, self, n_y);
-    } else if (isa<mlir::IntegerType>(newResultType)) {
-      Value n = b.create<arith::DivSIOp>(loc, self, other);
-      Value n_y = b.create<arith::MulIOp>(loc, n, other);
-      result = b.create<arith::SubIOp>(loc, self, n_y);
-    } else {
-      fmod.emitError("Unsupported type encountered for AtenFmodTensorOp.");
-    }
-    return result;
-  }
   if (auto reciprocal = dyn_cast<AtenReciprocalOp>(op)) {
     Type dtype =
         cast<RankedTensorType>(converter->convertType(reciprocal.getType()))
@@ -1590,22 +1589,23 @@ public:
              AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenPowScalarOp,
              AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op,
              AtenLog10Op, AtenLog1pOp, AtenRsqrtOp, AtenDivScalarOp,
-             AtenRemainderScalarOp, AtenRemainderTensorOp, AtenFmodTensorOp,
-             AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
-             AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
-             AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
-             AtenBitwiseRightShiftTensorOp, AtenGtScalarOp, AtenGeScalarOp,
-             AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
-             AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
-             AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp, AtenSubScalarOp,
-             AtenAddScalarOp, AtenThresholdOp, AtenThresholdBackwardOp,
-             AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp,
-             AtenNeScalarOp, AtenNegOp, AtenMaskedFillTensorOp, AtenLogicalOrOp,
-             AtenLogicalAndOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp,
-             AtenTriuOp, AtenTrilOp, AtenBitwiseNotOp, AtenRoundOp,
-             AtenFillScalarOp, AtenFillTensorOp, AtenAtanOp, AtenAcosOp,
-             AtenAtanhOp, AtenAcoshOp, AtenAsinOp, AtenAsinhOp, AtenRealOp,
-             AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
+             AtenRemainderScalarOp, AtenRemainderTensorOp, AtenAbsOp,
+             AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp,
+             AtenBitwiseOrTensorOp, AtenBitwiseXorTensorOp,
+             AtenBitwiseLeftShiftTensorOp, AtenBitwiseRightShiftTensorOp,
+             Aten__Lshift__ScalarOp, Aten__Rshift__ScalarOp, AtenGtScalarOp,
+             AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
+             AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp,
+             AtenEqTensorOp, AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp,
+             AtenSubScalarOp, AtenAddScalarOp, AtenThresholdOp,
+             AtenThresholdBackwardOp, AtenHardtanhBackwardOp, AtenCloneOp,
+             AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenNegOp,
+             AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
+             AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
+             AtenTrilOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
+             AtenFillTensorOp, AtenAtanOp, AtenAcosOp, AtenAtanhOp, AtenAcoshOp,
+             AtenAsinOp, AtenAsinhOp, AtenRealOp, AtenImagOp,
+             AtenDequantizeSelfOp, AtenDequantizeTensorOp,
              AtenQuantizePerTensorOp, AtenIscloseOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
@@ -3272,6 +3272,72 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenPolarOp : public OpConversionPattern<AtenPolarOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenPolarOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op.getLoc();
+    const TypeConverter *typeConverter = getTypeConverter();
+    MLIRContext *context = rewriter.getContext();
+
+    Value absTensor = adaptor.getAbs();
+    Value angleTensor = adaptor.getAngle();
+
+    RankedTensorType resultType =
+        cast<RankedTensorType>(typeConverter->convertType(op.getType()));
+    auto elementType = resultType.getElementType();
+
+    SmallVector<Value> resultShape;
+    for (int64_t i = 0; i < resultType.getRank(); i++) {
+      auto currentDimSize = rewriter.create<tensor::DimOp>(loc, absTensor, i);
+      resultShape.push_back(currentDimSize);
+    }
+
+    Value outTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(resultShape), elementType);
+
+    SmallVector<AffineExpr> outputExpr;
+    for (unsigned i = 0; i < resultType.getRank(); i++) {
+      outputExpr.push_back(getAffineDimExpr(i, context));
+    }
+
+    AffineMap identityMap =
+        AffineMap::get(resultType.getRank(), 0, outputExpr, op->getContext());
+
+    SmallVector<AffineMap> indexingMaps{identityMap, identityMap, identityMap};
+    SmallVector<utils::IteratorType> iteratorTypes(
+        resultType.getRank(), utils::IteratorType::parallel);
+    auto complexVar =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, outTensor.getType(), ValueRange{absTensor, angleTensor},
+                outTensor, indexingMaps, iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  // out = abs⋅cos(angle) + abs⋅sin(angle)⋅j
+                  Value abs = args[0];
+                  Value angle = args[1];
+                  Value realVal = b.create<math::CosOp>(loc, angle);
+                  Value imagVal = b.create<math::SinOp>(loc, angle);
+                  realVal = b.create<arith::MulFOp>(loc, abs, realVal);
+                  imagVal = b.create<arith::MulFOp>(loc, abs, imagVal);
+                  Value complexVal = b.create<complex::CreateOp>(
+                      loc, elementType, realVal, imagVal);
+                  b.create<linalg::YieldOp>(loc, complexVal);
+                })
+            .getResult(0);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, complexVar);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -3288,17 +3354,18 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp,
       AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
       AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
-      AtenBitwiseRightShiftTensorOp, AtenGtScalarOp, AtenGeScalarOp,
-      AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
-      AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp,
-      AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
+      AtenBitwiseRightShiftTensorOp, Aten__Lshift__ScalarOp,
+      Aten__Rshift__ScalarOp, AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp,
+      AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
+      AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp, AtenLtTensorOp,
+      AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
       AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
       AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
       AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
-      AtenTrilOp, AtenRemainderScalarOp, AtenFmodTensorOp,
-      AtenRemainderTensorOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
-      AtenFillTensorOp, AtenRealOp, AtenImagOp, AtenDequantizeSelfOp,
-      AtenDequantizeTensorOp, AtenQuantizePerTensorOp, AtenIscloseOp>();
+      AtenTrilOp, AtenRemainderScalarOp, AtenRemainderTensorOp,
+      AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
+      AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
+      AtenQuantizePerTensorOp, AtenIscloseOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);
@@ -3331,4 +3398,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertInterpolateOp>(typeConverter, context);
   target.addIllegalOp<AtenLinalgDetOp>();
   patterns.add<ConvertAtenLinalgDetOp>(typeConverter, context);
+  target.addIllegalOp<AtenPolarOp>();
+  patterns.add<ConvertAtenPolarOp>(typeConverter, context);
 }
