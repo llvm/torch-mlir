@@ -5370,6 +5370,35 @@ class ScaledDotProductAttentionDifferentCausalModule(torch.nn.Module):
 @register_test_case(
     module_factory=lambda: ScaledDotProductAttentionDifferentCausalModule()
 )
+def ScaledDotProductAttentionDifferentDynamicCausalModule_basic(module, tu: TestUtils):
+    query = torch.randn(2, 3, 8, 16, dtype=torch.float32)
+    key = torch.randn(2, 3, 12, 16, dtype=torch.float32)
+    value = torch.randn(2, 3, 12, 20, dtype=torch.float32)
+    module.forward(query, key, value)
+
+
+class ScaledDotProductAttentionDifferentDynamicCausalModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, -1, 16], torch.float32, True),
+            ([2, 3, -1, 16], torch.float32, True),
+            ([2, 3, -1, 20], torch.float32, True),
+        ]
+    )
+    def forward(self, query, key, value):
+        return torch.ops.aten.scaled_dot_product_attention(
+            query, key, value, is_causal=True
+        )
+
+
+@register_test_case(
+    module_factory=lambda: ScaledDotProductAttentionDifferentDynamicCausalModule()
+)
 def ScaledDotProductAttentionDifferentCausalModule_basic(module, tu: TestUtils):
     query = torch.randn(2, 3, 8, 16, dtype=torch.float32)
     key = torch.randn(2, 3, 12, 16, dtype=torch.float32)
