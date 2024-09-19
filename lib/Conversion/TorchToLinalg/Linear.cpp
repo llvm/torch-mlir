@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -1386,18 +1387,21 @@ public:
 };
 } // namespace
 
-void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
-    TypeConverter &typeConverter, RewritePatternSet &patterns,
+void mlir::torch::torch_to_linalg::populateLinearOpsLegality(
     ConversionTarget &target) {
-  MLIRContext *context = patterns.getContext();
   target.addIllegalOp<AtenMmOp>();
-  patterns.add<ConvertAtenMmOp>(typeConverter, context);
   target.addIllegalOp<AtenFlipOp>();
-  patterns.add<ConvertAtenFlipOp>(typeConverter, context);
   target.addIllegalOp<AtenMatmulOp>();
-  patterns.add<ConvertAtenMatmulOp>(typeConverter, context);
   target.addIllegalOp<AtenBmmOp>();
-  patterns.add<ConvertAtenBmmOp>(typeConverter, context);
   target.addIllegalOp<AtenConvolutionOp>();
+}
+
+void mlir::torch::torch_to_linalg::populateLinearPatterns(
+    TypeConverter &typeConverter, RewritePatternSet &patterns) {
+  MLIRContext *context = patterns.getContext();
+  patterns.add<ConvertAtenMmOp>(typeConverter, context);
+  patterns.add<ConvertAtenFlipOp>(typeConverter, context);
+  patterns.add<ConvertAtenMatmulOp>(typeConverter, context);
+  patterns.add<ConvertAtenBmmOp>(typeConverter, context);
   patterns.add<ConvertAtenConvolutionOp>(typeConverter, context);
 }

@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -614,22 +615,24 @@ public:
 };
 } // namespace
 
-void mlir::torch::torch_to_linalg::
-    populateTensorConstructorsPatternsAndLegality(TypeConverter &typeConverter,
-                                                  RewritePatternSet &patterns,
-                                                  ConversionTarget &target) {
-  MLIRContext *context = patterns.getContext();
+void mlir::torch::torch_to_linalg::populateTensorConstructorsOpsLegality(
+    ConversionTarget &target) {
   target.addIllegalOp<AtenReplicationPad2dOp>();
-  patterns.add<ConvertAtenReplicationPad2dOp>(typeConverter, context);
   target.addIllegalOp<AtenConstantPadNdOp>();
-  patterns.add<ConvertAtenConstantPadNdOp>(typeConverter, context);
   target.addIllegalOp<AtenZerosOp, AtenOnesOp>();
+  target.addIllegalOp<AtenEmptyMemoryFormatOp>();
+  target.addIllegalOp<AtenArangeStartStepOp>();
+}
+
+void mlir::torch::torch_to_linalg::populateTensorConstructorsPatterns(
+    TypeConverter &typeConverter, RewritePatternSet &patterns) {
+  MLIRContext *context = patterns.getContext();
+  patterns.add<ConvertAtenReplicationPad2dOp>(typeConverter, context);
+  patterns.add<ConvertAtenConstantPadNdOp>(typeConverter, context);
   patterns.add<ConvertConstantTensorAllocOp<AtenZerosOp, 0>>(typeConverter,
                                                              context);
   patterns.add<ConvertConstantTensorAllocOp<AtenOnesOp, 1>>(typeConverter,
                                                             context);
-  target.addIllegalOp<AtenEmptyMemoryFormatOp>();
   patterns.add<ConvertAtenEmptyMemoryFormatOp>(typeConverter, context);
   patterns.add<ConvertAtenArangeStartStepOp>(typeConverter, context);
-  target.addIllegalOp<AtenArangeStartStepOp>();
 }

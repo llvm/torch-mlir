@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -699,14 +700,8 @@ public:
 };
 } // namespace
 
-void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
-    TypeConverter &typeConverter, RewritePatternSet &patterns,
+void mlir::torch::torch_to_linalg::populateReductionOpsLegality(
     ConversionTarget &target) {
-  MLIRContext *context = patterns.getContext();
-  target.addIllegalOp<AtenMaxDimOp>();
-  patterns.add<ConvertAtenMinMaxDimOp<AtenMaxDimOp>>(typeConverter, context);
-  target.addIllegalOp<AtenMinDimOp>();
-  patterns.add<ConvertAtenMinMaxDimOp<AtenMinDimOp>>(typeConverter, context);
   target.addIllegalOp<AtenSumOp>();
   target.addIllegalOp<AtenAnyOp>();
   target.addIllegalOp<AtenAllOp>();
@@ -718,6 +713,12 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenAllDimOp>();
   target.addIllegalOp<AtenNormScalarOp>();
   target.addIllegalOp<AtenLinalgVectorNormOp>();
-  target.addIllegalOp<AtenFrobeniusNormDimOp>();
+}
+
+void mlir::torch::torch_to_linalg::populateReductionPatterns(
+    TypeConverter &typeConverter, RewritePatternSet &patterns) {
+  MLIRContext *context = patterns.getContext();
+  patterns.add<ConvertAtenMinMaxDimOp<AtenMaxDimOp>>(typeConverter, context);
+  patterns.add<ConvertAtenMinMaxDimOp<AtenMinDimOp>>(typeConverter, context);
   patterns.add<ConvertReductionOp>(typeConverter, context);
 }

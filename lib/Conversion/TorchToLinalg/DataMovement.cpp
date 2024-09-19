@@ -18,6 +18,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -2610,21 +2611,43 @@ SmallVector<StringRef> ConvertSparseOperatorOp::legalizedNames = {
 };
 } // namespace
 
-void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
-    TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target) {
-  // Add some legal ops for torch-torch lowering.
+void mlir::torch::torch_to_linalg::populateDataMovementOpsLegality(
+    ConversionTarget &target) { // Add some legal ops for torch-torch lowering.
   target.addLegalOp<ConstantIntOp>();
+  target.addIllegalOp<AtenReflectionPad1dOp>();
+  target.addIllegalOp<AtenReflectionPad2dOp>();
+  target.addIllegalOp<AtenFlattenUsingIntsOp>();
+  target.addIllegalOp<AtenUnflattenIntOp>();
+  target.addIllegalOp<AtenViewOp>();
+  target.addIllegalOp<AtenSqueezeOp>();
+  target.addIllegalOp<AtenSqueezeDimOp>();
+  target.addIllegalOp<AtenUnsqueezeOp>();
+  target.addIllegalOp<AtenTransposeIntOp>();
+  target.addIllegalOp<AtenPermuteOp>();
+  target.addIllegalOp<AtenSliceTensorOp>();
+  target.addIllegalOp<AtenCatOp>();
+  target.addIllegalOp<AtenBroadcastToOp>();
+  target.addIllegalOp<AtenContiguousOp>();
+  target.addIllegalOp<AtenCopyOp>();
+  target.addIllegalOp<AtenSliceScatterOp>();
+  target.addIllegalOp<AtenViewAsComplexOp>();
+  target.addIllegalOp<AtenViewAsRealOp>();
+  target.addIllegalOp<AtenDiagonalOp>();
+  target.addIllegalOp<AtenDiagEmbedOp>();
+  target.addDynamicallyLegalOp<OperatorOp>([&](Torch::OperatorOp op) {
+    return !ConvertSparseOperatorOp::isSparsePrimitive(op.getNameAttr());
+  });
+}
+
+void mlir::torch::torch_to_linalg::populateDataMovementPatterns(
+    TypeConverter &typeConverter, RewritePatternSet &patterns) {
 
   MLIRContext *context = patterns.getContext();
-  target.addIllegalOp<AtenReflectionPad1dOp>();
+
   patterns.add<ConvertAtenReflectionPad1dOp>(typeConverter, context);
-  target.addIllegalOp<AtenReflectionPad2dOp>();
   patterns.add<ConvertAtenReflectionPad2dOp>(typeConverter, context);
-  target.addIllegalOp<AtenFlattenUsingIntsOp>();
   patterns.add<ConvertAtenFlattenUsingIntsOp>(typeConverter, context);
   patterns.add<ConvertAtenUnflattenIntOp>(typeConverter, context);
-  target.addIllegalOp<AtenUnflattenIntOp>();
 
   // View op sadness: In the future, we only want ConvertAtenViewOpStrict,
   // but this requires work upstream to fully generalize reshape handling.
@@ -2635,46 +2658,26 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   // due to not statically switching between inferred and non-inferred view
   // cases. They are ordered by optimiality of the lowerings they generate
   // when they are able.
-  target.addIllegalOp<AtenViewOp>();
   patterns.add<ConvertAtenViewOp>(typeConverter, context, /*benefit=*/300);
   patterns.add<ConvertAtenViewOpStrict>(typeConverter, context,
                                         /*benefit=*/200);
   patterns.add<ConvertAtenViewOpToReshape>(typeConverter, context,
                                            /*benefit=*/100);
-
-  target.addIllegalOp<AtenSqueezeOp>();
   patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);
-  target.addIllegalOp<AtenSqueezeDimOp>();
   patterns.add<ConvertAtenSqueezeDimOp>(typeConverter, context);
-  target.addIllegalOp<AtenUnsqueezeOp>();
   patterns.add<ConvertAtenUnsqueezeOp>(typeConverter, context);
-  target.addIllegalOp<AtenTransposeIntOp>();
   patterns.add<ConvertAtenTransposeIntOp>(typeConverter, context);
-  target.addIllegalOp<AtenPermuteOp>();
   patterns.add<ConvertAtenPermuteOp>(typeConverter, context);
-  target.addIllegalOp<AtenSliceTensorOp>();
   patterns.add<ConvertAtenSliceTensorOp>(typeConverter, context);
-  target.addIllegalOp<AtenCatOp>();
   patterns.add<ConvertAtenCatOp>(typeConverter, context);
-  target.addIllegalOp<AtenBroadcastToOp>();
   patterns.add<ConvertAtenBroadcastToOp>(typeConverter, context);
-  target.addIllegalOp<AtenContiguousOp>();
   patterns.add<ConvertAtenContiguousOp>(typeConverter, context);
-  target.addIllegalOp<AtenCopyOp>();
   patterns.add<ConvertAtenCopyOp>(typeConverter, context);
-  target.addIllegalOp<AtenSliceScatterOp>();
   patterns.add<ConvertAtenSliceScatterOp>(typeConverter, context);
-  target.addIllegalOp<AtenViewAsComplexOp>();
   patterns.add<ConvertAtenViewAsComplexOp>(typeConverter, context);
-  target.addIllegalOp<AtenViewAsRealOp>();
   patterns.add<ConvertAtenViewAsRealOp>(typeConverter, context);
-  target.addIllegalOp<AtenDiagonalOp>();
   patterns.add<ConvertAtenDiagonalOp>(typeConverter, context);
-  target.addIllegalOp<AtenDiagEmbedOp>();
   patterns.add<ConvertAtenDiagEmbedOp>(typeConverter, context);
   // Rewrite all special sparse conversions hidden as operators.
-  target.addDynamicallyLegalOp<OperatorOp>([&](Torch::OperatorOp op) {
-    return !ConvertSparseOperatorOp::isSparsePrimitive(op.getNameAttr());
-  });
   patterns.add<ConvertSparseOperatorOp>(typeConverter, context);
 }

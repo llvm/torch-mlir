@@ -36,33 +36,33 @@ namespace torch_to_linalg {
 // lacks enough support for dynamic shapes and error assertions to be used
 // for this purpose.
 
-void populateTensorScalarInteropPatternsAndLegality(
-    TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target);
-void populateLinearPatternsAndLegality(TypeConverter &typeConverter,
-                                       RewritePatternSet &patterns,
-                                       ConversionTarget &target);
-void populatePoolingPatternsAndLegality(TypeConverter &typeConverter,
-                                        RewritePatternSet &patterns,
-                                        ConversionTarget &target);
-void populateRandomPatternsAndLegality(TypeConverter &typeConverter,
-                                       RewritePatternSet &patterns,
-                                       ConversionTarget &target);
-void populateUncategorizedPatternsAndLegality(TypeConverter &typeConverter,
-                                              RewritePatternSet &patterns,
-                                              ConversionTarget &target);
-void populateReductionPatternsAndLegality(TypeConverter &typeConverter,
-                                          RewritePatternSet &patterns,
-                                          ConversionTarget &target);
-void populateDataMovementPatternsAndLegality(TypeConverter &typeConverter,
-                                             RewritePatternSet &patterns,
-                                             ConversionTarget &target);
-void populateIndirectDataMovementPatternsAndLegality(
-    TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target);
-void populateTensorConstructorsPatternsAndLegality(TypeConverter &typeConverter,
-                                                   RewritePatternSet &patterns,
-                                                   ConversionTarget &target);
+void populateTensorScalarInteropPatterns(TypeConverter &typeConverter,
+                                         RewritePatternSet &patterns);
+void populateTensorScalarInteropOpsLegality(ConversionTarget &target);
+void populateLinearPatterns(TypeConverter &typeConverter,
+                            RewritePatternSet &patterns);
+void populateLinearOpsLegality(ConversionTarget &target);
+void populatePoolingPatterns(TypeConverter &typeConverter,
+                             RewritePatternSet &patterns);
+void populatePoolingOpsLegality(ConversionTarget &target);
+void populateRandomPatterns(TypeConverter &typeConverter,
+                            RewritePatternSet &patterns);
+void populateRandomOpsLegality(ConversionTarget &target);
+void populateUncategorizedPatterns(TypeConverter &typeConverter,
+                                   RewritePatternSet &patterns);
+void populateUncategorizedOpsLegality(ConversionTarget &target);
+void populateReductionPatterns(TypeConverter &typeConverter,
+                               RewritePatternSet &patterns);
+void populateReductionOpsLegality(ConversionTarget &target);
+void populateDataMovementPatterns(TypeConverter &typeConverter,
+                                  RewritePatternSet &patterns);
+void populateDataMovementOpsLegality(ConversionTarget &target);
+void populateIndirectDataMovementPatterns(TypeConverter &typeConverter,
+                                          RewritePatternSet &patterns);
+void populateIndirectDataMovementOpsLegality(ConversionTarget &target);
+void populateTensorConstructorsPatterns(TypeConverter &typeConverter,
+                                        RewritePatternSet &patterns);
+void populateTensorConstructorsOpsLegality(ConversionTarget &target);
 
 } // namespace torch_to_linalg
 } // namespace torch

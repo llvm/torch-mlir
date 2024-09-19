@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -516,14 +517,17 @@ public:
 };
 } // namespace
 
-void mlir::torch::torch_to_linalg::populateRandomPatternsAndLegality(
-    TypeConverter &typeConverter, RewritePatternSet &patterns,
+void mlir::torch::torch_to_linalg::populateRandomOpsLegality(
     ConversionTarget &target) {
-  MLIRContext *context = patterns.getContext();
   target.addIllegalOp<AtenDropoutOp>();
-  patterns.add<ConvertAtenDropoutOp>(typeConverter, context);
   target.addIllegalOp<AtenUniformOp>();
-  patterns.add<ConvertAtenUniformOp>(typeConverter, context);
   target.addIllegalOp<AtenMultinomialOp>();
+}
+
+void mlir::torch::torch_to_linalg::populateRandomPatterns(
+    TypeConverter &typeConverter, RewritePatternSet &patterns) {
+  MLIRContext *context = patterns.getContext();
+  patterns.add<ConvertAtenDropoutOp>(typeConverter, context);
+  patterns.add<ConvertAtenUniformOp>(typeConverter, context);
   patterns.add<ConvertAtenMultinomialOp>(typeConverter, context);
 }

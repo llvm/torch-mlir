@@ -123,6 +123,14 @@ def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "func::FuncOp"> {
   let constructor = "mlir::torch::createConvertTorchToTosaPass()";
 }
 
+def ConvertTorchToTosaLinalg : Pass<"convert-torch-to-tosa-linalg", "func::FuncOp"> {
+  let summary = "Convert Torch ops to a mix of TOSA ops and LINALG_ON_TENSORS ops";
+  let description = [{
+    This pass tries to lower torch ops to tosa ops if possible. Otherwise lowers to a mix of linalg, tensor, scf, and other dialects.
+  }];
+  let constructor = "mlir::torch::createConvertTorchToTosaLinalgPass()";
+}
+
 def ConvertTorchToTMTensor : Pass<"convert-torch-to-tmtensor", "func::FuncOp"> {
   let summary = "Convert recognized Torch ops to TMTensor/Linalg ops";
   let description = [{

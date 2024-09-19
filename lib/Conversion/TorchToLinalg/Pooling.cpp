@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -1508,28 +1509,33 @@ public:
 };
 } // namespace
 
-void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
-    TypeConverter &typeConverter, RewritePatternSet &patterns,
+void mlir::torch::torch_to_linalg::populatePoolingOpsLegality(
     ConversionTarget &target) {
-  MLIRContext *context = patterns.getContext();
+
   target.addIllegalOp<AtenMaxPool1dOp>();
   target.addIllegalOp<AtenMaxPool2dOp>();
   target.addIllegalOp<AtenMaxPool3dOp>();
+  target.addIllegalOp<AtenMaxPool2dWithIndicesOp>();
+  target.addIllegalOp<AtenMaxUnpool3dOp>();
+  target.addIllegalOp<AtenAvgPool1dOp, AtenAvgPool2dOp, AtenAvgPool3dOp>();
+  target.addIllegalOp<AtenAdaptiveAvgPool1dOp, AtenAdaptiveAvgPool2dOp,
+                      AtenAdaptiveAvgPool3dOp, Aten_AdaptiveAvgPool3dOp>();
+  target.addIllegalOp<AtenAdaptiveMaxPool1dOp, AtenAdaptiveMaxPool2dOp,
+                      AtenAdaptiveMaxPool3dOp, AtenMaxPool3dWithIndicesOp>();
+}
+
+void mlir::torch::torch_to_linalg::populatePoolingPatterns(
+    TypeConverter &typeConverter, RewritePatternSet &patterns) {
+  MLIRContext *context = patterns.getContext();
+
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool1dOp>>(typeConverter, context);
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dOp>>(typeConverter, context);
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dOp>>(typeConverter, context);
-
-  target.addIllegalOp<AtenMaxPool2dWithIndicesOp>();
-  target.addIllegalOp<AtenMaxPool3dWithIndicesOp>();
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dWithIndicesOp>>(typeConverter,
                                                                  context);
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dWithIndicesOp>>(typeConverter,
                                                                  context);
-
-  target.addIllegalOp<AtenMaxUnpool3dOp>();
   patterns.add<ConvertAtenMaxUnpool3dOp>(typeConverter, context);
-
-  target.addIllegalOp<AtenAvgPool1dOp, AtenAvgPool2dOp, AtenAvgPool3dOp>();
   patterns
       .add<ConvertAtenAvgPoolOp<AtenAvgPool1dOp, linalg::PoolingNcwSumOp, 1>>(
           typeConverter, context);
@@ -1539,8 +1545,6 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
   patterns
       .add<ConvertAtenAvgPoolOp<AtenAvgPool3dOp, linalg::PoolingNdhwcSumOp, 3>>(
           typeConverter, context);
-  target.addIllegalOp<AtenAdaptiveAvgPool1dOp, AtenAdaptiveAvgPool2dOp,
-                      AtenAdaptiveAvgPool3dOp, Aten_AdaptiveAvgPool3dOp>();
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool1dOp>>(
       typeConverter, context);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool2dOp>>(
@@ -1549,8 +1553,6 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
       typeConverter, context);
   patterns.add<ConvertAtenAdaptivePoolOp<Aten_AdaptiveAvgPool3dOp>>(
       typeConverter, context);
-  target.addIllegalOp<AtenAdaptiveMaxPool1dOp, AtenAdaptiveMaxPool2dOp,
-                      AtenAdaptiveMaxPool3dOp>();
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool1dOp>>(
       typeConverter, context);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool2dOp>>(

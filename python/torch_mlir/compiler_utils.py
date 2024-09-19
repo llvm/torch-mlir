@@ -158,6 +158,14 @@ class OutputType(Enum):
     # for end-users, but can be convenient for development or reporting bugs.
     RAW = "raw"
 
+    # The output type contains a mix of `tosa`, `linalg`-on-tensors ops, `scf`, and
+    # `arith` ops (and also `math` and `tm_tensor`). It can be thought of
+    # as taking the `TORCH` output type and lowering it so that tensor
+    # computations are done with `tosa` and `linalg`-on-tensors ops.
+    # `torch` ops are first lowered to `tosa` as much as possible.
+    # Remaining ops are then lowered to `linalg`-on-tensors.
+    TOSA_LINALG = "tosa-linalg"
+
     @staticmethod
     def get(spec: Union[str, "OutputType"]) -> "OutputType":
         """Gets an OutputType from allowed way to specify one.
@@ -209,6 +217,18 @@ def lower_mlir_module(verbose, output_type, module):
         if verbose:
             print("\n====================")
             print("LINALG Backend IR")
+            print(module)
+        return module
+
+    elif output_type == OutputType.TOSA_LINALG:
+        run_pipeline_with_repro_report(
+            module,
+            "builtin.module(torch-backend-to-tosa-linalg-backend-pipeline)",
+            "Lowering Torch Backend IR -> TOSA + Linalg Backend IR",
+        )
+        if verbose:
+            print("\n====================")
+            print("TOSA + Linalg Backend IR")
             print(module)
         return module
 
