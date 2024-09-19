@@ -1662,9 +1662,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         auto shapeType = Torch::ValueTensorType::get(
             binder.op->getContext(), SmallVector<int64_t>{inputRank},
             resultType.getOptionalDtype());
-
         Value shape = rewriter.create<Torch::Aten_ShapeAsTensorOp>(
             binder.getLoc(), shapeType, operand);
+
+        if (inputRank == 0) {
+          rewriter.replaceOpWithNewOp<Torch::TensorStaticInfoCastOp>(
+              binder.op, resultType, shape);
+          return success();
+        }
 
         if (start == 0 && end == -1) {
           rewriter.replaceOp(binder.op, shape);
@@ -1673,18 +1678,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         Value sv = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(start));
-
         Value ev = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(end));
-
         Value step = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), 1);
-
         Value dim = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), 0);
 
-        shape = rewriter.create<Torch::AtenSliceTensorOp>(
-            binder.getLoc(), resultType, shape, dim, sv, ev, step);
-
-        rewriter.replaceOp(binder.op, shape);
+        rewriter.replaceOpWithNewOp<Torch::AtenSliceTensorOp>(
+            binder.op, resultType, shape, dim, sv, ev, step);
         return success();
       });
 
