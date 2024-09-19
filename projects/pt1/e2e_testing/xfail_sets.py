@@ -923,6 +923,9 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "SplitTensorNegativeDimModule_basic",
     "SplitWithSizesListUnpackModule_basic",
     "SplitWithSizes_Module_basic",
+    "GCDBatchedModule_I32",
+    "GCDDynamicModule_I32",
+    "GCDModule_I32",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
@@ -3126,6 +3129,9 @@ ONNX_XFAIL_SET = {
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
     "UnfoldModule_basic",
+    "GCDBatchedModule_I32",
+    "GCDDynamicModule_I32",
+    "GCDModule_I32",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):

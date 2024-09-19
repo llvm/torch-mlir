@@ -13,6 +13,8 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -208,6 +210,83 @@ public:
     // so that in the end we have the original result type.
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, matmul);
 
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertAtenGcdOp : public OpConversionPattern<torch::Torch::AtenGcdOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(torch::Torch::AtenGcdOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto self = adaptor.getSelf();   // tensor A
+    auto other = adaptor.getOther(); // tensor B of the same size
+    auto loc = op.getLoc();
+
+    TensorType resultType =
+        cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+
+    auto gcdPayloadBody = [&](OpBuilder &b, Location loc,
+                              ValueRange genericInstructionArgs) {
+      auto A = genericInstructionArgs[0];
+      A = b.create<mlir::math::AbsIOp>(loc, A);
+      auto B = genericInstructionArgs[1];
+      B = b.create<mlir::math::AbsIOp>(loc, B);
+      auto zero = b.create<mlir::arith::ConstantIntOp>(loc, 0, A.getType());
+
+      Value AtrailingZerosCount =
+          b.create<mlir::math::CountTrailingZerosOp>(loc, A);
+      Value BtrailingZerosCount =
+          b.create<mlir::math::CountTrailingZerosOp>(loc, B);
+      auto smalerZerosCount = b.create<mlir::arith::MinSIOp>(
+          loc, AtrailingZerosCount, BtrailingZerosCount);
+      auto shiftedA = b.create<mlir::arith::ShRSIOp>(loc, A, smalerZerosCount);
+      auto shiftedB = b.create<mlir::arith::ShRSIOp>(loc, B, smalerZerosCount);
+
+      auto findGcdConditionBlock = [&](mlir::OpBuilder &b, mlir::Location loc,
+                                       mlir::ValueRange innerLoopArgs) {
+        Value min = b.create<mlir::arith::MinSIOp>(loc, innerLoopArgs[0],
+                                                   innerLoopArgs[1]);
+        Value max = b.create<mlir::arith::MaxSIOp>(loc, innerLoopArgs[0],
+                                                   innerLoopArgs[1]);
+
+        auto cmp = b.create<mlir::arith::CmpIOp>(
+            loc, mlir::arith::CmpIPredicate::ne, min, zero);
+        b.create<mlir::scf::ConditionOp>(loc, cmp, ValueRange{min, max});
+      };
+      auto findGcdBodyBlock = [&](mlir::OpBuilder &b, mlir::Location loc,
+                                  mlir::ValueRange innerLoopArgs) {
+        Value min = innerLoopArgs[0];
+        Value max = innerLoopArgs[1];
+        max = b.create<mlir::arith::SubIOp>(loc, max, min);
+
+        Value maxTrailingZerosCount =
+            b.create<mlir::math::CountTrailingZerosOp>(loc, max);
+        max = b.create<mlir::arith::ShRSIOp>(loc, max, maxTrailingZerosCount);
+        b.create<mlir::scf::YieldOp>(loc, ValueRange{min, max});
+      };
+
+      auto findGcdWhileOp = b.create<mlir::scf::WhileOp>(
+          loc, TypeRange{shiftedA.getType(), shiftedB.getType()},
+          ValueRange{shiftedA, shiftedB}, findGcdConditionBlock,
+          findGcdBodyBlock);
+
+      Value gcdResult = findGcdWhileOp.getResult(1);
+      gcdResult =
+          b.create<mlir::arith::ShLIOp>(loc, gcdResult, smalerZerosCount);
+
+      b.create<linalg::YieldOp>(loc, gcdResult);
+    };
+
+    other = torch_to_linalg::createElementwiseLinalgGeneric(
+        rewriter, loc, ValueRange{self, other},
+        cast<TensorType>(self.getType()).getElementType(), gcdPayloadBody);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, other);
     return success();
   }
 };
@@ -1400,4 +1479,6 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   patterns.add<ConvertAtenBmmOp>(typeConverter, context);
   target.addIllegalOp<AtenConvolutionOp>();
   patterns.add<ConvertAtenConvolutionOp>(typeConverter, context);
+  target.addIllegalOp<AtenGcdOp>();
+  patterns.add<ConvertAtenGcdOp>(typeConverter, context);
 }
