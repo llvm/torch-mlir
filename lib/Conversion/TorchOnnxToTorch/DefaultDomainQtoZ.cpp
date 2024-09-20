@@ -3566,6 +3566,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "Expected signal type having sizes");
         }
         auto signalShape = signalTy.getSizes();
+        // The infrastructure of ONNX and onnxruntime supports a rank-2.
+        // For reference:
+        // https://github.com/onnx/onnx/blob/060589cb81dfb081ed912c9e722b15fe1dbc1a14/onnx/defs/math/defs.cc#L3475-L3477
         if (signalShape.size() != 2 && signalShape.size() != 3) {
           return rewriter.notifyMatchFailure(binder.op,
                                              "signal has invalid shape.");
