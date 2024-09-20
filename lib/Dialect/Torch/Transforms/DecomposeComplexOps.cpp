@@ -5246,7 +5246,88 @@ public:
   }
 };
 } // namespace
+class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNonzeroOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Type resultType = op.getType();
+    auto inputType = dyn_cast<BaseTensorType>(input.getType());
+    if (!inputType)
+      return failure();
 
+    auto si64Type = rewriter.getIntegerType(64, true);
+    Value si64Dtype = getDtypeIntValueForType(rewriter, loc, si64Type);
+    //     nonzero_mask = (t != 0)
+    Value zero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    auto boolMaskType = inputType.getWithSizesAndDtype(
+        inputType.getOptionalSizes(), rewriter.getI1Type());
+    Value boolMask =
+        rewriter.create<AtenNeScalarOp>(loc, boolMaskType, input, zero);
+
+    //     nonzero_mask = nonzero_mask.int()
+    Value falseCst = rewriter.create<ConstantBoolOp>(loc, false);
+    Value noneCst = rewriter.create<ConstantNoneOp>(loc);
+    auto intMaskType = inputType.getWithSizesAndDtype(
+        inputType.getOptionalSizes(), si64Type); // ####
+    Value intMask = rewriter.create<AtenToDtypeOp>(
+        loc, intMaskType, boolMask, si64Dtype, falseCst, falseCst, noneCst);
+
+    //     destination_indices = torch.cumsum(nonzero_mask, 0) - 1
+    auto cumulativeSumType = dyn_cast<BaseTensorType>(
+        inputType.getWithSizesAndDtype(inputType.getOptionalSizes(), si64Type));
+    Value cumulativeSum = rewriter.create<AtenCumsumOp>(loc, cumulativeSumType,
+                                                        intMask, zero, noneCst);
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value subtracted = rewriter.create<AtenSubScalarOp>(
+        loc, cumulativeSumType, cumulativeSum, one, /*alpha=*/one);
+
+    //     destination_indices = torch.clamp(destination_indices, min=0)
+    Value indices = rewriter.create<AtenClampOp>(loc, cumulativeSumType,
+                                                 subtracted, zero, noneCst);
+
+    //     iota = torch.tensor(range(len(t))) * nonzero_mask.int()
+    Value rangeTensor = rewriter.create<AtenArangeStartStepOp>(
+        loc, cumulativeSumType, zero,
+        rewriter.create<ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(inputType.getSizes()[0])),
+        one, noneCst, noneCst, noneCst, noneCst);
+    Value multiplied = rewriter.create<AtenMulTensorOp>(loc, cumulativeSumType,
+                                                        rangeTensor, intMask);
+
+    //     scatter_self = torch.zeros_like(t, dtype=torch.int64)
+    // AtenFullLike doesn't support index type so we have to use si64
+    auto zerosTensorType = cumulativeSumType.getWithSizesAndDtype(
+        cumulativeSumType.getOptionalSizes(), si64Type);
+    Value zerosTensor = rewriter.create<AtenZerosLikeOp>(
+        loc, zerosTensorType, cumulativeSum, si64Dtype, noneCst, noneCst,
+        noneCst, noneCst);
+
+    //     compacted = scatter_self.scatter_(
+    //       dim=0,
+    //       index=destination_indices,
+    //       src=iota, reduce='add')
+    Value reduceStr = rewriter.create<ConstantStrOp>(loc, "add");
+    Value scatteredTensor = rewriter.create<AtenScatterReduceOp>(
+        loc, cumulativeSumType, zerosTensor, zero, indices, multiplied,
+        reduceStr);
+
+    //     result = compacted[:torch.sum(nonzero_mask)]
+    auto scalarType = ValueTensorType::get(rewriter.getContext(),
+                                           ArrayRef<int64_t>{}, si64Type);
+    Value sumMask =
+        rewriter.create<AtenSumOp>(loc, scalarType, intMask, noneCst);
+    Value numNonzero = rewriter.create<AtenIntTensorOp>(loc, sumMask);
+    Value slicedResult = rewriter.create<AtenSliceTensorOp>(
+        loc, resultType, scatteredTensor, zero, zero, numNonzero, one);
+
+    rewriter.replaceOp(op, slicedResult);
+    return success();
+  }
+};
 // Decompose aten.addmm into aten.mm and aten.add.Tensor op.
 namespace {
 class DecomposeAtenAddmmOp : public OpRewritePattern<AtenAddmmOp> {
@@ -9855,6 +9936,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_SoftmaxBackwardDataOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTanhBackwardOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNonzeroOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAddmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);

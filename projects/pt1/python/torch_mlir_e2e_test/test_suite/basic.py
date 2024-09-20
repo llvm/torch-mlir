@@ -6232,3 +6232,26 @@ def AtenPolarDoubleModule_basic(module, tu: TestUtils):
     module.forward(
         tu.rand(2, 5, 3, 4).to(torch.float64), tu.rand(2, 5, 3, 4).to(torch.float64)
     )
+
+
+# ==============================================================================
+
+
+class AtenNonzeroModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3], torch.bool, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.nonzero(x)
+
+
+@register_test_case(module_factory=lambda: AtenNonzeroModule())
+def AtenNonzeroModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([1, 0, 1, 2, 3, 0], dtype=torch.int).reshape(2, 3))
