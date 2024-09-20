@@ -37,6 +37,7 @@ if torch_version_for_comparison() < version.parse("2.5.0.dev"):
         # WORKS FOR TORCH VERSION 2.5.0.dev20240902, REMOVE WHEN ENABLE_GQA IS PUT IN STABLE
         "ScaledDotProductAttentionBoolMaskModule_basic",
         "ScaledDotProductAttentionDifferentCausalModule_basic",
+        "ScaledDotProductAttentionDifferentDynamicCausalModule_basic",
         "ScaledDotProductAttentionDifferentModule_basic",
         "ScaledDotProductAttentionMaskModule_basic",
         "ScaledDotProductAttentionSameCausalModule_basic",
@@ -504,6 +505,17 @@ FX_IMPORTER_XFAIL_SET = {
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewSizeFromOtherTensor_basic",
     "WeightNormInterfaceModule_basic",
+    # Error: `aten.as_strided` op is not supported
+    "ChunkListUnpackDynamic_Module_basic",
+    "ChunkListUnpackUnevenDynamic_Module_basic",
+    "ChunkListUnpackUneven_Module_basic",
+    "ChunkListUnpack_Module_basic",
+    "SplitTensorGetItem_Module_basic",
+    "SplitTensorLastSmallerModule_basic",
+    "SplitTensorListUnpackModule_basic",
+    "SplitTensorNegativeDimModule_basic",
+    "SplitWithSizesListUnpackModule_basic",
+    "SplitWithSizes_Module_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
@@ -822,6 +834,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "SafeSoftmaxNonNoneDtypeModule_basic",
     # REMOVE WHEN ENABLE_GQA IS ADDED
     "ScaledDotProductAttentionBoolMaskModule_basic",
+    "ScaledDotProductAttentionDifferentDynamicCausalModule_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
     "ScaledDotProductAttentionDifferentModule_basic",
     "ScaledDotProductAttentionMaskModule_basic",
@@ -899,6 +912,17 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "UpSampleNearest2dBackward_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewSizeFromOtherTensor_basic",
+    # Error: `aten.as_strided` op is not supported
+    "ChunkListUnpackDynamic_Module_basic",
+    "ChunkListUnpackUnevenDynamic_Module_basic",
+    "ChunkListUnpackUneven_Module_basic",
+    "ChunkListUnpack_Module_basic",
+    "SplitTensorGetItem_Module_basic",
+    "SplitTensorLastSmallerModule_basic",
+    "SplitTensorListUnpackModule_basic",
+    "SplitTensorNegativeDimModule_basic",
+    "SplitWithSizesListUnpackModule_basic",
+    "SplitWithSizes_Module_basic",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
@@ -3154,6 +3178,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     # REMOVE WHEN ENABLE_GQA IS ADDED
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
+    "ScaledDotProductAttentionDifferentDynamicCausalModule_basic",
     "ScaledDotProductAttentionSameCausalModule_basic",
     "ScatterAddStaticModule_basic",
     "TensorsConcatComplex128FloatModule_basic",
@@ -4657,6 +4682,7 @@ ONNX_TOSA_XFAIL_SET = {
     "ScalarImplicitIntModule_basic",
     # REMOVE WHEN ENABLE_GQA IS ADDED
     "ScaledDotProductAttentionBoolMaskModule_basic",
+    "ScaledDotProductAttentionDifferentDynamicCausalModule_basic",
     "ScaledDotProductAttentionSameCausalModule_basic",
     "ScaledDotProductAttentionSameDynamicModule_basic",
     "ScatterReduceFloatMaxModule",

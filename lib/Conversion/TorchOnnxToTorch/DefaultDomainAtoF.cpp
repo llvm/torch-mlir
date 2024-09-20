@@ -2802,14 +2802,14 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         // Get fill_value if it is present.
         // Assumption : resultDType and value attr type match.
         auto attr = binder.op->getAttr("torch.onnx.value");
-        auto resultDType = resultType.getDtype();
 
         // Extract the fill value and dtype
         // ONNX requires value attr to be a tensor
+        Value splatvalue;
+        // if no value attr is provided, default is 0.0 float value
         if (!attr) {
-          attr =
-              DenseElementsAttr::get(resultType.toBuiltinTensor(),
-                                     rewriter.getFloatAttr(resultDType, 0.0));
+          splatvalue = rewriter.create<Torch::ConstantFloatOp>(
+              binder.getLoc(), rewriter.getF64FloatAttr(0.0));
         }
 
         // If its a dense resource attr we need to convert to a dense type:
@@ -2830,19 +2830,18 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         }
 
         Attribute splattr;
-        if (isa<SplatElementsAttr>(attr)) {
+        if (attr && isa<SplatElementsAttr>(attr)) {
           auto denseAttr = cast<DenseElementsAttr>(attr);
           splattr = denseAttr.getSplatValue<Attribute>();
         }
 
-        if (!isa<FloatAttr, IntegerAttr>(splattr)) {
+        if (splattr && !isa<FloatAttr, IntegerAttr>(splattr)) {
           return rewriter.notifyMatchFailure(
               binder.op,
               "`value` attr tensor only supports types int and float for now.");
         }
 
-        Value splatvalue;
-        if (auto intattr = dyn_cast<IntegerAttr>(splattr)) {
+        if (auto intattr = dyn_cast_or_null<IntegerAttr>(splattr)) {
           IntegerType intty = cast<IntegerType>(intattr.getType());
           int64_t value;
           if (intty.isUnsignedInteger()) {
@@ -2856,7 +2855,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), value);
         }
 
-        if (auto fpattr = dyn_cast<FloatAttr>(splattr))
+        if (auto fpattr = dyn_cast_or_null<FloatAttr>(splattr))
           splatvalue = rewriter.create<Torch::ConstantFloatOp>(
               binder.getLoc(),
               rewriter.getF64FloatAttr(fpattr.getValueAsDouble()));
