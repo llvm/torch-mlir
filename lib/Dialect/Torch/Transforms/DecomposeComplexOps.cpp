@@ -3563,7 +3563,7 @@ public:
     Value noise = op.getNoise();
     Value lower = op.getLower();
     Value upper = op.getUpper();
-    auto resType = cast<BaseTensorType>(self.getType());
+    auto resType = cast<BaseTensorType>(op.getType());
     if (!resType.hasDtype()) {
       return rewriter.notifyMatchFailure(op, "result should have dtype");
     }
@@ -3609,13 +3609,12 @@ public:
                                                       rewriter.getI1Type());
       Value oneTensor =
           createRank0Tensor(rewriter, loc, resType, constantOneFloat);
-      Value not_positive = rewriter.create<AtenLeScalarOp>(
+      Value not_positive = rewriter.create<AtenLtScalarOp>(
           loc, boolResType, self, constantZeroFloat);
       noise = rewriter.create<AtenWhereSelfOp>(loc, resType, not_positive,
-                                               noise, oneTensor);
+                                               alpha, oneTensor);
     } else {
       scaledSelf = rewriter.create<AtenMulScalarOp>(loc, resType, self, alpha);
-      noise = alpha;
     }
 
     Value negativeOutput =
@@ -3627,6 +3626,93 @@ public:
   }
 };
 } // namespace
+
+// namespace {
+// class DecomposeAtenRreluWithNoiseOp
+//     : public OpRewritePattern<AtenRreluWithNoiseOp> {
+// public:
+//   using OpRewritePattern::OpRewritePattern;
+//   LogicalResult matchAndRewrite(AtenRreluWithNoiseOp op,
+//                                 PatternRewriter &rewriter) const override {
+//     Location loc = op.getLoc();
+//     Value self = op.getSelf();
+//     Value noise = op.getNoise();
+//     Value lower = op.getLower();
+//     Value upper = op.getUpper();
+//     auto resType = cast<BaseTensorType>(op.getType());
+//     if (!resType.hasDtype()) {
+//       return rewriter.notifyMatchFailure(op, "result should have dtype");
+//     }
+
+//     bool training;
+//     if (!matchPattern(op.getTraining(), m_TorchConstantBool(&training))) {
+//       return rewriter.notifyMatchFailure(op, "training should be a
+//       constant");
+//     }
+
+//     Value constantZeroFloat =
+//         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+//     Value constantOneFloat =
+//         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+//     Value constantTwoFloat =
+//         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(2.0));
+
+//     // Value alpha;
+//     // if (training) {
+//     //   Value none = rewriter.create<ConstantNoneOp>(loc);
+//     //   Value emptyTensor = rewriter.create<AtenFullLikeOp>(
+//     //       loc, resType, self, constantZeroFloat, /*dtype=*/none,
+//     //       /*layout=*/none,
+//     //       /*device=*/none, /*pin_memoty=*/none, /*memory_format=*/none);
+//     //   alpha = rewriter.create<AtenUniformOp>(loc, resType, emptyTensor,
+//     //                                          /*from=*/lower, /*to=*/upper,
+//     //                                          /*generator=*/none);
+//     // } else {
+//     //   Value half = rewriter.create<AtenAddOp>(loc,
+//     constantTwoFloat.getType(),
+//     //                                           lower, upper);
+//     //   alpha = rewriter.create<AtenDivOp>(loc, constantTwoFloat.getType(),
+//     half,
+//     //                                      constantTwoFloat);
+//     // }
+
+//     Value zeroTensor =
+//         createRank0Tensor(rewriter, loc, resType, constantZeroFloat);
+//     Value positiveOutput =
+//         rewriter.create<AtenMaximumOp>(loc, resType, zeroTensor, self);
+
+//     Value scaledSelf;
+//     if (training) {
+//       scaledSelf = rewriter.create<AtenMulTensorOp>(loc, resType, self,
+//       noise); auto boolResType =
+//       resType.getWithSizesAndDtype(resType.getSizes(),
+//                                                       rewriter.getI1Type());
+//       Value oneTensor =
+//           createRank0Tensor(rewriter, loc, resType, constantOneFloat);
+//       Value not_positive = rewriter.create<AtenLeScalarOp>(
+//           loc, boolResType, self, constantZeroFloat);
+//       noise = rewriter.create<AtenWhereSelfOp>(loc, resType, not_positive,
+//       noise, oneTensor);
+//     } else {
+//       Value half = rewriter.create<AtenAddOp>(loc,
+//       constantTwoFloat.getType(),
+//                                               lower, upper);
+//       Value alpha = rewriter.create<AtenDivOp>(loc,
+//       constantTwoFloat.getType(), half,
+//                                          constantTwoFloat);
+//       scaledSelf = rewriter.create<AtenMulScalarOp>(loc, resType, self,
+//       alpha);
+//     }
+
+//     Value negativeOutput =
+//         rewriter.create<AtenMinimumOp>(loc, resType, zeroTensor, scaledSelf);
+//     Value rreluOutput = rewriter.create<AtenAddTensorOp>(
+//         loc, resType, positiveOutput, negativeOutput, constantOneFloat);
+//     rewriter.replaceOp(op, rreluOutput);
+//     return success();
+//   }
+// };
+// } // namespace
 
 // CELU(x)=max(0,x)+min(0,alpha∗(exp(x/alpha)−1))
 namespace {
