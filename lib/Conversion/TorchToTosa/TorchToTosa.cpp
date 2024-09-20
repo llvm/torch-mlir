@@ -105,9 +105,18 @@ public:
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()));
 
-    auto binaryOp =
-        tosa::createBinaryOpAndCast<TosaOpT>(rewriter, op, outTy, lhs, rhs);
-    rewriter.replaceOp(op, binaryOp.getResult());
+    Value binaryOp;
+
+    // TOSA ArithmeticRightShiftOp has a round parameter.
+    if constexpr (std::is_same<AtenOpT, AtenBitwiseRightShiftTensorOp>()) {
+      binaryOp = rewriter.create<TosaOpT>(op->getLoc(), outTy, lhs, rhs,
+                                          /*round=*/false);
+    } else {
+      binaryOp =
+          tosa::createBinaryOpAndCast<TosaOpT>(rewriter, op, outTy, lhs, rhs);
+    }
+
+    rewriter.replaceOp(op, binaryOp);
     return success();
   }
 };
@@ -353,6 +362,7 @@ public:
     // For bitwise operators, only integer datatype legalization is supported
     constexpr bool isBitwiseOp =
         std::is_same<AtenOpT, AtenBitwiseAndTensorOp>() ||
+        std::is_same<AtenOpT, AtenBitwiseAndScalarOp>() ||
         std::is_same<AtenOpT, AtenBitwiseOrTensorOp>() ||
         std::is_same<AtenOpT, AtenBitwiseXorTensorOp>();
     if (isa<mlir::FloatType>(lhsElemTy) && isBitwiseOp) {
@@ -372,7 +382,9 @@ public:
     auto rhsTensor = rhsTy ? rhs : rhsAsTensor;
     // There is no Lesser operator in TOSA.
     constexpr auto swapLhsRhs = (std::is_same<AtenOpT, AtenLtTensorOp>() ||
-                                 std::is_same<AtenOpT, AtenLtScalarOp>());
+                                 std::is_same<AtenOpT, AtenLtScalarOp>() ||
+                                 std::is_same<AtenOpT, AtenLeTensorOp>() ||
+                                 std::is_same<AtenOpT, AtenLeScalarOp>());
 
     // Promote lhs and rhs dtypes for bitwise operators.
     TensorType resultTy = cast<TensorType>(
@@ -688,39 +700,30 @@ public:
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-template <>
-LogicalResult ConvertAtenOp<AtenTanhOp>::matchAndRewrite(
-    AtenTanhOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Value self = adaptor.getSelf();
-  auto selfTy = cast<TensorType>(self.getType());
-  if (selfTy && isa<mlir::FloatType>(selfTy.getElementType())) {
-    rewriter.replaceOpWithNewOp<tosa::TanhOp>(
-        op, getTypeConverter()->convertType(op.getType()), self);
-    return success();
-  }
-  // Sigmoid legalization in TOSA for quantized element-type uses specialized
-  // tosa.table construct.
-  return rewriter.notifyMatchFailure(
-      op, "Only floating-point datatype legalization currently supported");
-}
+template <typename AtenOpT, typename TosaOpT>
+class ConvertAtenActivationFunctionOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value self = adaptor.getSelf();
+    auto selfTy = cast<TensorType>(self.getType());
 
-template <>
-LogicalResult ConvertAtenOp<AtenSigmoidOp>::matchAndRewrite(
-    AtenSigmoidOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Value self = adaptor.getSelf();
-  auto selfTy = cast<TensorType>(self.getType());
-  if (selfTy && isa<mlir::FloatType>(selfTy.getElementType())) {
-    rewriter.replaceOpWithNewOp<tosa::SigmoidOp>(
-        op, getTypeConverter()->convertType(op.getType()), self);
+    if (!selfTy)
+      return rewriter.notifyMatchFailure(op, "Only Tensor types supported");
+
+    if (!isa<mlir::FloatType>(selfTy.getElementType()))
+      return rewriter.notifyMatchFailure(
+          op, "Only floating-point datatype legalization currently supported");
+
+    rewriter.replaceOpWithNewOp<TosaOpT>(
+        op, this->getTypeConverter()->convertType(op.getType()), self);
+
     return success();
   }
-  // Sigmoid legalization in TOSA for quantized element-type uses
-  // specialized tosa.table construct.
-  return rewriter.notifyMatchFailure(
-      op, "Only floating-point datatype legalization currently supported");
-}
+};
 
 template <>
 LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
@@ -1205,39 +1208,63 @@ class ConvertAtenSqueezeAllDimsOp : public ConvertAtenSqueezeOp<AtenOpT> {
   }
 };
 
-template <>
-LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
-    AtenPowTensorScalarOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
+template <typename AtenOpT>
+class ConvertAtenPowOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
 
-  Value self = adaptor.getSelf();
-  auto selfTy = cast<RankedTensorType>(self.getType());
+    auto outType =
+        cast<TensorType>(this->getTypeConverter()->convertType(op.getType()));
 
-  if (!selfTy)
-    return rewriter.notifyMatchFailure(
-        op, "Only ranked tensor types supported in TOSA Pow");
+    Value selfTensor;
+    if constexpr (std::is_same<AtenOpT, AtenPowScalarOp>()) {
+      Value selfScalar = op.getSelf();
+      if (failed(torchScalarToTosaTensor(rewriter, op, selfScalar, selfTensor,
+                                         outType.getElementType(), {})))
+        return rewriter.notifyMatchFailure(
+            op, "Currently only scalar constants are supported for "
+                "conversion in TOSA PowScalar operation");
+    } else {
+      selfTensor = adaptor.getSelf();
+      auto selfTy = cast<RankedTensorType>(selfTensor.getType());
 
-  if (!isa<mlir::FloatType>(selfTy.getElementType()))
-    return rewriter.notifyMatchFailure(
-        op, "Only floating-point datatype legalization supported");
+      if (!selfTy)
+        return rewriter.notifyMatchFailure(
+            op, "Only ranked tensor types supported in TOSA Pow");
 
-  auto outType =
-      cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+      if (!isa<mlir::FloatType>(selfTy.getElementType()))
+        return rewriter.notifyMatchFailure(
+            op, "Only floating-point datatype legalization supported");
+    }
 
-  Value expTensor;
-  Value expScalar = op.getExponent();
-  if (failed(torchScalarToTosaTensor(rewriter, op, expScalar, expTensor,
-                                     outType.getElementType(), {})))
-    return rewriter.notifyMatchFailure(
-        op, "Currently only scalar constants are supported for "
-            "conversion in TOSA Pow operation");
+    Value expTensor;
+    if constexpr (std::is_same<AtenOpT, AtenPowTensorScalarOp>()) {
+      Value expScalar = op.getExponent();
+      if (failed(torchScalarToTosaTensor(rewriter, op, expScalar, expTensor,
+                                         outType.getElementType(), {})))
+        return rewriter.notifyMatchFailure(
+            op, "Currently only scalar constants are supported for "
+                "conversion in TOSA Pow operation");
+    } else {
+      expTensor = adaptor.getExponent();
+      auto expTy = cast<RankedTensorType>(expTensor.getType());
 
-  auto powOp = tosa::createBinaryOpAndCast<tosa::PowOp>(rewriter, op, outType,
-                                                        self, expTensor);
-  rewriter.replaceOp(op, powOp.getResult());
+      if (!expTy)
+        return rewriter.notifyMatchFailure(
+            op, "Only ranked tensor types supported in TOSA Pow");
+    }
 
-  return success();
-}
+    auto powOp = tosa::createBinaryOpAndCast<tosa::PowOp>(
+        rewriter, op, outType, selfTensor, expTensor);
+    rewriter.replaceOp(op, powOp.getResult());
+
+    return success();
+  }
+};
 
 // Perform the basic n-dim matmul operation encompassing the handling of
 // broadcasting and dynamic shape propagation.
@@ -4244,32 +4271,6 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenLeTensorOp>::matchAndRewrite(
-    AtenLeTensorOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-
-  // Not a tensor type.
-  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
-  if (!selfType)
-    return rewriter.notifyMatchFailure(
-        op, "Only tensor types input are currently supported");
-  auto otherType = dyn_cast<TensorType>(adaptor.getOther().getType());
-  if (!otherType)
-    return rewriter.notifyMatchFailure(
-        op, "Only tensor types condition are currently supported");
-
-  auto outType = getTypeConverter()->convertType(op.getType());
-
-  auto greaterOp = rewriter.create<tosa::GreaterOp>(
-      op.getLoc(), outType, adaptor.getSelf(), adaptor.getOther());
-
-  rewriter.replaceOpWithNewOp<tosa::LogicalNotOp>(op, outType,
-                                                  greaterOp.getOutput());
-
-  return success();
-}
-
-template <>
 LogicalResult ConvertAtenOp<AtenIscloseOp>::matchAndRewrite(
     AtenIscloseOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -5815,6 +5816,9 @@ public:
     INSERT_UNARY_PATTERN(AtenBitwiseNotOp, tosa::BitwiseNotOp)
     INSERT_UNARY_PATTERN(AtenCeilOp, tosa::CeilOp)
     INSERT_UNARY_PATTERN(AtenReciprocalOp, tosa::ReciprocalOp)
+    INSERT_UNARY_PATTERN(AtenCosOp, tosa::CosOp)
+    INSERT_UNARY_PATTERN(AtenSinOp, tosa::SinOp)
+    INSERT_UNARY_PATTERN(AtenLogicalNotOp, tosa::LogicalNotOp)
 #undef INSERT_UNARY_PATTERN
 
 #define INSERT_BINARY_PATTERN(AtenOp, TosaOp)                                  \
@@ -5823,6 +5827,11 @@ public:
     INSERT_BINARY_PATTERN(AtenMaximumOp, tosa::MaximumOp)
     INSERT_BINARY_PATTERN(AtenMinimumOp, tosa::MinimumOp)
     INSERT_BINARY_PATTERN(AtenLogicalOrOp, tosa::LogicalOrOp)
+    INSERT_BINARY_PATTERN(AtenLogicalXorOp, tosa::LogicalXorOp)
+    INSERT_BINARY_PATTERN(AtenBitwiseLeftShiftTensorOp,
+                          tosa::LogicalLeftShiftOp)
+    INSERT_BINARY_PATTERN(AtenBitwiseRightShiftTensorOp,
+                          tosa::ArithmeticRightShiftOp)
 #undef INSERT_BINARY_PATTERN
 
 #define INSERT_BINARY_ADDSUB_PATTERN(AtenOp, TosaOp)                           \
@@ -5843,11 +5852,14 @@ public:
     INSERT_BINARY_COMPARE_PATTERN(AtenGtScalarOp, tosa::GreaterOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenLtTensorOp, tosa::GreaterOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenLtScalarOp, tosa::GreaterOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenLeTensorOp, tosa::GreaterEqualOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenLeScalarOp, tosa::GreaterEqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenEqTensorOp, tosa::EqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenEqScalarOp, tosa::EqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenNeTensorOp, tosa::EqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenNeScalarOp, tosa::EqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenBitwiseAndTensorOp, tosa::BitwiseAndOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenBitwiseAndScalarOp, tosa::BitwiseAndOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenBitwiseOrTensorOp, tosa::BitwiseOrOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenBitwiseXorTensorOp, tosa::BitwiseXorOp)
 #undef INSERT_BINARY_COMPARE_PATTERN
@@ -5987,16 +5999,30 @@ public:
     INSERT_MASKED_FILL_PATTERN(AtenMaskedFillTensorOp);
 #undef INSERT_MASKED_FILL_PATTERN
 
+#define INSERT_POW_OP_PATTERN(AtenOp)                                          \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenPowOp<AtenOp>>(typeConverter, context);
+    INSERT_POW_OP_PATTERN(AtenPowTensorScalarOp);
+    INSERT_POW_OP_PATTERN(AtenPowTensorTensorOp);
+    INSERT_POW_OP_PATTERN(AtenPowScalarOp);
+#undef INSERT_POW_OP_PATTERN
+
+#define INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenOp, TosaOp)                  \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenActivationFunctionOp<AtenOp, TosaOp>>(typeConverter, \
+                                                                context);
+    INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenTanhOp, tosa::TanhOp);
+    INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenSigmoidOp, tosa::SigmoidOp);
+    INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenErfOp, tosa::ErfOp);
+#undef INSERT_ACTIVATION_FUNCITON_OP_PATTERN
+
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context);
-    INSERT_ATENOP_PATTERN(AtenTanhOp);
     INSERT_ATENOP_PATTERN(AtenHardtanhBackwardOp);
-    INSERT_ATENOP_PATTERN(AtenSigmoidOp);
     INSERT_ATENOP_PATTERN(AtenReluOp);
     INSERT_ATENOP_PATTERN(AtenLeakyReluOp);
     INSERT_ATENOP_PATTERN(AtenArgmaxOp);
-    INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
     INSERT_ATENOP_PATTERN(AtenRsubScalarOp);
     INSERT_ATENOP_PATTERN(AtenConvolutionOp);
     INSERT_ATENOP_PATTERN(ValueTensorLiteralOp);
@@ -6023,7 +6049,6 @@ public:
     INSERT_ATENOP_PATTERN(AtenIndexTensorHackedTwinOp);
     INSERT_ATENOP_PATTERN(AtenAbsOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
-    INSERT_ATENOP_PATTERN(AtenLeTensorOp);
     INSERT_ATENOP_PATTERN(AtenClampOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
     INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
