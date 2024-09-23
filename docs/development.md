@@ -14,7 +14,7 @@ While this is running, you can already setup the Python venv and dependencies in
 ## Setup your Python VirtualEnvironment and Dependencies
 
 ```shell
-python -m venv mlir_venv
+python3 -m venv mlir_venv
 source mlir_venv/bin/activate
 # Some older pip installs may not be able to handle the recent PyTorch deps
 python -m pip install --upgrade pip
