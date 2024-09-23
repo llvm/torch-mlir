@@ -396,6 +396,8 @@ Torch-MLIR has two types of tests:
    a homegrown testing framework (see
    `projects/pt1/python/torch_mlir_e2e_test/framework.py`) and the test suite
    lives at `projects/pt1/python/torch_mlir_e2e_test/test_suite/__init__.py`.
+   The tests require to build with `TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS` (and
+   the dependent option `TORCH_MLIR_ENABLE_JIT_IR_IMPORTER`) set to `ON`.
 
 2. Compiler and Python API unit tests. These use LLVM's `lit` testing framework.
    For example, these might involve using `torch-mlir-opt` to run a pass and
