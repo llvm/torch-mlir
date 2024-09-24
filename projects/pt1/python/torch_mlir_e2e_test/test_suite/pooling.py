@@ -1782,6 +1782,7 @@ class AdaptiveMaxPool1dStatic(torch.nn.Module):
 def AdaptiveMaxPool1dStatic_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 512, 10))
 
+
 class AdaptiveMaxPool1dDimOneStatic(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1796,6 +1797,7 @@ class AdaptiveMaxPool1dDimOneStatic(torch.nn.Module):
 @register_test_case(module_factory=lambda: AdaptiveMaxPool1dDimOneStatic())
 def AdaptiveMaxPool1dDimOneStatic_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 512, 7))
+
 
 # AdaptiveMaxPool2d
 

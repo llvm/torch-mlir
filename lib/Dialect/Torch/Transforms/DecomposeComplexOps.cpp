@@ -7329,7 +7329,6 @@ class DecomposeAtenAdaptiveMaxPool1dOp
     Value constantZero = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(0));
     Value constantFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
-    Value constantTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
 
     int64_t outputSizeInt;
     if (!matchPattern(outputSize, m_TorchConstantInt(&outputSizeInt))) {
