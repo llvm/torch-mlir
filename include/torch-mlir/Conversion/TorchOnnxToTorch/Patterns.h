@@ -338,6 +338,31 @@ struct OpBinder {
     return failure();
   }
 
+  ParseResult f32FloatArrayAttr(llvm::SmallVector<float> &values,
+                                StringRef nameSuffix,
+                                ArrayRef<float> defaults) {
+    SmallString<64> name("torch.onnx.");
+    name.append(nameSuffix);
+    auto attr = op->getAttr(name);
+    if (!attr) {
+      values.append(defaults.begin(), defaults.end());
+      return success();
+    }
+    if (auto arrayAttr = dyn_cast<ArrayAttr>(attr)) {
+      for (auto element : arrayAttr) {
+        auto floatAttr = dyn_cast<FloatAttr>(element);
+        if (!floatAttr)
+          return failure();
+        FloatType t = cast<FloatType>(floatAttr.getType());
+        if (t.getWidth() != 32)
+          return failure();
+        values.push_back(floatAttr.getValue().convertToFloat());
+      }
+      return success();
+    }
+    return failure();
+  }
+
   ParseResult stringArrayAttr(llvm::SmallVector<std::string> &values,
                               StringRef nameSuffix) {
     SmallString<64> name("torch.onnx.");
