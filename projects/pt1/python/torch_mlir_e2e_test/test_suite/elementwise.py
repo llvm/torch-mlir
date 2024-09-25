@@ -2029,7 +2029,7 @@ class ElementwiseCreateComplexModule(torch.nn.Module):
 
 
 @register_test_case(module_factory=lambda: ElementwiseCreateComplexModule())
-def ElementwiseCreateComplexModulee_basic(module, tu: TestUtils):
+def ElementwiseCreateComplexModule_basic(module, tu: TestUtils):
     module.forward(
         tu.randint(4, high=10).type(torch.float32),
         tu.randint(4, high=10).type(torch.float32),
