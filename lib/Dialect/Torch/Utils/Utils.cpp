@@ -102,6 +102,8 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
   os << "\n  Bit width: "
      << (type.isIntOrFloat() ? std::to_string(type.getIntOrFloatBitWidth())
                              : "N/A");
+  os << "\n  Is signless: " << (type.isSignlessInteger() ? "yes" : "no");
+  os << "\n  Is signed: " << (type.isSignedInteger() ? "yes" : "no");
   llvm::report_fatal_error(llvm::StringRef(errorMsg));
 }
 Type Torch::getTypeForTorchType(
