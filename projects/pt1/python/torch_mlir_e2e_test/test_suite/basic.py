@@ -4830,6 +4830,90 @@ def CumsumInputDtypeInt32Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class CumprodModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, val):
+        ones = torch.ones([1], dtype=torch.int32)
+        return torch.ops.aten.cumprod(val, ones.item())
+
+
+@register_test_case(module_factory=lambda: CumprodModule())
+def CumprodModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7, 4))
+
+
+class CumprodStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 7, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, val):
+        return torch.ops.aten.cumprod(val, 1)
+
+
+@register_test_case(module_factory=lambda: CumprodStaticModule())
+def CumprodStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7, 4))
+
+
+class CumprodStaticNegativeDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 7, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, val):
+        return torch.ops.aten.cumprod(val, dim=-1)
+
+
+@register_test_case(module_factory=lambda: CumprodStaticNegativeDimModule())
+def CumprodStaticNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7, 4))
+
+
+class CumprodInputDtypeInt32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 7, 4], torch.int32, True),
+        ]
+    )
+    def forward(self, val):
+        return torch.ops.aten.cumprod(val, 1)
+
+
+@register_test_case(module_factory=lambda: CumprodInputDtypeInt32Module())
+def CumprodInputDtypeInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 7, 4).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class AtenToDeviceModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

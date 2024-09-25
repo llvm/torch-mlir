@@ -40,6 +40,8 @@ Value createInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
 
 Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
                            Type elemTy);
+Value createOneInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
+                          Type elemTy);
 
 Value castIntToIndex(OpBuilder &b, Location loc, Value v);
 
