@@ -83,7 +83,6 @@ class VerifyTosaLinalgBackendContractPass
     target.addDynamicallyLegalDialect<tosa::TosaDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<affine::AffineDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<cf::ControlFlowDialect>(opHasLegalTypes);
-    target.addDynamicallyLegalDialect<TMTensorDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<scf::SCFDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<ml_program::MLProgramDialect>(
         opHasLegalTypes);
