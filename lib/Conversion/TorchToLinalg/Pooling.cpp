@@ -611,21 +611,22 @@ public:
     Value self = adaptor.getSelf();
     auto selfType = cast<RankedTensorType>(self.getType());
 
-    ArrayRef<int64_t> inputSize = selfType.getShape().take_back(3);
+    size_t spatial = selfType.getRank() - 2;
+    ArrayRef<int64_t> inputSize = selfType.getShape().take_back(spatial);
     if (ShapedType::isDynamicShape(inputSize))
       return rewriter.notifyMatchFailure(op,
                                          "input type must be of static shape");
 
     Value indices = adaptor.getIndices();
     auto indicesType = cast<RankedTensorType>(indices.getType());
-    if (inputSize != indicesType.getShape().take_back(3))
+    if (inputSize != indicesType.getShape().take_back(spatial))
       return rewriter.notifyMatchFailure(op, "input/indices shape mismatch");
 
     auto resType = typeConverter->convertType<RankedTensorType>(op.getType());
     if (!resType)
       return rewriter.notifyMatchFailure(op, "invalid result type");
 
-    ArrayRef<int64_t> inferredOutSize = resType.getShape().take_back(3);
+    ArrayRef<int64_t> inferredOutSize = resType.getShape().take_back(spatial);
     if (ShapedType::isDynamicShape(inferredOutSize))
       return rewriter.notifyMatchFailure(op,
                                          "output type must be of static shape");
@@ -636,7 +637,7 @@ public:
         return rewriter.notifyMatchFailure(op,
                                            "only support constant int output");
 
-      if (inferredOutSize != ArrayRef(output))
+      if (inferredOutSize != ArrayRef(output).take_back(spatial))
         return rewriter.notifyMatchFailure(op, "Invalid output size");
     }
     SmallVector<int64_t> stride;
@@ -652,12 +653,12 @@ public:
 
     // TODO: add support for asymmetric padding coming from "onnx.MaxUnpool"
     // (padding.size() == 6).
-    if (stride.size() != 3 || padding.size() != 3)
+    if (stride.size() != spatial || padding.size() != spatial)
       return rewriter.notifyMatchFailure(
           op, "stride and padding must be of size 3");
 
     int64_t outRank = resType.getRank();
-    int64_t NC = outRank - 3;
+    int64_t NC = outRank - spatial;
 
     for (auto &&[inDim, outDim, str, pad] :
          llvm::zip_equal(inputSize, inferredOutSize, stride, padding)) {
@@ -694,7 +695,7 @@ public:
     // (e.g. pooling_input_size=5, kernel_size=2, stride=2, output_size=2)
     // pad self and indices tensors to avoid out of bounds access.
     SmallVector<int64_t> expectedInputShape =
-        llvm::to_vector(resType.getShape().drop_back(3));
+        llvm::to_vector(resType.getShape().drop_back(spatial));
     for (auto &&[str, pad, resSize] :
          llvm::zip_equal(stride, padding, inferredOutSize))
       expectedInputShape.emplace_back(ceilDiv(resSize, str) + pad * 2);
@@ -707,7 +708,7 @@ public:
       SmallVector<int64_t> low(outRank, 0);
       SmallVector<int64_t> high(NC, 0);
       for (auto &&[inpSize, outSize] : llvm::zip_equal(
-               inputSize, ArrayRef(expectedInputShape).take_back(3))) {
+               inputSize, ArrayRef(expectedInputShape).take_back(spatial))) {
         high.emplace_back(outSize - inpSize);
       }
 

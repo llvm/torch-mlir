@@ -3456,11 +3456,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         SmallVector<int64_t> resultShape(resultType.getSizes());
         Value resultShapeList =
             createConstantIntList(binder, rewriter, resultShape);
-        if (rank == 4) {
-          rewriter.replaceOpWithNewOp<Torch::AtenMaxUnpool2dOp>(
-              binder.op, resultType, data, indices, resultShapeList);
-          return success();
-        }
 
         SmallVector<int64_t> padding, strides;
         if (binder.s64IntegerArrayAttr(padding, "pads", {}))

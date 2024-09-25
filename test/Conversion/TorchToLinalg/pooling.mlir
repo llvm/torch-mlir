@@ -95,3 +95,45 @@ func.func @forward_max_pool3d(%arg0: !torch.vtensor<[?,?,?,?,?],f32>) -> !torch.
   // CHECK:  } -> tensor<?x?x?x?x?xf32>
   return %4 : !torch.vtensor<[?,?,?,?,?],f32>
 }
+
+// -----
+
+// CHECK: #map = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2 floordiv 2, d3 floordiv 2)>
+// CHECK: #map1 = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+// CHECK-LABEL: func @forward_max_unpool
+func.func @forward_max_unpool(%arg0: !torch.vtensor<[1,1,2,2],f32>, %arg1: !torch.vtensor<[1,1,2,2],si64>) -> !torch.vtensor<[1,1,4,4],f32> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  %int1 = torch.constant.int 1
+  %int1_0 = torch.constant.int 1
+  %int4 = torch.constant.int 4
+  %int4_1 = torch.constant.int 4
+  %0 = torch.prim.ListConstruct %int1, %int1_0, %int4, %int4_1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %int0 = torch.constant.int 0
+  %int0_2 = torch.constant.int 0
+  %1 = torch.prim.ListConstruct %int0, %int0_2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %int2 = torch.constant.int 2
+  %int2_3 = torch.constant.int 2
+  %2 = torch.prim.ListConstruct %int2, %int2_3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.aten.max_unpool3d %arg0, %arg1, %0, %2, %1 : !torch.vtensor<[1,1,2,2],f32>, !torch.vtensor<[1,1,2,2],si64>, !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.vtensor<[1,1,4,4],f32>
+
+  // CHECK: %[[INDICES:.*]] = torch_c.to_builtin_tensor %arg1 : !torch.vtensor<[1,1,2,2],si64> -> tensor<1x1x2x2xi64>
+  // CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,1,2,2],f32> -> tensor<1x1x2x2xf32>
+  // CHECK: %[[C0:.*]] = arith.constant 0 : index
+  // CHECK: %[[DIM0:.*]] = tensor.dim %[[INPUT]], %[[C0]] : tensor<1x1x2x2xf32>
+  // CHECK: %[[C1:.*]] = arith.constant 1 : index
+  // CHECK: %[[DIM1:.*]] = tensor.dim %[[INPUT]], %[[C1]] : tensor<1x1x2x2xf32>
+  // CHECK: %[[SHAPE:.*]] = tensor.empty(%[[DIM0]], %[[DIM1]]) : tensor<?x?x4x4xf32>
+  // CHECK: %[[GENERIC:.*]] = linalg.generic {indexing_maps = [#map, #map, #map1], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[INPUT]], %[[INDICES]] : tensor<1x1x2x2xf32>, tensor<1x1x2x2xi64>) outs(%[[SHAPE]] : tensor<?x?x4x4xf32>) {
+  // CHECK-NEXT:  ^bb0(%[[CURRENT_VALUE:.*]]: f32, %[[CURRENT_INDEX:.*]]: i64, %[[OUT:.*]]: f32):
+  // CHECK-NEXT:    %[[CST:.*]] = arith.constant 0.000000e+00 : f32
+  // CHECK-NEXT:    %[[INDEX_CAST:.*]] = arith.index_cast %[[CURRENT_INDEX:.*]] : i64 to index
+  // CHECK-NEXT:    %[[INDEX2:.*]] = linalg.index 2 : index
+  // CHECK-NEXT:    %[[INDEX3:.*]] = linalg.index 3 : index
+  // CHECK-NEXT:    %[[C4:.*]] = arith.constant 4 : index
+  // CHECK-NEXT:    %[[MULI:.*]] = arith.muli %[[INDEX2:.*]], %[[C4:.*]] : index
+  // CHECK-NEXT:    %[[ADDI:.*]] = arith.addi %[[MULI:.*]], %[[INDEX3:.*]] : index
+  // CHECK-NEXT:    %[[CMPI:.*]] = arith.cmpi eq, %[[INDEX_CAST:.*]], %[[ADDI:.*]] : index
+  // CHECK-NEXT:    %[[SELECT:.*]] = arith.select %[[CMPI:.*]], %[[CURRENT_VALUE:.*]], %[[CST:.*]] : f32
+  // CHECK-NEXT:    linalg.yield %[[SELECT:.*]] : f32
+  // CHECK:  } -> tensor<?x?x4x4xf32>
+  return %3 : !torch.vtensor<[1,1,4,4],f32>
+}
