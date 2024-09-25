@@ -2012,6 +2012,33 @@ def ElementwiseMulTensorIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseCreateComplexModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.complex(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseCreateComplexModule())
+def ElementwiseCreateComplexModulee_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, high=10).type(torch.float32),
+        tu.randint(4, high=10).type(torch.float32),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseMulTensorComplexModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
