@@ -104,6 +104,13 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
                              : "N/A");
   os << "\n  Is signless: " << (type.isSignlessInteger() ? "yes" : "no");
   os << "\n  Is signed: " << (type.isSignedInteger() ? "yes" : "no");
+  // special error message for unsigned integer
+  if (type.isUnsignedInteger()) {
+    os << "\n  Is unsigned: yes";
+    os << "\nUnsigned integer support is currently spotty. Please seeheck "
+          "https://github.com/llvm/torch-mlir/issues/3720 "
+          "for more details.";
+  }
   llvm::report_fatal_error(llvm::StringRef(errorMsg));
 }
 Type Torch::getTypeForTorchType(
