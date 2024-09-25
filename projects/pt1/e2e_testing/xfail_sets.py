@@ -2751,6 +2751,7 @@ ONNX_XFAIL_SET = {
     "ElementwiseExpm1IntModule_basic",
     "ElementwiseExpm1Module_basic",
     "ElementwiseFmodTensor_Int_basic",
+    "ElementwiseCreateComplexModule_basic",
     "ElementwiseMulTensorComplexModule_basic",
     "ElementwiseMulTensorComplexDiffModule_basic",
     "ElementwiseOrTensorModule_basic",
