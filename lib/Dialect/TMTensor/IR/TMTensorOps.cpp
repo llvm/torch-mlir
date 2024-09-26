@@ -93,14 +93,49 @@ LogicalResult AttentionOp::verify() {
   Operation *op = getOperation();
   ShapedType queryType = getQueryType();
   ShapedType keyType = getKeyType();
+  ShapedType valueType = getValueType();
+
+  auto optionalMaskType = getAttnMaskType();
+  ShapedType maskType = optionalMaskType ? *optionalMaskType : ShapedType();
+
   ArrayRef<int64_t> queryShape = queryType.getShape();
   ArrayRef<int64_t> keyShape = keyType.getShape();
+  ArrayRef<int64_t> valueShape = valueType.getShape();
+  ArrayRef<int64_t> maskShape =
+      optionalMaskType ? maskType.getShape() : ArrayRef<int64_t>();
+
   for (int i = 0, s = queryShape.size() - 2; i < s; ++i) {
-    if (keyShape[i] != queryShape[i])
+    if (keyShape[i] != queryShape[i]) {
       return op->emitOpError("query and key batch mismatch");
+    }
   }
-  if (keyShape.back() != queryShape.back())
+  if (keyShape.back() != queryShape.back()) {
     return op->emitOpError("query and key head dimension mismatch");
+  }
+
+  for (int i = 0, s = queryShape.size() - 2; i < s; ++i) {
+    if (valueShape[i] != queryShape[i]) {
+      return op->emitOpError("query and value batch dimension mismatch");
+    }
+  }
+  if (keyShape[keyShape.size() - 2] != valueShape[valueShape.size() - 2]) {
+    return op->emitOpError("key and value sequence length dimension mismatch");
+  }
+  if (optionalMaskType) {
+    for (int i = 0, s = maskShape.size() - 2; i < s; ++i) {
+      if (maskShape[i] != queryShape[i]) {
+        return op->emitOpError("query and mask batch dimension mismatch");
+      }
+    }
+    if (maskShape[maskShape.size() - 2] != queryShape[queryShape.size() - 2]) {
+      return op->emitOpError(
+          "mask sequence length and query sequence length mismatch");
+    }
+    if (maskShape[maskShape.size() - 1] != keyShape[keyShape.size() - 2]) {
+      return op->emitOpError(
+          "mask sequence lengt and key sequence length mismatch");
+    }
+  }
   return success();
 }
 
@@ -168,10 +203,15 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
   Value query = getQuery();
   Value key = getKey();
   Value value = getValue();
+
+  auto optionalMask = getAttnMask();
+  Value mask = optionalMask ? *optionalMask : Value();
+
   Value output = getOutput();
   auto queryType = cast<MemRefType>(query.getType());
   auto keyType = cast<MemRefType>(key.getType());
   auto valueType = cast<MemRefType>(value.getType());
+  auto maskType = mask ? cast<MemRefType>(mask.getType()) : MemRefType();
   auto queryRank = queryType.getRank();
   auto keyRank = keyType.getRank();
   auto valueRank = valueType.getRank();
@@ -180,6 +220,9 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
 
   Value zeroF = b.create<arith::ConstantOp>(loc, elementType,
                                             b.getFloatAttr(elementType, 0.0));
+  Value negInfF = b.create<arith::ConstantOp>(
+      loc, elementType,
+      b.getFloatAttr(elementType, -std::numeric_limits<double>::infinity()));
 
   // TODO: This needs to be fixed, it assumes everything is dynamic however if
   // any shapes are static the `memref.alloc` generated is illegal.
@@ -214,14 +257,43 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
          /*transposed=*/true);
 
   // weight = softmax(weight)
-  Value one = b.create<arith::ConstantIndexOp>(loc, 1);
-  Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
   Value dim = weightDynSizes[weightRank - 1];
   Value scaleFactor = b.create<math::SqrtOp>(
       loc, b.create<arith::UIToFPOp>(
                loc, elementType,
                b.create<arith::IndexCastUIOp>(loc, b.getI32Type(),
                                               queryDynSizes[queryRank - 1])));
+
+  // weight = (weight - max(weight)) / math.sqrt(querySizes[-1])
+  Value one = b.create<arith::ConstantIndexOp>(loc, 1);
+  Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
+  b.create<scf::ParallelOp>(
+      loc, SmallVector<Value>(weightRank, zero), weightDynSizes,
+      SmallVector<Value>(weightRank, one),
+      [&](OpBuilder &b, Location loc, ValueRange localIVs) {
+        Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
+        x = b.create<arith::DivFOp>(loc, x, scaleFactor);
+        b.create<memref::StoreOp>(loc, x, weight, localIVs);
+      });
+
+  // Apply mask to weights if mask is given
+  if (mask) {
+    b.create<scf::ParallelOp>(
+        loc, SmallVector<Value>(weightRank, zero), weightDynSizes,
+        SmallVector<Value>(weightRank, one),
+        [&](OpBuilder &b, Location loc, ValueRange localIVs) {
+          Value weightValue = b.create<memref::LoadOp>(loc, weight, localIVs);
+          Value maskValue = b.create<memref::LoadOp>(loc, mask, localIVs);
+          if (maskType.getElementType().isInteger(1)) {
+            maskValue =
+                b.create<arith::SelectOp>(loc, maskValue, zeroF, negInfF);
+          }
+          Value maskedWeight =
+              b.create<arith::AddFOp>(loc, weightValue, maskValue);
+          b.create<memref::StoreOp>(loc, maskedWeight, weight, localIVs);
+        });
+  }
+
   // calculate max(weight)
   Value init = b.create<memref::LoadOp>(loc, weight,
                                         SmallVector<Value>(weightRank, zero));
@@ -249,7 +321,6 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
       [&](OpBuilder &b, Location loc, ValueRange localIVs) {
         Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
         x = b.create<arith::SubFOp>(loc, x, globalMax);
-        x = b.create<arith::DivFOp>(loc, x, scaleFactor);
         b.create<memref::StoreOp>(loc, x, weight, localIVs);
       });
   // calculate exp(weight)
@@ -307,10 +378,19 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
       [&](OpBuilder &b, Location loc, ValueRange localIVs) {
         SmallVector<Value> sumIVs(localIVs);
         sumIVs.pop_back();
+
         Value x = b.create<memref::LoadOp>(loc, weight, localIVs);
         Value sum = b.create<memref::LoadOp>(loc, expWeightSum, sumIVs);
-        x = b.create<arith::DivFOp>(loc, x, sum);
-        b.create<memref::StoreOp>(loc, x, weight, localIVs);
+        Value divResult = b.create<arith::DivFOp>(loc, x, sum);
+
+        // Set to 0 if sum is 0 (can occur during boolean mask / large negative
+        // QK)
+        Value isSumZero =
+            b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OEQ, sum, zeroF);
+        Value result =
+            b.create<arith::SelectOp>(loc, isSumZero, zeroF, divResult);
+
+        b.create<memref::StoreOp>(loc, result, weight, localIVs);
       });
 
   // output = weight @ value

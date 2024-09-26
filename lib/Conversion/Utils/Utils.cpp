@@ -138,6 +138,16 @@ Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
   return b.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
 }
 
+Value createOneInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
+                          Type elemTy) {
+  Value initTensor =
+      b.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
+  RankedTensorType type = cast<RankedTensorType>(initTensor.getType());
+  Value c1 =
+      b.create<arith::ConstantOp>(loc, b.getOneAttr(type.getElementType()));
+  return b.create<linalg::FillOp>(loc, c1, initTensor).getResult(0);
+}
+
 Value castIntToIndex(OpBuilder &b, Location loc, Value v) {
   assert(isa<IntegerType>(v.getType()) && "must be called with integer type");
   return b.createOrFold<arith::IndexCastOp>(loc, b.getIndexType(), v);

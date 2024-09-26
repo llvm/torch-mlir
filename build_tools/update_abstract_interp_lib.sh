@@ -41,6 +41,9 @@ if [ ! -z ${TORCH_MLIR_EXT_MODULES} ]; then
   ext_module="${TORCH_MLIR_EXT_MODULES} "
 fi
 
+# To enable this python package, manually build torch_mlir with:
+#   -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON
+# TODO: move this package out of JIT_IR_IMPORTER.
 PYTHONPATH="${pypath}" python \
   -m torch_mlir.jit_ir_importer.build_tools.abstract_interp_lib_gen \
   --pytorch_op_extensions=${ext_module:-""} \

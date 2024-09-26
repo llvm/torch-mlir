@@ -1308,6 +1308,107 @@ def TensorsStackPromoteDTypeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class HstackBasicIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 4], torch.bool, True),
+            ([2, 3, 4], torch.int32, True),
+            ([2, 3, 4], torch.int64, True),
+        ]
+    )
+    def forward(self, x, y, z):
+        return torch.ops.aten.hstack([x, y, z])
+
+
+@register_test_case(module_factory=lambda: HstackBasicIntModule())
+def HstackBasicIntModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(2, 3, 4, low=0, high=2).bool(),
+        tu.randint(2, 3, 4, low=0, high=100).int(),
+        tu.randint(2, 3, 4, low=0, high=100).long(),
+    )
+
+
+class HstackBasicFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 6, 4], torch.int32, True),
+            ([2, 3, 4], torch.float64, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.hstack([x, y])
+
+
+@register_test_case(module_factory=lambda: HstackBasicFloatModule())
+def HstackBasicFloatModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 6, 4).int(),
+        tu.rand(2, 3, 4).double(),
+    )
+
+
+class HstackBasicIntFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.int32, True),
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.hstack([x, y])
+
+
+@register_test_case(module_factory=lambda: HstackBasicIntFloatModule())
+def HstackBasicIntFloatModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, 6, 4, 2, low=1, high=50).int(),
+        tu.rand(4, 3, 4, 2),
+    )
+
+
+class HstackBasicComplexModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.complex64, True),
+            ([-1, -1, -1, -1], torch.complex128, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.hstack([x, y])
+
+
+@register_test_case(module_factory=lambda: HstackBasicComplexModule())
+def HstackBasicComplexModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(4, 6, 4, 2).type(torch.complex64),
+        tu.rand(4, 3, 4, 2).type(torch.complex128),
+    )
+
+
+# ==============================================================================
+
+
 class GatherModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1801,6 +1902,52 @@ def _LogSoftmaxModuleStable_basic(module, tu: TestUtils):
     # Should result in  tensor([-1e9, 0.00]) rather than tensor([-inf, 0.]).
     a = torch.tensor([0, 1e9])
     module.forward(a)
+
+
+# ==============================================================================
+
+
+class SafeSoftmaxModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, tensor):
+        return torch.ops.aten._safe_softmax(tensor, dim=0)
+
+
+@register_test_case(module_factory=lambda: SafeSoftmaxModule())
+def SafeSoftmaxModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
+
+
+# ==============================================================================
+
+
+class SafeSoftmaxNonNoneDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, tensor):
+        return torch.ops.aten._safe_softmax(tensor, dim=2, dtype=torch.float64)
+
+
+@register_test_case(module_factory=lambda: SafeSoftmaxNonNoneDtypeModule())
+def SafeSoftmaxNonNoneDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4))
 
 
 # ==============================================================================
@@ -4683,6 +4830,90 @@ def CumsumInputDtypeInt32Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class CumprodModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, val):
+        ones = torch.ones([1], dtype=torch.int32)
+        return torch.ops.aten.cumprod(val, ones.item())
+
+
+@register_test_case(module_factory=lambda: CumprodModule())
+def CumprodModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7, 4))
+
+
+class CumprodStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 7, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, val):
+        return torch.ops.aten.cumprod(val, 1)
+
+
+@register_test_case(module_factory=lambda: CumprodStaticModule())
+def CumprodStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7, 4))
+
+
+class CumprodStaticNegativeDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 7, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, val):
+        return torch.ops.aten.cumprod(val, dim=-1)
+
+
+@register_test_case(module_factory=lambda: CumprodStaticNegativeDimModule())
+def CumprodStaticNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7, 4))
+
+
+class CumprodInputDtypeInt32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 7, 4], torch.int32, True),
+        ]
+    )
+    def forward(self, val):
+        return torch.ops.aten.cumprod(val, 1)
+
+
+@register_test_case(module_factory=lambda: CumprodInputDtypeInt32Module())
+def CumprodInputDtypeInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 7, 4).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class AtenToDeviceModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -5107,9 +5338,9 @@ class ScaledDotProductAttentionSameModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([-1, -1, -1], torch.float32, True),
-            ([-1, -1, -1], torch.float32, True),
-            ([-1, -1, -1], torch.float32, True),
+            ([1, 5, 5], torch.float32, True),
+            ([1, 5, 5], torch.float32, True),
+            ([1, 5, 5], torch.float32, True),
         ]
     )
     def forward(self, query, key, value):
@@ -5124,6 +5355,58 @@ def ScaledDotProductAttentionSameModule_basic(module, tu: TestUtils):
     module.forward(query, key, value)
 
 
+class ScaledDotProductAttentionSameDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, query, key, value):
+        return torch.ops.aten.scaled_dot_product_attention(query, key, value)
+
+
+@register_test_case(module_factory=lambda: ScaledDotProductAttentionSameDynamicModule())
+def ScaledDotProductAttentionSameDynamicModule_basic(module, tu: TestUtils):
+    query = torch.randn(1, 5, 5, dtype=torch.float32)
+    key = torch.randn(1, 5, 5, dtype=torch.float32)
+    value = torch.randn(1, 5, 5, dtype=torch.float32)
+    module.forward(query, key, value)
+
+
+class ScaledDotProductAttentionSameCausalModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, query, key, value):
+        return torch.ops.aten.scaled_dot_product_attention(
+            query, key, value, is_causal=True
+        )
+
+
+@register_test_case(module_factory=lambda: ScaledDotProductAttentionSameCausalModule())
+def ScaledDotProductAttentionSameCausalModule_basic(module, tu: TestUtils):
+    query = torch.randn(1, 5, 5, dtype=torch.float32)
+    key = torch.randn(1, 5, 5, dtype=torch.float32)
+    value = torch.randn(1, 5, 5, dtype=torch.float32)
+    module.forward(query, key, value)
+
+
 class ScaledDotProductAttentionDifferentModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -5132,9 +5415,9 @@ class ScaledDotProductAttentionDifferentModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([2, 3, 8, 4], torch.float32, True),
-            ([2, 3, 16, 4], torch.float32, True),
-            ([2, 3, 16, 4], torch.float32, True),
+            ([2, 3, 8, 16], torch.float32, True),
+            ([2, 3, 12, 16], torch.float32, True),
+            ([2, 3, 12, 20], torch.float32, True),
         ]
     )
     def forward(self, query, key, value):
@@ -5143,10 +5426,122 @@ class ScaledDotProductAttentionDifferentModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ScaledDotProductAttentionDifferentModule())
 def ScaledDotProductAttentionDifferentModule_basic(module, tu: TestUtils):
-    query = torch.randn(2, 3, 8, 4, dtype=torch.float32)
-    key = torch.randn(2, 3, 16, 4, dtype=torch.float32)
-    value = torch.randn(2, 3, 16, 4, dtype=torch.float32)
+    query = torch.randn(2, 3, 8, 16, dtype=torch.float32)
+    key = torch.randn(2, 3, 12, 16, dtype=torch.float32)
+    value = torch.randn(2, 3, 12, 20, dtype=torch.float32)
     module.forward(query, key, value)
+
+
+class ScaledDotProductAttentionDifferentCausalModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 8, 16], torch.float32, True),
+            ([2, 3, 12, 16], torch.float32, True),
+            ([2, 3, 12, 20], torch.float32, True),
+        ]
+    )
+    def forward(self, query, key, value):
+        return torch.ops.aten.scaled_dot_product_attention(
+            query, key, value, is_causal=True
+        )
+
+
+@register_test_case(
+    module_factory=lambda: ScaledDotProductAttentionDifferentCausalModule()
+)
+def ScaledDotProductAttentionDifferentDynamicCausalModule_basic(module, tu: TestUtils):
+    query = torch.randn(2, 3, 8, 16, dtype=torch.float32)
+    key = torch.randn(2, 3, 12, 16, dtype=torch.float32)
+    value = torch.randn(2, 3, 12, 20, dtype=torch.float32)
+    module.forward(query, key, value)
+
+
+class ScaledDotProductAttentionDifferentDynamicCausalModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, -1, 16], torch.float32, True),
+            ([2, 3, -1, 16], torch.float32, True),
+            ([2, 3, -1, 20], torch.float32, True),
+        ]
+    )
+    def forward(self, query, key, value):
+        return torch.ops.aten.scaled_dot_product_attention(
+            query, key, value, is_causal=True
+        )
+
+
+@register_test_case(
+    module_factory=lambda: ScaledDotProductAttentionDifferentDynamicCausalModule()
+)
+def ScaledDotProductAttentionDifferentCausalModule_basic(module, tu: TestUtils):
+    query = torch.randn(2, 3, 8, 16, dtype=torch.float32)
+    key = torch.randn(2, 3, 12, 16, dtype=torch.float32)
+    value = torch.randn(2, 3, 12, 20, dtype=torch.float32)
+    module.forward(query, key, value)
+
+
+class ScaledDotProductAttentionMaskModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 8, 16], torch.float32, True),
+            ([2, 3, 12, 16], torch.float32, True),
+            ([2, 3, 12, 20], torch.float32, True),
+            ([2, 3, 8, 12], torch.float32, True),
+        ]
+    )
+    def forward(self, query, key, value, mask):
+        return torch.ops.aten.scaled_dot_product_attention(query, key, value, mask)
+
+
+@register_test_case(module_factory=lambda: ScaledDotProductAttentionMaskModule())
+def ScaledDotProductAttentionMaskModule_basic(module, tu: TestUtils):
+    query = torch.randn(2, 3, 8, 16, dtype=torch.float32)
+    key = torch.randn(2, 3, 12, 16, dtype=torch.float32)
+    value = torch.randn(2, 3, 12, 20, dtype=torch.float32)
+    mask = torch.randn(2, 3, 8, 12, dtype=torch.float32)
+    module.forward(query, key, value, mask)
+
+
+class ScaledDotProductAttentionBoolMaskModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 8, 16], torch.float32, True),
+            ([2, 3, 12, 16], torch.float32, True),
+            ([2, 3, 12, 20], torch.float32, True),
+            ([2, 3, 8, 12], torch.bool, True),
+        ]
+    )
+    def forward(self, query, key, value, mask):
+        return torch.ops.aten.scaled_dot_product_attention(query, key, value, mask)
+
+
+@register_test_case(module_factory=lambda: ScaledDotProductAttentionBoolMaskModule())
+def ScaledDotProductAttentionBoolMaskModule_basic(module, tu: TestUtils):
+    query = torch.randn(2, 3, 8, 16, dtype=torch.float32)
+    key = torch.randn(2, 3, 12, 16, dtype=torch.float32)
+    value = torch.randn(2, 3, 12, 20, dtype=torch.float32)
+    mask = torch.randn(2, 3, 8, 12, dtype=torch.float32) > 0.5
+    module.forward(query, key, value, mask)
 
 
 # ==============================================================================

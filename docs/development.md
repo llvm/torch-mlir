@@ -109,6 +109,15 @@ cmake -GNinja -Bbuild \
   -DLLVM_ENABLE_ASSERTIONS=ON \
 ```
 
+#### Flags to run end-to-end tests:
+
+Running the end-to-end execution tests locally requires enabling the native PyTorch extension features and the JIT IR importer, which depends on the
+former and defaults to `ON` if not changed:
+```shell
+  -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=ON \
+  -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON \
+```
+
 ### Building against a pre-built LLVM
 
 If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following command as template:
@@ -396,6 +405,8 @@ Torch-MLIR has two types of tests:
    a homegrown testing framework (see
    `projects/pt1/python/torch_mlir_e2e_test/framework.py`) and the test suite
    lives at `projects/pt1/python/torch_mlir_e2e_test/test_suite/__init__.py`.
+   The tests require to build with `TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS` (and
+   the dependent option `TORCH_MLIR_ENABLE_JIT_IR_IMPORTER`) set to `ON`.
 
 2. Compiler and Python API unit tests. These use LLVM's `lit` testing framework.
    For example, these might involve using `torch-mlir-opt` to run a pass and

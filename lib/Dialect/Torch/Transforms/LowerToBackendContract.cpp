@@ -371,6 +371,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
                                        llvm::StringSet<> backendLegalOpsSet) {
   target.addIllegalOp<AtenSoftmaxIntOp>();
   target.addIllegalOp<Aten_SoftmaxOp>();
+  target.addIllegalOp<Aten_SafeSoftmaxOp>();
   target.addIllegalOp<Aten_LogSoftmaxOp>();
   target.addIllegalOp<AtenLogSoftmaxIntOp>();
   target.addIllegalOp<AtenLogSigmoidOp>();
@@ -380,6 +381,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenOnesLikeOp>();
   target.addIllegalOp<AtenZerosLikeOp>();
   target.addIllegalOp<AtenStackOp>();
+  target.addIllegalOp<AtenHstackOp>();
   target.addIllegalOp<AtenRollOp>();
   target.addIllegalOp<AtenRepeatOp>();
   target.addIllegalOp<AtenRepeatInterleaveSelfIntOp>();
@@ -406,6 +408,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenSelectIntOp>();
   target.addIllegalOp<AtenMvOp>();
   target.addIllegalOp<AtenRenormOp>();
+  target.addIllegalOp<AtenRot90Op>();
   target.addIllegalOp<AtenLinalgCrossOp>();
   target.addIllegalOp<Aten_LinalgDetOp>();
   target.addIllegalOp<AtenLinalgSlogdetOp>();

@@ -96,14 +96,16 @@ set(_source_components
   TorchMLIRPythonSources
   TorchMLIRPythonExtensions
   TorchMLIRSiteInitialize
-
-  # Sources related to optional Torch extension dependent features. Typically
-  # empty unless if project features are enabled.
-  TorchMLIRPythonTorchExtensionsSources
 )
 
 if(TORCH_MLIR_ENABLE_STABLEHLO)
   list(APPEND _source_components StablehloPythonExtensions)
+endif()
+
+# Sources related to optional Torch extension dependent features. Typically
+# empty unless if project features are enabled.
+if(TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS)
+  list(APPEND _source_components TorchMLIRPythonTorchExtensionsSources)
 endif()
 
 add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
