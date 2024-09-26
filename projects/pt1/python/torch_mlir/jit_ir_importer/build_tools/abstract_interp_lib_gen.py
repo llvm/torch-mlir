@@ -1434,6 +1434,9 @@ def aten〇multinomial〡shape(self: List[int], num_samples: int, replacement: b
 def aten〇cumsum〡shape(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
     return self
 
+def aten〇cumprod〡shape(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
+    return self
+
 def aten〇rand_like〡shape(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
     return self
 
@@ -2919,6 +2922,18 @@ def aten〇cpu〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0) +
     _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, dtype=torch.float32))
 def aten〇cumsum〡dtype(self_rank_dtype: Tuple[int, int], dim: int, dtype: Optional[int] = None) -> int:
+    if dtype is not None:
+        return dtype
+    self_rank, self_dtype = self_rank_dtype
+    if is_integer_dtype(self_dtype):
+        return torch.int64
+    return self_dtype
+
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, dtype=torch.float32))
+def aten〇cumprod〡dtype(self_rank_dtype: Tuple[int, int], dim: int, dtype: Optional[int] = None) -> int:
     if dtype is not None:
         return dtype
     self_rank, self_dtype = self_rank_dtype
