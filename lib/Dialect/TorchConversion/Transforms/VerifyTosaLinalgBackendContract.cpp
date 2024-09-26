@@ -10,12 +10,14 @@
 #include "PassDetail.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MLProgram/IR/MLProgram.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -84,9 +86,10 @@ class VerifyTosaLinalgBackendContractPass
     target.addDynamicallyLegalDialect<affine::AffineDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<cf::ControlFlowDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<scf::SCFDialect>(opHasLegalTypes);
-    target.addDynamicallyLegalDialect<ml_program::MLProgramDialect>(
-        opHasLegalTypes);
-
+    target.addDynamicallyLegalDialect<ml_program::MLProgramDialect>(opHasLegalTypes);
+    target.addLegalDialect<memref::MemRefDialect>();
+    target.addLegalDialect<bufferization::BufferizationDialect>();    
+    
     // ConstantOp is used for tensors and for scalars.
     target.addDynamicallyLegalOp<arith::ConstantOp>(opHasLegalTypes);
     target.addDynamicallyLegalOp<complex::CreateOp>(opHasLegalTypes);
