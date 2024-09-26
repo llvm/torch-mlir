@@ -513,6 +513,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AdaptiveAvgPool3dDynamic_basic",
     "AdaptiveMaxPool1dDynamicNoBatch_basic",
     "AdaptiveMaxPool1dDynamic_basic",
+    "AdaptiveMaxPool1dDimOneStatic_basic",
     "AdaptiveMaxPool1dStatic_basic",
     "AdaptiveMaxPool2dDynamicNoBatch_basic",
     "AdaptiveMaxPool2dDynamicWithIndices_basic",
