@@ -10,8 +10,6 @@
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
-#include "mlir/Dialect/Bufferization/Transforms/Passes.h"
-#include "mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
@@ -23,7 +21,6 @@
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "torch-mlir/Conversion/TorchToTosaLinalg/TorchToTosaLinalg.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
-#include "torch-mlir/RefBackend/Passes.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h"
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
