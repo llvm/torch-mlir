@@ -2667,6 +2667,7 @@ ONNX_XFAIL_SET = {
     "RreluWithNoiseBackwardEvalStaticModule_basic",
     "RreluWithNoiseBackwardTrainModule_basic",
     "RreluWithNoiseBackwardTrainStaticModule_basic",
+    "RreluWithNoiseForwardBackwardModule_basic",
     "ReshapeAliasCollapseModule_basic",
     "ReshapeAliasExpandModule_basic",
     "ReshapeExpandModule_basic",

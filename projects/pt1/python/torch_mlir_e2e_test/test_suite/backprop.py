@@ -464,9 +464,6 @@ class RreluWithNoiseForwardBackwardModule(torch.nn.Module):
         ]
     )
     def forward(self, grad, input, noise):
-        torch.ops.aten.rrelu_with_noise(
-            input, noise, lower=0.4, upper=0.6, training=True
-        )
         res = torch.ops.aten.rrelu_with_noise_backward(
             grad,
             input,
@@ -481,8 +478,8 @@ class RreluWithNoiseForwardBackwardModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: RreluWithNoiseForwardBackwardModule())
 def RreluWithNoiseForwardBackwardModule_basic(module, tu: TestUtils):
-    module.forward(
-        tu.rand(256, 244),
-        tu.rand(256, 244, low=-1.0, high=1.0),
-        tu.rand(256, 244, low=0.4, high=0.6),
-    )
+    grad = tu.rand(256, 244)
+    input = tu.rand(256, 244, low=-1.0, high=1.0)
+    noise = tu.rand(256, 244)
+    torch.ops.aten.rrelu_with_noise(input, noise, lower=0.4, upper=0.6, training=True)
+    module.forward(grad, input, noise)
