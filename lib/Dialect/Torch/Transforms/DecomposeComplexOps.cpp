@@ -8511,6 +8511,77 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenBinaryCrossEntropyWithLogitsOp
+    : public OpRewritePattern<AtenBinaryCrossEntropyWithLogitsOp> {
+  using OpRewritePattern<AtenBinaryCrossEntropyWithLogitsOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenBinaryCrossEntropyWithLogitsOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto self = op.getSelf();
+    auto target = op.getTarget();
+    auto posWeight = op.getPosWeight();
+    auto weight = op.getWeight();
+    auto reduction = op.getReduction();
+
+    Value loss;
+    auto one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    auto _one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+
+    auto _target =
+        rewriter.create<AtenMulScalarOp>(loc, target.getType(), target, _one);
+    auto _target_1 = rewriter.create<AtenAddScalarOp>(loc, _target.getType(),
+                                                      _target, one, one);
+    Value mm =
+        rewriter.create<AtenMulTensorOp>(loc, self.getType(), _target_1, self);
+    Value logSigm =
+        rewriter.create<AtenLogSigmoidOp>(loc, self.getType(), self);
+
+    if (!isa<Torch::NoneType>(posWeight.getType())) {
+      auto logWeight = rewriter.create<AtenAddScalarOp>(
+          loc, posWeight.getType(),
+          rewriter.create<AtenSubScalarOp>(loc, posWeight.getType(), posWeight,
+                                           one, one),
+          one, one);
+      loss = rewriter.create<AtenSubTensorOp>(
+          loc, mm.getType(), mm,
+          rewriter.create<AtenMulTensorOp>(loc, logWeight.getType(), logWeight,
+                                           logSigm),
+          one);
+    } else {
+      loss =
+          rewriter.create<AtenSubTensorOp>(loc, mm.getType(), mm, logSigm, one);
+    }
+
+    if (!isa<Torch::NoneType>(weight.getType())) {
+      loss =
+          rewriter.create<AtenMulTensorOp>(loc, loss.getType(), loss, weight);
+    }
+
+    // apply loss reduction.
+    int64_t reductionInt;
+    if (!matchPattern(reduction, m_TorchConstantInt(&reductionInt))) {
+      return rewriter.notifyMatchFailure(op, "no reduction type is appointed!");
+    }
+
+    auto none = rewriter.create<ConstantNoneOp>(loc);
+    Value res;
+    if (reductionInt == 1) {
+      res = rewriter.create<AtenMeanOp>(loc, op.getType(), loss, none);
+    } else if (reductionInt == 2) {
+      res = rewriter.create<AtenSumOp>(loc, op.getType(), loss, none);
+    } else {
+      res = loss;
+    }
+
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
   using OpRewritePattern<AtenOneHotOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenOneHotOp op,
@@ -9643,6 +9714,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenMovedimIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenOneHotOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenBinaryCrossEntropyWithLogitsOp>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHannWindowPeriodicOp>(patterns);
