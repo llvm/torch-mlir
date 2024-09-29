@@ -1434,6 +1434,9 @@ def aten〇multinomial〡shape(self: List[int], num_samples: int, replacement: b
 def aten〇cumsum〡shape(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
     return self
 
+def aten〇cumprod〡shape(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
+    return self
+
 def aten〇rand_like〡shape(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
     return self
 
@@ -1989,6 +1992,14 @@ def aten〇mse_loss〡shape(self: List[int], target: List[int], reduction: int =
 
 def aten〇cross_entropy_loss〡shape(self: List[int], target: List[int], weight: Optional[List[int]] = None, reduction: int = 1, ignore_index: int = -100, label_smoothing: float = 0.) -> List[int]:
     return upstream_shape_functions.cross_entropy_loss(self, target, weight, reduction, ignore_index, label_smoothing)
+
+def aten〇binary_cross_entropy_with_logits〡shape(self: List[int], target: List[int], weight: Optional[List[int]] = None, pos_weight: Optional[List[int]] = None, reduction: int = 1) -> List[int]:
+    scalar_shape: List[int] = []
+    if reduction == 0:
+        result_shape = upstream_shape_functions._copy(self)
+    else:
+        result_shape = scalar_shape
+    return result_shape
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 5, 2, 2, 3), [2, 2, 3], None, None, 1e-6), # Basic case.
@@ -2919,6 +2930,18 @@ def aten〇cpu〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0) +
     _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, dtype=torch.float32))
 def aten〇cumsum〡dtype(self_rank_dtype: Tuple[int, int], dim: int, dtype: Optional[int] = None) -> int:
+    if dtype is not None:
+        return dtype
+    self_rank, self_dtype = self_rank_dtype
+    if is_integer_dtype(self_dtype):
+        return torch.int64
+    return self_dtype
+
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0) +
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, dtype=torch.float32))
+def aten〇cumprod〡dtype(self_rank_dtype: Tuple[int, int], dim: int, dtype: Optional[int] = None) -> int:
     if dtype is not None:
         return dtype
     self_rank, self_dtype = self_rank_dtype
@@ -4942,6 +4965,10 @@ def aten〇linalg_norm〡dtype(self_rank_dtype: Tuple[int, int], ord: Optional[U
         assert not is_complex_dtype(dtype)
         return dtype
     return aten〇std〡dtype(self_rank_dtype)
+
+def aten〇binary_cross_entropy_with_logits〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], weight_rank_dtype: Optional[Tuple[int, int]] = None, pos_weight_rank_dtype: Optional[Tuple[int, int]] = None, reduction: int = 1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(

@@ -105,9 +105,18 @@ public:
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()));
 
-    auto binaryOp =
-        tosa::createBinaryOpAndCast<TosaOpT>(rewriter, op, outTy, lhs, rhs);
-    rewriter.replaceOp(op, binaryOp.getResult());
+    Value binaryOp;
+
+    // TOSA ArithmeticRightShiftOp has a round parameter.
+    if constexpr (std::is_same<AtenOpT, AtenBitwiseRightShiftTensorOp>()) {
+      binaryOp = rewriter.create<TosaOpT>(op->getLoc(), outTy, lhs, rhs,
+                                          /*round=*/false);
+    } else {
+      binaryOp =
+          tosa::createBinaryOpAndCast<TosaOpT>(rewriter, op, outTy, lhs, rhs);
+    }
+
+    rewriter.replaceOp(op, binaryOp);
     return success();
   }
 };
@@ -353,6 +362,7 @@ public:
     // For bitwise operators, only integer datatype legalization is supported
     constexpr bool isBitwiseOp =
         std::is_same<AtenOpT, AtenBitwiseAndTensorOp>() ||
+        std::is_same<AtenOpT, AtenBitwiseAndScalarOp>() ||
         std::is_same<AtenOpT, AtenBitwiseOrTensorOp>() ||
         std::is_same<AtenOpT, AtenBitwiseXorTensorOp>();
     if (isa<mlir::FloatType>(lhsElemTy) && isBitwiseOp) {
@@ -372,7 +382,9 @@ public:
     auto rhsTensor = rhsTy ? rhs : rhsAsTensor;
     // There is no Lesser operator in TOSA.
     constexpr auto swapLhsRhs = (std::is_same<AtenOpT, AtenLtTensorOp>() ||
-                                 std::is_same<AtenOpT, AtenLtScalarOp>());
+                                 std::is_same<AtenOpT, AtenLtScalarOp>() ||
+                                 std::is_same<AtenOpT, AtenLeTensorOp>() ||
+                                 std::is_same<AtenOpT, AtenLeScalarOp>());
 
     // Promote lhs and rhs dtypes for bitwise operators.
     TensorType resultTy = cast<TensorType>(
@@ -463,6 +475,119 @@ public:
   }
 };
 
+// Function to perform division with trunc rounding mode (rounding result
+// towards zero) for float type inputs.
+// This function takes in the division result between lhs and rhs rather
+// than takes in the original lhs and rhs tensors as parameters.
+Value truncFloatDivWithDivResult(PatternRewriter &rewriter, Operation *op,
+                                 TensorType outType, Value divResult) {
+  // To implement trunc mode for float inputs, multiply the floored abs
+  // of the tensor with the elementwise signedness of the tensor.
+  // div_result = lhs / rhs
+  // trunc_val = floor(abs(div_result)) * sign(div_result)
+  auto zero =
+      tosa::getConstTensor<float>(rewriter, op, 0, {}, outType.getElementType())
+          .value();
+
+  auto one =
+      tosa::getConstTensor<float>(rewriter, op, 1, {}, outType.getElementType())
+          .value();
+
+  auto minusOne = tosa::getConstTensor<float>(rewriter, op, -1, {},
+                                              outType.getElementType())
+                      .value();
+
+  auto cond = rewriter.create<tosa::GreaterEqualOp>(
+      op->getLoc(),
+      RankedTensorType::get(outType.getShape(), rewriter.getIntegerType(1)),
+      divResult, zero);
+
+  auto selectOp = rewriter.create<tosa::SelectOp>(op->getLoc(), outType, cond,
+                                                  one, minusOne);
+
+  auto absDivResult =
+      rewriter.create<tosa::AbsOp>(op->getLoc(), outType, divResult);
+
+  auto flooredAbsDivResult =
+      rewriter.create<tosa::FloorOp>(op->getLoc(), outType, absDivResult);
+
+  Value result =
+      tosa::createMulOpAndCast(rewriter, op, outType, flooredAbsDivResult,
+                               selectOp, /*shift=*/0)
+          .getResult();
+
+  return result;
+}
+
+// Function to perform division with trunc rounding mode (rounding result
+// towards zero) for float type inputs
+Value truncFloatDiv(PatternRewriter &rewriter, Operation *op,
+                    TensorType outType, Value lhs, Value rhs) {
+  rhs = tosa::promoteType(rewriter, rhs, outType);
+
+  auto rhsRcp =
+      rewriter.create<tosa::ReciprocalOp>(op->getLoc(), rhs.getType(), rhs);
+
+  auto divResult = tosa::createMulOpAndCast(rewriter, op, outType, lhs, rhsRcp,
+                                            /*shift=*/0);
+
+  return truncFloatDivWithDivResult(rewriter, op, outType, divResult);
+}
+
+// Function to perform division with floor rounding mode (rounding result
+// down) for integer type inputs.
+Value floorIntDiv(PatternRewriter &rewriter, Operation *op, TensorType outType,
+                  Value lhs, Value rhs) {
+  // To implement floor mode int input, utilize tosa::IntDivOp (trunc div
+  // result) with the following formula elementwise:
+  // floor_val = trunc_val - ((trunc_val * rhs != lhs)
+  //                                && (sign(lhs) != sign(rhs)))
+
+  // TOSA IntDiv requires inputs to be i32
+  auto i32Type =
+      RankedTensorType::get(outType.getShape(), rewriter.getIntegerType(32));
+  lhs = tosa::promoteType(rewriter, lhs, i32Type);
+  rhs = tosa::promoteType(rewriter, rhs, i32Type);
+
+  auto intDivOp =
+      rewriter.create<tosa::IntDivOp>(op->getLoc(), i32Type, lhs, rhs);
+
+  auto zero = tosa::getConstTensor<int32_t>(rewriter, op, 0, {}).value();
+
+  auto one = tosa::getConstTensor<int32_t>(rewriter, op, 1, {}).value();
+
+  auto boolType =
+      RankedTensorType::get(outType.getShape(), rewriter.getIntegerType(1));
+
+  auto lhsMulRhs = rewriter.create<tosa::MulOp>(op->getLoc(), i32Type, lhs, rhs,
+                                                /*shift=*/0);
+
+  auto lhsRhsDifferentSign =
+      rewriter.create<tosa::GreaterOp>(op->getLoc(), boolType, zero, lhsMulRhs);
+
+  auto truncMulRhs = rewriter.create<tosa::MulOp>(op->getLoc(), i32Type,
+                                                  intDivOp, rhs, /*shift=*/0);
+
+  auto truncMulRhsEqualLhs =
+      rewriter.create<tosa::EqualOp>(op->getLoc(), boolType, truncMulRhs, lhs);
+
+  auto truncMulRhsNotEqualLhs = rewriter.create<tosa::LogicalNotOp>(
+      op->getLoc(), boolType, truncMulRhsEqualLhs);
+
+  auto truncMinusOne =
+      rewriter.create<tosa::SubOp>(op->getLoc(), i32Type, intDivOp, one);
+
+  auto cond = rewriter.create<tosa::LogicalAndOp>(
+      op->getLoc(), boolType, lhsRhsDifferentSign, truncMulRhsNotEqualLhs);
+
+  auto selectOp = rewriter.create<tosa::SelectOp>(op->getLoc(), i32Type, cond,
+                                                  truncMinusOne, intDivOp);
+
+  Value result = tosa::promoteType(rewriter, selectOp, outType);
+
+  return result;
+}
+
 template <typename AtenOpT>
 class ConvertAtenDivOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -498,25 +623,64 @@ public:
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()));
 
-    // auto result;
+    // Get rounding mode for aten.div.Tensor_mode
+    std::string roundMode;
+    if constexpr (std::is_same<AtenOpT, AtenDivTensorModeOp>() ||
+                  std::is_same<AtenOpT, AtenDivScalarModeOp>()) {
+      if (!matchPattern(op.getRoundingMode(), m_TorchConstantStr(roundMode)))
+        return rewriter.notifyMatchFailure(
+            op, "Non-const rounding mode parameter unsupported");
+    }
+
     Value result;
     if (isa<mlir::FloatType>(outType.getElementType())) {
-      // The input to the reciprocal is an integer sometimes, and we may need to
-      // promote it to a floating point. Per TOSA specification, the input types
-      // can only be floating point for tosa::ReciprocalOp.
-      Value rhsCasted = tosa::promoteType(rewriter, rhsTensor, outType);
-      auto rcpOp = rewriter.create<tosa::ReciprocalOp>(
-          op->getLoc(), rhsCasted.getType(), rhsCasted);
+      // The input to the reciprocal is an integer sometimes, and we may need
+      // to promote it to a floating point. Per TOSA specification, the input
+      // types can only be floating point for tosa::ReciprocalOp.
+      rhsTensor = tosa::promoteType(rewriter, rhsTensor, outType);
+      auto rhsRcp = rewriter.create<tosa::ReciprocalOp>(
+          op->getLoc(), rhsTensor.getType(), rhsTensor);
 
-      result = tosa::createMulOpAndCast(rewriter, op, outType, lhs,
-                                        rcpOp.getResult(), /*shift=*/0)
-                   .getResult();
+      auto divResult = tosa::createMulOpAndCast(rewriter, op, outType, lhs,
+                                                rhsRcp, /*shift=*/0);
+
+      // Round result based on rounding mode
+      if (roundMode.compare("floor") == 0) {
+        // "floor": rounds the results of the division down. Equivalent to
+        // floor division in Python (the // operator).
+        auto floorOp =
+            rewriter.create<tosa::FloorOp>(op->getLoc(), outType, divResult);
+
+        result = floorOp.getResult();
+      } else if (roundMode.compare("trunc") == 0) {
+        // "trunc": rounds the results of the division towards zero. Equivalent
+        // to C-style integer division.
+        result = truncFloatDivWithDivResult(rewriter, op, outType, divResult);
+      } else {
+        // None: No rounding mode
+        result = divResult.getResult();
+      }
     } else {
-      // The output type can be different than the input types (e.g. dividing an
-      // int tensor results in a floating point tensor).
-      result = tosa::createBinaryOpAndCast<tosa::IntDivOp>(
-                   rewriter, op, outType, lhs, rhsTensor)
-                   .getResult();
+      if (roundMode.compare("floor") == 0) {
+        // "floor": rounds the results of the division down. Equivalent to floor
+        // division in Python (the // operator).
+        result = floorIntDiv(rewriter, op, outType, lhs, rhsTensor);
+      } else {
+        // "trunc": rounds the results of the division towards zero. Equivalent
+        // to C-style integer division.
+        // None: no rounding mode.
+
+        // TOSA IntDiv requires inputs to be i32
+        auto i32Type = RankedTensorType::get(outType.getShape(),
+                                             rewriter.getIntegerType(32));
+        lhs = tosa::promoteType(rewriter, lhs, i32Type);
+        rhsTensor = tosa::promoteType(rewriter, rhsTensor, i32Type);
+
+        auto intDivOp = rewriter.create<tosa::IntDivOp>(op->getLoc(), i32Type,
+                                                        lhs, rhsTensor);
+
+        result = tosa::promoteType(rewriter, intDivOp, outType);
+      }
     }
 
     rewriter.replaceOp(op, {result});
@@ -536,39 +700,30 @@ public:
                   ConversionPatternRewriter &rewriter) const override;
 };
 
-template <>
-LogicalResult ConvertAtenOp<AtenTanhOp>::matchAndRewrite(
-    AtenTanhOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Value self = adaptor.getSelf();
-  auto selfTy = cast<TensorType>(self.getType());
-  if (selfTy && isa<mlir::FloatType>(selfTy.getElementType())) {
-    rewriter.replaceOpWithNewOp<tosa::TanhOp>(
-        op, getTypeConverter()->convertType(op.getType()), self);
-    return success();
-  }
-  // Sigmoid legalization in TOSA for quantized element-type uses specialized
-  // tosa.table construct.
-  return rewriter.notifyMatchFailure(
-      op, "Only floating-point datatype legalization currently supported");
-}
+template <typename AtenOpT, typename TosaOpT>
+class ConvertAtenActivationFunctionOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value self = adaptor.getSelf();
+    auto selfTy = cast<TensorType>(self.getType());
 
-template <>
-LogicalResult ConvertAtenOp<AtenSigmoidOp>::matchAndRewrite(
-    AtenSigmoidOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Value self = adaptor.getSelf();
-  auto selfTy = cast<TensorType>(self.getType());
-  if (selfTy && isa<mlir::FloatType>(selfTy.getElementType())) {
-    rewriter.replaceOpWithNewOp<tosa::SigmoidOp>(
-        op, getTypeConverter()->convertType(op.getType()), self);
+    if (!selfTy)
+      return rewriter.notifyMatchFailure(op, "Only Tensor types supported");
+
+    if (!isa<mlir::FloatType>(selfTy.getElementType()))
+      return rewriter.notifyMatchFailure(
+          op, "Only floating-point datatype legalization currently supported");
+
+    rewriter.replaceOpWithNewOp<TosaOpT>(
+        op, this->getTypeConverter()->convertType(op.getType()), self);
+
     return success();
   }
-  // Sigmoid legalization in TOSA for quantized element-type uses
-  // specialized tosa.table construct.
-  return rewriter.notifyMatchFailure(
-      op, "Only floating-point datatype legalization currently supported");
-}
+};
 
 template <>
 LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
@@ -675,6 +830,53 @@ public:
     if (!outputTy)
       return rewriter.notifyMatchFailure(
           op, "Only ranked tensor type outputs permitted for reduce_mean");
+
+    auto selfElemTy = selfTy.getElementType();
+    if (!selfElemTy.isIntOrFloat())
+      return rewriter.notifyMatchFailure(
+          op, "Only floating-point or integer datatype legalization supported");
+
+    // TOSA ReduceAll and ReduceAny ops only accept bool input
+    if constexpr (std::is_same<AtenOpT, AtenAllDimOp>() ||
+                  std::is_same<AtenOpT, AtenAnyDimOp>() ||
+                  std::is_same<AtenOpT, AtenAllOp>() ||
+                  std::is_same<AtenOpT, AtenAnyOp>()) {
+      self = tosa::promoteType(
+          rewriter, self,
+          RankedTensorType::get(selfTy.getShape(), rewriter.getIntegerType(1)));
+    }
+
+    // Handle dtype output and bool elem type for ReduceSum and ReduceProd ops
+    if constexpr (std::is_same<AtenOpT, AtenSumDimIntListOp>() ||
+                  std::is_same<AtenOpT, AtenSumOp>() ||
+                  std::is_same<AtenOpT, AtenProdDimIntOp>() ||
+                  std::is_same<AtenOpT, AtenProdOp>()) {
+      auto dtype = op.getDtype();
+      int64_t dtypeInt;
+      if (!isa<Torch::NoneType>(dtype.getType())) {
+        if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+          return rewriter.notifyMatchFailure(op, "dtype is not a constant int");
+
+        FailureOr<Type> maybeDtypeType = getTypeForScalarType(
+            op.getContext(), (torch_upstream::ScalarType)dtypeInt);
+        if (failed(maybeDtypeType)) {
+          return rewriter.notifyMatchFailure(op, "dtype is undefined");
+        } else {
+          Type dtypeType = maybeDtypeType.value();
+
+          if (isa<mlir::IntegerType>(dtypeType))
+            dtypeType =
+                rewriter.getIntegerType(dtypeType.getIntOrFloatBitWidth());
+
+          self = tosa::promoteType(
+              rewriter, self,
+              RankedTensorType::get(selfTy.getShape(), dtypeType));
+        }
+      } else {
+        if (selfElemTy.isInteger(1))
+          self = tosa::promoteType(rewriter, self, outputTy);
+      }
+    }
 
     ElementsAttr reduceDimsAttr;
     bool keepDims;
@@ -1006,39 +1208,63 @@ class ConvertAtenSqueezeAllDimsOp : public ConvertAtenSqueezeOp<AtenOpT> {
   }
 };
 
-template <>
-LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
-    AtenPowTensorScalarOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
+template <typename AtenOpT>
+class ConvertAtenPowOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
 
-  Value self = adaptor.getSelf();
-  auto selfTy = cast<RankedTensorType>(self.getType());
+    auto outType =
+        cast<TensorType>(this->getTypeConverter()->convertType(op.getType()));
 
-  if (!selfTy)
-    return rewriter.notifyMatchFailure(
-        op, "Only ranked tensor types supported in TOSA Pow");
+    Value selfTensor;
+    if constexpr (std::is_same<AtenOpT, AtenPowScalarOp>()) {
+      Value selfScalar = op.getSelf();
+      if (failed(torchScalarToTosaTensor(rewriter, op, selfScalar, selfTensor,
+                                         outType.getElementType(), {})))
+        return rewriter.notifyMatchFailure(
+            op, "Currently only scalar constants are supported for "
+                "conversion in TOSA PowScalar operation");
+    } else {
+      selfTensor = adaptor.getSelf();
+      auto selfTy = cast<RankedTensorType>(selfTensor.getType());
 
-  if (!isa<mlir::FloatType>(selfTy.getElementType()))
-    return rewriter.notifyMatchFailure(
-        op, "Only floating-point datatype legalization supported");
+      if (!selfTy)
+        return rewriter.notifyMatchFailure(
+            op, "Only ranked tensor types supported in TOSA Pow");
 
-  auto outType =
-      cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+      if (!isa<mlir::FloatType>(selfTy.getElementType()))
+        return rewriter.notifyMatchFailure(
+            op, "Only floating-point datatype legalization supported");
+    }
 
-  Value expTensor;
-  Value expScalar = op.getExponent();
-  if (failed(torchScalarToTosaTensor(rewriter, op, expScalar, expTensor,
-                                     outType.getElementType(), {})))
-    return rewriter.notifyMatchFailure(
-        op, "Currently only scalar constants are supported for "
-            "conversion in TOSA Pow operation");
+    Value expTensor;
+    if constexpr (std::is_same<AtenOpT, AtenPowTensorScalarOp>()) {
+      Value expScalar = op.getExponent();
+      if (failed(torchScalarToTosaTensor(rewriter, op, expScalar, expTensor,
+                                         outType.getElementType(), {})))
+        return rewriter.notifyMatchFailure(
+            op, "Currently only scalar constants are supported for "
+                "conversion in TOSA Pow operation");
+    } else {
+      expTensor = adaptor.getExponent();
+      auto expTy = cast<RankedTensorType>(expTensor.getType());
 
-  auto powOp = tosa::createBinaryOpAndCast<tosa::PowOp>(rewriter, op, outType,
-                                                        self, expTensor);
-  rewriter.replaceOp(op, powOp.getResult());
+      if (!expTy)
+        return rewriter.notifyMatchFailure(
+            op, "Only ranked tensor types supported in TOSA Pow");
+    }
 
-  return success();
-}
+    auto powOp = tosa::createBinaryOpAndCast<tosa::PowOp>(
+        rewriter, op, outType, selfTensor, expTensor);
+    rewriter.replaceOp(op, powOp.getResult());
+
+    return success();
+  }
+};
 
 // Perform the basic n-dim matmul operation encompassing the handling of
 // broadcasting and dynamic shape propagation.
@@ -3248,81 +3474,104 @@ LogicalResult ConvertAtenOp<AtenTransposeIntOp>::matchAndRewrite(
   return success();
 }
 
-template <>
-LogicalResult ConvertAtenOp<AtenMaxDimOp>::matchAndRewrite(
-    AtenMaxDimOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
+template <typename AtenOpT, typename TosaOpT>
+class ConvertAtenMinMaxDimOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
 
-  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
-  if (!selfType)
-    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
+    auto self = adaptor.getSelf();
+    auto selfType = dyn_cast<TensorType>(self.getType());
+    if (!selfType)
+      return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
 
-  auto indicesType =
-      dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType(1)));
-  if (!indicesType)
-    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
+    const TypeConverter *typeConverter = this->getTypeConverter();
+    auto indicesType =
+        dyn_cast<TensorType>(typeConverter->convertType(op.getType(1)));
+    if (!indicesType)
+      return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
 
-  auto selfElemType = selfType.getElementType();
-  auto indicesElemType = indicesType.getElementType();
+    auto selfElemType = selfType.getElementType();
+    auto indicesElemType = indicesType.getElementType();
 
-  // Only statically deducible values are currently supported
-  int64_t dim;
-  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
-    return rewriter.notifyMatchFailure(op, "dim must be a Scalar constant");
+    // Only statically deducible values are currently supported
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(op, "dim must be a Scalar constant");
 
-  dim = toPositiveDim(dim, selfType.getRank());
+    dim = toPositiveDim(dim, selfType.getRank());
 
-  if (!isValidDim(dim, selfType.getRank()))
-    return rewriter.notifyMatchFailure(op, "dim must be less than tensor rank");
+    if (!isValidDim(dim, selfType.getRank()))
+      return rewriter.notifyMatchFailure(op,
+                                         "dim must be less than tensor rank");
 
-  bool keepDim;
-  if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim)))
-    return rewriter.notifyMatchFailure(op, "keepdim must be a Scalar constant");
+    bool keepDim;
+    if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim)))
+      return rewriter.notifyMatchFailure(op,
+                                         "keepdim must be a Scalar constant");
 
-  SmallVector<int64_t> reducedShape, prunedShape;
-  for (auto en :
-       llvm::enumerate(makeShapeTorchCompatible(selfType.getShape()))) {
-    if (static_cast<int64_t>(en.index()) == dim) {
-      reducedShape.push_back(1);
-      continue;
+    SmallVector<int64_t> reducedShape, prunedShape;
+    for (auto en :
+         llvm::enumerate(makeShapeTorchCompatible(selfType.getShape()))) {
+      if (static_cast<int64_t>(en.index()) == dim) {
+        reducedShape.push_back(1);
+        continue;
+      }
+      reducedShape.push_back(en.value());
+      prunedShape.push_back(en.value());
     }
-    reducedShape.push_back(en.value());
-    prunedShape.push_back(en.value());
-  }
 
-  auto dimAttr = rewriter.getIntegerAttr(rewriter.getI32Type(), dim);
-  auto prunedShapeAttr = rewriter.getDenseI64ArrayAttr(prunedShape);
+    auto dimAttr = rewriter.getIntegerAttr(rewriter.getI32Type(), dim);
+    auto prunedShapeAttr = rewriter.getDenseI64ArrayAttr(prunedShape);
 
-  Value reduceMax = rewriter.create<tosa::ReduceMaxOp>(
-      op->getLoc(),
-      RankedTensorType::get(makeShapeLLVMCompatible(reducedShape),
-                            selfElemType),
-      adaptor.getSelf(), dimAttr);
-
-  Value argMax = rewriter.create<tosa::ArgMaxOp>(
-      op->getLoc(),
-      RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
-                            indicesElemType),
-      adaptor.getSelf(), dimAttr);
-
-  if (argMax.getType() != indicesType) {
-    argMax = rewriter.create<tosa::ReshapeOp>(
-        op->getLoc(), indicesType, argMax,
-        rewriter.getDenseI64ArrayAttr(reducedShape));
-  }
-
-  if (!keepDim) {
-    reduceMax = rewriter.create<tosa::ReshapeOp>(
+    Value reduceOp = rewriter.create<TosaOpT>(
         op->getLoc(),
-        RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
+        RankedTensorType::get(makeShapeLLVMCompatible(reducedShape),
                               selfElemType),
-        reduceMax, prunedShapeAttr);
+        self, dimAttr);
+
+    // To handle ReduceMinDim indices, we apply ArgMaxOp on the negate
+    // of the input tensor, which will return indices of input's min values
+    Value argMaxOp;
+    if constexpr (std::is_same<AtenOpT, AtenMinDimOp>()) {
+      Value negateOp =
+          rewriter.create<tosa::NegateOp>(op->getLoc(), selfType, self);
+
+      argMaxOp = rewriter.create<tosa::ArgMaxOp>(
+          op->getLoc(),
+          RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
+                                indicesElemType),
+          negateOp, dimAttr);
+    } else {
+      argMaxOp = rewriter.create<tosa::ArgMaxOp>(
+          op->getLoc(),
+          RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
+                                indicesElemType),
+          self, dimAttr);
+    }
+
+    if (argMaxOp.getType() != indicesType) {
+      argMaxOp = rewriter.create<tosa::ReshapeOp>(
+          op->getLoc(), indicesType, argMaxOp,
+          rewriter.getDenseI64ArrayAttr(reducedShape));
+    }
+
+    if (!keepDim) {
+      reduceOp = rewriter.create<tosa::ReshapeOp>(
+          op->getLoc(),
+          RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
+                                selfElemType),
+          reduceOp, prunedShapeAttr);
+    }
+
+    rewriter.replaceOp(op, {reduceOp, argMaxOp});
+
+    return success();
   }
-
-  rewriter.replaceOp(op, {reduceMax, argMax});
-
-  return success();
-}
+};
 
 template <>
 LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
@@ -4022,32 +4271,6 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenLeTensorOp>::matchAndRewrite(
-    AtenLeTensorOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-
-  // Not a tensor type.
-  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
-  if (!selfType)
-    return rewriter.notifyMatchFailure(
-        op, "Only tensor types input are currently supported");
-  auto otherType = dyn_cast<TensorType>(adaptor.getOther().getType());
-  if (!otherType)
-    return rewriter.notifyMatchFailure(
-        op, "Only tensor types condition are currently supported");
-
-  auto outType = getTypeConverter()->convertType(op.getType());
-
-  auto greaterOp = rewriter.create<tosa::GreaterOp>(
-      op.getLoc(), outType, adaptor.getSelf(), adaptor.getOther());
-
-  rewriter.replaceOpWithNewOp<tosa::LogicalNotOp>(op, outType,
-                                                  greaterOp.getOutput());
-
-  return success();
-}
-
-template <>
 LogicalResult ConvertAtenOp<AtenIscloseOp>::matchAndRewrite(
     AtenIscloseOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -4454,56 +4677,94 @@ LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewrite(
   return success();
 }
 
-template <>
-LogicalResult ConvertAtenOp<AtenRemainderScalarOp>::matchAndRewrite(
-    AtenRemainderScalarOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
+template <typename AtenOpT>
+class ConvertAtenRemainderFmodOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
 
-  Value self = adaptor.getSelf();
-  auto selfTy = cast<RankedTensorType>(self.getType());
+    Value self = adaptor.getSelf();
+    auto selfTy = cast<RankedTensorType>(self.getType());
 
-  if (!selfTy)
-    return rewriter.notifyMatchFailure(
-        op, "Only ranked tensor types supported in TOSA Remainder");
+    if (!selfTy)
+      return rewriter.notifyMatchFailure(
+          op, "Only ranked tensor types supported in TOSA Remainder/Fmod");
 
-  auto outType =
-      cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+    auto outType =
+        cast<TensorType>(this->getTypeConverter()->convertType(op.getType()));
 
-  Type outElemTy = outType.getElementType();
-  if (!outElemTy.isIntOrFloat())
-    return rewriter.notifyMatchFailure(
-        op, "Only floating-point or integer datatype legalization supported");
+    Type outElemTy = outType.getElementType();
+    if (!outElemTy.isIntOrFloat())
+      return rewriter.notifyMatchFailure(
+          op, "Only floating-point or integer datatype legalization supported");
 
-  Value otherTensor;
-  Value other = op.getOther();
-  if (failed(torchScalarToTosaTensor(rewriter, op, other, otherTensor,
-                                     outElemTy, {})))
-    return rewriter.notifyMatchFailure(
-        op, "Currently only scalar constants are supported for "
-            "conversion in TOSA Remainder operation");
+    Value otherTensor;
+    if constexpr (std::is_same<AtenOpT, AtenRemainderScalarOp>()) {
+      Value other = op.getOther();
+      if (failed(torchScalarToTosaTensor(rewriter, op, other, otherTensor,
+                                         outElemTy, {})))
+        return rewriter.notifyMatchFailure(
+            op, "Currently only scalar constants are supported for "
+                "conversion in TOSA Remainder/Fmod operation");
+    } else {
+      otherTensor = adaptor.getOther();
+      auto otherTy = cast<RankedTensorType>(otherTensor.getType());
 
-  if (selfTy.getElementType() != outElemTy)
-    self = rewriter.create<tosa::CastOp>(op.getLoc(), outType, self);
+      if (!otherTy)
+        return rewriter.notifyMatchFailure(
+            op, "Only ranked tensor types supported in TOSA Remainder/Fmod");
+    }
 
-  auto divTensor = self;
-  if (isa<mlir::FloatType>(outElemTy)) {
-    auto otherTensorReciprocal = rewriter.create<tosa::ReciprocalOp>(
-        op.getLoc(), otherTensor.getType(), otherTensor);
-    divTensor = rewriter.create<tosa::MulOp>(
-        op.getLoc(), outType, self, otherTensorReciprocal, /*shift=*/0);
-    divTensor = rewriter.create<tosa::FloorOp>(op.getLoc(), outType, divTensor);
-  } else {
-    divTensor = rewriter.create<tosa::IntDivOp>(op.getLoc(), outType, self,
-                                                otherTensor);
+    constexpr bool isRemainderOp =
+        std::is_same<AtenOpT, AtenRemainderScalarOp>() ||
+        std::is_same<AtenOpT, AtenRemainderTensorOp>() ||
+        std::is_same<AtenOpT, AtenRemainderIntOp>();
+
+    if (selfTy.getElementType() != outElemTy)
+      self = rewriter.create<tosa::CastOp>(op.getLoc(), outType, self);
+
+    Value divTensor;
+    if (isRemainderOp) {
+      // torch.remainder(a, b) == a - a.div(b, rounding_mode="floor") * b
+      if (isa<mlir::FloatType>(outElemTy)) {
+        auto otherTensorReciprocal = rewriter.create<tosa::ReciprocalOp>(
+            op.getLoc(), otherTensor.getType(), otherTensor);
+        divTensor = rewriter.create<tosa::MulOp>(
+            op.getLoc(), outType, self, otherTensorReciprocal, /*shift=*/0);
+        divTensor =
+            rewriter.create<tosa::FloorOp>(op.getLoc(), outType, divTensor);
+      } else {
+        divTensor = floorIntDiv(rewriter, op, outType, self, otherTensor);
+      }
+    } else {
+      // torch.fmod(a, b) == a - a.div(b, rounding_mode="trunc") * b
+      if (isa<mlir::FloatType>(outElemTy)) {
+        divTensor = truncFloatDiv(rewriter, op, outType, self, otherTensor);
+      } else {
+        // TOSA IntDiv requires inputs to be i32
+        auto i32Type = RankedTensorType::get(outType.getShape(),
+                                             rewriter.getIntegerType(32));
+        self = tosa::promoteType(rewriter, self, i32Type);
+        otherTensor = tosa::promoteType(rewriter, otherTensor, i32Type);
+
+        auto intDivTensor = rewriter.create<tosa::IntDivOp>(
+            op->getLoc(), i32Type, self, otherTensor);
+
+        divTensor = tosa::promoteType(rewriter, intDivTensor, outType);
+      }
+    }
+
+    auto mulTensor = rewriter.create<tosa::MulOp>(op.getLoc(), outType,
+                                                  otherTensor, divTensor,
+                                                  /*shift=*/0);
+    rewriter.replaceOpWithNewOp<tosa::SubOp>(op, outType, self, mulTensor);
+
+    return success();
   }
-
-  auto mulTensor =
-      rewriter.create<tosa::MulOp>(op.getLoc(), outType, otherTensor, divTensor,
-                                   /*shift=*/0);
-  rewriter.replaceOpWithNewOp<tosa::SubOp>(op, outType, self, mulTensor);
-
-  return success();
-}
+};
 
 template <typename AtenOpT, typename TosaOpT>
 class ConvertAtenPoolingBaseOp : public OpConversionPattern<AtenOpT> {
@@ -5555,6 +5816,9 @@ public:
     INSERT_UNARY_PATTERN(AtenBitwiseNotOp, tosa::BitwiseNotOp)
     INSERT_UNARY_PATTERN(AtenCeilOp, tosa::CeilOp)
     INSERT_UNARY_PATTERN(AtenReciprocalOp, tosa::ReciprocalOp)
+    INSERT_UNARY_PATTERN(AtenCosOp, tosa::CosOp)
+    INSERT_UNARY_PATTERN(AtenSinOp, tosa::SinOp)
+    INSERT_UNARY_PATTERN(AtenLogicalNotOp, tosa::LogicalNotOp)
 #undef INSERT_UNARY_PATTERN
 
 #define INSERT_BINARY_PATTERN(AtenOp, TosaOp)                                  \
@@ -5563,6 +5827,11 @@ public:
     INSERT_BINARY_PATTERN(AtenMaximumOp, tosa::MaximumOp)
     INSERT_BINARY_PATTERN(AtenMinimumOp, tosa::MinimumOp)
     INSERT_BINARY_PATTERN(AtenLogicalOrOp, tosa::LogicalOrOp)
+    INSERT_BINARY_PATTERN(AtenLogicalXorOp, tosa::LogicalXorOp)
+    INSERT_BINARY_PATTERN(AtenBitwiseLeftShiftTensorOp,
+                          tosa::LogicalLeftShiftOp)
+    INSERT_BINARY_PATTERN(AtenBitwiseRightShiftTensorOp,
+                          tosa::ArithmeticRightShiftOp)
 #undef INSERT_BINARY_PATTERN
 
 #define INSERT_BINARY_ADDSUB_PATTERN(AtenOp, TosaOp)                           \
@@ -5579,14 +5848,18 @@ public:
   patterns.add<ConvertAtenCompareOp<AtenOp, TosaOp>>(typeConverter, context);
     INSERT_BINARY_COMPARE_PATTERN(AtenGtTensorOp, tosa::GreaterOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenGeScalarOp, tosa::GreaterEqualOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenGeTensorOp, tosa::GreaterEqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenGtScalarOp, tosa::GreaterOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenLtTensorOp, tosa::GreaterOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenLtScalarOp, tosa::GreaterOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenLeTensorOp, tosa::GreaterEqualOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenLeScalarOp, tosa::GreaterEqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenEqTensorOp, tosa::EqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenEqScalarOp, tosa::EqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenNeTensorOp, tosa::EqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenNeScalarOp, tosa::EqualOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenBitwiseAndTensorOp, tosa::BitwiseAndOp)
+    INSERT_BINARY_COMPARE_PATTERN(AtenBitwiseAndScalarOp, tosa::BitwiseAndOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenBitwiseOrTensorOp, tosa::BitwiseOrOp)
     INSERT_BINARY_COMPARE_PATTERN(AtenBitwiseXorTensorOp, tosa::BitwiseXorOp)
 #undef INSERT_BINARY_COMPARE_PATTERN
@@ -5603,7 +5876,18 @@ public:
   patterns.add<ConvertAtenDivOp<AtenOp>>(typeConverter, context);
     INSERT_BINARY_DIV_PATTERN(AtenDivTensorOp);
     INSERT_BINARY_DIV_PATTERN(AtenDivScalarOp);
+    INSERT_BINARY_DIV_PATTERN(AtenDivTensorModeOp);
+    INSERT_BINARY_DIV_PATTERN(AtenDivScalarModeOp);
 #undef INSERT_BINARY_DIV_PATTERN
+
+#define INSERT_REMAINDER_FMOD_OP_PATTERN(AtenOp)                               \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenRemainderFmodOp<AtenOp>>(typeConverter, context);
+    INSERT_REMAINDER_FMOD_OP_PATTERN(AtenRemainderScalarOp);
+    INSERT_REMAINDER_FMOD_OP_PATTERN(AtenRemainderTensorOp);
+    INSERT_REMAINDER_FMOD_OP_PATTERN(AtenFmodScalarOp);
+    INSERT_REMAINDER_FMOD_OP_PATTERN(AtenFmodTensorOp);
+#undef INSERT_REMAINDER_FMOD_OP_PATTERN
 
 #define INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)              \
   target.addIllegalOp<AtenOp>();                                               \
@@ -5623,6 +5907,10 @@ public:
       typeConverter, context);
     INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenAnyDimOp,
                                        mlir::tosa::convertReduceAnyOp)
+    INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenAllDimOp,
+                                       mlir::tosa::convertReduceAllOp)
+    INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenProdDimIntOp,
+                                       mlir::tosa::convertReduceProdOp)
 #undef INSERT_ONEDIM_REDUCTION_OP_PATTERN
 
 #define INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)            \
@@ -5635,7 +5923,20 @@ public:
                                         mlir::tosa::convertReduceAnyOp)
     INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenSumOp,
                                         mlir::tosa::convertReduceSumOp)
+    INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenMaxOp,
+                                        mlir::tosa::convertReduceMaxOp)
+    INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenMinOp,
+                                        mlir::tosa::convertReduceMinOp)
+    INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenProdOp,
+                                        mlir::tosa::convertReduceProdOp)
 #undef INSERT_ALLDIMS_REDUCTION_OP_PATTERN
+
+#define INSERT_INDICES_REDUCTION_OP_PATTERN(AtenOp, TosaOp)                    \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenMinMaxDimOp<AtenOp, TosaOp>>(typeConverter, context);
+    INSERT_INDICES_REDUCTION_OP_PATTERN(AtenMaxDimOp, tosa::ReduceMaxOp);
+    INSERT_INDICES_REDUCTION_OP_PATTERN(AtenMinDimOp, tosa::ReduceMinOp);
+#undef INSERT_INDICES_REDUCTION_OP_PATTERN
 
 #define INSERT_SQUEEZE_OP_PATTERN(AtenOp, TemplateForm)                        \
   target.addIllegalOp<AtenOp>();                                               \
@@ -5698,16 +5999,30 @@ public:
     INSERT_MASKED_FILL_PATTERN(AtenMaskedFillTensorOp);
 #undef INSERT_MASKED_FILL_PATTERN
 
+#define INSERT_POW_OP_PATTERN(AtenOp)                                          \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenPowOp<AtenOp>>(typeConverter, context);
+    INSERT_POW_OP_PATTERN(AtenPowTensorScalarOp);
+    INSERT_POW_OP_PATTERN(AtenPowTensorTensorOp);
+    INSERT_POW_OP_PATTERN(AtenPowScalarOp);
+#undef INSERT_POW_OP_PATTERN
+
+#define INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenOp, TosaOp)                  \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenActivationFunctionOp<AtenOp, TosaOp>>(typeConverter, \
+                                                                context);
+    INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenTanhOp, tosa::TanhOp);
+    INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenSigmoidOp, tosa::SigmoidOp);
+    INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenErfOp, tosa::ErfOp);
+#undef INSERT_ACTIVATION_FUNCITON_OP_PATTERN
+
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context);
-    INSERT_ATENOP_PATTERN(AtenTanhOp);
     INSERT_ATENOP_PATTERN(AtenHardtanhBackwardOp);
-    INSERT_ATENOP_PATTERN(AtenSigmoidOp);
     INSERT_ATENOP_PATTERN(AtenReluOp);
     INSERT_ATENOP_PATTERN(AtenLeakyReluOp);
     INSERT_ATENOP_PATTERN(AtenArgmaxOp);
-    INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
     INSERT_ATENOP_PATTERN(AtenRsubScalarOp);
     INSERT_ATENOP_PATTERN(AtenConvolutionOp);
     INSERT_ATENOP_PATTERN(ValueTensorLiteralOp);
@@ -5727,7 +6042,6 @@ public:
     INSERT_ATENOP_PATTERN(AtenGeluBackwardOp);
     INSERT_ATENOP_PATTERN(AtenEmbeddingOp);
     INSERT_ATENOP_PATTERN(AtenTransposeIntOp);
-    INSERT_ATENOP_PATTERN(AtenMaxDimOp);
     INSERT_ATENOP_PATTERN(AtenSliceTensorOp);
     INSERT_ATENOP_PATTERN(AtenBroadcastToOp);
     INSERT_ATENOP_PATTERN(AtenGatherOp);
@@ -5735,14 +6049,12 @@ public:
     INSERT_ATENOP_PATTERN(AtenIndexTensorHackedTwinOp);
     INSERT_ATENOP_PATTERN(AtenAbsOp);
     INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
-    INSERT_ATENOP_PATTERN(AtenLeTensorOp);
     INSERT_ATENOP_PATTERN(AtenClampOp);
     INSERT_ATENOP_PATTERN(AtenArangeStartStepOp);
     INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
     INSERT_ATENOP_PATTERN(AtenCopyOp);
     INSERT_ATENOP_PATTERN(AtenToDtypeOp);
     INSERT_ATENOP_PATTERN(AtenConstantPadNdOp);
-    INSERT_ATENOP_PATTERN(AtenRemainderScalarOp);
     INSERT_ATENOP_PATTERN(AtenCatOp);
     INSERT_ATENOP_PATTERN(AtenSqrtOp);
     INSERT_ATENOP_PATTERN(AtenIscloseOp);

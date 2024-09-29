@@ -2294,6 +2294,29 @@ def CrossEntropyLossNoReductionModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(8, 2), tu.randint(8, high=2))
 
 
+class BinaryCrossEntropyWithLogitsStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([8, 2], torch.float32, True),
+            ([8, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, input, target):
+        return torch.ops.aten.binary_cross_entropy_with_logits(
+            input, target, reduction=0
+        )
+
+
+@register_test_case(module_factory=lambda: BinaryCrossEntropyWithLogitsStaticModule())
+def BinaryCrossEntropyWithLogitsStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 2), tu.rand(8, 2))
+
+
 # ==============================================================================
 
 

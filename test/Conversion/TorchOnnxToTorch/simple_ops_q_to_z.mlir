@@ -2833,6 +2833,15 @@ func.func @test_shape_start_1_end_negative_1(%arg0: !torch.vtensor<[3,4,5],f32>)
   return %0 : !torch.vtensor<[1],si64>
 }
 
+// -----
+
+// CHECK-LABEL: func.func @test_shape_scalar
+func.func @test_shape_scalar(%arg0: !torch.vtensor<[],si64> ) -> !torch.vtensor<[?],si64>  attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "pytorch", torch.onnx_meta.producer_version = "2.1.0"} {
+  // CHECK: %[[SHAPE:.+]] = torch.aten._shape_as_tensor %arg0 : !torch.vtensor<[],si64> -> !torch.vtensor<[0],si64>
+  // CHECK: %[[CAST:.+]] = torch.tensor_static_info_cast %[[SHAPE]] : !torch.vtensor<[0],si64> to !torch.vtensor<[?],si64>
+  %0 = torch.operator "onnx.Shape"(%arg0) : (!torch.vtensor<[],si64>) -> !torch.vtensor<[?],si64>
+  return %0: !torch.vtensor<[?],si64>
+}
 
 // -----
 
@@ -2904,6 +2913,30 @@ func.func @test_stft(%arg0: !torch.vtensor<[1,128,1],f32>, %arg1: !torch.vtensor
 
 // -----
 
+// CHECK-LABEL: func.func @test_stft_real_rank2
+func.func @test_stft_real_rank2(%arg0: !torch.vtensor<[1,128],f32>, %arg1: !torch.vtensor<[],si64>, %arg2: !torch.vtensor<[],si64>) -> !torch.vtensor<[1,15,9,2],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK:  %[[FRAMELEN:.*]] = torch.aten.item %arg2 : !torch.vtensor<[],si64> -> !torch.int
+  // CHECK:  %[[FRAMESTEP:.*]] = torch.aten.item %arg1 : !torch.vtensor<[],si64> -> !torch.int
+  // CHECK:  %[[NONEVAL:.*]] = torch.constant.none
+  // CHECK:  %[[ONESSHAPE:.*]] = torch.prim.ListConstruct %[[FRAMELEN]] : (!torch.int) -> !torch.list<int>
+  // CHECK:  %[[ONESLIST:.*]] = torch.aten.ones %[[ONESSHAPE]], %[[NONEVAL]], %[[NONEVAL]], %[[NONEVAL]], %[[NONEVAL]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?],f32>
+  // CHECK:  %[[FALSEVAL:.*]] = torch.constant.bool false
+  // CHECK:  %[[TRUEVAL:.*]] = torch.constant.bool true
+  // CHECK:  %[[STFT:.*]] = torch.aten.stft %arg0, %[[FRAMELEN]], %[[FRAMESTEP]], %[[FRAMELEN]], %[[ONESLIST]], %[[FALSEVAL]], %[[TRUEVAL]], %[[TRUEVAL]] : !torch.vtensor<[1,128],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[?],f32>, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[1,9,15],complex<f32>>
+  // CHECK:  %[[INT0:.*]] = torch.constant.int 0
+  // CHECK:  %[[INT2_1:.*]] = torch.constant.int 2
+  // CHECK:  %[[INT1:.*]] = torch.constant.int 1
+  // CHECK:  %[[PERMUTELIST:.*]] = torch.prim.ListConstruct %[[INT0]], %[[INT2_1]], %[[INT1]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:  %[[PERMUTE:.*]] = torch.aten.permute %[[STFT]], %[[PERMUTELIST]] : !torch.vtensor<[1,9,15],complex<f32>>, !torch.list<int> -> !torch.vtensor<[1,15,9],complex<f32>>
+  // CHECK:  %[[VIEWASREAL:.*]] = torch.aten.view_as_real %[[PERMUTE]] : !torch.vtensor<[1,15,9],complex<f32>> -> !torch.vtensor<[1,15,9,2],f32>
+  // CHECK:  return %[[VIEWASREAL]] : !torch.vtensor<[1,15,9,2],f32>
+  %none = torch.constant.none
+  %0 = torch.operator "onnx.STFT"(%arg0, %arg1, %none, %arg2) : (!torch.vtensor<[1,128],f32>, !torch.vtensor<[],si64>, !torch.none, !torch.vtensor<[],si64>) -> !torch.vtensor<[1,15,9,2],f32>
+  return %0 : !torch.vtensor<[1,15,9,2],f32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_stft_with_window
 func.func @test_stft_with_window(%arg0: !torch.vtensor<[1,128,1],f32>, %arg1: !torch.vtensor<[],si64>, %arg2: !torch.vtensor<[16],f32>) -> !torch.vtensor<[1,15,9,2],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK:  %[[FRAMELEN:.*]] = torch.constant.int 16
@@ -2922,6 +2955,29 @@ func.func @test_stft_with_window(%arg0: !torch.vtensor<[1,128,1],f32>, %arg1: !t
   // CHECK:  %[[VIEWASREAL:.*]] = torch.aten.view_as_real %[[PERMUTE]] : !torch.vtensor<[1,15,9],complex<f32>> -> !torch.vtensor<[1,15,9,2],f32>
   // CHECK:  return %[[VIEWASREAL]] : !torch.vtensor<[1,15,9,2],f32>
   %0 = torch.operator "onnx.STFT"(%arg0, %arg1, %arg2) : (!torch.vtensor<[1,128,1],f32>, !torch.vtensor<[],si64>, !torch.vtensor<[16],f32>) -> !torch.vtensor<[1,15,9,2],f32>
+  return %0 : !torch.vtensor<[1,15,9,2],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_stft_with_window_and_framelen
+func.func @test_stft_with_window_and_framelen(%arg0: !torch.vtensor<[1,128,1],f32>, %arg1: !torch.vtensor<[],si64>, %arg2: !torch.vtensor<[16],f32>, %arg3: !torch.vtensor<[],si64>) -> !torch.vtensor<[1,15,9,2],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK:  %[[FRAMELEN:.*]] = torch.aten.item %arg3 : !torch.vtensor<[],si64> -> !torch.int
+  // CHECK:  %[[FRAMESTEP:.*]] = torch.aten.item %arg1 : !torch.vtensor<[],si64> -> !torch.int
+  // CHECK:  %[[INT2_0:.*]] = torch.constant.int 2
+  // CHECK:  %[[SQUEEZE:.*]] = torch.aten.squeeze.dim %arg0, %[[INT2_0]] : !torch.vtensor<[1,128,1],f32>, !torch.int -> !torch.vtensor<[1,128],f32>
+  // CHECK:  %[[WINDOWLEN:.*]] = torch.constant.int 16
+  // CHECK:  %[[FALSEVAL:.*]] = torch.constant.bool false
+  // CHECK:  %[[TRUEVAL:.*]] = torch.constant.bool true
+  // CHECK:  %[[STFT:.*]] = torch.aten.stft %[[SQUEEZE]], %[[FRAMELEN]], %[[FRAMESTEP]], %[[WINDOWLEN]], %arg2, %[[FALSEVAL]], %[[TRUEVAL]], %[[TRUEVAL]] : !torch.vtensor<[1,128],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[16],f32>, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[1,9,15],complex<f32>>
+  // CHECK:  %[[INT0:.*]] = torch.constant.int 0
+  // CHECK:  %[[INT2_1:.*]] = torch.constant.int 2
+  // CHECK:  %[[INT1:.*]] = torch.constant.int 1
+  // CHECK:  %[[PERMUTEDIMS:.*]] = torch.prim.ListConstruct %[[INT0]], %[[INT2_1]], %[[INT1]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:  %[[PERMUTE:.*]] = torch.aten.permute %[[STFT]], %[[PERMUTEDIMS]] : !torch.vtensor<[1,9,15],complex<f32>>, !torch.list<int> -> !torch.vtensor<[1,15,9],complex<f32>>
+  // CHECK:  %[[VIEWASREAL:.*]] = torch.aten.view_as_real %[[PERMUTE]] : !torch.vtensor<[1,15,9],complex<f32>> -> !torch.vtensor<[1,15,9,2],f32>
+  // CHECK:  return %[[VIEWASREAL]] : !torch.vtensor<[1,15,9,2],f32>
+  %0 = torch.operator "onnx.STFT"(%arg0, %arg1, %arg2, %arg3) : (!torch.vtensor<[1,128,1],f32>, !torch.vtensor<[],si64>, !torch.vtensor<[16],f32>, !torch.vtensor<[],si64>) -> !torch.vtensor<[1,15,9,2],f32>
   return %0 : !torch.vtensor<[1,15,9,2],f32>
 }
 

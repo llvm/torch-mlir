@@ -7299,6 +7299,85 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.adaptive_max_pool1d` op into `aten.max_pool1d_with_indices`
+// op.
+class DecomposeAtenAdaptiveMaxPool1dOp
+    : public OpRewritePattern<AtenAdaptiveMaxPool1dOp> {
+  using OpRewritePattern<AtenAdaptiveMaxPool1dOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAdaptiveMaxPool1dOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    MLIRContext *context = op.getContext();
+
+    Value input = op.getSelf();
+    std::optional<unsigned> maybeRank = getTensorRank(input);
+    if (!maybeRank) {
+      return rewriter.notifyMatchFailure(op, "expected input to have a rank");
+    }
+    unsigned rank = *maybeRank;
+    Value sizeDim = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(rank - 1));
+    Value inputSize = rewriter.create<AtenSizeIntOp>(loc, input, sizeDim);
+
+    Value outputShape = op.getOutputSize();
+    SmallVector<Value> outputShapeSizesTorchInt;
+    getListConstructElements(outputShape, outputShapeSizesTorchInt);
+    Value outputSize = outputShapeSizesTorchInt[0];
+
+    Value constantOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+    Value constantZero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    Value constantFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+
+    int64_t outputSizeInt;
+    if (!matchPattern(outputSize, m_TorchConstantInt(&outputSizeInt))) {
+      return rewriter.notifyMatchFailure(
+          op, "the output size of adaptive_max_pool1d must be a constant int");
+    }
+
+    SmallVector<Value, 1> kernelSize;
+    if (outputSizeInt == 1) {
+      BaseTensorType inputTensorType = cast<BaseTensorType>(input.getType());
+      ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+      kernelSize.push_back(
+          inputShape[rank - 1] == kUnknownSize
+              ? inputSize
+              : rewriter.create<Torch::ConstantIntOp>(
+                    loc, rewriter.getI64IntegerAttr(inputShape[rank - 1])));
+    } else {
+      if (!isAssumingStrictSymbolicShapes(rewriter)) {
+        Value cond = rewriter.create<AtenEqIntOp>(loc, inputSize, outputSize);
+        rewriter.create<RuntimeAssertOp>(
+            loc, cond,
+            "unimplemented: only support cases where input and output size are "
+            "equal for non-unit output size");
+      }
+      kernelSize.push_back(constantOne);
+    }
+
+    Value kernelSizeList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)), kernelSize);
+    Value strideList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)),
+        ValueRange{constantOne});
+    Value paddingSizeList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)),
+        ValueRange{constantZero});
+    Value dialationList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(context)),
+        ValueRange{constantOne});
+
+    rewriter.replaceOpWithNewOp<AtenMaxPool1dWithIndicesOp>(
+        op, op.getType(0), op.getType(1), input, kernelSizeList, strideList,
+        paddingSizeList, dialationList,
+        /*ceil_mode=*/constantFalse);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.adaptive_avg_pool1d` op into `aten.avg_pool1d` op.
 
 // The logic of this decomposition is totally same with
@@ -8721,6 +8800,77 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenBinaryCrossEntropyWithLogitsOp
+    : public OpRewritePattern<AtenBinaryCrossEntropyWithLogitsOp> {
+  using OpRewritePattern<AtenBinaryCrossEntropyWithLogitsOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenBinaryCrossEntropyWithLogitsOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto self = op.getSelf();
+    auto target = op.getTarget();
+    auto posWeight = op.getPosWeight();
+    auto weight = op.getWeight();
+    auto reduction = op.getReduction();
+
+    Value loss;
+    auto one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    auto _one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+
+    auto _target =
+        rewriter.create<AtenMulScalarOp>(loc, target.getType(), target, _one);
+    auto _target_1 = rewriter.create<AtenAddScalarOp>(loc, _target.getType(),
+                                                      _target, one, one);
+    Value mm =
+        rewriter.create<AtenMulTensorOp>(loc, self.getType(), _target_1, self);
+    Value logSigm =
+        rewriter.create<AtenLogSigmoidOp>(loc, self.getType(), self);
+
+    if (!isa<Torch::NoneType>(posWeight.getType())) {
+      auto logWeight = rewriter.create<AtenAddScalarOp>(
+          loc, posWeight.getType(),
+          rewriter.create<AtenSubScalarOp>(loc, posWeight.getType(), posWeight,
+                                           one, one),
+          one, one);
+      loss = rewriter.create<AtenSubTensorOp>(
+          loc, mm.getType(), mm,
+          rewriter.create<AtenMulTensorOp>(loc, logWeight.getType(), logWeight,
+                                           logSigm),
+          one);
+    } else {
+      loss =
+          rewriter.create<AtenSubTensorOp>(loc, mm.getType(), mm, logSigm, one);
+    }
+
+    if (!isa<Torch::NoneType>(weight.getType())) {
+      loss =
+          rewriter.create<AtenMulTensorOp>(loc, loss.getType(), loss, weight);
+    }
+
+    // apply loss reduction.
+    int64_t reductionInt;
+    if (!matchPattern(reduction, m_TorchConstantInt(&reductionInt))) {
+      return rewriter.notifyMatchFailure(op, "no reduction type is appointed!");
+    }
+
+    auto none = rewriter.create<ConstantNoneOp>(loc);
+    Value res;
+    if (reductionInt == 1) {
+      res = rewriter.create<AtenMeanOp>(loc, op.getType(), loss, none);
+    } else if (reductionInt == 2) {
+      res = rewriter.create<AtenSumOp>(loc, op.getType(), loss, none);
+    } else {
+      res = loss;
+    }
+
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
   using OpRewritePattern<AtenOneHotOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenOneHotOp op,
@@ -9801,6 +9951,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDtypeLayoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDeviceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToPrimDeviceOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveMaxPool1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
@@ -9856,6 +10007,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenMovedimIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenOneHotOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenBinaryCrossEntropyWithLogitsOp>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHannWindowPeriodicOp>(patterns);
