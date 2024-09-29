@@ -743,6 +743,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::binary_cross_entropy_backward : (Tensor, Tensor, Tensor, Tensor?, int) -> (Tensor)"
     )
+    emit(
+        "aten::binary_cross_entropy_with_logits : (Tensor, Tensor, Tensor?, Tensor?, int) -> (Tensor)"
+    )
     emit("aten::log_sigmoid_forward : (Tensor) -> (Tensor, Tensor)")
     emit("aten::log_sigmoid_backward : (Tensor, Tensor, Tensor) -> (Tensor)")
     emit("aten::sigmoid_backward : (Tensor, Tensor) -> (Tensor)")
