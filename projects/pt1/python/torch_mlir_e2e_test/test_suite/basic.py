@@ -5626,7 +5626,7 @@ class TensorAlloc1dStaticModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-           ([2, 4, 6], torch.int, True),
+            ([2, 4, 6], torch.int, True),
         ]
     )
     def forward(self, x):
