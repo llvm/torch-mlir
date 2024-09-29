@@ -2307,7 +2307,9 @@ class BinaryCrossEntropyWithLogitsStaticModule(torch.nn.Module):
         ]
     )
     def forward(self, input, target):
-        return torch.ops.aten.binary_cross_entropy_with_logits(input, target, reduction=0)
+        return torch.ops.aten.binary_cross_entropy_with_logits(
+            input, target, reduction=0
+        )
 
 
 @register_test_case(module_factory=lambda: BinaryCrossEntropyWithLogitsStaticModule())

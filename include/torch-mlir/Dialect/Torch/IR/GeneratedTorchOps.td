@@ -9224,14 +9224,12 @@ def Torch_AtenBinaryCrossEntropyBackwardOp : Torch_Op<"aten.binary_cross_entropy
   }];
 }
 
-def Torch_AtenBinaryCrossEntropyWithLogitsOp : Torch_Op<"aten.binary_cross_entropy_with_lo
-gits", [
+def Torch_AtenBinaryCrossEntropyWithLogitsOp : Torch_Op<"aten.binary_cross_entropy_with_logits", [
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::binary_cross_entropy_with_logits : (Tensor, Tenso
-r, Tensor?, Tensor?, int) -> (Tensor)`";
+  let summary = "Generated op for `aten::binary_cross_entropy_with_logits : (Tensor, Tensor, Tensor?, Tensor?, int) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
     AnyTorchTensorType:$target,
