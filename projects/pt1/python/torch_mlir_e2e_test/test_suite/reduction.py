@@ -219,6 +219,29 @@ def ReduceAllBoolModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ReduceAllDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.bool, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.all(a, 2)
+
+
+@register_test_case(module_factory=lambda: ReduceAllDimModule())
+def ReduceAllDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(16, 50, 256, high=2).to(torch.bool))
+
+
+# ==============================================================================
+
+
 class ReduceAnyFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
