@@ -855,6 +855,11 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "AdaptiveMaxPool1dDimOneStatic_basic",
+    "BinaryCrossEntropyWithLogitsStaticModule_basic",
+    "ReduceAllDimBool_basic",
+    "ReduceAllDimEmpty_basic",
+    "ReduceAllDimFloatModule_basic",
     "ReduceAminmaxSingleDim_basic",
     "ReduceAminmaxAllDims_basic",
     "ReduceAmaxEmptyDim_basic",
