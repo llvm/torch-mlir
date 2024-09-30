@@ -1663,6 +1663,8 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "DiagonalWithStaticShapeModule_basic",
+    "EinsumStaticDiagonalDimensionModule_basic",
     "ElementwiseAtenFloorDivideBroadcastModule_basic",
     "ElementwiseAtenFloorDivideScalarModule_basic",
     "ElementwiseAtenFloorDivideScalarNegativeModule_basic",
@@ -3190,6 +3192,7 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
+    "AdaptiveMaxPool1dDimOneStatic_basic",
     "AtenPolarDoubleModule_basic",
     "AtenPolarFloatModule_basic",
     "HstackBasicComplexModule_basic",
@@ -3213,7 +3216,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "Conv_Transpose2dStaticModule_basic",
     "Conv_Transpose3dModule_basic",
     "Conv_Transpose3dStaticModule_basic",
-    "EinsumStaticDiagonalDimensionModule_basic",
     "ElementwiseFloatTensorGtIntTensorModule_basic",
     "ElementwiseIntTensorLtFloatTensorModule_basic",
     "ElementwiseRreluEvalModule_basic",
@@ -3384,14 +3386,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "DeterminantBatchedModule_F32",
     "DeterminantDynamicModule_F32",
     "DeterminantModule_F32",
-    "DiagonalModule_basic",
-    "DiagonalModule_nonsquare",
-    "DiagonalModule_transposed",
-    "DiagonalModule_with_dims",
-    "DiagonalModule_with_dims_and_offset",
-    "DiagonalModule_with_negative_dims",
-    "DiagonalModule_with_offset",
-    "DiagonalWithStaticShapeModule_basic",
     "DivFloatModule_basic",
     "DivIntModule_basic",
     "DropoutTrainModule_basic",
@@ -3805,11 +3799,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ToCopyWithDTypeModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
-    "TraceModule_basic",
     "TraceModule_empty",
-    "TraceModule_nonsquare",
-    "TraceSignedIntModule_basic",
-    "TraceUnsignedIntModule_basic",
     "TraceUnsignedIntModule_empty",
     "TypeConversionI1ToF64Module_basic",
     "TypeConversionI1ToI32Module_basic",
@@ -3845,6 +3835,7 @@ ONNX_TOSA_CRASHING_SET = {
 }
 
 ONNX_TOSA_XFAIL_SET = {
+    "AdaptiveMaxPool1dDimOneStatic_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
     "HstackBasicComplexModule_basic",
     "HstackBasicFloatModule_basic",
@@ -3874,7 +3865,6 @@ ONNX_TOSA_XFAIL_SET = {
     "Conv_Transpose2dStaticModule_basic",
     "Conv_Transpose3dModule_basic",
     "Conv_Transpose3dStaticModule_basic",
-    "EinsumStaticDiagonalDimensionModule_basic",
     "EinsumStaticModule_basic",
     "ElementwiseFmaxModule_basic",
     "ElementwiseFminModule_basic",
