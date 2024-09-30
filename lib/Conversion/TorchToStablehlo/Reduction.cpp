@@ -887,6 +887,7 @@ void mlir::torch::torch_to_stablehlo::populateReductionOpPatternsAndLegality(
   patterns.add<ConvertAtenReduceOneDimOp<AtenOp>>(typeConverter, context,      \
                                                   options)
   INSERT_ATEN_REDUCTION_ONE_DIM_OP_PATTERN(AtenAnyDimOp);
+  INSERT_ATEN_REDUCTION_ONE_DIM_OP_PATTERN(AtenAllDimOp);
 #undef INSERT_ATEN_REDUCTION_ONE_DIM_OP_PATTERN
 
 #define INSERT_ATEN_REDUCTION_DIMS_OP_PATTERN(AtenOp)                          \
