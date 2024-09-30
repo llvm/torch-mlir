@@ -110,7 +110,7 @@ static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
     }
   }
 
-  if (isa<AtenAllOp>(op)) {
+  if (isa<AtenAllOp, AtenAllDimOp>(op)) {
     auto constAttr =
         DenseElementsAttr::get(constType, {APInt(/*numBits=*/1, 1)});
     return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
@@ -166,7 +166,7 @@ static Value createReduceOpWithSingleRegionOp(Operation *op, Value input,
                    AtenLinalgVectorNormOp>(op)) {
       result = rewriter.create<stablehlo::AddOp>(
           op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
-    } else if (isa<AtenAllOp>(op)) {
+    } else if (isa<AtenAllOp, AtenAllDimOp>(op)) {
       result = rewriter.create<stablehlo::AndOp>(
           op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
     } else if (isa<AtenAnyOp, AtenAnyDimOp>(op)) {

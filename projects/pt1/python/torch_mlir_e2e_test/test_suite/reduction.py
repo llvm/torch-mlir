@@ -169,6 +169,7 @@ class ReduceAllFloatModule(torch.nn.Module):
 def ReduceAllFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
+
 class ReduceAllDimFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
