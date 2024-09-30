@@ -20,5 +20,5 @@ cmake -GNinja -Bbuild \
     -DTORCH_MLIR_ENABLE_LTC=OFF \
     $(pwd)/externals/llvm-project/llvm
 
-cmake --build build --target TorchMLIRPythonModules TorchMLIRJITIRImporterPybind check-torch-mlir-pt1 check-torch-mlir
+cmake --build build --target TorchMLIRPythonModules TorchMLIRJITIRImporterPybind TorchMLIRE2ETestPythonModules check-torch-mlir-pt1 check-torch-mlir
 
