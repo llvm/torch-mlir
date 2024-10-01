@@ -194,6 +194,19 @@ func.func @torch.aten.mul.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.in
   return %0 : !torch.int
 }
 
+// CHECK-LABEL:  func.func @torch.aten.mul.float_int(
+// CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
+// CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.float {
+// CHECK-DAG:      %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
+// CHECK-DAG:      %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK:          %[[MUL:.*]] = arith.mulf %[[LHS_F64:.*]], [[RHS_I64:.*]] : f64
+// CHECK:          %[[OUT:.*]] = torch_c.from_f64 %[[MUL:.*]]
+// CHECK:          return %[[OUT:.*]] : !torch.float
+func.func @torch.aten.mul.float_int(%arg0: !torch.float, %arg1: !torch.int) -> !torch.float {
+  %0 = torch.aten.mul.float_int %arg0, %arg1 : !torch.float, !torch.int -> !torch.float
+  return %0 : !torch.float
+}
+
 // CHECK-LABEL:  func.func @torch.aten.div.float(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.float) -> !torch.float {
