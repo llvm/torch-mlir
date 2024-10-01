@@ -15456,6 +15456,31 @@ def Torch_AtenAddFloatIntOp : Torch_Op<"aten.add.float_int", [
   let hasFolder = 1;
 }
 
+def Torch_AtenMulFloatIntOp : Torch_Op<"aten.mul.float_int", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::mul.float_int : (float, int) -> (float)`";
+  let arguments = (ins
+    Torch_FloatType:$a,
+    Torch_IntType:$b
+  );
+  let results = (outs
+    Torch_FloatType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenMulFloatIntOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenMulFloatIntOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenSubFloatOp : Torch_Op<"aten.sub.float", [
     AllowsTypeRefinement,
     HasValueSemantics,

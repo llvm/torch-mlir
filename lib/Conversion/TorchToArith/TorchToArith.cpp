@@ -74,7 +74,8 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     Value a = adaptor.getA();
     Value b = adaptor.getB();
-    if (llvm::is_one_of<AtenOp, AtenAddFloatIntOp>::value)
+    if (llvm::is_one_of<AtenOp, AtenAddFloatIntOp>::value ||
+        llvm::is_one_of<AtenOp, AtenMulFloatIntOp>::value)
       b = convertScalarToDtype(rewriter, op.getLoc(), b, a.getType());
     rewriter.template replaceOpWithNewOp<BinOp>(op, a, b);
     return success();
@@ -467,7 +468,7 @@ public:
     patterns.add<ConvertAtenAddOp>(typeConverter, context);
 
     target.addIllegalOp<AtenAddIntOp, AtenAddFloatIntOp, AtenSubIntOp,
-                        AtenMulIntOp>();
+                        AtenMulIntOp, AtenMulFloatIntOp>();
     patterns.add<ConvertAtenBinaryOp<AtenAddIntOp, arith::AddIOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenAddFloatIntOp, arith::AddFOp>>(
@@ -475,6 +476,8 @@ public:
     patterns.add<ConvertAtenBinaryOp<AtenSubIntOp, arith::SubIOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenMulIntOp, arith::MulIOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<AtenMulFloatIntOp, arith::MulFOp>>(
         typeConverter, context);
     target.addIllegalOp<AtenSubFloatOp, AtenMulFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenSubFloatOp, arith::SubFOp>>(
