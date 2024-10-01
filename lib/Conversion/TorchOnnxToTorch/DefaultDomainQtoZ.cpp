@@ -4350,12 +4350,15 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (binder.s64IntegerArrayAttr(ngram_counts, "ngram_counts", {}) ||
             binder.s64IntegerArrayAttr(ngram_indexes, "ngram_indexes", {}) ||
             binder.s64IntegerArrayAttr(pool_int64s, "pool_int64s", {}) ||
-            binder.f32FloatArrayAttr(weights, "weights", {}) ||
             binder.customOpNameStringAttr(mode, "mode", "") ||
             binder.s64IntegerAttr(min_gram_length, "min_gram_length", 0) ||
             binder.s64IntegerAttr(max_gram_length, "max_gram_length", 0) ||
             binder.s64IntegerAttr(max_skip_count, "max_skip_count", 0) ||
             binder.tensorOperand(input) || binder.tensorResultType(resultType))
+          return failure();
+
+        llvm::SmallVector<float> defaultWeights(ngram_indexes.size(), 1.0f);
+        if (binder.f32FloatArrayAttr(weights, "weights", defaultWeights))
           return failure();
 
         if (pool_int64s.size() == 0)
