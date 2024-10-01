@@ -5405,8 +5405,11 @@ void BindSymbolicShapeOp::print(OpAsmPrinter &p) {
 }
 
 LogicalResult BindSymbolicShapeOp::verify() {
-  if (getShapeSymbols().empty())
-    return emitOpError() << "requires non-empty shapeSymbols";
+  if (getShapeSymbols().size() !=
+      getShapeExpressions().getValue().getNumSymbols())
+    return emitOpError()
+           << "requires equal number of shape symbol args and symbol args to "
+              "the attached affine map, since they are 1:1 mapped";
 
   for (auto symbol : getShapeSymbols()) {
     Operation *definingOp = symbol.getDefiningOp();
