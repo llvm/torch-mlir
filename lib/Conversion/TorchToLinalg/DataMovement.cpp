@@ -1658,10 +1658,17 @@ public:
     if (!isValidDim(dim, inputRank))
       return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
-    // TODO: Handle the case where the dim(th) dimension is dynamic.
+    // assert dynamic squeeze dim size == 1
     if (inputType.isDynamicDim(dim)) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: dim(th) dimension is not expected to be dynamic");
+      Value cstDim = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), dim);
+      Value dimVal = rewriter.create<tensor::DimOp>(op.getLoc(), input, cstDim);
+      Value cstOne = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 1);
+      Value cmp = rewriter.create<arith::CmpIOp>(
+          op.getLoc(), arith::CmpIPredicate::eq, dimVal, cstOne);
+      rewriter.create<cf::AssertOp>(
+          op.getLoc(), cmp,
+          rewriter.getStringAttr(
+              "Expected dynamic squeeze dim size to be statically 1"));
     }
 
     const TypeConverter *typeConverter = getTypeConverter();
@@ -1671,7 +1678,7 @@ public:
 
     // If the dim(th) dimension of operand tensor type is not statically unit,
     // `aten.squeeze` will behave as an identity operation.
-    if (inputType.getDimSize(dim) != 1) {
+    if (inputType.getDimSize(dim) != 1 && !inputType.isDynamicDim(dim)) {
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, input);
       return success();
     }
