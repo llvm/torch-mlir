@@ -3818,6 +3818,124 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
+    AtenIndexSelectOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // Not a tensor type.
+  auto input = adaptor.getSelf();
+  auto inputType = dyn_cast<RankedTensorType>(input.getType());
+  if (!inputType)
+    return rewriter.notifyMatchFailure(
+        op, "Only RankedTensorType inputs are currently supported");
+
+  auto index = adaptor.getIndex();
+  auto indexType = dyn_cast<RankedTensorType>(index.getType());
+
+  if (!indexType)
+    return rewriter.notifyMatchFailure(
+        op, "Only RankedTensorType indices are currently supported");
+
+  auto inputShape = inputType.getShape();
+  int inputRank = inputType.getRank();
+
+  if (indexType.getRank() == 0)
+    return rewriter.notifyMatchFailure(
+        op, "Rank 0 index tensor is currently not supported");
+
+  // Dynamic shape check
+  if (!inputType.hasStaticShape() || !indexType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "AtenIndexSelectOp: support for dynamic input "
+            "shape not implemented");
+
+  // index i64 to i32 for tosa compatible
+  if (indexType.getElementType() != rewriter.getIntegerType(32)) {
+    index = rewriter.create<tosa::CastOp>(
+        op->getLoc(),
+        RankedTensorType::get(indexType.getShape(),
+                              rewriter.getIntegerType(32)),
+        index);
+  }
+
+  // Get positive dim
+  int64_t dim;
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(
+        op, "Value `dim` should be a torch constant int");
+  dim = toPositiveDim(dim, inputRank);
+  if (!isValidDim(dim, inputRank))
+    return rewriter.notifyMatchFailure(op, "Value `dim` is invalid");
+
+  // Get the output type
+  auto outType = getTypeConverter()->convertType(op.getType());
+
+  // Reshape and expand the index tensor to have same rank and same dimensions
+  // (except for the targeted dim) as the input
+  //
+  // For example:
+  // Input shape = (4, 5, 6)
+  // Index vector shape = (2)
+  // Targeted dim = 1
+  // Reshaped and expanded index vector shape = (4, 2, 6)
+  //
+  // By reshaping and expanding the index vector, we can supply it into the
+  // gather op to mimic the functionality of aten.index_select
+  SmallVector<int64_t> indicesInputRankShape;
+  for (int64_t i = 0; i < inputRank; i++) {
+    if (i == dim) {
+      indicesInputRankShape.push_back(indexType.getShape()[0]);
+    } else {
+      indicesInputRankShape.push_back(1);
+    }
+  }
+
+  auto indicesInputRankType =
+      RankedTensorType::get(makeShapeLLVMCompatible(indicesInputRankShape),
+                            rewriter.getIntegerType(32));
+
+  auto reshapedIndices = rewriter.create<tosa::ReshapeOp>(
+      op->getLoc(), indicesInputRankType, index,
+      rewriter.getDenseI64ArrayAttr(indicesInputRankShape));
+
+  SmallVector<int64_t> tileShape(indicesInputRankShape);
+  SmallVector<int64_t> expandedIndicesShape(indicesInputRankShape);
+  for (int64_t i = 0; i < inputRank; i++) {
+    if (tileShape[i] == 1 && i != dim) {
+      tileShape[i] = inputShape[i];
+      expandedIndicesShape[i] = inputShape[i];
+    } else {
+      tileShape[i] = 1;
+    }
+  }
+
+  auto tileType =
+      RankedTensorType::get(makeShapeLLVMCompatible(expandedIndicesShape),
+                            rewriter.getIntegerType(32));
+
+  auto expandedIndices = rewriter.create<tosa::TileOp>(
+      op->getLoc(), tileType, reshapedIndices.getResult(),
+      rewriter.getDenseI64ArrayAttr(tileShape));
+
+  // convert torch style index and dim into tf style indices
+  // tensor<[1,4,2],si64> -> tensor<[1,4,2,3],si64>
+  auto indicesTf = tosa::convertTorchIndexToTfIndices(
+      rewriter, op, input, expandedIndices.getResult(), dim);
+  if (!indicesTf)
+    return rewriter.notifyMatchFailure(
+        op, "Convert TorchIndex To TfIndices failed");
+
+  // do the tf gathernd algorithm with tf style indices as input.
+  auto result =
+      tosa::convertGatherNdOp(rewriter, op, outType, input, indicesTf.value());
+
+  if (!result) {
+    return rewriter.notifyMatchFailure(op, "Convert GatherNdOp failed");
+  }
+  rewriter.replaceOp(op, {result.value()});
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
     AtenIndexPutHackedTwinOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -6236,6 +6354,7 @@ public:
     INSERT_ATENOP_PATTERN(Aten__InterpolateSizeListScaleListOp);
     INSERT_ATENOP_PATTERN(AtenTrilOp);
     INSERT_ATENOP_PATTERN(AtenDiagonalOp);
+    INSERT_ATENOP_PATTERN(AtenIndexSelectOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
