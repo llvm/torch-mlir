@@ -1121,3 +1121,23 @@ class TensorSplitSections_ListUnpackModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TensorSplitSections_ListUnpackModule())
 def TensorSplitSections_ListUnpackModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 5))
+
+
+class Unfold_Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.unfold(x, dimension=0, size=1, step=1)
+
+
+@register_test_case(module_factory=lambda: Unfold_Module())
+def Unfold_Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 4))

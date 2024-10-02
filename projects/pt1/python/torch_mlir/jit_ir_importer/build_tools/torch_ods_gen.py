@@ -991,6 +991,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::unsqueeze_copy : (Tensor, int) -> (Tensor)")
     emit("aten::view_copy : (Tensor, int[]) -> (Tensor)")
     emit("aten::view_copy.dtype : (Tensor, int) -> (Tensor)")
+    emit("aten::unfold : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::unfold_copy : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::im2col : (Tensor, int[], int[], int[], int[]) -> (Tensor)")
     emit("aten::scatter.reduce : (Tensor, int, Tensor, Tensor, str) -> (Tensor)")
