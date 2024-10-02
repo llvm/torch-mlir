@@ -2296,6 +2296,22 @@ OpFoldResult AtenSelectIntOp::fold(FoldAdaptor adaptor) {
   return DenseElementsAttr::get(bty, splattr);
 }
 
+void AtenSelectIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  // if selecting an element of _shape_as_tensor, return torch.size.int
+  patterns.add(+[](AtenSelectIntOp op, PatternRewriter &rewriter) {
+    auto shapeOp = op.getSelf().getDefiningOp<Aten_ShapeAsTensorOp>();
+    if (!shapeOp)
+      return failure();
+    Value sizeValue = rewriter.create<AtenSizeIntOp>(
+        op.getLoc(), rewriter.getType<Torch::IntType>(), shapeOp.getSelf(),
+        op.getIndex());
+    rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, op.getType(),
+                                                         sizeValue);
+    return success();
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // AtenSizeIntOp
 //===----------------------------------------------------------------------===//
@@ -3733,6 +3749,40 @@ OpFoldResult AtenBroadcastToOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 // AtenSliceTensorOp
 //===----------------------------------------------------------------------===//
+void AtenSliceTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                    MLIRContext *context) {
+  // For patterns like Cat (List, dim X) -> Slice(dim X, start, end, step),
+  // rewrite as SliceT(List, start, end, step) + Cat in cases like end = start +
+  // 1, the patterns for SliceT/Cat should further reduce to just the individual
+  // list item.
+  patterns.add(+[](AtenSliceTensorOp op, PatternRewriter &rewriter) {
+    Value self = op.getSelf();
+    SmallVector<Value, 4> newOperands;
+    int64_t sliceDim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&sliceDim)))
+      return failure();
+    int64_t catDim;
+    if (auto catOp = self.getDefiningOp<Torch::AtenCatOp>()) {
+      if (!matchPattern(catOp.getDim(), m_TorchConstantInt(&catDim)))
+        return failure();
+      newOperands.push_back(catOp.getTensors());
+    } else {
+      return failure();
+    }
+    if (catDim != sliceDim)
+      return failure();
+    auto listType = dyn_cast_or_null<Torch::ListType>(newOperands[0].getType());
+    if (!listType)
+      return failure();
+    newOperands.insert(newOperands.end(), op.getOperands().begin() + 2,
+                       op.getOperands().end());
+    Value sliceT =
+        rewriter.create<AtenSliceTOp>(op.getLoc(), listType, newOperands);
+    rewriter.replaceOpWithNewOp<AtenCatOp>(op, op.getType(), sliceT,
+                                           op.getDim());
+    return success();
+  });
+}
 
 OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
   DenseElementsAttr input =

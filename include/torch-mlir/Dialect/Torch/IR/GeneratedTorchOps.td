@@ -11551,6 +11551,7 @@ def Torch_AtenSelectIntOp : Torch_Op<"aten.select.int", [
     }
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenSizeIntOp : Torch_Op<"aten.size.int", [
@@ -12341,6 +12342,7 @@ def Torch_AtenSliceTensorOp : Torch_Op<"aten.slice.Tensor", [
     }
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenLenTensorOp : Torch_Op<"aten.len.Tensor", [
