@@ -1121,3 +1121,50 @@ class TensorSplitSections_ListUnpackModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TensorSplitSections_ListUnpackModule())
 def TensorSplitSections_ListUnpackModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 5))
+
+
+# ==============================================================================
+
+
+class TakeModule(torch.nn.Module):
+    @export
+    @annotate_args([None, [(4, 4), torch.float32, True], [(4,), torch.int64, True]])
+    def forward(self, input, index):
+        return torch.take(input, index)
+
+
+@register_test_case(module_factory=lambda: TakeModule())
+def TakeModule_F32(module, tu: TestUtils):
+    A = tu.rand(4, 4).to(dtype=torch.float32)
+    index = tu.rand(4, low=0, high=torch.numel(A)).to(dtype=torch.int64)
+    module.forward(A, index)
+
+
+class TakeBatchModule(torch.nn.Module):
+    @export
+    @annotate_args([None, [(4, 4, 4), torch.float32, True], [(4,), torch.int64, True]])
+    def forward(self, input, index):
+        return torch.take(input, index)
+
+
+@register_test_case(module_factory=lambda: TakeBatchModule())
+def TakeModuleBatched_F32(module, tu: TestUtils):
+    A = tu.rand(4, 4, 4).to(dtype=torch.float32)
+    index = tu.rand(4, low=0, high=torch.numel(A)).to(dtype=torch.int64)
+    module.forward(A, index)
+
+
+class TakeDynamicModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [None, [(-1, -1, -1), torch.float32, True], [(4,), torch.int64, True]]
+    )
+    def forward(self, input, index):
+        return torch.take(input, index)
+
+
+@register_test_case(module_factory=lambda: TakeDynamicModule())
+def TakeModuleDynamic_F32(module, tu: TestUtils):
+    A = tu.rand(4, 4, 8).to(dtype=torch.float32)
+    index = tu.rand(4, low=0, high=torch.numel(A)).to(dtype=torch.int64)
+    module.forward(A, index)

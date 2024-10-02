@@ -4113,6 +4113,38 @@ public:
 };
 } // namespace
 
+namespace {
+
+class DecomposeAtenTakeOp : public OpRewritePattern<AtenTakeOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTakeOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value index = op.getIndex();
+    auto selfTy = cast<BaseTensorType>(self.getType());
+    auto resType = cast<BaseTensorType>(op.getType());
+    int64_t selfNumel = getTensorNumel(self).value(); // as selfTy has sizes
+
+    auto flattenType = selfTy.getWithSizesAndDtype(
+        /*optionalSizes=*/{selfNumel}, resType.getDtype());
+    Value constMinusOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+    Value constZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value flattenSelf = rewriter.create<AtenFlattenUsingIntsOp>(
+        loc, flattenType, self, constZero, constMinusOne);
+
+    Value result = rewriter.create<Torch::AtenIndexSelectOp>(
+        loc, resType, flattenSelf, constZero, index);
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
 // decompose aten.repeat_interleave.self_int into following ops:
 // aten.flatten.using_ints, aten.unsqueeze, aten.tile, aten.reshape
 namespace {
@@ -9660,6 +9692,7 @@ public:
     legalOpsSet.clear();
     legalOpsSet.insert(legalOps.begin(), legalOps.end());
 
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTakeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_WeightNormInterfaceOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftmaxIntOp>(patterns);
