@@ -404,13 +404,13 @@ public:
     Value hDimSize = inputShape[hDim];
     Value vDimSize = inputShape[vDim];
 
-    if (inputType.getShape()[hDim] != kUnknownSize) {
+    if (inputType.getShape()[hDim] != ShapedType::kDynamic) {
       assert(getHPadArgument(LEFT) < inputType.getShape()[hDim] &&
              "Left padding too large");
       assert(getHPadArgument(RIGHT) < inputType.getShape()[hDim] &&
              "Right padding too large");
     }
-    if (inputType.getShape()[vDim] != kUnknownSize) {
+    if (inputType.getShape()[vDim] != ShapedType::kDynamic) {
       assert(getVPadArgument(TOP) < inputType.getShape()[vDim] &&
              "Top padding too large");
       assert(getVPadArgument(BOTTOM) < inputType.getShape()[vDim] &&
