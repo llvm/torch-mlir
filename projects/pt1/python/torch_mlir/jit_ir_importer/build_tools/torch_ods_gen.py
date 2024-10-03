@@ -492,6 +492,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::softplus : (Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::prelu : (Tensor, Tensor) -> (Tensor)")
     emit("aten::rad2deg : (Tensor) -> (Tensor)")
+    emit("aten::complex : (Tensor, Tensor) -> (Tensor)")
     emit("aten::real : (Tensor) -> (Tensor)")
     emit("aten::imag : (Tensor) -> (Tensor)")
     emit("aten::view_as_complex : (Tensor) -> (Tensor)")

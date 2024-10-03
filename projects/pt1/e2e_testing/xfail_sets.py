@@ -2751,6 +2751,7 @@ ONNX_XFAIL_SET = {
     "ElementwiseExpm1IntModule_basic",
     "ElementwiseExpm1Module_basic",
     "ElementwiseFmodTensor_Int_basic",
+    "ElementwiseCreateComplexModule_basic",
     "ElementwiseMulTensorComplexModule_basic",
     "ElementwiseMulTensorComplexDiffModule_basic",
     "ElementwiseOrTensorModule_basic",
@@ -3163,6 +3164,14 @@ if torch_version_for_comparison() < version.parse("2.4.0.dev"):
     }
     FX_IMPORTER_STABLEHLO_XFAIL_SET = FX_IMPORTER_STABLEHLO_XFAIL_SET | {
         "AtenIntMM_basic",
+    }
+
+if torch_version_for_comparison() > version.parse("2.4.0.dev"):
+    STABLEHLO_PASS_SET = STABLEHLO_PASS_SET - {
+        "ElementwiseCreateComplexModule_basic",
+    }
+    FX_IMPORTER_STABLEHLO_XFAIL_SET = FX_IMPORTER_STABLEHLO_XFAIL_SET | {
+        "ElementwiseCreateComplexModule_basic",
     }
 
 
