@@ -56,15 +56,15 @@ function run() {
       export PATH=$python_dir/bin:$orig_path
       echo ":::: Python version $(python3 --version)"
       case "$package" in
+        torch-mlir-ext)
+          clean_wheels torch_mlir_ext "$python_version"
+          build_torch_mlir_ext torch_mlir_ext "$python_version"
+          run_audit_wheel torch_mlir_ext "$python_version"
+          ;;
         torch-mlir)
           clean_wheels torch_mlir "$python_version"
           build_torch_mlir torch_mlir "$python_version"
           run_audit_wheel torch_mlir "$python_version"
-          ;;
-        torch-mlir-core)
-          clean_wheels torch_mlir_core "$python_version"
-          build_torch_mlir_core torch_mlir_core "$python_version"
-          run_audit_wheel torch_mlir_core "$python_version"
           ;;
         *)
           echo "Unrecognized package '$package'"
@@ -75,7 +75,7 @@ function run() {
   done
 }
 
-function build_torch_mlir() {
+function build_torch_mlir_ext() {
   local wheel_basename="$1"
   local python_version="$2"
   rm -rf "$output_dir"/build_venv
@@ -93,7 +93,7 @@ function build_torch_mlir() {
   rm -rf "$output_dir"/build_venv
 }
 
-function build_torch_mlir_core() {
+function build_torch_mlir() {
   local wheel_basename="$1"
   local python_version="$2"
   rm -rf "$output_dir"/build_venv
