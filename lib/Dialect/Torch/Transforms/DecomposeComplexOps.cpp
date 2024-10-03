@@ -5322,8 +5322,8 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
         loc, cumulativeSumType, cumulativeSum, one, /*alpha=*/one);
 
     //     destination_indices = torch.clamp(destination_indices, min=0)
-    Value indices = rewriter.create<AtenClampOp>(loc, cumulativeSumType,
-                                                 subtracted, c(0), noneCst);
+    Value indices = rewriter.create<AtenClampMinOp>(loc, cumulativeSumType,
+                                                    subtracted, c(0));
 
     //     iota = torch.tensor(range(len(t))) * nonzero_mask.int()
     Value rangeTensor = rewriter.create<AtenArangeStartStepOp>(
@@ -5365,8 +5365,13 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
 
     auto slicedResultType = Torch::ValueTensorType::get(
         rewriter.getContext(), SmallVector<int64_t>{kUnknownSize}, si64Type);
-    Value slicedResult = rewriter.create<AtenSliceTensorOp>(
-        loc, slicedResultType, scatteredTensor, c(0), c(0), numNonzero, one);
+    Value slicedResult =
+        rewriter.create<AtenSliceTensorOp>(loc, slicedResultType,
+                                           /*self=*/scatteredTensor,
+                                           /*dim=*/c(0),
+                                           /*start=*/c(0),
+                                           /*end=*/numNonzero,
+                                           /*step=*/one);
 
     //     strides = torch.cumprod(torch.flip(inputShapeTensor, [0]), 0).flip(0)
     Value flippedShape = rewriter.create<AtenFlipOp>(
