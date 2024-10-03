@@ -687,6 +687,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "DivFloatModule_basic",
     "DivIntModule_basic",
     "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
+    "ElementwiseCreateComplexModule",
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseErfIntModule_basic",
