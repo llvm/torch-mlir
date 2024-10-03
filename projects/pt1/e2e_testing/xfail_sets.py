@@ -3166,6 +3166,14 @@ if torch_version_for_comparison() < version.parse("2.4.0.dev"):
         "AtenIntMM_basic",
     }
 
+if torch_version_for_comparison() > version.parse("2.4.0.dev"):
+    STABLEHLO_PASS_SET = STABLEHLO_PASS_SET - {
+        "ElementwiseCreateComplexModule_basic",
+    }
+    FX_IMPORTER_STABLEHLO_XFAIL_SET = FX_IMPORTER_STABLEHLO_XFAIL_SET | {
+        "ElementwiseCreateComplexModule_basic",
+    }
+
 
 ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
     "FakeQuantizePerTensorAffineModule_basic",
