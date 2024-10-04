@@ -2840,8 +2840,12 @@ LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
       return rewriter.notifyMatchFailure(op, "Not all dims are valid");
   }
 
-  auto transposeDimsConst = mlir::tosa::getConstTensor<int64_t>(
-      rewriter, op.getOperation(), dimListInt, {selfRank});
+  SmallVector<int32_t> dimListInt32;
+  for (auto v : dimListInt)
+    dimListInt32.push_back(v);
+
+  auto transposeDimsConst = mlir::tosa::getConstTensor<int32_t>(
+      rewriter, op.getOperation(), dimListInt32, {selfRank});
 
   rewriter.replaceOpWithNewOp<tosa::TransposeOp>(
       op, getTypeConverter()->convertType(op.getType()), adaptor.getSelf(),
