@@ -1088,6 +1088,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         has_folder=True,
         has_canonicalizer=True,
     )
+    emit("aten::mul.int_float : (int, float) -> (float)", has_folder=True)
     emit("aten::div.int : (int, int) -> (float)", has_folder=True)
     emit("aten::neg.int : (int) -> (int)", has_folder=True)
     emit("aten::log.int : (int) -> (float)")

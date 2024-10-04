@@ -3934,6 +3934,19 @@ OpFoldResult AtenMulOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenMulIntFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenMulIntFloatOp::fold(FoldAdaptor adaptor) {
+  if (!adaptor.getA() || !adaptor.getB()) {
+    return nullptr;
+  }
+  return atenBinaryFloatOperatorFoldHelper(
+      adaptor.getOperands(),
+      [](double a, double b) -> double { return a * b; });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSubOp
 //===----------------------------------------------------------------------===//
 
