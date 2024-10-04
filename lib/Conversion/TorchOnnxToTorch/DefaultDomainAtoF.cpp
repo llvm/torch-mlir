@@ -2521,7 +2521,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return failure();
 
         auto shapeSizes = shapeType.getSizes();
-        int64_t dataRank = dataType.getSizes().size();
+        ArrayRef<int64_t> dataShape = dataType.getSizes();
+        int64_t dataRank = dataShape.size();
         int64_t shapeRank = shapeSizes.size();
         if (shapeRank != 1 || shapeSizes[0] == Torch::kUnknownSize)
           return failure();
@@ -2543,22 +2544,43 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         // we are using torch implementation Torch::AtenBroadcastToOp which
         // takes list of int
         for (int i = 0; i < shapeSizes[0]; i++) {
+          // extract dim from shape
           Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
               loc, rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
           Value extract = rewriter.create<Torch::AtenSelectIntOp>(
               loc, selectResultType, shape, zero, selectIndex);
-          Value dim = rewriter.create<Torch::AtenItemOp>(
+          Value selectDim = rewriter.create<Torch::AtenItemOp>(
               loc, rewriter.getType<Torch::IntType>(), extract);
-
-          if (i + rankDifference >= 0) {
+          // compute dim to pass to broadcast op. For non-broadcastable dims,
+          // pass -1
+          Value dim;
+          if (i + rankDifference >= 0 && dataShape[i + rankDifference] != 1) {
+            // 1. if dataShape[i + rankDiff] > 1, then this cannot be
+            // broadcasted
+            // 2. we will explicitly disallow broadcasting dynamic dims that are
+            // secretly 1.
+            dim = rewriter.create<Torch::ConstantIntOp>(loc, -1);
+            // Assert dataShape[i + rankDiff] >= selectDim. If both are
+            // constant, this should fold out.
             Value iv =
                 rewriter.create<Torch::ConstantIntOp>(loc, i + rankDifference);
             auto sz = rewriter.create<Torch::AtenSizeIntOp>(
                 loc, rewriter.getType<Torch::IntType>(), data, iv);
-            dim = rewriter.create<Torch::PrimMaxIntOp>(loc, dim, sz);
+            Value gtSelect =
+                rewriter.create<Torch::AtenGeIntOp>(loc, sz, selectDim);
+            rewriter.create<Torch::RuntimeAssertOp>(
+                loc, gtSelect,
+                rewriter.getStringAttr(
+                    "onnx.Expand input has a dim that is not statically 1; "
+                    "expected this dim >= dim provided shape."));
+          } else {
+            // 1. excess selectDims get included in broadcast (shapeSizes[0] >
+            // dataRank)
+            // 2. selectDims which correspond to dataShape == 1 get included in
+            // broadcast
+            dim = selectDim;
           }
-
           dimList.push_back(dim);
         }
         Value dimValueList = rewriter.create<Torch::PrimListConstructOp>(
