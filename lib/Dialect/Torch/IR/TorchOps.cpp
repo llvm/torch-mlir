@@ -3277,8 +3277,8 @@ void AtenSliceTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       newListElements.push_back(listElements[i]);
     }
 
-    rewriter.replaceOpWithNewOp<PrimListConstructOp>(
-        op, Torch::ListType::get(listElements[0].getType()), newListElements);
+    rewriter.replaceOpWithNewOp<PrimListConstructOp>(op, op.getType(),
+                                                     newListElements);
     return success();
   });
 }
@@ -3771,6 +3771,17 @@ void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                            op.getDim());
     return success();
   });
+  // One-off pattern to erase if dead.
+  // TODO: Use the effects infra to express the semantics of this op and enable
+  // a centralized "erase if dead" canonicalization.
+  // Specifically, we need to mark the op as only MemoryEffects::Allocate
+  // so that `mlir::wouldOpBeTriviallyDead` does the right thing.
+  patterns.add(+[](AtenCatOp op, PatternRewriter &rewriter) {
+    if (!op.use_empty())
+      return failure();
+    rewriter.eraseOp(op);
+    return failure();
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -3819,15 +3830,31 @@ void AtenSliceTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     auto shapeOp = op.getSelf().getDefiningOp<Torch::Aten_ShapeAsTensorOp>();
     if (!shapeOp)
       return failure();
+    auto selfType =
+        dyn_cast_or_null<Torch::ValueTensorType>(op.getSelf().getType());
+    if (!selfType || !selfType.hasSizes() || selfType.getSizes().size() != 1)
+      return failure();
+    int64_t sizesEnd = selfType.getSizes()[0];
     int64_t start, end, step;
-    if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)) ||
-        !matchPattern(op.getEnd(), m_TorchConstantInt(&end)) ||
-        !matchPattern(op.getStep(), m_TorchConstantInt(&step)))
-      return rewriter.notifyMatchFailure(
-          op, "one of start, end, step was not a constant int.");
-    if (step < 1) {
-      return rewriter.notifyMatchFailure(op, "unimplemented: step < 1");
+    if (isa<Torch::NoneType>(op.getStart().getType())) {
+      start = 0;
+    } else if (!matchPattern(op.getStart(), m_TorchConstantInt(&start))) {
+      return failure();
     }
+    if (isa<Torch::NoneType>(op.getEnd().getType())) {
+      end = sizesEnd;
+    } else if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end))) {
+      return failure();
+    }
+    if (!matchPattern(op.getStep(), m_TorchConstantInt(&step))) {
+      return failure();
+    }
+
+    start = start >= 0 ? start : start + sizesEnd;
+    start = start >= 0 ? start : 0;
+    end = end >= 0 ? end : end + sizesEnd;
+    end = end < sizesEnd ? end : sizesEnd;
+
     SmallVector<Value> sizesVector;
     auto resultType = dyn_cast_or_null<Torch::ValueTensorType>(op.getType());
     if (!resultType)
@@ -3888,6 +3915,16 @@ void AtenSliceTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       return rewriter.notifyMatchFailure(op,
                                          "expected catTensorList to be a list");
 
+    auto selfType =
+        dyn_cast_or_null<Torch::ValueTensorType>(op.getSelf().getType());
+    if (!selfType || !selfType.hasSizes())
+      return failure();
+
+    int64_t selfRank = selfType.getSizes().size();
+    catDim = toPositiveDim(catDim, selfRank);
+    sliceDim = toPositiveDim(sliceDim, selfRank);
+    int64_t sizesEnd = selfType.getSizes()[sliceDim];
+
     if (catDim != sliceDim)
       return rewriter.notifyMatchFailure(op, "cat dim must match slice dim");
 
@@ -3925,14 +3962,24 @@ void AtenSliceTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     }
 
     int64_t start, end, step;
-    if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)) ||
-        !matchPattern(op.getEnd(), m_TorchConstantInt(&end)) ||
-        !matchPattern(op.getStep(), m_TorchConstantInt(&step)))
-      return rewriter.notifyMatchFailure(
-          op, "one of start, end, step was not a constant int.");
-    if (step < 1) {
-      return rewriter.notifyMatchFailure(op, "expected step < 1");
+    if (isa<Torch::NoneType>(op.getStart().getType())) {
+      start = 0;
+    } else if (!matchPattern(op.getStart(), m_TorchConstantInt(&start))) {
+      return failure();
     }
+    if (isa<Torch::NoneType>(op.getEnd().getType())) {
+      end = sizesEnd;
+    } else if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end))) {
+      return failure();
+    }
+    if (!matchPattern(op.getStep(), m_TorchConstantInt(&step))) {
+      return failure();
+    }
+
+    start = start >= 0 ? start : start + sizesEnd;
+    start = start >= 0 ? start : 0;
+    end = end >= 0 ? end : end + sizesEnd;
+    end = end < sizesEnd ? end : sizesEnd;
 
     int64_t validSliceIdx = 0;
     int64_t startingElementIdx = 0;
@@ -3944,7 +3991,7 @@ void AtenSliceTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
         break;
       }
       if (validSliceIdx < start) {
-        validSliceIdx += listSize;
+        validSliceIdx += listSizesAtCatDim[i];
         continue;
       }
       if (validSliceIdx > start) {

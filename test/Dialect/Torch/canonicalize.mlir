@@ -2334,6 +2334,24 @@ func.func @torch.aten.slice.tensor$fold_dim_0_non_contiguous() -> (!torch.vtenso
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.slice.tensor$canonicalize_cat_step_1_non_unit_width
+// CHECK:    %int0 = torch.constant.int 0
+// CHECK:    %0 = torch.prim.ListConstruct %arg1, %arg2 : (!torch.vtensor<[3,?],f32>, !torch.vtensor<[1,?],f32>) -> !torch.list<vtensor>
+// CHECK:    %1 = torch.aten.cat %0, %int0 : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[4,?],f32>
+// CHECK:    return %1 : !torch.vtensor<[4,?],f32>
+func.func @torch.aten.slice.tensor$canonicalize_cat_step_1_non_unit_width(%arg0 : !torch.vtensor<[2,?],f32>, %arg1 : !torch.vtensor<[3,?],f32>, %arg2 : !torch.vtensor<[1,?],f32>, %arg3 : !torch.vtensor<[1,?],f32>) -> (!torch.vtensor<[4,?],f32>) {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int6 = torch.constant.int 6
+  %0 = torch.prim.ListConstruct %arg0, %arg1, %arg2, %arg3 : (!torch.vtensor<[2,?],f32>, !torch.vtensor<[3,?],f32>, !torch.vtensor<[1,?],f32>, !torch.vtensor<[1,?],f32>) -> !torch.list<vtensor>
+  %1 = torch.aten.cat %0, %int0 : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[7,?],f32>
+  %2 = torch.aten.slice.Tensor %1, %int0, %int2, %int6, %int1 : !torch.vtensor<[7,?],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,?],f32>
+  return %2 : !torch.vtensor<[4,?],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.rsub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],si64> {
 // CHECK:             %[[CST:.+]] = torch.vtensor.literal(dense<-1> : tensor<si64>) : !torch.vtensor<[],si64>
 // CHECK:             return %[[CST]] : !torch.vtensor<[],si64>
