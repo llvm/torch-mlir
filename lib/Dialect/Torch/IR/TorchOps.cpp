@@ -2312,14 +2312,19 @@ void AtenSelectIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     int64_t rank = resultType.getSizes().size();
     if (rank > 1 || (rank == 1 && resultType.getSizes()[0] > 1))
       return failure();
-    auto rank0Type = rank == 0 ? resultType : rewriter.getType<Torch::ValueTensorType>(ArrayRef<int64_t>{}, resultType.getDtype());
-    Value rank0Result = rewriter.create<PrimNumToTensorScalarOp>(op.getLoc(), rank0Type, sizeValue);
+    auto rank0Type = rank == 0
+                         ? resultType
+                         : rewriter.getType<Torch::ValueTensorType>(
+                               ArrayRef<int64_t>{}, resultType.getDtype());
+    Value rank0Result = rewriter.create<PrimNumToTensorScalarOp>(
+        op.getLoc(), rank0Type, sizeValue);
     if (rank == 0) {
       rewriter.replaceOp(op, rank0Result);
       return success();
     }
     Value cstZero = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), 0);
-    rewriter.replaceOpWithNewOp<AtenUnsqueezeOp>(op, resultType, rank0Result, cstZero);
+    rewriter.replaceOpWithNewOp<AtenUnsqueezeOp>(op, resultType, rank0Result,
+                                                 cstZero);
     return success();
   });
 }
@@ -3693,14 +3698,16 @@ OpFoldResult AtenCatOp::fold(FoldAdaptor adaptor) {
 void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                             MLIRContext *context) {
   patterns.add(+[](AtenCatOp op, PatternRewriter &rewriter) {
-    auto getCatElementsAndDim = [](AtenCatOp catOp, SmallVector<Value> &tensorsVector, int64_t &catDim) {
+    auto getCatElementsAndDim = [](AtenCatOp catOp,
+                                   SmallVector<Value> &tensorsVector,
+                                   int64_t &catDim) {
       if (!Torch::getListConstructElements(catOp.getTensors(), tensorsVector))
         return false;
       if (!matchPattern(catOp.getDim(), m_TorchConstantInt(&catDim)))
         return false;
       return true;
     };
-    
+
     SmallVector<Value> catTensors;
     int64_t dim;
     if (!getCatElementsAndDim(op, catTensors, dim))
@@ -3715,7 +3722,8 @@ void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       }
       SmallVector<Value> priorTensors;
       int64_t priorCatDim;
-      if (!getCatElementsAndDim(priorCatOp, priorTensors, priorCatDim) || priorCatDim != dim) {
+      if (!getCatElementsAndDim(priorCatOp, priorTensors, priorCatDim) ||
+          priorCatDim != dim) {
         catTensorsExpanded.push_back(tensor);
         continue;
       }
@@ -3728,8 +3736,10 @@ void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       return failure();
     }
 
-    Value expandedList = rewriter.create<Torch::PrimListConstructOp>(op.getLoc(), op.getTensors().getType(), catTensorsExpanded);
-    rewriter.replaceOpWithNewOp<Torch::AtenCatOp>(op, op.getType(), expandedList, op.getDim());
+    Value expandedList = rewriter.create<Torch::PrimListConstructOp>(
+        op.getLoc(), op.getTensors().getType(), catTensorsExpanded);
+    rewriter.replaceOpWithNewOp<Torch::AtenCatOp>(op, op.getType(),
+                                                  expandedList, op.getDim());
     return success();
   });
   patterns.add(+[](AtenCatOp op, PatternRewriter &rewriter) {
@@ -3803,38 +3813,51 @@ OpFoldResult AtenBroadcastToOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 void AtenSliceTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                     MLIRContext *context) {
-  // if slicing a torch.aten._shape_as_tensor op, then get size ints and make a tensor from those
+  // if slicing a torch.aten._shape_as_tensor op, then get size ints and make a
+  // tensor from those
   patterns.add(+[](AtenSliceTensorOp op, PatternRewriter &rewriter) {
     auto shapeOp = op.getSelf().getDefiningOp<Torch::Aten_ShapeAsTensorOp>();
     if (!shapeOp)
       return failure();
     int64_t start, end, step;
-    if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)) || !matchPattern(op.getEnd(),m_TorchConstantInt(&end)) || !matchPattern(op.getStep(), m_TorchConstantInt(&step)))
-      return rewriter.notifyMatchFailure(op, "one of start, end, step was not a constant int.");
+    if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)) ||
+        !matchPattern(op.getEnd(), m_TorchConstantInt(&end)) ||
+        !matchPattern(op.getStep(), m_TorchConstantInt(&step)))
+      return rewriter.notifyMatchFailure(
+          op, "one of start, end, step was not a constant int.");
     if (step < 1) {
       return rewriter.notifyMatchFailure(op, "unimplemented: step < 1");
     }
     SmallVector<Value> sizesVector;
-    auto resultType = dyn_cast_or_null<Torch::BaseTensorType>(op.getType());
+    auto resultType = dyn_cast_or_null<Torch::ValueTensorType>(op.getType());
     if (!resultType)
       return failure();
-    auto rank0Type = rewriter.getType<Torch::ValueTensorType>(ArrayRef<int64_t>{}, resultType.getDtype());
-    auto rank1Type = rewriter.getType<Torch::ValueTensorType>(ArrayRef<int64_t>{1}, resultType.getDtype());
+    auto rank0Type = rewriter.getType<Torch::ValueTensorType>(
+        ArrayRef<int64_t>{}, resultType.getDtype());
+    auto rank1Type = rewriter.getType<Torch::ValueTensorType>(
+        ArrayRef<int64_t>{1}, resultType.getDtype());
     Value cstZero = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), 0);
-    for (int64_t i = start; i < end; i+=step) {
+    for (int64_t i = start; i < end; i += step) {
       Value currDim = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), i);
-      Value currSizeInt = rewriter.create<Torch::AtenSizeIntOp>(op.getLoc(), rewriter.getType<Torch::IntType>(), shapeOp.getSelf(), currDim);
-      Value currSizeRank0 = rewriter.create<Torch::PrimNumToTensorScalarOp>(op.getLoc(), rank0Type, currSizeInt);
-      sizesVector.push_back(rewriter.create<Torch::AtenUnsqueezeOp>(op.getLoc(), rank1Type, currSizeRank0, cstZero));
+      Value currSizeInt = rewriter.create<Torch::AtenSizeIntOp>(
+          op.getLoc(), rewriter.getType<Torch::IntType>(), shapeOp.getSelf(),
+          currDim);
+      Value currSizeRank0 = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+          op.getLoc(), rank0Type, currSizeInt);
+      sizesVector.push_back(rewriter.create<Torch::AtenUnsqueezeOp>(
+          op.getLoc(), rank1Type, currSizeRank0, cstZero));
     }
     int64_t num_elements = sizesVector.size();
     if (num_elements == 1) {
       rewriter.replaceOp(op, sizesVector[0]);
       return success();
     }
-    auto listType = Torch::ListType::get(sizesVector[0].getType());
-    Value listConstruct = rewriter.create<Torch::PrimListConstructOp>(op.getLoc(), listType, sizesVector);
-    rewriter.replaceOpWithNewOp<Torch::AtenCatOp>(op, op.getType(), listConstruct, cstZero);
+    auto listType = Torch::ListType::get(
+        resultType.getWithLeastStaticInformation(op.getContext()));
+    Value listConstruct = rewriter.create<Torch::PrimListConstructOp>(
+        op.getLoc(), listType, sizesVector);
+    rewriter.replaceOpWithNewOp<Torch::AtenCatOp>(op, op.getType(),
+                                                  listConstruct, cstZero);
     return success();
   });
 
@@ -3862,25 +3885,30 @@ void AtenSliceTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 
     auto listType = dyn_cast_or_null<Torch::ListType>(catTensorList.getType());
     if (!listType)
-      return rewriter.notifyMatchFailure(op, "expected catTensorList to be a list");
+      return rewriter.notifyMatchFailure(op,
+                                         "expected catTensorList to be a list");
 
     if (catDim != sliceDim)
       return rewriter.notifyMatchFailure(op, "cat dim must match slice dim");
 
     SmallVector<Value> listValues;
     if (!Torch::getListConstructElements(catTensorList, listValues))
-      return rewriter.notifyMatchFailure(op, "failed to get prim list elements for cat op");
+      return rewriter.notifyMatchFailure(
+          op, "failed to get prim list elements for cat op");
 
     SmallVector<int64_t> listSizesAtCatDim;
     bool allOnes = 1;
     for (auto v : listValues) {
-      auto valueTensorType = dyn_cast_or_null<Torch::ValueTensorType>(v.getType());
+      auto valueTensorType =
+          dyn_cast_or_null<Torch::ValueTensorType>(v.getType());
       if (!valueTensorType || !valueTensorType.hasSizes())
-        return rewriter.notifyMatchFailure(op, "found a tensor in cat list without a valid type");
+        return rewriter.notifyMatchFailure(
+            op, "found a tensor in cat list without a valid type");
       int64_t sizeAtDim = valueTensorType.getSizes()[catDim];
       if (sizeAtDim == Torch::kUnknownSize)
-        return rewriter.notifyMatchFailure(op, "found a tensor in cat list with a dynamic cat dim");
-      listSizesAtCatDim.push_back(sizeAtDim);      
+        return rewriter.notifyMatchFailure(
+            op, "found a tensor in cat list with a dynamic cat dim");
+      listSizesAtCatDim.push_back(sizeAtDim);
       allOnes *= (sizeAtDim == 1);
     }
 
@@ -3888,17 +3916,20 @@ void AtenSliceTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       SmallVector<Value, 4> newOperands;
       newOperands.push_back(catTensorList);
       newOperands.insert(newOperands.end(), op.getOperands().begin() + 2,
-                        op.getOperands().end());
+                         op.getOperands().end());
       Value sliceT =
           rewriter.create<AtenSliceTOp>(op.getLoc(), listType, newOperands);
       rewriter.replaceOpWithNewOp<AtenCatOp>(op, op.getType(), sliceT,
-                                            op.getDim());
+                                             op.getDim());
       return success();
     }
 
     int64_t start, end, step;
-    if (!matchPattern(op.getStart(),m_TorchConstantInt(&start)) || !matchPattern(op.getEnd(),m_TorchConstantInt(&end)) || !matchPattern(op.getStep(), m_TorchConstantInt(&step)))
-      return rewriter.notifyMatchFailure(op, "one of start, end, step was not a constant int.");
+    if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)) ||
+        !matchPattern(op.getEnd(), m_TorchConstantInt(&end)) ||
+        !matchPattern(op.getStep(), m_TorchConstantInt(&step)))
+      return rewriter.notifyMatchFailure(
+          op, "one of start, end, step was not a constant int.");
     if (step < 1) {
       return rewriter.notifyMatchFailure(op, "expected step < 1");
     }
@@ -3908,7 +3939,7 @@ void AtenSliceTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     int64_t listSize = listSizesAtCatDim.size();
     // compute the starting element of catTensorList for slice.T op.
     for (int64_t i = 0; i < listSize; i++) {
-      if (validSliceIdx == start){
+      if (validSliceIdx == start) {
         startingElementIdx = i;
         break;
       }
@@ -3918,40 +3949,57 @@ void AtenSliceTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       }
       if (validSliceIdx > start) {
         // start lies properly within one cat element
-        return rewriter.notifyMatchFailure(op, "slice start lies properly within a cat tensor at index " + std::to_string(i-1));
+        return rewriter.notifyMatchFailure(
+            op, "slice start lies properly within a cat tensor at index " +
+                    std::to_string(i - 1));
       }
     }
     int64_t endElementIdx = listSize;
     // compute the ending element of catTensorList for slice.T op.
-    // also verify that if step > 1, each tensor we iterate through should be unit width, otherwise we won't be able to access a width 1 slice from the catTensorList, or we won't be able to use constant strides in slice.t op if something in between isn't unit length.
+    // also verify that if step > 1, each tensor we iterate through should be
+    // unit width, otherwise we won't be able to access a width 1 slice from the
+    // catTensorList, or we won't be able to use constant strides in slice.t op
+    // if something in between isn't unit length.
     for (int64_t i = startingElementIdx; i < listSize; i++) {
       if (validSliceIdx == end) {
         endElementIdx = i;
         break;
       }
       if (validSliceIdx < end) {
-        // if step == 1, then we are just going to grab everthing between startElementIdx and endElementIdx, even if they aren't unit width.
-        // if step > 1, need to make sure we will stride equivalently through the catTensorList, and be able to extract individual elements (hence width == 1)
+        // if step == 1, then we are just going to grab everthing between
+        // startElementIdx and endElementIdx, even if they aren't unit width. if
+        // step > 1, need to make sure we will stride equivalently through the
+        // catTensorList, and be able to extract individual elements (hence
+        // width == 1)
         if (step > 1 && listSizesAtCatDim[i] != 1)
-          return rewriter.notifyMatchFailure(op, "step > 1 && non unit width between start and end");
+          return rewriter.notifyMatchFailure(
+              op, "step > 1 && non unit width between start and end");
         validSliceIdx += listSizesAtCatDim[i];
         continue;
       }
-      if (validSliceIdx > end){
+      if (validSliceIdx > end) {
         // end lies properly within one cat element
-        return rewriter.notifyMatchFailure(op, "end lies properly within a cat tensor at index " + std::to_string(i-1));
+        return rewriter.notifyMatchFailure(
+            op, "end lies properly within a cat tensor at index " +
+                    std::to_string(i - 1));
       }
     }
     if (endElementIdx == listSize && end != validSliceIdx) {
-      // We didn't find a valid endElementIdx in the above loop and matching condition failed.
-      return rewriter.notifyMatchFailure(op, "end index not found in loop, and not matching expected end index");
+      // We didn't find a valid endElementIdx in the above loop and matching
+      // condition failed.
+      return rewriter.notifyMatchFailure(
+          op,
+          "end index not found in loop, and not matching expected end index");
     }
-    
-    Value startElementIdxValue = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), startingElementIdx);
-    Value endElementIdxValue = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), endElementIdx);
 
-    Value sliceT =
-        rewriter.create<AtenSliceTOp>(op.getLoc(), listType, catTensorList, startElementIdxValue, endElementIdxValue, op.getStep());
+    Value startElementIdxValue =
+        rewriter.create<Torch::ConstantIntOp>(op.getLoc(), startingElementIdx);
+    Value endElementIdxValue =
+        rewriter.create<Torch::ConstantIntOp>(op.getLoc(), endElementIdx);
+
+    Value sliceT = rewriter.create<AtenSliceTOp>(
+        op.getLoc(), listType, catTensorList, startElementIdxValue,
+        endElementIdxValue, op.getStep());
     rewriter.replaceOpWithNewOp<AtenCatOp>(op, op.getType(), sliceT,
                                            op.getDim());
     return success();

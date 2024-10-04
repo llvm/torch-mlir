@@ -2009,17 +2009,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         } else {
           // The default `steps` value is a 1d tensor filled with ones with a
           // size equal to the size of `starts` and `ends`.
-          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-          Value sizeStepInput = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getType<Torch::IntType>(),
-              rewriter.getIntegerAttr(rewriter.getIntegerType(64), startSize));
-          Value sizeStepsInput = rewriter.create<Torch::PrimListConstructOp>(
-              loc,
-              Torch::ListType::get(
-                  Torch::IntType::get(binder.op->getContext())),
-              sizeStepInput);
-          steps = rewriter.create<Torch::AtenOnesOp>(
-              loc, startsTorchTy, sizeStepsInput, none, none, none, none);
+          auto splatOneAttr = SplatElementsAttr::get(
+              startsTy, rewriter.getIntegerAttr(startsTorchTy.getDtype(), 1));
+          steps = rewriter.create<Torch::ValueTensorLiteralOp>(
+              loc, startsTorchTy, splatOneAttr);
         }
 
         if (!(endsTy.getRank() == 1 && startsTy.getRank() == 1 &&
@@ -2052,7 +2045,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         auto select = [&](Value v, Value k) -> Value {
           auto ty = cast<Torch::ValueTensorType>(v.getType());
-          auto sel = rewriter.create<Torch::AtenIndexSelectOp>(
+          auto sel = rewriter.create<Torch::AtenSelectIntOp>(
               loc,
               Torch::ValueTensorType::get(ty.getContext(), ArrayRef<int64_t>{1},
                                           ty.getOptionalDtype()),
@@ -2076,17 +2069,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           Value k = rewriter.create<Torch::ConstantIntOp>(
               loc, rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
-          Value kTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
-              loc,
-              Torch::ValueTensorType::get(
-                  context, ArrayRef<int64_t>{1},
-                  rewriter.getIntegerType(64, /*signed*/ 1)),
-              k);
 
-          Value start = select(starts, kTensor);
-          Value end = select(ends, kTensor);
-          Value axis = axes ? select(axes, kTensor) : k;
-          Value step = select(steps, kTensor);
+          Value start = select(starts, k);
+          Value end = select(ends, k);
+          Value axis = axes ? select(axes, k) : k;
+          Value step = select(steps, k);
 
           auto sliceType = intermediateType;
           sliceType = i == (endSize - 1) ? resultTorchType : sliceType;
