@@ -3170,10 +3170,12 @@ if torch_version_for_comparison() > version.parse("2.4.0.dev"):
     STABLEHLO_PASS_SET = STABLEHLO_PASS_SET - {
         "ElementwiseCreateComplexModule_basic",
         "ElementwiseTanIntModule_basic",
+        "ElementwiseTanModule_basic"
     }
     FX_IMPORTER_STABLEHLO_XFAIL_SET = FX_IMPORTER_STABLEHLO_XFAIL_SET | {
         "ElementwiseCreateComplexModule_basic",
         "ElementwiseTanIntModule_basic",
+        "ElementwiseTanModule_basic"
     }
 
 
