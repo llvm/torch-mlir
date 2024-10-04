@@ -4,13 +4,11 @@
 // CHECK-LABEL:   func.func @elementwise$unary(
 // CHECK-SAME:                            %[[ARG:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
 // CHECK-DAG:       %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[],f32> -> tensor<f32>
-// CHECK:           %[[INIT_TENSOR:.*]] = tensor.empty() : tensor<f32>
-// CHECK:           %[[GENERIC:.*]] = linalg.generic {indexing_maps = [affine_map<() -> ()>, affine_map<() -> ()>], iterator_types = []} ins(%[[BUILTIN_TENSOR]] : tensor<f32>) outs(%[[INIT_TENSOR]] : tensor<f32>) {
-// CHECK:           ^bb0(%[[BBARG0:.*]]: f32, %{{.*}}: f32):
-// CHECK:             %[[TANH:.*]] = math.tanh %[[BBARG0]] : f32
-// CHECK:             linalg.yield %[[TANH]] : f32
-// CHECK:           } -> tensor<f32>
-// CHECK:           %[[CASTED:.*]] = tensor.cast %[[GENERIC:.*]] : tensor<f32> to tensor<f32>
+// CHECK:           %[[EXTRACT:.*]] = tensor.extract %[[BUILTIN_TENSOR]][] : tensor<f32>
+// CHECK:           %[[TANH:.*]] = math.tanh %[[EXTRACT]] : f32
+// CHECK:           %[[EMPTY:.*]] = tensor.empty() : tensor<f32>
+// CHECK:           %[[FILL:.*]] = linalg.fill ins(%[[TANH]] : f32) outs(%[[EMPTY]] : tensor<f32>) -> tensor<f32>
+// CHECK:           %[[CASTED:.*]] = tensor.cast %[[FILL:.*]] : tensor<f32> to tensor<f32>
 // CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CASTED]] : tensor<f32> -> !torch.vtensor<[],f32>
 // CHECK:           return %[[RESULT]] : !torch.vtensor<[],f32>
 // CHECK:         }
