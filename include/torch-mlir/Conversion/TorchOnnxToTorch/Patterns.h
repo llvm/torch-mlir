@@ -34,6 +34,7 @@ struct OpBinder {
   Location getLoc() { return op->getLoc(); }
 
   int getNumOperands() { return op->getNumOperands(); }
+  int getNumResults() { return op->getNumResults(); }
 
   // Operand matches of different arities.
   ParseResult tensorOperand(Value &value0) {
