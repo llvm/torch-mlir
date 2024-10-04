@@ -1627,25 +1627,6 @@ public:
         operands, [](Value v) { return isa<RankedTensorType>(v.getType()); }));
     auto resultType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op->getResult(0).getType()));
-    bool isScalarOp = resultType.getShape().size() == 0;
-    if (isScalarOp) {
-      // for elementwise ops that are actually rank0 scalar computations,
-      // perform the payload outside a linalg generic op.
-      SmallVector<Value> payloadArgs;
-      for (auto t : tensorOperands) {
-        payloadArgs.push_back(rewriter.create<tensor::ExtractOp>(loc, t));
-      }
-      Value scalarResult = createLinalgPayloadCalculationForElementwiseOp(
-          rewriter, loc, getTypeConverter(), payloadArgs, op, operands);
-      if (!scalarResult)
-        return rewriter.notifyMatchFailure(
-            op, "Failed to create payload for scalar elementwise op");
-      Value rank0Result =
-          createInitTensor(rewriter, loc, ValueRange{},
-                           resultType.getElementType(), scalarResult);
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, rank0Result);
-      return success();
-    }
     bool hadErrorCreatingPayload = false;
     Value generic = torch_to_linalg::createElementwiseLinalgGeneric(
         rewriter, loc, tensorOperands, resultType.getElementType(),
