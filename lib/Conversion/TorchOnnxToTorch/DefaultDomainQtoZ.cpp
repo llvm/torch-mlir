@@ -635,18 +635,21 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         // TODO: Implement max and min cases
         if (reduction == "mul") {
-          reduction = "multiply";
+          reduction = "prod";
         } else if (reduction == "max" || reduction == "min") {
           return rewriter.notifyMatchFailure(
               binder.op, "max/min reduction unsupported for scatter elements");
+        } else if (reduction == "add") {
+          reduction = "sum";
         }
 
         Value cstStrReduction =
             rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), reduction);
-
-        rewriter.replaceOpWithNewOp<Torch::AtenScatterReduceOp>(
+        Value cstTrue =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+        rewriter.replaceOpWithNewOp<Torch::AtenScatterReduceTwoOp>(
             binder.op, resultType, data, constAxis, indices, updates,
-            cstStrReduction);
+            cstStrReduction, cstTrue);
         return success();
       });
   patterns.onOp(
