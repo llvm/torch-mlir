@@ -5561,27 +5561,12 @@ def aten〇_make_per_tensor_quantized_tensor〡dtype(self_rank_dtype: Tuple[int,
 
 @check_shape_function([
     Invocation(TensorOfShape(6, 4), 0, 2, 1), # Basic case.
+    Invocation(TensorOfShape(6, 4, 2), 0, 2, 1), # Basic case.
     Invocation(TensorOfShape(6, 4), -1, 2, 1), # Negative Dimension.
+    Invocation(TensorOfShape(6, 4, 2), -1, 2, 1), # Negative Dimension.
 ])
 def aten〇unfold〡shape(self: List[int], dimension: int, size: int, step: int) -> List[int]:
-    ndim = len(self)
-
-    dim = dimension
-    if dimension < 0:
-        dim += ndim
-
-    assert (dim >= 0 and dim < ndim), f"dimension out of range of {ndim}"
-
-    size_dim = self[dim]
-    assert size <= size_dim, f"size must be less than {size_dim}"
-
-    num_blocks = (size_dim - size) // step + 1
-
-    out = upstream_shape_functions._copy(self)
-    out[dim] = num_blocks
-    out.append(size)
-
-    return out
+    return upstream_shape_functions.unfold(self, dimension, size, step)
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1, dimension=0, size=1, step=1)
