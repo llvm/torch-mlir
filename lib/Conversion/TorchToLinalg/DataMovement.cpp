@@ -2640,11 +2640,15 @@ public:
     Value outputTensor = createZeroInitTensor(rewriter, loc, outputShape,
                                               selfType.getElementType());
 
-    // Use reindexing to map output indices to input indices
-    // i.e. In output of rank 3 case:
-    //      (i, j, k) => (i', j') where i' = i * step + k and j' = j if
-    //      dimension == 0 (i, j, k) => (i', j') where i' = i and j' = j * step
-    //      + k if dimension == 1
+    /*
+    Use reindexing to map output indices to input indices
+    i.e. In output of rank 3 case:
+        (i, j, k) => (i', j') where i' = i * step + k and j' = j
+          if dimension == 0
+        (i, j, k) => (i', j') where i' = i and j' = j * step + k
+          if dimension == 1
+     */
+
     MLIRContext *context = rewriter.getContext();
     SmallVector<AffineExpr> outputExprs;
     for (int dim = 0; dim < selfRank; ++dim) {
