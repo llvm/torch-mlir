@@ -2603,53 +2603,66 @@ public:
     }
 
     int64_t selfRank = selfType.getRank();
+
+    // Zero-Rank case
+    if (selfRank == 0) {
+      Value unsqueezedSelf = rewriter.create<tensor::ExpandShapeOp>(
+          loc, RankedTensorType::get({1}, selfType.getElementType()), self,
+          ArrayRef<ReassociationIndices>{});
+      rewriter.replaceOp(op, unsqueezedSelf);
+      return success();
+    }
+
     auto shape = selfType.getShape();
 
     if (dimension < 0) {
       dimension = toPositiveDim(dimension, selfRank);
-      if (!isValidDim(dimension, selfRank)) {
-        return rewriter.notifyMatchFailure(op, "dimension out of range");
-      }
+    }
+    if (!isValidDim(dimension, selfRank)) {
+      return rewriter.notifyMatchFailure(op, "dimension out of range");
     }
 
-    int64_t dimSize = shape[dimension];
-    if (size > dimSize) {
-      return rewriter.notifyMatchFailure(
-          op, "size must be less than or equal to size of target dimension.");
-    }
+    Value dimSize = rewriter.create<tensor::DimOp>(loc, self, dimension);
+
+    Value sizeValue = rewriter.create<arith::ConstantIndexOp>(loc, size);
+    Value sizeCheck = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ule, sizeValue, dimSize);
+    rewriter.create<cf::AssertOp>(
+        loc, sizeCheck,
+        rewriter.getStringAttr("size must be <= target dimension"));
 
     /* Calculate number of blocks from unfold op:
-      https://pytorch.org/docs/stable/generated/torch.Tensor.unfold.html
-      outputShape[dimension] is set to numBlock, with size appended as an
-      additional dimension
-    */
-    int64_t numBlocks = (dimSize - size) / step + 1;
-    SmallVector<Value> outputShape;
+     *  https://pytorch.org/docs/stable/generated/torch.Tensor.unfold.html
+     *  outputShape[dimension] is set to numBlock, with size appended as an
+     *  additional dimension
+     */
+    numBlocks = (dimSize - size) / step + 1;
+    SmallVector<OpFoldResult> outputShape;
     for (int64_t i = 0; i < selfRank; i++) {
       if (i == dimension) {
+        outputShape.push_back(getDynamicOrStaticNumBlocks(
+            rewriter, loc, shape[dimension], dimSize, size, step));
+      } else if (shape[i] == ShapedType::kDynamic) {
         outputShape.push_back(
-            rewriter.create<arith::ConstantIndexOp>(loc, numBlocks));
+            OpFoldResult(rewriter.create<tensor::DimOp>(loc, self, i)));
       } else {
-        outputShape.push_back(
-            rewriter.create<arith::ConstantIndexOp>(loc, shape[i]));
+        outputShape.push_back(rewriter.getIndexAttr(shape[i]));
       }
     }
-    outputShape.push_back(rewriter.create<arith::ConstantIndexOp>(loc, size));
-    int64_t outputRank = selfRank + 1;
+    outputShape.push_back(rewriter.getIndexAttr(size));
 
     // Empty tensor to insert values into
-    Value outputTensor = createZeroInitTensor(rewriter, loc, outputShape,
-                                              selfType.getElementType());
+    Value outputTensor = rewriter.create<tensor::EmptyOp>(
+        loc, outputShape, selfType.getElementType());
 
-    /*
-    Use reindexing to map output indices to input indices
-    i.e. In output of rank 3 case:
-        (i, j, k) => (i', j') where i' = i * step + k and j' = j
-          if dimension == 0
-        (i, j, k) => (i', j') where i' = i and j' = j * step + k
-          if dimension == 1
+    /**
+     * Use reindexing to map output indices to input indices
+     * i.e. In output of rank 3 case:
+     *     (i, j, k) => (i', j') where i' = i * step + k and j' = j
+     *       if dimension == 0
+     *     (i, j, k) => (i', j') where i' = i and j' = j * step + k
+     *       if dimension == 1
      */
-
     MLIRContext *context = rewriter.getContext();
     SmallVector<AffineExpr> outputExprs;
     for (int dim = 0; dim < selfRank; ++dim) {
@@ -2664,6 +2677,8 @@ public:
         outputExprs.push_back(getAffineDimExpr(dim, context));
       }
     }
+
+    int64_t outputRank = selfRank + 1;
     auto inputAffineMap = AffineMap::get(outputRank, 0, outputExprs, context);
     auto outputAffineMap =
         AffineMap::getMultiDimIdentityMap(outputRank, context);
@@ -2683,6 +2698,29 @@ public:
 
     rewriter.replaceOp(op, result);
     return success();
+  }
+
+private:
+  OpFoldResult getDynamicOrStaticNumBlocks(OpBuilder &rewriter, Location loc,
+                                           int64_t shapeDim, Value dimSize,
+                                           int64_t size, int64_t step) const {
+    /**
+     * numBlocks = (shape[dimension] - size) // step + 1
+     */
+    if (shapeDim == ShapedType::kDynamic) {
+      Value numBlocks = rewriter.create<arith::AddIOp>(
+          loc, rewriter.create<arith::ConstantIndexOp>(loc, 1),
+          rewriter.create<arith::DivUIOp>(
+              loc,
+              rewriter.create<arith::SubIOp>(
+                  loc, dimSize,
+                  rewriter.create<arith::ConstantIndexOp>(loc, size)),
+              rewriter.create<arith::ConstantIndexOp>(loc, step)));
+      return OpFoldResult(numBlocks);
+    } else {
+      int64_t staticNumBlocks = (shapeDim - size) / step + 1;
+      return rewriter.getIndexAttr(staticNumBlocks); // Use static value
+    }
   }
 };
 } // namespace

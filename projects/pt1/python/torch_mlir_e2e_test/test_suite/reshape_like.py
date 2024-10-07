@@ -1650,9 +1650,6 @@ def Rot90NegativeEvenRotationsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(6, 5, 1, 7, 3))
 
 
-# ==============================================================================
-
-
 class Unfold_Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1693,6 +1690,26 @@ def Unfold_Module_Rank_4(module, tu: TestUtils):
     module.forward(tu.rand(6, 4, 4, 4))
 
 
+class Unfold_Module_Rank_Zero(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return x.unfold(0, 1, 1)
+
+
+@register_test_case(module_factory=lambda: Unfold_Module_Rank_Zero())
+def Unfold_Module_Rank_Zero_basic(module, tu: TestUtils):
+    module.forward(tu.rand())
+
+
 class Unfold_Module_Dynamic(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1701,7 +1718,7 @@ class Unfold_Module_Dynamic(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1, -1], torch.float32, True),
         ]
     )
     def forward(self, x):
@@ -1710,4 +1727,4 @@ class Unfold_Module_Dynamic(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Unfold_Module_Dynamic())
 def Unfold_Module_Dynamic_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 4, 6))
+    module.forward(tu.rand(6, 4, 4, 4))
