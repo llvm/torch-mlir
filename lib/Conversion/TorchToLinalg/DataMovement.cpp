@@ -2602,8 +2602,6 @@ public:
       return rewriter.notifyMatchFailure(op, "step must be greater than zero.");
     }
 
-    // Calculate number of blocks from unfold op:
-    // https://pytorch.org/docs/stable/generated/torch.Tensor.unfold.html
     int64_t selfRank = selfType.getRank();
     auto shape = selfType.getShape();
 
@@ -2620,8 +2618,11 @@ public:
           op, "size must be less than or equal to size of target dimension.");
     }
 
-    // outputShape[dimension] is set to numBlock, with size appended as an
-    // additional dimension
+    /* Calculate number of blocks from unfold op:
+      https://pytorch.org/docs/stable/generated/torch.Tensor.unfold.html
+      outputShape[dimension] is set to numBlock, with size appended as an
+      additional dimension
+    */
     int64_t numBlocks = (dimSize - size) / step + 1;
     SmallVector<Value> outputShape;
     for (int64_t i = 0; i < selfRank; i++) {
