@@ -2631,12 +2631,11 @@ public:
         loc, sizeCheck,
         rewriter.getStringAttr("size must be <= target dimension"));
 
-    /* Calculate number of blocks from unfold op:
+    /* Calculate output shape of unfold op:
      *  https://pytorch.org/docs/stable/generated/torch.Tensor.unfold.html
-     *  outputShape[dimension] is set to numBlock, with size appended as an
+     *  outputShape[dimension] is set to numBlocks, with size appended as an
      *  additional dimension
      */
-    numBlocks = (dimSize - size) / step + 1;
     SmallVector<OpFoldResult> outputShape;
     for (int64_t i = 0; i < selfRank; i++) {
       if (i == dimension) {
