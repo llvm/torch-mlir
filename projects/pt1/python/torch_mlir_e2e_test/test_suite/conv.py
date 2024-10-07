@@ -1067,6 +1067,31 @@ def Conv1dModule_basic(module, tu: TestUtils):
     module.forward(inputVec, weight, bias)
 
 
+class Conv1dDepthwiseWithPaddingDilationStrideStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4, 6], torch.float32, True),
+            ([4, 1, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.conv1d(
+            inputVec, weight, bias=None, stride=[1], padding=[4], dilation=[1], groups=4
+        )
+
+
+@register_test_case(module_factory=lambda: Conv1dDepthwiseWithPaddingDilationStrideStaticModule())
+def Conv1dDepthwiseWithPaddingDilationStrideStaticModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 4, 6)
+    weight = torch.randn(4, 1, 3)
+    module.forward(inputVec, weight)
+
+
 class Conv2dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

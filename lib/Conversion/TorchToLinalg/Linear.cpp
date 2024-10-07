@@ -1221,9 +1221,6 @@ public:
       return success();
     }
 
-    if (numSpatialDims != 2)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only 2D grouped convolution supported");
 
     // Special depthwise case: Cin = Cout = groups.
     // Note: pytorch considers Cin == groups (Cout possibly a non-zero multiple
@@ -1236,21 +1233,45 @@ public:
     if (inShape[1] == numGroups && weightShape[0] == numGroups &&
         weightShape[1] == 1) {
       // Collapse weight shape (C/G == 1)
-      SmallVector<ReassociationIndices, 4> collapsedDims = {{0, 1}, {2}, {3}};
-      SmallVector<int64_t> collapsedShape{weightShape[0] * weightShape[1],
-                                          weightShape[2], weightShape[3]};
+      SmallVector<ReassociationIndices> collapsedDims = {{0, 1}};
+      SmallVector<int64_t> collapsedShape{weightShape[0] * weightShape[1]};
+      for (unsigned i = 0; i < numSpatialDims; i++) {
+        collapsedDims.push_back({i + 2});
+        collapsedShape.push_back(weightShape[i + 2]);
+      }
       Type collapsedType = RankedTensorType::get(
           makeShapeLLVMCompatible(collapsedShape), weightDTy);
       Value collapsedWeight = rewriter.create<tensor::CollapseShapeOp>(
           loc, collapsedType, weight, collapsedDims);
       if (!inputZp) {
-        conv = rewriter
-                   .create<linalg::DepthwiseConv2DNchwChwOp>(
-                       loc, outputTensor.getType(),
-                       ValueRange{paddedInput, collapsedWeight}, outputTensor,
-                       stridesAttr, dilationAttr)
-                   .getResult(0);
+        switch (numSpatialDims) {
+        case 1:
+          conv = rewriter
+                     .create<linalg::DepthwiseConv1DNcwCwOp>(
+                         loc, outputTensor.getType(),
+                         ValueRange{paddedInput, collapsedWeight}, outputTensor,
+                         stridesAttr, dilationAttr)
+                     .getResult(0);
+          break;
+        case 2:
+          conv = rewriter
+                     .create<linalg::DepthwiseConv2DNchwChwOp>(
+                         loc, outputTensor.getType(),
+                         ValueRange{paddedInput, collapsedWeight}, outputTensor,
+                         stridesAttr, dilationAttr)
+                     .getResult(0);
+          break;
+        default:
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: only 1D and 2D depthwise convolution "
+                  "supported for special case of group convolution");
+        };
       } else {
+        if (numSpatialDims != 2)
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: only 2D depthwise quantized convolution "
+                  "supported for special case of group convolution");
+
         // currently, the only named depthwise qconv op is nhwc_hwc
         // input: nchw -> nhwc; weight (collapsed): chw -> hwc
         // linalg conv result nhwc -> nchw
@@ -1296,6 +1317,10 @@ public:
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
     }
+
+    if (numSpatialDims != 2)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only 2D grouped convolution supported");
 
     // Grouped case, use the grouped conv linalg op
     auto expandGroups = [&](Value tensor, size_t dim) {
