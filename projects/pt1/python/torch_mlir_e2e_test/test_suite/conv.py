@@ -1085,7 +1085,9 @@ class Conv1dDepthwiseWithPaddingDilationStrideStaticModule(torch.nn.Module):
         )
 
 
-@register_test_case(module_factory=lambda: Conv1dDepthwiseWithPaddingDilationStrideStaticModule())
+@register_test_case(
+    module_factory=lambda: Conv1dDepthwiseWithPaddingDilationStrideStaticModule()
+)
 def Conv1dDepthwiseWithPaddingDilationStrideStaticModule_basic(module, tu: TestUtils):
     inputVec = tu.rand(2, 4, 6)
     weight = torch.randn(4, 1, 3)

@@ -1221,7 +1221,6 @@ public:
       return success();
     }
 
-
     // Special depthwise case: Cin = Cout = groups.
     // Note: pytorch considers Cin == groups (Cout possibly a non-zero multiple
     // of groups) to be depthwise in their documentation, but the linalg ops
