@@ -222,14 +222,9 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
 
     Location loc = op->getLoc();
-    MLIRContext *context = op.getContext();
     Value self = adaptor.getSelf();
     auto selfRank =
         cast<RankedTensorType>(adaptor.getSelf().getType()).getRank();
-    Type elementType =
-        cast<RankedTensorType>(adaptor.getSelf().getType()).getElementType();
-    Value c1 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
 
     SmallVector<int64_t> axis;
     if (!matchPattern(adaptor.getDims(), m_TorchListOfConstantInts(axis)))
@@ -242,40 +237,8 @@ public:
       }
     }
 
-    // Only used to calculate flipped values, i.e. those on the flip axes. Other
-    // dims won't be used.
-    SmallVector<Value> dims = getTensorSizes(rewriter, loc, self);
-    for (auto flipDim : axis)
-      dims[flipDim] = rewriter.create<arith::SubIOp>(loc, dims[flipDim], c1);
-
-    Value initTensor = createZeroInitTensor(
-        rewriter, loc, getTensorSizes(rewriter, loc, self), elementType);
-
-    SmallVector<utils::IteratorType> iteratorTypes(
-        selfRank, utils::IteratorType::parallel);
-    SmallVector<AffineMap> indexingMaps(
-        2, AffineMap::getMultiDimIdentityMap(selfRank, context));
-    Value flipped =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, self.getType(), self, initTensor, indexingMaps,
-                iteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  SmallVector<Value> indices;
-                  for (auto i = 0; i < selfRank; i++)
-                    indices.push_back(b.create<linalg::IndexOp>(loc, i));
-                  for (auto flipDim : axis) {
-                    indices[flipDim] = b.create<arith::SubIOp>(
-                        loc, dims[flipDim], indices[flipDim]);
-                  }
-                  Value res = b.create<tensor::ExtractOp>(loc, self, indices)
-                                  .getResult();
-                  b.create<linalg::YieldOp>(loc, res);
-                })
-            .getResult(0);
-
+    Value flipped = torch_to_linalg::flipTensor(rewriter, loc, self, axis);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, self.getType(), flipped);
-
     return success();
   }
 };

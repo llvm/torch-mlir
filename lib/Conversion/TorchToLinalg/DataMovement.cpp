@@ -40,6 +40,7 @@ static int64_t productReduce(ArrayRef<int64_t> a) {
 template <typename OpTy, typename OpAdaptor>
 LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
                                            ConversionPatternRewriter &rewriter,
+                                           int64_t &dim,
                                            SmallVector<Value> &resultShape,
                                            SmallVector<Value> &offsets,
                                            SmallVector<Value> &strides) {
@@ -51,7 +52,6 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
   Value negone = rewriter.create<arith::ConstantIndexOp>(loc, -1);
 
-  int64_t dim;
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return op->emitError("unimplemented: dim is not constant");
 
@@ -1857,14 +1857,46 @@ public:
     RankedTensorType resultType = cast<RankedTensorType>(
         typeConverter->convertType(op->getResult(0).getType()));
 
-    SmallVector<Value> resultShape;
-    SmallVector<Value> offsets;
-    SmallVector<Value> strides;
+    SmallVector<Value> resultShape, offsets, strides;
+    int64_t dim;
     if (failed(prepareArgumentsForSlicingOp<AtenSliceTensorOp,
                                             AtenSliceTensorOpAdaptor>(
-            op, adaptor, rewriter, resultShape, offsets, strides))) {
+            op, adaptor, rewriter, dim, resultShape, offsets, strides))) {
       return failure();
     }
+
+    // If stride is negative, then flip the input tensor corresponding to that
+    // dim, update the stride for flipped tensor by multiplying it by -1, and
+    // update the offset as follows:
+    // flipped_offset = input_shape[dim] - (result_shape[dim] * flipped_stride)
+    //
+    // For example:
+    // Input = [0, 1, 2, 3, 4, 5]
+    // stride = [-2], result_shape = [2], offset = [3]
+    // Result = [3, 1]
+    // After flipping:
+    // Input = [5, 4, 3, 2, 1, 0]
+    // stride = [2], result_shape = [2], offset = [6 - (2 * 2)] = [2]
+    // Result = [3, 1]
+
+    Value flippedInput = torch_to_linalg::flipTensor(rewriter, loc, input,
+                                                     SmallVector<int64_t>{dim});
+    Value cstDim = rewriter.create<arith::ConstantIndexOp>(loc, dim);
+    Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value isNegativeStride = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::slt, strides[dim], zero);
+    strides[dim] = rewriter.create<math::AbsIOp>(loc, strides[dim]);
+    Value resShapeMulStride =
+        rewriter.create<arith::MulIOp>(loc, resultShape[dim], strides[dim]);
+    Value inputDim = rewriter.create<tensor::DimOp>(loc, input, cstDim);
+    Value flippedOffset =
+        rewriter.create<arith::SubIOp>(loc, inputDim, resShapeMulStride);
+    offsets[dim] = rewriter.create<arith::SelectOp>(
+        loc, isNegativeStride, flippedOffset, offsets[dim]);
+
+    input = rewriter.create<arith::SelectOp>(loc, isNegativeStride,
+                                             flippedInput, input);
+
     SmallVector<int64_t> dynShape(resultType.getRank(), ShapedType::kDynamic);
     auto sliceType = RankedTensorType::get(
         dynShape, resultType.getElementType(), resultType.getEncoding());
@@ -2095,12 +2127,11 @@ public:
     RankedTensorType resultType = cast<RankedTensorType>(
         typeConverter->convertType(op->getResult(0).getType()));
 
-    SmallVector<Value> resultShape;
-    SmallVector<Value> offsets;
-    SmallVector<Value> strides;
+    SmallVector<Value> resultShape, offsets, strides;
+    int64_t dim;
     if (failed(prepareArgumentsForSlicingOp<AtenSliceScatterOp,
                                             AtenSliceScatterOpAdaptor>(
-            op, adaptor, rewriter, resultShape, offsets, strides))) {
+            op, adaptor, rewriter, dim, resultShape, offsets, strides))) {
       return failure();
     }
 
