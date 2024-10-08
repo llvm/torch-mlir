@@ -1710,6 +1710,26 @@ def Unfold_Module_Rank_Zero_basic(module, tu: TestUtils):
     module.forward(tu.rand())
 
 
+class Unfold_Module_Rank_Zero_Size_Zero(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return x.unfold(0, 0, 1)
+
+
+@register_test_case(module_factory=lambda: Unfold_Module_Rank_Zero())
+def Unfold_Module_Rank_Zero_Size_Zero_basic(module, tu: TestUtils):
+    module.forward(tu.rand())
+
+
 class Unfold_Module_Dynamic(torch.nn.Module):
     def __init__(self):
         super().__init__()

@@ -2606,6 +2606,17 @@ public:
 
     // Zero-Rank case
     if (selfRank == 0) {
+      // Empty tensor
+      if (size == 0) {
+        RankedTensorType resultType =
+            RankedTensorType::get({0}, selfType.getElementType());
+        Value emptyTensor = rewriter.create<tensor::EmptyOp>(
+            loc, resultType.getShape(), resultType.getElementType());
+
+        rewriter.replaceOp(op, emptyTensor);
+        return success();
+      }
+
       Value unsqueezedSelf = rewriter.create<tensor::ExpandShapeOp>(
           loc, RankedTensorType::get({1}, selfType.getElementType()), self,
           ArrayRef<ReassociationIndices>{});
@@ -2707,19 +2718,18 @@ private:
      * numBlocks = (shape[dimension] - size) // step + 1
      */
     if (shapeDim == ShapedType::kDynamic) {
+      Value numBlocksSubOp = rewriter.create<arith::SubIOp>(
+          loc, dimSize, rewriter.create<arith::ConstantIndexOp>(loc, size));
+      Value numBlocksDivOp = rewriter.create<arith::DivUIOp>(
+          loc, numBlocksSubOp,
+          rewriter.create<arith::ConstantIndexOp>(loc, step));
       Value numBlocks = rewriter.create<arith::AddIOp>(
-          loc, rewriter.create<arith::ConstantIndexOp>(loc, 1),
-          rewriter.create<arith::DivUIOp>(
-              loc,
-              rewriter.create<arith::SubIOp>(
-                  loc, dimSize,
-                  rewriter.create<arith::ConstantIndexOp>(loc, size)),
-              rewriter.create<arith::ConstantIndexOp>(loc, step)));
+          loc, rewriter.create<arith::ConstantIndexOp>(loc, 1), numBlocksDivOp);
       return OpFoldResult(numBlocks);
-    } else {
-      int64_t staticNumBlocks = (shapeDim - size) / step + 1;
-      return rewriter.getIndexAttr(staticNumBlocks); // Use static value
     }
+
+    int64_t staticNumBlocks = (shapeDim - size) / step + 1;
+    return rewriter.getIndexAttr(staticNumBlocks); // Use static value
   }
 };
 } // namespace

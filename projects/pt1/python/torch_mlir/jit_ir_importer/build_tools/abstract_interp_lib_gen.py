@@ -5560,6 +5560,8 @@ def aten〇_make_per_tensor_quantized_tensor〡dtype(self_rank_dtype: Tuple[int,
     return torch.qint32
 
 @check_shape_function([
+    Invocation(TensorOfShape(), 0, 1, 1), # Rank Zero.
+    Invocation(TensorOfShape(), 0, 0, 1), # Rank Zero, size of 0.
     Invocation(TensorOfShape(6, 4), 0, 2, 1), # Basic case.
     Invocation(TensorOfShape(6, 4, 2), 0, 2, 1), # Basic case.
     Invocation(TensorOfShape(6, 4), -1, 2, 1), # Negative Dimension.
