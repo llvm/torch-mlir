@@ -1087,9 +1087,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
           return rewriter.notifyMatchFailure(binder.op,
                                              "auto_pad bind failure");
-        if (autoPad != "NOTSET")
-          return rewriter.notifyMatchFailure(
-              binder.op, "unsupported conversion: auto_pad != NOTSET");
+        // if (autoPad != "NOTSET")
+        //   return rewriter.notifyMatchFailure(
+        //       binder.op, "unsupported conversion: auto_pad != NOTSET");
 
         Torch::ValueTensorType resultTypeOut;
         Value operand;
@@ -1136,12 +1136,50 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(binder.op,
                                              "dilations bind failure");
 
+        // set default padding
         if (padding.empty())
           padding.resize(spatial, 0);
         if (strides.empty())
           strides.resize(spatial, 1);
         if (dilations.empty())
           dilations.resize(spatial, 1);
+
+        auto inputTensorType = cast<Torch::ValueTensorType>(operand.getType());
+
+        // Padding for the beginning and ending along each spatial axis, it can
+        // take any value greater than or equal to 0. The value represent the
+        // number of pixels added to the beginning and end part of the
+        // corresponding axis. pads format should be as follow [x1_begin,
+        // x2_begin…x1_end, x2_end,…], where xi_begin the number of pixels added
+        // at the beginning of axis i and xi_end, the number of pixels added at
+        // the end of axis i.
+        if (autoPad == "NOTSET") {
+          // keep previous value
+        } else if (autoPad == "VALID") {
+          // keep previous value
+        } else {
+          const bool isSameLower = autoPad == "SAME_LOWER";
+          const unsigned spatial = rank - 2;
+          ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+          padding.resize_for_overwrite(2 * spatial);
+          for (unsigned dimIdx = 0; dimIdx < spatial; dimIdx++) {
+            const int64_t dilatedKernelSize =
+                dilations[dimIdx] * (kernel[dimIdx] - 1) + 1;
+            int64_t totalPad = ((inputShape[dimIdx + 2] + strides[dimIdx] - 1) /
+                                    strides[dimIdx] -
+                                1) *
+                                   strides[dimIdx] +
+                               dilatedKernelSize - inputShape[dimIdx + 2];
+            totalPad = totalPad >= 0 ? totalPad : 0;
+            padding[dimIdx] =
+                isSameLower ? ((totalPad + 1) / 2) : (totalPad / 2);
+            padding[spatial + dimIdx] = totalPad - padding[dimIdx];
+          }
+        }
+        if (padding.size() != spatial && padding.size() != 2 * spatial) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "padding list size does not match the number of axes");
+        }
 
         // If the padding is symmetric we can push the padding operation to the
         // torch operator.
