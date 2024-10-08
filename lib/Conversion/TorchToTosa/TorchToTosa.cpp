@@ -6689,14 +6689,15 @@ void torch::populateTorchToTosaConversionIllegalOps(ConversionTarget &target) {
       AtenAnyOp, AtenSumOp, AtenSqueezeOp, AtenSqueezeDimOp, AtenMatmulOp,
       AtenMmOp, AtenBmmOp, AtenLinearOp, AtenAdaptiveAvgPool2dOp,
       AtenMaxPool2dOp, AtenAvgPool2dOp, AtenOnesOp, AtenZerosOp,
-      AtenEmptyMemoryFormatOp, AtenFill_ScalarOp, AtenMaskedFillScalarOp,
-      AtenMaskedFillTensorOp, AtenTanhOp, AtenSigmoidOp, AtenErfOp,
-      AtenHardtanhBackwardOp, AtenReluOp, AtenLeakyReluOp, AtenArgmaxOp,
-      AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenPowScalarOp,
-      AtenRsubScalarOp, AtenConvolutionOp, ValueTensorLiteralOp, AtenReshapeOp,
-      AtenBatchNormOp, AtenNativeLayerNormOp, AtenFlattenUsingIntsOp,
-      AtenUnflattenIntOp, AtenPermuteOp, AtenLog2Op, AtenThresholdOp,
-      AtenUnsqueezeOp, AtenContiguousOp, AtenDropoutOp, AtenViewOp, AtenGeluOp,
+      AtenEmptyMemoryFormatOp, AtenFill_ScalarOp, AtenFillScalarOp,
+      AtenFillTensorOp, AtenMaskedFillScalarOp, AtenMaskedFillTensorOp,
+      AtenTanhOp, AtenSigmoidOp, AtenErfOp, AtenHardtanhBackwardOp, AtenReluOp,
+      AtenLeakyReluOp, AtenArgmaxOp, AtenPowTensorScalarOp,
+      AtenPowTensorTensorOp, AtenPowScalarOp, AtenRsubScalarOp,
+      AtenConvolutionOp, ValueTensorLiteralOp, AtenReshapeOp, AtenBatchNormOp,
+      AtenNativeLayerNormOp, AtenFlattenUsingIntsOp, AtenUnflattenIntOp,
+      AtenPermuteOp, AtenLog2Op, AtenThresholdOp, AtenUnsqueezeOp,
+      AtenContiguousOp, AtenDropoutOp, AtenViewOp, AtenGeluOp,
       AtenGeluBackwardOp, AtenEmbeddingOp, AtenTransposeIntOp, AtenMaxDimOp,
       AtenMinDimOp, AtenSliceTensorOp, AtenBroadcastToOp, AtenGatherOp,
       AtenIndexPutHackedTwinOp, AtenIndexTensorHackedTwinOp, AtenAbsOp,
@@ -6705,7 +6706,7 @@ void torch::populateTorchToTosaConversionIllegalOps(ConversionTarget &target) {
       AtenRemainderScalarOp, AtenRemainderTensorOp, AtenFmodScalarOp,
       AtenFmodTensorOp, AtenCatOp, AtenSqrtOp, AtenIscloseOp,
       Aten__InterpolateSizeListScaleListOp, AtenTrilOp, AtenDiagonalOp,
-      AtenCloneOp>();
+      AtenIndexSelectOp, AtenFlipOp, AtenRoundOp, AtenCloneOp>();
 }
 
 void torch::populateTorchToTosaConversionPatterns(TypeConverter &typeConverter,
@@ -6875,8 +6876,9 @@ void torch::populateTorchToTosaConversionPatterns(TypeConverter &typeConverter,
 
 #define INSERT_FILL_PATTERN(AtenOp)                                            \
   patterns.add<ConvertAtenFillOp<AtenOp>>(typeConverter, context);
-    INSERT_FILL_PATTERN(AtenFillScalarOp);
-    INSERT_FILL_PATTERN(AtenFillTensorOp);
+  INSERT_FILL_PATTERN(AtenFill_ScalarOp);
+  INSERT_FILL_PATTERN(AtenFillScalarOp);
+  INSERT_FILL_PATTERN(AtenFillTensorOp);
 #undef INSERT_FILL_PATTERN
 
 #define INSERT_MASKED_FILL_PATTERN(AtenOp)                                     \
@@ -6944,12 +6946,12 @@ void torch::populateTorchToTosaConversionPatterns(TypeConverter &typeConverter,
   INSERT_ATENOP_PATTERN(Aten__InterpolateSizeListScaleListOp);
   INSERT_ATENOP_PATTERN(AtenTrilOp);
   INSERT_ATENOP_PATTERN(AtenDiagonalOp);
-    INSERT_ATENOP_PATTERN(AtenIndexSelectOp);
-    INSERT_ATENOP_PATTERN(AtenFlipOp);
-    INSERT_ATENOP_PATTERN(AtenRoundOp);
-    INSERT_ATENOP_PATTERN(AtenScatterSrcOp);
-    INSERT_ATENOP_PATTERN(AtenSliceScatterOp);
-    INSERT_ATENOP_PATTERN(AtenDiagEmbedOp);
+  INSERT_ATENOP_PATTERN(AtenIndexSelectOp);
+  INSERT_ATENOP_PATTERN(AtenFlipOp);
+  INSERT_ATENOP_PATTERN(AtenRoundOp);
+  INSERT_ATENOP_PATTERN(AtenScatterSrcOp);
+  INSERT_ATENOP_PATTERN(AtenSliceScatterOp);
+  INSERT_ATENOP_PATTERN(AtenDiagEmbedOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
