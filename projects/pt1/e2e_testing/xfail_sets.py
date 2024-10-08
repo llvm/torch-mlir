@@ -915,6 +915,11 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "SplitTensorNegativeDimModule_basic",
     "SplitWithSizesListUnpackModule_basic",
     "SplitWithSizes_Module_basic",
+    "Unfold_Module_basic",
+    "Unfold_Module_Rank_4",
+    "Unfold_Module_Rank_Zero_basic",
+    "Unfold_Module_Rank_Zero_Size_Zero_basic",
+    "Unfold_Module_Dynamic_basic",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
