@@ -58,6 +58,29 @@ def SliceStaticModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class SliceStaticComplexInputModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([6, 4, 7], torch.complex64, True),
+        ]
+    )
+    def forward(self, x):
+        return x[0:5:1, 1:3:1, 2:4:1]
+
+
+@register_test_case(module_factory=lambda: SliceStaticComplexInputModule())
+def SliceStaticComplexInputModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 4, 7).to(torch.complex64))
+
+
+# ==============================================================================
+
+
 class SliceOutOfUpperBoundIndexModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
