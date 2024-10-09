@@ -153,7 +153,6 @@ FailureOr<Value> getDynamicSlice(PatternRewriter &rewriter, Operation *op,
                                  dimSizeIndexBits);
 }
 
-
 // This defines a template to construct ops whose legalizations are
 // specialized.
 template <typename AtenOpT>
@@ -197,17 +196,25 @@ public:
       } else if (operandEltBitWidth < targetEltBitWidth) {
         int64_t last_size = targetEltBitWidth / operandEltBitWidth;
         if (last_size != resultShape[rankType.getRank() - 1]) {
-          return rewriter.notifyMatchFailure(op, "The last dim size is not equal to targetEltBitWidth / operandEltBitWidth");
+          return rewriter.notifyMatchFailure(
+              op, "The last dim size is not equal to targetEltBitWidth / "
+                  "operandEltBitWidth");
         } else {
           resultShape.pop_back();
         }
       }
 
-      auto castType = RankedTensorType::get(resultShape,
-                                                 baseResultTy.getDtype());
-      auto cast = rewriter.create<stablehlo::BitcastConvertOp>(loc, OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(castType), self);
-      auto resultType = RankedTensorType::get(baseResultTy.getSizes(), baseResultTy.getDtype());
-      auto reshape = rewriter.create<stablehlo::ReshapeOp>(loc, resultType, cast);
+      auto castType =
+          RankedTensorType::get(resultShape, baseResultTy.getDtype());
+      auto cast = rewriter.create<stablehlo::BitcastConvertOp>(
+          loc,
+          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+              castType),
+          self);
+      auto resultType = RankedTensorType::get(baseResultTy.getSizes(),
+                                              baseResultTy.getDtype());
+      auto reshape =
+          rewriter.create<stablehlo::ReshapeOp>(loc, resultType, cast);
       rewriter.replaceOp(op, reshape);
       return success();
     }
