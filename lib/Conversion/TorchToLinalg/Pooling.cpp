@@ -596,37 +596,51 @@ namespace {
 // input_size=2, output_size=5 and stride=2, kernel_size can be either 2 or 3).
 // What worse, without knowing kernel size we cannot even reliably detect such
 // cases and this conversion will just return invalid values.
-class ConvertAtenMaxUnpool3dOp final
-    : public OpConversionPattern<AtenMaxUnpool3dOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenMaxUnpool3dOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+
+template <> struct DimensionTraits<AtenMaxUnpool2dOp> {
+  static constexpr int64_t Dim = 2;
+  // unused const variable warning suppression:
+  static_assert(Dim == Dim);
+};
+
+template <> struct DimensionTraits<AtenMaxUnpool3dOp> {
+  static constexpr int64_t Dim = 3;
+  // unused const variable warning suppression:
+  static_assert(Dim == Dim);
+};
+
+template <typename OpTy>
+class ConvertAtenMaxUnpoolOp : public OpConversionPattern<OpTy> {
+  using OpConversionPattern<OpTy>::OpConversionPattern;
+
+private:
+  static const int64_t Dim = DimensionTraits<OpTy>::Dim;
+
+  LogicalResult createUnpoolOp(OpTy &op, typename OpTy::Adaptor adaptor,
+                               ConversionPatternRewriter &rewriter) const {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
     Location loc = op->getLoc();
-    const TypeConverter *typeConverter = getTypeConverter();
+    const TypeConverter *typeConverter = this->getTypeConverter();
     Value self = adaptor.getSelf();
     auto selfType = cast<RankedTensorType>(self.getType());
 
-    size_t spatial = selfType.getRank() - 2;
-    ArrayRef<int64_t> inputSize = selfType.getShape().take_back(spatial);
+    ArrayRef<int64_t> inputSize = selfType.getShape().take_back(Dim);
     if (ShapedType::isDynamicShape(inputSize))
       return rewriter.notifyMatchFailure(op,
                                          "input type must be of static shape");
 
     Value indices = adaptor.getIndices();
     auto indicesType = cast<RankedTensorType>(indices.getType());
-    if (inputSize != indicesType.getShape().take_back(spatial))
+    if (inputSize != indicesType.getShape().take_back(Dim))
       return rewriter.notifyMatchFailure(op, "input/indices shape mismatch");
 
     auto resType = typeConverter->convertType<RankedTensorType>(op.getType());
     if (!resType)
       return rewriter.notifyMatchFailure(op, "invalid result type");
 
-    ArrayRef<int64_t> inferredOutSize = resType.getShape().take_back(spatial);
+    ArrayRef<int64_t> inferredOutSize = resType.getShape().take_back(Dim);
     if (ShapedType::isDynamicShape(inferredOutSize))
       return rewriter.notifyMatchFailure(op,
                                          "output type must be of static shape");
@@ -637,7 +651,7 @@ public:
         return rewriter.notifyMatchFailure(op,
                                            "only support constant int output");
 
-      if (inferredOutSize != ArrayRef(output).take_back(spatial))
+      if (inferredOutSize != ArrayRef(output).take_back(Dim))
         return rewriter.notifyMatchFailure(op, "Invalid output size");
     }
     SmallVector<int64_t> stride;
@@ -653,12 +667,12 @@ public:
 
     // TODO: add support for asymmetric padding coming from "onnx.MaxUnpool"
     // (padding.size() == 6).
-    if (stride.size() != spatial || padding.size() != spatial)
+    if (stride.size() != Dim || padding.size() != Dim)
       return rewriter.notifyMatchFailure(
-          op, "stride and padding must be of size 3");
+          op, "stride and padding must be of size Dim");
 
     int64_t outRank = resType.getRank();
-    int64_t NC = outRank - spatial;
+    int64_t NC = outRank - Dim;
 
     for (auto &&[inDim, outDim, str, pad] :
          llvm::zip_equal(inputSize, inferredOutSize, stride, padding)) {
@@ -695,7 +709,7 @@ public:
     // (e.g. pooling_input_size=5, kernel_size=2, stride=2, output_size=2)
     // pad self and indices tensors to avoid out of bounds access.
     SmallVector<int64_t> expectedInputShape =
-        llvm::to_vector(resType.getShape().drop_back(spatial));
+        llvm::to_vector(resType.getShape().drop_back(Dim));
     for (auto &&[str, pad, resSize] :
          llvm::zip_equal(stride, padding, inferredOutSize))
       expectedInputShape.emplace_back(ceilDiv(resSize, str) + pad * 2);
@@ -708,7 +722,7 @@ public:
       SmallVector<int64_t> low(outRank, 0);
       SmallVector<int64_t> high(NC, 0);
       for (auto &&[inpSize, outSize] : llvm::zip_equal(
-               inputSize, ArrayRef(expectedInputShape).take_back(spatial))) {
+               inputSize, ArrayRef(expectedInputShape).take_back(Dim))) {
         high.emplace_back(outSize - inpSize);
       }
 
@@ -826,6 +840,13 @@ public:
 
     rewriter.replaceOp(op, result);
     return success();
+  }
+
+public:
+  LogicalResult
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    return createUnpoolOp(op, adaptor, rewriter);
   }
 };
 } // namespace
@@ -1527,8 +1548,12 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dWithIndicesOp>>(typeConverter,
                                                                  context);
 
+  target.addIllegalOp<AtenMaxUnpool2dOp>();
   target.addIllegalOp<AtenMaxUnpool3dOp>();
-  patterns.add<ConvertAtenMaxUnpool3dOp>(typeConverter, context);
+  patterns.add<ConvertAtenMaxUnpoolOp<AtenMaxUnpool2dOp>>(typeConverter,
+                                                          context);
+  patterns.add<ConvertAtenMaxUnpoolOp<AtenMaxUnpool3dOp>>(typeConverter,
+                                                          context);
 
   target.addIllegalOp<AtenAvgPool1dOp, AtenAvgPool2dOp, AtenAvgPool3dOp>();
   patterns
