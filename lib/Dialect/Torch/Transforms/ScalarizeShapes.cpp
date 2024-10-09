@@ -630,7 +630,8 @@ public:
       // flatten
       Value start =
           rewriter.create<Torch::ConstantIntOp>(op.getLoc(), endMatchingDim);
-      Value end = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), inRank);
+      Value end =
+          rewriter.create<Torch::ConstantIntOp>(op.getLoc(), inRank - 1);
       rewriter.replaceOpWithNewOp<AtenFlattenUsingIntsOp>(
           op, resultTy, op.getSelf(), start, end);
       return success();

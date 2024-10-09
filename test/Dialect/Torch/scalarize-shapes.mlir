@@ -79,8 +79,8 @@ func.func @shape_as_tensor_slice(%arg0 : !torch.vtensor<[5,?,?,?],f32>) -> !torc
 // CHECK-LABEL: @view_as_flatten_static
 func.func @view_as_flatten_static(%arg0: !torch.vtensor<[?,?,16,64],f32>) -> !torch.vtensor<[?,?,1024],f32> {
     // CHECK-DAG:   %[[TWO:.*]] = torch.constant.int 2
-    // CHECK-DAG:   %[[FOUR:.*]] = torch.constant.int 4
-    // CHECK-DAG:   %[[FLAT:.*]] = torch.aten.flatten.using_ints %arg0, %[[TWO]], %[[FOUR]] : !torch.vtensor<[?,?,16,64],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,?,1024],f32>
+    // CHECK-DAG:   %[[THREE:.*]] = torch.constant.int 3
+    // CHECK-DAG:   %[[FLAT:.*]] = torch.aten.flatten.using_ints %arg0, %[[TWO]], %[[THREE]] : !torch.vtensor<[?,?,16,64],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,?,1024],f32>
     // CHECK:   return %[[FLAT]] : !torch.vtensor<[?,?,1024],f32>
     %int1024 = torch.constant.int 1024
     %int1 = torch.constant.int 1
@@ -95,11 +95,33 @@ func.func @view_as_flatten_static(%arg0: !torch.vtensor<[?,?,16,64],f32>) -> !to
 
 // -----
 
+// CHECK-LABEL: @view_as_unflatten_static
+func.func @view_as_unflatten_static(%arg0: !torch.vtensor<[?,?,1024],f32>) -> !torch.vtensor<[?,?,16,64],f32> {
+    // CHECK-DAG:   %[[TWO:.*]] = torch.constant.int 2
+    // CHECK-DAG:   %[[CST16:.*]] = torch.constant.int 16
+    // CHECK-DAG:   %[[CST64:.*]] = torch.constant.int 64
+    // CHECK:   %[[LIST:.*]] = torch.prim.ListConstruct %[[CST16]], %[[CST64]] : (!torch.int, !torch.int) -> !torch.list<int>
+    // CHECK:   %[[FLAT:.*]] = torch.aten.unflatten.int %arg0, %[[TWO]], %[[LIST]] : !torch.vtensor<[?,?,1024],f32>, !torch.int, !torch.list<int> -> !torch.vtensor<[?,?,16,64],f32>
+    // CHECK:   return %[[FLAT]] : !torch.vtensor<[?,?,16,64],f32>
+    %int16 = torch.constant.int 16
+    %int64 = torch.constant.int 64
+    %int1 = torch.constant.int 1
+    %int0 = torch.constant.int 0
+    %0 = torch.aten.size.int %arg0, %int0 : !torch.vtensor<[?,?,1024],f32>, !torch.int -> !torch.int
+    %1 = torch.aten.size.int %arg0, %int1 : !torch.vtensor<[?,?,1024],f32>, !torch.int -> !torch.int
+    %2 = torch.prim.ListConstruct %0, %1, %int16, %int64 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %3 = torch.aten.view %arg0, %2 : !torch.vtensor<[?,?,1024],f32>, !torch.list<int> -> !torch.vtensor<[?,?,16,64],f32>
+    return %3 : !torch.vtensor<[?,?,16,64],f32>
+}
+
+
+// -----
+
 // CHECK-LABEL: @view_as_flatten_dynamic
 func.func @view_as_flatten_dynamic(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
     // CHECK-DAG:   %[[TWO:.*]] = torch.constant.int 2
-    // CHECK-DAG:   %[[FOUR:.*]] = torch.constant.int 4
-    // CHECK-DAG:   %[[FLAT:.*]] = torch.aten.flatten.using_ints %arg0, %[[TWO]], %[[FOUR]] : !torch.vtensor<[?,?,?,?],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,?,?],f32>
+    // CHECK-DAG:   %[[THREE:.*]] = torch.constant.int 3
+    // CHECK-DAG:   %[[FLAT:.*]] = torch.aten.flatten.using_ints %arg0, %[[TWO]], %[[THREE]] : !torch.vtensor<[?,?,?,?],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,?,?],f32>
     // CHECK:   return %[[FLAT]] : !torch.vtensor<[?,?,?],f32>
     %int-1 = torch.constant.int -1
     %int1 = torch.constant.int 1
