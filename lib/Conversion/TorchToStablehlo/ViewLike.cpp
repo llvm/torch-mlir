@@ -186,8 +186,8 @@ public:
       // infer the result shape
       auto operandElt = rankType.getElementType();
       auto targetElt = baseResultTy.getDtype();
-      auto operandEltBitWidth = this->getBitWidth(operandElt);
-      auto targetEltBitWidth = this->getBitWidth(targetElt);
+      auto operandEltBitWidth = getBitWidth(operandElt);
+      auto targetEltBitWidth = getBitWidth(targetElt);
       auto operandSizes = rankType.getShape();
       SmallVector<int64_t> resultShape(operandSizes);
       if (operandEltBitWidth > targetEltBitWidth) {
@@ -204,18 +204,31 @@ public:
         }
       }
 
-      auto castType =
-          RankedTensorType::get(resultShape, baseResultTy.getDtype());
+      Type targetDtype = baseResultTy.getDtype();
+      if (targetDtype.isSignedInteger()) {
+        targetDtype = IntegerType::get(op.getContext(),
+                                       targetDtype.getIntOrFloatBitWidth(),
+                                       IntegerType::Signless);
+      }
+
+      auto castType = RankedTensorType::get(resultShape, targetDtype);
       auto cast = rewriter.create<stablehlo::BitcastConvertOp>(
           loc,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
               castType),
           self);
-      auto resultType = RankedTensorType::get(baseResultTy.getSizes(),
-                                              baseResultTy.getDtype());
-      auto reshape =
-          rewriter.create<stablehlo::ReshapeOp>(loc, resultType, cast);
+
+      auto resultType =
+          RankedTensorType::get(baseResultTy.getSizes(), targetDtype);
+
+      auto reshape = rewriter.create<stablehlo::ReshapeOp>(
+          loc,
+          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+              resultType),
+          cast);
+
       rewriter.replaceOp(op, reshape);
+
       return success();
     }
 
