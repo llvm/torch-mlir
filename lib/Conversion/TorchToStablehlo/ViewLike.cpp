@@ -204,27 +204,18 @@ public:
         }
       }
 
-      Type targetDtype = baseResultTy.getDtype();
-      if (targetDtype.isSignedInteger()) {
-        targetDtype = IntegerType::get(op.getContext(),
-                                       targetDtype.getIntOrFloatBitWidth(),
-                                       IntegerType::Signless);
-      }
-
-      auto castType = RankedTensorType::get(resultShape, targetDtype);
+      auto castType = baseResultTy.getWithSizesAndDtype(
+          resultShape, baseResultTy.getDtype());
       auto cast = rewriter.create<stablehlo::BitcastConvertOp>(
           loc,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
               castType),
           self);
 
-      auto resultType =
-          RankedTensorType::get(baseResultTy.getSizes(), targetDtype);
-
       auto reshape = rewriter.create<stablehlo::ReshapeOp>(
           loc,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-              resultType),
+              baseResultTy),
           cast);
 
       rewriter.replaceOp(op, reshape);
