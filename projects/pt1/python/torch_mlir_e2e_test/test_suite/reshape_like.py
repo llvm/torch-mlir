@@ -1174,6 +1174,30 @@ def ReshapeDynamicModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ViewDtypeStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        res = a.view(torch.int8)
+        return res
+
+
+@register_test_case(module_factory=lambda: ViewDtypeStaticModule())
+def ViewDtypeStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(12, 1).to(torch.float16))
+
+
+# ==============================================================================
+
+
 class ReshapeAliasCollapseModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

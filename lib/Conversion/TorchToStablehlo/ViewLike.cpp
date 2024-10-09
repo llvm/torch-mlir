@@ -153,6 +153,7 @@ FailureOr<Value> getDynamicSlice(PatternRewriter &rewriter, Operation *op,
                                  dimSizeIndexBits);
 }
 
+
 // This defines a template to construct ops whose legalizations are
 // specialized.
 template <typename AtenOpT>
@@ -161,12 +162,55 @@ public:
   using ConvertAtenOp<AtenOpT>::ConvertAtenOp;
   using OpAdaptor = typename AtenOpT::Adaptor;
 
+  unsigned getBitWidth(Type type) const {
+    if (auto complexTy = dyn_cast<ComplexType>(type))
+      return 2 * getBitWidth(complexTy.getElementType());
+    if (auto quantTy = dyn_cast<quant::QuantizedType>(type))
+      return getBitWidth(quantTy.getStorageType());
+    return type.getIntOrFloatBitWidth();
+  }
+
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto rankType = dyn_cast<RankedTensorType>(adaptor.getSelf().getType());
     if (!rankType)
       return op.emitError("Only ranked tensor types are currently supported");
+    auto loc = op.getLoc();
+
+    // support AtenViewDtypeOp
+    if (isa<AtenViewDtypeOp>(op)) {
+      // Bitcast convert
+      auto self = adaptor.getSelf();
+      auto baseResultTy = dyn_cast<BaseTensorType>(op.getType());
+
+      // infer the result shape
+      auto operandElt = rankType.getElementType();
+      auto targetElt = baseResultTy.getDtype();
+      auto operandEltBitWidth = this->getBitWidth(operandElt);
+      auto targetEltBitWidth = this->getBitWidth(targetElt);
+      auto operandSizes = rankType.getShape();
+      SmallVector<int64_t> resultShape(operandSizes);
+      if (operandEltBitWidth > targetEltBitWidth) {
+        int64_t last_size = operandEltBitWidth / targetEltBitWidth;
+        resultShape.push_back(last_size);
+      } else if (operandEltBitWidth < targetEltBitWidth) {
+        int64_t last_size = targetEltBitWidth / operandEltBitWidth;
+        if (last_size != resultShape[rankType.getRank() - 1]) {
+          return rewriter.notifyMatchFailure(op, "The last dim size is not equal to targetEltBitWidth / operandEltBitWidth");
+        } else {
+          resultShape.pop_back();
+        }
+      }
+
+      auto castType = RankedTensorType::get(resultShape,
+                                                 baseResultTy.getDtype());
+      auto cast = rewriter.create<stablehlo::BitcastConvertOp>(loc, OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(castType), self);
+      auto resultType = RankedTensorType::get(baseResultTy.getSizes(), baseResultTy.getDtype());
+      auto reshape = rewriter.create<stablehlo::ReshapeOp>(loc, resultType, cast);
+      rewriter.replaceOp(op, reshape);
+      return success();
+    }
 
     // collect Value of dims
     SmallVector<Value, 4> dimSizes;
@@ -174,7 +218,6 @@ public:
       return op.emitError("Dims size must be a list of Scalar");
     }
 
-    auto loc = op.getLoc();
     if (dimSizes.size() == 0 || rankType.getRank() == 0) {
       rewriter.replaceOpWithNewOp<stablehlo::ReshapeOp>(
           op,
@@ -235,6 +278,13 @@ public:
                           ConversionPatternRewriter &rewriter,
                           SmallVector<Value, 4> &dimSizes) const;
 };
+
+template <>
+bool ConvertAtenViewOp<AtenViewDtypeOp>::getAtenViewOpSizes(
+    AtenViewDtypeOp op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter,
+    SmallVector<Value, 4> &dimSizes) const {
+  return false;
+}
 
 template <>
 bool ConvertAtenViewOp<AtenViewOp>::getAtenViewOpSizes(
@@ -496,6 +546,7 @@ void mlir::torch::torch_to_stablehlo::populateViewLikeOpPatternsAndLegality(
 #define INSERT_VIEW_OP_PATTERN(AtenOp)                                         \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenViewOp<AtenOp>>(typeConverter, context, options)
+  INSERT_VIEW_OP_PATTERN(AtenViewDtypeOp);
   INSERT_VIEW_OP_PATTERN(AtenViewOp);
   INSERT_VIEW_OP_PATTERN(AtenReshapeOp);
 #undef INSERT_VIEW_OP_PATTERN
