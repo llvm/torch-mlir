@@ -131,7 +131,7 @@ def test_symbolic_dim_differ_by_one():
 # CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
 # CHECK:        %[[I0:.+]] = torch.constant.int 0
 # CHECK:        %[[SIZE:.+]] = torch.aten.size.int %[[ARG0]], %[[I0]] : !torch.vtensor<[?],f32>, !torch.int -> !torch.int
-# CHECK:        %[[OUTER:.+]] = torch.operator "torch.aten.outer"(%[[ARG0]], %[[ARG0]]) : (!torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> 
+# CHECK:        %[[OUTER:.+]] = torch.operator "torch.aten.outer"(%[[ARG0]], %[[ARG0]]) : (!torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32>
 # CHECK:        torch.bind_symbolic_shape %[[OUTER]], [%[[S0]]], affine_map<()[s0] -> (s0, s0)> : !torch.vtensor<[?,?],f32>
 # CHECK:        %[[MUL:.+]] = torch.aten.mul.int %[[SIZE]], %[[SIZE]] : !torch.int, !torch.int -> !torch.int
 # CHECK:        %[[LIST:.+]] = torch.prim.ListConstruct %[[MUL]] : (!torch.int) -> !torch.list<int>
