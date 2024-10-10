@@ -90,7 +90,28 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::Float8_e5m2fnuz;
   if (isa<Float8E4M3FNUZType>(type))
     return torch_upstream::ScalarType::Float8_e4m3fnuz;
-  llvm::report_fatal_error("unhandled type for getScalarTypeForType");
+  std::string errorMsg = "Unhandled type in getScalarTypeForType: ";
+  llvm::raw_string_ostream os(errorMsg);
+  type.print(os);
+  // os << "\nType ID: " << type.getTypeID();
+  os << "\nType properties:";
+  os << "\n  Is integer: " << (type.isInteger() ? "yes" : "no");
+  os << "\n  Is float: "
+     << (type.isIntOrFloat() && !type.isInteger() ? "yes" : "no");
+  os << "\n  Is index: " << (type.isIndex() ? "yes" : "no");
+  os << "\n  Bit width: "
+     << (type.isIntOrFloat() ? std::to_string(type.getIntOrFloatBitWidth())
+                             : "N/A");
+  os << "\n  Is signless: " << (type.isSignlessInteger() ? "yes" : "no");
+  os << "\n  Is signed: " << (type.isSignedInteger() ? "yes" : "no");
+  // special error message for unsigned integer
+  if (type.isUnsignedInteger()) {
+    os << "\n  Is unsigned: yes";
+    os << "\nUnsigned integer support is currently spotty. Please seeheck "
+          "https://github.com/llvm/torch-mlir/issues/3720 "
+          "for more details.";
+  }
+  llvm::report_fatal_error(llvm::StringRef(errorMsg));
 }
 Type Torch::getTypeForTorchType(
     MLIRContext *context, Type type,
@@ -257,7 +278,7 @@ bool Torch::isViewLikeOp(Operation *op) {
              AtenNarrowOp, AtenNarrowTensorOp, AtenToDeviceOp, PrimsSqueezeOp,
              AtenMovedimIntOp, PrimsViewOfOp, AtenRealOp, AtenImagOp,
              PrimsSplitDimOp, AtenViewAsComplexOp, AtenViewAsRealOp,
-             AtenPixelShuffleOp, AtenDiagonalOp>(op);
+             AtenPixelShuffleOp, AtenDiagonalOp, AtenUnfoldOp>(op);
 }
 
 Value Torch::getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter,

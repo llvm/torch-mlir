@@ -52,7 +52,7 @@ static Value createInitialValueForAtenPoolingOp(Operation *op, Type elementTy,
 
   // Max pooling
   if (isa<AtenMaxPool1dOp, AtenMaxPool2dOp, AtenMaxPool3dOp,
-          AtenMaxPool2dWithIndicesOp>(op)) {
+          AtenMaxPool1dWithIndicesOp, AtenMaxPool2dWithIndicesOp>(op)) {
     if (isa<mlir::FloatType>(elementTy)) {
       auto constAttr = DenseElementsAttr::get(
           constType,
@@ -71,6 +71,161 @@ static Value createInitialValueForAtenPoolingOp(Operation *op, Type elementTy,
   }
   op->emitError("unimplemented lowering in AtenPoolingOp");
   return nullptr;
+}
+
+// AtenMaxPool1dWithIndicesOp
+template <>
+LogicalResult ConvertAtenOp<AtenMaxPool1dWithIndicesOp>::matchAndRewrite(
+    AtenMaxPool1dWithIndicesOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value input = adaptor.getSelf();
+  auto inputTy = cast<RankedTensorType>(input.getType());
+  auto inputElemTy = inputTy.getElementType();
+  auto inputShape = inputTy.getShape();
+  auto inputRank = inputTy.getRank();
+
+  auto outValTy =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType(0)));
+  auto outIdxTy =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType(1)));
+
+  if (inputRank <= 1) {
+    return op.emitError(
+        "max_pooling1d only supports inputs with rank higher than 1");
+  }
+
+  SmallVector<int64_t, 1> padding, kernelSize, stride, dilation;
+  bool ceilMode = false;
+
+  if (!(matchPattern(op.getKernelSize(),
+                     m_TorchListOfConstantInts(kernelSize)))) {
+    return rewriter.notifyMatchFailure(
+        op, "non-const int kernel size unsupported!");
+  }
+  if (!(matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)))) {
+    return rewriter.notifyMatchFailure(op, "non-const int stride unsupported!");
+  }
+  if (!(matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)))) {
+    return rewriter.notifyMatchFailure(op,
+                                       "non-const int padding unsupported!");
+  }
+  if (!(matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilation)))) {
+    return rewriter.notifyMatchFailure(op,
+                                       "non-const int dilation unsupported!");
+  }
+  if (!(matchPattern(op.getCeilMode(), m_TorchConstantBool(&ceilMode)))) {
+    return rewriter.notifyMatchFailure(op,
+                                       "non-const bool ceil_mode unsupported!");
+  }
+
+  SmallVector<int64_t> stablehloStride(inputRank, 1);
+  SmallVector<int64_t> stablehloDilation(inputRank, 1);
+  SmallVector<int64_t> stablehloKernelSize(inputRank, 1);
+  SmallVector<int64_t> stablehloPadding(inputRank * 2, 0);
+
+  std::copy(stride.begin(), stride.end(),
+            stablehloStride.begin() + inputRank - 1);
+  std::copy(dilation.begin(), dilation.end(),
+            stablehloDilation.begin() + inputRank - 1);
+  std::copy(kernelSize.begin(), kernelSize.end(),
+            stablehloKernelSize.begin() + inputRank - 1);
+  stablehloPadding[stablehloPadding.size() - 1] = padding[0];
+  stablehloPadding[stablehloPadding.size() - 2] = padding[0];
+
+  Value initVal = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
+
+  auto windowDimensions = rewriter.getDenseI64ArrayAttr(stablehloKernelSize);
+  auto windowStrides = rewriter.getDenseI64ArrayAttr(stablehloStride);
+  auto windowDilations = rewriter.getDenseI64ArrayAttr(stablehloDilation);
+  DenseIntElementsAttr pad = DenseIntElementsAttr::get(
+      RankedTensorType::get(
+          {static_cast<int64_t>(inputRank), static_cast<int64_t>(2)},
+          rewriter.getI64Type()),
+      stablehloPadding);
+  DenseI64ArrayAttr baseDilations;
+
+  auto inputShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, input);
+  if (failed(inputShapeInfo)) {
+    return rewriter.notifyMatchFailure(
+        op, "failed to get dimension sizes of the input");
+  }
+  auto inputShapeVec = *inputShapeInfo;
+  auto inputShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
+      op->getLoc(), inputShapeVec);
+
+  // no need to reshape here for max_pool_1d. Need to make sure the iota
+  // dimension. dim=inputRank-2 or dim=inputRank-1?
+  auto indexTensor =
+      rewriter
+          .create<stablehlo::DynamicIotaOp>(
+              op->getLoc(),
+              RankedTensorType::get(inputShape, rewriter.getI64Type()),
+              inputShapeTensor, static_cast<uint64_t>(inputRank - 1))
+          .getResult();
+  Value initIdx = hlo::getConstTensor<int64_t>(rewriter, op, {0}, {}).value();
+
+  auto reduceWindowOp = rewriter.create<stablehlo::ReduceWindowOp>(
+      op->getLoc(), mlir::TypeRange{outValTy, outIdxTy},
+      mlir::ValueRange{input, indexTensor}, mlir::ValueRange{initVal, initIdx},
+      windowDimensions, windowStrides, baseDilations, windowDilations, pad);
+
+  // add block.
+  Block &block = reduceWindowOp.getBody().emplaceBlock();
+  auto blockValArgumentType = RankedTensorType::get({}, inputElemTy);
+  auto blockIdxArgumentType = RankedTensorType::get({}, rewriter.getI64Type());
+  auto compareResultType = RankedTensorType::get({}, rewriter.getI1Type());
+  block.addArgument(blockValArgumentType, op->getLoc());
+  block.addArgument(blockIdxArgumentType, op->getLoc());
+  block.addArgument(blockValArgumentType, op->getLoc());
+  block.addArgument(blockIdxArgumentType, op->getLoc());
+  auto *firstValArg = block.args_begin();
+  auto *firstIdxArg = std::next(firstValArg);
+  auto *secondValArg = std::next(firstIdxArg);
+  auto *secondIdxArg = std::next(secondValArg);
+
+  stablehlo::ComparisonTypeAttr compareTypeAttr;
+  if (isa<mlir::FloatType>(inputTy.getElementType())) {
+    compareTypeAttr = stablehlo::ComparisonTypeAttr::get(
+        rewriter.getContext(), stablehlo::ComparisonType::FLOAT);
+  } else if (isa<mlir::IntegerType>(inputTy.getElementType())) {
+    compareTypeAttr = stablehlo::ComparisonTypeAttr::get(
+        rewriter.getContext(), stablehlo::ComparisonType::SIGNED);
+  }
+
+  stablehlo::ComparisonDirectionAttr compareGeDirectionAttr =
+      stablehlo::ComparisonDirectionAttr::get(
+          rewriter.getContext(), stablehlo::ComparisonDirection::GE);
+  stablehlo::ComparisonDirectionAttr compareEqDirectionAttr =
+      stablehlo::ComparisonDirectionAttr::get(
+          rewriter.getContext(), stablehlo::ComparisonDirection::EQ);
+
+  {
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(&block);
+
+    Value compareGeResult = rewriter.create<stablehlo::CompareOp>(
+        op->getLoc(), compareResultType, *firstValArg, *secondValArg,
+        compareGeDirectionAttr, compareTypeAttr);
+    Value retValResult = rewriter.create<stablehlo::SelectOp>(
+        op->getLoc(), compareGeResult, *firstValArg, *secondValArg);
+
+    // Get smaller index if compared values are equal.
+    Value compareEqResult = rewriter.create<stablehlo::CompareOp>(
+        op->getLoc(), compareResultType, *firstValArg, *secondValArg,
+        compareEqDirectionAttr, compareTypeAttr);
+    Value minIdx = rewriter.create<stablehlo::MinOp>(op->getLoc(), *firstIdxArg,
+                                                     *secondIdxArg);
+    Value idxWithGeVal = rewriter.create<stablehlo::SelectOp>(
+        op->getLoc(), compareGeResult, *firstIdxArg, *secondIdxArg);
+    Value retIdxResult = rewriter.create<stablehlo::SelectOp>(
+        op->getLoc(), compareEqResult, minIdx, idxWithGeVal);
+
+    rewriter.create<stablehlo::ReturnOp>(
+        op->getLoc(), mlir::ValueRange{retValResult, retIdxResult});
+  }
+
+  rewriter.replaceOp(op, reduceWindowOp.getResults());
+  return success();
 }
 
 // AtenMaxPool2dWithIndicesOp
@@ -657,6 +812,7 @@ void mlir::torch::torch_to_stablehlo::populatePoolingOpPatternsAndLegality(
 #define INSERT_ATEN_POOLING_PATTERN(AtenOp)                                    \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context, options)
+  INSERT_ATEN_POOLING_PATTERN(AtenMaxPool1dWithIndicesOp);
   INSERT_ATEN_POOLING_PATTERN(AtenMaxPool2dWithIndicesOp);
   INSERT_ATEN_POOLING_PATTERN(AtenCumsumOp);
 #undef INSERT_ATEN_POOLING_PATTERN

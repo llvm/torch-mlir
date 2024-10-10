@@ -325,7 +325,8 @@ public:
                            lhsContractingDim, rhsContractingDim);
     output = rewriter
                  .create<stablehlo::DotGeneralOp>(op->getLoc(), outTy, lhs, rhs,
-                                                  dotDimensionNumbers, nullptr)
+                                                  dotDimensionNumbers, nullptr,
+                                                  nullptr)
                  .getResult();
     return success();
   }
@@ -494,7 +495,7 @@ public:
             /*lhsContractingDimensions=*/{lhsContractingDim},
             /*rhsContractingDimensions=*/{rhsContractingDim});
     Value matmulOutput = rewriter.create<stablehlo::DotGeneralOp>(
-        op->getLoc(), outTy, lhs, rhs, dotDimensionNumbers, nullptr);
+        op->getLoc(), outTy, lhs, rhs, dotDimensionNumbers, nullptr, nullptr);
 
     Value matmulPlusBias = matmulOutput;
     if (!isa<Torch::NoneType>(biasTy)) {

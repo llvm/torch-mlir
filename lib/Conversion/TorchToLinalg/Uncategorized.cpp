@@ -575,6 +575,16 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::ConstantOp>(loc, b.getFloatAttr(floatDtype, 0));
     return createEqual(b, loc, floatDtype, self, zero);
   }
+  if (auto complex = dyn_cast<AtenComplexOp>(op)) {
+    auto ctype = cast<ComplexType>(
+        cast<RankedTensorType>(converter->convertType(complex.getType()))
+            .getElementType());
+    Type stype = ctype.getElementType();
+
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], stype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], stype);
+    return b.create<complex::CreateOp>(loc, ctype, lhs, rhs);
+  }
   if (isa<AtenAbsOp>(op)) {
     if (isa<IntegerType>(payloadArgs[0].getType()))
       return b.create<math::AbsIOp>(loc, payloadArgs[0]);
@@ -1590,22 +1600,22 @@ public:
              AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op,
              AtenLog10Op, AtenLog1pOp, AtenRsqrtOp, AtenDivScalarOp,
              AtenRemainderScalarOp, AtenRemainderTensorOp, AtenAbsOp,
-             AtenReciprocalOp, AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp,
-             AtenBitwiseOrTensorOp, AtenBitwiseXorTensorOp,
-             AtenBitwiseLeftShiftTensorOp, AtenBitwiseRightShiftTensorOp,
-             Aten__Lshift__ScalarOp, Aten__Rshift__ScalarOp, AtenGtScalarOp,
-             AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
-             AtenWhereSelfOp, AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp,
-             AtenEqTensorOp, AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp,
-             AtenSubScalarOp, AtenAddScalarOp, AtenThresholdOp,
-             AtenThresholdBackwardOp, AtenHardtanhBackwardOp, AtenCloneOp,
-             AtenSinOp, AtenCosOp, AtenNeScalarOp, AtenNegOp,
-             AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp,
-             AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
-             AtenTrilOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
-             AtenFillTensorOp, AtenAtanOp, AtenAcosOp, AtenAtanhOp, AtenAcoshOp,
-             AtenAsinOp, AtenAsinhOp, AtenRealOp, AtenImagOp,
-             AtenDequantizeSelfOp, AtenDequantizeTensorOp,
+             AtenComplexOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
+             AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
+             AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
+             AtenBitwiseRightShiftTensorOp, Aten__Lshift__ScalarOp,
+             Aten__Rshift__ScalarOp, AtenGtScalarOp, AtenGeScalarOp,
+             AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
+             AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
+             AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp, AtenSubScalarOp,
+             AtenAddScalarOp, AtenThresholdOp, AtenThresholdBackwardOp,
+             AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp,
+             AtenNeScalarOp, AtenNegOp, AtenMaskedFillTensorOp, AtenLogicalOrOp,
+             AtenLogicalAndOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp,
+             AtenTriuOp, AtenTrilOp, AtenBitwiseNotOp, AtenRoundOp,
+             AtenFillScalarOp, AtenFillTensorOp, AtenAtanOp, AtenAcosOp,
+             AtenAtanhOp, AtenAcoshOp, AtenAsinOp, AtenAsinhOp, AtenRealOp,
+             AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
              AtenQuantizePerTensorOp, AtenIscloseOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
@@ -3351,7 +3361,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenClampTensorOp, AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp,
       AtenFloorOp, AtenCeilOp, AtenPreluOp, AtenPowScalarOp,
       AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op,
-      AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp,
+      AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenComplexOp, AtenReciprocalOp,
       AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
       AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
       AtenBitwiseRightShiftTensorOp, Aten__Lshift__ScalarOp,

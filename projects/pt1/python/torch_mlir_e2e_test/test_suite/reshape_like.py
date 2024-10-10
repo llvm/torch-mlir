@@ -1174,6 +1174,30 @@ def ReshapeDynamicModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ViewDtypeStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([12, 1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        res = a.view(torch.int8)
+        return res
+
+
+@register_test_case(module_factory=lambda: ViewDtypeStaticModule())
+def ViewDtypeStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(12, 1))
+
+
+# ==============================================================================
+
+
 class ReshapeAliasCollapseModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1648,3 +1672,103 @@ class Rot90NegativeEvenRotationsModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: Rot90NegativeEvenRotationsModule())
 def Rot90NegativeEvenRotationsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(6, 5, 1, 7, 3))
+
+
+class Unfold_Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([6, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return x.unfold(0, 2, 2)
+
+
+@register_test_case(module_factory=lambda: Unfold_Module())
+def Unfold_Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 4))
+
+
+class Unfold_Module_Negative_Dim(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([6, 4, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return x.unfold(-1, 2, 1)
+
+
+@register_test_case(module_factory=lambda: Unfold_Module_Negative_Dim())
+def Unfold_Module_Rank_4(module, tu: TestUtils):
+    module.forward(tu.rand(6, 4, 4, 4))
+
+
+class Unfold_Module_Rank_Zero(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return x.unfold(0, 1, 1)
+
+
+@register_test_case(module_factory=lambda: Unfold_Module_Rank_Zero())
+def Unfold_Module_Rank_Zero_basic(module, tu: TestUtils):
+    module.forward(tu.rand())
+
+
+class Unfold_Module_Rank_Zero_Size_Zero(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return x.unfold(0, 0, 1)
+
+
+@register_test_case(module_factory=lambda: Unfold_Module_Rank_Zero())
+def Unfold_Module_Rank_Zero_Size_Zero_basic(module, tu: TestUtils):
+    module.forward(tu.rand())
+
+
+class Unfold_Module_Dynamic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return x.unfold(1, 2, 1)
+
+
+@register_test_case(module_factory=lambda: Unfold_Module_Dynamic())
+def Unfold_Module_Dynamic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 4, 4, 4))

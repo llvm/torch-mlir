@@ -50,7 +50,7 @@ TM_PYTHON_VERSIONS="${TM_PYTHON_VERSIONS:-cp38-cp38 cp310-cp310 cp311-cp311}"
 # Location to store Release wheels
 TM_OUTPUT_DIR="${TM_OUTPUT_DIR:-${this_dir}/wheelhouse}"
 # What "packages to build"
-TM_PACKAGES="${TM_PACKAGES:-torch-mlir torch-mlir-core}"
+TM_PACKAGES="${TM_PACKAGES:-torch-mlir torch-mlir-ext}"
 # Use pre-built Pytorch
 TM_USE_PYTORCH_BINARY="${TM_USE_PYTORCH_BINARY:-ON}"
 # Skip running tests if you want quick iteration
@@ -83,12 +83,12 @@ function run_on_host() {
   fi
   mkdir -p "${TM_OUTPUT_DIR}"
   case "$package" in
-    torch-mlir)
+    torch-mlir-ext)
       TM_CURRENT_DOCKER_IMAGE=${TM_RELEASE_DOCKER_IMAGE}
       export USERID=0
       export GROUPID=0
       ;;
-    torch-mlir-core)
+    torch-mlir)
       TM_CURRENT_DOCKER_IMAGE=${TM_RELEASE_DOCKER_IMAGE}
       export USERID=0
       export GROUPID=0
@@ -158,22 +158,22 @@ function run_in_docker() {
       export PATH=$python_dir/bin:$orig_path
       echo ":::: Python version $(python3 --version)"
       case "$package" in
-        torch-mlir)
-          clean_wheels torch_mlir "$python_version"
-          build_torch_mlir "$TM_TORCH_VERSION"
+        torch-mlir-ext)
+          clean_wheels torch_mlir_ext "$python_version"
+          build_torch_mlir_ext "$TM_TORCH_VERSION"
 
           # Disable audit wheel until we can fix ODR torch issues.  See
           # https://github.com/llvm/torch-mlir/issues/1709
           #
-          #run_audit_wheel torch_mlir "$python_version"
+          #run_audit_wheel torch_mlir_ext "$python_version"
 
-          clean_build torch_mlir "$python_version"
+          clean_build torch_mlir_ext "$python_version"
           ;;
-        torch-mlir-core)
-          clean_wheels torch_mlir_core "$python_version"
-          build_torch_mlir_core
-          run_audit_wheel torch_mlir_core "$python_version"
-          clean_build torch_mlir_core "$python_version"
+        torch-mlir)
+          clean_wheels torch_mlir "$python_version"
+          build_torch_mlir
+          run_audit_wheel torch_mlir "$python_version"
+          clean_build torch_mlir "$python_version"
           ;;
         out-of-tree)
           setup_venv "$python_version" "$TM_TORCH_VERSION"
@@ -431,7 +431,7 @@ function clean_build() {
   rm -rf /main_checkout/torch-mlir/build /main_checkout/torch-mlir/llvm-build /main_checkout/torch-mlir/docker_venv  /main_checkout/torch-mlir/libtorch
 }
 
-function build_torch_mlir() {
+function build_torch_mlir_ext() {
   # Disable LTC build for releases
   export TORCH_MLIR_ENABLE_LTC=0
   local torch_version="$1"
@@ -470,7 +470,9 @@ function run_audit_wheel() {
   rm "$generic_wheel"
 }
 
-function build_torch_mlir_core() {
+function build_torch_mlir() {
+  # Disable LTC build for releases
+  export TORCH_MLIR_ENABLE_LTC=0
   python -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
   CMAKE_GENERATOR=Ninja \
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \

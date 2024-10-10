@@ -530,11 +530,139 @@ public:
                                                      none, none, none, none);
       return success();
     }
+    auto squeezeOp = op.getSelf().getDefiningOp<AtenSqueezeDimOp>();
+    if (squeezeOp && resultTy.getSizes().size() == 1) {
+      rewriter.replaceOp(op, squeezeOp.getSelf());
+      return success();
+    }
 
     return failure();
   }
 };
 } // namespace
+
+namespace {
+// This is a specific pattern for converting views like [?,...,?,lastDim] ->
+// [?,...,?,factor0,factor1] to unflatten, and views like
+// [?,...,?,factor0,factor1] -> [?,...,?,lastDim] to flatten, whenever it is
+// possible to infer that all but last shared dim match
+// TODO: move this to an actual canonicalizer for view after deleting the
+// conflicting decompositions for flatten/unflatten -> view.
+class CanonicalizeAtenViewPattern : public OpRewritePattern<AtenViewOp> {
+public:
+  using OpRewritePattern<AtenViewOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenViewOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value> viewSizes;
+    if (failed(getListOperands(op.getSize(), viewSizes)))
+      return rewriter.notifyMatchFailure(
+          op, "view size must be from a list construct");
+    auto selfTy = dyn_cast<Torch::ValueTensorType>(op.getSelf().getType());
+    if (!selfTy || !selfTy.hasSizes())
+      return rewriter.notifyMatchFailure(op, "missing input type or sizes");
+    auto resultTy = dyn_cast<Torch::ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.hasSizes() ||
+        resultTy.getSizes().size() != viewSizes.size())
+      return rewriter.notifyMatchFailure(op, "missing result type or sizes");
+    int64_t inRank = selfTy.getSizes().size();
+    int64_t outRank = resultTy.getSizes().size();
+
+    SmallVector<int64_t> sizes(selfTy.getSizes());
+    int64_t endMatchingDim = -1;
+    // input sizes vs. provided view sizes comparison loop
+    for (int64_t i = 0; i < std::min(outRank, inRank); i++) {
+      int64_t providedSize;
+      bool providedStatic =
+          matchPattern(viewSizes[i], m_TorchConstantInt(&providedSize));
+      // if sizes[i] is static, it must match a constant in viewSizes[i]
+      if (sizes[i] != Torch::kUnknownSize) {
+        if (!providedStatic)
+          return rewriter.notifyMatchFailure(
+              op, "unsupported: found static input dim, but unable to match "
+                  "provided view size on a constant. See position : " +
+                      std::to_string(i));
+        if (providedSize != sizes[i]) {
+          endMatchingDim = i;
+          break;
+        }
+        continue;
+      }
+      // the remaining assumes sizes[i] is dynamic
+      // if provided dim is static, we can't verify it is a flatten/unflatten
+      // unless -1
+      if (i == outRank - 1 && providedStatic && providedSize == -1) {
+        endMatchingDim = i;
+        break;
+      }
+      if (providedStatic)
+        return rewriter.notifyMatchFailure(
+            op, "unexpected static view dim corresponding to dynamic input dim "
+                "at position : " +
+                    std::to_string(i));
+      auto sizeIntOp = viewSizes[i].getDefiningOp<AtenSizeIntOp>();
+      // if we don't have a size int op on self, fail
+      if (!sizeIntOp || sizeIntOp.getSelf() != op.getSelf())
+        return rewriter.notifyMatchFailure(
+            op, "expected dynamic view dim to come from a corresponding "
+                "size.int op. See position : " +
+                    std::to_string(i));
+      int64_t dim;
+      // if the dim of the size int op doesn't match, fail
+      if (!matchPattern(sizeIntOp.getDim(), m_TorchConstantInt(&dim)) ||
+          dim != i)
+        return rewriter.notifyMatchFailure(
+            op,
+            "size int op dim cannot be matched to current dim at position : " +
+                std::to_string(i));
+      // passing the previous checks means viewSizes[i] = aten.size.int(self,
+      // i), so continue
+    }
+    // if all dims match and the ranks are equal, fold
+    if (endMatchingDim == -1 && inRank == outRank) {
+      rewriter.replaceOp(op, op.getSelf());
+      return success();
+    }
+    if (endMatchingDim > -1 && inRank > outRank) {
+      // only support flattening last dim
+      if (endMatchingDim != outRank - 1)
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: output has more than back dim mismatching");
+      // flatten
+      Value start =
+          rewriter.create<Torch::ConstantIntOp>(op.getLoc(), endMatchingDim);
+      Value end =
+          rewriter.create<Torch::ConstantIntOp>(op.getLoc(), inRank - 1);
+      rewriter.replaceOpWithNewOp<AtenFlattenUsingIntsOp>(
+          op, resultTy, op.getSelf(), start, end);
+      return success();
+    }
+    if (endMatchingDim > -1 && inRank < outRank) {
+      // only support unflattening last dim
+      if (endMatchingDim != inRank - 1)
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: input has more than back dim mismatching");
+      // unflatten
+      Value dim =
+          rewriter.create<Torch::ConstantIntOp>(op.getLoc(), endMatchingDim);
+      Value primList = rewriter.create<Torch::PrimListConstructOp>(
+          op.getLoc(), op.getSize().getType(),
+          ArrayRef<Value>(viewSizes.begin() + endMatchingDim, viewSizes.end()));
+      rewriter.replaceOpWithNewOp<AtenUnflattenIntOp>(
+          op, resultTy, op.getSelf(), dim, primList);
+      return success();
+    }
+    // examples that might reach this:
+    // input shape = [10, 5]; view sizes = [5, 10] (or dynamic variants)
+    // input shape = [dim0, dim1]; view sizes = [dim0, dim1, 1, 1] (unsqueezes)
+    // input shape = [dim0, dim1, 1, 1] view sizes = [dim0, dim1] (squeezes)
+    return rewriter.notifyMatchFailure(
+        op, "unhandled case: endMatchingDim=" + std::to_string(endMatchingDim) +
+                ", inRank=" + std::to_string(inRank) +
+                ", outRank=" + std::to_string(outRank));
+  }
+};
+} // namespace
+
 namespace {
 template <typename T> class RemoveUnusedPattern : public OpRewritePattern<T> {
 public:
@@ -561,18 +689,24 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
-    patterns
-        .insert<PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
-                PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
-                PropagateAtenSliceTensorPattern, FoldAtenTensorSplatPattern,
-                FoldAtenSqueezePattern, FoldAtenUnsqueezePattern,
-                FoldAtenWhereSelf, RemoveUnusedPattern<Torch::AtenSizeIntOp>,
-                RemoveUnusedPattern<Torch::AtenSliceTensorOp>,
-                RemoveUnusedPattern<Torch::AtenTensorOp>,
-                RemoveUnusedPattern<Torch::ConstantBoolOp>,
-                RemoveUnusedPattern<Torch::ConstantIntOp>,
-                RemoveUnusedPattern<Torch::ConstantNoneOp>,
-                RemoveUnusedPattern<Torch::PrimListConstructOp>>(context);
+    patterns.insert<PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
+                    PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
+                    PropagateAtenSliceTensorPattern, FoldAtenTensorSplatPattern,
+                    FoldAtenSqueezePattern, FoldAtenUnsqueezePattern,
+                    FoldAtenWhereSelf, CanonicalizeAtenViewPattern,
+                    RemoveUnusedPattern<Torch::AtenIntBoolOp>,
+                    RemoveUnusedPattern<Torch::AtenEqIntOp>,
+                    RemoveUnusedPattern<Torch::PrimNumToTensorScalarOp>,
+                    RemoveUnusedPattern<Torch::AtenFullOp>,
+                    RemoveUnusedPattern<Torch::AtenUnsqueezeOp>,
+                    RemoveUnusedPattern<Torch::AtenSqueezeDimOp>,
+                    RemoveUnusedPattern<Torch::AtenSizeIntOp>,
+                    RemoveUnusedPattern<Torch::AtenSliceTensorOp>,
+                    RemoveUnusedPattern<Torch::AtenTensorOp>,
+                    RemoveUnusedPattern<Torch::ConstantBoolOp>,
+                    RemoveUnusedPattern<Torch::ConstantIntOp>,
+                    RemoveUnusedPattern<Torch::ConstantNoneOp>,
+                    RemoveUnusedPattern<Torch::PrimListConstructOp>>(context);
 
     context->getLoadedDialect<mlir::arith::ArithDialect>()
         ->getCanonicalizationPatterns(patterns);

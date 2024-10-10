@@ -492,6 +492,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::softplus : (Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::prelu : (Tensor, Tensor) -> (Tensor)")
     emit("aten::rad2deg : (Tensor) -> (Tensor)")
+    emit("aten::complex : (Tensor, Tensor) -> (Tensor)")
     emit("aten::real : (Tensor) -> (Tensor)")
     emit("aten::imag : (Tensor) -> (Tensor)")
     emit("aten::view_as_complex : (Tensor) -> (Tensor)")
@@ -617,6 +618,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::native_layer_norm : (Tensor, int[], Tensor?, Tensor?, float) -> (Tensor, Tensor, Tensor)"
     )
     emit("aten::max_pool1d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)")
+    emit(
+        "aten::max_pool1d_with_indices : (Tensor, int[], int[], int[], int[], bool) -> (Tensor, Tensor)"
+    )
     emit("aten::max_pool2d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)")
     emit("aten::max_unpool2d : (Tensor, Tensor, int[]) -> (Tensor)")
     emit(
@@ -739,6 +743,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::binary_cross_entropy : (Tensor, Tensor, Tensor?, int) -> (Tensor)")
     emit(
         "aten::binary_cross_entropy_backward : (Tensor, Tensor, Tensor, Tensor?, int) -> (Tensor)"
+    )
+    emit(
+        "aten::binary_cross_entropy_with_logits : (Tensor, Tensor, Tensor?, Tensor?, int) -> (Tensor)"
     )
     emit("aten::log_sigmoid_forward : (Tensor) -> (Tensor, Tensor)")
     emit("aten::log_sigmoid_backward : (Tensor, Tensor, Tensor) -> (Tensor)")
@@ -986,6 +993,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::unsqueeze_copy : (Tensor, int) -> (Tensor)")
     emit("aten::view_copy : (Tensor, int[]) -> (Tensor)")
     emit("aten::view_copy.dtype : (Tensor, int) -> (Tensor)")
+    emit("aten::unfold : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::unfold_copy : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::im2col : (Tensor, int[], int[], int[], int[]) -> (Tensor)")
     emit("aten::scatter.reduce : (Tensor, int, Tensor, Tensor, str) -> (Tensor)")

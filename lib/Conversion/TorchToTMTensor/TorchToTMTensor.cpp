@@ -1498,6 +1498,79 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenCumprodOp : public OpConversionPattern<AtenCumprodOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenCumprodOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    Value input = adaptor.getSelf();
+    auto resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
+    Type elementType = resultType.getElementType();
+    Type inputElementType =
+        cast<RankedTensorType>(input.getType()).getElementType();
+
+    // Converting the input element type to the result's element type.
+    // The only possible mismatch would be when the input element type is an
+    // integer but not `si64`. Therefore, we directly convert the input to
+    // `si64`. Rest all cases are handled in the dtype definition for this op.
+    if (elementType != inputElementType) {
+      Value torchInput = convertTensorToDtype(
+          rewriter, loc, op.getSelf(),
+          rewriter.getIntegerType(64, IntegerType::Signed));
+      input = typeConverter->materializeTargetConversion(
+          rewriter, loc, typeConverter->convertType(torchInput.getType()),
+          torchInput);
+    }
+
+    int64_t inputRank = resultType.getRank();
+    Value dtype = op.getDtype();
+    if (!isa<Torch::NoneType>(dtype.getType()))
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: dtype argument not supported");
+
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only constant dim value is supported");
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank))
+      return rewriter.notifyMatchFailure(op, "invalid dim");
+
+    SmallVector<Value> sizes = getTensorSizes(rewriter, loc, input);
+    Value output = createOneInitTensor(rewriter, loc, sizes, elementType);
+    output = rewriter.create<tensor::CastOp>(loc, resultType, output);
+
+    SmallVector<Value> accSizes(sizes);
+    accSizes.erase(accSizes.begin() + dim);
+    SmallVector<int64_t> accStatic(
+        makeShapeTorchCompatible(resultType.getShape()));
+    accStatic.erase(accStatic.begin() + dim);
+    Value acc = createOneInitTensor(rewriter, loc, accSizes, elementType);
+    Type accType =
+        RankedTensorType::get(makeShapeLLVMCompatible(accStatic), elementType);
+    acc = rewriter.create<tensor::CastOp>(loc, accType, acc);
+
+    Value result = createTMTensorScanOp(
+        rewriter, loc, input, output, acc, dim, /*inclusive=*/true,
+        [](OpBuilder &b, Location loc, Value input, Value acc) {
+          Value prod =
+              (isa<mlir::FloatType>(input.getType())
+                   ? b.create<arith::MulFOp>(loc, input, acc)->getResult(0)
+                   : b.create<arith::MulIOp>(loc, input, acc)->getResult(0));
+          b.create<TMTensor::YieldOp>(loc, prod);
+        });
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenCumsumOp : public OpConversionPattern<AtenCumsumOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -2240,6 +2313,8 @@ public:
     patterns.add<ConvertAtenSortOp>(typeConverter, context);
     target.addIllegalOp<AtenCumsumOp>();
     patterns.add<ConvertAtenCumsumOp>(typeConverter, context);
+    target.addIllegalOp<AtenCumprodOp>();
+    patterns.add<ConvertAtenCumprodOp>(typeConverter, context);
     target.addIllegalOp<AtenScaledDotProductAttentionOp>();
     patterns.add<ConvertAtenScaledDotProductAttentionOp>(typeConverter,
                                                          context);

@@ -301,14 +301,9 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
 
     Location loc = op->getLoc();
-    MLIRContext *context = op.getContext();
     Value self = adaptor.getSelf();
     auto selfRank =
         cast<RankedTensorType>(adaptor.getSelf().getType()).getRank();
-    Type elementType =
-        cast<RankedTensorType>(adaptor.getSelf().getType()).getElementType();
-    Value c1 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
 
     SmallVector<int64_t> axis;
     if (!matchPattern(adaptor.getDims(), m_TorchListOfConstantInts(axis)))
@@ -321,40 +316,8 @@ public:
       }
     }
 
-    // Only used to calculate flipped values, i.e. those on the flip axes. Other
-    // dims won't be used.
-    SmallVector<Value> dims = getTensorSizes(rewriter, loc, self);
-    for (auto flipDim : axis)
-      dims[flipDim] = rewriter.create<arith::SubIOp>(loc, dims[flipDim], c1);
-
-    Value initTensor = createZeroInitTensor(
-        rewriter, loc, getTensorSizes(rewriter, loc, self), elementType);
-
-    SmallVector<utils::IteratorType> iteratorTypes(
-        selfRank, utils::IteratorType::parallel);
-    SmallVector<AffineMap> indexingMaps(
-        2, AffineMap::getMultiDimIdentityMap(selfRank, context));
-    Value flipped =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, self.getType(), self, initTensor, indexingMaps,
-                iteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  SmallVector<Value> indices;
-                  for (auto i = 0; i < selfRank; i++)
-                    indices.push_back(b.create<linalg::IndexOp>(loc, i));
-                  for (auto flipDim : axis) {
-                    indices[flipDim] = b.create<arith::SubIOp>(
-                        loc, dims[flipDim], indices[flipDim]);
-                  }
-                  Value res = b.create<tensor::ExtractOp>(loc, self, indices)
-                                  .getResult();
-                  b.create<linalg::YieldOp>(loc, res);
-                })
-            .getResult(0);
-
+    Value flipped = torch_to_linalg::flipTensor(rewriter, loc, self, axis);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, self.getType(), flipped);
-
     return success();
   }
 };
@@ -1300,10 +1263,6 @@ public:
       return success();
     }
 
-    if (numSpatialDims != 2)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only 2D grouped convolution supported");
-
     // Special depthwise case: Cin = Cout = groups.
     // Note: pytorch considers Cin == groups (Cout possibly a non-zero multiple
     // of groups) to be depthwise in their documentation, but the linalg ops
@@ -1315,21 +1274,45 @@ public:
     if (inShape[1] == numGroups && weightShape[0] == numGroups &&
         weightShape[1] == 1) {
       // Collapse weight shape (C/G == 1)
-      SmallVector<ReassociationIndices, 4> collapsedDims = {{0, 1}, {2}, {3}};
-      SmallVector<int64_t> collapsedShape{weightShape[0] * weightShape[1],
-                                          weightShape[2], weightShape[3]};
+      SmallVector<ReassociationIndices> collapsedDims = {{0, 1}};
+      SmallVector<int64_t> collapsedShape{weightShape[0] * weightShape[1]};
+      for (unsigned i = 0; i < numSpatialDims; i++) {
+        collapsedDims.push_back({i + 2});
+        collapsedShape.push_back(weightShape[i + 2]);
+      }
       Type collapsedType = RankedTensorType::get(
           makeShapeLLVMCompatible(collapsedShape), weightDTy);
       Value collapsedWeight = rewriter.create<tensor::CollapseShapeOp>(
           loc, collapsedType, weight, collapsedDims);
       if (!inputZp) {
-        conv = rewriter
-                   .create<linalg::DepthwiseConv2DNchwChwOp>(
-                       loc, outputTensor.getType(),
-                       ValueRange{paddedInput, collapsedWeight}, outputTensor,
-                       stridesAttr, dilationAttr)
-                   .getResult(0);
+        switch (numSpatialDims) {
+        case 1:
+          conv = rewriter
+                     .create<linalg::DepthwiseConv1DNcwCwOp>(
+                         loc, outputTensor.getType(),
+                         ValueRange{paddedInput, collapsedWeight}, outputTensor,
+                         stridesAttr, dilationAttr)
+                     .getResult(0);
+          break;
+        case 2:
+          conv = rewriter
+                     .create<linalg::DepthwiseConv2DNchwChwOp>(
+                         loc, outputTensor.getType(),
+                         ValueRange{paddedInput, collapsedWeight}, outputTensor,
+                         stridesAttr, dilationAttr)
+                     .getResult(0);
+          break;
+        default:
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: only 1D and 2D depthwise convolution "
+                  "supported for special case of group convolution");
+        };
       } else {
+        if (numSpatialDims != 2)
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: only 2D depthwise quantized convolution "
+                  "supported for special case of group convolution");
+
         // currently, the only named depthwise qconv op is nhwc_hwc
         // input: nchw -> nhwc; weight (collapsed): chw -> hwc
         // linalg conv result nhwc -> nchw
@@ -1375,6 +1358,10 @@ public:
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
     }
+
+    if (numSpatialDims != 2)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only 2D grouped convolution supported");
 
     // Grouped case, use the grouped conv linalg op
     auto expandGroups = [&](Value tensor, size_t dim) {

@@ -153,11 +153,17 @@ LogicalResult torchScalarToTosaTensor(ConversionPatternRewriter &rewriter,
     return rewriter.notifyMatchFailure(op,
                                        "Unable to extract the scalar constant");
 
+  int64_t numElem = 1;
+  for (int64_t dim : dshape)
+    numElem *= dim;
+
   if (isa<mlir::FloatType>(dtype)) {
-    tosaTensor = tosa::getConstTensor<float>(rewriter, op,
-                                             (isFloat ? doubleValue : intValue),
-                                             dshape, dtype)
-                     .value();
+    tosaTensor =
+        tosa::getConstTensor<float>(
+            rewriter, op,
+            SmallVector<float>(numElem, (isFloat ? doubleValue : intValue)),
+            dshape, dtype)
+            .value();
   } else if (auto intType = dyn_cast<mlir::IntegerType>(dtype)) {
     auto w = intType.getWidth();
     if (w != 1 && w != 32 && w != 64)
@@ -173,8 +179,9 @@ LogicalResult torchScalarToTosaTensor(ConversionPatternRewriter &rewriter,
       }
       bool d = isFloat ? static_cast<bool>(doubleValue)
                        : static_cast<bool>(intValue);
-      tosaTensor =
-          tosa::getConstTensor<bool>(rewriter, op, {d}, dshape).value();
+      tosaTensor = tosa::getConstTensor<bool>(
+                       rewriter, op, SmallVector<bool>(numElem, d), dshape)
+                       .value();
     } else if (w == 32) {
       if (!isInValidRange<int32_t>(isFloat, doubleValue, isInt, intValue)) {
         return rewriter.notifyMatchFailure(
@@ -183,8 +190,9 @@ LogicalResult torchScalarToTosaTensor(ConversionPatternRewriter &rewriter,
       }
       int32_t d = isFloat ? static_cast<int32_t>(doubleValue)
                           : static_cast<int32_t>(intValue);
-      tosaTensor =
-          tosa::getConstTensor<int32_t>(rewriter, op, {d}, dshape).value();
+      tosaTensor = tosa::getConstTensor<int32_t>(
+                       rewriter, op, SmallVector<int32_t>(numElem, d), dshape)
+                       .value();
     } else if (w == 64) {
       if (!isInValidRange<int64_t>(isFloat, doubleValue, isInt, intValue)) {
         return rewriter.notifyMatchFailure(
@@ -192,8 +200,9 @@ LogicalResult torchScalarToTosaTensor(ConversionPatternRewriter &rewriter,
                 "of destination type");
       }
       int64_t d = (isFloat ? static_cast<int64_t>(doubleValue) : intValue);
-      tosaTensor =
-          tosa::getConstTensor<int64_t>(rewriter, op, {d}, dshape).value();
+      tosaTensor = tosa::getConstTensor<int64_t>(
+                       rewriter, op, SmallVector<int64_t>(numElem, d), dshape)
+                       .value();
     }
   } else {
     return rewriter.notifyMatchFailure(op, "Usupported element type");
@@ -890,8 +899,6 @@ public:
 
     if (!result)
       return failure();
-
-    // TBD - support dtype casting.
 
     rewriter.replaceOp(op, {result.value()});
 
@@ -2842,8 +2849,12 @@ LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
       return rewriter.notifyMatchFailure(op, "Not all dims are valid");
   }
 
-  auto transposeDimsConst = mlir::tosa::getConstTensor<int64_t>(
-      rewriter, op.getOperation(), dimListInt, {selfRank});
+  SmallVector<int32_t> dimListInt32;
+  for (auto v : dimListInt)
+    dimListInt32.push_back(v);
+
+  auto transposeDimsConst = mlir::tosa::getConstTensor<int32_t>(
+      rewriter, op.getOperation(), dimListInt32, {selfRank});
 
   rewriter.replaceOpWithNewOp<tosa::TransposeOp>(
       op, getTypeConverter()->convertType(op.getType()), adaptor.getSelf(),
@@ -3814,6 +3825,124 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
 
   if (!result) {
     return rewriter.notifyMatchFailure(op, "Convert GatherNdOp fail.");
+  }
+  rewriter.replaceOp(op, {result.value()});
+  return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
+    AtenIndexSelectOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // Not a tensor type.
+  auto input = adaptor.getSelf();
+  auto inputType = dyn_cast<RankedTensorType>(input.getType());
+  if (!inputType)
+    return rewriter.notifyMatchFailure(
+        op, "Only RankedTensorType inputs are currently supported");
+
+  auto index = adaptor.getIndex();
+  auto indexType = dyn_cast<RankedTensorType>(index.getType());
+
+  if (!indexType)
+    return rewriter.notifyMatchFailure(
+        op, "Only RankedTensorType indices are currently supported");
+
+  auto inputShape = inputType.getShape();
+  int inputRank = inputType.getRank();
+
+  if (indexType.getRank() == 0)
+    return rewriter.notifyMatchFailure(
+        op, "Rank 0 index tensor is currently not supported");
+
+  // Dynamic shape check
+  if (!inputType.hasStaticShape() || !indexType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "AtenIndexSelectOp: support for dynamic input "
+            "shape not implemented");
+
+  // index i64 to i32 for tosa compatible
+  if (indexType.getElementType() != rewriter.getIntegerType(32)) {
+    index = rewriter.create<tosa::CastOp>(
+        op->getLoc(),
+        RankedTensorType::get(indexType.getShape(),
+                              rewriter.getIntegerType(32)),
+        index);
+  }
+
+  // Get positive dim
+  int64_t dim;
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(
+        op, "Value `dim` should be a torch constant int");
+  dim = toPositiveDim(dim, inputRank);
+  if (!isValidDim(dim, inputRank))
+    return rewriter.notifyMatchFailure(op, "Value `dim` is invalid");
+
+  // Get the output type
+  auto outType = getTypeConverter()->convertType(op.getType());
+
+  // Reshape and expand the index tensor to have same rank and same dimensions
+  // (except for the targeted dim) as the input
+  //
+  // For example:
+  // Input shape = (4, 5, 6)
+  // Index vector shape = (2)
+  // Targeted dim = 1
+  // Reshaped and expanded index vector shape = (4, 2, 6)
+  //
+  // By reshaping and expanding the index vector, we can supply it into the
+  // gather op to mimic the functionality of aten.index_select
+  SmallVector<int64_t> indicesInputRankShape;
+  for (int64_t i = 0; i < inputRank; i++) {
+    if (i == dim) {
+      indicesInputRankShape.push_back(indexType.getShape()[0]);
+    } else {
+      indicesInputRankShape.push_back(1);
+    }
+  }
+
+  auto indicesInputRankType =
+      RankedTensorType::get(makeShapeLLVMCompatible(indicesInputRankShape),
+                            rewriter.getIntegerType(32));
+
+  auto reshapedIndices = rewriter.create<tosa::ReshapeOp>(
+      op->getLoc(), indicesInputRankType, index,
+      rewriter.getDenseI64ArrayAttr(indicesInputRankShape));
+
+  SmallVector<int64_t> tileShape(indicesInputRankShape);
+  SmallVector<int64_t> expandedIndicesShape(indicesInputRankShape);
+  for (int64_t i = 0; i < inputRank; i++) {
+    if (tileShape[i] == 1 && i != dim) {
+      tileShape[i] = inputShape[i];
+      expandedIndicesShape[i] = inputShape[i];
+    } else {
+      tileShape[i] = 1;
+    }
+  }
+
+  auto tileType =
+      RankedTensorType::get(makeShapeLLVMCompatible(expandedIndicesShape),
+                            rewriter.getIntegerType(32));
+
+  auto expandedIndices = rewriter.create<tosa::TileOp>(
+      op->getLoc(), tileType, reshapedIndices.getResult(),
+      rewriter.getDenseI64ArrayAttr(tileShape));
+
+  // convert torch style index and dim into tf style indices
+  // tensor<[1,4,2],si64> -> tensor<[1,4,2,3],si64>
+  auto indicesTf = tosa::convertTorchIndexToTfIndices(
+      rewriter, op, input, expandedIndices.getResult(), dim);
+  if (!indicesTf)
+    return rewriter.notifyMatchFailure(
+        op, "Convert TorchIndex To TfIndices failed");
+
+  // do the tf gathernd algorithm with tf style indices as input.
+  auto result =
+      tosa::convertGatherNdOp(rewriter, op, outType, input, indicesTf.value());
+
+  if (!result) {
+    return rewriter.notifyMatchFailure(op, "Convert GatherNdOp failed");
   }
   rewriter.replaceOp(op, {result.value()});
   return success();
@@ -5200,7 +5329,7 @@ public:
 };
 
 template <typename AtenOpT>
-class ConvertAtenFillScalarOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenFillOp : public OpConversionPattern<AtenOpT> {
 public:
   using OpConversionPattern<AtenOpT>::OpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
@@ -5216,18 +5345,48 @@ public:
           op, "Only Tensor types with static shapes are currently supported");
 
     Type outElemTy = outType.getElementType();
-    if (!outElemTy.isIntOrFloat()) {
+    if (!outElemTy.isIntOrFloat())
       return rewriter.notifyMatchFailure(
           op, "Only floating-point or integer datatype legalization supported");
-    }
-    Value constOp;
-    if (failed(torchScalarToTosaTensor(
-            rewriter, op, op.getValue(), constOp, outElemTy,
-            makeShapeTorchCompatible(outType.getShape()))))
-      return rewriter.notifyMatchFailure(
-          op, "Supplied value must be a Scalar constant");
 
-    rewriter.replaceOpWithNewOp<tosa::CastOp>(op, outType, constOp);
+    Value fillValueTargetTensor;
+    if constexpr (std::is_same<AtenOpT, AtenFillTensorOp>()) {
+      // Reshape value tensor to have same rank and shape as input
+      auto inputRank =
+          cast<RankedTensorType>(adaptor.getSelf().getType()).getRank();
+
+      auto fillValue = adaptor.getValue();
+      auto fillValueType = dyn_cast<TensorType>(fillValue.getType());
+      if (!fillValueType)
+        return rewriter.notifyMatchFailure(op, "Fill value is not a tensor");
+      auto fillValueElemTy = fillValueType.getElementType();
+
+      SmallVector<int64_t> fillValueMatchedInputRankShape(inputRank, 1);
+
+      auto fillValueMatchedInputRankType = RankedTensorType::get(
+          makeShapeTorchCompatible(fillValueMatchedInputRankShape),
+          fillValueElemTy);
+
+      auto fillValueMatchedInputRankTensor = rewriter.create<tosa::ReshapeOp>(
+          op->getLoc(), fillValueMatchedInputRankType, fillValue,
+          rewriter.getDenseI64ArrayAttr(fillValueMatchedInputRankShape));
+
+      fillValueTargetTensor = rewriter.create<tosa::TileOp>(
+          op->getLoc(),
+          RankedTensorType::get(makeShapeTorchCompatible(outType.getShape()),
+                                fillValueElemTy),
+          fillValueMatchedInputRankTensor.getResult(),
+          makeShapeTorchCompatible(outType.getShape()));
+    } else {
+      if (failed(torchScalarToTosaTensor(
+              rewriter, op, op.getValue(), fillValueTargetTensor, outElemTy,
+              makeShapeTorchCompatible(outType.getShape()))))
+        return rewriter.notifyMatchFailure(
+            op, "Fill value must be a scalar constant");
+    }
+
+    rewriter.replaceOpWithNewOp<tosa::CastOp>(op, outType,
+                                              fillValueTargetTensor);
 
     return success();
   }
@@ -5647,8 +5806,7 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewrite(
   return success();
 }
 
-// Template to create support tril mask tensor for aten.tril
-// legalization
+// Template to create supporting tril mask tensor for aten.tril
 template <typename T>
 Value createTrilMask(PatternRewriter &rewriter, Operation *op,
                      ArrayRef<int64_t> shape, int64_t h, int64_t w,
@@ -5669,28 +5827,6 @@ Value createTrilMask(PatternRewriter &rewriter, Operation *op,
   }
 
   return tosa::getConstTensor<T>(rewriter, op, vec, shape).value();
-}
-
-// Function to get tril mask tensor based on input type
-// for aten.tril legalization
-Value getTrilMask(PatternRewriter &rewriter, Operation *op,
-                  ArrayRef<int64_t> shape, int64_t h, int64_t w,
-                  int64_t diagonal, Type type) {
-  return TypeSwitch<Type, Value>(type)
-      .Case<mlir::FloatType>([&](auto) {
-        return createTrilMask<float>(rewriter, op, shape, h, w, diagonal);
-      })
-      .Case<mlir::IntegerType>([&](auto intType) {
-        switch (intType.getWidth()) {
-        case 1:
-          return createTrilMask<bool>(rewriter, op, shape, h, w, diagonal);
-        case 32:
-          return createTrilMask<int32_t>(rewriter, op, shape, h, w, diagonal);
-        case 64:
-          return createTrilMask<int64_t>(rewriter, op, shape, h, w, diagonal);
-        }
-        llvm_unreachable("Invalid integer width");
-      });
 }
 
 // Legalization for aten.tril
@@ -5740,17 +5876,339 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "Diagonal value is not an integer");
 
   // Define shape for mask tensor based on rank
-  SmallVector<int64_t> constShape;
+  SmallVector<int64_t> maskShape;
   for (auto i = 0; i < selfRank - 2; i++)
-    constShape.push_back(1);
-  constShape.push_back(h);
-  constShape.push_back(w);
+    maskShape.push_back(1);
+  maskShape.push_back(h);
+  maskShape.push_back(w);
 
-  Value trilMask = getTrilMask(rewriter, op, constShape, h, w, diagonal,
-                               resultType.getElementType());
+  Value trilMask = TypeSwitch<Type, Value>(resultType.getElementType())
+                       .Case<mlir::FloatType>([&](auto) {
+                         return createTrilMask<float>(rewriter, op, maskShape,
+                                                      h, w, diagonal);
+                       })
+                       .Case<mlir::IntegerType>([&](auto intType) {
+                         switch (intType.getWidth()) {
+                         case 1:
+                           return createTrilMask<bool>(rewriter, op, maskShape,
+                                                       h, w, diagonal);
+                         case 32:
+                           return createTrilMask<int32_t>(
+                               rewriter, op, maskShape, h, w, diagonal);
+                         case 64:
+                           return createTrilMask<int64_t>(
+                               rewriter, op, maskShape, h, w, diagonal);
+                         }
+                         llvm_unreachable("Invalid integer width");
+                       });
 
   rewriter.replaceOpWithNewOp<tosa::MulOp>(op, resultType, self, trilMask,
                                            /*shift=*/0);
+
+  return success();
+}
+
+// Legalization for aten.flip
+template <>
+LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewrite(
+    AtenFlipOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  auto self = adaptor.getSelf();
+
+  auto selfTy = dyn_cast<RankedTensorType>(self.getType());
+  if (!selfTy)
+    return rewriter.notifyMatchFailure(
+        op, "Only ranked tensor types are currently supported");
+
+  SmallVector<int64_t> dims;
+  if (!matchPattern(adaptor.getDims(), m_TorchListOfConstantInts(dims)))
+    return rewriter.notifyMatchFailure(
+        op, "Only constant dims are currently supported");
+
+  auto selfRank = selfTy.getRank();
+
+  auto resultTy = getTypeConverter()->convertType(op.getType());
+  Value result = self;
+
+  for (auto &dim : dims) {
+    dim = toPositiveDim(dim, selfRank);
+    if (!isValidDim(dim, selfRank))
+      return rewriter.notifyMatchFailure(op, "Not all dims are valid");
+
+    result = rewriter.create<tosa::ReverseOp>(op->getLoc(), resultTy, result,
+                                              static_cast<int32_t>(dim));
+  }
+
+  rewriter.replaceOp(op, result);
+  return success();
+}
+
+// Legalization for aten.round:
+// Rounds elements of input to the nearest integer.
+// Implements "round half to even" to break ties when a number is equidistant
+// from two integers.
+template <>
+LogicalResult ConvertAtenOp<AtenRoundOp>::matchAndRewrite(
+    AtenRoundOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // To round to the nearest integer, we will consider the fractional part of
+  // the input element (= input element - integer part of element). If the
+  // fractional part is smaller than 0.5, round the number down. If the
+  // fractional part is 0.5, apply "round half to even" rule. If the fractional
+  // part is greater than 0.5, round up.
+  //
+  // if (frac < 0.5 || (frac == 0.5 && floor(input) % 2 == 0)):
+  //   res = floor(input)
+  // else:
+  //   res = ceil(input)
+
+  auto self = adaptor.getSelf();
+
+  auto selfTy = dyn_cast<TensorType>(self.getType());
+  if (!selfTy)
+    return rewriter.notifyMatchFailure(op, "Only tensor types supported");
+
+  auto resultTy =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+
+  auto boolTy =
+      RankedTensorType::get(resultTy.getShape(), rewriter.getIntegerType(1));
+
+  auto resultElemTy = resultTy.getElementType();
+
+  auto oneHalf =
+      tosa::getConstTensor<float>(rewriter, op, 0.5, {}, resultElemTy).value();
+
+  auto two =
+      tosa::getConstTensor<float>(rewriter, op, 2, {}, resultElemTy).value();
+
+  auto floorInput =
+      rewriter.create<tosa::FloorOp>(op->getLoc(), resultTy, self);
+
+  // input - floor(input)
+  auto fractionalPart = rewriter.create<tosa::SubOp>(
+      op->getLoc(), resultTy, self, floorInput.getResult());
+
+  auto ceilInput = rewriter.create<tosa::CeilOp>(op->getLoc(), resultTy, self);
+
+  auto floorInputDivByTwo = rewriter.create<tosa::MulOp>(
+      op->getLoc(), resultTy, floorInput.getResult(), oneHalf, /*shift=*/0);
+
+  auto floorDivResult = rewriter.create<tosa::FloorOp>(
+      op->getLoc(), resultTy, floorInputDivByTwo.getResult());
+
+  // (floor(input) // 2) * 2
+  auto evenComparison = rewriter.create<tosa::MulOp>(
+      op->getLoc(), resultTy, floorDivResult.getResult(), two, /*shift=*/0);
+
+  // floor(input) // 2) * 2 == input <=> floor(input) % 2 == 0
+  auto floorInputEven = rewriter.create<tosa::EqualOp>(
+      op->getLoc(), boolTy, floorInput.getResult(), evenComparison.getResult());
+
+  auto fracEqualOneHalf = rewriter.create<tosa::EqualOp>(
+      op->getLoc(), boolTy, fractionalPart.getResult(), oneHalf);
+
+  auto fracLtOneHalf = rewriter.create<tosa::GreaterOp>(
+      op->getLoc(), boolTy, oneHalf, fractionalPart.getResult());
+
+  // (frac == 0.5) && (floor(input) % 2 == 0)
+  auto fracEqualOneHalfCond = rewriter.create<tosa::LogicalAndOp>(
+      op->getLoc(), boolTy, fracEqualOneHalf.getResult(),
+      floorInputEven.getResult());
+
+  // (frac < 0.5) || ((frac == 0.5) && (floor(input) % 2 == 0))
+  auto floorResultCond = rewriter.create<tosa::LogicalOrOp>(
+      op->getLoc(), boolTy, fracLtOneHalf.getResult(),
+      fracEqualOneHalfCond.getResult());
+
+  rewriter.replaceOpWithNewOp<tosa::SelectOp>(
+      op, resultTy, floorResultCond.getResult(), floorInput.getResult(),
+      ceilInput.getResult());
+
+  return success();
+}
+
+// Template to create supporting diagonal mask tensor for aten.diagonal
+template <typename T>
+Value createDiagonalMask(PatternRewriter &rewriter, Operation *op,
+                         ArrayRef<int64_t> shape, int64_t h, int64_t w,
+                         int64_t offset) {
+  SmallVector<T> vec;
+
+  for (int64_t i = 0; i < h; i++) {
+    for (int64_t j = 0; j < w; j++) {
+      // Positive offset value moves above the main diagonal, while negative
+      // diagonal value moves below the main diagonal.
+      if (i + offset == j) {
+        vec.push_back(static_cast<T>(1));
+      } else {
+        vec.push_back(static_cast<T>(0));
+      }
+    }
+  }
+
+  return tosa::getConstTensor<T>(rewriter, op, vec, shape).value();
+}
+
+// Legalization for aten.diagonal
+template <>
+LogicalResult ConvertAtenOp<AtenDiagonalOp>::matchAndRewrite(
+    AtenDiagonalOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto self = adaptor.getSelf();
+
+  // Not a ranked tensor type
+  auto selfType = dyn_cast<RankedTensorType>(self.getType());
+  if (!selfType)
+    return rewriter.notifyMatchFailure(
+        op, "Only ranked tensor types are supported");
+
+  // Rank below 2 not accepted
+  auto selfRank = selfType.getRank();
+  if (selfRank <= 1)
+    return rewriter.notifyMatchFailure(
+        op, "Rank 0 and 1 are not accepted as they cause underflow");
+
+  if (!selfType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "Currently only static shapes are supported");
+
+  const TypeConverter *typeConverter = this->getTypeConverter();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      typeConverter->convertType(op->getResult(0).getType()));
+  if (!resultType)
+    return rewriter.notifyMatchFailure(op, "Result type cannot be empty");
+
+  auto selfElemTy = selfType.getElementType();
+  auto resultElemTy = resultType.getElementType();
+
+  int64_t offset, dim1, dim2;
+  if (!matchPattern(op.getOffset(), m_TorchConstantInt(&offset)))
+    offset = 0;
+
+  if (!matchPattern(op.getDim1(), m_TorchConstantInt(&dim1))) {
+    dim1 = 0;
+  } else {
+    dim1 = toPositiveDim(dim1, selfRank);
+  }
+
+  if (!matchPattern(op.getDim2(), m_TorchConstantInt(&dim2))) {
+    dim2 = 1;
+  } else {
+    dim2 = toPositiveDim(dim2, selfRank);
+  }
+
+  auto selfShape = makeShapeTorchCompatible(selfType.getShape());
+  int64_t h = selfShape[dim1];
+  int64_t w = selfShape[dim2];
+
+  // Overflowing offset not supported
+  if ((offset < 0 && std::abs(offset) >= h) || (offset >= 0 && offset >= w))
+    return rewriter.notifyMatchFailure(
+        op, "Offset greater or equal than shape not supported");
+
+  int64_t targetDim1 = selfRank - 2;
+  int64_t targetDim2 = selfRank - 1;
+
+  Value selfTransposed = self;
+  SmallVector<int64_t> transposedInputShape = selfShape;
+  RankedTensorType transposedInputType = selfType;
+
+  // If (dim1, dim2) != (rank - 2, rank - 1), transpose the input tensor
+  // so that dim1 and dim2 become rank - 2 and rank - 1. We do this so that
+  // we can consistently create the diagonal mask tensor.
+  if (!(dim1 == targetDim1 && dim2 == targetDim2)) {
+    SmallVector<int32_t> transposedDims;
+    transposedInputShape.clear();
+
+    for (int64_t i = 0; i < selfRank; ++i) {
+      if (i == dim1 || i == dim2)
+        continue;
+      transposedDims.push_back(i);
+    }
+    transposedDims.push_back(dim1);
+    transposedDims.push_back(dim2);
+
+    auto transposedDimsConst = tosa::getConstTensor<int32_t>(
+        rewriter, op,
+        /*vec=*/transposedDims,
+        /*shape=*/{static_cast<int32_t>(selfRank)});
+
+    for (auto &dim : transposedDims)
+      transposedInputShape.push_back(selfShape[dim]);
+
+    transposedInputType = RankedTensorType::get(
+        makeShapeLLVMCompatible(transposedInputShape), selfElemTy);
+
+    selfTransposed = rewriter.create<tosa::TransposeOp>(
+        op->getLoc(), transposedInputType, self, transposedDimsConst.value());
+  }
+
+  // Define shape for mask tensor based on rank
+  SmallVector<int64_t> maskShape;
+  for (auto i = 0; i < selfRank - 2; i++)
+    maskShape.push_back(1);
+  maskShape.push_back(h);
+  maskShape.push_back(w);
+
+  Value diagonalMask =
+      TypeSwitch<Type, Value>(resultElemTy)
+          .Case<mlir::FloatType>([&](auto) {
+            return createDiagonalMask<float>(rewriter, op, maskShape, h, w,
+                                             offset);
+          })
+          .Case<mlir::IntegerType>([&](auto intType) {
+            switch (intType.getWidth()) {
+            case 1:
+              return createDiagonalMask<bool>(rewriter, op, maskShape, h, w,
+                                              offset);
+            case 32:
+              return createDiagonalMask<int32_t>(rewriter, op, maskShape, h, w,
+                                                 offset);
+            case 64:
+              return createDiagonalMask<int64_t>(rewriter, op, maskShape, h, w,
+                                                 offset);
+            }
+            llvm_unreachable("Invalid integer width");
+          });
+
+  Value diagonalTensor = rewriter.create<tosa::MulOp>(
+      op->getLoc(), transposedInputType, selfTransposed, diagonalMask,
+      /*shift=*/0);
+
+  auto resultShape = makeShapeTorchCompatible(resultType.getShape());
+  auto targetReduceDim = resultShape[resultType.getRank() - 1];
+
+  // If transposedInputShape[targetDim1] (or h) is greater than the innermost
+  // dim of the result, we won't get the correct shape when we reduce sum along
+  // the innermost dim to get the result. Therefore, we have to slice the
+  // transposed tensor so that transposedInputShape[targetDim1] ==
+  // targetReduceDim.
+  if (h > targetReduceDim) {
+    transposedInputShape[targetDim1] = targetReduceDim;
+    transposedInputType = RankedTensorType::get(
+        makeShapeLLVMCompatible(transposedInputShape), selfElemTy);
+    SmallVector<int64_t> startSlice(selfRank, 0);
+    SmallVector<int64_t> sizeSlice =
+        llvm::to_vector(makeShapeTorchCompatible(transposedInputShape));
+    if (offset < 0)
+      startSlice[targetDim1] = std::abs(offset);
+    diagonalTensor = rewriter.create<tosa::SliceOp>(
+        op->getLoc(), transposedInputType, diagonalTensor,
+        rewriter.getDenseI64ArrayAttr(startSlice),
+        rewriter.getDenseI64ArrayAttr(sizeSlice));
+  }
+
+  // Apply Reduce Sum to get the result
+  auto reduceDimType = RankedTensorType::get({1}, rewriter.getI64Type());
+  auto reduceDimAttr =
+      DenseIntElementsAttr::get(reduceDimType, llvm::ArrayRef({targetDim2}));
+  auto result =
+      mlir::tosa::convertReduceSumOp(rewriter, op, resultType, diagonalTensor,
+                                     reduceDimAttr, /*keep_dims=*/false);
+
+  rewriter.replaceOp(op, result.value());
 
   return success();
 }
@@ -5986,11 +6444,13 @@ public:
     INSERT_CONSTANT_FILL_PATTERN(AtenZerosOp, 0);
 #undef INSERT_CONSTANT_FILL_PATTERN
 
-#define INSERT_FILL_SCALAR_PATTERN(AtenOp)                                     \
+#define INSERT_FILL_PATTERN(AtenOp)                                            \
   target.addIllegalOp<AtenOp>();                                               \
-  patterns.add<ConvertAtenFillScalarOp<AtenOp>>(typeConverter, context);
-    INSERT_FILL_SCALAR_PATTERN(AtenFill_ScalarOp);
-#undef INSERT_FILL_SCALAR_PATTERN
+  patterns.add<ConvertAtenFillOp<AtenOp>>(typeConverter, context);
+    INSERT_FILL_PATTERN(AtenFill_ScalarOp);
+    INSERT_FILL_PATTERN(AtenFillScalarOp);
+    INSERT_FILL_PATTERN(AtenFillTensorOp);
+#undef INSERT_FILL_PATTERN
 
 #define INSERT_MASKED_FILL_PATTERN(AtenOp)                                     \
   target.addIllegalOp<AtenOp>();                                               \
@@ -6060,6 +6520,10 @@ public:
     INSERT_ATENOP_PATTERN(AtenIscloseOp);
     INSERT_ATENOP_PATTERN(Aten__InterpolateSizeListScaleListOp);
     INSERT_ATENOP_PATTERN(AtenTrilOp);
+    INSERT_ATENOP_PATTERN(AtenDiagonalOp);
+    INSERT_ATENOP_PATTERN(AtenIndexSelectOp);
+    INSERT_ATENOP_PATTERN(AtenFlipOp);
+    INSERT_ATENOP_PATTERN(AtenRoundOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \

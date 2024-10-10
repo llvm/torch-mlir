@@ -223,13 +223,13 @@ INSTALL_REQUIRES = [
 EXT_MODULES = [
     CMakeExtension("torch_mlir._mlir_libs._torchMlir"),
 ]
-NAME = "torch-mlir-core"
+NAME = "torch-mlir"
 
 # If building PyTorch extensions, customize.
 if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS:
     import torch
 
-    NAME = "torch-mlir"
+    NAME = "torch-mlir-ext"
     INSTALL_REQUIRES.extend(
         [
             f"torch=={torch.__version__}".split("+", 1)[0],

@@ -132,10 +132,26 @@ Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
                            Type elemTy) {
   Value initTensor =
       b.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
-  RankedTensorType type = cast<RankedTensorType>(initTensor.getType());
-  Value c0 =
-      b.create<arith::ConstantOp>(loc, b.getZeroAttr(type.getElementType()));
+
+  Type fillValElemTy = elemTy;
+  if (auto dtypeComplex = dyn_cast<mlir::ComplexType>(elemTy))
+    fillValElemTy = cast<mlir::FloatType>(dtypeComplex.getElementType());
+
+  Value c0 = b.create<arith::ConstantOp>(loc, b.getZeroAttr(fillValElemTy));
   return b.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
+}
+
+Value createOneInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
+                          Type elemTy) {
+  Value initTensor =
+      b.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
+
+  Type fillValElemTy = elemTy;
+  if (auto dtypeComplex = dyn_cast<mlir::ComplexType>(elemTy))
+    fillValElemTy = cast<mlir::FloatType>(dtypeComplex.getElementType());
+
+  Value c1 = b.create<arith::ConstantOp>(loc, b.getOneAttr(fillValElemTy));
+  return b.create<linalg::FillOp>(loc, c1, initTensor).getResult(0);
 }
 
 Value castIntToIndex(OpBuilder &b, Location loc, Value v) {

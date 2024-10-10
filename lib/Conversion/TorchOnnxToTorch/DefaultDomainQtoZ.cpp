@@ -635,18 +635,21 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         // TODO: Implement max and min cases
         if (reduction == "mul") {
-          reduction = "multiply";
+          reduction = "prod";
         } else if (reduction == "max" || reduction == "min") {
           return rewriter.notifyMatchFailure(
               binder.op, "max/min reduction unsupported for scatter elements");
+        } else if (reduction == "add") {
+          reduction = "sum";
         }
 
         Value cstStrReduction =
             rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), reduction);
-
-        rewriter.replaceOpWithNewOp<Torch::AtenScatterReduceOp>(
+        Value cstTrue =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+        rewriter.replaceOpWithNewOp<Torch::AtenScatterReduceTwoOp>(
             binder.op, resultType, data, constAxis, indices, updates,
-            cstStrReduction);
+            cstStrReduction, cstTrue);
         return success();
       });
   patterns.onOp(
@@ -1662,9 +1665,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         auto shapeType = Torch::ValueTensorType::get(
             binder.op->getContext(), SmallVector<int64_t>{inputRank},
             resultType.getOptionalDtype());
-
         Value shape = rewriter.create<Torch::Aten_ShapeAsTensorOp>(
             binder.getLoc(), shapeType, operand);
+
+        if (inputRank == 0) {
+          rewriter.replaceOpWithNewOp<Torch::TensorStaticInfoCastOp>(
+              binder.op, resultType, shape);
+          return success();
+        }
 
         if (start == 0 && end == -1) {
           rewriter.replaceOp(binder.op, shape);
@@ -1673,18 +1681,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         Value sv = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(start));
-
         Value ev = rewriter.create<Torch::ConstantIntOp>(
             binder.getLoc(), rewriter.getI64IntegerAttr(end));
-
         Value step = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), 1);
-
         Value dim = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), 0);
 
-        shape = rewriter.create<Torch::AtenSliceTensorOp>(
-            binder.getLoc(), resultType, shape, dim, sv, ev, step);
-
-        rewriter.replaceOp(binder.op, shape);
+        rewriter.replaceOpWithNewOp<Torch::AtenSliceTensorOp>(
+            binder.op, resultType, shape, dim, sv, ev, step);
         return success();
       });
 
@@ -4339,6 +4342,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         llvm::SmallVector<int64_t> ngram_counts;
         llvm::SmallVector<int64_t> ngram_indexes;
         llvm::SmallVector<int64_t> pool_int64s;
+        llvm::SmallVector<float> weights;
         std::string mode;
         int64_t min_gram_length;
         int64_t max_gram_length;
@@ -4356,9 +4360,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.tensorOperand(input) || binder.tensorResultType(resultType))
           return failure();
 
-        if (mode != "TF")
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "TF mode supported only");
+        llvm::SmallVector<float> defaultWeights(ngram_indexes.size(), 1.0f);
+        if (binder.f32FloatArrayAttr(weights, "weights", defaultWeights))
+          return failure();
+
         if (pool_int64s.size() == 0)
           return rewriter.notifyMatchFailure(
               binder.op, "pool_int64s empty, only integers supported");
@@ -4584,9 +4589,36 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                     binder.getLoc(), loopConditionTrue, ValueRange({count}));
               }
               count = skipLoop.getResult(0);
-              // insert count "tf" into output
               Value countFloat = rewriter.create<Torch::AtenFloatScalarOp>(
                   binder.getLoc(), count);
+              if (mode == "IDF" || mode == "TFIDF") {
+                // both IDF and TFIDF modes use weights
+                float weight = weights[ngram_i];
+                Value constWeight = rewriter.create<Torch::ConstantFloatOp>(
+                    binder.getLoc(), rewriter.getF64FloatAttr(weight));
+
+                // TFIDF
+                Value multiplier = countFloat;
+                if (mode == "IDF") {
+                  // All the counts larger than 1 would be truncated to 1
+                  // and the i-th element in weights would be used to scale
+                  // (by multiplication) the count of the i-th n-gram in pool.
+
+                  Value intCount = rewriter.create<Torch::AtenIntScalarOp>(
+                      binder.getLoc(), count);
+                  // compare intCount > 0
+                  Value gtZeroCount = rewriter.create<Torch::AtenGtIntOp>(
+                      binder.getLoc(), intCount, zero);
+                  gtZeroCount = rewriter.create<Torch::AtenIntBoolOp>(
+                      binder.getLoc(), gtZeroCount);
+                  Value gtZeroCountFloat =
+                      rewriter.create<Torch::AtenFloatScalarOp>(binder.getLoc(),
+                                                                gtZeroCount);
+                  multiplier = gtZeroCountFloat;
+                }
+                countFloat = rewriter.create<Torch::AtenMulFloatOp>(
+                    binder.getLoc(), multiplier, constWeight);
+              }
               Value dataList = rewriter.create<Torch::PrimListConstructOp>(
                   binder.getLoc(),
                   rewriter.getType<Torch::ListType>(

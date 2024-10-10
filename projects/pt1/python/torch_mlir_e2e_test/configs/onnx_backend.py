@@ -42,7 +42,7 @@ def import_onnx(contents):
     # Import the ONNX model proto from the file contents:
     raw_model = onnx.load_from_string(contents)
     # since it does not affect current e2e tests, data_prop is left false here
-    model_proto = onnx.shape_inference.infer_shapes(raw_model)
+    model_proto = onnx.shape_inference.infer_shapes(raw_model, data_prop=True)
 
     # Import the ONNX module into an MLIR module:
     context = Context()
