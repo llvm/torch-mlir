@@ -164,8 +164,6 @@ public:
   unsigned getBitWidth(Type type) const {
     if (auto complexTy = dyn_cast<ComplexType>(type))
       return 2 * getBitWidth(complexTy.getElementType());
-    if (auto quantTy = dyn_cast<quant::QuantizedType>(type))
-      return getBitWidth(quantTy.getStorageType());
     return type.getIntOrFloatBitWidth();
   }
 
@@ -174,7 +172,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto rankType = dyn_cast<RankedTensorType>(adaptor.getSelf().getType());
     if (!rankType)
-      return op.emitError("Only ranked tensor types are currently supported");
+      return op.emitError("Only ranked tensor types are currently supported.");
     auto loc = op.getLoc();
 
     // support AtenViewDtypeOp
@@ -188,42 +186,39 @@ public:
       auto operandEltBitWidth = getBitWidth(operandElt);
       auto targetEltBitWidth = getBitWidth(targetElt);
       auto operandSizes = rankType.getShape();
-      SmallVector<int64_t> resultShape(operandSizes);
+      SmallVector<int64_t> castShape(operandSizes);
       if (operandEltBitWidth > targetEltBitWidth) {
         int64_t last_size = operandEltBitWidth / targetEltBitWidth;
-        resultShape.push_back(last_size);
+        castShape.push_back(last_size);
       } else if (operandEltBitWidth < targetEltBitWidth) {
         int64_t last_size = targetEltBitWidth / operandEltBitWidth;
-        if (!ShapedType::isDynamic(operandSizes.back()) and
-            last_size != resultShape.back()) {
+        if (!ShapedType::isDynamic(castShape.back()) and
+            last_size != castShape.back()) {
           return rewriter.notifyMatchFailure(
               op, "The last dim size is not equal to targetEltBitWidth / "
-                  "operandEltBitWidth");
+                  "operandEltBitWidth.");
         } else {
-          resultShape.pop_back();
+          castShape.pop_back();
         }
       }
 
-      auto castType = baseResultTy.getWithSizesAndDtype(
-          resultShape, baseResultTy.getDtype());
+      auto castType =
+          baseResultTy.getWithSizesAndDtype(castShape, baseResultTy.getDtype());
       auto cast = rewriter.create<stablehlo::BitcastConvertOp>(
           loc,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
               castType),
           self);
 
-      auto outputSizes = baseResultTy.getSizes();
-      for (auto size : outputSizes) {
-        if (ShapedType::isDynamic(size)) {
-          return rewriter.notifyMatchFailure(
-              op, "Currently only support static output shape.");
-        }
-      }
-      auto reshape = rewriter.create<stablehlo::ReshapeOp>(
-          loc,
+      auto resultType =
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-              baseResultTy),
-          cast);
+              baseResultTy);
+      if (!dyn_cast<ShapedType>(resultType).hasStaticShape()) {
+        return rewriter.notifyMatchFailure(
+            op, "Currently only support static output shape.");
+      }
+      auto reshape =
+          rewriter.create<stablehlo::ReshapeOp>(loc, resultType, cast);
 
       rewriter.replaceOp(op, reshape);
 
