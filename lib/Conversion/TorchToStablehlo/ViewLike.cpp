@@ -179,7 +179,6 @@ public:
 
     // support AtenViewDtypeOp
     if (isa<AtenViewDtypeOp>(op)) {
-      // Bitcast convert
       auto self = adaptor.getSelf();
       auto baseResultTy = dyn_cast<BaseTensorType>(op.getType());
 
@@ -213,6 +212,13 @@ public:
               castType),
           self);
 
+      auto outputSizes = baseResultTy.getSizes();
+      for (auto size : outputSizes) {
+        if (ShapedType::isDynamic(size)) {
+          return rewriter.notifyMatchFailure(
+              op, "Currently only support static output shape.");
+        }
+      }
       auto reshape = rewriter.create<stablehlo::ReshapeOp>(
           loc,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
