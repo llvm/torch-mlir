@@ -1373,6 +1373,26 @@ public:
 };
 } // namespace
 
+/**
+ * Aten_TrilinearOp is an implementation of a "trilinear einstein sum", based
+ * off of this pytorch implementation:
+ * https://github.com/pytorch/pytorch/pull/6110
+ *
+ * The idea is that you accept 3 tensors as inputs (i1, i2, and i3) and you
+ * perform a trilinear einstein sum between them, where each element in the
+ * resulting output tensor is calculated by performing an element-wise
+ * multiplication of corresponding slices along the summation dimensions of the
+ * input tensors, and then summing the result.
+ *
+ * In order to perform the operation, the inputs tensors must be broadcastable,
+ * so you can specify the dimensions to unsqueeze on with the expand1, expand2,
+ * and expand3 attributes. We apply an unsqueeze operation on each input tensor
+ * for each dimension in the corresponding `expand` input.
+ *
+ * The unroll_dim attribute specifies the dimension to unroll over. According to
+ * the reference implementation denoted above, this allows for the operation to
+ * be more space efficient.
+ */
 class ConvertAten_TrilinearOp : public OpConversionPattern<Aten_TrilinearOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -1481,7 +1501,7 @@ public:
                                                 i1Type.getElementType());
       RankedTensorType outputType = cast<RankedTensorType>(output.getType());
 
-      int64_t outputRank = outputType.getRank();
+      // TODO: This needs to be cleaned up and made less redundant.
       Value cstOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
       if (i1Shape.size() != 0 && i2Shape.size() != 0 && i3Shape.size() != 0) {
         if (!sumDimFlags[unrollDim]) {
@@ -1563,7 +1583,9 @@ public:
         }
       }
 
-      for (int64_t i = outputRank - 1; i >= 0; --i) {
+      RankedTensorType resultType = cast<RankedTensorType>(output.getType());
+      int64_t resultTensorRank = resultType.getRank();
+      for (int64_t i = resultTensorRank - 1; i >= 0; --i) {
         if (sumDimFlags[i]) {
           Value indexValue = rewriter.create<arith::ConstantIndexOp>(loc, i);
           output = rewriter.create<AtenSqueezeDimOp>(loc, outputType, output,
