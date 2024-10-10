@@ -498,6 +498,7 @@ FX_IMPORTER_XFAIL_SET = {
     "UpSampleNearest2dDynamicFactor_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewSizeFromOtherTensor_basic",
+    "ViewDtypeStaticModule_basic",
     "WeightNormInterfaceModule_basic",
 }
 
@@ -2849,6 +2850,11 @@ ONNX_XFAIL_SET = {
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
     "UnfoldModule_basic",
+    "Unfold_Module_Rank_4",
+    "Unfold_Module_Rank_Zero_basic",
+    "Unfold_Module_Rank_Zero_Size_Zero_basic",
+    "Unfold_Module_Dynamic_basic",
+    "ViewDtypeStaticModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
