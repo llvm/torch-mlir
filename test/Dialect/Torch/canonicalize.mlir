@@ -137,6 +137,46 @@ func.func @torch.aten.__isnot__$none_isnot_none(%arg0: !torch.none, %arg1: !torc
   return %0 : !torch.bool
 }
 
+// CHECK-LABEL:   func.func @torch.aten.eq.bool$same_value() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func.func @torch.aten.eq.bool$same_value() -> !torch.bool {
+  %a = torch.constant.bool false
+  %b = torch.constant.bool false
+  %0 = torch.aten.eq.bool %a, %b: !torch.bool, !torch.bool -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.eq.bool$different_value() -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func.func @torch.aten.eq.bool$different_value() -> !torch.bool {
+  %a = torch.constant.bool true
+  %b = torch.constant.bool false
+  %0 = torch.aten.eq.bool %a, %b: !torch.bool, !torch.bool -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.eq.bool$same_operand(
+// CHECK-SAME:                                          %[[ARG0:.*]]: !torch.bool) -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func.func @torch.aten.eq.bool$same_operand(%arg0: !torch.bool) -> !torch.bool {
+  %0 = torch.aten.eq.bool %arg0, %arg0: !torch.bool, !torch.bool -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.eq.bool$different_operand(
+// CHECK-SAME:                                               %[[ARG0:.*]]: !torch.bool) -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[RET:.*]] = torch.aten.eq.bool %[[ARG0]], %[[FALSE]] : !torch.bool, !torch.bool -> !torch.bool
+// CHECK:           return %[[RET]] : !torch.bool
+func.func @torch.aten.eq.bool$different_operand(%a: !torch.bool) -> !torch.bool {
+  %b = torch.constant.bool false
+  %0 = torch.aten.eq.bool %a, %b: !torch.bool, !torch.bool -> !torch.bool
+  return %0 : !torch.bool
+}
+
 // CHECK-LABEL:   func.func @torch.aten.ne.bool() -> !torch.bool {
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 // CHECK:           return %[[TRUE]] : !torch.bool

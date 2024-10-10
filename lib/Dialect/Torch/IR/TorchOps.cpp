@@ -752,6 +752,22 @@ OpFoldResult Aten__Or__BoolOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenEqBoolOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenEqBoolOp::fold(FoldAdaptor adaptor) {
+  if (getOperand(0) == getOperand(1))
+    return IntegerAttr::get(IntegerType::get(getContext(), 1), true);
+
+  bool a, b;
+  if (!matchPattern(getOperand(0), m_TorchConstantBool(&a)))
+    return nullptr;
+  if (!matchPattern(getOperand(1), m_TorchConstantBool(&b)))
+    return nullptr;
+  return IntegerAttr::get(IntegerType::get(getContext(), 1), a == b);
+}
+
+//===----------------------------------------------------------------------===//
 // AtenNeBoolOp
 //===----------------------------------------------------------------------===//
 
