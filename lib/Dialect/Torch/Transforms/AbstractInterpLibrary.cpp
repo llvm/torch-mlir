@@ -9670,7 +9670,7 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "      %76 = torch.aten.append.t %72, %75 : !torch.list<int>, !torch.int -> !torch.list<int>\n"
 "      torch.prim.Loop.condition %true, iter()\n"
 "    } : (!torch.int, !torch.bool) -> ()\n"
-"    %74 = torch.operator \"aten.add_.t\"(%71, %72) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int> \n"
+"    %74 = torch.aten.add.t %71, %72 : !torch.list<int>, !torch.list<int> -> !torch.list<int>\n"
 "    return %74 : !torch.list<int>\n"
 "  }\n"
 "  func.func @\"__torch_mlir_shape_fn.aten.topk\"(%arg0: !torch.list<int>, %arg1: !torch.int, %arg2: !torch.int, %arg3: !torch.bool, %arg4: !torch.bool) -> !torch.tuple<list<int>, list<int>> {\n"
