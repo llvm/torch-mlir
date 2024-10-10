@@ -1756,7 +1756,7 @@ def Unfold_Module_Dynamic_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class AtenTrilinearModule(torch.nn.Module):
+class Aten_TrilinearModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -1775,6 +1775,6 @@ class AtenTrilinearModule(torch.nn.Module):
         )
 
 
-@register_test_case(module_factory=lambda: AtenTrilinearModule())
-def AtenTrilinearModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: Aten_TrilinearModule())
+def Aten_TrilinearModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 3, 3), tu.rand(3, 3, 3), tu.rand(3, 3, 3))

@@ -1591,4 +1591,6 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   patterns.add<ConvertAtenBmmOp>(typeConverter, context);
   target.addIllegalOp<AtenConvolutionOp>();
   patterns.add<ConvertAtenConvolutionOp>(typeConverter, context);
+  target.addIllegalOp<Aten_TrilinearOp>();
+  patterns.add<ConvertAten_TrilinearOp>(typeConverter, context);
 }
