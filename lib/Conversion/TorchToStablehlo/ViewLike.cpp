@@ -202,6 +202,14 @@ public:
         }
       }
 
+      auto resultType =
+          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+              baseResultTy);
+      if (!dyn_cast<ShapedType>(resultType).hasStaticShape()) {
+        return rewriter.notifyMatchFailure(
+            op, "Currently only support static output shape.");
+      }
+
       auto castType =
           baseResultTy.getWithSizesAndDtype(castShape, baseResultTy.getDtype());
       auto cast = rewriter.create<stablehlo::BitcastConvertOp>(
@@ -210,13 +218,6 @@ public:
               castType),
           self);
 
-      auto resultType =
-          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-              baseResultTy);
-      if (!dyn_cast<ShapedType>(resultType).hasStaticShape()) {
-        return rewriter.notifyMatchFailure(
-            op, "Currently only support static output shape.");
-      }
       auto reshape =
           rewriter.create<stablehlo::ReshapeOp>(loc, resultType, cast);
 
