@@ -1174,7 +1174,7 @@ def ReshapeDynamicModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class ViewDtypeStaticModule(torch.nn.Module):
+class ViewDtypeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -1182,7 +1182,7 @@ class ViewDtypeStaticModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([2, 2], torch.float32, True),
+            ([-1, -1], torch.float32, True),
         ]
     )
     def forward(self, a):
@@ -1190,9 +1190,9 @@ class ViewDtypeStaticModule(torch.nn.Module):
         return res
 
 
-@register_test_case(module_factory=lambda: ViewDtypeStaticModule())
-def ViewDtypeStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(12, 1).to(torch.float16))
+@register_test_case(module_factory=lambda: ViewDtypeModule())
+def ViewDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(12, 1))
 
 
 # ==============================================================================

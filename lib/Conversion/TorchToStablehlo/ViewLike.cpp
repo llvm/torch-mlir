@@ -195,7 +195,8 @@ public:
         resultShape.push_back(last_size);
       } else if (operandEltBitWidth < targetEltBitWidth) {
         int64_t last_size = targetEltBitWidth / operandEltBitWidth;
-        if (last_size != resultShape[rankType.getRank() - 1]) {
+        if (!ShapedType::isDynamic(operandSizes.back()) and
+            last_size != resultShape.back()) {
           return rewriter.notifyMatchFailure(
               op, "The last dim size is not equal to targetEltBitWidth / "
                   "operandEltBitWidth");
