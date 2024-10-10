@@ -506,6 +506,7 @@ FX_IMPORTER_XFAIL_SET = {
     "UpSampleNearest2dDynamicFactor_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewSizeFromOtherTensor_basic",
+    "ViewDtypeStaticModule_basic",
     "WeightNormInterfaceModule_basic",
     # Error: `aten.as_strided` op is not supported
     "ChunkListUnpackDynamic_Module_basic",
@@ -3169,6 +3170,7 @@ ONNX_XFAIL_SET = {
     "Unfold_Module_Rank_Zero_basic",
     "Unfold_Module_Rank_Zero_Size_Zero_basic",
     "Unfold_Module_Dynamic_basic",
+    "ViewDtypeStaticModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
