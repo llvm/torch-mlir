@@ -126,6 +126,7 @@ def test_symbolic_dim_differ_by_one():
 
 # Running this test only for the latest torch version since it's generating different IR for older torch versions.
 if str(torch.__version__) >= "2.6.0":
+
     @run
     # CHECK-LABEL: test_outer_with_squared_shape
     # CHECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
