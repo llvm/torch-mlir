@@ -1373,6 +1373,210 @@ public:
 };
 } // namespace
 
+class ConvertAten_TrilinearOp : public OpConversionPattern<Aten_TrilinearOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(Aten_TrilinearOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+
+    // Input Tensors
+    Value i1 = op.getI1();
+    Value i2 = op.getI2();
+    Value i3 = op.getI3();
+
+    RankedTensorType i1Type = cast<RankedTensorType>(i1.getType());
+    auto i1Shape = i1Type.getShape();
+    RankedTensorType i2Type = cast<RankedTensorType>(i2.getType());
+    auto i2Shape = i2Type.getShape();
+    RankedTensorType i3Type = cast<RankedTensorType>(i3.getType());
+    auto i3Shape = i3Type.getShape();
+
+    // Expansions
+    SmallVector<int64_t> expand1;
+    SmallVector<int64_t> expand2;
+    SmallVector<int64_t> expand3;
+    if (!matchPattern(op.getExpand1(), m_TorchListOfConstantInts(expand1))) {
+      return rewriter.notifyMatchFailure(op, "expand1 should be constant");
+    }
+    if (!matchPattern(op.getExpand2(), m_TorchListOfConstantInts(expand2))) {
+      return rewriter.notifyMatchFailure(op, "expand2 should be constant");
+    }
+    if (!matchPattern(op.getExpand3(), m_TorchListOfConstantInts(expand3))) {
+      return rewriter.notifyMatchFailure(op, "expand3 should be constant");
+    }
+
+    SmallVector<int64_t> sumDim;
+    if (!matchPattern(op.getSumdim(), m_TorchListOfConstantInts(sumDim))) {
+      return rewriter.notifyMatchFailure(op, "sumDim should be constant");
+    }
+
+    int64_t unrollDim;
+    if (!matchPattern(op.getUnrollDim(), m_TorchConstantInt(&unrollDim))) {
+      return rewriter.notifyMatchFailure(op, "unrollDim should be constant");
+    }
+
+    int64_t totalDims = i1Shape.size() + expand1.size();
+
+    // Create bitsets that correspond to specified dimensions in inputs
+    SmallVector<bool> expand1Flags(totalDims, false);
+    SmallVector<bool> expand2Flags(totalDims, false);
+    SmallVector<bool> expand3Flags(totalDims, false);
+    for (int64_t dim : expand1) {
+      expand1Flags[dim] = true;
+    }
+    for (int64_t dim : expand2) {
+      expand2Flags[dim] = true;
+    }
+    for (int64_t dim : expand3) {
+      expand3Flags[dim] = true;
+    }
+
+    SmallVector<int64_t> sumDimFlags(totalDims, 0);
+    for (int64_t dim : sumDim) {
+      sumDimFlags[dim] = true;
+    }
+
+    SmallVector<int64_t> sumDims12, sumDims23;
+    SmallVector<OpFoldResult> outputShape;
+    int64_t unrollSize = -1;
+    Value output;
+    for (int64_t i = 0; i < totalDims; ++i) {
+      int64_t size = 0;
+      Value indexValue =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      if (expand1Flags[i]) {
+        i1 = rewriter.create<AtenUnsqueezeOp>(loc, i1Type, i1, indexValue);
+      } else {
+        size = i1Shape[i];
+      }
+      if (expand2Flags[i]) {
+        i2 = rewriter.create<AtenUnsqueezeOp>(loc, i2Type, i2, indexValue);
+      } else {
+        size = i2Shape[i];
+      }
+      if (expand3Flags[i]) {
+        i3 = rewriter.create<AtenUnsqueezeOp>(loc, i3Type, i3, indexValue);
+        if (sumDimFlags[i] && (i != unrollDim)) {
+          sumDims12.push_back(i);
+        }
+      } else {
+        size = i3Shape[i];
+        if (sumDimFlags[i] && (i != unrollDim)) {
+          sumDims23.push_back(i);
+        }
+      }
+
+      outputShape.push_back(rewriter.getIndexAttr(size));
+      if (i == unrollDim)
+        unrollSize = size;
+
+      int64_t slicemul1 = (expand1Flags[unrollDim] ? 0 : 1);
+      int64_t slicemul2 = (expand2Flags[unrollDim] ? 0 : 1);
+      int64_t slicemul3 = (expand3Flags[unrollDim] ? 0 : 1);
+
+      // TODO: How do we determine the output type here (lowest precision type)
+      output = rewriter.create<tensor::EmptyOp>(loc, outputShape,
+                                                i1Type.getElementType());
+      RankedTensorType outputType = cast<RankedTensorType>(output.getType());
+
+      int64_t outputRank = outputType.getRank();
+      Value cstOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+      if (i1Shape.size() != 0 && i2Shape.size() != 0 && i3Shape.size() != 0) {
+        if (!sumDimFlags[unrollDim]) {
+          for (int64_t k = 0; k < unrollSize; ++k) {
+            Value kValue = rewriter.create<arith::ConstantIndexOp>(loc, k);
+            Value unrollDimValue =
+                rewriter.create<arith::ConstantIndexOp>(loc, unrollDim);
+            SmallVector<Value> narrowIndices{
+                rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul1),
+                rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul2),
+                rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul3)};
+            Value slice_i1 = rewriter.create<AtenNarrowOp>(
+                loc, outputType, i1, unrollDimValue, narrowIndices[0], cstOne);
+            Value slice_i2 = rewriter.create<AtenNarrowOp>(
+                loc, outputType, i2, unrollDimValue, narrowIndices[1], cstOne);
+            Value slice_i3 = rewriter.create<AtenNarrowOp>(
+                loc, outputType, i3, unrollDimValue, narrowIndices[2], cstOne);
+
+            Value mul12 = rewriter.create<AtenMulTensorOp>(loc, outputType,
+                                                           slice_i1, slice_i2);
+            for (int64_t dim : sumDims12) {
+              Value dimValue =
+                  rewriter.create<arith::ConstantIndexOp>(loc, dim);
+              mul12 =
+                  rewriter.create<AtenSumOp>(loc, outputType, mul12, dimValue);
+            }
+
+            Value mulResult = rewriter.create<AtenMulTensorOp>(loc, outputType,
+                                                               mul12, slice_i3);
+            for (int64_t dim : sumDims23) {
+              Value dimValue =
+                  rewriter.create<arith::ConstantIndexOp>(loc, dim);
+              mulResult = rewriter.create<AtenSumOp>(loc, outputType, mulResult,
+                                                     dimValue);
+            }
+
+            output = rewriter.create<AtenNarrowOp>(
+                loc, outputType, output, unrollDimValue, kValue, cstOne);
+
+            rewriter.create<AtenAddTensorOp>(loc, outputType, output, mulResult,
+                                             cstOne);
+          }
+        } else {
+          for (int64_t k = 0; k < unrollSize; ++k) {
+            Value unrollDimValue =
+                rewriter.create<arith::ConstantIndexOp>(loc, unrollDim);
+            SmallVector<Value> narrowIndices{
+                rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul1),
+                rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul2),
+                rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul3)};
+            Value slice_i1 = rewriter.create<AtenNarrowOp>(
+                loc, outputType, i1, unrollDimValue, narrowIndices[0], cstOne);
+            Value slice_i2 = rewriter.create<AtenNarrowOp>(
+                loc, outputType, i2, unrollDimValue, narrowIndices[1], cstOne);
+            Value slice_i3 = rewriter.create<AtenNarrowOp>(
+                loc, outputType, i3, unrollDimValue, narrowIndices[2], cstOne);
+
+            Value mul12 = rewriter.create<AtenMulTensorOp>(loc, outputType,
+                                                           slice_i1, slice_i2);
+            for (int64_t dim : sumDims12) {
+              Value dimValue =
+                  rewriter.create<arith::ConstantIndexOp>(loc, dim);
+              mul12 =
+                  rewriter.create<AtenSumOp>(loc, outputType, mul12, dimValue);
+            }
+
+            Value mulResult = rewriter.create<AtenMulTensorOp>(loc, outputType,
+                                                               mul12, slice_i3);
+            for (int64_t dim : sumDims23) {
+              Value dimValue =
+                  rewriter.create<arith::ConstantIndexOp>(loc, dim);
+              mulResult = rewriter.create<AtenSumOp>(loc, outputType, mulResult,
+                                                     dimValue);
+            }
+
+            output = rewriter.create<AtenAddTensorOp>(loc, outputType, output,
+                                                      mulResult, cstOne);
+          }
+        }
+      }
+
+      for (int64_t i = outputRank - 1; i >= 0; --i) {
+        if (sumDimFlags[i]) {
+          Value indexValue = rewriter.create<arith::ConstantIndexOp>(loc, i);
+          output = rewriter.create<AtenSqueezeDimOp>(loc, outputType, output,
+                                                     indexValue);
+        }
+      }
+    }
+
+    rewriter.replaceOp(op, output);
+    return success();
+  }
+};
+
 void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {

@@ -1650,6 +1650,9 @@ def Rot90NegativeEvenRotationsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(6, 5, 1, 7, 3))
 
 
+# ==============================================================================
+
+
 class Unfold_Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1748,3 +1751,30 @@ class Unfold_Module_Dynamic(torch.nn.Module):
 @register_test_case(module_factory=lambda: Unfold_Module_Dynamic())
 def Unfold_Module_Dynamic_basic(module, tu: TestUtils):
     module.forward(tu.rand(6, 4, 4, 4))
+
+
+# ==============================================================================
+
+
+class AtenTrilinearModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 3, 3], torch.float32, True),
+            ([3, 3, 3], torch.float32, True),
+            ([3, 3, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, i1, i2, i3):
+        return torch.ops.aten._trilinear(
+            i1, i2, i3, expand1=[], expand2=[], expand3=[], sumdim=[], unroll_dim=0
+        )
+
+
+@register_test_case(module_factory=lambda: AtenTrilinearModule())
+def AtenTrilinearModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 3, 3), tu.rand(3, 3, 3), tu.rand(3, 3, 3))
