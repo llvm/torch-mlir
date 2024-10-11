@@ -11455,6 +11455,7 @@ def Torch_AtenReshapeOp : Torch_Op<"aten.reshape", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenReshapeAsOp : Torch_Op<"aten.reshape_as", [
