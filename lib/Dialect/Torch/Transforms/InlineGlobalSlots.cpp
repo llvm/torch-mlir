@@ -132,7 +132,7 @@ class InlineGlobalSlotsAnalysis : public DataFlowAnalysis {
 public:
   InlineGlobalSlotsAnalysis(DataFlowSolver &solver);
   LogicalResult initialize(Operation *top) override;
-  LogicalResult visit(ProgramPoint point) override;
+  LogicalResult visit(ProgramPoint *point) override;
 
 private:
   /// The local transfer function determining the safety of `value`.
@@ -170,7 +170,7 @@ LogicalResult InlineGlobalSlotsAnalysis::initialize(Operation *top) {
     if (auto initialize = dyn_cast<Torch::InitializeGlobalSlotsOp>(op)) {
       initializeGlobalSlotsOp = initialize;
     }
-    if (failed(visit(op)))
+    if (failed(visit(getProgramPointBefore(op))))
       return WalkResult::interrupt();
 
     return WalkResult::advance();
@@ -180,8 +180,8 @@ LogicalResult InlineGlobalSlotsAnalysis::initialize(Operation *top) {
   return success();
 }
 
-LogicalResult InlineGlobalSlotsAnalysis::visit(ProgramPoint point) {
-  if (auto op = dyn_cast<Operation *>(point)) {
+LogicalResult InlineGlobalSlotsAnalysis::visit(ProgramPoint *point) {
+  if (auto op = point->getOperation()) {
     for (auto value : op->getResults()) {
       bool isSafe = isValueSafeTransferFunction(value);
       auto *state = getOrCreate<InlineGlobalSlotsAnalysisState>(value);
@@ -196,7 +196,7 @@ LogicalResult InlineGlobalSlotsAnalysis::visit(ProgramPoint point) {
           auto *flatSymbolRefPoint =
               getLatticeAnchor<FlatSymbolRefLatticeAnchor>(globalSlot);
           auto *valueState = getOrCreateFor<InlineGlobalSlotsAnalysisState>(
-              globalSlot, globalSlotGet.getResult());
+              getProgramPointBefore(globalSlot), globalSlotGet.getResult());
           auto *globalState =
               getOrCreate<InlineGlobalSlotsAnalysisState>(flatSymbolRefPoint);
           propagateIfChanged(globalState,
@@ -223,7 +223,7 @@ bool InlineGlobalSlotsAnalysis::isValueSafeTransferFunction(Value value) {
     if ((op->hasTrait<Torch::OpTrait::ReadOnly>() || isMemoryEffectFree(op)) &&
         llvm::all_of(op->getResults(), [&](Value result) {
           auto *state = getOrCreateFor<InlineGlobalSlotsAnalysisState>(
-              value.getDefiningOp(), result);
+              getProgramPointBefore(value.getDefiningOp()), result);
           return state->isSafe;
         }))
       continue;
@@ -234,7 +234,7 @@ bool InlineGlobalSlotsAnalysis::isValueSafeTransferFunction(Value value) {
           SymbolTable::lookupNearestSymbolFrom<GlobalSlotOp>(op, symName);
 
       auto *state = getOrCreateFor<InlineGlobalSlotsAnalysisState>(
-          value.getDefiningOp(),
+          getProgramPointBefore(value.getDefiningOp()),
           getLatticeAnchor<FlatSymbolRefLatticeAnchor>(globalSlot));
       if (state->isSafe)
         continue;
