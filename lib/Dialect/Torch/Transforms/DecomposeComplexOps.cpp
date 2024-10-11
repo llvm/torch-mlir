@@ -7369,17 +7369,17 @@ class DecomposeAtenAdaptiveMaxPool1dOp
         ValueRange{constantOne});
 
     if (op.getResult(1).use_empty()) {
-      auto maxPool = rewriter.create<AtenMaxPool1dOp>(loc, op.getType(0), input, kernelSizeList,
-                                      strideList, paddingSizeList,
-                                      dialationList,
-                                      /*ceil_mode=*/constantFalse);
+      auto maxPool = rewriter.create<AtenMaxPool1dOp>(
+          loc, op.getType(0), input, kernelSizeList, strideList,
+          paddingSizeList, dialationList,
+          /*ceil_mode=*/constantFalse);
       rewriter.replaceOp(op, {maxPool.getResult(), Value()});
     } else {
-      auto maxPool = rewriter.create<AtenMaxPool1dWithIndicesOp>(loc, op.getType(0), op.getType(1), input, kernelSizeList,
-                                      strideList, paddingSizeList,
-                                      dialationList,
-                                      /*ceil_mode=*/constantFalse);
-      rewriter.replaceOp(op, {maxPool.getResult(0), maxPool.getResult(1)});
+      auto maxPool = rewriter.create<AtenMaxPool1dWithIndicesOp>(
+          loc, op.getType(0), op.getType(1), input, kernelSizeList, strideList,
+          paddingSizeList, dialationList,
+          /*ceil_mode=*/constantFalse);
+      rewriter.replaceOp(op, maxPool.getResults());
     }
     return success();
   }
