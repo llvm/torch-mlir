@@ -738,6 +738,20 @@ func.func @torch.aten.len.t$no_fold_list_mutated() -> !torch.int {
   return %2 : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.aten.mul.left_t(
+// CHECK:           %[[C4:.*]] = torch.constant.int 4
+// CHECK:           %[[C5:.*]] = torch.constant.int 5
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[C4]], %[[C5]], %[[C4]], %[[C5]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           return %[[LIST]] : !torch.list<int>
+func.func @torch.aten.mul.left_t() -> !torch.list<int> {
+    %int4 = torch.constant.int 4
+    %int5 = torch.constant.int 5
+    %int2 = torch.constant.int 2
+    %0 = torch.prim.ListConstruct %int4, %int5 : (!torch.int, !torch.int) -> !torch.list<int>
+    %1 = torch.aten.mul.left_t %0, %int2 : !torch.list<int>, !torch.int -> !torch.list<int>
+    return %1 : !torch.list<int>
+}
+
 // CHECK-LABEL:   func.func @torch.aten.__getitem__.t(
 // CHECK:           %[[C5:.*]] = torch.constant.int 5
 // CHECK:           return %[[C5]] : !torch.int

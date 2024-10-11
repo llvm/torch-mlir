@@ -16048,6 +16048,31 @@ def Torch_AtenLenTOp : Torch_Op<"aten.len.t", [
   let hasCanonicalizer = 1;
 }
 
+def Torch_AtenMulLeftTOp : Torch_Op<"aten.mul.left_t", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::mul.left_t : (t[], int) -> (t[])`";
+  let arguments = (ins
+    AnyTorchListType:$l,
+    Torch_IntType:$n
+  );
+  let results = (outs
+    AnyTorchListType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenMulLeftTOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenMulLeftTOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasCanonicalizer = 1;
+}
+
 def Torch_Aten__Getitem__TOp : Torch_Op<"aten.__getitem__.t", [
     AllowsTypeRefinement,
     ReadOnly

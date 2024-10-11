@@ -7715,7 +7715,7 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "    %3 = torch.prim.If %2 -> (!torch.list<int>) {\n"
 "      %5 = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>\n"
 "      %6 = torch.aten.sub.int %1, %0 : !torch.int, !torch.int -> !torch.int\n"
-"      %7 = torch.operator \"aten.mul.left_t\"(%5, %6) : (!torch.list<int>, !torch.int) -> !torch.list<int> \n"
+"      %7 = torch.aten.mul.left_t %5, %6 : !torch.list<int>, !torch.int -> !torch.list<int>\n"
 "      %8 = torch.aten.add.t %7, %arg1 : !torch.list<int>, !torch.list<int> -> !torch.list<int>\n"
 "      torch.prim.If.yield %8 : !torch.list<int>\n"
 "    } else {\n"

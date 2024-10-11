@@ -1128,6 +1128,36 @@ void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenMulLeftTOp
+//===----------------------------------------------------------------------===//
+
+void AtenMulLeftTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                 MLIRContext *context) {
+  // `[3] * 5` -> `[3,3,3,3,3]`, if it is not mutated.
+  patterns.add(+[](AtenMulLeftTOp op, PatternRewriter &rewriter) {
+    auto listLiteral = op.getL().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!listLiteral || isListPotentiallyMutated(listLiteral))
+      return failure();
+
+    int64_t numReps;
+    if (!matchPattern(op.getN(), m_TorchConstantInt(&numReps)))
+      return failure();
+
+    SmallVector<Value> newListElements;
+    for (int rep = 0; rep < numReps; ++rep) {
+      for (auto operand : listLiteral.getOperands()) {
+        newListElements.push_back(operand);
+      }
+    }
+
+    rewriter.replaceOpWithNewOp<PrimListConstructOp>(
+        op, Torch::ListType::get(newListElements[0].getType()),
+        newListElements);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenMinOtherOp
 //===----------------------------------------------------------------------===//
 
