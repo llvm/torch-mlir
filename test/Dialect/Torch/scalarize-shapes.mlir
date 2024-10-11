@@ -215,3 +215,24 @@ func.func @eq_tensor_from_tensor_and_literal(%arg0: !torch.vtensor<[?,?],si64>) 
     %6 = torch.aten.eq.Tensor %5, %0 : !torch.vtensor<[4],si64>, !torch.vtensor<[4],si64> -> !torch.vtensor<[4],i1>
     return %6 : !torch.vtensor<[4],i1>
 }
+
+
+
+// -----
+
+// CHECK-LABEL: @squeeze_dim_full_fold
+func.func @squeeze_dim_full_fold(%arg0: !torch.vtensor<[?,?],si64>) -> !torch.int {
+    // CHECK: %[[I0:.*]] = torch.constant.int 0
+    // CHECK: %[[SZE:.*]] = torch.aten.size.int %arg0, %[[I0]] : !torch.vtensor<[?,?],si64>, !torch.int -> !torch.int
+    // CHECK: return %[[SZE]] : !torch.int
+    %int0 = torch.constant.int 0
+    %int1 = torch.constant.int 1
+    %none = torch.constant.none
+    %false = torch.constant.bool false
+    %51 = torch.aten.size.int %arg0, %int0 : !torch.vtensor<[?,?],si64>, !torch.int -> !torch.int
+    %55 = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+    %56 = torch.aten.full %55, %51, %none, %none, %none, %false : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[1],si64>
+    %57 = torch.aten.squeeze.dim %56, %int0 : !torch.vtensor<[1],si64>, !torch.int -> !torch.vtensor<[],si64>
+    %58 = torch.aten.item %57 : !torch.vtensor<[],si64> -> !torch.int
+    return %58 : !torch.int
+}
