@@ -222,23 +222,9 @@ public:
     Value weight = adaptor.getWeight();
     Value indices = adaptor.getIndices();
     Value offsets = adaptor.getOffsets();
-    Value scaleGradByFreq = op.getScaleGradByFreq();
     Value mode = op.getMode();
-    Value sparse = op.getSparse();
     Value includeLastOffset = op.getIncludeLastOffset();
-
-    bool scaleGradByFreqBool;
-    if (!matchPattern(scaleGradByFreq,
-                      m_TorchConstantBool(&scaleGradByFreqBool))) {
-      return rewriter.notifyMatchFailure(
-          op, "scale_grad_by_freq is expected to be a constant boolean value.");
-    }
-
-    if (scaleGradByFreqBool) {
-      return rewriter.notifyMatchFailure(
-          op, "Unimplemented: scale_grad_by_freq=True.");
-    }
-
+    
     int64_t modeInt;
     if (!matchPattern(mode, m_TorchConstantInt(&modeInt))) {
       return rewriter.notifyMatchFailure(
@@ -250,19 +236,7 @@ public:
                                          "Unimplemented: Mean and Max mode are "
                                          "not supported yet for EmbeddingBag.");
     }
-
-    bool isSparse;
-    if (!matchPattern(sparse, m_TorchConstantBool(&isSparse))) {
-      return rewriter.notifyMatchFailure(
-          op, "sparse is expected to be a constant boolean value.");
-    }
-
-    if (isSparse) {
-      return rewriter.notifyMatchFailure(
-          op,
-          "Unimplemented: Sparse mode is not supported yet for EmbeddingBag.");
-    }
-
+    
     bool discardLastOffset;
     if (!matchPattern(includeLastOffset,
                       m_TorchConstantBool(&discardLastOffset))) {
@@ -270,7 +244,7 @@ public:
           op,
           "include_last_offset is expected to be a constant boolean value.");
     }
-
+    
     auto weightTy = cast<RankedTensorType>(weight.getType());
     if (weightTy.getRank() != 2)
       return rewriter.notifyMatchFailure(op, "weight must be rank 2");
