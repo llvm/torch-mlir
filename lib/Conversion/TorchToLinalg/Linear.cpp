@@ -1399,7 +1399,6 @@ public:
   LogicalResult
   matchAndRewrite(Aten_TrilinearOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    llvm::errs() << "SNB TEST 1";
     Location loc = op.getLoc();
 
     // Input Tensors
@@ -1442,7 +1441,6 @@ public:
 
     // Create bollean flags that correspond to specified dimensions in inputs.
     // Makes iterating a little easier
-    llvm::errs() << "SNB TEST 2";
     SmallVector<bool> expand1Flags(totalDims, false);
     SmallVector<bool> expand2Flags(totalDims, false);
     SmallVector<bool> expand3Flags(totalDims, false);
