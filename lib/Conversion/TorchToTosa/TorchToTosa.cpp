@@ -4093,6 +4093,25 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
   return success();
 }
 
+Value wrapNegativeIndices(Value index, int maxIndex, Operation *op,
+                          ConversionPatternRewriter &rewriter) {
+
+  auto zeroValue = tosa::getConstTensor<int32_t>(rewriter, op, 0, {}).value();
+  auto maxIndexValue =
+      tosa::getConstTensor<int32_t>(rewriter, op, maxIndex, {}).value();
+
+  auto indexType = dyn_cast<RankedTensorType>(index.getType());
+
+  auto wrappedIndicesOp = tosa::CreateOpAndInfer<tosa::AddOp>(
+      rewriter, op->getLoc(), indexType, maxIndexValue, index);
+  auto boolType = indexType.clone(rewriter.getIntegerType(1));
+  auto isNegativeIndices = tosa::CreateOpAndInfer<tosa::GreaterOp>(
+      rewriter, op->getLoc(), boolType, zeroValue, index);
+  return tosa::CreateOpAndInfer<tosa::SelectOp>(rewriter, op->getLoc(),
+                                                indexType, isNegativeIndices,
+                                                wrappedIndicesOp, index);
+}
+
 template <>
 LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
     AtenIndexTensorHackedTwinOp op, OpAdaptor adaptor,
@@ -4123,6 +4142,8 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
       rewriter, op->getLoc(), getTypeConverter(), tensorsTorchType);
 
   auto outType = getTypeConverter()->convertType(op.getType());
+
+  Operation *indicesTf;
 
   // Support for multiple indexes
   if (indexTensors.size() > 1) {
@@ -4157,6 +4178,8 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
             index);
       }
 
+      index = wrapNegativeIndices(index, inputTensorType.getShape()[i], op,
+                                  rewriter);
       // Expand last dim of index to tf indices [2,3] -> [2,3,1]
       SmallVector<int64_t> indiceShapeOneDim;
       for (auto shape : indexShape) {
@@ -4299,49 +4322,39 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
     auto indicesShapeConcat = indexesShape[0];
     uint64_t lastDim = indexesRank[0];
     indicesShapeConcat.push_back(indicesTfConcatTensors.size());
-    auto indicesTf = tosa::CreateOpAndInfer<tosa::ConcatOp>(
+    indicesTf = tosa::CreateOpAndInfer<tosa::ConcatOp>(
         rewriter, op->getLoc(),
         GetTypeFromTensorShape(indicesShapeConcat, rewriter.getIntegerType(32)),
         indicesTfConcatTensors, lastDim);
 
-    if (!indicesTf) {
-      return rewriter.notifyMatchFailure(
-          op, "Convert TorchIndex To TfIndices fail.");
+  } else {
+
+    // Single index
+    auto index = indexTensors[0];
+    auto indexType = dyn_cast<RankedTensorType>(index.getType());
+    auto indexShape = indexType.getShape();
+    // index i64 to i32 for tosa compatible
+    if (indexType.getElementType() != rewriter.getIntegerType(32)) {
+      index = rewriter.create<tosa::CastOp>(
+          op->getLoc(),
+          RankedTensorType::get(indexShape, rewriter.getIntegerType(32)),
+          index);
     }
-    // do the tf gathernp algorithm with tf style indices as input.
-    auto result = tosa::convertGatherNdOp(rewriter, op, outType, input,
-                                          indicesTf.getResult());
 
-    if (!result) {
-      return rewriter.notifyMatchFailure(
-          op, "Convert GatherNdOp fail for index tensor.");
+    index =
+        wrapNegativeIndices(index, inputTensorType.getShape()[0], op, rewriter);
+
+    // Expand last dim of index to tf indices [2,3] -> [2,3,1]
+    SmallVector<int64_t> indicesShape;
+    for (auto shape : indexShape) {
+      indicesShape.push_back(shape);
     }
-    rewriter.replaceOp(op, {result.value()});
-
-    return success();
+    indicesShape.push_back(1);
+    indicesTf = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
+        rewriter, op->getLoc(),
+        RankedTensorType::get(indicesShape, rewriter.getIntegerType(32)), index,
+        rewriter.getDenseI64ArrayAttr(indicesShape));
   }
-
-  // Support for multiple index
-  auto index = indexTensors[0];
-  auto indexType = dyn_cast<RankedTensorType>(index.getType());
-  auto indexShape = indexType.getShape();
-  // index i64 to i32 for tosa compatible
-  if (indexType.getElementType() != rewriter.getIntegerType(32)) {
-    index = rewriter.create<tosa::CastOp>(
-        op->getLoc(),
-        RankedTensorType::get(indexShape, rewriter.getIntegerType(32)), index);
-  }
-
-  // Expand last dim of index to tf indices [2,3] -> [2,3,1]
-  SmallVector<int64_t> indicesShape;
-  for (auto shape : indexShape) {
-    indicesShape.push_back(shape);
-  }
-  indicesShape.push_back(1);
-  auto indicesTf = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
-      rewriter, op->getLoc(),
-      RankedTensorType::get(indicesShape, rewriter.getIntegerType(32)), index,
-      rewriter.getDenseI64ArrayAttr(indicesShape));
 
   if (!indicesTf) {
     return rewriter.notifyMatchFailure(op,
@@ -4349,7 +4362,7 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
   }
   // do the tf gathernp algorithm with tf style indices as input.
   auto result = tosa::convertGatherNdOp(rewriter, op, outType, input,
-                                        indicesTf.getResult());
+                                        indicesTf->getResult(0));
 
   if (!result) {
     return rewriter.notifyMatchFailure(
