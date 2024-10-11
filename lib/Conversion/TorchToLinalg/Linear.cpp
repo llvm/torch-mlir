@@ -1399,12 +1399,13 @@ public:
   LogicalResult
   matchAndRewrite(Aten_TrilinearOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    llvm::errs() << "SNB TEST 1";
     Location loc = op.getLoc();
 
     // Input Tensors
-    Value i1 = op.getI1();
-    Value i2 = op.getI2();
-    Value i3 = op.getI3();
+    Value i1 = adaptor.getI1();
+    Value i2 = adaptor.getI2();
+    Value i3 = adaptor.getI3();
 
     RankedTensorType i1Type = cast<RankedTensorType>(i1.getType());
     auto i1Shape = i1Type.getShape();
@@ -1439,7 +1440,9 @@ public:
 
     int64_t totalDims = i1Shape.size() + expand1.size();
 
-    // Create bitsets that correspond to specified dimensions in inputs
+    // Create bollean flags that correspond to specified dimensions in inputs.
+    // Makes iterating a little easier
+    llvm::errs() << "SNB TEST 2";
     SmallVector<bool> expand1Flags(totalDims, false);
     SmallVector<bool> expand2Flags(totalDims, false);
     SmallVector<bool> expand3Flags(totalDims, false);
@@ -1491,106 +1494,102 @@ public:
       outputShape.push_back(rewriter.getIndexAttr(size));
       if (i == unrollDim)
         unrollSize = size;
+    }
 
-      int64_t slicemul1 = (expand1Flags[unrollDim] ? 0 : 1);
-      int64_t slicemul2 = (expand2Flags[unrollDim] ? 0 : 1);
-      int64_t slicemul3 = (expand3Flags[unrollDim] ? 0 : 1);
+    int64_t slicemul1 = (expand1Flags[unrollDim] ? 0 : 1);
+    int64_t slicemul2 = (expand2Flags[unrollDim] ? 0 : 1);
+    int64_t slicemul3 = (expand3Flags[unrollDim] ? 0 : 1);
 
-      // TODO: How do we determine the output type here (lowest precision type)
-      output = rewriter.create<tensor::EmptyOp>(loc, outputShape,
-                                                i1Type.getElementType());
-      RankedTensorType outputType = cast<RankedTensorType>(output.getType());
+    // TODO: How do we determine the output type here (lowest precision type)
+    output = rewriter.create<tensor::EmptyOp>(loc, outputShape,
+                                              i1Type.getElementType());
+    RankedTensorType outputType = cast<RankedTensorType>(output.getType());
 
-      // TODO: This needs to be cleaned up and made less redundant.
-      Value cstOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-      if (i1Shape.size() != 0 && i2Shape.size() != 0 && i3Shape.size() != 0) {
-        if (!sumDimFlags[unrollDim]) {
-          for (int64_t k = 0; k < unrollSize; ++k) {
-            Value kValue = rewriter.create<arith::ConstantIndexOp>(loc, k);
-            Value unrollDimValue =
-                rewriter.create<arith::ConstantIndexOp>(loc, unrollDim);
-            SmallVector<Value> narrowIndices{
-                rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul1),
-                rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul2),
-                rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul3)};
-            Value slice_i1 = rewriter.create<AtenNarrowOp>(
-                loc, outputType, i1, unrollDimValue, narrowIndices[0], cstOne);
-            Value slice_i2 = rewriter.create<AtenNarrowOp>(
-                loc, outputType, i2, unrollDimValue, narrowIndices[1], cstOne);
-            Value slice_i3 = rewriter.create<AtenNarrowOp>(
-                loc, outputType, i3, unrollDimValue, narrowIndices[2], cstOne);
+    // TODO: This needs to be cleaned up and made less redundant.
+    Value cstOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    if (i1Shape.size() != 0 && i2Shape.size() != 0 && i3Shape.size() != 0) {
+      if (!sumDimFlags[unrollDim]) {
+        for (int64_t k = 0; k < unrollSize; ++k) {
+          Value kValue = rewriter.create<arith::ConstantIndexOp>(loc, k);
+          Value unrollDimValue =
+              rewriter.create<arith::ConstantIndexOp>(loc, unrollDim);
+          SmallVector<Value> narrowIndices{
+              rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul1),
+              rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul2),
+              rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul3)};
+          Value slice_i1 = rewriter.create<AtenNarrowOp>(
+              loc, outputType, i1, unrollDimValue, narrowIndices[0], cstOne);
+          Value slice_i2 = rewriter.create<AtenNarrowOp>(
+              loc, outputType, i2, unrollDimValue, narrowIndices[1], cstOne);
+          Value slice_i3 = rewriter.create<AtenNarrowOp>(
+              loc, outputType, i3, unrollDimValue, narrowIndices[2], cstOne);
 
-            Value mul12 = rewriter.create<AtenMulTensorOp>(loc, outputType,
-                                                           slice_i1, slice_i2);
-            for (int64_t dim : sumDims12) {
-              Value dimValue =
-                  rewriter.create<arith::ConstantIndexOp>(loc, dim);
-              mul12 =
-                  rewriter.create<AtenSumOp>(loc, outputType, mul12, dimValue);
-            }
-
-            Value mulResult = rewriter.create<AtenMulTensorOp>(loc, outputType,
-                                                               mul12, slice_i3);
-            for (int64_t dim : sumDims23) {
-              Value dimValue =
-                  rewriter.create<arith::ConstantIndexOp>(loc, dim);
-              mulResult = rewriter.create<AtenSumOp>(loc, outputType, mulResult,
-                                                     dimValue);
-            }
-
-            output = rewriter.create<AtenNarrowOp>(
-                loc, outputType, output, unrollDimValue, kValue, cstOne);
-
-            rewriter.create<AtenAddTensorOp>(loc, outputType, output, mulResult,
-                                             cstOne);
+          Value mul12 = rewriter.create<AtenMulTensorOp>(loc, outputType,
+                                                         slice_i1, slice_i2);
+          for (int64_t dim : sumDims12) {
+            Value dimValue = rewriter.create<arith::ConstantIndexOp>(loc, dim);
+            mul12 =
+                rewriter.create<AtenSumOp>(loc, outputType, mul12, dimValue);
           }
-        } else {
-          for (int64_t k = 0; k < unrollSize; ++k) {
-            Value unrollDimValue =
-                rewriter.create<arith::ConstantIndexOp>(loc, unrollDim);
-            SmallVector<Value> narrowIndices{
-                rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul1),
-                rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul2),
-                rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul3)};
-            Value slice_i1 = rewriter.create<AtenNarrowOp>(
-                loc, outputType, i1, unrollDimValue, narrowIndices[0], cstOne);
-            Value slice_i2 = rewriter.create<AtenNarrowOp>(
-                loc, outputType, i2, unrollDimValue, narrowIndices[1], cstOne);
-            Value slice_i3 = rewriter.create<AtenNarrowOp>(
-                loc, outputType, i3, unrollDimValue, narrowIndices[2], cstOne);
 
-            Value mul12 = rewriter.create<AtenMulTensorOp>(loc, outputType,
-                                                           slice_i1, slice_i2);
-            for (int64_t dim : sumDims12) {
-              Value dimValue =
-                  rewriter.create<arith::ConstantIndexOp>(loc, dim);
-              mul12 =
-                  rewriter.create<AtenSumOp>(loc, outputType, mul12, dimValue);
-            }
-
-            Value mulResult = rewriter.create<AtenMulTensorOp>(loc, outputType,
-                                                               mul12, slice_i3);
-            for (int64_t dim : sumDims23) {
-              Value dimValue =
-                  rewriter.create<arith::ConstantIndexOp>(loc, dim);
-              mulResult = rewriter.create<AtenSumOp>(loc, outputType, mulResult,
-                                                     dimValue);
-            }
-
-            output = rewriter.create<AtenAddTensorOp>(loc, outputType, output,
-                                                      mulResult, cstOne);
+          Value mulResult = rewriter.create<AtenMulTensorOp>(loc, outputType,
+                                                             mul12, slice_i3);
+          for (int64_t dim : sumDims23) {
+            Value dimValue = rewriter.create<arith::ConstantIndexOp>(loc, dim);
+            mulResult = rewriter.create<AtenSumOp>(loc, outputType, mulResult,
+                                                   dimValue);
           }
+
+          output = rewriter.create<AtenNarrowOp>(
+              loc, outputType, output, unrollDimValue, kValue, cstOne);
+
+          rewriter.create<AtenAddTensorOp>(loc, outputType, output, mulResult,
+                                           cstOne);
+        }
+      } else {
+        for (int64_t k = 0; k < unrollSize; ++k) {
+          Value unrollDimValue =
+              rewriter.create<arith::ConstantIndexOp>(loc, unrollDim);
+          SmallVector<Value> narrowIndices{
+              rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul1),
+              rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul2),
+              rewriter.create<arith::ConstantIndexOp>(loc, k * slicemul3)};
+          Value slice_i1 = rewriter.create<AtenNarrowOp>(
+              loc, outputType, i1, unrollDimValue, narrowIndices[0], cstOne);
+          Value slice_i2 = rewriter.create<AtenNarrowOp>(
+              loc, outputType, i2, unrollDimValue, narrowIndices[1], cstOne);
+          Value slice_i3 = rewriter.create<AtenNarrowOp>(
+              loc, outputType, i3, unrollDimValue, narrowIndices[2], cstOne);
+
+          Value mul12 = rewriter.create<AtenMulTensorOp>(loc, outputType,
+                                                         slice_i1, slice_i2);
+          for (int64_t dim : sumDims12) {
+            Value dimValue = rewriter.create<arith::ConstantIndexOp>(loc, dim);
+            mul12 =
+                rewriter.create<AtenSumOp>(loc, outputType, mul12, dimValue);
+          }
+
+          Value mulResult = rewriter.create<AtenMulTensorOp>(loc, outputType,
+                                                             mul12, slice_i3);
+          for (int64_t dim : sumDims23) {
+            Value dimValue = rewriter.create<arith::ConstantIndexOp>(loc, dim);
+            mulResult = rewriter.create<AtenSumOp>(loc, outputType, mulResult,
+                                                   dimValue);
+          }
+
+          output = rewriter.create<AtenAddTensorOp>(loc, outputType, output,
+                                                    mulResult, cstOne);
         }
       }
+    }
 
-      RankedTensorType resultType = cast<RankedTensorType>(output.getType());
-      int64_t resultTensorRank = resultType.getRank();
-      for (int64_t i = resultTensorRank - 1; i >= 0; --i) {
-        if (sumDimFlags[i]) {
-          Value indexValue = rewriter.create<arith::ConstantIndexOp>(loc, i);
-          output = rewriter.create<AtenSqueezeDimOp>(loc, outputType, output,
-                                                     indexValue);
-        }
+    RankedTensorType resultType = cast<RankedTensorType>(output.getType());
+    int64_t resultTensorRank = resultType.getRank();
+    for (int64_t i = resultTensorRank - 1; i >= 0; --i) {
+      if (sumDimFlags[i]) {
+        Value indexValue = rewriter.create<arith::ConstantIndexOp>(loc, i);
+        output = rewriter.create<AtenSqueezeDimOp>(loc, outputType, output,
+                                                   indexValue);
       }
     }
 
