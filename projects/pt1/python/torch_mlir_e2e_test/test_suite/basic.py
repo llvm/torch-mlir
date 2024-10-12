@@ -5621,6 +5621,30 @@ def ConstantBoolParameterModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class TensorAlloc1dStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4, 6], torch.int, True),
+        ]
+    )
+    def forward(self, x):
+        res = torch.tensor([x.shape[0]])
+        return res
+
+
+@register_test_case(module_factory=lambda: TensorAlloc1dStaticModule())
+def TensorAlloc1dStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 6))
+
+
+# ==============================================================================
+
+
 class ScalarTensorFloat32Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
