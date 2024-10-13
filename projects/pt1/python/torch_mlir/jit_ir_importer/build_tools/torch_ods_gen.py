@@ -255,6 +255,7 @@ def emit_op(
     traits += ["AllowsTypeRefinement"]
     if operator.has_value_semantics():
         traits += ["HasValueSemantics"]
+        traits += ["NoMemoryEffect"]
     if operator.is_readonly():
         traits += ["ReadOnly"]
 
