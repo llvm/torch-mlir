@@ -231,6 +231,7 @@ public:
           op, "mode is expected to be a constant integer value.");
     }
 
+    
     if (modeInt != torch_upstream::EmbeddingBagMode::MODE_SUM) {
       return rewriter.notifyMatchFailure(op,
                                          "Unimplemented: Mean and Max mode are "
