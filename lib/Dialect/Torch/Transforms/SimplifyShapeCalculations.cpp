@@ -198,6 +198,7 @@ class SimplifyShapeCalculationsPass
     AtenSizeOp::getCanonicalizationPatterns(patterns, context);
     AtenLenTOp::getCanonicalizationPatterns(patterns, context);
     AtenAddTOp::getCanonicalizationPatterns(patterns, context);
+    AtenSliceTOp::getCanonicalizationPatterns(patterns, context);
 
     // TODO: Debug visitation order to make this more efficient.
     // A single linear scan should suffice.
