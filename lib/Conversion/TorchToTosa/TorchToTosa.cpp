@@ -4360,6 +4360,221 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
   return success();
 }
 
+// Legalization for aten.scatter.src
+template <>
+LogicalResult ConvertAtenOp<AtenScatterSrcOp>::matchAndRewrite(
+    AtenScatterSrcOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto input = adaptor.getSelf();
+  auto inputType = dyn_cast<RankedTensorType>(input.getType());
+  if (!inputType)
+    return rewriter.notifyMatchFailure(
+        op, "Only RankedTensorType inputs are currently supported");
+
+  auto inputShape = inputType.getShape();
+  auto paramsRank = inputType.getRank();
+
+  auto index = adaptor.getIndex();
+  auto indexType = dyn_cast<RankedTensorType>(index.getType());
+  if (!indexType)
+    return rewriter.notifyMatchFailure(
+        op, "Only RankedTensorType indices are currently supported");
+
+  // Check `index` and `input` param should have the same rank
+  if (indexType.getRank() != paramsRank)
+    return rewriter.notifyMatchFailure(
+        op, "Params index and input should have the same rank");
+
+  auto indexShape = indexType.getShape();
+
+  auto src = adaptor.getSrc();
+  auto srcType = dyn_cast<RankedTensorType>(src.getType());
+  if (!srcType)
+    return rewriter.notifyMatchFailure(
+        op, "Only RankedTensorType sources are currently supported");
+
+  // Check `src` and `input` param should have the same rank
+  if (srcType.getRank() != paramsRank)
+    return rewriter.notifyMatchFailure(
+        op, "Src and input should have the same rank");
+
+  auto srcShape = srcType.getShape();
+
+  // Dynamic shape check
+  if (!inputType.hasStaticShape() || !indexType.hasStaticShape() ||
+      !srcType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "Support for dynamic shape not implemented");
+
+  // index i64 to i32 for tosa compatitable
+  if (indexType.getElementType() != rewriter.getIntegerType(32)) {
+    index = rewriter.create<tosa::CastOp>(
+        op->getLoc(),
+        RankedTensorType::get(indexShape, rewriter.getIntegerType(32)), index);
+  }
+
+  // Get positive dim
+  int64_t dim{0};
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(op,
+                                       "Dim value should be a constant int");
+
+  dim = toPositiveDim(dim, paramsRank);
+  if (!isValidDim(dim, paramsRank))
+    return rewriter.notifyMatchFailure(op, "Dim is invalid");
+
+  // It is also required that index.size(d) <= src.size(d) for all dimensions d,
+  // and that index.size(d) <= self.size(d) for all dimensions d != dim
+  for (int64_t d = 0; d < paramsRank; d++) {
+    if (d != dim) {
+      if (indexShape[d] > srcShape[d] || indexShape[d] > inputShape[d])
+        return rewriter.notifyMatchFailure(
+            op, "Index size should be smaller or equal to src or input size "
+                "for all dimensions d != dim");
+    }
+  }
+
+  // Get the output type
+  auto outType = getTypeConverter()->convertType(op.getType());
+
+  // convert PyTorch style index and dim into TensorFlows tyle indices
+  // tensor<[1,4,2],si64> -> tensor<[1,4,2,3],si64>
+  auto indicesTf =
+      tosa::convertTorchIndexToTfIndices(rewriter, op, input, index, dim);
+  if (!indicesTf)
+    return rewriter.notifyMatchFailure(
+        op, "Convert PyTorch index and dim to TensorFlow indices failed");
+
+  // Perform the TensorFlow ScatterNd algorithm with TensorFlow style indices as
+  // input.
+  auto result = tosa::convertScatterNdOp(rewriter, op, outType, input,
+                                         indicesTf.value(), src);
+
+  if (!result)
+    return rewriter.notifyMatchFailure(op, "Convert ScatterNdOp failed");
+
+  rewriter.replaceOp(op, {result.value()});
+  return success();
+}
+
+// Legalization for aten.slice_scatter
+template <>
+LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
+    AtenSliceScatterOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // Not a tensor type.
+  auto input = adaptor.getSelf();
+  auto inputType = dyn_cast<RankedTensorType>(input.getType());
+  if (!inputType)
+    return rewriter.notifyMatchFailure(
+        op, "Only RankedTensorType inputs are currently supported");
+
+  auto inputShape = inputType.getShape();
+  auto paramsRank = inputType.getRank();
+
+  auto src = adaptor.getSrc();
+  auto srcType = dyn_cast<RankedTensorType>(src.getType());
+  if (!srcType)
+    return rewriter.notifyMatchFailure(
+        op, "Only RankedTensorType sources are currently supported");
+
+  // Check `src` and `input` param should have the same rank
+  if (srcType.getRank() != paramsRank)
+    return rewriter.notifyMatchFailure(
+        op, "Src and input should have the same rank");
+
+  auto srcShape = srcType.getShape();
+
+  // Dynamic shape check
+  if (!inputType.hasStaticShape() || !srcType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "Support for dynamic shape not implemented");
+
+  // Get positive dim
+  int64_t dim{0};
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(op,
+                                       "Dim value should be a constant int");
+
+  dim = toPositiveDim(dim, paramsRank);
+  if (!isValidDim(dim, paramsRank))
+    return rewriter.notifyMatchFailure(op, "Dim is invalid");
+
+  // Get start, end, and step params
+  // If start and end params are not specified, assign them to 0 and
+  // inputShape[dim], respectively.
+  int64_t start{0};
+  if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)))
+    return rewriter.notifyMatchFailure(op,
+                                       "Start value should be a constant int");
+  if (start < 0)
+    start += inputShape[dim];
+
+  int64_t end{inputShape[dim]};
+  if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)))
+    return rewriter.notifyMatchFailure(op,
+                                       "End value should be a constant int");
+  if (end < 0)
+    end += inputShape[dim];
+
+  if (end > inputShape[dim])
+    end = inputShape[dim];
+
+  if (start >= end)
+    return rewriter.notifyMatchFailure(
+        op, "Start value greater than end value not supported");
+
+  int64_t step{1};
+  if (!matchPattern(op.getStep(), m_TorchConstantInt(&step)))
+    return rewriter.notifyMatchFailure(op,
+                                       "Step value should be a constant int");
+
+  // Create PyTorch style scatter index based on start, end, and step values
+  int64_t outerRepeat{1}, innerRepeat{1};
+  for (int64_t i = 0; i < dim; i++)
+    outerRepeat *= srcShape[i];
+
+  for (int64_t i = dim + 1; i < paramsRank; i++)
+    innerRepeat *= srcShape[i];
+
+  SmallVector<int32_t> indexVec;
+  for (int64_t i = 0; i < outerRepeat; i++) {
+    for (int32_t indexVal = start; indexVal < end; indexVal += step) {
+      for (int64_t j = 0; j < innerRepeat; j++) {
+        indexVec.push_back(indexVal);
+      }
+    }
+  }
+
+  Value index =
+      tosa::getConstTensor<int32_t>(rewriter, op, indexVec, srcShape).value();
+
+  // Get the output type
+  auto outType = getTypeConverter()->convertType(op.getType());
+
+  // convert PyTorch style index and dim into TensorFlows tyle indices
+  // tensor<[1,4,2],si64> -> tensor<[1,4,2,3],si64>
+  auto indicesTf =
+      tosa::convertTorchIndexToTfIndices(rewriter, op, input, index, dim);
+  if (!indicesTf)
+    return rewriter.notifyMatchFailure(
+        op, "Convert PyTorch index and dim to TensorFlow indices failed");
+
+  // Perform the TensorFlow ScatterNd algorithm with TensorFlow style indices as
+  // input.
+  auto result = tosa::convertScatterNdOp(rewriter, op, outType, input,
+                                         indicesTf.value(), src);
+
+  if (!result)
+    return rewriter.notifyMatchFailure(op, "Convert ScatterNdOp failed");
+
+  rewriter.replaceOp(op, {result.value()});
+  return success();
+}
+
 template <>
 LogicalResult ConvertAtenOp<AtenAbsOp>::matchAndRewrite(
     AtenAbsOp op, OpAdaptor adaptor,
@@ -6099,6 +6314,10 @@ LogicalResult ConvertAtenOp<AtenDiagonalOp>::matchAndRewrite(
     dim2 = toPositiveDim(dim2, selfRank);
   }
 
+  if (dim1 == dim2)
+    return rewriter.notifyMatchFailure(op,
+                                       "Values dim1 and dim2 cannot be equal");
+
   auto selfShape = makeShapeTorchCompatible(selfType.getShape());
   int64_t h = selfShape[dim1];
   int64_t w = selfShape[dim2];
@@ -6122,13 +6341,13 @@ LogicalResult ConvertAtenOp<AtenDiagonalOp>::matchAndRewrite(
     SmallVector<int32_t> transposedDims;
     transposedInputShape.clear();
 
-    for (int64_t i = 0; i < selfRank; ++i) {
+    for (int32_t i = 0; i < selfRank; ++i) {
       if (i == dim1 || i == dim2)
         continue;
       transposedDims.push_back(i);
     }
-    transposedDims.push_back(dim1);
-    transposedDims.push_back(dim2);
+    transposedDims.push_back(static_cast<int32_t>(dim1));
+    transposedDims.push_back(static_cast<int32_t>(dim2));
 
     auto transposedDimsConst = tosa::getConstTensor<int32_t>(
         rewriter, op,
@@ -6209,6 +6428,193 @@ LogicalResult ConvertAtenOp<AtenDiagonalOp>::matchAndRewrite(
                                      reduceDimAttr, /*keep_dims=*/false);
 
   rewriter.replaceOp(op, result.value());
+
+  return success();
+}
+
+// Legalization for aten.diag_embed
+template <>
+LogicalResult ConvertAtenOp<AtenDiagEmbedOp>::matchAndRewrite(
+    AtenDiagEmbedOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // To perform diag_embed, we will apply scatter with a newly created diagonal
+  // index tensor over a constant zero tensor.
+  // To make it simpler, we will only scatter using the diagonal with respect
+  // to the two innermost dimensions, then permute the output tensor to the
+  // correct order of dimensions.
+  auto self = adaptor.getSelf();
+
+  // Not a ranked tensor type
+  auto selfType = dyn_cast<RankedTensorType>(self.getType());
+  if (!selfType)
+    return rewriter.notifyMatchFailure(
+        op, "Only ranked tensor types are supported");
+
+  auto selfRank = selfType.getRank();
+  int64_t outRank = selfRank + 1;
+
+  auto selfShape = makeShapeTorchCompatible(selfType.getShape());
+  int64_t diagSize = selfShape[selfRank - 1];
+
+  if (!selfType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "Currently only static shapes are supported");
+
+  const TypeConverter *typeConverter = this->getTypeConverter();
+  RankedTensorType resultType = cast<RankedTensorType>(
+      typeConverter->convertType(op->getResult(0).getType()));
+  if (!resultType)
+    return rewriter.notifyMatchFailure(op, "Result type cannot be empty");
+
+  auto selfElemTy = selfType.getElementType();
+  auto resultElemTy = resultType.getElementType();
+
+  int64_t offset{0};
+  if (!matchPattern(op.getOffset(), m_TorchConstantInt(&offset)))
+    return rewriter.notifyMatchFailure(op,
+                                       "Offset value should be a constant int");
+
+  // dim1 default is -2
+  int64_t dim1{outRank - 2};
+  if (!matchPattern(op.getDim1(), m_TorchConstantInt(&dim1)))
+    return rewriter.notifyMatchFailure(op,
+                                       "Dim1 value should be a constant int");
+  dim1 = toPositiveDim(dim1, outRank);
+
+  // dim2 default is -1
+  int64_t dim2{outRank - 1};
+  if (!matchPattern(op.getDim2(), m_TorchConstantInt(&dim2)))
+    return rewriter.notifyMatchFailure(op,
+                                       "Dim2 value should be a constant int");
+  dim2 = toPositiveDim(dim2, outRank);
+
+  if (dim1 == dim2)
+    return rewriter.notifyMatchFailure(op, "Dim1 and dim2 cannot be equal");
+
+  // If offset is smaller than 0, we will swap dim1 and dim2 and convert offset
+  // to a positive value
+  if (offset < 0) {
+    std::swap(dim1, dim2);
+    offset = std::abs(offset);
+  }
+
+  // Create the diagonal index tensor
+  int64_t repeat = 1;
+  for (int64_t i = 0; i < selfRank - 1; i++)
+    repeat *= selfShape[i];
+
+  SmallVector<int32_t> indexVec;
+  for (int32_t i = 0; i < repeat; i++) {
+    for (int32_t j = offset; j < diagSize + offset; j++)
+      indexVec.push_back(j);
+  }
+
+  SmallVector<int64_t> indexShape = llvm::to_vector(selfShape);
+  indexShape.push_back(1);
+
+  auto index = tosa::getConstTensor<int32_t>(rewriter, op,
+                                             /*vec=*/indexVec,
+                                             /*shape=*/indexShape)
+                   .value();
+
+  // Reshape the input tensor to be the same shape as the new index tensor to
+  // act as the src for scattering
+  auto scatterSrc = rewriter.create<tosa::ReshapeOp>(
+      op->getLoc(),
+      RankedTensorType::get(makeShapeTorchCompatible(indexShape), selfElemTy),
+      self, rewriter.getDenseI64ArrayAttr(indexShape));
+
+  // Create a const zero tensor to scatter the input onto
+  SmallVector<int64_t> zeroShape;
+  for (int64_t i = 0; i < selfRank - 1; i++)
+    zeroShape.push_back(selfShape[i]);
+  zeroShape.push_back(diagSize + offset);
+  zeroShape.push_back(diagSize + offset);
+
+  int64_t numElemOfZeroTensor = 1;
+  for (int64_t &d : zeroShape)
+    numElemOfZeroTensor *= d;
+
+  Value zero =
+      TypeSwitch<Type, Value>(selfElemTy)
+          .Case<mlir::FloatType>([&](auto) {
+            return tosa::getConstTensor<float>(
+                       rewriter, op, SmallVector<float>(numElemOfZeroTensor, 0),
+                       zeroShape)
+                .value();
+          })
+          .Case<mlir::IntegerType>([&](auto intType) {
+            switch (intType.getWidth()) {
+            case 1:
+              return tosa::getConstTensor<bool>(
+                         rewriter, op,
+                         SmallVector<bool>(numElemOfZeroTensor, 0), zeroShape)
+                  .value();
+            case 32:
+              return tosa::getConstTensor<int32_t>(
+                         rewriter, op,
+                         SmallVector<int32_t>(numElemOfZeroTensor, 0),
+                         zeroShape)
+                  .value();
+            case 64:
+              return tosa::getConstTensor<int64_t>(
+                         rewriter, op,
+                         SmallVector<int64_t>(numElemOfZeroTensor, 0),
+                         zeroShape)
+                  .value();
+            }
+            llvm_unreachable("Invalid integer width");
+          });
+
+  // Convert PyTorch index and dim to TensorFlow-style indices
+  auto indicesTf = tosa::convertTorchIndexToTfIndices(rewriter, op, zero, index,
+                                                      outRank - 1);
+  if (!indicesTf)
+    return rewriter.notifyMatchFailure(
+        op, "Convert PyTorch index and dim to TensorFlow indices failed");
+
+  // Perform the TensorFlow ScatterNd algorithm with TensorFlow-style indices as
+  // input
+  auto diagonalTensor = tosa::convertScatterNdOp(
+      rewriter, op,
+      RankedTensorType::get(makeShapeTorchCompatible(zeroShape), resultElemTy),
+      zero, indicesTf.value(), scatterSrc.getResult());
+  if (!diagonalTensor)
+    return rewriter.notifyMatchFailure(op, "Convert ScatterNdOp failed");
+
+  // Create the final dims order to permute the scattered tensor
+  SmallVector<int32_t> permutedDims(outRank, 0);
+  int32_t currentDim = 0;
+  int32_t i = 0;
+
+  while (i < outRank) {
+    if (i == dim1) {
+      permutedDims[i] = outRank - 2;
+      i++;
+      continue;
+    }
+
+    if (i == dim2) {
+      permutedDims[i] = outRank - 1;
+      i++;
+      continue;
+    }
+
+    permutedDims[i] = currentDim;
+    currentDim++;
+    i++;
+  }
+
+  auto permutedDimsConst =
+      tosa::getConstTensor<int32_t>(rewriter, op,
+                                    /*vec=*/permutedDims,
+                                    /*shape=*/{static_cast<int32_t>(outRank)});
+
+  auto result = rewriter.create<tosa::TransposeOp>(op->getLoc(), resultType,
+                                                   diagonalTensor.value(),
+                                                   permutedDimsConst.value());
+
+  rewriter.replaceOp(op, result.getResult());
 
   return success();
 }
@@ -6442,6 +6848,7 @@ public:
                                                            context);
     INSERT_CONSTANT_FILL_PATTERN(AtenOnesOp, 1);
     INSERT_CONSTANT_FILL_PATTERN(AtenZerosOp, 0);
+    INSERT_CONSTANT_FILL_PATTERN(AtenEmptyMemoryFormatOp, 0);
 #undef INSERT_CONSTANT_FILL_PATTERN
 
 #define INSERT_FILL_PATTERN(AtenOp)                                            \
@@ -6524,6 +6931,9 @@ public:
     INSERT_ATENOP_PATTERN(AtenIndexSelectOp);
     INSERT_ATENOP_PATTERN(AtenFlipOp);
     INSERT_ATENOP_PATTERN(AtenRoundOp);
+    INSERT_ATENOP_PATTERN(AtenScatterSrcOp);
+    INSERT_ATENOP_PATTERN(AtenSliceScatterOp);
+    INSERT_ATENOP_PATTERN(AtenDiagEmbedOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
