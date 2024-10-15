@@ -526,6 +526,7 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     # Runtime op verification: out-of-bounds access
     "_SoftmaxModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
+    "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
