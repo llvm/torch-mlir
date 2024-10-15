@@ -65,8 +65,11 @@ def test_import_frozen_exported_program():
 # CHECK:     func.func @main(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.tensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
 # CHECK-DAG: %[[arg1_copy:.+]] = torch.copy.to_vtensor %arg1 : !torch.vtensor<[3,4],f32>
 # CHECK-DAG: %[[arg1_mul:.+]] = torch.aten.mul.Tensor %[[arg1_copy]], %arg0
-# CHECK-DAG: torch.overwrite.tensor.contents %[[arg1_mul]] overwrites %arg1
 # CHECK-DAG: %[[arg0_mul:.+]] = torch.aten.mul.Tensor %arg0, %[[arg1_mul]]
+# TODO: Enable these checks once the IR generated is same for both nightly and stable Torch version.
+# C_HECK-DAG: %[[FALSE:.+]] = torch.constant.bool false
+# C_HECK-DAG: %[[COPY:.+]] = torch.aten.copy %[[arg1_copy]], %[[arg1_mul]], %[[FALSE]] : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32>, !torch.bool -> !torch.vtensor<[3,4],f32>
+# C_HECK-DAG: torch.overwrite.tensor.contents %[[COPY]] overwrites %arg1
 # CHECK:     return %[[arg0_mul]]
 def test_user_input_mutate():
     class Basic(nn.Module):
