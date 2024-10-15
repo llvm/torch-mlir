@@ -1736,7 +1736,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                                              "Unimplemented: unranked tensor");
         unsigned rank = *maybeRank;
 
-        SmallVector<int64_t> padding, strides, dilations, outputPadding, outputShape;
+        SmallVector<int64_t> padding, strides, dilations, outputPadding,
+            outputShape;
         SmallVector<int64_t> defaultPadding, defaultStrides, defaultDilations,
             defaultOutputPadding;
         for (unsigned i = 0; i < rank - 2; i++) {
@@ -1777,7 +1778,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               binder.op,
               "output_padding list size does not match the number of axes");
         }
-	        auto inputTensorType = cast<Torch::ValueTensorType>(input.getType());
+        auto inputTensorType = cast<Torch::ValueTensorType>(input.getType());
         if (!inputTensorType || !inputTensorType.hasSizes()) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected input type having sizes");
@@ -1794,7 +1795,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           for (unsigned i = 0; i < rank - 2; i++) {
             defaultOutputShape.push_back(inputShape[2 + i] * strides[i]);
           }
-          if (binder.s64IntegerArrayAttr(outputShape, "output_shape", defaultOutputShape))
+          if (binder.s64IntegerArrayAttr(outputShape, "output_shape",
+                                         defaultOutputShape))
             return failure();
           SmallVector<int64_t> paddingEnd;
           for (unsigned i = 0; i < rank - 2; i++) {
