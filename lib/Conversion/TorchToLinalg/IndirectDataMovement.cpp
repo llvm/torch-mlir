@@ -224,20 +224,19 @@ public:
     Value offsets = adaptor.getOffsets();
     Value mode = op.getMode();
     Value includeLastOffset = op.getIncludeLastOffset();
-    
+
     int64_t modeInt;
     if (!matchPattern(mode, m_TorchConstantInt(&modeInt))) {
       return rewriter.notifyMatchFailure(
           op, "mode is expected to be a constant integer value.");
     }
 
-    
     if (modeInt != torch_upstream::EmbeddingBagMode::MODE_SUM) {
       return rewriter.notifyMatchFailure(op,
                                          "Unimplemented: Mean and Max mode are "
                                          "not supported yet for EmbeddingBag.");
     }
-    
+
     bool discardLastOffset;
     if (!matchPattern(includeLastOffset,
                       m_TorchConstantBool(&discardLastOffset))) {
@@ -245,7 +244,7 @@ public:
           op,
           "include_last_offset is expected to be a constant boolean value.");
     }
-    
+
     auto weightTy = cast<RankedTensorType>(weight.getType());
     if (weightTy.getRank() != 2)
       return rewriter.notifyMatchFailure(op, "weight must be rank 2");

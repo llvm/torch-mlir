@@ -26,7 +26,6 @@ func.func @torchAtenEmbeddingBagPaddingIdx(%weight: !torch.vtensor<[1000000,64],
     %per_sample_weights = torch.constant.none
     %include_last_offset = torch.constant.bool false
     %padding_idx = torch.constant.none
-        
     %result0, %result1, %result2, %result3 = torch.aten.embedding_bag.padding_idx %weight,
                                                                                   %indices,
                                                                                   %offsets,
