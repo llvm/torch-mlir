@@ -1542,14 +1542,12 @@ void AtenRsubScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 OpFoldResult AtenRsubScalarOp::fold(FoldAdaptor adaptor) {
   auto fpFold = [](llvm::ArrayRef<double> inputs) {
     assert(inputs.size() == 3);
-    return inputs[0] * inputs[2] - inputs[1];
+    return inputs[1] - inputs[0] * inputs[2];
   };
 
   auto intFold = [](llvm::ArrayRef<APInt> inputs) {
     assert(inputs.size() == 3);
-    int64_t bits = inputs[0].getBitWidth();
-    APInt other(bits, inputs[1].getLimitedValue());
-    return inputs[0] * inputs[2] - inputs[1];
+    return inputs[1] - inputs[0] * inputs[2];
   };
 
   return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
@@ -2004,20 +2002,26 @@ void AtenDivTensorModeOp::getCanonicalizationPatterns(
 // ===----------------------------------------------------------------------===//
 
 OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
+  auto resultTy = dyn_cast_or_null<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype()) {
+    return nullptr;
+  }
   std::function<double(ArrayRef<double>)> fpFold;
   std::function<APInt(ArrayRef<APInt>)> intFold;
 
+  auto unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
   auto roundMode = dyn_cast_or_null<StringAttr>(adaptor.getRoundingMode());
   if (roundMode.getValue().str() == "floor") {
     fpFold = [](llvm::ArrayRef<double> inputs) {
       assert(inputs.size() == 2);
       return (int64_t)std::floor(inputs[0] / inputs[1]);
     };
-    intFold = [](llvm::ArrayRef<APInt> inputs) {
+    intFold = [unsign](llvm::ArrayRef<APInt> inputs) {
       assert(inputs.size() == 2);
-      auto res =
-          std::floor(inputs[0].getSExtValue() / inputs[1].getSExtValue());
+      auto lhs = unsign ? inputs[0].getZExtValue() : inputs[0].getSExtValue();
+      auto rhs = unsign ? inputs[1].getZExtValue() : inputs[1].getSExtValue();
       int64_t bits = std::max(inputs[0].getBitWidth(), inputs[1].getBitWidth());
+      auto res = std::floor(lhs / rhs);
       return APInt(bits, res);
     };
   } else {
@@ -2025,11 +2029,12 @@ OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
       assert(inputs.size() == 2);
       return (int64_t)std::trunc(inputs[0] / inputs[1]);
     };
-    intFold = [](llvm::ArrayRef<APInt> inputs) {
+    intFold = [unsign](llvm::ArrayRef<APInt> inputs) {
       assert(inputs.size() == 2);
-      auto res =
-          std::trunc(inputs[0].getSExtValue() / inputs[1].getSExtValue());
+      auto lhs = unsign ? inputs[0].getZExtValue() : inputs[0].getSExtValue();
+      auto rhs = unsign ? inputs[1].getZExtValue() : inputs[1].getSExtValue();
       int64_t bits = std::max(inputs[0].getBitWidth(), inputs[1].getBitWidth());
+      auto res = std::trunc(lhs / rhs);
       return APInt(bits, res);
     };
   }
@@ -3646,16 +3651,21 @@ OpFoldResult AtenRemainderIntOp::fold(FoldAdaptor adaptor) {
 // ===----------------------------------------------------------------------===//
 
 OpFoldResult AtenRemainderScalarOp::fold(FoldAdaptor adaptor) {
+  auto resultTy = dyn_cast_or_null<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype()) {
+    return nullptr;
+  }
+
+  auto unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
   auto fpFold = [](llvm::ArrayRef<double> inputs) {
     assert(inputs.size() == 2);
     return std::fmod(inputs[0], inputs[1]);
   };
 
-  auto intFold = [](llvm::ArrayRef<APInt> inputs) {
+  auto intFold = [unsign](llvm::ArrayRef<APInt> inputs) {
     assert(inputs.size() == 2);
-    int64_t bits = inputs[0].getBitWidth();
-    APInt other(bits, inputs[1].getLimitedValue());
-    return inputs[0].srem(other);
+    auto ret = unsign ? inputs[0].urem(inputs[1]) : inputs[0].srem(inputs[1]);
+    return ret;
   };
 
   return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
@@ -4304,8 +4314,17 @@ OpFoldResult AtenIntTensorOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   }
 
-  auto selfValue = dense.getSplatValue<IntegerAttr>().getValue();
-  return getI64IntegerAttr(getContext(), selfValue.getSExtValue());
+  auto splat = dense.getSplatValue<Attribute>();
+  if (auto intAttr = dyn_cast<IntegerAttr>(splat)) {
+    return intAttr.getType().isUnsignedInteger()
+               ? getI64IntegerAttr(getContext(), intAttr.getUInt())
+               : getI64IntegerAttr(getContext(), intAttr.getSInt());
+  }
+  if (auto floatAttr = dyn_cast<FloatAttr>(splat)) {
+    return getF64FloatAttr(getContext(), floatAttr.getValueAsDouble());
+  }
+
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
