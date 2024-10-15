@@ -2771,12 +2771,13 @@ static Value NearestInterpolate(OpBuilder &b, Location loc,
   return retVal;
 }
 
-static Value BilinearInterpolate(OpBuilder &b,
-                                 Aten__InterpolateSizeListScaleListOp op,
-                                 Location loc, SmallVector<Value> outputSizes,
-                                 Value input, SmallVector<Value> inputSizes,
-                                 SmallVector<Value> scaleValues,
-                                 std::string coordStr) {
+static SmallVector<Value>
+CoordinateTransform(OpBuilder &b, Aten__InterpolateSizeListScaleListOp op,
+                    Location loc, SmallVector<Value> outputSizes, Value input,
+                    SmallVector<Value> inputSizes,
+                    SmallVector<Value> scaleValues, std::string coordStr,
+                    bool alignCornersBool, SmallVector<Value> indices) {
+
   unsigned dimOffset = 2;
   auto inputType = cast<RankedTensorType>(input.getType());
   auto inputRank = inputType.getRank();
@@ -2785,15 +2786,7 @@ static Value BilinearInterpolate(OpBuilder &b,
   Value cstHalf = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.5));
   Value zero = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.0));
 
-  bool alignCornersBool;
-  matchPattern(op.getAlignCorners(), m_TorchConstantBool(&alignCornersBool));
-
-  SmallVector<Value> indices;
-  for (unsigned i = 0; i < inputRank; i++) {
-    indices.push_back(b.create<linalg::IndexOp>(loc, i));
-  }
-
-  SmallVector<Value> proj, projEps, high, low, highFP, lowFP;
+  SmallVector<Value> proj;
   for (unsigned i = 0; i < inputRank - dimOffset; i++) {
     // length_original
     Value inputFP =
@@ -2863,6 +2856,38 @@ static Value BilinearInterpolate(OpBuilder &b,
     // clip to [0,length_original - 1].
     // proj is properly within the input image.
     proj.push_back(b.create<arith::MinimumFOp>(loc, max, inputSubOne));
+  }
+  return proj;
+}
+
+static Value BilinearInterpolate(OpBuilder &b,
+                                 Aten__InterpolateSizeListScaleListOp op,
+                                 Location loc, SmallVector<Value> outputSizes,
+                                 Value input, SmallVector<Value> inputSizes,
+                                 SmallVector<Value> scaleValues,
+                                 std::string coordStr) {
+  unsigned dimOffset = 2;
+  auto inputType = cast<RankedTensorType>(input.getType());
+  auto inputRank = inputType.getRank();
+
+  Value cstOneFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.0));
+
+  bool alignCornersBool;
+  matchPattern(op.getAlignCorners(), m_TorchConstantBool(&alignCornersBool));
+
+  SmallVector<Value> indices;
+  for (unsigned i = 0; i < inputRank; i++) {
+    indices.push_back(b.create<linalg::IndexOp>(loc, i));
+  }
+
+  SmallVector<Value> proj, high, low, highFP, lowFP;
+  proj = CoordinateTransform(b, op, loc, outputSizes, input, inputSizes,
+                             scaleValues, coordStr, alignCornersBool, indices);
+  for (unsigned i = 0; i < inputRank - dimOffset; i++) {
+    // length_original
+    Value inputFP =
+        b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizes[i]);
+    Value inputSubOne = b.create<arith::SubFOp>(loc, inputFP, cstOneFloat);
 
     // for bilinear interpolation, we look for the nearest indices below and
     // above proj
@@ -2926,6 +2951,158 @@ static Value BilinearInterpolate(OpBuilder &b,
   return b.create<arith::AddFOp>(loc, left, right);
 }
 
+static Value BicubicInterpolate(OpBuilder &b,
+                                Aten__InterpolateSizeListScaleListOp op,
+                                Location loc, SmallVector<Value> outputSizes,
+                                Value input, SmallVector<Value> inputSizes,
+                                SmallVector<Value> scaleValues,
+                                std::string coordStr) {
+  unsigned dimOffset = 2;
+  auto inputType = cast<RankedTensorType>(input.getType());
+  auto inputRank = inputType.getRank();
+
+  Value inputFPH =
+      b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizes[0]);
+  Value inputFPW =
+      b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizes[1]);
+
+  Value a = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(-0.75));
+  Value zero = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.0));
+  Value cstOneFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.0));
+  Value cstTwoFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(2.0));
+  Value cstThreeFloat =
+      b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(3.0));
+  Value cstFourFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(4.0));
+  Value cstFiveFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(5.0));
+  Value cstEightFloat =
+      b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(8.0));
+
+  auto WeightLessThanEqualOne = [&](Value xDistance) -> Value {
+    Value xDistanceSquared = b.create<arith::MulFOp>(loc, xDistance, xDistance);
+    Value xDistanceCubed =
+        b.create<arith::MulFOp>(loc, xDistanceSquared, xDistance);
+
+    Value lessEqualOne = b.create<arith::AddFOp>(loc, a, cstTwoFloat);
+    lessEqualOne = b.create<arith::MulFOp>(loc, xDistanceCubed, lessEqualOne);
+    Value aPlusThree = b.create<arith::AddFOp>(loc, a, cstThreeFloat);
+    aPlusThree = b.create<arith::MulFOp>(loc, xDistanceSquared, aPlusThree);
+    lessEqualOne = b.create<arith::SubFOp>(loc, lessEqualOne, aPlusThree);
+    lessEqualOne = b.create<arith::AddFOp>(loc, lessEqualOne, cstOneFloat);
+
+    return lessEqualOne;
+  };
+
+  auto WeightLessThanTwo = [&](Value xDistance) -> Value {
+    Value xDistanceSquared = b.create<arith::MulFOp>(loc, xDistance, xDistance);
+    Value xDistanceCubed =
+        b.create<arith::MulFOp>(loc, xDistanceSquared, xDistance);
+    Value lessThanTwo = b.create<arith::MulFOp>(loc, xDistanceCubed, a);
+
+    Value fiveA = b.create<arith::MulFOp>(loc, xDistanceSquared, a);
+    fiveA = b.create<arith::MulFOp>(loc, fiveA, cstFiveFloat);
+    lessThanTwo = b.create<arith::SubFOp>(loc, lessThanTwo, fiveA);
+
+    Value eightA = b.create<arith::MulFOp>(loc, a, xDistance);
+    eightA = b.create<arith::MulFOp>(loc, eightA, cstEightFloat);
+    lessThanTwo = b.create<arith::AddFOp>(loc, eightA, lessThanTwo);
+
+    Value fourA = b.create<arith::MulFOp>(loc, a, cstFourFloat);
+    lessThanTwo = b.create<arith::SubFOp>(loc, lessThanTwo, fourA);
+    return lessThanTwo;
+  };
+
+  bool alignCornersBool;
+  matchPattern(op.getAlignCorners(), m_TorchConstantBool(&alignCornersBool));
+
+  SmallVector<Value> indices;
+  for (unsigned i = 0; i < inputRank; i++) {
+    indices.push_back(b.create<linalg::IndexOp>(loc, i));
+  }
+
+  SmallVector<Value> proj;
+  proj = CoordinateTransform(b, op, loc, outputSizes, input, inputSizes,
+                             scaleValues, coordStr, alignCornersBool, indices);
+
+  Value x1 = b.create<math::CeilOp>(loc, proj[1]);
+  Value x_1 = b.create<arith::SubFOp>(loc, x1, cstOneFloat);
+  Value x_2 = b.create<arith::SubFOp>(loc, x_1, cstOneFloat);
+  Value x2 = b.create<arith::AddFOp>(loc, x1, cstOneFloat);
+
+  Value y1 = b.create<math::CeilOp>(loc, proj[0]);
+  Value y_1 = b.create<arith::SubFOp>(loc, y1, cstOneFloat);
+  Value y_2 = b.create<arith::SubFOp>(loc, y_1, cstOneFloat);
+  Value y2 = b.create<arith::AddFOp>(loc, y1, cstOneFloat);
+
+  Value y2Distance = b.create<arith::SubFOp>(loc, proj[0], y2);
+  y2Distance = b.create<math::AbsFOp>(loc, y2Distance);
+  Value y1Distance = b.create<arith::SubFOp>(loc, proj[0], y1);
+  y1Distance = b.create<math::AbsFOp>(loc, y1Distance);
+  Value y_1Distance = b.create<arith::SubFOp>(loc, proj[0], y_1);
+  y_1Distance = b.create<math::AbsFOp>(loc, y_1Distance);
+  Value y_2Distance = b.create<arith::SubFOp>(loc, proj[0], y_2);
+  y_2Distance = b.create<math::AbsFOp>(loc, y_2Distance);
+
+  Value x2Distance = b.create<arith::SubFOp>(loc, proj[1], x2);
+  x2Distance = b.create<math::AbsFOp>(loc, x2Distance);
+  Value x1Distance = b.create<arith::SubFOp>(loc, proj[1], x1);
+  x1Distance = b.create<math::AbsFOp>(loc, x1Distance);
+  Value x_1Distance = b.create<arith::SubFOp>(loc, proj[1], x_1);
+  x_1Distance = b.create<math::AbsFOp>(loc, x_1Distance);
+  Value x_2Distance = b.create<arith::SubFOp>(loc, proj[1], x_2);
+  x_2Distance = b.create<math::AbsFOp>(loc, x_2Distance);
+
+  SmallVector<Value> y{y_2, y_1, y1, y2};
+  SmallVector<Value> x{x_2, x_1, x1, x2};
+  SmallVector<Value> yDistance{y_2Distance, y_1Distance, y1Distance,
+                               y2Distance};
+  SmallVector<Value> xDistance{x_2Distance, x_1Distance, x1Distance,
+                               x2Distance};
+  SmallVector<Value> wys{
+      WeightLessThanTwo(y_2Distance), WeightLessThanEqualOne(y_1Distance),
+      WeightLessThanEqualOne(y1Distance), WeightLessThanTwo(y2Distance)};
+  SmallVector<Value> wxs{
+      WeightLessThanTwo(x_2Distance), WeightLessThanEqualOne(x_1Distance),
+      WeightLessThanEqualOne(x1Distance), WeightLessThanTwo(x2Distance)};
+
+  // f(x_orig, y_orig) = Sum_y Sum_x W(x_original - x)*input[x,y]
+  //                     * W(y_original - y)
+  Value fxy = zero;
+
+  for (int j = 0; j < 4; j++) {
+    Value wy = wys[j];
+    Value xInterpy = zero;
+
+    y[j] = b.create<arith::MaximumFOp>(loc, y[j], zero);
+    Value inputHSubOne = b.create<arith::SubFOp>(loc, inputFPH, cstOneFloat);
+    y[j] = b.create<arith::MinimumFOp>(loc, y[j], inputHSubOne);
+
+    Value yInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), y[j]);
+    Value yIndex = b.create<arith::IndexCastOp>(loc, b.getIndexType(), yInt);
+    indices[dimOffset] = yIndex;
+
+    for (int i = 0; i < 4; i++) {
+      Value wx = wxs[i];
+
+      x[i] = b.create<arith::MaximumFOp>(loc, x[i], zero);
+      Value inputWSubOne = b.create<arith::SubFOp>(loc, inputFPW, cstOneFloat);
+      x[i] = b.create<arith::MinimumFOp>(loc, x[i], inputWSubOne);
+
+      Value xInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), x[i]);
+      Value xIndex = b.create<arith::IndexCastOp>(loc, b.getIndexType(), xInt);
+      indices[dimOffset + 1] = xIndex;
+
+      Value p = b.create<tensor::ExtractOp>(loc, input, indices);
+
+      Value wxp = b.create<arith::MulFOp>(loc, wx, p);
+      xInterpy = b.create<arith::AddFOp>(loc, xInterpy, wxp);
+    }
+    Value wyXInterpy = b.create<arith::MulFOp>(loc, wy, xInterpy);
+    fxy = b.create<arith::AddFOp>(loc, fxy, wyXInterpy);
+  }
+
+  return fxy;
+}
+
 namespace {
 class ConvertInterpolateOp
     : public OpConversionPattern<Aten__InterpolateSizeListScaleListOp> {
@@ -2941,7 +3118,8 @@ public:
     // coordinate_transformation_mode="asymmetric" will lower to an interpolate
     // op with the non-standard mode="bilinear_asymmetric".
     matchPattern(op.getMode(), m_TorchConstantStr(mode));
-    if (mode.substr(0, 8) != "bilinear" && mode.substr(0, 7) != "nearest") {
+    if (mode.substr(0, 8) != "bilinear" && mode.substr(0, 7) != "nearest" &&
+        mode.substr(0, 5) != "cubic") {
       return failure();
     }
 
@@ -3030,6 +3208,10 @@ public:
                     retVal = BilinearInterpolate(
                         b, op, loc, outputSizeIntValues, input, inputSizes,
                         ScaleFactorFloatValues, mode.substr(8));
+                  } else if (mode.substr(0, 5) == "cubic") {
+                    retVal = BicubicInterpolate(
+                        b, op, loc, outputSizeIntValues, input, inputSizes,
+                        ScaleFactorFloatValues, mode.substr(5));
                   }
                   b.create<linalg::YieldOp>(loc, retVal);
                 })
