@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/Iterators.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
@@ -697,16 +698,20 @@ public:
 
     if (selfSize && otherSize) {
       if (selfSize.getSelf() != otherSize.getSelf())
-        return failure();
-
-      if (selfSize.getDim() != otherSize.getDim())
-        return failure();
+        return rewriter.notifyMatchFailure(op, "sizes not of same tensor");
+      int64_t dimSelf, dimOther;
+      if ( (selfSize.getDim() != otherSize.getDim()) && 
+            (!matchPattern(selfSize.getDim(), m_TorchConstantInt(&dimSelf)) 
+                || !matchPattern(otherSize.getDim(), m_TorchConstantInt(&dimOther)) || (dimSelf != dimOther)
+            )
+          )
+        return rewriter.notifyMatchFailure(op, "sizes not of same dim");
 
       rewriter.replaceOp(op, op.getSelf());
       return success();
     }
 
-    return failure();
+    return rewriter.notifyMatchFailure(op, "unable to fold");
   }
 };
 } // namespace
@@ -889,6 +894,23 @@ public:
 } // namespace
 
 namespace {
+
+bool isSourceOpForShapeScalarization(Operation *op) {
+  return llvm::isa<AtenSizeIntOp, Torch::ConstantIntOp, Torch::ConstantBoolOp, Aten_ShapeAsTensorOp, Torch::ValueTensorLiteralOp>(op);
+}
+
+bool isPrimListOfInts(Operation *op) {
+  auto primListOp = dyn_cast<Torch::PrimListConstructOp>(op);
+  if (!primListOp)
+    return false;
+  auto listType = dyn_cast<Torch::ListType>(primListOp.getType());
+  if (!listType)
+    return false;
+  return llvm::isa<Torch::IntType>(listType.getContainedType());
+}
+
+}
+namespace {
 class ScalarizeShapesPass : public ScalarizeShapesBase<ScalarizeShapesPass> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -898,6 +920,7 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
+    ConversionTarget target(*context);
     patterns.insert<PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
                     PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
                     PropagateAtenSliceTensorPattern, FoldAtenTensorSplatPattern,
@@ -921,15 +944,37 @@ public:
 
     context->getLoadedDialect<mlir::arith::ArithDialect>()
         ->getCanonicalizationPatterns(patterns);
-    if (failed(applyPatternsAndFoldGreedily(getOperation(),
+    
+    auto funcOp = getOperation();
+    DenseSet<Operation *> shapeCalculationOps;
+    funcOp.walk<WalkOrder::PostOrder, mlir::ReverseIterator>([&](Operation *op){
+        if (isPrimListOfInts(op) || isSourceOpForShapeScalarization(op) || isa<AtenViewOp>(op)){
+          shapeCalculationOps.insert(op);
+          return;
+        }
+        for (OpOperand &use : op->getUses()){
+          Operation* userOp = use.getOwner();
+          if (shapeCalculationOps.contains(userOp) && !isSourceOpForShapeScalarization(userOp)) {
+            shapeCalculationOps.insert(op);
+            return;
+          }
+        }
+        op->emitWarning("Op did not get added to worklist.");
+        return;
+    });
+    SmallVector<Operation *> opsToRewrite;
+    for (Operation *op : shapeCalculationOps) {
+      opsToRewrite.push_back(op);
+    }
+    if (failed(applyOpPatternsAndFold(opsToRewrite,
                                             std::move(patterns)))) {
       return signalPassFailure();
     }
-  }
+}
 };
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::Torch::createScalarizeShapesPass() {
-  return std::make_unique<ScalarizeShapesPass>();
+return std::make_unique<ScalarizeShapesPass>();
 }
