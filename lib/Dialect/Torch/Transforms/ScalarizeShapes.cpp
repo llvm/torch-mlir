@@ -63,6 +63,29 @@ LogicalResult getListOperands(Value value, SmallVector<Value> &vals) {
   return success();
 }
 
+LogicalResult constructListFromLiteral(PatternRewriter &rewriter,
+                                       ValueTensorLiteralOp literalOp,
+                                       SmallVector<Value> &vals) {
+  // only supports splat ValueTensorLiterals for now. TODO: add support for
+  // small non-splat valuetensorliterals.
+  auto ty = dyn_cast<ValueTensorType>(literalOp.getType());
+  if (!ty || !ty.hasSizes())
+    return failure();
+  auto attr = dyn_cast_or_null<SplatElementsAttr>(literalOp.getValue());
+  if (!attr)
+    return failure();
+  auto attrInt = dyn_cast<IntegerAttr>(attr.getSplatValue<Attribute>());
+  if (!attrInt)
+    return failure();
+  IntegerType intty = cast<IntegerType>(attrInt.getType());
+  if (!intty.isSignedInteger())
+    return failure();
+  Value materializedVal = rewriter.create<Torch::ConstantIntOp>(
+      literalOp.getLoc(), attrInt.getSInt());
+  vals.resize(vals.size() + ty.getSizes()[0], materializedVal);
+  return success();
+}
+
 LogicalResult getListFromTensor(Value value, SmallVector<Value> &vals) {
   constexpr int64_t kMaxFold = 16;
   if (auto tensor = value.getDefiningOp<Torch::AtenTensorOp>())
@@ -352,6 +375,172 @@ public:
 } // namespace
 
 namespace {
+class PropagateAtenWhereSelfPattern : public OpRewritePattern<AtenWhereSelfOp> {
+public:
+  using OpRewritePattern<AtenWhereSelfOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenWhereSelfOp op,
+                                PatternRewriter &rewriter) const override {
+    Value condition = op.getCondition();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+    auto conditionTy = dyn_cast<Torch::ValueTensorType>(condition.getType());
+    if (!conditionTy || !conditionTy.hasSizes() ||
+        conditionTy.getSizes().size() != 1)
+      return rewriter.notifyMatchFailure(op, "bad condition type");
+    auto selfTy = dyn_cast<Torch::ValueTensorType>(self.getType());
+    if (!selfTy || !selfTy.hasSizes() || selfTy.getSizes().size() != 1)
+      return rewriter.notifyMatchFailure(op, "bad self type");
+    auto otherTy = dyn_cast<Torch::ValueTensorType>(other.getType());
+    if (!otherTy || !otherTy.hasSizes() || otherTy.getSizes().size() != 1)
+      return rewriter.notifyMatchFailure(op, "bad other type");
+    int64_t conditionSize = selfTy.getSizes()[0];
+    int64_t selfSize = selfTy.getSizes()[0];
+    int64_t otherSize = otherTy.getSizes()[0];
+
+    if (selfSize != otherSize || selfSize != conditionSize)
+      return rewriter.notifyMatchFailure(
+          op,
+          "unimplemented: support for propogating with implicit broadcasting.");
+
+    constexpr int64_t kMaxFold = 16;
+    if (selfSize == Torch::kUnknownSize || selfSize > kMaxFold)
+      return rewriter.notifyMatchFailure(op,
+                                         "arguments are dynamic or too big");
+
+    SmallVector<Value> conditionList, selfList, otherList;
+    if (failed(getListFromTensor(condition, conditionList)) ||
+        (int64_t)conditionList.size() != conditionSize)
+      return failure();
+
+    // If one of these tensors is a value tensor literal op, we will need to
+    // create constant ints in the IR to form a list. Before calling
+    // constructListFromLiteral, we must be certain that the conversion can no
+    // longer fail, otherwise we will cause an infinite loop of creating a
+    // constant and removing it.
+    LogicalResult selfFromList = getListFromTensor(self, selfList);
+    LogicalResult otherFromList = getListFromTensor(other, otherList);
+
+    if (failed(selfFromList) && failed(otherFromList))
+      return rewriter.notifyMatchFailure(
+          op, "At least one operand must succeed at constructing a list");
+
+    auto selfLiteral = self.getDefiningOp<Torch::ValueTensorLiteralOp>();
+    auto otherLiteral = other.getDefiningOp<Torch::ValueTensorLiteralOp>();
+    if (succeeded(selfFromList) && otherLiteral &&
+        failed(constructListFromLiteral(rewriter, otherLiteral, otherList)))
+      return failure();
+    if (succeeded(otherFromList) && selfLiteral &&
+        failed(constructListFromLiteral(rewriter, selfLiteral, selfList)))
+      return failure();
+    if ((int64_t)selfList.size() != selfSize ||
+        (int64_t)otherList.size() != otherSize)
+      // this should only occur if we did not generate IR with
+      // constructListFromLiteral
+      return failure();
+
+    Location loc = op.getLoc();
+    SmallVector<Value> whereVals;
+    auto rank0IntTy = rewriter.getType<Torch::ValueTensorType>(
+        ArrayRef<int64_t>({}), selfTy.getDtype());
+    auto rank0BoolTy = rewriter.getType<Torch::ValueTensorType>(
+        ArrayRef<int64_t>({}), conditionTy.getDtype());
+    for (uint64_t i = 0; i < selfList.size(); i++) {
+      Value rank0Cond = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+          loc, rank0BoolTy, conditionList[i]);
+      Value rank0Self = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+          loc, rank0IntTy, selfList[i]);
+      Value rank0Other = rewriter.create<Torch::PrimNumToTensorScalarOp>(
+          loc, rank0IntTy, otherList[i]);
+      Value rank0Where = rewriter.create<AtenWhereSelfOp>(
+          loc, rank0IntTy, rank0Cond, rank0Self, rank0Other);
+      whereVals.push_back(rewriter.create<AtenItemOp>(
+          loc, rewriter.getType<Torch::IntType>(), rank0Where));
+    }
+    Value list = rewriter.create<Torch::PrimListConstructOp>(
+        op.getLoc(), Torch::ListType::get(whereVals[0].getType()), whereVals);
+    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(op.getLoc());
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
+        op.getLoc(), rewriter.getBoolAttr(false));
+    rewriter.replaceOpWithNewOp<Torch::AtenTensorOp>(
+        op, op.getType(), list, cstNone, cstNone, cstFalse);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class PropagateAtenEqTensorPattern : public OpRewritePattern<AtenEqTensorOp> {
+public:
+  using OpRewritePattern<AtenEqTensorOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenEqTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Value self = op.getSelf();
+    Value other = op.getOther();
+    auto selfTy = dyn_cast<Torch::ValueTensorType>(self.getType());
+    if (!selfTy || !selfTy.hasSizes() || selfTy.getSizes().size() != 1)
+      return rewriter.notifyMatchFailure(op, "bad self type");
+    auto otherTy = dyn_cast<Torch::ValueTensorType>(other.getType());
+    if (!otherTy || !otherTy.hasSizes() || otherTy.getSizes().size() != 1)
+      return rewriter.notifyMatchFailure(op, "bad other type");
+    int64_t selfSize = selfTy.getSizes()[0];
+    int64_t otherSize = otherTy.getSizes()[0];
+
+    if (selfSize != otherSize)
+      return rewriter.notifyMatchFailure(
+          op,
+          "unimplemented: support for propogating with implicit broadcasting.");
+
+    constexpr int64_t kMaxFold = 16;
+    if (selfSize == Torch::kUnknownSize || selfSize > kMaxFold ||
+        otherSize == Torch::kUnknownSize || otherSize > kMaxFold)
+      return rewriter.notifyMatchFailure(op,
+                                         "self or other is dynamic or too big");
+
+    SmallVector<Value> selfList, otherList;
+    // If one of these tensors is a value tensor literal op, we will need to
+    // create constant ints in the IR to form a list. Before calling
+    // constructListFromLiteral, we must be certain that the conversion can no
+    // longer fail, otherwise we will cause an infinite loop of creating a
+    // constant and removing it.
+    LogicalResult selfFromList = getListFromTensor(self, selfList);
+    LogicalResult otherFromList = getListFromTensor(other, otherList);
+
+    if (failed(selfFromList) && failed(otherFromList))
+      return rewriter.notifyMatchFailure(
+          op, "At least one operand must succeed at constructing a list");
+
+    auto selfLiteral = self.getDefiningOp<Torch::ValueTensorLiteralOp>();
+    auto otherLiteral = other.getDefiningOp<Torch::ValueTensorLiteralOp>();
+    if (succeeded(selfFromList) && otherLiteral &&
+        failed(constructListFromLiteral(rewriter, otherLiteral, otherList)))
+      return failure();
+    if (succeeded(otherFromList) && selfLiteral &&
+        failed(constructListFromLiteral(rewriter, selfLiteral, selfList)))
+      return failure();
+    if ((int64_t)selfList.size() != selfSize ||
+        (int64_t)otherList.size() != otherSize)
+      // this should only occur if we did not generate IR with
+      // constructListFromLiteral
+      return failure();
+
+    SmallVector<Value> eqVals;
+    for (uint64_t i = 0; i < selfList.size(); i++) {
+      eqVals.push_back(
+          rewriter.create<AtenEqIntOp>(op.getLoc(), selfList[i], otherList[i]));
+    }
+    Value list = rewriter.create<Torch::PrimListConstructOp>(
+        op.getLoc(), Torch::ListType::get(eqVals[0].getType()), eqVals);
+    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(op.getLoc());
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
+        op.getLoc(), rewriter.getBoolAttr(false));
+    rewriter.replaceOpWithNewOp<Torch::AtenTensorOp>(
+        op, op.getType(), list, cstNone, cstNone, cstFalse);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class PropagateAtenItemPattern : public OpRewritePattern<AtenItemOp> {
 public:
   using OpRewritePattern<AtenItemOp>::OpRewritePattern;
@@ -455,6 +644,26 @@ public:
 } // namespace
 
 namespace {
+class FoldAtenSqueezeDimPattern : public OpRewritePattern<AtenSqueezeDimOp> {
+public:
+  using OpRewritePattern<AtenSqueezeDimOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSqueezeDimOp op,
+                                PatternRewriter &rewriter) const override {
+    auto resultTy = cast<ValueTensorType>(op.getType());
+    if (!resultTy.hasSizes() || resultTy.getSizes().size() != 0)
+      return rewriter.notifyMatchFailure(op, "Unknown result shape");
+
+    if (auto atenFull = op.getSelf().getDefiningOp<AtenFullOp>()) {
+      rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(
+          op, resultTy, atenFull.getFillValue());
+      return success();
+    }
+    return failure();
+  }
+};
+} // namespace
+
+namespace {
 class FoldAtenWhereSelf : public OpRewritePattern<AtenWhereSelfOp> {
 public:
   using OpRewritePattern<AtenWhereSelfOp>::OpRewritePattern;
@@ -530,11 +739,139 @@ public:
                                                      none, none, none, none);
       return success();
     }
+    auto squeezeOp = op.getSelf().getDefiningOp<AtenSqueezeDimOp>();
+    if (squeezeOp && resultTy.getSizes().size() == 1) {
+      rewriter.replaceOp(op, squeezeOp.getSelf());
+      return success();
+    }
 
     return failure();
   }
 };
 } // namespace
+
+namespace {
+// This is a specific pattern for converting views like [?,...,?,lastDim] ->
+// [?,...,?,factor0,factor1] to unflatten, and views like
+// [?,...,?,factor0,factor1] -> [?,...,?,lastDim] to flatten, whenever it is
+// possible to infer that all but last shared dim match
+// TODO: move this to an actual canonicalizer for view after deleting the
+// conflicting decompositions for flatten/unflatten -> view.
+class CanonicalizeAtenViewPattern : public OpRewritePattern<AtenViewOp> {
+public:
+  using OpRewritePattern<AtenViewOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenViewOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value> viewSizes;
+    if (failed(getListOperands(op.getSize(), viewSizes)))
+      return rewriter.notifyMatchFailure(
+          op, "view size must be from a list construct");
+    auto selfTy = dyn_cast<Torch::ValueTensorType>(op.getSelf().getType());
+    if (!selfTy || !selfTy.hasSizes())
+      return rewriter.notifyMatchFailure(op, "missing input type or sizes");
+    auto resultTy = dyn_cast<Torch::ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.hasSizes() ||
+        resultTy.getSizes().size() != viewSizes.size())
+      return rewriter.notifyMatchFailure(op, "missing result type or sizes");
+    int64_t inRank = selfTy.getSizes().size();
+    int64_t outRank = resultTy.getSizes().size();
+
+    SmallVector<int64_t> sizes(selfTy.getSizes());
+    int64_t endMatchingDim = -1;
+    // input sizes vs. provided view sizes comparison loop
+    for (int64_t i = 0; i < std::min(outRank, inRank); i++) {
+      int64_t providedSize;
+      bool providedStatic =
+          matchPattern(viewSizes[i], m_TorchConstantInt(&providedSize));
+      // if sizes[i] is static, it must match a constant in viewSizes[i]
+      if (sizes[i] != Torch::kUnknownSize) {
+        if (!providedStatic)
+          return rewriter.notifyMatchFailure(
+              op, "unsupported: found static input dim, but unable to match "
+                  "provided view size on a constant. See position : " +
+                      std::to_string(i));
+        if (providedSize != sizes[i]) {
+          endMatchingDim = i;
+          break;
+        }
+        continue;
+      }
+      // the remaining assumes sizes[i] is dynamic
+      // if provided dim is static, we can't verify it is a flatten/unflatten
+      // unless -1
+      if (i == outRank - 1 && providedStatic && providedSize == -1) {
+        endMatchingDim = i;
+        break;
+      }
+      if (providedStatic)
+        return rewriter.notifyMatchFailure(
+            op, "unexpected static view dim corresponding to dynamic input dim "
+                "at position : " +
+                    std::to_string(i));
+      auto sizeIntOp = viewSizes[i].getDefiningOp<AtenSizeIntOp>();
+      // if we don't have a size int op on self, fail
+      if (!sizeIntOp || sizeIntOp.getSelf() != op.getSelf())
+        return rewriter.notifyMatchFailure(
+            op, "expected dynamic view dim to come from a corresponding "
+                "size.int op. See position : " +
+                    std::to_string(i));
+      int64_t dim;
+      // if the dim of the size int op doesn't match, fail
+      if (!matchPattern(sizeIntOp.getDim(), m_TorchConstantInt(&dim)) ||
+          dim != i)
+        return rewriter.notifyMatchFailure(
+            op,
+            "size int op dim cannot be matched to current dim at position : " +
+                std::to_string(i));
+      // passing the previous checks means viewSizes[i] = aten.size.int(self,
+      // i), so continue
+    }
+    // if all dims match and the ranks are equal, fold
+    if (endMatchingDim == -1 && inRank == outRank) {
+      rewriter.replaceOp(op, op.getSelf());
+      return success();
+    }
+    if (endMatchingDim > -1 && inRank > outRank) {
+      // only support flattening last dim
+      if (endMatchingDim != outRank - 1)
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: output has more than back dim mismatching");
+      // flatten
+      Value start =
+          rewriter.create<Torch::ConstantIntOp>(op.getLoc(), endMatchingDim);
+      Value end =
+          rewriter.create<Torch::ConstantIntOp>(op.getLoc(), inRank - 1);
+      rewriter.replaceOpWithNewOp<AtenFlattenUsingIntsOp>(
+          op, resultTy, op.getSelf(), start, end);
+      return success();
+    }
+    if (endMatchingDim > -1 && inRank < outRank) {
+      // only support unflattening last dim
+      if (endMatchingDim != inRank - 1)
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: input has more than back dim mismatching");
+      // unflatten
+      Value dim =
+          rewriter.create<Torch::ConstantIntOp>(op.getLoc(), endMatchingDim);
+      Value primList = rewriter.create<Torch::PrimListConstructOp>(
+          op.getLoc(), op.getSize().getType(),
+          ArrayRef<Value>(viewSizes.begin() + endMatchingDim, viewSizes.end()));
+      rewriter.replaceOpWithNewOp<AtenUnflattenIntOp>(
+          op, resultTy, op.getSelf(), dim, primList);
+      return success();
+    }
+    // examples that might reach this:
+    // input shape = [10, 5]; view sizes = [5, 10] (or dynamic variants)
+    // input shape = [dim0, dim1]; view sizes = [dim0, dim1, 1, 1] (unsqueezes)
+    // input shape = [dim0, dim1, 1, 1] view sizes = [dim0, dim1] (squeezes)
+    return rewriter.notifyMatchFailure(
+        op, "unhandled case: endMatchingDim=" + std::to_string(endMatchingDim) +
+                ", inRank=" + std::to_string(inRank) +
+                ", outRank=" + std::to_string(outRank));
+  }
+};
+} // namespace
+
 namespace {
 template <typename T> class RemoveUnusedPattern : public OpRewritePattern<T> {
 public:
@@ -561,18 +898,26 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
-    patterns
-        .insert<PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
-                PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
-                PropagateAtenSliceTensorPattern, FoldAtenTensorSplatPattern,
-                FoldAtenSqueezePattern, FoldAtenUnsqueezePattern,
-                FoldAtenWhereSelf, RemoveUnusedPattern<Torch::AtenSizeIntOp>,
-                RemoveUnusedPattern<Torch::AtenSliceTensorOp>,
-                RemoveUnusedPattern<Torch::AtenTensorOp>,
-                RemoveUnusedPattern<Torch::ConstantBoolOp>,
-                RemoveUnusedPattern<Torch::ConstantIntOp>,
-                RemoveUnusedPattern<Torch::ConstantNoneOp>,
-                RemoveUnusedPattern<Torch::PrimListConstructOp>>(context);
+    patterns.insert<PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
+                    PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
+                    PropagateAtenSliceTensorPattern, FoldAtenTensorSplatPattern,
+                    FoldAtenSqueezePattern, FoldAtenUnsqueezePattern,
+                    FoldAtenWhereSelf, CanonicalizeAtenViewPattern,
+                    PropagateAtenEqTensorPattern, PropagateAtenWhereSelfPattern,
+                    FoldAtenSqueezeDimPattern,
+                    RemoveUnusedPattern<Torch::AtenIntBoolOp>,
+                    RemoveUnusedPattern<Torch::AtenEqIntOp>,
+                    RemoveUnusedPattern<Torch::PrimNumToTensorScalarOp>,
+                    RemoveUnusedPattern<Torch::AtenFullOp>,
+                    RemoveUnusedPattern<Torch::AtenUnsqueezeOp>,
+                    RemoveUnusedPattern<Torch::AtenSqueezeDimOp>,
+                    RemoveUnusedPattern<Torch::AtenSizeIntOp>,
+                    RemoveUnusedPattern<Torch::AtenSliceTensorOp>,
+                    RemoveUnusedPattern<Torch::AtenTensorOp>,
+                    RemoveUnusedPattern<Torch::ConstantBoolOp>,
+                    RemoveUnusedPattern<Torch::ConstantIntOp>,
+                    RemoveUnusedPattern<Torch::ConstantNoneOp>,
+                    RemoveUnusedPattern<Torch::PrimListConstructOp>>(context);
 
     context->getLoadedDialect<mlir::arith::ArithDialect>()
         ->getCanonicalizationPatterns(patterns);
