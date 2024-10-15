@@ -2009,7 +2009,7 @@ OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
   std::function<double(ArrayRef<double>)> fpFold;
   std::function<APInt(ArrayRef<APInt>)> intFold;
 
-  bool unsign = false;
+  auto unsign = false;
   if (isa<mlir::IntegerType>(resultTy.getDtype())) {
     unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
   }
@@ -2018,7 +2018,7 @@ OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
   if (roundMode.getValue().str() == "floor") {
     fpFold = [](llvm::ArrayRef<double> inputs) {
       assert(inputs.size() == 2);
-      return (int64_t)std::floor(inputs[0] / inputs[1]);
+      return std::floor((double)inputs[0] / inputs[1]);
     };
     intFold = [unsign](llvm::ArrayRef<APInt> inputs) {
       assert(inputs.size() == 2);
@@ -2031,7 +2031,7 @@ OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
   } else {
     fpFold = [](llvm::ArrayRef<double> inputs) {
       assert(inputs.size() == 2);
-      return (int64_t)std::trunc(inputs[0] / inputs[1]);
+      return std::trunc((double)inputs[0] / inputs[1]);
     };
     intFold = [unsign](llvm::ArrayRef<APInt> inputs) {
       assert(inputs.size() == 2);
@@ -2042,7 +2042,8 @@ OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
       return APInt(bits, res);
     };
   }
-  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
+  return naryFolderHelper({adaptor.getSelf(), adaptor.getOther()}, getType(),
+                          fpFold, intFold);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3664,7 +3665,6 @@ OpFoldResult AtenRemainderScalarOp::fold(FoldAdaptor adaptor) {
   if (isa<mlir::IntegerType>(resultTy.getDtype())) {
     unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
   }
-
   auto fpFold = [](llvm::ArrayRef<double> inputs) {
     assert(inputs.size() == 2);
     return std::fmod(inputs[0], inputs[1]);
@@ -4317,19 +4317,31 @@ void AtenIntTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 
 OpFoldResult AtenIntTensorOp::fold(FoldAdaptor adaptor) {
   auto value = adaptor.getA();
-  auto dense = dyn_cast_or_null<DenseIntElementsAttr>(value);
+  auto dense = dyn_cast_or_null<DenseElementsAttr>(value);
   if (!dense) {
     return nullptr;
   }
 
   auto splat = dense.getSplatValue<Attribute>();
   if (auto intAttr = dyn_cast<IntegerAttr>(splat)) {
-    return intAttr.getType().isUnsignedInteger()
-               ? getI64IntegerAttr(getContext(), intAttr.getUInt())
-               : getI64IntegerAttr(getContext(), intAttr.getSInt());
+    auto type = getType();
+    if (!isa<mlir::IntegerType>(type)) {
+      return nullptr;
+    }
+
+    if (type.isSignlessInteger()) {
+      return getI64IntegerAttr(getContext(), intAttr.getInt());
+    } else if (type.isSignedInteger()) {
+      return getI64IntegerAttr(getContext(), intAttr.getSInt());
+    } else {
+      return getI64IntegerAttr(getContext(), intAttr.getUInt());
+    }
   }
+
   if (auto floatAttr = dyn_cast<FloatAttr>(splat)) {
-    return getF64FloatAttr(getContext(), floatAttr.getValueAsDouble());
+    return getI64IntegerAttr(
+        getContext(),
+        static_cast<long>(floatAttr.getValue().convertToDouble()));
   }
 
   return nullptr;
