@@ -379,6 +379,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     # variants.
     emit_with_mutating_variants(
         "aten::div.Tensor_mode : (Tensor, Tensor, str?) -> (Tensor)",
+        has_folder=True,
         has_canonicalizer=True,
     )
     emit_with_mutating_variants(
@@ -481,6 +482,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::xlogy.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit(
         "aten::rsub.Scalar : (Tensor, Scalar, Scalar) -> (Tensor)",
+        has_folder=True,
         has_canonicalizer=True,
     )
     emit("aten::gelu : (Tensor, str) -> (Tensor)")
@@ -928,7 +930,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::tensor.float : (float, int?, Device?, bool) -> (Tensor)", has_folder=True
     )
-    emit("aten::Int.Tensor : (Tensor) -> (int)", has_canonicalizer=True)
+    emit("aten::Int.Tensor : (Tensor) -> (int)", has_folder=True, has_canonicalizer=True)
     emit("aten::Float.Tensor : (Tensor) -> (float)", has_folder=True)
     emit_with_mutating_variants("aten::dropout : (Tensor, float, bool) -> (Tensor)")
     emit("aten::native_dropout : (Tensor, float, bool?) -> (Tensor, Tensor)")
@@ -1080,7 +1082,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         has_canonicalizer=True,
     )
     emit("aten::remainder.int : (int, int) -> (int)", has_folder=True)
-    emit("aten::remainder.Scalar : (Tensor, Scalar) -> (Tensor)")
+    emit("aten::remainder.Scalar : (Tensor, Scalar) -> (Tensor)", has_folder=True)
     emit("aten::remainder.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::add.int : (int, int) -> (int)", has_folder=True)
     emit("aten::sub.int : (int, int) -> (int)", has_folder=True)

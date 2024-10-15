@@ -1535,6 +1535,26 @@ void AtenRsubScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   });
 }
 
+// ===----------------------------------------------------------------------===//
+// AtenRSubScalarOp
+// ===----------------------------------------------------------------------===//
+
+OpFoldResult AtenRsubScalarOp::fold(FoldAdaptor adaptor) {
+  auto fpFold = [](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 3);
+    return inputs[0] * inputs[2] - inputs[1];
+  };
+
+  auto intFold = [](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 3);
+    int64_t bits = inputs[0].getBitWidth();
+    APInt other(bits, inputs[1].getLimitedValue());
+    return inputs[0] * inputs[2] - inputs[1];
+  };
+
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
+}
+
 //===----------------------------------------------------------------------===//
 // AtenMulTensorOp
 //===----------------------------------------------------------------------===//
@@ -1977,6 +1997,43 @@ void AtenDivTensorModeOp::getCanonicalizationPatterns(
   patterns.add(+[](AtenDivTensorModeOp op, PatternRewriter &rewriter) {
     return rewrite0DBinaryTensorOp(op, rewriter);
   });
+}
+
+// ===----------------------------------------------------------------------===//
+// AtenDivTensorModeOp
+// ===----------------------------------------------------------------------===//
+
+OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
+  std::function<double(ArrayRef<double>)> fpFold;
+  std::function<APInt(ArrayRef<APInt>)> intFold;
+
+  auto roundMode = dyn_cast_or_null<StringAttr>(adaptor.getRoundingMode());
+  if (roundMode.getValue().str() == "floor") {
+    fpFold = [](llvm::ArrayRef<double> inputs) {
+      assert(inputs.size() == 2);
+      return (int64_t)std::floor(inputs[0] / inputs[1]);
+    };
+    intFold = [](llvm::ArrayRef<APInt> inputs) {
+      assert(inputs.size() == 2);
+      auto res =
+          std::floor(inputs[0].getSExtValue() / inputs[1].getSExtValue());
+      int64_t bits = std::max(inputs[0].getBitWidth(), inputs[1].getBitWidth());
+      return APInt(bits, res);
+    };
+  } else {
+    fpFold = [](llvm::ArrayRef<double> inputs) {
+      assert(inputs.size() == 2);
+      return (int64_t)std::trunc(inputs[0] / inputs[1]);
+    };
+    intFold = [](llvm::ArrayRef<APInt> inputs) {
+      assert(inputs.size() == 2);
+      auto res =
+          std::trunc(inputs[0].getSExtValue() / inputs[1].getSExtValue());
+      int64_t bits = std::max(inputs[0].getBitWidth(), inputs[1].getBitWidth());
+      return APInt(bits, res);
+    };
+  }
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3584,6 +3641,26 @@ OpFoldResult AtenRemainderIntOp::fold(FoldAdaptor adaptor) {
       adaptor.getOperands(), [](int64_t a, int64_t b) { return a % b; });
 }
 
+// ===----------------------------------------------------------------------===//
+// AtenRemainderScalarOp
+// ===----------------------------------------------------------------------===//
+
+OpFoldResult AtenRemainderScalarOp::fold(FoldAdaptor adaptor) {
+  auto fpFold = [](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 2);
+    return std::fmod(inputs[0], inputs[1]);
+  };
+
+  auto intFold = [](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 2);
+    int64_t bits = inputs[0].getBitWidth();
+    APInt other(bits, inputs[1].getLimitedValue());
+    return inputs[0].srem(other);
+  };
+
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
+}
+
 //===----------------------------------------------------------------------===//
 // AtenAddIntOp
 //===----------------------------------------------------------------------===//
@@ -4214,6 +4291,21 @@ void AtenIntTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     rewriter.replaceOp(op, scalarInt);
     return success();
   });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenIntTensorOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenIntTensorOp::fold(FoldAdaptor adaptor) {
+  auto value = adaptor.getA();
+  auto dense = dyn_cast_or_null<DenseIntElementsAttr>(value);
+  if (!dense) {
+    return nullptr;
+  }
+
+  auto selfValue = dense.getSplatValue<IntegerAttr>().getValue();
+  return getI64IntegerAttr(getContext(), selfValue.getSExtValue());
 }
 
 //===----------------------------------------------------------------------===//
