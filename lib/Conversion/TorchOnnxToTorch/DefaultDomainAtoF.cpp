@@ -1690,20 +1690,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         std::string autoPad;
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
           return failure();
-        if (autoPad != "NOTSET") {
-          // TODO: Add support for `auto_pad` != "NOTSET"
-          return rewriter.notifyMatchFailure(
-              binder.op, "unsupported conversion: auto_pad != NOTSET");
-        }
-        SmallVector<int64_t> outputShape;
-        if (binder.s64IntegerArrayAttr(outputShape, "output_shape", {}))
-          return failure();
-        if (outputShape.size()) {
-          // TODO: Add support for non-None output_shape value.
-          return rewriter.notifyMatchFailure(
-              binder.op,
-              "unsupported conversion: output_shape should be absent");
-        }
         Torch::ValueTensorType resultType;
         Value input, weight;
         int64_t group;
@@ -1737,6 +1723,10 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               }
             }
           }
+        } else {
+          for (unsigned i = 0; i < weightShape.size() - 2; i++) {
+            kernelShape.push_back(weightShape[i + 2]);
+          }
         }
 
         // Determine the rank of input tensor.
@@ -1746,7 +1736,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                                              "Unimplemented: unranked tensor");
         unsigned rank = *maybeRank;
 
-        SmallVector<int64_t> padding, strides, dilations, outputPadding;
+        SmallVector<int64_t> padding, strides, dilations, outputPadding, outputShape;
         SmallVector<int64_t> defaultPadding, defaultStrides, defaultDilations,
             defaultOutputPadding;
         for (unsigned i = 0; i < rank - 2; i++) {
@@ -1762,13 +1752,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         // x2_begin…x1_end, x2_end,…], where xi_begin the number of pixels added
         // at the beginning of axis i and xi_end, the number of pixels added at
         // the end of axis i.
-        if (binder.s64IntegerArrayAttr(padding, "pads", defaultPadding)) {
-          return failure();
-        }
-        if (padding.size() != rank - 2 && padding.size() != 2 * (rank - 2)) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "padding list size does not match the number of axes");
-        }
         if (binder.s64IntegerArrayAttr(dilations, "dilations",
                                        defaultDilations)) {
           return failure();
@@ -1794,7 +1777,46 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               binder.op,
               "output_padding list size does not match the number of axes");
         }
+	        auto inputTensorType = cast<Torch::ValueTensorType>(input.getType());
+        if (!inputTensorType || !inputTensorType.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input type having sizes");
+        }
+        ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
 
+        if (autoPad == "NOTSET") {
+          // Explicit padding; read pads with defaults.
+          if (binder.s64IntegerArrayAttr(padding, "pads", defaultPadding))
+            return failure();
+        } else {
+          // Auto-padding; output_shape defaults to input_shape * strides.
+          SmallVector<int64_t> defaultOutputShape;
+          for (unsigned i = 0; i < rank - 2; i++) {
+            defaultOutputShape.push_back(inputShape[2 + i] * strides[i]);
+          }
+          if (binder.s64IntegerArrayAttr(outputShape, "output_shape", defaultOutputShape))
+            return failure();
+          SmallVector<int64_t> paddingEnd;
+          for (unsigned i = 0; i < rank - 2; i++) {
+            int64_t totalPadding =
+                strides[i] * (inputShape[2 + i] - 1) + outputPadding[i] +
+                ((kernelShape[i] - 1) * dilations[i] + 1) - outputShape[i];
+            int64_t half = totalPadding / 2;
+            int64_t remainder = totalPadding - half;
+            if (autoPad == "SAME_UPPER") {
+              padding.push_back(half);
+              paddingEnd.push_back(remainder);
+            } else {
+              padding.push_back(remainder);
+              paddingEnd.push_back(half);
+            }
+          }
+          padding.insert(padding.end(), paddingEnd.begin(), paddingEnd.end());
+        }
+        if (padding.size() != rank - 2 && padding.size() != 2 * (rank - 2)) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "padding list size does not match the number of axes");
+        }
         SmallVector<Value> cstPadding, cstStrides, cstDilations,
             cstOutputPadding;
         if (padding.size() != 2 * (rank - 2)) {
