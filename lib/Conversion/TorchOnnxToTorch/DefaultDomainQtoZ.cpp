@@ -2914,7 +2914,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         llvm::SmallVector<Value> operands;
         std::string mode, nearest_mode, coordTfMode;
         int64_t antialias, exclude_outside;
-        float extrapolation_value;
+        float extrapolation_value, cubic_coeff_a;
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
 
         if (auto attr = binder.op->getAttr("torch.onnx.axes")) {
@@ -2939,7 +2939,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.f32FloatAttr(extrapolation_value, "extrapolation_value",
                                 0.0) ||
             binder.customOpNameStringAttr(nearest_mode, "nearest_mode",
-                                          "round_prefer_floor"))
+                                          "round_prefer_floor") ||
+            binder.f32FloatAttr(cubic_coeff_a, "cubic_coeff_a", -0.75))
           return failure();
         if (antialias != 0) {
           return rewriter.notifyMatchFailure(
@@ -2983,8 +2984,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value alignCorners =
             coordTfMode == "align_corners" ? cstTrue : cstFalse;
         if (mode == "cubic") {
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "unimplemented: bicubic mode");
+          std::string modeStr = "cubic";
+          modeStr = modeStr + "_" + coordTfMode;
+          modeStrValue =
+              rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), modeStr);
         }
         // supported modes:
         // bilinear (half_pixel), bilinear with align_corners,
