@@ -2009,7 +2009,11 @@ OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
   std::function<double(ArrayRef<double>)> fpFold;
   std::function<APInt(ArrayRef<APInt>)> intFold;
 
-  auto unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
+  bool unsign = false;
+  if (isa<mlir::IntegerType>(resultTy.getDtype())) {
+    unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
+  }
+
   auto roundMode = dyn_cast_or_null<StringAttr>(adaptor.getRoundingMode());
   if (roundMode.getValue().str() == "floor") {
     fpFold = [](llvm::ArrayRef<double> inputs) {
@@ -3656,7 +3660,11 @@ OpFoldResult AtenRemainderScalarOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   }
 
-  auto unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
+  auto unsign = false;
+  if (isa<mlir::IntegerType>(resultTy.getDtype())) {
+    unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
+  }
+
   auto fpFold = [](llvm::ArrayRef<double> inputs) {
     assert(inputs.size() == 2);
     return std::fmod(inputs[0], inputs[1]);
