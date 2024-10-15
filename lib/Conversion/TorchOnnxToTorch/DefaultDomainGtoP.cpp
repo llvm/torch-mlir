@@ -1087,9 +1087,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
           return rewriter.notifyMatchFailure(binder.op,
                                              "auto_pad bind failure");
-        // if (autoPad != "NOTSET")
-        //   return rewriter.notifyMatchFailure(
-        //       binder.op, "unsupported conversion: auto_pad != NOTSET");
 
         Torch::ValueTensorType resultTypeOut;
         Value operand;
@@ -1153,11 +1150,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // x2_begin…x1_end, x2_end,…], where xi_begin the number of pixels added
         // at the beginning of axis i and xi_end, the number of pixels added at
         // the end of axis i.
-        if (autoPad == "NOTSET") {
-          // keep previous value
-        } else if (autoPad == "VALID") {
-          // keep previous value
-        } else {
+        if (autoPad != "NOTSET" && autoPad != "VALID") {
           const bool isSameLower = autoPad == "SAME_LOWER";
           const unsigned spatial = rank - 2;
           ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
@@ -1176,7 +1169,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             padding[spatial + dimIdx] = totalPad - padding[dimIdx];
           }
         }
-        if (padding.size() != spatial && padding.size() != 2 * spatial) {
+        if (padding.size() != static_cast<size_t>(spatial) &&
+            padding.size() != static_cast<size_t>(2 * spatial)) {
           return rewriter.notifyMatchFailure(
               binder.op, "padding list size does not match the number of axes");
         }
