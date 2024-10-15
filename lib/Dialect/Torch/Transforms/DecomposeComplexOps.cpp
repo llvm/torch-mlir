@@ -1974,6 +1974,121 @@ public:
 } // namespace
 
 namespace {
+/**
+ * Trilinear einstein sum, decomposed to use AtenEinsumOp.
+ */
+class DecomposeAten_TrilinearOp : public OpRewritePattern<Aten_TrilinearOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_TrilinearOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+
+    Value input1 = op.getI1();
+    Value input2 = op.getI2();
+    Value input3 = op.getI3();
+
+    // Expansions
+    SmallVector<int64_t> expand1;
+    SmallVector<int64_t> expand2;
+    SmallVector<int64_t> expand3;
+    if (!matchPattern(op.getExpand1(), m_TorchListOfConstantInts(expand1))) {
+      return rewriter.notifyMatchFailure(op, "expand1 should be constant");
+    }
+    if (!matchPattern(op.getExpand2(), m_TorchListOfConstantInts(expand2))) {
+      return rewriter.notifyMatchFailure(op, "expand2 should be constant");
+    }
+    if (!matchPattern(op.getExpand3(), m_TorchListOfConstantInts(expand3))) {
+      return rewriter.notifyMatchFailure(op, "expand3 should be constant");
+    }
+
+    SmallVector<int64_t> sumDim;
+    if (!matchPattern(op.getSumdim(), m_TorchListOfConstantInts(sumDim))) {
+      return rewriter.notifyMatchFailure(op, "sumDim should be constant");
+    }
+
+    int64_t unrollDim;
+    if (!matchPattern(op.getUnrollDim(), m_TorchConstantInt(&unrollDim))) {
+      return rewriter.notifyMatchFailure(op, "unrollDim should be constant");
+    }
+
+    // Expand the input tensors
+    SmallVector<Value, 3> expandedTensors = {input1, input2, input3};
+    for (auto expand : expand1) {
+      Value expandDim = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(expand));
+      Value expandedTensor = expandedTensors[0];
+      expandedTensors[0] =
+          *unsqueezeTensor(rewriter, op, expandedTensor, expandDim);
+    }
+    for (auto expand : expand2) {
+      Value expandDim = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(expand));
+      Value expandedTensor = expandedTensors[1];
+      expandedTensors[1] =
+          *unsqueezeTensor(rewriter, op, expandedTensor, expandDim);
+    }
+    for (auto expand : expand3) {
+      Value expandDim = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(expand));
+      Value expandedTensor = expandedTensors[2];
+      expandedTensors[2] =
+          *unsqueezeTensor(rewriter, op, expandedTensor, expandDim);
+    }
+
+    SmallVector<ValueTensorType> castedExpandTensors = {
+        cast<ValueTensorType>(expandedTensors[0].getType()),
+        cast<ValueTensorType>(expandedTensors[1].getType()),
+        cast<ValueTensorType>(expandedTensors[2].getType())};
+
+    // Create einsum tokens
+    auto expandedInput1Sizes = castedExpandTensors[0].getSizes();
+    int64_t rank = expandedInput1Sizes.size();
+    std::string indices;
+    for (int64_t i = 0; i < rank; ++i) {
+      if (i < 26) {
+        indices += static_cast<char>('a' + i);
+      } else {
+        indices += static_cast<char>('A' + i - 26);
+      }
+    }
+
+    std::string outputString = indices;
+    SmallVector<int64_t> sortedSumDims = sumDim;
+    std::sort(sortedSumDims.rbegin(), sortedSumDims.rend());
+    for (int dim : sumDim) {
+      if (!isValidDim(dim, rank)) {
+        return rewriter.notifyMatchFailure(op, "Invalid sumDim");
+      }
+
+      outputString.erase(outputString.begin() + dim);
+    }
+
+    std::string einsumEquation =
+        indices + "," + indices + "," + indices + "->" + outputString;
+    Value einsumEquationValue = rewriter.create<Torch::ConstantStrOp>(
+        loc, rewriter.getStringAttr(einsumEquation));
+
+    Type listElemType =
+        cast<BaseTensorType>(op.getType())
+            .getWithSizesAndDtype(
+                /*optionalSizes=*/std::nullopt, /*optionalDtype=*/nullptr);
+    Value inputTensorList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(listElemType), expandedTensors);
+
+    auto outputType = op.getType().cast<ValueTensorType>();
+    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
+    auto einsumOp = rewriter.create<Torch::AtenEinsumOp>(
+        op->getLoc(), outputType, einsumEquationValue, inputTensorList,
+        cstNone);
+    rewriter.replaceOp(op, einsumOp);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Calculate the trace of the input tensor as the sum over its diagonal
 // elements. This computation is performed as:
 //
@@ -9919,6 +10034,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_TrilinearOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftplusOp>(patterns);
