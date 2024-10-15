@@ -4318,7 +4318,7 @@ void AtenIntTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 OpFoldResult AtenIntTensorOp::fold(FoldAdaptor adaptor) {
   auto value = adaptor.getA();
   auto dense = dyn_cast_or_null<DenseElementsAttr>(value);
-  if (!dense.isSplat()) {
+  if (!dense || !dense.isSplat()) {
     return nullptr;
   }
 
