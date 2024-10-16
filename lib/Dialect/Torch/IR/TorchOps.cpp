@@ -2010,10 +2010,6 @@ OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
   std::function<APInt(ArrayRef<APInt>)> intFold;
 
   auto roundMode = dyn_cast_or_null<StringAttr>(adaptor.getRoundingMode());
-  if (!roundMode) {
-    return nullptr;
-  }
-
   auto unsign = false;
   if (isa<mlir::IntegerType>(resultTy.getDtype())) {
     unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
@@ -2021,7 +2017,9 @@ OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
 
   fpFold = [roundMode](llvm::ArrayRef<double> inputs) {
     assert(inputs.size() == 2);
-    if (roundMode.getValue().str() == "floor") {
+    if (!roundMode) {
+      return (double)inputs[0] / inputs[1];
+    } else if (roundMode.getValue().str() == "floor") {
       return std::floor((double)inputs[0] / inputs[1]);
     } else {
       return std::trunc((double)inputs[0] / inputs[1]);
@@ -2041,6 +2039,11 @@ OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
     }
     return APInt(bits, res);
   };
+
+  if (!roundMode) {
+    return naryFolderHelper({adaptor.getSelf(), adaptor.getOther()}, getType(),
+                            fpFold, std::nullopt);
+  }
 
   return naryFolderHelper({adaptor.getSelf(), adaptor.getOther()}, getType(),
                           fpFold, intFold);
