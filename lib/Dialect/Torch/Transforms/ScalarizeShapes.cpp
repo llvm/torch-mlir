@@ -10,8 +10,8 @@
 #include "PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Iterators.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
@@ -700,11 +700,10 @@ public:
       if (selfSize.getSelf() != otherSize.getSelf())
         return rewriter.notifyMatchFailure(op, "sizes not of same tensor");
       int64_t dimSelf, dimOther;
-      if ( (selfSize.getDim() != otherSize.getDim()) && 
-            (!matchPattern(selfSize.getDim(), m_TorchConstantInt(&dimSelf)) 
-                || !matchPattern(otherSize.getDim(), m_TorchConstantInt(&dimOther)) || (dimSelf != dimOther)
-            )
-          )
+      if ((selfSize.getDim() != otherSize.getDim()) &&
+          (!matchPattern(selfSize.getDim(), m_TorchConstantInt(&dimSelf)) ||
+           !matchPattern(otherSize.getDim(), m_TorchConstantInt(&dimOther)) ||
+           (dimSelf != dimOther)))
         return rewriter.notifyMatchFailure(op, "sizes not of same dim");
 
       rewriter.replaceOp(op, op.getSelf());
@@ -896,7 +895,8 @@ public:
 namespace {
 
 bool isSourceOpForShapeScalarization(Operation *op) {
-  return llvm::isa<AtenSizeIntOp, Torch::ConstantIntOp, Torch::ConstantBoolOp, Aten_ShapeAsTensorOp, Torch::ValueTensorLiteralOp>(op);
+  return llvm::isa<AtenSizeIntOp, Torch::ConstantIntOp, Torch::ConstantBoolOp,
+                   Aten_ShapeAsTensorOp, Torch::ValueTensorLiteralOp>(op);
 }
 
 bool isPrimListOfInts(Operation *op) {
@@ -909,7 +909,45 @@ bool isPrimListOfInts(Operation *op) {
   return llvm::isa<Torch::IntType>(listType.getContainedType());
 }
 
+bool isAnchorForShapeScalarization(Operation *op) {
+  return isPrimListOfInts(op) || llvm::isa<AtenViewOp>(op);
 }
+
+void populateScalarizationFoldPatterns(RewritePatternSet &patterns) {
+  patterns.insert<FoldAtenSqueezePattern, FoldAtenUnsqueezePattern,
+                  FoldAtenWhereSelf, FoldAtenSqueezeDimPattern>(
+      patterns.getContext());
+}
+
+void populateScalarizationCanonicalizePatterns(RewritePatternSet &patterns) {
+  patterns.add<CanonicalizeAtenViewPattern>(patterns.getContext());
+}
+
+void populateScalarizationPropagationPatterns(RewritePatternSet &patterns) {
+  patterns.insert<PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
+                  PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
+                  PropagateAtenSliceTensorPattern, PropagateAtenEqTensorPattern,
+                  PropagateAtenWhereSelfPattern>(patterns.getContext());
+}
+
+void populateScalarizationRemovePatterns(RewritePatternSet &patterns) {
+  patterns.insert<RemoveUnusedPattern<Torch::AtenIntBoolOp>,
+                  RemoveUnusedPattern<Torch::AtenEqIntOp>,
+                  RemoveUnusedPattern<Torch::PrimNumToTensorScalarOp>,
+                  RemoveUnusedPattern<Torch::AtenFullOp>,
+                  RemoveUnusedPattern<Torch::AtenUnsqueezeOp>,
+                  RemoveUnusedPattern<Torch::AtenSqueezeDimOp>,
+                  RemoveUnusedPattern<Torch::AtenSizeIntOp>,
+                  RemoveUnusedPattern<Torch::AtenSliceTensorOp>,
+                  RemoveUnusedPattern<Torch::AtenTensorOp>,
+                  RemoveUnusedPattern<Torch::ConstantBoolOp>,
+                  RemoveUnusedPattern<Torch::ConstantIntOp>,
+                  RemoveUnusedPattern<Torch::ConstantNoneOp>,
+                  RemoveUnusedPattern<Torch::PrimListConstructOp>>(
+      patterns.getContext());
+}
+
+} // namespace
 namespace {
 class ScalarizeShapesPass : public ScalarizeShapesBase<ScalarizeShapesPass> {
 public:
@@ -920,50 +958,37 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
-    ConversionTarget target(*context);
-    patterns.insert<PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
-                    PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
-                    PropagateAtenSliceTensorPattern, FoldAtenTensorSplatPattern,
-                    FoldAtenSqueezePattern, FoldAtenUnsqueezePattern,
-                    FoldAtenWhereSelf, CanonicalizeAtenViewPattern,
-                    PropagateAtenEqTensorPattern, PropagateAtenWhereSelfPattern,
-                    FoldAtenSqueezeDimPattern,
-                    RemoveUnusedPattern<Torch::AtenIntBoolOp>,
-                    RemoveUnusedPattern<Torch::AtenEqIntOp>,
-                    RemoveUnusedPattern<Torch::PrimNumToTensorScalarOp>,
-                    RemoveUnusedPattern<Torch::AtenFullOp>,
-                    RemoveUnusedPattern<Torch::AtenUnsqueezeOp>,
-                    RemoveUnusedPattern<Torch::AtenSqueezeDimOp>,
-                    RemoveUnusedPattern<Torch::AtenSizeIntOp>,
-                    RemoveUnusedPattern<Torch::AtenSliceTensorOp>,
-                    RemoveUnusedPattern<Torch::AtenTensorOp>,
-                    RemoveUnusedPattern<Torch::ConstantBoolOp>,
-                    RemoveUnusedPattern<Torch::ConstantIntOp>,
-                    RemoveUnusedPattern<Torch::ConstantNoneOp>,
-                    RemoveUnusedPattern<Torch::PrimListConstructOp>>(context);
 
+    // populate patterns
+    populateScalarizationPropagationPatterns(patterns);
+    populateScalarizationFoldPatterns(patterns);
+    populateScalarizationCanonicalizePatterns(patterns);
+    populateScalarizationRemovePatterns(patterns);
     context->getLoadedDialect<mlir::arith::ArithDialect>()
         ->getCanonicalizationPatterns(patterns);
-    
+
+    // walk func op to get a subgraph of shape computations
     auto funcOp = getOperation();
     SmallVector<Operation *> shapeCalculationOps;
-    funcOp.walk<WalkOrder::PostOrder, mlir::ReverseIterator>([&](Operation *op){
-        if (isPrimListOfInts(op) || isSourceOpForShapeScalarization(op) || isa<AtenViewOp>(op)){
-          shapeCalculationOps.push_back(op);
-          return;
-        }
-        for (OpOperand &use : op->getUses()){
-          Operation* userOp = use.getOwner();
-          if (llvm::is_contained(shapeCalculationOps, userOp) &&
-              !isSourceOpForShapeScalarization(userOp)) {
+    funcOp.walk<WalkOrder::PostOrder, mlir::ReverseIterator>(
+        [&](Operation *op) {
+          // walking the func op in reverse order, start adding ops when we
+          // reach an anchor point
+          if (isAnchorForShapeScalarization(op)) {
             shapeCalculationOps.push_back(op);
             return;
           }
-        }
-        if (!isa<func::FuncOp>(op))
-          op->emitWarning("Op did not get added to worklist.");
-        return;
-    });
+          // all ops which feed into the anchor ops get added to the list.
+          // Stop when we feed into a source op for shape scalarization
+          for (OpOperand &use : op->getUses()) {
+            Operation *userOp = use.getOwner();
+            if (llvm::is_contained(shapeCalculationOps, userOp) &&
+                !isSourceOpForShapeScalarization(userOp)) {
+              shapeCalculationOps.push_back(op);
+              return;
+            }
+          }
+        });
 
     GreedyRewriteConfig config;
     config.strictMode = GreedyRewriteStrictness::ExistingAndNewOps;
@@ -971,11 +996,15 @@ public:
                                       config))) {
       return signalPassFailure();
     }
-}
+
+    // TODO: walk through the func op again, and repopulate the shape
+    // calculation ops. If any of those shape calculation ops are still tensors,
+    // fail or warn.
+  }
 };
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::Torch::createScalarizeShapesPass() {
-return std::make_unique<ScalarizeShapesPass>();
+  return std::make_unique<ScalarizeShapesPass>();
 }
