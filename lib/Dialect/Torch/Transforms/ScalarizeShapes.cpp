@@ -123,6 +123,13 @@ public:
 };
 } // namespace
 
+/// ------ Propagation Patterns ------ ///
+// The general goal of these patterns is to convert SomeTensorOp to [scalarOps
+// -> PrimListOfInts -> AtenTensorOp] Since these tensorized shape calculation
+// ops are chained together, sequences like OpA -> OpB will propagate OpA first:
+// [scalarOpsA -> ListA -> TensorA] -> OpB. Then OpB will be able to
+// getListFromTensor(A), and further propagate scalarization.
+
 namespace {
 class PropagateAtenShapeToTensorPattern
     : public OpRewritePattern<Aten_ShapeAsTensorOp> {
@@ -595,6 +602,9 @@ public:
 };
 } // namespace
 
+/// ------ Fold Patterns ------ ///
+// These are shape-specific folding patterns
+
 namespace {
 class FoldAtenTensorSplatPattern : public OpRewritePattern<AtenTensorOp> {
 public:
@@ -767,6 +777,8 @@ public:
   }
 };
 } // namespace
+
+/// ------ Canonicalization Patterns ------ ///
 
 namespace {
 // This is a specific pattern for converting views like [?,...,?,lastDim] ->
