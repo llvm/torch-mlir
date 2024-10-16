@@ -831,6 +831,9 @@ def aten〇numpy_T〡shape(self: List[int]) -> List[int]:
         result_shape.insert(0, i)
     return result_shape
 
+def aten〇outer〡shape(self: List[int], vec2: List[int]) -> List[int]:
+    return [self[0], vec2[0]]
+
 @check_shape_function([Invocation(TensorOfShape(3), TensorOfShape(3))])
 def aten〇dot〡shape(self: List[int], tensor: List[int]) -> List[int]:
     return []
@@ -4023,6 +4026,14 @@ def aten〇fmin〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tupl
     self_rank, self_dtype = self_rank_dtype
     ranks: List[Optional[int]] = [self_rank, other_rank]
     dtypes = [self_dtype, other_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(3,), (4,)]))
+def aten〇outer〡dtype(self_rank_dtype: Tuple[int, int], vec2_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    vec2_rank, vec2_dtype = vec2_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, vec2_rank]
+    dtypes = [self_dtype, vec2_dtype]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(

@@ -125,20 +125,19 @@ def test_symbolic_dim_differ_by_one():
 
 
 @run
-# TODO: Enable these checks once the IR generated is same for both nightly and stable Torch version.
-# C_HECK-LABEL: test_outer_with_squared_shape
-# C_HECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
-# C_HECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
-# C_HECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
-# C_HECK:        %[[I0:.+]] = torch.constant.int 0
-# C_HECK:        %[[SIZE:.+]] = torch.aten.size.int %[[ARG0]], %[[I0]] : !torch.vtensor<[?],f32>, !torch.int -> !torch.int
-# C_HECK:        %[[OUTER:.+]] = torch.operator "torch.aten.outer"(%[[ARG0]], %[[ARG0]]) : (!torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32>
-# C_HECK:        torch.bind_symbolic_shape %[[OUTER]], [%[[S0]]], affine_map<()[s0] -> (s0, s0)> : !torch.vtensor<[?,?],f32>
-# C_HECK:        %[[MUL:.+]] = torch.aten.mul.int %[[SIZE]], %[[SIZE]] : !torch.int, !torch.int -> !torch.int
-# C_HECK:        %[[LIST:.+]] = torch.prim.ListConstruct %[[MUL]] : (!torch.int) -> !torch.list<int>
-# C_HECK:        %[[VIEW:.+]] = torch.aten.view %[[OUTER]], %[[LIST]] : !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[?],f32>
-# C_HECK:        torch.bind_symbolic_shape %[[VIEW]], [%[[S0]]], affine_map<()[s0] -> (s0 * s0)> : !torch.vtensor<[?],f32>
-# C_HECK:        return %[[VIEW]] : !torch.vtensor<[?],f32>
+# CHECK-LABEL: test_outer_with_squared_shape
+# CHECK:      func.func @main(%[[ARG0:.+]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
+# CHECK:        %[[S0:.+]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
+# CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
+# CHECK:        %[[I0:.+]] = torch.constant.int 0
+# CHECK:        %[[SIZE:.+]] = torch.aten.size.int %[[ARG0]], %[[I0]] : !torch.vtensor<[?],f32>, !torch.int -> !torch.int
+# COM:          %[[OUTER:.+]] = torch.aten.outer %[[ARG0]], %[[ARG0]] : !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?,?],f32>
+# CHECK:        torch.bind_symbolic_shape %{{.*}}, [%[[S0]]], affine_map<()[s0] -> (s0, s0)> : !torch.vtensor<[?,?],f32>
+# CHECK:        %[[MUL:.+]] = torch.aten.mul.int %[[SIZE]], %[[SIZE]] : !torch.int, !torch.int -> !torch.int
+# CHECK:        %[[LIST:.+]] = torch.prim.ListConstruct %[[MUL]] : (!torch.int) -> !torch.list<int>
+# CHECK:        %[[VIEW:.+]] = torch.aten.view %{{.*}}, %[[LIST]] : !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[?],f32>
+# CHECK:        torch.bind_symbolic_shape %[[VIEW]], [%[[S0]]], affine_map<()[s0] -> (s0 * s0)> : !torch.vtensor<[?],f32>
+# CHECK:        return %[[VIEW]] : !torch.vtensor<[?],f32>
 def test_outer_with_squared_shape():
     class OuterWithSquaredShape(torch.nn.Module):
         def __init__(self):
