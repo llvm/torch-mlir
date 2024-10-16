@@ -2009,39 +2009,39 @@ OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
   std::function<double(ArrayRef<double>)> fpFold;
   std::function<APInt(ArrayRef<APInt>)> intFold;
 
+  auto roundMode = dyn_cast_or_null<StringAttr>(adaptor.getRoundingMode());
+  if (!roundMode) {
+    return nullptr;
+  }
+
   auto unsign = false;
   if (isa<mlir::IntegerType>(resultTy.getDtype())) {
     unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
   }
 
-  auto roundMode = dyn_cast_or_null<StringAttr>(adaptor.getRoundingMode());
-  if (roundMode.getValue().str() == "floor") {
-    fpFold = [](llvm::ArrayRef<double> inputs) {
-      assert(inputs.size() == 2);
+  fpFold = [roundMode](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 2);
+    if (roundMode.getValue().str() == "floor") {
       return std::floor((double)inputs[0] / inputs[1]);
-    };
-    intFold = [unsign](llvm::ArrayRef<APInt> inputs) {
-      assert(inputs.size() == 2);
-      auto lhs = unsign ? inputs[0].getZExtValue() : inputs[0].getSExtValue();
-      auto rhs = unsign ? inputs[1].getZExtValue() : inputs[1].getSExtValue();
-      int64_t bits = std::max(inputs[0].getBitWidth(), inputs[1].getBitWidth());
-      auto res = std::floor(lhs / rhs);
-      return APInt(bits, res);
-    };
-  } else {
-    fpFold = [](llvm::ArrayRef<double> inputs) {
-      assert(inputs.size() == 2);
+    } else {
       return std::trunc((double)inputs[0] / inputs[1]);
-    };
-    intFold = [unsign](llvm::ArrayRef<APInt> inputs) {
-      assert(inputs.size() == 2);
-      auto lhs = unsign ? inputs[0].getZExtValue() : inputs[0].getSExtValue();
-      auto rhs = unsign ? inputs[1].getZExtValue() : inputs[1].getSExtValue();
-      int64_t bits = std::max(inputs[0].getBitWidth(), inputs[1].getBitWidth());
-      auto res = std::trunc(lhs / rhs);
-      return APInt(bits, res);
-    };
-  }
+    }
+  };
+
+  intFold = [unsign, roundMode](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 2);
+    auto lhs = unsign ? inputs[0].getZExtValue() : inputs[0].getSExtValue();
+    auto rhs = unsign ? inputs[1].getZExtValue() : inputs[1].getSExtValue();
+    int64_t bits = std::max(inputs[0].getBitWidth(), inputs[1].getBitWidth());
+    int64_t res;
+    if (roundMode.getValue().str() == "floor") {
+      res = std::floor(lhs / rhs);
+    } else {
+      res = std::trunc(lhs / rhs);
+    }
+    return APInt(bits, res);
+  };
+
   return naryFolderHelper({adaptor.getSelf(), adaptor.getOther()}, getType(),
                           fpFold, intFold);
 }
