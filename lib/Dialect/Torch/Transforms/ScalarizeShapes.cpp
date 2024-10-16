@@ -109,6 +109,21 @@ LogicalResult getListFromTensor(Value value, SmallVector<Value> &vals) {
 } // namespace
 
 namespace {
+class PropagateValueTensorLiteralPattern
+    : public OpRewritePattern<Torch::ValueTensorLiteralOp> {
+public:
+  using OpRewritePattern<Torch::ValueTensorLiteralOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(Torch::ValueTensorLiteralOp op,
+                                PatternRewriter &rewriter) const override {
+    // TODO: if size is less than 16, materialize each int as a constant int op,
+    // pass to a list construct and pass to a TensorOp If splat, return a full
+    // op.
+    return failure();
+  }
+};
+} // namespace
+
+namespace {
 class PropagateAtenShapeToTensorPattern
     : public OpRewritePattern<Aten_ShapeAsTensorOp> {
 public:
@@ -547,8 +562,27 @@ public:
   using OpRewritePattern<AtenItemOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenItemOp op,
                                 PatternRewriter &rewriter) const override {
-    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
     SmallVector<Value> elements;
+    Value self = op.getSelf();
+    auto selfTy = cast<ValueTensorType>(self.getType());
+
+    // Rank 0 item op prop
+    if (selfTy.getSizes().size() == 0) {
+      auto numToTensor = self.getDefiningOp<Torch::PrimNumToTensorScalarOp>();
+      auto squeezeDim = self.getDefiningOp<AtenSqueezeDimOp>();
+      if (!squeezeDim && !numToTensor)
+        return rewriter.notifyMatchFailure(op,
+                                           "unhandled item of rank 0 operand");
+      if (numToTensor) {
+        rewriter.replaceOp(op, numToTensor.getA());
+        return success();
+      }
+      rewriter.replaceOpWithNewOp<AtenItemOp>(op, op.getType(),
+                                              squeezeDim.getSelf());
+      return success();
+    }
+
+    // Rank 1 item op prop
     if (failed(getListFromTensor(op.getSelf(), elements)))
       return failure();
 
@@ -639,26 +673,6 @@ public:
       return success();
     }
 
-    return failure();
-  }
-};
-} // namespace
-
-namespace {
-class FoldAtenSqueezeDimPattern : public OpRewritePattern<AtenSqueezeDimOp> {
-public:
-  using OpRewritePattern<AtenSqueezeDimOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenSqueezeDimOp op,
-                                PatternRewriter &rewriter) const override {
-    auto resultTy = cast<ValueTensorType>(op.getType());
-    if (!resultTy.hasSizes() || resultTy.getSizes().size() != 0)
-      return rewriter.notifyMatchFailure(op, "Unknown result shape");
-
-    if (auto atenFull = op.getSelf().getDefiningOp<AtenFullOp>()) {
-      rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(
-          op, resultTy, atenFull.getFillValue());
-      return success();
-    }
     return failure();
   }
 };
@@ -915,7 +929,7 @@ bool isAnchorForShapeScalarization(Operation *op) {
 
 void populateScalarizationFoldPatterns(RewritePatternSet &patterns) {
   patterns.insert<FoldAtenSqueezePattern, FoldAtenUnsqueezePattern,
-                  FoldAtenWhereSelf, FoldAtenSqueezeDimPattern>(
+                  FoldAtenWhereSelf, FoldAtenTensorSplatPattern>(
       patterns.getContext());
 }
 
