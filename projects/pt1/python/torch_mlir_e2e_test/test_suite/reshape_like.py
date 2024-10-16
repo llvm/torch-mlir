@@ -1802,3 +1802,28 @@ class Aten_TrilinearModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: Aten_TrilinearModule())
 def Aten_TrilinearModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 3, 3), tu.rand(3, 3, 3), tu.rand(3, 3, 3))
+
+
+# TODO: Fix this test case
+# class Aten_TrilinearModule_Expands(torch.nn.Module):
+#     def __init__(self):
+#         super().__init__()
+
+#     @export
+#     @annotate_args(
+#         [
+#             None,
+#             ([4, 5, 6], torch.float32, True),
+#             ([4, 5, 6], torch.float32, True),
+#             ([4, 5, 6], torch.float32, True),
+#         ]
+#     )
+#     def forward(self, i1, i2, i3):
+#         return torch.ops.aten._trilinear(
+#             i1, i2, i3, expand1=[0], expand2=[0], expand3=[0], sumdim=[], unroll_dim=2
+#         )
+
+
+# @register_test_case(module_factory=lambda: Aten_TrilinearModule_Expands())
+# def Aten_TrilinearModule_expands(module, tu: TestUtils):
+#     module.forward(tu.rand(4, 5, 6), tu.rand(4, 5, 6), tu.rand(4, 5, 6))
