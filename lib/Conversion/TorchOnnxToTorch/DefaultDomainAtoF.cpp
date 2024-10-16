@@ -1785,11 +1785,14 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         }
         ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
 
-        if (autoPad == "NOTSET") {
+        if (autoPad == "VALID") {
+          // Zero padding.
+          padding = defaultPadding;
+        } else if (autoPad == "NOTSET") {
           // Explicit padding; read pads with defaults.
           if (binder.s64IntegerArrayAttr(padding, "pads", defaultPadding))
             return failure();
-        } else {
+        } else { // autopad == SAME_UPPER or SAME_LOWER
           // Auto-padding; output_shape defaults to input_shape * strides.
           SmallVector<int64_t> defaultOutputShape;
           for (unsigned i = 0; i < rank - 2; i++) {
@@ -1803,6 +1806,16 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             int64_t totalPadding =
                 strides[i] * (inputShape[2 + i] - 1) + outputPadding[i] +
                 ((kernelShape[i] - 1) * dilations[i] + 1) - outputShape[i];
+            if (totalPadding % 2) {
+              // TODO: Add support for different padding values for the
+              // beginning and ending along each spatial axis.
+              return rewriter.notifyMatchFailure(
+                  binder.op,
+                  "unsupported conversion: the combination of stride, "
+                  "input_shape, kernel_shape, dilation, output_padding and "
+                  "output_shape caused auto-padding to produce asymmetric "
+                  "padding which isn't currently supported.");
+            }
             int64_t half = totalPadding / 2;
             int64_t remainder = totalPadding - half;
             if (autoPad == "SAME_UPPER") {
