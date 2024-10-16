@@ -946,28 +946,29 @@ public:
         ->getCanonicalizationPatterns(patterns);
     
     auto funcOp = getOperation();
-    DenseSet<Operation *> shapeCalculationOps;
+    SmallVector<Operation *> shapeCalculationOps;
     funcOp.walk<WalkOrder::PostOrder, mlir::ReverseIterator>([&](Operation *op){
         if (isPrimListOfInts(op) || isSourceOpForShapeScalarization(op) || isa<AtenViewOp>(op)){
-          shapeCalculationOps.insert(op);
+          shapeCalculationOps.push_back(op);
           return;
         }
         for (OpOperand &use : op->getUses()){
           Operation* userOp = use.getOwner();
-          if (shapeCalculationOps.contains(userOp) && !isSourceOpForShapeScalarization(userOp)) {
-            shapeCalculationOps.insert(op);
+          if (llvm::is_contained(shapeCalculationOps, userOp) &&
+              !isSourceOpForShapeScalarization(userOp)) {
+            shapeCalculationOps.push_back(op);
             return;
           }
         }
-        op->emitWarning("Op did not get added to worklist.");
+        if (!isa<func::FuncOp>(op))
+          op->emitWarning("Op did not get added to worklist.");
         return;
     });
-    SmallVector<Operation *> opsToRewrite;
-    for (Operation *op : shapeCalculationOps) {
-      opsToRewrite.push_back(op);
-    }
-    if (failed(applyOpPatternsAndFold(opsToRewrite,
-                                            std::move(patterns)))) {
+
+    GreedyRewriteConfig config;
+    config.strictMode = GreedyRewriteStrictness::ExistingAndNewOps;
+    if (failed(applyOpPatternsAndFold(shapeCalculationOps, std::move(patterns),
+                                      config))) {
       return signalPassFailure();
     }
 }
