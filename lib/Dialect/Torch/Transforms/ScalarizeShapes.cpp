@@ -1004,12 +1004,13 @@ public:
             shapeCalculationOps.insert(op);
             return;
           }
-          // all ops which feed into the anchor ops get added to the list.
-          // Stop when we feed into a source op for shape scalarization
+          // all ops which feed into the list-like anchor ops get added to the
+          // set. Stop when we feed into a source op for shape scalarization
           for (OpOperand &use : op->getUses()) {
             Operation *userOp = use.getOwner();
             if (shapeCalculationOps.contains(userOp) &&
-                !isSourceOpForShapeScalarization(userOp)) {
+                !isSourceOpForShapeScalarization(userOp) &&
+                !isa<AtenViewOp>(userOp)) {
               shapeCalculationOps.insert(op);
               return;
             }
