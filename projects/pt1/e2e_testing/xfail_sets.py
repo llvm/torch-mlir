@@ -1703,7 +1703,6 @@ TOSA_CRASHING_SET = {
     "ArangeStartOutModule_basic",
     "ScatterSrcStaticModule_basic",
     # Runtime op verification: Out of bounds access
-    "IndexTensorNegativeIndexModule_basic",
     "ReduceAllDimEmpty_basic",
 }
 
@@ -2165,6 +2164,7 @@ TOSA_PASS_SET = {
     "HardswishRandomModule_basic",
     "HardtanhBackward_basic",
     "IndexTensorMultiIndexStaticModule_basic",
+    "IndexTensorNegativeIndexModule_basic",
     "IndexTensorStaticModule_basic",
     "IscloseStaticModuleTrue_basic",
     "IscloseStaticModule_basic",
