@@ -995,22 +995,22 @@ public:
 
     // walk func op to get a subgraph of shape computations
     auto funcOp = getOperation();
-    SmallVector<Operation *> shapeCalculationOps;
+    llvm::SetVector<Operation *> shapeCalculationOps;
     funcOp.walk<WalkOrder::PostOrder, mlir::ReverseIterator>(
         [&](Operation *op) {
           // walking the func op in reverse order, start adding ops when we
           // reach an anchor point
           if (isAnchorForShapeScalarization(op)) {
-            shapeCalculationOps.push_back(op);
+            shapeCalculationOps.insert(op);
             return;
           }
           // all ops which feed into the anchor ops get added to the list.
           // Stop when we feed into a source op for shape scalarization
           for (OpOperand &use : op->getUses()) {
             Operation *userOp = use.getOwner();
-            if (llvm::is_contained(shapeCalculationOps, userOp) &&
+            if (shapeCalculationOps.contains(userOp) &&
                 !isSourceOpForShapeScalarization(userOp)) {
-              shapeCalculationOps.push_back(op);
+              shapeCalculationOps.insert(op);
               return;
             }
           }
@@ -1018,8 +1018,8 @@ public:
 
     GreedyRewriteConfig config;
     config.strictMode = GreedyRewriteStrictness::ExistingAndNewOps;
-    if (failed(applyOpPatternsAndFold(shapeCalculationOps, std::move(patterns),
-                                      config))) {
+    if (failed(applyOpPatternsAndFold(shapeCalculationOps.getArrayRef(),
+                                      std::move(patterns), config))) {
       return signalPassFailure();
     }
 
