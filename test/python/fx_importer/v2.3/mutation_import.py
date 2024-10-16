@@ -105,6 +105,27 @@ def test_frozen_buffer():
     m.operation.verify()
 
 
+@run
+# CHECK-LABEL: test_frozen_buffer_non_persistent
+# CHECK: %[[buffer_literal:.+]] = torch.vtensor.literal
+# CHECK: %[[mul:.+]] = torch.aten.mul.Tensor %arg0, %0
+# CHECK: return %[[mul]]
+def test_frozen_buffer_non_persistent():
+    class Basic(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.register_buffer("buffer", torch.randn(3, 4), persistent=False)
+
+        def forward(self, x):
+            return x * self.buffer
+
+    m = fx.export_and_import(
+        Basic(), torch.randn(3, 4), experimental_support_mutation=True
+    )
+    print(m)
+    m.operation.verify()
+
+
 class ExternalBufferHooks(fx.FxImporterHooks):
     def prepare_module(self, module_op: Operation):
         module_op.context.allow_unregistered_dialects = True
