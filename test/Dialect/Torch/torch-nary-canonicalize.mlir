@@ -235,7 +235,18 @@ func.func @fold_aten_div_tensor_mode_float() -> !torch.vtensor<[4],f32> {
   // CHECK: torch.vtensor.literal(dense<3.000000e+00> : tensor<4xf32>) : !torch.vtensor<[4],f32>
   %cst_8 = torch.vtensor.literal(dense<8.0> : tensor<4xf32>) : !torch.vtensor<[4],f32>
   %cst_2 = torch.vtensor.literal(dense<2.1> : tensor<4xf32>) : !torch.vtensor<[4],f32>
-  %trunc = torch.constant.str "trunc"
-  %0 = torch.aten.div.Tensor_mode %cst_8, %cst_2, %trunc : !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>, !torch.str -> !torch.vtensor<[4],f32>
+  %floor = torch.constant.str "floor"
+  %0 = torch.aten.div.Tensor_mode %cst_8, %cst_2, %floor : !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>, !torch.str -> !torch.vtensor<[4],f32>
+  return %0 : !torch.vtensor<[4],f32>
+
+// -----
+
+// CHECK-LABEL: @fold_aten_div_tensor_mode_none
+func.func @fold_aten_div_tensor_mode_none() -> !torch.vtensor<[4],f32> {
+  // CHECK: torch.vtensor.literal(dense<2.66666675> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %cst_8 = torch.vtensor.literal(dense<8> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %cst_3 = torch.vtensor.literal(dense<3> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %none = torch.constant.none
+  %0 = torch.aten.div.Tensor_mode %cst_8, %cst_3, %none : !torch.vtensor<[4],si64>, !torch.vtensor<[4],si64>, !torch.none -> !torch.vtensor<[4],f32>
   return %0 : !torch.vtensor<[4],f32>
 }
