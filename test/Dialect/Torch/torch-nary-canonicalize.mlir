@@ -238,6 +238,7 @@ func.func @fold_aten_div_tensor_mode_float() -> !torch.vtensor<[4],f32> {
   %floor = torch.constant.str "floor"
   %0 = torch.aten.div.Tensor_mode %cst_8, %cst_2, %floor : !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>, !torch.str -> !torch.vtensor<[4],f32>
   return %0 : !torch.vtensor<[4],f32>
+}
 
 // -----
 
