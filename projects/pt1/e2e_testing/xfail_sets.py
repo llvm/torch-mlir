@@ -29,6 +29,10 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "DeformConv2D_basic",
     "ReduceAnyDimFloatModule_basic",
     "UnfoldModule_basic",
+    # _trilinear is an implementation of einsum, but sets dimensions to zero
+    # if a dimension is specified in all expand lists, and not in sumdim list.
+    # This is a bug in the implementation of _trilinear in PyTorch.
+    "Aten_TrilinearModuleZerodDimBug_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.5.0.dev"):

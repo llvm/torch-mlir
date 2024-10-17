@@ -1804,26 +1804,144 @@ def Aten_TrilinearModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 3, 3), tu.rand(3, 3, 3), tu.rand(3, 3, 3))
 
 
-# TODO: Fix this test case
-# class Aten_TrilinearModule_Expands(torch.nn.Module):
-#     def __init__(self):
-#         super().__init__()
+class Aten_TrilinearModuleSumdims(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
 
-#     @export
-#     @annotate_args(
-#         [
-#             None,
-#             ([4, 5, 6], torch.float32, True),
-#             ([4, 5, 6], torch.float32, True),
-#             ([4, 5, 6], torch.float32, True),
-#         ]
-#     )
-#     def forward(self, i1, i2, i3):
-#         return torch.ops.aten._trilinear(
-#             i1, i2, i3, expand1=[0], expand2=[0], expand3=[0], sumdim=[], unroll_dim=2
-#         )
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, i1, i2, i3):
+        return torch.ops.aten._trilinear(
+            i1, i2, i3, expand1=[1], expand2=[], expand3=[], sumdim=[0, 2], unroll_dim=0
+        )
 
 
-# @register_test_case(module_factory=lambda: Aten_TrilinearModule_Expands())
-# def Aten_TrilinearModule_expands(module, tu: TestUtils):
-#     module.forward(tu.rand(4, 5, 6), tu.rand(4, 5, 6), tu.rand(4, 5, 6))
+@register_test_case(module_factory=lambda: Aten_TrilinearModuleSumdims())
+def Aten_TrilinearModuleSumdims_basic(module, tu: TestUtils):
+    return module.forward(tu.rand(2, 6), tu.rand(2, 3, 6), tu.rand(2, 3, 6))
+
+
+class Aten_TrilinearModuleSumAllDims(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, i1, i2, i3):
+        return torch.ops.aten._trilinear(
+            i1,
+            i2,
+            i3,
+            expand1=[1],
+            expand2=[],
+            expand3=[],
+            sumdim=[0, 1, 2],
+            unroll_dim=0,
+        )
+
+
+@register_test_case(module_factory=lambda: Aten_TrilinearModuleSumAllDims())
+def Aten_TrilinearModuleSumAllDims_basic(module, tu: TestUtils):
+    return module.forward(tu.rand(2, 6), tu.rand(2, 3, 6), tu.rand(2, 3, 6))
+
+
+class Aten_TrilinearModuleVaryingRanks(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+            ([6], torch.float32, True),
+        ]
+    )
+    def forward(self, i1, i2, i3):
+        return torch.ops.aten._trilinear(
+            i1,
+            i2,
+            i3,
+            expand1=[1],
+            expand2=[],
+            expand3=[0, 1],
+            sumdim=[0],
+            unroll_dim=0,
+        )
+
+
+@register_test_case(module_factory=lambda: Aten_TrilinearModuleVaryingRanks())
+def Aten_TrilinearModuleVaryingRanks_basic(module, tu: TestUtils):
+    return module.forward(tu.rand(2, 6), tu.rand(2, 3, 6), tu.rand(6))
+
+
+class Aten_TrilinearModuleVaryingRanksUnorderedExpands(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+            ([6], torch.float32, True),
+        ]
+    )
+    def forward(self, i1, i2, i3):
+        return torch.ops.aten._trilinear(
+            i1,
+            i2,
+            i3,
+            expand1=[1],
+            expand2=[],
+            expand3=[1, 0],
+            sumdim=[2, 0],
+            unroll_dim=0,
+        )
+
+
+@register_test_case(
+    module_factory=lambda: Aten_TrilinearModuleVaryingRanksUnorderedExpands()
+)
+def Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic(module, tu: TestUtils):
+    return module.forward(tu.rand(2, 6), tu.rand(2, 3, 6), tu.rand(6))
+
+
+class Aten_TrilinearModuleZerodDimBug(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, i1, i2, i3):
+        return torch.ops.aten._trilinear(
+            i1, i2, i3, expand1=[0], expand2=[0], expand3=[0], sumdim=[2], unroll_dim=0
+        )
+
+
+@register_test_case(module_factory=lambda: Aten_TrilinearModuleZerodDimBug())
+def Aten_TrilinearModuleZerodDimBug_basic(module, tu: TestUtils):
+    return module.forward(tu.rand(2, 3, 6), tu.rand(2, 3, 6), tu.rand(2, 3, 6))

@@ -2036,76 +2036,49 @@ public:
       return rewriter.notifyMatchFailure(op, "unrollDim should be constant");
     }
 
-    // Expand the input tensors
-    SmallVector<Value, 3> expandedTensors = {input1, input2, input3};
-    for (auto expand : expand1) {
+    // Apply unsqueeze to respective input tensors at the specified dimensions
+    SmallVector<int64_t> sortedExpand1 = expand1;
+    std::sort(sortedExpand1.begin(), sortedExpand1.end());
+    for (auto expand : sortedExpand1) {
       Value expandDim = rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(expand));
-      Value expandedTensor = expandedTensors[0];
-      expandedTensors[0] =
-          *unsqueezeTensor(rewriter, op, expandedTensor, expandDim);
+      input1 = *unsqueezeTensor(rewriter, op, input1, expandDim);
     }
-    for (auto expand : expand2) {
+    SmallVector<int64_t> sortedExpand2 = expand2;
+    std::sort(sortedExpand2.begin(), sortedExpand2.end());
+    for (auto expand : sortedExpand2) {
       Value expandDim = rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(expand));
-      Value expandedTensor = expandedTensors[1];
-      expandedTensors[1] =
-          *unsqueezeTensor(rewriter, op, expandedTensor, expandDim);
+      input2 = *unsqueezeTensor(rewriter, op, input2, expandDim);
     }
-    for (auto expand : expand3) {
+    SmallVector<int64_t> sortedExpand3 = expand3;
+    std::sort(sortedExpand3.begin(), sortedExpand3.end());
+    for (auto expand : sortedExpand3) {
       Value expandDim = rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(expand));
-      Value expandedTensor = expandedTensors[2];
-      expandedTensors[2] =
-          *unsqueezeTensor(rewriter, op, expandedTensor, expandDim);
+      input3 = *unsqueezeTensor(rewriter, op, input3, expandDim);
     }
 
-    SmallVector<ValueTensorType> castedExpandTensors = {
-        cast<ValueTensorType>(expandedTensors[0].getType()),
-        cast<ValueTensorType>(expandedTensors[1].getType()),
-        cast<ValueTensorType>(expandedTensors[2].getType())};
+    // Apply multiplication operation.
+    auto mul1 =
+        rewriter.create<AtenMulTensorOp>(loc, op.getType(), input1, input2);
+    auto mul2 =
+        rewriter.create<AtenMulTensorOp>(loc, op.getType(), mul1, input3);
 
-    // Create einsum tokens
-    auto expandedInput1Sizes = castedExpandTensors[0].getSizes();
-    int64_t rank = expandedInput1Sizes.size();
-    std::string indices;
-    for (int64_t i = 0; i < rank; ++i) {
-      if (i < 26) {
-        indices += static_cast<char>('a' + i);
-      } else {
-        indices += static_cast<char>('A' + i - 26);
-      }
-    }
-
-    std::string outputString = indices;
+    // Apply sum operation.
+    // Parse sumDim in descending order to avoid any issues with the
+    // dimensions being removed.
+    Value result = mul2;
     SmallVector<int64_t> sortedSumDims = sumDim;
     std::sort(sortedSumDims.rbegin(), sortedSumDims.rend());
-    for (int dim : sumDim) {
-      if (!isValidDim(dim, rank)) {
-        return rewriter.notifyMatchFailure(op, "Invalid sumDim");
-      }
-
-      outputString.erase(outputString.begin() + dim);
+    for (int64_t dim : sortedSumDims) {
+      Value dimValue = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dim));
+      result =
+          createSumAlongDimension(rewriter, loc, op, result, dimValue, false);
     }
 
-    std::string einsumEquation =
-        indices + "," + indices + "," + indices + "->" + outputString;
-    Value einsumEquationValue = rewriter.create<Torch::ConstantStrOp>(
-        loc, rewriter.getStringAttr(einsumEquation));
-
-    Type listElemType =
-        cast<BaseTensorType>(op.getType())
-            .getWithSizesAndDtype(
-                /*optionalSizes=*/std::nullopt, /*optionalDtype=*/nullptr);
-    Value inputTensorList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(listElemType), expandedTensors);
-
-    auto outputType = op.getType().cast<ValueTensorType>();
-    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
-    auto einsumOp = rewriter.create<Torch::AtenEinsumOp>(
-        op->getLoc(), op.getType(), einsumEquationValue, inputTensorList,
-        cstNone);
-    rewriter.replaceOp(op, einsumOp);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };

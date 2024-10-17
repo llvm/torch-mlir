@@ -1285,7 +1285,7 @@ def aten〇linear〡shape(input: List[int], weight: List[int], bias: Optional[Li
 
 @check_shape_function([
     Invocation(TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), [], [], [], [], 0), # Basic case
-    Invocation(TensorOfShape(4, 5, 6), TensorOfShape(4, 5, 6), TensorOfShape(4, 5, 6), [0], [1], [1], [], 2), # Expansions w/ Non-Zero unroll_dim
+    Invocation(TensorOfShape(4, 5, 6), TensorOfShape(4, 5, 6), TensorOfShape(4, 5, 6), [1], [0], [0], [], 2), # Expansions w/ Non-Zero unroll_dim
     Invocation(TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), [1, 2], [1, 2], [1, 2], [1, 2], 0), # Multiple expansions
     Invocation(TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), [1, 2], [2, 1], [1, 2], [1, 2], 0), # Unordered expansion
     ErrorInvocation(TensorOfShape(4, 5, 1), TensorOfShape(4, 5, 3), TensorOfShape(1, 5, 3), [], [], [0], [2], 0), # Num dimensions don't match
