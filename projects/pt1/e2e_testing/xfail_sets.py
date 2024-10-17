@@ -3201,6 +3201,12 @@ ONNX_XFAIL_SET = {
     "Unfold_Module_Rank_Zero_Size_Zero_basic",
     "Unfold_Module_Dynamic_basic",
     "ViewDtypeStaticModule_basic",
+    "Aten_TrilinearModule_basic",
+    "Aten_TrilinearModuleSumdims_basic",
+    "Aten_TrilinearModuleSumAllDims_basic",
+    "Aten_TrilinearModuleVaryingRanks_basic",
+    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
+    "Aten_TrilinearModuleZerodDimBug_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
