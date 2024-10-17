@@ -6319,6 +6319,30 @@ def Torch_AtenDotOp : Torch_Op<"aten.dot", [
   let hasCanonicalizer = 1;
 }
 
+def Torch_AtenOuterOp : Torch_Op<"aten.outer", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::outer : (Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$vec2
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenOuterOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenOuterOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenCosineSimilarityOp : Torch_Op<"aten.cosine_similarity", [
     AllowsTypeRefinement,
     HasValueSemantics,

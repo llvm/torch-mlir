@@ -557,6 +557,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::matmul : (Tensor, Tensor) -> (Tensor)")
     emit("aten::mv : (Tensor, Tensor) -> (Tensor)")
     emit("aten::dot : (Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
+    emit("aten::outer : (Tensor, Tensor) -> (Tensor)")
     emit("aten::cosine_similarity : (Tensor, Tensor, int, float) -> (Tensor)")
     emit(
         "aten::conv3d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"
