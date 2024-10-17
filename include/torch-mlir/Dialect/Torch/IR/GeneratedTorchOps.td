@@ -3425,6 +3425,7 @@ def Torch_AtenDivTensorModeOp : Torch_Op<"aten.div.Tensor_mode", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 
@@ -4902,6 +4903,7 @@ def Torch_AtenRsubScalarOp : Torch_Op<"aten.rsub.Scalar", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 
@@ -12641,6 +12643,7 @@ def Torch_AtenIntTensorOp : Torch_Op<"aten.Int.Tensor", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 
@@ -15364,6 +15367,7 @@ def Torch_AtenRemainderScalarOp : Torch_Op<"aten.remainder.Scalar", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenRemainderTensorOp : Torch_Op<"aten.remainder.Tensor", [
