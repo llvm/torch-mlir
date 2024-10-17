@@ -84,6 +84,11 @@ void createTorchDynamoExportToTorchBackendPipeline(
 void createTorchFunctionToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options);
 
+/// Creates a pipeline that lowers the torch Onnx IR that is produced by
+/// Onnx import into the form expected by torch-verify-backend-contract.
+void createTorchOnnxToTorchBackendPipeline(
+    OpPassManager &pm, const TorchLoweringPipelineOptions &options);
+
 /// Creates a pipeline that simplifies the computations in the program.
 /// This pass does not do any global program restructuring -- it works entirely
 /// within a single semantic model of a `builtin.module` with

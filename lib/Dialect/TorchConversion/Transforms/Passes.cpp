@@ -70,7 +70,6 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
 
   // We want to fuse quantized operations together before lowering to linalg.
   pm.addNestedPass<func::FuncOp>(Torch::createFuseQuantizedOpsPass());
-  pm.addNestedPass<func::FuncOp>(Torch::createScalarizeShapesPass());
 
   // Lower to linalg + guards which is the input to codegen backends.
   // We do this first as it tends to involve pattern-matching against constants,
