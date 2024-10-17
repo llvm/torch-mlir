@@ -990,13 +990,16 @@ public:
     context->getLoadedDialect<mlir::arith::ArithDialect>()
         ->getCanonicalizationPatterns(patterns);
 
-    // walk func op to get a subgraph of shape computations
+    // walk func op bottom-up to collect a SetVector of shape-related operations
+    // When we pass this SetVector to the pattern rewrite driver, it will
+    // process the operations top-down, thereby propagating scalarization
+    // starting from sources.
     auto funcOp = getOperation();
     llvm::SetVector<Operation *> shapeCalculationOps;
     funcOp.walk<WalkOrder::PostOrder, mlir::ReverseIterator>(
         [&](Operation *op) {
-          // walking the func op in reverse order, start adding ops when we
-          // reach an anchor point (a prim list of ints)
+          // Walking bottom-up, start adding ops when we reach an anchor point
+          // (a prim list of ints)
           if (isPrimListOfInts(op)) {
             shapeCalculationOps.insert(op);
             return;
@@ -1007,8 +1010,21 @@ public:
             shapeCalculationOps.insert(op);
             return;
           }
-          // all ops which feed into the list-like anchor ops get added to the
-          // set. Stop when we feed into a source op for shape scalarization
+          // Insert the op if any of it's consumers have already been identified
+          // as a shape calculation op. To avoid adding the producer of
+          // something like a size.int op, don't add ops when their consumer is
+          // a source op for shape scalarization. Here is some sample IR:
+          // ------
+          // %0 = aten.matmul %arg0, %arg1 : ... -> !torch.vtensor<[?,?,?],f32>
+          // %1 = aten.size.int %0, %int0 : !torch.int
+          // %2 = prim.ListConstruct %1 : (!torch.int) -> !torch.list<int>
+          // return %2 : !torch.list<int>
+          // ------
+          // In this example, don't add the matmul (%0), or it's producers, to
+          // shapeCalculationOps. It's consumer (%1) is indeed a shape
+          // calculation op, but the size.int op is an elementary unit of shape
+          // computation. No futher gathering of producers is necessary to
+          // reduce this. Similarly, don't add the `self` of a view op.
           for (OpOperand &use : op->getUses()) {
             Operation *userOp = use.getOwner();
             if (shapeCalculationOps.contains(userOp) &&
@@ -1027,9 +1043,7 @@ public:
       return signalPassFailure();
     }
 
-    // TODO: walk through the func op again, and repopulate the shape
-    // calculation ops. If any of those shape calculation ops are still tensors,
-    // fail or warn.
+    // TODO: Warn when failing to process operations in the worklist.
   }
 };
 } // namespace
