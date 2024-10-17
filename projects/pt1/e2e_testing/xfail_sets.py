@@ -407,6 +407,8 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenMmQMixedSigni8_basic",
     "AtenMmQint8_basic",
     "AtenMmQuint8_basic",
+    "Aten_TrilinearModuleVaryingRanks_basic",
+    "Aten_TrilinearModuleZerodDimBug_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluInt8_basic",
     "QuantizedReluUint8_basic",
@@ -530,6 +532,9 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     # Runtime op verification: out-of-bounds access
     "_SoftmaxModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
+    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
+    "Aten_TrilinearModuleSumAllDims_basic",
+    "Aten_TrilinearModuleSumdims_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
@@ -645,6 +650,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenTopKModule_basic",
     "AtenTopKSmallestModule_basic",
     "Aten_EmbeddingBagExample_basic",
+    "Aten_TrilinearModuleVaryingRanks_basic",
+    "Aten_TrilinearModuleZerodDimBug_basic",
     "AvgPool2dDivisorOverrideModule_basic",
     "BernoulliTensorModule_basic",
     "BincountMinlengthModule_basic",
@@ -943,6 +950,9 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
     #  materialization callback produced value of incorrect type failed
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
+    "Aten_TrilinearModuleSumdims_basic",
+    "Aten_TrilinearModuleSumAllDims_basic",
+    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
 }
 
 STABLEHLO_PASS_SET = {
@@ -3407,12 +3417,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenSubFloatModule_basic",
     "AtenTopKModule_basic",
     "AtenTopKSmallestModule_basic",
-    "Aten_TrilinearModule_basic",
-    "Aten_TrilinearModuleSumdims_basic",
-    "Aten_TrilinearModuleSumAllDims_basic",
-    "Aten_TrilinearModuleVaryingRanks_basic",
-    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
-    "Aten_TrilinearModuleZerodDimBug_basic",
     "Aten_CastLongModule_basic",
     "Aten_EmbeddingBagExample_basic",
     "AvgPool1dFloatModule_basic",
