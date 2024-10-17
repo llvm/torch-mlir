@@ -4372,7 +4372,8 @@ OpFoldResult AtenItemOp::fold(FoldAdaptor adaptor) {
     if (auto intAttr = dyn_cast<IntegerAttr>(splat)) {
       return intAttr.getType().isUnsignedInteger()
                  ? getI64IntegerAttr(getContext(), intAttr.getUInt())
-                 : getI64IntegerAttr(getContext(), intAttr.getSInt());
+                 : getI64IntegerAttr(getContext(),
+                                     intAttr.getValue().getSExtValue());
     }
     if (auto floatAttr = dyn_cast<FloatAttr>(splat)) {
       return getF64FloatAttr(getContext(), floatAttr.getValueAsDouble());

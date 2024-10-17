@@ -548,8 +548,9 @@ public:
 
     SmallVector<Value> eqVals;
     for (uint64_t i = 0; i < selfList.size(); i++) {
-      eqVals.push_back(
-          rewriter.create<AtenEqIntOp>(op.getLoc(), selfList[i], otherList[i]));
+      Value boolResult =
+          rewriter.create<AtenEqIntOp>(op.getLoc(), selfList[i], otherList[i]);
+      eqVals.push_back(rewriter.create<AtenIntBoolOp>(op.getLoc(), boolResult));
     }
     Value list = rewriter.create<Torch::PrimListConstructOp>(
         op.getLoc(), Torch::ListType::get(eqVals[0].getType()), eqVals);
@@ -935,10 +936,6 @@ bool isPrimListOfInts(Operation *op) {
   return llvm::isa<Torch::IntType>(listType.getContainedType());
 }
 
-bool isAnchorForShapeScalarization(Operation *op) {
-  return isPrimListOfInts(op) || llvm::isa<AtenViewOp>(op);
-}
-
 void populateScalarizationFoldPatterns(RewritePatternSet &patterns) {
   patterns.insert<FoldAtenSqueezePattern, FoldAtenUnsqueezePattern,
                   FoldAtenWhereSelf, FoldAtenTensorSplatPattern>(
@@ -999,8 +996,14 @@ public:
     funcOp.walk<WalkOrder::PostOrder, mlir::ReverseIterator>(
         [&](Operation *op) {
           // walking the func op in reverse order, start adding ops when we
-          // reach an anchor point
-          if (isAnchorForShapeScalarization(op)) {
+          // reach an anchor point (a prim list of ints)
+          if (isPrimListOfInts(op)) {
+            shapeCalculationOps.insert(op);
+            return;
+          }
+          // add view ops for now until the decompositions for flatten and
+          // unflatten are removed.
+          if (isa<AtenViewOp>(op)) {
             shapeCalculationOps.insert(op);
             return;
           }
