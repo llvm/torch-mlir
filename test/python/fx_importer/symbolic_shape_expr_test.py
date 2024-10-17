@@ -131,6 +131,7 @@ def test_symbolic_dim_differ_by_one():
 # CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
 # CHECK:        %[[I0:.+]] = torch.constant.int 0
 # CHECK:        %[[SIZE:.+]] = torch.aten.size.int %[[ARG0]], %[[I0]] : !torch.vtensor<[?],f32>, !torch.int -> !torch.int
+# The Torch 2.6 generates `torch.aten.outer` as an op in this example while the torch versions < 2.6 does not, hence this check is kept as a "COM".
 # COM:          %[[OUTER:.+]] = torch.aten.outer %[[ARG0]], %[[ARG0]] : !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?,?],f32>
 # CHECK:        torch.bind_symbolic_shape %{{.*}}, [%[[S0]]], affine_map<()[s0] -> (s0, s0)> : !torch.vtensor<[?,?],f32>
 # CHECK:        %[[MUL:.+]] = torch.aten.mul.int %[[SIZE]], %[[SIZE]] : !torch.int, !torch.int -> !torch.int
