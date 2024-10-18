@@ -171,3 +171,19 @@ func.func @torch.aten.fmod_float(%arg0: !torch.vtensor<[?],f16>, %arg1: !torch.v
     %0 = torch.aten.fmod.Tensor %arg0, %arg1 : !torch.vtensor<[?],f16>, !torch.vtensor<[1],f16> -> !torch.vtensor<[?],f16>
     return %0 : !torch.vtensor<[?],f16>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.stft.center(
+// CHECK-SAME:                        %[[ARG0:.+]]: !torch.vtensor<[5,35],f32>, %[[ARG1:.+]]: !torch.vtensor<[5],f32>) -> !torch.vtensor<[5,5,16],complex<f32>> {
+// CHECK:           %[[SIGLEN:.+]] = torch.aten.size.int(%[[ARG0:.+]], -1)
+func.func @torch.aten.stft.center(%arg0: !torch.vtensor<[5,35],f32>, %arg1: !torch.vtensor<[5],f32>) -> !torch.vtensor<[5,5,16],complex<f32>> {
+  %padmode = torch.constant.str "reflect"
+  %nfft = torch.constant.int 5
+  %hoplen = torch.constant.int 2
+  %winlen = torch.constant.int 4
+  %cstfalse = torch.constant.bool false
+  %csttrue = torch.constant.bool true
+  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue : !torch.vtensor<[5,35],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[5],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[5,5,16],complex<f32>>
+  return %0 : !torch.vtensor<[5,5,16],complex<f32>>
+}
