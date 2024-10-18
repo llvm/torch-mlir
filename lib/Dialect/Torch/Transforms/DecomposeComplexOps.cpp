@@ -5370,6 +5370,256 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenStftCenterOp : public OpRewritePattern<AtenStftCenterOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenStftCenterOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+
+    Value self = op.getSelf();
+    auto selfType = cast<BaseTensorType>(self.getType());
+    if (!selfType.hasDtype() || !selfType.hasSizes()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "self should have dtype and sizes");
+    }
+
+    Value n_fft = op.getNFft();
+    int64_t n_fftInt;
+    if (!matchPattern(n_fft, m_TorchConstantInt(&n_fftInt)))
+      return rewriter.notifyMatchFailure(op, "Unsupported: non-constant n_fft");
+
+    Value hopLength = op.getHopLength();
+    if (isa<Torch::NoneType>(hopLength.getType())) {
+      hopLength = rewriter.create<AtenFloordivIntOp>(
+          loc, n_fft,
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(4)));
+    }
+    int64_t winLengthInt;
+    if (isa<Torch::NoneType>(op.getWinLength().getType())) {
+      winLengthInt = n_fftInt;
+    } else if (!matchPattern(op.getWinLength(),
+                             m_TorchConstantInt(&winLengthInt)))
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported: non-constant win_length");
+
+    Value window = op.getWindow();
+    ValueTensorType windowTensorType;
+    Type windowDType;
+    if (isa<Torch::NoneType>(window.getType())) {
+      windowDType = Torch::FloatType::get(rewriter.getContext());
+      winLengthInt = 0;
+      windowTensorType = ValueTensorType::get(
+          rewriter.getContext(), ArrayRef<int64_t>{}, rewriter.getF32Type());
+      auto attr = DenseElementsAttr::get(windowTensorType.toBuiltinTensor(),
+                                         SmallVector<APFloat>());
+      window =
+          rewriter.create<ValueTensorLiteralOp>(loc, windowTensorType, attr);
+    } else {
+      windowTensorType = cast<ValueTensorType>(window.getType());
+      windowDType = windowTensorType.getOptionalDtype();
+    }
+
+    Value center = op.getCenter();
+    bool centerBool;
+    if (!matchPattern(center, m_TorchConstantBool(&centerBool)))
+      return rewriter.notifyMatchFailure(op,
+                                         "Unsupported: non-constant center");
+    if (centerBool)
+      return rewriter.notifyMatchFailure(op, "Unsupported: center=True");
+
+    Value normalized = op.getNormalized();
+    bool normalizedBool;
+    if (!matchPattern(normalized, m_TorchConstantBool(&normalizedBool)))
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported: non-constant normalized");
+    if (normalizedBool)
+      return rewriter.notifyMatchFailure(op, "Unsupported: normalized=True");
+
+    bool onesidedBool;
+    // Default: True for real input and window, False otherwise.
+    if (isa<Torch::NoneType>(op.getOnesided().getType())) {
+      Type dtype = selfType.getDtype();
+      onesidedBool = !isa<mlir::ComplexType>(dtype);
+    } else if (!matchPattern(op.getOnesided(),
+                             m_TorchConstantBool(&onesidedBool)))
+      return rewriter.notifyMatchFailure(op,
+                                         "Unsupported: non-constant onesided");
+
+    Value returnComplex = op.getReturnComplex();
+    bool returnComplexBool;
+    if (!matchPattern(returnComplex, m_TorchConstantBool(&returnComplexBool)))
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported: non-constant return_complex");
+    if (!returnComplex)
+      return rewriter.notifyMatchFailure(op,
+                                         "Unsupported: return_complex=False");
+
+    // TODO: first version: center=False, pad_mode ignored, onesided=False,
+    // normalized=False return_complex=True, sig_length is known
+
+    Value cstZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value cstMinusOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+    Value cstOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value cstMinusTwo =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-2));
+    Value cstNone = rewriter.create<ConstantNoneOp>(loc);
+    Value cstStrConstant = rewriter.create<ConstantStrOp>(loc, "constant");
+    Value cstZeroFloat =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0f));
+    Value cstOneFloat =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0f));
+
+    // # Normalize window
+    // signal_len = aten.size.int(self, -1)
+    // n_frames = 1 + (signal_len - n_fft) // hop_length
+    // if(winLength < n_fft) {
+    //   tot_pad = n_fft - winLength
+    //   left_pad = tot_pad / 2
+    //   p1d = (left_pad, tot_pad - left_pad)
+    //   window = torch.nn.functional.pad(window, p1d, "constant", 1.0)
+    // }
+    Value signalLen = rewriter.create<AtenSizeIntOp>(loc, self, cstMinusOne);
+    Value nFrames = rewriter.create<AtenAddIntOp>(
+        loc, cstOne,
+        rewriter.create<AtenFloordivIntOp>(
+            loc, rewriter.create<AtenSubIntOp>(loc, signalLen, n_fft),
+            hopLength));
+    if (winLengthInt < n_fftInt) {
+      int64_t totalPad = n_fftInt - winLengthInt;
+      int64_t leftPad = totalPad / 2;
+      int64_t rightPad = totalPad - leftPad;
+      Value p1d = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(IntType::get(rewriter.getContext())),
+          ValueRange{rewriter.create<ConstantIntOp>(
+                         loc, rewriter.getI64IntegerAttr(leftPad)),
+                     rewriter.create<ConstantIntOp>(
+                         loc, rewriter.getI64IntegerAttr(rightPad))});
+      Type windowOutType = selfType.getWithSizesAndDtype(
+          SmallVector<int64_t>({n_fftInt}), windowDType);
+      window = rewriter.create<AtenPadOp>(loc, windowOutType, window, p1d,
+                                          cstStrConstant, cstOneFloat);
+    }
+
+    // axis_signal = -1
+    // init_seq = prim.ListConstruct()
+    // final_seq = prim.loop n_frames, %true, init(init_seq)
+    // {
+    //  ^bb0(frame, seq):
+    //    begin = frame * hop_length
+    //    end = begin + n_fft
+    //    narrow_length = min(end, signal_len) - begin
+    //    missing = n_fft - narrow_length
+    //    sliced = torch.narrow(self, axis_signal, begin, narrow_length) :
+    //            !torch.vtensor<[batch_dim?,?],f32>
+    //    padded_sliced = aten.pad(sliced, [0, missing], "constant", 0.0) :
+    //        !torch.vtensor<[batch_dim?,?],f32>
+    //    padded_sliced = tensor_static_info_cast(padded_sliced) :
+    //        !torch.vtensor<[batch_dim?,n_fft],f32>
+    //    new_seq = aten.append(seq, padded_sliced)
+    //    torch.prim.Loop.condition %true, iter(%new_seq)
+    // }
+    SmallVector<int64_t> slicedSizes(selfType.getSizes());
+    slicedSizes[slicedSizes.size() - 1] = n_fftInt;
+    SmallVector<int64_t> partiallyKnownSizes(slicedSizes);
+    partiallyKnownSizes[partiallyKnownSizes.size() - 1] = kUnknownSize;
+    Type partiallyKnownTensorType = selfType.getWithSizesAndDtype(
+        partiallyKnownSizes, selfType.getOptionalDtype());
+    Type paddedSlicedTensorType =
+        selfType.getWithSizesAndDtype(slicedSizes, selfType.getOptionalDtype());
+    ListType seqType = ListType::get(paddedSlicedTensorType);
+    Value initSeq = rewriter.create<PrimListConstructOp>(loc, seqType,
+                                                         SmallVector<Value>());
+    Value axisSignal = cstMinusOne;
+    Value loopCondTrue = rewriter.create<ConstantBoolOp>(loc, true);
+    auto frameLoop =
+        rewriter.create<PrimLoopOp>(loc, TypeRange({seqType}), nFrames,
+                                    loopCondTrue, ValueRange({initSeq}));
+    {
+      PatternRewriter::InsertionGuard guard(rewriter);
+      Type loopIndexType = rewriter.getType<IntType>();
+      Block *countLoopBody = rewriter.createBlock(
+          &frameLoop.getRegion(), frameLoop.getRegion().begin(),
+          TypeRange({loopIndexType, seqType}), {loc, loc});
+      Value frame = countLoopBody->getArgument(0);
+      Value seq = countLoopBody->getArgument(1);
+      Value begin = rewriter.create<AtenMulIntOp>(loc, frame, hopLength);
+      Value end = rewriter.create<AtenAddIntOp>(loc, begin, n_fft);
+      Value narrowLen = rewriter.create<AtenSubIntOp>(
+          loc, rewriter.create<PrimMinIntOp>(loc, end, signalLen), begin);
+      Value missing = rewriter.create<AtenSubIntOp>(loc, n_fft, narrowLen);
+      Value sliced = rewriter.create<AtenNarrowOp>(
+          loc, partiallyKnownTensorType, self, axisSignal, begin, narrowLen);
+      Value padList = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(IntType::get(rewriter.getContext())),
+          ValueRange{cstZero, missing});
+      Value paddedSliced = rewriter.create<TensorStaticInfoCastOp>(
+          loc, paddedSlicedTensorType,
+          rewriter.create<AtenPadOp>(loc, partiallyKnownTensorType, sliced,
+                                     padList, cstStrConstant, cstZeroFloat));
+      Value newSeq =
+          rewriter.create<AtenAppendTOp>(loc, seqType, seq, paddedSliced);
+      rewriter.create<PrimLoopConditionOp>(loc, loopCondTrue,
+                                           ValueRange({newSeq}));
+    }
+    Value finalSeq = frameLoop.getResult(0);
+
+    // axis_stack = -1
+    // concat_tensor = torch.stack(final_seq, axis_stack)
+    // axis_frame = -2
+    // new_window_shape = [1?, n_fft, 1]
+    // weights = aten.reshape(window, new_window_shape)
+    // weighted_tensor = aten.mul.Tensor(concat_tensor, weights)
+    // if(onesidedBool) {
+    //   return aten.fft_fft(weighted_tensor, None, axis_frame)
+    // } else {
+    //   return aten.fft_rfft(weighted_tensor, None, axis_frame)
+    // }
+    Value axisStack = cstMinusOne;
+    SmallVector<int64_t> preFftTensorSizes(slicedSizes);
+    preFftTensorSizes.push_back(kUnknownSize);
+    Type preFftTensorType = selfType.getWithSizesAndDtype(
+        preFftTensorSizes, selfType.getOptionalDtype());
+    Value concatTensor = rewriter.create<AtenStackOp>(loc, preFftTensorType,
+                                                      finalSeq, axisStack);
+    Value axisFrame = cstMinusTwo;
+    Value newWindowShape;
+    SmallVector<int64_t> newWindowSizes;
+    if (slicedSizes.size() == 2) {
+      newWindowSizes = {1, n_fftInt, 1};
+      newWindowShape = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(IntType::get(rewriter.getContext())),
+          ValueRange{cstOne, n_fft, cstOne});
+    } else { // slicedSizes.size() == 1
+      newWindowSizes = {n_fftInt, 1};
+      newWindowShape = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(IntType::get(rewriter.getContext())),
+          ValueRange{n_fft, cstOne});
+    }
+    Type windowReshapeTensorType = windowTensorType.getWithSizesAndDtype(
+        newWindowSizes, windowTensorType.getOptionalDtype());
+    Value weights = rewriter.create<AtenReshapeOp>(loc, windowReshapeTensorType,
+                                                   window, newWindowShape);
+    Value weightedTensor = rewriter.create<AtenMulTensorOp>(
+        loc, preFftTensorType, concatTensor, weights);
+    if (onesidedBool) {
+      rewriter.replaceOpWithNewOp<AtenFftFftOp>(
+          op, op.getType(), weightedTensor, cstNone, axisFrame, cstNone);
+    } else {
+      rewriter.replaceOpWithNewOp<AtenFftRfftOp>(
+          op, op.getType(), weightedTensor, cstNone, axisFrame, cstNone);
+    }
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenSquareOp : public OpRewritePattern<AtenSquareOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -9849,6 +10099,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAddmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenStftCenterOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);
