@@ -60,6 +60,21 @@ func.func @shape_as_tensor_dim_item(%arg0 : !torch.vtensor<[5,?,?],f32>) -> !tor
     return %out : !torch.int
 }
 
+// -----
+
+// CHECK-LABEL: @literal_item
+func.func @literal_item() -> !torch.int {
+    // CHECK: %int2 = torch.constant.int 2
+    // CHECK: return %int2 : !torch.int
+    %shape = torch.vtensor.literal(dense<[1,2,3]> : tensor<3xsi32>) : !torch.vtensor<[3],si32>
+    %dim = torch.constant.int 0
+    %idx = torch.vtensor.literal(dense<1> : tensor<si32>) : !torch.vtensor<[],si32>
+    %select = torch.aten.index_select %shape, %dim, %idx : !torch.vtensor<[3],si32>, !torch.int, !torch.vtensor<[],si32> -> !torch.vtensor<[],si32>
+    %out = torch.aten.item %select : !torch.vtensor<[],si32> -> !torch.int
+    %list = torch.prim.ListConstruct %out : (!torch.int) -> !torch.list<int>
+    return %out : !torch.int
+}
+
 
 // -----
 
