@@ -2000,6 +2000,8 @@ namespace {
 // Trilinear einstein sum, decomposed to:
 // (i1.unsqueeze(expand1) * i2.unsqueeze(expand2) * i3.unsqueeze(expand3))
 //    .sum(sumdim)
+// The unrollDim operand does not impact the output of the operation, so
+// it is ignored.
 
 class DecomposeAten_TrilinearOp : public OpRewritePattern<Aten_TrilinearOp> {
 public:
@@ -2032,9 +2034,17 @@ public:
       return rewriter.notifyMatchFailure(op, "sumDim should be constant");
     }
 
-    int64_t unrollDim;
-    if (!matchPattern(op.getUnrollDim(), m_TorchConstantInt(&unrollDim))) {
-      return rewriter.notifyMatchFailure(op, "unrollDim should be constant");
+    // Check if there are any dimensions that intersect between expand1,
+    // expand2, and expand3.
+    int64_t totalDims =
+        cast<BaseTensorType>(input1.getType()).getSizes().size() +
+        expand1.size();
+    if (sharedExpandDims(totalDims, expand1, expand2, expand3, sumDim)) {
+      // pytorch issue filed: https://github.com/pytorch/pytorch/issues/138353
+      // TODO: Remove warning when issue gets resolved.
+      op->emitWarning("aten::_trilinear implementation in this case is "
+                      "non-functional (returns an empty dimension). We will "
+                      "intentionally deviate from this behavior.");
     }
 
     // Apply unsqueeze to respective input tensors at the specified dimensions
@@ -2081,6 +2091,26 @@ public:
 
     rewriter.replaceOp(op, result);
     return success();
+  }
+
+private:
+  // Determine if there are any dimensions that intersect between expand1,
+  // expand2, and expand3.
+  bool sharedExpandDims(const int64_t &totalDims,
+                        const SmallVector<int64_t> &expand1,
+                        const SmallVector<int64_t> &expand2,
+                        const SmallVector<int64_t> &expand3,
+                        const SmallVector<int64_t> &sumDim) const {
+    for (int64_t i = 0; i < totalDims; ++i) {
+      if (!contains(sumDim, i) && contains(expand1, i) &&
+          contains(expand2, i) && contains(expand3, i)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  bool contains(const SmallVector<int64_t> &vec, int64_t value) const {
+    return std::find(vec.begin(), vec.end(), value) != vec.end();
   }
 };
 } // namespace
