@@ -1997,9 +1997,10 @@ public:
 } // namespace
 
 namespace {
-/**
- * Trilinear einstein sum, decomposed to use AtenEinsumOp.
- */
+// Trilinear einstein sum, decomposed to:
+// (i1.unsqueeze(expand1) * i2.unsqueeze(expand2) * i3.unsqueeze(expand3))
+//    .sum(sumdim)
+
 class DecomposeAten_TrilinearOp : public OpRewritePattern<Aten_TrilinearOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
