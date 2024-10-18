@@ -1158,7 +1158,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // the end of axis i.
         if (autoPad != "NOTSET" && autoPad != "VALID") {
           const bool isSameLower = autoPad == "SAME_LOWER";
-          const unsigned spatial = rank - 2;
           ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
           padding.resize_for_overwrite(2 * spatial);
           for (unsigned dimIdx = 0; dimIdx < spatial; dimIdx++) {
