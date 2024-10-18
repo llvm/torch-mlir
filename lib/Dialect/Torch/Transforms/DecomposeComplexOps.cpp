@@ -5393,7 +5393,7 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
     Value strideSliceStart = c(1);
     Value strideSliceEnd = c(inputRank);
     Value slicedStrides = rewriter.create<AtenSliceTensorOp>(
-        loc, slicedStrideType, flippedCumulativeProduct, /*dim*/ one,
+        loc, slicedStrideType, flippedCumulativeProduct, /*dim*/ c(0),
         /*start=*/strideSliceStart, /*end=*/strideSliceEnd, /*step=*/c(1));
 
     auto tensorListElementType = Torch::ValueTensorType::get(
