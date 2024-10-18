@@ -91,15 +91,6 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
       options.backendLegalOps, options.extraLibrary));
 }
 
-static void createOnnxShapeRefinementPipeline(
-    mlir::OpPassManager &pm,
-    const mlir::torch::Torch::TorchLoweringPipelineOptions &options) {
-  // This pass scalarizes the tensor shape computations.
-  pm.addNestedPass<mlir::func::FuncOp>(
-      mlir::torch::Torch::createScalarizeShapesPass());
-  createTorchShapeRefinementPipeline(pm, options);
-}
-
 void mlir::torch::Torch::createTorchOnnxToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
   pm.addNestedPass<func::FuncOp>(onnx_c::createTorchOnnxToTorchPass());
@@ -111,9 +102,18 @@ void mlir::torch::Torch::createTorchOnnxToTorchBackendPipeline(
         Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
     pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   }
-  createOnnxShapeRefinementPipeline(pm, options);
+  // TODO: Move the below two passes i.e., ScalarizeShapes and
+  // TorchShapeRefinementPipeline out of here and create an onnx shape
+  // refinement pipeline which runs iteratively over the IR.
+  // This pass scalarizes the tensor shape computations.
+  pm.addNestedPass<mlir::func::FuncOp>(
+      mlir::torch::Torch::createScalarizeShapesPass());
+  createTorchShapeRefinementPipeline(pm, options);
   pm.addPass(Torch::createRefinePublicReturnPass());
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  // The decompose pass is run again here since the scalarize shapes pass and
+  // shape refinement pipeline might create some ops for which decomposition
+  // exists.
   if (options.decompose) {
     pm.addNestedPass<func::FuncOp>(
         Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
