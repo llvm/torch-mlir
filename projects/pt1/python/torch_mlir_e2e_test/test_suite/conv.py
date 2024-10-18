@@ -191,6 +191,58 @@ def Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier(
     module.forward(tu.rand(5, 4, 10, 20))
 
 
+class Conv2dWithValidPaddingModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.conv = torch.nn.Conv2d(
+            1, 1, 1, stride=[1, 1], padding="valid", dilation=[1, 1], groups=1, bias=1
+        )
+        self.train(False)
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 5, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.conv(x)
+
+
+@register_test_case(module_factory=lambda: Conv2dWithValidPaddingModule())
+def Conv2dWithValidPaddingModule_basic(module, tu: TestUtils):
+    t = tu.rand(1, 5, 6)
+    module.forward(t)
+
+
+class Conv2dWithSamePaddingModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.conv = torch.nn.Conv2d(
+            1, 1, 1, stride=[1, 1], padding="same", dilation=[1, 1], groups=1, bias=1
+        )
+        self.train(False)
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 5, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.conv(x)
+
+
+@register_test_case(module_factory=lambda: Conv2dWithSamePaddingModule())
+def Conv2dWithSamePaddingModule_basic(module, tu: TestUtils):
+    t = tu.rand(1, 5, 6)
+    module.forward(t)
+
+
 # ==============================================================================
 
 
