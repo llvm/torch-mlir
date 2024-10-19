@@ -1141,12 +1141,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (dilations.empty())
           dilations.resize(spatial, 1);
 
-        if (padding.size() != static_cast<size_t>(spatial) &&
-            padding.size() != static_cast<size_t>(2 * spatial)) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "padding list size does not match the number of axes");
-        }
-
         auto inputTensorType = cast<Torch::ValueTensorType>(operand.getType());
 
         // Padding for the beginning and ending along each spatial axis, it can
