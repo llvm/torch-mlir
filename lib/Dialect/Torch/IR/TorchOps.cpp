@@ -752,6 +752,22 @@ OpFoldResult Aten__Or__BoolOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenEqBoolOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenEqBoolOp::fold(FoldAdaptor adaptor) {
+  if (getOperand(0) == getOperand(1))
+    return IntegerAttr::get(IntegerType::get(getContext(), 1), true);
+
+  bool a, b;
+  if (!matchPattern(getOperand(0), m_TorchConstantBool(&a)))
+    return nullptr;
+  if (!matchPattern(getOperand(1), m_TorchConstantBool(&b)))
+    return nullptr;
+  return IntegerAttr::get(IntegerType::get(getContext(), 1), a == b);
+}
+
+//===----------------------------------------------------------------------===//
 // AtenNeBoolOp
 //===----------------------------------------------------------------------===//
 
@@ -1107,6 +1123,36 @@ void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     if (!size)
       return rewriter.notifyMatchFailure(op, "operand not AtenSizeOp");
     rewriter.replaceOpWithNewOp<AtenDimOp>(op, size.getOperand());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenMulLeftTOp
+//===----------------------------------------------------------------------===//
+
+void AtenMulLeftTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                 MLIRContext *context) {
+  // `[3] * 5` -> `[3,3,3,3,3]`, if it is not mutated.
+  patterns.add(+[](AtenMulLeftTOp op, PatternRewriter &rewriter) {
+    auto listLiteral = op.getL().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!listLiteral || isListPotentiallyMutated(listLiteral))
+      return failure();
+
+    int64_t numReps;
+    if (!matchPattern(op.getN(), m_TorchConstantInt(&numReps)))
+      return failure();
+
+    SmallVector<Value> newListElements;
+    for (int rep = 0; rep < numReps; ++rep) {
+      for (auto operand : listLiteral.getOperands()) {
+        newListElements.push_back(operand);
+      }
+    }
+
+    rewriter.replaceOpWithNewOp<PrimListConstructOp>(
+        op, Torch::ListType::get(newListElements[0].getType()),
+        newListElements);
     return success();
   });
 }
