@@ -41,7 +41,7 @@ def _module_lowering(
     option_string = "{extra-library=" + extra_library_file_name + "}"
     run_pipeline_with_repro_report(
         torch_mod,
-        f"builtin.module(torchdynamo-export-to-torch-backend-pipeline{option_string})",
+        f"builtin.module(func.func(torch-match-quantized-custom-ops), torchdynamo-export-to-torch-backend-pipeline{option_string})",
         "Lowering TorchFX IR -> Torch Backend IR",
         enable_ir_printing=verbose,
     )
