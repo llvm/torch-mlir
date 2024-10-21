@@ -1199,7 +1199,9 @@ class Conv2dQInt8ModuleBase(torch.nn.Module):
         weight = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             weight, 0.01, 3, -128, 127, torch.int8
         )
-        bias /= 0.01 * 0.01  # compensate for iact scale * weight scale
+        bias = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            bias, 1, 0, -1000, 1000, torch.int32
+        )
 
         conv = torch.ops.aten.conv2d(
             input,
@@ -1224,7 +1226,7 @@ class Conv2dQInt8ModuleDyn(Conv2dQInt8ModuleBase):
             None,
             ([-1, -1, -1, -1], torch.int8, True),
             ([-1, -1, -1, -1], torch.int8, True),
-            ([-1], torch.float, True),
+            ([-1], torch.int32, True),
         ]
     )
     def forward(self, inputVec, weight, bias):
@@ -1238,7 +1240,7 @@ class Conv2dQInt8ModuleStatic(Conv2dQInt8ModuleBase):
             None,
             ([2, 3, 12, 12], torch.int8, True),
             ([3, 1, 5, 3], torch.int8, True),
-            ([3], torch.float, True),
+            ([3], torch.int32, True),
         ]
     )
     def forward(self, inputVec, weight, bias):
@@ -1252,7 +1254,7 @@ class Conv2dQInt8ModuleStatic_MoreOutChannels(Conv2dQInt8ModuleBase):
             None,
             ([2, 3, 12, 12], torch.int8, True),
             ([6, 1, 5, 3], torch.int8, True),
-            ([6], torch.float, True),
+            ([6], torch.int32, True),
         ]
     )
     def forward(self, inputVec, weight, bias):
@@ -1263,7 +1265,7 @@ class Conv2dQInt8ModuleStatic_MoreOutChannels(Conv2dQInt8ModuleBase):
 def Conv2dQInt8Module_basic(module, tu: TestUtils):
     inputVec = tu.randint(2, 4, 7, 8, low=-128, high=127).to(torch.int8)
     weight = tu.randint(3, 4, 3, 2, low=-128, high=127).to(torch.int8)
-    bias = torch.rand(3)
+    bias = tu.randint(3, low=-1000, high=1000).to(torch.int32)
     module.forward(inputVec, weight, bias)
 
 
@@ -1271,7 +1273,7 @@ def Conv2dQInt8Module_basic(module, tu: TestUtils):
 def Conv2dQInt8Module_grouped(module, tu: TestUtils):
     inputVec = tu.randint(2, 8, 7, 8, low=-128, high=127).to(torch.int8)
     weight = tu.randint(6, 4, 3, 2, low=-128, high=127).to(torch.int8)
-    bias = torch.rand(6)
+    bias = tu.randint(6, low=-1000, high=1000).to(torch.int32)
     module.forward(inputVec, weight, bias)
 
 
@@ -1279,7 +1281,7 @@ def Conv2dQInt8Module_grouped(module, tu: TestUtils):
 def Conv2dQInt8Module_depthwise(module, tu: TestUtils):
     inputVec = tu.randint(2, 3, 12, 12, low=-128, high=127).to(torch.int8)
     weight = tu.randint(3, 1, 5, 3, low=-128, high=127).to(torch.int8)
-    bias = torch.rand(3)
+    bias = tu.randint(3, low=-1000, high=1000).to(torch.int32)
     module.forward(inputVec, weight, bias)
 
 
@@ -1289,7 +1291,7 @@ def Conv2dQInt8Module_depthwise(module, tu: TestUtils):
 def Conv2dQInt8Module_not_depthwise(module, tu: TestUtils):
     inputVec = tu.randint(2, 3, 12, 12, low=-128, high=127).to(torch.int8)
     weight = tu.randint(6, 1, 5, 3, low=-128, high=127).to(torch.int8)
-    bias = torch.rand(6)
+    bias = tu.randint(6, low=-1000, high=1000).to(torch.int32)
     module.forward(inputVec, weight, bias)
 
 
