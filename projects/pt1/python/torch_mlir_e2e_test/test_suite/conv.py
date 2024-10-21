@@ -1183,23 +1183,26 @@ def ConvTbcModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(9, 4, 5), tu.rand(3, 5, 6), tu.rand(6))
 
 
+# For DQ-Q fake quantization ops
+import torch.ao.quantization.fx._decomposed
+
+
 class Conv2dQInt8ModuleBase(torch.nn.Module):
     def __init__(self, groups=1):
         self.groups = groups
         super().__init__()
 
-    def _forward(self, inputVec, weight, bias):
-        inputVec = torch._make_per_tensor_quantized_tensor(inputVec, 0.01, 7)
-        inputVec = torch.dequantize(inputVec)
+    def _forward(self, input, weight, bias):
+        input = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            input, 0.01, 7, -128, 127, torch.int8
+        )
+        weight = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            weight, 0.01, 3, -128, 127, torch.int8
+        )
+        bias /= 0.01 * 0.01  # compensate for iact scale * weight scale
 
-        weight = torch._make_per_tensor_quantized_tensor(weight, 0.01, 3)
-        weight = torch.dequantize(weight)
-
-        bias = torch.quantize_per_tensor(bias, 0.0001, 0, torch.qint32)
-        bias = torch.dequantize(bias)
-
-        return torch.ops.aten.conv2d(
-            inputVec,
+        conv = torch.ops.aten.conv2d(
+            input,
             weight,
             bias=bias,
             stride=[1, 1],
@@ -1207,6 +1210,10 @@ class Conv2dQInt8ModuleBase(torch.nn.Module):
             dilation=[1, 1],
             groups=self.groups,
         )
+
+        # Return the result as a float to bypass potential overflow problems. Alternatively, we could complete the DQ-Q pattern by adding quantization to int before returning. However, this requires getting the output scale right, or choosing a sufficiently wide integer type.
+        # return torch.ops.quantized_decomposed.quantize_per_tensor.default(conv, 1, 3, -129, 127, torch.int8)
+        return conv
 
 
 class Conv2dQInt8ModuleDyn(Conv2dQInt8ModuleBase):
@@ -1300,16 +1307,18 @@ class ConvTranspose2DQInt8Module(torch.nn.Module):
         ]
     )
     def forward(self, input, weight, bias):
-        qinput = torch._make_per_tensor_quantized_tensor(input, 0.01, -25)
-        qinput = torch.dequantize(qinput)
-        qweight = torch._make_per_tensor_quantized_tensor(weight, 0.01, 50)
-        qweight = torch.dequantize(qweight)
-        qbias = torch.quantize_per_tensor(bias, 0.0001, 0, torch.qint32)
-        qbias = torch.dequantize(qbias)
+        input = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            input, 0.01, -25, -128, 127, torch.int8
+        )
+        weight = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            weight, 0.01, 50, -128, 127, torch.int8
+        )
+        bias /= 0.01 * 0.01
+
         qz = torch.ops.aten.convolution(
-            qinput,
-            qweight,
-            bias=qbias,
+            input,
+            weight,
+            bias=bias,
             stride=[2, 1],
             padding=[1, 1],
             dilation=[1, 1],
@@ -1342,16 +1351,13 @@ class Conv2dQInt8PerChannelModuleBase(torch.nn.Module):
         super().__init__()
 
     def _forward(self, inputVec, weight, scales, zeropoints, bias):
-        inputVec = torch._make_per_tensor_quantized_tensor(inputVec, 0.01, 7)
-        inputVec = torch.dequantize(inputVec)
-
-        weight = torch._make_per_channel_quantized_tensor(
-            weight, scales, zeropoints, axis=0
+        inputVec = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            inputVec, 0.01, 7, -128, 127, torch.int8
         )
-        weight = torch.dequantize(weight)
-
-        bias = torch.quantize_per_tensor(bias, 0.0001, 0, torch.qint32)
-        bias = torch.dequantize(bias)
+        weight = torch.ops.quantized_decomposed.dequantize_per_channel.default(
+            weight, scales, zeropoints, 0, -128, 127, torch.int8
+        )
+        bias /= 0.01 * scales
 
         return torch.ops.aten.conv2d(
             inputVec,
