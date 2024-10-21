@@ -1535,6 +1535,24 @@ void AtenRsubScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   });
 }
 
+// ===----------------------------------------------------------------------===//
+// AtenRSubScalarOp
+// ===----------------------------------------------------------------------===//
+
+OpFoldResult AtenRsubScalarOp::fold(FoldAdaptor adaptor) {
+  auto fpFold = [](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 3);
+    return inputs[1] - inputs[0] * inputs[2];
+  };
+
+  auto intFold = [](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 3);
+    return inputs[1] - inputs[0] * inputs[2];
+  };
+
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
+}
+
 //===----------------------------------------------------------------------===//
 // AtenMulTensorOp
 //===----------------------------------------------------------------------===//
@@ -1977,6 +1995,58 @@ void AtenDivTensorModeOp::getCanonicalizationPatterns(
   patterns.add(+[](AtenDivTensorModeOp op, PatternRewriter &rewriter) {
     return rewrite0DBinaryTensorOp(op, rewriter);
   });
+}
+
+// ===----------------------------------------------------------------------===//
+// AtenDivTensorModeOp
+// ===----------------------------------------------------------------------===//
+
+OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
+  auto resultTy = dyn_cast_or_null<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype()) {
+    return nullptr;
+  }
+  std::function<double(ArrayRef<double>)> fpFold;
+  std::function<APInt(ArrayRef<APInt>)> intFold;
+
+  auto roundMode = dyn_cast_or_null<StringAttr>(adaptor.getRoundingMode());
+  auto unsign = false;
+  if (isa<mlir::IntegerType>(resultTy.getDtype())) {
+    unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
+  }
+
+  fpFold = [roundMode](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 2);
+    if (!roundMode) {
+      return (double)inputs[0] / inputs[1];
+    } else if (roundMode.getValue().str() == "floor") {
+      return std::floor((double)inputs[0] / inputs[1]);
+    } else {
+      return std::trunc((double)inputs[0] / inputs[1]);
+    }
+  };
+
+  intFold = [unsign, roundMode](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 2);
+    auto lhs = unsign ? inputs[0].getZExtValue() : inputs[0].getSExtValue();
+    auto rhs = unsign ? inputs[1].getZExtValue() : inputs[1].getSExtValue();
+    int64_t bits = std::max(inputs[0].getBitWidth(), inputs[1].getBitWidth());
+    int64_t res;
+    if (roundMode.getValue().str() == "floor") {
+      res = std::floor(lhs / rhs);
+    } else {
+      res = std::trunc(lhs / rhs);
+    }
+    return APInt(bits, res);
+  };
+
+  if (!roundMode) {
+    return naryFolderHelper({adaptor.getSelf(), adaptor.getOther()}, getType(),
+                            fpFold, std::nullopt);
+  }
+
+  return naryFolderHelper({adaptor.getSelf(), adaptor.getOther()}, getType(),
+                          fpFold, intFold);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3597,6 +3667,34 @@ OpFoldResult AtenRemainderIntOp::fold(FoldAdaptor adaptor) {
       adaptor.getOperands(), [](int64_t a, int64_t b) { return a % b; });
 }
 
+// ===----------------------------------------------------------------------===//
+// AtenRemainderScalarOp
+// ===----------------------------------------------------------------------===//
+
+OpFoldResult AtenRemainderScalarOp::fold(FoldAdaptor adaptor) {
+  auto resultTy = dyn_cast_or_null<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype()) {
+    return nullptr;
+  }
+
+  auto unsign = false;
+  if (isa<mlir::IntegerType>(resultTy.getDtype())) {
+    unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
+  }
+  auto fpFold = [](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 2);
+    return std::fmod(inputs[0], inputs[1]);
+  };
+
+  auto intFold = [unsign](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 2);
+    auto ret = unsign ? inputs[0].urem(inputs[1]) : inputs[0].srem(inputs[1]);
+    return ret;
+  };
+
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
+}
+
 //===----------------------------------------------------------------------===//
 // AtenAddIntOp
 //===----------------------------------------------------------------------===//
@@ -4227,6 +4325,42 @@ void AtenIntTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     rewriter.replaceOp(op, scalarInt);
     return success();
   });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenIntTensorOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenIntTensorOp::fold(FoldAdaptor adaptor) {
+  auto value = adaptor.getA();
+  auto dense = dyn_cast_or_null<DenseElementsAttr>(value);
+  if (!dense || !dense.isSplat()) {
+    return nullptr;
+  }
+
+  auto splat = dense.getSplatValue<Attribute>();
+  if (auto intAttr = dyn_cast<IntegerAttr>(splat)) {
+    auto type = getType();
+    if (!isa<mlir::IntegerType>(type)) {
+      return nullptr;
+    }
+
+    if (type.isSignlessInteger()) {
+      return getI64IntegerAttr(getContext(), intAttr.getInt());
+    } else if (type.isSignedInteger()) {
+      return getI64IntegerAttr(getContext(), intAttr.getSInt());
+    } else {
+      return getI64IntegerAttr(getContext(), intAttr.getUInt());
+    }
+  }
+
+  if (auto floatAttr = dyn_cast<FloatAttr>(splat)) {
+    return getI64IntegerAttr(
+        getContext(),
+        static_cast<long>(floatAttr.getValue().convertToDouble()));
+  }
+
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//

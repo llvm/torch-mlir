@@ -65,7 +65,9 @@ def test_import_frozen_exported_program():
 # CHECK:     func.func @main(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.tensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
 # CHECK-DAG: %[[arg1_copy:.+]] = torch.copy.to_vtensor %arg1 : !torch.vtensor<[3,4],f32>
 # CHECK-DAG: %[[arg1_mul:.+]] = torch.aten.mul.Tensor %[[arg1_copy]], %arg0
-# CHECK-DAG: torch.overwrite.tensor.contents %[[arg1_mul]] overwrites %arg1
+# The Torch 2.6 generates `torch.aten.copy` as an op in this example while the torch versions < 2.6 does not, hence this check is kept as a "COM".
+# COM: %{{.*}} = torch.aten.copy %[[arg1_copy]], %[[arg1_mul]], %false : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32>, !torch.bool -> !torch.vtensor<[3,4],f32>
+# CHECK-DAG: torch.overwrite.tensor.contents %{{.*}} overwrites %arg1
 # CHECK-DAG: %[[arg0_mul:.+]] = torch.aten.mul.Tensor %arg0, %[[arg1_mul]]
 # CHECK:     return %[[arg0_mul]]
 def test_user_input_mutate():
