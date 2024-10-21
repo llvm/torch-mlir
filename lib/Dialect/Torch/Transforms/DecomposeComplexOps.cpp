@@ -5506,6 +5506,7 @@ public:
     }
 
     // axis_signal = -1
+    // axis_unsqueeze = -1
     // init_seq = prim.ListConstruct()
     // final_seq = prim.loop n_frames, %true, init(init_seq)
     // {
@@ -5520,7 +5521,8 @@ public:
     //        !torch.vtensor<[batch_dim?,?],f32>
     //    padded_sliced = tensor_static_info_cast(padded_sliced) :
     //        !torch.vtensor<[batch_dim?,n_fft],f32>
-    //    new_seq = aten.append(seq, padded_sliced)
+    //    squeezed = aten.unsqueeze(padded_sliced, axis_unsqueeze)
+    //    new_seq = aten.append(seq, squeezed)
     //    torch.prim.Loop.condition %true, iter(%new_seq)
     // }
     SmallVector<int64_t> slicedSizes(selfType.getSizes());
@@ -5531,10 +5533,15 @@ public:
         partiallyKnownSizes, selfType.getOptionalDtype());
     Type paddedSlicedTensorType =
         selfType.getWithSizesAndDtype(slicedSizes, selfType.getOptionalDtype());
-    ListType seqType = ListType::get(paddedSlicedTensorType);
+    SmallVector<int64_t> unsqueezedTensorSizes(slicedSizes);
+    unsqueezedTensorSizes.push_back(1);
+    Type unsqueezedTensorType = selfType.getWithSizesAndDtype(
+        unsqueezedTensorSizes, selfType.getOptionalDtype());
+    ListType seqType = ListType::get(unsqueezedTensorType);
     Value initSeq = rewriter.create<PrimListConstructOp>(loc, seqType,
                                                          SmallVector<Value>());
     Value axisSignal = cstMinusOne;
+    Value axisUnsqueeze = cstMinusOne;
     Value loopCondTrue = rewriter.create<ConstantBoolOp>(loc, true);
     auto frameLoop =
         rewriter.create<PrimLoopOp>(loc, TypeRange({seqType}), nFrames,
@@ -5561,15 +5568,16 @@ public:
           loc, paddedSlicedTensorType,
           rewriter.create<AtenPadOp>(loc, partiallyKnownTensorType, sliced,
                                      padList, cstStrConstant, cstZeroFloat));
+      Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(
+          loc, unsqueezedTensorType, paddedSliced, axisUnsqueeze);
       Value newSeq =
-          rewriter.create<AtenAppendTOp>(loc, seqType, seq, paddedSliced);
+          rewriter.create<AtenAppendTOp>(loc, seqType, seq, unsqueezed);
       rewriter.create<PrimLoopConditionOp>(loc, loopCondTrue,
                                            ValueRange({newSeq}));
     }
     Value finalSeq = frameLoop.getResult(0);
 
-    // axis_stack = -1
-    // concat_tensor = torch.stack(final_seq, axis_stack)
+    // concat_tensor = torch.cat(final_seq, axis_unsqueeze)
     // axis_frame = -2
     // new_window_shape = [1?, n_fft, 1]
     // weights = aten.reshape(window, new_window_shape)
@@ -5579,13 +5587,12 @@ public:
     // } else {
     //   return aten.fft_rfft(weighted_tensor, None, axis_frame)
     // }
-    Value axisStack = cstMinusOne;
     SmallVector<int64_t> preFftTensorSizes(slicedSizes);
     preFftTensorSizes.push_back(kUnknownSize);
     Type preFftTensorType = selfType.getWithSizesAndDtype(
         preFftTensorSizes, selfType.getOptionalDtype());
-    Value concatTensor = rewriter.create<AtenStackOp>(loc, preFftTensorType,
-                                                      finalSeq, axisStack);
+    Value concatTensor = rewriter.create<AtenCatOp>(loc, preFftTensorType,
+                                                    finalSeq, axisUnsqueeze);
     Value axisFrame = cstMinusTwo;
     Value newWindowShape;
     SmallVector<int64_t> newWindowSizes;
