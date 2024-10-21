@@ -9,7 +9,9 @@
 
 #include "PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/IR/Iterators.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -25,7 +27,7 @@ namespace {
 
 LogicalResult materializeFolds(ImplicitLocOpBuilder b,
                                ArrayRef<OpFoldResult> fold,
-                               SmallVector<Value> &values) {
+                               SmallVectorImpl<Value> &values) {
   for (auto f : fold) {
     if (auto val = dyn_cast<Value>(f)) {
       values.push_back(val);
@@ -41,7 +43,7 @@ LogicalResult materializeFolds(ImplicitLocOpBuilder b,
 
       if (auto val = dyn_cast<IntegerAttr>(attr)) {
         values.push_back(
-            b.create<Torch::ConstantIntOp>(b.getType<Torch::IntType>(), val));
+            b.create<Torch::ConstantIntOp>(val.getValue().getSExtValue()));
         continue;
       }
     }
@@ -63,33 +65,14 @@ LogicalResult getListOperands(Value value, SmallVector<Value> &vals) {
   return success();
 }
 
-LogicalResult constructListFromLiteral(PatternRewriter &rewriter,
-                                       ValueTensorLiteralOp literalOp,
-                                       SmallVector<Value> &vals) {
-  // only supports splat ValueTensorLiterals for now. TODO: add support for
-  // small non-splat valuetensorliterals.
-  auto ty = dyn_cast<ValueTensorType>(literalOp.getType());
-  if (!ty || !ty.hasSizes())
-    return failure();
-  auto attr = dyn_cast_or_null<SplatElementsAttr>(literalOp.getValue());
-  if (!attr)
-    return failure();
-  auto attrInt = dyn_cast<IntegerAttr>(attr.getSplatValue<Attribute>());
-  if (!attrInt)
-    return failure();
-  IntegerType intty = cast<IntegerType>(attrInt.getType());
-  if (!intty.isSignedInteger())
-    return failure();
-  Value materializedVal = rewriter.create<Torch::ConstantIntOp>(
-      literalOp.getLoc(), attrInt.getSInt());
-  vals.resize(vals.size() + ty.getSizes()[0], materializedVal);
-  return success();
-}
-
-LogicalResult getListFromTensor(Value value, SmallVector<Value> &vals) {
+LogicalResult getListFromTensor(Value value, SmallVector<OpFoldResult> &vals) {
   constexpr int64_t kMaxFold = 16;
-  if (auto tensor = value.getDefiningOp<Torch::AtenTensorOp>())
-    return getListOperands(tensor.getData(), vals);
+  if (auto tensor = value.getDefiningOp<Torch::AtenTensorOp>()) {
+    SmallVector<Value> unfolded;
+    LogicalResult gotList = getListOperands(tensor.getData(), unfolded);
+    vals = getAsOpFoldResult(unfolded);
+    return gotList;
+  }
 
   if (auto full = value.getDefiningOp<Torch::AtenFullOp>()) {
     auto ty = cast<ValueTensorType>(full.getType());
@@ -99,13 +82,66 @@ LogicalResult getListFromTensor(Value value, SmallVector<Value> &vals) {
     if (ty.getSizes()[0] > kMaxFold)
       return failure();
 
-    vals.resize(vals.size() + ty.getSizes()[0], full.getFillValue());
+    vals.resize(vals.size() + ty.getSizes()[0],
+                getAsOpFoldResult(full.getFillValue()));
     return success();
   }
+  // TODO: Add a case for unsqueeze of a primnumtotensorscalarop?
 
-  return failure();
+  // Last supported case: ValueTensorLiteralOp
+  auto literalOp = value.getDefiningOp<Torch::ValueTensorLiteralOp>();
+  if (!literalOp)
+    return failure();
+
+  // Check the type. We make sure the type is not unsigned here before trying to
+  // materialize
+  auto ty = cast<ValueTensorType>(literalOp.getType());
+  if (!ty.hasSizes() || ty.getSizes().size() > 1)
+    return failure();
+  int64_t listSize = ty.getSizes().size() == 1 ? ty.getSizes().front() : 1;
+  auto intTy = dyn_cast_or_null<IntegerType>(ty.getDtype());
+  if (!intTy || intTy.isUnsigned())
+    return failure();
+
+  auto splattr = dyn_cast_or_null<SplatElementsAttr>(literalOp.getValue());
+  auto denseAttr = dyn_cast_or_null<DenseIntElementsAttr>(literalOp.getValue());
+
+  if (!splattr && !denseAttr)
+    return failure();
+
+  if (splattr) {
+    auto attr = splattr.getSplatValue<Attribute>();
+    vals.resize((int64_t)vals.size() + listSize, attr);
+  }
+
+  if (denseAttr && !splattr) {
+    for (auto e : denseAttr.getValues<Attribute>())
+      vals.push_back(e);
+  }
+
+  if ((int64_t)vals.size() != listSize)
+    return failure();
+
+  return success();
+}
+
+Value constructAtenTensorOpFromList(ImplicitLocOpBuilder b, mlir::Type resultTy,
+                                    SmallVector<Value> &listValues) {
+  auto dimList = b.create<Torch::PrimListConstructOp>(
+      b.getType<Torch::ListType>(listValues.front().getType()), listValues);
+  Value cstNone = b.create<Torch::ConstantNoneOp>();
+  Value cstFalse = b.create<Torch::ConstantBoolOp>(b.getBoolAttr(false));
+  return b.create<Torch::AtenTensorOp>(resultTy, dimList, cstNone, cstNone,
+                                       cstFalse);
 }
 } // namespace
+
+/// ------ Propagation Patterns ------ ///
+// The general goal of these patterns is to convert SomeTensorOp to [scalarOps
+// -> PrimListOfInts -> AtenTensorOp] Since these tensorized shape calculation
+// ops are chained together, sequences like OpA -> OpB will propagate OpA first:
+// [scalarOpsA -> ListA -> TensorA] -> OpB. Then OpB will be able to
+// getListFromTensor(A), and further propagate scalarization.
 
 namespace {
 class PropagateAtenShapeToTensorPattern
@@ -115,30 +151,27 @@ public:
   LogicalResult matchAndRewrite(Aten_ShapeAsTensorOp op,
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
+    ImplicitLocOpBuilder b(loc, rewriter);
     auto self = op.getSelf();
     auto selfTy = cast<BaseTensorType>(self.getType());
     if (!selfTy.hasSizes())
       return rewriter.notifyMatchFailure(op, "self has unknown rank");
 
     int64_t rank = selfTy.getSizes().size();
-    SmallVector<Value> dims;
+    SmallVector<OpFoldResult> dims;
     for (int64_t i = 0; i < rank; ++i) {
-      auto iv = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(i));
-      dims.push_back(rewriter.create<Torch::AtenSizeIntOp>(
-          loc, rewriter.getType<Torch::IntType>(), self, iv));
+      auto iv = b.create<Torch::ConstantIntOp>(i);
+      dims.push_back(b.createOrFold<Torch::AtenSizeIntOp>(
+          rewriter.getType<Torch::IntType>(), self, iv));
+    }
+    SmallVector<Value> materializedDims;
+    if (failed(materializeFolds(b, dims, materializedDims))) {
+      return failure();
     }
 
-    auto dimList = rewriter.create<Torch::PrimListConstructOp>(
-        loc,
-        rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
-        dims);
-
-    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
-    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
-        loc, rewriter.getBoolAttr(false));
-    rewriter.replaceOpWithNewOp<Torch::AtenTensorOp>(
-        op, op.getType(), dimList, cstNone, cstNone, cstFalse);
+    Value result =
+        constructAtenTensorOpFromList(b, op.getType(), materializedDims);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -171,56 +204,20 @@ public:
 
     SmallVector<OpFoldResult> scalars;
     for (auto element : tensors) {
-      llvm::SmallVector<Value> delisted;
-      if (succeeded(getListFromTensor(element, delisted))) {
-        for (auto scalar : delisted)
-          scalars.push_back(scalar);
-        continue;
-      }
+      llvm::SmallVector<OpFoldResult> delisted;
+      if (failed(getListFromTensor(element, delisted)))
+        return rewriter.notifyMatchFailure(op, "unknown op fold type");
 
-      DenseElementsAttr attr;
-      if (matchPattern(element, m_Constant(&attr))) {
-        if (attr.isSplat()) {
-          scalars.resize(scalars.size() + attr.getNumElements(),
-                         attr.getSplatValue<Attribute>());
-          continue;
-        }
-
-        for (auto e : attr.getValues<Attribute>()) {
-          scalars.push_back(e);
-        }
-        continue;
-      }
-
-      return rewriter.notifyMatchFailure(op, "unknown op fold type");
-    }
-
-    for (auto &scalar : scalars) {
-      if (auto attr = dyn_cast<Attribute>(scalar)) {
-        if (auto iattr = dyn_cast<IntegerAttr>(attr)) {
-          auto i64 = iattr.getValue().getSExtValue();
-          scalar = rewriter.getI64IntegerAttr(i64);
-        }
-      }
+      for (auto scalar : delisted)
+        scalars.push_back(scalar);
     }
 
     SmallVector<Value> values;
-    if (failed(materializeFolds(b, scalars, values)))
+    if (failed(materializeFolds(b, scalars, values)) || values.empty())
       return rewriter.notifyMatchFailure(op, "unable to materialize constants");
 
-    Type eTy = b.getType<Torch::FloatType>();
-    if (isa<mlir::IntegerType>(resultTy.getDtype()))
-      eTy = rewriter.getType<Torch::IntType>();
-
-    auto elementsList = b.create<Torch::PrimListConstructOp>(
-        rewriter.getType<Torch::ListType>(eTy), values);
-
-    Value cstNone = b.create<Torch::ConstantNoneOp>();
-    Value cstFalse =
-        b.create<Torch::ConstantBoolOp>(rewriter.getBoolAttr(false));
-    rewriter.replaceOpWithNewOp<Torch::AtenTensorOp>(
-        op, op.getType(), elementsList, cstNone, cstNone, cstFalse);
-
+    Value result = constructAtenTensorOpFromList(b, resultTy, values);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -236,7 +233,7 @@ public:
     auto loc = op.getLoc();
     ImplicitLocOpBuilder b(loc, rewriter);
 
-    SmallVector<Value> elements;
+    SmallVector<OpFoldResult> elements;
     if (failed(getListFromTensor(op.getSelf(), elements)))
       return failure();
 
@@ -244,8 +241,8 @@ public:
     if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
       return rewriter.notifyMatchFailure(op, "requires a constant dim");
 
-    DenseElementsAttr idx;
-    if (!matchPattern(op.getIndex(), m_Constant(&idx)))
+    SmallVector<OpFoldResult> idxFolds;
+    if (failed(getListFromTensor(op.getIndex(), idxFolds)))
       return rewriter.notifyMatchFailure(op, "requires a constant index");
 
     auto selfTy = cast<BaseTensorType>(op.getSelf().getType());
@@ -268,28 +265,25 @@ public:
                                            "expects unary non-dim dimension");
     }
 
-    SmallVector<Value> selected;
-    if (idx.isSplat()) {
-      int64_t indexInt = idx.getSplatValue<APInt>().getSExtValue();
+    SmallVector<OpFoldResult> selected;
+    for (auto idx : idxFolds) {
+      auto attr = dyn_cast_or_null<IntegerAttr>(dyn_cast<Attribute>(idx));
+      if (!attr)
+        return failure();
+      int64_t indexInt = attr.getValue().getSExtValue();
       indexInt = indexInt < 0 ? indexInt + dimLength : indexInt;
-      selected.resize(idx.getNumElements(), elements[indexInt]);
-    } else {
-      for (APInt val : idx.getValues<APInt>()) {
-        int64_t indexInt = val.getSExtValue();
-        selected.push_back(elements[indexInt]);
-      }
+      if (indexInt < 0 || indexInt >= dimLength)
+        return failure();
+      selected.push_back(elements[indexInt]);
     }
 
-    auto eTy = elements.front().getType();
+    SmallVector<Value> materializedSelected;
+    if (failed(materializeFolds(b, selected, materializedSelected)))
+      return failure();
 
-    auto dimList = rewriter.create<Torch::PrimListConstructOp>(
-        loc, rewriter.getType<Torch::ListType>(eTy), selected);
-
-    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
-    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
-        loc, rewriter.getBoolAttr(false));
-    rewriter.replaceOpWithNewOp<Torch::AtenTensorOp>(
-        op, op.getType(), dimList, cstNone, cstNone, cstFalse);
+    Value result =
+        constructAtenTensorOpFromList(b, op.getType(), materializedSelected);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -309,7 +303,7 @@ public:
     auto loc = op.getLoc();
     ImplicitLocOpBuilder b(loc, rewriter);
 
-    SmallVector<Value> elements;
+    SmallVector<OpFoldResult> elements;
     if (failed(getListFromTensor(op.getSelf(), elements)))
       return failure();
 
@@ -356,19 +350,16 @@ public:
                                            "expects unary non-dim dimension");
     }
 
-    SmallVector<Value> selected;
+    SmallVector<OpFoldResult> selected;
     for (int i = start; i < end; i += step)
       selected.push_back(elements[i]);
 
-    auto eTy = elements.front().getType();
-    auto dimList = rewriter.create<Torch::PrimListConstructOp>(
-        loc, rewriter.getType<Torch::ListType>(eTy), selected);
+    SmallVector<Value> values;
+    if (failed(materializeFolds(b, selected, values)))
+      return failure();
 
-    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
-    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
-        loc, rewriter.getBoolAttr(false));
-    rewriter.replaceOpWithNewOp<Torch::AtenTensorOp>(
-        op, op.getType(), dimList, cstNone, cstNone, cstFalse);
+    Value result = constructAtenTensorOpFromList(b, op.getType(), values);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -407,62 +398,39 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "arguments are dynamic or too big");
 
+    SmallVector<OpFoldResult> conditionFolds, selfFolds, otherFolds;
+    if (failed(getListFromTensor(condition, conditionFolds)) ||
+        failed(getListFromTensor(self, selfFolds)) ||
+        failed(getListFromTensor(other, otherFolds)))
+      return failure();
+
+    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+
     SmallVector<Value> conditionList, selfList, otherList;
-    if (failed(getListFromTensor(condition, conditionList)) ||
-        (int64_t)conditionList.size() != conditionSize)
+    if (failed(materializeFolds(b, conditionFolds, conditionList)) ||
+        failed(materializeFolds(b, selfFolds, selfList)) ||
+        failed(materializeFolds(b, otherFolds, otherList)))
       return failure();
 
-    // If one of these tensors is a value tensor literal op, we will need to
-    // create constant ints in the IR to form a list. Before calling
-    // constructListFromLiteral, we must be certain that the conversion can no
-    // longer fail, otherwise we will cause an infinite loop of creating a
-    // constant and removing it.
-    LogicalResult selfFromList = getListFromTensor(self, selfList);
-    LogicalResult otherFromList = getListFromTensor(other, otherList);
-
-    if (failed(selfFromList) && failed(otherFromList))
-      return rewriter.notifyMatchFailure(
-          op, "At least one operand must succeed at constructing a list");
-
-    auto selfLiteral = self.getDefiningOp<Torch::ValueTensorLiteralOp>();
-    auto otherLiteral = other.getDefiningOp<Torch::ValueTensorLiteralOp>();
-    if (succeeded(selfFromList) && otherLiteral &&
-        failed(constructListFromLiteral(rewriter, otherLiteral, otherList)))
-      return failure();
-    if (succeeded(otherFromList) && selfLiteral &&
-        failed(constructListFromLiteral(rewriter, selfLiteral, selfList)))
-      return failure();
-    if ((int64_t)selfList.size() != selfSize ||
-        (int64_t)otherList.size() != otherSize)
-      // this should only occur if we did not generate IR with
-      // constructListFromLiteral
-      return failure();
-
-    Location loc = op.getLoc();
     SmallVector<Value> whereVals;
     auto rank0IntTy = rewriter.getType<Torch::ValueTensorType>(
         ArrayRef<int64_t>({}), selfTy.getDtype());
     auto rank0BoolTy = rewriter.getType<Torch::ValueTensorType>(
         ArrayRef<int64_t>({}), conditionTy.getDtype());
     for (uint64_t i = 0; i < selfList.size(); i++) {
-      Value rank0Cond = rewriter.create<Torch::PrimNumToTensorScalarOp>(
-          loc, rank0BoolTy, conditionList[i]);
-      Value rank0Self = rewriter.create<Torch::PrimNumToTensorScalarOp>(
-          loc, rank0IntTy, selfList[i]);
-      Value rank0Other = rewriter.create<Torch::PrimNumToTensorScalarOp>(
-          loc, rank0IntTy, otherList[i]);
-      Value rank0Where = rewriter.create<AtenWhereSelfOp>(
-          loc, rank0IntTy, rank0Cond, rank0Self, rank0Other);
-      whereVals.push_back(rewriter.create<AtenItemOp>(
-          loc, rewriter.getType<Torch::IntType>(), rank0Where));
+      Value rank0Cond = b.create<Torch::PrimNumToTensorScalarOp>(
+          rank0BoolTy, conditionList[i]);
+      Value rank0Self =
+          b.create<Torch::PrimNumToTensorScalarOp>(rank0IntTy, selfList[i]);
+      Value rank0Other =
+          b.create<Torch::PrimNumToTensorScalarOp>(rank0IntTy, otherList[i]);
+      Value rank0Where = b.create<AtenWhereSelfOp>(rank0IntTy, rank0Cond,
+                                                   rank0Self, rank0Other);
+      whereVals.push_back(
+          b.create<AtenItemOp>(rewriter.getType<Torch::IntType>(), rank0Where));
     }
-    Value list = rewriter.create<Torch::PrimListConstructOp>(
-        op.getLoc(), Torch::ListType::get(whereVals[0].getType()), whereVals);
-    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(op.getLoc());
-    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
-        op.getLoc(), rewriter.getBoolAttr(false));
-    rewriter.replaceOpWithNewOp<Torch::AtenTensorOp>(
-        op, op.getType(), list, cstNone, cstNone, cstFalse);
+    Value result = constructAtenTensorOpFromList(b, op.getType(), whereVals);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -496,45 +464,34 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "self or other is dynamic or too big");
 
+    SmallVector<OpFoldResult> selfFolds, otherFolds;
+    if (failed(getListFromTensor(self, selfFolds)) ||
+        failed(getListFromTensor(other, otherFolds)))
+      return rewriter.notifyMatchFailure(op, "failed to get list from tensor");
+
+    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
     SmallVector<Value> selfList, otherList;
-    // If one of these tensors is a value tensor literal op, we will need to
-    // create constant ints in the IR to form a list. Before calling
-    // constructListFromLiteral, we must be certain that the conversion can no
-    // longer fail, otherwise we will cause an infinite loop of creating a
-    // constant and removing it.
-    LogicalResult selfFromList = getListFromTensor(self, selfList);
-    LogicalResult otherFromList = getListFromTensor(other, otherList);
+    if (failed(materializeFolds(b, selfFolds, selfList)) ||
+        failed(materializeFolds(b, otherFolds, otherList)))
+      return rewriter.notifyMatchFailure(op, "failed to materialize folds");
 
-    if (failed(selfFromList) && failed(otherFromList))
-      return rewriter.notifyMatchFailure(
-          op, "At least one operand must succeed at constructing a list");
-
-    auto selfLiteral = self.getDefiningOp<Torch::ValueTensorLiteralOp>();
-    auto otherLiteral = other.getDefiningOp<Torch::ValueTensorLiteralOp>();
-    if (succeeded(selfFromList) && otherLiteral &&
-        failed(constructListFromLiteral(rewriter, otherLiteral, otherList)))
-      return failure();
-    if (succeeded(otherFromList) && selfLiteral &&
-        failed(constructListFromLiteral(rewriter, selfLiteral, selfList)))
-      return failure();
-    if ((int64_t)selfList.size() != selfSize ||
-        (int64_t)otherList.size() != otherSize)
-      // this should only occur if we did not generate IR with
-      // constructListFromLiteral
-      return failure();
-
-    SmallVector<Value> eqVals;
+    SmallVector<OpFoldResult> eqBoolFolds;
     for (uint64_t i = 0; i < selfList.size(); i++) {
-      eqVals.push_back(
-          rewriter.create<AtenEqIntOp>(op.getLoc(), selfList[i], otherList[i]));
+      OpFoldResult eqInt =
+          b.createOrFold<AtenEqIntOp>(selfList[i], otherList[i]);
+      if (auto eqIntVal = dyn_cast<Value>(eqInt))
+        eqInt = b.createOrFold<AtenIntBoolOp>(eqIntVal);
+      // if eqInt was an Attribute, it will materialize to a constant int op,
+      // which is what we want.
+      eqBoolFolds.push_back(eqInt);
     }
-    Value list = rewriter.create<Torch::PrimListConstructOp>(
-        op.getLoc(), Torch::ListType::get(eqVals[0].getType()), eqVals);
-    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(op.getLoc());
-    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
-        op.getLoc(), rewriter.getBoolAttr(false));
-    rewriter.replaceOpWithNewOp<Torch::AtenTensorOp>(
-        op, op.getType(), list, cstNone, cstNone, cstFalse);
+    SmallVector<Value> eqVals;
+    if (failed(materializeFolds(b, eqBoolFolds, eqVals))) {
+      return failure();
+    }
+
+    Value result = constructAtenTensorOpFromList(b, op.getType(), eqVals);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -546,19 +503,46 @@ public:
   using OpRewritePattern<AtenItemOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenItemOp op,
                                 PatternRewriter &rewriter) const override {
+    SmallVector<OpFoldResult> elements;
+    Value self = op.getSelf();
+    auto selfTy = cast<ValueTensorType>(self.getType());
     ImplicitLocOpBuilder b(op.getLoc(), rewriter);
-    SmallVector<Value> elements;
+
+    // Rank 0 item op prop
+    if (selfTy.getSizes().size() == 0) {
+      auto numToTensor = self.getDefiningOp<Torch::PrimNumToTensorScalarOp>();
+      auto squeezeDim = self.getDefiningOp<AtenSqueezeDimOp>();
+      if (!squeezeDim && !numToTensor)
+        return rewriter.notifyMatchFailure(op,
+                                           "unhandled item of rank 0 operand");
+      if (numToTensor) {
+        rewriter.replaceOp(op, numToTensor.getA());
+        return success();
+      }
+      rewriter.replaceOpWithNewOp<AtenItemOp>(op, op.getType(),
+                                              squeezeDim.getSelf());
+      return success();
+    }
+
+    // Rank 1 item op prop
     if (failed(getListFromTensor(op.getSelf(), elements)))
       return failure();
 
     if (elements.size() != 1)
-      return rewriter.notifyMatchFailure(op, "expected no elements");
+      return rewriter.notifyMatchFailure(op, "expected one element");
 
-    rewriter.replaceOp(op, elements[0]);
+    SmallVector<Value, 1> materialized;
+    if (failed(materializeFolds(b, elements, materialized)))
+      return failure();
+
+    rewriter.replaceOp(op, materialized.front());
     return success();
   }
 };
 } // namespace
+
+/// ------ Fold Patterns ------ ///
+// These are shape-specific folding patterns
 
 namespace {
 class FoldAtenTensorSplatPattern : public OpRewritePattern<AtenTensorOp> {
@@ -644,26 +628,6 @@ public:
 } // namespace
 
 namespace {
-class FoldAtenSqueezeDimPattern : public OpRewritePattern<AtenSqueezeDimOp> {
-public:
-  using OpRewritePattern<AtenSqueezeDimOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenSqueezeDimOp op,
-                                PatternRewriter &rewriter) const override {
-    auto resultTy = cast<ValueTensorType>(op.getType());
-    if (!resultTy.hasSizes() || resultTy.getSizes().size() != 0)
-      return rewriter.notifyMatchFailure(op, "Unknown result shape");
-
-    if (auto atenFull = op.getSelf().getDefiningOp<AtenFullOp>()) {
-      rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(
-          op, resultTy, atenFull.getFillValue());
-      return success();
-    }
-    return failure();
-  }
-};
-} // namespace
-
-namespace {
 class FoldAtenWhereSelf : public OpRewritePattern<AtenWhereSelfOp> {
 public:
   using OpRewritePattern<AtenWhereSelfOp>::OpRewritePattern;
@@ -697,16 +661,19 @@ public:
 
     if (selfSize && otherSize) {
       if (selfSize.getSelf() != otherSize.getSelf())
-        return failure();
-
-      if (selfSize.getDim() != otherSize.getDim())
-        return failure();
+        return rewriter.notifyMatchFailure(op, "sizes not of same tensor");
+      int64_t dimSelf, dimOther;
+      if ((selfSize.getDim() != otherSize.getDim()) &&
+          (!matchPattern(selfSize.getDim(), m_TorchConstantInt(&dimSelf)) ||
+           !matchPattern(otherSize.getDim(), m_TorchConstantInt(&dimOther)) ||
+           (dimSelf != dimOther)))
+        return rewriter.notifyMatchFailure(op, "sizes not of same dim");
 
       rewriter.replaceOp(op, op.getSelf());
       return success();
     }
 
-    return failure();
+    return rewriter.notifyMatchFailure(op, "unable to fold");
   }
 };
 } // namespace
@@ -749,6 +716,8 @@ public:
   }
 };
 } // namespace
+
+/// ------ Canonicalization Patterns ------ ///
 
 namespace {
 // This is a specific pattern for converting views like [?,...,?,lastDim] ->
@@ -889,6 +858,58 @@ public:
 } // namespace
 
 namespace {
+
+bool isSourceOpForShapeScalarization(Operation *op) {
+  return llvm::isa<AtenSizeIntOp, Torch::ConstantIntOp, Torch::ConstantBoolOp,
+                   Aten_ShapeAsTensorOp, Torch::ValueTensorLiteralOp>(op);
+}
+
+bool isPrimListOfInts(Operation *op) {
+  auto primListOp = dyn_cast<Torch::PrimListConstructOp>(op);
+  if (!primListOp)
+    return false;
+  auto listType = dyn_cast<Torch::ListType>(primListOp.getType());
+  if (!listType)
+    return false;
+  return llvm::isa<Torch::IntType>(listType.getContainedType());
+}
+
+void populateScalarizationFoldPatterns(RewritePatternSet &patterns) {
+  patterns.insert<FoldAtenSqueezePattern, FoldAtenUnsqueezePattern,
+                  FoldAtenWhereSelf, FoldAtenTensorSplatPattern>(
+      patterns.getContext());
+}
+
+void populateScalarizationCanonicalizePatterns(RewritePatternSet &patterns) {
+  patterns.add<CanonicalizeAtenViewPattern>(patterns.getContext());
+}
+
+void populateScalarizationPropagationPatterns(RewritePatternSet &patterns) {
+  patterns.insert<PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
+                  PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
+                  PropagateAtenSliceTensorPattern, PropagateAtenEqTensorPattern,
+                  PropagateAtenWhereSelfPattern>(patterns.getContext());
+}
+
+void populateScalarizationRemovePatterns(RewritePatternSet &patterns) {
+  patterns.insert<RemoveUnusedPattern<Torch::AtenIntBoolOp>,
+                  RemoveUnusedPattern<Torch::AtenEqIntOp>,
+                  RemoveUnusedPattern<Torch::PrimNumToTensorScalarOp>,
+                  RemoveUnusedPattern<Torch::AtenFullOp>,
+                  RemoveUnusedPattern<Torch::AtenUnsqueezeOp>,
+                  RemoveUnusedPattern<Torch::AtenSqueezeDimOp>,
+                  RemoveUnusedPattern<Torch::AtenSizeIntOp>,
+                  RemoveUnusedPattern<Torch::AtenSliceTensorOp>,
+                  RemoveUnusedPattern<Torch::AtenTensorOp>,
+                  RemoveUnusedPattern<Torch::ConstantBoolOp>,
+                  RemoveUnusedPattern<Torch::ConstantIntOp>,
+                  RemoveUnusedPattern<Torch::ConstantNoneOp>,
+                  RemoveUnusedPattern<Torch::PrimListConstructOp>>(
+      patterns.getContext());
+}
+
+} // namespace
+namespace {
 class ScalarizeShapesPass : public ScalarizeShapesBase<ScalarizeShapesPass> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -898,33 +919,74 @@ public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
-    patterns.insert<PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
-                    PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
-                    PropagateAtenSliceTensorPattern, FoldAtenTensorSplatPattern,
-                    FoldAtenSqueezePattern, FoldAtenUnsqueezePattern,
-                    FoldAtenWhereSelf, CanonicalizeAtenViewPattern,
-                    PropagateAtenEqTensorPattern, PropagateAtenWhereSelfPattern,
-                    FoldAtenSqueezeDimPattern,
-                    RemoveUnusedPattern<Torch::AtenIntBoolOp>,
-                    RemoveUnusedPattern<Torch::AtenEqIntOp>,
-                    RemoveUnusedPattern<Torch::PrimNumToTensorScalarOp>,
-                    RemoveUnusedPattern<Torch::AtenFullOp>,
-                    RemoveUnusedPattern<Torch::AtenUnsqueezeOp>,
-                    RemoveUnusedPattern<Torch::AtenSqueezeDimOp>,
-                    RemoveUnusedPattern<Torch::AtenSizeIntOp>,
-                    RemoveUnusedPattern<Torch::AtenSliceTensorOp>,
-                    RemoveUnusedPattern<Torch::AtenTensorOp>,
-                    RemoveUnusedPattern<Torch::ConstantBoolOp>,
-                    RemoveUnusedPattern<Torch::ConstantIntOp>,
-                    RemoveUnusedPattern<Torch::ConstantNoneOp>,
-                    RemoveUnusedPattern<Torch::PrimListConstructOp>>(context);
 
+    // populate patterns
+    populateScalarizationPropagationPatterns(patterns);
+    populateScalarizationFoldPatterns(patterns);
+    populateScalarizationCanonicalizePatterns(patterns);
+    populateScalarizationRemovePatterns(patterns);
     context->getLoadedDialect<mlir::arith::ArithDialect>()
         ->getCanonicalizationPatterns(patterns);
-    if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                            std::move(patterns)))) {
+    // don't load torch canonicalization patterns, since these may lead to
+    // issues with propagation
+
+    // walk func op bottom-up to collect a SetVector of shape-related operations
+    // When we pass this SetVector to the pattern rewrite driver, it will
+    // process the operations top-down, thereby propagating scalarization
+    // starting from sources.
+    auto funcOp = getOperation();
+    llvm::SetVector<Operation *> shapeCalculationOps;
+    funcOp.walk<WalkOrder::PostOrder, mlir::ReverseIterator>(
+        [&](Operation *op) {
+          // Walking bottom-up, start adding ops when we reach an anchor point
+          // (a prim list of ints)
+          if (isPrimListOfInts(op)) {
+            shapeCalculationOps.insert(op);
+            return;
+          }
+          // add view ops for now until the decompositions for flatten and
+          // unflatten are removed.
+          if (isa<AtenViewOp>(op)) {
+            shapeCalculationOps.insert(op);
+            return;
+          }
+          // Insert the op if any of it's consumers have already been identified
+          // as a shape calculation op. To avoid adding the producer of
+          // something like a size.int op, don't add ops when their consumer is
+          // a source op for shape scalarization. Here is some sample IR:
+          // ------
+          // %0 = aten.matmul %arg0, %arg1 : ... -> !torch.vtensor<[?,?,?],f32>
+          // %1 = aten.size.int %0, %int0 : !torch.int
+          // %2 = prim.ListConstruct %1 : (!torch.int) -> !torch.list<int>
+          // return %2 : !torch.list<int>
+          // ------
+          // In this example, don't add the matmul (%0), or it's producers, to
+          // shapeCalculationOps. It's consumer (%1) is indeed a shape
+          // calculation op, but the size.int op is an elementary unit of shape
+          // computation. No futher gathering of producers is necessary to
+          // reduce this. Similarly, don't add the `self` of a view op.
+          for (OpOperand &use : op->getUses()) {
+            Operation *userOp = use.getOwner();
+            if (shapeCalculationOps.contains(userOp) &&
+                !isSourceOpForShapeScalarization(userOp) &&
+                !isa<AtenViewOp>(userOp)) {
+              shapeCalculationOps.insert(op);
+              return;
+            }
+          }
+        });
+
+    GreedyRewriteConfig config;
+    // When propagating, we need to go back and clean up aten.Tensor ops that
+    // have been futher propagated. It is also necessary to add newly created
+    // ops for custom folding after scalarizing a where.self op.
+    config.strictMode = GreedyRewriteStrictness::ExistingAndNewOps;
+    if (failed(applyOpPatternsAndFold(shapeCalculationOps.getArrayRef(),
+                                      std::move(patterns), config))) {
       return signalPassFailure();
     }
+
+    // TODO: Warn when failing to process operations in the worklist.
   }
 };
 } // namespace
