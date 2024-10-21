@@ -120,6 +120,9 @@ LogicalResult getListFromTensor(Value value, SmallVector<OpFoldResult> &vals) {
   // if we have a rank 0 literal, we will be adding one element to the list
   int64_t listSize = ty.getSizes().size() == 1 ? ty.getSizes().front() : 1;
 
+  if (listSize > kMaxFold)
+    return failure();
+
   // check for a splat or dense attr
   auto splattr = dyn_cast_or_null<SplatElementsAttr>(literalOp.getValue());
   auto denseAttr = dyn_cast_or_null<DenseIntElementsAttr>(literalOp.getValue());
@@ -597,6 +600,80 @@ public:
 };
 } // namespace
 
+namespace {
+
+template <typename OpTy> struct ArithmeticHelper {
+  static LogicalResult getAlphaAndVerify(OpTy &op, int64_t &alpha) {
+    alpha = 1;
+    return success();
+  }
+};
+
+template <> struct ArithmeticHelper<AtenAddTensorOp> {
+  static LogicalResult getAlphaAndVerify(AtenAddTensorOp &op, int64_t &alpha) {
+    if (!matchPattern(op.getAlpha(), m_TorchConstantInt(&alpha)) || alpha != 1)
+      return failure();
+    return success();
+  }
+};
+
+template <> struct ArithmeticHelper<AtenSubTensorOp> {
+  static LogicalResult getAlphaAndVerify(AtenSubTensorOp &op, int64_t &alpha) {
+    if (!matchPattern(op.getAlpha(), m_TorchConstantInt(&alpha)) || alpha != 1)
+      return failure();
+    return success();
+  }
+};
+
+template <typename OpTy, typename ScalarOpTy>
+class PropagateAtenArithmeticPattern : public OpRewritePattern<OpTy> {
+public:
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    // Check type
+    auto resultTy = cast<ValueTensorType>(op.getType());
+    if (resultTy.getSizes().size() > 1)
+      return rewriter.notifyMatchFailure(op, "unsupported: rank > 1");
+    if (!resultTy.hasDtype() || !isa<mlir::IntegerType>(resultTy.getDtype()))
+      return rewriter.notifyMatchFailure(op, "not an int type");
+
+    int64_t alpha;
+    if (failed(ArithmeticHelper<OpTy>::getAlphaAndVerify(op, alpha)))
+      return rewriter.notifyMatchFailure(op, "alpha must be 1");
+
+    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+    SmallVector<OpFoldResult> selfFold, otherFold;
+    if (failed(getListFromTensor(op.getSelf(), selfFold)) ||
+        failed(getListFromTensor(op.getOther(), otherFold)) ||
+        selfFold.size() != otherFold.size())
+      return failure();
+    SmallVector<Value> selfVals, otherVals;
+    if (failed(materializeFolds(b, selfFold, selfVals)) ||
+        failed(materializeFolds(b, otherFold, otherVals)))
+      return failure();
+    SmallVector<OpFoldResult> resultFolds;
+    for (uint64_t i = 0; i < selfVals.size(); i++) {
+      resultFolds.push_back(b.createOrFold<ScalarOpTy>(
+          selfVals[i].getType(), selfVals[i], otherVals[i]));
+    }
+    SmallVector<Value> resultVals;
+    if (failed(materializeFolds(b, resultFolds, resultVals)))
+      return failure();
+
+    if (resultTy.getSizes().size() == 0) {
+      rewriter.replaceOpWithNewOp<Torch::PrimNumToTensorScalarOp>(
+          op, resultTy, resultVals.front());
+      return success();
+    }
+
+    Value result = constructAtenTensorOpFromList(b, resultTy, resultVals);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
 /// ------ Fold Patterns ------ ///
 // These are shape-specific folding patterns
 
@@ -986,12 +1063,21 @@ void populateScalarizationCanonicalizePatterns(RewritePatternSet &patterns) {
 }
 
 void populateScalarizationPropagationPatterns(RewritePatternSet &patterns) {
-  patterns
-      .insert<PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
-              PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
-              PropagateAtenSliceTensorPattern, PropagateAtenEqTensorPattern,
-              PropagateAtenWhereSelfPattern, PropagateAtenBroadcastToPattern>(
-          patterns.getContext());
+  // A note on division: onnx.Div from int, int -> int types rounds towards
+  // zero. The torch DivTensorOp actually doesn't allow returning an int dtype,
+  // but this was artificially plummbed through. Unfortunately, there is no
+  // scalar trunc div op in torch; however, we can safely assume all operands
+  // are positive so floor divide should be a sufficient scalar replacement.
+  patterns.insert<
+      PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
+      PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
+      PropagateAtenSliceTensorPattern, PropagateAtenEqTensorPattern,
+      PropagateAtenWhereSelfPattern, PropagateAtenBroadcastToPattern,
+      PropagateAtenArithmeticPattern<AtenAddTensorOp, AtenAddIntOp>,
+      PropagateAtenArithmeticPattern<AtenSubTensorOp, AtenSubIntOp>,
+      PropagateAtenArithmeticPattern<AtenMulTensorOp, AtenMulIntOp>,
+      PropagateAtenArithmeticPattern<AtenDivTensorOp, AtenFloordivIntOp>>(
+      patterns.getContext());
 }
 
 void populateScalarizationRemovePatterns(RewritePatternSet &patterns) {
