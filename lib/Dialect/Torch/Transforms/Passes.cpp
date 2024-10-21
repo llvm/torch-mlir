@@ -102,9 +102,10 @@ void mlir::torch::Torch::createTorchOnnxToTorchBackendPipeline(
         Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
     pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   }
-  // TODO: Move the below two passes i.e., ScalarizeShapes and
+  // TODO: Move the combination of two passes i.e., ScalarizeShapes and
   // TorchShapeRefinementPipeline out of here and create an onnx shape
   // refinement pipeline which runs iteratively over the IR.
+  createTorchShapeRefinementPipeline(pm, options);
   // This pass scalarizes the tensor shape computations.
   pm.addNestedPass<mlir::func::FuncOp>(
       mlir::torch::Torch::createScalarizeShapesPass());
