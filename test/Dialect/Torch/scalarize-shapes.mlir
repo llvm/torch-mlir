@@ -97,6 +97,39 @@ func.func @broadcast_prop(%arg0 : !torch.vtensor<[?,?],f32>) -> !torch.int {
 
 // -----
 
+// CHECK-LABEL: @eq_int_fold
+func.func @eq_int_fold(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,1],f32> {
+    // CHECK: %[[int1:.*]] = torch.constant.int 1
+    // CHECK: %[[int0:.*]] = torch.constant.int 0
+    // CHECK: %[[sze0:.*]] = torch.aten.size.int %arg0, %[[int0]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    // CHECK: %[[sze1:.*]] = torch.aten.size.int %arg0, %[[int1]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    // CHECK: %[[mul:.*]] = torch.aten.mul.int %[[sze0]], %[[sze1]] : !torch.int, !torch.int -> !torch.int
+    // CHECK: %[[gt0:.*]] = torch.aten.gt.int %[[sze0]], %[[int0]] : !torch.int, !torch.int -> !torch.bool
+    // CHECK: torch.runtime.assert %[[gt0]], "Expected dim size != 0."
+    // CHECK: %[[gt1:.*]] = torch.aten.gt.int %[[sze1]], %[[int0]] : !torch.int, !torch.int -> !torch.bool
+    // CHECK: torch.runtime.assert %[[gt1]], "Expected dim size != 0."
+    // CHECK: %[[list:.*]] = torch.prim.ListConstruct %[[mul]], %[[int1]] : (!torch.int, !torch.int) -> !torch.list<int>
+    // CHECK: %[[view:.*]] = torch.aten.view %arg0, %[[list]] : !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,1],f32>
+    // CHECK: return %[[view:.*]] : !torch.vtensor<[?,1],f32>
+    %int1 = torch.constant.int 1
+    %int0 = torch.constant.int 0
+    %0 = torch.aten.size.int %arg0, %int0 : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    %1 = torch.aten.size.int %arg0, %int1 : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    %2 = torch.aten.mul.int %0, %1 : !torch.int, !torch.int -> !torch.int
+    %3 = torch.aten.eq.int %2, %int0 : !torch.int, !torch.int -> !torch.bool
+    %4 = torch.aten.Int.bool %3 : !torch.bool -> !torch.int
+    %5 = torch.prim.NumToTensor.Scalar %4 : !torch.int -> !torch.vtensor<[],i1>
+    %6 = torch.prim.NumToTensor.Scalar %0 : !torch.int -> !torch.vtensor<[],si64>
+    %7 = torch.prim.NumToTensor.Scalar %2 : !torch.int -> !torch.vtensor<[],si64>
+    %8 = torch.aten.where.self %5, %6, %7 : !torch.vtensor<[],i1>, !torch.vtensor<[],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[],si64>
+    %9 = torch.aten.item %8 : !torch.vtensor<[],si64> -> !torch.int
+    %10 = torch.prim.ListConstruct %9, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+    %11 = torch.aten.view %arg0, %10 : !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,1],f32>
+    return %11 : !torch.vtensor<[?,1],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @shape_as_tensor_slice
 func.func @shape_as_tensor_slice(%arg0 : !torch.vtensor<[5,?,?,?],f32>) -> !torch.vtensor<[2],si32> {
     // CHECK-DAG: %[[FALSE:.+]] = torch.constant.bool false

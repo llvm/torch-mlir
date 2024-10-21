@@ -601,6 +601,51 @@ public:
 // These are shape-specific folding patterns
 
 namespace {
+class FoldAtenEqIntPattern : public OpRewritePattern<AtenEqIntOp> {
+public:
+  using OpRewritePattern<AtenEqIntOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenEqIntOp op,
+                                PatternRewriter &rewriter) const override {
+    // replaces (size.int == 0) with false and adds an assert
+    // these comparisons are getting generated because onnx.Reshape considers 0
+    // to mean "don't change this dim". However, if the size we are passing to
+    // onnx.Reshape is a tensor dim, this is definitely never supposed to be
+    // interpreted as "don't change this dim".
+    int64_t otherInt;
+    if (!matchPattern(op.getB(), m_TorchConstantInt(&otherInt)) ||
+        otherInt != 0)
+      return failure();
+
+    // in case the shape is a product of two ints, check each
+    if (auto mulOp = op.getA().getDefiningOp<AtenMulIntOp>()) {
+      Value self = mulOp.getA();
+      Value other = mulOp.getB();
+      Value selfEq = rewriter.create<AtenEqIntOp>(op.getLoc(), self, op.getB());
+      Value otherEq =
+          rewriter.create<AtenEqIntOp>(op.getLoc(), other, op.getB());
+      rewriter.replaceOpWithNewOp<Aten__Or__BoolOp>(op, selfEq, otherEq);
+      return success();
+    }
+
+    // if lhs is size.int op, assert size > 0 and replace with false.
+    if (auto sizeOp = op.getA().getDefiningOp<AtenSizeIntOp>()) {
+      Value selfGtOther = rewriter.create<AtenGtIntOp>(
+          op.getLoc(), op.getType(), op.getA(), op.getB());
+      rewriter.create<Torch::RuntimeAssertOp>(
+          op.getLoc(), selfGtOther,
+          rewriter.getStringAttr("Expected dim size != 0."));
+      Value cstFalse =
+          rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+      rewriter.replaceOp(op, cstFalse);
+      return success();
+    }
+
+    return failure();
+  }
+};
+} // namespace
+
+namespace {
 class FoldAtenTensorSplatPattern : public OpRewritePattern<AtenTensorOp> {
 public:
   using OpRewritePattern<AtenTensorOp>::OpRewritePattern;
@@ -932,8 +977,8 @@ bool isPrimListOfInts(Operation *op) {
 
 void populateScalarizationFoldPatterns(RewritePatternSet &patterns) {
   patterns.insert<FoldAtenSqueezePattern, FoldAtenUnsqueezePattern,
-                  FoldAtenWhereSelf, FoldAtenTensorSplatPattern>(
-      patterns.getContext());
+                  FoldAtenWhereSelf, FoldAtenTensorSplatPattern,
+                  FoldAtenEqIntPattern>(patterns.getContext());
 }
 
 void populateScalarizationCanonicalizePatterns(RewritePatternSet &patterns) {
