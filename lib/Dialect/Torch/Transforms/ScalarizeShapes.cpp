@@ -86,42 +86,59 @@ LogicalResult getListFromTensor(Value value, SmallVector<OpFoldResult> &vals) {
                 getAsOpFoldResult(full.getFillValue()));
     return success();
   }
-  // TODO: Add a case for unsqueeze of a primnumtotensorscalarop?
+
+  if (auto unsqueeze = value.getDefiningOp<Torch::AtenUnsqueezeOp>()) {
+    Value usqSelf = unsqueeze.getSelf();
+    if (auto numToTensor =
+            usqSelf.getDefiningOp<Torch::PrimNumToTensorScalarOp>()) {
+      vals.push_back(getAsOpFoldResult(numToTensor.getA()));
+      return success();
+    }
+  }
+
+  // A common rank 0 tensor producer
+  if (auto numToTensor =
+          value.getDefiningOp<Torch::PrimNumToTensorScalarOp>()) {
+    vals.push_back(getAsOpFoldResult(numToTensor.getA()));
+    return success();
+  }
 
   // Last supported case: ValueTensorLiteralOp
   auto literalOp = value.getDefiningOp<Torch::ValueTensorLiteralOp>();
   if (!literalOp)
     return failure();
 
-  // Check the type. We make sure the type is not unsigned here before trying to
-  // materialize
+  // Check the type.
   auto ty = cast<ValueTensorType>(literalOp.getType());
   if (!ty.hasSizes() || ty.getSizes().size() > 1)
     return failure();
-  int64_t listSize = ty.getSizes().size() == 1 ? ty.getSizes().front() : 1;
+  // make sure the type is not unsigned here before trying to materialize
   auto intTy = dyn_cast_or_null<IntegerType>(ty.getDtype());
   if (!intTy || intTy.isUnsigned())
     return failure();
 
+  // if we have a rank 0 literal, we will be adding one element to the list
+  int64_t listSize = ty.getSizes().size() == 1 ? ty.getSizes().front() : 1;
+
+  // check for a splat or dense attr
   auto splattr = dyn_cast_or_null<SplatElementsAttr>(literalOp.getValue());
   auto denseAttr = dyn_cast_or_null<DenseIntElementsAttr>(literalOp.getValue());
 
   if (!splattr && !denseAttr)
     return failure();
 
+  // These are not mutually exclusive, so try splat first.
   if (splattr) {
     auto attr = splattr.getSplatValue<Attribute>();
     vals.resize((int64_t)vals.size() + listSize, attr);
+    return success();
   }
 
-  if (denseAttr && !splattr) {
-    for (auto e : denseAttr.getValues<Attribute>())
-      vals.push_back(e);
-  }
-
-  if ((int64_t)vals.size() != listSize)
+  // remaining case: denseAttr
+  if ((int64_t)denseAttr.getValues<Attribute>().size() != listSize)
     return failure();
-
+  for (auto e : denseAttr.getValues<Attribute>())
+    vals.push_back(e);
   return success();
 }
 
@@ -142,6 +159,45 @@ Value constructAtenTensorOpFromList(ImplicitLocOpBuilder b, mlir::Type resultTy,
 // ops are chained together, sequences like OpA -> OpB will propagate OpA first:
 // [scalarOpsA -> ListA -> TensorA] -> OpB. Then OpB will be able to
 // getListFromTensor(A), and further propagate scalarization.
+
+namespace {
+class PropagateAtenBroadcastToPattern
+    : public OpRewritePattern<AtenBroadcastToOp> {
+public:
+  using OpRewritePattern<AtenBroadcastToOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenBroadcastToOp op,
+                                PatternRewriter &rewriter) const override {
+    constexpr int64_t kMaxFold = 16;
+    // for tensor<si64>, or tensor<1xsi64>, broadcasted to tensor<nxsi64>, grab
+    // the element and convert to a full op.
+    auto ty = cast<ValueTensorType>(op.getType());
+    if (!ty.areAllSizesKnown() || ty.getSizes().size() != 1)
+      return failure();
+
+    if (ty.getSizes()[0] > kMaxFold)
+      return failure();
+
+    SmallVector<OpFoldResult> fillFold;
+    if (failed(getListFromTensor(op.getSelf(), fillFold)) ||
+        fillFold.size() != 1)
+      return failure();
+    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+    SmallVector<Value, 1> fillVals;
+    if (failed(materializeFolds(b, fillFold, fillVals)))
+      return failure();
+
+    Value size = b.create<Torch::ConstantIntOp>(ty.getSizes().front());
+    Value sizeList = b.create<Torch::PrimListConstructOp>(
+        rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
+        size);
+    Value none = b.create<Torch::ConstantNoneOp>();
+    Value cstFalse = b.create<Torch::ConstantBoolOp>(false);
+    rewriter.replaceOpWithNewOp<AtenFullOp>(op, ty, sizeList, fillVals.front(),
+                                            none, none, none, cstFalse);
+    return success();
+  }
+};
+} // namespace
 
 namespace {
 class PropagateAtenShapeToTensorPattern
@@ -885,10 +941,12 @@ void populateScalarizationCanonicalizePatterns(RewritePatternSet &patterns) {
 }
 
 void populateScalarizationPropagationPatterns(RewritePatternSet &patterns) {
-  patterns.insert<PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
-                  PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
-                  PropagateAtenSliceTensorPattern, PropagateAtenEqTensorPattern,
-                  PropagateAtenWhereSelfPattern>(patterns.getContext());
+  patterns
+      .insert<PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
+              PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
+              PropagateAtenSliceTensorPattern, PropagateAtenEqTensorPattern,
+              PropagateAtenWhereSelfPattern, PropagateAtenBroadcastToPattern>(
+          patterns.getContext());
 }
 
 void populateScalarizationRemovePatterns(RewritePatternSet &patterns) {

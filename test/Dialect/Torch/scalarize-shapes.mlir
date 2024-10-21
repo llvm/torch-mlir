@@ -75,6 +75,25 @@ func.func @literal_item() -> !torch.int {
     return %out : !torch.int
 }
 
+// -----
+
+// CHECK-LABEL: @broadcast_prop
+func.func @broadcast_prop(%arg0 : !torch.vtensor<[?,?],f32>) -> !torch.int {
+    // CHECK: %[[I0:.*]] = torch.constant.int 0
+    // CHECK: %[[SZE:.*]] = torch.aten.size.int %arg0, %[[I0]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    // CHECK: return %[[SZE]] : !torch.int
+    %dim = torch.constant.int 0
+    %size = torch.aten.size.int %arg0, %dim : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    %shape = torch.prim.NumToTensor.Scalar %size : !torch.int -> !torch.vtensor<[],si32>
+    %int3 = torch.constant.int 3
+    %idx = torch.vtensor.literal(dense<-1> : tensor<si32>) : !torch.vtensor<[],si32>
+    %bcastlist = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+    %bcast = torch.aten.broadcast_to %shape, %bcastlist : !torch.vtensor<[],si32>, !torch.list<int> -> !torch.vtensor<[3],si32>
+    %select = torch.aten.index_select %bcast, %dim, %idx : !torch.vtensor<[3],si32>, !torch.int, !torch.vtensor<[],si32> -> !torch.vtensor<[],si32>
+    %out = torch.aten.item %select : !torch.vtensor<[],si32> -> !torch.int
+    %list = torch.prim.ListConstruct %out : (!torch.int) -> !torch.list<int>
+    return %out : !torch.int
+}
 
 // -----
 
