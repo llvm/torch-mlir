@@ -1211,9 +1211,10 @@ class Conv2dQInt8ModuleBase(torch.nn.Module):
             groups=self.groups,
         )
 
-        # Return the result as a float to bypass potential overflow problems. Alternatively, we could complete the DQ-Q pattern by adding quantization to int before returning. However, this requires getting the output scale right, or choosing a sufficiently wide integer type.
-        # return torch.ops.quantized_decomposed.quantize_per_tensor.default(conv, 1, 3, -129, 127, torch.int8)
-        return conv
+        # Use int32 to avoid overflows
+        return torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            conv, 1, 0, -(2**31), 2**31 - 1, torch.int32
+        )
 
 
 class Conv2dQInt8ModuleDyn(Conv2dQInt8ModuleBase):
@@ -1315,7 +1316,7 @@ class ConvTranspose2DQInt8Module(torch.nn.Module):
         )
         bias /= 0.01 * 0.01
 
-        qz = torch.ops.aten.convolution(
+        res = torch.ops.aten.convolution(
             input,
             weight,
             bias=bias,
@@ -1326,7 +1327,11 @@ class ConvTranspose2DQInt8Module(torch.nn.Module):
             output_padding=[0, 0],
             groups=1,
         )
-        return qz
+
+        # Use int32 to avoid overflows
+        return torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            res, 1, 0, -(2**31), 2**31 - 1, torch.int32
+        )
 
 
 @register_test_case(module_factory=lambda: ConvTranspose2DQInt8Module())
@@ -1359,7 +1364,7 @@ class Conv2dQInt8PerChannelModuleBase(torch.nn.Module):
         )
         bias /= 0.01 * scales
 
-        return torch.ops.aten.conv2d(
+        conv = torch.ops.aten.conv2d(
             inputVec,
             weight,
             bias=bias,
@@ -1367,6 +1372,11 @@ class Conv2dQInt8PerChannelModuleBase(torch.nn.Module):
             padding=[0, 0],
             dilation=[1, 1],
             groups=self.groups,
+        )
+
+        # Use int32 to avoid overflows
+        return torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            conv, 1, 0, -(2**31), 2**31 - 1, torch.int32
         )
 
 
