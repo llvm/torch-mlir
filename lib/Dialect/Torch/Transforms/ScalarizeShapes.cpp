@@ -103,17 +103,22 @@ LogicalResult getListFromTensor(Value value, SmallVector<OpFoldResult> &vals) {
   if (!intTy || intTy.isUnsigned())
     return failure();
 
-  if (auto splattr =
-          dyn_cast_or_null<SplatElementsAttr>(literalOp.getValue())) {
+  auto splattr = dyn_cast_or_null<SplatElementsAttr>(literalOp.getValue());
+  auto denseAttr = dyn_cast_or_null<DenseIntElementsAttr>(literalOp.getValue());
+
+  if (!splattr && !denseAttr)
+    return failure();
+
+  if (splattr) {
     auto attr = splattr.getSplatValue<Attribute>();
     vals.resize((int64_t)vals.size() + listSize, attr);
-  } else if (auto denseAttr =
-                 dyn_cast_or_null<DenseIntElementsAttr>(literalOp.getValue())) {
+  }
+
+  if (denseAttr && !splattr) {
     for (auto e : denseAttr.getValues<Attribute>())
       vals.push_back(e);
-  } else {
-    return failure();
   }
+
   if ((int64_t)vals.size() != listSize)
     return failure();
 
