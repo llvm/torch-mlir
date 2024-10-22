@@ -32,9 +32,6 @@ public:
 } // namespace
 
 namespace {
-// TODO: Only unroll inside the shape calculation region.
-// Maybe do this by only applying patterns and folding greedily on the ops
-// inside the region + the shape.calculate op itself?
 class FullyUnrollPrimLoopOp : public OpRewritePattern<PrimLoopOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -42,9 +39,10 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
     MLIRContext *context = op->getContext();
+    // Only unroll loops if they are contained in a shape calculate region.
     Region *region = op->getParentRegion();
     Operation *parentOp = region->getParentOp();
-    if (!isa<Torch::ShapeCalculateOp>(parentOp))
+    if (!parentOp || !isa<Torch::ShapeCalculateOp>(parentOp))
       return rewriter.notifyMatchFailure(
           op, "Loop is not contained in a shape calculation region.");
     if (!op.isForLike())
