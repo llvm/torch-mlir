@@ -710,7 +710,7 @@ public:
           op.getLoc(), op.getType(), op.getA(), op.getB());
       rewriter.create<Torch::RuntimeAssertOp>(
           op.getLoc(), selfGtOther,
-          rewriter.getStringAttr("Expected dim size != 0."));
+          rewriter.getStringAttr("Expected dim size > 0."));
       Value cstFalse =
           rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
       rewriter.replaceOp(op, cstFalse);
@@ -772,16 +772,24 @@ public:
 } // namespace
 
 namespace {
-class FoldAtenSqueezePattern : public OpRewritePattern<AtenSqueezeOp> {
+template <typename SqueezeOp>
+class FoldAtenSqueezePattern : public OpRewritePattern<SqueezeOp> {
 public:
-  using OpRewritePattern<AtenSqueezeOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenSqueezeOp op,
+  using OpRewritePattern<SqueezeOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(SqueezeOp op,
                                 PatternRewriter &rewriter) const override {
     auto resultTy = cast<ValueTensorType>(op.getType());
     if (!resultTy.hasSizes() || !resultTy.areAllSizesKnown())
       return rewriter.notifyMatchFailure(op, "Unknown result shape");
 
-    if (auto atenFull = op.getSelf().getDefiningOp<AtenFullOp>()) {
+    Value self = op.getSelf();
+    if (auto atenFull = self.getDefiningOp<AtenFullOp>()) {
+      // in the rank 0 case, just return the rank 0 scalar
+      if (resultTy.getSizes().size() == 0) {
+        rewriter.replaceOpWithNewOp<Torch::PrimNumToTensorScalarOp>(
+            op, resultTy, atenFull.getFillValue());
+        return success();
+      }
       SmallVector<Value> sizes;
       for (int i = 0, s = resultTy.getSizes().size(); i < s; ++i)
         sizes.push_back(rewriter.create<Torch::ConstantIntOp>(
@@ -1052,10 +1060,17 @@ bool isPrimListOfInts(Operation *op) {
   return llvm::isa<Torch::IntType>(listType.getContainedType());
 }
 
+bool isAnchorOp(Operation *op) {
+  return isa<Torch::RuntimeAssertOp>(op) || isa<AtenArangeStartStepOp>(op) ||
+         isPrimListOfInts(op);
+}
+
 void populateScalarizationFoldPatterns(RewritePatternSet &patterns) {
-  patterns.insert<FoldAtenSqueezePattern, FoldAtenUnsqueezePattern,
-                  FoldAtenWhereSelf, FoldAtenTensorSplatPattern,
-                  FoldAtenEqIntPattern>(patterns.getContext());
+  patterns.insert<FoldAtenSqueezePattern<AtenSqueezeOp>,
+                  FoldAtenSqueezePattern<AtenSqueezeDimOp>,
+                  FoldAtenUnsqueezePattern, FoldAtenWhereSelf,
+                  FoldAtenTensorSplatPattern, FoldAtenEqIntPattern>(
+      patterns.getContext());
 }
 
 void populateScalarizationCanonicalizePatterns(RewritePatternSet &patterns) {
@@ -1129,7 +1144,7 @@ public:
         [&](Operation *op) {
           // Walking bottom-up, start adding ops when we reach an anchor point
           // (a prim list of ints)
-          if (isPrimListOfInts(op)) {
+          if (isAnchorOp(op)) {
             shapeCalculationOps.insert(op);
             return;
           }

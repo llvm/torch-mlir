@@ -3700,6 +3700,12 @@ OpFoldResult AtenRemainderScalarOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenAddIntOp::fold(FoldAdaptor adaptor) {
+  auto intLhs = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
+  auto intRhs = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
+  if (intRhs && intRhs.getValue().getSExtValue() == 0)
+    return getA();
+  if (intLhs && intLhs.getValue().getSExtValue() == 0)
+    return getB();
   return atenBinaryIntOperatorFoldHelper(
       adaptor.getOperands(), [](int64_t a, int64_t b) { return a + b; });
 }
@@ -3709,6 +3715,9 @@ OpFoldResult AtenAddIntOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSubIntOp::fold(FoldAdaptor adaptor) {
+  if (getA() == getB())
+    return IntegerAttr::get(
+        IntegerType::get(getContext(), 64, IntegerType::Signless), 0);
   return atenBinaryIntOperatorFoldHelper(
       adaptor.getOperands(), [](int64_t a, int64_t b) { return a - b; });
 }

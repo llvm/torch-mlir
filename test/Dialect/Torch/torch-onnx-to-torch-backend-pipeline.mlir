@@ -36,8 +36,8 @@ func.func @test_triu_decompose(%arg0: !torch.vtensor<[4,5],si64>) -> !torch.vten
 module {
 // CHECK-LABEL: func.func @test_scalarize
   func.func @test_scalarize(%arg0: !torch.vtensor<[?,?,16,64],f32>) -> !torch.vtensor<[?,?,?],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 21 : si64, torch.onnx_meta.producer_name = "pytorch", torch.onnx_meta.producer_version = "1.11.0"} {
-    // CHECK: %[[INT2:.+]] = torch.constant.int 2
-    // CHECK: %[[INT3:.+]] = torch.constant.int 3
+    // CHECK-DAG: %[[INT2:.+]] = torch.constant.int 2
+    // CHECK-DAG: %[[INT3:.+]] = torch.constant.int 3
     // CHECK: %[[ADD:.+]] = torch.aten.flatten.using_ints %arg0, %[[INT2]], %[[INT3]] : !torch.vtensor<[?,?,16,64],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,?,1024],f32>
     %0 = torch.operator "onnx.Shape"(%arg0) : (!torch.vtensor<[?,?,16,64],f32>) -> !torch.vtensor<[4],si64>
     %1 = torch.operator "onnx.Constant"() {torch.onnx.value = dense_resource<__21> : tensor<si64>} : () -> !torch.vtensor<[],si64>
