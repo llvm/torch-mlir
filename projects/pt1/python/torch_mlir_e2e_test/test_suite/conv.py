@@ -1316,7 +1316,6 @@ class ConvTranspose2DQInt8Module(torch.nn.Module):
         weight = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             weight, 0.01, 50, -128, 127, torch.int8
         )
-        bias /= 0.01 * 0.01
 
         res = torch.ops.aten.convolution(
             input,
@@ -1364,7 +1363,6 @@ class Conv2dQInt8PerChannelModuleBase(torch.nn.Module):
         weight = torch.ops.quantized_decomposed.dequantize_per_channel.default(
             weight, scales, zeropoints, 0, -128, 127, torch.int8
         )
-        bias /= 0.01 * scales
 
         conv = torch.ops.aten.conv2d(
             inputVec,
