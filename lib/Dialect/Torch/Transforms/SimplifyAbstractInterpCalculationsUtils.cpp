@@ -42,6 +42,11 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
     MLIRContext *context = op->getContext();
+    Region *region = op->getParentRegion();
+    Operation *parentOp = region->getParentOp();
+    if (!isa<Torch::ShapeCalculateOp>(parentOp))
+      return rewriter.notifyMatchFailure(
+          op, "Loop is not contained in a shape calculation region.");
     if (!op.isForLike())
       return rewriter.notifyMatchFailure(op, "Loop is not for-like");
     int64_t maxTripCount;
