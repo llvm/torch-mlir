@@ -75,6 +75,99 @@ func.func @literal_item() -> !torch.int {
     return %out : !torch.int
 }
 
+// -----
+
+// CHECK-LABEL: @arith_prop
+func.func @arith_prop(%arg0 : !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+    // CHECK: %[[float0:.*]] = torch.constant.float 0.000000e+00
+    // CHECK: %[[int0:.*]] = torch.constant.int 0
+    // CHECK: %[[x0:.*]] = torch.aten.size.int %arg0, %[[int0]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    // CHECK: %[[int1:.*]] = torch.constant.int 1
+    // CHECK: %[[x1:.*]] = torch.aten.size.int %arg0, %[[int1]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    // CHECK: %[[int12:.*]] = torch.constant.int 12
+    // CHECK: %[[int1_0:.*]] = torch.constant.int 1
+    // CHECK: %[[x2:.*]] = torch.aten.floordiv.int %[[x0]], %[[int12]] : !torch.int, !torch.int -> !torch.int
+    // CHECK: %[[x3:.*]] = torch.aten.floordiv.int %[[x1]], %[[int1_0]] : !torch.int, !torch.int -> !torch.int
+    // CHECK: %[[int12_1:.*]] = torch.constant.int 12
+    // CHECK: %[[int1_2:.*]] = torch.constant.int 1
+    // CHECK: %[[x4:.*]] = torch.aten.mul.int %[[x2]], %[[int12_1]] : !torch.int, !torch.int -> !torch.int
+    // CHECK: %[[x5:.*]] = torch.aten.mul.int %[[x3]], %[[int1_2]] : !torch.int, !torch.int -> !torch.int
+    // CHECK: %[[x6:.*]] = torch.aten.sub.int %[[x0]], %[[x4]] : !torch.int, !torch.int -> !torch.int
+    // CHECK: %[[x7:.*]] = torch.aten.sub.int %[[x1]], %[[x5]] : !torch.int, !torch.int -> !torch.int
+    // CHECK: %[[x8:.*]] = torch.prim.ListConstruct %[[x7]], %[[x6]] : (!torch.int, !torch.int) -> !torch.list<int>
+    // CHECK: %[[x9:.*]] = torch.aten.constant_pad_nd %arg0, %[[x8]], %[[float0]] : !torch.vtensor<[?,?],f32>, !torch.list<int>, !torch.float -> !torch.vtensor<[?,?],f32>
+    // CHECK: return %[[x9]] : !torch.vtensor<[?,?],f32>
+    %0 = torch.vtensor.literal(dense<1> : tensor<si64>) : !torch.vtensor<[],si64>
+    %1 = torch.vtensor.literal(dense<0> : tensor<si64>) : !torch.vtensor<[],si64>
+    %float0.000000e00 = torch.constant.float 0.000000e+00
+    %int1 = torch.constant.int 1
+    %2 = torch.vtensor.literal(dense<[12, 1]> : tensor<2xsi64>) : !torch.vtensor<[2],si64>
+    %int0 = torch.constant.int 0
+    %3 = torch.aten._shape_as_tensor %arg0 : !torch.vtensor<[?,?],f32> -> !torch.vtensor<[2],si64>
+    %4 = torch.aten.div.Tensor %3, %2 : !torch.vtensor<[2],si64>, !torch.vtensor<[2],si64> -> !torch.vtensor<[2],si64>
+    %5 = torch.aten.mul.Tensor %4, %2 : !torch.vtensor<[2],si64>, !torch.vtensor<[2],si64> -> !torch.vtensor<[2],si64>
+    %6 = torch.aten.sub.Tensor %3, %5, %int1 : !torch.vtensor<[2],si64>, !torch.vtensor<[2],si64>, !torch.int -> !torch.vtensor<[2],si64>
+    %7 = torch.aten.index_select %6, %int0, %1 : !torch.vtensor<[2],si64>, !torch.int, !torch.vtensor<[],si64> -> !torch.vtensor<[],si64>
+    %8 = torch.aten.index_select %6, %int0, %0 : !torch.vtensor<[2],si64>, !torch.int, !torch.vtensor<[],si64> -> !torch.vtensor<[],si64>
+    %9 = torch.aten.item %7 : !torch.vtensor<[],si64> -> !torch.int
+    %10 = torch.aten.item %8 : !torch.vtensor<[],si64> -> !torch.int
+    %11 = torch.prim.ListConstruct %10, %9 : (!torch.int, !torch.int) -> !torch.list<int>
+    %12 = torch.aten.constant_pad_nd %arg0, %11, %float0.000000e00 : !torch.vtensor<[?,?],f32>, !torch.list<int>, !torch.float -> !torch.vtensor<[?,?],f32>
+    return %12 : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @broadcast_prop
+func.func @broadcast_prop(%arg0 : !torch.vtensor<[?,?],f32>) -> !torch.int {
+    // CHECK: %[[I0:.*]] = torch.constant.int 0
+    // CHECK: %[[SZE:.*]] = torch.aten.size.int %arg0, %[[I0]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    // CHECK: return %[[SZE]] : !torch.int
+    %dim = torch.constant.int 0
+    %size = torch.aten.size.int %arg0, %dim : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    %shape = torch.prim.NumToTensor.Scalar %size : !torch.int -> !torch.vtensor<[],si32>
+    %int3 = torch.constant.int 3
+    %idx = torch.vtensor.literal(dense<-1> : tensor<si32>) : !torch.vtensor<[],si32>
+    %bcastlist = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+    %bcast = torch.aten.broadcast_to %shape, %bcastlist : !torch.vtensor<[],si32>, !torch.list<int> -> !torch.vtensor<[3],si32>
+    %select = torch.aten.index_select %bcast, %dim, %idx : !torch.vtensor<[3],si32>, !torch.int, !torch.vtensor<[],si32> -> !torch.vtensor<[],si32>
+    %out = torch.aten.item %select : !torch.vtensor<[],si32> -> !torch.int
+    %list = torch.prim.ListConstruct %out : (!torch.int) -> !torch.list<int>
+    return %out : !torch.int
+}
+
+// -----
+
+// CHECK-LABEL: @eq_int_fold
+func.func @eq_int_fold(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,1],f32> {
+    // CHECK: %[[int1:.*]] = torch.constant.int 1
+    // CHECK: %[[int0:.*]] = torch.constant.int 0
+    // CHECK: %[[sze0:.*]] = torch.aten.size.int %arg0, %[[int0]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    // CHECK: %[[sze1:.*]] = torch.aten.size.int %arg0, %[[int1]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    // CHECK: %[[mul:.*]] = torch.aten.mul.int %[[sze0]], %[[sze1]] : !torch.int, !torch.int -> !torch.int
+    // CHECK: %[[gt0:.*]] = torch.aten.gt.int %[[sze0]], %[[int0]] : !torch.int, !torch.int -> !torch.bool
+    // CHECK: torch.runtime.assert %[[gt0]], "Expected dim size > 0."
+    // CHECK: %[[gt1:.*]] = torch.aten.gt.int %[[sze1]], %[[int0]] : !torch.int, !torch.int -> !torch.bool
+    // CHECK: torch.runtime.assert %[[gt1]], "Expected dim size > 0."
+    // CHECK: %[[list:.*]] = torch.prim.ListConstruct %[[mul]], %[[int1]] : (!torch.int, !torch.int) -> !torch.list<int>
+    // CHECK: %[[view:.*]] = torch.aten.view %arg0, %[[list]] : !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,1],f32>
+    // CHECK: return %[[view:.*]] : !torch.vtensor<[?,1],f32>
+    %int1 = torch.constant.int 1
+    %int0 = torch.constant.int 0
+    %0 = torch.aten.size.int %arg0, %int0 : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    %1 = torch.aten.size.int %arg0, %int1 : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
+    %2 = torch.aten.mul.int %0, %1 : !torch.int, !torch.int -> !torch.int
+    %3 = torch.aten.eq.int %2, %int0 : !torch.int, !torch.int -> !torch.bool
+    %4 = torch.aten.Int.bool %3 : !torch.bool -> !torch.int
+    %5 = torch.prim.NumToTensor.Scalar %4 : !torch.int -> !torch.vtensor<[],i1>
+    %6 = torch.prim.NumToTensor.Scalar %0 : !torch.int -> !torch.vtensor<[],si64>
+    %7 = torch.prim.NumToTensor.Scalar %2 : !torch.int -> !torch.vtensor<[],si64>
+    %8 = torch.aten.where.self %5, %6, %7 : !torch.vtensor<[],i1>, !torch.vtensor<[],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[],si64>
+    %9 = torch.aten.item %8 : !torch.vtensor<[],si64> -> !torch.int
+    %10 = torch.prim.ListConstruct %9, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+    %11 = torch.aten.view %arg0, %10 : !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,1],f32>
+    return %11 : !torch.vtensor<[?,1],f32>
+}
 
 // -----
 
