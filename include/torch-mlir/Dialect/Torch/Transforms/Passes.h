@@ -109,7 +109,7 @@ std::unique_ptr<OperationPass<ModuleOp>> createAdjustCallingConventionsPass();
 std::unique_ptr<OperationPass<ModuleOp>> createInlineGlobalSlotsPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-createReduceOpVariantsPass(StringRef extraLibrary);
+createReduceOpVariantsPass(StringRef extraLibrary, ArrayRef<std::string> = {});
 
 std::unique_ptr<OperationPass<func::FuncOp>> createMaximizeValueSemanticsPass();
 
