@@ -146,9 +146,9 @@ func.func @eq_int_fold(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,1]
     // CHECK: %[[sze1:.*]] = torch.aten.size.int %arg0, %[[int1]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.int
     // CHECK: %[[mul:.*]] = torch.aten.mul.int %[[sze0]], %[[sze1]] : !torch.int, !torch.int -> !torch.int
     // CHECK: %[[gt0:.*]] = torch.aten.gt.int %[[sze0]], %[[int0]] : !torch.int, !torch.int -> !torch.bool
-    // CHECK: torch.runtime.assert %[[gt0]], "Expected dim size != 0."
+    // CHECK: torch.runtime.assert %[[gt0]], "Expected dim size > 0."
     // CHECK: %[[gt1:.*]] = torch.aten.gt.int %[[sze1]], %[[int0]] : !torch.int, !torch.int -> !torch.bool
-    // CHECK: torch.runtime.assert %[[gt1]], "Expected dim size != 0."
+    // CHECK: torch.runtime.assert %[[gt1]], "Expected dim size > 0."
     // CHECK: %[[list:.*]] = torch.prim.ListConstruct %[[mul]], %[[int1]] : (!torch.int, !torch.int) -> !torch.list<int>
     // CHECK: %[[view:.*]] = torch.aten.view %arg0, %[[list]] : !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[?,1],f32>
     // CHECK: return %[[view:.*]] : !torch.vtensor<[?,1],f32>
