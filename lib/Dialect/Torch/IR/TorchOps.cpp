@@ -5188,18 +5188,38 @@ OpFoldResult PrimsConvertElementTypeOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenMaxPool2dWithIndicesOp
+// AtenMaxPoolWithIndicesOp
 //===----------------------------------------------------------------------===//
 
-void AtenMaxPool2dWithIndicesOp::getCanonicalizationPatterns(
-    RewritePatternSet &patterns, MLIRContext *context) {
-  patterns.add(+[](AtenMaxPool2dWithIndicesOp op, PatternRewriter &rewriter) {
+namespace {
+
+template <typename OpTy> struct MaxPoolWithoutIndices {
+  using type = OpTy;
+};
+
+template <> struct MaxPoolWithoutIndices<AtenMaxPool2dWithIndicesOp> {
+  using type = AtenMaxPool2dOp;
+};
+
+template <> struct MaxPoolWithoutIndices<AtenMaxPool3dWithIndicesOp> {
+  using type = AtenMaxPool3dOp;
+};
+
+} // namespace
+
+template <typename OpTy>
+struct SimplifyMaxPoolWithIndices : public mlir::OpRewritePattern<OpTy> {
+  SimplifyMaxPoolWithIndices(mlir::MLIRContext *context)
+      : OpRewritePattern<OpTy>(context, /*benefit=*/1) {}
+
+  LogicalResult
+  matchAndRewrite(OpTy op, mlir::PatternRewriter &rewriter) const override {
     if (!op.getResult1().use_empty()) {
       return rewriter.notifyMatchFailure(
-          op, "result1 of MaxPool2dWithIndices should be unused");
+          op, "result1 of MaxPoolWithIndices should be unused");
     }
 
-    Value result = rewriter.create<Torch::AtenMaxPool2dOp>(
+    Value result = rewriter.create<typename MaxPoolWithoutIndices<OpTy>::type>(
         op->getLoc(), op.getResult0().getType(), op.getSelf(),
         op.getKernelSize(), op.getStride(), op.getPadding(), op.getDilation(),
         op.getCeilMode());
@@ -5207,7 +5227,17 @@ void AtenMaxPool2dWithIndicesOp::getCanonicalizationPatterns(
     op.getResult0().replaceAllUsesWith(result);
     rewriter.eraseOp(op);
     return success();
-  });
+  }
+};
+
+void AtenMaxPool2dWithIndicesOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add<SimplifyMaxPoolWithIndices<AtenMaxPool2dWithIndicesOp>>(context);
+}
+
+void AtenMaxPool3dWithIndicesOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add<SimplifyMaxPoolWithIndices<AtenMaxPool3dWithIndicesOp>>(context);
 }
 
 //===----------------------------------------------------------------------===//

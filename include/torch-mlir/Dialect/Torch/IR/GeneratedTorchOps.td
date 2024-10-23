@@ -7352,6 +7352,7 @@ def Torch_AtenMaxPool3dWithIndicesOp : Torch_Op<"aten.max_pool3d_with_indices", 
       printDefaultTorchOp(printer, *this, 6, 2);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenMaxPool3dWithIndicesBackwardOp : Torch_Op<"aten.max_pool3d_with_indices_backward", [
