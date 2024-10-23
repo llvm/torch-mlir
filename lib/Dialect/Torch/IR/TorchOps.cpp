@@ -30,6 +30,25 @@ using namespace mlir::torch::Torch;
 // Utilities
 //===----------------------------------------------------------------------===//
 
+OpFoldResult genericViewLikeFold(Attribute self, Type resultType) {
+  constexpr int64_t kMaxFoldSize = 16;
+  auto selfAttr = dyn_cast_or_null<DenseElementsAttr>(self);
+  if (!selfAttr || selfAttr.getNumElements() > kMaxFoldSize)
+    return nullptr;
+
+  auto resultTy = dyn_cast_or_null<ValueTensorType>(resultType);
+  if (!resultTy || !resultTy.areAllSizesKnown())
+    return nullptr;
+
+  if (selfAttr.isSplat()) {
+    return SplatElementsAttr::get(resultTy.toBuiltinTensor(),
+                                  selfAttr.getSplatValue<Attribute>());
+  }
+  return DenseElementsAttr::get(
+      resultTy.toBuiltinTensor(),
+      llvm::to_vector(selfAttr.getValues<Attribute>()));
+}
+
 Value mlir::torch::Torch::adjustStaticInformation(OpBuilder &builder,
                                                   Location loc, Value value,
                                                   Type desiredType,
@@ -1049,6 +1068,8 @@ void Aten_CastLongOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenViewOp::fold(FoldAdaptor adaptor) {
+  if (auto genericFold = genericViewLikeFold(adaptor.getSelf(), getType()))
+    return genericFold;
   auto inputType = dyn_cast<BaseTensorType>(getOperand(0).getType());
   if (!inputType || !inputType.hasSizes() || inputType.getSizes().size() != 1)
     return nullptr;
@@ -2237,8 +2258,20 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenFlattenUsingIntsOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenFlattenUsingIntsOp::fold(FoldAdaptor adaptor) {
+  return genericViewLikeFold(adaptor.getSelf(), getType());
+}
+
+//===----------------------------------------------------------------------===//
 // AtenUnflattenIntOp
 //===----------------------------------------------------------------------===//
+
+OpFoldResult AtenUnflattenIntOp::fold(FoldAdaptor adaptor) {
+  return genericViewLikeFold(adaptor.getSelf(), getType());
+}
 
 void AtenUnflattenIntOp::getCanonicalizationPatterns(
     RewritePatternSet &patterns, MLIRContext *context) {
@@ -3723,6 +3756,61 @@ OpFoldResult AtenSubIntOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenTransposeIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenTransposeIntOp::fold(FoldAdaptor adaptor) {
+  // We set a maximum folding size of 16. This is a reasonable upper limit
+  // for shape computations.
+  constexpr int64_t kMaxFoldSize = 16;
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  IntegerAttr dim0 = dyn_cast_or_null<IntegerAttr>(adaptor.getDim0());
+  IntegerAttr dim1 = dyn_cast_or_null<IntegerAttr>(adaptor.getDim1());
+  if (!self || !dim0 || !dim1 || self.getNumElements() > kMaxFoldSize)
+    return nullptr;
+  auto selfTy = dyn_cast<ValueTensorType>(getSelf().getType());
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!selfTy || !resultTy || !selfTy.areAllSizesKnown())
+    return nullptr;
+  if (self.isSplat())
+    return SplatElementsAttr::get(resultTy.toBuiltinTensor(),
+                                  self.getSplatValue<Attribute>());
+
+  int64_t rank = selfTy.getSizes().size();
+  // TODO: add support for rank > 2
+  if (rank != 2)
+    return nullptr;
+
+  // check dims
+  int64_t _dim0 = dim0.getValue().getSExtValue();
+  int64_t _dim1 = dim1.getValue().getSExtValue();
+  _dim0 = toPositiveDim(_dim0, rank);
+  _dim1 = toPositiveDim(_dim1, rank);
+  if (!isValidDim(_dim0, rank) || !isValidDim(_dim1, rank))
+    return nullptr;
+  // if dims are the same, return self
+  if (_dim0 == _dim1)
+    return self;
+
+  ArrayRef<int64_t> sizes = selfTy.getSizes();
+  auto values = llvm::to_vector(self.getValues<Attribute>());
+  // reordered[i] = Trans[i//sizes[0], i % sizes[0]] = Self[i % sizes[0],
+  // i//sizes[0]] = values[(i % sizes[0])*sizes[1] + (i//sizes[0])]; e.g., Self
+  // size = [4,2]; Trans size = [2,4]. so reindex(i) = (i % 4)*2 + (i // 4) i =
+  // 0 -> Trans[0,0] -> Self[0,0] -> 0 i = 1 -> Trans[0,1] -> Self[1,0] -> 2 i =
+  // 2 -> Trans[0,2] -> Self[2,0] -> 4 i = 3 -> Trans[0,3] -> Self[3,0] -> 6 i =
+  // 4 -> Trans[1,0] -> Self[0,1] -> 1 i = 5 -> Trans[1,1] -> Self[1,1] -> 3
+  auto reindex = [&](int64_t i) {
+    return (i % sizes[0]) * sizes[1] + (i / sizes[0]);
+  };
+  SmallVector<Attribute> reordered;
+  for (int64_t i = 0; i < self.getNumElements(); i++) {
+    reordered.push_back(values[reindex(i)]);
+  }
+  return DenseElementsAttr::get(resultTy.toBuiltinTensor(), reordered);
+}
+
+//===----------------------------------------------------------------------===//
 // AtenCatOp
 //===----------------------------------------------------------------------===//
 
@@ -3898,15 +3986,18 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
   // Fold the slice if the output tensor is relatively small, currently
   // coded to 16:
   constexpr int64_t kMaxFold = 16;
-  if (input && start && step && dim && count <= kMaxFold) {
+  if (input && start && step && dim && end && count <= kMaxFold) {
     int64_t begin = start.getValue().getSExtValue();
     int64_t limit = end.getValue().getSExtValue();
     int64_t stride = step.getValue().getSExtValue();
-    if (stride < 1)
-      return nullptr;
     begin = begin < 0 ? begin + inType.getSizes()[dimInt] : begin;
     limit = limit < 0 ? limit + inType.getSizes()[dimInt] : limit;
+    limit = limit < 0 ? -1 : limit;
     limit = std::min(limit, inType.getSizes()[dimInt]);
+    bool validIterArgs =
+        (stride > 0 && begin < limit) || (stride < 0 && begin > limit);
+    assert(validIterArgs &&
+           "aten.slice.Tensor iteration args are statically invalid.");
 
     int64_t inputRank = inType.getSizes().size();
     llvm::SmallVector<int64_t> inputStrides(inputRank, 1);
@@ -3919,10 +4010,20 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
     auto recursiveIter = [&](auto &self, int64_t currDim, int64_t currOffset) {
       if (currDim >= inputRank)
         return;
-      size_t _begin = (currDim == dimInt) ? begin : 0;
-      size_t _limit = (currDim == dimInt) ? limit : inType.getSizes()[currDim];
-      size_t _stride = (currDim == dimInt) ? stride : 1;
-      for (size_t i = _begin; i < _limit; i += _stride) {
+      int64_t _stride = (currDim == dimInt) ? stride : 1;
+      int64_t _begin = (currDim == dimInt) ? begin : 0;
+      int64_t _limit = (currDim == dimInt) ? limit : inType.getSizes()[currDim];
+      // ensure that the limit is reached exactly (even with negative strides)
+      // e.g., with begin = 0, limit = 10, stride = 3, we modify limit to be 11
+      // = 10 + (10-0)%3 e.g., with begin = 8, limit = -1, stride = -2, limit
+      // becomes -2 = -1 + (-1-8)%(-2) - stride = -1 + 1 - 2 = -2 note: cpp uses
+      // true math remainder "n % d = least positive int, x, such that d divides
+      // (n - x)"
+      int64_t limit_rem = (_limit - _begin) % _stride;
+      limit_rem =
+          (_stride > 0 || limit_rem == 0) ? limit_rem : limit_rem - _stride;
+      _limit += limit_rem;
+      for (int64_t i = _begin; std::abs(_limit - i) > 0; i += _stride) {
         if (currDim == inputRank - 1) {
           values.push_back(input.getValues<Attribute>()[currOffset + i]);
         }
