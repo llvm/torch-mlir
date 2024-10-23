@@ -3760,15 +3760,31 @@ OpFoldResult AtenSubIntOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenTransposeIntOp::fold(FoldAdaptor adaptor) {
+  // first check for no-op
+  IntegerAttr dim0 = dyn_cast_or_null<IntegerAttr>(adaptor.getDim0());
+  IntegerAttr dim1 = dyn_cast_or_null<IntegerAttr>(adaptor.getDim1());
+  if (!dim0 || !dim1)
+    return nullptr;
+  int64_t _dim0 = dim0.getValue().getSExtValue();
+  int64_t _dim1 = dim1.getValue().getSExtValue();
+  auto selfTy = dyn_cast<ValueTensorType>(getSelf().getType());
+  if (!selfTy || !selfTy.hasSizes())
+    return nullptr;
+  int64_t rank = selfTy.getSizes().size();
+  _dim0 = toPositiveDim(_dim0, rank);
+  _dim1 = toPositiveDim(_dim1, rank);
+  if (!isValidDim(_dim0, rank) || !isValidDim(_dim1, rank))
+    return nullptr;
+  // if dims are the same, return self
+  if (_dim0 == _dim1)
+    return getSelf();
+
   // We set a maximum folding size of 16. This is a reasonable upper limit
   // for shape computations.
   constexpr int64_t kMaxFoldSize = 16;
   auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
-  IntegerAttr dim0 = dyn_cast_or_null<IntegerAttr>(adaptor.getDim0());
-  IntegerAttr dim1 = dyn_cast_or_null<IntegerAttr>(adaptor.getDim1());
-  if (!self || !dim0 || !dim1 || self.getNumElements() > kMaxFoldSize)
+  if (!self || self.getNumElements() > kMaxFoldSize)
     return nullptr;
-  auto selfTy = dyn_cast<ValueTensorType>(getSelf().getType());
   auto resultTy = dyn_cast<ValueTensorType>(getType());
   if (!selfTy || !resultTy || !selfTy.areAllSizesKnown())
     return nullptr;
@@ -3776,21 +3792,9 @@ OpFoldResult AtenTransposeIntOp::fold(FoldAdaptor adaptor) {
     return SplatElementsAttr::get(resultTy.toBuiltinTensor(),
                                   self.getSplatValue<Attribute>());
 
-  int64_t rank = selfTy.getSizes().size();
   // TODO: add support for rank > 2
   if (rank != 2)
     return nullptr;
-
-  // check dims
-  int64_t _dim0 = dim0.getValue().getSExtValue();
-  int64_t _dim1 = dim1.getValue().getSExtValue();
-  _dim0 = toPositiveDim(_dim0, rank);
-  _dim1 = toPositiveDim(_dim1, rank);
-  if (!isValidDim(_dim0, rank) || !isValidDim(_dim1, rank))
-    return nullptr;
-  // if dims are the same, return self
-  if (_dim0 == _dim1)
-    return self;
 
   ArrayRef<int64_t> sizes = selfTy.getSizes();
   auto values = llvm::to_vector(self.getValues<Attribute>());
