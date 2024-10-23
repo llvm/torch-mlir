@@ -152,6 +152,23 @@ func.func @fully_unroll_prim_loop$no_unroll(%arg0: !torch.vtensor, %arg1: !torch
   return %0 : !torch.vtensor
 }
 
+// CHECK-LABEL:   func.func @fully_unroll_prim_loop$outside_region(
+// CHECK:         %[[LOOP:.*]] = torch.prim.Loop
+func.func @fully_unroll_prim_loop$outside_region(%arg0: !torch.vtensor, %arg1: !torch.list<int>, %arg2: !torch.int) -> !torch.vtensor {
+    %true = torch.constant.bool true
+    %0 = torch.prim.Loop %arg2, %true, init(%arg0) {
+    ^bb0(%arg3: !torch.int, %arg4: !torch.vtensor):
+      %1 = torch.shape.calculate {
+        torch.shape.calculate.yield %arg4 : !torch.vtensor
+      } shapes {
+        torch.prim.Print(%arg3) : !torch.int
+        torch.shape.calculate.yield.shapes %arg1 : !torch.list<int>
+      } : !torch.vtensor
+      torch.prim.Loop.condition %true, iter(%1 : !torch.vtensor)
+    } : (!torch.int, !torch.bool, !torch.vtensor) -> !torch.vtensor
+    return %0 : !torch.vtensor
+}
+
 // CHECK-LABEL:   func.func @abstractly_interpret_list_ops$basic(
 // CHECK-SAME:                                              %[[ARG0:.*]]: !torch.vtensor,
 // CHECK-SAME:                                              %[[ARG1:.*]]: !torch.int,
