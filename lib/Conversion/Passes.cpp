@@ -22,6 +22,7 @@
 
 #ifdef TORCH_MLIR_ENABLE_TOSA
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
+#include "torch-mlir/Conversion/TorchToTosaLinalg/TorchToTosaLinalg.h"
 #endif // TORCH_MLIR_ENABLE_TOSA
 
 //===----------------------------------------------------------------------===//

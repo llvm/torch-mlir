@@ -138,3 +138,11 @@ func.func @torch.prim.TupleConstruct() {
   torch.prim.Print(%0) : !torch.tuple<int>
   return
 }
+
+// -----
+func.func @torch.aten.size.int(%arg0: !torch.vtensor<[4,2],f32>) -> !torch.int {
+    %c2 = torch.constant.int 2
+    // expected-error @below {{failed to legalize operation 'torch.aten.size.int' that was explicitly marked illegal}}
+    %0 = torch.aten.size.int %arg0, %c2 : !torch.vtensor<[4,2],f32>, !torch.int -> !torch.int
+    return %0 : !torch.int
+}

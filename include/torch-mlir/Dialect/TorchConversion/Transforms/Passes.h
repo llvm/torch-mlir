@@ -45,6 +45,10 @@ void createTorchBackendToTosaBackendPipeline(
 std::unique_ptr<OperationPass<ModuleOp>> createVerifyTosaBackendContractPass();
 #endif // TORCH_MLIR_ENABLE_TOSA
 
+/// Creates a pipeline that lowers from the torch backend contract to the
+/// TOSA + linalg backend contract.
+void createTorchBackendToTosaLinalgBackendPipeline(OpPassManager &pm);
+
 // Do not register the stablehlo options if the stablehlo target is disabled
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 struct StablehloBackendPipelineOptions
@@ -91,6 +95,9 @@ createConvertCustomQuantOpPass();
 
 std::unique_ptr<OperationPass<ModuleOp>>
 createVerifyLinalgOnTensorsBackendContractPass();
+
+std::unique_ptr<OperationPass<ModuleOp>>
+createVerifyTosaLinalgBackendContractPass();
 
 } // namespace TorchConversion
 

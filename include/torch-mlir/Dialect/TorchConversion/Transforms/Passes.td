@@ -68,6 +68,11 @@ def VerifyTosaBackendContract : Pass<"torch-verify-tosa-backend-contract", "Modu
 }
 #endif
 
+def VerifyTosaLinalgBackendContract : Pass<"torch-verify-tosa-linalg-backend-contract", "ModuleOp"> {
+  let summary = "Verifies conformity to the tosa + linalg-on-tensors backend contract";
+  let constructor = "mlir::torch::TorchConversion::createVerifyTosaLinalgBackendContractPass()";
+}
+
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 def VerifyStablehloBackendContract : Pass<"torch-verify-stablehlo-backend-contract", "ModuleOp"> {
   let summary = "Verifies conformity to the stablehlo backend contract";

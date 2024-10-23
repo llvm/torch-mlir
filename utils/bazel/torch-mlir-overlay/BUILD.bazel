@@ -557,6 +557,7 @@ cc_library(
         ":TorchMLIRTorchToTMTensor",
         ":TorchMLIRTorchToTensor",
         ":TorchMLIRTorchToTosa",
+        ":TorchMLIRTorchToTosaLinalg",
     ],
 )
 
@@ -586,6 +587,7 @@ cc_library(
         ":TorchMLIRTorchToTMTensor",
         ":TorchMLIRTorchToTensor",
         ":TorchMLIRTorchToTosa",
+        ":TorchMLIRTorchToTosaLinalg",
         "@llvm-project//mlir:ConversionPasses",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:LinalgDialect",
@@ -616,6 +618,20 @@ cc_library(
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:QuantOps",
         "@llvm-project//mlir:TosaDialect",
+    ],
+)
+
+cc_library(
+    name = "TorchMLIRTorchToTosaLinalg",
+    srcs = glob([
+        "lib/Conversion/*.h",
+        "lib/Conversion/TorchToTosaLinalg/*.cpp",
+    ]),
+    hdrs = glob(["include/torch-mlir/Conversion/TorchToTosaLinalg/*.h"]),
+    strip_include_prefix = "include",
+    deps = [
+        ":TorchMLIRTorchToTosa",
+        ":TorchMLIRTorchToLinalg",
     ],
 )
 

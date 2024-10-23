@@ -149,6 +149,14 @@ class OutputType(Enum):
     # as taking the `TORCH` output type and lowering it to TOSA.
     TOSA = "tosa"
 
+    # The output type contains a mix of `tosa`, `linalg`-on-tensors ops, `scf`, and
+    # `arith` ops (only standard mlir dialect ops). It can be thought of
+    # as taking the `TORCH` output type and lowering it so that tensor
+    # computations are done with `tosa` and `linalg`-on-tensors ops.
+    # `torch` ops are first lowered to `tosa` as much as possible.
+    # Remaining ops are then lowered to `linalg`-on-tensors.
+    TOSA_LINALG = "tosa-linalg"
+
     # This output type consists of `stablehlo` dialect ops. It can be thought of
     # as taking the `TORCH` output type and lowering it to StableHLO.
     STABLEHLO = "stablehlo"
@@ -209,6 +217,18 @@ def lower_mlir_module(verbose, output_type, module):
         if verbose:
             print("\n====================")
             print("LINALG Backend IR")
+            print(module)
+        return module
+
+    elif output_type == OutputType.TOSA_LINALG:
+        run_pipeline_with_repro_report(
+            module,
+            "builtin.module(torch-backend-to-tosa-linalg-backend-pipeline)",
+            "Lowering Torch Backend IR -> TOSA + Linalg Backend IR",
+        )
+        if verbose:
+            print("\n====================")
+            print("TOSA + Linalg Backend IR")
             print(module)
         return module
 

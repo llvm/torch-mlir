@@ -18,6 +18,8 @@
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchToTensor/TorchToTensor.h"
+#include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
+#include "torch-mlir/Conversion/TorchToTosaLinalg/TorchToTosaLinalg.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
@@ -55,7 +57,14 @@ void mlir::torch::registerTorchConversionPasses() {
       "Pipeline lowering torch backend contract to TOSA backend "
       "contract.",
       TorchConversion::createTorchBackendToTosaBackendPipeline);
+
+  mlir::PassPipelineRegistration<>(
+      "torch-backend-to-tosa-linalg-backend-pipeline",
+      "Pipeline lowering torch backend contract to TOSA + Linalg backend "
+      "contract.",
+      TorchConversion::createTorchBackendToTosaLinalgBackendPipeline);
 #endif
+
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
   mlir::PassPipelineRegistration<
       TorchConversion::StablehloBackendPipelineOptions>(
@@ -136,6 +145,58 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
   // expect. This fails compilation (signalPassFailure) if the IR is not in the
   // correct form.
   pm.addPass(TorchConversion::createVerifyTosaBackendContractPass());
+}
+
+void TorchConversion::createTorchBackendToTosaLinalgBackendPipeline(
+    OpPassManager &pm) {
+
+  // We want to fuse quantized operations together before lowering to
+  // linalg.
+  pm.addNestedPass<func::FuncOp>(Torch::createFuseQuantizedOpsPass());
+  pm.addNestedPass<func::FuncOp>(Torch::createScalarizeShapesPass());
+
+  // Lower to tosa+linalg + guards which is the input to codegen backends.
+  // We do this first as it tends to involve pattern-matching against constants,
+  // (e.g. dimensions which must be constant in a ranked programming model)
+  // and those constants get somewhat obscured by TorchToArith.
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToTMTensorPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+
+  // Tosa+Linalg pipeline pass
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToTosaLinalgPass());
+  // Perform rank broadcasting so TosaToLinalg pass works
+  pm.addNestedPass<func::FuncOp>(createTosaMakeBroadcastablePass());
+
+  // Clean up any non-canonical code introduced above..
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  // The resolution of `dim` ops tends to create identical ops. CSE them.
+  pm.addNestedPass<func::FuncOp>(createCSEPass());
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToSCFPass());
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToArithPass());
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToTensorPass());
+  pm.addPass(createConvertTorchConversionToMLProgramPass());
+  pm.addNestedPass<func::FuncOp>(memref::createExpandOpsPass());
+
+  // Clean up any non-canonical code introduced above..
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  // Resolve `dim` ops on tensors (which currently live in the `memref`
+  // dialect for some reason -- we don't have memrefs at this level).
+  pm.addNestedPass<func::FuncOp>(
+      memref::createResolveShapedTypeResultDimsPass());
+  // The resolution of `dim` ops tends to create identical ops. CSE them.
+  pm.addNestedPass<func::FuncOp>(createCSEPass());
+
+  // Finish the type conversion from `torch` types to the types of the
+  // TOSA backend contract.
+  pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(
+      TorchConversion::createFinalizingBackendTypeConversionPass());
+
+  // Verify that we have lowered to ops that are supported by union of TOSA and
+  // Linalg-on-tensors backend. This fails compilation (signalPassFailure) if
+  // the IR is not in the correct form.
+  pm.addPass(TorchConversion::createVerifyTosaLinalgBackendContractPass());
 }
 #endif
 
