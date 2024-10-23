@@ -29,6 +29,9 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "DeformConv2D_basic",
     "ReduceAnyDimFloatModule_basic",
     "UnfoldModule_basic",
+    # TorchScript to the backend contract fails for conv.padding specified as str
+    "Conv2dWithValidPaddingModule_basic",
+    "Conv2dWithSamePaddingModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.5.0.dev"):
