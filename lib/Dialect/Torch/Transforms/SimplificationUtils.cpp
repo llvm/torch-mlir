@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SimplifyAbstractInterpCalculationsUtils.h"
+#include "SimplificationUtils.h"
 #include "mlir/IR/IRMapping.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
@@ -32,9 +32,7 @@ public:
 } // namespace
 
 namespace {
-// TODO: Only unroll inside the shape calculation region.
-// Maybe do this by only applying patterns and folding greedily on the ops
-// inside the region + the shape.calculate op itself?
+
 class FullyUnrollPrimLoopOp : public OpRewritePattern<PrimLoopOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -250,6 +248,46 @@ public:
 };
 } // namespace
 
+namespace {
+class FoldListAppendChainWithinABlock
+    : public OpRewritePattern<PrimListConstructOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimListConstructOp op,
+                                PatternRewriter &rewriter) const override {
+    Block *block = op->getBlock();
+    Operation *curOp = op;
+    auto curOpUsers = llvm::to_vector<6>(curOp->getUsers());
+    llvm::SmallVector<Operation *, 20> opsToDelete;
+    SmallVector<Value> runningList;
+    llvm::append_range(runningList, op->getOperands());
+    while (curOpUsers.size() == 1) {
+      if (auto append = dyn_cast<AtenAppendTOp>(curOpUsers[0])) {
+        if (append->getBlock() != block)
+          break;
+        runningList.push_back(append.getEl());
+        opsToDelete.push_back(curOp);
+        curOp = append;
+        curOpUsers = llvm::to_vector<6>(curOp->getUsers());
+      } else
+        break;
+    }
+
+    if (curOp == op)
+      return rewriter.notifyMatchFailure(
+          op, "Chain of append to list not detected");
+    rewriter.setInsertionPoint(curOp);
+    rewriter.replaceOp(curOp, rewriter.create<PrimListConstructOp>(
+                                  curOp->getLoc(), op.getType(), runningList));
+
+    llvm::for_each(llvm::reverse(opsToDelete),
+                   [&](Operation *op) { rewriter.eraseOp(op); });
+
+    return success();
+  }
+};
+} // namespace
+
 LogicalResult Torch::updateCalculateOpResultTypes(Operation *calculateOp,
                                                   int resultNum,
                                                   Type newResultType,
@@ -348,4 +386,9 @@ void mlir::torch::Torch::populateFullyUnrollPrimLoopOpPattern(
 void mlir::torch::Torch::populateAbstractlyInterpretListOpsWithinABlockPattern(
     RewritePatternSet &patterns, MLIRContext *context) {
   patterns.insert<AbstractlyInterpretListOpsWithinABlock>(context);
+}
+
+void mlir::torch::Torch::populateFoldListAppendChainWithinABlockPattern(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.insert<FoldListAppendChainWithinABlock>(context);
 }

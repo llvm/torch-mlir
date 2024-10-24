@@ -149,6 +149,8 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
   if (options.decompose) {
     pm.addNestedPass<func::FuncOp>(
         Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
+    pm.addNestedPass<func::FuncOp>(
+        Torch::createSimplifyListGeneratingLoopsPass());
     pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   }
 }

@@ -9,7 +9,7 @@
 
 #include "PassDetail.h"
 
-#include "SimplifyAbstractInterpCalculationsUtils.h"
+#include "SimplificationUtils.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -130,6 +130,9 @@ class SimplifyShapeCalculationsPass
     MLIRContext *context = &getContext();
 
     RewritePatternSet patterns(context);
+    // TODO: Only unroll inside the shape calculation region.
+    // Maybe do this by only applying patterns and folding greedily on the ops
+    // inside the region + the shape.calculate op itself?
     populateFullyUnrollPrimLoopOpPattern(patterns, context);
     populateAbstractlyInterpretListOpsWithinABlockPattern(patterns, context);
     populateFoldPrimUncheckedCastOpPattern(patterns, context);

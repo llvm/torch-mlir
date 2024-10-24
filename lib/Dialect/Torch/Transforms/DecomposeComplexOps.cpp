@@ -5396,6 +5396,8 @@ public:
           loc, n_fft,
           rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(4)));
     }
+    // TODO: need to check that op.getWinLength() matches window's first dim.
+    // Both static and runtime assert.
     int64_t winLengthInt;
     if (isa<Torch::NoneType>(op.getWinLength().getType())) {
       winLengthInt = n_fftInt;
