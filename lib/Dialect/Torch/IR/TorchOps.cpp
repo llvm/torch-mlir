@@ -31,9 +31,8 @@ using namespace mlir::torch::Torch;
 //===----------------------------------------------------------------------===//
 
 OpFoldResult genericViewLikeFold(Attribute self, Type resultType) {
-  constexpr int64_t kMaxFoldSize = 16;
   auto selfAttr = dyn_cast_or_null<DenseElementsAttr>(self);
-  if (!selfAttr || selfAttr.getNumElements() > kMaxFoldSize)
+  if (!selfAttr)
     return nullptr;
 
   auto resultTy = dyn_cast_or_null<ValueTensorType>(resultType);
@@ -3792,18 +3791,22 @@ OpFoldResult AtenTransposeIntOp::fold(FoldAdaptor adaptor) {
     return SplatElementsAttr::get(resultTy.toBuiltinTensor(),
                                   self.getSplatValue<Attribute>());
 
-  // TODO: add support for rank > 2
+  // TODO: add support for rank != 2
   if (rank != 2)
     return nullptr;
 
   ArrayRef<int64_t> sizes = selfTy.getSizes();
   auto values = llvm::to_vector(self.getValues<Attribute>());
   // reordered[i] = Trans[i//sizes[0], i % sizes[0]] = Self[i % sizes[0],
-  // i//sizes[0]] = values[(i % sizes[0])*sizes[1] + (i//sizes[0])]; e.g., Self
-  // size = [4,2]; Trans size = [2,4]. so reindex(i) = (i % 4)*2 + (i // 4) i =
-  // 0 -> Trans[0,0] -> Self[0,0] -> 0 i = 1 -> Trans[0,1] -> Self[1,0] -> 2 i =
-  // 2 -> Trans[0,2] -> Self[2,0] -> 4 i = 3 -> Trans[0,3] -> Self[3,0] -> 6 i =
-  // 4 -> Trans[1,0] -> Self[0,1] -> 1 i = 5 -> Trans[1,1] -> Self[1,1] -> 3
+  // i//sizes[0]] = values[(i % sizes[0])*sizes[1] + (i//sizes[0])].
+  // e.g., Self size = [4,2]; Trans size = [2,4].
+  // reindex(i) = (i % 4)*2 + (i // 4) .
+  // i = 0 -> Trans[0,0] -> Self[0,0] -> 0 .
+  // i = 1 -> Trans[0,1] -> Self[1,0] -> 2 .
+  // i = 2 -> Trans[0,2] -> Self[2,0] -> 4 .
+  // i = 3 -> Trans[0,3] -> Self[3,0] -> 6 .
+  // i = 4 -> Trans[1,0] -> Self[0,1] -> 1 .
+  // i = 5 -> Trans[1,1] -> Self[1,1] -> 3 .
   auto reindex = [&](int64_t i) {
     return (i % sizes[0]) * sizes[1] + (i / sizes[0]);
   };
@@ -4018,11 +4021,12 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
       int64_t _begin = (currDim == dimInt) ? begin : 0;
       int64_t _limit = (currDim == dimInt) ? limit : inType.getSizes()[currDim];
       // ensure that the limit is reached exactly (even with negative strides)
-      // e.g., with begin = 0, limit = 10, stride = 3, we modify limit to be 11
-      // = 10 + (10-0)%3 e.g., with begin = 8, limit = -1, stride = -2, limit
-      // becomes -2 = -1 + (-1-8)%(-2) - stride = -1 + 1 - 2 = -2 note: cpp uses
-      // true math remainder "n % d = least positive int, x, such that d divides
-      // (n - x)"
+      // E.g., with begin = 0, limit = 10, stride = 3, we modify limit to be 11
+      // = 10 + (10-0) % 3 .
+      // E.g., with begin = 8, limit = -1, stride = -2, limit becomes -2 = -1 +
+      // (-1-8) % (-2) - stride = -1 + 1 - 2 = -2 .
+      // Note: cpp uses true math remainder "n % d = least positive int, x, such
+      // that d divides (n - x)"
       int64_t limit_rem = (_limit - _begin) % _stride;
       limit_rem =
           (_stride > 0 || limit_rem == 0) ? limit_rem : limit_rem - _stride;
