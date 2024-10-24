@@ -2587,10 +2587,29 @@ public:
       return res;
     };
 
+    auto lambdaBorder = [&](OpBuilder &b, Location loc, Value x,
+                            Value SizeSubOne) -> Value {
+      Value xMaxZero = b.create<arith::MaximumFOp>(loc, x, zeroFloat);
+      return b.create<arith::MinimumFOp>(loc, xMaxZero, SizeSubOne);
+    };
+
+    auto lambdaPadding = [&](OpBuilder &b, Location loc, Value paddingMode,
+                             Value x, Value SizeSubOne) -> Value {
+      Value border = lambdaBorder(b, loc, x, SizeSubOne);
+      Value zeroInt =
+          b.create<arith::ConstantOp>(loc, b.getIntegerAttr(int64type, 0));
+      Value isZero = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                             paddingMode, zeroInt);
+
+      return b.create<arith::SelectOp>(loc, isZero, x, border);
+    };
+
     auto resultType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op.getResult().getType()));
     Value alignCorners = adaptor.getAlignCorners();
     Value interMode = adaptor.getInterpolationMode();
+    Value paddingMode = adaptor.getPaddingMode();
+
     SmallVector<Value> dynamicSizes{};
     if (resultType.isDynamicDim(0))
       dynamicSizes.push_back(rewriter.create<tensor::DimOp>(loc, input, 0));
@@ -2618,10 +2637,14 @@ public:
           Value gplus1 = b.create<arith::AddFOp>(loc, gr1, oneFloat);
           Value gPlusMul0 = b.create<arith::MulFOp>(loc, gplus0, innerDim0e);
           Value gPlusMul1 = b.create<arith::MulFOp>(loc, gplus1, innerDim1e);
-          Value result0 =
+          Value unnorm0 =
               b.create<arith::AddFOp>(loc, gPlusMul0, gr0HalfSelect);
-          Value result1 =
+          Value unnorm1 =
               b.create<arith::AddFOp>(loc, gPlusMul1, gr1HalfSelect);
+          Value result0 =
+              lambdaPadding(b, loc, paddingMode, unnorm0, innerDim0d);
+          Value result1 =
+              lambdaPadding(b, loc, paddingMode, unnorm1, innerDim1d);
           Value checkLowerBound0 = b.create<arith::CmpFOp>(
               loc, arith::CmpFPredicate::OLT, result0, zeroFloat);
           Value checkLowerBound1 = b.create<arith::CmpFOp>(
