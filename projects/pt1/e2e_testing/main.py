@@ -56,6 +56,8 @@ from .xfail_sets import (
     FX_IMPORTER_STABLEHLO_CRASHING_SET,
     FX_IMPORTER_TOSA_CRASHING_SET,
     FX_IMPORTER_TOSA_XFAIL_SET,
+    FX_IMPORTER_TOSA_LINALG_CRASHING_SET,
+    FX_IMPORTER_TOSA_LINALG_XFAIL_SET,
     ONNX_TOSA_XFAIL_SET,
     ONNX_TOSA_CRASHING_SET,
 )
@@ -189,8 +191,8 @@ def main():
         crashing_set = FX_IMPORTER_TOSA_CRASHING_SET
     elif args.config == "fx_importer_tosa_linalg":
         config = FxImporterTestConfig(LinalgOnTensorsTosaBackend(), "tosa_linalg")
-        xfail_set = FX_IMPORTER_XFAIL_SET
-        crashing_set = FX_IMPORTER_CRASHING_SET
+        xfail_set = FX_IMPORTER_TOSA_LINALG_XFAIL_SET
+        crashing_set = FX_IMPORTER_TOSA_LINALG_CRASHING_SET
     elif args.config == "torchdynamo":
         # TODO: Enanble runtime verification and extend crashing set.
         config = TorchDynamoTestConfig(

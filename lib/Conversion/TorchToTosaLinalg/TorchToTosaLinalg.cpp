@@ -59,6 +59,9 @@ public:
                            scf::SCFDialect, sparse_tensor::SparseTensorDialect,
                            tosa::TosaDialect, tensor::TensorDialect,
                            arith::ArithDialect, complex::ComplexDialect>();
+
+    target.addIllegalDialect<Torch::TorchDialect>();
+
     target.addLegalOp<TorchConversion::GetNextSeedOp>();
     torch::populateTorchToTosaConversionLegalOps(target);
 
