@@ -1698,7 +1698,6 @@ TOSA_CRASHING_SET = {
     "ArangeStartOutModule_basic",
     "ScatterSrcStaticModule_basic",
     # Runtime op verification: Out of bounds access
-    "IndexTensorNegativeIndexModule_basic",
     "ReduceAllDimEmpty_basic",
 }
 
@@ -1706,7 +1705,6 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
     "ScatterSrcModule_basic",
     "ScatterSrcStaticModule_basic",
     "HBC_basic",
-    "IndexTensorNegativeIndexModule_basic",
     "InterpolateDynamicModule_scales_recompute_bilinear",
     "InterpolateDynamicModule_sizes_bilinear",
     "InterpolateDynamicModule_sizes_nearest",
@@ -2162,6 +2160,7 @@ TOSA_PASS_SET = {
     "HardswishRandomModule_basic",
     "HardtanhBackward_basic",
     "IndexTensorMultiIndexStaticModule_basic",
+    "IndexTensorNegativeIndexModule_basic",
     "IndexTensorStaticModule_basic",
     "IscloseStaticModuleTrue_basic",
     "IscloseStaticModule_basic",
@@ -3635,7 +3634,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
     "IndexPutImplIndexWithNoneModule_basic",
     "IndexSelectRank0IdxModule_basic",
-    "IndexTensorNegativeIndexModule_basic",
     "InterpolateDynamicModule_sizes_bilinear",
     "InterpolateDynamicModule_sizes_nearest",
     "InterpolateStaticModule_scales_bilinear_align_corners",
