@@ -302,6 +302,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::relu6 : (Tensor) -> (Tensor)",
         "aten::leaky_relu : (Tensor, Scalar) -> (Tensor)",
         "aten::rrelu : (Tensor, Scalar, Scalar, bool, Generator?) -> (Tensor)",
+        "aten::rrelu_with_noise : (Tensor, Tensor, Scalar, Scalar, bool, Generator?) -> (Tensor)",
         "aten::celu : (Tensor, Scalar) -> (Tensor)",
         "aten::selu : (Tensor) -> (Tensor)",
         "aten::sigmoid : (Tensor) -> (Tensor)",
@@ -636,7 +637,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::max_pool3d : (Tensor, int[], int[], int[], int[], bool) -> (Tensor)")
     emit("aten::max_unpool3d : (Tensor, Tensor, int[], int[], int[]) -> (Tensor)")
     emit(
-        "aten::max_pool3d_with_indices : (Tensor, int[], int[], int[], int[], bool) -> (Tensor, Tensor)"
+        "aten::max_pool3d_with_indices : (Tensor, int[], int[], int[], int[], bool) -> (Tensor, Tensor)",
+        has_canonicalizer=True,
     )
     emit(
         "aten::max_pool3d_with_indices_backward : (Tensor, Tensor, int[], int[], int[], int[], bool, Tensor) -> (Tensor)"
@@ -683,7 +685,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::adaptive_max_pool2d : (Tensor, int[]) -> (Tensor, Tensor)")
     emit("aten::adaptive_max_pool3d : (Tensor, int[]) -> (Tensor, Tensor)")
     emit("aten::topk : (Tensor, int, int, bool, bool) -> (Tensor, Tensor)")
-    emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)")
+    emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)", has_folder=True)
     emit("aten::pixel_shuffle : (Tensor, int) -> (Tensor)")
     emit("aten::permute : (Tensor, int[]) -> (Tensor)", has_verifier=True)
     emit("aten::movedim.int : (Tensor, int, int) -> (Tensor)")
@@ -768,9 +770,11 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::pad : (Tensor, int[], str, float?) -> (Tensor)")
     emit("aten::squeeze.dim : (Tensor, int) -> (Tensor)", has_folder=True)
     emit("aten::squeeze : (Tensor) -> (Tensor)", has_folder=True)
-    emit("aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)")
+    emit("aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)", has_folder=True)
     emit(
-        "aten::unflatten.int : (Tensor, int, int[]) -> (Tensor)", has_canonicalizer=True
+        "aten::unflatten.int : (Tensor, int, int[]) -> (Tensor)",
+        has_canonicalizer=True,
+        has_folder=True,
     )
     emit("aten::dim : (Tensor) -> (int)", has_folder=True)
     emit("aten::size : (Tensor) -> (int[])", has_canonicalizer=True)
@@ -1171,6 +1175,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::elu_backward : (Tensor, Scalar, Scalar, Scalar, bool, Tensor) -> (Tensor)"
     )
     emit("aten::leaky_relu_backward : (Tensor, Tensor, Scalar, bool) -> (Tensor)")
+    emit(
+        "aten::rrelu_with_noise_backward : (Tensor, Tensor, Tensor, Scalar, Scalar, bool, bool) -> (Tensor)"
+    )
 
     # quantized ops
     emit("aten::quantize_per_channel : (Tensor, Tensor, Tensor, int, int) -> (Tensor)")

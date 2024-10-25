@@ -309,6 +309,61 @@ def Torch_AtenRrelu_Op : Torch_Op<"aten.rrelu_", [
   }];
 }
 
+def Torch_AtenRreluWithNoiseOp : Torch_Op<"aten.rrelu_with_noise", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::rrelu_with_noise : (Tensor, Tensor, Scalar, Scalar, bool, Generator?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$noise,
+    AnyTorchScalarType:$lower,
+    AnyTorchScalarType:$upper,
+    Torch_BoolType:$training,
+    AnyTorchOptionalGeneratorType:$generator
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenRreluWithNoiseOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 6, 1);
+    }
+    void AtenRreluWithNoiseOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 6, 1);
+    }
+  }];
+}
+
+def Torch_AtenRreluWithNoise_Op : Torch_Op<"aten.rrelu_with_noise_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::rrelu_with_noise_ : (Tensor, Tensor, Scalar, Scalar, bool, Generator?) -> (Tensor)`";
+  let arguments = (ins
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$noise,
+    AnyTorchScalarType:$lower,
+    AnyTorchScalarType:$upper,
+    Torch_BoolType:$training,
+    AnyTorchOptionalGeneratorType:$generator
+  );
+  let results = (outs
+    AnyTorchOptionalNonValueTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenRreluWithNoise_Op::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 6, 1);
+    }
+    void AtenRreluWithNoise_Op::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 6, 1);
+    }
+  }];
+}
+
 def Torch_AtenCeluOp : Torch_Op<"aten.celu", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -7352,6 +7407,7 @@ def Torch_AtenMaxPool3dWithIndicesOp : Torch_Op<"aten.max_pool3d_with_indices", 
       printDefaultTorchOp(printer, *this, 6, 2);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenMaxPool3dWithIndicesBackwardOp : Torch_Op<"aten.max_pool3d_with_indices_backward", [
@@ -8079,6 +8135,7 @@ def Torch_AtenTransposeIntOp : Torch_Op<"aten.transpose.int", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenPixelShuffleOp : Torch_Op<"aten.pixel_shuffle", [
@@ -9671,6 +9728,7 @@ def Torch_AtenFlattenUsingIntsOp : Torch_Op<"aten.flatten.using_ints", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenUnflattenIntOp : Torch_Op<"aten.unflatten.int", [
@@ -9695,6 +9753,7 @@ def Torch_AtenUnflattenIntOp : Torch_Op<"aten.unflatten.int", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
 
@@ -16836,6 +16895,35 @@ def Torch_AtenLeakyReluBackwardOp : Torch_Op<"aten.leaky_relu_backward", [
     }
     void AtenLeakyReluBackwardOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
+def Torch_AtenRreluWithNoiseBackwardOp : Torch_Op<"aten.rrelu_with_noise_backward", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::rrelu_with_noise_backward : (Tensor, Tensor, Tensor, Scalar, Scalar, bool, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$grad_output,
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$noise,
+    AnyTorchScalarType:$lower,
+    AnyTorchScalarType:$upper,
+    Torch_BoolType:$training,
+    Torch_BoolType:$self_is_result
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenRreluWithNoiseBackwardOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 7, 1);
+    }
+    void AtenRreluWithNoiseBackwardOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 7, 1);
     }
   }];
 }

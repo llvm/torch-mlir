@@ -71,6 +71,10 @@ macro(torch_mlir_enable_werror)
   endif()
 endmacro()
 
+if(MSVC)
+  add_definitions(-D_USE_MATH_DEFINES)
+endif()
+
 #-------------------------------------------------------------------------------
 # Configure out-of-tree vs in-tree build
 #-------------------------------------------------------------------------------

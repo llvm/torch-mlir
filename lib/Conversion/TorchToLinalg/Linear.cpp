@@ -1125,53 +1125,56 @@ public:
     }
 
     if (numGroups == 1 && inputZp) {
-      // The quantized version uses a different channel ordering so we need to
-      // permute the tensors in order to use the existing path. We should
-      // eventually directly support this channel ordering.
-      llvm::SmallVector<int64_t> inPerms, weightPerms;
-      inPerms.push_back(0); // N stays at the front for input.
-      // Then we expect the spatial dimensions
-      for (size_t i = 0; i < numSpatialDims; ++i) {
-        inPerms.push_back(i + 2);
-        weightPerms.push_back(i + 2);
-      }
-      inPerms.push_back(1);
-      weightPerms.append({1, 0});
-
-      paddedInput = transposeValue(op.getLoc(), paddedInput, inPerms, rewriter);
-      weight = transposeValue(op.getLoc(), weight, weightPerms, rewriter);
-      outputTensor =
-          transposeValue(op.getLoc(), outputTensor, inPerms, rewriter);
-
       switch (numSpatialDims) {
       case 2:
         conv = rewriter
-                   .create<linalg::Conv2DNhwcHwcfQOp>(
+                   .create<linalg::Conv2DNchwFchwQOp>(
                        loc, outputTensor.getType(),
                        ValueRange{paddedInput, weight, inputZp, weightZp},
                        outputTensor, stridesAttr, dilationAttr)
                    .getResult(0);
         break;
-      case 3:
+      case 3: {
+        // The quantized version uses a different channel ordering so we need to
+        // permute the tensors in order to use the existing path. We should
+        // eventually directly support this channel ordering.
+        llvm::SmallVector<int64_t> inPerms, weightPerms;
+        inPerms.push_back(0); // N stays at the front for input.
+        // Then we expect the spatial dimensions
+        for (size_t i = 0; i < numSpatialDims; ++i) {
+          inPerms.push_back(i + 2);
+          weightPerms.push_back(i + 2);
+        }
+        inPerms.push_back(1);
+        weightPerms.append({1, 0});
+
+        paddedInput =
+            transposeValue(op.getLoc(), paddedInput, inPerms, rewriter);
+        weight = transposeValue(op.getLoc(), weight, weightPerms, rewriter);
+        outputTensor =
+            transposeValue(op.getLoc(), outputTensor, inPerms, rewriter);
+
         conv = rewriter
                    .create<linalg::Conv3DNdhwcDhwcfQOp>(
                        loc, outputTensor.getType(),
                        ValueRange{paddedInput, weight, inputZp, weightZp},
                        outputTensor, stridesAttr, dilationAttr)
                    .getResult(0);
+
+        llvm::SmallVector<int64_t> outPerms;
+        outPerms.push_back(0);
+        outPerms.push_back(inPerms.size() - 1);
+        for (size_t i = 0; i < numSpatialDims; ++i) {
+          outPerms.push_back(i + 1);
+        }
+        conv = transposeValue(op.getLoc(), conv, outPerms, rewriter);
+
         break;
+      }
       default:
         return rewriter.notifyMatchFailure(
             op, "unimplemented: only 1D, 2D, and 3D convolution supported");
       };
-
-      llvm::SmallVector<int64_t> outPerms;
-      outPerms.push_back(0);
-      outPerms.push_back(inPerms.size() - 1);
-      for (size_t i = 0; i < numSpatialDims; ++i) {
-        outPerms.push_back(i + 1);
-      }
-      conv = transposeValue(op.getLoc(), conv, outPerms, rewriter);
 
       Type newResultType = getTypeConverter()->convertType(op.getType());
       if (accumulatorDType != resultDTy) {
