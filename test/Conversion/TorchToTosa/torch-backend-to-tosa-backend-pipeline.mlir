@@ -136,3 +136,29 @@ func.func @torch.prim.TupleConstruct() {
   torch.prim.Print(%0) : !torch.tuple<int>
   return
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torchAtenAvg_pool2d(
+// CHECK-SAME:                                   %[[VAL_0:.*]]: tensor<1x192x35x35xf32>) -> tensor<1x192x35x35xf32> {
+// CHECK:           %[[VAL_1:.*]] = "tosa.const"() <{value = dense<[0, 2, 3, 1]> : tensor<4xi32>}> : () -> tensor<4xi32>
+// CHECK:           %[[VAL_2:.*]] = "tosa.const"() <{value = dense<[0, 3, 1, 2]> : tensor<4xi32>}> : () -> tensor<4xi32>
+// CHECK:           %[[VAL_3:.*]] = tosa.transpose %[[VAL_0]], %[[VAL_1]] : (tensor<1x192x35x35xf32>, tensor<4xi32>) -> tensor<1x35x35x192xf32>
+// CHECK:           %[[VAL_4:.*]] = tosa.avg_pool2d %[[VAL_3]] {acc_type = f32, kernel = array<i64: 3, 3>, pad = array<i64: 1, 1, 1, 1>, stride = array<i64: 1, 1>} : (tensor<1x35x35x192xf32>) -> tensor<1x35x35x192xf32>
+// CHECK:           %[[VAL_5:.*]] = tosa.transpose %[[VAL_4]], %[[VAL_2]] : (tensor<1x35x35x192xf32>, tensor<4xi32>) -> tensor<1x192x35x35xf32>
+// CHECK:           return %[[VAL_5]] : tensor<1x192x35x35xf32>
+// CHECK:         }
+func.func @torchAtenAvg_pool2d(%arg0: !torch.vtensor<[1,192,35,35],f32>) -> !torch.vtensor<[1,192,35,35],f32> {
+   %int0 = torch.constant.int 0
+   %int1 = torch.constant.int 1
+   %int3 = torch.constant.int 3
+   %false = torch.constant.bool false
+   %none = torch.constant.none
+
+   %0 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+   %1 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+   %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+   %3 = torch.aten.avg_pool2d %arg0, %0, %1, %2, %false, %false, %none : !torch.vtensor<[1,192,35,35],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,192,35,35],f32>
+
+   return %3 : !torch.vtensor<[1,192,35,35],f32>
+  }
