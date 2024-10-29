@@ -2022,7 +2022,7 @@ func.func @torch.aten.avg_pool2d.divisor_override(%arg0: !torch.vtensor<[1,192,3
   %int1 = torch.constant.int 1
   %int3 = torch.constant.int 3
   %false= torch.constant.bool false
-  %count_include_pad = torch.constant.bool true
+  %count_include_pad = torch.constant.bool false
   %divisor_override = torch.constant.int 9
 
   %0 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
