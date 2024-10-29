@@ -362,6 +362,11 @@ public:
     auto loc = op.getLoc();
     ImplicitLocOpBuilder b(loc, rewriter);
 
+    auto selfTy = cast<BaseTensorType>(op.getSelf().getType());
+    auto resultTy = cast<BaseTensorType>(op.getType());
+    if (!selfTy.areAllSizesKnown() || !resultTy.areAllSizesKnown())
+      return rewriter.notifyMatchFailure(op, "requires static sizes");
+
     SmallVector<OpFoldResult> elements;
     if (failed(getListFromTensor(op.getSelf(), elements)))
       return failure();
@@ -379,39 +384,67 @@ public:
     if (!matchPattern(op.getStep(), m_TorchConstantInt(&step)))
       return rewriter.notifyMatchFailure(op, "requires a constant step");
 
-    if (step < 0)
-      return rewriter.notifyMatchFailure(op, "requires a positive step value");
-
-    auto selfTy = cast<BaseTensorType>(op.getSelf().getType());
     auto selfShape = selfTy.getSizes();
+    auto resultShape = resultTy.getSizes();
     int64_t selfRank = selfShape.size();
 
     // Correct for negative indexing:
     dim = dim < 0 ? dim + selfRank : dim;
 
-    int64_t dimLength = elements.size();
+    int64_t dimLength = selfShape[dim];
     start = start < 0 ? start + dimLength : start;
     end = end < 0 ? end + dimLength : end;
+    end = (end < 0) ? -1 : end;
+    end = (end < 0 && step > 0) ? 0 : end;
 
     start = start < 0 ? 0 : start;
-    end = end < 0 ? 0 : end;
     end = end > dimLength ? dimLength : end;
 
-    if (selfShape[dim] != dimLength)
-      return rewriter.notifyMatchFailure(
-          op, "dim length does not match number of elements");
+    int64_t frontDimProd = 1, backDimProd = 1;
+    for (int64_t i = 0; i < selfRank; i++) {
+      if (i < dim)
+        frontDimProd *= selfShape[i];
+      if (i > dim)
+        backDimProd *= selfShape[i];
+    }
+    int64_t fullDimProd = frontDimProd * dimLength * backDimProd;
+    if (fullDimProd != (int64_t)elements.size())
+      return rewriter.notifyMatchFailure(op, "unexpected number of elements.");
 
-    for (int64_t i = 0; i < selfRank; ++i) {
-      if (i == dim)
+    // [d0,d1] i -> (i//d1, i % d1) -> (i//d1) * d1 + (i % d1)
+    // [d0,d1,d2] i -> (i//d2, i%d2) -> ((i//(d1*d2), (i//d2) % d1, i % d2)
+
+    auto isSliceIdx = [&](int64_t i) {
+      int64_t dimidx = (i / backDimProd) % dimLength;
+      bool onStep = ((dimidx - start) % step == 0);
+      bool beforeEnd = (step < 0 && dimidx > end);
+      beforeEnd = beforeEnd || (step > 0 && dimidx < end);
+      bool afterBegin = (step < 0 && dimidx <= start);
+      afterBegin = afterBegin || (step > 0 && dimidx >= start);
+      return onStep && beforeEnd && afterBegin;
+    };
+
+    auto flipIdx = [&](int64_t i) {
+      int64_t frontIdx = (i / (backDimProd * dimLength));
+      int64_t dimIdx = (i / (backDimProd)) % dimLength;
+      int64_t flipDimIdx = dimLength - 1 - dimIdx;
+      int64_t backIdx = i % (backDimProd);
+      return frontIdx * (dimLength * backDimProd) + flipDimIdx * (backDimProd) +
+             backIdx;
+    };
+    SmallVector<OpFoldResult> selected;
+    for (int64_t i = 0; i < (int64_t)elements.size(); i++) {
+      if (!isSliceIdx(i))
         continue;
-      if (selfShape[i] != 1)
-        return rewriter.notifyMatchFailure(op,
-                                           "expects unary non-dim dimension");
+      int64_t index = (step > 0) ? i : flipIdx(i);
+      selected.push_back(elements[index]);
     }
 
-    SmallVector<OpFoldResult> selected;
-    for (int i = start; i < end; i += step)
-      selected.push_back(elements[i]);
+    fullDimProd = (fullDimProd * resultShape[dim]) / selfShape[dim];
+    if ((int64_t)selected.size() != fullDimProd)
+      return rewriter.notifyMatchFailure(
+          op, "Constructed slice values have an incompatable number of "
+              "elements to match the provided return type.");
 
     SmallVector<Value> values;
     if (failed(materializeFolds(b, selected, values)))
@@ -595,6 +628,27 @@ public:
       return failure();
 
     rewriter.replaceOp(op, materialized.front());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+template <typename AtenViewLikeOp>
+class PropagateAtenViewLikePattern : public OpRewritePattern<AtenViewLikeOp> {
+public:
+  using OpRewritePattern<AtenViewLikeOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenViewLikeOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<OpFoldResult> selfFolds;
+    if (failed(getListFromTensor(op.getSelf(), selfFolds)))
+      return failure();
+    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+    SmallVector<Value> selfVals;
+    if (failed(materializeFolds(b, selfFolds, selfVals)))
+      return failure();
+    Value result = constructAtenTensorOpFromList(b, op.getType(), selfVals);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -1065,6 +1119,34 @@ bool isAnchorOp(Operation *op) {
          isPrimListOfInts(op);
 }
 
+// The argument to this function, op, is the use of some source op, srcOp. If
+// this function returns true, we want to invalidate srcOp as a target for shape
+// scalarization.
+bool isInvalidValidViewConsumer(Operation *op,
+                                SetVector<Operation *> &workList) {
+  // if the consumer isn't a view op, don't invalidate it
+  auto view = dyn_cast_or_null<AtenViewOp>(op);
+  if (!view)
+    return false;
+  auto resultTy = dyn_cast<ValueTensorType>(view.getType());
+  if (!resultTy || !resultTy.hasDtype())
+    return true;
+  // if the view op doesn't return integer types, then srcOp is not a shape
+  // tensor. note: prim lists will always get added before reaching this
+  // function call.
+  if (!isa<mlir::IntegerType>(resultTy.getDtype()))
+    return true;
+  // check uses of the view op.
+  // If the view op has a use in our worklist, then it needs to be scalarized.
+  for (OpOperand &use : op->getUses()) {
+    Operation *userOp = use.getOwner();
+    if (workList.contains(userOp))
+      return false;
+  }
+  // invalidate, since the view op was added as a one-off for canonicalization.
+  return true;
+}
+
 void populateScalarizationFoldPatterns(RewritePatternSet &patterns) {
   patterns.insert<FoldAtenSqueezePattern<AtenSqueezeOp>,
                   FoldAtenSqueezePattern<AtenSqueezeDimOp>,
@@ -1078,6 +1160,11 @@ void populateScalarizationCanonicalizePatterns(RewritePatternSet &patterns) {
 }
 
 void populateScalarizationPropagationPatterns(RewritePatternSet &patterns) {
+  patterns.add<PropagateAtenViewLikePattern<AtenViewOp>>(patterns.getContext(),
+                                                         /*benefit=*/10);
+  patterns.insert<PropagateAtenViewLikePattern<AtenFlattenUsingIntsOp>,
+                  PropagateAtenViewLikePattern<AtenUnflattenIntOp>>(
+      patterns.getContext());
   // A note on division: onnx.Div from int, int -> int types rounds towards
   // zero. The torch DivTensorOp actually doesn't allow returning an int dtype,
   // but this was artificially plummbed through. Unfortunately, there is no
@@ -1168,12 +1255,12 @@ public:
           // shapeCalculationOps. It's consumer (%1) is indeed a shape
           // calculation op, but the size.int op is an elementary unit of shape
           // computation. No futher gathering of producers is necessary to
-          // reduce this. Similarly, don't add the `self` of a view op.
+          // reduce this. Similarly, don't always add the `self` of a view op.
           for (OpOperand &use : op->getUses()) {
             Operation *userOp = use.getOwner();
             if (shapeCalculationOps.contains(userOp) &&
                 !isSourceOpForShapeScalarization(userOp) &&
-                !isa<AtenViewOp>(userOp)) {
+                !isInvalidValidViewConsumer(userOp, shapeCalculationOps)) {
               shapeCalculationOps.insert(op);
               return;
             }

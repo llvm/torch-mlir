@@ -1862,7 +1862,17 @@ def aten〇_weight_norm_interface〡shape(v: List[int], g: List[int], dim: int =
     return upstream_shape_functions.unary(v), upstream_shape_functions.unary(g)
 
 def aten〇slice〇Tensor〡shape(self: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
-    return upstream_shape_functions.slice(self, dim, start, end, step)
+    start_val = start if start is not None else 0
+    end_val = end if end is not None else upstream_shape_functions.max_int()
+    if (start_val < 0):
+        start_val += self[dim]
+    if (end_val < 0):
+        end_val += self[dim]
+    nstart = start_val if (step > 0) else end_val + 1
+    nend = end_val if (step > 0) else start_val + 1
+    nstep = step if (step > 0) else -step
+    return upstream_shape_functions.slice(self,dim,nstart,nend,nstep)
+
 
 def aten〇as_strided〡shape(self: List[int], size: List[int], stride: List[int], storage_offset: Optional[int] = None) -> List[int]:
     return size
