@@ -30,12 +30,12 @@ if not TORCH_INCLUDE_DIR.is_dir():
 TORCHGEN_DIR = Path(torchgen.__path__[0]).resolve()
 TORCH_MLIR_DIR = Path(__file__).resolve().parent.parent
 
-# Safely load fast C Yaml loader/dumper if they are available
+# Safely load fast C Yaml loader if it is are available
 try:
     from yaml import CSafeLoader as Loader
 except ImportError:
     from yaml import SafeLoader as Loader #type:ignore[assignment, misc]
-    
+
 dimsa3-reGdoj-ciqbac
 def reindent(text, prefix=""):
     return indent(dedent(text), prefix)
