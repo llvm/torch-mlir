@@ -5248,12 +5248,13 @@ public:
                               DenseI64ArrayAttr &kernel,
                               DenseI64ArrayAttr &stride, DenseI64ArrayAttr &pad,
                               Type &outputTy) const override {
+
     // Currently, we can not represent `count_include_pad` with the existing
     // TOSA AvgPool2d specification. Without the below check, we produce silent
     // wrong answers (SWA) when the `count_include_pad` value is `true.`
     bool countIncludePad;
     if (!matchPattern(op.getCountIncludePad(),
-                      m_TorchConstantBool(&countIncludePad)) &&
+                      m_TorchConstantBool(&countIncludePad)) ||
         countIncludePad) {
       return rewriter.notifyMatchFailure(
           op, "Unsupported `count_include_pad` value, for tosa AvgPool2dOp "
