@@ -36,7 +36,6 @@ try:
 except ImportError:
     from yaml import SafeLoader as Loader #type:ignore[assignment, misc]
 
-dimsa3-reGdoj-ciqbac
 def reindent(text, prefix=""):
     return indent(dedent(text), prefix)
 
