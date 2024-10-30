@@ -458,6 +458,87 @@ public:
 } // namespace
 
 namespace {
+class PropagateAtenTransposeIntPattern
+    : public OpRewritePattern<AtenTransposeIntOp> {
+public:
+  using OpRewritePattern<AtenTransposeIntOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTransposeIntOp op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    ImplicitLocOpBuilder b(loc, rewriter);
+
+    auto selfTy = cast<BaseTensorType>(op.getSelf().getType());
+    auto resultTy = cast<BaseTensorType>(op.getType());
+    if (!selfTy.areAllSizesKnown() || !resultTy.areAllSizesKnown())
+      return rewriter.notifyMatchFailure(op, "requires static sizes");
+
+    SmallVector<OpFoldResult> elements;
+    if (failed(getListFromTensor(op.getSelf(), elements)))
+      return failure();
+
+    int64_t dim0, dim1;
+    if (!matchPattern(op.getDim0(), m_TorchConstantInt(&dim0)))
+      return failure();
+    if (!matchPattern(op.getDim1(), m_TorchConstantInt(&dim1)))
+      return failure();
+
+    ArrayRef<int64_t> selfSizes = selfTy.getSizes();
+    int64_t rank = selfSizes.size();
+
+    int64_t frontDP = 1, dim0L = 1, midDP = 1, dim1L = 1, backDP = 1;
+    for (int64_t i = 0; i < rank; i++) {
+      if (i < dim0) {
+        frontDP *= selfSizes[i];
+        continue;
+      }
+      if (i == dim0) {
+        dim0L *= selfSizes[i];
+        continue;
+      }
+      if (i < dim1) {
+        midDP *= selfSizes[i];
+        continue;
+      }
+      if (i == dim1) {
+        dim1L *= selfSizes[i];
+        continue;
+      }
+      backDP *= selfSizes[i];
+    }
+    // [i0, i1, i2, i3, i4] -> i0*D1D2D3D4 + i1*D2D3D4 + i2*D3*D4 + i3*D4 + i4
+    // i -> [i//(D1D2D3D4), i//(D2D3D4) % D1, i//(D3D4) % D2, i//D4 % D3, i %
+    // D4]
+    // -> [i//D1D2D3D4, i//D4 % D3, i//D3D4 % D2, i//D2D3D4 % D1, i %D4] ->
+    // -> (i/D1D2D3D4)*D1'D2'D3'D4' + (i//D4 % D3)*D2'D3'D4' + (i//D3D4
+    // %D2)*D3'D4' + (i//D2D3D4 % D1)*D4' + (i % D4)
+    // -> (i/D1D2D3D4)*D3D2D1D4 + (i//D4 % D3)*D2D1D4 + (i//D3D4 %D2)*D1D4 +
+    // (i//D2D3D4 % D1)*D4 + (i % D4)
+    int64_t D1234 = dim0L * midDP * dim1L * backDP;
+    int64_t fullDP = frontDP * D1234;
+    if (D1234 != (int64_t)elements.size())
+      return failure();
+
+    auto reassoc = [&](int64_t i) {
+      return (i / (D1234)) * D1234 +
+             ((i / backDP) % dim1L) * midDP * dim0L * backDP +
+             ((i / (dim1L * backDP)) % midDP) * dim0L * backDP +
+             ((i / (midDP * dim1L * backDP)) % dim0L) * backDP + (i % backDP);
+    };
+    SmallVector<OpFoldResult> transposedFolds;
+    for (int64_t i = 0; i < fullDP; i++)
+      transposedFolds.push_back(elements[reassoc(i)]);
+
+    SmallVector<Value> transposedVals;
+    if (failed(materializeFolds(b, transposedFolds, transposedVals)))
+      return failure();
+
+    Value result = constructAtenTensorOpFromList(b, resultTy, transposedVals);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+namespace {
 class PropagateAtenWhereSelfPattern : public OpRewritePattern<AtenWhereSelfOp> {
 public:
   using OpRewritePattern<AtenWhereSelfOp>::OpRewritePattern;
@@ -1175,6 +1256,7 @@ void populateScalarizationPropagationPatterns(RewritePatternSet &patterns) {
       PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
       PropagateAtenSliceTensorPattern, PropagateAtenEqTensorPattern,
       PropagateAtenWhereSelfPattern, PropagateAtenBroadcastToPattern,
+      PropagateAtenTransposeIntPattern,
       PropagateAtenArithmeticPattern<AtenAddTensorOp, AtenAddIntOp>,
       PropagateAtenArithmeticPattern<AtenSubTensorOp, AtenSubIntOp>,
       PropagateAtenArithmeticPattern<AtenMulTensorOp, AtenMulIntOp>,
