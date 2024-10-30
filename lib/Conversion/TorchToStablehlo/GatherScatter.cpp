@@ -868,7 +868,6 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
   auto inputTensorType = cast<RankedTensorType>(input.getType());
   auto outType =
       cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
-  auto outShape = outType.getShape();
   Value indexList = op.getIndices();
   SmallVector<Value> indicesTorchType;
   if (!getListConstructElements(indexList, indicesTorchType))
