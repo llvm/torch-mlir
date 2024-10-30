@@ -531,6 +531,9 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "_SoftmaxModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
+    # torch export: RuntimeError: cannot mutate tensors with frozen storage
+    "ElementwiseRreluWithNoiseTrainModule_basic",
+    "ElementwiseRreluWithNoiseTrainStaticModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
