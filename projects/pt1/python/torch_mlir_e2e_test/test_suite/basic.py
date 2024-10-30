@@ -4373,6 +4373,29 @@ def PowIntFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class Exp2StaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.exp2(x)
+
+
+@register_test_case(module_factory=lambda: Exp2StaticModule())
+def Exp2StaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2))
+
+
+# ==============================================================================
+
+
 class BaddbmmDynamicModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

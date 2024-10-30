@@ -316,6 +316,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::asin : (Tensor) -> (Tensor)",
         "aten::asinh : (Tensor) -> (Tensor)",
         "aten::exp : (Tensor) -> (Tensor)",
+        "aten::exp2 : (Tensor) -> (Tensor)",
         "aten::expm1 : (Tensor) -> (Tensor)",
         "aten::cos : (Tensor) -> (Tensor)",
         "aten::cosh : (Tensor) -> (Tensor)",

@@ -8871,6 +8871,30 @@ class DecomposeAtenBinaryCrossEntropyWithLogitsOp
 } // namespace
 
 namespace {
+class DecomposeAtenExp2Op : public OpRewritePattern<AtenExp2Op> {
+  using OpRewritePattern<AtenExp2Op>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenExp2Op op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto ctx = op.getContext();
+    Value self = op.getSelf();
+
+    auto two =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
+    auto type =
+        ValueTensorType::get(ctx, {}, rewriter.getIntegerType(64, true));
+    Value twoTensor = rewriter.create<PrimNumToTensorScalarOp>(loc, type, two);
+
+    rewriter.replaceOpWithNewOp<AtenPowTensorTensorOp>(op, op.getType(),
+                                                       twoTensor, self);
+
+    return success();
+  }
+};
+
+} // namespace
+
+namespace {
 class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
   using OpRewritePattern<AtenOneHotOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenOneHotOp op,
