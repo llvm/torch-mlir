@@ -10029,6 +10029,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposePrimTolistOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsSqueezeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMovedimIntOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenExp2Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenOneHotOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBinaryCrossEntropyWithLogitsOp>(
