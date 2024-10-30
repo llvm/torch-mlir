@@ -5482,6 +5482,29 @@ def Torch_AtenPolarOp : Torch_Op<"aten.polar", [
   }];
 }
 
+def Torch_AtenFracOp : Torch_Op<"aten.frac", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::frac : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenFracOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenFracOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenUnbindCopyIntOp : Torch_Op<"aten.unbind_copy.int", [
     AllowsTypeRefinement,
     HasValueSemantics,

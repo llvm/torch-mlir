@@ -507,6 +507,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::hardshrink : (Tensor, Scalar) -> (Tensor)")
     emit("aten::softshrink : (Tensor, Scalar) -> (Tensor)")
     emit("aten::polar : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::frac : (Tensor) -> (Tensor)")
 
     # Ops with dynamic number of outputs
     emit("aten::unbind_copy.int : (Tensor, int) -> (Tensor[])")

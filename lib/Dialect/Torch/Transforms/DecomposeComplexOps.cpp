@@ -8013,6 +8013,34 @@ class DecomposeAtenTruncOp : public OpRewritePattern<AtenTruncOp> {
 } // namespace
 
 namespace {
+// decompose `frac(x)` to `x - sign(x) * floor(abs(x))`
+class DecomposeAtenFracOp : public OpRewritePattern<AtenFracOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFracOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result must have dtype");
+    }
+
+    if (isa<mlir::FloatType>(resultTy.getDtype())) {
+      Value trunc = rewriter.create<AtenTruncOp>(loc, resultTy, self);
+      Value alpha =
+          rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
+      rewriter.replaceOpWithNewOp<AtenSubTensorOp>(op, resultTy, self, trunc,
+                                                   alpha);
+      return success();
+    }
+
+    return failure();
+  }
+};
+} // namespace
+
+namespace {
 // decompose `fmod(x, y)` to `x - trunc(x/y) * y`
 class DecomposeAtenFmodTensorOp : public OpRewritePattern<AtenFmodTensorOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -10262,6 +10290,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRad2degOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTruncOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFracOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFmodTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);

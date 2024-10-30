@@ -3245,6 +3245,8 @@ ONNX_XFAIL_SET = {
     "Rot90MultipleRotationsModule_basic",
     "Rot90NegativeEvenRotationsModule_basic",
     "Rot90NegativeOddRotationsModule_basic",
+    # Error: 'aten::frac' to ONNX opset version 20 is not supported
+    "ElementwiseFracModule_basic",
     # Failure - unknown
     "BernoulliModule_basic",
     "Conv_Transpose1dModule_basic",

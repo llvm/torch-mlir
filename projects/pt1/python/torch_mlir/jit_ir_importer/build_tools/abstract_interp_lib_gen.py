@@ -313,6 +313,9 @@ def aten〇ceil〡shape(self: List[int]) -> List[int]:
 def aten〇trunc〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇frac〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+    
 def aten〇log〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -2896,6 +2899,9 @@ def aten〇ceil〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def aten〇trunc〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+def aten〇frac〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    return torch.float32
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, max=0))
 def aten〇clamp_max〡dtype(self_rank_dtype: Tuple[int, int], max: Union[int, float, complex]) -> int:
