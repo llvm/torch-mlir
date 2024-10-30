@@ -420,7 +420,6 @@ FX_IMPORTER_XFAIL_SET = {
     "DeformConv2D_basic",
     "DivFloatModule_basic",
     "DivIntModule_basic",
-    "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
@@ -446,8 +445,6 @@ FX_IMPORTER_XFAIL_SET = {
     "NllLossModuleBackward1DSum_basic",
     "NllLossModuleBackward1DWeight_basic",
     "NllLossModuleBackward1D_basic",
-    "NumToTensorFloatModule_basic",
-    "NumToTensorIntModule_basic",
     "NumelModule_basic",
     "NumelZeroRankModule_basic",
     "PowIntFloatModule_basic",
@@ -464,7 +461,6 @@ FX_IMPORTER_XFAIL_SET = {
     "QuantizedSingleLayer_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
-    "RsubInt0d_NumToTensor_Module_basic",
     "ScalarImplicitFloatModule_basic",
     "SortIntListReverse_basic",
     "SortIntList_basic",
@@ -523,6 +519,11 @@ FX_IMPORTER_XFAIL_SET = {
     "MeshgridIndexingXY_basic",
     "Meshgrid_basic",
     "OneHotModule_basic",
+    # RuntimeError: cannot mutate tensors with frozen storage
+    "ElementwiseRreluTrainModule_basic",
+    "ElementwiseRreluTrainStaticModule_basic",
+    "ElementwiseRreluWithNoiseTrainModule_basic",
+    "ElementwiseRreluWithNoiseTrainStaticModule_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
@@ -531,6 +532,9 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "_SoftmaxModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
+    # torch export: RuntimeError: cannot mutate tensors with frozen storage
+    "ElementwiseRreluWithNoiseTrainModule_basic",
+    "ElementwiseRreluWithNoiseTrainStaticModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
@@ -687,7 +691,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "DiagonalModule_with_offset",
     "DivFloatModule_basic",
     "DivIntModule_basic",
-    "ElementwiseAddScalar_NumToTensorFloat_Module_basic",
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseErfIntModule_basic",
@@ -789,8 +792,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "NormScalarComplexModule_basic",
     "NormScalarModule_basic",
     "NormalFunctionalModule_basic",
-    "NumToTensorFloatModule_basic",
-    "NumToTensorIntModule_basic",
     "NumelModule_basic",
     "NumelZeroRankModule_basic",
     "PowIntFloatModule_basic",
@@ -826,7 +827,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ReplicationPad2dModule_left0",
     "ReplicationPad2dModule_right0",
     "ReplicationPad2dModule_top0",
-    "RsubInt0d_NumToTensor_Module_basic",
     "ScalarImplicitFloatModule_basic",
     # REMOVE WHEN ENABLE_GQA IS ADDED
     "ScatterReduceFloatMaxModule",
@@ -961,6 +961,11 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "UpSampleNearest2dStaticFactor_basic",
     "UpSampleNearest2dStaticSize_basic",
     "UpSampleNearest2d_basic",
+    # RuntimeError: cannot mutate tensors with frozen storage
+    "ElementwiseRreluTrainModule_basic",
+    "ElementwiseRreluTrainStaticModule_basic",
+    "ElementwiseRreluWithNoiseTrainModule_basic",
+    "ElementwiseRreluWithNoiseTrainStaticModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
@@ -979,6 +984,9 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
     #  materialization callback produced value of incorrect type failed
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
+    # torch export: RuntimeError: cannot mutate tensors with frozen storage
+    "ElementwiseRreluWithNoiseTrainModule_basic",
+    "ElementwiseRreluWithNoiseTrainStaticModule_basic",
 }
 
 STABLEHLO_PASS_SET = {
