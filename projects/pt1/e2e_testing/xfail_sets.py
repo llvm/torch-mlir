@@ -519,6 +519,7 @@ FX_IMPORTER_XFAIL_SET = {
     "MeshgridIndexingXY_basic",
     "Meshgrid_basic",
     "OneHotModule_basic",
+    # RuntimeError: cannot mutate tensors with frozen storage
     "ElementwiseRreluTrainModule_basic",
     "ElementwiseRreluTrainStaticModule_basic",
     "ElementwiseRreluWithNoiseTrainModule_basic",
@@ -957,6 +958,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "UpSampleNearest2dStaticFactor_basic",
     "UpSampleNearest2dStaticSize_basic",
     "UpSampleNearest2d_basic",
+    # RuntimeError: cannot mutate tensors with frozen storage
     "ElementwiseRreluTrainModule_basic",
     "ElementwiseRreluTrainStaticModule_basic",
     "ElementwiseRreluWithNoiseTrainModule_basic",
