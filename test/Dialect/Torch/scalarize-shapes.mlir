@@ -470,17 +470,17 @@ func.func @pytorch_dynamic_pad_export_slice$prop(%arg0: !torch.vtensor<[?,144,?,
 // CHECK-LABEL: @pytorch_dynamic_pad_export_transpose$prop(
 func.func @pytorch_dynamic_pad_export_transpose$prop(%arg0: !torch.vtensor<[?,144,?,?],f32>) -> !torch.vtensor<[2,4],si64> {
     // CHECK: %[[I0:.*]] = torch.constant.int 0
-    // CHECK: %[[x0:.*]] = torch.aten.size.int %arg0, %[[I0]] : !torch.vtensor<[?,144,?,?],f32>, !torch.int -> !torch.int
+    // CHECK: %[[DIM0:.*]] = torch.aten.size.int %arg0, %[[I0]] : !torch.vtensor<[?,144,?,?],f32>, !torch.int -> !torch.int
     // CHECK: %[[I2:.*]] = torch.constant.int 2
-    // CHECK: %[[x1:.*]] = torch.aten.size.int %arg0, %[[I2]] : !torch.vtensor<[?,144,?,?],f32>, !torch.int -> !torch.int
+    // CHECK: %[[DIM2:.*]] = torch.aten.size.int %arg0, %[[I2]] : !torch.vtensor<[?,144,?,?],f32>, !torch.int -> !torch.int
     // CHECK: %[[I3:.*]] = torch.constant.int 3
-    // CHECK: %[[x2:.*]] = torch.aten.size.int %arg0, %[[I3]] : !torch.vtensor<[?,144,?,?],f32>, !torch.int -> !torch.int
+    // CHECK: %[[DIM3:.*]] = torch.aten.size.int %arg0, %[[I3]] : !torch.vtensor<[?,144,?,?],f32>, !torch.int -> !torch.int
     // CHECK: %[[I0_0:.*]] = torch.constant.int 0
     // CHECK: %[[I0_1:.*]] = torch.constant.int 0
     // CHECK: %[[I0_2:.*]] = torch.constant.int 0
     // CHECK: %[[I0_3:.*]] = torch.constant.int 0
-    // CHECK: %[[I144:.*]] = torch.constant.int 144
-    // CHECK: %[[x3:.*]] = torch.prim.ListConstruct %[[I0_0]], %[[x1]], %[[I0_1]], %[[x2]], %[[I0_2]], %[[x0]], %[[I0_3]], %[[I144]] : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    // CHECK: %[[DIM1:.*]] = torch.constant.int 144
+    // CHECK: %[[x3:.*]] = torch.prim.ListConstruct %[[I0_0]], %[[I0_1]], %[[DIM2]], %[[DIM0]], %[[I0_2]], %[[I0_3]], %[[DIM3]], %[[DIM1]] : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
     // CHECK: %[[none:.*]] = torch.constant.none
     // CHECK: %[[false:.*]] = torch.constant.bool false
     // CHECK: %[[x4:.*]] = torch.aten.tensor %[[x3]], %[[none]], %[[none]], %[[false]] : !torch.list<int>, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[2,4],si64>
@@ -515,12 +515,12 @@ func.func @pytorch_dynamic_pad_export_transpose$prop(%arg0: !torch.vtensor<[?,14
 // CHECK-LABEL: @pytorch_dynamic_pad_export_full(
 func.func @pytorch_dynamic_pad_export_full(%arg0: !torch.vtensor<[?,144,?,?],f32>) -> !torch.list<int> {
     // CHECK: %[[I2:.*]] = torch.constant.int 2
-    // CHECK: %[[x0:.*]] = torch.aten.size.int %arg0, %[[I2]] : !torch.vtensor<[?,144,?,?],f32>, !torch.int -> !torch.int
+    // CHECK: %[[DIM2:.*]] = torch.aten.size.int %arg0, %[[I2]] : !torch.vtensor<[?,144,?,?],f32>, !torch.int -> !torch.int
     // CHECK: %[[I0:.*]] = torch.constant.int 0
-    // CHECK: %[[x1:.*]] = torch.prim.ListConstruct %[[x0]], %[[I0]] : (!torch.int, !torch.int) -> !torch.list<int>
+    // CHECK: %[[x1:.*]] = torch.prim.ListConstruct %[[DIM2]], %[[I0]] : (!torch.int, !torch.int) -> !torch.list<int>
     // CHECK: return %[[x1]] : !torch.list<int>
     %0 = torch.vtensor.literal(dense<0> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
-    %1 = torch.vtensor.literal(dense<1> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+    %1 = torch.vtensor.literal(dense<2> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
     %2 = torch.vtensor.literal(dense<0> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
     %int-9223372036854775807 = torch.constant.int -9223372036854775807
     %int-1 = torch.constant.int -1

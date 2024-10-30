@@ -505,24 +505,39 @@ public:
       }
       backDP *= selfSizes[i];
     }
-    // [i0, i1, i2, i3, i4] -> i0*D1D2D3D4 + i1*D2D3D4 + i2*D3*D4 + i3*D4 + i4
-    // i -> [i//(D1D2D3D4), i//(D2D3D4) % D1, i//(D3D4) % D2, i//D4 % D3, i %
-    // D4]
-    // -> [i//D1D2D3D4, i//D4 % D3, i//D3D4 % D2, i//D2D3D4 % D1, i %D4] ->
-    // -> (i/D1D2D3D4)*D1'D2'D3'D4' + (i//D4 % D3)*D2'D3'D4' + (i//D3D4
-    // %D2)*D3'D4' + (i//D2D3D4 % D1)*D4' + (i % D4)
-    // -> (i/D1D2D3D4)*D3D2D1D4 + (i//D4 % D3)*D2D1D4 + (i//D3D4 %D2)*D1D4 +
-    // (i//D2D3D4 % D1)*D4 + (i % D4)
+
     int64_t D1234 = dim0L * midDP * dim1L * backDP;
     int64_t fullDP = frontDP * D1234;
-    if (D1234 != (int64_t)elements.size())
+    if (fullDP != (int64_t)elements.size())
       return failure();
 
+    // A generic transpose will look like...
+    // [frontDimsFlat, dim0, midDimsFlat, dim1, backDimsFlat] -> .
+    // [frontDimsFlat, dim1, midDimsFlat, dim0, backDimsFlat] .
+    // If any of front, mid, or back don't actually exist (e.g. dim0 = 0, or
+    // dim1 = dim0 + 1), the reassociation of completely flattened indices will
+    // remain unaffected by the artificially unsqueezed dims.
+    // --------
+    // Setting some notation, let D0,D1,D2,D3,D4 be the respective dim sizes of
+    // "self". Let D'j be the transpose dim sizes, and Djk = Dj*Dk. Let fl_trans
+    // and fl_self be 1-D flattened tensors. Then:
+    // --------
+    // fl_trans[i] =
+    // = trans[i/D'1234, i/(D'234) % D'1, i/(D'34) % D'2, i/D'4 % D'3, i % D'4]
+    // . = trans[i/D1234, i/D214 % D3, i/D14 % D2, i/D4 % D1, i % D4] . =
+    // self[i/D1234, i/D4 % D1, i/D14 % D2, i/D214 % D3, i % D4] . =
+    // fl_self[dot.prod(indices, (D1234,D234,D34,D4,1))] .
+    // --------
+    // reassoc(i) = (i/(D1234)) * D1234 + .
+    //              (i/D4 % D1) * D234 + .
+    //              (i/(D14) % D2) * D34 + .
+    //              (i/(D214) % D3) * D4 + .
+    //              (i % D4) .
     auto reassoc = [&](int64_t i) {
-      return (i / (D1234)) * D1234 +
-             ((i / backDP) % dim1L) * midDP * dim0L * backDP +
-             ((i / (dim1L * backDP)) % midDP) * dim0L * backDP +
-             ((i / (midDP * dim1L * backDP)) % dim0L) * backDP + (i % backDP);
+      return (i / D1234) * D1234 +
+             ((i / backDP) % dim0L) * midDP * dim1L * backDP +
+             ((i / (dim0L * backDP)) % midDP) * dim1L * backDP +
+             ((i / (midDP * dim0L * backDP)) % dim1L) * backDP + (i % backDP);
     };
     SmallVector<OpFoldResult> transposedFolds;
     for (int64_t i = 0; i < fullDP; i++)
