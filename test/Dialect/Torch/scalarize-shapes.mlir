@@ -394,7 +394,7 @@ func.func @pytorch_dynamic_pad_export_view$prop(%arg0: !torch.vtensor<[?,144,?,?
     // CHECK: %[[none:.*]] = torch.constant.none
     // CHECK: %[[false:.*]] = torch.constant.bool false
     // CHECK: %[[x4:.*]] = torch.aten.tensor %[[x3]], %[[none]], %[[none]], %[[false]] : !torch.list<int>, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[4,2],si64>
-    // CHECK: return %[[x4]] : !torch.vtensor<[4,2],si64>    
+    // CHECK: return %[[x4]] : !torch.vtensor<[4,2],si64>
     %0 = torch.vtensor.literal(dense<0> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
     %1 = torch.vtensor.literal(dense<1> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
     %2 = torch.vtensor.literal(dense<0> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
@@ -439,7 +439,7 @@ func.func @pytorch_dynamic_pad_export_slice$prop(%arg0: !torch.vtensor<[?,144,?,
     // CHECK: %[[none:.*]] = torch.constant.none
     // CHECK: %[[false:.*]] = torch.constant.bool false
     // CHECK: %[[x4:.*]] = torch.aten.tensor %[[x3]], %[[none]], %[[none]], %[[false]] : !torch.list<int>, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[4,2],si64>
-    // CHECK: return %[[x4]] : !torch.vtensor<[4,2],si64>    
+    // CHECK: return %[[x4]] : !torch.vtensor<[4,2],si64>
     %0 = torch.vtensor.literal(dense<0> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
     %1 = torch.vtensor.literal(dense<1> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
     %2 = torch.vtensor.literal(dense<0> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
@@ -484,7 +484,7 @@ func.func @pytorch_dynamic_pad_export_transpose$prop(%arg0: !torch.vtensor<[?,14
     // CHECK: %[[none:.*]] = torch.constant.none
     // CHECK: %[[false:.*]] = torch.constant.bool false
     // CHECK: %[[x4:.*]] = torch.aten.tensor %[[x3]], %[[none]], %[[none]], %[[false]] : !torch.list<int>, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[2,4],si64>
-    // CHECK: return %[[x4]] : !torch.vtensor<[2,4],si64>    
+    // CHECK: return %[[x4]] : !torch.vtensor<[2,4],si64>
     %0 = torch.vtensor.literal(dense<0> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
     %1 = torch.vtensor.literal(dense<1> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
     %2 = torch.vtensor.literal(dense<0> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
