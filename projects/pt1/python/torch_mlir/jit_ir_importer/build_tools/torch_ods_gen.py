@@ -1014,6 +1014,10 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::upsample_nearest2d : (Tensor, int[], float?, float?) -> (Tensor)")
     emit("aten::upsample_nearest2d.vec : (Tensor, int[]?, float[]?) -> (Tensor)")
     emit(
+        "aten::upsample_bilinear2d : (Tensor, int[], bool, float?, float?) -> (Tensor)"
+    )
+    emit("aten::upsample_bilinear2d.vec : (Tensor, int[]?, bool, float[]?) -> (Tensor)")
+    emit(
         "aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?, bool) -> (Tensor)"
     )
     emit("aten::grid_sampler : (Tensor, Tensor, int, int, bool) -> (Tensor)")
