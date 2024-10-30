@@ -2342,6 +2342,20 @@ def aten〇upsample_nearest2d〇vec〡shape(input: List[int], output_size: Optio
         assert scale_factors is not None
         return [input[0], input[1], int(input[2] * scale_factors[0]), int(input[3] * scale_factors[1])]
 
+@check_shape_function([
+    Invocation(TensorOfShape(1, 3, 10, 10), [11, 12], True)
+])
+def aten〇upsample_bilinear2d〡shape(self: List[int], output_size: List[int], align_corners: bool, scales_h: Optional[float] = None, scales_w: Optional[float] = None) -> List[int]:
+    return [self[0], self[1], output_size[0], output_size[1]]
+
+@check_shape_function([
+    Invocation(TensorOfShape(1, 3, 10, 10), [11, 12], True, None),
+    Invocation(TensorOfShape(1, 3, 10, 9), None, True, [2.0, 2.3]),
+    Invocation(TensorOfShape(1, 3, 5, 6), None, True, [2.5, 1.0])
+])
+def aten〇upsample_bilinear2d〇vec〡shape(input: List[int], output_size: Optional[List[int]], align_corners: bool, scale_factors: Optional[List[float]]) -> List[int]:
+    return aten〇upsample_nearest2d〇vec〡shape(input, output_size, scale_factors)
+
 # ==============================================================================
 # Dtype Functions
 # ==============================================================================
@@ -3567,6 +3581,16 @@ def aten〇upsample_nearest2d〡dtype(self_rank_dtype: Tuple[int, int], output_s
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7)], output_size=[11, 13], scale_factors=None))
 def aten〇upsample_nearest2d〇vec〡dtype(input_rank_dtype: Tuple[int, int], output_size: Optional[List[int]], scale_factors: Optional[List[float]]) -> int:
+    self_rank, self_dtype = input_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7)], output_size=[11, 13], align_corners=True))
+def aten〇upsample_bilinear2d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int], align_corners: bool, scales_h: Optional[float] = None, scales_w: Optional[float] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7)], output_size=[11, 13], align_corners=True, scale_factors=None))
+def aten〇upsample_bilinear2d〇vec〡dtype(input_rank_dtype: Tuple[int, int], output_size: Optional[List[int]], align_corners: bool, scale_factors: Optional[List[float]]) -> int:
     self_rank, self_dtype = input_rank_dtype
     return self_dtype
 
