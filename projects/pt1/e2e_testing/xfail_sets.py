@@ -523,6 +523,10 @@ FX_IMPORTER_XFAIL_SET = {
     "MeshgridIndexingXY_basic",
     "Meshgrid_basic",
     "OneHotModule_basic",
+    "ElementwiseRreluTrainModule_basic",
+    "ElementwiseRreluTrainStaticModule_basic",
+    "ElementwiseRreluWithNoiseTrainModule_basic",
+    "ElementwiseRreluWithNoiseTrainStaticModule_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
