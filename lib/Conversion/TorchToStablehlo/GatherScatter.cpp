@@ -965,7 +965,31 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
   }
   auto scatterIndices = *scatterIndicesInfo;
 
-  // unsqueeze values to handle absent dimensions of size 1.
+  // broadcast `values` tensor to match expectedValuesShape.
+  SmallVector<int64_t> scatterIndicesDims;
+  for (int64_t i = 0; i < maxIndexRank; ++i) {
+    scatterIndicesDims.push_back(i);
+  }
+  auto expectedValuesShapeTensorInfo =
+      hlo::getDimSizesOfTensor(rewriter, op, scatterIndices, scatterIndicesDims,
+                               options.dimSizeIndexBits);
+  if (failed(expectedValuesShapeTensorInfo)) {
+    return rewriter.notifyMatchFailure(
+        op, "failed to get shape of broadcasted indices");
+  }
+  auto expectedValuesShapeTensors = *expectedValuesShapeTensorInfo;
+  SmallVector<int64_t> trailingInputDims;
+  for (int64_t i = indexCnt; i < inputRank; ++i) {
+    trailingInputDims.push_back(i);
+  }
+  auto trailingInputShapeTensorInfo = hlo::getDimSizesOfTensor(
+      rewriter, op, input, trailingInputDims, options.dimSizeIndexBits);
+  if (failed(trailingInputShapeTensorInfo)) {
+    return rewriter.notifyMatchFailure(op, "failed to get shape of input");
+  }
+  expectedValuesShapeTensors.append((*trailingInputShapeTensorInfo).begin(),
+                                    (*trailingInputShapeTensorInfo).end());
+
   llvm::ArrayRef<int64_t> scatterIndicesShape =
       (cast<RankedTensorType>(scatterIndices.getType())).getShape();
   SmallVector<int64_t> expectedValuesShape(
@@ -973,42 +997,17 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
   for (int64_t i = indexCnt; i < inputRank; i++) {
     expectedValuesShape.push_back(inputShape[i]);
   }
-  int64_t expectedValuesShapeIdx = expectedValuesShape.size() - 1;
-  int64_t valuesShapeIdx = valuesShape.size() - 1;
-  SmallVector<int64_t> unsqzDims;
-  while (expectedValuesShapeIdx >= 0 && valuesShapeIdx >= 0) {
-    if (valuesShape[valuesShapeIdx] ==
-        expectedValuesShape[expectedValuesShapeIdx]) {
-      expectedValuesShapeIdx--;
-      valuesShapeIdx--;
-    } else if (expectedValuesShape[expectedValuesShapeIdx] == 1) {
-      unsqzDims.push_back(expectedValuesShapeIdx);
-      expectedValuesShapeIdx--;
-    } else {
-      return rewriter.notifyMatchFailure(op,
-                                         "invalid values argument provided");
-    }
-  }
-  if (valuesShapeIdx >= 0) {
-    return rewriter.notifyMatchFailure(op, "invalid values argument provided");
-  }
-  while (expectedValuesShapeIdx >= 0) {
-    unsqzDims.push_back(expectedValuesShapeIdx);
-    expectedValuesShapeIdx--;
-  }
 
-  if (!unsqzDims.empty()) {
-    std::reverse(unsqzDims.begin(), unsqzDims.end());
-    auto newValuesInfo = hlo::unsqueezeTensor(rewriter, op, values, unsqzDims);
-    if (failed(newValuesInfo)) {
-      return rewriter.notifyMatchFailure(op,
-                                         "invalid values argument provided");
-    }
-    values = *newValuesInfo;
-    valuesType = cast<RankedTensorType>(values.getType());
-    valueRank = valuesType.getRank();
-    valuesShape = valuesType.getShape();
-  }
+  valuesType =
+      RankedTensorType::get(expectedValuesShape, valuesType.getElementType());
+  values =
+      hlo::promoteAndBroadcast(rewriter, values, valuesType,
+                               rewriter
+                                   .create<tensor::FromElementsOp>(
+                                       op->getLoc(), expectedValuesShapeTensors)
+                                   .getResult());
+  valueRank = valuesType.getRank();
+  valuesShape = valuesType.getShape();
 
   // create stablehlo::ScatterOp
   int64_t indexVecDim = maxIndexRank;

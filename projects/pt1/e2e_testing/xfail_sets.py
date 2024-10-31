@@ -749,6 +749,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
     "IndexPutImplIndexWithNoneModule_basic",
+    "IndexPutWithNoneAndBroadcastModule_basic",
     "IndexSelectRank0IdxModule_basic",
     "IndexTensorNegativeIndexModule_basic",
     "IntFloatModule_basic",

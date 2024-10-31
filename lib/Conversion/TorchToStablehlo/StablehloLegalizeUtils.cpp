@@ -341,7 +341,7 @@ getBroadcastResultShape(PatternRewriter &rewriter, Operation *op,
   for (int outDim = 0; outDim < maxRank; ++outDim) { // loop dimensions.
     int dynamicDimCnt = 0;
     int staticDimCnt = 0;
-    int64_t dimSize;
+    int64_t dimSize = -1;
     Value dimSizeTensor = rewriter.create<mlir::arith::ConstantOp>(
         op->getLoc(),
         rewriter.getIntegerAttr(rewriter.getIntegerType(dimSizeIndexBits), 1));
@@ -352,8 +352,11 @@ getBroadcastResultShape(PatternRewriter &rewriter, Operation *op,
         continue;
 
       // dim size: 1
-      if (tensorSizes[i][inDim] == 1)
+      if (tensorSizes[i][inDim] == 1) {
+        if (dimSize == -1)
+          dimSize = 1;
         continue;
+      }
       // dim size: dynamic
       if (tensorSizes[i][inDim] == ShapedType::kDynamic ||
           tensorSizes[i][inDim] == kUnknownSize) {
@@ -392,6 +395,7 @@ getBroadcastResultShape(PatternRewriter &rewriter, Operation *op,
     //   return failure();
     // }
     bcastSizes.push_back(dimSize);
+    std::reverse(bcastSizes.begin(), bcastSizes.end());
     bcastSizeTensors.push_back(dimSizeTensor);
   }
   std::reverse(bcastSizeTensors.begin(), bcastSizeTensors.end());
