@@ -216,7 +216,7 @@ def aten〇silu〡shape(self: List[int]) -> List[int]:
 def aten〇exp〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
-def aten〇exp〡shape(self: List[int]) -> List[int]:
+def aten〇exp2〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇expm1〡shape(self: List[int]) -> List[int]:
