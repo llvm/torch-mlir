@@ -8925,10 +8925,19 @@ public:
         loc, rewriter.getI64IntegerAttr(1));
     Value logSoftmax = rewriter.create<AtenLogSoftmaxIntOp>(
         loc, self.getType(), self, dim, /*dtype=*/noneVal);
+
+    Type secondType;
+    if (reductionInt == 0) {
+      secondType = target.getType();
+    } else {
+      auto targetType = dyn_cast<BaseTensorType>(target.getType());
+      secondType = targetType.getWithSizesAndDtype({}, targetType.getDtype());
+    }
+
     Value nllLoss =
         rewriter
             .create<AtenNllLossForwardOp>(
-                loc, op.getType(), target.getType(), logSoftmax, target,
+                loc, op.getType(), secondType, logSoftmax, target,
                 op.getWeight(), op.getReduction(), op.getIgnoreIndex())
             ->getResult(0);
     rewriter.replaceOp(op, nllLoss);
