@@ -8955,13 +8955,13 @@ public:
 
     // constraints.
     if (!selfType.hasSizes() || !targetType.hasSizes()) {
-      return rewriter.notifyMatchFailure(op,
-                                         "require self and target has sizes!");
+      return rewriter.notifyMatchFailure(
+          op, "require self and target having sizes!");
     }
 
     if (!selfType.hasDtype() || !targetType.hasDtype()) {
-      return rewriter.notifyMatchFailure(op,
-                                         "require self and target has dtype!");
+      return rewriter.notifyMatchFailure(
+          op, "require self and target having dtype!");
     }
 
     auto selfSizes = selfType.getSizes();
@@ -8999,7 +8999,7 @@ public:
         if (weightNumel != numClasses) {
           return rewriter.notifyMatchFailure(
               op, "weight tensor should be defined either for all classes or "
-                  "no classes but got weight tensor of shape!");
+                  "no classes!");
         }
       }
     }
@@ -9012,7 +9012,7 @@ public:
     }
 
     // decomposation.
-    int64_t channelDim = 1;
+    uint64_t channelDim = 1;
     if (selfRank < 2) {
       channelDim = 0;
     }
@@ -9090,10 +9090,7 @@ public:
                                              selfType.getDtype()),
         unequalCond,
         rewriter.create<AtenSqueezeDimOp>(
-            loc,
-            ValueTensorType::get(
-                ctx, targetSizes,
-                selfType.getDtype()) /*gather.getType() selfType*/,
+            loc, ValueTensorType::get(ctx, targetSizes, selfType.getDtype()),
             gather, channelDimValue),
         zeroTensor);
 
