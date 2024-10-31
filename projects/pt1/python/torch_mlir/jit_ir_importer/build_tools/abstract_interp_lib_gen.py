@@ -1296,6 +1296,44 @@ def aten〇linear〡shape(input: List[int], weight: List[int], bias: Optional[Li
     return upstream_shape_functions.linear(input, weight, bias)
 
 @check_shape_function([
+    Invocation(TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), [], [], [], [], 0), # Basic case
+    Invocation(TensorOfShape(4, 5, 6), TensorOfShape(4, 5, 6), TensorOfShape(4, 5, 6), [1], [0], [0], [], 2), # Expansions w/ Non-Zero unroll_dim
+    Invocation(TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), [1, 2], [1, 2], [1, 2], [1, 2], 0), # Multiple expansions
+    Invocation(TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), [1, 2], [2, 1], [1, 2], [1, 2], 0), # Unordered expansion
+    ErrorInvocation(TensorOfShape(4, 5, 1), TensorOfShape(4, 5, 3), TensorOfShape(1, 5, 3), [], [], [0], [2], 0), # Num dimensions don't match
+])
+def aten〇_trilinear〡shape(i1: List[int], i2: List[int], i3: List[int], expand1: List[int], expand2: List[int], expand3: List[int], sumdim: List[int], unroll_dim: int = 1) -> List[int]:
+    total_dims = len(i1) + len(expand1)
+
+    assert unroll_dim >= 0 and unroll_dim < total_dims, f"unroll_dim must be in [0, {total_dims - 1}]"
+
+    i1_copy = upstream_shape_functions._copy(i1)
+    i2_copy = upstream_shape_functions._copy(i2)
+    i3_copy = upstream_shape_functions._copy(i3)
+
+    # Expand dimensions based on args
+    inputs = [i1_copy, i2_copy, i3_copy]
+    expands = [expand1, expand2, expand3]
+    for index, expand in enumerate(expands):
+        size = len(inputs[index])
+        for dim in expand:
+            assert dim <= size, f"expand dimension {dim} is out of bounds for input of shape {inputs[index]}"
+            inputs[index].insert(dim, 1)
+
+    assert len(i1_copy) == len(i2_copy) == len(i3_copy), "number of dimensions must match"
+
+    output_shape = upstream_shape_functions.broadcast_three(i1_copy, i2_copy, i3_copy)
+    sumdim_bools = [False] * len(output_shape)
+    for dim in sumdim:
+        sumdim_bools[dim] = True
+
+    for i in range(len(output_shape) - 1, -1, -1):
+        if sumdim_bools[i]:
+            output_shape = upstream_shape_functions._reduce_along_dim(output_shape, i, False)
+
+    return output_shape
+
+@check_shape_function([
     Invocation(TensorOfShape(3, 2, 8, 4), TensorOfShape(3, 2, 8, 4), TensorOfShape(3, 2, 8, 4)), # Same shape
     Invocation(TensorOfShape(3, 2, 16, 8), TensorOfShape(3, 2, 8, 8), TensorOfShape(3, 2, 8, 4)), # Different shape
 ])
@@ -5387,6 +5425,21 @@ def aten〇linear〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: 
     dtypes = [input_dtype, weight_dtype]
     promoted_dtype = promote_dtypes(ranks, dtypes)
     return promoted_dtype
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(3, None, None, None, expand1 = [], expand2 = [], expand3 = [], sumdim = [], unroll_dim = 0),
+)
+def aten〇_trilinear〡dtype(i1_rank_dtype: Tuple[int, int], i2_rank_dtype: Tuple[int, int], i3_rank_dtype: Tuple[int, int], expand1: List[int], expand2: List[int], expand3: List[int], sumdim: List[int], unroll_dim: int = 1) -> int:
+    i1_rank, i1_dtype = i1_rank_dtype
+    i2_rank, i2_dtype = i2_rank_dtype
+    i3_rank, i3_dtype = i3_rank_dtype
+
+    ranks: List[Optional[int]] = [i1_rank, i2_rank, i3_rank]
+    dtypes = [i1_dtype, i2_dtype, i3_dtype]
+    return promote_dtypes(
+        ranks,
+        dtypes,
+    )
 
 @check_dtype_function(
     [Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32)]),

@@ -9,6 +9,7 @@
 
 #include "PassDetail.h"
 
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -399,9 +400,9 @@ static Value collapseDimForMatmul(PatternRewriter &rewriter, Location loc,
   auto inputType = cast<ValueTensorType>(input.getType());
   auto inputRank = batchDimsLength + contractingDimsLength + otherDimsLength +
                    reduceDimsLength;
-  SmallVector<Value> inputShapeTensor;
+  SmallVector<OpFoldResult> inputShapeTensor;
   for (auto i = 0; i < inputRank; ++i) {
-    inputShapeTensor.emplace_back(rewriter.create<AtenSizeIntOp>(
+    inputShapeTensor.emplace_back(rewriter.createOrFold<AtenSizeIntOp>(
         loc, input,
         rewriter.create<Torch::ConstantIntOp>(loc,
                                               rewriter.getI64IntegerAttr(i))));
@@ -412,13 +413,23 @@ static Value collapseDimForMatmul(PatternRewriter &rewriter, Location loc,
       rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
   auto dimOffset = 0;
 
-  auto appendDims = [&](int64_t dimLength) {
-    Value prod = constOne;
-    for (auto i = 0; i < dimLength; ++i) {
-      prod = rewriter.create<AtenMulIntOp>(loc, prod,
-                                           inputShapeTensor[i + dimOffset]);
+  auto materializeIntFold = [&](OpFoldResult thing) {
+    if (auto attr = dyn_cast<mlir::Attribute>(thing)) {
+      Value result = rewriter.create<Torch::ConstantIntOp>(
+          loc, cast<mlir::IntegerAttr>(attr));
+      return result;
     }
-    outShapeTensor.emplace_back(prod);
+    return cast<mlir::Value>(thing);
+  };
+
+  auto appendDims = [&](int64_t dimLength) {
+    OpFoldResult prod = getAsOpFoldResult(constOne);
+    for (auto i = 0; i < dimLength; ++i) {
+      prod = rewriter.createOrFold<AtenMulIntOp>(
+          loc, materializeIntFold(prod),
+          materializeIntFold(inputShapeTensor[i + dimOffset]));
+    }
+    outShapeTensor.emplace_back(materializeIntFold(prod));
     dimOffset += dimLength;
   };
 
@@ -570,21 +581,32 @@ static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
   Type outputDType = lhsType.hasDtype() ? lhsType.getOptionalDtype()
                                         : rhsType.getOptionalDtype();
 
+  auto materializeIntFold = [&](OpFoldResult thing) {
+    if (auto attr = dyn_cast<mlir::Attribute>(thing)) {
+      Value result = rewriter.create<Torch::ConstantIntOp>(
+          loc, cast<mlir::IntegerAttr>(attr));
+      return result;
+    }
+    return cast<mlir::Value>(thing);
+  };
+
   llvm::SmallDenseMap<char, Value> lhsDimShapeMap;
   for (size_t idx = 0; idx < lhsTokens.size(); ++idx) {
     char d = lhsTokens[idx];
-    lhsDimShapeMap[d] = rewriter.create<AtenSizeIntOp>(
+    OpFoldResult lhsFold = rewriter.createOrFold<AtenSizeIntOp>(
         loc, lhs,
         rewriter.create<Torch::ConstantIntOp>(loc,
                                               rewriter.getI64IntegerAttr(idx)));
+    lhsDimShapeMap[d] = materializeIntFold(lhsFold);
   }
   llvm::SmallDenseMap<char, Value> rhsDimShapeMap;
   for (size_t idx = 0; idx < rhsTokens.size(); ++idx) {
     char d = rhsTokens[idx];
-    rhsDimShapeMap[d] = rewriter.create<AtenSizeIntOp>(
+    OpFoldResult rhsFold = rewriter.createOrFold<AtenSizeIntOp>(
         loc, rhs,
         rewriter.create<Torch::ConstantIntOp>(loc,
                                               rewriter.getI64IntegerAttr(idx)));
+    rhsDimShapeMap[d] = materializeIntFold(rhsFold);
   }
 
   // parse batch, contracting, other, reduce dims of lhs and rhs
@@ -604,8 +626,9 @@ static LogicalResult performMatmul(PatternRewriter &rewriter, Location loc,
       bool lhsContains = lhsDimShapeMap.count(d) > 0;
       bool rhsContains = rhsDimShapeMap.count(d) > 0;
       if (lhsContains && rhsContains) {
-        outDimShapeMap[d] = rewriter.create<Torch::PrimMaxIntOp>(
+        OpFoldResult out = rewriter.createOrFold<Torch::PrimMaxIntOp>(
             loc, lhsDimShapeMap[d], rhsDimShapeMap[d]);
+        outDimShapeMap[d] = materializeIntFold(out);
       } else if (lhsContains) {
         outDimShapeMap[d] = lhsDimShapeMap[d];
       } else if (rhsContains) {
@@ -1969,6 +1992,125 @@ public:
                                          lhsTokens, resultTokens);
     rewriter.replaceOp(op, result);
     return success();
+  }
+};
+} // namespace
+
+namespace {
+// Trilinear einstein sum, decomposed to:
+// (i1.unsqueeze(expand1) * i2.unsqueeze(expand2) * i3.unsqueeze(expand3))
+//    .sum(sumdim)
+// The unrollDim operand does not impact the output of the operation, so
+// it is ignored.
+
+class DecomposeAten_TrilinearOp : public OpRewritePattern<Aten_TrilinearOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_TrilinearOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+
+    Value input1 = op.getI1();
+    Value input2 = op.getI2();
+    Value input3 = op.getI3();
+
+    // Expansions
+    SmallVector<int64_t> expand1;
+    SmallVector<int64_t> expand2;
+    SmallVector<int64_t> expand3;
+    if (!matchPattern(op.getExpand1(), m_TorchListOfConstantInts(expand1))) {
+      return rewriter.notifyMatchFailure(op, "expand1 should be constant");
+    }
+    if (!matchPattern(op.getExpand2(), m_TorchListOfConstantInts(expand2))) {
+      return rewriter.notifyMatchFailure(op, "expand2 should be constant");
+    }
+    if (!matchPattern(op.getExpand3(), m_TorchListOfConstantInts(expand3))) {
+      return rewriter.notifyMatchFailure(op, "expand3 should be constant");
+    }
+
+    SmallVector<int64_t> sumDim;
+    if (!matchPattern(op.getSumdim(), m_TorchListOfConstantInts(sumDim))) {
+      return rewriter.notifyMatchFailure(op, "sumDim should be constant");
+    }
+
+    // Check if there are any dimensions that intersect between expand1,
+    // expand2, and expand3.
+    int64_t totalDims =
+        cast<BaseTensorType>(input1.getType()).getSizes().size() +
+        expand1.size();
+    if (sharedExpandDims(totalDims, expand1, expand2, expand3, sumDim)) {
+      // pytorch issue filed: https://github.com/pytorch/pytorch/issues/138353
+      // TODO: Remove warning when issue gets resolved.
+      op->emitWarning("aten::_trilinear implementation in this case is "
+                      "non-functional (returns an empty dimension). We will "
+                      "intentionally deviate from this behavior.");
+    }
+
+    // Apply unsqueeze to respective input tensors at the specified dimensions
+    SmallVector<int64_t> sortedExpand1 = expand1;
+    std::sort(sortedExpand1.begin(), sortedExpand1.end());
+    for (auto expand : sortedExpand1) {
+      Value expandDim = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(expand));
+      input1 = *unsqueezeTensor(rewriter, op, input1, expandDim);
+    }
+    SmallVector<int64_t> sortedExpand2 = expand2;
+    std::sort(sortedExpand2.begin(), sortedExpand2.end());
+    for (auto expand : sortedExpand2) {
+      Value expandDim = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(expand));
+      input2 = *unsqueezeTensor(rewriter, op, input2, expandDim);
+    }
+    SmallVector<int64_t> sortedExpand3 = expand3;
+    std::sort(sortedExpand3.begin(), sortedExpand3.end());
+    for (auto expand : sortedExpand3) {
+      Value expandDim = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(expand));
+      input3 = *unsqueezeTensor(rewriter, op, input3, expandDim);
+    }
+
+    // Apply multiplication operation.
+    auto mul1 =
+        rewriter.create<AtenMulTensorOp>(loc, op.getType(), input1, input2);
+    auto mul2 =
+        rewriter.create<AtenMulTensorOp>(loc, op.getType(), mul1, input3);
+
+    // Apply sum operation.
+    // Parse sumDim in descending order to avoid any issues with the
+    // dimensions being removed.
+    Value result = mul2;
+    SmallVector<int64_t> sortedSumDims = sumDim;
+    std::sort(sortedSumDims.rbegin(), sortedSumDims.rend());
+    for (int64_t dim : sortedSumDims) {
+      Value dimValue = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dim));
+      result =
+          createSumAlongDimension(rewriter, loc, op, result, dimValue, false);
+    }
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+
+private:
+  // Determine if there are any dimensions that intersect between expand1,
+  // expand2, and expand3.
+  bool sharedExpandDims(const int64_t &totalDims,
+                        const SmallVector<int64_t> &expand1,
+                        const SmallVector<int64_t> &expand2,
+                        const SmallVector<int64_t> &expand3,
+                        const SmallVector<int64_t> &sumDim) const {
+    for (int64_t i = 0; i < totalDims; ++i) {
+      if (!contains(sumDim, i) && contains(expand1, i) &&
+          contains(expand2, i) && contains(expand3, i)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  bool contains(const SmallVector<int64_t> &vec, int64_t value) const {
+    return std::find(vec.begin(), vec.end(), value) != vec.end();
   }
 };
 } // namespace
@@ -10078,6 +10220,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_TrilinearOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftplusOp>(patterns);

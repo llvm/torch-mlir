@@ -14248,6 +14248,36 @@ def Torch_AtenGridSamplerOp : Torch_Op<"aten.grid_sampler", [
   }];
 }
 
+def Torch_Aten_TrilinearOp : Torch_Op<"aten._trilinear", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_trilinear : (Tensor, Tensor, Tensor, int[], int[], int[], int[], int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$i1,
+    AnyTorchTensorType:$i2,
+    AnyTorchTensorType:$i3,
+    AnyTorchListOfTorchIntType:$expand1,
+    AnyTorchListOfTorchIntType:$expand2,
+    AnyTorchListOfTorchIntType:$expand3,
+    AnyTorchListOfTorchIntType:$sumdim,
+    Torch_IntType:$unroll_dim
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_TrilinearOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 8, 1);
+    }
+    void Aten_TrilinearOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 8, 1);
+    }
+  }];
+}
+
 def Torch_Aten__Contains__StrOp : Torch_Op<"aten.__contains__.str", [
     AllowsTypeRefinement,
     HasValueSemantics,
