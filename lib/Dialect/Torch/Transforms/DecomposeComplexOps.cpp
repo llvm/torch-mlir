@@ -3490,6 +3490,59 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenRreluWithNoiseBackwardOp
+    : public OpRewritePattern<AtenRreluWithNoiseBackwardOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRreluWithNoiseBackwardOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value gradOutput = op.getGradOutput();
+    Value self = op.getSelf();
+    Value noise = op.getNoise();
+    auto resType = cast<BaseTensorType>(op.getType());
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+
+    bool training;
+    if (!matchPattern(op.getTraining(), m_TorchConstantBool(&training))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "training should be a bool constant");
+    }
+
+    bool selfIsResult = false;
+    if (!matchPattern(op.getSelfIsResult(),
+                      m_TorchConstantBool(&selfIsResult)) ||
+        selfIsResult)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: self_is_result should be false");
+
+    double lower, upper;
+    if (!matchPattern(op.getLower(), m_TorchConstantFloat(&lower)) ||
+        !matchPattern(op.getUpper(), m_TorchConstantFloat(&upper))) {
+      return rewriter.notifyMatchFailure(
+          op, "lower and upper should be float constants");
+    }
+
+    if (training && (upper - lower > 0.000001)) {
+      Value rreluWithNoiseBackwardOutput =
+          rewriter.create<AtenMulTensorOp>(loc, resType, gradOutput, noise);
+      rewriter.replaceOp(op, rreluWithNoiseBackwardOutput);
+    } else {
+      double negative_slope = (upper + lower) / 2;
+      Value cstNegativeSlope = rewriter.create<ConstantFloatOp>(
+          loc, rewriter.getF64FloatAttr(negative_slope));
+      rewriter.replaceOpWithNewOp<AtenLeakyReluBackwardOp>(
+          op, resType, gradOutput, self, cstNegativeSlope,
+          op.getSelfIsResult());
+    }
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenPreluOp : public OpRewritePattern<AtenPreluOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -3574,6 +3627,82 @@ public:
     Value scaledSelf;
     if (training) {
       scaledSelf = rewriter.create<AtenMulTensorOp>(loc, resType, self, alpha);
+    } else {
+      scaledSelf = rewriter.create<AtenMulScalarOp>(loc, resType, self, alpha);
+    }
+
+    Value negativeOutput =
+        rewriter.create<AtenMinimumOp>(loc, resType, zeroTensor, scaledSelf);
+    Value rreluOutput = rewriter.create<AtenAddTensorOp>(
+        loc, resType, positiveOutput, negativeOutput, constantOneFloat);
+    rewriter.replaceOp(op, rreluOutput);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenRreluWithNoiseOp
+    : public OpRewritePattern<AtenRreluWithNoiseOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRreluWithNoiseOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value noise = op.getNoise();
+    Value lower = op.getLower();
+    Value upper = op.getUpper();
+    auto resType = cast<BaseTensorType>(op.getType());
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+
+    bool training;
+    if (!matchPattern(op.getTraining(), m_TorchConstantBool(&training))) {
+      return rewriter.notifyMatchFailure(op, "training should be a constant");
+    }
+
+    Value constantZeroFloat =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
+    Value constantOneFloat =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value constantTwoFloat =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(2.0));
+
+    Value alpha;
+    if (training) {
+      Value none = rewriter.create<ConstantNoneOp>(loc);
+      Value emptyTensor = rewriter.create<AtenFullLikeOp>(
+          loc, resType, self, constantZeroFloat, /*dtype=*/none,
+          /*layout=*/none,
+          /*device=*/none, /*pin_memoty=*/none, /*memory_format=*/none);
+      alpha = rewriter.create<AtenUniformOp>(loc, resType, emptyTensor,
+                                             /*from=*/lower, /*to=*/upper,
+                                             /*generator=*/none);
+    } else {
+      Value half = rewriter.create<AtenAddOp>(loc, constantTwoFloat.getType(),
+                                              lower, upper);
+      alpha = rewriter.create<AtenDivOp>(loc, constantTwoFloat.getType(), half,
+                                         constantTwoFloat);
+    }
+
+    Value zeroTensor =
+        createRank0Tensor(rewriter, loc, resType, constantZeroFloat);
+    Value positiveOutput =
+        rewriter.create<AtenMaximumOp>(loc, resType, zeroTensor, self);
+
+    Value scaledSelf;
+    if (training) {
+      scaledSelf = rewriter.create<AtenMulTensorOp>(loc, resType, self, alpha);
+      auto boolResType = resType.getWithSizesAndDtype(resType.getSizes(),
+                                                      rewriter.getI1Type());
+      Value oneTensor =
+          createRank0Tensor(rewriter, loc, resType, constantOneFloat);
+      Value not_positive = rewriter.create<AtenLtScalarOp>(
+          loc, boolResType, self, constantZeroFloat);
+      noise = rewriter.create<AtenWhereSelfOp>(loc, resType, not_positive,
+                                               alpha, oneTensor);
     } else {
       scaledSelf = rewriter.create<AtenMulScalarOp>(loc, resType, self, alpha);
     }
@@ -7368,10 +7497,19 @@ class DecomposeAtenAdaptiveMaxPool1dOp
         loc, Torch::ListType::get(Torch::IntType::get(context)),
         ValueRange{constantOne});
 
-    rewriter.replaceOpWithNewOp<AtenMaxPool1dWithIndicesOp>(
-        op, op.getType(0), op.getType(1), input, kernelSizeList, strideList,
-        paddingSizeList, dialationList,
-        /*ceil_mode=*/constantFalse);
+    if (op.getResult(1).use_empty()) {
+      auto maxPool = rewriter.create<AtenMaxPool1dOp>(
+          loc, op.getType(0), input, kernelSizeList, strideList,
+          paddingSizeList, dialationList,
+          /*ceil_mode=*/constantFalse);
+      rewriter.replaceOp(op, {maxPool.getResult(), Value()});
+    } else {
+      auto maxPool = rewriter.create<AtenMaxPool1dWithIndicesOp>(
+          loc, op.getType(0), op.getType(1), input, kernelSizeList, strideList,
+          paddingSizeList, dialationList,
+          /*ceil_mode=*/constantFalse);
+      rewriter.replaceOp(op, maxPool.getResults());
+    }
     return success();
   }
 };
@@ -9939,6 +10077,9 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPreluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRreluOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRreluWithNoiseOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRreluWithNoiseBackwardOp>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast2dOp>(patterns);
