@@ -8816,7 +8816,8 @@ public:
       }
       result = *squeezeTensorInfo;
     }
-    rewriter.replaceOp(op, result);
+    rewriter.replaceOpWithNewOp<Torch::TensorStaticInfoCastOp>(op, op.getType(),
+                                                               result);
     return success();
   }
 };
