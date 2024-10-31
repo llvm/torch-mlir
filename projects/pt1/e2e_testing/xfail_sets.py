@@ -425,7 +425,6 @@ FX_IMPORTER_XFAIL_SET = {
     "ElementwiseQuantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorUIntModule_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
-    "Exp2StaticModule_basic",
     "EqIntModule_basic",
     "FloatImplicitModule_basic",
     "GeFloatIntModule_basic",
@@ -988,7 +987,6 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
     # torch export: RuntimeError: cannot mutate tensors with frozen storage
     "ElementwiseRreluWithNoiseTrainModule_basic",
     "ElementwiseRreluWithNoiseTrainStaticModule_basic",
-    "Exp2StaticModule_basic",
 }
 
 STABLEHLO_PASS_SET = {

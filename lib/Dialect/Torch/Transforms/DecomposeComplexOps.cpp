@@ -9019,12 +9019,7 @@ class DecomposeAtenExp2Op : public OpRewritePattern<AtenExp2Op> {
 
     auto two =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
-    auto type =
-        ValueTensorType::get(ctx, {}, rewriter.getIntegerType(64, true));
-    Value twoTensor = rewriter.create<PrimNumToTensorScalarOp>(loc, type, two);
-
-    rewriter.replaceOpWithNewOp<AtenPowTensorTensorOp>(op, op.getType(),
-                                                       twoTensor, self);
+    rewriter.replaceOpWithNewOp<AtenPowScalarOp>(op, op.getType(), two, self);
 
     return success();
   }
