@@ -9014,7 +9014,6 @@ class DecomposeAtenExp2Op : public OpRewritePattern<AtenExp2Op> {
   LogicalResult matchAndRewrite(AtenExp2Op op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    auto ctx = op.getContext();
     Value self = op.getSelf();
 
     auto two =
