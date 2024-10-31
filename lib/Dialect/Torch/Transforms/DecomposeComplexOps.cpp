@@ -8591,6 +8591,24 @@ class DecomposeAtenBinaryCrossEntropyWithLogitsOp
 } // namespace
 
 namespace {
+class DecomposeAtenExp2Op : public OpRewritePattern<AtenExp2Op> {
+  using OpRewritePattern<AtenExp2Op>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenExp2Op op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+
+    auto two =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
+    rewriter.replaceOpWithNewOp<AtenPowScalarOp>(op, op.getType(), two, self);
+
+    return success();
+  }
+};
+
+} // namespace
+
+namespace {
 class DecomposeAtenOneHotOp : public OpRewritePattern<AtenOneHotOp> {
   using OpRewritePattern<AtenOneHotOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenOneHotOp op,
@@ -9721,6 +9739,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposePrimTolistOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsSqueezeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMovedimIntOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenExp2Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenOneHotOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBinaryCrossEntropyWithLogitsOp>(
