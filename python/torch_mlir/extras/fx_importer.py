@@ -723,10 +723,17 @@ class FxImporter:
                 # on a symbolic or other non-SSA association. As such, they
                 # are not modeled with mutable IR but will trigger an output
                 # store hook when the final value is produced.
-                value = prog.state_dict.get(input_spec.target)
-                assert (
-                    not input_spec.persistent or value is not None
-                ), "Expected state_dict value for persistent value"
+                if input_spec.persistent:
+                    value = prog.state_dict.get(input_spec.target)
+                    assert (
+                        value is not None
+                    ), "Expected state_dict value for persistent buffer"
+                else:
+                    value = prog.constants.get(input_spec.target)
+                    assert (
+                        value is not None
+                    ), "Expected constants value for non-persistent buffer"
+
                 node = placeholder_nodes[arg.name]
                 mutable_producer_node_name = mutable_buffer_target_producers.get(
                     input_spec.target
