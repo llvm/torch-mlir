@@ -564,6 +564,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ElementwiseRemainderTensorModule_Int_Float_NegativeDivisor_basic",
     "ElementwiseRemainderTensorModule_Int_NegativeDividend_basic",
     "ElementwiseRemainderTensorModule_Int_NegativeDivisor_basic",
+    "Exp2StaticModule_basic",
     "MaxPool1dCeilModeTrueModule_basic",
     "MaxPool1dStaticCeilModeTrueModule_basic",
     "MaxUnpool3dModulePad0_basic",
