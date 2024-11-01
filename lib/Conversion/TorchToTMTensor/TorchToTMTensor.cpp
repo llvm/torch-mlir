@@ -1726,7 +1726,7 @@ public:
     }
 
     // Broadcast the batch dimensions of the mask:
-    if (mask) {
+    if (!isa<Torch::NoneType>(mask.getType())) {
       auto maskTy = cast<RankedTensorType>(mask.getType());
       int64_t rank = maskTy.getRank();
       bool needsBroadcast = false;
