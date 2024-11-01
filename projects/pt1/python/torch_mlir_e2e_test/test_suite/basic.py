@@ -5501,7 +5501,7 @@ class ScaledDotProductAttentionMaskModule(torch.nn.Module):
             ([2, 3, 8, 16], torch.float32, True),
             ([2, 3, 12, 16], torch.float32, True),
             ([2, 3, 12, 20], torch.float32, True),
-            ([2, 3, 8, 12], torch.float32, True),
+            ([2, 1, 8, 12], torch.float32, True),
         ]
     )
     def forward(self, query, key, value, mask):
@@ -5513,7 +5513,7 @@ def ScaledDotProductAttentionMaskModule_basic(module, tu: TestUtils):
     query = torch.randn(2, 3, 8, 16, dtype=torch.float32)
     key = torch.randn(2, 3, 12, 16, dtype=torch.float32)
     value = torch.randn(2, 3, 12, 20, dtype=torch.float32)
-    mask = torch.randn(2, 3, 8, 12, dtype=torch.float32)
+    mask = torch.randn(2, 1, 8, 12, dtype=torch.float32)
     module.forward(query, key, value, mask)
 
 
