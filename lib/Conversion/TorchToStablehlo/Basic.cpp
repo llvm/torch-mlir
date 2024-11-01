@@ -941,7 +941,7 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto outType = cast<TensorType>(
-        OpConversionPattern<AtenPowScalarOp>::getTypeConverter()->convertType(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()));
 
     Type outElemTy = outType.getElementType();
