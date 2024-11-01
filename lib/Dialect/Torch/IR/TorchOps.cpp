@@ -3998,7 +3998,7 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
     int64_t limit = end.getValue().getSExtValue();
     int64_t stride = step.getValue().getSExtValue();
     begin = begin < 0 ? begin + inType.getSizes()[dimInt] : begin;
-    begin = std::max(begin, (int64_t)0);
+    begin = std::max<int64_t>(begin, 0);
     limit = limit < 0 ? limit + inType.getSizes()[dimInt] : limit;
     limit = limit < 0 ? -1 : limit;
     limit = std::min(limit, inType.getSizes()[dimInt]);
@@ -4039,7 +4039,7 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
       }
     };
     recursiveIter(recursiveIter, 0, 0);
-    if ((int64_t)values.size() != count) {
+    if (static_cast<int64_t>(values.size()) != count) {
       emitError(
           "Op has incorrect result shape for provided arguments.\nNum elements "
           "present in slice: " +
