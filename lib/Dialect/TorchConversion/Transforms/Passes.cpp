@@ -12,6 +12,7 @@
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
+#include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h"
 #include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
 #include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
@@ -185,6 +186,16 @@ void TorchConversion::createTorchBackendToTosaLinalgBackendPipeline(
       memref::createResolveShapedTypeResultDimsPass());
   // The resolution of `dim` ops tends to create identical ops. CSE them.
   pm.addNestedPass<func::FuncOp>(createCSEPass());
+
+  // `tm-tensor-to-loops` pass can convert TMTensor ops to Linalg and other MLIR
+  // core dialects only when the operand types to the TMTensor ops are of type
+  // `memref,` so run the `tm-tensor-bufferize` pass before running
+  // `tm-tensor-to-loops.` Unfortunately, we have to lower to `memref` types
+  // this early due to the `tm-tensor-to-loops`  pass limitation. Ideally, we
+  // would have liked to keep `tensor` types at this stage and defer lowering to
+  // `memref` types as late as possible.
+  pm.addNestedPass<func::FuncOp>(TMTensor::createTMTensorBufferizePass());
+  pm.addNestedPass<func::FuncOp>(TMTensor::createTMTensorToLoopsPass());
 
   // Finish the type conversion from `torch` types to the types of the
   // TOSA backend contract.

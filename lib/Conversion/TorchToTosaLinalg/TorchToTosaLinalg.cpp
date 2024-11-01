@@ -60,8 +60,6 @@ public:
                            tosa::TosaDialect, tensor::TensorDialect,
                            arith::ArithDialect, complex::ComplexDialect>();
 
-    target.addIllegalDialect<Torch::TorchDialect>();
-
     target.addLegalOp<TorchConversion::GetNextSeedOp>();
     torch::populateTorchToTosaConversionLegalOps(target);
 
@@ -71,7 +69,13 @@ public:
 
     RewritePatternSet patterns(context);
 
-    torch::populateTorchToTosaConversionPatterns(typeConverter, patterns);
+    auto illegalOps = populateTorchToTosaConversionPatternsAndIllegalOps(
+        typeConverter, patterns);
+
+    // for (auto op : illegalOps) {
+    //   target.addIllegalOp(OperationName(op, context));
+    // }
+
     torch::populateTorchToLinalgOnTensorsPatternsAndLegality(typeConverter,
                                                              patterns, target);
 
