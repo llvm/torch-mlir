@@ -931,79 +931,49 @@ LogicalResult ConvertAtenOp<AtenReciprocalOp>::matchAndRewrite(
   return success();
 }
 
-// AtenPowTensorScalarOp
-template <>
-LogicalResult ConvertAtenOp<AtenPowTensorScalarOp>::matchAndRewrite(
-    AtenPowTensorScalarOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Value lhs = adaptor.getSelf();
-  auto lhsType = dyn_cast<TensorType>(lhs.getType());
-  Value rhs = adaptor.getExponent();
-  TensorType rhsType = dyn_cast<TensorType>(rhs.getType());
+namespace {
+template <typename AtenOpT>
+class ConvertAtenPowOp : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto outType = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
 
-  if (!lhsType)
-    return op.emitError("only Tensor types supported in StableHLO");
+    Type outElemTy = outType.getElementType();
+    if (!outElemTy.isIntOrFloat()) {
+      return op.emitError(
+          "only floating-point or integer datatype legalization supported");
+    }
 
-  auto outType = cast<TensorType>(
-      OpConversionPattern<AtenPowTensorScalarOp>::getTypeConverter()
-          ->convertType(op.getType()));
+    Value lhs = adaptor.getSelf();
+    auto lhsType = dyn_cast<TensorType>(lhs.getType());
+    Value rhs = adaptor.getExponent();
+    auto rhsType = dyn_cast<TensorType>(rhs.getType());
 
-  Type outElemTy = outType.getElementType();
-  if (!outElemTy.isIntOrFloat()) {
-    return op.emitError(
-        "only floating-point or integer datatype legalization supported");
+    if (!lhsType && !rhsType) {
+      return op.emitError("only Tensor types supported in StableHLO");
+    }
+    if (!lhsType) {
+      lhs = hlo::scalarToStablehloTensor(rewriter, op, lhs, outElemTy);
+    }
+    if (!rhsType) {
+      rhs = hlo::scalarToStablehloTensor(rewriter, op, rhs, outElemTy);
+    }
+
+    lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outElemTy);
+    rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outElemTy);
+    DenseI64ArrayAttr bcastDimensions;
+    rewriter.replaceOpWithNewOp<chlo::BroadcastPowOp>(op, outType, lhs, rhs,
+                                                      bcastDimensions);
+    return success();
   }
-
-  if (!rhsType) {
-    rhs = hlo::scalarToStablehloTensor(rewriter, op, rhs, outElemTy);
-  }
-  DenseI64ArrayAttr bcastDimensions;
-  lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outElemTy);
-  rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outElemTy);
-  auto loc = op.getLoc();
-  Value result = rewriter.create<chlo::BroadcastPowOp>(loc, outType, lhs, rhs,
-                                                       bcastDimensions);
-
-  rewriter.replaceOp(op, result);
-  return success();
-}
-
-// AtenPowScalarOp
-template <>
-LogicalResult ConvertAtenOp<AtenPowScalarOp>::matchAndRewrite(
-    AtenPowScalarOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Value lhs = adaptor.getSelf();
-  auto lhsType = dyn_cast<TensorType>(lhs.getType());
-  Value rhs = adaptor.getExponent();
-  auto rhsType = dyn_cast<TensorType>(rhs.getType());
-
-  if (!rhsType)
-    return op.emitError("only Tensor types supported in StableHLO");
-
-  auto outType = cast<TensorType>(
-      OpConversionPattern<AtenPowScalarOp>::getTypeConverter()->convertType(
-          op.getType()));
-
-  Type outElemTy = outType.getElementType();
-  if (!outElemTy.isIntOrFloat()) {
-    return op.emitError(
-        "only floating-point or integer datatype legalization supported");
-  }
-
-  if (!lhsType) {
-    lhs = hlo::scalarToStablehloTensor(rewriter, op, lhs, outElemTy);
-  }
-  DenseI64ArrayAttr bcastDimensions;
-  lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outElemTy);
-  rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outElemTy);
-  auto loc = op.getLoc();
-  Value result = rewriter.create<chlo::BroadcastPowOp>(loc, outType, lhs, rhs,
-                                                       bcastDimensions);
-
-  rewriter.replaceOp(op, result);
-  return success();
-}
+};
+} // namespace
 
 // PrimNumToTensorScalarOp
 template <>
@@ -1797,29 +1767,6 @@ LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
   return success();
 }
 
-template <>
-LogicalResult ConvertAtenOp<AtenPowTensorTensorOp>::matchAndRewrite(
-    AtenPowTensorTensorOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Value lhs = adaptor.getSelf();
-  auto lhsTy = cast<TensorType>(lhs.getType());
-  Value rhs = adaptor.getExponent();
-  auto rhsTy = cast<TensorType>(rhs.getType());
-
-  if (!lhsTy || !rhsTy)
-    return op.emitError("only Tensor types supported");
-
-  auto outTy =
-      cast<TensorType>(this->getTypeConverter()->convertType(op.getType()));
-
-  lhs = hlo::promoteType(rewriter, op.getLoc(), lhs, outTy.getElementType());
-  rhs = hlo::promoteType(rewriter, op.getLoc(), rhs, outTy.getElementType());
-
-  rewriter.replaceOpWithNewOp<chlo::BroadcastPowOp>(op, outTy, lhs, rhs,
-                                                    /*broadcast_attr*/ nullptr);
-  return success();
-}
-
 // Converts `aten.empty.memory_format` to `tensor.empty` op.
 template <>
 LogicalResult ConvertAtenOp<AtenEmptyMemoryFormatOp>::matchAndRewrite(
@@ -2250,6 +2197,14 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
 
 #undef INSERT_BINARY_LOGICAL_PATTERN
 
+#define INSERT_BINARY_POW_PATTERN(AtenOp)                                      \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenPowOp<AtenOp>>(typeConverter, context)
+  INSERT_BINARY_POW_PATTERN(AtenPowTensorScalarOp);
+  INSERT_BINARY_POW_PATTERN(AtenPowTensorTensorOp);
+  INSERT_BINARY_POW_PATTERN(AtenPowScalarOp);
+#undef INSERT_BINARY_ADDSUB_PATTERN
+
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
   target.addIllegalOp<AtenOp>();                                               \
   patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context, options)
@@ -2260,8 +2215,6 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(ValueTensorLiteralOp);
   INSERT_ATENOP_PATTERN(AtenTensorIntOp);
   INSERT_ATENOP_PATTERN(AtenReciprocalOp);
-  INSERT_ATENOP_PATTERN(AtenPowTensorScalarOp);
-  INSERT_ATENOP_PATTERN(AtenPowScalarOp);
   INSERT_ATENOP_PATTERN(PrimNumToTensorScalarOp);
   INSERT_ATENOP_PATTERN(AtenScalarImplicitOp);
   INSERT_ATENOP_PATTERN(AtenContiguousOp);
@@ -2285,7 +2238,6 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenSizeIntOp);
   INSERT_ATENOP_PATTERN(AtenToDtypeOp);
   INSERT_ATENOP_PATTERN(AtenWhereSelfOp);
-  INSERT_ATENOP_PATTERN(AtenPowTensorTensorOp);
 
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);

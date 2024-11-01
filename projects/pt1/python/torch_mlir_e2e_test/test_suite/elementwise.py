@@ -685,6 +685,35 @@ def ElementwiseAddModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+# Addition is an interesting special case of a binary op, because under the hood
+# it carries a third scalar "alpha" parameter, which needs special handling.
+class ElementwiseAddBoolModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.bool, True),
+            ([4], torch.bool, True),
+        ]
+    )
+    def forward(self, a, b):
+        return a + b
+
+
+@register_test_case(module_factory=lambda: ElementwiseAddBoolModule())
+def ElementwiseAddBoolModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([False, False, True, True]),
+        torch.tensor([False, True, False, False]),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseUnsqueezeBroadcastModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2876,6 +2905,29 @@ class ElementwiseSgnModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseSgnModule())
 def ElementwiseSgnModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class Exp2StaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.exp2(x)
+
+
+@register_test_case(module_factory=lambda: Exp2StaticModule())
+def Exp2StaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2))
 
 
 # ==============================================================================
