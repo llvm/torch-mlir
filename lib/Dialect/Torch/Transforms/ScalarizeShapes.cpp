@@ -311,7 +311,9 @@ public:
 
     auto selfShape = selfTy.getSizes();
     int64_t selfRank = selfShape.size();
-    dim = dim < 0 ? dim + selfRank : dim;
+    dim = toPositiveDim(dim, selfRank);
+    if (!isValidDim(dim, selfRank))
+      return failure();
     int64_t dimLength = elements.size();
     if (selfShape[dim] != dimLength)
       return rewriter.notifyMatchFailure(
@@ -390,7 +392,9 @@ public:
     int64_t selfRank = selfShape.size();
 
     // Correct for negative indexing:
-    dim = dim < 0 ? dim + selfRank : dim;
+    dim = toPositiveDim(dim, selfRank);
+    if (!isValidDim(dim, selfRank))
+      return failure();
 
     int64_t dimLength = selfShape[dim];
     start = start < 0 ? start + dimLength : start;
