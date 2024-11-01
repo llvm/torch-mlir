@@ -485,31 +485,22 @@ public:
     ArrayRef<int64_t> selfSizes = selfTy.getSizes();
     int64_t rank = selfSizes.size();
 
-    int64_t frontDP = 1, dim0L = 1, midDP = 1, dim1L = 1, backDP = 1;
-    for (int64_t i = 0; i < rank; i++) {
-      if (i < dim0) {
-        frontDP *= selfSizes[i];
-        continue;
-      }
-      if (i == dim0) {
-        dim0L *= selfSizes[i];
-        continue;
-      }
-      if (i < dim1) {
-        midDP *= selfSizes[i];
-        continue;
-      }
-      if (i == dim1) {
-        dim1L *= selfSizes[i];
-        continue;
-      }
-      backDP *= selfSizes[i];
+    dim0 = toPositiveDim(dim0, rank);
+    dim1 = toPositiveDim(dim1, rank);
+    if (!isValidDim(dim0, rank) || !isValidDim(dim0, rank))
+      return failure();
+
+    if (dim0 == dim1) {
+      rewriter.replaceOp(op, op.getSelf());
+      return success();
     }
 
-    int64_t D1234 = dim0L * midDP * dim1L * backDP;
-    int64_t fullDP = frontDP * D1234;
-    if (fullDP != (int64_t)elements.size())
-      return failure();
+    if (dim0 > dim1) {
+      // swap dim0 and dim1
+      dim0 = dim0 + dim1;
+      dim1 = dim0 - dim1;
+      dim0 -= dim1;
+    }
 
     // A generic transpose will look like...
     // [frontDimsFlat, dim0, midDimsFlat, dim1, backDimsFlat] -> .
@@ -524,22 +515,43 @@ public:
     // --------
     // fl_trans[i] =
     // = trans[i/D'1234, i/(D'234) % D'1, i/(D'34) % D'2, i/D'4 % D'3, i % D'4]
-    // . = trans[i/D1234, i/D214 % D3, i/D14 % D2, i/D4 % D1, i % D4] . =
-    // self[i/D1234, i/D4 % D1, i/D14 % D2, i/D214 % D3, i % D4] . =
-    // fl_self[dot.prod(indices, (D1234,D234,D34,D4,1))] .
+    // = trans[i/D1234, i/D214 % D3, i/D14 % D2, i/D4 % D1, i % D4]
+    // = self[i/D1234, i/D4 % D1, i/D14 % D2, i/D214 % D3, i % D4]
+    // = fl_self[dot.prod(indices, (D1234,D234,D34,D4,1))] .
     // --------
-    // reassoc(i) = (i/(D1234)) * D1234 + .
-    //              (i/D4 % D1) * D234 + .
-    //              (i/(D14) % D2) * D34 + .
-    //              (i/(D214) % D3) * D4 + .
+    // reassoc(i) = (i/(D1234)) * D1234 +
+    //              (i/D4 % D1) * D234 +
+    //              (i/(D14) % D2) * D34 +
+    //              (i/(D214) % D3) * D4 +
     //              (i % D4) .
+
+    SmallVector<int64_t, 5> D(5, 1);
+    int64_t i = -1;
+    // D[0] corresponds to flattened front dims
+    while (++i < dim0)
+      D[0] *= selfSizes[i];
+    // D[1] is the earliest transpose dim
+    D[1] = selfSizes[i];
+    // D[2] corresponds to flattened middle dims
+    while (++i < dim1)
+      D[2] *= selfSizes[i];
+    // D[3] is the later transpose dim
+    D[3] = selfSizes[i];
+    // D[4] corresponds to flattened back dims
+    while (++i < rank)
+      D[4] *= selfSizes[i];
+
+    int64_t D1234 = D[1] * D[2] * D[3] * D[4];
+    int64_t fullDP = D[0] * D1234;
+    if (fullDP != (int64_t)elements.size())
+      return failure();
     auto reassoc = [&](int64_t i) {
-      return (i / D1234) * D1234 +
-             ((i / backDP) % dim0L) * midDP * dim1L * backDP +
-             ((i / (dim0L * backDP)) % midDP) * dim1L * backDP +
-             ((i / (midDP * dim0L * backDP)) % dim1L) * backDP + (i % backDP);
+      return (i / D1234) * D1234 + ((i / D[4]) % D[1]) * D[2] * D[3] * D[4] +
+             ((i / (D[1] * D[4])) % D[2]) * D[3] * D[4] +
+             ((i / (D[2] * D[1] * D[4])) % D[3]) * D[4] + (i % D[4]);
     };
     SmallVector<OpFoldResult> transposedFolds;
+    transposedFolds.reserve(fullDP);
     for (int64_t i = 0; i < fullDP; i++)
       transposedFolds.push_back(elements[reassoc(i)]);
 
