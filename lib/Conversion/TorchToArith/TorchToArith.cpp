@@ -496,6 +496,13 @@ public:
     patterns.add<ConvertAtenBinaryOp<PrimMinIntOp, arith::MinSIOp>>(
         typeConverter, context);
     target.addIllegalOp<AtenCeilFloatOp>();
+    target.addIllegalOp<Aten__Or__BoolOp, Aten__And__BoolOp, AtenNeBoolOp>();
+    patterns.add<ConvertAtenBinaryOp<Aten__Or__BoolOp, arith::OrIOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<Aten__And__BoolOp, arith::AndIOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<AtenNeBoolOp, arith::XOrIOp>>(
+        typeConverter, context);
     patterns
         .add<ConvertAtenUnaryOpToFloatMathOp<AtenCeilFloatOp, math::CeilOp>>(
             typeConverter, context);
