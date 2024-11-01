@@ -6778,6 +6778,108 @@ LogicalResult ConvertAtenOp<AtenThresholdBackwardOp>::matchAndRewrite(
   return success();
 }
 
+// Legalization for aten.as_strided
+template <>
+LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewrite(
+    AtenAsStridedOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // To lower aten.as_strided to TOSA, we will first reshape the input tensor to
+  // an 1-D tensor, then calculate the indices of result elements based on the
+  // output size, stride and storage offset. With the reshaped 1-D tensor and
+  // the indices, we can apply Gather to extract the required elements into a
+  // new tensor and then reshape it back to the desired output shape.
+  auto self = adaptor.getSelf();
+
+  // Not a tensor type
+  auto selfType = dyn_cast<TensorType>(self.getType());
+  if (!selfType)
+    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
+  auto selfElemTy = selfType.getElementType();
+  auto selfShape = selfType.getShape();
+
+  auto resultType =
+      dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
+  auto resultElemTy = resultType.getElementType();
+
+  // Get output size
+  SmallVector<int64_t> outputSize;
+  if (!matchPattern(op.getSize(), m_TorchListOfConstantInts(outputSize)))
+    return rewriter.notifyMatchFailure(
+        op, "Only a constant list form of output size is supported");
+
+  // Get stride
+  SmallVector<int64_t> stride;
+  if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)))
+    return rewriter.notifyMatchFailure(
+        op, "Only a constant list form of stride is supported");
+
+  // Get storage offset
+  int64_t offset;
+  if (!matchPattern(op.getStorageOffset(), m_TorchConstantInt(&offset)))
+    offset = 0;
+
+  // Reshape input tensor into an 1-D tensor
+  int64_t selfNumElems = std::accumulate(selfShape.begin(), selfShape.end(), 1,
+                                         std::multiplies<int64_t>());
+
+  auto self1D = rewriter.create<tosa::ReshapeOp>(
+      op->getLoc(), RankedTensorType::get({selfNumElems}, selfElemTy), self,
+      rewriter.getDenseI64ArrayAttr({selfNumElems}));
+
+  // Calculate the target elements indices
+  SmallVector<int32_t> targetIndicesVec;
+  int64_t outputRank = outputSize.size();
+  int64_t outputNumElems = std::accumulate(outputSize.begin(), outputSize.end(),
+                                           1, std::multiplies<int64_t>());
+
+  for (int64_t i = 0; i < outputNumElems; i++) {
+    // Index formula:
+    // index[i] = coord_i_0 * stride[0] + coord_i_1 * stride[1] + ... +
+    //              coord_i_n * stride[n]
+    int32_t index = offset;
+    int64_t coordFinder = i;
+    for (int64_t dim = 0; dim < outputRank; dim++) {
+      int64_t indexCoord = coordFinder % outputSize[outputRank - dim - 1];
+      index += indexCoord * stride[outputRank - dim - 1];
+      coordFinder /= outputSize[outputRank - dim - 1];
+    }
+    targetIndicesVec.push_back(index);
+  }
+
+  auto targetIndices =
+      tosa::getConstTensor<int32_t>(rewriter, op, targetIndicesVec,
+                                    makeShapeTorchCompatible({outputNumElems}))
+          .value();
+
+  // Convert PyTorch-style indices and dim into TensorFlow-style indices
+  auto targetIndicesTf = tosa::convertTorchIndexToTfIndices(
+      rewriter, op, self1D.getResult(), targetIndices, 0);
+  if (!targetIndicesTf)
+    return rewriter.notifyMatchFailure(op,
+                                       "Convert PyTorch-style indices and dim "
+                                       "to TensorFlow-style indices failed");
+
+  // Gather the target elements from 1-D input tensor
+  // Apply TensorFlow GatherNdOp with TensorFlow-style indices to retrieve the
+  // target elements
+  auto gatherOp = tosa::convertGatherNdOp(
+      rewriter, op,
+      RankedTensorType::get(makeShapeTorchCompatible({outputNumElems}),
+                            resultElemTy),
+      self1D.getResult(), targetIndicesTf.value());
+
+  if (!gatherOp)
+    return rewriter.notifyMatchFailure(op, "Convert GatherNdOp failed");
+
+  auto result = rewriter.create<tosa::ReshapeOp>(
+      op->getLoc(), resultType, gatherOp.value(),
+      rewriter.getDenseI64ArrayAttr(outputSize));
+
+  rewriter.replaceOp(op, {result.getResult()});
+
+  return success();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -7096,6 +7198,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenDiagEmbedOp);
     INSERT_ATENOP_PATTERN(AtenUniformOp);
     INSERT_ATENOP_PATTERN(AtenThresholdBackwardOp);
+    INSERT_ATENOP_PATTERN(AtenAsStridedOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
