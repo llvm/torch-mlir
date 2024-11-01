@@ -707,7 +707,7 @@ class ElementwiseAddBoolModule(torch.nn.Module):
 def ElementwiseAddBoolModule_basic(module, tu: TestUtils):
     module.forward(
         torch.tensor([False, False, True, True]),
-        torch.tensor([False, True, True, False]),
+        torch.tensor([False, True, False, False]),
     )
 
 
