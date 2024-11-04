@@ -9096,6 +9096,15 @@ public:
 } // namespace
 
 namespace {
+// Decompose aten::nll_loss_forward according to :
+//  torch/_decomp/decompositions.py and
+//  https://pytorch.org/docs/stable/generated/torch.nn.NLLLoss.html.
+// The (self, target) can be:
+//  1. [N, C] and [C],
+//   or
+//  2. [N] or [].
+// The weight must be None or 1d where the numel must keep consistent with the
+// number of classes.
 class DecomposeAtenNllLossForwardOp
     : public OpRewritePattern<AtenNllLossForwardOp> {
 public:
