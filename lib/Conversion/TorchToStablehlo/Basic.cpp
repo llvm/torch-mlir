@@ -2075,6 +2075,33 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenIsfiniteOp>::matchAndRewrite(
+    AtenIsfiniteOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  Location loc = op.getLoc();
+
+  Value self = adaptor.getSelf();
+  auto selfTy = cast<RankedTensorType>(self.getType());
+  if (!selfTy)
+    return rewriter.notifyMatchFailure(
+        op, "Only Tensor types are currently supported");
+
+  auto outType =
+      dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+  Type outElemTy = outType.getElementType();
+  if (!outElemTy.isInteger(1)) {
+    return rewriter.notifyMatchFailure(
+        op, "Only i1 output element type are currently supported");
+  }
+
+  rewriter.replaceOpWithNewOp<stablehlo::IsFiniteOp>(op.getOperation(), outType,
+                                                     self);
+
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {

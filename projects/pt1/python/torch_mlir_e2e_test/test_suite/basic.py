@@ -4373,6 +4373,29 @@ def PowIntFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class IsInfiniteModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.isfinite(x)
+
+
+@register_test_case(module_factory=lambda: IsInfiniteModule())
+def IsInfiniteModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2))
+
+
+# ==============================================================================
+
+
 class BaddbmmDynamicModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
