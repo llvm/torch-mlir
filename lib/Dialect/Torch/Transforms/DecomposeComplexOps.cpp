@@ -8895,6 +8895,12 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Unimplemented: unranked target tensor");
     unsigned targetRank = maybeRank.value();
+    Value reduction = op.getReduction();
+    int64_t reductionInt;
+    if (!matchPattern(reduction, m_TorchConstantInt(&reductionInt))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "reduction should be a constant int!");
+    }
 
     // When the input is 2-d i.e. of the form [minibatch, C] and target is 1-d
     // of the form [minibatch] the cross entropy loss decomposes to the
@@ -8925,10 +8931,19 @@ public:
         loc, rewriter.getI64IntegerAttr(1));
     Value logSoftmax = rewriter.create<AtenLogSoftmaxIntOp>(
         loc, self.getType(), self, dim, /*dtype=*/noneVal);
+
+    Type secondType;
+    if (reductionInt == 0) {
+      secondType = target.getType();
+    } else {
+      auto targetType = dyn_cast<BaseTensorType>(target.getType());
+      secondType = targetType.getWithSizesAndDtype({}, targetType.getDtype());
+    }
+
     Value nllLoss =
         rewriter
             .create<AtenNllLossForwardOp>(
-                loc, op.getType(), target.getType(), logSoftmax, target,
+                loc, op.getType(), secondType, logSoftmax, target,
                 op.getWeight(), op.getReduction(), op.getIgnoreIndex())
             ->getResult(0);
     rewriter.replaceOp(op, nllLoss);
