@@ -29,6 +29,10 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "DeformConv2D_basic",
     "ReduceAnyDimFloatModule_basic",
     "UnfoldModule_basic",
+    # _trilinear is an implementation of einsum, but sets dimensions to zero
+    # if a dimension is specified in all expand lists, and not in sumdim list.
+    # This is a bug in the implementation of _trilinear in PyTorch.
+    "Aten_TrilinearModuleZerodDimBug_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.5.0.dev"):
@@ -394,6 +398,8 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenIntBoolOpModule_basic",
     "AtenIntMM_basic",
     "AtenItemFpOpModule_basic",
+    "Aten_TrilinearModuleVaryingRanks_basic",
+    "Aten_TrilinearModuleZerodDimBug_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluInt8_basic",
     "QuantizedReluUint8_basic",
@@ -530,6 +536,9 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "_SoftmaxModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
+    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
+    "Aten_TrilinearModuleSumAllDims_basic",
+    "Aten_TrilinearModuleSumdims_basic",
     # torch export: RuntimeError: cannot mutate tensors with frozen storage
     "ElementwiseRreluWithNoiseTrainModule_basic",
     "ElementwiseRreluWithNoiseTrainStaticModule_basic",
@@ -643,6 +652,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenTopKModule_basic",
     "AtenTopKSmallestModule_basic",
     "Aten_EmbeddingBagExample_basic",
+    "Aten_TrilinearModuleVaryingRanks_basic",
+    "Aten_TrilinearModuleZerodDimBug_basic",
     "AvgPool2dDivisorOverrideModule_basic",
     "BernoulliTensorModule_basic",
     "BincountMinlengthModule_basic",
@@ -924,11 +935,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
     "AtenItemIntOpModule_basic",
-    "EinsumStaticContractRhsModule_basic",
-    "EinsumStaticFourDimensionModule_basic",
-    "EinsumStaticModule_basic",
-    "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
-    "EinsumStaticWithEllipsisSlicingModule_basic",
+    "CrossEntropyLossModule_basic",
+    "CrossEntropyLossNoReductionModule_basic",
     "ElementwiseExpm1IntModule_basic",
     "ElementwiseExpm1Module_basic",
     "InterpolateDynamicModule_sizes_nearest",
@@ -980,6 +988,9 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
     #  materialization callback produced value of incorrect type failed
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
+    "Aten_TrilinearModuleSumdims_basic",
+    "Aten_TrilinearModuleSumAllDims_basic",
+    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     # torch export: RuntimeError: cannot mutate tensors with frozen storage
     "ElementwiseRreluWithNoiseTrainModule_basic",
     "ElementwiseRreluWithNoiseTrainStaticModule_basic",
@@ -2703,6 +2714,7 @@ ONNX_XFAIL_SET = {
     "ElementwiseLog2IntModule_basic",
     "ElementwiseFminModule_basic",
     "ElementwiseFmaxModule_basic",
+    "Exp2StaticModule_basic",
     "MultinomialModule2D_basic",
     "MultinomialModule2D_F32",
     "PixelShuffleModuleStaticRank4Float32_basic",
@@ -3274,6 +3286,12 @@ ONNX_XFAIL_SET = {
     "Unfold_Module_Rank_Zero_Size_Zero_basic",
     "Unfold_Module_Dynamic_basic",
     "ViewDtypeStaticModule_basic",
+    "Aten_TrilinearModule_basic",
+    "Aten_TrilinearModuleSumdims_basic",
+    "Aten_TrilinearModuleSumAllDims_basic",
+    "Aten_TrilinearModuleVaryingRanks_basic",
+    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
+    "Aten_TrilinearModuleZerodDimBug_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
@@ -4054,6 +4072,12 @@ ONNX_TOSA_XFAIL_SET = {
     "AtenSubFloatModule_basic",
     "AtenTopKModule_basic",
     "AtenTopKSmallestModule_basic",
+    "Aten_TrilinearModule_basic",
+    "Aten_TrilinearModuleSumdims_basic",
+    "Aten_TrilinearModuleSumAllDims_basic",
+    "Aten_TrilinearModuleVaryingRanks_basic",
+    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
+    "Aten_TrilinearModuleZerodDimBug_basic",
     "AtenTrilModule_basic",
     "AtenTrilWithNegDiagonalModule_basic",
     "AtenTrilWithPosDiagonalModule_basic",

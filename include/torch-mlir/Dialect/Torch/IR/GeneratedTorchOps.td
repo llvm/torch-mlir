@@ -996,6 +996,51 @@ def Torch_AtenExp_Op : Torch_Op<"aten.exp_", [
   }];
 }
 
+def Torch_AtenExp2Op : Torch_Op<"aten.exp2", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::exp2 : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenExp2Op::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenExp2Op::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
+def Torch_AtenExp2_Op : Torch_Op<"aten.exp2_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::exp2_ : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    Torch_NonValueTensorType:$self
+  );
+  let results = (outs
+    AnyTorchOptionalNonValueTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenExp2_Op::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenExp2_Op::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenExpm1Op : Torch_Op<"aten.expm1", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -14199,6 +14244,36 @@ def Torch_AtenGridSamplerOp : Torch_Op<"aten.grid_sampler", [
     }
     void AtenGridSamplerOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 5, 1);
+    }
+  }];
+}
+
+def Torch_Aten_TrilinearOp : Torch_Op<"aten._trilinear", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_trilinear : (Tensor, Tensor, Tensor, int[], int[], int[], int[], int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$i1,
+    AnyTorchTensorType:$i2,
+    AnyTorchTensorType:$i3,
+    AnyTorchListOfTorchIntType:$expand1,
+    AnyTorchListOfTorchIntType:$expand2,
+    AnyTorchListOfTorchIntType:$expand3,
+    AnyTorchListOfTorchIntType:$sumdim,
+    Torch_IntType:$unroll_dim
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_TrilinearOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 8, 1);
+    }
+    void Aten_TrilinearOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 8, 1);
     }
   }];
 }

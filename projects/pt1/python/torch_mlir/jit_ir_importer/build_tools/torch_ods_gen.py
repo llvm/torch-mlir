@@ -317,6 +317,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::asin : (Tensor) -> (Tensor)",
         "aten::asinh : (Tensor) -> (Tensor)",
         "aten::exp : (Tensor) -> (Tensor)",
+        "aten::exp2 : (Tensor) -> (Tensor)",
         "aten::expm1 : (Tensor) -> (Tensor)",
         "aten::cos : (Tensor) -> (Tensor)",
         "aten::cosh : (Tensor) -> (Tensor)",
@@ -1021,6 +1022,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?, bool) -> (Tensor)"
     )
     emit("aten::grid_sampler : (Tensor, Tensor, int, int, bool) -> (Tensor)")
+    emit(
+        "aten::_trilinear : (Tensor, Tensor, Tensor, int[], int[], int[], int[], int) -> (Tensor)"
+    )
 
     # Dict ops.
     emit("aten::__contains__.str : (Dict(str, t), str) -> (bool)", has_folder=True)

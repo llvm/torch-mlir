@@ -1654,13 +1654,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value operand;
         int64_t start, end;
         if (binder.tensorOperand(operand) ||
-            binder.tensorResultType(resultType) ||
-            binder.s64IntegerAttr(start, "start", 0) ||
-            binder.s64IntegerAttr(end, "end", -1))
+            binder.tensorResultType(resultType))
           return failure();
 
         auto inputType = dyn_cast<Torch::ValueTensorType>(operand.getType());
+        if (!inputType || !inputType.hasSizes())
+          return failure();
+
         int64_t inputRank = inputType.getSizes().size();
+
+        if (binder.s64IntegerAttr(start, "start", 0) ||
+            binder.s64IntegerAttr(end, "end", inputRank))
+          return failure();
 
         auto shapeType = Torch::ValueTensorType::get(
             binder.op->getContext(), SmallVector<int64_t>{inputRank},
@@ -1674,7 +1679,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return success();
         }
 
-        if (start == 0 && end == -1) {
+        if (start == 0 && end == inputRank) {
           rewriter.replaceOp(binder.op, shape);
           return success();
         }

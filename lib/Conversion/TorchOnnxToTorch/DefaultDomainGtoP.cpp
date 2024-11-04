@@ -180,7 +180,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         auto conditionType =
             cast<Torch::ValueTensorType>(conditionTensor.getType());
-        if (!conditionType || conditionType.getSizes().size() != 1)
+        if (!conditionType || conditionType.getSizes().size() > 1)
           return rewriter.notifyMatchFailure(
               binder.op, "condition must have one single element per "
                          "https://onnx.ai/onnx/operators/onnx__If.html");
@@ -211,15 +211,39 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         inlineIfCase(*thenRegion, primIfOp.getThenRegion());
         inlineIfCase(*elseRegion, primIfOp.getElseRegion());
 
-        auto replaceTerminator = [&](Region &region) {
+        auto replaceTerminator = [&](Region &region) -> LogicalResult {
           PatternRewriter::InsertionGuard guard(rewriter);
           Operation *terminator = region.front().getTerminator();
           rewriter.setInsertionPoint(terminator);
-          rewriter.replaceOpWithNewOp<Torch::PrimIfYieldOp>(
-              terminator, terminator->getOperands());
+
+          // cast result shape if there is static/dynamic difference
+          llvm::SmallVector<Value> terOperands = terminator->getOperands();
+          if (terOperands.size() != resultTypes.size())
+            return failure();
+          for (size_t i = 0; i < terOperands.size(); i++) {
+            mlir::Type terType = terOperands[i].getType();
+            int64_t terOpRank =
+                dyn_cast<Torch::ValueTensorType>(terType).getSizes().size();
+            int64_t resRank = dyn_cast<Torch::ValueTensorType>(resultTypes[i])
+                                  .getSizes()
+                                  .size();
+            if (terOpRank != resRank)
+              return failure();
+            if (terType != resultTypes[i]) {
+              Value cast = rewriter.create<Torch::TensorStaticInfoCastOp>(
+                  binder.getLoc(), resultTypes[i], terOperands[i]);
+              terOperands[i] = cast;
+            }
+          }
+
+          rewriter.replaceOpWithNewOp<Torch::PrimIfYieldOp>(terminator,
+                                                            terOperands);
+          return success();
         };
-        replaceTerminator(primIfOp.getThenRegion());
-        replaceTerminator(primIfOp.getElseRegion());
+        if (failed(replaceTerminator(primIfOp.getThenRegion())) ||
+            failed(replaceTerminator(primIfOp.getElseRegion())))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "terminator replace failure");
 
         rewriter.replaceOp(binder.op, primIfOp.getResults());
         return success();

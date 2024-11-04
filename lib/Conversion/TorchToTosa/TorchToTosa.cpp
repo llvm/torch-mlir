@@ -5466,6 +5466,28 @@ public:
                               DenseI64ArrayAttr &kernel,
                               DenseI64ArrayAttr &stride, DenseI64ArrayAttr &pad,
                               Type &outputTy) const override {
+
+    // Currently, we can not represent `count_include_pad` with the existing
+    // TOSA AvgPool2d specification. Without the below check, we produce silent
+    // wrong answers (SWA) when the `count_include_pad` value is `true.`
+    bool countIncludePad;
+    if (!matchPattern(op.getCountIncludePad(),
+                      m_TorchConstantBool(&countIncludePad)) ||
+        countIncludePad) {
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported `count_include_pad` value, for tosa AvgPool2dOp "
+              "`count_include_pad` value should be `False`.");
+    }
+
+    // Currently, we can not represent `divisor_override` with the existing TOSA
+    // AvgPool2d specification. Without the below check, we produce silent wrong
+    // answers (SWA) when the `divisor_override` value is other than `None.`
+    if (!isa<Torch::NoneType>(op.getDivisorOverride().getType())) {
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported `divisor_override` value, for tosa AvgPool2dOp "
+              "`divisor_override` value should be `None`.");
+    }
+
     SmallVector<int64_t, 2> dilationArray{1, 1};
     if (failed(getOutputTypeAndPoolingParameters<AtenAvgPool2dOp,
                                                  tosa::AvgPool2dOp>(

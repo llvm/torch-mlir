@@ -216,6 +216,9 @@ def aten〇silu〡shape(self: List[int]) -> List[int]:
 def aten〇exp〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇exp2〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇expm1〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -1293,6 +1296,44 @@ def aten〇linear〡shape(input: List[int], weight: List[int], bias: Optional[Li
     return upstream_shape_functions.linear(input, weight, bias)
 
 @check_shape_function([
+    Invocation(TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), [], [], [], [], 0), # Basic case
+    Invocation(TensorOfShape(4, 5, 6), TensorOfShape(4, 5, 6), TensorOfShape(4, 5, 6), [1], [0], [0], [], 2), # Expansions w/ Non-Zero unroll_dim
+    Invocation(TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), [1, 2], [1, 2], [1, 2], [1, 2], 0), # Multiple expansions
+    Invocation(TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), [1, 2], [2, 1], [1, 2], [1, 2], 0), # Unordered expansion
+    ErrorInvocation(TensorOfShape(4, 5, 1), TensorOfShape(4, 5, 3), TensorOfShape(1, 5, 3), [], [], [0], [2], 0), # Num dimensions don't match
+])
+def aten〇_trilinear〡shape(i1: List[int], i2: List[int], i3: List[int], expand1: List[int], expand2: List[int], expand3: List[int], sumdim: List[int], unroll_dim: int = 1) -> List[int]:
+    total_dims = len(i1) + len(expand1)
+
+    assert unroll_dim >= 0 and unroll_dim < total_dims, f"unroll_dim must be in [0, {total_dims - 1}]"
+
+    i1_copy = upstream_shape_functions._copy(i1)
+    i2_copy = upstream_shape_functions._copy(i2)
+    i3_copy = upstream_shape_functions._copy(i3)
+
+    # Expand dimensions based on args
+    inputs = [i1_copy, i2_copy, i3_copy]
+    expands = [expand1, expand2, expand3]
+    for index, expand in enumerate(expands):
+        size = len(inputs[index])
+        for dim in expand:
+            assert dim <= size, f"expand dimension {dim} is out of bounds for input of shape {inputs[index]}"
+            inputs[index].insert(dim, 1)
+
+    assert len(i1_copy) == len(i2_copy) == len(i3_copy), "number of dimensions must match"
+
+    output_shape = upstream_shape_functions.broadcast_three(i1_copy, i2_copy, i3_copy)
+    sumdim_bools = [False] * len(output_shape)
+    for dim in sumdim:
+        sumdim_bools[dim] = True
+
+    for i in range(len(output_shape) - 1, -1, -1):
+        if sumdim_bools[i]:
+            output_shape = upstream_shape_functions._reduce_along_dim(output_shape, i, False)
+
+    return output_shape
+
+@check_shape_function([
     Invocation(TensorOfShape(3, 2, 8, 4), TensorOfShape(3, 2, 8, 4), TensorOfShape(3, 2, 8, 4)), # Same shape
     Invocation(TensorOfShape(3, 2, 16, 8), TensorOfShape(3, 2, 8, 8), TensorOfShape(3, 2, 8, 4)), # Different shape
 ])
@@ -1862,7 +1903,33 @@ def aten〇_weight_norm_interface〡shape(v: List[int], g: List[int], dim: int =
     return upstream_shape_functions.unary(v), upstream_shape_functions.unary(g)
 
 def aten〇slice〇Tensor〡shape(self: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
-    return upstream_shape_functions.slice(self, dim, start, end, step)
+    start_val = start if start is not None else 0
+    end_val = end if end is not None else upstream_shape_functions.max_int()
+    if (step < 0):
+        # Convert to equivalent postive-step parameters, which will require swapping start and end.
+        # If the parameters are in the normal range (0 <= start < d and -1 <= end <= start), then
+        # swapped_end = start + 1 and swapped_begin = end + 1.
+        # The shift of inclusion can cause issues if these parameters are not already resolved on the left.
+        # e.g. start = -1, end = -3 . So valid start is actually d-1, and valid end is d-3. Therefore, we 
+        # should have swapped_end = d, but adding 1 to start before making it valid would result in an 
+        # incorrect, but "valid", swapped_end = 0 for forward slicing. 
+        # Additionally, if adding d doesn't make these values positive, but adding twice would, we need 
+        # to clamp after resolving, otherwise the upstream function will try to resolve a second time.
+        if start_val < 0:
+            start_val += self[dim]
+        if start_val < 0:
+            start_val = 0
+        if end_val < 0:
+            end_val += self[dim]
+        if end_val < 0:
+            end_val = -1
+        
+        tmp = end_val + 1
+        end_val = start_val + 1
+        start_val = tmp
+        step = -step
+    return upstream_shape_functions.slice(self,dim,start_val,end_val,step)
+
 
 def aten〇as_strided〡shape(self: List[int], size: List[int], stride: List[int], storage_offset: Optional[int] = None) -> List[int]:
     return size
@@ -2564,6 +2631,11 @@ def aten〇tanh〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇exp〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return _get_dtype_of_floating_point_op(self_dtype)
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇exp2〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
 
@@ -5379,6 +5451,21 @@ def aten〇linear〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: 
     dtypes = [input_dtype, weight_dtype]
     promoted_dtype = promote_dtypes(ranks, dtypes)
     return promoted_dtype
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(3, None, None, None, expand1 = [], expand2 = [], expand3 = [], sumdim = [], unroll_dim = 0),
+)
+def aten〇_trilinear〡dtype(i1_rank_dtype: Tuple[int, int], i2_rank_dtype: Tuple[int, int], i3_rank_dtype: Tuple[int, int], expand1: List[int], expand2: List[int], expand3: List[int], sumdim: List[int], unroll_dim: int = 1) -> int:
+    i1_rank, i1_dtype = i1_rank_dtype
+    i2_rank, i2_dtype = i2_rank_dtype
+    i3_rank, i3_dtype = i3_rank_dtype
+
+    ranks: List[Optional[int]] = [i1_rank, i2_rank, i3_rank]
+    dtypes = [i1_dtype, i2_dtype, i3_dtype]
+    return promote_dtypes(
+        ranks,
+        dtypes,
+    )
 
 @check_dtype_function(
     [Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32)]),

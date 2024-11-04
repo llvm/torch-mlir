@@ -2330,6 +2330,32 @@ func.func @torch.aten.slice.tensor$fold_full_slice(%arg0: !torch.vtensor<[?],f32
   return %0 : !torch.vtensor<[?],f32>
 }
 
+//  CHECK-LABEL:    @torch.aten.slice.tensor$fold_oob_start
+//        CHECK:        %[[LIT:.*]] = torch.vtensor.literal(dense<[0, 1, 2]> : tensor<3xsi64>) : !torch.vtensor<[3],si64>
+//        CHECK:        return %[[LIT]] : !torch.vtensor<[3],si64>
+func.func @torch.aten.slice.tensor$fold_oob_start() -> !torch.vtensor<[3],si64> {
+  %0 = torch.vtensor.literal(dense<[0,1,2,3]> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %int1 = torch.constant.int 1
+  %int-1  = torch.constant.int -1
+  %int-10 = torch.constant.int -10
+  %int0 = torch.constant.int 0
+  %1 = torch.aten.slice.Tensor %0, %int0, %int-10, %int-1, %int1 : !torch.vtensor<[4], si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3], si64>
+  return %1 : !torch.vtensor<[3],si64>
+}
+
+//  CHECK-LABEL:    @torch.aten.slice.tensor$nofold_invalid_shape
+//        CHECK:    %[[SLICE:.*]] = torch.aten.slice.Tensor
+//        CHECK:    return %[[SLICE]]
+func.func @torch.aten.slice.tensor$nofold_invalid_shape() -> !torch.vtensor<[4],si64> {
+  %0 = torch.vtensor.literal(dense<[0,1,2,3]> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %int1 = torch.constant.int 1
+  %int-1  = torch.constant.int -1
+  %int-10 = torch.constant.int -10
+  %int0 = torch.constant.int 0
+  %1 = torch.aten.slice.Tensor %0, %int0, %int-10, %int-1, %int1 : !torch.vtensor<[4], si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4], si64>
+  return %1 : !torch.vtensor<[4],si64>
+}
+
 //  CHECK-LABEL:    @torch.aten.slice.tensor$no_fold_step
 //        CHECK: torch.aten.slice.Tensor
 func.func @torch.aten.slice.tensor$no_fold_step(%arg0: !torch.vtensor<[?],f32>, %dim: !torch.int) -> !torch.vtensor<[?],f32> {
