@@ -935,8 +935,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
     "AtenItemIntOpModule_basic",
-    "CrossEntropyLossModule_basic",
-    "CrossEntropyLossNoReductionModule_basic",
     "ElementwiseExpm1IntModule_basic",
     "ElementwiseExpm1Module_basic",
     "InterpolateDynamicModule_sizes_nearest",
