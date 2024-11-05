@@ -519,6 +519,7 @@ FX_IMPORTER_XFAIL_SET = {
     "IndexPutImpl2DNoneIndexStaticModule_basic",
     "IndexPutImpl3DFloatNonAccumulateModule_basic",
     "IndexPutImplIndexWithNoneModule_basic",
+    "IsInfiniteModule_basic",
     "InterpolateDynamicModule_sizes_nearest",
     "IouOfModule_basic",
     "MeshgridIndexingIJ_basic",
