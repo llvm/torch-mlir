@@ -491,6 +491,52 @@ def ElementwiseWhereSelfModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ThresholdStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.threshold(x, 0, -1)
+
+
+@register_test_case(module_factory=lambda: ThresholdStaticModule())
+def ThresholdStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class FloatPowerTensorTensorStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.float_power(x, torch.tensor(2))
+
+
+@register_test_case(module_factory=lambda: FloatPowerTensorTensorStaticModule())
+def FloatPowerTensorTensorStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
 class ElementwiseWhereScalarModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

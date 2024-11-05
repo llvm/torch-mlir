@@ -2717,6 +2717,7 @@ ONNX_XFAIL_SET = {
     "ElementwiseFminModule_basic",
     "ElementwiseFmaxModule_basic",
     "Exp2StaticModule_basic",
+    "FloatPowerTensorTensorStaticModule_basic",
     "MultinomialModule2D_basic",
     "MultinomialModule2D_F32",
     "PixelShuffleModuleStaticRank4Float32_basic",
@@ -2727,6 +2728,7 @@ ONNX_XFAIL_SET = {
     "SliceStaticComplexInputModule_basic",
     "StdCorrectionLargeInputModule_basic",
     "TupleModule_basic",
+    "ThresholdStaticModule_basic",
     "VarCorrectionLargeInputModule_basic",
     # Failure - incorrect shape
     "ArangeStartOutDtypeModule_basic",
