@@ -2866,7 +2866,7 @@ class ElementwiseSignbitIntModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([-1, -1], torch.int32, True),
+            ([3, 4], torch.int32, True),
         ]
     )
     def forward(self, a):
@@ -2876,6 +2876,50 @@ class ElementwiseSignbitIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseSignbitIntModule())
 def ElementwiseSignbitIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-100, high=100).to(torch.int32))
+
+# ==============================================================================
+
+class ElementwiseFracModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.frac(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFracModule())
+def ElementwiseFracModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[2.3, -2.3, 0.0, -0.0, 2.0, -2.0]]))
+
+
+# ==============================================================================
+
+class ElementwiseCopysignModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1], torch.float32, True),
+            ([1, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.copysign(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseCopysignModule())
+def ElementwiseCopysignModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[1.0]]), torch.tensor([[2.3, -2.3, 0.0, -0.0, torch.inf, -torch.inf]]))
 
 
 # ==============================================================================

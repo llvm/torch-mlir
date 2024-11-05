@@ -8054,6 +8054,54 @@ class DecomposeAtenSignbitOp : public OpRewritePattern<AtenSignbitOp> {
 } // namespace
 
 namespace {
+// decompose `frac(x)` to `x - trunc(x)`
+class DecomposeAtenFracOp : public OpRewritePattern<AtenFracOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFracOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    auto resultTy = op.getType();
+
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value trunc = rewriter.create<AtenTruncOp>(loc, resultTy, self);
+    rewriter.replaceOpWithNewOp<AtenSubTensorOp>(op, resultTy, self, trunc,
+                                                 /*alpha=*/one);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// decompose `copysign(x, y)` to `signbit(y) ? -abs(x) : abs(x)`
+class DecomposeAtenCopysignTensorOp
+    : public OpRewritePattern<AtenCopysignTensorOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCopysignTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+    auto selfTy = self.getType();
+    auto otherTy = cast<BaseTensorType>(other.getType());
+    auto resultTy = op.getType();
+
+    Value signbit = rewriter.create<AtenSignbitOp>(
+        loc,
+        otherTy.getWithSizesAndDtype(otherTy.getOptionalSizes(),
+                                     rewriter.getI1Type()),
+        other);
+    Value abs = rewriter.create<AtenAbsOp>(loc, selfTy, self);
+    Value neg = rewriter.create<AtenNegOp>(loc, selfTy, abs);
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resultTy, signbit, neg,
+                                                 abs);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // decompose `fmod(x, y)` to `x - trunc(x/y) * y`
 class DecomposeAtenFmodTensorOp : public OpRewritePattern<AtenFmodTensorOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -10305,6 +10353,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTruncOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSignbitOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFracOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenCopysignTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFmodTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
