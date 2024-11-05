@@ -2935,6 +2935,7 @@ def ElementwiseCopysignModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+
 class ElementwiseLdexpModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2957,6 +2958,7 @@ def ElementwiseLdexpModule_basic(module, tu: TestUtils):
         torch.tensor([[2.3, -2.3, 0.0, -0.0, 4.5, -4.5]]),
         torch.tensor([[2]]),
     )
+
 
 # ==============================================================================
 
@@ -3070,6 +3072,7 @@ class Exp2StaticIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: Exp2StaticIntModule())
 def Exp2StaticIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-20, high=20))
+
 
 # ==============================================================================
 

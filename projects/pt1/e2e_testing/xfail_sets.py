@@ -3278,6 +3278,8 @@ ONNX_XFAIL_SET = {
     "ElementwiseSignbitIntModule_basic",
     "ElementwiseFracModule_basic",
     "ElementwiseCopysignModule_basic",
+    "ElementwiseLdexpModule_basic",
+    "Exp2StaticIntModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
     "NativeDropoutTrainModule_basic",
     "NativeDropoutTrainStaticShapeModule_basic",
