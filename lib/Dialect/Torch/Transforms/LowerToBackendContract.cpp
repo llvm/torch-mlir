@@ -544,6 +544,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenSignbitOp>();
   target.addIllegalOp<AtenFracOp>();
   target.addIllegalOp<AtenCopysignTensorOp>();
+  target.addIllegalOp<AtenLdexpTensorOp>();
   target.addIllegalOp<AtenNewEmptyStridedOp>();
   target.addIllegalOp<AtenEmptyStridedOp>();
   target.addIllegalOp<AtenBucketizeTensorOp>();

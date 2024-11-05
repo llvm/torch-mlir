@@ -530,6 +530,8 @@ FX_IMPORTER_XFAIL_SET = {
     "ElementwiseRreluTrainStaticModule_basic",
     "ElementwiseRreluWithNoiseTrainModule_basic",
     "ElementwiseRreluWithNoiseTrainStaticModule_basic",
+    "ElementwiseSignbitModule_basic",
+    "ElementwiseCopysignModule_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {

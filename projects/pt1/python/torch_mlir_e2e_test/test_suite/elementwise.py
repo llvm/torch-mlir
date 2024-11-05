@@ -2935,6 +2935,31 @@ def ElementwiseCopysignModule_basic(module, tu: TestUtils):
 
 # ==============================================================================
 
+class ElementwiseLdexpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 6], torch.float32, True),
+            ([1, 1], torch.int64, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.ldexp(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLdexpModule())
+def ElementwiseLdexpModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([[2.3, -2.3, 0.0, -0.0, 4.5, -4.5]]),
+        torch.tensor([[2]]),
+    )
+
+# ==============================================================================
+
 
 class ElementwiseSignModule(torch.nn.Module):
     def __init__(self):
@@ -3026,6 +3051,25 @@ class Exp2StaticModule(torch.nn.Module):
 def Exp2StaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2))
 
+
+class Exp2StaticIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.int64, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.exp2(x)
+
+
+@register_test_case(module_factory=lambda: Exp2StaticIntModule())
+def Exp2StaticIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-20, high=20))
 
 # ==============================================================================
 

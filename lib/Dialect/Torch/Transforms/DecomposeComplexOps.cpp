@@ -8102,6 +8102,33 @@ class DecomposeAtenCopysignTensorOp
 } // namespace
 
 namespace {
+// decompose `ldexp(x, y)` to `x * 2^y`
+class DecomposeAtenLdexpTensorOp : public OpRewritePattern<AtenLdexpTensorOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLdexpTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+
+    auto otherTy = dyn_cast<BaseTensorType>(other.getType());
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result must have dtype");
+    }
+
+    Value exp2 = rewriter.create<AtenExp2Op>(
+        loc,
+        resultTy.getWithSizesAndDtype(otherTy.getOptionalSizes(),
+                                      resultTy.getDtype()),
+        other);
+    rewriter.replaceOpWithNewOp<AtenMulTensorOp>(op, resultTy, self, exp2);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // decompose `fmod(x, y)` to `x - trunc(x/y) * y`
 class DecomposeAtenFmodTensorOp : public OpRewritePattern<AtenFmodTensorOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -9248,10 +9275,16 @@ class DecomposeAtenExp2Op : public OpRewritePattern<AtenExp2Op> {
     Location loc = op.getLoc();
     Value self = op.getSelf();
 
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result must have dtype");
+    }
+
     auto two =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
-    rewriter.replaceOpWithNewOp<AtenPowScalarOp>(op, op.getType(), two, self);
-
+    Value to = convertTensorToDtype(rewriter, loc, self, resultTy.getDtype());
+    Value pow = rewriter.create<AtenPowScalarOp>(loc, resultTy, two, to);
+    rewriter.replaceOp(op, pow);
     return success();
   }
 };
@@ -10355,6 +10388,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenSignbitOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFracOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCopysignTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLdexpTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFmodTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
