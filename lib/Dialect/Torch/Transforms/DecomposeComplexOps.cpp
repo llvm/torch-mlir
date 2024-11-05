@@ -5536,14 +5536,14 @@ public:
     Type paddedSlicedTensorType =
         selfType.getWithSizesAndDtype(slicedSizes, selfType.getOptionalDtype());
     SmallVector<int64_t> unsqueezedTensorSizes(slicedSizes);
-    unsqueezedTensorSizes.push_back(1);
+    unsqueezedTensorSizes.insert(unsqueezedTensorSizes.end() - 1, 1);
     Type unsqueezedTensorType = selfType.getWithSizesAndDtype(
         unsqueezedTensorSizes, selfType.getOptionalDtype());
     ListType seqType = ListType::get(unsqueezedTensorType);
     Value initSeq = rewriter.create<PrimListConstructOp>(loc, seqType,
                                                          SmallVector<Value>());
     Value axisSignal = cstMinusOne;
-    Value axisUnsqueeze = cstMinusOne;
+    Value axisUnsqueeze = cstMinusTwo;
     Value loopCondTrue = rewriter.create<ConstantBoolOp>(loc, true);
     auto frameLoop =
         rewriter.create<PrimLoopOp>(loc, TypeRange({seqType}), nFrames,
@@ -5590,24 +5590,24 @@ public:
     //   return aten.fft_rfft(weighted_tensor, None, axis_frame)
     // }
     SmallVector<int64_t> preFftTensorSizes(slicedSizes);
-    preFftTensorSizes.push_back(kUnknownSize);
+    preFftTensorSizes.insert(preFftTensorSizes.end() - 1, kUnknownSize);
     Type preFftTensorType = selfType.getWithSizesAndDtype(
         preFftTensorSizes, selfType.getOptionalDtype());
     Value concatTensor = rewriter.create<AtenCatOp>(loc, preFftTensorType,
                                                     finalSeq, axisUnsqueeze);
-    Value axisFrame = cstMinusTwo;
+    Value axisFrame = cstMinusOne;
     Value newWindowShape;
     SmallVector<int64_t> newWindowSizes;
     if (slicedSizes.size() == 2) {
-      newWindowSizes = {1, n_fftInt, 1};
+      newWindowSizes = {1, 1, n_fftInt};
       newWindowShape = rewriter.create<PrimListConstructOp>(
           loc, ListType::get(IntType::get(rewriter.getContext())),
-          ValueRange{cstOne, n_fft, cstOne});
+          ValueRange{cstOne, cstOne, n_fft});
     } else { // slicedSizes.size() == 1
-      newWindowSizes = {n_fftInt, 1};
+      newWindowSizes = {1, n_fftInt};
       newWindowShape = rewriter.create<PrimListConstructOp>(
           loc, ListType::get(IntType::get(rewriter.getContext())),
-          ValueRange{n_fft, cstOne});
+          ValueRange{cstOne, n_fft});
     }
     Type windowReshapeTensorType = windowTensorType.getWithSizesAndDtype(
         newWindowSizes, windowTensorType.getOptionalDtype());
@@ -5622,6 +5622,15 @@ public:
       rewriter.replaceOpWithNewOp<AtenFftRfftOp>(
           op, op.getType(), weightedTensor, cstNone, axisFrame, cstNone);
     }
+    // TODO!: transpose to correct output shape
+
+    // TODO:
+    //  if onesided:
+    //      slices = [slice(0, a) for a in result.shape]
+    //      slices[axis] = slice(0, result.shape[axis] // 2 + 1)
+    //      result = result[tuple(slices)]
+    //  if normalize:
+    //      result /= fft_length
 
     return success();
   }
