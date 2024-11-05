@@ -395,9 +395,9 @@ getBroadcastResultShape(PatternRewriter &rewriter, Operation *op,
     //   return failure();
     // }
     bcastSizes.push_back(dimSize);
-    std::reverse(bcastSizes.begin(), bcastSizes.end());
     bcastSizeTensors.push_back(dimSizeTensor);
   }
+  std::reverse(bcastSizes.begin(), bcastSizes.end());
   std::reverse(bcastSizeTensors.begin(), bcastSizeTensors.end());
   return std::pair<Value, SmallVector<int64_t>>(
       rewriter.create<tensor::FromElementsOp>(op->getLoc(), bcastSizeTensors)
