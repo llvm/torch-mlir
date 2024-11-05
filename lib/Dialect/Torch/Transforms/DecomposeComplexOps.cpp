@@ -8013,6 +8013,47 @@ class DecomposeAtenTruncOp : public OpRewritePattern<AtenTruncOp> {
 } // namespace
 
 namespace {
+// decompose `signbit(x)` to `view.dtype(x, si32/si64) < 0 `
+class DecomposeAtenSignbitOp : public OpRewritePattern<AtenSignbitOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSignbitOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+
+    auto operandTy = dyn_cast<ValueTensorType>(self.getType());
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!operandTy || !operandTy.hasDtype() || !resultTy ||
+        !resultTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "operand and result must have dtype");
+    }
+
+    if (isa<mlir::FloatType>(operandTy.getDtype())) {
+      mlir::IntegerType intType = rewriter.getIntegerType(
+          operandTy.getDtype().getIntOrFloatBitWidth(), /*isSigned*/ true);
+      Value dtype = getDtypeIntValueForType(rewriter, loc, intType);
+      Value view = rewriter.create<AtenViewDtypeOp>(
+          loc,
+          operandTy.getWithSizesAndDtype(operandTy.getOptionalSizes(), intType),
+          self, dtype);
+      Value zero =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      Value shift = rewriter.create<AtenLtScalarOp>(loc, resultTy, view, zero);
+      rewriter.replaceOp(op, shift);
+      return success();
+    } else if (isa<mlir::IntegerType>(operandTy.getDtype())) {
+      Value zero =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      Value shift = rewriter.create<AtenLtScalarOp>(loc, resultTy, self, zero);
+      rewriter.replaceOp(op, shift);
+    }
+    return failure();
+  }
+};
+} // namespace
+
+namespace {
 // decompose `fmod(x, y)` to `x - trunc(x/y) * y`
 class DecomposeAtenFmodTensorOp : public OpRewritePattern<AtenFmodTensorOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -10263,6 +10304,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRad2degOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTruncOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSignbitOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFmodTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
