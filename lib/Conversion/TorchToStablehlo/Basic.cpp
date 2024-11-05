@@ -2079,9 +2079,6 @@ template <>
 LogicalResult ConvertAtenOp<AtenIsfiniteOp>::matchAndRewrite(
     AtenIsfiniteOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-
-  Location loc = op.getLoc();
-
   Value self = adaptor.getSelf();
   auto selfTy = cast<RankedTensorType>(self.getType());
   if (!selfTy)
@@ -2089,7 +2086,7 @@ LogicalResult ConvertAtenOp<AtenIsfiniteOp>::matchAndRewrite(
         op, "Only Tensor types are currently supported");
 
   auto outType =
-      dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+      dyn_cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   Type outElemTy = outType.getElementType();
   if (!outElemTy.isInteger(1)) {
     return rewriter.notifyMatchFailure(
