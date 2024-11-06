@@ -7491,6 +7491,160 @@ class DecomposeAtenTruncOp : public OpRewritePattern<AtenTruncOp> {
 } // namespace
 
 namespace {
+// decompose `signbit(x)` to `view.dtype(x, si32/si64) < 0 `
+class DecomposeAtenSignbitOp : public OpRewritePattern<AtenSignbitOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSignbitOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+
+    auto operandTy = dyn_cast<ValueTensorType>(self.getType());
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!operandTy || !operandTy.hasDtype() || !resultTy ||
+        !resultTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "operand and result must have dtype");
+    }
+
+    if (isa<mlir::FloatType>(operandTy.getDtype())) {
+      mlir::IntegerType intType = rewriter.getIntegerType(
+          operandTy.getDtype().getIntOrFloatBitWidth(), /*isSigned*/ true);
+      Value dtype = getDtypeIntValueForType(rewriter, loc, intType);
+      Value view = rewriter.create<AtenViewDtypeOp>(
+          loc,
+          operandTy.getWithSizesAndDtype(operandTy.getOptionalSizes(), intType),
+          self, dtype);
+      Value zero =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      Value shift = rewriter.create<AtenLtScalarOp>(loc, resultTy, view, zero);
+      rewriter.replaceOp(op, shift);
+      return success();
+    } else if (isa<mlir::IntegerType>(operandTy.getDtype())) {
+      Value zero =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      Value shift = rewriter.create<AtenLtScalarOp>(loc, resultTy, self, zero);
+      rewriter.replaceOp(op, shift);
+    }
+    return failure();
+  }
+};
+} // namespace
+
+namespace {
+// decompose `frac(x)` to `x - trunc(x)`
+class DecomposeAtenFracOp : public OpRewritePattern<AtenFracOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFracOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    auto resultTy = op.getType();
+
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value trunc = rewriter.create<AtenTruncOp>(loc, resultTy, self);
+    rewriter.replaceOpWithNewOp<AtenSubTensorOp>(op, resultTy, self, trunc,
+                                                 /*alpha=*/one);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// decompose `copysign(x, y)` to `signbit(y) ? -abs(x) : abs(x)`
+class DecomposeAtenCopysignTensorOp
+    : public OpRewritePattern<AtenCopysignTensorOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCopysignTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+    auto selfTy = self.getType();
+    auto otherTy = cast<BaseTensorType>(other.getType());
+    auto resultTy = op.getType();
+
+    Value signbit = rewriter.create<AtenSignbitOp>(
+        loc,
+        otherTy.getWithSizesAndDtype(otherTy.getOptionalSizes(),
+                                     rewriter.getI1Type()),
+        other);
+    Value abs = rewriter.create<AtenAbsOp>(loc, selfTy, self);
+    Value neg = rewriter.create<AtenNegOp>(loc, selfTy, abs);
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resultTy, signbit, neg,
+                                                 abs);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// decompose `ldexp(x, y)` to `x * 2^y`
+class DecomposeAtenLdexpTensorOp : public OpRewritePattern<AtenLdexpTensorOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLdexpTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+
+    auto otherTy = dyn_cast<BaseTensorType>(other.getType());
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result must have dtype");
+    }
+
+    Value exp2 = rewriter.create<AtenExp2Op>(
+        loc,
+        resultTy.getWithSizesAndDtype(otherTy.getOptionalSizes(),
+                                      resultTy.getDtype()),
+        other);
+    rewriter.replaceOpWithNewOp<AtenMulTensorOp>(op, resultTy, self, exp2);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// decompose `fmod(x, y)` to `x - trunc(x/y) * y`
+class DecomposeAtenFmodTensorOp : public OpRewritePattern<AtenFmodTensorOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFmodTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result must have dtype");
+    }
+
+    if (isa<mlir::IntegerType>(resultTy.getDtype())) {
+      Value div = rewriter.create<AtenDivTensorOp>(loc, resultTy, self, other);
+      Value mul = rewriter.create<AtenMulTensorOp>(loc, resultTy, div, other);
+      Value alpha =
+          rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
+      rewriter.replaceOpWithNewOp<AtenSubTensorOp>(op, resultTy, self, mul,
+                                                   alpha);
+      return success();
+    } else if (isa<mlir::FloatType>(resultTy.getDtype())) {
+      Value div = rewriter.create<AtenDivTensorOp>(loc, resultTy, self, other);
+      Value trunc = rewriter.create<AtenTruncOp>(loc, resultTy, div);
+      Value mul = rewriter.create<AtenMulTensorOp>(loc, resultTy, trunc, other);
+      Value alpha =
+          rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
+      rewriter.replaceOpWithNewOp<AtenSubTensorOp>(op, resultTy, self, mul,
+                                                   alpha);
+      return success();
+    }
+    return failure();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.baddbmm` op into `aten.bmm`, `aten.mul.Scalar`, and
 // `aten.add.Tensor` op.
 class DecomposeAtenBaddbmmOp : public OpRewritePattern<AtenBaddbmmOp> {
@@ -8598,10 +8752,16 @@ class DecomposeAtenExp2Op : public OpRewritePattern<AtenExp2Op> {
     Location loc = op.getLoc();
     Value self = op.getSelf();
 
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result must have dtype");
+    }
+
     auto two =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
-    rewriter.replaceOpWithNewOp<AtenPowScalarOp>(op, op.getType(), two, self);
-
+    Value to = convertTensorToDtype(rewriter, loc, self, resultTy.getDtype());
+    Value pow = rewriter.create<AtenPowScalarOp>(loc, resultTy, two, to);
+    rewriter.replaceOp(op, pow);
     return success();
   }
 };
@@ -9696,6 +9856,11 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRad2degOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTruncOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSignbitOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFracOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenCopysignTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLdexpTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFmodTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideScalarOp>(patterns);

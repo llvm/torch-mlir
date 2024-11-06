@@ -328,6 +328,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::atanh : (Tensor) -> (Tensor)",
         "aten::atan2 : (Tensor, Tensor) -> (Tensor)",
         "aten::neg : (Tensor) -> (Tensor)",
+        "aten::frac : (Tensor) -> (Tensor)",
         "aten::bitwise_not : (Tensor) -> (Tensor)",
         "aten::div.Tensor : (Tensor, Tensor) -> (Tensor)",
         "aten::logical_or : (Tensor, Tensor) -> (Tensor)",
@@ -369,6 +370,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::zero : (Tensor) -> (Tensor)",
         "aten::fill.Scalar : (Tensor, Scalar) -> (Tensor)",
         "aten::fill.Tensor : (Tensor, Tensor) -> (Tensor)",
+        "aten::copysign.Tensor : (Tensor, Tensor) -> (Tensor)",
     ]:
         emit_with_mutating_variants(key)
     # Shape manipulations:
@@ -416,6 +418,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::mul.Scalar : (Tensor, Scalar) -> (Tensor)",
         has_canonicalizer=True,
         has_folder=True,
+    )
+    emit(
+        "aten::ldexp.Tensor : (Tensor, Tensor) -> (Tensor)",
+    )
+    emit(
+        "aten::signbit : (Tensor) -> (Tensor)",
     )
     emit_with_mutating_variants(
         "aten::eq.Tensor : (Tensor, Tensor) -> (Tensor)", has_folder=True
