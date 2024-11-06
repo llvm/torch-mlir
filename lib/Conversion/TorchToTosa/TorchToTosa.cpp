@@ -2072,26 +2072,30 @@ LogicalResult ConvertAtenOp<AtenRsubScalarOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types supported in TOSA Rsub");
 
+  auto resultTy =
+      dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+  auto resultElemTy = resultTy.getElementType();
+
+  self = tosa::promoteType(rewriter, self, resultTy);
+
   Value otherTensor, alphaTensor;
 
   if (failed(torchScalarToTosaTensor(rewriter, op, otherScalar, otherTensor,
-                                     selfTy.getElementType(), {})))
+                                     resultElemTy, {})))
     return rewriter.notifyMatchFailure(
         op, "Currently only scalar constants are supported for "
             "conversion in TOSA Rsub operation");
 
   if (failed(torchAlphaToTosaTensor(rewriter, op.getOperation(), alphaScalar,
-                                    alphaTensor, selfTy.getElementType(),
+                                    alphaTensor, resultElemTy,
                                     /*checkForUnity=*/true)))
     return failure();
 
-  auto multTensor = rewriter.create<tosa::MulOp>(
-      op->getLoc(), getTypeConverter()->convertType(op.getType()), self,
-      alphaTensor, /*shift=*/0);
+  auto multTensor = rewriter.create<tosa::MulOp>(op->getLoc(), resultTy, self,
+                                                 alphaTensor, /*shift=*/0);
 
-  rewriter.replaceOpWithNewOp<tosa::SubOp>(
-      op, getTypeConverter()->convertType(op.getType()), otherTensor,
-      multTensor);
+  rewriter.replaceOpWithNewOp<tosa::SubOp>(op, resultTy, otherTensor,
+                                           multTensor);
 
   return success();
 }
@@ -4730,6 +4734,108 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
   return success();
 }
 
+// Legalization for aten.clamp.Tensor
+template <>
+LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
+    AtenClampTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // We are not using tosa.clamp to lower aten.clamp.Tensor, as
+  // aten.clamp.Tensor's min and max attributes are tensors that can have size
+  // greater than 1, which is not compatible with tosa.clamp.
+  //
+  // Instead, we use the following formula:
+  //    yi = min(max(xi, min_valuei), max_valuei)
+  auto self = adaptor.getSelf();
+
+  // Not a tensor type
+  auto selfType = dyn_cast<TensorType>(self.getType());
+  if (!selfType)
+    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
+  auto selfElemTy = selfType.getElementType();
+
+  auto resultType =
+      dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
+
+  // Get min tensor. If None, there is no lower bound.
+  Value min;
+  if (succeeded(checkNotNone(rewriter, op, adaptor.getMin()))) {
+    min = adaptor.getMin();
+  } else {
+    min =
+        TypeSwitch<Type, Value>(selfElemTy)
+            .Case<mlir::FloatType>([&](auto) {
+              return tosa::getConstTensor<float>(
+                         rewriter, op, std::numeric_limits<float>::lowest(), {},
+                         selfElemTy)
+                  .value();
+            })
+            .Case<mlir::IntegerType>([&](auto intType) {
+              switch (intType.getWidth()) {
+              case 8:
+                return tosa::getConstTensor<int8_t>(
+                           rewriter, op, std::numeric_limits<int8_t>::min(), {})
+                    .value();
+              case 32:
+                return tosa::getConstTensor<int32_t>(
+                           rewriter, op, std::numeric_limits<int32_t>::min(),
+                           {})
+                    .value();
+              case 64:
+                return tosa::getConstTensor<int64_t>(
+                           rewriter, op, std::numeric_limits<int64_t>::min(),
+                           {})
+                    .value();
+              }
+              llvm_unreachable("Invalid integer width");
+            });
+  }
+
+  // Get max tensor. If None, there is no upper bound.
+  Value max;
+  if (succeeded(checkNotNone(rewriter, op, adaptor.getMax()))) {
+    max = adaptor.getMax();
+  } else {
+    max =
+        TypeSwitch<Type, Value>(selfElemTy)
+            .Case<mlir::FloatType>([&](auto) {
+              return tosa::getConstTensor<float>(
+                         rewriter, op, std::numeric_limits<float>::max(), {},
+                         selfElemTy)
+                  .value();
+            })
+            .Case<mlir::IntegerType>([&](auto intType) {
+              switch (intType.getWidth()) {
+              case 8:
+                return tosa::getConstTensor<int8_t>(
+                           rewriter, op, std::numeric_limits<int8_t>::max(), {})
+                    .value();
+              case 32:
+                return tosa::getConstTensor<int32_t>(
+                           rewriter, op, std::numeric_limits<int32_t>::max(),
+                           {})
+                    .value();
+              case 64:
+                return tosa::getConstTensor<int64_t>(
+                           rewriter, op, std::numeric_limits<int64_t>::max(),
+                           {})
+                    .value();
+              }
+              llvm_unreachable("Invalid integer width");
+            });
+  }
+
+  // max(xi, min_valuei)
+  auto minThresholdCheck = tosa::createBinaryOpAndCast<tosa::MaximumOp>(
+      rewriter, op, resultType, self, min);
+
+  // yi = min(max(xi, min_valuei), max_valuei)
+  auto result = tosa::createBinaryOpAndCast<tosa::MinimumOp>(
+      rewriter, op, resultType, minThresholdCheck, max);
+
+  rewriter.replaceOp(op, result);
+  return success();
+}
+
 template <>
 LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
     AtenArangeStartStepOp op, OpAdaptor adaptor,
@@ -5236,11 +5342,29 @@ public:
         ConvertAtenPoolingBaseOp<AtenOpT, TosaOpT>::transposePoolingOutputToChw(
             op, rewriter, pooledOutput);
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(
-        op,
+    Value result = transposedOutput;
+    auto resultTy = dyn_cast<TensorType>(
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-            op.getType()),
-        transposedOutput);
+            op.getType()));
+
+    if constexpr (std::is_same<AtenOpT, AtenMaxPool1dOp>() ||
+                  std::is_same<AtenOpT, AtenAvgPool1dOp>()) {
+      auto resultShape = resultTy.getShape();
+      auto resultElemTy = resultTy.getElementType();
+
+      result = rewriter.create<tosa::ReshapeOp>(
+          op->getLoc(),
+          RankedTensorType::get(makeShapeTorchCompatible(resultShape),
+                                resultElemTy),
+          transposedOutput,
+          rewriter.getDenseI64ArrayAttr(makeShapeTorchCompatible(resultShape)));
+    }
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(
+        op, resultTy,
+        // OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+        //     op.getType()),
+        result);
 
     return success();
   }
@@ -5387,6 +5511,12 @@ static LogicalResult getOutputTypeAndPoolingParameters(
     return rewriter.notifyMatchFailure(
         op, "Non-const kernel_size for pooling op unsupported");
 
+  // Expand kernel size parameter to size 2 to be compatible with
+  // tosa::MaxPool2dOp or tosa::AvgPool2dOp
+  if constexpr (std::is_same<AtenOpT, AtenMaxPool1dOp>() ||
+                std::is_same<AtenOpT, AtenAvgPool1dOp>())
+    kernelSizeInts.push_back(1);
+
   if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const stride for pooling op unsupported");
@@ -5394,12 +5524,25 @@ static LogicalResult getOutputTypeAndPoolingParameters(
   // list during import. For such a case, the stride value is the kernel size.
   // See:
   // https://pytorch.org/docs/stable/generated/torch.nn.MaxPool2d.html#torch.nn.MaxPool2d
-  if (strideInts.empty())
+  if (strideInts.empty()) {
     strideInts.assign(kernelSizeInts);
+  } else {
+    // Expand stride parameter to size 2 to be compatible with
+    // tosa::MaxPool2dOp or tosa::AvgPool2dOp
+    if constexpr (std::is_same<AtenOpT, AtenMaxPool1dOp>() ||
+                  std::is_same<AtenOpT, AtenAvgPool1dOp>())
+      strideInts.push_back(1);
+  }
 
   if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(paddingInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const padding factor for pooling op unsupported");
+
+  // Expand padding parameter to size 2 to be compatible with
+  // tosa::MaxPool2dOp or tosa::AvgPool2dOp
+  if constexpr (std::is_same<AtenOpT, AtenMaxPool1dOp>() ||
+                std::is_same<AtenOpT, AtenAvgPool1dOp>())
+    paddingInts.push_back(0);
 
   SmallVector<int64_t, 4> padArr = {paddingInts[0], paddingInts[0],
                                     paddingInts[1], paddingInts[1]};
@@ -5456,6 +5599,68 @@ public:
   }
 };
 
+// Legalization for aten.max_pool1d
+class ConvertAtenMaxPool1dOp
+    : public ConvertAtenPoolingBaseOp<AtenMaxPool1dOp, tosa::MaxPool2dOp> {
+public:
+  using ConvertAtenPoolingBaseOp<AtenMaxPool1dOp,
+                                 tosa::MaxPool2dOp>::ConvertAtenPoolingBaseOp;
+  LogicalResult processInputs(AtenMaxPool1dOp op, OpAdaptor adaptor,
+                              ConversionPatternRewriter &rewriter, Value &input,
+                              DenseI64ArrayAttr &kernel,
+                              DenseI64ArrayAttr &stride, DenseI64ArrayAttr &pad,
+                              Type &outputTy) const override {
+    auto self = adaptor.getSelf();
+
+    // Not a RankedTensorType
+    auto selfTy = dyn_cast<RankedTensorType>(self.getType());
+    if (!selfTy)
+      return rewriter.notifyMatchFailure(
+          op, "Only ranked tensor type inputs are supported");
+    auto selfShape = selfTy.getShape();
+
+    // Expected a rank 3 input tensor
+    if (selfTy.getRank() != 3)
+      return rewriter.notifyMatchFailure(
+          op, "Input tensor for MaxPool1d should have rank 3");
+
+    // Unsqueeze input tensor to rank 4 to be compatible with tosa::MaxPool2dOp
+    SmallVector<int64_t> rank4Shape(selfShape);
+    rank4Shape.push_back(1);
+    auto reshapedSelf = rewriter.create<tosa::ReshapeOp>(
+        op->getLoc(),
+        RankedTensorType::get(makeShapeTorchCompatible(rank4Shape),
+                              selfTy.getElementType()),
+        self, rewriter.getDenseI64ArrayAttr(rank4Shape));
+
+    SmallVector<int64_t> dilationArray;
+    if (!matchPattern(op.getDilation(),
+                      m_TorchListOfConstantInts(dilationArray)))
+      return rewriter.notifyMatchFailure(
+          op, "Non-const dilation for pooling op unsupported.");
+    // TOSA pooling only supports unit dilation.
+    if (dilationArray[0] > 1)
+      return rewriter.notifyMatchFailure(
+          op, "Cannot process non-unit pooling dilation.");
+
+    // Expand dilation to size 2 to be compatible with tosa::MaxPool2dOp
+    dilationArray.push_back(1);
+
+    if (failed(getOutputTypeAndPoolingParameters<AtenMaxPool1dOp,
+                                                 tosa::MaxPool2dOp>(
+            op, rewriter, reshapedSelf.getResult(), dilationArray, outputTy,
+            kernel, stride, pad)))
+      return rewriter.notifyMatchFailure(
+          op, "invalid pooling parameters or input type");
+
+    // Transpose to xHWC
+    input = ConvertAtenPoolingBaseOp<AtenMaxPool1dOp, tosa::MaxPool2dOp>::
+        transposePoolingInputToHwc(op, rewriter, reshapedSelf.getResult());
+
+    return success();
+  }
+};
+
 class ConvertAtenAvgPool2dOp
     : public ConvertAtenPoolingBaseOp<AtenAvgPool2dOp, tosa::AvgPool2dOp> {
 public:
@@ -5499,6 +5704,68 @@ public:
     // Transpose to xHWC
     input = ConvertAtenPoolingBaseOp<AtenAvgPool2dOp, tosa::AvgPool2dOp>::
         transposePoolingInputToHwc(op, rewriter, adaptor.getSelf());
+
+    return success();
+  }
+};
+
+// Legalization for aten.avg_pool1d
+class ConvertAtenAvgPool1dOp
+    : public ConvertAtenPoolingBaseOp<AtenAvgPool1dOp, tosa::AvgPool2dOp> {
+public:
+  using ConvertAtenPoolingBaseOp<AtenAvgPool1dOp,
+                                 tosa::AvgPool2dOp>::ConvertAtenPoolingBaseOp;
+  LogicalResult processInputs(AtenAvgPool1dOp op, OpAdaptor adaptor,
+                              ConversionPatternRewriter &rewriter, Value &input,
+                              DenseI64ArrayAttr &kernel,
+                              DenseI64ArrayAttr &stride, DenseI64ArrayAttr &pad,
+                              Type &outputTy) const override {
+    auto self = adaptor.getSelf();
+
+    // Not a RankedTensorType
+    auto selfTy = dyn_cast<RankedTensorType>(self.getType());
+    if (!selfTy)
+      return rewriter.notifyMatchFailure(
+          op, "Only ranked tensor type inputs are supported");
+    auto selfShape = selfTy.getShape();
+
+    // Expected a rank 3 input tensor
+    if (selfTy.getRank() != 3)
+      return rewriter.notifyMatchFailure(
+          op, "Input tensor for MaxPool1d should have rank 3");
+
+    // Unsqueeze input tensor to rank 4 to be compatible with tosa::AvgPool2dOp
+    SmallVector<int64_t> rank4Shape(selfShape);
+    rank4Shape.push_back(1);
+    auto reshapedSelf = rewriter.create<tosa::ReshapeOp>(
+        op->getLoc(),
+        RankedTensorType::get(makeShapeTorchCompatible(rank4Shape),
+                              selfTy.getElementType()),
+        self, rewriter.getDenseI64ArrayAttr(rank4Shape));
+
+    // Currently, we can not represent `count_include_pad` with the existing
+    // TOSA AvgPool2d specification. Without the below check, we produce silent
+    // wrong answers (SWA) when the `count_include_pad` value is `true.`
+    bool countIncludePad;
+    if (!matchPattern(op.getCountIncludePad(),
+                      m_TorchConstantBool(&countIncludePad)) ||
+        countIncludePad) {
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported `count_include_pad` value, for tosa AvgPool2dOp "
+              "`count_include_pad` value should be `False`.");
+    }
+
+    SmallVector<int64_t, 2> dilationArray{1, 1};
+    if (failed(getOutputTypeAndPoolingParameters<AtenAvgPool1dOp,
+                                                 tosa::AvgPool2dOp>(
+            op, rewriter, reshapedSelf.getResult(), dilationArray, outputTy,
+            kernel, stride, pad)))
+      return rewriter.notifyMatchFailure(
+          op, "invalid pooling parameters or input type");
+
+    // Transpose to xHWC
+    input = ConvertAtenPoolingBaseOp<AtenAvgPool1dOp, tosa::AvgPool2dOp>::
+        transposePoolingInputToHwc(op, rewriter, reshapedSelf.getResult());
 
     return success();
   }
@@ -6880,6 +7147,49 @@ LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewrite(
   return success();
 }
 
+// Legalization for torch.prims.collapse
+template <>
+LogicalResult ConvertAtenOp<PrimsCollapseOp>::matchAndRewrite(
+    PrimsCollapseOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto self = adaptor.getA();
+
+  // Not a tensor type
+  auto selfType = dyn_cast<TensorType>(self.getType());
+  if (!selfType)
+    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
+
+  auto resultType =
+      dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
+  auto resultShape = resultType.getShape();
+
+  int64_t start, end;
+  if (!matchPattern(op.getStart(), m_TorchConstantInt(&start)))
+    return rewriter.notifyMatchFailure(
+        op, "Only constant int start value is supported");
+
+  if (!matchPattern(op.getEnd(), m_TorchConstantInt(&end)))
+    return rewriter.notifyMatchFailure(
+        op, "Only constant int end value is supported");
+
+  // Identity case
+  if (start == end) {
+    rewriter.replaceOp(op, self);
+    return success();
+  }
+
+  // Technically, I should calculate the output shape based on the input shape,
+  // start value, and end value. However, that would just give the same result
+  // as me taking the result shape straight from resultType and applying
+  // tosa::ReshapeOp to the input. Therefore, I'm opting for the latter approach
+  // here, which is more simple and quicker.
+  rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
+      op, resultType, self,
+      rewriter.getDenseI64ArrayAttr(makeShapeTorchCompatible(resultShape)));
+
+  return success();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -7101,8 +7411,14 @@ public:
     target.addIllegalOp<AtenMaxPool2dOp>();
     patterns.add<ConvertAtenMaxPool2dOp>(typeConverter, context);
 
+    target.addIllegalOp<AtenMaxPool1dOp>();
+    patterns.add<ConvertAtenMaxPool1dOp>(typeConverter, context);
+
     target.addIllegalOp<AtenAvgPool2dOp>();
     patterns.add<ConvertAtenAvgPool2dOp>(typeConverter, context);
+
+    target.addIllegalOp<AtenAvgPool1dOp>();
+    patterns.add<ConvertAtenAvgPool1dOp>(typeConverter, context);
 
 #define INSERT_CONSTANT_FILL_PATTERN(AtenOp, fillVal)                          \
   target.addIllegalOp<AtenOp>();                                               \
@@ -7199,6 +7515,8 @@ public:
     INSERT_ATENOP_PATTERN(AtenUniformOp);
     INSERT_ATENOP_PATTERN(AtenThresholdBackwardOp);
     INSERT_ATENOP_PATTERN(AtenAsStridedOp);
+    INSERT_ATENOP_PATTERN(AtenClampTensorOp);
+    INSERT_ATENOP_PATTERN(PrimsCollapseOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
