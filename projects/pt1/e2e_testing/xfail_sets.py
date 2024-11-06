@@ -903,6 +903,14 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "ElementwiseCopysignModule_basic",
+    "ElementwiseFracModule_basic",
+    "ElementwiseLdexpModule_basic",
+    "ElementwiseSignbitIntModule_basic",
+    "ElementwiseSignbitModule_basic",
+    "Exp2StaticIntModule_basic",
+    "Exp2StaticModule_basic",
+    "TensorAlloc1dStaticModule_basic",
     "AdaptiveMaxPool1dDimOneStatic_basic",
     "BinaryCrossEntropyWithLogitsStaticModule_basic",
     "ReduceAllDimBool_basic",
