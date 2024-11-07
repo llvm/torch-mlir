@@ -222,6 +222,9 @@ def aten〇exp2〡shape(self: List[int]) -> List[int]:
 def aten〇expm1〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇isfinite〡shape(self: List[int]) -> List[int]:
+    return self
+
 def aten〇cosine_similarity〡shape(x1: List[int], x2: List[int], dim: int = 1, eps: float = 1e-08) -> List[int]:
     broadcast = upstream_shape_functions.broadcast(x1, x2)
     return broadcast[:dim] + broadcast[dim + 1:]
@@ -2655,6 +2658,9 @@ def aten〇exp2〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def aten〇expm1〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
+
+def aten〇isfinite〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    return torch.bool
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}))
 def aten〇rad2deg〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
