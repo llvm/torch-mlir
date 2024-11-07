@@ -2258,16 +2258,8 @@ func.func @torch.aten.logical_and$basic(%arg0: !torch.vtensor<[4,5],i1>, %arg1: 
 
 // -----
 
-// CHECK-LABEL:   func.func @torch.aten.uniform$basic(
-// CHECK-SAME:                                        %[[VAL_0:.*]]: !torch.vtensor<[3,4],f64>) -> (!torch.vtensor<[3,4],f64>, !torch.vtensor<[3,4],f64>) {
-// CHECK:           %[[VAL_1:.*]] = torch.constant.float 1.000000e+00
-// CHECK:           %[[VAL_2:.*]] = torch.constant.float 1.000000e+01
-// CHECK:           %[[VAL_3:.*]] = torch.constant.none
-// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{value = dense<{{\[\[}}1.00007045, 2.18384027, 7.80044794, 5.12785149], [5.79490519, 2.97063255, 1.42340159, 7.10978221], [7.11366796, 9.41223621, 4.45151854, 5.67474747]]> : tensor<3x4xf32>}> : () -> tensor<3x4xf32>
-// CHECK:           %[[VAL_5:.*]] = tosa.cast %[[VAL_4]] : (tensor<3x4xf32>) -> tensor<3x4xf64>
-// CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<3x4xf64> -> !torch.vtensor<[3,4],f64>
-// CHECK:           return %[[VAL_6]], %[[VAL_6]] : !torch.vtensor<[3,4],f64>, !torch.vtensor<[3,4],f64>
-// CHECK:         }
+// CHECK-LABEL:     torch.aten.uniform$basic
+// CHECK:           tosa.const
 func.func @torch.aten.uniform$basic(%arg0: !torch.vtensor<[3,4],f64>) -> (!torch.vtensor<[3,4],f64>, !torch.vtensor<[3,4],f64>) {
   %float1.000000e00 = torch.constant.float 1.000000e+00
   %float1.000000e01 = torch.constant.float 1.000000e+01
