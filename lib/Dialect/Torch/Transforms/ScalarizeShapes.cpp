@@ -747,6 +747,98 @@ public:
 } // namespace
 
 namespace {
+
+LogicalResult convertOpFoldResults(ImplicitLocOpBuilder &b,
+                                   SmallVector<OpFoldResult> &converted,
+                                   SmallVector<OpFoldResult> &elements,
+                                   Type inputDtype, Type resultDtype) {
+  auto inputIsInt = dyn_cast<mlir::IntegerType>(inputDtype);
+  auto resultIsInt = dyn_cast<mlir::IntegerType>(resultDtype);
+  if (!inputIsInt && !isa<mlir::FloatType>(inputDtype))
+    return failure();
+  if (!resultIsInt && !isa<mlir::FloatType>(resultDtype))
+    return failure();
+  // if dtypes are both int or both float, no conversion needed
+  if (static_cast<bool>(inputIsInt) == static_cast<bool>(resultIsInt)) {
+    converted = elements;
+    return success();
+  }
+  for (auto e : elements) {
+    auto eValue = dyn_cast<Value>(e);
+    if (eValue && resultIsInt) {
+      converted.push_back(b.createOrFold<AtenIntScalarOp>(eValue));
+      continue;
+    }
+    if (eValue && !resultIsInt) {
+      converted.push_back(b.createOrFold<AtenFloatScalarOp>(eValue));
+      continue;
+    }
+    auto eAttr = dyn_cast<Attribute>(e);
+    if (auto eIntAttr = dyn_cast_or_null<IntegerAttr>(eAttr)) {
+      auto eInt = (inputIsInt.isSigned()) ? eIntAttr.getValue().getSExtValue()
+                                          : eIntAttr.getValue().getZExtValue();
+      converted.push_back(FloatAttr::get(cast<mlir::FloatType>(resultDtype),
+                                         static_cast<double>(eInt)));
+      continue;
+    }
+    if (auto eFloatAttr = dyn_cast_or_null<FloatAttr>(eAttr)) {
+      converted.push_back(IntegerAttr::get(
+          resultDtype, static_cast<int64_t>(eFloatAttr.getValueAsDouble())));
+      continue;
+    }
+    return failure();
+  }
+  return success();
+}
+
+class PropagateAtenToDtypePattern : public OpRewritePattern<AtenToDtypeOp> {
+public:
+  using OpRewritePattern<AtenToDtypeOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenToDtypeOp op,
+                                PatternRewriter &rewriter) const override {
+    bool nonBlocking, copyArg;
+    // The non_blocking arg must be `False`.
+    if (!matchPattern(op.getNonBlocking(), m_TorchConstantBool(&nonBlocking)) ||
+        nonBlocking)
+      return failure();
+    // The copy arg must be `False`.
+    if (!matchPattern(op.getCopy(), m_TorchConstantBool(&copyArg)) || copyArg)
+      return failure();
+    // The memory_format arg must be `none`.
+    if (!isa<Torch::NoneType>(op.getMemoryFormat().getType()))
+      return failure();
+
+    auto inputType = dyn_cast<ValueTensorType>(op.getSelf().getType());
+    auto resultType = dyn_cast<ValueTensorType>(op.getType());
+    if (!inputType || !resultType || !inputType.hasDtype() ||
+        !resultType.hasDtype())
+      return failure();
+    auto inputDtype = inputType.getDtype();
+    auto resultDtype = resultType.getDtype();
+
+    SmallVector<OpFoldResult> elements;
+    if (failed(getListFromTensor(op.getSelf(), elements)))
+      return failure();
+
+    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+    SmallVector<OpFoldResult> converted;
+    if (failed(convertOpFoldResults(b, converted, elements, inputDtype,
+                                    resultDtype)))
+      return rewriter.notifyMatchFailure(
+          op, "Unhandled attribute type encountered.");
+
+    SmallVector<Value> vals;
+    if (failed(materializeFolds(b, converted, vals)))
+      return failure();
+
+    Value result = constructAtenTensorOpFromList(b, op.getType(), vals);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 template <typename AtenViewLikeOp>
 class PropagateAtenViewLikePattern : public OpRewritePattern<AtenViewLikeOp> {
 public:
@@ -1032,6 +1124,24 @@ public:
 } // namespace
 
 namespace {
+// fold ridiculous patterns like size.int -> float.scalar -> int.scalar
+class FoldAtenIntScalarPattern : public OpRewritePattern<AtenIntScalarOp> {
+public:
+  using OpRewritePattern<AtenIntScalarOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIntScalarOp op,
+                                PatternRewriter &rewriter) const override {
+    auto floatScalarOp = op.getA().getDefiningOp<AtenFloatScalarOp>();
+    if (!floatScalarOp)
+      return failure();
+    auto sizeOp = floatScalarOp.getA().getDefiningOp<AtenSizeIntOp>();
+    if (!sizeOp)
+      return failure();
+    rewriter.replaceOp(op, floatScalarOp.getA());
+    return success();
+  }
+};
+} // namespace
+namespace {
 class FoldAtenUnsqueezePattern : public OpRewritePattern<AtenUnsqueezeOp> {
 public:
   using OpRewritePattern<AtenUnsqueezeOp>::OpRewritePattern;
@@ -1263,9 +1373,9 @@ bool isInvalidValidViewConsumer(Operation *op,
 void populateScalarizationFoldPatterns(RewritePatternSet &patterns) {
   patterns.insert<FoldAtenSqueezePattern<AtenSqueezeOp>,
                   FoldAtenSqueezePattern<AtenSqueezeDimOp>,
-                  FoldAtenUnsqueezePattern, FoldAtenWhereSelf,
-                  FoldAtenTensorSplatPattern, FoldAtenEqIntPattern>(
-      patterns.getContext());
+                  FoldAtenIntScalarPattern, FoldAtenUnsqueezePattern,
+                  FoldAtenWhereSelf, FoldAtenTensorSplatPattern,
+                  FoldAtenEqIntPattern>(patterns.getContext());
 }
 
 void populateScalarizationCanonicalizePatterns(RewritePatternSet &patterns) {
@@ -1288,7 +1398,7 @@ void populateScalarizationPropagationPatterns(RewritePatternSet &patterns) {
       PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
       PropagateAtenSliceTensorPattern, PropagateAtenEqTensorPattern,
       PropagateAtenWhereSelfPattern, PropagateAtenBroadcastToPattern,
-      PropagateAtenTransposeIntPattern,
+      PropagateAtenTransposeIntPattern, PropagateAtenToDtypePattern,
       PropagateAtenArithmeticPattern<AtenAddTensorOp, AtenAddIntOp>,
       PropagateAtenArithmeticPattern<AtenSubTensorOp, AtenSubIntOp>,
       PropagateAtenArithmeticPattern<AtenMulTensorOp, AtenMulIntOp>,
@@ -1299,6 +1409,7 @@ void populateScalarizationPropagationPatterns(RewritePatternSet &patterns) {
 void populateScalarizationRemovePatterns(RewritePatternSet &patterns) {
   patterns.insert<RemoveUnusedPattern<Torch::AtenIntBoolOp>,
                   RemoveUnusedPattern<Torch::AtenEqIntOp>,
+                  RemoveUnusedPattern<Torch::AtenToDtypeOp>,
                   RemoveUnusedPattern<Torch::PrimNumToTensorScalarOp>,
                   RemoveUnusedPattern<Torch::AtenFullOp>,
                   RemoveUnusedPattern<Torch::AtenUnsqueezeOp>,
