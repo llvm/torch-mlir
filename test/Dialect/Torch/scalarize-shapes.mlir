@@ -255,6 +255,25 @@ func.func @view_as_flatten_dynamic(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !tor
     return %3 : !torch.vtensor<[?,?,?],f32>
 }
 
+// -----
+
+// CHECK-LABEL: @view_as_flatten_mid
+func.func @view_as_flatten_mid(%arg0: !torch.vtensor<[?,?,?,?,2,4],f32>) -> !torch.vtensor<[?,?,?,4],f32> {
+    // CHECK-DAG:   %[[TWO:.*]] = torch.constant.int 2
+    // CHECK-DAG:   %[[FOUR:.*]] = torch.constant.int 4
+    // CHECK-DAG:   %[[FLAT:.*]] = torch.aten.flatten.using_ints %arg0, %[[TWO]], %[[FOUR]] : !torch.vtensor<[?,?,?,?,2,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,?,?,4],f32>
+    // CHECK:   return %[[FLAT]] : !torch.vtensor<[?,?,?,4],f32>
+    %int-1 = torch.constant.int -1
+    %int1 = torch.constant.int 1
+    %int0 = torch.constant.int 0
+    %int4 = torch.constant.int 4
+    %0 = torch.aten.size.int %arg0, %int0 : !torch.vtensor<[?,?,?,?,2,4],f32>, !torch.int -> !torch.int
+    %1 = torch.aten.size.int %arg0, %int1 : !torch.vtensor<[?,?,?,?,2,4],f32>, !torch.int -> !torch.int
+    %2 = torch.prim.ListConstruct %0, %1, %int-1, %int4 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %3 = torch.aten.view %arg0, %2 : !torch.vtensor<[?,?,?,?,2,4],f32>, !torch.list<int> -> !torch.vtensor<[?,?,?,4],f32>
+    return %3 : !torch.vtensor<[?,?,?,4],f32>
+}
+
 
 // -----
 
