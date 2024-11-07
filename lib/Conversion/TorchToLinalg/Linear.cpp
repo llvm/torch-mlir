@@ -1459,7 +1459,12 @@ struct ConvertAtenFftRfftOp final : OpConversionPattern<AtenFftRfftOp> {
       return rewriter.notifyMatchFailure(op, "unimplemented: parameter norm");
     }
 
-    auto inputType = dyn_cast<RankedTensorType>(adaptor.getSelf().getType());
+    RankedTensorType inputType =
+        cast<RankedTensorType>(adaptor.getSelf().getType());
+    if (!inputType.hasRank()) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: only ranked tensors are supported");
+    }
     if (!inputType.hasStaticShape() || inputType.getRank() > 2) {
       return rewriter.notifyMatchFailure(
           op, "unsupported: only static 1D or 2D FFT is supported");
@@ -1474,21 +1479,25 @@ struct ConvertAtenFftRfftOp final : OpConversionPattern<AtenFftRfftOp> {
     const int64_t outputFftDim = fftLength / 2 + 1;
     const bool needTranspose = dim != lastDim;
 
+    RankedTensorType newResultType = llvm::cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getType()));
+    llvm::SmallVector<int64_t> componentShape(newResultType.getShape());
+
     // Transpose if FFT dimension is not the last one
     llvm::SmallVector<int64_t> perms = llvm::to_vector(llvm::seq(rank));
     std::swap(perms[dim], perms[lastDim]);
     if (needTranspose) {
       self = transposeValue(loc, self, perms, rewriter);
+      for (size_t i = 0; i < componentShape.size(); i++) {
+        componentShape[i] = newResultType.getShape()[perms[i]];
+      }
     }
 
-    auto matrixType = RankedTensorType::get({fftLength, outputFftDim},
-                                            inputType.getElementType());
+    RankedTensorType matrixType = RankedTensorType::get(
+        {fftLength, outputFftDim}, inputType.getElementType());
 
-    RankedTensorType newResultType = llvm::cast<RankedTensorType>(
-        getTypeConverter()->convertType(op.getType()));
-
-    auto componentsType = RankedTensorType::get(newResultType.getShape(),
-                                                inputType.getElementType());
+    RankedTensorType componentsType =
+        RankedTensorType::get(componentShape, inputType.getElementType());
 
     Value realMatrix =
         getDFTMatmulCoeff(rewriter, loc, matrixType, /*isRealPart=*/true);
