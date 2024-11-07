@@ -483,6 +483,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::fake_quantize_per_channel_affine_cachemask : (Tensor, Tensor, Tensor, int, int, int) -> (Tensor, Tensor)"
     )
+    emit("aten::isfinite : (Tensor) -> (Tensor)")
     emit("aten::maximum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::minimum : (Tensor, Tensor) -> (Tensor)")
     emit("aten::fmax : (Tensor, Tensor) -> (Tensor)")
