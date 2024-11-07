@@ -10440,6 +10440,63 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenThresholdOp : public OpRewritePattern<AtenThresholdOp> {
+public:
+  using OpRewritePattern<AtenThresholdOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenThresholdOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    auto selfType = dyn_cast<BaseTensorType>(self.getType());
+    if (!selfType || !selfType.hasSizes()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "requires input is tensor with sizes");
+    }
+
+    Value threshold = op.getThreshold();
+    Value value = op.getValue();
+
+    auto comOp = rewriter.create<AtenGtScalarOp>(
+        loc,
+        selfType.getWithSizesAndDtype(selfType.getSizes(),
+                                      rewriter.getI1Type()),
+        self, threshold);
+
+    rewriter.replaceOpWithNewOp<AtenWhereScalarOtherOp>(op, op.getType(), comOp,
+                                                        self, value);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenFloatPowerTensorTensorOp
+    : public OpRewritePattern<AtenFloatPowerTensorTensorOp> {
+public:
+  using OpRewritePattern<AtenFloatPowerTensorTensorOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFloatPowerTensorTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value exp = op.getExponent();
+
+    auto selfTy = dyn_cast<BaseTensorType>(self.getType());
+    if (!selfTy || !selfTy.hasDtype() || !selfTy.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "requires input is tensor with dtype and sizes");
+    }
+
+    Value selfF64 =
+        convertTensorToDtype(rewriter, loc, self, rewriter.getF64Type());
+    rewriter.replaceOpWithNewOp<AtenPowTensorTensorOp>(op, op.getType(),
+                                                       selfF64, exp);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -10711,6 +10768,9 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv3dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenThresholdOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFloatPowerTensorTensorOp>(
+        patterns);
 
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenFMaxMinOp<AtenFmaxOp, AtenMaximumOp>>(patterns);
