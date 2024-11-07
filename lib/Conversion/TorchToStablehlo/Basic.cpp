@@ -2090,7 +2090,7 @@ LogicalResult ConvertAtenOp<AtenIsfiniteOp>::matchAndRewrite(
   Type outElemTy = outType.getElementType();
   if (!outElemTy.isInteger(1)) {
     return rewriter.notifyMatchFailure(
-        op, "Only i1 output element type are currently supported");
+        op, "Only i1 output element type is supported");
   }
 
   rewriter.replaceOpWithNewOp<stablehlo::IsFiniteOp>(op.getOperation(), outType,

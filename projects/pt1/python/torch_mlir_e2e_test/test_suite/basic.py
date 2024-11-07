@@ -4381,7 +4381,7 @@ class IsInfiniteModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([-1, -1], torch.float32, True),
+            ([-1], torch.float32, True),
         ]
     )
     def forward(self, x):
@@ -4390,7 +4390,7 @@ class IsInfiniteModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: IsInfiniteModule())
 def IsInfiniteModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 2))
+    module.forward(torch.tensor([-torch.inf, torch.inf, torch.nan, -2.3, 0.0, 1.5]))
 
 
 # ==============================================================================
