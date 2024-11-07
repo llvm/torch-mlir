@@ -1099,9 +1099,9 @@ public:
     int64_t outRank = resultTy.getSizes().size();
 
     SmallVector<int64_t> sizes(selfTy.getSizes());
-    int64_t leftMatchEnd = -1;
+    int64_t leftMatchEnd = 0;
     // compare input sizes with provided dims from left
-    while (++leftMatchEnd < std::min(outRank, inRank)) {
+    for (; leftMatchEnd < std::min(outRank, inRank); leftMatchEnd++) {
       int64_t providedSize;
       bool providedStatic = matchPattern(viewSizes[leftMatchEnd],
                                          m_TorchConstantInt(&providedSize));
@@ -1127,9 +1127,10 @@ public:
         break;
     }
 
-    int64_t rightMatchEnd = -1;
+    int64_t rightMatchEnd = 0;
     // compare input sizes with provided dims from right
-    while (++rightMatchEnd < std::min(outRank, inRank) - leftMatchEnd) {
+    for (; rightMatchEnd < std::min(outRank, inRank) - leftMatchEnd;
+         rightMatchEnd++) {
       int64_t providedSize;
       bool providedStatic = matchPattern(viewSizes[outRank - 1 - rightMatchEnd],
                                          m_TorchConstantInt(&providedSize));
