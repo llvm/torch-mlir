@@ -74,11 +74,16 @@ public:
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<TosaOpT>(
-        op,
+    auto self = adaptor.getSelf();
+
+    auto outType = dyn_cast<TensorType>(
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-            op.getType()),
-        adaptor.getSelf());
+            op.getType()));
+
+    self = tosa::promoteType(rewriter, self, outType);
+
+    rewriter.replaceOpWithNewOp<TosaOpT>(op, outType, self);
+
     return success();
   }
 };
@@ -6090,6 +6095,9 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
   }
   auto builtinTensors =
       getTypeConvertedValues(rewriter, loc, typeConverter, tensorsTorchType);
+
+  for (auto &tensor : builtinTensors)
+    tensor = tosa::promoteType(rewriter, tensor, outType);
 
   auto result = tosa::CreateOpAndInfer<tosa::ConcatOp>(
       rewriter, loc, outType, builtinTensors, rewriter.getI32IntegerAttr(dim));
