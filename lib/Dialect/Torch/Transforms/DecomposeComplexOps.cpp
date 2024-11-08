@@ -10673,6 +10673,21 @@ public:
 } // namespace
 
 namespace {
+class DecomposeTorchvisionNmsOp : public OpRewritePattern<TorchvisionNmsOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(TorchvisionNmsOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    MLIRContext *context = op->getContext();
+    Value input = op.getSelf();
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:

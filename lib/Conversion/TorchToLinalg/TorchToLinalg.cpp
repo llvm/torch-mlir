@@ -81,6 +81,8 @@ public:
         typeConverter, patterns, target);
     torch_to_linalg::populateTensorConstructorsPatternsAndLegality(
         typeConverter, patterns, target);
+    torch_to_linalg::populateTorchvisionPatternsAndLegality(typeConverter,
+                                                            patterns, target);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
