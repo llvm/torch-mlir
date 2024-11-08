@@ -705,7 +705,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseErfIntModule_basic",
-    "ElementwiseLogitModule_basic",
     "ElementwiseMulTensorComplexModule_basic",
     "ElementwiseMulTensorComplexDiffModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
