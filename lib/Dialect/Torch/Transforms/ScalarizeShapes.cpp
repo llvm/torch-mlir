@@ -933,6 +933,48 @@ public:
 };
 } // namespace
 
+namespace {
+template <typename OpTy, typename ScalarOpTy>
+class PropagateAtenUnaryPattern : public OpRewritePattern<OpTy> {
+public:
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    // Check type
+    auto resultTy = cast<ValueTensorType>(op.getType());
+    if (resultTy.getSizes().size() > 1)
+      return rewriter.notifyMatchFailure(op, "unsupported: rank > 1");
+    if (!resultTy.hasDtype() || !isa<mlir::IntegerType>(resultTy.getDtype()))
+      return rewriter.notifyMatchFailure(op, "not an int type");
+
+    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+    SmallVector<OpFoldResult> selfFold;
+    if (failed(getListFromTensor(op.getSelf(), selfFold)))
+      return failure();
+    SmallVector<Value> selfVals;
+    if (failed(materializeFolds(b, selfFold, selfVals)))
+      return failure();
+    SmallVector<OpFoldResult> resultFolds;
+    for (uint64_t i = 0; i < selfVals.size(); i++) {
+      resultFolds.push_back(
+          b.createOrFold<ScalarOpTy>(selfVals[i].getType(), selfVals[i]));
+    }
+    SmallVector<Value> resultVals;
+    if (failed(materializeFolds(b, resultFolds, resultVals)))
+      return failure();
+
+    if (resultTy.getSizes().size() == 0) {
+      rewriter.replaceOpWithNewOp<Torch::PrimNumToTensorScalarOp>(
+          op, resultTy, resultVals.front());
+      return success();
+    }
+
+    Value result = constructAtenTensorOpFromList(b, resultTy, resultVals);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
 /// ------ Fold Patterns ------ ///
 // These are shape-specific folding patterns
 
@@ -1414,9 +1456,11 @@ void populateScalarizationPropagationPatterns(RewritePatternSet &patterns) {
       PropagateAtenSliceTensorPattern, PropagateAtenEqTensorPattern,
       PropagateAtenWhereSelfPattern, PropagateAtenBroadcastToPattern,
       PropagateAtenTransposeIntPattern, PropagateAtenToDtypePattern,
+      PropagateAtenUnaryPattern<AtenNegOp, AtenNegIntOp>,
       PropagateAtenArithmeticPattern<AtenAddTensorOp, AtenAddIntOp>,
       PropagateAtenArithmeticPattern<AtenSubTensorOp, AtenSubIntOp>,
       PropagateAtenArithmeticPattern<AtenMulTensorOp, AtenMulIntOp>,
+      PropagateAtenArithmeticPattern<AtenRemainderTensorOp, AtenRemainderIntOp>,
       PropagateAtenArithmeticPattern<AtenDivTensorOp, AtenFloordivIntOp>>(
       patterns.getContext());
 }
