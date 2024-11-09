@@ -2285,8 +2285,10 @@ void AtenUnflattenIntOp::getCanonicalizationPatterns(
     int64_t nonConstantPos = -1;
     for (auto [i, val] : llvm::enumerate(sizeValues)) {
       int64_t dimSize;
-      bool isConstant = matchPattern(val, m_TorchConstantInt(&dimSize)) &&
-                        (dimSize != Torch::kUnknownSize);
+      bool isConstant = matchPattern(val, m_TorchConstantInt(&dimSize));
+      if (isConstant && dimSize == -1) {
+        return failure();
+      }
       nonConstantDims += static_cast<int64_t>(!isConstant);
       if (!isConstant)
         nonConstantPos = i;
