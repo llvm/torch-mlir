@@ -8496,6 +8496,72 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenL1LossOp : public OpRewritePattern<AtenL1LossOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenL1LossOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    auto selfTy = dyn_cast<BaseTensorType>(self.getType());
+    if (!selfTy || !selfTy.hasSizes() || !selfTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "Expected self to be a tensor with sizes and a dtype");
+    }
+
+    Value target = op.getTarget();
+    auto targetTy = dyn_cast<BaseTensorType>(target.getType());
+    if (!targetTy || !targetTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "Expected target to be a tensor with sizes and a dtype");
+    }
+
+    auto outTy = dyn_cast<BaseTensorType>(op.getType());
+    if (!outTy || !outTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "Expected output type to be a tensor with a dtype");
+    }
+
+    auto outDtype = outTy.getDtype();
+    if (selfTy.getDtype() != outDtype) {
+      self = convertTensorToDtype(rewriter, loc, self, outDtype);
+    }
+    if (targetTy.getDtype() != outDtype) {
+      target = convertTensorToDtype(rewriter, loc, target, outDtype);
+    }
+
+    Value reduction = op.getReduction();
+    int64_t reductionInt;
+    if (!matchPattern(reduction, m_TorchConstantInt(&reductionInt))) {
+      return rewriter.notifyMatchFailure(
+          op, "Expected reduction to be a constant int");
+    }
+
+    auto subTy = outTy.getWithSizesAndDtype(selfTy.getSizes(), outDtype);
+    Value sub = createTensorSub(rewriter, loc, subTy, self, target);
+    Value abs = rewriter.create<AtenAbsOp>(loc, subTy, sub);
+
+    if (reductionInt == 0) {
+      rewriter.replaceOp(op, abs);
+    } else if (reductionInt == 1) {
+      Value none = rewriter.create<ConstantNoneOp>(loc);
+      auto sumType = outTy.getWithSizesAndDtype({}, outDtype);
+      Value sum = rewriter.create<AtenSumOp>(loc, sumType, abs, none);
+      Value numel = rewriter.create<AtenNumelOp>(loc, abs);
+      Value mean = rewriter.create<AtenDivScalarOp>(loc, outTy, sum, numel);
+      rewriter.replaceOp(op, mean);
+    } else {
+      Value none = rewriter.create<ConstantNoneOp>(loc);
+      Value sum = rewriter.create<AtenSumOp>(loc, outTy, abs, none);
+      rewriter.replaceOp(op, sum);
+    }
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.norm.ScalarOpt_dim` op to `aten.linalg_vector_norm` op
 class DecomposeAtenNormScalarOptDimOp
     : public OpRewritePattern<AtenNormScalarOptDimOp> {
@@ -10319,6 +10385,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_EmbeddingBagOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLiftFreshCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMseLossOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenL1LossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNormScalarOptDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintLowOp>(patterns);
