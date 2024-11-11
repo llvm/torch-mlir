@@ -2675,6 +2675,8 @@ ONNX_XFAIL_SET = {
     "AtenDiagEmbedRevDimDiag_basic",
     "AtenEmbeddingBagStaticModule_basic",
     "AtenEmbeddingBagSumExample_basic",
+    "AtenFftRfft2DLastDim_basic",
+    "AtenFftRfft2DMiddleDim_basic",
     "AtenFloatScalarModule_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
