@@ -2048,6 +2048,9 @@ def aten〇tril_indices〡shape(row: int, col: int, offset: int = 0, dtype: Opti
 
     return [2, trapezoid_size + rectangle_size]
 
+def aten〇deg2rad〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), LongTensorOfShape(2), None, 1, -100), # Basic case.
     Invocation(TensorOfShape(3), LongTensorOfShape(), None, 1, -100), # No batch dim.
@@ -5651,6 +5654,10 @@ def aten〇triu_indices〡dtype(row: int, col: int, offset: int = 0, dtype: Opti
 
 def aten〇tril_indices〡dtype(row: int, col: int, offset: int = 0, dtype: Optional[int] = 4, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
     return torch.int64 if dtype is None else dtype
+
+def aten〇deg2rad〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return _get_dtype_of_floating_point_op(self_dtype)
 
 def aten〇int_repr〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype

@@ -1335,6 +1335,44 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenDeg2radOp : public OpRewritePattern<AtenDeg2radOp> {
+public:
+  using OpRewritePattern<AtenDeg2radOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenDeg2radOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    auto selfTy = dyn_cast<BaseTensorType>(self.getType());
+    if (!selfTy || !selfTy.getDtype()) {
+      return rewriter.notifyMatchFailure(op, "requires tensor types input.");
+    }
+
+    auto outTy = dyn_cast<BaseTensorType>(op.getType());
+    if (!outTy || !outTy.getDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "requires output is a tensor with dtype.");
+    }
+
+    if (selfTy.getDtype() != outTy.getDtype()) {
+      self = convertTensorToDtype(rewriter, loc, self, outTy.getDtype());
+    }
+
+    Value pi =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(M_PI));
+    Value basic =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(180.0));
+    Value rad =
+        rewriter.create<AtenDivScalarOp>(loc, op.getType(), self, basic);
+    Value result = rewriter.create<AtenMulScalarOp>(loc, op.getType(), rad, pi);
+
+    rewriter.replaceOp(op, result);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenSizeOp : public OpRewritePattern<AtenSizeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -10325,6 +10363,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenTriuOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTriuIndicesOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTrilIndicesOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenDeg2radOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_LinalgDetOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgSlogdetOp>(patterns);
