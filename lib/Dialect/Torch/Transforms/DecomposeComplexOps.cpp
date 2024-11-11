@@ -8661,8 +8661,7 @@ public:
       rewriter.replaceOp(op, abs);
     } else if (reductionInt == 1) {
       Value none = rewriter.create<ConstantNoneOp>(loc);
-      auto sumType = outTy.getWithSizesAndDtype({}, outDtype);
-      Value sum = rewriter.create<AtenSumOp>(loc, sumType, abs, none);
+      Value sum = rewriter.create<AtenSumOp>(loc, outTy, abs, none);
       Value numel = rewriter.create<AtenNumelOp>(loc, abs);
       Value mean = rewriter.create<AtenDivScalarOp>(loc, outTy, sum, numel);
       rewriter.replaceOp(op, mean);

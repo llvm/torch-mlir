@@ -222,6 +222,9 @@ def aten〇exp2〡shape(self: List[int]) -> List[int]:
 def aten〇expm1〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇isfinite〡shape(self: List[int]) -> List[int]:
+    return self
+
 def aten〇cosine_similarity〡shape(x1: List[int], x2: List[int], dim: int = 1, eps: float = 1e-08) -> List[int]:
     broadcast = upstream_shape_functions.broadcast(x1, x2)
     return broadcast[:dim] + broadcast[dim + 1:]
@@ -1550,6 +1553,18 @@ def aten〇floor_divide〡shape(self: List[int], other: List[int]) -> List[int]:
 def aten〇atan2〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
+def aten〇frac〡shape(self: List[int]) -> List[int]:
+    return self
+
+def aten〇signbit〡shape(self: List[int]) -> List[int]:
+    return self
+
+def aten〇ldexp〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
+def aten〇copysign〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, other)
+
 def aten〇__and__〇Tensor〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, other)
 
@@ -2651,6 +2666,9 @@ def aten〇exp2〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def aten〇expm1〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
+
+def aten〇isfinite〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    return torch.bool
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex64, torch.complex128}))
 def aten〇rad2deg〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
@@ -3917,6 +3935,42 @@ def aten〇fft_ifft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] =
 def aten〇rsub〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], other: Union[int, float, complex], alpha: Union[int, float, complex] = 1) -> int:
     self_rank, self_dtype = self_rank_dtype
     return promote_dtypes([self_rank, None], [self_dtype, get_dtype_of_scalar(other)])
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}))
+def aten〇frac〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert self_dtype != torch.bool
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇signbit〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    return torch.bool
+
+@check_dtype_function(_check_two_tensor_op())
+def aten〇ldexp〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    other_rank, other_dtype = other_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    dtypes = [self_dtype, other_dtype]
+    if self_dtype == torch.double and is_complex_dtype(other_dtype):
+        return other_dtype
+    elif is_complex_dtype(self_dtype) and other_dtype == torch.double:
+        return self_dtype
+    elif is_integer_dtype(self_dtype) and is_integer_dtype(other_dtype):
+        return torch.float
+    else:
+        return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(_check_two_tensor_op())
+def aten〇copysign〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    other_rank, other_dtype = other_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, other_rank]
+    dtypes = [self_dtype, other_dtype]
+    if is_integer_dtype(self_dtype) and is_integer_dtype(other_dtype):
+        return torch.float
+    else:
+        return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1, other=0.0) +

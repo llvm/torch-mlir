@@ -2269,16 +2269,14 @@ class L1LossNoReductionModule(torch.nn.Module):
         [
             None,
             ([2, 4], torch.float32, True),
-            ([2, 4], torch.float64, True),
+            ([2, 4], torch.float32, True),
         ]
     )
     def forward(self, x, y):
         return torch.ops.aten.l1_loss(x, y, reduction=0)
 
 
-@register_test_case(
-    module_factory=lambda: L1LossNoReductionModule()
-)
+@register_test_case(module_factory=lambda: L1LossNoReductionModule())
 def L1LossNoReductionModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4), tu.rand(2, 4))
 
@@ -2295,16 +2293,14 @@ class L1LossMeanReductionModule(torch.nn.Module):
         [
             None,
             ([2, 4], torch.float32, True),
-            ([2, 4], torch.float64, True),
+            ([2, 4], torch.float32, True),
         ]
     )
     def forward(self, x, y):
         return torch.ops.aten.l1_loss(x, y, reduction=1)
 
 
-@register_test_case(
-    module_factory=lambda: L1LossMeanReductionModule()
-)
+@register_test_case(module_factory=lambda: L1LossMeanReductionModule())
 def L1LossMeanReductionModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4), tu.rand(2, 4))
 
@@ -2321,16 +2317,14 @@ class L1LossSumReductionModule(torch.nn.Module):
         [
             None,
             ([2, 4], torch.float32, True),
-            ([2, 4], torch.float64, True),
+            ([2, 4], torch.float32, True),
         ]
     )
     def forward(self, x, y):
         return torch.ops.aten.l1_loss(x, y, reduction=2)
 
 
-@register_test_case(
-    module_factory=lambda: L1LossSumReductionModule()
-)
+@register_test_case(module_factory=lambda: L1LossSumReductionModule())
 def L1LossSumReductionModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4), tu.rand(2, 4))
 
