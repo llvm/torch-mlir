@@ -1382,6 +1382,18 @@ public:
 
 namespace {
 
+bool isItemForSliceOp(Operation *op) {
+  auto itemOp = dyn_cast_or_null<AtenItemOp>(op);
+  if (!itemOp)
+    return false;
+  for (OpOperand &use : op->getUses()) {
+    Operation *userOp = use.getOwner();
+    if (isa<AtenSliceTensorOp>(userOp))
+      return true;
+  }
+  return false;
+}
+
 bool isSourceOpForShapeScalarization(Operation *op) {
   return llvm::isa<AtenSizeIntOp, Torch::ConstantIntOp, Torch::ConstantBoolOp,
                    Aten_ShapeAsTensorOp, Torch::ValueTensorLiteralOp>(op);
@@ -1399,7 +1411,7 @@ bool isPrimListOfInts(Operation *op) {
 
 bool isAnchorOp(Operation *op) {
   return isa<Torch::RuntimeAssertOp>(op) || isa<AtenArangeStartStepOp>(op) ||
-         isPrimListOfInts(op);
+         isPrimListOfInts(op) || isItemForSliceOp(op);
 }
 
 // The argument to this function, op, is the use of some source op, srcOp. If
