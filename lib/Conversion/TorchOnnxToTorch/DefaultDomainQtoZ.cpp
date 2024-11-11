@@ -2977,6 +2977,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                          "except asymmetric and half_pixel");
         }
 
+        if (mode == "cubic" && cubic_coeff_a != -0.75) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: cubic coeff must be -0.75");
+        }
+
         unsigned rank = dyn_cast<Torch::ValueTensorType>(operands[0].getType())
                             .getSizes()
                             .size();

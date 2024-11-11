@@ -2683,7 +2683,7 @@ public:
 };
 } // namespace
 
-static Value NearestInterpolate(OpBuilder &b, Location loc,
+static Value nearestInterpolate(OpBuilder &b, Location loc,
                                 SmallVector<Value> outputSizes, Value input,
                                 SmallVector<Value> inputSizes,
                                 SmallVector<Value> scaleValues,
@@ -2771,7 +2771,8 @@ static Value NearestInterpolate(OpBuilder &b, Location loc,
   return retVal;
 }
 
-static SmallVector<Value> CoordinateTransform(
+
+static SmallVector<Value> coordinateTransform(
     OpBuilder &b, Aten__InterpolateSizeListScaleListOp op, Location loc,
     SmallVector<Value> outputSizes, Value input, SmallVector<Value> inputSizes,
     SmallVector<Value> scaleValues, std::string coordStr, bool alignCornersBool,
@@ -2863,7 +2864,7 @@ static SmallVector<Value> CoordinateTransform(
   return proj;
 }
 
-static Value BilinearInterpolate(OpBuilder &b,
+static Value bilinearInterpolate(OpBuilder &b,
                                  Aten__InterpolateSizeListScaleListOp op,
                                  Location loc, SmallVector<Value> outputSizes,
                                  Value input, SmallVector<Value> inputSizes,
@@ -2884,7 +2885,7 @@ static Value BilinearInterpolate(OpBuilder &b,
   }
 
   SmallVector<Value> proj, high, low, highFP, lowFP;
-  proj = CoordinateTransform(b, op, loc, outputSizes, input, inputSizes,
+  proj = coordinateTransform(b, op, loc, outputSizes, input, inputSizes,
                              scaleValues, coordStr, alignCornersBool, indices,
                              true);
   for (unsigned i = 0; i < inputRank - dimOffset; i++) {
@@ -2955,7 +2956,8 @@ static Value BilinearInterpolate(OpBuilder &b,
   return b.create<arith::AddFOp>(loc, left, right);
 }
 
-static Value BicubicInterpolate(OpBuilder &b,
+
+static Value bicubicInterpolate(OpBuilder &b,
                                 Aten__InterpolateSizeListScaleListOp op,
                                 Location loc, SmallVector<Value> outputSizes,
                                 Value input, SmallVector<Value> inputSizes,
@@ -2981,6 +2983,7 @@ static Value BicubicInterpolate(OpBuilder &b,
   Value cstEightFloat =
       b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(8.0));
 
+  // (a+2)|x|^3 - (a+3)|x|^2 + 1 for xDistance (|x| <= 1)
   auto WeightLessThanEqualOne = [&](Value xDistance) -> Value {
     Value xDistanceSquared = b.create<arith::MulFOp>(loc, xDistance, xDistance);
     Value xDistanceCubed =
@@ -2996,6 +2999,7 @@ static Value BicubicInterpolate(OpBuilder &b,
     return lessEqualOne;
   };
 
+  // a|x|^3 - 5a|x|^2 + 8a|x| - 4a for xDistance (1 < |x| < 2)
   auto WeightLessThanTwo = [&](Value xDistance) -> Value {
     Value xDistanceSquared = b.create<arith::MulFOp>(loc, xDistance, xDistance);
     Value xDistanceCubed =
@@ -3028,10 +3032,12 @@ static Value BicubicInterpolate(OpBuilder &b,
   }
 
   SmallVector<Value> proj;
+
   proj = CoordinateTransform(b, op, loc, outputSizes, input, inputSizes,
                              scaleValues, coordStr, alignCornersBool, indices,
                              false);
 
+  // get the nearest neighbors of proj
   Value x1 = b.create<math::CeilOp>(loc, proj[1]);
   Value x_1 = b.create<arith::SubFOp>(loc, x1, cstOneFloat);
   Value x_2 = b.create<arith::SubFOp>(loc, x_1, cstOneFloat);
@@ -3042,6 +3048,7 @@ static Value BicubicInterpolate(OpBuilder &b,
   Value y_2 = b.create<arith::SubFOp>(loc, y_1, cstOneFloat);
   Value y2 = b.create<arith::AddFOp>(loc, y1, cstOneFloat);
 
+  // calculate the distance of nearest neighbors x and y to proj
   Value y2Distance = b.create<arith::SubFOp>(loc, proj[0], y2);
   y2Distance = b.create<math::AbsFOp>(loc, y2Distance);
   Value y1Distance = b.create<arith::SubFOp>(loc, proj[0], y1);
@@ -3062,10 +3069,12 @@ static Value BicubicInterpolate(OpBuilder &b,
 
   SmallVector<Value> y{y_2, y_1, y1, y2};
   SmallVector<Value> x{x_2, x_1, x1, x2};
+
   SmallVector<Value> yDistance{y_2Distance, y_1Distance, y1Distance,
                                y2Distance};
   SmallVector<Value> xDistance{x_2Distance, x_1Distance, x1Distance,
                                x2Distance};
+
   SmallVector<Value> wys{
       WeightLessThanTwo(y_2Distance), WeightLessThanEqualOne(y_1Distance),
       WeightLessThanEqualOne(y1Distance), WeightLessThanTwo(y2Distance)};
@@ -3073,7 +3082,27 @@ static Value BicubicInterpolate(OpBuilder &b,
       WeightLessThanTwo(x_2Distance), WeightLessThanEqualOne(x_1Distance),
       WeightLessThanEqualOne(x1Distance), WeightLessThanTwo(x2Distance)};
 
-  // f(x_orig, y_orig) = Sum_y Sum_x W(x_original - x)*input[x,y]
+
+  // clip the nearest neighbors points to inside the original image
+  for (int k = 0; k < 4; k++) {
+    y[k] = b.create<arith::MaximumFOp>(loc, y[k], zero);
+    Value inputHSubOne = b.create<arith::SubFOp>(loc, inputFPH, cstOneFloat);
+    y[k] = b.create<arith::MinimumFOp>(loc, y[k], inputHSubOne);
+
+    x[k] = b.create<arith::MaximumFOp>(loc, x[k], zero);
+    Value inputWSubOne = b.create<arith::SubFOp>(loc, inputFPW, cstOneFloat);
+    x[k] = b.create<arith::MinimumFOp>(loc, x[k], inputWSubOne);
+  }
+  // 1. Compute x_original and y_original (proj)
+  // 2. Compute nearest x and y neighbors
+  // 3. Compute Wx Wy
+  // 4. Extract inputs at nearest neighbors (inputExtracts)
+  // 5. Compute weighted sum (yield this)
+
+  // 4 nearest x neighbors : [x_2, x_1, x1, x2] of x_original
+  // 4 nearest y neighbors : [y_2, y_1, y1, y2] of y_original
+  // Sum_x is over 4 nearest x neighbors (similar for Sum_y)
+  // f(x_original, y_original) = Sum_y Sum_x W(x_original - x)*input[x,y]
   //                     * W(y_original - y)
   Value fxy = zero;
 
@@ -3081,20 +3110,12 @@ static Value BicubicInterpolate(OpBuilder &b,
     Value wy = wys[j];
     Value xInterpy = zero;
 
-    y[j] = b.create<arith::MaximumFOp>(loc, y[j], zero);
-    Value inputHSubOne = b.create<arith::SubFOp>(loc, inputFPH, cstOneFloat);
-    y[j] = b.create<arith::MinimumFOp>(loc, y[j], inputHSubOne);
-
     Value yInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), y[j]);
     Value yIndex = b.create<arith::IndexCastOp>(loc, b.getIndexType(), yInt);
     indices[dimOffset] = yIndex;
 
     for (int i = 0; i < 4; i++) {
       Value wx = wxs[i];
-
-      x[i] = b.create<arith::MaximumFOp>(loc, x[i], zero);
-      Value inputWSubOne = b.create<arith::SubFOp>(loc, inputFPW, cstOneFloat);
-      x[i] = b.create<arith::MinimumFOp>(loc, x[i], inputWSubOne);
 
       Value xInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), x[i]);
       Value xIndex = b.create<arith::IndexCastOp>(loc, b.getIndexType(), xInt);
@@ -3210,15 +3231,16 @@ public:
                         (mode.find(",") == std::string::npos)
                             ? ""
                             : mode.substr(mode.find(",") + 1);
-                    retVal = NearestInterpolate(
+                    retVal = nearestInterpolate(
                         b, loc, outputSizeIntValues, input, inputSizes,
                         ScaleFactorFloatValues, coordTfMode, nearestMode);
                   } else if (mode.substr(0, 8) == "bilinear") {
-                    retVal = BilinearInterpolate(
+                    retVal = bilinearInterpolate(
                         b, op, loc, outputSizeIntValues, input, inputSizes,
                         ScaleFactorFloatValues, mode.substr(8));
                   } else if (mode.substr(0, 5) == "cubic") {
-                    retVal = BicubicInterpolate(
+
+                    retVal = bicubicInterpolate(
                         b, op, loc, outputSizeIntValues, input, inputSizes,
                         ScaleFactorFloatValues, mode.substr(5));
                   }
