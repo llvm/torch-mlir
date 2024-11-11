@@ -39,6 +39,49 @@ func.func @shape_as_tensor_dim(%arg0 : !torch.vtensor<[5,?,?],f32>) -> !torch.vt
     return %select : !torch.vtensor<[],si32>
 }
 
+// -----
+
+// CHECK-LABEL: @cast_int_int
+func.func @cast_int_int(%arg0 : !torch.vtensor<[5,?,?],f32>) -> !torch.vtensor<[],si64> {
+    // CHECK: %[[I1:.*]] = torch.constant.int 1
+    // CHECK: %[[SZE:.*]] = torch.aten.size.int %arg0, %[[I1]] : !torch.vtensor<[5,?,?],f32>, !torch.int -> !torch.int
+    // CHECK: %[[TENSOR:.*]] = torch.prim.NumToTensor.Scalar %[[SZE]] : !torch.int -> !torch.vtensor<[],si64>
+    // CHECK: return %[[TENSOR]] : !torch.vtensor<[],si64>
+    %int4 = torch.constant.int 4
+    %false = torch.constant.bool false
+    %none = torch.constant.none
+    %shape = torch.aten._shape_as_tensor %arg0 : !torch.vtensor<[5,?,?],f32> -> !torch.vtensor<[3],si32>
+    %cast_shape = torch.aten.to.dtype %shape, %int4, %false, %false, %none : !torch.vtensor<[3],si32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[3],si64>
+    %dim = torch.constant.int 0
+    %idx = torch.vtensor.literal(dense<1> : tensor<si32>) : !torch.vtensor<[],si32>
+    %select = torch.aten.index_select %cast_shape, %dim, %idx : !torch.vtensor<[3],si64>, !torch.int, !torch.vtensor<[],si32> -> !torch.vtensor<[],si64>
+    %item = torch.aten.item %select : !torch.vtensor<[],si64> -> !torch.int
+    %list = torch.prim.ListConstruct %item : (!torch.int) -> !torch.list<int>
+    return %select : !torch.vtensor<[],si64>
+}
+
+// -----
+
+// CHECK-LABEL: @cast_int_float
+func.func @cast_int_float(%arg0 : !torch.vtensor<[5,?,?],f32>) -> !torch.vtensor<[],f32> {
+    // CHECK: %[[I1:.*]] = torch.constant.int 1
+    // CHECK: %[[SZE:.*]] = torch.aten.size.int %arg0, %[[I1]] : !torch.vtensor<[5,?,?],f32>, !torch.int -> !torch.int
+    // CHECK: %[[FLOAT:.*]] = torch.aten.Float.Scalar %[[SZE]] : !torch.int -> !torch.float
+    // CHECK: %[[TENSOR:.*]] = torch.prim.NumToTensor.Scalar %[[FLOAT]] : !torch.float -> !torch.vtensor<[],f32>
+    // CHECK: return %[[TENSOR]] : !torch.vtensor<[],f32>
+    %int6 = torch.constant.int 6
+    %false = torch.constant.bool false
+    %none = torch.constant.none
+    %shape = torch.aten._shape_as_tensor %arg0 : !torch.vtensor<[5,?,?],f32> -> !torch.vtensor<[3],si32>
+    %cast_shape = torch.aten.to.dtype %shape, %int6, %false, %false, %none : !torch.vtensor<[3],si32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[3],f32>
+    %dim = torch.constant.int 0
+    %idx = torch.vtensor.literal(dense<1> : tensor<si32>) : !torch.vtensor<[],si32>
+    %select = torch.aten.index_select %cast_shape, %dim, %idx : !torch.vtensor<[3],f32>, !torch.int, !torch.vtensor<[],si32> -> !torch.vtensor<[],f32>
+    %item = torch.aten.item %select : !torch.vtensor<[],f32> -> !torch.float
+    %item_int = torch.aten.Int.Scalar %item : !torch.float -> !torch.int
+    %list = torch.prim.ListConstruct %item_int : (!torch.int) -> !torch.list<int>
+    return %select : !torch.vtensor<[],f32>
+}
 
 // -----
 

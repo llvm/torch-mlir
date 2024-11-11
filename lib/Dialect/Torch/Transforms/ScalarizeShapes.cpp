@@ -1512,6 +1512,8 @@ void populateScalarizationRemovePatterns(RewritePatternSet &patterns) {
                   RemoveUnusedPattern<Torch::AtenSizeIntOp>,
                   RemoveUnusedPattern<Torch::AtenSliceTensorOp>,
                   RemoveUnusedPattern<Torch::AtenTensorOp>,
+                  RemoveUnusedPattern<Torch::AtenFloatScalarOp>,
+                  RemoveUnusedPattern<Torch::AtenIntScalarOp>,
                   RemoveUnusedPattern<Torch::PrimListConstructOp>>(
       patterns.getContext());
 }
