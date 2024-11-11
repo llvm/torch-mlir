@@ -4587,6 +4587,11 @@ public:
     if (!isValidDim(dimInt, inputRank))
       return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
 
+    if (inputShape[dimInt] == Torch::kUnknownSize &&
+        llvm::count(sizesInts, -1) > 0)
+      return rewriter.notifyMatchFailure(
+          op, "Unimplmented: dynamic unflatten dim with an inferred size.");
+
     SmallVector<Value> sizesTorchInt;
     if (!getListConstructElements(op.getSizes(), sizesTorchInt))
       return rewriter.notifyMatchFailure(

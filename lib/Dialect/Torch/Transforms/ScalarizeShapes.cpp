@@ -1049,6 +1049,11 @@ public:
     auto resultTy = cast<BaseTensorType>(op.getType());
     if (!resultTy.hasSizes() || !resultTy.areAllSizesKnown())
       return rewriter.notifyMatchFailure(op, "dynamic output shape");
+    if (resultTy.getSizes().size() == 0) {
+      rewriter.replaceOpWithNewOp<Torch::PrimNumToTensorScalarOp>(
+          op, op.getType(), elements.front());
+      return success();
+    }
 
     auto loc = op.getLoc();
     SmallVector<Value> sizes;
@@ -1056,12 +1061,10 @@ public:
       sizes.push_back(rewriter.create<Torch::ConstantIntOp>(
           loc, rewriter.getI64IntegerAttr(size)));
 
-    Value one = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getType<Torch::IntType>(), 1);
     Value sizeList = rewriter.create<Torch::PrimListConstructOp>(
         loc,
         rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
-        one);
+        sizes);
 
     Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
     Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
