@@ -2580,19 +2580,17 @@ def prims〇split_dim〡dtype(a_rank_dtype: Tuple[int, int], dim: int, outer_len
     return a_dtype
 
 # note: fake_quantize_per_tensor_affine doesn't support "meta" device, use "cpu" instead.
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, tensor_device="cpu", scale=0.1, zero_point=0, quant_min=0, quant_max=255, error_types={torch.complex128, torch.complex64, torch.bfloat16, torch.int64, torch.int32, torch.int16, torch.int8, torch.uint8, torch.bool}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, tensor_device="cpu", scale=0.1, zero_point=0, quant_min=0, quant_max=255, error_types={torch.complex128, torch.complex64, torch.int64, torch.int32, torch.int16, torch.int8, torch.uint8, torch.bool}))
 def aten〇fake_quantize_per_tensor_affine〡dtype(self_rank_dtype: Tuple[int, int], scale: float, zero_point: int, quant_min: int, quant_max: int) -> int:
     self_rank, self_dtype = self_rank_dtype
     assert is_float_dtype(self_dtype)
-    assert self_dtype != torch.bfloat16
     return self_dtype
 
 # note: fake_quantize_per_tensor_affine doesn't support "meta" device, use "cpu" instead.
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, tensor_device="cpu", scale=0.1, zero_point=0, quant_min=0, quant_max=255, error_types={torch.complex128, torch.complex64, torch.bfloat16, torch.int64, torch.int32, torch.int16, torch.int8, torch.uint8, torch.bool}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, tensor_device="cpu", scale=0.1, zero_point=0, quant_min=0, quant_max=255, error_types={torch.complex128, torch.complex64, torch.int64, torch.int32, torch.int16, torch.int8, torch.uint8, torch.bool}))
 def aten〇fake_quantize_per_tensor_affine_cachemask〡dtype(self_rank_dtype: Tuple[int, int], scale: float, zero_point: int, quant_min: int, quant_max: int) -> Tuple[int, int]:
     self_rank, self_dtype = self_rank_dtype
     assert is_float_dtype(self_dtype)
-    assert self_dtype != torch.bfloat16
     return (self_rank_dtype[1], torch.bool)
 
 # note: fake_quantize_per_tensor_affine.tensor_qparams doesn't support "meta" device, use "cpu" instead.
