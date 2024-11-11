@@ -1337,8 +1337,29 @@ public:
     if (inputUnmatched == 1 && outputUnmatched > 1) {
       Value dimVal =
           rewriter.create<Torch::ConstantIntOp>(op.getLoc(), leftMatchEnd);
-      ArrayRef<Value> unflattenSizes(viewSizes.begin() + leftMatchEnd,
-                                     viewSizes.end() - rightMatchEnd);
+      SmallVector<Value> unflattenSizes(viewSizes.begin() + leftMatchEnd,
+                                        viewSizes.end() - rightMatchEnd);
+      // try to convert a single dynamic size input to -1
+      int64_t dynCount = 0;
+      int64_t dynIdx = 0;
+      for (auto [i, v] : llvm::enumerate(unflattenSizes)) {
+        int64_t szeInt;
+        if (!matchPattern(v, m_TorchConstantInt(&szeInt))) {
+          dynCount++;
+          dynIdx = i;
+          continue;
+        }
+        // if we a -1 already, make dynCount invalid and break
+        if (szeInt == -1) {
+          dynCount = -1;
+          break;
+        }
+      }
+      // if only one size is dynamic, make it -1
+      if (dynCount == 1)
+        unflattenSizes[dynIdx] =
+            rewriter.create<Torch::ConstantIntOp>(op.getLoc(), -1);
+
       Value unflattenList = rewriter.create<Torch::PrimListConstructOp>(
           op.getLoc(), op.getSize().getType(), unflattenSizes);
       rewriter.replaceOpWithNewOp<AtenUnflattenIntOp>(

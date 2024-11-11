@@ -2274,35 +2274,6 @@ OpFoldResult AtenUnflattenIntOp::fold(FoldAdaptor adaptor) {
 
 void AtenUnflattenIntOp::getCanonicalizationPatterns(
     RewritePatternSet &patterns, MLIRContext *context) {
-  // if all of the sizes are constant except one, make it -1 to improve shape
-  // inference.
-  patterns.add(+[](AtenUnflattenIntOp op, PatternRewriter &rewriter) {
-    SmallVector<Value> sizeValues;
-    if (!getListConstructElements(op.getSizes(), sizeValues))
-      return rewriter.notifyMatchFailure(op,
-                                         "sizes must come from list construct");
-    int64_t nonConstantDims = 0;
-    int64_t nonConstantPos = -1;
-    for (auto [i, val] : llvm::enumerate(sizeValues)) {
-      int64_t dimSize;
-      bool isConstant = matchPattern(val, m_TorchConstantInt(&dimSize));
-      if (isConstant && dimSize == -1) {
-        return failure();
-      }
-      nonConstantDims += static_cast<int64_t>(!isConstant);
-      if (!isConstant)
-        nonConstantPos = i;
-    }
-    if (nonConstantDims != 1)
-      return failure();
-    sizeValues[nonConstantPos] =
-        rewriter.create<Torch::ConstantIntOp>(op.getLoc(), -1);
-    Value list = rewriter.create<Torch::PrimListConstructOp>(
-        op.getLoc(), op.getSizes().getType(), sizeValues);
-    rewriter.replaceOpWithNewOp<AtenUnflattenIntOp>(
-        op, op.getType(), op.getSelf(), op.getDim(), list);
-    return success();
-  });
   // if there are only two sizes and one of them is statically 1, then convert
   // to an unqueeze.
   patterns.add(+[](AtenUnflattenIntOp op, PatternRewriter &rewriter) {
