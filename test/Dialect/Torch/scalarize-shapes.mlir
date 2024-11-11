@@ -27,12 +27,8 @@ func.func @shape_as_tensor(%arg0 : !torch.vtensor<[5,?,?],f32>) -> !torch.vtenso
 // CHECK-LABEL: @shape_as_tensor_dim
 func.func @shape_as_tensor_dim(%arg0 : !torch.vtensor<[5,?,?],f32>) -> !torch.vtensor<[],si32> {
     // CHECK: %[[INT1:.+]] = torch.constant.int 1
-    // CHECK: %[[SZ:.+]] = torch.aten.size.int %arg0, %[[INT1]]
-    // CHECK: %[[INT1_0:.+]] = torch.constant.int 1
-    // CHECK-DAG: %[[FALSE:.+]] = torch.constant.bool false
-    // CHECK-DAG: %[[NONE:.+]] = torch.constant.none
-    // CHECK-DAG: %[[LIST:.+]] = torch.prim.ListConstruct %[[INT1_0]]
-    // CHECK: %[[TENSOR:.+]] = torch.aten.full %[[LIST]], %[[SZ]], %[[NONE]], %[[NONE]], %[[NONE]], %[[FALSE]]
+    // CHECK-DAG: %[[SZ:.+]] = torch.aten.size.int %arg0, %[[INT1]]
+    // CHECK: %[[TENSOR:.+]] = torch.prim.NumToTensor.Scalar %[[SZ]] : !torch.int -> !torch.vtensor<[],si32>
     // CHECK: return %[[TENSOR]] : !torch.vtensor<[],si32>
     %shape = torch.aten._shape_as_tensor %arg0 : !torch.vtensor<[5,?,?],f32> -> !torch.vtensor<[3],si32>
     %dim = torch.constant.int 0
