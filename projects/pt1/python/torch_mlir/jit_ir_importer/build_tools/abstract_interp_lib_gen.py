@@ -1839,6 +1839,21 @@ def torchvision〇deform_conv2d〡dtype(input_rank_dtype: Tuple[int, int], weigh
 def aten〇conv2d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1,), padding: List[int] = (0, 0,), dilation: List[int] = (1, 1,), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv2d(input, weight, bias, stride, padding, dilation, groups)
 
+def aten〇conv2d〇padding〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1,), padding: str = "valid", dilation: List[int] = (1, 1,), groups: int = 1) -> List[int]:
+    kernel_size = [weight[2], weight[3]]
+    padding_int = [0, 0] * len(kernel_size)
+    if padding == "same":
+        for d, k, i in zip(
+            dilation, kernel_size, range(len(kernel_size) - 1, -1, -1)
+        ):
+            total_padding = d * (k - 1)
+            left_pad = total_padding // 2
+            padding_int[2 * i] = left_pad
+            padding_int[2 * i + 1] = (
+                total_padding - left_pad
+            )
+    return upstream_shape_functions.conv2d(input, weight, bias, stride, padding_int, dilation, groups)
+
 def aten〇conv3d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1, 1,), padding: List[int] = (0, 0, 0,), dilation: List[int] = (1, 1, 1,), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv3d(input, weight, bias, stride, padding, dilation, groups)
 

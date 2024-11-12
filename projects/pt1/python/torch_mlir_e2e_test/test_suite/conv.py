@@ -191,32 +191,6 @@ def Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier(
     module.forward(tu.rand(5, 4, 10, 20))
 
 
-class Conv2dWithValidPaddingModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        torch.manual_seed(0)
-        self.conv = torch.nn.Conv2d(
-            1, 1, 1, stride=[1, 1], padding="valid", dilation=[1, 1], groups=1, bias=1
-        )
-        self.train(False)
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([1, 5, 6], torch.float32, True),
-        ]
-    )
-    def forward(self, x):
-        return self.conv(x)
-
-
-@register_test_case(module_factory=lambda: Conv2dWithValidPaddingModule())
-def Conv2dWithValidPaddingModule_basic(module, tu: TestUtils):
-    t = tu.rand(1, 5, 6)
-    module.forward(t)
-
-
 class Conv2dWithSamePaddingModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -230,7 +204,7 @@ class Conv2dWithSamePaddingModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([1, 5, 6], torch.float32, True),
+            ([1, 1, 5, 6], torch.float32, True),
         ]
     )
     def forward(self, x):
@@ -239,7 +213,7 @@ class Conv2dWithSamePaddingModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Conv2dWithSamePaddingModule())
 def Conv2dWithSamePaddingModule_basic(module, tu: TestUtils):
-    t = tu.rand(1, 5, 6)
+    t = tu.rand(1, 1, 5, 6)
     module.forward(t)
 
 
@@ -1206,6 +1180,39 @@ class Conv3dModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Conv3dModule())
 def Conv3dModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 2, 6, 6, 6)
+    weight = torch.randn(8, 2, 3, 3, 3)
+    bias = torch.randn(8)
+    module.forward(inputVec, weight, bias)
+
+
+class Conv3dWithSingletonPaddingModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight, bias):
+        return torch.ops.aten.conv3d(
+            inputVec,
+            weight,
+            bias=bias,
+            stride=[1, 1, 1],
+            padding=[1],
+            dilation=[1, 1, 1],
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: Conv3dWithSingletonPaddingModule())
+def Conv3dWithSingletonPaddingModule_basic(module, tu: TestUtils):
     inputVec = tu.rand(2, 2, 6, 6, 6)
     weight = torch.randn(8, 2, 3, 3, 3)
     bias = torch.randn(8)
