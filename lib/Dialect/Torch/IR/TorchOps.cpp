@@ -4068,6 +4068,10 @@ OpFoldResult AtenMulIntOp::fold(FoldAdaptor adaptor) {
   int64_t lhs, rhs;
   bool lConstant = matchPattern(getOperand(0), m_TorchConstantInt(&lhs));
   bool rConstant = matchPattern(getOperand(1), m_TorchConstantInt(&rhs));
+  if (lConstant && lhs == 1)
+    return getOperand(1);
+  if (rConstant && rhs == 1)
+    return getOperand(0);
   if ((lConstant && lhs == 0) || (rConstant && rhs == 0))
     return getI64IntegerAttr(getContext(), 0);
   if (lConstant && rConstant)
