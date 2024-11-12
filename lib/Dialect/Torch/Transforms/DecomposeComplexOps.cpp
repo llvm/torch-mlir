@@ -9021,6 +9021,196 @@ public:
 } // namespace
 
 namespace {
+
+/// Creates coefficients based on DFT definition, see
+/// https://en.wikipedia.org/wiki/Discrete_Fourier_transform.
+Value getDFTMatmulCoeff(PatternRewriter &rewriter, Location loc,
+                        ValueTensorType matrixType, bool isRealPart) {
+  // scale = 2 * pi / N
+  double scale = 2 * M_PI / matrixType.getSizes()[0];
+
+  SmallVector<Attribute> values;
+  assert(matrixType.getSizes().size() == 2 && "expected 2D matrix");
+  for (auto i : llvm::seq<unsigned>(0, matrixType.getSizes()[0])) {
+    for (auto j : llvm::seq<unsigned>(0, matrixType.getSizes()[1])) {
+      double v = scale * i * j;
+      if (isRealPart) {
+        v = cos(v);
+      } else {
+        v = -sin(v);
+      }
+      values.push_back(rewriter.getF32FloatAttr(v));
+    }
+  }
+
+  return rewriter.create<ValueTensorLiteralOp>(
+      loc, matrixType,
+      DenseElementsAttr::get(matrixType.toBuiltinTensor(),
+                             ArrayRef<Attribute>(values)));
+}
+
+Value createBatchMatmul(PatternRewriter &rewriter, Location loc, Value lhs,
+                        Value rhs) {
+
+  BaseTensorType lhsType = cast<BaseTensorType>(lhs.getType());
+  assert(lhsType && lhsType.hasSizes());
+  const ArrayRef<int64_t> lhsShape = lhsType.getSizes();
+  assert(lhsShape.size() >= 2);
+  BaseTensorType rhsType = cast<BaseTensorType>(rhs.getType());
+  assert(rhsType && rhsType.hasSizes());
+  const ArrayRef<int64_t> rhsShape = rhsType.getSizes();
+  assert(rhsShape.size() >= 2);
+  assert(rhsShape[rhsShape.size() - 2] == lhsShape[lhsShape.size() - 1]);
+
+  SmallVector<int64_t> resShape(lhsShape);
+  resShape[resShape.size() - 1] = rhsShape[rhsShape.size() - 1];
+
+  Type dtype = lhsType.getOptionalDtype();
+
+  ValueTensorType resType =
+      ValueTensorType::get(rewriter.getContext(), resShape, dtype);
+  return rewriter.create<AtenMatmulOp>(loc, resType, lhs, rhs);
+}
+
+class DecomposeAtenFftRfftOp final : public OpRewritePattern<AtenFftRfftOp> {
+
+  using OpRewritePattern<AtenFftRfftOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFftRfftOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+
+    int64_t dim;
+    auto dimVal = op.getDim();
+    if (isa<torch::Torch::NoneType>(dimVal.getType())) {
+      dim = -1;
+    } else if (!matchPattern(dimVal, torch::Torch::m_TorchConstantInt(&dim))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: requires dim to be constant");
+    }
+
+    if (!isa<torch::Torch::NoneType>(op.getN().getType())) {
+      return rewriter.notifyMatchFailure(op, "unimplemented: parameter n");
+    }
+
+    if (!isa<torch::Torch::NoneType>(op.getNorm().getType())) {
+      return rewriter.notifyMatchFailure(op, "unimplemented: parameter norm");
+    }
+
+    BaseTensorType inputType = cast<BaseTensorType>(self.getType());
+
+    if (!inputType.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: only ranked tensors are supported");
+    }
+
+    const ArrayRef<int64_t> inputShape = inputType.getSizes();
+    dim += dim < 0 ? inputShape.size() : 0;
+
+    const int64_t fftLength = inputShape[dim];
+    if (fftLength == kUnknownSize) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: input signal length must be known");
+    }
+    const int64_t rank = inputShape.size();
+    const int64_t lastDim = rank - 1;
+    const int64_t outputFftDim = fftLength / 2 + 1;
+    const bool needTranspose = dim != lastDim;
+
+    auto transposeValue = [](PatternRewriter &rewriter, Location loc,
+                             Value input, int64_t dimA, int64_t dimB,
+                             Value &transposed) {
+      Type transposedType;
+      if (failed(getTransposedType(cast<BaseTensorType>(input.getType()), dimA,
+                                   dimB, transposedType)))
+        return failure();
+      Value cstDimA =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dimA));
+      Value cstDimB =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dimB));
+      transposed = rewriter.create<AtenTransposeIntOp>(loc, transposedType,
+                                                       input, cstDimA, cstDimB);
+      return success();
+    };
+
+    // Transpose if FFT dimension is not the last one
+    if (needTranspose) {
+      if (failed(transposeValue(rewriter, loc, self, dim, lastDim, self))) {
+        return failure();
+      }
+    }
+
+    // lhs = unsqueeze(self, -2) : (D x 1 x fftLength), D = [D_1, D_2, ...]
+    Value unsqueezeDim =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-2));
+    auto unsqueezed = unsqueezeTensor(rewriter, op, self, unsqueezeDim);
+    if (failed(unsqueezed))
+      return rewriter.notifyMatchFailure(op,
+                                         "cannot generate unsqueezed tensor");
+    Value lhs = *unsqueezed;
+    Type dtype = inputType.getOptionalDtype();
+
+    Value real, complex;
+
+    for (const bool isRealPart : {true, false}) {
+
+      // coeff : (fftLength x outputFftDim)
+      ValueTensorType matrixType = ValueTensorType::get(
+          op.getContext(), SmallVector<int64_t>{fftLength, outputFftDim},
+          dtype);
+      Value coeffMatrix = getDFTMatmulCoeff(rewriter, loc, matrixType,
+                                            /*isRealPart=*/isRealPart);
+
+      // X = matmul(lhs, coeff) : (D x 1 x outputFftDim)
+      Value matmulRes = createBatchMatmul(rewriter, loc, lhs, coeffMatrix);
+
+      // Y = squeeze(X, -2) : (D x outputFftDim)
+      auto squeezed = squeezeTensor(rewriter, op, loc, -2, matmulRes);
+      if (failed(squeezed))
+        return rewriter.notifyMatchFailure(op,
+                                           "cannot generate squeezed tensor");
+
+      if (isRealPart) {
+        real = *squeezed;
+      } else {
+        complex = *squeezed;
+      }
+    }
+
+    // Pack components into a complex tensor
+    BaseTensorType realType = cast<BaseTensorType>(real.getType());
+    SmallVector<int64_t> stackSizes(realType.getSizes());
+    stackSizes.push_back(2);
+    Value sequence = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(op.getContext(), realType),
+        ValueRange{real, complex});
+    Type stackType = realType.getWithSizesAndDtype(stackSizes, dtype);
+    Value cstMinusOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+    Value stack =
+        rewriter.create<AtenStackOp>(loc, stackType, sequence, cstMinusOne);
+    Type complexResType = ValueTensorType::get(
+        op.getContext(), realType.getSizes(), ComplexType::get(dtype));
+    Value complexRes =
+        rewriter.create<AtenViewAsComplexOp>(loc, complexResType, stack);
+
+    // Transpose back
+    if (needTranspose) {
+      if (failed(transposeValue(rewriter, loc, complexRes, dim, lastDim,
+                                complexRes))) {
+        return failure();
+      }
+    }
+
+    rewriter.replaceOp(op, {complexRes});
+
+    return success();
+  }
+};
+
+} // namespace
+
+namespace {
 // Decompose `aten.hann_window` into `aten.arange.start`, `aten.mul.Scalar`,
 // `aten.sin` and `aten.square` or into `aten.ones` in the trivial case
 class DecomposeAtenHannWindowPeriodicOp
@@ -10011,6 +10201,7 @@ public:
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFftRfftOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHannWindowPeriodicOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScalarTensor>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScatterValueOp>(patterns);
