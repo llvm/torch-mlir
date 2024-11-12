@@ -5379,11 +5379,18 @@ public:
     Location loc = op.getLoc();
 
     Value self = op.getSelf();
-    auto selfType = cast<BaseTensorType>(self.getType());
+    BaseTensorType selfType = cast<BaseTensorType>(self.getType());
     if (!selfType.hasDtype() || !selfType.hasSizes()) {
       return rewriter.notifyMatchFailure(op,
                                          "self should have dtype and sizes");
     }
+
+    BaseTensorType resultType = cast<BaseTensorType>(op.getType());
+    if (!selfType.hasDtype() || !selfType.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "op result should have dtype and sizes");
+    }
+    ArrayRef<int64_t> resultSizes(resultType.getSizes());
 
     Value n_fft = op.getNFft();
     int64_t n_fftInt;
@@ -5458,7 +5465,7 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Unsupported: return_complex=False");
 
-    // TODO: first version: center=False, pad_mode ignored, onesided=False,
+    // TODO: first version: center=False, pad_mode ignored,
     // normalized=False return_complex=True, sig_length is known
 
     Value cstZero =
@@ -5536,14 +5543,14 @@ public:
     Type paddedSlicedTensorType =
         selfType.getWithSizesAndDtype(slicedSizes, selfType.getOptionalDtype());
     SmallVector<int64_t> unsqueezedTensorSizes(slicedSizes);
-    unsqueezedTensorSizes.insert(unsqueezedTensorSizes.end() - 1, 1);
+    unsqueezedTensorSizes.insert(unsqueezedTensorSizes.end(), 1);
     Type unsqueezedTensorType = selfType.getWithSizesAndDtype(
         unsqueezedTensorSizes, selfType.getOptionalDtype());
     ListType seqType = ListType::get(unsqueezedTensorType);
     Value initSeq = rewriter.create<PrimListConstructOp>(loc, seqType,
                                                          SmallVector<Value>());
     Value axisSignal = cstMinusOne;
-    Value axisUnsqueeze = cstMinusTwo;
+    Value axisUnsqueeze = cstMinusOne;
     Value loopCondTrue = rewriter.create<ConstantBoolOp>(loc, true);
     auto frameLoop =
         rewriter.create<PrimLoopOp>(loc, TypeRange({seqType}), nFrames,
@@ -5590,24 +5597,27 @@ public:
     //   return aten.fft_rfft(weighted_tensor, None, axis_frame)
     // }
     SmallVector<int64_t> preFftTensorSizes(slicedSizes);
-    preFftTensorSizes.insert(preFftTensorSizes.end() - 1, kUnknownSize);
+    preFftTensorSizes.insert(preFftTensorSizes.end(),
+                             returnComplexBool
+                                 ? resultSizes[resultSizes.size() - 1]
+                                 : resultSizes[resultSizes.size() - 2]);
     Type preFftTensorType = selfType.getWithSizesAndDtype(
         preFftTensorSizes, selfType.getOptionalDtype());
     Value concatTensor = rewriter.create<AtenCatOp>(loc, preFftTensorType,
                                                     finalSeq, axisUnsqueeze);
-    Value axisFrame = cstMinusOne;
+    Value axisFrame = cstMinusTwo;
     Value newWindowShape;
     SmallVector<int64_t> newWindowSizes;
     if (slicedSizes.size() == 2) {
-      newWindowSizes = {1, 1, n_fftInt};
+      newWindowSizes = {1, n_fftInt, 1};
       newWindowShape = rewriter.create<PrimListConstructOp>(
           loc, ListType::get(IntType::get(rewriter.getContext())),
-          ValueRange{cstOne, cstOne, n_fft});
+          ValueRange{cstOne, n_fft, cstOne});
     } else { // slicedSizes.size() == 1
-      newWindowSizes = {1, n_fftInt};
+      newWindowSizes = {n_fftInt, 1};
       newWindowShape = rewriter.create<PrimListConstructOp>(
           loc, ListType::get(IntType::get(rewriter.getContext())),
-          ValueRange{cstOne, n_fft});
+          ValueRange{n_fft, cstOne});
     }
     Type windowReshapeTensorType = windowTensorType.getWithSizesAndDtype(
         newWindowSizes, windowTensorType.getOptionalDtype());
@@ -5622,13 +5632,8 @@ public:
       rewriter.replaceOpWithNewOp<AtenFftRfftOp>(
           op, op.getType(), weightedTensor, cstNone, axisFrame, cstNone);
     }
-    // TODO!: transpose to correct output shape
 
     // TODO:
-    //  if onesided:
-    //      slices = [slice(0, a) for a in result.shape]
-    //      slices[axis] = slice(0, result.shape[axis] // 2 + 1)
-    //      result = result[tuple(slices)]
     //  if normalize:
     //      result /= fft_length
 
