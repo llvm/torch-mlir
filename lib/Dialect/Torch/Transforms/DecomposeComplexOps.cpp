@@ -5592,9 +5592,9 @@ public:
     // weights = aten.reshape(window, new_window_shape)
     // weighted_tensor = aten.mul.Tensor(concat_tensor, weights)
     // if(onesidedBool) {
-    //   return aten.fft_fft(weighted_tensor, None, axis_frame)
-    // } else {
     //   return aten.fft_rfft(weighted_tensor, None, axis_frame)
+    // } else {
+    //   return aten.fft_fft(weighted_tensor, None, axis_frame)
     // }
     SmallVector<int64_t> preFftTensorSizes(slicedSizes);
     preFftTensorSizes.insert(preFftTensorSizes.end(),
@@ -5626,10 +5626,10 @@ public:
     Value weightedTensor = rewriter.create<AtenMulTensorOp>(
         loc, preFftTensorType, concatTensor, weights);
     if (onesidedBool) {
-      rewriter.replaceOpWithNewOp<AtenFftFftOp>(
+      rewriter.replaceOpWithNewOp<AtenFftRfftOp>(
           op, op.getType(), weightedTensor, cstNone, axisFrame, cstNone);
     } else {
-      rewriter.replaceOpWithNewOp<AtenFftRfftOp>(
+      rewriter.replaceOpWithNewOp<AtenFftFftOp>(
           op, op.getType(), weightedTensor, cstNone, axisFrame, cstNone);
     }
 
