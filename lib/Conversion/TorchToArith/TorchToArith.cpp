@@ -91,8 +91,11 @@ public:
                   typename OpConversionPattern<AtenNegIntOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value a = adaptor.getA();
-    rewriter.replaceOpWithNewOp<arith::MulIOp>(
-        op, a, rewriter.create<arith::ConstantIntOp>(op.getLoc(), -1, 64));
+    rewriter.replaceOpWithNewOp<arith::SubIOp>(
+        op,
+        rewriter.create<arith::ConstantIntOp>(op.getLoc(), /*value=*/0,
+                                              /*bitwidth=*/64),
+        a);
     return success();
   }
 };

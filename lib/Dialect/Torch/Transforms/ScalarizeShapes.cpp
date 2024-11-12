@@ -714,7 +714,7 @@ public:
     ImplicitLocOpBuilder b(op.getLoc(), rewriter);
 
     // Rank 0 item op prop
-    if (selfTy.getSizes().size() == 0) {
+    if (selfTy.getSizes().empty()) {
       auto numToTensor = self.getDefiningOp<Torch::PrimNumToTensorScalarOp>();
       auto squeezeDim = self.getDefiningOp<AtenSqueezeDimOp>();
       if (!squeezeDim && !numToTensor)
@@ -758,35 +758,46 @@ LogicalResult convertOpFoldResults(ImplicitLocOpBuilder &b,
     return failure();
   if (!resultIsInt && !isa<mlir::FloatType>(resultDtype))
     return failure();
+
   // if dtypes are both int or both float, no conversion needed
   if (static_cast<bool>(inputIsInt) == static_cast<bool>(resultIsInt)) {
     converted = elements;
     return success();
   }
-  for (auto e : elements) {
-    auto eValue = dyn_cast<Value>(e);
-    if (eValue && resultIsInt) {
-      converted.push_back(b.createOrFold<AtenIntScalarOp>(eValue));
-      continue;
+
+  if (resultIsInt) {
+    for (auto &e : elements) {
+      auto eValue = dyn_cast<Value>(e);
+      if (eValue) {
+        converted.push_back(b.createOrFold<AtenIntScalarOp>(eValue));
+        continue;
+      }
+      auto eAttr = dyn_cast<Attribute>(e);
+      auto eFloatAttr = dyn_cast_or_null<FloatAttr>(eAttr);
+      if (!eFloatAttr)
+        return failure();
+
+      converted.push_back(IntegerAttr::get(
+          resultDtype, static_cast<int64_t>(eFloatAttr.getValueAsDouble())));
     }
-    if (eValue && !resultIsInt) {
+    return success();
+  }
+
+  // result is float
+  for (auto &e : elements) {
+    auto eValue = dyn_cast<Value>(e);
+    if (eValue) {
       converted.push_back(b.createOrFold<AtenFloatScalarOp>(eValue));
       continue;
     }
     auto eAttr = dyn_cast<Attribute>(e);
-    if (auto eIntAttr = dyn_cast_or_null<IntegerAttr>(eAttr)) {
-      auto eInt = (inputIsInt.isSigned()) ? eIntAttr.getValue().getSExtValue()
-                                          : eIntAttr.getValue().getZExtValue();
-      converted.push_back(FloatAttr::get(cast<mlir::FloatType>(resultDtype),
-                                         static_cast<double>(eInt)));
-      continue;
-    }
-    if (auto eFloatAttr = dyn_cast_or_null<FloatAttr>(eAttr)) {
-      converted.push_back(IntegerAttr::get(
-          resultDtype, static_cast<int64_t>(eFloatAttr.getValueAsDouble())));
-      continue;
-    }
-    return failure();
+    auto eIntAttr = dyn_cast<IntegerAttr>(eAttr);
+    if (!eIntAttr)
+      return failure();
+
+    auto eInt = (inputIsInt.isSigned()) ? eIntAttr.getValue().getSExtValue()
+                                        : eIntAttr.getValue().getZExtValue();
+    converted.push_back(FloatAttr::get(resultDtype, static_cast<double>(eInt)));
   }
   return success();
 }
@@ -920,7 +931,7 @@ public:
     if (failed(materializeFolds(b, resultFolds, resultVals)))
       return failure();
 
-    if (resultTy.getSizes().size() == 0) {
+    if (resultTy.getSizes().empty()) {
       rewriter.replaceOpWithNewOp<Torch::PrimNumToTensorScalarOp>(
           op, resultTy, resultVals.front());
       return success();
@@ -1349,7 +1360,7 @@ public:
           dynIdx = i;
           continue;
         }
-        // if we a -1 already, make dynCount invalid and break
+        // if we have a -1 already, make dynCount invalid and break
         if (szeInt == -1) {
           dynCount = -1;
           break;
