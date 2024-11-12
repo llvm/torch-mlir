@@ -51,3 +51,35 @@ class AtenHannWindowPeriodicTrueModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenHannWindowPeriodicTrueModule())
 def AtenHannWindowPeriodicTrueModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+
+class AtenStftCenter2D(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 35], torch.float32, True),
+            ([4], torch.float32, True),
+        ]
+    )
+    def forward(self, input, window):
+        return torch.stft(
+            input,
+            n_fft=5,
+            hop_length=2,
+            win_length=4,
+            window=window,
+            center=False,
+            pad_mode="reflect",
+            normalized=False,
+            onesided=True,
+            return_complex=True,
+        )
+
+
+@register_test_case(module_factory=lambda: AtenStftCenter2D())
+def AtenStftCenter2D_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 35), tu.rand(4))
