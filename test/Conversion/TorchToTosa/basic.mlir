@@ -2424,3 +2424,18 @@ func.func @torch.prims.collapse$basic(%arg0: !torch.vtensor<[2,3,4],f32>) -> !to
   %0 = torch.prims.collapse %arg0, %int1, %int2 : !torch.vtensor<[2,3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,12],f32>
   return %0 : !torch.vtensor<[2,12],f32>
 }
+
+// -----
+
+func.func @torch.aten.avg_pool1d.count_include_pad_unsupported_value(%arg0: !torch.vtensor<[1,512,10],f32>) -> !torch.vtensor<[1,512,10],f32> {
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %false = torch.constant.bool false
+  %count_include_pad = torch.constant.bool true
+  %0 = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.avg_pool1d' that was explicitly marked illegal}}
+  %3 = torch.aten.avg_pool1d %arg0, %0, %1, %2, %false, %count_include_pad : !torch.vtensor<[1,512,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[1,512,10],f32>
+  return %3 : !torch.vtensor<[1,512,10],f32>
+}
