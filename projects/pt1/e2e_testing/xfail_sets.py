@@ -620,6 +620,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenDiagEmbedOffsetDiag_basic",
     "AtenDiagEmbedRevDimDiag_basic",
     "AtenEmbeddingBagSumExample_basic",
+    "AtenFftRfft2DLastDim_basic",
+    "AtenFftRfft2DMiddleDim_basic",
     "AtenFloatScalarModule_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
