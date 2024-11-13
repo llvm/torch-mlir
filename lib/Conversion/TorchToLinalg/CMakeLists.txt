@@ -8,7 +8,6 @@ add_mlir_conversion_library(TorchMLIRTorchToLinalg
   TensorConstructors.cpp
   TensorScalarInterop.cpp
   TorchToLinalg.cpp
-  TorchvisionOp.cpp
   Uncategorized.cpp
   Utils.cpp
 
