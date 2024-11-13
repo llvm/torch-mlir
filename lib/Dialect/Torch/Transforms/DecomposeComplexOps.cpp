@@ -4201,7 +4201,6 @@ public:
   LogicalResult matchAndRewrite(AtenColumnStackOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    auto ctx = op.getContext();
 
     SmallVector<Value> tensors;
     if (!getListConstructElements(op.getTensors(), tensors))
