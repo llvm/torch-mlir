@@ -1171,6 +1171,39 @@ func.func @test_conv_with_bias_strides_padding(%arg0: !torch.vtensor<[?,?,224,22
 
 // -----
 
+func.func @test_conv_with_dynamic_shaped_weight(%arg0: !torch.vtensor<[?,64,?,?],f32>, %arg1: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?,?],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 21 : si64, torch.onnx_meta.producer_name = "pytorch", torch.onnx_meta.producer_version = "2.1.0"} {
+  // CHECK: %[[int2:.*]] = torch.constant.int 2
+  // CHECK: %[[SIZE:.*]] = torch.aten.size.int %arg1, %[[int2]] : !torch.vtensor<[?,?,?,?],f32>, !torch.int -> !torch.int
+  // CHECK: %[[int1:.*]] = torch.constant.int 1
+  // CHECK: %[[COND:.*]] = torch.aten.eq.int %[[SIZE]], %[[int1]] : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.runtime.assert %[[COND]], "unsupported conversion: kernel_shape value should be equal to the weight tensor shape"
+  // CHECK: %[[int3:.*]] = torch.constant.int 3
+  // CHECK: %[[SIZE_1:.*]] = torch.aten.size.int %arg1, %[[int3]] : !torch.vtensor<[?,?,?,?],f32>, !torch.int -> !torch.int
+  // CHECK: %[[int1_1:.*]] = torch.constant.int 1
+  // CHECK: %[[COND_1:.*]] = torch.aten.eq.int %[[SIZE_1]], %[[int1_1]] : !torch.int, !torch.int -> !torch.bool
+  // CHECK: torch.runtime.assert %[[COND_1]], "unsupported conversion: kernel_shape value should be equal to the weight tensor shape"
+  // CHECK: %[[int0:.*]] = torch.constant.int 0
+  // CHECK: %[[int0_1:.*]] = torch.constant.int 0
+  // CHECK: %[[PADDING:.*]] = torch.prim.ListConstruct %[[int0]], %[[int0_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[int1_2:.*]] = torch.constant.int 1
+  // CHECK: %[[int1_3:.*]] = torch.constant.int 1
+  // CHECK: %[[int1_4:.*]] = torch.constant.int 1
+  // CHECK: %[[int1_5:.*]] = torch.constant.int 1
+  // CHECK: %[[int0_2:.*]] = torch.constant.int 0
+  // CHECK: %[[DILATIONS:.*]] = torch.prim.ListConstruct %[[int1_2]], %[[int1_3]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[STRIDE:.*]] = torch.prim.ListConstruct %[[int1_4]], %[[int1_5]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[OUTPUT_PADDING:.*]] = torch.prim.ListConstruct %[[int0_2]], %[[int0_2]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[TRANSPOSED:.*]] = torch.constant.bool false
+  // CHECK: %[[BIAS:.*]] = torch.constant.none
+  // CHECK: %[[GROUPS:.*]] = torch.constant.int 1
+  // CHECK: %[[Conv:.*]] = torch.aten.convolution %arg0, %arg1, %[[BIAS]], %[[STRIDE]], %[[PADDING]], %[[DILATIONS]], %[[TRANSPOSED]], %[[OUTPUT_PADDING]], %[[GROUPS]] : !torch.vtensor<[?,64,?,?],f32>, !torch.vtensor<[?,?,?,?],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[?,?,?,?],f32>
+  // CHECK: return %[[Conv]]
+  %0 = torch.operator "onnx.Conv"(%arg0, %arg1) {torch.onnx.dilations = [1 : si64, 1 : si64], torch.onnx.group = 1 : si64, torch.onnx.kernel_shape = [1 : si64, 1 : si64], torch.onnx.pads = [0 : si64, 0 : si64, 0 : si64, 0 : si64], torch.onnx.strides = [1 : si64, 1 : si64]} : (!torch.vtensor<[?,64,?,?],f32>, !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?,?],f32>
+  return %0 : !torch.vtensor<[?,?,?,?],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @test_convinteger_without_padding
 func.func @test_convinteger_without_padding(%arg0: !torch.vtensor<[1,1,3,3],ui8>, %arg1: !torch.vtensor<[1,1,2,2],ui8>, %arg2: !torch.vtensor<[],ui8>, %arg3: !torch.vtensor<[1],ui8>) -> !torch.vtensor<[1,1,2,2],si32> attributes {torch.onnx_meta.ir_version = 5 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[NONE:.*]] = torch.constant.none
