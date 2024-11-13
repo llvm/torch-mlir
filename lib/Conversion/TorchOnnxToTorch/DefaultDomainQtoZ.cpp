@@ -1066,26 +1066,25 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.op, resultType, operand, vAlpha, vScale, vInputScale);
         return success();
       });
-  patterns.onOp("ReduceL1", 1,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  int64_t keepDims, noop_with_empty_axes;
-                  Value operand;
-                  if (binder.tensorOperandAtIndex(operand, 0) ||
-                      binder.tensorResultType(resultType) ||
-                      binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
-                      binder.s64IntegerAttr(noop_with_empty_axes,
-                                            "noop_with_empty_axes", 0))
-                    return failure();
+  patterns.onOp(
+      "ReduceL1", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        int64_t keepDims, noop_with_empty_axes;
+        Value operand;
+        if (binder.tensorOperandAtIndex(operand, 0) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
+            binder.s64IntegerAttr(noop_with_empty_axes, "noop_with_empty_axes",
+                                  0))
+          return failure();
 
-                  Value data = rewriter.create<Torch::AtenAbsOp>(
-                      binder.getLoc(), operand.getType(), operand);
+        Value data = rewriter.create<Torch::AtenAbsOp>(
+            binder.getLoc(), operand.getType(), operand);
 
-                  return reduceOpImpl<Torch::AtenSumDimIntListOp>(
-                      binder, rewriter, data, resultType,
-                      /*storeValue=*/operand, keepDims, noop_with_empty_axes,
-                      false);
-                });
+        return reduceOpImpl<Torch::AtenSumDimIntListOp>(
+            binder, rewriter, data, resultType,
+            /*storeValue=*/operand, keepDims, noop_with_empty_axes, false);
+      });
   patterns.onOp(
       "ReduceL2", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
@@ -1140,33 +1139,32 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             /*memory_format=*/noneVal);
         return success();
       });
-  patterns.onOp("ReduceLogSum", 1,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value data;
-                  int64_t keepDims, noop_with_empty_axes;
-                  if (binder.tensorOperandAtIndex(data, 0) ||
-                      binder.tensorResultType(resultType) ||
-                      binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
-                      binder.s64IntegerAttr(noop_with_empty_axes,
-                                            "noop_with_empty_axes", 0))
-                    return failure();
+  patterns.onOp(
+      "ReduceLogSum", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value data;
+        int64_t keepDims, noop_with_empty_axes;
+        if (binder.tensorOperandAtIndex(data, 0) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
+            binder.s64IntegerAttr(noop_with_empty_axes, "noop_with_empty_axes",
+                                  0))
+          return failure();
 
-                  auto reducedSumBool =
-                      reduceOpImpl<Torch::AtenSumDimIntListOp>(
-                          binder, rewriter, data, resultType,
-                          /*storeValue=*/data, keepDims, noop_with_empty_axes,
-                          true);
+        auto reducedSumBool = reduceOpImpl<Torch::AtenSumDimIntListOp>(
+            binder, rewriter, data, resultType,
+            /*storeValue=*/data, keepDims, noop_with_empty_axes, true);
 
-                  if (failed(reducedSumBool))
-                    return rewriter.notifyMatchFailure(
-                        binder.op,
-                        "Failed to perform sum operation on square of operand");
+        if (failed(reducedSumBool))
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Failed to perform sum operation on square of operand");
 
-                  rewriter.replaceOpWithNewOp<Torch::AtenLogOp>(
-                      binder.op, resultType, data);
-                  return success();
-                });
+        rewriter.replaceOpWithNewOp<Torch::AtenLogOp>(binder.op, resultType,
+                                                      data);
+        return success();
+      });
   patterns.onOp(
       "ReduceLogSumExp", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
@@ -1215,23 +1213,22 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             /*memory_format=*/noneVal);
         return success();
       });
-  patterns.onOp("ReduceSum", 1,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value data;
-                  int64_t keepDims, noop_with_empty_axes;
-                  if (binder.tensorOperandAtIndex(data, 0) ||
-                      binder.tensorResultType(resultType) ||
-                      binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
-                      binder.s64IntegerAttr(noop_with_empty_axes,
-                                            "noop_with_empty_axes", 0))
-                    return failure();
+  patterns.onOp(
+      "ReduceSum", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value data;
+        int64_t keepDims, noop_with_empty_axes;
+        if (binder.tensorOperandAtIndex(data, 0) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
+            binder.s64IntegerAttr(noop_with_empty_axes, "noop_with_empty_axes",
+                                  0))
+          return failure();
 
-                  return reduceOpImpl<Torch::AtenSumDimIntListOp>(
-                      binder, rewriter, data, resultType,
-                      /*storeValue=*/data, keepDims, noop_with_empty_axes,
-                      false);
-                });
+        return reduceOpImpl<Torch::AtenSumDimIntListOp>(
+            binder, rewriter, data, resultType,
+            /*storeValue=*/data, keepDims, noop_with_empty_axes, false);
+      });
   patterns.onOp("ReduceSumSquare", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
@@ -1252,24 +1249,24 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                       /*storeValue=*/data, keepDims, noop_with_empty_axes,
                       false);
                 });
-  patterns.onOp(
-      "ReduceMean", 1,
-      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value data;
-        int64_t keepDims, noop_with_empty_axes;
-        if (binder.tensorOperandAtIndex(data, 0) ||
-            binder.tensorResultType(resultType) ||
-            binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
-            binder.s64IntegerAttr(noop_with_empty_axes, "noop_with_empty_axes",
-                                  0))
-          return failure();
+  patterns.onOp("ReduceMean", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value data;
+                  int64_t keepDims, noop_with_empty_axes;
+                  if (binder.tensorOperandAtIndex(data, 0) ||
+                      binder.tensorResultType(resultType) ||
+                      binder.s64IntegerAttr(keepDims, "keepdims", 1) ||
+                      binder.s64IntegerAttr(noop_with_empty_axes,
+                                            "noop_with_empty_axes", 0))
+                    return failure();
 
-        Value reduceSum = data;
-        return reduceOpImpl<Torch::AtenMeanDimOp>(
-            binder, rewriter, data, resultType,
-            /*storeValue=*/reduceSum, keepDims, noop_with_empty_axes, false);
-      });
+                  Value reduceSum = data;
+                  return reduceOpImpl<Torch::AtenMeanDimOp>(
+                      binder, rewriter, data, resultType,
+                      /*storeValue=*/reduceSum, keepDims, noop_with_empty_axes,
+                      false);
+                });
   patterns.onOp(
       "ReduceMax", 13,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
