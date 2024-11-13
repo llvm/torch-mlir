@@ -1332,10 +1332,9 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                     loc, weightDim, kernelShapeCst);
                 rewriter.create<Torch::RuntimeAssertOp>(
                     loc, eqCond, rewriter.getStringAttr(shapeMismatchErrorMsg));
-              } else {
-                if (weightShape[i + 2] != kernelShape[i])
-                  return rewriter.notifyMatchFailure(binder.op,
-                                                     shapeMismatchErrorMsg);
+              } else if (weightShape[i + 2] != kernelShape[i]) {
+                return rewriter.notifyMatchFailure(binder.op,
+                                                   shapeMismatchErrorMsg);
               }
             }
           }
