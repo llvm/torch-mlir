@@ -8948,7 +8948,7 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "    %14 = call @__torch__.torch.jit._shape_functions.broadcast_three(%5, %6, %7) : (!torch.list<int>, !torch.list<int>, !torch.list<int>) -> !torch.list<int>\n"
 "    %15 = torch.prim.ListConstruct %false : (!torch.bool) -> !torch.list<bool>\n"
 "    %16 = torch.aten.len.t %14 : !torch.list<int> -> !torch.int\n"
-"    %17 = torch.operator \"aten.mul.left_t\"(%15, %16) : (!torch.list<bool>, !torch.int) -> !torch.list<bool> \n"
+"    %17 = torch.aten.mul.left_t %15, %16 : !torch.list<bool>, !torch.int -> !torch.list<bool>\n"
 "    %18 = torch.aten.len.t %arg6 : !torch.list<int> -> !torch.int\n"
 "    torch.prim.Loop %18, %true, init() {\n"
 "    ^bb0(%arg8: !torch.int):\n"
