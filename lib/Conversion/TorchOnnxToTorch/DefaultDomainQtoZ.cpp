@@ -148,8 +148,8 @@ LogicalResult reduceOpImpl(OpBinder binder, ConversionPatternRewriter &rewriter,
          llvm::any_of(resultType.getSizes(),
                       [](int64_t size) { return size != 1; })))
       return rewriter.notifyMatchFailure(
-          binder.op,
-          "no axes provided & keepdim: expected result to have all dimensions equal to 1.");
+          binder.op, "no axes provided & keepdim: expected result to have all "
+                     "dimensions equal to 1.");
     for (uint64_t i = 0; i < inputType.getSizes().size(); i++) {
       axesList.push_back(
           rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), i));
