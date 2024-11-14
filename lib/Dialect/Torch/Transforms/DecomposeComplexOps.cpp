@@ -5386,7 +5386,7 @@ public:
     }
 
     BaseTensorType resultType = cast<BaseTensorType>(op.getType());
-    if (!selfType.hasDtype() || !selfType.hasSizes()) {
+    if (!resultType.hasDtype() || !resultType.hasSizes()) {
       return rewriter.notifyMatchFailure(
           op, "op result should have dtype and sizes");
     }
