@@ -2439,3 +2439,83 @@ func.func @torch.aten.avg_pool1d.count_include_pad_unsupported_value(%arg0: !tor
   %3 = torch.aten.avg_pool1d %arg0, %0, %1, %2, %false, %count_include_pad : !torch.vtensor<[1,512,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[1,512,10],f32>
   return %3 : !torch.vtensor<[1,512,10],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.reflection_pad1d$basic(
+// CHECK-SAME:                                                 %[[VAL_0:.*]]: !torch.vtensor<[1,2,4],f32>) -> !torch.vtensor<[1,2,8],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,2,4],f32> -> tensor<1x2x4xf32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 3
+// CHECK:           %[[VAL_3:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_4:.*]] = torch.prim.ListConstruct %[[VAL_2]], %[[VAL_3]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_5:.*]] = tosa.slice %[[VAL_1]] {size = array<i64: 1, 2, 3>, start = array<i64: 0, 0, 1>} : (tensor<1x2x4xf32>) -> tensor<1x2x3xf32>
+// CHECK:           %[[VAL_6:.*]] = tosa.reverse %[[VAL_5]] {axis = 2 : i32} : (tensor<1x2x3xf32>) -> tensor<1x2x3xf32>
+// CHECK:           %[[VAL_7:.*]] = tosa.slice %[[VAL_1]] {size = array<i64: 1, 2, 1>, start = array<i64: 0, 0, 2>} : (tensor<1x2x4xf32>) -> tensor<1x2x1xf32>
+// CHECK:           %[[VAL_8:.*]] = tosa.reverse %[[VAL_7]] {axis = 2 : i32} : (tensor<1x2x1xf32>) -> tensor<1x2x1xf32>
+// CHECK:           %[[VAL_9:.*]] = tosa.concat %[[VAL_6]], %[[VAL_1]], %[[VAL_8]] {axis = 2 : i32} : (tensor<1x2x3xf32>, tensor<1x2x4xf32>, tensor<1x2x1xf32>) -> tensor<1x2x8xf32>
+// CHECK:           %[[VAL_10:.*]] = torch_c.from_builtin_tensor %[[VAL_9]] : tensor<1x2x8xf32> -> !torch.vtensor<[1,2,8],f32>
+// CHECK:           return %[[VAL_10]] : !torch.vtensor<[1,2,8],f32>
+// CHECK:         }
+func.func @torch.aten.reflection_pad1d$basic(%arg0: !torch.vtensor<[1,2,4],f32>) -> !torch.vtensor<[1,2,8],f32> {
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %0 = torch.prim.ListConstruct %int3, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.reflection_pad1d %arg0, %0 : !torch.vtensor<[1,2,4],f32>, !torch.list<int> -> !torch.vtensor<[1,2,8],f32>
+  return %1 : !torch.vtensor<[1,2,8],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.reflection_pad2d$basic(
+// CHECK-SAME:                                                 %[[VAL_0:.*]]: !torch.vtensor<[1,20,20],f32>) -> !torch.vtensor<[1,40,40],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,20,20],f32> -> tensor<1x20x20xf32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 10
+// CHECK:           %[[VAL_3:.*]] = torch.prim.ListConstruct %[[VAL_2]], %[[VAL_2]], %[[VAL_2]], %[[VAL_2]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_4:.*]] = tosa.slice %[[VAL_1]] {size = array<i64: 1, 20, 10>, start = array<i64: 0, 0, 1>} : (tensor<1x20x20xf32>) -> tensor<1x20x10xf32>
+// CHECK:           %[[VAL_5:.*]] = tosa.reverse %[[VAL_4]] {axis = 2 : i32} : (tensor<1x20x10xf32>) -> tensor<1x20x10xf32>
+// CHECK:           %[[VAL_6:.*]] = tosa.slice %[[VAL_1]] {size = array<i64: 1, 20, 10>, start = array<i64: 0, 0, 9>} : (tensor<1x20x20xf32>) -> tensor<1x20x10xf32>
+// CHECK:           %[[VAL_7:.*]] = tosa.reverse %[[VAL_6]] {axis = 2 : i32} : (tensor<1x20x10xf32>) -> tensor<1x20x10xf32>
+// CHECK:           %[[VAL_8:.*]] = tosa.concat %[[VAL_5]], %[[VAL_1]], %[[VAL_7]] {axis = 2 : i32} : (tensor<1x20x10xf32>, tensor<1x20x20xf32>, tensor<1x20x10xf32>) -> tensor<1x20x40xf32>
+// CHECK:           %[[VAL_9:.*]] = tosa.slice %[[VAL_8]] {size = array<i64: 1, 10, 40>, start = array<i64: 0, 1, 0>} : (tensor<1x20x40xf32>) -> tensor<1x10x40xf32>
+// CHECK:           %[[VAL_10:.*]] = tosa.reverse %[[VAL_9]] {axis = 1 : i32} : (tensor<1x10x40xf32>) -> tensor<1x10x40xf32>
+// CHECK:           %[[VAL_11:.*]] = tosa.slice %[[VAL_8]] {size = array<i64: 1, 10, 40>, start = array<i64: 0, 9, 0>} : (tensor<1x20x40xf32>) -> tensor<1x10x40xf32>
+// CHECK:           %[[VAL_12:.*]] = tosa.reverse %[[VAL_11]] {axis = 1 : i32} : (tensor<1x10x40xf32>) -> tensor<1x10x40xf32>
+// CHECK:           %[[VAL_13:.*]] = tosa.concat %[[VAL_10]], %[[VAL_8]], %[[VAL_12]] {axis = 1 : i32} : (tensor<1x10x40xf32>, tensor<1x20x40xf32>, tensor<1x10x40xf32>) -> tensor<1x40x40xf32>
+// CHECK:           %[[VAL_14:.*]] = torch_c.from_builtin_tensor %[[VAL_13]] : tensor<1x40x40xf32> -> !torch.vtensor<[1,40,40],f32>
+// CHECK:           return %[[VAL_14]] : !torch.vtensor<[1,40,40],f32>
+// CHECK:         }
+func.func @torch.aten.reflection_pad2d$basic(%arg0: !torch.vtensor<[1,20,20],f32>) -> !torch.vtensor<[1,40,40],f32> {
+  %int10 = torch.constant.int 10
+  %0 = torch.prim.ListConstruct %int10, %int10, %int10, %int10 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.reflection_pad2d %arg0, %0 : !torch.vtensor<[1,20,20],f32>, !torch.list<int> -> !torch.vtensor<[1,40,40],f32>
+  return %1 : !torch.vtensor<[1,40,40],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.replication_pad2d$basic(
+// CHECK-SAME:                                                  %[[VAL_0:.*]]: !torch.vtensor<[1,1,3,3],f32>) -> !torch.vtensor<[1,1,10,6],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,3,3],f32> -> tensor<1x1x3x3xf32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_3:.*]] = torch.constant.int 2
+// CHECK:           %[[VAL_4:.*]] = torch.constant.int 3
+// CHECK:           %[[VAL_5:.*]] = torch.constant.int 4
+// CHECK:           %[[VAL_6:.*]] = torch.prim.ListConstruct %[[VAL_2]], %[[VAL_3]], %[[VAL_4]], %[[VAL_5]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_7:.*]] = tosa.slice %[[VAL_1]] {size = array<i64: 1, 1, 3, 1>, start = array<i64: 0, 0, 0, 0>} : (tensor<1x1x3x3xf32>) -> tensor<1x1x3x1xf32>
+// CHECK:           %[[VAL_8:.*]] = tosa.slice %[[VAL_1]] {size = array<i64: 1, 1, 3, 1>, start = array<i64: 0, 0, 0, 2>} : (tensor<1x1x3x3xf32>) -> tensor<1x1x3x1xf32>
+// CHECK:           %[[VAL_9:.*]] = tosa.concat %[[VAL_7]], %[[VAL_1]], %[[VAL_8]], %[[VAL_8]] {axis = 3 : i32} : (tensor<1x1x3x1xf32>, tensor<1x1x3x3xf32>, tensor<1x1x3x1xf32>, tensor<1x1x3x1xf32>) -> tensor<1x1x3x6xf32>
+// CHECK:           %[[VAL_10:.*]] = tosa.slice %[[VAL_9]] {size = array<i64: 1, 1, 1, 6>, start = array<i64: 0, 0, 0, 0>} : (tensor<1x1x3x6xf32>) -> tensor<1x1x1x6xf32>
+// CHECK:           %[[VAL_11:.*]] = tosa.slice %[[VAL_9]] {size = array<i64: 1, 1, 1, 6>, start = array<i64: 0, 0, 2, 0>} : (tensor<1x1x3x6xf32>) -> tensor<1x1x1x6xf32>
+// CHECK:           %[[VAL_12:.*]] = tosa.concat %[[VAL_10]], %[[VAL_10]], %[[VAL_10]], %[[VAL_9]], %[[VAL_11]], %[[VAL_11]], %[[VAL_11]], %[[VAL_11]] {axis = 2 : i32} : (tensor<1x1x1x6xf32>, tensor<1x1x1x6xf32>, tensor<1x1x1x6xf32>, tensor<1x1x3x6xf32>, tensor<1x1x1x6xf32>, tensor<1x1x1x6xf32>, tensor<1x1x1x6xf32>, tensor<1x1x1x6xf32>) -> tensor<1x1x10x6xf32>
+// CHECK:           %[[VAL_13:.*]] = torch_c.from_builtin_tensor %[[VAL_12]] : tensor<1x1x10x6xf32> -> !torch.vtensor<[1,1,10,6],f32>
+// CHECK:           return %[[VAL_13]] : !torch.vtensor<[1,1,10,6],f32>
+// CHECK:         }
+func.func @torch.aten.replication_pad2d$basic(%arg0: !torch.vtensor<[1,1,3,3],f32>) -> !torch.vtensor<[1,1,10,6],f32> {
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %int4 = torch.constant.int 4
+  %0 = torch.prim.ListConstruct %int1, %int2, %int3, %int4 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.replication_pad2d %arg0, %0 : !torch.vtensor<[1,1,3,3],f32>, !torch.list<int> -> !torch.vtensor<[1,1,10,6],f32>
+  return %1 : !torch.vtensor<[1,1,10,6],f32>
+}
