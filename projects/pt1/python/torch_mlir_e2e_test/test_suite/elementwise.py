@@ -7183,7 +7183,12 @@ class Deg2radModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([3, 4], torch.float32, True)])
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.float32, True),
+        ]
+    )
     def forward(self, x):
         return torch.ops.aten.deg2rad(x)
 
