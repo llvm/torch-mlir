@@ -322,9 +322,9 @@ getDimIndexOfTensor(PatternRewriter &rewriter, Operation *op, Value value) {
   return getDimIndexOfTensor(rewriter, op, value, dims);
 }
 
-FailureOr<Value> getBroadcastResultShape(PatternRewriter &rewriter,
-                                         Operation *op, ArrayRef<Value> tensors,
-                                         size_t dimSizeIndexBits) {
+FailureOr<std::pair<Value, SmallVector<int64_t>>>
+getBroadcastResultShape(PatternRewriter &rewriter, Operation *op,
+                        ArrayRef<Value> tensors, size_t dimSizeIndexBits) {
   SmallVector<ArrayRef<int64_t>> tensorSizes;
 
   int maxRank = 0;
@@ -337,10 +337,11 @@ FailureOr<Value> getBroadcastResultShape(PatternRewriter &rewriter,
   }
 
   SmallVector<Value> bcastSizeTensors;
+  SmallVector<int64_t> bcastSizes;
   for (int outDim = 0; outDim < maxRank; ++outDim) { // loop dimensions.
     int dynamicDimCnt = 0;
     int staticDimCnt = 0;
-    int64_t staticDimSize;
+    int64_t dimSize = -1;
     Value dimSizeTensor = rewriter.create<mlir::arith::ConstantOp>(
         op->getLoc(),
         rewriter.getIntegerAttr(rewriter.getIntegerType(dimSizeIndexBits), 1));
@@ -351,12 +352,16 @@ FailureOr<Value> getBroadcastResultShape(PatternRewriter &rewriter,
         continue;
 
       // dim size: 1
-      if (tensorSizes[i][inDim] == 1)
+      if (tensorSizes[i][inDim] == 1) {
+        if (dimSize == -1)
+          dimSize = 1;
         continue;
+      }
       // dim size: dynamic
       if (tensorSizes[i][inDim] == ShapedType::kDynamic ||
           tensorSizes[i][inDim] == kUnknownSize) {
         dynamicDimCnt++;
+        dimSize = ShapedType::kDynamic;
         auto dimSizeTensorInfo = hlo::getDimSizesOfTensor(
             rewriter, op, tensors[i], {inDim}, dimSizeIndexBits);
         if (failed(dimSizeTensorInfo)) {
@@ -371,12 +376,12 @@ FailureOr<Value> getBroadcastResultShape(PatternRewriter &rewriter,
         return failure();
       }
       // we already found static dim size not equal with this, fail.
-      if (staticDimCnt > 0 && staticDimSize != tensorSizes[i][inDim]) {
+      if (staticDimCnt > 0 && dimSize != tensorSizes[i][inDim]) {
         return failure();
       }
 
       staticDimCnt++;
-      staticDimSize = tensorSizes[i][inDim];
+      dimSize = tensorSizes[i][inDim];
       auto dimSizeTensorInfo = hlo::getDimSizesOfTensor(
           rewriter, op, tensors[i], {inDim}, dimSizeIndexBits);
       if (failed(dimSizeTensorInfo)) {
@@ -389,12 +394,15 @@ FailureOr<Value> getBroadcastResultShape(PatternRewriter &rewriter,
     // if (dynamicDimCnt > 1) {
     //   return failure();
     // }
-
+    bcastSizes.push_back(dimSize);
     bcastSizeTensors.push_back(dimSizeTensor);
   }
+  std::reverse(bcastSizes.begin(), bcastSizes.end());
   std::reverse(bcastSizeTensors.begin(), bcastSizeTensors.end());
-  return rewriter.create<tensor::FromElementsOp>(op->getLoc(), bcastSizeTensors)
-      .getResult();
+  return std::pair<Value, SmallVector<int64_t>>(
+      rewriter.create<tensor::FromElementsOp>(op->getLoc(), bcastSizeTensors)
+          .getResult(),
+      bcastSizes);
 }
 
 FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,

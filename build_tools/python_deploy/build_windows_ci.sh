@@ -14,6 +14,7 @@ cmake -GNinja -Bbuild \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD" \
   -DPython3_EXECUTABLE="$(which python)" \
+  -DTORCH_MLIR_ENABLE_STABLEHLO=OFF \
   $GITHUB_WORKSPACE/externals/llvm-project/llvm
 
 cmake --build build --config Release

@@ -185,6 +185,7 @@ cc_library(
     deps = [
         ":TorchMLIRTorchBackendTypeConversion",
         ":TorchMLIRTorchDialect",
+        ":TorchMLIRTorchOnnxToTorch",
         ":TorchMLIRTorchPassesIncGen",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:IR",
