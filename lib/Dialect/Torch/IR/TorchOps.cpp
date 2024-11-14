@@ -759,12 +759,12 @@ OpFoldResult AtenEqBoolOp::fold(FoldAdaptor adaptor) {
   if (getOperand(0) == getOperand(1))
     return IntegerAttr::get(IntegerType::get(getContext(), 1), true);
 
-  bool a, b;
-  if (!matchPattern(getOperand(0), m_TorchConstantBool(&a)))
+  auto intAttrA = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
+  auto intAttrB = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
+  if (!intAttrA || !intAttrB)
     return nullptr;
-  if (!matchPattern(getOperand(1), m_TorchConstantBool(&b)))
-    return nullptr;
-  return IntegerAttr::get(IntegerType::get(getContext(), 1), a == b);
+  return IntegerAttr::get(IntegerType::get(getContext(), 1),
+                          intAttrA.getValue() == intAttrB.getValue());
 }
 
 //===----------------------------------------------------------------------===//
@@ -775,12 +775,12 @@ OpFoldResult AtenNeBoolOp::fold(FoldAdaptor adaptor) {
   if (getOperand(0) == getOperand(1))
     return IntegerAttr::get(IntegerType::get(getContext(), 1), false);
 
-  bool a, b;
-  if (!matchPattern(getOperand(0), m_TorchConstantBool(&a)))
+  auto intAttrA = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
+  auto intAttrB = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
+  if (!intAttrA || !intAttrB)
     return nullptr;
-  if (!matchPattern(getOperand(1), m_TorchConstantBool(&b)))
-    return nullptr;
-  return IntegerAttr::get(IntegerType::get(getContext(), 1), a != b);
+  return IntegerAttr::get(IntegerType::get(getContext(), 1),
+                          intAttrA.getValue() != intAttrB.getValue());
 }
 
 //===----------------------------------------------------------------------===//
