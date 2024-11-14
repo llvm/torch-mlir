@@ -4242,11 +4242,11 @@ public:
 
     auto elemType = cast<BaseTensorType>(tensors2d[0].getType())
                         .getWithSizesAndDtype(std::nullopt, nullptr);
-    Value newTensorsList = rewriter.create<PrimListConstructOp>(
+    Value newTensors = rewriter.create<PrimListConstructOp>(
         loc, Torch::ListType::get(elemType), tensors2d);
 
     rewriter.replaceOpWithNewOp<AtenCatOp>(
-        op, op.getType(), newTensorsList,
+        op, op.getType(), newTensors,
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1)));
 
     return success();
