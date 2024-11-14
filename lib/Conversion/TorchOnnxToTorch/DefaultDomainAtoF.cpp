@@ -1315,28 +1315,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                 binder.op,
                 "unsupported conversion: kernel_shape list size should have "
                 "number of values equal to weight_rank - 2");
-          } else {
-            for (unsigned i = 0; i < kernelShape.size(); i++) {
-              std::string shapeMismatchErrorMsg =
-                  "unsupported conversion: kernel_shape value should be equal "
-                  "to the weight tensor shape";
-              if (weightShape[i + 2] == Torch::kUnknownSize) {
-                Value weightDim = rewriter.create<Torch::AtenSizeIntOp>(
-                    binder.getLoc(), weight,
-                    rewriter.create<Torch::ConstantIntOp>(
-                        binder.getLoc(), rewriter.getI64IntegerAttr(i + 2)));
-                Value kernelShapeCst = rewriter.create<Torch::ConstantIntOp>(
-                    binder.getLoc(),
-                    rewriter.getI64IntegerAttr(kernelShape[i]));
-                Value eqCond = rewriter.create<Torch::AtenEqIntOp>(
-                    loc, weightDim, kernelShapeCst);
-                rewriter.create<Torch::RuntimeAssertOp>(
-                    loc, eqCond, rewriter.getStringAttr(shapeMismatchErrorMsg));
-              } else if (weightShape[i + 2] != kernelShape[i]) {
-                return rewriter.notifyMatchFailure(binder.op,
-                                                   shapeMismatchErrorMsg);
-              }
-            }
           }
         }
 
