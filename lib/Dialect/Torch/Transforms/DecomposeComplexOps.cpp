@@ -5510,8 +5510,13 @@ public:
                          loc, rewriter.getI64IntegerAttr(rightPad))});
       Type windowOutType = selfType.getWithSizesAndDtype(
           SmallVector<int64_t>({n_fftInt}), windowDType);
+      Value constantValue;
+      if (isa<mlir::IntegerType>(windowDType))
+        constantValue = cstZero;
+      else if (isa<mlir::FloatType>(windowDType))
+        constantValue = cstZeroFloat;
       window = rewriter.create<AtenPadOp>(loc, windowOutType, window, p1d,
-                                          cstStrConstant, cstOneFloat);
+                                          cstStrConstant, constantValue);
     }
 
     // axis_signal = -1
