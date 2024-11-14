@@ -18,3 +18,17 @@ func.func @torch.aten.permute(%arg0: !torch.vtensor<[64,32,16,8,4],f32>) -> !tor
   %1 = torch.aten.permute %arg0, %0 : !torch.vtensor<[64,32,16,8,4],f32>, !torch.list<int> -> !torch.vtensor<[64,8,4,32,16],f32>
   return %1 : !torch.vtensor<[64,8,4,32,16],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.permute$rank0(
+// CHECK-SAME:                                        %[[VAL_0:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[],f32> -> tensor<f32>
+// CHECK:           %[[VAL_2:.*]] = torch_c.from_builtin_tensor %[[VAL_1]] : tensor<f32> -> !torch.vtensor<[],f32>
+// CHECK:           return %[[VAL_2]] : !torch.vtensor<[],f32>
+// CHECK:         }
+func.func @torch.aten.permute$rank0(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+  %0 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %1 = torch.aten.permute %arg0, %0 : !torch.vtensor<[],f32>, !torch.list<int> -> !torch.vtensor<[],f32>
+  return %1 : !torch.vtensor<[],f32>
+}

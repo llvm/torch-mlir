@@ -578,6 +578,12 @@ LogicalResult torch_to_linalg::permuteTensor(Operation *op,
   int64_t inputRank = inType.getRank();
   Type elementType = inType.getElementType();
 
+  // Check for 0-D tensor.
+  if (inputRank == 0) {
+    result = input;
+    return success();
+  }
+
   // Check if the dimensions are a valid constants.
   int64_t numDimensions = dimensions.size();
   if (inputRank != numDimensions)
