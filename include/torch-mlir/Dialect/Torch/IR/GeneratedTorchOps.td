@@ -16278,6 +16278,31 @@ def Torch_Aten__And__BoolOp : Torch_Op<"aten.__and__.bool", [
   }];
 }
 
+def Torch_AtenEqBoolOp : Torch_Op<"aten.eq.bool", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::eq.bool : (bool, bool) -> (bool)`";
+  let arguments = (ins
+    Torch_BoolType:$a,
+    Torch_BoolType:$b
+  );
+  let results = (outs
+    Torch_BoolType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenEqBoolOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenEqBoolOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenNeBoolOp : Torch_Op<"aten.ne.bool", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -16422,6 +16447,31 @@ def Torch_AtenLenTOp : Torch_Op<"aten.len.t", [
     }
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
+}
+
+def Torch_AtenMulLeftTOp : Torch_Op<"aten.mul.left_t", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::mul.left_t : (t[], int) -> (t[])`";
+  let arguments = (ins
+    AnyTorchListType:$l,
+    Torch_IntType:$n
+  );
+  let results = (outs
+    AnyTorchListType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenMulLeftTOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenMulLeftTOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
   let hasCanonicalizer = 1;
 }
 
