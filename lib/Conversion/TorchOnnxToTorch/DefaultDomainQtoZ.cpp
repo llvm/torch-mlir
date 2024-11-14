@@ -149,7 +149,7 @@ LogicalResult reduceOpImpl(OpBinder binder, ConversionPatternRewriter &rewriter,
                       [](int64_t size) { return size != 1; })))
       return rewriter.notifyMatchFailure(
           binder.op,
-          "no axes provided & keepdim: expected result to have 1 element.");
+          "no axes provided & keepdim: expected result to have all dimensions equal to 1.");
     for (uint64_t i = 0; i < inputType.getSizes().size(); i++) {
       axesList.push_back(
           rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), i));
@@ -162,7 +162,7 @@ LogicalResult reduceOpImpl(OpBinder binder, ConversionPatternRewriter &rewriter,
       axesList);
   Value keepDimBool =
       rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), keepDims);
-  // If we are using the ReducedSum as an intermediate op to be passed into
+  // If we are using the reduction op as an intermediate op to be passed into
   // another operation, we might not want to replace the Op. So we create a new
   // Op and store the result in a variable.
   SmallVector<Value> operands = {data, dimValueList, keepDimBool};
