@@ -33,12 +33,12 @@ static void testTensor(MlirContext ctx, intptr_t numSizes, int64_t *sizes,
   bool TTT##hasDtype = torchMlirTorch##TTT##TypeHasDtype(TTT##Type);           \
   fprintf(stderr, #TTT "Type %s hasDtype: %d\n", testName, TTT##hasDtype);     \
   if (TTT##hasSizes) {                                                         \
-    fprintf(stderr, #TTT "Type %s rank: %zu\n", testName,                      \
+    fprintf(stderr, #TTT "Type %s rank: %" PRId64 "\n", testName,              \
             torchMlirTorch##TTT##TypeGetRank(TTT##Type));                      \
     int64_t *TTT##Sizes = malloc(sizeof(int64_t) * numSizes);                  \
     torchMlirTorch##TTT##TypeGetSizes(TTT##Type, TTT##Sizes);                  \
     for (int i = 0; i < numSizes; ++i) {                                       \
-      fprintf(stderr, #TTT "Type %s pos %d size: %ld\n", testName, i,          \
+      fprintf(stderr, #TTT "Type %s pos %d size: %" PRId64 "\n", testName, i,  \
               TTT##Sizes[i]);                                                  \
     }                                                                          \
   }                                                                            \

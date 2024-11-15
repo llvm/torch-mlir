@@ -4373,6 +4373,29 @@ def PowIntFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class IsInfiniteModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.isfinite(x)
+
+
+@register_test_case(module_factory=lambda: IsInfiniteModule())
+def IsInfiniteModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([-torch.inf, torch.inf, torch.nan, -2.3, 0.0, 1.5]))
+
+
+# ==============================================================================
+
+
 class BaddbmmDynamicModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -5501,7 +5524,7 @@ class ScaledDotProductAttentionMaskModule(torch.nn.Module):
             ([2, 3, 8, 16], torch.float32, True),
             ([2, 3, 12, 16], torch.float32, True),
             ([2, 3, 12, 20], torch.float32, True),
-            ([2, 3, 8, 12], torch.float32, True),
+            ([2, 1, 8, 12], torch.float32, True),
         ]
     )
     def forward(self, query, key, value, mask):
@@ -5513,7 +5536,7 @@ def ScaledDotProductAttentionMaskModule_basic(module, tu: TestUtils):
     query = torch.randn(2, 3, 8, 16, dtype=torch.float32)
     key = torch.randn(2, 3, 12, 16, dtype=torch.float32)
     value = torch.randn(2, 3, 12, 20, dtype=torch.float32)
-    mask = torch.randn(2, 3, 8, 12, dtype=torch.float32)
+    mask = torch.randn(2, 1, 8, 12, dtype=torch.float32)
     module.forward(query, key, value, mask)
 
 
@@ -5616,6 +5639,30 @@ class ConstantBoolParameterModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ConstantBoolParameterModule())
 def ConstantBoolParameterModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+
+class TensorAlloc1dStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4, 6], torch.int, True),
+        ]
+    )
+    def forward(self, x):
+        res = torch.tensor([x.shape[0]])
+        return res
+
+
+@register_test_case(module_factory=lambda: TensorAlloc1dStaticModule())
+def TensorAlloc1dStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 6))
 
 
 # ==============================================================================

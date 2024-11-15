@@ -85,6 +85,25 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenNegIntOp : public OpConversionPattern<AtenNegIntOp> {
+public:
+  using OpConversionPattern<AtenNegIntOp>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenNegIntOp op,
+                  typename OpConversionPattern<AtenNegIntOp>::OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value a = adaptor.getA();
+    rewriter.replaceOpWithNewOp<arith::SubIOp>(
+        op,
+        rewriter.create<arith::ConstantIntOp>(op.getLoc(), /*value=*/0,
+                                              /*bitwidth=*/64),
+        a);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 template <typename AtenOp, typename UnaryOp>
 class ConvertAtenUnaryOpToFloatMathOp : public OpConversionPattern<AtenOp> {
 public:
@@ -467,10 +486,13 @@ public:
 
     target.addIllegalOp<AtenAddOp>();
     patterns.add<ConvertAtenAddOp>(typeConverter, context);
-
+    target.addIllegalOp<AtenNegIntOp>();
+    patterns.add<ConvertAtenNegIntOp>(typeConverter, context);
     target.addIllegalOp<AtenAddIntOp, AtenAddFloatIntOp, AtenSubIntOp,
-                        AtenMulIntOp, AtenMulIntFloatOp>();
+                        AtenMulIntOp, AtenRemainderIntOp, AtenMulIntFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenAddIntOp, arith::AddIOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<AtenRemainderIntOp, arith::RemSIOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenAddFloatIntOp, arith::AddFOp>>(
         typeConverter, context);
@@ -500,6 +522,13 @@ public:
     patterns.add<ConvertAtenBinaryOp<PrimMinIntOp, arith::MinSIOp>>(
         typeConverter, context);
     target.addIllegalOp<AtenCeilFloatOp>();
+    target.addIllegalOp<Aten__Or__BoolOp, Aten__And__BoolOp, AtenNeBoolOp>();
+    patterns.add<ConvertAtenBinaryOp<Aten__Or__BoolOp, arith::OrIOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<Aten__And__BoolOp, arith::AndIOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<AtenNeBoolOp, arith::XOrIOp>>(
+        typeConverter, context);
     patterns
         .add<ConvertAtenUnaryOpToFloatMathOp<AtenCeilFloatOp, math::CeilOp>>(
             typeConverter, context);

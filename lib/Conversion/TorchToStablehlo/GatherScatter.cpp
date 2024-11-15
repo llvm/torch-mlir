@@ -220,16 +220,10 @@ namespace {
 FailureOr<Value> broadcastAndConcatIndices(Operation *op,
                                            ConversionPatternRewriter &rewriter,
                                            SmallVector<Value> indexTensors,
-                                           llvm::ArrayRef<int64_t> inputShape,
                                            size_t dimSizeIndexBits,
                                            int &maxIndexRank) {
   // Step 1: broadcast indices tensors
-  SmallVector<int64_t> indicesShape;
-  SmallVector<int64_t> expandShape;
-  SmallVector<int64_t> concatShape;
-
   bool allIndexStaticShape = true;
-  Value bcastSizeTensor;
 
   // concat index tensor into to indices tensor for concat
   for (size_t i = 0; i < indexTensors.size(); i++) {
@@ -242,20 +236,15 @@ FailureOr<Value> broadcastAndConcatIndices(Operation *op,
     maxIndexRank = std::max(maxIndexRank, (int)indexTensorType.getRank());
   }
 
-  if (!allIndexStaticShape) {
-    auto bcastSizeTensorInfo = hlo::getBroadcastResultShape(
-        rewriter, op, indexTensors, dimSizeIndexBits);
-    if (failed(bcastSizeTensorInfo)) {
-      return failure();
-    }
-    bcastSizeTensor = *bcastSizeTensorInfo;
+  auto bcastSizeInfo = hlo::getBroadcastResultShape(rewriter, op, indexTensors,
+                                                    dimSizeIndexBits);
+  if (failed(bcastSizeInfo)) {
+    return failure();
   }
-
-  for (int i = 0; i < maxIndexRank; i++) {
-    indicesShape.push_back(inputShape[i]);
-    expandShape.push_back(inputShape[i]);
-    concatShape.push_back(inputShape[i]);
-  }
+  Value bcastSizeTensor = (*bcastSizeInfo).first;
+  auto indicesShape = (*bcastSizeInfo).second;
+  SmallVector<int64_t> expandShape(indicesShape.begin(), indicesShape.end());
+  SmallVector<int64_t> concatShape(indicesShape.begin(), indicesShape.end());
   expandShape.push_back(1);
   concatShape.push_back(indexTensors.size());
 
@@ -879,7 +868,6 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
   auto inputTensorType = cast<RankedTensorType>(input.getType());
   auto outType =
       cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
-  auto outShape = outType.getShape();
   Value indexList = op.getIndices();
   SmallVector<Value> indicesTorchType;
   if (!getListConstructElements(indexList, indicesTorchType))
@@ -890,9 +878,8 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
                                              indicesTorchType);
 
   int maxIndexRank = -1;
-  auto gatherIndicesInfo =
-      broadcastAndConcatIndices(op, rewriter, indexTensors, outShape,
-                                options.dimSizeIndexBits, maxIndexRank);
+  auto gatherIndicesInfo = broadcastAndConcatIndices(
+      op, rewriter, indexTensors, options.dimSizeIndexBits, maxIndexRank);
   if (failed(gatherIndicesInfo)) {
     return rewriter.notifyMatchFailure(
         op, "failed to generate broadcasted indices");
@@ -949,6 +936,8 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
   auto outType =
       cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   auto inputType = cast<RankedTensorType>(input.getType());
+  auto inputShape = inputType.getShape();
+  auto inputRank = inputType.getRank();
   auto valuesType = cast<RankedTensorType>(values.getType());
   int64_t valueRank = valuesType.getRank();
   auto valuesShape = valuesType.getShape();
@@ -968,14 +957,57 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
                                              indicesTorchType);
 
   int maxIndexRank = -1;
-  auto scatterIndicesInfo =
-      broadcastAndConcatIndices(op, rewriter, indexTensors, valuesShape,
-                                options.dimSizeIndexBits, maxIndexRank);
+  auto scatterIndicesInfo = broadcastAndConcatIndices(
+      op, rewriter, indexTensors, options.dimSizeIndexBits, maxIndexRank);
   if (failed(scatterIndicesInfo)) {
     return rewriter.notifyMatchFailure(
         op, "failed to generate broadcasted indices");
   }
   auto scatterIndices = *scatterIndicesInfo;
+
+  // broadcast `values` tensor to match expectedValuesShape.
+  SmallVector<int64_t> scatterIndicesDims;
+  for (int64_t i = 0; i < maxIndexRank; ++i) {
+    scatterIndicesDims.push_back(i);
+  }
+  auto expectedValuesShapeTensorInfo =
+      hlo::getDimSizesOfTensor(rewriter, op, scatterIndices, scatterIndicesDims,
+                               options.dimSizeIndexBits);
+  if (failed(expectedValuesShapeTensorInfo)) {
+    return rewriter.notifyMatchFailure(
+        op, "failed to get shape of broadcasted indices");
+  }
+  auto expectedValuesShapeTensors = *expectedValuesShapeTensorInfo;
+  SmallVector<int64_t> trailingInputDims;
+  for (int64_t i = indexCnt; i < inputRank; ++i) {
+    trailingInputDims.push_back(i);
+  }
+  auto trailingInputShapeTensorInfo = hlo::getDimSizesOfTensor(
+      rewriter, op, input, trailingInputDims, options.dimSizeIndexBits);
+  if (failed(trailingInputShapeTensorInfo)) {
+    return rewriter.notifyMatchFailure(op, "failed to get shape of input");
+  }
+  expectedValuesShapeTensors.append((*trailingInputShapeTensorInfo).begin(),
+                                    (*trailingInputShapeTensorInfo).end());
+
+  llvm::ArrayRef<int64_t> scatterIndicesShape =
+      (cast<RankedTensorType>(scatterIndices.getType())).getShape();
+  SmallVector<int64_t> expectedValuesShape(
+      scatterIndicesShape.begin(), scatterIndicesShape.begin() + maxIndexRank);
+  for (int64_t i = indexCnt; i < inputRank; i++) {
+    expectedValuesShape.push_back(inputShape[i]);
+  }
+
+  valuesType =
+      RankedTensorType::get(expectedValuesShape, valuesType.getElementType());
+  values =
+      hlo::promoteAndBroadcast(rewriter, values, valuesType,
+                               rewriter
+                                   .create<tensor::FromElementsOp>(
+                                       op->getLoc(), expectedValuesShapeTensors)
+                                   .getResult());
+  valueRank = valuesType.getRank();
+  valuesShape = valuesType.getShape();
 
   // create stablehlo::ScatterOp
   int64_t indexVecDim = maxIndexRank;
@@ -1216,9 +1248,9 @@ Value getSummand(ConversionPatternRewriter &rewriter, Operation *op,
   SmallVector<Value> indexTensors{Nidx, CIdx, idxY, idxX};
 
   int maxIndexRank = -1;
-  auto gatherIndicesInfo = broadcastAndConcatIndices(
-      input.getDefiningOp(), rewriter, indexTensors, outType.getShape(),
-      dimSizeIndexBits, maxIndexRank);
+  auto gatherIndicesInfo =
+      broadcastAndConcatIndices(input.getDefiningOp(), rewriter, indexTensors,
+                                dimSizeIndexBits, maxIndexRank);
   auto gatherIndices = *gatherIndicesInfo;
   int64_t numIndicesDim = indexTensors.size();
   int64_t indexVecDim = maxIndexRank;

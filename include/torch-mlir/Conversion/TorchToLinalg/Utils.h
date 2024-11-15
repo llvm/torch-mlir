@@ -101,6 +101,10 @@ LogicalResult permuteTensor(Operation *op, PatternRewriter &rewriter,
                             Location loc, SmallVector<int64_t> dimensions,
                             Value input, Value &result);
 
+// Flips an input tensor based on the values of axis list.
+Value flipTensor(PatternRewriter &rewriter, Location loc, Value input,
+                 SmallVector<int64_t> axis);
+
 } // namespace torch_to_linalg
 } // namespace torch
 } // namespace mlir

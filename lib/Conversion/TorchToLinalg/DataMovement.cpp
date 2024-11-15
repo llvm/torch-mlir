@@ -40,6 +40,7 @@ static int64_t productReduce(ArrayRef<int64_t> a) {
 template <typename OpTy, typename OpAdaptor>
 LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
                                            ConversionPatternRewriter &rewriter,
+                                           int64_t &dim,
                                            SmallVector<Value> &resultShape,
                                            SmallVector<Value> &offsets,
                                            SmallVector<Value> &strides) {
@@ -51,7 +52,6 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
   Value negone = rewriter.create<arith::ConstantIndexOp>(loc, -1);
 
-  int64_t dim;
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return op->emitError("unimplemented: dim is not constant");
 
@@ -1658,10 +1658,17 @@ public:
     if (!isValidDim(dim, inputRank))
       return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
-    // TODO: Handle the case where the dim(th) dimension is dynamic.
+    // assert dynamic squeeze dim size == 1
     if (inputType.isDynamicDim(dim)) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: dim(th) dimension is not expected to be dynamic");
+      Value cstDim = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), dim);
+      Value dimVal = rewriter.create<tensor::DimOp>(op.getLoc(), input, cstDim);
+      Value cstOne = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 1);
+      Value cmp = rewriter.create<arith::CmpIOp>(
+          op.getLoc(), arith::CmpIPredicate::eq, dimVal, cstOne);
+      rewriter.create<cf::AssertOp>(
+          op.getLoc(), cmp,
+          rewriter.getStringAttr(
+              "Expected dynamic squeeze dim size to be statically 1"));
     }
 
     const TypeConverter *typeConverter = getTypeConverter();
@@ -1671,7 +1678,7 @@ public:
 
     // If the dim(th) dimension of operand tensor type is not statically unit,
     // `aten.squeeze` will behave as an identity operation.
-    if (inputType.getDimSize(dim) != 1) {
+    if (inputType.getDimSize(dim) != 1 && !inputType.isDynamicDim(dim)) {
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, input);
       return success();
     }
@@ -1857,14 +1864,46 @@ public:
     RankedTensorType resultType = cast<RankedTensorType>(
         typeConverter->convertType(op->getResult(0).getType()));
 
-    SmallVector<Value> resultShape;
-    SmallVector<Value> offsets;
-    SmallVector<Value> strides;
+    SmallVector<Value> resultShape, offsets, strides;
+    int64_t dim;
     if (failed(prepareArgumentsForSlicingOp<AtenSliceTensorOp,
                                             AtenSliceTensorOpAdaptor>(
-            op, adaptor, rewriter, resultShape, offsets, strides))) {
+            op, adaptor, rewriter, dim, resultShape, offsets, strides))) {
       return failure();
     }
+
+    // If stride is negative, then flip the input tensor corresponding to that
+    // dim, update the stride for flipped tensor by multiplying it by -1, and
+    // update the offset as follows:
+    // flipped_offset = input_shape[dim] - (result_shape[dim] * flipped_stride)
+    //
+    // For example:
+    // Input = [0, 1, 2, 3, 4, 5]
+    // stride = [-2], result_shape = [2], offset = [3]
+    // Result = [3, 1]
+    // After flipping:
+    // Input = [5, 4, 3, 2, 1, 0]
+    // stride = [2], result_shape = [2], offset = [6 - (2 * 2)] = [2]
+    // Result = [3, 1]
+
+    Value flippedInput = torch_to_linalg::flipTensor(rewriter, loc, input,
+                                                     SmallVector<int64_t>{dim});
+    Value cstDim = rewriter.create<arith::ConstantIndexOp>(loc, dim);
+    Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value isNegativeStride = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::slt, strides[dim], zero);
+    strides[dim] = rewriter.create<math::AbsIOp>(loc, strides[dim]);
+    Value resShapeMulStride =
+        rewriter.create<arith::MulIOp>(loc, resultShape[dim], strides[dim]);
+    Value inputDim = rewriter.create<tensor::DimOp>(loc, input, cstDim);
+    Value flippedOffset =
+        rewriter.create<arith::SubIOp>(loc, inputDim, resShapeMulStride);
+    offsets[dim] = rewriter.create<arith::SelectOp>(
+        loc, isNegativeStride, flippedOffset, offsets[dim]);
+
+    input = rewriter.create<arith::SelectOp>(loc, isNegativeStride,
+                                             flippedInput, input);
+
     SmallVector<int64_t> dynShape(resultType.getRank(), ShapedType::kDynamic);
     auto sliceType = RankedTensorType::get(
         dynShape, resultType.getElementType(), resultType.getEncoding());
@@ -2095,12 +2134,11 @@ public:
     RankedTensorType resultType = cast<RankedTensorType>(
         typeConverter->convertType(op->getResult(0).getType()));
 
-    SmallVector<Value> resultShape;
-    SmallVector<Value> offsets;
-    SmallVector<Value> strides;
+    SmallVector<Value> resultShape, offsets, strides;
+    int64_t dim;
     if (failed(prepareArgumentsForSlicingOp<AtenSliceScatterOp,
                                             AtenSliceScatterOpAdaptor>(
-            op, adaptor, rewriter, resultShape, offsets, strides))) {
+            op, adaptor, rewriter, dim, resultShape, offsets, strides))) {
       return failure();
     }
 
@@ -2574,6 +2612,167 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenUnfoldOp : public OpConversionPattern<AtenUnfoldOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenUnfoldOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto self = adaptor.getSelf();
+    RankedTensorType selfType = cast<RankedTensorType>(self.getType());
+
+    int64_t dimension;
+    if (!matchPattern(op.getDimension(), m_TorchConstantInt(&dimension))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "only support constant int dimension");
+    }
+    int64_t size;
+    if (!matchPattern(op.getSize(), m_TorchConstantInt(&size))) {
+      return rewriter.notifyMatchFailure(op, "only support constant int size");
+    }
+    int64_t step;
+    if (!matchPattern(op.getStep(), m_TorchConstantInt(&step))) {
+      return rewriter.notifyMatchFailure(op, "only support constant int step");
+    }
+
+    if (step <= 0) {
+      return rewriter.notifyMatchFailure(op, "step must be greater than zero.");
+    }
+
+    int64_t selfRank = selfType.getRank();
+
+    // Zero-Rank case
+    if (selfRank == 0) {
+      // Empty tensor
+      if (size == 0) {
+        RankedTensorType resultType =
+            RankedTensorType::get({0}, selfType.getElementType());
+        Value emptyTensor = rewriter.create<tensor::EmptyOp>(
+            loc, resultType.getShape(), resultType.getElementType());
+
+        rewriter.replaceOp(op, emptyTensor);
+        return success();
+      }
+
+      Value unsqueezedSelf = rewriter.create<tensor::ExpandShapeOp>(
+          loc, RankedTensorType::get({1}, selfType.getElementType()), self,
+          ArrayRef<ReassociationIndices>{});
+      rewriter.replaceOp(op, unsqueezedSelf);
+      return success();
+    }
+
+    auto shape = selfType.getShape();
+
+    if (dimension < 0) {
+      dimension = toPositiveDim(dimension, selfRank);
+    }
+    if (!isValidDim(dimension, selfRank)) {
+      return rewriter.notifyMatchFailure(op, "dimension out of range");
+    }
+
+    Value dimSize = rewriter.create<tensor::DimOp>(loc, self, dimension);
+
+    Value sizeValue = rewriter.create<arith::ConstantIndexOp>(loc, size);
+    Value sizeCheck = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ule, sizeValue, dimSize);
+    rewriter.create<cf::AssertOp>(
+        loc, sizeCheck,
+        rewriter.getStringAttr("size must be <= target dimension"));
+
+    /* Calculate output shape of unfold op:
+     *  https://pytorch.org/docs/stable/generated/torch.Tensor.unfold.html
+     *  outputShape[dimension] is set to numBlocks, with size appended as an
+     *  additional dimension
+     */
+    SmallVector<OpFoldResult> outputShape;
+    for (int64_t i = 0; i < selfRank; i++) {
+      if (i == dimension) {
+        outputShape.push_back(getDynamicOrStaticNumBlocks(
+            rewriter, loc, shape[dimension], dimSize, size, step));
+      } else if (shape[i] == ShapedType::kDynamic) {
+        outputShape.push_back(
+            OpFoldResult(rewriter.create<tensor::DimOp>(loc, self, i)));
+      } else {
+        outputShape.push_back(rewriter.getIndexAttr(shape[i]));
+      }
+    }
+    outputShape.push_back(rewriter.getIndexAttr(size));
+
+    // Empty tensor to insert values into
+    Value outputTensor = rewriter.create<tensor::EmptyOp>(
+        loc, outputShape, selfType.getElementType());
+
+    /**
+     * Use reindexing to map output indices to input indices
+     * i.e. In output of rank 3 case:
+     *     (i, j, k) => (i', j') where i' = i * step + k and j' = j
+     *       if dimension == 0
+     *     (i, j, k) => (i', j') where i' = i and j' = j * step + k
+     *       if dimension == 1
+     */
+    MLIRContext *context = rewriter.getContext();
+    SmallVector<AffineExpr> outputExprs;
+    for (int dim = 0; dim < selfRank; ++dim) {
+      if (dim == dimension) {
+        auto idxLast = getAffineDimExpr(selfRank, context);
+        auto idxDimension = getAffineDimExpr(dimension, context);
+
+        AffineExpr dimIdx =
+            idxLast + idxDimension * rewriter.getAffineConstantExpr(step);
+        outputExprs.push_back(dimIdx);
+      } else {
+        outputExprs.push_back(getAffineDimExpr(dim, context));
+      }
+    }
+
+    int64_t outputRank = selfRank + 1;
+    auto inputAffineMap = AffineMap::get(outputRank, 0, outputExprs, context);
+    auto outputAffineMap =
+        AffineMap::getMultiDimIdentityMap(outputRank, context);
+
+    SmallVector<utils::IteratorType> iteratorTypes(
+        outputRank, utils::IteratorType::parallel);
+
+    Value result =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, outputTensor.getType(), self, outputTensor,
+                ArrayRef({inputAffineMap, outputAffineMap}), iteratorTypes,
+                [](OpBuilder &b, Location nestedLoc, ValueRange args) {
+                  b.create<linalg::YieldOp>(nestedLoc, args[0]);
+                })
+            .getResult(0);
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+
+private:
+  OpFoldResult getDynamicOrStaticNumBlocks(OpBuilder &rewriter, Location loc,
+                                           int64_t shapeDim, Value dimSize,
+                                           int64_t size, int64_t step) const {
+    /**
+     * numBlocks = (shape[dimension] - size) // step + 1
+     */
+    if (shapeDim == ShapedType::kDynamic) {
+      Value numBlocksSubOp = rewriter.create<arith::SubIOp>(
+          loc, dimSize, rewriter.create<arith::ConstantIndexOp>(loc, size));
+      Value numBlocksDivOp = rewriter.create<arith::DivUIOp>(
+          loc, numBlocksSubOp,
+          rewriter.create<arith::ConstantIndexOp>(loc, step));
+      Value numBlocks = rewriter.create<arith::AddIOp>(
+          loc, rewriter.create<arith::ConstantIndexOp>(loc, 1), numBlocksDivOp);
+      return OpFoldResult(numBlocks);
+    }
+
+    int64_t staticNumBlocks = (shapeDim - size) / step + 1;
+    return rewriter.getIndexAttr(staticNumBlocks); // Use static value
+  }
+};
+} // namespace
+
+namespace {
 class ConvertSparseOperatorOp : public OpConversionPattern<OperatorOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -2641,7 +2840,8 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
                                         /*benefit=*/200);
   patterns.add<ConvertAtenViewOpToReshape>(typeConverter, context,
                                            /*benefit=*/100);
-
+  target.addIllegalOp<AtenUnfoldOp>();
+  patterns.add<ConvertAtenUnfoldOp>(typeConverter, context);
   target.addIllegalOp<AtenSqueezeOp>();
   patterns.add<ConvertAtenSqueezeOp>(typeConverter, context);
   target.addIllegalOp<AtenSqueezeDimOp>();
