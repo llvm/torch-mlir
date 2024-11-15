@@ -569,6 +569,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenLinalgNormOp>();
   target.addIllegalOp<AtenFminOp>();
   target.addIllegalOp<AtenFmaxOp>();
+  target.addIllegalOp<AtenSpecialExpm1Op>();
 
   for (auto &opName : backendLegalOpsSet) {
     target.addLegalOp(
