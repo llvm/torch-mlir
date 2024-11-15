@@ -105,9 +105,9 @@ func.func @torch.aten.fake_quantize_per_channel_affine_cachemask(%arg0: !torch.v
 
 // CHECK-LABEL: test_einsum_inner_prod
 func.func @test_einsum_inner_prod(%arg0: !torch.vtensor<[5],f64>, %arg1: !torch.vtensor<[5],f64>) -> !torch.vtensor<[],f64> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 17 : si64} {
-  // CHECK:  %[[INT5:.+]] = torch.constant.int 5
-  // CHECK:  %[[INT1:.+]] = torch.constant.int 1
-  // CHECK:  %[[INT0:.+]] = torch.constant.int 0
+  // CHECK-DAG:  %[[INT5:.+]] = torch.constant.int 5
+  // CHECK-DAG:  %[[INT1:.+]] = torch.constant.int 1
+  // CHECK-DAG:  %[[INT0:.+]] = torch.constant.int 0
   // CHECK:  %[[LHS_LIST:.+]] = torch.prim.ListConstruct %[[INT0]]
   // CHECK:  %[[LHS_PERM:.+]] = torch.aten.permute %arg0, %[[LHS_LIST]]
   // CHECK:  %[[RHS_LIST:.+]] = torch.prim.ListConstruct %[[INT0]]

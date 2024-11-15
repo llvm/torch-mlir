@@ -180,7 +180,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         auto conditionType =
             cast<Torch::ValueTensorType>(conditionTensor.getType());
-        if (!conditionType || conditionType.getSizes().size() != 1)
+        if (!conditionType || conditionType.getSizes().size() > 1)
           return rewriter.notifyMatchFailure(
               binder.op, "condition must have one single element per "
                          "https://onnx.ai/onnx/operators/onnx__If.html");
@@ -211,15 +211,39 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         inlineIfCase(*thenRegion, primIfOp.getThenRegion());
         inlineIfCase(*elseRegion, primIfOp.getElseRegion());
 
-        auto replaceTerminator = [&](Region &region) {
+        auto replaceTerminator = [&](Region &region) -> LogicalResult {
           PatternRewriter::InsertionGuard guard(rewriter);
           Operation *terminator = region.front().getTerminator();
           rewriter.setInsertionPoint(terminator);
-          rewriter.replaceOpWithNewOp<Torch::PrimIfYieldOp>(
-              terminator, terminator->getOperands());
+
+          // cast result shape if there is static/dynamic difference
+          llvm::SmallVector<Value> terOperands = terminator->getOperands();
+          if (terOperands.size() != resultTypes.size())
+            return failure();
+          for (size_t i = 0; i < terOperands.size(); i++) {
+            mlir::Type terType = terOperands[i].getType();
+            int64_t terOpRank =
+                dyn_cast<Torch::ValueTensorType>(terType).getSizes().size();
+            int64_t resRank = dyn_cast<Torch::ValueTensorType>(resultTypes[i])
+                                  .getSizes()
+                                  .size();
+            if (terOpRank != resRank)
+              return failure();
+            if (terType != resultTypes[i]) {
+              Value cast = rewriter.create<Torch::TensorStaticInfoCastOp>(
+                  binder.getLoc(), resultTypes[i], terOperands[i]);
+              terOperands[i] = cast;
+            }
+          }
+
+          rewriter.replaceOpWithNewOp<Torch::PrimIfYieldOp>(terminator,
+                                                            terOperands);
+          return success();
         };
-        replaceTerminator(primIfOp.getThenRegion());
-        replaceTerminator(primIfOp.getElseRegion());
+        if (failed(replaceTerminator(primIfOp.getThenRegion())) ||
+            failed(replaceTerminator(primIfOp.getElseRegion())))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "terminator replace failure");
 
         rewriter.replaceOp(binder.op, primIfOp.getResults());
         return success();
@@ -1087,9 +1111,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
           return rewriter.notifyMatchFailure(binder.op,
                                              "auto_pad bind failure");
-        if (autoPad != "NOTSET")
-          return rewriter.notifyMatchFailure(
-              binder.op, "unsupported conversion: auto_pad != NOTSET");
 
         Torch::ValueTensorType resultTypeOut;
         Value operand;
@@ -1136,12 +1157,41 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(binder.op,
                                              "dilations bind failure");
 
+        // set default padding
         if (padding.empty())
           padding.resize(spatial, 0);
         if (strides.empty())
           strides.resize(spatial, 1);
         if (dilations.empty())
           dilations.resize(spatial, 1);
+
+        auto inputTensorType = cast<Torch::ValueTensorType>(operand.getType());
+
+        // Padding for the beginning and ending along each spatial axis, it can
+        // take any value greater than or equal to 0. The value represent the
+        // number of pixels added to the beginning and end part of the
+        // corresponding axis. pads format should be as follow [x1_begin,
+        // x2_begin…x1_end, x2_end,…], where xi_begin the number of pixels added
+        // at the beginning of axis i and xi_end, the number of pixels added at
+        // the end of axis i.
+        if (autoPad != "NOTSET" && autoPad != "VALID") {
+          const bool isSameLower = autoPad == "SAME_LOWER";
+          ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+          padding.resize_for_overwrite(2 * spatial);
+          for (unsigned dimIdx = 0; dimIdx < spatial; dimIdx++) {
+            const int64_t dilatedKernelSize =
+                dilations[dimIdx] * (kernel[dimIdx] - 1) + 1;
+            int64_t totalPad = ((inputShape[dimIdx + 2] + strides[dimIdx] - 1) /
+                                    strides[dimIdx] -
+                                1) *
+                                   strides[dimIdx] +
+                               dilatedKernelSize - inputShape[dimIdx + 2];
+            totalPad = totalPad >= 0 ? totalPad : 0;
+            padding[dimIdx] =
+                isSameLower ? ((totalPad + 1) / 2) : (totalPad / 2);
+            padding[spatial + dimIdx] = totalPad - padding[dimIdx];
+          }
+        }
 
         // If the padding is symmetric we can push the padding operation to the
         // torch operator.

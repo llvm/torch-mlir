@@ -10,6 +10,7 @@
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
+#include "torch-mlir/Conversion/TorchOnnxToTorch/Passes.h"
 
 void mlir::torch::registerTorchPasses() {
   mlir::torch::registerPasses();
@@ -25,6 +26,10 @@ void mlir::torch::registerTorchPasses() {
       "torch-function-to-torch-backend-pipeline",
       "Pipeline lowering a Torch function to Torch backend form.",
       mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline);
+  mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
+      "torch-onnx-to-torch-backend-pipeline",
+      "Pipeline lowering Torch Onnx IR to Torch backend form.",
+      mlir::torch::Torch::createTorchOnnxToTorchBackendPipeline);
   mlir::PassPipelineRegistration<Torch::TorchLoweringPipelineOptions>(
       "torch-simplification-pipeline",
       "Pipeline simplifying computations in the program.",
@@ -84,6 +89,37 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
   pm.addPass(createLowerToBackendContractPass(
       options.maxIterations, options.decompose, options.shapeDtypeRefine,
       options.backendLegalOps, options.extraLibrary));
+}
+
+void mlir::torch::Torch::createTorchOnnxToTorchBackendPipeline(
+    OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
+  pm.addNestedPass<func::FuncOp>(onnx_c::createTorchOnnxToTorchPass());
+  // The above pass just converts the torch onnx IR to torch, hence the given
+  // pipeline will make sure that the IR is transformed such that it satisfies
+  // the backend contract.
+  if (options.decompose) {
+    pm.addNestedPass<func::FuncOp>(
+        Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
+    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  }
+  // TODO: Move the combination of two passes i.e., ScalarizeShapes and
+  // TorchShapeRefinementPipeline out of here and create an onnx shape
+  // refinement pipeline which runs iteratively over the IR.
+  createTorchShapeRefinementPipeline(pm, options);
+  // This pass scalarizes the tensor shape computations.
+  pm.addNestedPass<mlir::func::FuncOp>(
+      mlir::torch::Torch::createScalarizeShapesPass());
+  createTorchShapeRefinementPipeline(pm, options);
+  pm.addPass(Torch::createRefinePublicReturnPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  // The decompose pass is run again here since the scalarize shapes pass and
+  // shape refinement pipeline might create some ops for which decomposition
+  // exists.
+  if (options.decompose) {
+    pm.addNestedPass<func::FuncOp>(
+        Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
+    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  }
 }
 
 // A simplification pipeline to establish the invariants of the backend

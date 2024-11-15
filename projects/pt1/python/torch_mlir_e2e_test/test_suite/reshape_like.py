@@ -1174,6 +1174,30 @@ def ReshapeDynamicModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ViewDtypeStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([12, 1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        res = a.view(torch.int8)
+        return res
+
+
+@register_test_case(module_factory=lambda: ViewDtypeStaticModule())
+def ViewDtypeStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(12, 1))
+
+
+# ==============================================================================
+
+
 class ReshapeAliasCollapseModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1650,6 +1674,9 @@ def Rot90NegativeEvenRotationsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(6, 5, 1, 7, 3))
 
 
+# ==============================================================================
+
+
 class Unfold_Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1748,3 +1775,173 @@ class Unfold_Module_Dynamic(torch.nn.Module):
 @register_test_case(module_factory=lambda: Unfold_Module_Dynamic())
 def Unfold_Module_Dynamic_basic(module, tu: TestUtils):
     module.forward(tu.rand(6, 4, 4, 4))
+
+
+# ==============================================================================
+
+
+class Aten_TrilinearModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 3, 3], torch.float32, True),
+            ([3, 3, 3], torch.float32, True),
+            ([3, 3, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, i1, i2, i3):
+        return torch.ops.aten._trilinear(
+            i1, i2, i3, expand1=[], expand2=[], expand3=[], sumdim=[], unroll_dim=0
+        )
+
+
+@register_test_case(module_factory=lambda: Aten_TrilinearModule())
+def Aten_TrilinearModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 3, 3), tu.rand(3, 3, 3), tu.rand(3, 3, 3))
+
+
+class Aten_TrilinearModuleSumdims(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, i1, i2, i3):
+        return torch.ops.aten._trilinear(
+            i1, i2, i3, expand1=[1], expand2=[], expand3=[], sumdim=[0, 2], unroll_dim=0
+        )
+
+
+@register_test_case(module_factory=lambda: Aten_TrilinearModuleSumdims())
+def Aten_TrilinearModuleSumdims_basic(module, tu: TestUtils):
+    return module.forward(tu.rand(2, 6), tu.rand(2, 3, 6), tu.rand(2, 3, 6))
+
+
+class Aten_TrilinearModuleSumAllDims(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, i1, i2, i3):
+        return torch.ops.aten._trilinear(
+            i1,
+            i2,
+            i3,
+            expand1=[1],
+            expand2=[],
+            expand3=[],
+            sumdim=[0, 1, 2],
+            unroll_dim=0,
+        )
+
+
+@register_test_case(module_factory=lambda: Aten_TrilinearModuleSumAllDims())
+def Aten_TrilinearModuleSumAllDims_basic(module, tu: TestUtils):
+    return module.forward(tu.rand(2, 6), tu.rand(2, 3, 6), tu.rand(2, 3, 6))
+
+
+class Aten_TrilinearModuleVaryingRanks(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+            ([6], torch.float32, True),
+        ]
+    )
+    def forward(self, i1, i2, i3):
+        return torch.ops.aten._trilinear(
+            i1,
+            i2,
+            i3,
+            expand1=[1],
+            expand2=[],
+            expand3=[0, 1],
+            sumdim=[0],
+            unroll_dim=0,
+        )
+
+
+@register_test_case(module_factory=lambda: Aten_TrilinearModuleVaryingRanks())
+def Aten_TrilinearModuleVaryingRanks_basic(module, tu: TestUtils):
+    return module.forward(tu.rand(2, 6), tu.rand(2, 3, 6), tu.rand(6))
+
+
+class Aten_TrilinearModuleVaryingRanksUnorderedExpands(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+            ([6], torch.float32, True),
+        ]
+    )
+    def forward(self, i1, i2, i3):
+        return torch.ops.aten._trilinear(
+            i1,
+            i2,
+            i3,
+            expand1=[1],
+            expand2=[],
+            expand3=[1, 0],
+            sumdim=[2, 0],
+            unroll_dim=0,
+        )
+
+
+@register_test_case(
+    module_factory=lambda: Aten_TrilinearModuleVaryingRanksUnorderedExpands()
+)
+def Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic(module, tu: TestUtils):
+    return module.forward(tu.rand(2, 6), tu.rand(2, 3, 6), tu.rand(6))
+
+
+class Aten_TrilinearModuleZerodDimBug(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+            ([2, 3, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, i1, i2, i3):
+        return torch.ops.aten._trilinear(
+            i1, i2, i3, expand1=[0], expand2=[0], expand3=[0], sumdim=[2], unroll_dim=0
+        )
+
+
+@register_test_case(module_factory=lambda: Aten_TrilinearModuleZerodDimBug())
+def Aten_TrilinearModuleZerodDimBug_basic(module, tu: TestUtils):
+    return module.forward(tu.rand(2, 3, 6), tu.rand(2, 3, 6), tu.rand(2, 3, 6))

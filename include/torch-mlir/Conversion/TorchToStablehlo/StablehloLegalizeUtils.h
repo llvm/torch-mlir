@@ -52,9 +52,9 @@ Value scalarToStablehloTensor(ConversionPatternRewriter &rewriter,
 Value promoteType(PatternRewriter &rewriter, Location loc, Value input,
                   Type outElementType);
 
-FailureOr<Value> getBroadcastResultShape(PatternRewriter &rewriter,
-                                         Operation *op, ArrayRef<Value> tensors,
-                                         size_t dimSizeIndexBits);
+FailureOr<std::pair<Value, SmallVector<int64_t>>>
+getBroadcastResultShape(PatternRewriter &rewriter, Operation *op,
+                        ArrayRef<Value> tensors, size_t dimSizeIndexBits);
 
 Value promoteAndBroadcast(ConversionPatternRewriter &rewriter, Value input,
                           TensorType outType,
