@@ -65,7 +65,9 @@ def test_import_frozen_exported_program():
 # CHECK:     func.func @main(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.tensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
 # CHECK-DAG: %[[arg1_copy:.+]] = torch.copy.to_vtensor %arg1 : !torch.vtensor<[3,4],f32>
 # CHECK-DAG: %[[arg1_mul:.+]] = torch.aten.mul.Tensor %[[arg1_copy]], %arg0
-# CHECK-DAG: torch.overwrite.tensor.contents %[[arg1_mul]] overwrites %arg1
+# The Torch 2.6 generates `torch.aten.copy` as an op in this example while the torch versions < 2.6 does not, hence this check is kept as a "COM".
+# COM: %{{.*}} = torch.aten.copy %[[arg1_copy]], %[[arg1_mul]], %false : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32>, !torch.bool -> !torch.vtensor<[3,4],f32>
+# CHECK-DAG: torch.overwrite.tensor.contents %{{.*}} overwrites %arg1
 # CHECK-DAG: %[[arg0_mul:.+]] = torch.aten.mul.Tensor %arg0, %[[arg1_mul]]
 # CHECK:     return %[[arg0_mul]]
 def test_user_input_mutate():
@@ -94,6 +96,27 @@ def test_frozen_buffer():
         def __init__(self):
             super().__init__()
             self.register_buffer("buffer", torch.randn(3, 4))
+
+        def forward(self, x):
+            return x * self.buffer
+
+    m = fx.export_and_import(
+        Basic(), torch.randn(3, 4), experimental_support_mutation=True
+    )
+    print(m)
+    m.operation.verify()
+
+
+@run
+# CHECK-LABEL: test_frozen_buffer_non_persistent
+# CHECK: %[[buffer_literal:.+]] = torch.vtensor.literal
+# CHECK: %[[mul:.+]] = torch.aten.mul.Tensor %arg0, %0
+# CHECK: return %[[mul]]
+def test_frozen_buffer_non_persistent():
+    class Basic(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.register_buffer("buffer", torch.randn(3, 4), persistent=False)
 
         def forward(self, x):
             return x * self.buffer

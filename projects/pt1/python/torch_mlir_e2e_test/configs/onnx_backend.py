@@ -42,7 +42,7 @@ def import_onnx(contents):
     # Import the ONNX model proto from the file contents:
     raw_model = onnx.load_from_string(contents)
     # since it does not affect current e2e tests, data_prop is left false here
-    model_proto = onnx.shape_inference.infer_shapes(raw_model)
+    model_proto = onnx.shape_inference.infer_shapes(raw_model, data_prop=True)
 
     # Import the ONNX module into an MLIR module:
     context = Context()
@@ -100,32 +100,24 @@ def _module_lowering(
         print("ONNX RAW IR")
         print(torch_mod)
 
-    # Lower from ONNX to Torch
-    run_pipeline_with_repro_report(
-        torch_mod,
-        # The importer may produce additional MLIR functions corresponding to
-        # ONNX operators that are functions. In some cases they need to be
-        # inlined to avoid the backend choking on them.
-        f"builtin.module(inline, func.func({ONNX_TO_TORCH_FUNC_PIPELINE}))",
-        "Lowering Onnx backend contract to Linalg-on-Tensors backend contract",
-    )
-
-    if verbose:
-        print("\n====================")
-        print("TorchFX IR")
-        print(torch_mod)
-
     backend_legal_ops = [
         "aten.flatten.using_ints",
         "aten.adaptive_avg_pool1d",
         "aten.unflatten.int",
     ]
     option_string = "{backend-legal-ops=" + ",".join(backend_legal_ops) + "}"
+
+    # Lower from ONNX to Torch
     run_pipeline_with_repro_report(
         torch_mod,
-        f"builtin.module(torch-lower-to-backend-contract{option_string})",
-        "Lowering TorchFX IR -> Torch Backend IR",
+        f"builtin.module(torch-onnx-to-torch-backend-pipeline{option_string})",
+        "Lowering Onnx Raw IR -> Torch Backend IR",
     )
+
+    if verbose:
+        print("\n====================")
+        print("Torch IR")
+        print(torch_mod)
 
     return lower_mlir_module(verbose, output_type, torch_mod)
 
