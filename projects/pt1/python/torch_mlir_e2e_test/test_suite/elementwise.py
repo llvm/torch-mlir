@@ -5283,6 +5283,7 @@ class ElementwiseSpecialExpm1IntModule(torch.nn.Module):
 def ElementwiseSpecialExpm1IntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
+
 # ==============================================================================
 
 
