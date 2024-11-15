@@ -36,6 +36,57 @@ def NllLossModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), tu.randint(2, low=0, high=3))
 
 
+class NllLossStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3], torch.float32, True),
+            ([2], torch.int64, True),
+        ]
+    )
+    # Here the 2nd index is ignored.
+    def forward(self, x, y):
+        return torch.ops.aten.nll_loss_forward(
+            x, target=y, weight=None, reduction=0, ignore_index=2
+        )
+
+
+@register_test_case(module_factory=lambda: NllLossStaticModule())
+def NllLossStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3), tu.randint(2, low=0, high=3))
+
+
+class NllLossStaticModule_weight(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3], torch.float32, True),
+            ([2], torch.int64, True),
+            ([3], torch.float32, True),
+        ]
+    )
+    # Here the 2nd index is ignored.
+    def forward(self, x, y, z):
+        return torch.ops.aten.nll_loss_forward(
+            x, target=y, weight=z, reduction=2, ignore_index=2
+        )
+
+
+@register_test_case(module_factory=lambda: NllLossStaticModule_weight())
+def NllLossStaticModule_weight_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 3), tu.randint(2, low=0, high=3), torch.tensor([0.3, 0.3, 0.4])
+    )
+
+
 class NllLossModule_mean(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -60,6 +111,30 @@ def NllLossModule_mean_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), tu.randint(2, low=0, high=3))
 
 
+class NllLossStaticModule_mean(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3], torch.float32, True),
+            ([2], torch.int64, True),
+        ]
+    )
+    # Here the 2nd index is ignored.
+    def forward(self, x, y):
+        return torch.ops.aten.nll_loss_forward(
+            x, target=y, weight=None, reduction=1, ignore_index=2
+        )
+
+
+@register_test_case(module_factory=lambda: NllLossStaticModule_mean())
+def NllLossStaticModule_mean_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3), tu.randint(2, low=0, high=3))
+
+
 class NllLossModule_sum(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -81,6 +156,30 @@ class NllLossModule_sum(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: NllLossModule_sum())
 def NllLossModule_sum_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3), tu.randint(2, low=0, high=3))
+
+
+class NllLossStaticModule_sum(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3], torch.float32, True),
+            ([2], torch.int64, True),
+        ]
+    )
+    # Here the 2nd index is ignored.
+    def forward(self, x, y):
+        return torch.ops.aten.nll_loss_forward(
+            x, target=y, weight=None, reduction=2, ignore_index=2
+        )
+
+
+@register_test_case(module_factory=lambda: NllLossStaticModule_sum())
+def NllLossStaticModule_sum_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), tu.randint(2, low=0, high=3))
 
 

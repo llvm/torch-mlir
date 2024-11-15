@@ -10,7 +10,7 @@
 #ifndef TORCHMLIR_CONVERSION_TORCHTOTOSA_TOSALEGALIZEUTILS_H
 #define TORCHMLIR_CONVERSION_TORCHTOTOSA_TOSALEGALIZEUTILS_H
 
-#include "mlir/Dialect/Quant/QuantTypes.h"        // from @llvm-project
+#include "mlir/Dialect/Quant/IR/QuantTypes.h"     // from @llvm-project
 #include "mlir/Dialect/Tosa/Utils/ShapeUtils.h"   // from @llvm-project
 #include "mlir/IR/BuiltinAttributes.h"            // from @llvm-project
 #include "mlir/IR/BuiltinTypes.h"                 // from @llvm-project

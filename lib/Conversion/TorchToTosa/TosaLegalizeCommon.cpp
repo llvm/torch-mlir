@@ -23,6 +23,15 @@ namespace tosa {
 
 using namespace mlir::torch::Torch;
 
+// This function is a helper for `convertTorchIndexToTfIndices`.
+//
+// We convert PyTorch index to TensorFlow-style indices so that we can use
+// `convertGatherNdOp` and `convertScatterNdOp` functions, which lower Gather
+// and Scatter operators to TOSA using TensorFlow-style indices.
+// The difference between PyTorch/ONNX Gather/Scatter and TensorFlow
+// Gather/Scatter ops is that PyTorch/ONNX take in the dimension that you want
+// to gather/scatter elements, while in TensorFlow, the indices point directly
+// to positions that you want to gather/scatter elements.
 std::optional<Value>
 createOneDimTfIndices(PatternRewriter &rewriter, Operation *op,
                       SmallVector<int64_t> indicesOneDimShape, int32_t dim,
@@ -30,49 +39,55 @@ createOneDimTfIndices(PatternRewriter &rewriter, Operation *op,
   unsigned indexRank = indexShape.size();
   SmallVector<int32_t> indicesVec;         // input vec to create tosaConstant
   SmallVector<int32_t> indicesMetaElement; // torch.meshgrid inputs
-  int indicesMetaElementRepeatTimes{1};    // For torch.stack(torch.meshgrid)
 
   // Create torch.meshgrid inputs
   // Example: indexShape=[1,4,2]
   // dim0: indicesMetaElement = torch.arange(0, 1) = [0]
   // dim1: indicesMetaElement = torch.arange(0, 4) = [0,1,2,3]
   // dim2: indicesMetaElement = torch.arange(0, 2) = [0,1]
-  for (int i = 0; i < indexShape[dim]; i++) {
+  for (int i = 0; i < indexShape[dim]; i++)
     indicesMetaElement.push_back(i);
-  }
 
-  // Compute total number of meta element repeat times:
-  // = product(indexShape[0:dim]) x product(indexShape[dim+1:-1]), skip dim
-  // dim0: indicesMetaElementRepeatTimes = 1      x 4*2 = 8
-  // dim1: indicesMetaElementRepeatTimes = 1 *1   x   2 = 2
-  // dim2: indicesMetaElementRepeatTimes = 1 *1*4       = 4
-  for (int i = 0; i < static_cast<int>(indexRank); i++) {
-    if (i == dim) {
-      continue;
-    } else {
-      indicesMetaElementRepeatTimes *= indexShape[i];
-    }
-  }
+  int preDimMetaElementRepeatTimes = 1;
+  int postDimMetaElementRepeatTimes = 1;
 
-  if (dim != static_cast<int>(indexShape.size()) - 1) {
-    // Create one dim indices for index except for last dim
-    // Create indices raw vector.
-    // torch.stack(torch.meshgrid)
-    // dim0: indicesVec = [0 0 0 0 0 0 0 0]
-    // dim0: indicesVec = [0 0 1 1 2 2 3 3]
+  // Compute total number of times meta element range should repeat
+  // = product(indexShape[0:dim])
+  // dim0: preDimMetaElementRepeatTimes = 1
+  // dim1: preDimMetaElementRepeatTimes = 1
+  // dim2: preDimMetaElementRepeatTimes = 1 x 4 = 4
+  for (int i = 0; i < dim; i++)
+    preDimMetaElementRepeatTimes *= indexShape[i];
+
+  // Compute total number of times meta element repeat
+  // = product(indexShape[dim+1:indexRank])
+  // dim0: postDimMetaElementRepeatTimes = 4 x 2 = 8
+  // dim1: postDimMetaElementRepeatTimes = 2
+  // dim2: postDimMetaElementRepeatTimes = 1
+  for (int i = dim + 1; i < static_cast<int>(indexRank); i++)
+    postDimMetaElementRepeatTimes *= indexShape[i];
+
+  // Example using dim1:
+  // preDimMetaElementRepeatTimes = 1
+  // postDimMetaElementRepeatTimes = 2
+  // Using postDimMetaElementRepeatTimes, we get the meta element range:
+  // [0 0 1 1 2 2 3 3]
+  // Using preDimMetaElementRepeatTimes, we get the full one dim indices:
+  // [0 0 1 1 2 2 3 3]
+  //
+  // Let's use a clearer example:
+  // indexShape = [3, 4, 2]
+  // Target dim = 1
+  // => preDimMetaElementRepeatTimes = 3
+  //    postDimMetaElementRepeatTimes = 2
+  // Using postDimMetaElementRepeatTimes, we get the meta element range:
+  // [0 0 1 1 2 2]
+  // Using preDimMetaElementRepeatTimes, we get the full one dim indices:
+  // [0 0 1 1 2 2 0 0 1 1 2 2 0 0 1 1 2 2]
+  for (int i = 0; i < preDimMetaElementRepeatTimes; i++) {
     for (size_t elementId = 0; elementId < indicesMetaElement.size();
          elementId++) {
-      for (int i = 0; i < indicesMetaElementRepeatTimes; i++) {
-        indicesVec.push_back(indicesMetaElement[elementId]);
-      }
-    }
-  } else { // Create the one dim indices for last dim of index
-    // Create indices raw vector
-    // dim2: indicesVec= [0 1 0 1 0 1 0 1]
-    // Caution: indicesVec != [0 0 0 0 1 1 1 1]
-    for (int i = 0; i < indicesMetaElementRepeatTimes; i++) {
-      for (size_t elementId = 0; elementId < indicesMetaElement.size();
-           elementId++) {
+      for (int j = 0; j < postDimMetaElementRepeatTimes; j++) {
         indicesVec.push_back(indicesMetaElement[elementId]);
       }
     }
