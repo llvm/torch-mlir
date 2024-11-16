@@ -8,6 +8,4 @@ cd "$src_dir"
 
 # Ensure PYTHONPATH is set for export to child processes, even if empty.
 export PYTHONPATH=${PYTHONPATH-}
-source $project_dir/.env
-
 python -m e2e_testing.main "$@"

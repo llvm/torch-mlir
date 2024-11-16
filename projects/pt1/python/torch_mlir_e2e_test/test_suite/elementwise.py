@@ -7173,3 +7173,52 @@ class TrilIndicesOfssetGreaterThanRowModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TrilIndicesOfssetGreaterThanRowModule())
 def TrilIndicesOfssetGreaterThanRowModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+
+class GCDModule(torch.nn.Module):
+    @export
+    @annotate_args([None, [(4, 4), torch.int32, True], [(4, 4), torch.int32, True]])
+    def forward(self, A, B):
+        return torch.gcd(A, B)
+
+
+@register_test_case(module_factory=lambda: GCDModule())
+def GCDModule_I32(module, tu: TestUtils):
+    A = tu.rand(4, 4, low=-100, high=100).to(dtype=torch.int32)
+    B = tu.rand(4, 4, low=-100, high=100).to(dtype=torch.int32)
+    module.forward(A, B)
+
+
+class GCDBatchedModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [None, [(4, 4, 4), torch.int32, True], [(4, 4, 4), torch.int32, True]]
+    )
+    def forward(self, A, B):
+        return torch.gcd(A, B)
+
+
+@register_test_case(module_factory=lambda: GCDBatchedModule())
+def GCDBatchedModule_I32(module, tu: TestUtils):
+    A = tu.rand(4, 4, 4, low=-100, high=100).to(dtype=torch.int32)
+    B = tu.rand(4, 4, 4, low=-100, high=100).to(dtype=torch.int32)
+    module.forward(A, B)
+
+
+class GCDDynamicModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [None, [(-1, -1, -1), torch.int32, True], [(-1, -1, -1), torch.int32, True]]
+    )
+    def forward(self, A, B):
+        return torch.gcd(A, B)
+
+
+@register_test_case(module_factory=lambda: GCDDynamicModule())
+def GCDDynamicModule_I32(module, tu: TestUtils):
+    A = tu.rand(3, 4, 4, low=-100, high=100).to(dtype=torch.int32)
+    B = tu.rand(3, 4, 4, low=-100, high=100).to(dtype=torch.int32)
+    module.forward(A, B)

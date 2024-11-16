@@ -5880,3 +5880,37 @@ LogicalResult AtenRot90Op::verify() {
 
   return success();
 }
+
+LogicalResult AtenGcdOp::verify() {
+
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+  auto otherType = cast<BaseTensorType>(getOther().getType());
+
+  if (!selfType.hasDtype() || !selfType.hasSizes() || !otherType.hasDtype() ||
+      !otherType.hasSizes())
+    return success();
+
+  auto selfShape = selfType.getSizes();
+  auto otherShape = selfType.getSizes();
+  int64_t selfRank = selfShape.size();
+  int64_t otherRank = otherShape.size();
+  auto selfDtype = selfType.getDtype();
+
+  if (!isa<mlir::IntegerType>(selfDtype))
+    return emitOpError("expected an integer type for input tensor, but got ")
+           << selfDtype;
+
+  if (otherRank == 1 && otherShape[0] == 1)
+    return success();
+
+  if (selfRank != otherRank)
+    return emitOpError("Tensors must be of same rank or second tensor must be "
+                       "a single element tensor");
+
+  for (int i = 0; i < selfRank; i++) {
+    if (selfShape[i] != otherShape[i])
+      return emitOpError("Dimensions od tensors font match in dim ") << i;
+  }
+
+  return success();
+}
