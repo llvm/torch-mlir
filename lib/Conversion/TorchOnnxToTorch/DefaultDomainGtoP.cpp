@@ -163,9 +163,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), iModeInt));
 
         Value paddingMode = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    paddingModeInt));
+            binder.getLoc(), paddingModeInt);
 
         bool alignMode = align;
         Value alignCorners = rewriter.create<Torch::ConstantBoolOp>(
