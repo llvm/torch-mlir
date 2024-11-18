@@ -5750,14 +5750,10 @@ public:
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
     Value cstOne =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-    Value cstMinusTwo =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-2));
     Value cstNone = rewriter.create<ConstantNoneOp>(loc);
     Value cstStrConstant = rewriter.create<ConstantStrOp>(loc, "constant");
     Value cstZeroFloat =
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0f));
-    Value cstOneFloat =
-        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0f));
 
     // # Normalize window
     // signal_len = aten.size.int(self, -1)
@@ -5795,12 +5791,18 @@ public:
                                           cstStrConstant, constantValue);
     }
 
+    // new_window_shape = [1?, n_fft]
+    // window = aten.reshape(window, new_window_shape)
+    //
     // axis_signal = -1
-    // axis_unsqueeze = -1
-    // init_seq = prim.ListConstruct()
-    // final_seq = prim.loop n_frames, %true, init(init_seq)
+    // axis_frames = -1
+    // init_freq_tensor = aten.empty.memory_format([batch_dim?, n_freqs,
+    // n_frames],
+    //                                self.dtype, None, None, None, None)
+    // final_freq_tensor = prim.loop
+    // n_frames, %true, init(init_freq_tensor)
     // {
-    //  ^bb0(frame, seq):
+    //  ^bb0(frame, freq_tensor):
     //    begin = frame * hop_length
     //    end = begin + n_fft
     //    narrow_length = min(end, signal_len) - begin
@@ -5811,108 +5813,105 @@ public:
     //        !torch.vtensor<[batch_dim?,?],f32>
     //    padded_sliced = tensor_static_info_cast(padded_sliced) :
     //        !torch.vtensor<[batch_dim?,n_fft],f32>
-    //    squeezed = aten.unsqueeze(padded_sliced, axis_unsqueeze)
-    //    new_seq = aten.append(seq, squeezed)
-    //    torch.prim.Loop.condition %true, iter(%new_seq)
+    //    weighted = aten.mul.Tensor(padded_sliced, window) :
+    //        !torch.vtensor<[batch_dim?,n_fft],f32>
+    //    f = onesidedBool ? aten.fft_rfft : aten.fft_fft
+    //    freq_slice_sq = f(weighted, None, axis_signal) :
+    //        !torch.vtensor<[batch_dim?,n_freqs],f32>
+    //    freq_slice = aten.unsqueeze(freq_slice_sq, axis_frames) :
+    //        !torch.vtensor<[batch_dim?,n_freqs, 1],f32>
+    //    new_freq_tensor = aten.slice_scatter(
+    //                      freq_tensor, freq_slice,
+    //                      dim=axis_frames, start=frame,
+    //                      end=None, step=1
+    //                      )
+    //    torch.prim.Loop.condition %true, iter(%new_freq_tensor)
     // }
-    SmallVector<int64_t> slicedSizes(selfType.getSizes());
-    slicedSizes[slicedSizes.size() - 1] = n_fftInt;
-    SmallVector<int64_t> partiallyKnownSizes(slicedSizes);
-    partiallyKnownSizes[partiallyKnownSizes.size() - 1] = kUnknownSize;
-    Type partiallyKnownTensorType = selfType.getWithSizesAndDtype(
-        partiallyKnownSizes, selfType.getOptionalDtype());
-    Type paddedSlicedTensorType =
-        selfType.getWithSizesAndDtype(slicedSizes, selfType.getOptionalDtype());
-    SmallVector<int64_t> unsqueezedTensorSizes(slicedSizes);
-    unsqueezedTensorSizes.insert(unsqueezedTensorSizes.end(), 1);
-    Type unsqueezedTensorType = selfType.getWithSizesAndDtype(
-        unsqueezedTensorSizes, selfType.getOptionalDtype());
-    ListType seqType = ListType::get(unsqueezedTensorType);
-    Value initSeq = rewriter.create<PrimListConstructOp>(loc, seqType,
-                                                         SmallVector<Value>());
+    // return final_freq_tensor
+
+    if (selfType.getSizes().size() == 2) {
+      SmallVector<int64_t> newWindowSizes = {1, n_fftInt};
+      Type windowReshapeTensorType = windowTensorType.getWithSizesAndDtype(
+          newWindowSizes, windowTensorType.getOptionalDtype());
+      Value newWindowShape = toIntListConstruct(
+          rewriter, loc, newWindowSizes, IntType::get(rewriter.getContext()));
+      window = rewriter.create<AtenReshapeOp>(loc, windowReshapeTensorType,
+                                              window, newWindowShape);
+    }
+
+    Value outputSizesList = toIntListConstruct(
+        rewriter, loc, resultSizes, IntType::get(rewriter.getContext()));
+    Value resultDtype =
+        getDtypeIntValueForType(rewriter, loc, resultType.getDtype());
+    Value initFreqTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
+        loc, resultType, outputSizesList, resultDtype, cstNone, cstNone,
+        cstNone, cstNone);
     Value axisSignal = cstMinusOne;
-    Value axisUnsqueeze = cstMinusOne;
+    Value axisFrames = cstMinusOne;
     Value loopCondTrue = rewriter.create<ConstantBoolOp>(loc, true);
     auto frameLoop =
-        rewriter.create<PrimLoopOp>(loc, TypeRange({seqType}), nFrames,
-                                    loopCondTrue, ValueRange({initSeq}));
+        rewriter.create<PrimLoopOp>(loc, TypeRange({resultType}), nFrames,
+                                    loopCondTrue, ValueRange({initFreqTensor}));
     {
       PatternRewriter::InsertionGuard guard(rewriter);
       Type loopIndexType = rewriter.getType<IntType>();
       Block *countLoopBody = rewriter.createBlock(
           &frameLoop.getRegion(), frameLoop.getRegion().begin(),
-          TypeRange({loopIndexType, seqType}), {loc, loc});
+          TypeRange({loopIndexType, resultType}), {loc, loc});
       Value frame = countLoopBody->getArgument(0);
-      Value seq = countLoopBody->getArgument(1);
+      Value freqTensor = countLoopBody->getArgument(1);
       Value begin = rewriter.create<AtenMulIntOp>(loc, frame, hopLength);
       Value end = rewriter.create<AtenAddIntOp>(loc, begin, n_fft);
       Value narrowLen = rewriter.create<AtenSubIntOp>(
           loc, rewriter.create<PrimMinIntOp>(loc, end, signalLen), begin);
       Value missing = rewriter.create<AtenSubIntOp>(loc, n_fft, narrowLen);
+      SmallVector<int64_t> slicedSizes(selfType.getSizes());
+      slicedSizes.back() = kUnknownSize;
+      Type slicedTensorType = selfType.getWithSizesAndDtype(
+          slicedSizes, selfType.getOptionalDtype());
       Value sliced = rewriter.create<AtenNarrowOp>(
-          loc, partiallyKnownTensorType, self, axisSignal, begin, narrowLen);
+          loc, slicedTensorType, self, axisSignal, begin, narrowLen);
       Value padList = rewriter.create<PrimListConstructOp>(
           loc, ListType::get(IntType::get(rewriter.getContext())),
           ValueRange{cstZero, missing});
+      SmallVector<int64_t> paddedSlicedSizes(selfType.getSizes());
+      paddedSlicedSizes.back() = n_fftInt;
+      Type paddedSlicedTensorType = selfType.getWithSizesAndDtype(
+          paddedSlicedSizes, selfType.getOptionalDtype());
       Value paddedSliced = rewriter.create<TensorStaticInfoCastOp>(
           loc, paddedSlicedTensorType,
-          rewriter.create<AtenPadOp>(loc, partiallyKnownTensorType, sliced,
-                                     padList, cstStrConstant, cstZeroFloat));
-      Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(
-          loc, unsqueezedTensorType, paddedSliced, axisUnsqueeze);
-      Value newSeq =
-          rewriter.create<AtenAppendTOp>(loc, seqType, seq, unsqueezed);
+          rewriter.create<AtenPadOp>(loc, slicedTensorType, sliced, padList,
+                                     cstStrConstant, cstZeroFloat));
+      Value weighted = rewriter.create<AtenMulTensorOp>(
+          loc, paddedSlicedTensorType, paddedSliced, window);
+      int64_t freqsDimSize = returnComplexBool
+                                 ? resultSizes[resultSizes.size() - 2]
+                                 : resultSizes[resultSizes.size() - 3];
+      SmallVector<int64_t> fftSizes(selfType.getSizes());
+      fftSizes.back() = freqsDimSize;
+      Type fftType = resultType.getWithSizesAndDtype(
+          fftSizes, resultType.getOptionalDtype());
+      Value freqSliceSq;
+      if (onesidedBool) {
+        freqSliceSq = rewriter.create<AtenFftRfftOp>(
+            loc, fftType, weighted, cstNone, axisSignal, cstNone);
+      } else {
+        freqSliceSq = rewriter.create<AtenFftFftOp>(
+            loc, fftType, weighted, cstNone, axisSignal, cstNone);
+      }
+      SmallVector<int64_t> freqSliceSizes(fftSizes);
+      freqSliceSizes.push_back(1);
+      Type freqSliceType = resultType.getWithSizesAndDtype(
+          freqSliceSizes, resultType.getOptionalDtype());
+      Value freqSlice = rewriter.create<AtenUnsqueezeOp>(
+          loc, freqSliceType, freqSliceSq, axisFrames);
+      Value newFreqTensor = rewriter.create<AtenSliceScatterOp>(
+          loc, resultType, freqTensor, freqSlice, /*dim=*/axisFrames,
+          /*start=*/frame, /*end=*/cstNone, /*step=*/cstOne);
       rewriter.create<PrimLoopConditionOp>(loc, loopCondTrue,
-                                           ValueRange({newSeq}));
+                                           ValueRange({newFreqTensor}));
     }
-    Value finalSeq = frameLoop.getResult(0);
-
-    // concat_tensor = torch.cat(final_seq, axis_unsqueeze)
-    // axis_frame = -2
-    // new_window_shape = [1?, n_fft, 1]
-    // weights = aten.reshape(window, new_window_shape)
-    // weighted_tensor = aten.mul.Tensor(concat_tensor, weights)
-    // if(onesidedBool) {
-    //   return aten.fft_rfft(weighted_tensor, None, axis_frame)
-    // } else {
-    //   return aten.fft_fft(weighted_tensor, None, axis_frame)
-    // }
-    SmallVector<int64_t> preFftTensorSizes(slicedSizes);
-    preFftTensorSizes.insert(preFftTensorSizes.end(),
-                             returnComplexBool
-                                 ? resultSizes[resultSizes.size() - 1]
-                                 : resultSizes[resultSizes.size() - 2]);
-    Type preFftTensorType = selfType.getWithSizesAndDtype(
-        preFftTensorSizes, selfType.getOptionalDtype());
-    Value concatTensor = rewriter.create<AtenCatOp>(loc, preFftTensorType,
-                                                    finalSeq, axisUnsqueeze);
-    Value axisFrame = cstMinusTwo;
-    Value newWindowShape;
-    SmallVector<int64_t> newWindowSizes;
-    if (slicedSizes.size() == 2) {
-      newWindowSizes = {1, n_fftInt, 1};
-      newWindowShape = rewriter.create<PrimListConstructOp>(
-          loc, ListType::get(IntType::get(rewriter.getContext())),
-          ValueRange{cstOne, n_fft, cstOne});
-    } else { // slicedSizes.size() == 1
-      newWindowSizes = {n_fftInt, 1};
-      newWindowShape = rewriter.create<PrimListConstructOp>(
-          loc, ListType::get(IntType::get(rewriter.getContext())),
-          ValueRange{n_fft, cstOne});
-    }
-    Type windowReshapeTensorType = windowTensorType.getWithSizesAndDtype(
-        newWindowSizes, windowTensorType.getOptionalDtype());
-    Value weights = rewriter.create<AtenReshapeOp>(loc, windowReshapeTensorType,
-                                                   window, newWindowShape);
-    Value weightedTensor = rewriter.create<AtenMulTensorOp>(
-        loc, preFftTensorType, concatTensor, weights);
-    if (onesidedBool) {
-      rewriter.replaceOpWithNewOp<AtenFftRfftOp>(
-          op, op.getType(), weightedTensor, cstNone, axisFrame, cstNone);
-    } else {
-      rewriter.replaceOpWithNewOp<AtenFftFftOp>(
-          op, op.getType(), weightedTensor, cstNone, axisFrame, cstNone);
-    }
+    rewriter.replaceOp(op, frameLoop.getResults());
 
     // TODO:
     //  if normalize:

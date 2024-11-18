@@ -36,6 +36,18 @@ Torch::matchLegalConstantIndexIntoListOfSize(Value v, int64_t length) {
   return dim;
 }
 
+Value Torch::toIntListConstruct(PatternRewriter &rewriter, Location loc,
+                                ArrayRef<int64_t> cstInput,
+                                Torch::IntType intType) {
+  SmallVector<Value> cstValues;
+  for (int64_t i : cstInput) {
+    cstValues.push_back(rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(i)));
+  }
+  return rewriter.create<Torch::PrimListConstructOp>(
+      loc, Torch::ListType::get(intType), cstValues);
+}
+
 bool Torch::getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
   auto listConstruct = v.getDefiningOp<PrimListConstructOp>();
   if (!listConstruct)

@@ -20,6 +20,8 @@ namespace Torch {
 
 int64_t toPositiveDim(int64_t dim, int64_t inputRank);
 bool isValidDim(int64_t dim, int64_t inputRank);
+Value toIntListConstruct(PatternRewriter &rewriter, Location loc,
+                         ArrayRef<int64_t> cstInput, Torch::IntType intType);
 bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems);
 /// Returns the index indicated by `v` for a list of given `length`.
 /// If the index is negative, it is adjusted to `length` + `v`.
