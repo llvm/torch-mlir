@@ -3723,7 +3723,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // score_threshold arg.
         if (operands.size() == 5) {
           Value scoreThreshold = rewriter.create<Torch::AtenItemOp>(
-              binder.getLoc(), rewriter.getType<Torch::FloatType>(), operands[4]);
+              binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+              operands[4]);
           Value minScores = rewriter.create<Torch::AtenMinOp>(
               binder.getLoc(),
               Torch::ValueTensorType::get(binder.op->getContext(),
