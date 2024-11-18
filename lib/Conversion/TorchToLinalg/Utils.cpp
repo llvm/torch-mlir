@@ -578,6 +578,12 @@ LogicalResult torch_to_linalg::permuteTensor(Operation *op,
   int64_t inputRank = inType.getRank();
   Type elementType = inType.getElementType();
 
+  // Check for 0-D tensor.
+  if (inputRank == 0) {
+    result = input;
+    return success();
+  }
+
   // Check if the dimensions are a valid constants.
   int64_t numDimensions = dimensions.size();
   if (inputRank != numDimensions)
@@ -596,28 +602,10 @@ LogicalResult torch_to_linalg::permuteTensor(Operation *op,
 
   Value outVector = rewriter.create<tensor::EmptyOp>(
       loc, getAsOpFoldResult(outputDims), elementType);
-  SmallVector<AffineExpr> idExprs;
-  SmallVector<AffineExpr> swapExprs;
-  for (uint32_t i = 0; i < inputRank; i++)
-    idExprs.push_back(getAffineDimExpr(i, rewriter.getContext()));
-  for (uint32_t i = 0; i < inputRank; i++)
-    swapExprs.push_back(idExprs[dimensions[i]]);
 
-  AffineMap inputMap =
-      AffineMap::get(inputRank, /*symbolCount=*/0, idExprs, op->getContext());
-  AffineMap outputMap =
-      AffineMap::get(inputRank, /*symbolCount=*/0, swapExprs, op->getContext());
-  SmallVector<AffineMap> indexingMaps{inputMap, outputMap};
-  SmallVector<utils::IteratorType> iteratorTypes(inputRank,
-                                                 utils::IteratorType::parallel);
-  result = rewriter
-               .create<linalg::GenericOp>(
-                   loc, outVector.getType(), input, outVector, indexingMaps,
-                   iteratorTypes,
-                   [](OpBuilder &b, Location loc, ValueRange args) {
-                     b.create<linalg::YieldOp>(loc, args[0]);
-                   })
-               .getResult(0);
+  result =
+      rewriter.create<linalg::TransposeOp>(loc, input, outVector, dimensions)
+          ->getResult(0);
   return success();
 }
 
