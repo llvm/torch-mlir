@@ -7035,3 +7035,26 @@ class TrilIndicesOfssetGreaterThanRowModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TrilIndicesOfssetGreaterThanRowModule())
 def TrilIndicesOfssetGreaterThanRowModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+
+class Deg2radModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.deg2rad(x)
+
+
+@register_test_case(module_factory=lambda: Deg2radModule())
+def Deg2radModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
