@@ -1391,11 +1391,7 @@ Value getDFTMatmulCoeff(OpBuilder b, Location loc, RankedTensorType matrixType,
   for (auto i : llvm::seq<unsigned>(0, matrixType.getDimSize(0))) {
     for (auto j : llvm::seq<unsigned>(0, matrixType.getDimSize(1))) {
       double v = scale * i * j;
-      if (isRealPart) {
-        v = cos(v);
-      } else {
-        v = -sin(v);
-      }
+      v = isRealPart ? cos(v) : -sin(v);
       values.push_back(b.getF32FloatAttr(v));
     }
   }

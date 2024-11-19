@@ -9024,8 +9024,10 @@ namespace {
 
 /// Creates coefficients based on DFT definition, see
 /// https://en.wikipedia.org/wiki/Discrete_Fourier_transform.
+/// Even indices of the second dimension are for the real components of the
+/// output. Odd indices for the imaginary components.
 Value getDFTMatmulCoeff(PatternRewriter &rewriter, Location loc,
-                        ValueTensorType matrixType, bool isRealPart) {
+                        ValueTensorType matrixType) {
   // scale = 2 * pi / N
   double scale = 2 * M_PI / matrixType.getSizes()[0];
 
@@ -9033,12 +9035,9 @@ Value getDFTMatmulCoeff(PatternRewriter &rewriter, Location loc,
   assert(matrixType.getSizes().size() == 2 && "expected 2D matrix");
   for (auto i : llvm::seq<unsigned>(0, matrixType.getSizes()[0])) {
     for (auto j : llvm::seq<unsigned>(0, matrixType.getSizes()[1])) {
-      double v = scale * i * j;
-      if (isRealPart) {
-        v = cos(v);
-      } else {
-        v = -sin(v);
-      }
+      const bool isImagPart = j % 2;
+      double v = scale * i * (j / 2);
+      v = isImagPart ? -sin(v) : cos(v);
       values.push_back(rewriter.getF32FloatAttr(v));
     }
   }
@@ -9047,29 +9046,6 @@ Value getDFTMatmulCoeff(PatternRewriter &rewriter, Location loc,
       loc, matrixType,
       DenseElementsAttr::get(matrixType.toBuiltinTensor(),
                              ArrayRef<Attribute>(values)));
-}
-
-Value createBatchMatmul(PatternRewriter &rewriter, Location loc, Value lhs,
-                        Value rhs) {
-
-  BaseTensorType lhsType = cast<BaseTensorType>(lhs.getType());
-  assert(lhsType && lhsType.hasSizes());
-  const ArrayRef<int64_t> lhsShape = lhsType.getSizes();
-  assert(lhsShape.size() >= 2);
-  BaseTensorType rhsType = cast<BaseTensorType>(rhs.getType());
-  assert(rhsType && rhsType.hasSizes());
-  const ArrayRef<int64_t> rhsShape = rhsType.getSizes();
-  assert(rhsShape.size() >= 2);
-  assert(rhsShape[rhsShape.size() - 2] == lhsShape[lhsShape.size() - 1]);
-
-  SmallVector<int64_t> resShape(lhsShape);
-  resShape[resShape.size() - 1] = rhsShape[rhsShape.size() - 1];
-
-  Type dtype = lhsType.getOptionalDtype();
-
-  ValueTensorType resType =
-      ValueTensorType::get(rewriter.getContext(), resShape, dtype);
-  return rewriter.create<AtenMatmulOp>(loc, resType, lhs, rhs);
 }
 
 class DecomposeAtenFftRfftOp final : public OpRewritePattern<AtenFftRfftOp> {
@@ -9133,66 +9109,51 @@ class DecomposeAtenFftRfftOp final : public OpRewritePattern<AtenFftRfftOp> {
       return success();
     };
 
+    SmallVector<int64_t> lhsShape(inputShape);
     // Transpose if FFT dimension is not the last one
     if (needTranspose) {
       if (failed(transposeValue(rewriter, loc, self, dim, lastDim, self))) {
         return failure();
       }
+      std::swap(lhsShape[dim], lhsShape[lastDim]);
     }
+    // self : (D_0 x ... x D_m x fftLength)
 
-    // lhs = unsqueeze(self, -2) : (D x 1 x fftLength), D = [D_1, D_2, ...]
-    Value unsqueezeDim =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-2));
-    auto unsqueezed = unsqueezeTensor(rewriter, op, self, unsqueezeDim);
-    if (failed(unsqueezed))
-      return rewriter.notifyMatchFailure(op,
-                                         "cannot generate unsqueezed tensor");
-    Value lhs = *unsqueezed;
     Type dtype = inputType.getOptionalDtype();
 
-    Value real, complex;
+    // coeff : (fftLength x outputFftDim*2)
+    ValueTensorType matrixType = ValueTensorType::get(
+        op.getContext(), SmallVector<int64_t>{fftLength, outputFftDim * 2},
+        dtype);
+    Value coeffMatrix = getDFTMatmulCoeff(rewriter, loc, matrixType);
 
-    for (const bool isRealPart : {true, false}) {
+    // X = matmul(self, coeff) : (D_0 x ... x D_m x outputFftDim*2)
+    SmallVector<int64_t> matmulShape(lhsShape.begin(), lhsShape.end() - 1);
+    matmulShape.push_back(outputFftDim * 2);
+    ValueTensorType matmulType =
+        ValueTensorType::get(op.getContext(), matmulShape, dtype);
+    Value flatRes =
+        rewriter.create<AtenMatmulOp>(loc, matmulType, self, coeffMatrix);
 
-      // coeff : (fftLength x outputFftDim)
-      ValueTensorType matrixType = ValueTensorType::get(
-          op.getContext(), SmallVector<int64_t>{fftLength, outputFftDim},
-          dtype);
-      Value coeffMatrix = getDFTMatmulCoeff(rewriter, loc, matrixType,
-                                            /*isRealPart=*/isRealPart);
-
-      // X = matmul(lhs, coeff) : (D x 1 x outputFftDim)
-      Value matmulRes = createBatchMatmul(rewriter, loc, lhs, coeffMatrix);
-
-      // Y = squeeze(X, -2) : (D x outputFftDim)
-      auto squeezed = squeezeTensor(rewriter, op, loc, -2, matmulRes);
-      if (failed(squeezed))
-        return rewriter.notifyMatchFailure(op,
-                                           "cannot generate squeezed tensor");
-
-      if (isRealPart) {
-        real = *squeezed;
-      } else {
-        complex = *squeezed;
-      }
-    }
-
-    // Pack components into a complex tensor
-    BaseTensorType realType = cast<BaseTensorType>(real.getType());
-    SmallVector<int64_t> stackSizes(realType.getSizes());
-    stackSizes.push_back(2);
-    Value sequence = rewriter.create<PrimListConstructOp>(
-        loc, ListType::get(op.getContext(), realType),
-        ValueRange{real, complex});
-    Type stackType = realType.getWithSizesAndDtype(stackSizes, dtype);
+    // Y = unflatten(X, -1, [outputFftDim, 2])
+    //        : (D_0 x ... x D_m x outputFftDim x 2)
+    // Z = view_as_complex(Y) : complex(D_0 x ... x D_m x outputFftDim)
+    SmallVector<int64_t> complexResShape(matmulShape);
+    complexResShape.back() = outputFftDim;
+    SmallVector<int64_t> unflattenedResShape(complexResShape);
+    unflattenedResShape.push_back(2);
+    Type unflattenedResType =
+        ValueTensorType::get(op.getContext(), unflattenedResShape, dtype);
     Value cstMinusOne =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
-    Value stack =
-        rewriter.create<AtenStackOp>(loc, stackType, sequence, cstMinusOne);
-    Type complexResType = ValueTensorType::get(
-        op.getContext(), realType.getSizes(), ComplexType::get(dtype));
-    Value complexRes =
-        rewriter.create<AtenViewAsComplexOp>(loc, complexResType, stack);
+    Value unflattenSizes = toIntListConstruct(
+        rewriter, loc, {outputFftDim, 2}, IntType::get(rewriter.getContext()));
+    Value unflattenedRes = rewriter.create<AtenUnflattenIntOp>(
+        loc, unflattenedResType, flatRes, /*dim=*/cstMinusOne, unflattenSizes);
+    Type complexResType = ValueTensorType::get(op.getContext(), complexResShape,
+                                               ComplexType::get(dtype));
+    Value complexRes = rewriter.create<AtenViewAsComplexOp>(loc, complexResType,
+                                                            unflattenedRes);
 
     // Transpose back
     if (needTranspose) {
