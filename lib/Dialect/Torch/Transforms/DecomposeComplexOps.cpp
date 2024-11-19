@@ -10968,7 +10968,7 @@ public:
         rewriter.createBlock(&ifFilterOthers.getElseRegion(),
                              ifFilterOthers.getElseRegion().begin());
         rewriter.create<Torch::PrimIfYieldOp>(
-            loc,  ValueRange({mask1, curOutput, curCnt}));
+            loc, ValueRange({mask1, curOutput, curCnt}));
       }
 
       rewriter.create<Torch::PrimLoopConditionOp>(loc, cstTrue,
