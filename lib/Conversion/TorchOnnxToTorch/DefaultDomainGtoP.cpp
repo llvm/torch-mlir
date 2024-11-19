@@ -3728,7 +3728,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           Value minScores = rewriter.create<Torch::AtenMinOp>(
               binder.getLoc(),
               Torch::ValueTensorType::get(binder.op->getContext(),
-                                          SmallVector<int64_t>{},
+                                          SmallVector<int64_t>{1},
                                           rewriter.getF32Type()),
               scores);
           minScores = rewriter.create<Torch::AtenItemOp>(
