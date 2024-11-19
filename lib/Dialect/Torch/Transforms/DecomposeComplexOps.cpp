@@ -5186,8 +5186,7 @@ public:
       return rewriter.notifyMatchFailure(op, "expected weight to have a rank");
     }
     unsigned rank = *maybeRank;
-    // first 2 dimensions of weight corresponds to out_channels and in_channels /    \
-    groups
+    // first 2 dimensions of weight are out_channels and in_channels / groups
     if (rank < 3)
       return rewriter.notifyMatchFailure(
           op, "ConvPaddingOp weight must be at least 3 dimensional.");
