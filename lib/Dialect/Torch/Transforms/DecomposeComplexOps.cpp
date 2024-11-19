@@ -5169,13 +5169,13 @@ public:
 };
 } // namespace
 
-// Decompose aten.conv2d.padding to aten.convolution
+// Decompose aten.conv(1/2/3)d.padding to aten.convolution
 namespace {
-class DecomposeAtenConv2dPaddingOp
-    : public OpRewritePattern<AtenConv2dPaddingOp> {
+template <typename ConvPaddingOp>
+class DecomposeAtenConvPaddingOp : public OpRewritePattern<ConvPaddingOp> {
 public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenConv2dPaddingOp op,
+  using OpRewritePattern<ConvPaddingOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(ConvPaddingOp op,
                                 PatternRewriter &rewriter) const override {
 
     Location loc = op.getLoc();
@@ -5186,9 +5186,11 @@ public:
       return rewriter.notifyMatchFailure(op, "expected weight to have a rank");
     }
     unsigned rank = *maybeRank;
-    if (rank != 4)
+    // first 2 dimensions of weight corresponds to out_channels and in_channels /    \
+    groups
+    if (rank < 3)
       return rewriter.notifyMatchFailure(
-          op, "unimplemented: only 2D convolutions supported.");
+          op, "ConvPaddingOp weight must be at least 3 dimensional.");
 
     std::string padding_str;
     if (!matchPattern(op.getPadding(), m_TorchConstantStr(padding_str)))
@@ -5200,8 +5202,10 @@ public:
 
     SmallVector<Value> paddingValues;
     if (padding_str == "valid") {
-      for (unsigned iRank = 0; iRank < rank; iRank++)
+      // valid means no padding
+      for (unsigned iRank = 2; iRank < rank; iRank++) {
         paddingValues.push_back(zero);
+      }
     } else {
 
       SmallVector<Value> dilation;
@@ -5218,14 +5222,10 @@ public:
             rewriter.create<Torch::AtenSizeIntOp>(loc, weight, dim);
         Value kernelSizeMinusOne =
             rewriter.create<Torch::AtenSubIntOp>(loc, kernelSize, one);
-        Value totalPadding = rewriter.create<Torch::AtenMulIntOp>(
+        Value padding = rewriter.create<Torch::AtenMulIntOp>(
             loc, dilation[iRank - 2], kernelSizeMinusOne);
-        Value leftPadding =
-            rewriter.create<AtenFloordivIntOp>(loc, totalPadding, two);
-        Value rightPadding =
-            rewriter.create<AtenSubIntOp>(loc, totalPadding, leftPadding);
-        paddingValues.push_back(leftPadding);
-        paddingValues.push_back(rightPadding);
+        padding = rewriter.create<AtenFloordivIntOp>(loc, padding, two);
+        paddingValues.push_back(padding);
       }
     }
 
@@ -11017,8 +11017,13 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTbcOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv2dOp>(patterns);
-    // addPatternIfTargetOpIsIllegal<DecomposeAtenConv2dPaddingOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv3dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenConvPaddingOp<AtenConv1dPaddingOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenConvPaddingOp<AtenConv2dPaddingOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenConvPaddingOp<AtenConv3dPaddingOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenThresholdOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloatPowerTensorTensorOp>(
         patterns);

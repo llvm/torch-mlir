@@ -750,11 +750,6 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "non-const padding list unsupported");
     }
-    if (padding.size() == 1) {
-      for (auto iDim = 1; iDim < inputTy.getRank() - 2; iDim++) {
-        padding.push_back(padding[0]);
-      }
-    }
     SmallVector<int64_t> dilation;
     if (!matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilation))) {
       return rewriter.notifyMatchFailure(op,

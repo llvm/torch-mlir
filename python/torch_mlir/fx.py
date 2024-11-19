@@ -76,7 +76,6 @@ def export_and_import(
             prog = torch.export.export(f, args, kwargs, dynamic_shapes=dynamic_shapes)
         else:
             prog = torch.export.export(f, args, kwargs)
-    breakpoint()
     if decomposition_table is None:
         decomposition_table = get_decomposition_table()
     if decomposition_table:

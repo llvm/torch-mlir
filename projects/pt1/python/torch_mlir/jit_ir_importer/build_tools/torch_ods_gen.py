@@ -575,7 +575,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::conv3d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"
     )
     emit(
-        "aten::conv3d.padding : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"
+        "aten::conv3d.padding : (Tensor, Tensor, Tensor?, int[], str, int[], int) -> (Tensor)"
     )
     emit(
         "aten::conv2d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"

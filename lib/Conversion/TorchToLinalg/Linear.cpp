@@ -832,12 +832,6 @@ public:
           op, "only support padding from a list construct");
     paddingIntValues = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
                                               paddingIntValues);
-    if (paddingIntValues.size() == 1) {
-      for (size_t iDim = 1; iDim < numSpatialDims; iDim++) {
-        paddingIntValues.push_back(paddingIntValues[0]);
-      }
-    }
-
     SmallVector<Value> outputPaddingIntValues;
     if (!getListConstructElements(op.getOutputPadding(),
                                   outputPaddingIntValues))

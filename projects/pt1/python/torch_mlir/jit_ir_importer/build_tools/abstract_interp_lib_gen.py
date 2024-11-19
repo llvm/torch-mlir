@@ -1839,23 +1839,31 @@ def torchvision〇deform_conv2d〡dtype(input_rank_dtype: Tuple[int, int], weigh
 def aten〇conv2d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1,), padding: List[int] = (0, 0,), dilation: List[int] = (1, 1,), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv2d(input, weight, bias, stride, padding, dilation, groups)
 
-def aten〇conv2d〇padding〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1,), padding: str = "valid", dilation: List[int] = (1, 1,), groups: int = 1) -> List[int]:
-    kernel_size = [weight[2], weight[3]]
-    padding_int = [0, 0] * len(kernel_size)
+def _conv_padding(weight: List[int], dilation: List[int], padding: str):
+    rank = len(weight)
+    # first 2 dimensions of weight corresponds to out_channels and in_channels/groups
+    num_unpadded_dims = 2
+    assert rank > num_unpadded_dims, "conv: weight must be at least 3 dimensional."
+    num_kernel_elems = rank - num_unpadded_dims
+    padding_int = [0] * num_kernel_elems
     if padding == "same":
-        for d, k, i in zip(
-            dilation, kernel_size, range(len(kernel_size) - 1, -1, -1)
+        for d, i in zip(
+            dilation, range(num_kernel_elems - 1, -1, -1)
         ):
-            total_padding = d * (k - 1)
-            left_pad = total_padding // 2
-            padding_int[2 * i] = left_pad
-            padding_int[2 * i + 1] = (
-                total_padding - left_pad
-            )
+            padding_val = d * (weight[num_unpadded_dims+i] - 1)
+            padding_int[i] = padding_val // 2            
+    return padding_int    
+
+def aten〇conv2d〇padding〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1,), padding: str = "valid", dilation: List[int] = (1, 1,), groups: int = 1) -> List[int]:
+    padding_int = _conv_padding(weight, dilation, padding)
     return upstream_shape_functions.conv2d(input, weight, bias, stride, padding_int, dilation, groups)
 
 def aten〇conv3d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1, 1,), padding: List[int] = (0, 0, 0,), dilation: List[int] = (1, 1, 1,), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv3d(input, weight, bias, stride, padding, dilation, groups)
+
+def aten〇conv3d〇padding〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1, 1,), padding: str = "valid", dilation: List[int] = (1, 1, 1,), groups: int = 1) -> List[int]:
+    padding_int = _conv_padding(weight, dilation, padding)
+    return upstream_shape_functions.conv3d(input, weight, bias, stride, padding_int, dilation, groups)
 
 def aten〇conv_transpose2d〇input〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1, 1,), padding: List[int] = (0, 0,), output_padding: List[int] = (0, 0,), groups: int = 1, dilation: List[int] = (1, 1,)) -> List[int]:
     return upstream_shape_functions.conv_transpose2d_input(input, weight, bias, stride, padding, output_padding, groups, dilation)
@@ -1897,6 +1905,10 @@ def aten〇convolution〡shape(input: List[int], weight: List[int], bias: Option
 
 def aten〇conv1d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1,), padding: List[int] = (0,), dilation: List[int] = (1,), groups: int = 1) -> List[int]:
     return upstream_shape_functions.conv_forwards(input, weight, bias, stride, padding, dilation, transposed=False, output_padding=[], groups=1)
+
+def aten〇conv1d〇padding〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1,), padding: str = "valid", dilation: List[int] = (1,), groups: int = 1) -> List[int]:
+    padding_int = _conv_padding(weight, dilation, padding)
+    return upstream_shape_functions.conv_forwards(input, weight, bias, stride, padding_int, dilation, transposed=False, output_padding=[], groups=1)
 
 def aten〇conv_transpose1d〡shape(input: List[int], weight: List[int], bias: Optional[List[int]] = None, stride: List[int] = (1,), padding: List[int] = (0,), output_padding: List[int] = (0,), groups: int = 1, dilation: List[int] = (1,)) -> List[int]:
     return aten〇convolution〡shape(input, weight, bias, stride, padding, dilation, True, output_padding, groups)
