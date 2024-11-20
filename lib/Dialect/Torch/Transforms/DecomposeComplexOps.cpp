@@ -10683,7 +10683,6 @@ public:
     Value boxes = op.getDets();
     Value scores = op.getScores();
     Value iouThreshold = op.getIouThreshold();
-    Type resultType = op.getType();
 
     Value cst0 = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(0));
@@ -10699,22 +10698,11 @@ public:
     Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
         loc, rewriter.getBoolAttr(false));
 
-    // Sort scores in descending order
-    // Use the sorted indices to iterate boxes
-    auto scoresType = dyn_cast<BaseTensorType>(scores.getType());
-    auto sortIndicesType = scoresType.getWithSizesAndDtype(
-        scoresType.getOptionalSizes(),
-        IntegerType::get(context, 64, IntegerType::Signed));
-    auto sortResult = rewriter.create<Torch::AtenSortOp>(
-        loc, TypeRange({scores.getType(), sortIndicesType}), scores,
-        /*dim=*/cst0, /*descending=*/cstTrue);
-
     // Get number of boxes for the loop count
     auto boxesTensorType = dyn_cast<Torch::ValueTensorType>(boxes.getType());
     auto dType = boxesTensorType.getDtype();
     int64_t boxesSize = boxesTensorType.getSizes()[0];
-    Value len = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(boxesSize));
+    Value len = rewriter.create<AtenSizeIntOp>(loc, boxes, /*dim=*/cst0);
 
     // Calculate the area of each box: (x2 - x1) * (y2 - y1)
     auto sliceTy = rewriter.getType<ValueTensorType>(
@@ -10733,15 +10721,22 @@ public:
         loc, areaTy, distance, /*dim=*/cst1, /*keepdim=*/cstFalse,
         /*dtype=*/cstNone);
 
+    // Sort scores in descending order
+    // Use the sorted indices to iterate boxes
+    auto scoresType = dyn_cast<BaseTensorType>(scores.getType());
+    auto intTensorType = scoresType.getWithSizesAndDtype(
+        scoresType.getOptionalSizes(),
+        IntegerType::get(context, 64, IntegerType::Signed));
+    auto sortResult = rewriter.create<Torch::AtenSortOp>(
+        loc, TypeRange({scores.getType(), intTensorType}), scores,
+        /*dim=*/cst0, /*descending=*/cstTrue);
+
     // Create a mask to mark if we keep the boxes
-    Value maskShapeList = rewriter.create<Torch::PrimListConstructOp>(
+    Value lenShapeList = rewriter.create<Torch::PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(context)),
         SmallVector<Value>{len});
-    auto maskTy = rewriter.getType<ValueTensorType>(
-        SmallVector<int64_t>{boxesSize},
-        rewriter.getIntegerType(64, /*signed=*/true));
     Value mask = rewriter.create<Torch::AtenOnesOp>(
-        loc, maskTy, maskShapeList, cstNone, cstNone, cstNone, cstNone);
+        loc, intTensorType, lenShapeList, cstNone, cstNone, cstNone, cstNone);
     Value zeroShapeList = rewriter.create<Torch::PrimListConstructOp>(
         loc, Torch::ListType::get(Torch::IntType::get(context)),
         SmallVector<Value>{cst1});
@@ -10750,15 +10745,10 @@ public:
     Value falseMask = rewriter.create<Torch::AtenZerosOp>(
         loc, zeroTy, zeroShapeList, cstNone, cstNone, cstNone, cstNone);
 
-    // Create a zero tensor for output
-    auto resultTensorType = dyn_cast<Torch::ValueTensorType>(resultType);
-    Value resultLen = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(resultTensorType.getSizes()[0]));
-    Value resultShapeList = rewriter.create<Torch::PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)),
-        SmallVector<Value>{resultLen});
-    Value output = rewriter.create<Torch::AtenZerosOp>(
-        loc, resultType, resultShapeList, cstNone, cstNone, cstNone, cstNone);
+    // Create an empty tensor for result
+    Value result = rewriter.create<Torch::AtenEmptyMemoryFormatOp>(
+        loc, intTensorType, lenShapeList, /*dtype=*/cst4, /*layout=*/cstNone,
+        /*device=*/cstNone, /*pinMemory=*/cstNone, /*memoryFormat=*/cstNone);
 
     auto intTy = rewriter.getType<Torch::IntType>();
     auto rowSliceTy =
@@ -10767,8 +10757,6 @@ public:
         rewriter.getType<ValueTensorType>(SmallVector<int64_t>{1, 2}, dType);
     auto extractTy = rewriter.getType<ValueTensorType>(
         SmallVector<int64_t>{1}, rewriter.getIntegerType(64, true));
-    Value cnt = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(0));
     Value float0 = rewriter.create<Torch::ConstantFloatOp>(
         loc, rewriter.getFloatAttr(dType, 0.0));
     auto scalarFloatType = rewriter.getType<Torch::ValueTensorType>(
@@ -10782,17 +10770,18 @@ public:
     // 4. Loop through the rest boxes in sorted indices
     // 5. Suppress the box if the corresponding IoU is larger than threshold
     auto loop1 = rewriter.create<Torch::PrimLoopOp>(
-        loc, TypeRange({maskTy, resultType, intTy}), len, cstTrue,
-        ValueRange({mask, output, cnt}));
+        loc, TypeRange({intTensorType, intTensorType, intTy}), len, cstTrue,
+        ValueRange({mask, result, cst0}));
     {
       PatternRewriter::InsertionGuard guard(rewriter);
-      Block *rowLoopBody = rewriter.createBlock(
+      Block *loopBody1 = rewriter.createBlock(
           &loop1.getRegion(), loop1.getRegion().begin(),
-          TypeRange({intTy, maskTy, resultType, intTy}), {loc, loc, loc, loc});
-      Value i = rowLoopBody->getArgument(0);
-      Value mask1 = rowLoopBody->getArgument(1);
-      Value curOutput = rowLoopBody->getArgument(2);
-      Value curCnt = rowLoopBody->getArgument(3);
+          TypeRange({intTy, intTensorType, intTensorType, intTy}),
+          {loc, loc, loc, loc});
+      Value i = loopBody1->getArgument(0);
+      Value mask1 = loopBody1->getArgument(1);
+      Value curResult = loopBody1->getArgument(2);
+      Value curCnt = loopBody1->getArgument(3);
 
       // Extract the mask to check if the base box is suppressed
       Value extract = rewriter.create<AtenSelectIntOp>(
@@ -10801,20 +10790,20 @@ public:
       Value iskept = rewriter.create<Torch::AtenBoolIntOp>(
           loc, rewriter.getType<Torch::BoolType>(), scalar);
       auto ifFilterOthers = rewriter.create<Torch::PrimIfOp>(
-          loc, TypeRange({maskTy, resultType, intTy}), iskept);
+          loc, TypeRange({intTensorType, intTensorType, intTy}), iskept);
       {
         PatternRewriter::InsertionGuard guard(rewriter);
         rewriter.createBlock(&ifFilterOthers.getThenRegion(),
                              ifFilterOthers.getThenRegion().begin());
 
-        // Fill the selected indices into output
+        // Scatter the selected indices into result
         Value extractIdx1 = rewriter.create<AtenSelectIntOp>(
             loc, extractTy, sortResult.getResults()[1], /*dim=*/cst0,
             /*index=*/i);
-        Value nextCnt = rewriter.create<Torch::AtenAddIntOp>(loc, curCnt, cst1);
-        Value updatedOutput = rewriter.create<Torch::AtenSliceScatterOp>(
-            loc, resultType, curOutput, extractIdx1, /*dim=*/cst0,
-            /*start=*/curCnt, /*end=*/nextCnt, /*step=*/cst1);
+        Value next = rewriter.create<Torch::AtenAddIntOp>(loc, curCnt, cst1);
+        Value updatedResult = rewriter.create<Torch::AtenSliceScatterOp>(
+            loc, intTensorType, curResult, extractIdx1, /*dim=*/cst0,
+            /*start=*/curCnt, /*end=*/next, /*step=*/cst1);
 
         // Get the coordinates of base box
         Value idx1 =
@@ -10824,6 +10813,7 @@ public:
             loc, rowSliceTy, boxes,
             /*dim=*/cst0, /*start=*/idx1, /*end=*/idx1End, /*step=*/cst1);
 
+        // Calculate IoUs: intersectionArea / unionArea
         // Intersection area = intersectionWidth * intersectionHeight
         Value point1 = rewriter.create<AtenSliceTensorOp>(
             loc, pointTy, slice1,
@@ -10855,22 +10845,22 @@ public:
             loc, areaTy, intersectionArea, unionArea);
 
         // Loop through the rest of boxes in sorted indices
-        auto loop2 = rewriter.create<Torch::PrimLoopOp>(loc, maskTy, len,
+        auto loop2 = rewriter.create<Torch::PrimLoopOp>(loc, intTensorType, len,
                                                         cstTrue, mask1);
         {
           PatternRewriter::InsertionGuard guard(rewriter);
-          Block *colLoopBody = rewriter.createBlock(
+          Block *loopBody2 = rewriter.createBlock(
               &loop2.getRegion(), loop2.getRegion().begin(),
-              TypeRange({intTy, maskTy}), {loc, loc});
-          Value j = colLoopBody->getArgument(0);
-          Value mask2 = colLoopBody->getArgument(1);
+              TypeRange({intTy, intTensorType}), {loc, loc});
+          Value j = loopBody2->getArgument(0);
+          Value mask2 = loopBody2->getArgument(1);
 
           // Check if current index is out of range
           j = rewriter.create<Torch::AtenAddIntOp>(loc, j, i);
           j = rewriter.create<Torch::AtenAddIntOp>(loc, j, cst1);
           Value isInRange = rewriter.create<Torch::AtenLtIntOp>(loc, j, len);
           auto ifCalculateIou = rewriter.create<Torch::PrimIfOp>(
-              loc, TypeRange({maskTy}), isInRange);
+              loc, TypeRange({intTensorType}), isInRange);
           {
             PatternRewriter::InsertionGuard guard(rewriter);
             rewriter.createBlock(&ifCalculateIou.getThenRegion(),
@@ -10893,7 +10883,7 @@ public:
                 loc, curIoU, iouThreshold);
 
             auto ifUnmask = rewriter.create<Torch::PrimIfOp>(
-                loc, TypeRange({maskTy}), isSuppressed);
+                loc, TypeRange({intTensorType}), isSuppressed);
             {
               PatternRewriter::InsertionGuard guard(rewriter);
               rewriter.createBlock(&ifUnmask.getThenRegion(),
@@ -10902,7 +10892,7 @@ public:
               // Update the mask if suppress
               Value jEnd = rewriter.create<Torch::AtenAddIntOp>(loc, j, cst1);
               Value updatedMask = rewriter.create<Torch::AtenSliceScatterOp>(
-                  loc, maskTy, mask2, falseMask, /*dim=*/cst0,
+                  loc, intTensorType, mask2, falseMask, /*dim=*/cst0,
                   /*start=*/j, /*end=*/jEnd, /*step=*/cst1);
               rewriter.create<Torch::PrimIfYieldOp>(loc, updatedMask);
             }
@@ -10927,21 +10917,23 @@ public:
         }
 
         rewriter.create<Torch::PrimIfYieldOp>(
-            loc, ValueRange({loop2.getResult(0), updatedOutput, nextCnt}));
+            loc, ValueRange({loop2.getResult(0), updatedResult, next}));
       }
       {
         PatternRewriter::InsertionGuard guard(rewriter);
         rewriter.createBlock(&ifFilterOthers.getElseRegion(),
                              ifFilterOthers.getElseRegion().begin());
         rewriter.create<Torch::PrimIfYieldOp>(
-            loc, ValueRange({mask1, curOutput, curCnt}));
+            loc, ValueRange({mask1, curResult, curCnt}));
       }
 
       rewriter.create<Torch::PrimLoopConditionOp>(loc, cstTrue,
                                                   ifFilterOthers.getResults());
     }
 
-    rewriter.replaceOp(op, loop1.getResult(1));
+    rewriter.replaceOpWithNewOp<AtenSliceTensorOp>(
+        op, op.getType(), loop1.getResult(1), /*dim=*/cst0, /*start=*/cst0,
+        /*end=*/loop1.getResult(2), /*step=*/cst1);
     return success();
   }
 };
