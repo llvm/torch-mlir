@@ -1181,6 +1181,16 @@ func.func @torch.aten.mul.int$canonicalize(%arg0: !torch.int) -> !torch.int {
     return %ret : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.aten.mul.int_float() -> !torch.float {
+// CHECK:           %[[CST6:.*]] = torch.constant.float 6.000000e+00
+// CHECK:           return %[[CST6]] : !torch.float
+func.func @torch.aten.mul.int_float() -> !torch.float {
+    %cst2 = torch.constant.int 2
+    %cst3 = torch.constant.float 3.0
+    %ret = torch.aten.mul.int_float %cst2, %cst3: !torch.int, !torch.float -> !torch.float
+    return %ret : !torch.float
+}
+
 // CHECK-LABEL:   func.func @torch.aten.mul.float() -> !torch.float {
 // CHECK:           %[[CST30:.*]] = torch.constant.float 3.000000e+01
 // CHECK:           return %[[CST30]] : !torch.float

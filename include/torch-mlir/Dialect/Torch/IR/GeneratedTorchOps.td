@@ -15645,6 +15645,31 @@ def Torch_AtenMulIntOp : Torch_Op<"aten.mul.int", [
   let hasCanonicalizer = 1;
 }
 
+def Torch_AtenMulIntFloatOp : Torch_Op<"aten.mul.int_float", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::mul.int_float : (int, float) -> (float)`";
+  let arguments = (ins
+    Torch_IntType:$a,
+    Torch_FloatType:$b
+  );
+  let results = (outs
+    Torch_FloatType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenMulIntFloatOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenMulIntFloatOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenDivIntOp : Torch_Op<"aten.div.int", [
     AllowsTypeRefinement,
     HasValueSemantics,
