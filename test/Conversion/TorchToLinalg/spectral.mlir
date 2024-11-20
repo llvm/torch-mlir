@@ -1,25 +1,28 @@
 // RUN: torch-mlir-opt <%s -convert-torch-to-linalg -canonicalize -split-input-file -verify-diagnostics | FileCheck %s
 
+// CHECK:         #map = affine_map<(d0, d1, d2) -> (d0, d1)>
+// CHECK:         #map1 = affine_map<(d0, d1, d2) -> (d1, d2)>
+// CHECK:         #map2 = affine_map<(d0, d1, d2) -> (d0, d2)>
+
 // CHECK-LABEL:   func.func @torch.aten.fft_rfft$2d_last_dim(
-// CHECK-SAME:           %[[INPUT_VTENSOR:.*]]: !torch.vtensor<[16,9],f32>) -> !torch.vtensor<[16,5],complex<f32>> {
-// CHECK-DAG:         %[[IMAG_COEFF:.*]] = arith.constant dense<{{.*}}> : tensor<9x5xf32>
-// CHECK-DAG:         %[[C0:.*]] = arith.constant 0.000000e+00 : f32
-// CHECK-DAG:         %[[REAL_COEFF:.*]] = arith.constant dense<{{.*}}> : tensor<9x5xf32>
-// CHECK-DAG:         %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[INPUT_VTENSOR:.*]] : !torch.vtensor<[16,9],f32> -> tensor<16x9xf32>
-// CHECK:             %[[EMPTY_0:.*]] = tensor.empty() : tensor<16x5xf32>
-// CHECK:             %[[ZEROES_0:.*]] = linalg.fill ins(%[[C0:.*]] : f32) outs(%[[EMPTY_0:.*]] : tensor<16x5xf32>) -> tensor<16x5xf32>
-// CHECK:             %[[REAL_COMP:.*]] = linalg.matmul ins(%[[INPUT:.*]], %[[REAL_COEFF:.*]] : tensor<16x9xf32>, tensor<9x5xf32>) outs(%[[ZEROES_0:.*]] : tensor<16x5xf32>) -> tensor<16x5xf32>
-// CHECK:             %[[EMPTY_1:.*]] = tensor.empty() : tensor<16x5xf32>
-// CHECK:             %[[ZEROES_1:.*]] = linalg.fill ins(%[[C0:.*]] : f32) outs(%[[EMPTY_1:.*]] : tensor<16x5xf32>) -> tensor<16x5xf32>
-// CHECK:             %[[IMAG_COMP:.*]] = linalg.matmul ins(%[[INPUT:.*]], %[[IMAG_COEFF:.*]] : tensor<16x9xf32>, tensor<9x5xf32>) outs(%[[ZEROES_1:.*]] : tensor<16x5xf32>) -> tensor<16x5xf32>
-// CHECK:             %[[EMPTY_2:.*]] = tensor.empty() : tensor<16x5xcomplex<f32>>
-// CHECK:             %[[COMPLEX:.*]] = linalg.generic {{.*}} ins(%[[REAL_COMP:.*]], %[[IMAG_COMP:.*]] : tensor<16x5xf32>, tensor<16x5xf32>) outs(%[[EMPTY_2:.*]] : tensor<16x5xcomplex<f32>>) {
-// CHECK:             ^bb0(%[[IN:.*]]: f32, %[[IN_2:.*]]: f32, %[[OUT:.*]]: complex<f32>):
-// CHECK:                %[[ELEM_COMPLEX:.*]] = complex.create %[[IN:.*]], %[[IN_2:.*]] : complex<f32>
-// CHECK:                linalg.yield %[[ELEM_COMPLEX:.*]] : complex<f32>
+// CHECK-SAME:           %arg0: !torch.vtensor<[16,9],f32>) -> !torch.vtensor<[16,5],complex<f32>> {
+// CHECK-DAG:         %[[CST:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK-DAG:         %[[CST_0:.*]] = arith.constant dense<{{.*}}> : tensor<9x5xcomplex<f32>>
+// CHECK:             %[[VAR0:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[16,9],f32> -> tensor<16x9xf32>
+// CHECK-DAG:         %[[VAR1:.*]] = tensor.empty() : tensor<16x5xcomplex<f32>>
+// CHECK:             %[[VAR2:.*]] = linalg.fill ins(%[[CST]] : f32) outs(%[[VAR1]] : tensor<16x5xcomplex<f32>>) -> tensor<16x5xcomplex<f32>>
+// CHECK:             %[[VAR3:.*]] = linalg.generic {indexing_maps = [#map, #map1, #map2], iterator_types = ["parallel", "reduction", "parallel"]} ins(%[[VAR0]], %[[CST_0]] : tensor<16x9xf32>, tensor<9x5xcomplex<f32>>) outs(%[[VAR2]] : tensor<16x5xcomplex<f32>>) {
+// CHECK:             ^bb0(%in: f32, %in_1: complex<f32>, %out: complex<f32>):
+// CHECK:               %[[VAR5:.*]] = complex.re %in_1 : complex<f32>
+// CHECK:               %[[VAR6:.*]] = complex.im %in_1 : complex<f32>
+// CHECK:               %[[VAR7:.*]] = arith.mulf %in, %[[VAR5]] : f32
+// CHECK:               %[[VAR8:.*]] = arith.mulf %in, %[[VAR6]] : f32
+// CHECK:               %[[VAR9:.*]] = complex.create %[[VAR7]], %[[VAR8]] : complex<f32>
+// CHECK:               %[[VAR10:.*]] = complex.add %[[VAR9]], %out : complex<f32>
+// CHECK:               linalg.yield %[[VAR10]] : complex<f32>
 // CHECK:             } -> tensor<16x5xcomplex<f32>>
-// CHECK:             %[[OUTPUT_VTENSOR:.*]] = torch_c.from_builtin_tensor %[[COMPLEX:.*]] : tensor<16x5xcomplex<f32>> -> !torch.vtensor<[16,5],complex<f32>>
-// CHECK:             return %[[OUTPUT_VTENSOR:.*]] : !torch.vtensor<[16,5],complex<f32>>
+// CHECK:             %[[VAR4:.*]] = torch_c.from_builtin_tensor %[[VAR3]] : tensor<16x5xcomplex<f32>> -> !torch.vtensor<[16,5],complex<f32>>
+// CHECK:             return %[[VAR4]] : !torch.vtensor<[16,5],complex<f32>>
 
 func.func @torch.aten.fft_rfft$2d_last_dim(%arg0: !torch.vtensor<[16,9],f32>) -> !torch.vtensor<[16,5],complex<f32>> {
   %int-1 = torch.constant.int -1
@@ -31,29 +34,28 @@ func.func @torch.aten.fft_rfft$2d_last_dim(%arg0: !torch.vtensor<[16,9],f32>) ->
 // -----
 
 // CHECK-LABEL:   func.func @torch.aten.fft_rfft$2d_first_dim(
-// CHECK-SAME:           %[[INPUT_VTENSOR:.*]]: !torch.vtensor<[36,23],f32>) -> !torch.vtensor<[19,23],complex<f32>> {
-// CHECK-DAG:         %[[IMAG_COEFF:.*]] = arith.constant dense<{{.*}}> : tensor<36x19xf32>
-// CHECK-DAG:         %[[C0:.*]] = arith.constant 0.000000e+00 : f32
-// CHECK-DAG:         %[[REAL_COEFF:.*]] = arith.constant dense<{{.*}}> : tensor<36x19xf32>
-// CHECK-DAG:         %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[INPUT_VTENSOR:.*]] : !torch.vtensor<[36,23],f32> -> tensor<36x23xf32>
-// CHECK-DAG:         %[[EMPTY_0:.*]] = tensor.empty() : tensor<23x36xf32>
-// CHECK:             %[[TRANSPOSED:.*]] = linalg.transpose ins(%[[INPUT:.*]] : tensor<36x23xf32>) outs(%[[EMPTY_0:.*]] : tensor<23x36xf32>) permutation = [1, 0]
-// CHECK:             %[[EMPTY_1:.*]] = tensor.empty() : tensor<23x19xf32>
-// CHECK:             %[[ZEROES_0:.*]] = linalg.fill ins(%[[C0:.*]] : f32) outs(%[[EMPTY_1:.*]] : tensor<23x19xf32>) -> tensor<23x19xf32>
-// CHECK:             %[[REAL_COMP:.*]] = linalg.matmul ins(%[[TRANSPOSED:.*]], %[[REAL_COEFF:.*]] : tensor<23x36xf32>, tensor<36x19xf32>) outs(%[[ZEROES_0:.*]] : tensor<23x19xf32>) -> tensor<23x19xf32>
-// CHECK:             %[[EMPTY_2:.*]] = tensor.empty() : tensor<23x19xf32>
-// CHECK:             %[[ZEROES_1:.*]] = linalg.fill ins(%[[C0:.*]] : f32) outs(%[[EMPTY_2:.*]] : tensor<23x19xf32>) -> tensor<23x19xf32>
-// CHECK:             %[[IMAG_COMP:.*]] = linalg.matmul ins(%[[TRANSPOSED:.*]], %[[IMAG_COEFF:.*]] : tensor<23x36xf32>, tensor<36x19xf32>) outs(%[[ZEROES_1:.*]] : tensor<23x19xf32>) -> tensor<23x19xf32>
-// CHECK:             %[[EMPTY_3:.*]] = tensor.empty() : tensor<23x19xcomplex<f32>>
-// CHECK:             %[[COMPLEX:.*]] = linalg.generic {{.*}} ins(%[[REAL_COMP:.*]], %[[IMAG_COMP:.*]] : tensor<23x19xf32>, tensor<23x19xf32>) outs(%[[EMPTY_3:.*]] : tensor<23x19xcomplex<f32>>) {
-// CHECK:             ^bb0(%[[IN:.*]]: f32, %[[IN_3:.*]]: f32, %[[OUT:.*]]: complex<f32>):
-// CHECK:                %[[EMPTY_02:.*]] = complex.create %[[IN:.*]], %[[IN_3:.*]] : complex<f32>
-// CHECK:                linalg.yield %[[EMPTY_02:.*]] : complex<f32>
+// CHECK-SAME:           %arg0: !torch.vtensor<[36,23],f32>) -> !torch.vtensor<[19,23],complex<f32>> {
+// CHECK-DAG:         %[[CST:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK-DAG:         %[[CST_0:.*]] = arith.constant dense<{{.*}}> : tensor<36x19xcomplex<f32>>
+// CHECK:             %[[VAR0:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[36,23],f32> -> tensor<36x23xf32>
+// CHECK-DAG:         %[[VAR1:.*]] = tensor.empty() : tensor<23x36xf32>
+// CHECK:             %[[TRANSPOSED:.*]] = linalg.transpose ins(%[[VAR0]] : tensor<36x23xf32>) outs(%[[VAR1]] : tensor<23x36xf32>) permutation = [1, 0]
+// CHECK-DAG:         %[[VAR2:.*]] = tensor.empty() : tensor<23x19xcomplex<f32>>
+// CHECK:             %[[VAR3:.*]] = linalg.fill ins(%[[CST]] : f32) outs(%[[VAR2]] : tensor<23x19xcomplex<f32>>) -> tensor<23x19xcomplex<f32>>
+// CHECK:             %[[VAR4:.*]] = linalg.generic {indexing_maps = [#map, #map1, #map2], iterator_types = ["parallel", "reduction", "parallel"]} ins(%[[TRANSPOSED]], %[[CST_0]] : tensor<23x36xf32>, tensor<36x19xcomplex<f32>>) outs(%[[VAR3]] : tensor<23x19xcomplex<f32>>) {
+// CHECK:             ^bb0(%in: f32, %in_2: complex<f32>, %out: complex<f32>):
+// CHECK:               %[[VAR7:.*]] = complex.re %in_2 : complex<f32>
+// CHECK:               %[[VAR8:.*]] = complex.im %in_2 : complex<f32>
+// CHECK:               %[[VAR9:.*]] = arith.mulf %in, %[[VAR7]] : f32
+// CHECK:               %[[VAR10:.*]] = arith.mulf %in, %[[VAR8]] : f32
+// CHECK:               %[[VAR11:.*]] = complex.create %[[VAR9]], %[[VAR10]] : complex<f32>
+// CHECK:               %[[VAR12:.*]] = complex.add %[[VAR11]], %out : complex<f32>
+// CHECK:               linalg.yield %[[VAR12]] : complex<f32>
 // CHECK:             } -> tensor<23x19xcomplex<f32>>
-// CHECK:             %[[EMPTY_4:.*]] = tensor.empty() : tensor<19x23xcomplex<f32>>
-// CHECK:             %[[TRANSPOSED_2:.*]] = linalg.transpose ins(%[[COMPLEX:.*]] : tensor<23x19xcomplex<f32>>) outs(%[[EMPTY_4:.*]] : tensor<19x23xcomplex<f32>>) permutation = [1, 0]
-// CHECK:             %[[OUTPUT_VTENSOR:.*]] = torch_c.from_builtin_tensor %[[TRANSPOSED_2:.*]] : tensor<19x23xcomplex<f32>> -> !torch.vtensor<[19,23],complex<f32>>
-// CHECK:             return %[[OUTPUT_VTENSOR:.*]] : !torch.vtensor<[19,23],complex<f32>>
+// CHECK-DAG:         %[[VAR5:.*]] = tensor.empty() : tensor<19x23xcomplex<f32>>
+// CHECK:             %[[TRANSPOSED_1:.*]] = linalg.transpose ins(%[[VAR4]] : tensor<23x19xcomplex<f32>>) outs(%[[VAR5]] : tensor<19x23xcomplex<f32>>) permutation = [1, 0]
+// CHECK:             %[[VAR6:.*]] = torch_c.from_builtin_tensor %[[TRANSPOSED_1]] : tensor<19x23xcomplex<f32>> -> !torch.vtensor<[19,23],complex<f32>>
+// CHECK:             return %[[VAR6]] : !torch.vtensor<[19,23],complex<f32>>
 func.func @torch.aten.fft_rfft$2d_first_dim(%arg0: !torch.vtensor<[36,23],f32>) -> !torch.vtensor<[19,23],complex<f32>> {
   %int0 = torch.constant.int 0
   %none = torch.constant.none

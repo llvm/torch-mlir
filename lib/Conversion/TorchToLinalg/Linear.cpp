@@ -1376,57 +1376,38 @@ public:
 
 namespace {
 
-/// From
-/// iree/compiler/plugins/input/StableHLO/Conversion/StableHLOToIREEInputDialects.cpp
-///
 /// Creates coefficients based on DFT definition, see
 /// https://en.wikipedia.org/wiki/Discrete_Fourier_transform.
-Value getDFTMatmulCoeff(OpBuilder b, Location loc, RankedTensorType matrixType,
-                        bool isRealPart) {
+Value getDFTMatmulCoeff(OpBuilder b, Location loc,
+                        RankedTensorType matrixType) {
+
+  ComplexType complexTy = llvm::cast<ComplexType>(matrixType.getElementType());
+  mlir::FloatType floatType =
+      llvm::cast<mlir::FloatType>(complexTy.getElementType());
+
   // scale = 2 * pi / N
   double scale = 2 * M_PI / matrixType.getDimSize(0);
 
-  SmallVector<Attribute> values;
-  assert(matrixType.getRank() == 2 && "expected 2D matrix");
+  SmallVector<std::complex<APFloat>> values;
   for (auto i : llvm::seq<unsigned>(0, matrixType.getDimSize(0))) {
     for (auto j : llvm::seq<unsigned>(0, matrixType.getDimSize(1))) {
       double v = scale * i * j;
-      v = isRealPart ? cos(v) : -sin(v);
-      values.push_back(b.getF32FloatAttr(v));
+      double realV = cos(v);
+      double imagV = -sin(v);
+
+      bool unused;
+      APFloat real(realV);
+      real.convert(floatType.getFloatSemantics(), APFloat::rmNearestTiesToEven,
+                   &unused);
+      APFloat imag(imagV);
+      imag.convert(floatType.getFloatSemantics(), APFloat::rmNearestTiesToEven,
+                   &unused);
+
+      values.push_back(std::complex<APFloat>(real, imag));
     }
   }
   return b.create<arith::ConstantOp>(
-      loc, matrixType, DenseFPElementsAttr::get(matrixType, values));
-}
-
-/// From
-/// iree/compiler/plugins/input/StableHLO/Conversion/StableHLOToIREEInputDialects.cpp
-Value createLinalgMatmulOnTensors(OpBuilder b, Location loc,
-                                  RankedTensorType resultType, Value lhs,
-                                  Value rhs) {
-  Value zero = b.create<arith::ConstantOp>(
-      loc, b.getZeroAttr(resultType.getElementType()));
-  Value emptyTensor = b.create<mlir::tensor::EmptyOp>(
-      loc, resultType.getShape(), resultType.getElementType(),
-      /*dyn_size=*/ValueRange{});
-  Value zeroTensor =
-      b.create<linalg::FillOp>(loc, zero, emptyTensor).getResult(0);
-
-  switch (llvm::cast<RankedTensorType>(lhs.getType()).getRank()) {
-  case 1:
-    return b
-        .create<linalg::VecmatOp>(loc, TypeRange{resultType},
-                                  ValueRange{lhs, rhs}, ValueRange{zeroTensor})
-        .getResult(0);
-  case 2:
-    return b
-        .create<linalg::MatmulOp>(loc, TypeRange{resultType},
-                                  ValueRange{lhs, rhs}, ValueRange{zeroTensor})
-        .getResult(0);
-  default:
-    assert(false && "unhandled matmul type");
-    return Value();
-  }
+      loc, matrixType, DenseElementsAttr::get(matrixType, values));
 }
 
 struct ConvertAtenFftRfftOp final : OpConversionPattern<AtenFftRfftOp> {
@@ -1461,69 +1442,120 @@ struct ConvertAtenFftRfftOp final : OpConversionPattern<AtenFftRfftOp> {
       return rewriter.notifyMatchFailure(
           op, "unsupported: only ranked tensors are supported");
     }
-    if (!inputType.hasStaticShape() || inputType.getRank() > 2) {
-      return rewriter.notifyMatchFailure(
-          op, "unsupported: only static 1D or 2D FFT is supported");
-    }
 
     const ArrayRef<int64_t> inputShape = inputType.getShape();
     dim += dim < 0 ? inputShape.size() : 0;
 
     const int64_t fftLength = inputShape[dim];
+    if (fftLength == ShapedType::kDynamic) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: FFT signal length must be static");
+    }
     const int64_t rank = inputType.getRank();
     const int64_t lastDim = rank - 1;
     const int64_t outputFftDim = fftLength / 2 + 1;
     const bool needTranspose = dim != lastDim;
-
-    RankedTensorType newResultType = llvm::cast<RankedTensorType>(
-        getTypeConverter()->convertType(op.getType()));
-    llvm::SmallVector<int64_t> componentShape(newResultType.getShape());
 
     // Transpose if FFT dimension is not the last one
     llvm::SmallVector<int64_t> perms = llvm::to_vector(llvm::seq(rank));
     std::swap(perms[dim], perms[lastDim]);
     if (needTranspose) {
       self = transposeValue(loc, self, perms, rewriter);
-      for (size_t i = 0; i < componentShape.size(); i++) {
-        componentShape[i] = newResultType.getShape()[perms[i]];
-      }
     }
 
-    RankedTensorType matrixType = RankedTensorType::get(
-        {fftLength, outputFftDim}, inputType.getElementType());
+    RankedTensorType newResultType = llvm::cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getType()));
+    ComplexType complexElemType =
+        llvm::cast<ComplexType>(newResultType.getElementType());
+    Type elemType = complexElemType.getElementType();
 
-    RankedTensorType componentsType =
-        RankedTensorType::get(componentShape, inputType.getElementType());
+    // coeffMatrix : tensor<fftLength x outputFftDim x complex<f32>>
+    RankedTensorType coeffType =
+        RankedTensorType::get({fftLength, outputFftDim}, complexElemType);
+    // coeffMatrix(n,m) = cos(2 pi n m / N) - j sin(2 pi n m / N)
+    Value coeffMatrix = getDFTMatmulCoeff(rewriter, loc, coeffType);
 
-    Value realMatrix =
-        getDFTMatmulCoeff(rewriter, loc, matrixType, /*isRealPart=*/true);
-    Value real = createLinalgMatmulOnTensors(rewriter, loc, componentsType,
-                                             self, realMatrix);
+    // #matmul_trait = {
+    //   indexing_maps = [
+    //     affine_map<(d_0, ... d_m, f, o) -> (d_0, ... d_m, f)>,
+    //     affine_map<(d_0, ... d_m, f, o) -> (f, o)>,
+    //     affine_map<(d_0, ... d_m, f, o) -> (d_0, ... d_m, o)>
+    //   ],
+    //   iterator_types = ["parallel", ..., "parallel", "reduction", "parallel"]
+    // }
+    // linalg.generic #matmul_trait
+    //   ins(%A, %B : tensor<D_0 x ... x D_m x fftLength x f32>,
+    //                tensor<fftLength x outputFftDim x complex<f32>>)
+    //   outs(%C : tensor<D_0 x ... x D_m x outputFftDim x complex<f32>>) {
+    //   ^bb0(%a: f32, %b: complex<f32>, %c: complex<f32>) :
+    //     %re = complex.re %b : f32
+    //     %im = complex.im %b : f32
+    //     %mulre = arith.mulf %a, %re: f32
+    //     %mulim = arith.mulf %a, %im: f32
+    //     %mulcplx = complex.create %mulre, %mulim : complex<f32>
+    //     %add = complex.add %c, %mulcplx: complex<f32>
+    //     linalg.yield %add : complex<f32>
+    // } -> (tensor<D_0 x ... x D_m x outputFftDim x complex<f32>>)
 
-    Value imagMatrix =
-        getDFTMatmulCoeff(rewriter, loc, matrixType, /*isRealPart=*/false);
-    Value imag = createLinalgMatmulOnTensors(rewriter, loc, componentsType,
-                                             self, imagMatrix);
+    Value lhs = self;
+    Value rhs = coeffMatrix;
+    RankedTensorType lhsType = llvm::cast<RankedTensorType>(lhs.getType());
+    ArrayRef<int64_t> lhsShape(lhsType.getShape());
+    ArrayRef<int64_t> rhsShape(coeffType.getShape());
 
-    // Pack components into a complex tensor
-    Type elementType = newResultType.getElementType();
-    auto toComplexBody = [&](OpBuilder &b, Location loc,
-                             ValueRange payloadArgs) {
-      Value realElem = payloadArgs[0];
-      Value imagElem = payloadArgs[1];
-      Value complexElem =
-          b.create<complex::CreateOp>(loc, elementType, realElem, imagElem);
-      b.create<linalg::YieldOp>(loc, complexElem);
-    };
-    Value complexRes = torch_to_linalg::createElementwiseLinalgGeneric(
-        rewriter, loc, {real, imag}, elementType, toComplexBody);
+    unsigned batchRank = lhsShape.size() - 1;
+
+    SmallVector<AffineExpr> lhsExpr;
+    SmallVector<AffineExpr> rhsExpr;
+    SmallVector<AffineExpr> outExpr;
+    SmallVector<utils::IteratorType> iteratorTypes(
+        batchRank, utils::IteratorType::parallel);
+    SmallVector<Value> resultShape;
+    for (unsigned i = 0; i < batchRank; i++) {
+      lhsExpr.push_back(rewriter.getAffineDimExpr(i));
+      outExpr.push_back(rewriter.getAffineDimExpr(i));
+      resultShape.push_back(getDimOp(rewriter, loc, lhs, i));
+    }
+    unsigned fIdx = batchRank, oIdx = batchRank + 1;
+    lhsExpr.insert(lhsExpr.end(), {rewriter.getAffineDimExpr(fIdx)});
+    rhsExpr.insert(rhsExpr.end(), {rewriter.getAffineDimExpr(fIdx),
+                                   rewriter.getAffineDimExpr(oIdx)});
+    outExpr.insert(outExpr.end(), {rewriter.getAffineDimExpr(oIdx)});
+    resultShape.insert(resultShape.end(),
+                       {getDimOp(rewriter, loc, rhs, rhsShape.size() - 1)});
+
+    Value zeroTensor =
+        createZeroInitTensor(rewriter, loc, resultShape, complexElemType);
+    auto indexingMaps = AffineMap::inferFromExprList(
+        {lhsExpr, rhsExpr, outExpr}, rewriter.getContext());
+    iteratorTypes.insert(iteratorTypes.end(), {utils::IteratorType::reduction,
+                                               utils::IteratorType::parallel});
+
+    Value complexRes =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, zeroTensor.getType(),
+                /*inputs=*/ValueRange{lhs, rhs},
+                /*outputs=*/zeroTensor, indexingMaps, iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value l = args[0], r = args[1], res = args[2];
+                  Value re = b.create<complex::ReOp>(loc, elemType, r);
+                  Value im = b.create<complex::ImOp>(loc, elemType, r);
+                  Value mulRe = b.create<arith::MulFOp>(loc, l, re);
+                  Value mulIm = b.create<arith::MulFOp>(loc, l, im);
+                  Value mulCplx = b.create<complex::CreateOp>(
+                      loc, complexElemType, mulRe, mulIm);
+                  Value add = b.create<complex::AddOp>(loc, mulCplx, res);
+                  b.create<linalg::YieldOp>(loc, add);
+                })
+            .getResult(0);
 
     // Transpose back
     if (needTranspose) {
       complexRes = transposeValue(loc, complexRes, perms, rewriter);
     }
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, complexRes);
+    rewriter.replaceOp(op, complexRes);
     return success();
   }
 };
