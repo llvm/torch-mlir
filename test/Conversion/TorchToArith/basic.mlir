@@ -242,7 +242,7 @@ func.func @torch.aten.mul.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.in
 // CHECK-DAG:      %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
 // CHECK-DAG:      %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
 // CHECK:          %[[LHS_F64:.*]] = arith.sitofp %[[LHS_I64:.*]] : i64 to f64
-// CHECK:          %[[MUL:.*]] = arith.mulf %[[LHS_F64:.*]], [[RHS_F64:.*]] : f64
+// CHECK:          %[[MUL:.*]] = arith.mulf %[[LHS_F64]], [[RHS_F64]] : f64
 // CHECK:          %[[OUT:.*]] = torch_c.from_f64 %[[MUL:.*]]
 // CHECK:          return %[[OUT:.*]] : !torch.float
 func.func @torch.aten.mul.int_float(%arg0: !torch.int, %arg1: !torch.float) -> !torch.float {
