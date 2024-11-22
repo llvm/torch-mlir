@@ -37,8 +37,8 @@ LogicalResult materializeFolds(ImplicitLocOpBuilder b,
 
     if (auto attr = dyn_cast<Attribute>(f)) {
       if (auto val = dyn_cast<FloatAttr>(attr)) {
-        values.push_back(b.create<Torch::ConstantFloatOp>(
-            b.getType<Torch::FloatType>(), val));
+        values.push_back(
+            b.create<Torch::ConstantFloatOp>(APFloat(val.getValueAsDouble())));
         continue;
       }
 
