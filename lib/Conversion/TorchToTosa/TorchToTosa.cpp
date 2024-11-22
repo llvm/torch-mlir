@@ -5398,9 +5398,11 @@ public:
     } else {
       int64_t dimSize =
           inputDim + padBefore + padAfter - dilation * (kernelDim - 1) - 1;
-      if (ceilMode && (dimSize % stride != 0))
-        return dimSize / stride + 2;
-      return dimSize / stride + 1;
+      int64_t outputDim = dimSize / stride + 1;
+      if (ceilMode && (dimSize % stride != 0) &&
+          (outputDim * stride < inputDim + padBefore))
+        outputDim++;
+      return outputDim;
     }
   }
 
