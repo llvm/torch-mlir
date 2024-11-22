@@ -18394,7 +18394,6 @@ def Torch_PrimUninitializedOp : Torch_Op<"prim.Uninitialized", [
       printDefaultTorchOp(printer, *this, 0, 1);
     }
   }];
-  let hasCanonicalizer = 1;
 }
 
 def Torch_PrimUncheckedCastOp : Torch_Op<"prim.unchecked_cast", [

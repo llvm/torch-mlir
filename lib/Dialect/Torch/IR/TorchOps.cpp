@@ -2288,17 +2288,6 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
         listElements);
     return success();
   });
-  // One-off pattern to erase if dead.
-  // TODO: Use the effects infra to express the semantics of this op and enable
-  // a centralized "erase if dead" canonicalization.
-  // Specifically, we need to mark the op as only MemoryEffects::Allocate
-  // so that `mlir::wouldOpBeTriviallyDead` does the right thing.
-  patterns.add(+[](AtenSizeOp op, PatternRewriter &rewriter) {
-    if (!op.use_empty())
-      return failure();
-    rewriter.eraseOp(op);
-    return failure();
-  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -3486,20 +3475,6 @@ void PrimTupleIndexOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       }
     }
     rewriter.replaceOp(op, replacement);
-    return success();
-  });
-}
-
-//===----------------------------------------------------------------------===//
-// PrimUninitializedOp
-//===----------------------------------------------------------------------===//
-
-void PrimUninitializedOp::getCanonicalizationPatterns(
-    RewritePatternSet &patterns, MLIRContext *context) {
-  patterns.add(+[](PrimUninitializedOp op, PatternRewriter &rewriter) {
-    if (!op.use_empty())
-      return failure();
-    rewriter.eraseOp(op);
     return success();
   });
 }

@@ -37,8 +37,6 @@ template <> struct QuantInfo<AtenReluOp> {
 // where MPTQT = "Aten_MakePerTensorQuantizedTensorOp"
 // and Dequant = "AtenDequantizeSelfOp" or "AtenDequantizeTensorOp"
 bool isQCommutingOp(mlir::Operation *op) {
-  // if adding a new commuting op here, be sure to add a
-  // RemoveUnused pattern for that op to clean up afterwards
   return llvm::isa<AtenTransposeIntOp, AtenReshapeOp, AtenSliceTensorOp,
                    PrimsCollapseOp, AtenViewOp, AtenPadOp, AtenConstantPadNdOp>(
       op);
@@ -419,35 +417,12 @@ public:
   }
 };
 
-template <typename SrcOp> class RemoveUnused : public OpRewritePattern<SrcOp> {
-public:
-  using OpRewritePattern<SrcOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(SrcOp op,
-                                PatternRewriter &rewriter) const override {
-    auto result = op.getResult();
-    if (result.use_empty()) {
-      op.erase();
-      return success();
-    }
-    return failure();
-  }
-};
-
 class FuseQuantizedOpsPass : public FuseQuantizedOpsBase<FuseQuantizedOpsPass> {
 public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
     patterns.insert<
-        RemoveUnused<AtenDequantizeSelfOp>,
-        RemoveUnused<AtenDequantizeTensorOp>,
-        RemoveUnused<AtenQuantizePerTensorOp>,
-        RemoveUnused<Aten_MakePerTensorQuantizedTensorOp>,
-        RemoveUnused<AtenTransposeIntOp>, RemoveUnused<AtenSliceTensorOp>,
-        RemoveUnused<AtenReshapeOp>, RemoveUnused<PrimsCollapseOp>,
-        RemoveUnused<AtenViewOp>, RemoveUnused<AtenPadOp>,
-        RemoveUnused<AtenConstantPadNdOp>,
         QuantizeOperandsPastCommutingOps<AtenConvolutionOp, 5>,
         QuantizeOperandsPastCommutingOps<AtenReluOp, 0>,
         QuantizeOperandsPastCommutingOps<AtenMatmulOp, 2>,
