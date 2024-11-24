@@ -6635,7 +6635,7 @@ class DecomposeAtenNativeLayerNormOp
     Location loc = op.getLoc();
     auto context = op.getContext();
 
-    auto inputTy = cast<BaseTensorType>(op.getInput().getType());
+    auto inputTy = cast<ValueTensorType>(op.getInput().getType());
     if (!inputTy.hasSizes())
       return rewriter.notifyMatchFailure(
           op, "input tensor should have known sizes.");
@@ -6690,6 +6690,18 @@ class DecomposeAtenNativeLayerNormOp
         loc, inputTy, inputRsqrtVar, op.getInput());
     Value inputNormalized = rewriter.create<AtenMulTensorOp>(
         loc, inputTy, inputZeroMean, inputRsqrtVarExpanded);
+    // Convert resultType if dtype is different
+    auto resultTensorType =
+        dyn_cast<ValueTensorType>(op.getResult(0).getType());
+    if (inputTy.getDtype() != resultTensorType.getDtype()) {
+      Value dtypeValue = Torch::getDtypeIntValueForType(
+          rewriter, loc, resultTensorType.getDtype());
+      Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+      inputNormalized = rewriter.create<Torch::AtenToDtypeOp>(
+          loc, resultTensorType, inputNormalized,
+          /*dtype=*/dtypeValue, /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+          /*memory_format=*/none);
+    }
     Value out = rewriter.create<TensorStaticInfoCastOp>(
         loc, op.getResult(0).getType(), inputNormalized);
 
