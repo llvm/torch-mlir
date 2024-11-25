@@ -5770,6 +5770,7 @@ public:
 
     Value n_fft = op.getNFft();
     int64_t n_fftInt;
+    // TODO: add support for non-constant n_fft
     if (!matchPattern(n_fft, m_TorchConstantInt(&n_fftInt)))
       return rewriter.notifyMatchFailure(op, "Unsupported: non-constant n_fft");
 
@@ -5779,9 +5780,9 @@ public:
           loc, n_fft,
           rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(4)));
     }
-    // TODO: need to check that op.getWinLength() matches window's first dim.
-    // Both static and runtime assert.
+
     int64_t winLengthInt;
+    // TODO: add support for non-constant win_length
     if (isa<Torch::NoneType>(op.getWinLength().getType())) {
       winLengthInt = n_fftInt;
     } else if (!matchPattern(op.getWinLength(),
@@ -5792,22 +5793,36 @@ public:
     Value window = op.getWindow();
     ValueTensorType windowTensorType;
     Type windowDType;
-    if (isa<Torch::NoneType>(window.getType())) {
-      windowDType = Torch::FloatType::get(rewriter.getContext());
-      winLengthInt = 0;
-      windowTensorType = ValueTensorType::get(
-          rewriter.getContext(), ArrayRef<int64_t>{}, rewriter.getF32Type());
-      auto attr = DenseElementsAttr::get(windowTensorType.toBuiltinTensor(),
-                                         SmallVector<APFloat>());
-      window =
-          rewriter.create<ValueTensorLiteralOp>(loc, windowTensorType, attr);
-    } else {
+    const bool hasWindow = !isa<Torch::NoneType>(window.getType());
+
+    if (hasWindow) {
       windowTensorType = cast<ValueTensorType>(window.getType());
       windowDType = windowTensorType.getOptionalDtype();
+      if (!windowTensorType.hasDtype() || !windowTensorType.hasSizes()) {
+        return rewriter.notifyMatchFailure(
+            op, "window should have dtype and sizes");
+      }
+      if (windowTensorType.getSizes().size() != 1) {
+        return op.emitError("window should be 1D");
+      }
+      if (windowTensorType.getSizes().back() == kUnknownSize) {
+        Value actualWinLen = getTensorDimSize(rewriter, window, 0);
+        Value winSizeEq = rewriter.create<AtenEqIntOp>(
+            loc, actualWinLen,
+            rewriter.create<ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(winLengthInt)));
+        rewriter.create<RuntimeAssertOp>(
+            loc, winSizeEq,
+            rewriter.getStringAttr(
+                "window size should be equal to win_length"));
+      } else if (windowTensorType.getSizes().back() != winLengthInt) {
+        return op.emitError("window size should be equal to win_length");
+      }
     }
 
     Value center = op.getCenter();
     bool centerBool;
+    // TODO: add support for non-constant center and center=True
     if (!matchPattern(center, m_TorchConstantBool(&centerBool)))
       return rewriter.notifyMatchFailure(op,
                                          "Unsupported: non-constant center");
@@ -5816,6 +5831,7 @@ public:
 
     Value normalized = op.getNormalized();
     bool normalizedBool;
+    // TODO: add support for non-constant normalized and normalized=True
     if (!matchPattern(normalized, m_TorchConstantBool(&normalizedBool)))
       return rewriter.notifyMatchFailure(
           op, "Unsupported: non-constant normalized");
@@ -5824,6 +5840,7 @@ public:
 
     bool onesidedBool;
     // Default: True for real input and window, False otherwise.
+    // TODO: add support for non-constant onesided
     if (isa<Torch::NoneType>(op.getOnesided().getType())) {
       Type dtype = selfType.getDtype();
       onesidedBool = !isa<mlir::ComplexType>(dtype);
@@ -5834,15 +5851,13 @@ public:
 
     Value returnComplex = op.getReturnComplex();
     bool returnComplexBool;
+    // TODO: add support for non-constant return_complex and return_complex=True
     if (!matchPattern(returnComplex, m_TorchConstantBool(&returnComplexBool)))
       return rewriter.notifyMatchFailure(
           op, "Unsupported: non-constant return_complex");
     if (!returnComplex)
       return rewriter.notifyMatchFailure(op,
                                          "Unsupported: return_complex=False");
-
-    // TODO: first version: center=False, pad_mode ignored,
-    // normalized=False return_complex=True, sig_length is known
 
     Value cstZero =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
@@ -5862,7 +5877,7 @@ public:
     //   tot_pad = n_fft - winLength
     //   left_pad = tot_pad / 2
     //   p1d = (left_pad, tot_pad - left_pad)
-    //   window = torch.nn.functional.pad(window, p1d, "constant", 1.0)
+    //   window = torch.nn.functional.pad(window, p1d, "constant", 0.0)
     // }
     Value signalLen = rewriter.create<AtenSizeIntOp>(loc, self, cstMinusOne);
     Value nFrames = rewriter.create<AtenAddIntOp>(
@@ -5870,7 +5885,7 @@ public:
         rewriter.create<AtenFloordivIntOp>(
             loc, rewriter.create<AtenSubIntOp>(loc, signalLen, n_fft),
             hopLength));
-    if (winLengthInt < n_fftInt) {
+    if (hasWindow && winLengthInt < n_fftInt) {
       int64_t totalPad = n_fftInt - winLengthInt;
       int64_t leftPad = totalPad / 2;
       int64_t rightPad = totalPad - leftPad;
@@ -5929,7 +5944,7 @@ public:
     // }
     // return final_freq_tensor
 
-    if (selfType.getSizes().size() == 2) {
+    if (hasWindow && selfType.getSizes().size() == 2) {
       SmallVector<int64_t> newWindowSizes = {1, n_fftInt};
       Type windowReshapeTensorType = windowTensorType.getWithSizesAndDtype(
           newWindowSizes, windowTensorType.getOptionalDtype());
@@ -5939,8 +5954,17 @@ public:
                                               window, newWindowShape);
     }
 
-    Value outputSizesList = toIntListConstruct(
-        rewriter, loc, resultSizes, IntType::get(rewriter.getContext()));
+    Value nFreqs = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(n_fftInt / 2 + 1));
+    SmallVector<Value> sizesValues =
+        selfType.getSizes().size() == 2
+            ? SmallVector<Value>(
+                  {/*batch_size = */ getTensorDimSize(rewriter, self, 0),
+                   nFreqs, nFrames})
+            : SmallVector<Value>({nFreqs, nFrames});
+    Value outputSizesList = rewriter.create<Torch::PrimListConstructOp>(
+        loc, Torch::ListType::get(IntType::get(rewriter.getContext())),
+        sizesValues);
     Value resultDtype =
         getDtypeIntValueForType(rewriter, loc, resultType.getDtype());
     Value initFreqTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
@@ -5982,8 +6006,10 @@ public:
           loc, paddedSlicedTensorType,
           rewriter.create<AtenPadOp>(loc, slicedTensorType, sliced, padList,
                                      cstStrConstant, cstZeroFloat));
-      Value weighted = rewriter.create<AtenMulTensorOp>(
-          loc, paddedSlicedTensorType, paddedSliced, window);
+      Value weighted =
+          hasWindow ? rewriter.create<AtenMulTensorOp>(
+                          loc, paddedSlicedTensorType, paddedSliced, window)
+                    : paddedSliced;
       int64_t freqsDimSize = returnComplexBool
                                  ? resultSizes[resultSizes.size() - 2]
                                  : resultSizes[resultSizes.size() - 3];
@@ -6012,10 +6038,6 @@ public:
                                            ValueRange({newFreqTensor}));
     }
     rewriter.replaceOp(op, frameLoop.getResults());
-
-    // TODO:
-    //  if normalize:
-    //      result /= fft_length
 
     return success();
   }
