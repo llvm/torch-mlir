@@ -10809,17 +10809,17 @@ public:
         Value idx1 =
             rewriter.create<Torch::AtenItemOp>(loc, intTy, extractIdx1);
         Value idx1End = rewriter.create<Torch::AtenAddIntOp>(loc, idx1, cst1);
-        Value slice1 = rewriter.create<AtenSliceTensorOp>(
+        Value curBox = rewriter.create<AtenSliceTensorOp>(
             loc, rowSliceTy, boxes,
             /*dim=*/cst0, /*start=*/idx1, /*end=*/idx1End, /*step=*/cst1);
 
         // Calculate IoUs: intersectionArea / unionArea
         // Intersection area = intersectionWidth * intersectionHeight
         Value point1 = rewriter.create<AtenSliceTensorOp>(
-            loc, pointTy, slice1,
+            loc, pointTy, curBox,
             /*dim=*/cst1, /*start=*/cst0, /*end=*/cst2, /*step=*/cst1);
         Value point2 = rewriter.create<AtenSliceTensorOp>(
-            loc, pointTy, slice1,
+            loc, pointTy, curBox,
             /*dim=*/cst1, /*start=*/cst2, /*end=*/cst4, /*step=*/cst1);
         Value innerLow = rewriter.create<Torch::AtenMaximumOp>(
             loc, sliceTy, lowSlice, point1);
