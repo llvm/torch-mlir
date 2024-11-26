@@ -21,9 +21,8 @@ add_mlir_library(TorchMLIRTorchPasses
   ScalarizeShapes.cpp
   AbstractInterpLibrary.cpp
   SimplifyShapeCalculations.cpp
-  SimplifyListGeneratingLoops.cpp
   SimplifyDtypeCalculations.cpp
-  SimplificationUtils.cpp
+  SimplifyAbstractInterpCalculationsUtils.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/torch-mlir/Dialect/Torch/Transforms

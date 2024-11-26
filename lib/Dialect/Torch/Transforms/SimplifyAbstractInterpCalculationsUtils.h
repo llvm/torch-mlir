@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef TORCHMLIR_DIALECT_TORCH_TRANSFORMS_SIMPLIFICATION_UTILS_H
-#define TORCHMLIR_DIALECT_TORCH_TRANSFORMS_SIMPLIFICATION_UTILS_H
+#ifndef TORCHMLIR_DIALECT_TORCH_TRANSFORMS_SIMPLIFY_ABSTRACT_INTERP_CALCULATIONS_UTILS_H
+#define TORCHMLIR_DIALECT_TORCH_TRANSFORMS_SIMPLIFY_ABSTRACT_INTERP_CALCULATIONS_UTILS_H
 
 #include "mlir/IR/PatternMatch.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -29,11 +29,9 @@ void populateFullyUnrollPrimLoopOpPattern(RewritePatternSet &patterns,
                                           MLIRContext *context);
 void populateAbstractlyInterpretListOpsWithinABlockPattern(
     RewritePatternSet &patterns, MLIRContext *context);
-void populateFoldListAppendChainWithinABlockPattern(RewritePatternSet &patterns,
-                                                    MLIRContext *context);
 
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
 
-#endif // TORCHMLIR_DIALECT_TORCH_TRANSFORMS_SIMPLIFICATION_UTILS_H
+#endif // TORCHMLIR_DIALECT_TORCH_TRANSFORMS_SIMPLIFY_ABSTRACT_INTERP_CALCULATIONS_UTILS_H

@@ -235,18 +235,6 @@ def DecomposeComplexOps : Pass<"torch-decompose-complex-ops", "func::FuncOp"> {
   }];
 }
 
-def SimplifyListGeneratingLoops : Pass<"torch-simplify-list-generating-loops", "func::FuncOp"> {
-  let summary = "Simplify loops that generate lists";
-  let constructor = "mlir::torch::Torch::createSimplifyListGeneratingLoopsPass()";
-  let description = [{
-  }];
-  let description = [{
-    Unroll loops that generate lists and greedily simplify list operations until
-    either they have been folded into a single prim.ListConstruct or maxIterations
-    are reached.
-  }];
-}
-
 def ScalarizeShapes : Pass<"torch-scalarize-shapes", "func::FuncOp"> {
   let summary = "Takes common shape computation operations and scalarizes them.";
   let constructor = "mlir::torch::Torch::createScalarizeShapesPass()";
