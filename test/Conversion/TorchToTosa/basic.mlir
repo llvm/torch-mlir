@@ -2662,3 +2662,166 @@ func.func @torch.aten.gelu$tanh(%arg0: !torch.vtensor<[5,3],f32>) -> !torch.vten
   %0 = torch.aten.gelu %arg0, %str : !torch.vtensor<[5,3],f32>, !torch.str -> !torch.vtensor<[5,3],f32>
   return %0 : !torch.vtensor<[5,3],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.exp$int(
+// CHECK-SAME:                                  %[[VAL_0:.*]]: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,4],si32> -> tensor<3x4xi32>
+// CHECK:           %[[VAL_2:.*]] = tosa.cast %[[VAL_1]] : (tensor<3x4xi32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_3:.*]] = tosa.exp %[[VAL_2]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_4:.*]] = torch_c.from_builtin_tensor %[[VAL_3]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
+// CHECK:           return %[[VAL_4]] : !torch.vtensor<[3,4],f32>
+// CHECK:         }
+func.func @torch.aten.exp$int(%arg0: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.exp %arg0 : !torch.vtensor<[3,4],si32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.log10$basic(
+// CHECK-SAME:                                      %[[VAL_0:.*]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,4],f32> -> tensor<3x4xf32>
+// CHECK:           %[[VAL_2:.*]] = "tosa.const"() <{value = dense<1.000000e+01> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[VAL_3:.*]] = tosa.log %[[VAL_1]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_4:.*]] = tosa.log %[[VAL_2]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[VAL_5:.*]] = tosa.reciprocal %[[VAL_4]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[VAL_6:.*]] = tosa.mul %[[VAL_3]], %[[VAL_5]] {shift = 0 : i8} : (tensor<3x4xf32>, tensor<f32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_7:.*]] = torch_c.from_builtin_tensor %[[VAL_6]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
+// CHECK:           return %[[VAL_7]] : !torch.vtensor<[3,4],f32>
+// CHECK:         }
+func.func @torch.aten.log10$basic(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.log10 %arg0 : !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.log10$int(
+// CHECK-SAME:                                    %[[VAL_0:.*]]: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,4],si32> -> tensor<3x4xi32>
+// CHECK:           %[[VAL_2:.*]] = tosa.cast %[[VAL_1]] : (tensor<3x4xi32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{value = dense<1.000000e+01> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[VAL_4:.*]] = tosa.log %[[VAL_2]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_5:.*]] = tosa.log %[[VAL_3]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[VAL_6:.*]] = tosa.reciprocal %[[VAL_5]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[VAL_7:.*]] = tosa.mul %[[VAL_4]], %[[VAL_6]] {shift = 0 : i8} : (tensor<3x4xf32>, tensor<f32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_8:.*]] = torch_c.from_builtin_tensor %[[VAL_7]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
+// CHECK:           return %[[VAL_8]] : !torch.vtensor<[3,4],f32>
+// CHECK:         }
+func.func @torch.aten.log10$int(%arg0: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.log10 %arg0 : !torch.vtensor<[3,4],si32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.log1p$basic(
+// CHECK-SAME:                                      %[[VAL_0:.*]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,4],f32> -> tensor<3x4xf32>
+// CHECK:           %[[VAL_2:.*]] = "tosa.const"() <{value = dense<1.000000e+00> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[VAL_3:.*]] = tosa.add %[[VAL_1]], %[[VAL_2]] : (tensor<3x4xf32>, tensor<f32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_4:.*]] = tosa.log %[[VAL_3]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_5:.*]] = torch_c.from_builtin_tensor %[[VAL_4]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
+// CHECK:           return %[[VAL_5]] : !torch.vtensor<[3,4],f32>
+// CHECK:         }
+func.func @torch.aten.log1p$basic(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.log1p %arg0 : !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.log1p$int(
+// CHECK-SAME:                                    %[[VAL_0:.*]]: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,4],si32> -> tensor<3x4xi32>
+// CHECK:           %[[VAL_2:.*]] = tosa.cast %[[VAL_1]] : (tensor<3x4xi32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{value = dense<1.000000e+00> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[VAL_4:.*]] = tosa.add %[[VAL_2]], %[[VAL_3]] : (tensor<3x4xf32>, tensor<f32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_5:.*]] = tosa.log %[[VAL_4]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
+// CHECK:           return %[[VAL_6]] : !torch.vtensor<[3,4],f32>
+// CHECK:         }
+func.func @torch.aten.log1p$int(%arg0: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.log1p %arg0 : !torch.vtensor<[3,4],si32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.logit$basic(
+// CHECK-SAME:                                      %[[VAL_0:.*]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,4],f32> -> tensor<3x4xf32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.float 9.9999999999999995E-8
+// CHECK:           %[[VAL_3:.*]] = tosa.clamp %[[VAL_1]] {max_fp = 0.99999988 : f32, max_int = 0 : i64, min_fp = 1.000000e-07 : f32, min_int = 0 : i64} : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{value = dense<1.000000e+00> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[VAL_5:.*]] = tosa.sub %[[VAL_4]], %[[VAL_3]] : (tensor<f32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_6:.*]] = tosa.reciprocal %[[VAL_5]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_7:.*]] = tosa.mul %[[VAL_3]], %[[VAL_6]] {shift = 0 : i8} : (tensor<3x4xf32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_8:.*]] = tosa.log %[[VAL_7]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_9:.*]] = torch_c.from_builtin_tensor %[[VAL_8]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
+// CHECK:           return %[[VAL_9]] : !torch.vtensor<[3,4],f32>
+// CHECK:         }
+func.func @torch.aten.logit$basic(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %float9.999990e-08 = torch.constant.float 9.9999999999999995E-8
+  %0 = torch.aten.logit %arg0, %float9.999990e-08 : !torch.vtensor<[3,4],f32>, !torch.float -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.logit$int(
+// CHECK-SAME:                                    %[[VAL_0:.*]]: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,4],si32> -> tensor<3x4xi32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.float 9.9999999999999995E-8
+// CHECK:           %[[VAL_3:.*]] = tosa.cast %[[VAL_1]] : (tensor<3x4xi32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_4:.*]] = tosa.clamp %[[VAL_3]] {max_fp = 0.99999988 : f32, max_int = 0 : i64, min_fp = 1.000000e-07 : f32, min_int = 0 : i64} : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_5:.*]] = "tosa.const"() <{value = dense<1.000000e+00> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[VAL_6:.*]] = tosa.sub %[[VAL_5]], %[[VAL_4]] : (tensor<f32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_7:.*]] = tosa.reciprocal %[[VAL_6]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_8:.*]] = tosa.mul %[[VAL_4]], %[[VAL_7]] {shift = 0 : i8} : (tensor<3x4xf32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_9:.*]] = tosa.log %[[VAL_8]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_10:.*]] = torch_c.from_builtin_tensor %[[VAL_9]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
+// CHECK:           return %[[VAL_10]] : !torch.vtensor<[3,4],f32>
+// CHECK:         }
+func.func @torch.aten.logit$int(%arg0: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
+  %float9.999990e-08 = torch.constant.float 9.9999999999999995E-8
+  %0 = torch.aten.logit %arg0, %float9.999990e-08 : !torch.vtensor<[3,4],si32>, !torch.float -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.log$int(
+// CHECK-SAME:                                  %[[VAL_0:.*]]: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,4],si32> -> tensor<3x4xi32>
+// CHECK:           %[[VAL_2:.*]] = tosa.cast %[[VAL_1]] : (tensor<3x4xi32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_3:.*]] = tosa.log %[[VAL_2]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_4:.*]] = torch_c.from_builtin_tensor %[[VAL_3]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
+// CHECK:           return %[[VAL_4]] : !torch.vtensor<[3,4],f32>
+// CHECK:         }
+func.func @torch.aten.log$int(%arg0: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.log %arg0 : !torch.vtensor<[3,4],si32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.log2$int(
+// CHECK-SAME:                                   %[[VAL_0:.*]]: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,4],si32> -> tensor<3x4xi32>
+// CHECK:           %[[VAL_2:.*]] = tosa.cast %[[VAL_1]] : (tensor<3x4xi32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{value = dense<0.693147182> : tensor<1x1xf32>}> : () -> tensor<1x1xf32>
+// CHECK:           %[[VAL_4:.*]] = tosa.reciprocal %[[VAL_3]] : (tensor<1x1xf32>) -> tensor<1x1xf32>
+// CHECK:           %[[VAL_5:.*]] = tosa.log %[[VAL_2]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_6:.*]] = tosa.mul %[[VAL_5]], %[[VAL_4]] {shift = 0 : i8} : (tensor<3x4xf32>, tensor<1x1xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[VAL_7:.*]] = torch_c.from_builtin_tensor %[[VAL_6]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
+// CHECK:           return %[[VAL_7]] : !torch.vtensor<[3,4],f32>
+// CHECK:         }
+func.func @torch.aten.log2$int(%arg0: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.log2 %arg0 : !torch.vtensor<[3,4],si32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
