@@ -9146,8 +9146,7 @@ class DecomposeAtenFftRfftOp final : public OpRewritePattern<AtenFftRfftOp> {
         ValueTensorType::get(op.getContext(), unflattenedResShape, dtype);
     Value cstMinusOne =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
-    Value unflattenSizes = toIntListConstruct(
-        rewriter, loc, {outputFftDim, 2}, IntType::get(rewriter.getContext()));
+    Value unflattenSizes = toIntListConstruct(rewriter, loc, {outputFftDim, 2});
     Value unflattenedRes = rewriter.create<AtenUnflattenIntOp>(
         loc, unflattenedResType, flatRes, /*dim=*/cstMinusOne, unflattenSizes);
     Type complexResType = ValueTensorType::get(op.getContext(), complexResShape,
