@@ -2201,6 +2201,18 @@ def aten〇fft_fft〡shape(self: List[int], n: Optional[int] = None, dim: int = 
     return self
 
 @check_shape_function([
+    Invocation(TensorOfShape(3, 9, 5), None, -2, None) # Second-last dim
+])
+def aten〇fft_rfft〡shape(self: List[int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> List[int]:
+    dim = (dim + len(self)) if dim < 0 else dim
+    assert dim >= 0 and dim < len(self), "Expected dim in [-rank, rank-1]"
+    out: List[int] = []
+    for s in self:
+        out.append(s)
+    out[dim] = self[dim] // 2 + 1
+    return out
+
+@check_shape_function([
     Invocation(TensorOfShape(1, 128), 16, None, 16, TensorOfShape(16), False, None, True) # With an explicit 1-D window.
 ])
 def aten〇stft〡shape(self: List[int], n_fft: int, hop_length: Optional[int] = None, win_length: Optional[int] = None, window: Optional[List[int]] = None, normalized: bool = False, onesided: Optional[bool] = None, return_complex: Optional[bool] = None) -> List[int]:
@@ -3743,6 +3755,23 @@ def aten〇fft_fft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = 
         return torch.complex64
     else:
         assert False, "Unsupported dtype"
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex32, torch.complex64, torch.complex128, torch.bfloat16}))
+def aten〇fft_rfft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if self_dtype == torch.float16:
+        return torch.complex32
+    elif self_dtype == torch.float32:
+        return torch.complex64
+    elif self_dtype == torch.float64:
+        return torch.complex128
+    elif is_integer_dtype(self_dtype):
+        return torch.complex64
+    else:
+        assert False, "Unsupported dtype"
+
+
 
 @check_dtype_function([
     Invocation(TensorOfShape(1,128, dtype=torch.complex64), n_fft=16, return_complex=False), # output dtype = torch.float32
