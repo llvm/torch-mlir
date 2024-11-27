@@ -51,3 +51,43 @@ class AtenHannWindowPeriodicTrueModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenHannWindowPeriodicTrueModule())
 def AtenHannWindowPeriodicTrueModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+
+class AtenFftRfft2DLastDim(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([16, 9], torch.float32, True),
+        ]
+    )
+    def forward(self, input):
+        return torch.fft.rfft(input, dim=-1)
+
+
+@register_test_case(module_factory=lambda: AtenFftRfft2DLastDim())
+def AtenFftRfft2DLastDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(16, 9))
+
+
+# ==============================================================================
+
+
+class AtenFftRfft2DMiddleDim(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([36, 10], torch.float32, True),
+        ]
+    )
+    def forward(self, input):
+        return torch.fft.rfft(input, dim=0)
+
+
+@register_test_case(module_factory=lambda: AtenFftRfft2DMiddleDim())
+def AtenFftRfft2DMiddleDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(36, 10))
