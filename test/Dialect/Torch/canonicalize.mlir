@@ -137,6 +137,46 @@ func.func @torch.aten.__isnot__$none_isnot_none(%arg0: !torch.none, %arg1: !torc
   return %0 : !torch.bool
 }
 
+// CHECK-LABEL:   func.func @torch.aten.eq.bool$same_value() -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func.func @torch.aten.eq.bool$same_value() -> !torch.bool {
+  %a = torch.constant.bool false
+  %b = torch.constant.bool false
+  %0 = torch.aten.eq.bool %a, %b: !torch.bool, !torch.bool -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.eq.bool$different_value() -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           return %[[FALSE]] : !torch.bool
+func.func @torch.aten.eq.bool$different_value() -> !torch.bool {
+  %a = torch.constant.bool true
+  %b = torch.constant.bool false
+  %0 = torch.aten.eq.bool %a, %b: !torch.bool, !torch.bool -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.eq.bool$same_operand(
+// CHECK-SAME:                                          %[[ARG0:.*]]: !torch.bool) -> !torch.bool {
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[TRUE]] : !torch.bool
+func.func @torch.aten.eq.bool$same_operand(%arg0: !torch.bool) -> !torch.bool {
+  %0 = torch.aten.eq.bool %arg0, %arg0: !torch.bool, !torch.bool -> !torch.bool
+  return %0 : !torch.bool
+}
+
+// CHECK-LABEL:   func.func @torch.aten.eq.bool$different_operand(
+// CHECK-SAME:                                               %[[ARG0:.*]]: !torch.bool) -> !torch.bool {
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[RET:.*]] = torch.aten.eq.bool %[[ARG0]], %[[FALSE]] : !torch.bool, !torch.bool -> !torch.bool
+// CHECK:           return %[[RET]] : !torch.bool
+func.func @torch.aten.eq.bool$different_operand(%a: !torch.bool) -> !torch.bool {
+  %b = torch.constant.bool false
+  %0 = torch.aten.eq.bool %a, %b: !torch.bool, !torch.bool -> !torch.bool
+  return %0 : !torch.bool
+}
+
 // CHECK-LABEL:   func.func @torch.aten.ne.bool() -> !torch.bool {
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 // CHECK:           return %[[TRUE]] : !torch.bool
@@ -698,6 +738,20 @@ func.func @torch.aten.len.t$no_fold_list_mutated() -> !torch.int {
   return %2 : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.aten.mul.left_t(
+// CHECK:           %[[C4:.*]] = torch.constant.int 4
+// CHECK:           %[[C5:.*]] = torch.constant.int 5
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[C4]], %[[C5]], %[[C4]], %[[C5]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           return %[[LIST]] : !torch.list<int>
+func.func @torch.aten.mul.left_t() -> !torch.list<int> {
+    %int4 = torch.constant.int 4
+    %int5 = torch.constant.int 5
+    %int2 = torch.constant.int 2
+    %0 = torch.prim.ListConstruct %int4, %int5 : (!torch.int, !torch.int) -> !torch.list<int>
+    %1 = torch.aten.mul.left_t %0, %int2 : !torch.list<int>, !torch.int -> !torch.list<int>
+    return %1 : !torch.list<int>
+}
+
 // CHECK-LABEL:   func.func @torch.aten.__getitem__.t(
 // CHECK:           %[[C5:.*]] = torch.constant.int 5
 // CHECK:           return %[[C5]] : !torch.int
@@ -1179,6 +1233,16 @@ func.func @torch.aten.mul.int$canonicalize(%arg0: !torch.int) -> !torch.int {
     %1 = torch.aten.mul.int %arg0, %cst5: !torch.int, !torch.int -> !torch.int
     %ret = torch.aten.mul.int %1, %cst6: !torch.int, !torch.int -> !torch.int
     return %ret : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.mul.int_float() -> !torch.float {
+// CHECK:           %[[CST6:.*]] = torch.constant.float 6.000000e+00
+// CHECK:           return %[[CST6]] : !torch.float
+func.func @torch.aten.mul.int_float() -> !torch.float {
+    %cst2 = torch.constant.int 2
+    %cst3 = torch.constant.float 3.0
+    %ret = torch.aten.mul.int_float %cst2, %cst3: !torch.int, !torch.float -> !torch.float
+    return %ret : !torch.float
 }
 
 // CHECK-LABEL:   func.func @torch.aten.mul.float() -> !torch.float {

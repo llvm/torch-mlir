@@ -77,6 +77,8 @@ public:
     if (llvm::is_one_of<AtenOp, AtenAddFloatIntOp>::value ||
         llvm::is_one_of<AtenOp, AtenMulFloatIntOp>::value)
       b = convertScalarToDtype(rewriter, op.getLoc(), b, a.getType());
+    if (llvm::is_one_of<AtenOp, AtenMulIntFloatOp>::value)
+      a = convertScalarToDtype(rewriter, op.getLoc(), a, b.getType());
     rewriter.template replaceOpWithNewOp<BinOp>(op, a, b);
     return success();
   }
@@ -452,10 +454,13 @@ public:
     patterns.add<
         ConvertAtenIntComparisonOp<AtenLeIntOp, arith::CmpIPredicate::sle>>(
         typeConverter, context);
-    target.addIllegalOp<AtenGeFloatOp, AtenGeFloatIntOp, AtenNeFloatIntOp,
-                        AtenGtFloatIntOp>();
+    target.addIllegalOp<AtenGeFloatOp, AtenGtFloatOp, AtenGeFloatIntOp,
+                        AtenNeFloatIntOp, AtenGtFloatIntOp>();
     patterns.add<
         ConvertAtenFloatComparisonOp<AtenGeFloatOp, arith::CmpFPredicate::UGE>>(
+        typeConverter, context);
+    patterns.add<
+        ConvertAtenFloatComparisonOp<AtenGtFloatOp, arith::CmpFPredicate::UGT>>(
         typeConverter, context);
     patterns.add<ConvertAtenFloatComparisonOp<AtenGeFloatIntOp,
                                               arith::CmpFPredicate::UGE>>(
@@ -488,7 +493,8 @@ public:
     target.addIllegalOp<AtenNegIntOp>();
     patterns.add<ConvertAtenNegIntOp>(typeConverter, context);
     target.addIllegalOp<AtenAddIntOp, AtenAddFloatIntOp, AtenSubIntOp,
-                        AtenMulIntOp, AtenRemainderIntOp, AtenMulFloatIntOp>();
+                        AtenMulIntOp, AtenRemainderIntOp, AtenMulIntFloatOp,
+                        AtenMulFloatIntOp>();
     patterns.add<ConvertAtenBinaryOp<AtenAddIntOp, arith::AddIOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenRemainderIntOp, arith::RemSIOp>>(
@@ -498,6 +504,8 @@ public:
     patterns.add<ConvertAtenBinaryOp<AtenSubIntOp, arith::SubIOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenMulIntOp, arith::MulIOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<AtenMulIntFloatOp, arith::MulFOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenMulFloatIntOp, arith::MulFOp>>(
         typeConverter, context);

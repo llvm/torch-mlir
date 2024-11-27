@@ -1757,8 +1757,7 @@ def aten〇col2im〡shape(self: List[int], output_size: List[int], kernel_size: 
 
     # compute the shape of the output
     num_channels = n_input_plane // (kernel_size[0] * kernel_size[1])
-    out: List[int] = [self[0], num_channels] if batch_dim == 0 else [num_channels]
-    out += [elem for elem in output_size]
+    out: List[int] = ([self[0], num_channels] if batch_dim == 0 else [num_channels]) + [elem for elem in output_size]
 
     return out
 
@@ -2063,6 +2062,9 @@ def aten〇tril_indices〡shape(row: int, col: int, offset: int = 0, dtype: Opti
 
     return [2, trapezoid_size + rectangle_size]
 
+def aten〇deg2rad〡shape(self: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), LongTensorOfShape(2), None, 1, -100), # Basic case.
     Invocation(TensorOfShape(3), LongTensorOfShape(), None, 1, -100), # No batch dim.
@@ -2077,6 +2079,11 @@ def aten〇nll_loss_backward〡shape(grad_output: List[int], self: List[int], ta
 
 # TODO: upstream this
 def aten〇mse_loss〡shape(self: List[int], target: List[int], reduction: int = 1) -> List[int]:
+    if reduction == 0:
+        return upstream_shape_functions.unary(self)
+    return []
+
+def aten〇l1_loss〡shape(self: List[int], target: List[int], reduction: int = 1) -> List[int]:
     if reduction == 0:
         return upstream_shape_functions.unary(self)
     return []
@@ -2279,6 +2286,20 @@ def aten〇hstack〡shape(tensors: List[List[int]]) -> List[int]:
         return upstream_shape_functions.cat(tensors_atleast1d, dim=0)    
     
     return upstream_shape_functions.cat(tensors_atleast1d, dim=1)
+
+@check_shape_function([
+    Invocation([LongTensorOfShape(2, 4, 3), LongTensorOfShape(2, 5, 3)]), # Basic case.
+])
+def aten〇column_stack〡shape(tensors: List[List[int]]) -> List[int]:
+    tensors2d:  List[List[int]] = []
+    for tensor in tensors:
+        if len(tensor) == 0:
+            tensor = [1, 1]
+        elif len(tensor) == 1:
+            tensor.append(1)
+        tensors2d.append(tensor)
+
+    return upstream_shape_functions.cat(tensors2d, dim=1)
 
 def aten〇fft_fft〡shape(self: List[int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> List[int]:
     return self
@@ -4249,6 +4270,15 @@ def aten〇mse_loss〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype:
     assert not is_integer_dtype(promoted_dtype)
     return promoted_dtype
 
+def aten〇l1_loss〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], reduction: int = 1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    target_rank, target_dtype = target_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, target_rank]
+    dtypes = [self_dtype, target_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    assert not is_integer_dtype(promoted_dtype)
+    return promoted_dtype
+
 @check_dtype_function(_check_two_tensor_op())
 def aten〇mul〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     other_rank, other_dtype = other_rank_dtype
@@ -5562,6 +5592,23 @@ def aten〇hstack〡dtype(tensors_rank_dtype: List[Tuple[int, int]]) -> int:
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
+    [Invocation([NonZeroDTensorWithDtype(torch.bool), NonZeroDTensorWithDtype(torch.int32), NonZeroDTensorWithDtype(torch.int64)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float16), NonZeroDTensorWithDtype(torch.float64)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32),
+                 NonZeroDTensorWithDtype(torch.complex64)])])
+def aten〇column_stack〡dtype(tensors_rank_dtype: List[Tuple[int, int]]) -> int:
+    ranks: List[Optional[int]] = []
+    dtypes: List[int] = []
+    assert len(tensors_rank_dtype) != 0
+    for tensor_rank_dtype in tensors_rank_dtype:
+        tensor_rank, tensor_dtype = tensor_rank_dtype
+        ranks.append(tensor_rank)
+        dtypes.append(tensor_dtype)
+
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
     [Invocation("i,j->ij", [TensorOfShape(1, dtype=torch.float32),
                             TensorOfShape(1, dtype=torch.int32)]),])
 def aten〇einsum〡dtype(equation: str, tensors_rank_dtype: List[Tuple[int, int]], path: Optional[List[int]] = None) -> int:
@@ -5703,6 +5750,10 @@ def aten〇triu_indices〡dtype(row: int, col: int, offset: int = 0, dtype: Opti
 
 def aten〇tril_indices〡dtype(row: int, col: int, offset: int = 0, dtype: Optional[int] = 4, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
     return torch.int64 if dtype is None else dtype
+
+def aten〇deg2rad〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return _get_dtype_of_floating_point_op(self_dtype)
 
 def aten〇int_repr〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
