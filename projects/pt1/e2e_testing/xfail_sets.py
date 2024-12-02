@@ -33,6 +33,8 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # if a dimension is specified in all expand lists, and not in sumdim list.
     # This is a bug in the implementation of _trilinear in PyTorch.
     "Aten_TrilinearModuleZerodDimBug_basic",
+    # missing lowering from aten.pow.Tensor_Tensor for integer result
+    "PowIntIntModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.5.0.dev"):
@@ -220,7 +222,6 @@ TORCHDYNAMO_XFAIL_SET = {
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "IntFloatModule_basic",
-    "PowIntFloatModule_basic",
     # END tests failing due to: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.Int
     # ERROR: torch._dynamo.exc.Unsupported: torch.* op returned non-Tensor int call_function aten.len
     "LenStrModule_basic",
@@ -448,7 +449,7 @@ FX_IMPORTER_XFAIL_SET = {
     "NllLossModuleBackward1D_basic",
     "NumelModule_basic",
     "NumelZeroRankModule_basic",
-    "PowIntFloatModule_basic",
+    "PowIntIntModule_basic",
     "PrimMaxIntModule_basic",
     "PrimMinIntDynamicModule_basic",
     "PrimMinIntModule_basic",
@@ -545,10 +546,6 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AddFloatIntModule_basic",
-    "ArgmaxIntModule_basic",
-    "ArgmaxIntModule_multiple_maxs",
-    "ArgmaxKeepdimModule_basic",
-    "ArgmaxModule_basic",
     "AtenKthvalueDynamicDimsModule_basic",
     "AtenKthvalueFloat64DynamicDimsModule_basic",
     "AtenKthvalueFloat64Module_basic",
@@ -618,9 +615,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AnyBoolFalseModule_basic",
     "AnyBoolTrueModule_basic",
     "ArangeStartOutViewModule_basic",
-    "ArgminIntModule_basic",
-    "ArgminIntModule_multiple_mins",
-    "ArgminModule_basic",
     "AtenComplexImagModule_basic",
     "AtenComplexRealModule_basic",
     "AtenComplexViewModule_basic",
@@ -631,6 +625,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenDiagEmbedOffsetDiag_basic",
     "AtenDiagEmbedRevDimDiag_basic",
     "AtenEmbeddingBagSumExample_basic",
+    "AtenFftRfft2DLastDim_basic",
+    "AtenFftRfft2DMiddleDim_basic",
     "AtenFloatScalarModule_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
@@ -801,7 +797,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "NormalFunctionalModule_basic",
     "NumelModule_basic",
     "NumelZeroRankModule_basic",
-    "PowIntFloatModule_basic",
     "PrimMaxIntModule_basic",
     "PrimMinIntDynamicModule_basic",
     "PrimMinIntModule_basic",
@@ -2306,6 +2301,8 @@ TOSA_PASS_SET = {
     "PadWithNoneValModule_basic",
     "PermuteModule_basic",
     "PermuteNegativeIndexModule_basic",
+    "PowFloatFloatModule_basic",
+    "PowFloatIntModule_basic",
     "PrimListUnpackNumMismatchModule_basic",
     "PrimsIotaModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
@@ -2814,6 +2811,8 @@ ONNX_XFAIL_SET = {
     "AtenDiagEmbedRevDimDiag_basic",
     "AtenEmbeddingBagStaticModule_basic",
     "AtenEmbeddingBagSumExample_basic",
+    "AtenFftRfft2DLastDim_basic",
+    "AtenFftRfft2DMiddleDim_basic",
     "AtenFloatScalarModule_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
@@ -3084,7 +3083,7 @@ ONNX_XFAIL_SET = {
     "PixelShuffleModuleSpatiallyDynamic_basic",
     "PixelShuffleModuleSpatiallyStatic_basic",
     "PixelShuffleModuleStaticRank3Int64_basic",
-    "PowIntFloatModule_basic",
+    "PowIntIntModule_basic",
     "PrimMaxIntModule_basic",
     "PrimMinIntDynamicModule_basic",
     "PrimMinIntModule_basic",
@@ -3769,7 +3768,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "PixelShuffleModuleSpatiallyStatic_basic",
     "PixelShuffleModuleStaticRank3Int64_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",
-    "PowIntFloatModule_basic",
     "PrimMaxIntModule_basic",
     "PrimMinIntDynamicModule_basic",
     "PrimMinIntModule_basic",
@@ -4629,7 +4627,6 @@ ONNX_TOSA_XFAIL_SET = {
     "PixelShuffleModuleSpatiallyStatic_basic",
     "PixelShuffleModuleStaticRank3Int64_basic",
     "PixelShuffleModuleStaticRank4Float32_basic",
-    "PowIntFloatModule_basic",
     "PrimMaxIntModule_basic",
     "PrimMinIntDynamicModule_basic",
     "PrimMinIntModule_basic",

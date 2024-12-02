@@ -85,6 +85,32 @@ func.func @cast_int_float(%arg0 : !torch.vtensor<[5,?,?],f32>) -> !torch.vtensor
 
 // -----
 
+// CHECK-LABEL: @cast_int_float_static
+func.func @cast_int_float_static(%arg0 : !torch.vtensor<[5,?,?],f32>) -> !torch.vtensor<[3],f32> {
+    // CHECK: %[[FLOAT1:.*]] = torch.constant.float 1.000000e+00
+    // CHECK: %[[FLOAT2:.*]] = torch.constant.float 2.000000e+00
+    // CHECK: %[[FLOAT3:.*]] = torch.constant.float 3.000000e+00
+    // CHECK: %[[LIST:.*]] = torch.prim.ListConstruct %[[FLOAT1:.*]], %[[FLOAT2:.*]], %[[FLOAT3:.*]] : (!torch.float, !torch.float, !torch.float) -> !torch.list<float>
+    // CHECK: %[[NONE:.*]] = torch.constant.none
+    // CHECK: %[[FALSE:.*]] = torch.constant.bool false
+    // CHECK: %[[TENSOR:.*]] = torch.aten.tensor %[[LIST]], %[[NONE]], %[[NONE]], %[[FALSE]] : !torch.list<float>, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[3],f32>
+    // CHECK: return %[[TENSOR]] : !torch.vtensor<[3],f32>
+    %int6 = torch.constant.int 6
+    %false = torch.constant.bool false
+    %none = torch.constant.none
+    %shape = torch.vtensor.literal(dense<[1,2,3]> : tensor<3xsi64>) : !torch.vtensor<[3],si64>
+    %cast_shape = torch.aten.to.dtype %shape, %int6, %false, %false, %none : !torch.vtensor<[3],si64>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[3],f32>
+    %dim = torch.constant.int 0
+    %idx0 = torch.vtensor.literal(dense<0> : tensor<si64>) : !torch.vtensor<[],si64>
+    %select0 = torch.aten.index_select %cast_shape, %dim, %idx0 : !torch.vtensor<[3],f32>, !torch.int, !torch.vtensor<[],si64> -> !torch.vtensor<[],f32>
+    %item0 = torch.aten.item %select0 : !torch.vtensor<[],f32> -> !torch.float
+    %item_int0 = torch.aten.Int.Scalar %item0 : !torch.float -> !torch.int
+    %list = torch.prim.ListConstruct %item_int0 : (!torch.int) -> !torch.list<int>
+    return %cast_shape : !torch.vtensor<[3],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @shape_as_tensor_dim_item
 func.func @shape_as_tensor_dim_item(%arg0 : !torch.vtensor<[5,?,?],f32>) -> !torch.int {
     // CHECK-DAG: %[[INT1:.+]] = torch.constant.int 1
