@@ -186,7 +186,7 @@ public:
                   Value res =
                       randomUniformF64(b, loc, linearIndex, key, min, max);
                   Value truncRes = res;
-                  if (isa<Float16Type, Float32Type>(elemTy))
+                  if (isa<BFloat16Type, Float16Type, Float32Type>(elemTy))
                     truncRes = b.create<arith::TruncFOp>(loc, elemTy, res);
                   b.create<linalg::YieldOp>(loc, truncRes);
                 })
