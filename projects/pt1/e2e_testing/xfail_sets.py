@@ -463,8 +463,6 @@ FX_IMPORTER_XFAIL_SET = {
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
     "ScalarImplicitFloatModule_basic",
-    "SortIntListReverse_basic",
-    "SortIntList_basic",
     "SplitDimDynamicModule_basic",
     "SplitDimStaticModule_basic",
     "SqrtIntModule_basic",
@@ -518,9 +516,6 @@ FX_IMPORTER_XFAIL_SET = {
     "BernoulliTensorModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
-    "MobilenetV3Module_basic",
-    "ResNet18Module_basic",
-    "ResNet18StaticModule_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
