@@ -13595,6 +13595,7 @@ def Torch_AtenStftOp : Torch_Op<"aten.stft", [
       printDefaultTorchOp(printer, *this, 8, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenStftCenterOp : Torch_Op<"aten.stft.center", [
