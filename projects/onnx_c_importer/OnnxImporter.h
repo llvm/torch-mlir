@@ -183,6 +183,8 @@ public:
   MlirType GetVtensorType(const std::vector<int64_t> &dims,
                           MlirType element_type);
 
+  MlirType GetNoneType();
+
 private:
   ModelInfo &model_info_;
   MlirContext context_;
@@ -209,13 +211,17 @@ public:
 
 private:
   void PopulateGraphAttrs(MlirOperation container_op);
-  Status ImportInitializer(const onnx::TensorProto &initializer);
+  Status
+  ImportInitializer(const onnx::TensorProto &initializer,
+                    std::optional<std::string> extern_name = std::nullopt);
   Status ImportNode(const onnx::NodeProto &node);
   MlirAttribute ImportGeneralAttribute(const onnx::AttributeProto &onnx_attr);
 
   // Special-form nodes.
   Status ImportGeneralNode(const onnx::NodeProto &node);
-  Status ImportConstantOfShapeNode(const onnx::NodeProto &node);
+  Status ImportConstantNodeValueAttr(const onnx::NodeProto &node);
+
+  void GetNone();
 
   /// Looks for an initializer for `name` and attempts to treat it as a 1D
   /// shape, filling `shape` if successful. Returns failure and sets an error

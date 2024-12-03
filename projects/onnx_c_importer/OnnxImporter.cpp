@@ -141,6 +141,18 @@ MlirOperation createMlirOperationAtEnd(MlirBlock block, std::string name,
   return operation;
 }
 
+const onnx::AttributeProto *GetValueProto(const onnx::NodeProto &node) {
+
+  const onnx::AttributeProto *value_proto = nullptr;
+  for (auto &attr : node.attribute()) {
+    if (attr.name() == "value") {
+      value_proto = &attr;
+      break;
+    }
+  }
+  return value_proto;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------//
@@ -488,6 +500,11 @@ MlirType ContextCache::GetVtensorType(const std::vector<int64_t> &dims,
   return t;
 }
 
+MlirType ContextCache::GetNoneType() {
+  std::string type_asm = "!torch.none";
+  return mlirTypeParseGet(context_, toMlirStringRef(type_asm));
+}
+
 // ---------------------------------------------------------------------------//
 // NodeImporter
 // ---------------------------------------------------------------------------//
@@ -610,6 +627,16 @@ void NodeImporter::PopulateGraphAttrs(MlirOperation container_op) {
       mlirStringAttrGet(context_, toMlirStringRef(m.producer_version())));
 }
 
+void NodeImporter::GetNone() {
+
+  MlirLocation loc =
+      mlirLocationNameGet(context_, toMlirStringRef("onnx_importer.none"),
+                          /*childLoc=*/{nullptr});
+
+  createMlirOperationAtEnd(body_block_, "torch.constant.none", loc,
+                           cc_.GetNoneType());
+}
+
 Status NodeImporter::ImportAll() {
   // TODO: Consider pulling in initializers on demand since there can be so
   // much unused crap.
@@ -617,6 +644,9 @@ Status NodeImporter::ImportAll() {
     if (failed(ImportInitializer(it.second)))
       return failure();
   }
+
+  GetNone();
+
   for (auto it : graph_info_.graph_proto().node()) {
     if (failed(ImportNode(it)))
       return failure();
@@ -642,8 +672,9 @@ Status NodeImporter::ImportAll() {
   return success();
 }
 
-Status NodeImporter::ImportInitializer(const onnx::TensorProto &initializer) {
-  std::string_view name = initializer.name();
+Status NodeImporter::ImportInitializer(const onnx::TensorProto &initializer,
+                                       std::optional<std::string> extern_name) {
+  std::string_view name = extern_name ? *extern_name : initializer.name();
   MlirLocation loc = mlirLocationNameGet(context_, toMlirStringRef(name),
                                          /*childLoc=*/{nullptr});
 
@@ -653,8 +684,11 @@ Status NodeImporter::ImportInitializer(const onnx::TensorProto &initializer) {
     return failure();
 
   MlirOperation op = createMlirOperationAtEnd(
-      body_block_, "torch.vtensor.literal", loc, vtensor_type,
-      toMlirNamedAttribute("value", value_attr));
+      body_block_, "torch.operator", loc, vtensor_type,
+      toMlirNamedAttribute(
+          "name",
+          mlirStringAttrGet(context_, toMlirStringRef("onnx.Constant"))),
+      toMlirNamedAttribute("torch.onnx.value", value_attr));
   MlirValue result = mlirOperationGetResult(op, 0);
 
   auto inserted = nv_map_.insert(std::make_pair(name, result));
@@ -672,8 +706,11 @@ Status NodeImporter::ImportInitializer(const onnx::TensorProto &initializer) {
 Status NodeImporter::ImportNode(const onnx::NodeProto &node) {
   std::string_view op_type = node.op_type();
   // Handle special-form op types that do not go down the generic path.
-  if (op_type == "ConstantOfShape") {
-    return ImportConstantOfShapeNode(node);
+  if (op_type == "Constant") {
+    const onnx::AttributeProto *value_proto = GetValueProto(node);
+    if (value_proto) {
+      return ImportConstantNodeValueAttr(node);
+    }
   }
 
   return ImportGeneralNode(node);
@@ -823,111 +860,25 @@ NodeImporter::ImportGeneralAttribute(const onnx::AttributeProto &onnx_attr) {
   return {nullptr};
 }
 
-Status NodeImporter::ImportConstantOfShapeNode(const onnx::NodeProto &node) {
-  std::string_view name = node.name();
-  MlirLocation loc = mlirLocationNameGet(context_, toMlirStringRef(name),
-                                         /*childLoc=*/{nullptr});
+// Special case only for constants specified by value attribute (for now)
+Status NodeImporter::ImportConstantNodeValueAttr(const onnx::NodeProto &node) {
 
-  // This op is special: It has an input of the shape, and in full generality
-  // could involve eager production of constants of variable size. In
-  // practice, the DNN profile for ONNX makes this very difficult to do
-  // and we hard-assert that the input can be resolved to an immediate
-  // value.
-  if (node.input_size() != 1 || node.output_size() != 1) {
-    return SetError("ConstantOfShape node must have one input and output");
-  }
+  const onnx::AttributeProto *value_proto = GetValueProto(node);
 
-  // Shape.
-  std::vector<int64_t> shape;
-  if (failed(GetImmediateShapeTensor(node.input(0), shape)))
-    return failure();
+  // Produce an initializer for the constant, so that it can be used in
+  // combination with other ops, such as ConstantOfShape, requiring
+  // constant input.
 
-  // Value.
-  const onnx::AttributeProto *value_proto = nullptr;
-  for (auto &attr : node.attribute()) {
-    if (attr.name() == "value") {
-      value_proto = &attr;
-      break;
-    }
-  }
-  if (!value_proto) {
-    return SetError("ConstantOfShape node must have a 'value' attribute");
-  }
   if (value_proto->type() != onnx::AttributeProto_AttributeType_TENSOR) {
-    return SetError("ConstantOfShape node must have a tensor value attribute");
+    return SetError("Constant node must have a tensor value attribute");
   }
-
-  // Create the splat.
-  const onnx::TensorProto &tensor_proto = value_proto->t();
-  if (tensor_proto.dims_size() != 1 || tensor_proto.dims(0) != 1) {
-    return SetError("ConstantOfShape node expected a scalar tensor value");
+  if (node.output_size() != 1) {
+    return SetError("Constant node must have one output");
   }
-  auto tensorTypeFor = [&](MlirType element_type) {
-    return mlirRankedTensorTypeGet(shape.size(), shape.data(), element_type,
-                                   /*encoding*/ {nullptr});
-  };
-  MlirAttribute splat_attr = {nullptr};
-  switch (tensor_proto.data_type()) {
-  case onnx::TensorProto::DataType::TensorProto_DataType_FLOAT:
-    splat_attr = mlirDenseElementsAttrFloatSplatGet(
-        tensorTypeFor(mlirF32TypeGet(context_)), tensor_proto.float_data(0));
-    break;
-  case onnx::TensorProto::DataType::TensorProto_DataType_INT32:
-    splat_attr = mlirDenseElementsAttrFloatSplatGet(
-        tensorTypeFor(mlirIntegerTypeSignedGet(context_, 32)),
-        tensor_proto.int32_data(0));
-    break;
-  case onnx::TensorProto::DataType::TensorProto_DataType_INT64:
-    splat_attr = mlirDenseElementsAttrFloatSplatGet(
-        tensorTypeFor(mlirIntegerTypeSignedGet(context_, 64)),
-        tensor_proto.int64_data(0));
-    break;
-  case onnx::TensorProto::DataType::TensorProto_DataType_DOUBLE:
-    splat_attr = mlirDenseElementsAttrFloatSplatGet(
-        tensorTypeFor(mlirF64TypeGet(context_)), tensor_proto.double_data(0));
-    break;
-  case onnx::TensorProto::DataType::TensorProto_DataType_UINT64:
-    splat_attr = mlirDenseElementsAttrFloatSplatGet(
-        tensorTypeFor(mlirIntegerTypeUnsignedGet(context_, 64)),
-        tensor_proto.uint64_data(0));
-    break;
-  case onnx::TensorProto::DataType::TensorProto_DataType_UINT32:
-    // Special case: inline data is stored in uint64.
-    splat_attr = mlirDenseElementsAttrFloatSplatGet(
-        tensorTypeFor(mlirIntegerTypeUnsignedGet(context_, 32)),
-        tensor_proto.uint64_data(0));
-    break;
-  }
-
-  if (mlirAttributeIsNull(splat_attr)) {
-    std::string message =
-        "ConstantOfShape node has an unsupported splat data type: ";
-    message.append(tensor_proto.DebugString());
-    return SetError(std::move(message));
-  }
-
-  // Create the vtensor type for the result.
-  MlirType splat_type = mlirAttributeGetType(splat_attr);
-  MlirType element_type = mlirShapedTypeGetElementType(splat_type);
-  MlirType vtensor_type = cc_.GetVtensorType(shape, element_type);
-  if (mlirTypeIsNull(vtensor_type))
+  const std::string &const_name = node.output(0);
+  if (failed(ImportInitializer(value_proto->t(), const_name)))
     return failure();
-
-  MlirOperation op = createMlirOperationAtEnd(
-      body_block_, "torch.vtensor.literal", loc, vtensor_type,
-      toMlirNamedAttribute("value", splat_attr));
-  MlirValue result = mlirOperationGetResult(op, 0);
-
-  // Export to the nv_map.
-  auto inserted = nv_map_.insert(std::make_pair(name, result));
-  if (!inserted.second) {
-    std::string msg = "Multiple nodes produced a value for '";
-    msg.append(name);
-    msg.append("', most recent from ");
-    msg.append(node.DebugString());
-    return SetError(std::move(msg));
-  }
-
+  graph_info_.initializer_map().emplace(const_name, value_proto->t());
   return success();
 }
 
