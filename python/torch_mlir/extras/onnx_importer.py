@@ -739,6 +739,16 @@ class ContextCache:
     def _sanitize_name(self, name):
         if not name.isidentifier():
             name = "_" + name
+
+        # The presence of '-' characters in the initializer names can cause
+        # unintended side-effects when the IR is parsed during compilation.
+        # Simply replace all the occurrences of '-' in the name string when the
+        # dense resource is created.
+        # Perform the replace unconditionally, as there is no effect when the
+        # '-' is not present, but additional linear complexity is avoided when
+        # it is.
+        name = name.replace("-", "_")
+
         return re.sub("[:/]", "_", name)
 
     def tensor_proto_to_attr(self, tp: onnx.TensorProto) -> Attribute:
