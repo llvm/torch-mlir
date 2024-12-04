@@ -182,49 +182,45 @@ LogicalResult reduceOpImpl(OpBinder binder, ConversionPatternRewriter &rewriter,
 
 Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
                    Value operand) {
-  SmallVector<Value> itemList;
-  auto sizes = dyn_cast<Torch::ValueTensorType>(operand.getType()).getSizes();
-  Torch::BaseTensorType operandType =
-      cast<Torch::BaseTensorType>(operand.getType());
+  MLIRContext *context = binder.op->getContext();
+  Location loc = binder.getLoc();
 
-  SmallVector<int64_t> selectSizes;
-  selectSizes.push_back(1);
-  Type selectResultType = operandType.getWithSizesAndDtype(
-      llvm::ArrayRef(selectSizes), operandType.getOptionalDtype());
-
-  auto extract = [&rewriter, &binder](Value x, Value v) {
-    auto xTy = cast<Torch::ValueTensorType>(x.getType());
+  auto extract = [&rewriter, &binder](Value v) {
+    auto vTy = cast<Torch::ValueTensorType>(v.getType());
     Type extractTy = rewriter.getType<Torch::FloatType>();
-    if (isa<IntegerType>(xTy.getDtype()))
+    if (isa<IntegerType>(vTy.getDtype()))
       extractTy = rewriter.getType<Torch::IntType>();
 
     return rewriter.create<Torch::AtenItemOp>(binder.getLoc(), extractTy, v);
   };
 
-  Value zero = rewriter.create<Torch::ConstantIntOp>(
-      binder.getLoc(), rewriter.getType<Torch::IntType>(),
-      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+  Value zero =
+      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+  Value one =
+      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+  auto operandType = dyn_cast<Torch::ValueTensorType>(operand.getType());
+  auto sizes = operandType.getSizes();
+  Type selectResultType = operandType.getWithSizesAndDtype(
+      SmallVector<int64_t>({1}), operandType.getOptionalDtype());
 
-  MLIRContext *context = binder.op->getContext();
+  SmallVector<Value> itemList;
   for (int i = 2; i < sizes[0]; i++) {
-    Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
-        binder.getLoc(), rewriter.getType<Torch::IntType>(),
-        rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
-    Value ext = rewriter.create<Torch::AtenSelectIntOp>(
-        binder.getLoc(), selectResultType, operand, zero, selectIndex);
-    Value item = extract(operand, ext);
+    Value start = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(i));
+    Value end = rewriter.create<Torch::AtenAddIntOp>(loc, start, one);
+    Value slice = rewriter.create<Torch::AtenSliceTensorOp>(
+        loc, selectResultType, operand, zero, start, end, one);
+    Value item = extract(slice);
     itemList.push_back(item);
   }
-  auto xTy = cast<Torch::ValueTensorType>(operand.getType());
+
   Value ValueList;
-  if (isa<IntegerType>(xTy.getDtype())) {
+  if (isa<IntegerType>(operandType.getDtype())) {
     ValueList = rewriter.create<Torch::PrimListConstructOp>(
-        binder.getLoc(), Torch::ListType::get(Torch::IntType::get(context)),
-        itemList);
+        loc, Torch::ListType::get(Torch::IntType::get(context)), itemList);
   } else {
     ValueList = rewriter.create<Torch::PrimListConstructOp>(
-        binder.getLoc(), Torch::ListType::get(Torch::FloatType::get(context)),
-        itemList);
+        loc, Torch::ListType::get(Torch::FloatType::get(context)), itemList);
   }
   return ValueList;
 }
@@ -2686,25 +2682,21 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       });
   patterns.onOp(
       "Resize", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        if (auto attr = binder.op->getAttr("torch.onnx.axes"))
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "unimplemented: support not present for axes attribute");
+        if (auto attr =
+                binder.op->getAttr("torch.onnx.keep_aspect_ratio_policy"))
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: support not present for "
+                         "keep_aspect_ratio_policy attribute");
+
         Torch::ValueTensorType resultType;
         llvm::SmallVector<Value> operands;
         std::string mode, nearest_mode, coordTfMode;
         int64_t antialias, exclude_outside;
         float extrapolation_value, cubic_coeff_a;
-        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-
-        if (auto attr = binder.op->getAttr("torch.onnx.axes")) {
-          return rewriter.notifyMatchFailure(
-              binder.op,
-              "unimplemented: support not present for axes attribute");
-        }
-        if (auto attr =
-                binder.op->getAttr("torch.onnx.keep_aspect_ratio_policy")) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "unimplemented: support not present for "
-                         "keep_aspect_ratio_policy attribute");
-        }
-
         if (binder.tensorOperandsList(operands) ||
             binder.tensorResultType(resultType) ||
             binder.customOpNameStringAttr(mode, "mode", "nearest") ||
@@ -2718,48 +2710,42 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                           "round_prefer_floor") ||
             binder.f32FloatAttr(cubic_coeff_a, "cubic_coeff_a", -0.75))
           return failure();
-        if (antialias != 0) {
+
+        if (antialias != 0)
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented: support not present for antialias attribute");
-        }
-        if (exclude_outside != 0) {
+        if (exclude_outside != 0)
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: support not present for "
                          "exclude_outside attribute");
-        }
-        if (extrapolation_value != 0.0) {
+        if (extrapolation_value != 0.0)
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: support not present for "
                          "extrapolation_value attribute");
-        }
         if (coordTfMode == "tf_crop_and_resize")
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: coordinate transformation mode: "
                          "tf_crop_and_resize");
-
         if (mode == "nearest" && coordTfMode != "asymmetric" &&
-            coordTfMode != "half_pixel") {
+            coordTfMode != "half_pixel")
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: support not present for coord tf mode "
                          "except asymmetric and half_pixel");
-        }
-
-        if (mode == "cubic" && cubic_coeff_a != -0.75) {
+        if (mode == "cubic" && cubic_coeff_a != -0.75)
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: cubic coeff must be -0.75");
-        }
 
         unsigned rank = dyn_cast<Torch::ValueTensorType>(operands[0].getType())
                             .getSizes()
                             .size();
-
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         Value cstFalse =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
         Value cstTrue =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
-        Value modeStrValue;
 
+        Value modeStrValue;
         Value scalesValueList = noneVal;
         Value sizesValueList = noneVal;
         Value alignCorners =

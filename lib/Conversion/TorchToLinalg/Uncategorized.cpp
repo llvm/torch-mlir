@@ -2696,7 +2696,6 @@ static Value nearestInterpolate(OpBuilder &b, Location loc,
                                 SmallVector<Value> inputSizes,
                                 SmallVector<Value> scaleValues,
                                 std::string coordStr, std::string nearestMode) {
-
   auto inputType = cast<RankedTensorType>(input.getType());
   auto inputRank = inputType.getRank();
 
@@ -2707,10 +2706,8 @@ static Value nearestInterpolate(OpBuilder &b, Location loc,
 
   for (unsigned i = 2; i < inputRank; i++) {
     Value outIndex = indices[i];
-
     Value inputSizeFP =
         b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizes[i - 2]);
-
     Value outputSizeFP =
         b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizes[i - 2]);
 
@@ -3149,9 +3146,8 @@ public:
     // op with the non-standard mode="bilinear_asymmetric".
     matchPattern(op.getMode(), m_TorchConstantStr(mode));
     if (mode.substr(0, 8) != "bilinear" && mode.substr(0, 7) != "nearest" &&
-        mode.substr(0, 5) != "cubic") {
+        mode.substr(0, 5) != "cubic")
       return failure();
-    }
 
     Location loc = op->getLoc();
     Value input = adaptor.getInput();
@@ -3162,15 +3158,15 @@ public:
           op,
           "cannot perform bilinear interpolation when input spatial dims != 2");
 
-    SmallVector<Value> outputSizeIntValues;
     SmallVector<Value> inputSizes;
-    SmallVector<Value> ScaleFactorFloatValues;
     for (unsigned i = 2; i < inputRank; i++) {
       Value inputSize = getDimOp(rewriter, loc, input, i);
       inputSizes.push_back(rewriter.create<arith::IndexCastOp>(
           loc, rewriter.getIntegerType(64), inputSize));
     }
 
+    SmallVector<Value> ScaleFactorFloatValues;
+    SmallVector<Value> outputSizeIntValues;
     if (!isa<Torch::NoneType>(op.getScaleFactor().getType())) {
       bool recompScale;
       if (!matchPattern(op.getRecomputeScaleFactor(),
@@ -3239,7 +3235,6 @@ public:
                         b, op, loc, outputSizeIntValues, input, inputSizes,
                         ScaleFactorFloatValues, mode.substr(8));
                   } else if (mode.substr(0, 5) == "cubic") {
-
                     retVal = bicubicInterpolate(
                         b, op, loc, outputSizeIntValues, input, inputSizes,
                         ScaleFactorFloatValues, mode.substr(5));
