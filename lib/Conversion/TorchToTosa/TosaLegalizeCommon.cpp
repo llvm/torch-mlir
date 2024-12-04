@@ -1031,11 +1031,17 @@ convertLinalgVectorNormOp(PatternRewriter &rewriter, Operation *op,
     return std::nullopt;
   }
 
-  auto absVal = CreateOpAndInfer<tosa::AbsOp>(rewriter, op->getLoc(),
-                                              input_type, input_value)
+  auto input_value_casted =
+      tosa::promoteType(rewriter, input_value, output_type);
+  auto absVal = CreateOpAndInfer<tosa::AbsOp>(
+                    rewriter, op->getLoc(),
+                    RankedTensorType::get(input_type.getShape(), elemType),
+                    input_value_casted)
                     .getResult();
-  auto powVal = CreateOpAndInfer<tosa::PowOp>(rewriter, op->getLoc(),
-                                              input_type, absVal, ordVal)
+  auto powVal = CreateOpAndInfer<tosa::PowOp>(
+                    rewriter, op->getLoc(),
+                    RankedTensorType::get(input_type.getShape(), elemType),
+                    absVal, ordVal)
                     .getResult();
   std::optional<Value> result = convertReduceSumOp(
       rewriter, op, output_type, powVal, axes_elems, keep_dims);
