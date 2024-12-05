@@ -5175,6 +5175,82 @@ public:
 };
 } // namespace
 
+// Decompose aten.conv(1/2/3)d.padding to aten.convolution
+namespace {
+template <typename ConvPaddingOp>
+class DecomposeAtenConvPaddingOp : public OpRewritePattern<ConvPaddingOp> {
+public:
+  using OpRewritePattern<ConvPaddingOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(ConvPaddingOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+
+    Value weight = op.getWeight();
+    std::optional<unsigned> maybeRank = getTensorRank(weight);
+    if (!maybeRank) {
+      return rewriter.notifyMatchFailure(op, "expected weight to have a rank");
+    }
+    unsigned rank = *maybeRank;
+    // first 2 dimensions of weight are out_channels and in_channels / groups
+    if (rank < 3)
+      return rewriter.notifyMatchFailure(
+          op, "ConvPaddingOp weight must be at least 3 dimensional.");
+
+    std::string padding_str;
+    if (!matchPattern(op.getPadding(), m_TorchConstantStr(padding_str)))
+      return rewriter.notifyMatchFailure(op,
+                                         "padding must be a constant string");
+
+    Value zero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+
+    SmallVector<Value> paddingValues;
+    if (padding_str == "valid") {
+      // valid means no padding
+      for (unsigned iRank = 2; iRank < rank; iRank++) {
+        paddingValues.push_back(zero);
+      }
+    } else {
+
+      SmallVector<Value> dilation;
+      getListConstructElements(op.getDilation(), dilation);
+
+      Value one =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+      Value two =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(2));
+      for (unsigned iRank = 2; iRank < rank; iRank++) {
+        Value dim = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(iRank));
+        Value kernelSize =
+            rewriter.create<Torch::AtenSizeIntOp>(loc, weight, dim);
+        Value kernelSizeMinusOne =
+            rewriter.create<Torch::AtenSubIntOp>(loc, kernelSize, one);
+        Value padding = rewriter.create<Torch::AtenMulIntOp>(
+            loc, dilation[iRank - 2], kernelSizeMinusOne);
+        padding = rewriter.create<AtenFloordivIntOp>(loc, padding, two);
+        paddingValues.push_back(padding);
+      }
+    }
+
+    Value emptyList = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        SmallVector<Value>());
+    Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    Value padding = rewriter.create<PrimListConstructOp>(
+        op.getLoc(), Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        paddingValues);
+    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
+        op, op->getResultTypes(), op.getInput(), op.getWeight(), op.getBias(),
+        op.getStride(), padding, op.getDilation(), cstFalse, emptyList,
+        op.getGroups());
+
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.conv3d to aten.convolution
 namespace {
 class DecomposeAtenConv3dOp : public OpRewritePattern<AtenConv3dOp> {
@@ -11377,6 +11453,12 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv3dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenConvPaddingOp<AtenConv1dPaddingOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenConvPaddingOp<AtenConv2dPaddingOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenConvPaddingOp<AtenConv3dPaddingOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenThresholdOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloatPowerTensorTensorOp>(
         patterns);
