@@ -13,7 +13,6 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
-#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -124,25 +123,13 @@ Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
     Value inAddLeftPadding = b.createOrFold<arith::AddIOp>(
         loc, castIndexToInt64(b, loc, in), paddingInt);
 
-    auto reduceOutputDim =
+    auto reduceOutputDimCond =
         b.createOrFold<arith::CmpIOp>(loc, arith::CmpIPredicate::uge,
                                       outMinusOneTimesStride, inAddLeftPadding);
 
-    // Emit 'then' region of 'scf.if'
-    auto emitThenRegion = [&](OpBuilder &opBuilder, Location loc) {
-      opBuilder.create<scf::YieldOp>(loc, division);
-    };
-
-    // Emit 'else' region of 'scf.if'
-    auto emitElseRegion = [&](OpBuilder &opBuilder, Location loc) {
-      opBuilder.create<scf::YieldOp>(loc, out);
-    };
-
-    // Emit 'scf.if' op
-    auto ifOp = b.create<scf::IfOp>(loc, reduceOutputDim, emitThenRegion,
-                                    emitElseRegion);
-
-    return castIntToIndex(b, loc, ifOp.getResult(0));
+    auto reducedDim = b.createOrFold<arith::SelectOp>(loc, reduceOutputDimCond,
+                                                      division, out);
+    return castIntToIndex(b, loc, reducedDim);
   }
 
   return castIntToIndex(b, loc, out);
@@ -556,8 +543,8 @@ Value torch_to_linalg::convertTensorToElementType(OpBuilder &b, Location loc,
                                                   Type elementType) {
   auto dtypePromoteBody = [&](OpBuilder &builder, Location loc,
                               ValueRange payloadArgs) {
-    Value elem = mlir::torch::Torch::convertScalarToDtype(
-        builder, loc, payloadArgs[0], elementType);
+    Value elem =
+        convertScalarToDtype(builder, loc, payloadArgs[0], elementType);
     builder.create<linalg::YieldOp>(loc, elem);
   };
   return torch_to_linalg::createElementwiseLinalgGeneric(
