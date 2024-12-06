@@ -6429,4 +6429,4 @@ class AtenNonzero1DModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AtenNonzero1DModule())
 def AtenNonzero1DModule_one_nonzero(module, tu: TestUtils):
-    module.forward(torch.tensor([0, 0, 5, 0, 0, 0], dtype=torch.int))
+    module.forward(torch.tensor([0, 0, 0, 1, 0, 0], dtype=torch.int))
