@@ -58,14 +58,14 @@ jobs:
           prerelease: false
 
       - name: "Invoke workflow :: Build and Test"
-        uses: benc-uk/workflow-dispatch@v1
+        uses: benc-uk/workflow-dispatch@e2e5e9a103e331dad343f381a29e654aea3cf8fc # v1.2.4
         with:
           workflow: Build and Test
           token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
           ref: "${{ env.tag_name }}"
 
       - name: "Invoke workflow :: Release Build"
-        uses: benc-uk/workflow-dispatch@v1
+        uses: benc-uk/workflow-dispatch@e2e5e9a103e331dad343f381a29e654aea3cf8fc # v1.2.4
         with:
           workflow: Release Build
           token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}

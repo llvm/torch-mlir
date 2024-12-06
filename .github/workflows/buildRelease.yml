@@ -285,7 +285,7 @@ jobs:
 
     steps:
       - name: Invoke Publish Releases Page
-        uses: benc-uk/workflow-dispatch@v1
+        uses: benc-uk/workflow-dispatch@e2e5e9a103e331dad343f381a29e654aea3cf8fc # v1.2.4
         with:
           workflow: Publish releases page
           token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
