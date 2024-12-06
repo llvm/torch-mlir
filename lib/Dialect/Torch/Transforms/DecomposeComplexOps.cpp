@@ -5705,6 +5705,193 @@ public:
 };
 } // namespace
 
+class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenNonzeroOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto si64Type = rewriter.getIntegerType(64, true);
+    Value si64Dtype = getDtypeIntValueForType(rewriter, loc, si64Type);
+    auto constantZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    auto constantOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    std::function<Value(Value)> makeOneElementList = [&](Value element) {
+      auto listType = Torch::ListType::get(element.getType());
+      return rewriter.create<PrimListConstructOp>(loc, listType,
+                                                  ArrayRef<Value>{element});
+    };
+
+    Value input = op.getSelf();
+    auto inputType = dyn_cast<BaseTensorType>(input.getType());
+    int64_t inputRank = inputType.getSizes().size();
+
+    // t_flat = t.flatten() # torch.flatten(t, 0, 0)
+    int64_t flattenedSize = 1;
+    if (inputType.hasSizes()) {
+      for (auto size : inputType.getSizes()) {
+        flattenedSize *= size;
+      }
+    } else {
+      flattenedSize = kUnknownSize;
+    }
+
+    auto flattendInputShape = SmallVector<int64_t>{flattenedSize};
+    auto flattenedInputType = rewriter.getType<Torch::ValueTensorType>(
+        flattendInputShape, inputType.getOptionalDtype());
+
+    // %1 = torch.aten.flatten.using_ints %arg0, %int0, %int0_0 :
+    // !torch.vtensor<[?],i1>, !torch.int, !torch.int -> !torch.vtensor<[?],i1>
+    auto inputDimsEnd = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(inputRank - 1));
+    Value flattenedInput = rewriter.create<AtenFlattenUsingIntsOp>(
+        loc, flattenedInputType, input, constantZero /*inputDimsStart*/,
+        inputDimsEnd /*inputDimsEnd*/);
+
+    // nonzero_mask = (t_flat != 0)
+    auto boolMaskType = inputType.getWithSizesAndDtype(
+        flattenedInputType.getOptionalSizes(), rewriter.getI1Type());
+    Value boolMask = rewriter.create<AtenNeScalarOp>(
+        loc, boolMaskType, flattenedInput, constantZero);
+
+    // nonzero_mask = nonzero_mask.int()
+    Value falseCst = rewriter.create<ConstantBoolOp>(loc, false);
+    Value noneCst = rewriter.create<ConstantNoneOp>(loc);
+    auto intMaskType = flattenedInputType.getWithSizesAndDtype(
+        flattenedInputType.getOptionalSizes(), si64Type);
+    Value intMask = rewriter.create<AtenToDtypeOp>(
+        loc, intMaskType, boolMask, si64Dtype, falseCst, falseCst, noneCst);
+
+    // destination_indices = torch.cumsum(nonzero_mask, 0) - 1
+    Value cumulativeSum = rewriter.create<AtenCumsumOp>(
+        loc, intMaskType, intMask, constantZero, noneCst);
+    Value subtracted = rewriter.create<AtenSubScalarOp>(
+        loc, intMaskType, cumulativeSum, constantOne, /*alpha=*/constantOne);
+
+    // destination_indices = torch.clamp(destination_indices, min=0)
+    Value indices = rewriter.create<AtenClampMinOp>(loc, intMaskType,
+                                                    subtracted, constantZero);
+
+    // iota = torch.arange(len(t_flat)) * nonzero_mask
+    Value end = rewriter.create<AtenSizeIntOp>(loc, flattenedInput,
+                                               /*dim=*/constantZero);
+    Value rangeTensor = rewriter.create<AtenArangeStartStepOp>(
+        loc, intMaskType, /*start*/ constantZero, /*end*/ end,
+        /*step*/ constantOne, noneCst, noneCst, noneCst, noneCst);
+    Value multiplied = rewriter.create<AtenMulTensorOp>(loc, intMaskType,
+                                                        rangeTensor, intMask);
+
+    // scatter_self = torch.zeros_like(t, dtype=torch.int64)
+    // AtenFullLike doesn't support index type so we have to use si64
+    Value zerosTensor = rewriter.create<AtenZerosLikeOp>(
+        loc, intMaskType, flattenedInput, si64Dtype, noneCst, noneCst, noneCst,
+        noneCst);
+
+    // compacted = scatter_self.scatter_(
+    //  dim=0,
+    //  index=destination_indices,
+    //  src=iota, reduce='add')
+    Value scatteredTensor = rewriter.create<AtenScatterAddOp>(
+        loc, intMaskType, /*self*/ zerosTensor, /*dim=*/constantZero,
+        /*index=*/indices, /*src=*/multiplied);
+
+    // result_flat = compacted[:torch.sum(nonzero_mask)]
+    auto scalarType = ValueTensorType::get(rewriter.getContext(),
+                                           ArrayRef<int64_t>{}, si64Type);
+    Value sumMask =
+        rewriter.create<AtenSumOp>(loc, scalarType, intMask, noneCst);
+    Value numNonzero = rewriter.create<AtenIntTensorOp>(loc, sumMask);
+
+    auto slicedResultType = Torch::ValueTensorType::get(
+        rewriter.getContext(), SmallVector<int64_t>{kUnknownSize}, si64Type);
+    Value slicedResult =
+        rewriter.create<AtenSliceTensorOp>(loc, slicedResultType,
+                                           /*self=*/scatteredTensor,
+                                           /*dim=*/constantZero,
+                                           /*start=*/constantZero,
+                                           /*end=*/numNonzero,
+                                           /*step=*/constantOne);
+
+    // DEBUG one dimentional result.
+    auto unsqueezedResultType = ValueTensorType::get(
+        rewriter.getContext(), SmallVector<int64_t>{kUnknownSize, 1}, si64Type);
+    Value unsqueezedResult = rewriter.create<AtenUnsqueezeOp>(
+        loc, unsqueezedResultType, slicedResult, constantZero);
+    rewriter.replaceOp(op, unsqueezedResult);
+    return success();
+
+    // // Convert flattened indices back to multi-dimensional indices
+    // // original_shape = t.shape
+    // // input_shape_tensor = torch.tensor(original_shape)
+    // auto shapeType = Torch::ValueTensorType::get(
+    //     rewriter.getContext(), SmallVector<int64_t>{inputRank}, si64Type);
+    // //  %2 = torch.aten._shape_as_tensor %arg0 : !torch.vtensor<[?],i1> ->
+    // //  !torch.vtensor<[1],si64>
+    // Value inputShapeTensor =
+    //     rewriter.create<Torch::Aten_ShapeAsTensorOp>(loc, shapeType, input);
+    // // strides = torch.cumprod(torch.flip(input_shape_tensor,[0]),0).flip(0)
+    // Value flippedShape = rewriter.create<AtenFlipOp>(
+    //     loc, shapeType, inputShapeTensor, makeOneElementList(constantZero));
+    // Value cumulativeProduct = rewriter.create<AtenCumprodOp>(
+    //     loc, shapeType, flippedShape, constantZero, noneCst);
+    // Value flippedCumulativeProduct = rewriter.create<AtenFlipOp>(
+    //     loc, shapeType, cumulativeProduct, makeOneElementList(constantZero));
+
+    // // strides = torch.cat([strides[1:], torch.tensor([1])])
+    // // strides[1:]
+    // auto slicedStrideType = Torch::ValueTensorType::get(
+    //     rewriter.getContext(), SmallVector<int64_t>{inputRank - 1}, // sizes
+    //     si64Type);
+    // Value strideSliceEnd = rewriter.create<ConstantIntOp>(
+    //     loc, rewriter.getI64IntegerAttr(inputRank));
+    // Value slicedStrides = rewriter.create<AtenSliceTensorOp>(
+    //     loc, slicedStrideType, /*self*/ flippedCumulativeProduct,
+    //     /*dim*/ constantZero,
+    //     /*start=*/constantOne, /*end=*/strideSliceEnd, /*step=*/constantOne);
+    // // torch.tensor([1])
+    // auto oneTensorType = ValueTensorType::get(
+    //     rewriter.getContext(), SmallVector<int64_t>{1}, si64Type);
+    // Value oneTensor = rewriter.create<AtenScalarTensorOp>(
+    //     loc, oneTensorType, constantOne, si64Dtype, noneCst, noneCst,
+    //     noneCst);
+    // // torch.cat
+    // auto tensorListElementType = Torch::ValueTensorType::get(
+    //     rewriter.getContext(), SmallVector<int64_t>{kUnknownSize}, si64Type);
+    // Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
+    //     loc, Torch::ListType::get(tensorListElementType),
+    //     SmallVector<Value>{slicedStrides, oneTensor});
+    // Value strides = rewriter.create<Torch::AtenCatOp>(loc, shapeType,
+    //                                                   tensorList,
+    //                                                   constantZero);
+
+    // // multi_indices = (result_flat.unsqueeze(1) // strides.unsqueeze(0)) %
+    // // input_shape_tensor
+    // auto unsqueezedResultType = ValueTensorType::get(
+    //     rewriter.getContext(), SmallVector<int64_t>{kUnknownSize, 1},
+    //     si64Type);
+    // Value unsqueezedResult = rewriter.create<AtenUnsqueezeOp>(
+    //     loc, unsqueezedResultType, slicedResult, constantOne);
+
+    // auto unsqueezedStridesType = ValueTensorType::get(
+    //     rewriter.getContext(), SmallVector<int64_t>{1, inputRank}, si64Type);
+    // Value unsqueezedStrides = rewriter.create<AtenUnsqueezeOp>(
+    //     loc, unsqueezedStridesType, strides, constantZero);
+
+    // auto dividedBroadcastType = ValueTensorType::get(
+    //     rewriter.getContext(), SmallVector<int64_t>{kUnknownSize, inputRank},
+    //     si64Type);
+    // Value divided = rewriter.create<AtenFloorDivideOp>(
+    //     loc, dividedBroadcastType, unsqueezedResult, unsqueezedStrides);
+
+    // auto resultType = cast<BaseTensorType>(op.getType());
+    // Value modded = rewriter.create<AtenRemainderTensorOp>(
+    //     loc, resultType, divided, inputShapeTensor);
+
+    // rewriter.replaceOp(op, modded);
+    // return success();
+  }
+};
+
 // Decompose aten.addmm into aten.mm and aten.add.Tensor op.
 namespace {
 class DecomposeAtenAddmmOp : public OpRewritePattern<AtenAddmmOp> {
@@ -11250,6 +11437,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_SoftmaxBackwardDataOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTanhBackwardOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenNonzeroOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAddmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);
