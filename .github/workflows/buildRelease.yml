@@ -59,7 +59,7 @@ jobs:
       - name: Publish Release (if requested)
         if: github.event.inputs.release_id != ''
         id: publish_release
-        uses: eregon/publish-release@v1
+        uses: eregon/publish-release@01df127f5e9a3c26935118e22e738d95b59d10ce # v1.0.6
         env:
           GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
         with:
@@ -127,7 +127,7 @@ jobs:
       - name: Publish Release (if requested)
         if: github.event.inputs.release_id != ''
         id: publish_release
-        uses: eregon/publish-release@v1
+        uses: eregon/publish-release@01df127f5e9a3c26935118e22e738d95b59d10ce # v1.0.6
         env:
           GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
         with:
@@ -187,7 +187,7 @@ jobs:
       - name: Publish Release (if requested)
         if: github.event.inputs.release_id != ''
         id: publish_release
-        uses: eregon/publish-release@v1
+        uses: eregon/publish-release@01df127f5e9a3c26935118e22e738d95b59d10ce # v1.0.6
         env:
           GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
         with:
@@ -250,7 +250,7 @@ jobs:
       - name: Publish Release (if requested)
         if: github.event.inputs.release_id != ''
         id: publish_release
-        uses: eregon/publish-release@v1
+        uses: eregon/publish-release@01df127f5e9a3c26935118e22e738d95b59d10ce # v1.0.6
         env:
           GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
         with:
