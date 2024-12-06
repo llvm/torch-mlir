@@ -29,6 +29,8 @@ add_mlir_library(TorchMLIRConversionPasses
 
   DEPENDS
   TorchMLIRConversionPassIncGen
+  MLIRTorchOpsIncGen
+  MLIRTorchTypesIncGen
 
   LINK_LIBS PUBLIC
   ${linked_libs}
