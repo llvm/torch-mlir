@@ -70,8 +70,8 @@ void mlir::torch::Torch::createTorchScriptModuleToTorchBackendPipeline(
 
 void mlir::torch::Torch::createTorchDynamoExportToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
-  pm.addNestedPass<func::FuncOp>(
-      createReduceOpVariantsPass(options.extraLibrary));
+  pm.addNestedPass<func::FuncOp>(createReduceOpVariantsPass(
+      options.extraLibrary, options.backendLegalOps));
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   if (options.decompose) {
     pm.addNestedPass<func::FuncOp>(
@@ -161,8 +161,8 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(createRecomposeComplexOpsPass());
   // Reduce variants of ops to a smaller set of primitives.
-  pm.addNestedPass<func::FuncOp>(
-      createReduceOpVariantsPass(options.extraLibrary));
+  pm.addNestedPass<func::FuncOp>(createReduceOpVariantsPass(
+      options.extraLibrary, options.backendLegalOps));
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   // Remove dead global slots.
   pm.addPass(createSymbolDCEPass());
