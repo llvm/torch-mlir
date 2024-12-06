@@ -201,7 +201,7 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
   auto operandType = dyn_cast<Torch::ValueTensorType>(operand.getType());
   auto sizes = operandType.getSizes();
   Type selectResultType = operandType.getWithSizesAndDtype(
-      SmallVector<int64_t>({1}), operandType.getOptionalDtype());
+      ArrayRef<int64_t>({1}), operandType.getOptionalDtype());
 
   SmallVector<Value> itemList;
   for (int i = 2; i < sizes[0]; i++) {
