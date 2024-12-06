@@ -9,7 +9,7 @@ torch_version="${1:-unknown}"
 export PYTHONPATH="$repo_root/build/tools/torch-mlir/python_packages/torch_mlir:$repo_root/projects/pt1"
 
 echo "::group::Run ONNX e2e integration tests"
-python -m e2e_testing.main --config=onnx -v --filter AtenNonzero1DModule_one_nonzero
+python -m e2e_testing.main --config=linalg -v --filter AtenNonzero1DModule_one_nonzero
 echo "::endgroup::"
 
 # case $torch_version in
