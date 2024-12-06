@@ -95,7 +95,7 @@ jobs:
 
       - name: Post issue comment on build failure
         if: failure()
-        uses: peter-evans/create-or-update-comment@v2
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
         with:
           issue-number: 1690
           body: |
