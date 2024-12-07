@@ -1144,3 +1144,32 @@ class TensorSplitSections_ListUnpackModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TensorSplitSections_ListUnpackModule())
 def TensorSplitSections_ListUnpackModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 5))
+
+
+# ==============================================================================
+
+
+class AsStridedWithOffsetModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 6, 60], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        output_size = [6, 20]
+        stride = [60, 1]
+        slice = torch.ops.aten.slice.Tensor(x, 0, 1, 2)
+        squeeze = torch.ops.aten.squeeze.dim(slice, 0)
+        return torch.ops.aten.as_strided(
+            squeeze, size=output_size, stride=stride, storage_offset=360
+        )
+
+
+@register_test_case(module_factory=lambda: AsStridedWithOffsetModule())
+def AsStridedWithOffsetModule_basic(module, tu: TestUtils):
+    module.forward(torch.rand(2, 6, 60))
