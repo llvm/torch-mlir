@@ -12,12 +12,25 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Transforms/DialectConversion.h"
+
 #include <memory>
 
 namespace mlir {
 namespace torch {
+
+/// Collect a set of legal/illegal ops for converting Torch operations to Tosa
+/// dialect.
+void populateTorchToTosaConversionLegalOps(ConversionTarget &target);
+
+/// Collect a set of patterns to convert Torch operations to Tosa dialect +
+/// return the set of illegalOps
+std::set<StringRef>
+populateTorchToTosaConversionPatternsAndIllegalOps(TypeConverter &typeConverter,
+                                                   RewritePatternSet &patterns);
+
 std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToTosaPass();
-}
+} // namespace torch
 } // namespace mlir
 
 #endif // TORCHMLIR_CONVERSION_TORCHTOTOSA_TORCHTOTOSA_H
