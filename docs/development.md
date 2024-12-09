@@ -53,7 +53,15 @@ Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is 
 
 The following command generates configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.  On Windows, use the "Developer PowerShell for Visual Studio" to ensure that the compiler and linker binaries are in the `PATH` variable.
 
-This requires `lld`, `clang`, `ccache`, and other dependencies for building `libtorch` / `PyTorch` wheels from source. If you run into issues because of these, try the [simplified build command](#simplified-build).
+This requires `lld`, `clang`, `ccache`, and other dependencies for building `libtorch` / `PyTorch` wheels from source.
+
+There are many ways to install these dependencies. For example, on Debian/Ubuntu:
+
+```bash
+sudo apt install clang lld ccache
+```
+
+If you run into issues because of these, try the [simplified build command](#simplified-build).
 
 ```shell
 cmake -GNinja -Bbuild \
