@@ -2543,26 +2543,33 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.s64IntegerAttr(stashType, "stash_type", 1))
           return failure();
 
-        // Since the support for `stash_type` arg does not exist in
-        // the torch op so we just check for the stash_type to be same
-        // as the input dtype since that won't require us to do any
-        // input type conversion and hence can be supported.
-        auto xType = cast<Torch::ValueTensorType>(x.getType());
         std::optional<int64_t> stashTypeIntTorch =
             onnxDtypeIntToTorchDtypeInt(stashType);
         if (!stashTypeIntTorch.has_value())
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented support for the given stash_type");
-
         FailureOr<Type> stashDtype = Torch::getTypeForScalarType(
             binder.op->getContext(),
             (torch_upstream::ScalarType)stashTypeIntTorch.value());
         if (failed(stashDtype))
           return failure();
-        if (*stashDtype != xType.getOptionalDtype())
-          return rewriter.notifyMatchFailure(
-              binder.op, "unimplemented: stash_type should be same "
-                         "as the input dtype");
+
+        // Convert dtype if stash_type is different from input dtype
+        auto xType = cast<Torch::ValueTensorType>(x.getType());
+        Value cstFalse =
+            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        if (*stashDtype != xType.getOptionalDtype()) {
+          auto newXType =
+              xType.getWithSizesAndDtype(xType.getOptionalSizes(), *stashDtype);
+          Value dtypeValue = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(),
+              rewriter.getI64IntegerAttr(stashTypeIntTorch.value()));
+          x = rewriter.create<Torch::AtenToDtypeOp>(
+              binder.getLoc(), newXType, x, /*dtype=*/dtypeValue,
+              /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+              /*memory_format=*/none);
+        }
 
         Value constEpsilon = rewriter.create<Torch::ConstantFloatOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(),
@@ -2586,33 +2593,43 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             normalized);
 
+        SmallVector<int64_t> reducedShape(rank, 1);
+        for (int64_t i = 0; i < axis; i++)
+          reducedShape[i] = xShape[i];
+        auto reducedType =
+            xType.getWithSizesAndDtype(reducedShape, *stashDtype);
+        auto y = rewriter.create<Torch::AtenNativeLayerNormOp>(
+            binder.getLoc(), yType, /*meanType=*/reducedType,
+            /*invStdDevType=*/reducedType, x, normalized_shape, scale, b,
+            constEpsilon);
+
         int64_t numResults = binder.op->getNumResults();
         if (numResults == 1) {
-          SmallVector<int64_t> reducedShape(rank, 1);
-          for (int64_t i = 0; i < axis; i++)
-            reducedShape[i] = xShape[i];
-          auto reducedType = xType.getWithSizesAndDtype(
-              reducedShape, xType.getOptionalDtype());
-          Value y = rewriter
-                        .create<Torch::AtenNativeLayerNormOp>(
-                            binder.getLoc(), yType, /*meanType=*/reducedType,
-                            /*invStdDevType=*/reducedType, x, normalized_shape,
-                            scale, b, constEpsilon)
-                        .getResult0();
-          rewriter.replaceOp(binder.op, y);
+          rewriter.replaceOp(binder.op, y.getResult0());
           return success();
         }
-        if (numResults == 3) {
-          if (binder.tensorResultTypeAtIndex(meanType, 1) ||
-              binder.tensorResultTypeAtIndex(invStdDevType, 2))
-            return failure();
-          rewriter.replaceOpWithNewOp<Torch::AtenNativeLayerNormOp>(
-              binder.op, yType, meanType, invStdDevType, x, normalized_shape,
-              scale, b, constEpsilon);
-          return success();
+
+        Value meanOutput = y.getResult1();
+        Value varOutput = y.getResult2();
+        // Convert meanType and varType back if stash_dtype is different
+        if (binder.tensorResultTypeAtIndex(meanType, 1) ||
+            binder.tensorResultTypeAtIndex(invStdDevType, 2))
+          return failure();
+        if (*stashDtype != meanType.getOptionalDtype()) {
+          Value constDtype = Torch::getDtypeIntValueForType(
+              rewriter, binder.getLoc(), meanType.getDtype());
+          meanOutput = rewriter.create<Torch::AtenToDtypeOp>(
+              binder.getLoc(), meanType, meanOutput, /*dtype=*/constDtype,
+              /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+              /*memory_format=*/none);
+          varOutput = rewriter.create<Torch::AtenToDtypeOp>(
+              binder.getLoc(), invStdDevType, varOutput, /*dtype=*/constDtype,
+              /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+              /*memory_format=*/none);
         }
-        return rewriter.notifyMatchFailure(
-            binder.op, "Unimplemented: expected either 1 or 3 results");
+        rewriter.replaceOp(binder.op, {y.getResult0(), meanOutput, varOutput});
+
+        return success();
       });
   patterns.onOp("LeakyRelu", 1,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
@@ -2997,6 +3014,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
       });
   patterns.onOp(
       "Pow", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // ONNX specifies that the result types matches the type of lhs.
+        // In torch, the result type is integer when both operands are integer,
+        // and otherwise operand types are promoted to f64.
         Torch::ValueTensorType resultType;
         Value lhs, rhs;
         if (binder.tensorOperands(lhs, rhs) ||
@@ -3005,35 +3025,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         auto loc = binder.getLoc();
-        auto lhsTy = cast<Torch::ValueTensorType>(lhs.getType());
-        auto rhsTy = cast<Torch::ValueTensorType>(rhs.getType());
         Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
             loc, rewriter.getBoolAttr(false));
         Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-        auto torchDtype = Torch::getScalarTypeForType(rewriter.getF32Type());
-        Value tyConst = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    static_cast<int64_t>(torchDtype)));
-
-        if (isa<IntegerType>(lhsTy.getDtype())) {
-          lhsTy = rewriter.getType<Torch::ValueTensorType>(
-              lhsTy.getSizes(), rewriter.getF32Type());
-          lhs = rewriter.create<Torch::AtenToDtypeOp>(loc, lhsTy, lhs, tyConst,
-                                                      cstFalse, cstFalse, none);
-        }
-
-        if (isa<IntegerType>(rhsTy.getDtype())) {
-          rhsTy = rewriter.getType<Torch::ValueTensorType>(
-              rhsTy.getSizes(), rewriter.getF32Type());
-          rhs = rewriter.create<Torch::AtenToDtypeOp>(loc, rhsTy, rhs, tyConst,
-                                                      cstFalse, cstFalse, none);
-        }
 
         auto powType = resultType;
         if (isa<IntegerType>(resultType.getDtype())) {
           powType = rewriter.getType<Torch::ValueTensorType>(
-              resultType.getSizes(), rewriter.getF32Type());
+              resultType.getSizes(), rewriter.getF64Type());
         }
 
         Value pow = rewriter.create<Torch::AtenPowTensorTensorOp>(loc, powType,
@@ -3687,9 +3686,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                          "attribute value to be 0");
 
         // TODO: Add support for optional arguments to be absent.
-        if (operands.size() != 5)
+        if (operands.size() < 4)
           return rewriter.notifyMatchFailure(
-              binder.op, "unimplemented: expected all 5 args to be present");
+              binder.op, "unimplemented: expected at least 4 arguments");
 
         // Squeeze the boxes and scores tensor.
         // In Onnx, the shape of boxes is [BxNx4] while the
@@ -3717,31 +3716,38 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         boxes = squeezedBoxes.value();
         scores = squeezedScores.value();
 
-        // TODO: Add support for handling score_threshold arg.
-        // If score_threshold > min(scores) then the op can't be lowered since
-        // the torchvision::nms op doesn't have support for handling the
-        // score_threshold arg.
-        Value scoreThreshold = rewriter.create<Torch::AtenItemOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(), operands[4]);
-        Value minScores = rewriter.create<Torch::AtenMinOp>(
-            binder.getLoc(),
-            Torch::ValueTensorType::get(binder.op->getContext(), {},
-                                        rewriter.getF32Type()),
-            scores);
-        minScores = rewriter.create<Torch::AtenItemOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(), minScores);
+        // TODO: Support score_threshold input
+        // Filter out the boxes if the score < score_threshold
+        if (operands.size() == 5) {
+          Value scoreThreshold = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+              operands[4]);
+          Value minScores = rewriter.create<Torch::AtenMinOp>(
+              binder.getLoc(),
+              Torch::ValueTensorType::get(binder.op->getContext(),
+                                          SmallVector<int64_t>{},
+                                          rewriter.getF32Type()),
+              scores);
+          minScores = rewriter.create<Torch::AtenItemOp>(
+              binder.getLoc(), rewriter.getType<Torch::FloatType>(), minScores);
 
-        Value scoresCond = rewriter.create<Torch::AtenGeFloatOp>(
-            binder.getLoc(), minScores, scoreThreshold);
-        rewriter.create<Torch::RuntimeAssertOp>(
-            binder.getLoc(), scoresCond,
-            rewriter.getStringAttr(
-                "unimplemented: score_threshold should be <= min(scores)"));
+          Value scoresCond = rewriter.create<Torch::AtenGeFloatOp>(
+              binder.getLoc(), minScores, scoreThreshold);
+          rewriter.create<Torch::RuntimeAssertOp>(
+              binder.getLoc(), scoresCond,
+              rewriter.getStringAttr(
+                  "unimplemented: score_threshold should be <= min(scores)"));
+        }
 
+        // TODO: Support default iou_threshold
         Value iouThreshold = rewriter.create<Torch::AtenItemOp>(
             binder.getLoc(), rewriter.getType<Torch::FloatType>(), operands[3]);
+        auto nmsTy = Torch::ValueTensorType::get(
+            binder.op->getContext(),
+            SmallVector<int64_t>{resultType.getSizes()[0]},
+            rewriter.getIntegerType(64, /*signed=*/true));
         Value result = rewriter.create<Torch::TorchvisionNmsOp>(
-            binder.getLoc(), resultType, boxes, scores, iouThreshold);
+            binder.getLoc(), nmsTy, boxes, scores, iouThreshold);
 
         // The result generated by torchvision.nms op is of shape [n], while the
         // onnx expects it to be of shape [n, 3]. Hence, we unsqueeze the tensor
@@ -3788,14 +3794,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                       /*optionalDtype=*/nullptr);
         Type listType = Torch::ListType::get(listElemType);
         Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.op->getLoc(), listType, SmallVector<Value>{result, zeros});
+            binder.getLoc(), listType, SmallVector<Value>{zeros, result});
 
-        // TODO: Add support for handling max_output_boxes_per_class arg.
-        // If numOutputBoxes (N) > max_output_boxes_per_class then the op can't
-        // be lowered since the torchvision::nms op doesn't have support for
-        // handling the max_output_boxes_per_class arg. Also, we have already
-        // constrained the number of classes to be 1 above, so the number of
-        // output boxes inferred from the result is num_output_boxes_per_class.
+        // TODO: Support max_output_boxes_per_class input
+        // Slice the result if numOutputBoxes (N) > max_output_boxes_per_class
         Value maxOutputBoxesPerClass = rewriter.create<Torch::AtenItemOp>(
             binder.getLoc(), rewriter.getType<Torch::IntType>(), operands[2]);
         Value boxesCond = rewriter.create<Torch::AtenLeIntOp>(

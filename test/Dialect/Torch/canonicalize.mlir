@@ -1255,6 +1255,16 @@ func.func @torch.aten.mul.float() -> !torch.float {
     return %ret : !torch.float
 }
 
+// CHECK-LABEL:   func.func @torch.aten.mul.float_int() -> !torch.float {
+// CHECK:           %[[CST6:.*]] = torch.constant.float 6.000000e+00
+// CHECK:           return %[[CST6]] : !torch.float
+func.func @torch.aten.mul.float_int() -> !torch.float {
+    %cst2 = torch.constant.float 2.0
+    %cst3 = torch.constant.int 3
+    %ret = torch.aten.mul.float_int %cst2, %cst3: !torch.float, !torch.int -> !torch.float
+    return %ret : !torch.float
+}
+
 // CHECK-LABEL:   func.func @torch.aten.neg.float() -> !torch.float {
 // CHECK:           %[[CST_6:.*]] = torch.constant.float -6.000000e+00
 // CHECK:           return %[[CST_6]] : !torch.float

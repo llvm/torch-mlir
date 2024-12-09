@@ -582,10 +582,19 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::conv3d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"
     )
     emit(
+        "aten::conv3d.padding : (Tensor, Tensor, Tensor?, int[], str, int[], int) -> (Tensor)"
+    )
+    emit(
         "aten::conv2d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"
     )
     emit(
+        "aten::conv2d.padding : (Tensor, Tensor, Tensor?, int[], str, int[], int) -> (Tensor)"
+    )
+    emit(
         "aten::conv1d : (Tensor, Tensor, Tensor?, int[], int[], int[], int) -> (Tensor)"
+    )
+    emit(
+        "aten::conv1d.padding : (Tensor, Tensor, Tensor?, int[], str, int[], int) -> (Tensor)"
     )
     emit(
         "aten::conv_transpose1d : (Tensor, Tensor, Tensor?, int[], int[], int[], int, int[]) -> (Tensor)"
@@ -979,6 +988,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::hann_window.periodic : (int, bool, int?, int?, Device?, bool?) -> (Tensor)"
     )
     emit("aten::fft_fft : (Tensor, int?, int, str?) -> (Tensor)")
+    emit("aten::fft_rfft : (Tensor, int?, int, str?) -> (Tensor)")
     emit("aten::fft_ifft : (Tensor, int?, int, str?) -> (Tensor)")
     emit("aten::fmod.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit(
@@ -1130,6 +1140,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::neg.int : (int) -> (int)", has_folder=True)
     emit("aten::log.int : (int) -> (float)")
     emit("aten::add.float_int : (float, int) -> (float)", has_folder=True)
+    emit("aten::mul.float_int : (float, int) -> (float)", has_folder=True)
     emit("aten::sub.float : (float, float) -> (float)", has_folder=True)
     emit("aten::mul.float : (float, float) -> (float)", has_folder=True)
     emit("aten::div.float : (float, float) -> (float)", has_folder=True)
