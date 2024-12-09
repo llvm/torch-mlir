@@ -6858,7 +6858,8 @@ def Torch_AtenConv3dOp : Torch_Op<"aten.conv3d", [
 def Torch_AtenConv3dPaddingOp : Torch_Op<"aten.conv3d.padding", [
     AllowsTypeRefinement,
     HasValueSemantics,
-    ReadOnly
+    ReadOnly,
+    NoMemoryEffect
   ]> {
   let summary = "Generated op for `aten::conv3d.padding : (Tensor, Tensor, Tensor?, int[], str, int[], int) -> (Tensor)`";
   let arguments = (ins
@@ -6917,7 +6918,8 @@ def Torch_AtenConv2dOp : Torch_Op<"aten.conv2d", [
 def Torch_AtenConv2dPaddingOp : Torch_Op<"aten.conv2d.padding", [
     AllowsTypeRefinement,
     HasValueSemantics,
-    ReadOnly
+    ReadOnly,
+    NoMemoryEffect
   ]> {
   let summary = "Generated op for `aten::conv2d.padding : (Tensor, Tensor, Tensor?, int[], str, int[], int) -> (Tensor)`";
   let arguments = (ins
@@ -6976,7 +6978,8 @@ def Torch_AtenConv1dOp : Torch_Op<"aten.conv1d", [
 def Torch_AtenConv1dPaddingOp : Torch_Op<"aten.conv1d.padding", [
     AllowsTypeRefinement,
     HasValueSemantics,
-    ReadOnly
+    ReadOnly,
+    NoMemoryEffect
   ]> {
   let summary = "Generated op for `aten::conv1d.padding : (Tensor, Tensor, Tensor?, int[], str, int[], int) -> (Tensor)`";
   let arguments = (ins
@@ -13829,7 +13832,8 @@ def Torch_AtenFftFftOp : Torch_Op<"aten.fft_fft", [
 def Torch_AtenFftRfftOp : Torch_Op<"aten.fft_rfft", [
     AllowsTypeRefinement,
     HasValueSemantics,
-    ReadOnly
+    ReadOnly,
+    NoMemoryEffect
   ]> {
   let summary = "Generated op for `aten::fft_rfft : (Tensor, int?, int, str?) -> (Tensor)`";
   let arguments = (ins
@@ -16641,7 +16645,8 @@ def Torch_AtenAddFloatIntOp : Torch_Op<"aten.add.float_int", [
 def Torch_AtenMulFloatIntOp : Torch_Op<"aten.mul.float_int", [
     AllowsTypeRefinement,
     HasValueSemantics,
-    ReadOnly
+    ReadOnly,
+    NoMemoryEffect
   ]> {
   let summary = "Generated op for `aten::mul.float_int : (float, int) -> (float)`";
   let arguments = (ins
