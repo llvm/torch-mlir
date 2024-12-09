@@ -3688,6 +3688,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
   patterns.onOp(
       "NonMaxSuppression", 10,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
         Torch::ValueTensorType resultType;
         SmallVector<Value> operands;
         int64_t centerPointBox;
@@ -3702,34 +3703,27 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.op, "unimplemented: expected center_point_box "
                          "attribute value to be 0");
 
-        // TODO: Add support for optional arguments to be absent.
-        if (operands.size() < 4)
-          return rewriter.notifyMatchFailure(
-              binder.op, "unimplemented: expected at least 4 arguments");
-
         // Squeeze the boxes and scores tensor.
         // In Onnx, the shape of boxes is [BxNx4] while the
         // torchvision expects it to be of shape [Nx4]. Similarly, for
         // the scores tensor shape in Onnx is [BxCxN] while the
         // torchvision expects it to be of shape [N].
         Value boxes = operands[0], scores = operands[1];
-        FailureOr<Value> squeezedBoxes = Torch::squeezeTensor(
-            rewriter, binder.op, binder.getLoc(), 0, boxes);
+        FailureOr<Value> squeezedBoxes =
+            Torch::squeezeTensor(rewriter, binder.op, loc, 0, boxes);
         if (failed(squeezedBoxes))
           return rewriter.notifyMatchFailure(binder.op,
                                              "failed to squeeze boxes tensor");
-
-        FailureOr<Value> squeezedScores = Torch::squeezeTensor(
-            rewriter, binder.op, binder.getLoc(), 0, scores);
+        FailureOr<Value> squeezedScores =
+            Torch::squeezeTensor(rewriter, binder.op, loc, 0, scores);
         if (failed(squeezedScores))
           return rewriter.notifyMatchFailure(binder.op,
                                              "failed to squeeze scores tensor");
         squeezedScores = Torch::squeezeTensor(
-            rewriter, binder.op, binder.getLoc(), 0, squeezedScores.value());
+            rewriter, binder.op, loc, 0, squeezedScores.value());
         if (failed(squeezedScores))
           return rewriter.notifyMatchFailure(binder.op,
                                              "failed to squeeze scores tensor");
-
         boxes = squeezedBoxes.value();
         scores = squeezedScores.value();
 
@@ -3737,41 +3731,54 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // Filter out the boxes if the score < score_threshold
         if (operands.size() == 5) {
           Value scoreThreshold = rewriter.create<Torch::AtenItemOp>(
-              binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-              operands[4]);
+              loc, rewriter.getType<Torch::FloatType>(), operands[4]);
           Value minScores = rewriter.create<Torch::AtenMinOp>(
-              binder.getLoc(),
+              loc,
               Torch::ValueTensorType::get(binder.op->getContext(),
                                           SmallVector<int64_t>{},
                                           rewriter.getF32Type()),
               scores);
           minScores = rewriter.create<Torch::AtenItemOp>(
-              binder.getLoc(), rewriter.getType<Torch::FloatType>(), minScores);
+              loc, rewriter.getType<Torch::FloatType>(), minScores);
 
           Value scoresCond = rewriter.create<Torch::AtenGeFloatOp>(
-              binder.getLoc(), minScores, scoreThreshold);
+              loc, minScores, scoreThreshold);
           rewriter.create<Torch::RuntimeAssertOp>(
-              binder.getLoc(), scoresCond,
+              loc, scoresCond,
               rewriter.getStringAttr(
                   "unimplemented: score_threshold should be <= min(scores)"));
         }
 
-        // TODO: Support default iou_threshold
-        Value iouThreshold = rewriter.create<Torch::AtenItemOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(), operands[3]);
+        // Get max_output_boxes_per_class and iou_threshold
+        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(0));
+        Value maxOutputBoxesPerClass = cstZero;
+        Value iouThreshold = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getF64FloatAttr(0.0));
+        if (operands.size() > 3 &&
+            !isa<Torch::NoneType>(operands[3].getType())) {
+          iouThreshold = rewriter.create<Torch::AtenItemOp>(
+              loc, rewriter.getType<Torch::FloatType>(), operands[3]);
+        }
+        if (operands.size() > 2 &&
+            !isa<Torch::NoneType>(operands[2].getType())) {
+          maxOutputBoxesPerClass = rewriter.create<Torch::AtenItemOp>(
+              loc, rewriter.getType<Torch::IntType>(), operands[2]);
+        }
+
         auto nmsTy = Torch::ValueTensorType::get(
             binder.op->getContext(),
             SmallVector<int64_t>{resultType.getSizes()[0]},
             rewriter.getIntegerType(64, /*signed=*/true));
         Value result = rewriter.create<Torch::TorchvisionNmsOp>(
-            binder.getLoc(), nmsTy, boxes, scores, iouThreshold);
+            loc, nmsTy, boxes, scores, iouThreshold);
 
         // The result generated by torchvision.nms op is of shape [n], while the
         // onnx expects it to be of shape [n, 3]. Hence, we unsqueeze the tensor
         // and make it of shape [n, 1] and then concatenate it with a zero
         // tensor of shape [n, 2] to make it of shape [n, 3].
         Value dim = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+            loc, rewriter.getI64IntegerAttr(1));
         FailureOr<Value> unsqueezedResult =
             Torch::unsqueezeTensor(rewriter, binder.op, result, dim);
         if (failed(unsqueezedResult))
@@ -3780,14 +3787,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         result = unsqueezedResult.value();
 
         Value numOutputBoxes = rewriter.create<Torch::AtenSizeIntOp>(
-            binder.getLoc(), result,
-            rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getI64IntegerAttr(0)));
+            loc, result, cstZero);
         SmallVector<Value> zerosShapeValues{numOutputBoxes};
         zerosShapeValues.push_back(rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(2)));
+            loc, rewriter.getI64IntegerAttr(2)));
         Value zerosShapeList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+            loc,
             rewriter.getType<Torch::ListType>(
                 rewriter.getType<Torch::IntType>()),
             zerosShapeValues);
@@ -3800,10 +3805,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         llvm::SmallVector<int64_t> zerosShape = {resultShape->front(), 2};
         auto zerosTy = Torch::ValueTensorType::get(
             resultType.getContext(), zerosShape, resultType.getOptionalDtype());
-        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
         Value zeros = rewriter.create<Torch::AtenZerosOp>(
-            binder.getLoc(), zerosTy, zerosShapeList, cstNone, cstNone, cstNone,
-            cstNone);
+            loc, zerosTy, zerosShapeList, cstNone, cstNone, cstNone, cstNone);
 
         Type listElemType =
             cast<Torch::BaseTensorType>(resultType)
@@ -3811,16 +3815,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                       /*optionalDtype=*/nullptr);
         Type listType = Torch::ListType::get(listElemType);
         Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(), listType, SmallVector<Value>{zeros, result});
+            loc, listType, SmallVector<Value>{zeros, result});
 
         // TODO: Support max_output_boxes_per_class input
         // Slice the result if numOutputBoxes (N) > max_output_boxes_per_class
-        Value maxOutputBoxesPerClass = rewriter.create<Torch::AtenItemOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(), operands[2]);
         Value boxesCond = rewriter.create<Torch::AtenLeIntOp>(
-            binder.getLoc(), numOutputBoxes, maxOutputBoxesPerClass);
+            loc, numOutputBoxes, maxOutputBoxesPerClass);
         rewriter.create<Torch::RuntimeAssertOp>(
-            binder.getLoc(), boxesCond,
+            loc, boxesCond,
             rewriter.getStringAttr(
                 "unimplemented: number of output boxes per class should be "
                 "<= max_output_boxes_per_class"));
