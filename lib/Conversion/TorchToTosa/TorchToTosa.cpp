@@ -405,7 +405,7 @@ public:
     Value rhsAsTensor;
     if (!rhsTy) {
       if (failed(torchScalarToTosaTensor(rewriter, op, op.getOther(),
-                                         rhsAsTensor, lhsElemTy, {})))
+                                         rhsAsTensor, rhs.getType(), {})))
         return rewriter.notifyMatchFailure(
             op, "Currently only scalar constants are supported for "
                 "conversion in TOSA operation");
@@ -414,11 +414,26 @@ public:
     auto rhsTensorTy = dyn_cast<TensorType>(rhsTensor.getType());
     auto rhsElemTy = rhsTensorTy.getElementType();
 
+    // There is no Lesser operator in TOSA.
+    constexpr auto swapLhsRhs = (std::is_same<AtenOpT, AtenLtTensorOp>() ||
+                                 std::is_same<AtenOpT, AtenLtScalarOp>() ||
+                                 std::is_same<AtenOpT, AtenLeTensorOp>() ||
+                                 std::is_same<AtenOpT, AtenLeScalarOp>());
+
+    // Promote lhs and rhs dtypes for bitwise operators.
+    TensorType resultTy = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
+    if (isBitwiseOp) {
+      lhs = tosa::promoteType(rewriter, lhs, resultTy);
+      rhsTensor = tosa::promoteType(rewriter, rhsTensor, resultTy);
+    }
+
+    // Support different types comparisons
     auto isLhsElemFloat = isa<mlir::FloatType>(lhsElemTy);
     auto isRhsElemFloat = isa<mlir::FloatType>(rhsElemTy);
 
-    // Support different types comparisons
-    if (lhsElemTy != rhsElemTy) {
+    if (lhsElemTy != rhsElemTy && !isBitwiseOp) {
       if (isLhsElemFloat && !isRhsElemFloat) {
         rhsTensor = tosa::promoteType(rewriter, rhsTensor, lhsTy);
       } else if (!isLhsElemFloat && isRhsElemFloat) {
@@ -440,20 +455,6 @@ public:
           lhs = tosa::promoteType(rewriter, lhs, rhsTensorTy);
         }
       }
-    }
-    // There is no Lesser operator in TOSA.
-    constexpr auto swapLhsRhs = (std::is_same<AtenOpT, AtenLtTensorOp>() ||
-                                 std::is_same<AtenOpT, AtenLtScalarOp>() ||
-                                 std::is_same<AtenOpT, AtenLeTensorOp>() ||
-                                 std::is_same<AtenOpT, AtenLeScalarOp>());
-
-    // Promote lhs and rhs dtypes for bitwise operators.
-    TensorType resultTy = cast<TensorType>(
-        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-            op.getType()));
-    if (isBitwiseOp) {
-      lhs = tosa::promoteType(rewriter, lhs, resultTy);
-      rhsTensor = tosa::promoteType(rewriter, rhsTensor, resultTy);
     }
 
     auto resultOp = rewriter.create<TosaOpT>(op.getLoc(), resultTy,
@@ -770,17 +771,24 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value self = adaptor.getSelf();
-    auto selfTy = cast<TensorType>(self.getType());
+    auto selfTy = dyn_cast<TensorType>(self.getType());
 
     if (!selfTy)
       return rewriter.notifyMatchFailure(op, "Only Tensor types supported");
 
-    if (!isa<mlir::FloatType>(selfTy.getElementType()))
-      return rewriter.notifyMatchFailure(
-          op, "Only floating-point datatype legalization currently supported");
+    auto resultTy = dyn_cast<TensorType>(
+        this->getTypeConverter()->convertType(op.getType()));
 
-    rewriter.replaceOpWithNewOp<TosaOpT>(
-        op, this->getTypeConverter()->convertType(op.getType()), self);
+    if (!isa<mlir::FloatType>(resultTy.getElementType()))
+      return rewriter.notifyMatchFailure(
+          op, "Only floating-point datatype result types are supported");
+
+    // Non floating point inputs are not supported for activation functions
+    // (erf, sigmoid, tanh) in TOSA so we cast the input to result type
+    if (!isa<mlir::FloatType>(selfTy.getElementType()))
+      self = tosa::promoteType(rewriter, self, resultTy);
+
+    rewriter.replaceOpWithNewOp<TosaOpT>(op, resultTy, self);
 
     return success();
   }
@@ -1283,6 +1291,10 @@ public:
     auto outType =
         cast<TensorType>(this->getTypeConverter()->convertType(op.getType()));
 
+    if (!isa<mlir::FloatType>(outType.getElementType()))
+      return rewriter.notifyMatchFailure(
+          op, "Only floating-point datatype result types are supported");
+
     Value selfTensor;
     if constexpr (std::is_same<AtenOpT, AtenPowScalarOp>()) {
       Value selfScalar = op.getSelf();
@@ -1299,9 +1311,10 @@ public:
         return rewriter.notifyMatchFailure(
             op, "Only ranked tensor types supported in TOSA Pow");
 
+      // Non floating point inputs are not supported for tosa.pow so we cast the
+      // input to result type
       if (!isa<mlir::FloatType>(selfTy.getElementType()))
-        return rewriter.notifyMatchFailure(
-            op, "Only floating-point datatype legalization supported");
+        selfTensor = tosa::promoteType(rewriter, selfTensor, outType);
     }
 
     Value expTensor;
@@ -1319,6 +1332,11 @@ public:
       if (!expTy)
         return rewriter.notifyMatchFailure(
             op, "Only ranked tensor types supported in TOSA Pow");
+
+      // Non floating point exponents are not supported for tosa.pow so we cast
+      // the exponent to result type
+      if (!isa<mlir::FloatType>(expTy.getElementType()))
+        expTensor = tosa::promoteType(rewriter, expTensor, outType);
     }
 
     auto powOp = tosa::createBinaryOpAndCast<tosa::PowOp>(
@@ -8198,6 +8216,46 @@ LogicalResult ConvertAtenOp<AtenLog10Op>::matchAndRewrite(
   return success();
 }
 
+// Legalization for aten.tan
+template <>
+LogicalResult ConvertAtenOp<AtenTanOp>::matchAndRewrite(
+    AtenTanOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // tan = sin / cos
+  auto self = adaptor.getSelf();
+
+  auto selfType = dyn_cast<TensorType>(self.getType());
+  if (!selfType)
+    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
+
+  auto resultType =
+      dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
+
+  if (!isa<mlir::FloatType>(resultType.getElementType()))
+    return rewriter.notifyMatchFailure(
+        op, "Only floating-point datatype result types are supported");
+
+  // Non floating point inputs are not supported in TOSA so we cast the input
+  // to result type
+  if (!isa<mlir::FloatType>(selfType.getElementType()))
+    self = tosa::promoteType(rewriter, self, resultType);
+
+  auto sinOp = rewriter.create<tosa::SinOp>(op->getLoc(), resultType, self);
+
+  auto cosOp = rewriter.create<tosa::CosOp>(op->getLoc(), resultType, self);
+
+  auto reciprocalOp =
+      rewriter.create<tosa::ReciprocalOp>(op->getLoc(), resultType, cosOp);
+
+  auto result = rewriter.create<tosa::MulOp>(
+      op->getLoc(), resultType, sinOp.getResult(), reciprocalOp.getResult(),
+      /*shift=*/0);
+
+  rewriter.replaceOp(op, {result.getResult()});
+
+  return success();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -8540,6 +8598,7 @@ public:
     INSERT_ATENOP_PATTERN(AtenLogitOp);
     INSERT_ATENOP_PATTERN(AtenLog1pOp);
     INSERT_ATENOP_PATTERN(AtenLog10Op);
+    INSERT_ATENOP_PATTERN(AtenTanOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
