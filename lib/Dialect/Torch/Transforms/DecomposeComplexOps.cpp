@@ -7902,17 +7902,25 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
 
     if (mode == "reflect") {
       // only support for relectionpad 1d and 2d
-      if (numPadDims == 2) {
-        rewriter.replaceOpWithNewOp<AtenReflectionPad2dOp>(
-            op, op.getType(), op.getSelf(), usefulPads);
-        return success();
-      }
-      if (numPadDims == 1) {
+      switch (numPadDims) {
+      case 1:
         rewriter.replaceOpWithNewOp<AtenReflectionPad1dOp>(
             op, op.getType(), op.getSelf(), usefulPads);
-        return success();
+        break;
+      case 2:
+        rewriter.replaceOpWithNewOp<AtenReflectionPad2dOp>(
+            op, op.getType(), op.getSelf(), usefulPads);
+        break;
+      case 3:
+        rewriter.replaceOpWithNewOp<AtenReflectionPad3dOp>(
+            op, op.getType(), op.getSelf(), usefulPads);
+        break;
+      default:
+        return rewriter.notifyMatchFailure(
+            op, "unsupported number of dims for 'reflect' mode: " +
+                    std::to_string(numPadDims));
       }
-      return failure();
+      return success();
     }
 
     if (mode == "replicate") {

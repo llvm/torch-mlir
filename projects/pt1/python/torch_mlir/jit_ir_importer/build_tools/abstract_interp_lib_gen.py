@@ -2153,12 +2153,14 @@ def aten〇native_batch_norm〡shape(input: List[int], weight: Optional[List[int
 
 # TODO: This should be upstreamed.
 # See https://github.com/pytorch/pytorch/pull/76889 for an example.
-def pad_shape_fn(input: List[int], pad: List[int]):
+def pad_shape_fn(input: List[int], pad: List[int], validate_pad : bool = False):
     assert len(pad) % 2 == 0, "Must have paired low-high pad amount values"
     assert len(pad) // 2 <= len(input), "Number of padded dimensions must be less than or equal to the input dimension"
     # The `pad` list takes the form of Low-high pairs starting at the
     # *rightmost* dimension of `self`.
     for i in range(len(pad) // 2):
+        if validate_pad:
+            assert pad[2*i] < input[-(i+1)] and pad[2 * i + 1] < input[-(i+1)]
         input[-(i + 1)] += pad[2 * i] + pad[2 * i + 1]
     return input
 
@@ -2193,11 +2195,11 @@ def aten〇pad〡shape(self: List[int], pad: List[int], mode: str = "constant", 
                        ErrorInvocation(TensorOfShape(1, 4), padding=[1,4])])
 def aten〇reflection_pad1d〡shape(self: List[int], padding: List[int]) -> List[int]:
     assert len(self) >= 2
-    hdim = self[-1]
-    padding_left = padding[0]
-    padding_right = padding[1]
-    assert padding_left < hdim and padding_right < hdim
-    return pad_shape_fn(self, padding)
+    # hdim = self[-1]
+    # padding_left = padding[0]
+    # padding_right = padding[1]
+    # assert padding_left < hdim and padding_right < hdim
+    return pad_shape_fn(self, padding, validate_pad=True)
 
 
 # Padding size must be smaller than corresponding dimension
@@ -2210,18 +2212,41 @@ def aten〇reflection_pad1d〡shape(self: List[int], padding: List[int]) -> List
                        ErrorInvocation(TensorOfShape(2, 2, 2), padding=[1,1,2,2])])
 def aten〇reflection_pad2d〡shape(self: List[int], padding: List[int]) -> List[int]:
     assert len(self) >= 2
-    vdim = self[-2]
-    hdim = self[-1]
+    # vdim = self[-2]
+    # hdim = self[-1]
 
     assert len(padding) == 4, 'padding size expected to be 4'
-    padding_left = padding[0]
-    padding_right = padding[1]
-    padding_top = padding[2]
-    padding_bottom = padding[3]
-    assert padding_left < hdim and padding_right < hdim
-    assert padding_top < vdim  and padding_bottom < vdim
+    # padding_left = padding[0]
+    # padding_right = padding[1]
+    # padding_top = padding[2]
+    # padding_bottom = padding[3]
+    # assert padding_left < hdim and padding_right < hdim
+    # assert padding_top < vdim  and padding_bottom < vdim
 
-    return pad_shape_fn(self, padding)
+    return pad_shape_fn(self, padding, validate_pad=True)
+
+# Padding size must be smaller than corresponding dimension
+@check_shape_function([ErrorInvocation(TensorOfShape(2, 2, 2, 2), padding=[2,2,1,1,1,1]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2, 2), padding=[2,1,1,1,1,1]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2, 2), padding=[2,1,1,1,1,3]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2, 2), padding=[2,1]),
+                       Invocation(TensorOfShape(2, 2, 2, 2), padding=[1,1,1,1,1,1]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2, 2), padding=[1,1,1,1,1,2]),
+                       ErrorInvocation(TensorOfShape(2, 2, 2, 2), padding=[1,1,2,1,1,1])])
+def aten〇reflection_pad3d〡shape(self: List[int], padding: List[int]) -> List[int]:
+    assert len(self) >= 3
+    # vdim = self[-2]
+    # hdim = self[-1]
+
+    assert len(padding) == 6, 'padding size expected to be 6'
+    # padding_left = padding[0]
+    # padding_right = padding[1]
+    # padding_top = padding[2]
+    # padding_bottom = padding[3]
+    # assert padding_left < hdim and padding_right < hdim
+    # assert padding_top < vdim  and padding_bottom < vdim
+
+    return pad_shape_fn(self, padding, validate_pad=True)
 
 # TODO: upstream this
 def index_tensor_like(self: List[int], indices: List[Optional[List[int]]]) -> List[int]:
