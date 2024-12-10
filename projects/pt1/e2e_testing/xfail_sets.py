@@ -845,8 +845,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ScatterValueFloatModule_basic",
     "ScatterValueIntModule_basic",
     "SliceOutOfLowerBoundEndIndexModule_basic",
-    "SortIntListReverse_basic",
-    "SortIntList_basic",
     "SortTensorDescending_basic",
     "SortTensorInteger_basic",
     "SortTensorNegativeDimension_basic",
