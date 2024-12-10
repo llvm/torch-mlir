@@ -9,7 +9,7 @@ on:
 jobs:
   release_snapshot_package:
     name: "Tag snapshot release"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     # Don't run this in everyone's forks.
     if: github.repository == 'llvm/torch-mlir'
     steps:
