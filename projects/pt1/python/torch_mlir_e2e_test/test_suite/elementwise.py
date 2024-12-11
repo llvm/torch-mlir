@@ -5207,7 +5207,7 @@ class ElementwiseExpm1Module(torch.nn.Module):
         ]
     )
     def forward(self, a):
-        return torch.special.expm1(a)
+        return torch.expm1(a)
 
 
 @register_test_case(module_factory=lambda: ElementwiseExpm1Module())
@@ -5230,11 +5230,57 @@ class ElementwiseExpm1IntModule(torch.nn.Module):
         ]
     )
     def forward(self, a):
-        return torch.special.expm1(a)
+        return torch.expm1(a)
 
 
 @register_test_case(module_factory=lambda: ElementwiseExpm1IntModule())
 def ElementwiseExpm1IntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseSpecialExpm1Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.special.expm1(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSpecialExpm1Module())
+def ElementwiseSpecialExpm1Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseSpecialExpm1IntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.special.expm1(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSpecialExpm1IntModule())
+def ElementwiseSpecialExpm1IntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
 
