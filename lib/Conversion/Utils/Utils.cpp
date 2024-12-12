@@ -500,10 +500,9 @@ FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
   auto inputType = cast<RankedTensorType>(input.getType());
   int64_t inputRank = inputType.getRank();
 
-  if (inputRank == 0) {
-    return rewriter.notifyMatchFailure(
-        op, "zero input rank should have been handled by the folder");
-  }
+  // No scope for squeezing the input.
+  if (inputRank == 0)
+    return input;
 
   dim = toPositiveDim(dim, inputRank);
   if (!isValidDim(dim, inputRank))

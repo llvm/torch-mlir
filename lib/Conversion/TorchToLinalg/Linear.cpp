@@ -859,7 +859,9 @@ public:
 
     // Adding support for 1d group convolution by converting the 1d-conv to
     // 2d-conv.
-    bool is1DGroupConv = (numSpatialDims == 1 && numGroups != 1) ? true : false;
+    // TODO: Replace this logic with the appropriate linalg op for 1-d group
+    // convolution once that support is added.
+    bool is1DGroupConv = (numSpatialDims == 1 && numGroups != 1);
     if (is1DGroupConv) {
       // Unsqueezing the last dim of input and weight. Also extending the
       // dilation, stride, padding, and output padding lists.
