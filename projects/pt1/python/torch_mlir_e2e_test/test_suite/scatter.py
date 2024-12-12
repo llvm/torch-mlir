@@ -1065,9 +1065,9 @@ class ScatterAddDynamicModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ScatterAddDynamicModule())
 def ScatterAddDynamicModule_basic(module, tu: TestUtils):
     module.forward(
-        torch.tensor([0, 0, 0, 0, 0, 0]), 
-        torch.tensor([0, 0, 0, 0, 0, 0]), 
-        torch.tensor([0, 0, 0, 3, 0, 0])
+        torch.tensor([0, 0, 0, 0, 0, 0]),
+        torch.tensor([0, 0, 0, 0, 0, 0]),
+        torch.tensor([0, 0, 0, 3, 0, 0]),
     )
 
 
