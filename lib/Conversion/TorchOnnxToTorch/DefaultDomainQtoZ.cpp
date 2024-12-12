@@ -344,16 +344,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value outputZp = operands[7];
         Value output = operands.size() == 9 ? operands[8] : nullptr;
 
-        // auto check = [](Value v) {
-        //   auto vTy = cast<Torch::ValueTensorType>(v.getType());
-        //   return llvm::all_of(vTy.getSizes(), [](int64_t d) { return d == 1;
-        //   });
-        // };
-        // if (!check(aScale) || !check(aZp) || !check(bScale) || !check(bZp) ||
-        //     !check(cScale) || !check(cScale))
-        //   return rewriter.notifyMatchFailure(
-        //       binder.op, "not supported for non per-tensor quantization");
-
         auto extract = [&rewriter, &binder](Value v) {
           auto vTy = cast<Torch::ValueTensorType>(v.getType());
           Type extractTy = rewriter.getType<Torch::FloatType>();
@@ -388,14 +378,12 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         input = makePerTensor(input, inputScale, inputZp);
         // The onnx's QLinearConv op expects per channel quantization only for
         // the weight tensor for axis = 0.
-        llvm::outs() << "I'm here\n";
         auto weightTy = dyn_cast<Torch::ValueTensorType>(weight.getType());
         auto weightScaleTy =
             dyn_cast<Torch::ValueTensorType>(weightScale.getType());
         if (!weightTy || !weightScaleTy || !weightTy.hasSizes() ||
             !weightScaleTy.hasSizes())
           return failure();
-        llvm::outs() << "I'm here 1\n";
         auto weightShape = weightTy.getSizes();
         auto weightScaleShape = weightScaleTy.getSizes();
         Value weightScaleScalar = extract(weightScale);
@@ -409,13 +397,12 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           weightZp = extract(weightZp);
           weight = makePerTensor(weight, weightScaleScalar, weightZp);
         }
-        weight = weightScaleScalar;
+        weightScale = weightScaleScalar;
 
         auto outputTy = rewriter.getType<Torch::ValueTensorType>(
             resultType.getOptionalSizes(),
             rewriter.getIntegerType(32, /*issigned=*/true));
 
-        llvm::outs() << "I'm here 2\n";
         // TODO(suderman): insert convolution operator.
         llvm::SmallVector<Value> newOperands = {input, weight};
         if (output)
@@ -452,7 +439,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         outputTy = rewriter.getType<Torch::ValueTensorType>(
             resultType.getOptionalSizes(), rewriter.getF32Type());
 
-        llvm::outs() << "I'm here 3\n";
         output = rewriter.create<Torch::AtenDequantizeSelfOp>(binder.getLoc(),
                                                               outputTy, output);
         outputTy = getQTorchTypeFromTorchIntType(resultType);
@@ -466,7 +452,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.getLoc(), outputTy, output, outputScale, outputZp, dtyVal);
         rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
                                                           output);
-        llvm::outs() << "I'm here 4\n";
         return success();
       });
   patterns.onOp(
