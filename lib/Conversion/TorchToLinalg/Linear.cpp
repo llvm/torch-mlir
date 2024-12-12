@@ -1315,6 +1315,17 @@ public:
         conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
                                                            resultElementType);
       }
+
+      if (is1DGroupConv) {
+        // Squeezing the last dim of the result of conv.
+        auto squeezeInputInfo = squeezeTensor(rewriter, op, conv, /*dim=*/-1);
+        if (failed(squeezeInputInfo)) {
+          return rewriter.notifyMatchFailure(
+              op, "cannot generate unsqueeze tensor");
+        }
+        conv = squeezeInputInfo.value();
+      }
+
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
     }
