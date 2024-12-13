@@ -794,21 +794,6 @@ public:
                                                   weightZp);
       auto torchDtype = cast<ValueTensorType>(make.getType()).getDtype();
       weightUnsigned = torch_to_linalg::isUnsignedTorchType(torchDtype);
-    } else if (auto make =
-                   op.getWeight()
-                       .getDefiningOp<Aten_MakePerChannelQuantizedTensorOp>()) {
-      weight = make.getSelf();
-      weightZp = make.getZeroPoint();
-
-      weight = typeConverter->materializeTargetConversion(
-          rewriter, loc, typeConverter->convertType(weight.getType()), weight);
-      weightZp = typeConverter->materializeTargetConversion(
-          rewriter, loc, typeConverter->convertType(weightZp.getType()),
-          weightZp);
-      weightZp = rewriter.create<arith::TruncIOp>(loc, rewriter.getI32Type(),
-                                                  weightZp);
-      auto torchDtype = cast<ValueTensorType>(make.getType()).getDtype();
-      weightUnsigned = torch_to_linalg::isUnsignedTorchType(torchDtype);
     }
 
     if (static_cast<bool>(inputZp) != static_cast<bool>(weightZp)) {
