@@ -1093,18 +1093,35 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         rewriter.replaceOp(binder.op, nllLoss);
         return success();
       });
-  patterns.onOp("NonZero", 13,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value operand;
-                  if (binder.tensorOperand(operand) ||
-                      binder.tensorResultType(resultType)) {
-                    return failure();
-                  }
-                  rewriter.replaceOpWithNewOp<Torch::AtenNonzeroOp>(
-                      binder.op, resultType, operand);
-                  return success();
-                });
+  patterns.onOp(
+      "NonZero", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+        Value zero = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        Value one = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
+        auto rawSize = resultType.getSizes();
+        SmallVector<int64_t> torchResultSize(rawSize.rbegin(), rawSize.rend());
+        auto torchResultType = rewriter.getType<Torch::ValueTensorType>(
+            torchResultSize, resultType.getDtype());
+        auto nonZero = rewriter.create<Torch::AtenNonzeroOp>(
+            binder.getLoc(), torchResultType, operand);
+        // The output tensor has a shape of ((n, z)), where (n) is the
+        // number of dimensions in the input tensor and (z) is the
+        // number of non-zero elements2. This is different from
+        // PyTorch's default behavior, where the dimensions are
+        // reversed.
+        rewriter.replaceOpWithNewOp<Torch::AtenTransposeIntOp>(
+            binder.op, resultType, nonZero, zero, one);
+        return success();
+      });
   patterns.onOp(
       "MaxPool", 12, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         std::string autoPad;
