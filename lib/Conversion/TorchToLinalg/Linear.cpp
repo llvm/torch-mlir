@@ -888,8 +888,8 @@ public:
       strideInts.push_back(1);
       dilationInts.push_back(1);
 
-      inRank += 1;
-      numSpatialDims += 1;
+      inRank++;
+      numSpatialDims++;
     }
 
     Value inBatch = getDimOp(rewriter, loc, input, 0);
@@ -1318,12 +1318,12 @@ public:
 
       if (is1DGroupConv) {
         // Squeezing the last dim of the result of conv.
-        auto squeezeInputInfo = squeezeTensor(rewriter, op, conv, /*dim=*/-1);
-        if (failed(squeezeInputInfo)) {
-          return rewriter.notifyMatchFailure(
-              op, "cannot generate unsqueeze tensor");
+        auto squeezeOutputInfo = squeezeTensor(rewriter, op, conv, /*dim=*/-1);
+        if (failed(squeezeOutputInfo)) {
+          return rewriter.notifyMatchFailure(op,
+                                             "cannot generate squeeze tensor");
         }
-        conv = squeezeInputInfo.value();
+        conv = squeezeOutputInfo.value();
       }
 
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
@@ -1420,12 +1420,12 @@ public:
 
     if (is1DGroupConv) {
       // Squeezing the last dim of the result of conv.
-      auto squeezeInputInfo = squeezeTensor(rewriter, op, conv, /*dim=*/-1);
-      if (failed(squeezeInputInfo)) {
+      auto squeezeOutputInfo = squeezeTensor(rewriter, op, conv, /*dim=*/-1);
+      if (failed(squeezeOutputInfo)) {
         return rewriter.notifyMatchFailure(op,
-                                           "cannot generate unsqueeze tensor");
+                                           "cannot generate squeeze tensor");
       }
-      conv = squeezeInputInfo.value();
+      conv = squeezeOutputInfo.value();
     }
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
     return success();
