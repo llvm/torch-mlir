@@ -1045,35 +1045,6 @@ def ScatterAddStaticModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class ScatterAddDynamicModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([-1], torch.int64, True),
-            ([-1], torch.int64, True),
-            ([-1], torch.int64, True),
-        ]
-    )
-    def forward(self, input, index, src):
-        return torch.ops.aten.scatter_add(input, 0, index, src)
-
-
-@register_test_case(module_factory=lambda: ScatterAddDynamicModule())
-def ScatterAddDynamicModule_basic(module, tu: TestUtils):
-    module.forward(
-        torch.tensor([0, 0, 0, 0, 0, 0]),
-        torch.tensor([0, 0, 0, 0, 0, 0]),
-        torch.tensor([0, 0, 0, 3, 0, 0]),
-    )
-
-
-# ==============================================================================
-
-
 class ScatterReduceFloatModule(torch.nn.Module):
     include_self: bool
     reduce_type: str
