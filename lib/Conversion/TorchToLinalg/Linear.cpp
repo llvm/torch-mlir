@@ -850,6 +850,48 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
 
+    // Checks for valid group size
+    int64_t numGroups;
+    if (!matchPattern(op.getGroups(), m_TorchConstantInt(&numGroups)))
+      return rewriter.notifyMatchFailure(op,
+                                         "only constant group size supported.");
+    Value groups = castIntToIndex(rewriter, loc, adaptor.getGroups());
+
+    // Adding support for 1d group convolution by converting the 1d-conv to
+    // 2d-conv.
+    // TODO: Replace this logic with the appropriate linalg op for 1-d group
+    // convolution once that support is added.
+    bool is1DGroupConv = (numSpatialDims == 1 && numGroups != 1);
+    if (is1DGroupConv) {
+      // Unsqueezing the last dim of input and weight. Also extending the
+      // dilation, stride, padding, and output padding lists.
+      auto unsqueezeInputInfo =
+          unsqueezeTensor(rewriter, op, input, /*dim=*/-1);
+      if (failed(unsqueezeInputInfo)) {
+        return rewriter.notifyMatchFailure(op,
+                                           "cannot generate unsqueeze tensor");
+      }
+      input = unsqueezeInputInfo.value();
+
+      auto unsqueezeWeightInfo =
+          unsqueezeTensor(rewriter, op, weight, /*dim=*/-1);
+      if (failed(unsqueezeWeightInfo)) {
+        return rewriter.notifyMatchFailure(op,
+                                           "cannot generate unsqueeze tensor");
+      }
+      weight = unsqueezeWeightInfo.value();
+
+      Value cstZero = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getI64IntegerAttr(0));
+      paddingIntValues.push_back(cstZero);
+      outputPaddingIntValues.push_back(cstZero);
+      strideInts.push_back(1);
+      dilationInts.push_back(1);
+
+      inRank++;
+      numSpatialDims++;
+    }
+
     Value inBatch = getDimOp(rewriter, loc, input, 0);
     Value inChannels = getDimOp(rewriter, loc, input, 1);
     SmallVector<Value> inDims;
@@ -860,13 +902,6 @@ public:
     SmallVector<Value> weightDims;
     for (size_t i = 2; i < inRank; i++)
       weightDims.push_back(getDimOp(rewriter, loc, weight, i));
-
-    // Checks for valid group size
-    int64_t numGroups;
-    if (!matchPattern(op.getGroups(), m_TorchConstantInt(&numGroups)))
-      return rewriter.notifyMatchFailure(op,
-                                         "only constant group size supported.");
-    Value groups = castIntToIndex(rewriter, loc, adaptor.getGroups());
 
     auto validate = [&](Value toValidate, std::string err) {
       Value c0 =
@@ -1280,13 +1315,24 @@ public:
         conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
                                                            resultElementType);
       }
+
+      if (is1DGroupConv) {
+        // Squeezing the last dim of the result of conv.
+        auto squeezeOutputInfo = squeezeTensor(rewriter, op, conv, /*dim=*/-1);
+        if (failed(squeezeOutputInfo)) {
+          return rewriter.notifyMatchFailure(op,
+                                             "cannot generate squeeze tensor");
+        }
+        conv = squeezeOutputInfo.value();
+      }
+
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
     }
 
     if (numSpatialDims != 2)
       return rewriter.notifyMatchFailure(
-          op, "unimplemented: only 2D grouped convolution supported");
+          op, "unimplemented: only 1D and 2D grouped convolution supported");
 
     // Grouped case, use the grouped conv linalg op
     auto expandGroups = [&](Value tensor, size_t dim) {
@@ -1370,6 +1416,16 @@ public:
           cast<RankedTensorType>(newResultType).getElementType();
       conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
                                                          resultElementType);
+    }
+
+    if (is1DGroupConv) {
+      // Squeezing the last dim of the result of conv.
+      auto squeezeOutputInfo = squeezeTensor(rewriter, op, conv, /*dim=*/-1);
+      if (failed(squeezeOutputInfo)) {
+        return rewriter.notifyMatchFailure(op,
+                                           "cannot generate squeeze tensor");
+      }
+      conv = squeezeOutputInfo.value();
     }
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
     return success();
