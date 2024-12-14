@@ -403,8 +403,9 @@ namespace {
 struct ReduceOpVariantsPass
     : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
   ReduceOpVariantsPass() = default;
-  ReduceOpVariantsPass(StringRef extraLibrary) {
+  ReduceOpVariantsPass(StringRef extraLibrary, ArrayRef<std::string> legalOps) {
     this->extraLibrary = extraLibrary.str();
+    this->legalOps = legalOps;
   }
   void runOnOperation() override {
     MLIRContext *context = &getContext();
@@ -439,13 +440,15 @@ struct ReduceOpVariantsPass
     target.addIllegalOp<NonValueTensorLiteralOp>();
     target.addIllegalOp<AtenBernoulli_FloatOp>();
     target.addIllegalOp<AtenArangeStartOutOp>();
-    target.markUnknownOpDynamicallyLegal([&extraLibraryModuleSymTable,
-                                          &specializedNames](Operation *op) {
-      if (isa<OperatorOp>(op)) {
-        if (specializedNames.contains(cast<OperatorOp>(op).getNameAttr())) {
-          return false;
-        }
-      }
+
+    target.addDynamicallyLegalOp<OperatorOp>([&](OperatorOp op) {
+      auto opNameAttr = op.getNameAttr();
+      return llvm::find(legalOps, opNameAttr.str()) != legalOps.end() &&
+             !specializedNames.contains(opNameAttr);
+    });
+
+    target.markUnknownOpDynamicallyLegal([&extraLibraryModuleSymTable](
+                                             Operation *op) {
       if (op->hasTrait<Torch::OpTrait::HasValueSemantics>() ||
           (isa<OperatorOp>(op) &&
            operatorOpHasValueSemantics(cast<OperatorOp>(op),
@@ -479,6 +482,7 @@ struct ReduceOpVariantsPass
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createReduceOpVariantsPass(StringRef extraLibrary) {
-  return std::make_unique<ReduceOpVariantsPass>(extraLibrary);
+mlir::torch::Torch::createReduceOpVariantsPass(StringRef extraLibrary,
+                                               ArrayRef<std::string> legalOps) {
+  return std::make_unique<ReduceOpVariantsPass>(extraLibrary, legalOps);
 }

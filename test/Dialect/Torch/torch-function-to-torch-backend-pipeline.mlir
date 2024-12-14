@@ -1,4 +1,4 @@
-// RUN: torch-mlir-opt -pass-pipeline='builtin.module(torch-function-to-torch-backend-pipeline{backend-legal-ops=aten.square,aten.argmax})' -split-input-file %s | FileCheck %s
+// RUN: torch-mlir-opt -pass-pipeline='builtin.module(torch-function-to-torch-backend-pipeline{backend-legal-ops=aten.square,aten.argmax,torch.aten.round.decimals})' -split-input-file %s | FileCheck %s
 
 // CHECK-LABEL: func.func @torch.aten.square
 func.func @torch.aten.square(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vtensor<[?,?,?],f32> {
@@ -24,4 +24,12 @@ func.func @torch.uint8(%arg0: !torch.tensor {torch.type_bound = !torch.vtensor<[
   // CHECK-SAME: !torch.vtensor<[12],ui8>
   %1 = torch.aten.reshape %arg0, %0 : !torch.tensor, !torch.list<int> -> !torch.tensor
   return %1 : !torch.tensor
+}
+
+// Test that "torch.aten.round.decimals" was considered legal after explicitly specifying it in pass options.
+// CHECK-LABEL: func.func @torch_aten_round_decimals
+func.func @torch_aten_round_decimals(%0: !torch.vtensor<[1,1024,1024,3],f32>) -> !torch.vtensor<[1, 1024,1024,3],f32> {
+  %int0 = torch.constant.int 0
+  %1 = torch.operator "torch.aten.round.decimals"(%0, %int0) : (!torch.vtensor<[1,1024,1024,3],f32>, !torch.int) -> !torch.vtensor<[1,1024,1024,3],f32>
+  return %1 : !torch.vtensor<[1, 1024,1024,3],f32>
 }
