@@ -37,13 +37,13 @@
     python -m pip install -r requirements.txt -r torchvision-requirements.txt
     ```
 
-Also, ensure that you have the appropriate `python-dev` package installed
-to access the Python development libraries / headers. For example, you can install
-it with the following `apt` command on Ubuntu/Debian.
+1. Install the libraries and headers required for development
 
-```shell
-sudo apt install python3-dev
-```
+    - For Ubuntu or Debian, run:
+
+      ```shell
+      sudo apt install python3-dev
+      ```
 
 ### (Optional) Set up pre-commit
 
