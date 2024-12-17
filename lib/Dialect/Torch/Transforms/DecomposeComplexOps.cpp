@@ -3791,11 +3791,7 @@ public:
       // Create a uniform random op with low and high set to `lower` and
       // `upper`, respectively.
       Value none = rewriter.create<ConstantNoneOp>(loc);
-      Value emptyTensor = rewriter.create<AtenFullLikeOp>(
-          loc, resType, self, constantZeroFloat, /*dtype=*/none,
-          /*layout=*/none,
-          /*device=*/none, /*pin_memoty=*/none, /*memory_format=*/none);
-      alpha = rewriter.create<AtenUniformOp>(loc, resType, emptyTensor,
+      alpha = rewriter.create<AtenUniformOp>(loc, resType, self,
                                              /*from=*/lower, /*to=*/upper,
                                              /*generator=*/none);
     } else {
@@ -3840,6 +3836,33 @@ public:
     Value lower = op.getLower();
     Value upper = op.getUpper();
     auto resType = cast<BaseTensorType>(op.getType());
+    Value cstNone = rewriter.create<ConstantNoneOp>(loc);
+    Value cstFalse =
+        rewriter.create<ConstantBoolOp>(loc, rewriter.getBoolAttr(false));
+    Value result =
+        rewriter
+            .create<AtenRreluWithNoiseFunctionalOp>(
+                loc, resType, self, noise, lower, upper, cstFalse, cstNone)
+            ->getResult(0);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenRreluWithNoiseFunctionalOp
+    : public OpRewritePattern<AtenRreluWithNoiseFunctionalOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRreluWithNoiseFunctionalOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value noise = op.getNoise();
+    Value lower = op.getLower();
+    Value upper = op.getUpper();
+    auto resType = cast<BaseTensorType>(op.getResultTypes()[0]);
     if (!resType.hasDtype()) {
       return rewriter.notifyMatchFailure(op, "result should have dtype");
     }
@@ -3885,7 +3908,7 @@ public:
                                                       rewriter.getI1Type());
       Value oneTensor =
           createRank0Tensor(rewriter, loc, resType, constantOneFloat);
-      Value not_positive = rewriter.create<AtenLtScalarOp>(
+      Value not_positive = rewriter.create<AtenLeScalarOp>(
           loc, boolResType, self, constantZeroFloat);
       noise = rewriter.create<AtenWhereSelfOp>(loc, resType, not_positive,
                                                alpha, oneTensor);
@@ -3897,7 +3920,7 @@ public:
         rewriter.create<AtenMinimumOp>(loc, resType, zeroTensor, scaledSelf);
     Value rreluOutput = rewriter.create<AtenAddTensorOp>(
         loc, resType, positiveOutput, negativeOutput, constantOneFloat);
-    rewriter.replaceOp(op, rreluOutput);
+    rewriter.replaceOp(op, {rreluOutput, noise});
     return success();
   }
 };
@@ -11568,6 +11591,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenPreluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRreluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRreluWithNoiseOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRreluWithNoiseFunctionalOp>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRreluWithNoiseBackwardOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCeluOp>(patterns);

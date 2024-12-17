@@ -1212,6 +1212,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::rrelu_with_noise_backward : (Tensor, Tensor, Tensor, Scalar, Scalar, bool, bool) -> (Tensor)"
     )
+    emit(
+        "aten::rrelu_with_noise_functional : (Tensor, Tensor, Scalar, Scalar, bool, Generator?) -> (Tensor, Tensor)"
+    )
 
     # quantized ops
     emit("aten::quantize_per_channel : (Tensor, Tensor, Tensor, int, int) -> (Tensor)")
