@@ -1,4 +1,4 @@
-# Checkout and build from source
+# Environment
 
 ## Check out the code
 
@@ -31,7 +31,6 @@ it with the following `apt` command on Ubuntu/Debian.
 sudo apt install python3-dev
 ```
 
-
 ## (Optional) Set up pre-commit
 
 This project uses [pre-commit](https://pre-commit.com/) in its CI. You can
@@ -45,15 +44,21 @@ pip install pre-commit
 pre-commit install
 ```
 
-## CMake Build
+# Building
+
+## With CMake
+
+### Configure for Building...
 
 Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
 
-### Building torch-mlir in-tree
+#### ...with LLVM "in-tree" using...
 
-The following command generates configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.  On Windows, use the "Developer PowerShell for Visual Studio" to ensure that the compiler and linker binaries are in the `PATH` variable.
+The following commands generate configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.  On Windows, use the "Developer PowerShell for Visual Studio" to ensure that the compiler and linker binaries are in the `PATH` variable.
 
-This requires `lld`, `clang`, `ccache`, and other dependencies for building `libtorch` / `PyTorch` wheels from source. If you run into issues because of these, try the [simplified build command](#simplified-build).
+##### ...Base + Optimization Options
+
+This requires `lld`, `clang`, `ccache`, and other dependencies for building `libtorch` / `PyTorch` wheels from source. If you run into issues because of these, try the [simplified build command](#base-options).
 
 ```shell
 cmake -GNinja -Bbuild \
@@ -85,7 +90,7 @@ cmake -GNinja -Bbuild \
   -DLIBTORCH_VARIANT=shared
 ```
 
-# Simplified build
+##### ...Base Options
 
 If you're running into issues with the above build command, consider using the following:
 
@@ -101,7 +106,7 @@ cmake -GNinja -Bbuild \
   externals/llvm-project/llvm
 ```
 
-#### Flags to enable MLIR debugging:
+#### Options to enable MLIR debugging
 
 * Enabling `--debug` and `--debug-only` flags (see [MLIR docs](https://mlir.llvm.org/getting_started/Debugging/)) for the `torch-mlir-opt` tool
 ```shell
@@ -109,7 +114,7 @@ cmake -GNinja -Bbuild \
   -DLLVM_ENABLE_ASSERTIONS=ON \
 ```
 
-#### Flags to run end-to-end tests:
+#### Options to run end-to-end tests
 
 Running the end-to-end execution tests locally requires enabling the native PyTorch extension features and the JIT IR importer, which depends on the
 former and defaults to `ON` if not changed:
@@ -118,7 +123,7 @@ former and defaults to `ON` if not changed:
   -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON \
 ```
 
-### Building against a pre-built LLVM
+#### ...with LLVM "out-of-tree"
 
 If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following command as template:
 ```shell
@@ -135,8 +140,7 @@ The same QoL CMake flags can be used to enable clang, ccache, and lld. Be sure t
 
 Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
 
-
-### Build commands
+### Initiate Build
 
 After either cmake run (in-tree/out-of-tree), use one of the following commands to build the project:
 
