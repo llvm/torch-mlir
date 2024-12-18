@@ -141,6 +141,7 @@ If you're running into issues with the above build command, consider using the f
 ```shell
 cmake -GNinja -Bbuild \
   -DCMAKE_BUILD_TYPE=Release \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
@@ -157,6 +158,7 @@ If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, 
 ```shell
 cmake -GNinja -Bbuild \
   -DCMAKE_BUILD_TYPE=Release \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir/" \
   -DLLVM_DIR="$LLVM_INSTALL_DIR/lib/cmake/llvm/" \
