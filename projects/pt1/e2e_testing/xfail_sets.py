@@ -1696,6 +1696,8 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
     "Aten_TrilinearModuleSumAllDims_basic",
     "Aten_TrilinearModuleSumdims_basic",
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
+    "CrossEntropyLossModule_basic",
+    "CrossEntropyLossNoReductionModule_basic",
     "ScatterSrcModule_basic",
     "ScatterSrcStaticModule_basic",
     "HBC_basic",
@@ -1704,6 +1706,9 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "Unfold_Module_Rank_4",
+    "Unfold_Module_Rank_Zero_basic",
+    "Unfold_Module_basic",
     "ElementwiseErfIntModule_basic",
     "ElementwiseIntTensorLtFloatScalarModule_basic",
     "ElementwiseSigmoidIntModule_basic",
@@ -3440,6 +3445,8 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
+    "UniformModule_basic",
+    "UniformStaticShapeModule_basic",
     "AtenFftRfft2DLastDim_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "IsInfiniteModule_basic",
@@ -3459,11 +3466,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "MaxPool3dModule_basic",
     "MaxPool3dStaticModule_basic",
     "ViewDtypeStaticModule_basic",
-    "Unfold_Module_Dynamic_basic",
-    "Unfold_Module_Rank_4",
     "Unfold_Module_Rank_Zero_Size_Zero_basic",
-    "Unfold_Module_Rank_Zero_basic",
-    "Unfold_Module_basic",
     "ArangeZeroElementOutputModule_basic",
     "NumpyTRank0Module_basic",
     "Permute0RankModule_basic",
@@ -3887,17 +3890,10 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AdaptiveAvgPool2dDynamic_basic",
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
-    "ElementwiseRreluTrainModule_basic",
-    "ElementwiseRreluTrainStaticModule_basic",
-    "IndexPutImpl1DFloatNonAccumulateModule_basic",
-    "IndexPutImpl1DIntNonAccumulateModule_basic",
-    "IndexPutImpl2DFloatNonAccumulateModule_basic",
-    "IndexPutImpl3DFloatNonAccumulateModule_basic",
     "IouOfModule_basic",
     "MeshgridIndexingIJ_basic",
     "MeshgridIndexingXY_basic",
     "Meshgrid_basic",
-    "OneHotModule_basic",
     "ReduceFrobeniusNormKeepDimModule_basic",
     "ReduceFrobeniusNormModule_basic",
     "ScaledDotProductAttentionBoolMaskModule_basic",

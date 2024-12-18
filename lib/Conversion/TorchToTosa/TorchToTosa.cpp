@@ -8256,6 +8256,198 @@ LogicalResult ConvertAtenOp<AtenTanOp>::matchAndRewrite(
   return success();
 }
 
+// Legalization for aten.unfold
+template <>
+LogicalResult ConvertAtenOp<AtenUnfoldOp>::matchAndRewrite(
+    AtenUnfoldOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // Approach: Use GatherOp to retrieve target elements from target dim and then
+  // reshape the output into slices according to the output shape
+  //
+  // Lowering steps:
+  // 1. Create PyTorch-style indices tensor corresponding to target elements and
+  // reshape them to (d_0, d_1, ..., nWindows * size, ..., d_(rank - 1))
+  // with d_x being the dimension size of the input at dim x.
+  // The indices vector will be calculated using the following formula:
+  //    for i in range(d_0 * d_1 * ... * d_(target_dim - 1)):
+  //      for window in range(nWindows):
+  //        for elementIndex in range(size):
+  //          for j in range(d_(target_dim + 1) * ... * d_(rank-1)):
+  //            indices_vec.push_back(elementIndex + window * step)
+  // 2. Convert PyTorch-style indices and target dim to TensorFlow-style indices
+  // 3. Apply TensorFlow GatherNdOp with TensorFlow-style indices to retrieve
+  // target elements
+  // 4. Reshape result from above to correct output shape
+  auto self = adaptor.getSelf();
+
+  auto selfType = dyn_cast<TensorType>(self.getType());
+  if (!selfType)
+    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
+
+  auto selfShape = selfType.getShape();
+  auto selfRank = selfType.getRank();
+  auto selfElemTy = selfType.getElementType();
+
+  auto resultType =
+      dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
+  auto resultElemTy = resultType.getElementType();
+
+  int64_t dim;
+  if (!matchPattern(op.getDimension(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(op,
+                                       "Only constant int dims are supported");
+
+  int64_t size;
+  if (!matchPattern(op.getSize(), m_TorchConstantInt(&size)))
+    return rewriter.notifyMatchFailure(op,
+                                       "Only constant int sizes are supported");
+
+  int64_t step;
+  if (!matchPattern(op.getStep(), m_TorchConstantInt(&step)))
+    return rewriter.notifyMatchFailure(op,
+                                       "Only constant int steps are supported");
+
+  if (step <= 0)
+    return rewriter.notifyMatchFailure(op, "Step value must be greater than 0");
+
+  // Handle rank zero
+  if (selfRank == 0) {
+    if (dim != 0)
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported dim value for rank zero input");
+
+    if (size != 1)
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported size value for rank zero input");
+
+    auto result = rewriter.create<tosa::ReshapeOp>(
+        op->getLoc(), RankedTensorType::get({1}, selfElemTy), self,
+        rewriter.getDenseI64ArrayAttr({1}));
+
+    rewriter.replaceOp(op, {result.getResult()});
+    return success();
+  }
+
+  dim = toPositiveDim(dim, selfRank);
+  if (!isValidDim(dim, selfRank))
+    return rewriter.notifyMatchFailure(op, "Dim value is invalid");
+
+  // Size of dimension 'dim' in the returned tensor (or number of windows within
+  // the dimension that got sliced)
+  int64_t nWindows = (selfShape[dim] - size) / step + 1;
+
+  // Find number of times that each base index value gets repeated for target
+  // dim based on dim values before and after target dim i.e. preDimAccumulate =
+  // d_0 * d_1 * ... * d_(target_dim - 1)
+  //      postDimAccumulate = d_(target_dim + 1) * ... * d_(rank - 1)
+  int64_t preDimAccumulate =
+      std::accumulate(selfShape.begin(), selfShape.begin() + dim, 1,
+                      std::multiplies<int64_t>());
+  int64_t postDimAccumulate =
+      std::accumulate(selfShape.begin() + dim + 1, selfShape.end(), 1,
+                      std::multiplies<int64_t>());
+
+  // Calculate PyTorch-style gather indices vector
+  // Example: shape = (2, 4, 3), dim = 1, size = 3, step = 1
+  //          -> preDimAccumulate = 2, postDimAccummulate = 3, nWindows = 2
+  // pyTorchIndicesBaseVec = [0, 0, 0, 1, 1, 1, 2, 2, 2,
+  //                          1, 1, 1, 2, 2, 2, 3, 3, 3]
+  // pyTorchIndicesVec = [0, 0, 0, 1, 1, 1, 2, 2, 2,
+  //                      1, 1, 1, 2, 2, 2, 3, 3, 3,
+  //                      0, 0, 0, 1, 1, 1, 2, 2, 2,
+  //                      1, 1, 1, 2, 2, 2, 3, 3, 3]
+  SmallVector<int32_t> pyTorchIndicesBaseVec;
+  SmallVector<int32_t> pyTorchIndicesVec;
+
+  for (int64_t window = 0; window < nWindows; window++) {
+    for (int64_t elementIndex = 0; elementIndex < size; elementIndex++) {
+      int32_t baseIndex = static_cast<int32_t>(elementIndex + window * step);
+      for (int64_t i = 0; i < postDimAccumulate; i++)
+        pyTorchIndicesBaseVec.push_back(baseIndex);
+    }
+  }
+
+  for (int64_t i = 0; i < preDimAccumulate; i++)
+    pyTorchIndicesVec.insert(pyTorchIndicesVec.end(),
+                             pyTorchIndicesBaseVec.begin(),
+                             pyTorchIndicesBaseVec.end());
+
+  // Create the PyTorch-style indices tensor
+  // Continuing with the previous example:
+  // pyTorchIndicesShape = (2, nWindows * size, 3) = (2, 6, 3)
+  // pyTorchIndices = tensor([[[0, 0, 0],
+  //                           [1, 1, 1],
+  //                           [2, 2, 2],
+  //                           [1, 1, 1],
+  //                           [2, 2, 2],
+  //                           [3, 3, 3]],
+  //                          [[0, 0, 0],
+  //                           [1, 1, 1],
+  //                           [2, 2, 2],
+  //                           [1, 1, 1],
+  //                           [2, 2, 2],
+  //                           [3, 3, 3]]])
+  SmallVector<int64_t> pyTorchIndicesShape(selfShape);
+  pyTorchIndicesShape[dim] = nWindows * size;
+  auto pyTorchIndices =
+      tosa::getConstTensor<int32_t>(rewriter, op, pyTorchIndicesVec,
+                                    pyTorchIndicesShape)
+          .value();
+
+  // Convert PyTorch-style indices to TensorFlow-style indices
+  auto tfIndices = tosa::convertTorchIndexToTfIndices(rewriter, op, self,
+                                                      pyTorchIndices, dim);
+  if (!tfIndices)
+    return rewriter.notifyMatchFailure(op,
+                                       "Convert PyTorch-style indices and dim "
+                                       "to TensorFlow-style indices failed");
+
+  // Apply TensorFlow GatherNdOp with TensorFlow-style indices to retrieve
+  // target elements
+  auto gatherNdOp = tosa::convertGatherNdOp(
+      rewriter, op, RankedTensorType::get(pyTorchIndicesShape, resultElemTy),
+      self, tfIndices.value());
+  if (!gatherNdOp)
+    return rewriter.notifyMatchFailure(op, "Convert GatherNdOp failed");
+
+  // Reshape to an intermediary shape where the gathered elements in dimension
+  // 'dim' are split back into 2 dimensions of sizes 'nWindows' and 'size'
+  SmallVector<int64_t> intermediaryShape;
+  for (int64_t currentDim = 0; currentDim < selfRank; currentDim++) {
+    if (currentDim == dim) {
+      intermediaryShape.push_back(nWindows);
+      intermediaryShape.push_back(size);
+    } else {
+      intermediaryShape.push_back(pyTorchIndicesShape[currentDim]);
+    }
+  }
+
+  auto reshapeOp = rewriter.create<tosa::ReshapeOp>(
+      op->getLoc(), RankedTensorType::get(intermediaryShape, resultElemTy),
+      gatherNdOp.value(), rewriter.getDenseI64ArrayAttr(intermediaryShape));
+
+  // Permute dims to the correct result order
+  SmallVector<int32_t> permutedDims;
+  for (int64_t currentDim = 0; currentDim < selfRank + 1; currentDim++) {
+    if (currentDim != dim + 1)
+      permutedDims.push_back(static_cast<int32_t>(currentDim));
+  }
+  permutedDims.push_back(static_cast<int32_t>(dim + 1));
+
+  auto permutedDimsConst = tosa::getConstTensor<int32_t>(
+                               rewriter, op,
+                               /*vec=*/permutedDims,
+                               /*shape=*/{static_cast<int32_t>(selfRank + 1)})
+                               .value();
+
+  auto result = rewriter.create<tosa::TransposeOp>(
+      op->getLoc(), resultType, reshapeOp.getResult(), permutedDimsConst);
+
+  rewriter.replaceOp(op, {result.getResult()});
+
+  return success();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -8617,6 +8809,7 @@ std::set<StringRef> torch::populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ATENOP_PATTERN(AtenLog1pOp);
   INSERT_ATENOP_PATTERN(AtenLog10Op);
   INSERT_ATENOP_PATTERN(AtenTanOp);
+  INSERT_ATENOP_PATTERN(AtenUnfoldOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
