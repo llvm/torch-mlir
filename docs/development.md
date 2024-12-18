@@ -19,6 +19,14 @@
 
 ## Set up the Python environment
 
+1. Install the libraries and headers required for development
+
+    - For Ubuntu or Debian, run:
+
+      ```shell
+      sudo apt install python3-dev
+      ```
+
 1. Install Python VirtualEnvironment + MLIR variant
 
     ```shell
@@ -44,13 +52,6 @@
     python -m pip install -r requirements.txt -r torchvision-requirements.txt
     ```
 
-1. Install the libraries and headers required for development
-
-    - For Ubuntu or Debian, run:
-
-      ```shell
-      sudo apt install python3-dev
-      ```
 
 ## (Optional) Set up pre-commit
 
