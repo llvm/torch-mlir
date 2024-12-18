@@ -29,12 +29,12 @@ jobs:
     steps:
       - name: Install Clang 17.0.6
         run: |
-          yum update -y
-          yum install -y wget
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          ./llvm.sh 17
-          yum install -y clang-17 lldb-17 lld-17 clang-tools-extra-17
+          apt update
+          apt install -y software-properties-common
+          add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          apt install -y clang-17 lldb-17
+          update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100
+          update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 100
           echo "Clang version installed:"
       - name: Verify Clang installation
         run: clang --version
