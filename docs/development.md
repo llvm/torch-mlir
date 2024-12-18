@@ -118,12 +118,15 @@ For workflows that demand frequent rebuilds, the following steps will allow you 
 
 ```shell
 cmake -GNinja -Bbuild \
-  -DCMAKE_BUILD_TYPE=Release \
+  `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DLLVM_TARGETS_TO_BUILD=host
 ```
+
+[About MLIR debugging](https://mlir.llvm.org/getting_started/Debugging/)
 
 #### Specify LLVM options
 
@@ -179,15 +182,6 @@ If you anticipate needing to frequently rebuild LLVM, append:
 ```
 
 This will build `libtorch` / `PyTorch` wheels from source and requires [the enablement mentioned earlier](#optional-enable-build-optimizations). If these options cause issues, just skip them for now.
-
-#### (Optional) Append options that enable MLIR debugging
-
-* Enabling `--debug` and `--debug-only` flags (see [MLIR docs](https://mlir.llvm.org/getting_started/Debugging/)) for the `torch-mlir-opt` tool
-```shell
-  \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \ # or =Debug
-  -DLLVM_ENABLE_ASSERTIONS=ON
-```
 
 #### (Optional) Append options that enable end-to-end tests
 
