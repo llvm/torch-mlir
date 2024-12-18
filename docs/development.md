@@ -33,11 +33,13 @@
     python3 -m venv mlir_venv
     ```
 
-1. Activate the Python environment
+## Activate the Python environment
 
-    ```shell
-    source mlir_venv/bin/activate
-    ```
+```shell
+source mlir_venv/bin/activate
+```
+
+## Install Dependencies
 
 1. Get the latest version of pip
 
