@@ -399,6 +399,7 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenIntBoolOpModule_basic",
     "AtenIntMM_basic",
     "AtenItemFpOpModule_basic",
+    "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
     "QuantizedReluInt32_basic",
@@ -628,6 +629,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenMmQMixedSigni8_basic",
     "AtenMmQint8_basic",
     "AtenMmQuint8_basic",
+    "AtenNonzero1DDynamicModule_basic",
     "AtenRealView128Module_basic",
     "AtenRealView64Module_basic",
     "AtenTopKModule_basic",
@@ -3018,7 +3020,6 @@ ONNX_XFAIL_SET = {
     "LinalgNormKeepDimComplexModule_basic",
     "LinalgVectorNormComplexModule_basic",
     "LogSoftmaxBackwardModule_basic",
-    "MaskedScatterStaticBasic_basic",
     "MaxPool1dCeilModeTrueModule_basic",
     "MaxPool1dModule_basic",
     "MaxPool2dCeilModeTrueModule_basic",
