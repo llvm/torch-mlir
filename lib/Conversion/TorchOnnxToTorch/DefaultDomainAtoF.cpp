@@ -456,24 +456,19 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
   patterns.onOp(
       "AveragePool", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        std::string autoPad;
-        SmallVector<int64_t> dilations;
-        if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
-          return failure();
-        if (autoPad != "NOTSET") {
-          // TODO: Add support for `auto_pad` != "NOTSET"
-          return rewriter.notifyMatchFailure(
-              binder.op, "unsupported conversion: auto_pad != NOTSET");
-        }
-
         Torch::ValueTensorType resultType;
         Value operand;
-        bool ceilMode, countIncludePad;
+        int64_t ceilMode, countIncludePad;
+        std::string autoPad;
         if (binder.tensorOperand(operand) ||
-            binder.s64BoolAttr(ceilMode, "ceil_mode", false) ||
-            binder.s64BoolAttr(countIncludePad, "count_include_pad", false) ||
+            binder.s64IntegerAttr(ceilMode, "ceil_mode", 0) ||
+            binder.s64IntegerAttr(countIncludePad, "count_include_pad", 0) ||
+            binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET") ||
             binder.tensorResultType(resultType))
-          return failure();
+          return rewriter.notifyMatchFailure(
+              binder.op, "operand/ceil_mode/count_include_pad/auto_pad/"
+                         "resultType bind failure");
+
         // Determine the rank of input tensor.
         std::optional<unsigned> maybeRank = Torch::getTensorRank(operand);
         if (!maybeRank)
@@ -481,82 +476,27 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                                              "Unimplemented: unranked tensor");
         unsigned rank = *maybeRank;
 
-        SmallVector<int64_t> kernel, padding, strides;
-        if (binder.s64IntegerArrayAttr(kernel, "kernel_shape", {})) {
-          return failure();
-        }
-        if (kernel.size() != rank - 2) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "kernel list size does not match the number of axes");
-        }
-        SmallVector<int64_t> defaultPadding(2 * (rank - 2), 0);
-        if (binder.s64IntegerArrayAttr(padding, "pads", defaultPadding)) {
-          return failure();
-        }
-        if (padding.size() != 2 * (rank - 2)) {
-          return rewriter.notifyMatchFailure(
-              binder.op,
-              "padding list size does not match twice the number of axes");
-        }
-        if (binder.s64IntegerArrayAttr(
-                strides, "strides", llvm::SmallVector<int64_t>(rank - 2, 1))) {
-          return failure();
-        }
-        if (strides.size() != 1 && strides.size() != rank - 2) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "strides list size does not match the number of axes");
-        }
+        SmallVector<int64_t> kernel, padding, strides, dilations,
+            stridesDilations;
+        if (failed(checkAndGetOnnxPoolingOpParameters(
+                binder, rewriter, resultType.getDtype(), autoPad,
+                /*spatialRank=*/rank - 2,
+                /*input=*/operand, kernel, strides, padding, dilations)))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "invalid pooling parameters");
 
-        SmallVector<Value> cstKernel, cstPadding, cstStridesDilations;
-        for (int64_t i : kernel) {
-          cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(i)));
-        }
-        // Onnx pads format: [x1_begin, x2_begin…x1_end, x2_end,…]
-        // Pytorch pads format: [x1, x2,...] or [x], assume begin==end for all
-        // axes x.
-        int64_t paddingSizeHalf = padding.size() / 2;
-        for (int64_t i = 0; i < paddingSizeHalf; ++i) {
-          // Check if onnx padding attribute is symmetric.
-          if (padding[i] != padding[i + paddingSizeHalf])
-            return rewriter.notifyMatchFailure(
-                binder.op, "onnx padding attribute is not symmetric");
-          cstPadding.push_back(rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(padding[i])));
-        }
-        for (int64_t i : strides) {
-          cstStridesDilations.push_back(rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(i)));
-        }
-
-        // No dilations attribute in pytorch avgpool op, so use this trick to
-        // encode dilation into strides. Then in the following torchtolinalg
-        // lowering, decode strides into strides + dilation.
+        // Since the PyTorch AvgPool op does not contain the `dilation` arg,
+        // hence we use the trick of encoding dilation into strides. Then,
+        // during the torch->linalg lowering of the `AvgPool` op we decode the
+        // `strides` arg into strides values followed by dilation like:
         // [strideDim1,strideDim2,...,dilationDim1,dilationDim2,...]
-        if (binder.s64IntegerArrayAttr(
-                dilations, "dilations",
-                llvm::SmallVector<int64_t>(rank - 2, 1))) {
-          return failure();
-        }
-        for (auto dilation : dilations) {
-          cstStridesDilations.push_back(rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(dilation)));
-        }
+        stridesDilations = strides;
+        stridesDilations.append(dilations);
 
-        Value kernelSizeList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            cstKernel);
-        Value paddingList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            cstPadding);
+        Value kernelSizeList = createConstantIntList(binder, rewriter, kernel);
+        Value paddingList = createConstantIntList(binder, rewriter, padding);
         Value stridesDilationsList =
-            rewriter.create<Torch::PrimListConstructOp>(
-                binder.getLoc(),
-                Torch::ListType::get(
-                    Torch::IntType::get(binder.op->getContext())),
-                cstStridesDilations);
+            createConstantIntList(binder, rewriter, stridesDilations);
         Value cstCeilMode =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), ceilMode);
         Value cstCountIncludePad = rewriter.create<Torch::ConstantBoolOp>(
