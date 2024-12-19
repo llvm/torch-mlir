@@ -2057,22 +2057,30 @@ func.func @test_nonmaxsuppression_identical_boxes(%arg0: !torch.vtensor<[1,10,4]
   // CHECK:           %[[VAL_22:.*]] = torch.aten.item %[[VAL_21]] : !torch.vtensor<[],f32> -> !torch.float
   // CHECK:           %[[VAL_23:.*]] = torch.aten.ge.float %[[VAL_22]], %[[VAL_20]] : !torch.float, !torch.float -> !torch.bool
   // CHECK:           torch.runtime.assert %[[VAL_23]], "unimplemented: score_threshold should be <= min(scores)"
-  // CHECK:           %[[VAL_24:.*]] = torch.aten.item %[[VAL_3]] : !torch.vtensor<[1],f32> -> !torch.float
-  // CHECK:           %[[VAL_25:.*]] = torch.torchvision.nms %[[VAL_9]], %[[VAL_19]], %[[VAL_24]] : !torch.vtensor<[10,4],f32>, !torch.vtensor<[10],f32>, !torch.float -> !torch.vtensor<[1],si64>
-  // CHECK:           %[[VAL_26:.*]] = torch.constant.int 1
-  // CHECK:           %[[VAL_27:.*]] = torch.aten.unsqueeze %[[VAL_25]], %[[VAL_26]] : !torch.vtensor<[1],si64>, !torch.int -> !torch.vtensor<[1,1],si64>
-  // CHECK:           %[[VAL_28:.*]] = torch.constant.int 0
-  // CHECK:           %[[VAL_29:.*]] = torch.aten.size.int %[[VAL_27]], %[[VAL_28]] : !torch.vtensor<[1,1],si64>, !torch.int -> !torch.int
-  // CHECK:           %[[VAL_30:.*]] = torch.constant.int 2
-  // CHECK:           %[[VAL_31:.*]] = torch.prim.ListConstruct %[[VAL_29]], %[[VAL_30]] : (!torch.int, !torch.int) -> !torch.list<int>
-  // CHECK:           %[[VAL_32:.*]] = torch.constant.none
-  // CHECK:           %[[VAL_33:.*]] = torch.aten.zeros %[[VAL_31]], %[[VAL_32]], %[[VAL_32]], %[[VAL_32]], %[[VAL_32]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[1,2],si64>
-  // CHECK:           %[[VAL_34:.*]] = torch.prim.ListConstruct %[[VAL_33]], %[[VAL_27]] : (!torch.vtensor<[1,2],si64>, !torch.vtensor<[1,1],si64>) -> !torch.list<vtensor>
-  // CHECK:           %[[VAL_35:.*]] = torch.aten.item %[[VAL_2]] : !torch.vtensor<[1],si64> -> !torch.int
-  // CHECK:           %[[VAL_36:.*]] = torch.aten.le.int %[[VAL_29]], %[[VAL_35]] : !torch.int, !torch.int -> !torch.bool
-  // CHECK:           torch.runtime.assert %[[VAL_36]], "unimplemented: number of output boxes per class should be <= max_output_boxes_per_class"
-  // CHECK:           %[[VAL_37:.*]] = torch.aten.cat %[[VAL_34]], %[[VAL_26]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,3],si64>
-  // CHECK:           return %[[VAL_37]] : !torch.vtensor<[1,3],si64>
+  // CHECK:           %[[VAL_24:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_25:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_26:.*]] = torch.constant.float 0.000000e+00
+  // CHECK:           %[[VAL_27:.*]] = torch.aten.item %arg3 : !torch.vtensor<[1],f32> -> !torch.float
+  // CHECK:           %[[VAL_28:.*]] = torch.aten.item %arg2 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK:           %[[VAL_29:.*]] = torch.torchvision.nms %[[VAL_9]], %[[VAL_19]], %[[VAL_27]] : !torch.vtensor<[10,4],f32>, !torch.vtensor<[10],f32>, !torch.float -> !torch.vtensor<[?],si64>
+  // CHECK:           %[[VAL_30:.*]] = torch.aten.size.int %[[VAL_29]], %[[VAL_24]] : !torch.vtensor<[?],si64>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_31:.*]] = torch.aten.gt.int %[[VAL_30]], %[[VAL_28]] : !torch.int, !torch.int -> !torch.bool
+  // CHECK:           %[[VAL_32:.*]] = torch.prim.If %[[VAL_31]] -> (!torch.vtensor<[1],si64>)
+  // CHECK:             %[[SLICE:.*]] = torch.aten.slice.Tensor %[[VAL_29]], %[[VAL_24]], %[[VAL_24]], %[[VAL_28]], %[[VAL_25]] : !torch.vtensor<[?],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK:             torch.prim.If.yield %[[SLICE]] : !torch.vtensor<[1],si64>
+  // CHECK:           } else {
+  // CHECK:             %[[CAST:.*]] = torch.tensor_static_info_cast %[[VAL_29]] : !torch.vtensor<[?],si64> to !torch.vtensor<[1],si64>
+  // CHECK:             torch.prim.If.yield %[[CAST]] : !torch.vtensor<[1],si64>
+  // CHECK:           }
+  // CHECK:           %[[VAL_33:.*]] = torch.aten.unsqueeze %[[VAL_32]], %[[VAL_25]] : !torch.vtensor<[1],si64>, !torch.int -> !torch.vtensor<[1,1],si64>
+  // CHECK:           %[[VAL_34:.*]] = torch.aten.size.int %[[VAL_33]], %[[VAL_24]] : !torch.vtensor<[1,1],si64>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_35:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_36:.*]] = torch.prim.ListConstruct %[[VAL_34]], %[[VAL_35]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_37:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_38:.*]] = torch.aten.zeros %[[VAL_36]], %[[VAL_37]], %[[VAL_37]], %[[VAL_37]], %[[VAL_37]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[1,2],si64>
+  // CHECK:           %[[VAL_39:.*]] = torch.prim.ListConstruct %[[VAL_38]], %[[VAL_33]] : (!torch.vtensor<[1,2],si64>, !torch.vtensor<[1,1],si64>) -> !torch.list<vtensor>
+  // CHECK:           %[[VAL_40:.*]] = torch.aten.cat %[[VAL_39]], %[[VAL_25]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,3],si64>
+  // CHECK:           return %[[VAL_40]] : !torch.vtensor<[1,3],si64>
   %0 = torch.operator "onnx.NonMaxSuppression"(%arg0, %arg1, %arg2, %arg3, %arg4) : (!torch.vtensor<[1,10,4],f32>, !torch.vtensor<[1,1,10],f32>, !torch.vtensor<[1],si64>, !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>) -> !torch.vtensor<[1,3],si64>
   return %0 : !torch.vtensor<[1,3],si64>
 }
@@ -2109,23 +2117,30 @@ func.func @test_nonmaxsuppression_single_box(%arg0: !torch.vtensor<[1,1,4],f32>,
   // CHECK:           %[[VAL_22:.*]] = torch.aten.item %[[VAL_21]] : !torch.vtensor<[],f32> -> !torch.float
   // CHECK:           %[[VAL_23:.*]] = torch.aten.ge.float %[[VAL_22]], %[[VAL_20]] : !torch.float, !torch.float -> !torch.bool
   // CHECK:           torch.runtime.assert %[[VAL_23]], "unimplemented: score_threshold should be <= min(scores)"
-  // CHECK:           %[[VAL_24:.*]] = torch.aten.item %[[VAL_3]] : !torch.vtensor<[1],f32> -> !torch.float
-  // CHECK:           %[[VAL_25:.*]] = torch.torchvision.nms %[[VAL_9]], %[[VAL_19]], %[[VAL_24]] : !torch.vtensor<[1,4],f32>, !torch.vtensor<[1],f32>, !torch.float -> !torch.vtensor<[1],si64>
-  // CHECK:           %[[VAL_26:.*]] = torch.constant.int 1
-  // CHECK:           %[[VAL_27:.*]] = torch.aten.unsqueeze %[[VAL_25]], %[[VAL_26]] : !torch.vtensor<[1],si64>, !torch.int -> !torch.vtensor<[1,1],si64>
-  // CHECK:           %[[VAL_28:.*]] = torch.constant.int 0
-  // CHECK:           %[[VAL_29:.*]] = torch.aten.size.int %[[VAL_27]], %[[VAL_28]] : !torch.vtensor<[1,1],si64>, !torch.int -> !torch.int
-  // CHECK:           %[[VAL_30:.*]] = torch.constant.int 2
-  // CHECK:           %[[VAL_31:.*]] = torch.prim.ListConstruct %[[VAL_29]], %[[VAL_30]] : (!torch.int, !torch.int) -> !torch.list<int>
-  // CHECK:           %[[VAL_32:.*]] = torch.constant.none
-  // CHECK:           %[[VAL_33:.*]] = torch.aten.zeros %[[VAL_31]], %[[VAL_32]], %[[VAL_32]], %[[VAL_32]], %[[VAL_32]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[1,2],si64>
-  // CHECK:           %[[VAL_34:.*]] = torch.prim.ListConstruct %[[VAL_33]], %[[VAL_27]] : (!torch.vtensor<[1,2],si64>, !torch.vtensor<[1,1],si64>) -> !torch.list<vtensor>
-  // CHECK:           %[[VAL_35:.*]] = torch.aten.item %[[VAL_2]] : !torch.vtensor<[1],si64> -> !torch.int
-  // CHECK:           %[[VAL_36:.*]] = torch.aten.le.int %[[VAL_29]], %[[VAL_35]] : !torch.int, !torch.int -> !torch.bool
-  // CHECK:           torch.runtime.assert %[[VAL_36]], "unimplemented: number of output boxes per class should be <= max_output_boxes_per_class"
-  // CHECK:           %[[VAL_37:.*]] = torch.aten.cat %[[VAL_34]], %[[VAL_26]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,3],si64>
-  // CHECK:           return %[[VAL_37]] : !torch.vtensor<[1,3],si64>
-  // CHECK:         }
+  // CHECK:           %[[VAL_24:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_25:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_26:.*]] = torch.constant.float 0.000000e+00
+  // CHECK:           %[[VAL_27:.*]] = torch.aten.item %arg3 : !torch.vtensor<[1],f32> -> !torch.float
+  // CHECK:           %[[VAL_28:.*]] = torch.aten.item %arg2 : !torch.vtensor<[1],si64> -> !torch.int
+  // CHECK:           %[[VAL_29:.*]] = torch.torchvision.nms %[[VAL_9]], %[[VAL_19]], %[[VAL_27]] : !torch.vtensor<[1,4],f32>, !torch.vtensor<[1],f32>, !torch.float -> !torch.vtensor<[?],si64>
+  // CHECK:           %[[VAL_30:.*]] = torch.aten.size.int %[[VAL_29]], %[[VAL_24]] : !torch.vtensor<[?],si64>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_31:.*]] = torch.aten.gt.int %[[VAL_30]], %[[VAL_28]] : !torch.int, !torch.int -> !torch.bool
+  // CHECK:           %[[VAL_32:.*]] = torch.prim.If %[[VAL_31]] -> (!torch.vtensor<[1],si64>)
+  // CHECK:             %[[SLICE:.*]] = torch.aten.slice.Tensor %[[VAL_29]], %[[VAL_24]], %[[VAL_24]], %[[VAL_28]], %[[VAL_25]] : !torch.vtensor<[?],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK:             torch.prim.If.yield %[[SLICE]] : !torch.vtensor<[1],si64>
+  // CHECK:           } else {
+  // CHECK:             %[[CAST:.*]] = torch.tensor_static_info_cast %[[VAL_29]] : !torch.vtensor<[?],si64> to !torch.vtensor<[1],si64>
+  // CHECK:             torch.prim.If.yield %[[CAST]] : !torch.vtensor<[1],si64>
+  // CHECK:           }
+  // CHECK:           %[[VAL_33:.*]] = torch.aten.unsqueeze %[[VAL_32]], %[[VAL_25]] : !torch.vtensor<[1],si64>, !torch.int -> !torch.vtensor<[1,1],si64>
+  // CHECK:           %[[VAL_34:.*]] = torch.aten.size.int %[[VAL_33]], %[[VAL_24]] : !torch.vtensor<[1,1],si64>, !torch.int -> !torch.int
+  // CHECK:           %[[VAL_35:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_36:.*]] = torch.prim.ListConstruct %[[VAL_34]], %[[VAL_35]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_37:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_38:.*]] = torch.aten.zeros %[[VAL_36]], %[[VAL_37]], %[[VAL_37]], %[[VAL_37]], %[[VAL_37]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[1,2],si64>
+  // CHECK:           %[[VAL_39:.*]] = torch.prim.ListConstruct %[[VAL_38]], %[[VAL_33]] : (!torch.vtensor<[1,2],si64>, !torch.vtensor<[1,1],si64>) -> !torch.list<vtensor>
+  // CHECK:           %[[VAL_40:.*]] = torch.aten.cat %[[VAL_39]], %[[VAL_25]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,3],si64>
+  // CHECK:           return %[[VAL_40]] : !torch.vtensor<[1,3],si64>
   %0 = torch.operator "onnx.NonMaxSuppression"(%arg0, %arg1, %arg2, %arg3, %arg4) : (!torch.vtensor<[1,1,4],f32>, !torch.vtensor<[1,1,1],f32>, !torch.vtensor<[1],si64>, !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>) -> !torch.vtensor<[1,3],si64>
   return %0 : !torch.vtensor<[1,3],si64>
 }
