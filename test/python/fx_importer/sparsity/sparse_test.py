@@ -28,8 +28,8 @@ def export_and_import(f, *args, **kwargs):
     fx_importer = FxImporter(context=context)
     prog = torch.export.export(f, args, kwargs)
     # TODO: add this back; but needs upstream PyTorch fix
-    #decomposition_table = get_decomposition_table()
-    #if decomposition_table:
+    # decomposition_table = get_decomposition_table()
+    # if decomposition_table:
     #    prog = prog.run_decompositions(decomposition_table)
     fx_importer.import_frozen_program(prog)
     return fx_importer.module
@@ -522,7 +522,7 @@ def test_sparse_network():
     print(res2)
 
 
-#@run
+# @run
 #
 # C_HECK-LABEL: test_sparse_feature_scaling
 # C_HECK:       func.func @main(
