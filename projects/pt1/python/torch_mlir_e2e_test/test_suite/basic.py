@@ -105,8 +105,9 @@ class BmmFloat16Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: BmmFloat16Module())
 def BmmFloat16Module_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5).to(torch.float16),
-                   tu.rand(3, 5, 4).to(torch.float16))
+    module.forward(
+        tu.rand(3, 4, 5).to(torch.float16), tu.rand(3, 5, 4).to(torch.float16)
+    )
 
 
 class BmmIntModule(torch.nn.Module):
