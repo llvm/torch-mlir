@@ -122,6 +122,24 @@ Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is 
 
 The following commands generate configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.
 
+###### ...Base Options
+
+If you don't anticipate needing to frequently rebuild LLVM "in-tree", run:
+
+```shell
+cmake -GNinja -Bbuild \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DPython3_FIND_VIRTUALENV=ONLY \
+  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+  -DLLVM_TARGETS_TO_BUILD=host \
+  `# For building LLVM "in-tree"` \
+  externals/llvm-project/llvm \
+  -DLLVM_ENABLE_PROJECTS=mlir \
+  -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
+  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD"
+```
+
 ###### ...Base + Optimization Options
 This will build `libtorch` / `PyTorch` wheels from source and requires [the enablement mentioned earlier](#optional-enable-build-optimizations). If you encounter issues when you run this, try the [simplified build command](#base-options) instead.
 
@@ -154,24 +172,6 @@ cmake -GNinja -Bbuild \
   -DLIBTORCH_SRC_BUILD=ON \
   `# Set the variant of libtorch to build / link against. (shared|static and optionally cxxabi11)` \
   -DLIBTORCH_VARIANT=shared
-```
-
-###### ...Base Options
-
-If you don't anticipate needing to frequently rebuild LLVM "in-tree", run:
-
-```shell
-cmake -GNinja -Bbuild \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DPython3_FIND_VIRTUALENV=ONLY \
-  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-  -DLLVM_TARGETS_TO_BUILD=host \
-  `# For building LLVM "in-tree"` \
-  externals/llvm-project/llvm \
-  -DLLVM_ENABLE_PROJECTS=mlir \
-  -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
-  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD"
 ```
 
 ##### ..."out-of-tree"
