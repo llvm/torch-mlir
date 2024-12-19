@@ -27,9 +27,10 @@ def export_and_import(f, *args, **kwargs):
     torch_d.register_dialect(context)
     fx_importer = FxImporter(context=context)
     prog = torch.export.export(f, args, kwargs)
-    decomposition_table = get_decomposition_table()
-    if decomposition_table:
-        prog = prog.run_decompositions(decomposition_table)
+    # TODO: add this back; but needs upstream PyTorch fix
+    #decomposition_table = get_decomposition_table()
+    #if decomposition_table:
+    #    prog = prog.run_decompositions(decomposition_table)
     fx_importer.import_frozen_program(prog)
     return fx_importer.module
 
@@ -216,25 +217,25 @@ def test_sparse_SpMV():
     print("torch.mlir   =", res2)
 
 
-# @run
+@run
 #
-# C_HECK-LABEL: test_sparse_SpMM
-# C_HECK:       #[[$COO:.*]] = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 : compressed(nonunique), d1 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
-# C_HECK:       func.func @main(
-# C_HECK-SAME:    %[[A:.*0]]: !torch.vtensor<[8,8],f32,#[[$COO]]>,
-# C_HECK-SAME:    %[[B:.*1]]: !torch.vtensor<[8,8],f32>) -> !torch.vtensor<[8,8],f32> {
-# C_HECK:         %[[R:.*]] = torch.aten.{{matmul|mm}} %[[A]], %[[B]] : !torch.vtensor<[8,8],f32,#[[$COO]]>, !torch.vtensor<[8,8],f32> -> !torch.vtensor<[8,8],f32>
-# C_HECK:         return %[[R]] : !torch.vtensor<[8,8],f32>
-# C_HECK:       }
+# CHECK-LABEL: test_sparse_SpMM
+# CHECK:       #[[$COO:.*]] = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 : compressed(nonunique), d1 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
+# CHECK:       func.func @main(
+# CHECK-SAME:    %[[A:.*0]]: !torch.vtensor<[8,8],f32,#[[$COO]]>,
+# CHECK-SAME:    %[[B:.*1]]: !torch.vtensor<[8,8],f32>) -> !torch.vtensor<[8,8],f32> {
+# CHECK:         %[[R:.*]] = torch.aten.{{matmul|mm}} %[[A]], %[[B]] : !torch.vtensor<[8,8],f32,#[[$COO]]>, !torch.vtensor<[8,8],f32> -> !torch.vtensor<[8,8],f32>
+# CHECK:         return %[[R]] : !torch.vtensor<[8,8],f32>
+# CHECK:       }
 ##
-# C_HECK: torch.sparse
-# C_HECK:   tensor({{\[}}[8., 8., 8., 8., 8., 8., 8., 8.],
-# C_HECK-COUNT-6:        [8., 8., 8., 8., 8., 8., 8., 8.],
-# C_HECK:                [8., 8., 8., 8., 8., 8., 8., 8.]{{\]}})
-# C_HECK: torch.mlir
-# C_HECK:          {{\[}}[8. 8. 8. 8. 8. 8. 8. 8.]
-# C_HECK-COUNT-6:        [8. 8. 8. 8. 8. 8. 8. 8.]
-# C_HECK:                [8. 8. 8. 8. 8. 8. 8. 8.]{{\]}}
+# CHECK: torch.sparse
+# CHECK:   tensor({{\[}}[8., 8., 8., 8., 8., 8., 8., 8.],
+# CHECK-COUNT-6:        [8., 8., 8., 8., 8., 8., 8., 8.],
+# CHECK:                [8., 8., 8., 8., 8., 8., 8., 8.]{{\]}})
+# CHECK: torch.mlir
+# CHECK:          {{\[}}[8. 8. 8. 8. 8. 8. 8. 8.]
+# CHECK-COUNT-6:        [8. 8. 8. 8. 8. 8. 8. 8.]
+# CHECK:                [8. 8. 8. 8. 8. 8. 8. 8.]{{\]}}
 #
 def test_sparse_SpMM():
     class MatMulNet(torch.nn.Module):
@@ -259,40 +260,40 @@ def test_sparse_SpMM():
     print(res2)
 
 
-# @run
+@run
 #
-# C_HECK-LABEL: test_sparse_eltwise
-# C_HECK:       #[[$CSRD:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : dense, d1 : compressed, d2 : dense), posWidth = 64, crdWidth = 64 }>
-# C_HECK:       func.func @main(
-# C_HECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>) -> !torch.vtensor<[4,2,2],f32,#[[$CSRD]]> {
-# C_HECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[4,2,2],f32,#[[$CSRD]]> -> !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>
-# C_HECK:         return %[[R]] : !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>
-# C_HECK:       }
-# C_HECK:       #[[$BCSR:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : batch, d1 : dense, d2 : compressed), posWidth = 64, crdWidth = 64 }>
-# C_HECK:       func.func @main(
-# C_HECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>) -> !torch.vtensor<[4,2,2],f32,#[[$BCSR]]> {
-# C_HECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[4,2,2],f32,#[[$BCSR]]> -> !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>
-# C_HECK:         return %[[R]] : !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>
-# C_HECK:       }
+# CHECK-LABEL: test_sparse_eltwise
+# CHECK:       #[[$CSRD:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : dense, d1 : compressed, d2 : dense), posWidth = 64, crdWidth = 64 }>
+# CHECK:       func.func @main(
+# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>) -> !torch.vtensor<[4,2,2],f32,#[[$CSRD]]> {
+# CHECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[4,2,2],f32,#[[$CSRD]]> -> !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>
+# CHECK:         return %[[R]] : !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>
+# CHECK:       }
+# CHECK:       #[[$BCSR:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : batch, d1 : dense, d2 : compressed), posWidth = 64, crdWidth = 64 }>
+# CHECK:       func.func @main(
+# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>) -> !torch.vtensor<[4,2,2],f32,#[[$BCSR]]> {
+# CHECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[4,2,2],f32,#[[$BCSR]]> -> !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>
+# CHECK:         return %[[R]] : !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>
+# CHECK:       }
 #
-# C_HECK: torch.sparse
-# C_HECK:   tensor(crow_indices=tensor([0, 2, 4, 6, 8]),
-# C_HECK:          col_indices=tensor([0, 1, 0, 1, 0, 1, 0, 1]),
-# C_HECK:          values=tensor({{\[}}[ -1.,  -2.],
-# C_HECK:                              [ -3.,  -4.],
-# C_HECK:                              [ -5.,  -6.],
-# C_HECK:                              [ -7.,  -8.],
-# C_HECK:                              [ -9., -10.],
-# C_HECK:                              [-11., -12.],
-# C_HECK:                              [-13., -14.],
-# C_HECK:                              [-15., -16.]{{\]}}), size=(4, 2, 2), nnz=8,
-# C_HECK:                              layout=torch.sparse_csr)
-# C_HECK: torch.mlir
-# C_HECK:   [0 2 4 6 8]
-# C_HECK:   [0 1 0 1 0 1 0 1]
-# C_HECK:   [ -1.  -2.  -3.  -4.  -5.  -6.  -7.  -8.  -9. -10. -11. -12. -13. -14.
-# C_HECK:    -15. -16.]
-# C_HECK: torch.mlir.batch
+# CHECK: torch.sparse
+# CHECK:   tensor(crow_indices=tensor([0, 2, 4, 6, 8]),
+# CHECK:          col_indices=tensor([0, 1, 0, 1, 0, 1, 0, 1]),
+# CHECK:          values=tensor({{\[}}[ -1.,  -2.],
+# CHECK:                              [ -3.,  -4.],
+# CHECK:                              [ -5.,  -6.],
+# CHECK:                              [ -7.,  -8.],
+# CHECK:                              [ -9., -10.],
+# CHECK:                              [-11., -12.],
+# CHECK:                              [-13., -14.],
+# CHECK:                              [-15., -16.]{{\]}}), size=(4, 2, 2), nnz=8,
+# CHECK:                              layout=torch.sparse_csr)
+# CHECK: torch.mlir
+# CHECK:   [0 2 4 6 8]
+# CHECK:   [0 1 0 1 0 1 0 1]
+# CHECK:   [ -1.  -2.  -3.  -4.  -5.  -6.  -7.  -8.  -9. -10. -11. -12. -13. -14.
+# CHECK:    -15. -16.]
+# CHECK: torch.mlir.batch
 #
 def test_sparse_eltwise():
     class EltNet(torch.nn.Module):
@@ -435,20 +436,20 @@ def test_sparse_activation():
     print(res2[4])
 
 
-# @run
+@run
 #
-# C_HECK-LABEL: test_sparse_network
-# C_HECK:       func.func @main(
-# C_HECK-SAME:    %[[A:.*]]: !torch.vtensor<[2,3,8,8],f32>) -> !torch.vtensor<[8],f32> {
+# CHECK-LABEL: test_sparse_network
+# CHECK:       func.func @main(
+# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[2,3,8,8],f32>) -> !torch.vtensor<[8],f32> {
 #                ... lots of IR ...
-# C_HECK-COUNT-15: torch.aten.mul.Tensor
+# CHECK-COUNT-15: torch.aten.mul.Tensor
 #                ... lots of IR ...
-# C_HECK:        }
+# CHECK:        }
 #
-# C_HECK: torch.sparse
-# C_HECK:   tensor([ 0., 11.,  9., 11., 13., 11., 10., 12.])
-# C_HECK: torch.mlir
-# C_HECK:   [ 0. 11.  9. 11. 13. 11. 10. 12.]
+# CHECK: torch.sparse
+# CHECK:   tensor([ 0., 11.,  9., 11., 13., 11., 10., 12.])
+# CHECK: torch.mlir
+# CHECK:   [ 0. 11.  9. 11. 13. 11. 10. 12.]
 #
 def test_sparse_network():
     def spike(input):
@@ -521,7 +522,7 @@ def test_sparse_network():
     print(res2)
 
 
-# @run
+#@run
 #
 # C_HECK-LABEL: test_sparse_feature_scaling
 # C_HECK:       func.func @main(
