@@ -13,11 +13,11 @@ import torch.export
 import torch.nn as nn
 from torch.export import ExportedProgram
 
-from torch_mlir.extras.fx_importer import FxImporter, FxImporterHooks
-from torch_mlir import ir
-from torch_mlir.dialects import torch as torch_d
-from torch_mlir.extras.fx_decomp_util import get_decomposition_table
-from torch_mlir.compiler_utils import (
+from .extras.fx_importer import FxImporter, FxImporterHooks
+from . import ir
+from .dialects import torch as torch_d
+from .extras.fx_decomp_util import get_decomposition_table
+from .compiler_utils import (
     OutputType,
     run_pipeline_with_repro_report,
     lower_mlir_module,
