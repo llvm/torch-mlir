@@ -95,13 +95,15 @@ sudo apt install clang ccache lld
 
 #### Configure for Building...
 
+##### ...with LLVM...
+
 Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
 
-##### ...with LLVM "in-tree" using...
+###### ..."in-tree" using...
 
 The following commands generate configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.
 
-###### ...Base Options
+####### ...Base Options
 
 If you don't anticipate needing to frequently rebuild LLVM "in-tree", run:
 
@@ -120,7 +122,7 @@ cmake -GNinja -Bbuild \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD"
 ```
 
-###### ...Base + Optimization Options
+####### ...Base + Optimization Options
 This will build `libtorch` / `PyTorch` wheels from source and requires [the enablement mentioned earlier](#optional-enable-quicker-builds). If you encounter issues when you run this, try the [simplified build command](#base-options) instead.
 
 ```shell
@@ -155,7 +157,7 @@ cmake -GNinja -Bbuild \
   -DLIBTORCH_VARIANT=shared
 ```
 
-##### ...with LLVM "out-of-tree"
+###### ..."out-of-tree"
 
 If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following command as template:
 ```shell
