@@ -59,6 +59,13 @@ public:
   matchAndRewrite(GetNextSeedOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
+
+    // Check for global seed and create if it doesn't exist.
+    auto module = op->getParentOfType<ModuleOp>();
+    OpBuilder b(module.getBodyRegion());
+    if (failed(getOrCreateGlobalVariableForSeed(b, module)))
+      return failure();
+
     // Generate sequence for getting the next seed with LCG step:
     //    nextSeed = (multiplier * currentSeed + incrementStep) mod 2^64.
     // Refer to https://en.wikipedia.org/wiki/Linear_congruential_generator.
@@ -114,11 +121,6 @@ public:
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
     TorchConversion::setupBackendTypeConversion(target, typeConverter);
-
-    auto module = getOperation();
-    OpBuilder b(module.getBodyRegion());
-    if (failed(getOrCreateGlobalVariableForSeed(b, module)))
-      signalPassFailure();
 
     RewritePatternSet patterns(context);
     target.addIllegalOp<GetNextSeedOp>();

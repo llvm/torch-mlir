@@ -17,3 +17,16 @@ module {
     return %seed : i64
   }
 }
+
+// -----
+
+module {
+  func.func @no_seed_needed(%arg0: tensor<2x3xf32>) -> !torch.vtensor<[2,3],f32> {
+    %0 = torch_c.from_builtin_tensor %arg0 : tensor<2x3xf32> -> !torch.vtensor<[2,3],f32>
+    return %0 : !torch.vtensor<[2,3],f32>
+  }
+}
+
+// CHECK-NOT: ml_program.global
+// CHECK-LABEL: @no_seed_needed
+// CHECK-NEXT: torch_c.from_builtin_tensor
