@@ -103,6 +103,8 @@ The following commands generate configuration files to build the project *in-tre
 
 ###### ...Base + Optimization Options
 
+If you do anticipate needing to frequently rebuild LLVM "in-tree", run:
+
 ```shell
 cmake -GNinja -Bbuild \
   `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
@@ -140,7 +142,7 @@ cmake -GNinja -Bbuild \
 
 ###### ...Base Options
 
-If you're running into issues with the above build command, consider using the following:
+If you don't anticipate needing to frequently rebuild LLVM "in-tree", run:
 
 ```shell
 cmake -GNinja -Bbuild \
