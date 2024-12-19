@@ -5854,13 +5854,12 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
                                            /*end=*/numNonzero,
                                            /*step=*/constantOne);
 
-    // Convert flattened indices back to multi-dimensional indices
-    // original_shape = t.shape
-    // input_shape_tensor = torch.tensor(original_shape)
+    // TODO fix multidim dynamic support. The following code only work for
+    // static multidim. Convert flattened indices back to multi-dimensional
+    // indices original_shape = t.shape input_shape_tensor =
+    // torch.tensor(original_shape)
     auto shapeType = Torch::ValueTensorType::get(
         rewriter.getContext(), SmallVector<int64_t>{inputRank}, intType);
-    // Value inputShapeTensor =
-    //     rewriter.create<Torch::Aten_ShapeAsTensorOp>(loc, shapeType, input);
     SmallVector<Value> shapeValues;
     for (int i = 0; i < inputRank; i++) {
       auto constantI =
@@ -5869,8 +5868,6 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
                                                    /*dim=*/constantI);
       shapeValues.push_back(shape);
     }
-    // Value shape0 = rewriter.create<AtenSizeIntOp>(loc, input,
-    //                                            /*dim=*/constantZero);
     Value shapeTensorList = rewriter.create<Torch::PrimListConstructOp>(
         loc, Torch::ListType::get(shapeValues[0].getType()), shapeValues);
     Value inputShapeTensor = rewriter.create<Torch::AtenTensorOp>(
@@ -5886,7 +5883,7 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
 
     // strides = torch.cat([strides[1:-1], torch.tensor([1])])
     auto oneTensorType = ValueTensorType::get(rewriter.getContext(),
-                                              SmallVector<int64_t>{}, intType);
+                                              SmallVector<int64_t>{1}, intType);
     Value oneTensor = rewriter.create<AtenScalarTensorOp>(
         loc, oneTensorType, constantOne, intTypeValue, noneCst, noneCst,
         noneCst);
