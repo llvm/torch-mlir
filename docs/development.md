@@ -139,7 +139,7 @@ cmake -GNinja -Bbuild \
 
 ####### ...Base Options
 
-If you're running into issues with the above build command, consider using the following:
+If you don't anticipate needing to frequently rebuild LLVM "in-tree", run:
 
 ```shell
 cmake -GNinja -Bbuild \
