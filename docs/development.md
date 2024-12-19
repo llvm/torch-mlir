@@ -76,13 +76,22 @@ We recommend linting and formatting your commits _before_ the CI has a chance to
 
 ### With CMake
 
+#### (Optional) Enable Quicker Builds
+
+For workflows that demand frequent rebuilds, the following steps will allow you to specify the relevant options during configuration.
+
+##### On Windows
+
+  1. Set up Developer PowerShell [for Visual Studio](https://learn.microsoft.com/en-us/visualstudio/ide/reference/command-prompt-powershell?view=vs-2022#start-in-visual-studio)
+  1. Ensure that the compiler and linker binaries are in the `PATH` variable.
+
 #### Configure for Building...
 
 Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
 
 ##### ...with LLVM "in-tree" using...
 
-The following commands generate configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.  On Windows, use the "Developer PowerShell for Visual Studio" to ensure that the compiler and linker binaries are in the `PATH` variable.
+The following commands generate configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.
 
 ###### ...Base + Optimization Options
 
