@@ -43,6 +43,14 @@ option(TORCH_MLIR_ENABLE_STABLEHLO "Add stablehlo dialect" ON)
 if(TORCH_MLIR_ENABLE_STABLEHLO)
   add_definitions(-DTORCH_MLIR_ENABLE_STABLEHLO)
 endif()
+# It is possible that both stablehlo and torch_mlir projects are used in some compiler project.
+# In this case, we might not want to use stablehlo that is downloaded by torch_mlir (in external/stablehlo folder)
+# but instead stablehlo that is part of the top level compiler project.
+# TORCH_MLIR_EXTERNAL_STABLEHLO_DIR represents stablehlo directory (<some_path>/stablehlo)
+# in top level compiler project that will be included in torch_mlir. It is assumed that top level
+# compiler project makes stablehlo targets available (for example with `add_subdirectory`) and
+# thus they are not added.
+set(TORCH_MLIR_EXTERNAL_STABLEHLO_DIR "" CACHE STRING "Path to stablehlo dir from super project")
 
 option(TORCH_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
 
@@ -233,12 +241,17 @@ endif()
 # project that we don't actually depend on. Further some of those parts
 # do not even compile on all platforms.
 if (TORCH_MLIR_ENABLE_STABLEHLO)
-  set(STABLEHLO_BUILD_EMBEDDED ON)
-  set(STABLEHLO_ENABLE_BINDINGS_PYTHON ON)
-  add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo
-    ${CMAKE_CURRENT_BINARY_DIR}/stablehlo
-    EXCLUDE_FROM_ALL)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo)
+  if (NOT "${TORCH_MLIR_EXTERNAL_STABLEHLO_DIR}" STREQUAL "")
+    # Only include directories. It is assumed that stablehlo targets are made available by external project.
+    include_directories(${TORCH_MLIR_EXTERNAL_STABLEHLO_DIR})
+  else()
+    set(STABLEHLO_BUILD_EMBEDDED ON)
+    set(STABLEHLO_ENABLE_BINDINGS_PYTHON ON)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo
+      ${CMAKE_CURRENT_BINARY_DIR}/stablehlo
+      EXCLUDE_FROM_ALL)
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo)
+  endif()
 endif()
 
 #-------------------------------------------------------------------------------
