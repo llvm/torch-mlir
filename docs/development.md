@@ -93,9 +93,9 @@ sudo apt install clang ccache lld
   1. Set up Developer PowerShell [for Visual Studio](https://learn.microsoft.com/en-us/visualstudio/ide/reference/command-prompt-powershell?view=vs-2022#start-in-visual-studio)
   1. Ensure that the compiler and linker binaries are in the `PATH` variable.
 
-#### Configure for Building...
+#### Configure for Building
 
-##### ...with LLVM...
+##### Choose command LLVM built...
 
 Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
 
@@ -105,7 +105,7 @@ The following commands generate configuration files to build the project *in-tre
 
 ####### ...Base Options
 
-If you don't anticipate needing to frequently rebuild LLVM "in-tree", run:
+If you don't anticipate needing to frequently rebuild LLVM "in-tree", append:
 
 ```shell
 cmake -GNinja -Bbuild \
@@ -174,22 +174,28 @@ The same QoL CMake flags can be used to enable clang, ccache, and lld. Be sure t
 
 Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
 
-##### Options to enable MLIR debugging
+##### (Optional) Append options that enable MLIR debugging
 
 * Enabling `--debug` and `--debug-only` flags (see [MLIR docs](https://mlir.llvm.org/getting_started/Debugging/)) for the `torch-mlir-opt` tool
 ```shell
+  \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo \ # or =Debug
-  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DLLVM_ENABLE_ASSERTIONS=ON
 ```
 
-##### Options to run end-to-end tests
+##### (Optional) Append options that enable end-to-end tests
 
 Running the end-to-end execution tests locally requires enabling the native PyTorch extension features and the JIT IR importer, which depends on the
 former and defaults to `ON` if not changed:
 ```shell
+  \
   -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=ON \
-  -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON \
+  -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON
 ```
+
+##### Run assembled command
+
+Execute the command once you've appended the options pertaining to your workflow.
 
 #### Initiate Build
 
