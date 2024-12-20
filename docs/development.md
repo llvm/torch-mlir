@@ -117,17 +117,8 @@ cmake -GNinja -Bbuild \
   externals/llvm-project/llvm \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
-  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD" \
-  `# use clang`\
-  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-  `# use ccache to cache build results` \
-  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-  `# use LLD to link in seconds, rather than minutes` \
-  -DCMAKE_LINKER_TYPE=lld
+  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD"
 ```
-
-- This requires [the enablement mentioned earlier](#optional-enable-quicker-builds).
-- If you encounter issues when you run this, try the [simplified build command](#base-options) instead.
 
 ###### ...Base Options
 
@@ -167,11 +158,29 @@ cmake -GNinja -Bbuild \
   .
 ```
 
-- The same QoL CMake flags can be used to enable clang, ccache, and lld.
 - Be sure to have built LLVM with `-DLLVM_ENABLE_PROJECTS=mlir`.
 - Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
 
 ###### [About MLIR debugging](https://mlir.llvm.org/getting_started/Debugging/)
+
+##### (Optional) Flags for leveraging quicker builds
+
+If you anticipate needing to frequently rebuild LLVM, append:
+
+```shell
+  \
+  `# use clang`\
+  -DCMAKE_C_COMPILER=clang \
+  -DCMAKE_CXX_COMPILER=clang++ \
+  `# use ccache to cache build results` \
+  -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+  -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+  `# use LLD to link in seconds, rather than minutes` \
+  -DCMAKE_LINKER_TYPE=lld
+```
+
+- This requires [the enablement mentioned earlier](#optional-enable-quicker-builds).
+- If these flags cause issues, just skip them for now.
 
 ##### (Optional) Flags for enabling end-to-end tests
 
