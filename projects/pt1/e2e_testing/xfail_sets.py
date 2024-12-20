@@ -398,7 +398,6 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
     "AtenIntMM_basic",
-    "AtenItemFpOpModule_basic",
     "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
@@ -425,7 +424,6 @@ FX_IMPORTER_XFAIL_SET = {
     "CumsumModule_basic",
     "CumprodModule_basic",
     "DeformConv2D_basic",
-    "DivFloatModule_basic",
     "DivIntModule_basic",
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
@@ -439,7 +437,6 @@ FX_IMPORTER_XFAIL_SET = {
     "IntFloatModule_basic",
     "IntImplicitModule_basic",
     "LenStrModule_basic",
-    "MulFloatModule_basic",
     "NativeGroupNormBackwardModule_basic",
     "NeFloatIntModule_basic",
     "NllLossModuleBackward1DMeanWeight_basic",
@@ -464,15 +461,11 @@ FX_IMPORTER_XFAIL_SET = {
     "QuantizedSingleLayer_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
-    "ScalarImplicitFloatModule_basic",
     "SplitDimDynamicModule_basic",
     "SplitDimStaticModule_basic",
     "SqrtIntModule_basic",
-    "SubFloatModule_basic",
     "TensorToBoolZeroRank_basic",
     "TensorToBool_basic",
-    "TensorToFloatZeroRank_basic",
-    "TensorToFloat_basic",
     "ThresholdBackward2dMixedModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
@@ -507,9 +500,6 @@ FX_IMPORTER_XFAIL_SET = {
     "MeshgridIndexingIJ_basic",
     "MeshgridIndexingXY_basic",
     "Meshgrid_basic",
-    # RuntimeError: cannot mutate tensors with frozen storage
-    "ElementwiseRreluWithNoiseTrainModule_basic",
-    "ElementwiseRreluWithNoiseTrainStaticModule_basic",
     "ElementwiseSignbitModule_basic",
     "ElementwiseCopysignModule_basic",
     "BernoulliFloatModule_basic",
@@ -527,9 +517,6 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "Aten_TrilinearModuleSumAllDims_basic",
     "Aten_TrilinearModuleSumdims_basic",
-    # torch export: RuntimeError: cannot mutate tensors with frozen storage
-    "ElementwiseRreluWithNoiseTrainModule_basic",
-    "ElementwiseRreluWithNoiseTrainStaticModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
@@ -934,9 +921,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "UpSampleNearest2dStaticFactor_basic",
     "UpSampleNearest2dStaticSize_basic",
     "UpSampleNearest2d_basic",
-    # RuntimeError: cannot mutate tensors with frozen storage
-    "ElementwiseRreluWithNoiseTrainModule_basic",
-    "ElementwiseRreluWithNoiseTrainStaticModule_basic",
     "BernoulliFloatModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
@@ -961,9 +945,6 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
     "Aten_TrilinearModuleSumdims_basic",
     "Aten_TrilinearModuleSumAllDims_basic",
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
-    # torch export: RuntimeError: cannot mutate tensors with frozen storage
-    "ElementwiseRreluWithNoiseTrainModule_basic",
-    "ElementwiseRreluWithNoiseTrainStaticModule_basic",
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
 }
@@ -3459,8 +3440,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseSignbitModule_basic",
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
-    "ElementwiseRreluWithNoiseTrainModule_basic",
-    "ElementwiseRreluWithNoiseTrainStaticModule_basic",
     "MaxPool3dEmptyStrideStaticModule_basic",
     "MaxPool3dLargeDatadModule_basic",
     "MaxPool3dModuleRandomSimple_basic",
