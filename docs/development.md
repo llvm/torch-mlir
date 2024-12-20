@@ -107,11 +107,9 @@ cmake -GNinja -Bbuild \
   -DLLVM_TARGETS_TO_BUILD=host
 ```
 
-##### Choose options LLVM built...
+##### Specify LLVM options
 
-Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
-
-###### ..."in-tree"
+###### If building "in-tree", append:
 
 ```shell
   \
@@ -124,9 +122,8 @@ Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is 
 
 - NOTE: uses external/llvm-project/llvm as the main build, so LLVM will be built in additional to torch-mlir and its sub-projects.
 
-###### ..."out-of-tree"
+###### If using "out-of-tree" build, append:
 
-If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following options as a template:
 ```shell
   \
   `# For building LLVM "out-of-tree"` \
