@@ -138,7 +138,6 @@ Be aware that the installed version of LLVM needs in general to match the commit
 ###### [About MLIR debugging](https://mlir.llvm.org/getting_started/Debugging/)
 
 ##### (Optional) Append options to enable build optimizations
-This will build `libtorch` / `PyTorch` wheels from source and requires [the enablement mentioned earlier](#optional-enable-quicker-builds). If these options cause issues, just skip them for now.
 
 If you anticipate needing to frequently rebuild LLVM, append:
 
@@ -162,6 +161,8 @@ If you anticipate needing to frequently rebuild LLVM, append:
   `# Set the variant of libtorch to build / link against. (shared|static and optionally cxxabi11)` \
   -DLIBTORCH_VARIANT=shared
 ```
+
+This will build `libtorch` / `PyTorch` wheels from source and requires [the enablement mentioned earlier](#optional-enable-quicker-builds). If these options cause issues, just skip them for now.
 
 ##### (Optional) Append options that enable end-to-end tests
 
