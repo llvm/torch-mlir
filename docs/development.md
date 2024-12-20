@@ -95,7 +95,19 @@ sudo apt install clang ccache lld
 
 #### Configure for Building
 
-##### Choose command LLVM built...
+##### Append (not "run") command with "common" options
+
+```shell
+cmake -GNinja -Bbuild \
+  `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DPython3_FIND_VIRTUALENV=ONLY \
+  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+  -DLLVM_TARGETS_TO_BUILD=host
+```
+
+##### Choose options LLVM built...
 
 Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
 
@@ -108,13 +120,7 @@ The following commands generate configuration files to build the project *in-tre
 If you don't anticipate needing to frequently rebuild LLVM "in-tree", append:
 
 ```shell
-cmake -GNinja -Bbuild \
-  `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DPython3_FIND_VIRTUALENV=ONLY \
-  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-  -DLLVM_TARGETS_TO_BUILD=host \
+  \
   `# For building LLVM "in-tree"` \
   externals/llvm-project/llvm \
   -DLLVM_ENABLE_PROJECTS=mlir \
@@ -123,16 +129,10 @@ cmake -GNinja -Bbuild \
 ```
 
 ####### ...Base + Optimization Options
-This will build `libtorch` / `PyTorch` wheels from source and requires [the enablement mentioned earlier](#optional-enable-quicker-builds). If you encounter issues when you run this, try the [simplified build command](#base-options) instead.
+This will build `libtorch` / `PyTorch` wheels from source and requires [the enablement mentioned earlier](#optional-enable-quicker-builds). If these options cause issues, use just the [base options](#base-options) for now.
 
 ```shell
-cmake -GNinja -Bbuild \
-  `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DPython3_FIND_VIRTUALENV=ONLY \
-  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-  -DLLVM_TARGETS_TO_BUILD=host \
+  \
   `# For building LLVM "in-tree"` \
   externals/llvm-project/llvm \
   -DLLVM_ENABLE_PROJECTS=mlir \
@@ -159,15 +159,9 @@ cmake -GNinja -Bbuild \
 
 ###### ..."out-of-tree"
 
-If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following command as template:
+If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following options as a template:
 ```shell
-cmake -GNinja -Bbuild \
-  `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DPython3_FIND_VIRTUALENV=ONLY \
-  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-  -DLLVM_TARGETS_TO_BUILD=host \
+  \
   `# For building LLVM "out-of-tree"` \
   -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir/" \
   -DLLVM_DIR="$LLVM_INSTALL_DIR/lib/cmake/llvm/"
