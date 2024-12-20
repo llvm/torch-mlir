@@ -124,23 +124,6 @@ Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is 
 
 - NOTE: uses external/llvm-project/llvm as the main build, so LLVM will be built in additional to torch-mlir and its sub-projects.
 
-####### (Optional) Append options to enable build optimizations
-
-If you do anticipate needing to frequently rebuild LLVM "in-tree", append:
-
-```shell
-  \
-  `# use clang`\
-  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-  `# use ccache to cache build results` \
-  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-  `# use LLD to link in seconds, rather than minutes` \
-  -DCMAKE_LINKER_TYPE=lld
-```
-
-- This requires [the enablement mentioned earlier](#optional-enable-quicker-builds).
-- If these options cause issues, just skip them for now.
-
 ###### ..."out-of-tree"
 
 If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following options as a template:
@@ -156,6 +139,23 @@ The same QoL CMake flags can be used to enable clang, ccache, and lld. Be sure t
 Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
 
 ###### [About MLIR debugging](https://mlir.llvm.org/getting_started/Debugging/)
+
+##### (Optional) Append options to enable build optimizations
+
+If you anticipate needing to frequently rebuild LLVM, append:
+
+```shell
+  \
+  `# use clang`\
+  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+  `# use ccache to cache build results` \
+  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+  `# use LLD to link in seconds, rather than minutes` \
+  -DCMAKE_LINKER_TYPE=lld
+```
+
+- This requires [the enablement mentioned earlier](#optional-enable-quicker-builds).
+- If these options cause issues, just skip them for now.
 
 ##### (Optional) Append options that enable end-to-end tests
 
