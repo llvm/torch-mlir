@@ -166,13 +166,14 @@ This will build `libtorch` / `PyTorch` wheels from source and requires [the enab
 
 ##### (Optional) Append options that enable end-to-end tests
 
-Running the end-to-end execution tests locally requires enabling the native PyTorch extension features and the JIT IR importer, which depends on the
-former and defaults to `ON` if not changed:
 ```shell
   \
   -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=ON \
   -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON
 ```
+
+Running the end-to-end execution tests locally requires enabling the native PyTorch extension features and the JIT IR importer, which depends on the
+former and defaults to `ON` if not changed:
 
 ##### Run assembled command
 
