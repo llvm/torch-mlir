@@ -119,10 +119,24 @@ Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is 
 
 - NOTE: uses external/llvm-project/llvm as the main build, so LLVM will be built in additional to torch-mlir and its sub-projects.
 
-###### (Optional) Append options to enable build optimizations
+##### ..."out-of-tree"
+
+If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following options as a template:
+```shell
+  \
+  `# For building LLVM "out-of-tree"` \
+  -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir/" \
+  -DLLVM_DIR="$LLVM_INSTALL_DIR/lib/cmake/llvm/"
+```
+
+Be sure to have built LLVM with `-DLLVM_ENABLE_PROJECTS=mlir`.
+
+Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
+
+#### (Optional) Append options to enable build optimizations
 This will build `libtorch` / `PyTorch` wheels from source and requires [the enablement mentioned earlier](#optional-enable-quicker-builds). If these options cause issues, just skip them for now.
 
-If you do anticipate needing to frequently rebuild LLVM "in-tree", append:
+If you anticipate needing to frequently rebuild LLVM, append:
 
 ```shell
   \
@@ -144,20 +158,6 @@ If you do anticipate needing to frequently rebuild LLVM "in-tree", append:
   `# Set the variant of libtorch to build / link against. (shared|static and optionally cxxabi11)` \
   -DLIBTORCH_VARIANT=shared
 ```
-
-##### ..."out-of-tree"
-
-If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following options as a template:
-```shell
-  \
-  `# For building LLVM "out-of-tree"` \
-  -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir/" \
-  -DLLVM_DIR="$LLVM_INSTALL_DIR/lib/cmake/llvm/"
-  .
-```
-The same QoL CMake flags can be used to enable clang, ccache, and lld. Be sure to have built LLVM with `-DLLVM_ENABLE_PROJECTS=mlir`.
-
-Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
 
 #### (Optional) Append options that enable MLIR debugging
 
