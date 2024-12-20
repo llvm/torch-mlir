@@ -106,13 +106,7 @@ cmake -GNinja -Bbuild \
 
 Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
 
-##### ..."in-tree" using...
-
-The following commands generate configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.
-
-###### ...Base Options
-
-If you don't anticipate needing to frequently rebuild LLVM "in-tree", append:
+##### ..."in-tree"
 
 ```shell
   \
@@ -123,16 +117,15 @@ If you don't anticipate needing to frequently rebuild LLVM "in-tree", append:
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD"
 ```
 
-###### ...Base + Optimization Options
-This will build `libtorch` / `PyTorch` wheels from source and requires [the enablement mentioned earlier](#optional-enable-quicker-builds). If these options cause issues, use just the [base options](#base-options) for now.
+- NOTE: uses external/llvm-project/llvm as the main build, so LLVM will be built in additional to torch-mlir and its sub-projects.
+
+###### (Optional) Append options to enable build optimizations
+This will build `libtorch` / `PyTorch` wheels from source and requires [the enablement mentioned earlier](#optional-enable-quicker-builds). If these options cause issues, just skip them for now.
+
+If you do anticipate needing to frequently rebuild LLVM "in-tree", append:
 
 ```shell
   \
-  `# For building LLVM "in-tree"` \
-  externals/llvm-project/llvm \
-  -DLLVM_ENABLE_PROJECTS=mlir \
-  -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
-  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD" \
   `# use clang`\
   -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
   `# use ccache to cache build results` \
