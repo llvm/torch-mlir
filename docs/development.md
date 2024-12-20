@@ -114,6 +114,7 @@ For workflows that demand frequent rebuilds, the following steps will allow you 
 
 ### Configure for Building
 
+1. [Activate the Python environment](#activate-the-python-environment)
 1. Append (not "run") command with "common" options:
 
     ```shell
