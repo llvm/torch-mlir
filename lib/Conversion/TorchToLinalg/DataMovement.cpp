@@ -2802,7 +2802,10 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenDiagEmbedOp>(typeConverter, context);
   // Rewrite all special sparse conversions hidden as operators.
   target.addDynamicallyLegalOp<OperatorOp>([&](Torch::OperatorOp op) {
-    return !ConvertSparseOperatorOp::isSparsePrimitive(op.getNameAttr());
+    // Note: Legality behaviour of torch.operator ops that are not sparse
+    // primitives should be conserved and not modified by this block.
+    return !ConvertSparseOperatorOp::isSparsePrimitive(op.getNameAttr()) &&
+           typeConverter.isLegal(op);
   });
   patterns.add<ConvertSparseOperatorOp>(typeConverter, context);
 }
