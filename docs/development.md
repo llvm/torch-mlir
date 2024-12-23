@@ -191,6 +191,12 @@ former and defaults to `ON` if not changed:
 
 1. [Configure the build](#configure-for-building) if you haven't already done so.
 1. Use one of the following commands to build the project:
+    - Build everything (including LLVM if in-tree)
+
+      ```shell
+      cmake --build build
+      ```
+
     - Build just torch-mlir (not all of LLVM)
 
       ```shell
@@ -207,12 +213,6 @@ former and defaults to `ON` if not changed:
 
       ```shell
       cmake --build build --target check-torch-mlir-python
-      ```
-
-    - Build everything (including LLVM if in-tree)
-
-      ```shell
-      cmake --build build
       ```
 
 ### Setup Python Environment to export the built Python packages
