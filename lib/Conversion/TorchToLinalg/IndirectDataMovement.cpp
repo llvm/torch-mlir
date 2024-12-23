@@ -421,12 +421,15 @@ static Value wrapIndicesAroundMax(OpBuilder &b, Location loc, Value index,
                                   Value input, int64_t dim) {
   // performs the operation : index = index % maxIndex to wrap index around
   // maxIndex
-  Value maxIndexValue = castIndexToInt64(b, loc, getDimOp(b, loc, input, dim));
-  Value isBeyondMaxIndices = b.create<arith::CmpIOp>(
+  Value maxIndexValue = getDimOp(b, loc, input, dim);
+  maxIndexValue =
+      b.createOrFold<arith::IndexCastOp>(loc, index.getType(), maxIndexValue);
+  Value isBeyondMaxIndices = b.createOrFold<arith::CmpIOp>(
       loc, arith::CmpIPredicate::sge, index, maxIndexValue);
-  Value wrappedIndices = b.create<arith::RemSIOp>(loc, index, maxIndexValue);
-  return b.create<arith::SelectOp>(loc, isBeyondMaxIndices, wrappedIndices,
-                                   index);
+  Value wrappedIndices =
+      b.createOrFold<arith::RemSIOp>(loc, index, maxIndexValue);
+  return b.createOrFold<arith::SelectOp>(loc, isBeyondMaxIndices,
+                                         wrappedIndices, index);
 }
 
 namespace {
