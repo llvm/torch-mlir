@@ -183,30 +183,33 @@ For workflows that demand frequent rebuilds, the following steps will allow you 
 ### Initiate Build
 
 1. [Configure the build](#configure-for-building) if you haven't already done so.
-1. Use one of the following commands to build the project:
-    - Build everything (including LLVM if in-tree)
+1. Append the base command:
+
+    ```shell
+    cmake --build build
+    ```
+
+1. **If you want to...**
+    - **...build _just_ torch-mlir (not all of LLVM)**, append:
 
       ```shell
-      cmake --build build
+       --target tools/torch-mlir/all
       ```
 
-    - Build just torch-mlir (not all of LLVM)
+      - NOTE: skipping this will result in _everything_ being built, which includes LLVM if configured as "in-tree"
+    - **...run unit tests**, append:
 
       ```shell
-      cmake --build build --target tools/torch-mlir/all
+       --target check-torch-mlir
       ```
 
-    - Run unit tests.
+    - **...run Python regression tests**, append:
 
       ```shell
-      cmake --build build --target check-torch-mlir
+       --target check-torch-mlir-python
       ```
 
-    - Run Python regression tests.
-
-      ```shell
-      cmake --build build --target check-torch-mlir-python
-      ```
+1. Execute the command with the desired targets, if any.
 
 ## Setup Python Environment to export the built Python packages
 
