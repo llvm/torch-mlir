@@ -1950,7 +1950,7 @@ def Aten_TrilinearModuleZerodDimBug_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class Aten_BilinearModuleStaticShape(torch.nn.Module):
+class Aten_BilinearModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -1968,12 +1968,12 @@ class Aten_BilinearModuleStaticShape(torch.nn.Module):
         return torch.ops.aten.bilinear(input1, input2, weight, bias)
 
 
-@register_test_case(module_factory=lambda: Aten_BilinearModuleStaticShape())
-def Aten_BilinearModuleStaticShape_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: Aten_BilinearModule())
+def Aten_BilinearModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(8, 2), tu.rand(8, 3), tu.rand(4, 2, 3), tu.rand(4))
 
 
-class Aten_BilinearModuleDynamicShape(torch.nn.Module):
+class Aten_BilinearModuleDynamic(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -1991,8 +1991,8 @@ class Aten_BilinearModuleDynamicShape(torch.nn.Module):
         return torch.ops.aten.bilinear(input1, input2, weight, bias)
 
 
-@register_test_case(module_factory=lambda: Aten_BilinearModuleDynamicShape())
-def Aten_BilinearModuleDynamicShape_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: Aten_BilinearModuleDynamic())
+def Aten_BilinearModuleDynamic_basic(module, tu: TestUtils):
     module.forward(tu.rand(8, 2), tu.rand(8, 3), tu.rand(4, 2, 3), tu.rand(4))
 
 
@@ -2004,10 +2004,10 @@ class Aten_BilinearModule1D(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([-1], torch.float32, True),
-            ([-1], torch.float32, True),
-            ([-1, -1, -1], torch.float32, True),
-            ([-1], torch.float32, True),
+            ([2], torch.float32, True),
+            ([3], torch.float32, True),
+            ([4, 2, 3], torch.float32, True),
+            ([4], torch.float32, True),
         ]
     )
     def forward(self, input1, input2, weight, bias):
@@ -2027,10 +2027,10 @@ class Aten_BilinearModuleND(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([-1, -1, -1, -1], torch.float32, True),
-            ([-1, -1, -1, -1], torch.float32, True),
-            ([-1, -1, -1], torch.float32, True),
-            ([-1], torch.float32, True),
+            ([8, 6, 12, 2], torch.float32, True),
+            ([8, 6, 12, 3], torch.float32, True),
+            ([4, 2, 3], torch.float32, True),
+            ([4], torch.float32, True),
         ]
     )
     def forward(self, input1, input2, weight, bias):
