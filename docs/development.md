@@ -189,21 +189,22 @@ former and defaults to `ON` if not changed:
 
 #### Initiate Build
 
-[Configure the build](#configure-for-building) if you haven't already done so. Then, use one of the following commands to build the project:
+1. [Configure the build](#configure-for-building) if you haven't already done so.
+1. Use one of the following commands to build the project:
 
-```shell
-# Build just torch-mlir (not all of LLVM)
-cmake --build build --target tools/torch-mlir/all
+    ```shell
+    # Build just torch-mlir (not all of LLVM)
+    cmake --build build --target tools/torch-mlir/all
 
-# Run unit tests.
-cmake --build build --target check-torch-mlir
+    # Run unit tests.
+    cmake --build build --target check-torch-mlir
 
-# Run Python regression tests.
-cmake --build build --target check-torch-mlir-python
+    # Run Python regression tests.
+    cmake --build build --target check-torch-mlir-python
 
-# Build everything (including LLVM if in-tree)
-cmake --build build
-```
+    # Build everything (including LLVM if in-tree)
+    cmake --build build
+    ```
 
 ### Setup Python Environment to export the built Python packages
 
