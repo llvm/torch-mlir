@@ -184,6 +184,12 @@ For workflows that demand frequent rebuilds, the following steps will allow you 
 
 1. [Configure the build](#configure-for-building) if you haven't already done so.
 1. Use one of the following commands to build the project:
+    - Build everything (including LLVM if in-tree)
+
+      ```shell
+      cmake --build build
+      ```
+
     - Build just torch-mlir (not all of LLVM)
 
       ```shell
@@ -200,12 +206,6 @@ For workflows that demand frequent rebuilds, the following steps will allow you 
 
       ```shell
       cmake --build build --target check-torch-mlir-python
-      ```
-
-    - Build everything (including LLVM if in-tree)
-
-      ```shell
-      cmake --build build
       ```
 
 ## Setup Python Environment to export the built Python packages
