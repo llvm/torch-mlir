@@ -6478,6 +6478,32 @@ def Torch_AtenLinearOp : Torch_Op<"aten.linear", [
   }];
 }
 
+def Torch_AtenBilinearOp : Torch_Op<"aten.bilinear", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::bilinear : (Tensor, Tensor, Tensor, Tensor?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input1,
+    AnyTorchTensorType:$input2,
+    AnyTorchTensorType:$weight,
+    AnyTorchOptionalTensorType:$bias
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenBilinearOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenBilinearOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenMmOp : Torch_Op<"aten.mm", [
     AllowsTypeRefinement,
     HasValueSemantics,

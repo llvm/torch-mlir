@@ -2108,11 +2108,34 @@ public:
       input3 = *unsqueezeTensor(rewriter, op, input3, expandDim);
     }
 
+    auto mulType = [&](Value input1, Value input2) -> Type {
+      BaseTensorType inputType1 = cast<BaseTensorType>(input1.getType());
+      BaseTensorType inputType2 = cast<BaseTensorType>(input2.getType());
+      Type elementType = inputType1.getOptionalDtype();
+      if (inputType1.hasSizes() && inputType2.hasSizes()) {
+        SmallVector<int64_t> mulShape;
+        ArrayRef<int64_t> inputSize1 = inputType1.getSizes();
+        ArrayRef<int64_t> inputSize2 = inputType2.getSizes();
+        for (unsigned i = 0; i < inputSize1.size(); i++) {
+          int64_t size1 = inputSize1[i];
+          int64_t size2 = inputSize2[i];
+          if (size1 == kUnknownSize || size2 == kUnknownSize) {
+            mulShape.push_back(kUnknownSize);
+          } else {
+            mulShape.push_back(size1 == 1 ? size2 : size1);
+          }
+        }
+        return inputType1.getWithSizesAndDtype(mulShape, elementType);
+      }
+      return inputType1.getWithSizesAndDtype(std::nullopt, elementType);
+    };
+
     // Apply multiplication operation.
-    auto mul1 =
-        rewriter.create<AtenMulTensorOp>(loc, op.getType(), input1, input2);
-    auto mul2 =
-        rewriter.create<AtenMulTensorOp>(loc, op.getType(), mul1, input3);
+    BaseTensorType opType = cast<BaseTensorType>(op.getType());
+    auto type = opType.hasSizes() ? mulType(input1, input2) : opType;
+    auto mul1 = rewriter.create<AtenMulTensorOp>(loc, type, input1, input2);
+    type = opType.hasSizes() ? mulType(mul1, input3) : opType;
+    auto mul2 = rewriter.create<AtenMulTensorOp>(loc, type, mul1, input3);
 
     // Apply sum operation.
     // Parse sumDim in descending order to avoid any issues with the
@@ -7656,6 +7679,78 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.bilinear` op into `aten._trilinear` and `aten.add` ops.
+class DecomposeAtenBilinearOp : public OpRewritePattern<AtenBilinearOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenBilinearOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input1 = op.getInput1();
+    Value input2 = op.getInput2();
+    Value weight = op.getWeight();
+    Value bias = op.getBias();
+
+    BaseTensorType inputType1 = cast<BaseTensorType>(input1.getType());
+    BaseTensorType inputType2 = cast<BaseTensorType>(input2.getType());
+    if (!inputType1.hasSizes() || !inputType2.hasSizes())
+      return rewriter.notifyMatchFailure(op, "expected input to have sizes");
+
+    BaseTensorType weightType = cast<BaseTensorType>(weight.getType());
+    if (!weightType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "expected weight to have sizes");
+    // `weight` must be a rank 3 matrix.
+    ArrayRef<int64_t> weightSizes = weightType.getSizes();
+    if (weightSizes.size() != 3)
+      return rewriter.notifyMatchFailure(op, "expected weight to be a rank 3");
+
+    // generate `aten._trilinear` op
+    unsigned n = inputType1.getSizes().size() - 1;
+    Type listOfInt =
+        rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>());
+    Value zero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(n));
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(n + 1));
+    Value two =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(n + 2));
+    Value expand1 = rewriter.create<PrimListConstructOp>(
+        loc, listOfInt, SmallVector<Value>{zero, two});
+    Value expand2 = rewriter.create<PrimListConstructOp>(
+        loc, listOfInt, SmallVector<Value>{zero, one});
+    SmallVector<Value> expandWeightValue;
+    for (unsigned i = 0; i < n; i++) {
+      Value value =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
+      expandWeightValue.push_back(value);
+    }
+    Value expandw =
+        rewriter.create<PrimListConstructOp>(loc, listOfInt, expandWeightValue);
+    Value sumdim = rewriter.create<PrimListConstructOp>(
+        loc, listOfInt, SmallVector<Value>{one, two});
+    Value constOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value trilinear = rewriter.create<Aten_TrilinearOp>(
+        loc, op.getType(), input1, weight, input2, expand1, expandw, expand2,
+        sumdim, constOne);
+
+    if (isa<Torch::NoneType>(bias.getType())) {
+      rewriter.replaceOp(op, trilinear);
+      return success();
+    } else {
+      BaseTensorType biasType = cast<BaseTensorType>(bias.getType());
+      if (!biasType.hasSizes() || biasType.getSizes().size() != 1)
+        return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
+      // generate `aten.add` op for bias
+      rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, op.getType(), trilinear,
+                                                   bias, constOne);
+      return success();
+    }
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.mish` op into `aten.tanh` and `aten.softplus` ops.
 // Mish(x) = x * Tanh(Softplus(x))
 class DecomposeAtenMishOp : public OpRewritePattern<AtenMishOp> {
@@ -11612,6 +11707,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardtanhOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFullOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinearOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenBilinearOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFullLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewFullOp>(patterns);

@@ -1305,6 +1305,30 @@ def aten〇linear〡shape(input: List[int], weight: List[int], bias: Optional[Li
     return upstream_shape_functions.linear(input, weight, bias)
 
 @check_shape_function([
+    Invocation(TensorOfShape(8, 2), TensorOfShape(8, 3), TensorOfShape(4, 2, 3), TensorOfShape(4)), # Basic case
+    Invocation(TensorOfShape(8, 2, 2), TensorOfShape(8, 2, 3), TensorOfShape(4, 2, 3), TensorOfShape(4)), # 3D inputs
+    ErrorInvocation(TensorOfShape(8, 2), TensorOfShape(8, 2, 3), TensorOfShape(4, 2, 3)), # input dimensions don't match
+    ErrorInvocation(TensorOfShape(8, 2), TensorOfShape(8, 3), TensorOfShape(2, 3, 4)), # weight dimensions don't match
+    ErrorInvocation(TensorOfShape(8, 2), TensorOfShape(8, 3), TensorOfShape(4, 2, 3), TensorOfShape(8)), # bias dimensions don't match
+])
+def aten〇bilinear〡shape(input1: List[int], input2: List[int], weight: List[int], bias: Optional[List[int]] = None) -> List[int]:
+    assert len(input1) == len(input2)
+    assert len(weight) == 3
+    assert input1[len(input1)-1] == weight[1]
+    assert input2[len(input2)-1] == weight[2]
+    
+    out_shape: List[int] = []
+    for i in range(len(input1)-1):
+        assert input1[i] == input2[i]
+        out_shape.append(input1[i])
+    out_shape.append(weight[0])
+
+    if bias is not None:
+        assert len(bias) == 1 and bias[0] == weight[0]
+        out_shape = upstream_shape_functions.broadcast(out_shape, bias)
+    return out_shape
+
+@check_shape_function([
     Invocation(TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), [], [], [], [], 0), # Basic case
     Invocation(TensorOfShape(4, 5, 6), TensorOfShape(4, 5, 6), TensorOfShape(4, 5, 6), [1], [0], [0], [], 2), # Expansions w/ Non-Zero unroll_dim
     Invocation(TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), [1, 2], [1, 2], [1, 2], [1, 2], 0), # Multiple expansions
@@ -5602,6 +5626,15 @@ def aten〇linear〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: 
     weight_rank, weight_dtype = weight_rank_dtype
     ranks: List[Optional[int]] = [input_rank, weight_rank]
     dtypes = [input_dtype, weight_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    return promoted_dtype
+
+def aten〇bilinear〡dtype(input1_rank_dtype: Tuple[int, int], input2_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None) -> int:
+    input1_rank, input1_dtype = input1_rank_dtype
+    input2_rank, input2_dtype = input2_rank_dtype
+    weight_rank, weight_dtype = weight_rank_dtype
+    ranks: List[Optional[int]] = [input1_rank, input2_rank, weight_rank]
+    dtypes = [input1_dtype, input2_dtype, weight_dtype]
     promoted_dtype = promote_dtypes(ranks, dtypes)
     return promoted_dtype
 

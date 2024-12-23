@@ -399,7 +399,6 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenIntBoolOpModule_basic",
     "AtenIntMM_basic",
     "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
-    "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluInt8_basic",
@@ -514,9 +513,6 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "_SoftmaxModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
-    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
-    "Aten_TrilinearModuleSumAllDims_basic",
-    "Aten_TrilinearModuleSumdims_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
@@ -622,7 +618,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenTopKModule_basic",
     "AtenTopKSmallestModule_basic",
     "Aten_EmbeddingBagExample_basic",
-    "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
     "AvgPool2dDivisorOverrideModule_basic",
     "BernoulliTensorModule_basic",
@@ -942,9 +937,6 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
     #  materialization callback produced value of incorrect type failed
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
-    "Aten_TrilinearModuleSumdims_basic",
-    "Aten_TrilinearModuleSumAllDims_basic",
-    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
 }
@@ -1676,9 +1668,6 @@ TOSA_CRASHING_SET = {
 }
 
 FX_IMPORTER_TOSA_CRASHING_SET = {
-    "Aten_TrilinearModuleSumAllDims_basic",
-    "Aten_TrilinearModuleSumdims_basic",
-    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
     "ScatterSrcModule_basic",
@@ -3438,7 +3427,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "Threshold3dIntModule_basic",
     "ElementwiseCopysignModule_basic",
     "ElementwiseSignbitModule_basic",
-    "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
     "MaxPool3dEmptyStrideStaticModule_basic",
     "MaxPool3dLargeDatadModule_basic",
