@@ -190,30 +190,32 @@ former and defaults to `ON` if not changed:
 #### Initiate Build
 
 1. [Configure the build](#configure-for-building) if you haven't already done so.
-1. Use one of the following commands to build the project:
-    - Build everything (including LLVM if in-tree)
+1. **If you want to...**
+    - **...build _everything_** (including LLVM if configured as "in-tree"), run:
 
       ```shell
       cmake --build build
       ```
 
-    - Build just torch-mlir (not all of LLVM)
+    - **...build _just_ torch-mlir** (not all of LLVM), run:
 
       ```shell
       cmake --build build --target tools/torch-mlir/all
       ```
 
-    - Run unit tests.
+    - **...run unit tests**, run:
 
       ```shell
       cmake --build build --target check-torch-mlir
       ```
 
-    - Run Python regression tests.
+    - **...run Python regression tests**, run:
 
       ```shell
       cmake --build build --target check-torch-mlir-python
       ```
+
+TIP: add multiple target options to stack build phases
 
 ### Setup Python Environment to export the built Python packages
 
