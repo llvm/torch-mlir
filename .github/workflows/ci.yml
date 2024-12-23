@@ -27,6 +27,17 @@ jobs:
     env:
       CACHE_DIR: ${{ github.workspace }}/.container-cache
     steps:
+      - name: Install Clang 17.0.6
+        run: |
+          apt-get update
+          apt-get install -y software-properties-common
+          add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          apt-get install -y clang-17 lldb-17
+          update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100
+          update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-17 100
+          echo "Clang version installed:"
+      - name: Verify Clang installation
+        run: clang --version
       - name: Configure local git mirrors
         run: |
           # Our stock runners have access to certain local git caches. If these
