@@ -195,13 +195,19 @@ former and defaults to `ON` if not changed:
     ```shell
     # Build just torch-mlir (not all of LLVM)
     cmake --build build --target tools/torch-mlir/all
+    ```
 
+    ```shell
     # Run unit tests.
     cmake --build build --target check-torch-mlir
+    ```
 
+    ```shell
     # Run Python regression tests.
     cmake --build build --target check-torch-mlir-python
+    ```
 
+    ```shell
     # Build everything (including LLVM if in-tree)
     cmake --build build
     ```
