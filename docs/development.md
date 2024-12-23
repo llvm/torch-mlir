@@ -139,6 +139,7 @@ Be aware that the installed version of LLVM needs in general to match the commit
 ### Build commands
 
 After either cmake run (in-tree/out-of-tree), use one of the following commands to build the project:
+
 ```shell
 # Build just torch-mlir (not all of LLVM)
 cmake --build build --target tools/torch-mlir/all
@@ -173,6 +174,7 @@ To test the MLIR output to torch dialect, you can use `test/python/fx_importer/b
 
 Make sure you have activated the virtualenv and set the `PYTHONPATH` above
 (if running on Windows, modify the environment variable as shown above):
+
 ```shell
 source mlir_venv/bin/activate
 export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/test/python/fx_importer
@@ -187,6 +189,7 @@ This path doesn't give access to the current generation work that is being drive
 and may lead to errors.
 
 Same as above, but with different python path and example:
+
 ```shell
 export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/projects/pt1/examples
 python projects/pt1/examples/torchscript_resnet18_all_output_types.py
@@ -197,6 +200,7 @@ This will display the Resnet18 network example in three dialects: TORCH, LINALG 
 The main functionality is on `torch_mlir.torchscript.compile()`'s `output_type`.
 
 Ex:
+
 ```python
 module = torch_mlir.torchscript.compile(resnet18, torch.ones(1, 3, 224, 224), output_type="torch")
 ```
@@ -206,6 +210,7 @@ module = torch_mlir.torchscript.compile(resnet18, torch.ones(1, 3, 224, 224), ou
 ## Jupyter
 
 Jupyter notebook:
+
 ```shell
 python -m ipykernel install --user --name=torch-mlir --env PYTHONPATH "$PYTHONPATH"
 # Open in jupyter, and then navigate to
@@ -237,17 +242,21 @@ manually `source`'d in a shell.
 Torch-MLIR can also be built using Bazel (apart from the official CMake build) for users that depend on Bazel in their workflows. To build `torch-mlir-opt` using Bazel, follow these steps:
 
 1. Launch an interactive docker container with the required deps installed:
+
 ```shell
 ./utils/bazel/docker/run_docker.sh
 ```
 
 2. Build torch-mlir:
+
 ```shell
 bazel build @torch-mlir//:torch-mlir-opt
 ```
+
 The built binary should be at `bazel-bin/external/torch-mlir/torch-mlir-opt`.
 
 3. Test torch-mlir (lit test only):
+
 ```shell
 bazel test @torch-mlir//test/...
 ```
@@ -255,6 +264,7 @@ bazel test @torch-mlir//test/...
 We welcome patches to torch-mlir's Bazel build. If you do contribute,
 please complete your PR with an invocation of buildifier to ensure
 the BUILD files are formatted consistently:
+
 ```shell
 bazel run @torch-mlir//:buildifier
 ```
@@ -287,6 +297,7 @@ TM_PACKAGES="in-tree" ./build_tools/python_deploy/build_linux_packages.sh
 ### Out-of-Tree builds
 
 Build LLVM/MLIR first and then build Torch-MLIR referencing that build
+
 ```shell
 TM_PACKAGES="out-of-tree" ./build_tools/python_deploy/build_linux_packages.sh
 ```
@@ -339,38 +350,48 @@ The following additional environmental variables can be used to customize your d
 
 * Custom Release Docker image:
   Defaults to `stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest`
+
 ```shell
   TM_RELEASE_DOCKER_IMAGE="stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest"
 ```
+
 * Custom CI Docker image:
   Defaults to `powderluv/torch-mlir-ci:latest`. This assumes an Ubuntu LTS like image. You can build your own with `./build_tools/docker/Dockerfile`
+
 ```shell
   TM_CI_DOCKER_IMAGE="powderluv/torch-mlir-ci:latest"
 ```
 
 * Custom Python Versions for Release builds:
   Version of Python to use in Release builds. Ignored in CIs. Defaults to `cp39-cp39 cp310-cp310 cp312-cp312`
+
 ```shell
   TM_PYTHON_VERSIONS="cp39-cp39 cp310-cp310 cp312-cp312"
 ```
 
 * Location to store Release build wheels
+
 ```shell
   TM_OUTPUT_DIR="./build_tools/python_deploy/wheelhouse"
 ```
 
 * What "packages" to build:
   Defaults to torch-mlir. Options are `torch-mlir out-of-tree in-tree`
+
 ```shell
   TM_PACKAGES="torch-mlir out-of-tree in-tree"
 ```
+
 * Use pre-built Pytorch:
   Defaults to using pre-built Pytorch. Setting it to `OFF` builds from source
+
 ```shell
   TM_USE_PYTORCH_BINARY="OFF"
 ```
+
 * Skip running tests
   Skip running tests if you want quick build only iteration. Default set to `OFF`
+
 ```shell
   TM_SKIP_TESTS="OFF"
 ```
@@ -389,6 +410,7 @@ CMAKE_GENERATOR=Ninja python setup.py bdist_wheel
 
 To package a completed CMake build directory,
 you can use the `TORCH_MLIR_CMAKE_BUILD_DIR` and `TORCH_MLIR_CMAKE_ALREADY_BUILT` environment variables:
+
 ```shell
 TORCH_MLIR_CMAKE_BUILD_DIR=build/ TORCH_MLIR_CMAKE_ALREADY_BUILT=1 python setup.py bdist_wheel
 ```
@@ -490,6 +512,7 @@ Most of the unit tests use the [`FileCheck` tool](https://llvm.org/docs/CommandG
 # PyTorch source builds and custom PyTorch versions
 
 Torch-MLIR by default builds with the latest nightly PyTorch version. This can be toggled to build from latest PyTorch source with
+
 ```
 -DTORCH_MLIR_USE_INSTALLED_PYTORCH=OFF
 -DTORCH_MLIR_SRC_PYTORCH_REPO=vivekkhandelwal1/pytorch # Optional. Github path. Defaults to pytorch/pytorch
