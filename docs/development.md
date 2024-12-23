@@ -189,7 +189,7 @@ former and defaults to `ON` if not changed:
 
 #### Initiate Build
 
-After either cmake run (in-tree/out-of-tree), use one of the following commands to build the project:
+[Configure the build](#configure-for-building) if you haven't already done so. Then, use one of the following commands to build the project:
 
 ```shell
 # Build just torch-mlir (not all of LLVM)
