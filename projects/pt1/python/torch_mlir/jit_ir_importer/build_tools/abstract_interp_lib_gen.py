@@ -2195,10 +2195,6 @@ def aten〇pad〡shape(self: List[int], pad: List[int], mode: str = "constant", 
                        ErrorInvocation(TensorOfShape(1, 4), padding=[1,4])])
 def aten〇reflection_pad1d〡shape(self: List[int], padding: List[int]) -> List[int]:
     assert len(self) >= 2
-    # hdim = self[-1]
-    # padding_left = padding[0]
-    # padding_right = padding[1]
-    # assert padding_left < hdim and padding_right < hdim
     return pad_shape_fn(self, padding, validate_pad=True)
 
 
@@ -2212,17 +2208,7 @@ def aten〇reflection_pad1d〡shape(self: List[int], padding: List[int]) -> List
                        ErrorInvocation(TensorOfShape(2, 2, 2), padding=[1,1,2,2])])
 def aten〇reflection_pad2d〡shape(self: List[int], padding: List[int]) -> List[int]:
     assert len(self) >= 2
-    # vdim = self[-2]
-    # hdim = self[-1]
-
     assert len(padding) == 4, 'padding size expected to be 4'
-    # padding_left = padding[0]
-    # padding_right = padding[1]
-    # padding_top = padding[2]
-    # padding_bottom = padding[3]
-    # assert padding_left < hdim and padding_right < hdim
-    # assert padding_top < vdim  and padding_bottom < vdim
-
     return pad_shape_fn(self, padding, validate_pad=True)
 
 # Padding size must be smaller than corresponding dimension
@@ -2235,17 +2221,7 @@ def aten〇reflection_pad2d〡shape(self: List[int], padding: List[int]) -> List
                        ErrorInvocation(TensorOfShape(2, 2, 2, 2), padding=[1,1,2,1,1,1])])
 def aten〇reflection_pad3d〡shape(self: List[int], padding: List[int]) -> List[int]:
     assert len(self) >= 3
-    # vdim = self[-2]
-    # hdim = self[-1]
-
     assert len(padding) == 6, 'padding size expected to be 6'
-    # padding_left = padding[0]
-    # padding_right = padding[1]
-    # padding_top = padding[2]
-    # padding_bottom = padding[3]
-    # assert padding_left < hdim and padding_right < hdim
-    # assert padding_top < vdim  and padding_bottom < vdim
-
     return pad_shape_fn(self, padding, validate_pad=True)
 
 # TODO: upstream this
