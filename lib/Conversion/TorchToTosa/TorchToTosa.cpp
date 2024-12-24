@@ -7342,6 +7342,91 @@ LogicalResult ConvertAtenOp<PrimsCollapseOp>::matchAndRewrite(
   return success();
 }
 
+Value reflectionPadAlongAxis(Value input, ArrayRef<int64_t> unpaddedShape,
+                             int64_t paddingAxisLeft, int64_t paddingAxisRight,
+                             int64_t axis, TensorType resultType, Location loc,
+                             ConversionPatternRewriter &rewriter) {
+
+  SmallVector<Value> resultTensors;
+  auto resultShape = resultType.getShape();
+
+  auto inputType = dyn_cast<TensorType>(input.getType());
+  auto inputRank = inputType.getRank();
+  auto inputElemTy = inputType.getElementType();
+
+  assert(inputRank == resultType.getRank());
+  int64_t axisOffset = inputRank - axis - 1;
+
+  // Use tosa.slice and tosa.reverse to get the reflection pads based on the
+  // padding size
+  if (paddingAxisLeft > 0) {
+    SmallVector<int64_t> leftStartSlice(inputRank, 0);
+    SmallVector<int64_t> leftSizeSlice(unpaddedShape.begin(),
+                                       unpaddedShape.end() - axisOffset);
+    for (int64_t iDim = axisOffset - 1; iDim >= 0; iDim--) {
+      leftSizeSlice.push_back(resultShape[inputRank - iDim - 1]);
+    }
+
+    leftStartSlice[axis] = 1;
+    leftSizeSlice[axis] = paddingAxisLeft;
+
+    SmallVector<int64_t> leftPadShape(unpaddedShape.begin(),
+                                      unpaddedShape.end() - (axisOffset + 1));
+    leftPadShape.push_back(paddingAxisLeft);
+    for (int64_t iDim = axisOffset - 1; iDim >= 0; iDim--) {
+      leftPadShape.push_back(resultShape[inputRank - iDim - 1]);
+    }
+
+    auto leftPadType = RankedTensorType::get(leftPadShape, inputElemTy);
+
+    auto leftPadSlice = rewriter.create<tosa::SliceOp>(
+        loc, leftPadType, input, rewriter.getDenseI64ArrayAttr(leftStartSlice),
+        rewriter.getDenseI64ArrayAttr(leftSizeSlice));
+
+    auto leftPad = rewriter.create<tosa::ReverseOp>(
+        loc, leftPadType, leftPadSlice.getResult(), static_cast<int32_t>(axis));
+
+    resultTensors.push_back(leftPad.getResult());
+  }
+
+  resultTensors.push_back(input);
+
+  if (paddingAxisRight > 0) {
+    SmallVector<int64_t> rightStartSlice(inputRank, 0);
+    SmallVector<int64_t> rightSizeSlice(unpaddedShape.begin(),
+                                        unpaddedShape.end() - axisOffset);
+    for (int64_t iDim = axisOffset - 1; iDim >= 0; iDim--) {
+      rightSizeSlice.push_back(resultShape[inputRank - iDim - 1]);
+    }
+
+    rightStartSlice[axis] = unpaddedShape[axis] - paddingAxisRight - 1;
+    rightSizeSlice[axis] = paddingAxisRight;
+
+    SmallVector<int64_t> rightPadShape(unpaddedShape.begin(),
+                                       unpaddedShape.end() - (axisOffset + 1));
+    rightPadShape.push_back(paddingAxisRight);
+    for (int64_t iDim = axisOffset - 1; iDim >= 0; iDim--) {
+      rightPadShape.push_back(resultShape[inputRank - iDim - 1]);
+    }
+
+    auto rightPadType = RankedTensorType::get(rightPadShape, inputElemTy);
+
+    auto rightPadSlice = rewriter.create<tosa::SliceOp>(
+        loc, rightPadType, input,
+        rewriter.getDenseI64ArrayAttr(rightStartSlice),
+        rewriter.getDenseI64ArrayAttr(rightSizeSlice));
+
+    auto rightPad = rewriter.create<tosa::ReverseOp>(
+        loc, rightPadType, rightPadSlice.getResult(),
+        static_cast<int32_t>(axis));
+
+    resultTensors.push_back(rightPad.getResult());
+  }
+
+  return tosa::CreateOpAndInfer<tosa::ConcatOp>(rewriter, loc, resultType,
+                                                resultTensors, axis);
+}
+
 // Legalization for aten.reflection_pad1d
 template <>
 LogicalResult ConvertAtenOp<AtenReflectionPad1dOp>::matchAndRewrite(
@@ -7355,7 +7440,6 @@ LogicalResult ConvertAtenOp<AtenReflectionPad1dOp>::matchAndRewrite(
 
   auto selfShape = selfType.getShape();
   auto selfRank = selfType.getRank();
-  auto selfElemTy = selfType.getElementType();
 
   auto resultType =
       dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
@@ -7379,62 +7463,9 @@ LogicalResult ConvertAtenOp<AtenReflectionPad1dOp>::matchAndRewrite(
     return success();
   }
 
-  SmallVector<Value> resultTensors;
-
-  // Use tosa.slice and tosa.reverse to get the reflection pads based on the
-  // padding size
-  if (paddingLeft > 0) {
-    SmallVector<int64_t> leftStartSlice(selfRank, 0);
-    SmallVector<int64_t> leftSizeSlice(selfShape);
-
-    leftStartSlice[selfRank - 1] = 1;
-    leftSizeSlice[selfRank - 1] = paddingLeft;
-
-    SmallVector<int64_t> leftPadShape(selfShape.begin(), selfShape.end() - 1);
-    leftPadShape.push_back(paddingLeft);
-
-    auto leftPadType = RankedTensorType::get(leftPadShape, selfElemTy);
-
-    auto leftPadSlice = rewriter.create<tosa::SliceOp>(
-        op->getLoc(), leftPadType, self,
-        rewriter.getDenseI64ArrayAttr(leftStartSlice),
-        rewriter.getDenseI64ArrayAttr(leftSizeSlice));
-
-    auto leftPad = rewriter.create<tosa::ReverseOp>(
-        op->getLoc(), leftPadType, leftPadSlice.getResult(),
-        static_cast<int32_t>(selfRank - 1));
-
-    resultTensors.push_back(leftPad.getResult());
-  }
-
-  resultTensors.push_back(self);
-
-  if (paddingRight > 0) {
-    SmallVector<int64_t> rightStartSlice(selfRank, 0);
-    SmallVector<int64_t> rightSizeSlice(selfShape);
-
-    rightStartSlice[selfRank - 1] = selfShape[selfRank - 1] - paddingRight - 1;
-    rightSizeSlice[selfRank - 1] = paddingRight;
-
-    SmallVector<int64_t> rightPadShape(selfShape.begin(), selfShape.end() - 1);
-    rightPadShape.push_back(paddingRight);
-
-    auto rightPadType = RankedTensorType::get(rightPadShape, selfElemTy);
-
-    auto rightPadSlice = rewriter.create<tosa::SliceOp>(
-        op->getLoc(), rightPadType, self,
-        rewriter.getDenseI64ArrayAttr(rightStartSlice),
-        rewriter.getDenseI64ArrayAttr(rightSizeSlice));
-
-    auto rightPad = rewriter.create<tosa::ReverseOp>(
-        op->getLoc(), rightPadType, rightPadSlice.getResult(),
-        static_cast<int32_t>(selfRank - 1));
-
-    resultTensors.push_back(rightPad.getResult());
-  }
-
-  auto result = tosa::CreateOpAndInfer<tosa::ConcatOp>(
-      rewriter, op->getLoc(), resultType, resultTensors, selfRank - 1);
+  auto result =
+      reflectionPadAlongAxis(self, selfShape, paddingLeft, paddingRight,
+                             selfRank - 1, resultType, op->getLoc(), rewriter);
 
   rewriter.replaceOp(op, result);
   return success();
@@ -7483,129 +7514,92 @@ LogicalResult ConvertAtenOp<AtenReflectionPad2dOp>::matchAndRewrite(
     return success();
   }
 
-  // Use tosa.slice and tosa.reverse to get the reflection pads based on the
-  // padding size
-  SmallVector<Value> sideTensors;
-
-  if (paddingLeft > 0) {
-    SmallVector<int64_t> leftStartSlice(selfRank, 0);
-    SmallVector<int64_t> leftSizeSlice(selfShape);
-
-    leftStartSlice[selfRank - 1] = 1;
-    leftSizeSlice[selfRank - 1] = paddingLeft;
-
-    SmallVector<int64_t> leftPadShape(selfShape.begin(), selfShape.end() - 1);
-    leftPadShape.push_back(paddingLeft);
-
-    auto leftPadType = RankedTensorType::get(leftPadShape, selfElemTy);
-
-    auto leftPadSlice = rewriter.create<tosa::SliceOp>(
-        op->getLoc(), leftPadType, self,
-        rewriter.getDenseI64ArrayAttr(leftStartSlice),
-        rewriter.getDenseI64ArrayAttr(leftSizeSlice));
-
-    auto leftPad = rewriter.create<tosa::ReverseOp>(
-        op->getLoc(), leftPadType, leftPadSlice.getResult(),
-        static_cast<int32_t>(selfRank - 1));
-
-    sideTensors.push_back(leftPad.getResult());
-  }
-
-  sideTensors.push_back(self);
-
-  if (paddingRight > 0) {
-    SmallVector<int64_t> rightStartSlice(selfRank, 0);
-    SmallVector<int64_t> rightSizeSlice(selfShape);
-
-    rightStartSlice[selfRank - 1] = selfShape[selfRank - 1] - paddingRight - 1;
-    rightSizeSlice[selfRank - 1] = paddingRight;
-
-    SmallVector<int64_t> rightPadShape(selfShape.begin(), selfShape.end() - 1);
-    rightPadShape.push_back(paddingRight);
-
-    auto rightPadType = RankedTensorType::get(rightPadShape, selfElemTy);
-
-    auto rightPadSlice = rewriter.create<tosa::SliceOp>(
-        op->getLoc(), rightPadType, self,
-        rewriter.getDenseI64ArrayAttr(rightStartSlice),
-        rewriter.getDenseI64ArrayAttr(rightSizeSlice));
-
-    auto rightPad = rewriter.create<tosa::ReverseOp>(
-        op->getLoc(), rightPadType, rightPadSlice.getResult(),
-        static_cast<int32_t>(selfRank - 1));
-
-    sideTensors.push_back(rightPad.getResult());
-  }
-
   SmallVector<int64_t> selfSidePaddedShape(selfShape.begin(),
                                            selfShape.end() - 1);
   selfSidePaddedShape.push_back(resultShape.back());
 
-  auto selfSidePadded = tosa::CreateOpAndInfer<tosa::ConcatOp>(
-      rewriter, op->getLoc(),
-      RankedTensorType::get(selfSidePaddedShape, selfElemTy), sideTensors,
-      selfRank - 1);
+  auto selfSidePadded = reflectionPadAlongAxis(
+      self, selfShape, paddingLeft, paddingRight, selfRank - 1,
+      RankedTensorType::get(selfSidePaddedShape, selfElemTy), op->getLoc(),
+      rewriter);
 
-  SmallVector<Value> resultTensors;
+  auto result = reflectionPadAlongAxis(selfSidePadded, selfShape, paddingTop,
+                                       paddingBottom, selfRank - 2, resultType,
+                                       op->getLoc(), rewriter);
 
-  if (paddingTop > 0) {
-    SmallVector<int64_t> topStartSlice(selfRank, 0);
-    SmallVector<int64_t> topSizeSlice(selfShape.begin(), selfShape.end() - 1);
-    topSizeSlice.push_back(resultShape.back());
+  rewriter.replaceOp(op, result);
+  return success();
+}
 
-    topStartSlice[selfRank - 2] = 1;
-    topSizeSlice[selfRank - 2] = paddingTop;
+// Legalization for aten.reflection_pad3d
+template <>
+LogicalResult ConvertAtenOp<AtenReflectionPad3dOp>::matchAndRewrite(
+    AtenReflectionPad3dOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto self = adaptor.getSelf();
 
-    SmallVector<int64_t> topPadShape(selfShape.begin(), selfShape.end() - 2);
-    topPadShape.push_back(paddingTop);
-    topPadShape.push_back(resultShape.back());
+  auto selfType = dyn_cast<TensorType>(self.getType());
+  if (!selfType)
+    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
 
-    auto topPadType = RankedTensorType::get(topPadShape, selfElemTy);
+  auto selfShape = selfType.getShape();
+  auto selfRank = selfType.getRank();
+  auto selfElemTy = selfType.getElementType();
 
-    auto topPadSlice = rewriter.create<tosa::SliceOp>(
-        op->getLoc(), topPadType, selfSidePadded,
-        rewriter.getDenseI64ArrayAttr(topStartSlice),
-        rewriter.getDenseI64ArrayAttr(topSizeSlice));
+  auto resultType =
+      dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
+  auto resultShape = resultType.getShape();
 
-    auto topPad = rewriter.create<tosa::ReverseOp>(
-        op->getLoc(), topPadType, topPadSlice.getResult(),
-        static_cast<int32_t>(selfRank - 2));
+  SmallVector<int64_t, 6> paddingList;
+  if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(paddingList)))
+    return rewriter.notifyMatchFailure(
+        op, "Non-const padding lists are not supported");
 
-    resultTensors.push_back(topPad.getResult());
+  int64_t paddingLeft = paddingList[0];
+  int64_t paddingRight = paddingList[1];
+  int64_t paddingTop = paddingList[2];
+  int64_t paddingBottom = paddingList[3];
+  int64_t paddingFront = paddingList[4];
+  int64_t paddingBack = paddingList[5];
+
+  if (paddingLeft >= selfShape[selfRank - 1] ||
+      paddingRight >= selfShape[selfRank - 1] ||
+      paddingTop >= selfShape[selfRank - 2] ||
+      paddingBottom >= selfShape[selfRank - 2] ||
+      paddingFront >= selfShape[selfRank - 3] ||
+      paddingBack >= selfShape[selfRank - 3])
+    return rewriter.notifyMatchFailure(
+        op, "Padding must be less than the corresponding input dimension");
+
+  // Identity case
+  if (paddingLeft == 0 && paddingRight == 0 && paddingTop == 0 &&
+      paddingBottom == 0 && paddingFront == 0 && paddingBack == 0) {
+    rewriter.replaceOp(op, self);
+    return success();
   }
 
-  resultTensors.push_back(selfSidePadded.getResult());
-
-  if (paddingBottom > 0) {
-    SmallVector<int64_t> bottomStartSlice(selfRank, 0);
-    SmallVector<int64_t> bottomSizeSlice(selfShape.begin(),
+  SmallVector<int64_t> self1dPaddedShape(selfShape.begin(),
                                          selfShape.end() - 1);
-    bottomSizeSlice.push_back(resultShape.back());
+  self1dPaddedShape.push_back(resultShape.back());
 
-    bottomStartSlice[selfRank - 2] =
-        selfShape[selfRank - 2] - paddingBottom - 1;
-    bottomSizeSlice[selfRank - 2] = paddingBottom;
+  auto self1dPadded = reflectionPadAlongAxis(
+      self, selfShape, paddingLeft, paddingRight, selfRank - 1,
+      RankedTensorType::get(self1dPaddedShape, selfElemTy), op->getLoc(),
+      rewriter);
 
-    SmallVector<int64_t> bottomPadShape(selfShape.begin(), selfShape.end() - 2);
-    bottomPadShape.push_back(paddingBottom);
-    bottomPadShape.push_back(resultShape.back());
+  SmallVector<int64_t> self2dPaddedShape(selfShape.begin(),
+                                         selfShape.end() - 2);
+  self2dPaddedShape.push_back(resultShape[resultShape.size() - 2]);
+  self2dPaddedShape.push_back(resultShape.back());
 
-    auto bottomPadType = RankedTensorType::get(bottomPadShape, selfElemTy);
+  auto self2dPadded = reflectionPadAlongAxis(
+      self1dPadded, selfShape, paddingTop, paddingBottom, selfRank - 2,
+      RankedTensorType::get(self2dPaddedShape, selfElemTy), op->getLoc(),
+      rewriter);
 
-    auto bottomPadSlice = rewriter.create<tosa::SliceOp>(
-        op->getLoc(), bottomPadType, selfSidePadded,
-        rewriter.getDenseI64ArrayAttr(bottomStartSlice),
-        rewriter.getDenseI64ArrayAttr(bottomSizeSlice));
-
-    auto bottomPad = rewriter.create<tosa::ReverseOp>(
-        op->getLoc(), bottomPadType, bottomPadSlice.getResult(),
-        static_cast<int32_t>(selfRank - 2));
-
-    resultTensors.push_back(bottomPad.getResult());
-  }
-
-  auto result = tosa::CreateOpAndInfer<tosa::ConcatOp>(
-      rewriter, op->getLoc(), resultType, resultTensors, selfRank - 2);
+  auto result =
+      reflectionPadAlongAxis(self2dPadded, selfShape, paddingFront, paddingBack,
+                             selfRank - 3, resultType, op->getLoc(), rewriter);
 
   rewriter.replaceOp(op, result);
   return success();
@@ -7798,11 +7792,11 @@ LogicalResult ConvertAtenOp<PrimsSplitDimOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Only constant int outer length value is supported");
 
-  // Technically, I should calculate the output shape based on the dim and outer
-  // length values. However, that would just give the same result as me taking
-  // the result shape straight from resultType and applying tosa::ReshapeOp to
-  // the input. Therefore, I'm opting for the latter approach here, which is
-  // more simple and quicker.
+  // Technically, I should calculate the output shape based on the dim and
+  // outer length values. However, that would just give the same result as me
+  // taking the result shape straight from resultType and applying
+  // tosa::ReshapeOp to the input. Therefore, I'm opting for the latter
+  // approach here, which is more simple and quicker.
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
       op, resultType, self,
       rewriter.getDenseI64ArrayAttr(makeShapeTorchCompatible(resultShape)));
@@ -8804,6 +8798,7 @@ std::set<StringRef> torch::populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ATENOP_PATTERN(PrimsCollapseOp);
   INSERT_ATENOP_PATTERN(AtenReflectionPad1dOp);
   INSERT_ATENOP_PATTERN(AtenReflectionPad2dOp);
+  INSERT_ATENOP_PATTERN(AtenReflectionPad3dOp);
   INSERT_ATENOP_PATTERN(AtenReplicationPad2dOp);
   INSERT_ATENOP_PATTERN(PrimsSplitDimOp);
   INSERT_ATENOP_PATTERN(AtenOuterOp);

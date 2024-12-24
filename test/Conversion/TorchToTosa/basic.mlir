@@ -2493,6 +2493,37 @@ func.func @torch.aten.reflection_pad2d$basic(%arg0: !torch.vtensor<[1,20,20],f32
   return %1 : !torch.vtensor<[1,40,40],f32>
 }
 
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.reflection_pad3d$basic(
+// CHECK-SAME:                                                 %[[ARG0:.*]]: !torch.vtensor<[4,5,7,3,4],f32>) -> !torch.vtensor<[4,5,11,7,8],f32> {
+// CHECK:           %[[VAL_0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4,5,7,3,4],f32> -> tensor<4x5x7x3x4xf32>
+// CHECK:           %[[VAL_1:.*]] = torch.constant.int 2
+// CHECK:           %[[VAL_2:.*]] = torch.prim.ListConstruct %[[VAL_1]], %[[VAL_1]], %[[VAL_1]], %[[VAL_1]], %[[VAL_1]], %[[VAL_1]] : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[SLICE_L:.*]] = tosa.slice %[[VAL_0]] {size = array<i64: 4, 5, 7, 3, 2>, start = array<i64: 0, 0, 0, 0, 1>} : (tensor<4x5x7x3x4xf32>) -> tensor<4x5x7x3x2xf32>
+// CHECK:           %[[REVERSE_L:.*]] = tosa.reverse %[[SLICE_L]] {axis = 4 : i32} : (tensor<4x5x7x3x2xf32>) -> tensor<4x5x7x3x2xf32>
+// CHECK:           %[[SLICE_R:.*]] = tosa.slice %[[VAL_0]] {size = array<i64: 4, 5, 7, 3, 2>, start = array<i64: 0, 0, 0, 0, 1>} : (tensor<4x5x7x3x4xf32>) -> tensor<4x5x7x3x2xf32>
+// CHECK:           %[[REVERSE_R:.*]] = tosa.reverse %[[SLICE_R]] {axis = 4 : i32} : (tensor<4x5x7x3x2xf32>) -> tensor<4x5x7x3x2xf32>
+// CHECK:           %[[CONCAT_LR:.*]] = tosa.concat %[[REVERSE_L]], %[[VAL_0]], %[[REVERSE_R]] {axis = 4 : i32} : (tensor<4x5x7x3x2xf32>, tensor<4x5x7x3x4xf32>, tensor<4x5x7x3x2xf32>) -> tensor<4x5x7x3x8xf32>
+// CHECK:           %[[SLICE_T:.*]] = tosa.slice %[[CONCAT_LR]] {size = array<i64: 4, 5, 7, 2, 8>, start = array<i64: 0, 0, 0, 1, 0>} : (tensor<4x5x7x3x8xf32>) -> tensor<4x5x7x2x8xf32>
+// CHECK:           %[[REVERSE_T:.*]] = tosa.reverse %[[SLICE_T]] {axis = 3 : i32} : (tensor<4x5x7x2x8xf32>) -> tensor<4x5x7x2x8xf32>
+// CHECK:           %[[SLICE_B:.*]] = tosa.slice %[[CONCAT_LR]] {size = array<i64: 4, 5, 7, 2, 8>, start = array<i64: 0, 0, 0, 0, 0>} : (tensor<4x5x7x3x8xf32>) -> tensor<4x5x7x2x8xf32>
+// CHECK:           %[[REVERSE_B:.*]] = tosa.reverse %[[SLICE_B]] {axis = 3 : i32} : (tensor<4x5x7x2x8xf32>) -> tensor<4x5x7x2x8xf32>
+// CHECK:           %[[CONCAT_TB:.*]] = tosa.concat %[[REVERSE_T]], %[[CONCAT_LR]], %[[REVERSE_B]] {axis = 3 : i32} : (tensor<4x5x7x2x8xf32>, tensor<4x5x7x3x8xf32>, tensor<4x5x7x2x8xf32>) -> tensor<4x5x7x7x8xf32>
+// CHECK:           %[[SLICE_F:.*]] = tosa.slice %[[CONCAT_TB]] {size = array<i64: 4, 5, 2, 7, 8>, start = array<i64: 0, 0, 1, 0, 0>} : (tensor<4x5x7x7x8xf32>) -> tensor<4x5x2x7x8xf32>
+// CHECK:           %[[REVERSE_F:.*]] = tosa.reverse %[[SLICE_F]] {axis = 2 : i32} : (tensor<4x5x2x7x8xf32>) -> tensor<4x5x2x7x8xf32>
+// CHECK:           %[[SLICE_BACK:.*]] = tosa.slice %[[CONCAT_TB]] {size = array<i64: 4, 5, 2, 7, 8>, start = array<i64: 0, 0, 4, 0, 0>} : (tensor<4x5x7x7x8xf32>) -> tensor<4x5x2x7x8xf32>
+// CHECK:           %[[REVERSE_BACK:.*]] = tosa.reverse %[[SLICE_BACK]] {axis = 2 : i32} : (tensor<4x5x2x7x8xf32>) -> tensor<4x5x2x7x8xf32>
+// CHECK:           %[[CONCAT_FB:.*]] = tosa.concat %[[REVERSE_F]], %[[CONCAT_TB]], %[[REVERSE_BACK]] {axis = 2 : i32} : (tensor<4x5x2x7x8xf32>, tensor<4x5x7x7x8xf32>, tensor<4x5x2x7x8xf32>) -> tensor<4x5x11x7x8xf32>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CONCAT_FB]] : tensor<4x5x11x7x8xf32> -> !torch.vtensor<[4,5,11,7,8],f32>
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.reflection_pad3d$basic(%arg0: !torch.vtensor<[4,5,7,3,4],f32>) -> !torch.vtensor<[4,5,11,7,8],f32> {
+    %int2 = torch.constant.int 2
+    %0 = torch.prim.ListConstruct %int2, %int2, %int2, %int2, %int2, %int2 : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %1 = torch.aten.reflection_pad3d %arg0, %0 : !torch.vtensor<[4,5,7,3,4],f32>, !torch.list<int> -> !torch.vtensor<[4,5,11,7,8],f32>
+    return %1 : !torch.vtensor<[4,5,11,7,8],f32>
+}
+
 // -----
 
 // CHECK-LABEL:   func.func @torch.aten.replication_pad2d$basic(
