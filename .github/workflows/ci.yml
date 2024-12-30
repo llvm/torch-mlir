@@ -30,7 +30,7 @@ jobs:
       - name: Install Clang 17.0.6
         run: |
           apt-get update
-          apt-get install -y software-properties-common
+          apt-get install -y software-properties-common lsb-release
           add-apt-repository -y ppa:ubuntu-toolchain-r/test
           apt-get install -y clang-17 lldb-17
           update-alternatives --install /usr/bin/clang clang /usr/bin/clang-17 100
