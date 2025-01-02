@@ -86,6 +86,7 @@ Helpful examples:
 `. Please don't just paste the generated tests - reference them to write your own
 
 ## Contacts
+
 People who've worked on this for a while
 
 - Vivek (@vivek97 on discord)
@@ -126,6 +127,7 @@ https://gist.github.com/AmosLewis/dd31ab37517977b1c499d06495b4adc2
 https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing
 
 ## How to set up vs code and intellisence for [torch-mlir]
+
 Xida: This is optional. If you're using VS code like me, you might want to set it up so you can use the jump to definition / references, auto fix, and other features.
 
 Feel free to contact me on discord if you have trouble figuring this out.
