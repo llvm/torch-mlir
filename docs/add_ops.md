@@ -28,8 +28,8 @@ PS: IREE is pronounced Eerie, and hence the ghost icon.
 
 ## How to begin
 
-0. Set up torch-mlir according to the instructions here: https://github.com/llvm/torch-mlir/blob/main/docs/development.md
-1. You will start by adding support for 2 ops in torch-mlir, to get you familiar with the center of our pipeline. Begin by reading [torch-mlir's documentation on how to implement a new torch op](https://github.com/llvm/torch-mlir/blob/main/docs/Torch-ops-E2E-implementation.md), and set up `llvm/torch_mlir` using https://github.com/llvm/torch-mlir/blob/main/docs/development.md
+0. Set up torch-mlir according to the instructions here: <https://github.com/llvm/torch-mlir/blob/main/docs/development.md>
+1. You will start by adding support for 2 ops in torch-mlir, to get you familiar with the center of our pipeline. Begin by reading [torch-mlir's documentation on how to implement a new torch op](https://github.com/llvm/torch-mlir/blob/main/docs/Torch-ops-E2E-implementation.md), and set up `llvm/torch_mlir` using <https://github.com/llvm/torch-mlir/blob/main/docs/development.md>
 2. Pick 1 of the yet-unimplemented from the following. You should choose something that looks easy to you. **Make sure you create an issue by clicking the little "target" icon to the right of the op, thereby marking the op as yours**
     - [TorchToLinalg ops tracking issue](https://github.com/nod-ai/SHARK-Turbine/issues/347)
     - [TorchOnnnxToTorch ops tracking issue](https://github.com/nod-ai/SHARK-Turbine/issues/215)
@@ -64,7 +64,7 @@ Resources:
 
 ### How to TorchOnnxToTorch
 
-0. Generate the big folder of ONNX IR. Use https://github.com/llvm/torch-mlir/blob/main/test/python/onnx_importer/import_smoke_test.py . Alternatively, if you're trying to support a certain model, convert that model to onnx IR with
+0. Generate the big folder of ONNX IR. Use <https://github.com/llvm/torch-mlir/blob/main/test/python/onnx_importer/import_smoke_test.py> . Alternatively, if you're trying to support a certain model, convert that model to onnx IR with
 
    ```
    optimum-cli export onnx --model facebook/opt-125M fb-opt
@@ -73,7 +73,7 @@ Resources:
 
 2. Find an instance of the Op that you're trying to implement inside the smoke tests folder or the generated model IR, and write a test case. Later you will save it to one of the files in `torch-mlir/test/Conversion/TorchOnnxToTorch`, but for now feel free to put it anywhere.
 3. Implement the op in `lib/Conversion/TorchOnnxToTorch/something.cpp`.
-4. Test the conversion by running `./build/bin/torch-mlir-opt -split-input-file -verify-diagnostics -convert-torch-onnx-to-torch your_mlir_file.mlir`. For more details, see https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing . Xida usually creates a separate MLIR file to test it to his satisfaction before integrating it into one of the files at `torch-mlir/test/Conversion/TorchOnnxToTorch`.
+4. Test the conversion by running `./build/bin/torch-mlir-opt -split-input-file -verify-diagnostics -convert-torch-onnx-to-torch your_mlir_file.mlir`. For more details, see <https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing> . Xida usually creates a separate MLIR file to test it to his satisfaction before integrating it into one of the files at `torch-mlir/test/Conversion/TorchOnnxToTorch`.
 
 Helpful examples:
 
@@ -90,16 +90,16 @@ Helpful examples:
 People who've worked on this for a while
 
 - Vivek (@vivek97 on discord)
-- Chi.Liu@amd.com
+- <Chi.Liu@amd.com>
 
 Recent Turbine Camp Attendees, from recent to less recent
 
-- Xida.ren@amd.com (@xida_ren on discord)
-- Sungsoon.Cho@amd.com
+- <Xida.ren@amd.com> (@xida_ren on discord)
+- <Sungsoon.Cho@amd.com>
 
 ## Links
 
-- IMPORTANT: read the LLVM style guide: https://llvm.org/docs/CodingStandards.html#use-early-exits-and-continue-to-simplify-code
+- IMPORTANT: read the LLVM style guide: <https://llvm.org/docs/CodingStandards.html#use-early-exits-and-continue-to-simplify-code>
 - Tutorials
   - [Sungsoon's Shark Getting Started Google Doc](https://docs.google.com/document/d/1H79DwW_wnVzUU81EogwY5ueXgnl-QzKet1p2lnqPar4/edit?pli=1)
     - This document contains commands that would help you set up shark and run demos
@@ -120,11 +120,11 @@ Recent Turbine Camp Attendees, from recent to less recent
 
 ## Chi's useful commands for debugging torch mlir
 
-https://gist.github.com/AmosLewis/dd31ab37517977b1c499d06495b4adc2
+<https://gist.github.com/AmosLewis/dd31ab37517977b1c499d06495b4adc2>
 
 ## How to write test cases and test your new op
 
-https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing
+<https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing>
 
 ## How to set up vs code and intellisence for [torch-mlir]
 
