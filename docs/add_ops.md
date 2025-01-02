@@ -2,41 +2,7 @@
 
 Collected links and contacts for how to add ops to torch-mlir.
 
-<details>
-<summary>Turbine Camp: Start Here</summary>
-This document was previously known as `turbine-camp.md` to Nod.ai. "Turbine Camp" is part of Nod.ai's onboarding process. Welcome to turbine camp. This document originated at Nod.ai as a part of onboardding process, where new nod-ai folks learn about the architecture of our work by adding support for 2 ops to torch-mlir. I decided to put this into torch mlir because a lot of this is about torch-mlir.
-
-Written & maintained by @renxida
-
-Guides by other folks that were used during the creation of this document:
-
-- [Chi Liu](https://gist.github.com/AmosLewis/dd31ab37517977b1c499d06495b4adc2)
-- [Sunsoon](https://docs.google.com/document/d/1H79DwW_wnVzUU81EogwY5ueXgnl-QzKet1p2lnqPar4/edit?pli=1)
-
-## Before you begin...
-
-Nod-ai maintains the pipeline below, which allows us to take a ML model from e.g. huggingface, and compile it to a variety of devices including llvm-cpu, rocm and cuda and more as an optimized `vmfb` binary.
-
-1. The pipeline begins with a huggingface model, or some other supported source like llama.cpp.
-1. [nod-ai/SHARK-Turbine](https://github.com/nod-ai/SHARK-Turbine) takes a huggingface model and exports a `.mlir` file.
-1. **[llvm/torch-mlir](https://github.com/llvm/torch-mlir)**, which you will be working on in turbine-camp, will lower torchscript, torch dialect, and torch aten ops further into a mixture `linalg` or `math` MLIR dialects (with occasionally other dialects in the mix)
-1. [IREE](https://github.com/openxla/iree) converts the final `.mlir` file into a binary (typically `.vmfb`) for running on a device (llvm-cpu, rocm, vulcan, cuda, etc).
-
-The details of how we do it and helpful commands to help you set up each repo is in [Sungsoon's Shark Getting Started Google Doc](https://docs.google.com/document/d/1H79DwW_wnVzUU81EogwY5ueXgnl-QzKet1p2lnqPar4/edit?pli=1)
-
-PS: IREE is pronounced Eerie, and hence the ghost icon.
-
-## How to begin
-
-1. Set up torch-mlir according to the instructions here: <https://github.com/llvm/torch-mlir/blob/main/docs/development.md>
-1. You will start by adding support for 2 ops in torch-mlir, to get you familiar with the center of our pipeline. Begin by reading [torch-mlir's documentation on how to implement a new torch op](https://github.com/llvm/torch-mlir/blob/main/docs/Torch-ops-E2E-implementation.md), and set up `llvm/torch_mlir` using <https://github.com/llvm/torch-mlir/blob/main/docs/development.md>
-1. Pick 1 of the yet-unimplemented from the following. You should choose something that looks easy to you. **Make sure you create an issue by clicking the little "target" icon to the right of the op, thereby marking the op as yours**
-    - [TorchToLinalg ops tracking issue](https://github.com/nod-ai/SHARK-Turbine/issues/347)
-    - [TorchOnnnxToTorch ops tracking issue](https://github.com/nod-ai/SHARK-Turbine/issues/215)
-1. Implement it. For torch -> linalg, see the how to torchop section below. For Onnx ops, see how to onnx below.
-1. Make a pull request and reference your issue. When the pull request is closed, also close your issue to mark the op as done
-
-</details>
+## [How to Add a Torch Operator](https://github.com/llvm/torch-mlir/blob/main/docs/Torch-ops-E2E-implementation.md)
 
 ## How to Add a Conversion for an Operator
 
