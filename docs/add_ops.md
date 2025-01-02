@@ -9,6 +9,7 @@ This document was previously known as `turbine-camp.md` to Nod.ai. "Turbine Camp
 Written & maintained by @renxida
 
 Guides by other folks that were used during the creation of this document:
+
 - [Chi Liu](https://gist.github.com/AmosLewis/dd31ab37517977b1c499d06495b4adc2)
 - [Sunsoon](https://docs.google.com/document/d/1H79DwW_wnVzUU81EogwY5ueXgnl-QzKet1p2lnqPar4/edit?pli=1)
 
@@ -26,6 +27,7 @@ The details of how we do it and helpful commands to help you set up each repo is
 PS: IREE is pronounced Eerie, and hence the ghost icon.
 
 ## How to begin
+
 0. Set up torch-mlir according to the instructions here: https://github.com/llvm/torch-mlir/blob/main/docs/development.md
 1. You will start by adding support for 2 ops in torch-mlir, to get you familiar with the center of our pipeline. Begin by reading [torch-mlir's documentation on how to implement a new torch op](https://github.com/llvm/torch-mlir/blob/main/docs/Torch-ops-E2E-implementation.md), and set up `llvm/torch_mlir` using https://github.com/llvm/torch-mlir/blob/main/docs/development.md
 2. Pick 1 of the yet-unimplemented from the following. You should choose something that looks easy to you. **Make sure you create an issue by clicking the little "target" icon to the right of the op, thereby marking the op as yours**
@@ -39,6 +41,7 @@ PS: IREE is pronounced Eerie, and hence the ghost icon.
 ### How to TorchToLinalg
 
 You will need to do 5 things:
+
 - make sure -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON is added during build. This is to enable the python file used in `build_tools/update_torch_ods.sh` and `build_tools/update_abstract_interp_lib.sh`
 - make sure the op exists in `torch_ods_gen.py`, and then run `build_tools/update_torch_ods.sh`, and then build. This generates `GeneratedTorchOps.td`, which is used to generate the cpp and h files where ops function signatures are defined.
     - Reference [torch op registry](https://github.com/pytorch/pytorch/blob/7451dd058564b5398af79bfc1e2669d75f9ecfa2/torch/csrc/jit/passes/utils/op_registry.cpp#L21)
@@ -48,16 +51,19 @@ You will need to do 5 things:
 - implement the op in one of the `lib/Conversion/TorchToLinalg/*.cpp` files
 
 Reference Examples
+
 - [A Dec 2023 example with the most up to date lowering](https://github.com/llvm/torch-mlir/pull/2640/files)
 - [Chi's simple example of adding op lowering](https://github.com/llvm/torch-mlir/pull/1454) useful instructions and referring links for you to understand the op lowering pipeline in torch-mlir in the comments
 
 Resources:
+
 - how to set up torch-mlir: [https://github.com/llvm/torch-mlir/blob/main/docs/development.md](https://github.com/llvm/torch-mlir/blob/main/docs/development.md#checkout-and-build-from-source)
 - torch-mlir doc on how to debug and test: [ttps://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing](https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing)
 - [torch op registry](https://github.com/pytorch/pytorch/blob/7451dd058564b5398af79bfc1e2669d75f9ecfa2/torch/csrc/jit/passes/utils/op_registry.cpp#L21)
 - [torch shape functions](https://github.com/pytorch/pytorch/blob/7451dd058564b5398af79bfc1e2669d75f9ecfa2/torch/jit/_shape_functions.py#L1311)
 
 ### How to TorchOnnxToTorch
+
 0. Generate the big folder of ONNX IR. Use https://github.com/llvm/torch-mlir/blob/main/test/python/onnx_importer/import_smoke_test.py . Alternatively, if you're trying to support a certain model, convert that model to onnx IR with
    ```
    optimum-cli export onnx --model facebook/opt-125M fb-opt
@@ -68,6 +74,7 @@ Resources:
 4. Test the conversion by running `./build/bin/torch-mlir-opt -split-input-file -verify-diagnostics -convert-torch-onnx-to-torch your_mlir_file.mlir`. For more details, see https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing . Xida usually creates a separate MLIR file to test it to his satisfaction before integrating it into one of the files at `torch-mlir/test/Conversion/TorchOnnxToTorch`.
 
 Helpful examples:
+
 - [A Dec 2023 example where an ONNX op is implemented](https://github.com/llvm/torch-mlir/pull/2641/files#diff-b584b152020af6d2e5dbf62a08b2f25ed5afc2c299228383b9651d22d44b5af4R493)
 - [Vivek's example of ONNX op lowering](https://github.com/llvm/torch-mlir/commit/dc9ea08db5ac295b4b3f91fc776fef6a702900b9)
 
@@ -78,14 +85,17 @@ Helpful examples:
 
 ## Contacts
 People who've worked on this for a while
+
 - Vivek (@vivek97 on discord)
 - Chi.Liu@amd.com
 
 Recent Turbine Camp Attendees, from recent to less recent
+
 - Xida.ren@amd.com (@xida_ren on discord)
 - Sungsoon.Cho@amd.com
 
 ## Links
+
 - IMPORTANT: read the LLVM style guide: https://llvm.org/docs/CodingStandards.html#use-early-exits-and-continue-to-simplify-code
 - Tutorials
   - [Sungsoon's Shark Getting Started Google Doc](https://docs.google.com/document/d/1H79DwW_wnVzUU81EogwY5ueXgnl-QzKet1p2lnqPar4/edit?pli=1)
