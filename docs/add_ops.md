@@ -66,7 +66,7 @@ Resources:
 
 1. Generate the big folder of ONNX IR. Use <https://github.com/llvm/torch-mlir/blob/main/test/python/onnx_importer/import_smoke_test.py> . Alternatively, if you're trying to support a certain model, convert that model to onnx IR with
 
-   ```
+   ```shell
    optimum-cli export onnx --model facebook/opt-125M fb-opt
    python -m torch_mlir.tools.import_onnx fb-opt/model.onnx -o fb-opt-125m.onnx.mlir
    ```
