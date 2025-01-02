@@ -38,6 +38,8 @@ PS: IREE is pronounced Eerie, and hence the ghost icon.
 
 </details>
 
+## How to Add a Conversion for an Operator
+
 ### How to TorchToLinalg
 
 You will need to do 5 things:
