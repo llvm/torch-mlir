@@ -18,9 +18,9 @@ Guides by other folks that were used during the creation of this document:
 Nod-ai maintains the pipeline below, which allows us to take a ML model from e.g. huggingface, and compile it to a variety of devices including llvm-cpu, rocm and cuda and more as an optimized `vmfb` binary.
 
 1. The pipeline begins with a huggingface model, or some other supported source like llama.cpp.
-2. [nod-ai/SHARK-Turbine](https://github.com/nod-ai/SHARK-Turbine) takes a huggingface model and exports a `.mlir` file.
-3. **[llvm/torch-mlir](https://github.com/llvm/torch-mlir)**, which you will be working on in turbine-camp, will lower torchscript, torch dialect, and torch aten ops further into a mixture `linalg` or `math` MLIR dialects (with occasionally other dialects in the mix)
-4. [IREE](https://github.com/openxla/iree) converts the final `.mlir` file into a binary (typically `.vmfb`) for running on a device (llvm-cpu, rocm, vulcan, cuda, etc).
+1. [nod-ai/SHARK-Turbine](https://github.com/nod-ai/SHARK-Turbine) takes a huggingface model and exports a `.mlir` file.
+1. **[llvm/torch-mlir](https://github.com/llvm/torch-mlir)**, which you will be working on in turbine-camp, will lower torchscript, torch dialect, and torch aten ops further into a mixture `linalg` or `math` MLIR dialects (with occasionally other dialects in the mix)
+1. [IREE](https://github.com/openxla/iree) converts the final `.mlir` file into a binary (typically `.vmfb`) for running on a device (llvm-cpu, rocm, vulcan, cuda, etc).
 
 The details of how we do it and helpful commands to help you set up each repo is in [Sungsoon's Shark Getting Started Google Doc](https://docs.google.com/document/d/1H79DwW_wnVzUU81EogwY5ueXgnl-QzKet1p2lnqPar4/edit?pli=1)
 
@@ -28,13 +28,13 @@ PS: IREE is pronounced Eerie, and hence the ghost icon.
 
 ## How to begin
 
-0. Set up torch-mlir according to the instructions here: <https://github.com/llvm/torch-mlir/blob/main/docs/development.md>
+1. Set up torch-mlir according to the instructions here: <https://github.com/llvm/torch-mlir/blob/main/docs/development.md>
 1. You will start by adding support for 2 ops in torch-mlir, to get you familiar with the center of our pipeline. Begin by reading [torch-mlir's documentation on how to implement a new torch op](https://github.com/llvm/torch-mlir/blob/main/docs/Torch-ops-E2E-implementation.md), and set up `llvm/torch_mlir` using <https://github.com/llvm/torch-mlir/blob/main/docs/development.md>
-2. Pick 1 of the yet-unimplemented from the following. You should choose something that looks easy to you. **Make sure you create an issue by clicking the little "target" icon to the right of the op, thereby marking the op as yours**
+1. Pick 1 of the yet-unimplemented from the following. You should choose something that looks easy to you. **Make sure you create an issue by clicking the little "target" icon to the right of the op, thereby marking the op as yours**
     - [TorchToLinalg ops tracking issue](https://github.com/nod-ai/SHARK-Turbine/issues/347)
     - [TorchOnnnxToTorch ops tracking issue](https://github.com/nod-ai/SHARK-Turbine/issues/215)
-3. Implement it. For torch -> linalg, see the how to torchop section below. For Onnx ops, see how to onnx below.
-5. Make a pull request and reference your issue. When the pull request is closed, also close your issue to mark the op as done
+1. Implement it. For torch -> linalg, see the how to torchop section below. For Onnx ops, see how to onnx below.
+1. Make a pull request and reference your issue. When the pull request is closed, also close your issue to mark the op as done
 
 </details>
 
@@ -64,16 +64,16 @@ Resources:
 
 ### How to TorchOnnxToTorch
 
-0. Generate the big folder of ONNX IR. Use <https://github.com/llvm/torch-mlir/blob/main/test/python/onnx_importer/import_smoke_test.py> . Alternatively, if you're trying to support a certain model, convert that model to onnx IR with
+1. Generate the big folder of ONNX IR. Use <https://github.com/llvm/torch-mlir/blob/main/test/python/onnx_importer/import_smoke_test.py> . Alternatively, if you're trying to support a certain model, convert that model to onnx IR with
 
    ```
    optimum-cli export onnx --model facebook/opt-125M fb-opt
    python -m torch_mlir.tools.import_onnx fb-opt/model.onnx -o fb-opt-125m.onnx.mlir
    ```
 
-2. Find an instance of the Op that you're trying to implement inside the smoke tests folder or the generated model IR, and write a test case. Later you will save it to one of the files in `torch-mlir/test/Conversion/TorchOnnxToTorch`, but for now feel free to put it anywhere.
-3. Implement the op in `lib/Conversion/TorchOnnxToTorch/something.cpp`.
-4. Test the conversion by running `./build/bin/torch-mlir-opt -split-input-file -verify-diagnostics -convert-torch-onnx-to-torch your_mlir_file.mlir`. For more details, see <https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing> . Xida usually creates a separate MLIR file to test it to his satisfaction before integrating it into one of the files at `torch-mlir/test/Conversion/TorchOnnxToTorch`.
+1. Find an instance of the Op that you're trying to implement inside the smoke tests folder or the generated model IR, and write a test case. Later you will save it to one of the files in `torch-mlir/test/Conversion/TorchOnnxToTorch`, but for now feel free to put it anywhere.
+1. Implement the op in `lib/Conversion/TorchOnnxToTorch/something.cpp`.
+1. Test the conversion by running `./build/bin/torch-mlir-opt -split-input-file -verify-diagnostics -convert-torch-onnx-to-torch your_mlir_file.mlir`. For more details, see <https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing> . Xida usually creates a separate MLIR file to test it to his satisfaction before integrating it into one of the files at `torch-mlir/test/Conversion/TorchOnnxToTorch`.
 
 Helpful examples:
 
