@@ -65,10 +65,12 @@ Resources:
 ### How to TorchOnnxToTorch
 
 0. Generate the big folder of ONNX IR. Use https://github.com/llvm/torch-mlir/blob/main/test/python/onnx_importer/import_smoke_test.py . Alternatively, if you're trying to support a certain model, convert that model to onnx IR with
+
    ```
    optimum-cli export onnx --model facebook/opt-125M fb-opt
    python -m torch_mlir.tools.import_onnx fb-opt/model.onnx -o fb-opt-125m.onnx.mlir
    ```
+
 2. Find an instance of the Op that you're trying to implement inside the smoke tests folder or the generated model IR, and write a test case. Later you will save it to one of the files in `torch-mlir/test/Conversion/TorchOnnxToTorch`, but for now feel free to put it anywhere.
 3. Implement the op in `lib/Conversion/TorchOnnxToTorch/something.cpp`.
 4. Test the conversion by running `./build/bin/torch-mlir-opt -split-input-file -verify-diagnostics -convert-torch-onnx-to-torch your_mlir_file.mlir`. For more details, see https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing . Xida usually creates a separate MLIR file to test it to his satisfaction before integrating it into one of the files at `torch-mlir/test/Conversion/TorchOnnxToTorch`.
@@ -169,4 +171,5 @@ under `torch-mlir`
     "cmake.cmakePath": "/home/xida/miniconda/envs/torch-mlir/bin/cmake", // make sure this is a cmake that knows where your python is
 }
 ```
+
 The important things to note are the `cmake.configureArgs`, which specify the location of your torch mlir, and the `cmake.sourceDirectory`, which indicates that CMAKE should not build from the current directory and should instead build from `externals/llvm-project/llvm`
