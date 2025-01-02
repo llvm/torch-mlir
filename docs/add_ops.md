@@ -115,7 +115,6 @@ Recent Turbine Camp Attendees, from recent to less recent
     - [Model and Op Support](https://github.com/nod-ai/SHARK-Turbine/issues/119)
     - [ONNX op support](https://github.com/nod-ai/SHARK-Turbine/issues/215)
 
-
 ## Chi's useful commands for debugging torch mlir
 
 https://gist.github.com/AmosLewis/dd31ab37517977b1c499d06495b4adc2
@@ -123,8 +122,6 @@ https://gist.github.com/AmosLewis/dd31ab37517977b1c499d06495b4adc2
 ## How to write test cases and test your new op
 
 https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing
-
-
 
 ## How to set up vs code and intellisence for [torch-mlir]
 Xida: This is optional. If you're using VS code like me, you might want to set it up so you can use the jump to definition / references, auto fix, and other features.
