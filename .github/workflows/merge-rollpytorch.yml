@@ -9,7 +9,7 @@ on:
 
 jobs:
   merge-pr:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     if: |
       github.repository == 'llvm/torch-mlir' &&
       github.event.workflow_run.actor.login == 'stellaraccident' &&

@@ -273,7 +273,7 @@ jobs:
           path: dist
 
   publish_releases:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     needs:
       - build_linux
       - build_linux_arm64
