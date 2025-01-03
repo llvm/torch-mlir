@@ -60,7 +60,6 @@ Torch-MLIR is primarily a project that is integrated into compilers to bridge th
 
 * [IREE](https://github.com/iree-org/iree.git)
 * [Blade](https://github.com/alibaba/BladeDISC)
-* [MPACT](https://github.com/MPACT-ORG/mpact-compiler)
 
 While most of the project is exercised via testing paths, there are some ways that an end user can directly use the APIs without further integration:
 
