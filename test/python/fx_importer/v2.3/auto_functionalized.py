@@ -59,9 +59,8 @@ def test_auto_functionalized_hop():
         # AssertionError: Current active mode <torch._subclasses.functional_tensor.FunctionalTensorMode object at 0x7a1106504fd0> not registered
         decomposition_table=[],
     )
-    # The Torch 2.6 expects the IR to be same as the below one, while the torch versions < 2.6 does not, hence this check is kept as a "COM".
-    # COM: torch.operator "torch.torch_mlir_test.inplace_modify"({{.*}}) : (!torch.vtensor<[3,4],f32>) -> ()
-    # CHECK: torch.aten.mul.Tensor %{{.*}}, %{{.*}}
+    # CHECK: %[[TIED:.*]] = torch.operator "torch.torch_mlir_test.inplace_modify"({{.*}}) : (!torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
+    # CHECK: torch.aten.mul.Tensor %[[TIED]], %[[TIED]]
     print(m)
     m.operation.verify()
 
@@ -87,8 +86,7 @@ def test_auto_functionalized_one_ret():
         # AssertionError: Current active mode <torch._subclasses.functional_tensor.FunctionalTensorMode object at 0x7a1106504fd0> not registered
         decomposition_table=[],
     )
-    # The Torch 2.6 expects the IR to be same as the below one, while the torch versions < 2.6 does not, hence this check is kept as a "COM".
-    # COM: %[[TIED:.*]] = torch.operator "torch.torch_mlir_test.inplace_modify_calc"(%arg0) : (!torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
-    # CHECK: torch.aten.mul.Tensor %{{.*}}, %{{.*}}
+    # CHECK: %[[TIED:.*]]:2 = torch.operator "torch.torch_mlir_test.inplace_modify_calc"(%0) : (!torch.vtensor<[3,4],f32>) -> (!torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32>)
+    # CHECK: torch.aten.mul.Tensor %[[TIED]]#1, %[[TIED]]#0
     print(m)
     m.operation.verify()
