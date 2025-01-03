@@ -2922,7 +2922,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         llvm::SmallVector<Value> operands;
         std::string mode, nearest_mode, coordTfMode;
         int64_t antialias, exclude_outside;
-        float extrapolation_value, cubic_coeff_a;
+        float extrapolation_value;
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
 
         if (auto attr = binder.op->getAttr("torch.onnx.axes")) {
@@ -2947,8 +2947,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.f32FloatAttr(extrapolation_value, "extrapolation_value",
                                 0.0) ||
             binder.customOpNameStringAttr(nearest_mode, "nearest_mode",
-                                          "round_prefer_floor") ||
-            binder.f32FloatAttr(cubic_coeff_a, "cubic_coeff_a", -0.75))
+                                          "round_prefer_floor"))
           return failure();
         if (antialias != 0) {
           return rewriter.notifyMatchFailure(
@@ -2977,11 +2976,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                          "except asymmetric and half_pixel");
         }
 
-        if (mode == "cubic" && cubic_coeff_a != -0.75) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "unimplemented: cubic coeff must be -0.75");
-        }
-
         unsigned rank = dyn_cast<Torch::ValueTensorType>(operands[0].getType())
                             .getSizes()
                             .size();
@@ -2997,11 +2991,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value alignCorners =
             coordTfMode == "align_corners" ? cstTrue : cstFalse;
         if (mode == "cubic") {
-          std::string modeStr = "cubic";
-          if (coordTfMode != "half_pixel")
-            modeStr = modeStr + "_" + coordTfMode;
-          modeStrValue =
-              rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), modeStr);
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "unimplemented: bicubic mode");
         }
         // supported modes:
         // bilinear (half_pixel), bilinear with align_corners,
