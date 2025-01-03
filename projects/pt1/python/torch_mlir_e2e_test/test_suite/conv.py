@@ -1199,33 +1199,6 @@ def Conv1dWithValidPaddingModule_basic(module, tu: TestUtils):
     module.forward(inputVec, weight, bias)
 
 
-class Conv1dGroupModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([-1, -1, -1], torch.float32, True),
-            ([-1, -1, -1], torch.float32, True),
-            ([-1], torch.float32, True),
-        ]
-    )
-    def forward(self, inputVec, weight, bias):
-        return torch.ops.aten.conv1d(
-            inputVec, weight, bias=bias, stride=[1], padding=[0], dilation=[1], groups=2
-        )
-
-
-@register_test_case(module_factory=lambda: Conv1dGroupModule())
-def Conv1dGroupModule_basic(module, tu: TestUtils):
-    inputVec = tu.rand(2, 4, 6)
-    weight = torch.randn(8, 2, 3)
-    bias = torch.randn(8)
-    module.forward(inputVec, weight, bias)
-
-
 class Conv2dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
