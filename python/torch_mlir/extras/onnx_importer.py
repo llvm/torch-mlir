@@ -740,9 +740,13 @@ class ContextCache:
         if not name.isidentifier():
             name = "_" + name
 
-        # Remove characters that are invalid in MLIR identifier names.
-        # https://mlir.llvm.org/docs/LangRef/#identifiers-and-keywords
-        return re.sub("[:/-]", "_", name)
+        # The presence of '-' characters in the initializer names can cause
+        # unintended side-effects when the IR is parsed during compilation.
+        # Simply replace all the occurrences of '-' in the name string when the
+        # dense resource is created.
+        name = name.replace("-", "_")
+
+        return re.sub("[:/]", "_", name)
 
     def tensor_proto_to_attr(self, tp: onnx.TensorProto) -> Attribute:
         tensor_type = self.tensor_proto_to_builtin_type(tp)
