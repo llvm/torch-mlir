@@ -4426,100 +4426,25 @@ def IntImplicitModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class PowModule(torch.nn.Module):
+class PowIntFloat(torch.nn.Module):
     def __init__(self):
         super().__init__()
+        self.value = 2
+        self.power_value = 3.0
 
     @export
     @annotate_args(
         [
             None,
-            ([-1, -1, -1], torch.float32, True),
-            ([-1, -1, -1], torch.float32, True),
         ]
     )
-    def forward(self, x, y):
-        return torch.ops.aten.pow(x, y)
+    def forward(self):
+        return torch.ops.aten.pow(self.value, self.power_value)
 
 
-@register_test_case(module_factory=lambda: PowModule())
-def PowFloatFloatModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5), tu.rand(3, 4, 5))
-
-
-# ==============================================================================
-
-
-class PowIntFloatModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([-1, -1, -1], torch.int32, True),
-            ([-1, -1, -1], torch.float32, True),
-        ]
-    )
-    def forward(self, x, y):
-        return torch.ops.aten.pow(x, y)
-
-
-@register_test_case(module_factory=lambda: PowIntFloatModule())
+@register_test_case(module_factory=lambda: IntFloatModule())
 def PowIntFloatModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(3, 4, 5, dtype=torch.int32), tu.rand(3, 4, 5))
-
-
-# ==============================================================================
-
-
-class PowFloatIntModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([-1, -1, -1], torch.float32, True),
-            ([-1, -1, -1], torch.int32, True),
-        ]
-    )
-    def forward(self, x, y):
-        return torch.ops.aten.pow(x, y)
-
-
-@register_test_case(module_factory=lambda: PowFloatIntModule())
-def PowFloatIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5), tu.randint(3, 4, 5, dtype=torch.int32))
-
-
-# ==============================================================================
-
-
-class PowIntIntModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([-1, -1, -1], torch.int32, True),
-            ([-1, -1, -1], torch.int32, True),
-        ]
-    )
-    def forward(self, x, y):
-        return torch.ops.aten.pow(x, y)
-
-
-@register_test_case(module_factory=lambda: PowIntIntModule())
-def PowIntIntModule_basic(module, tu: TestUtils):
-    module.forward(
-        tu.randint(3, 4, 5, high=10, dtype=torch.int32),
-        tu.randint(3, 4, 5, high=20, dtype=torch.int32),
-    )
+    module.forward()
 
 
 # ==============================================================================

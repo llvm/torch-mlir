@@ -3014,9 +3014,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
       });
   patterns.onOp(
       "Pow", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        // ONNX specifies that the result types matches the type of lhs.
-        // In torch, the result type is integer when both operands are integer,
-        // and otherwise operand types are promoted to f64.
         Torch::ValueTensorType resultType;
         Value lhs, rhs;
         if (binder.tensorOperands(lhs, rhs) ||
@@ -3025,14 +3022,35 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         auto loc = binder.getLoc();
+        auto lhsTy = cast<Torch::ValueTensorType>(lhs.getType());
+        auto rhsTy = cast<Torch::ValueTensorType>(rhs.getType());
         Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
             loc, rewriter.getBoolAttr(false));
         Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        auto torchDtype = Torch::getScalarTypeForType(rewriter.getF32Type());
+        Value tyConst = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    static_cast<int64_t>(torchDtype)));
+
+        if (isa<IntegerType>(lhsTy.getDtype())) {
+          lhsTy = rewriter.getType<Torch::ValueTensorType>(
+              lhsTy.getSizes(), rewriter.getF32Type());
+          lhs = rewriter.create<Torch::AtenToDtypeOp>(loc, lhsTy, lhs, tyConst,
+                                                      cstFalse, cstFalse, none);
+        }
+
+        if (isa<IntegerType>(rhsTy.getDtype())) {
+          rhsTy = rewriter.getType<Torch::ValueTensorType>(
+              rhsTy.getSizes(), rewriter.getF32Type());
+          rhs = rewriter.create<Torch::AtenToDtypeOp>(loc, rhsTy, rhs, tyConst,
+                                                      cstFalse, cstFalse, none);
+        }
 
         auto powType = resultType;
         if (isa<IntegerType>(resultType.getDtype())) {
           powType = rewriter.getType<Torch::ValueTensorType>(
-              resultType.getSizes(), rewriter.getF64Type());
+              resultType.getSizes(), rewriter.getF32Type());
         }
 
         Value pow = rewriter.create<Torch::AtenPowTensorTensorOp>(loc, powType,
