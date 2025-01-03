@@ -1757,7 +1757,8 @@ def aten〇col2im〡shape(self: List[int], output_size: List[int], kernel_size: 
 
     # compute the shape of the output
     num_channels = n_input_plane // (kernel_size[0] * kernel_size[1])
-    out: List[int] = ([self[0], num_channels] if batch_dim == 0 else [num_channels]) + [elem for elem in output_size]
+    out: List[int] = [self[0], num_channels] if batch_dim == 0 else [num_channels]
+    out += [elem for elem in output_size]
 
     return out
 
