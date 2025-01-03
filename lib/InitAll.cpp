@@ -16,7 +16,6 @@
 #include "mlir/Dialect/MLProgram/IR/MLProgram.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/IR/TensorInferTypeOpInterfaceImpl.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
@@ -53,8 +52,7 @@ void mlir::torch::registerOptionalInputDialects(
     mlir::DialectRegistry &registry) {
   registry.insert<complex::ComplexDialect, linalg::LinalgDialect,
                   memref::MemRefDialect, ml_program::MLProgramDialect,
-                  scf::SCFDialect, sparse_tensor::SparseTensorDialect,
-                  tensor::TensorDialect, tosa::TosaDialect>();
+                  scf::SCFDialect, tensor::TensorDialect, tosa::TosaDialect>();
 }
 
 void mlir::torch::registerAllPasses() {
