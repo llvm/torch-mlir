@@ -5549,26 +5549,6 @@ static LogicalResult getOutputTypeAndPoolingParameters(
                 std::is_same<AtenOpT, AtenAvgPool1dOp>())
     paddingInts.push_back(0);
 
-  if constexpr (std::is_same<AtenOpT, AtenAvgPool1dOp>() ||
-                std::is_same<AtenOpT, AtenAvgPool2dOp>()) {
-    // Currently, we can not represent `count_include_pad` with the existing
-    // TOSA AvgPool2d specification. Without the below check, we produce silent
-    // wrong answer (SWA) when the `count_include_pad` value is `true.`
-    //
-    // Note: We need to check for `count_include_pad` only when the `padding`
-    // value is non-zero.
-    bool countIncludePad;
-    if ((paddingInts[0] != 0 || paddingInts[1] != 0) &&
-        (!matchPattern(op.getCountIncludePad(),
-                       m_TorchConstantBool(&countIncludePad)) ||
-
-         countIncludePad)) {
-      return rewriter.notifyMatchFailure(
-          op, "Unsupported `count_include_pad` value, for tosa AvgPool "
-              "`count_include_pad` value should be `False`.");
-    }
-  }
-
   SmallVector<int64_t, 4> padArr = {paddingInts[0], paddingInts[0],
                                     paddingInts[1], paddingInts[1]};
   kernel = rewriter.getDenseI64ArrayAttr(kernelSizeInts);
@@ -5697,6 +5677,18 @@ public:
                               DenseI64ArrayAttr &stride, DenseI64ArrayAttr &pad,
                               Type &outputTy) const override {
 
+    // Currently, we can not represent `count_include_pad` with the existing
+    // TOSA AvgPool2d specification. Without the below check, we produce silent
+    // wrong answers (SWA) when the `count_include_pad` value is `true.`
+    bool countIncludePad;
+    if (!matchPattern(op.getCountIncludePad(),
+                      m_TorchConstantBool(&countIncludePad)) ||
+        countIncludePad) {
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported `count_include_pad` value, for tosa AvgPool2dOp "
+              "`count_include_pad` value should be `False`.");
+    }
+
     // Currently, we can not represent `divisor_override` with the existing TOSA
     // AvgPool2d specification. Without the below check, we produce silent wrong
     // answers (SWA) when the `divisor_override` value is other than `None.`
@@ -5745,7 +5737,7 @@ public:
     // Expected a rank 3 input tensor
     if (selfTy.getRank() != 3)
       return rewriter.notifyMatchFailure(
-          op, "Input tensor for AvgPool1d should have rank 3");
+          op, "Input tensor for MaxPool1d should have rank 3");
 
     // Unsqueeze input tensor to rank 4 to be compatible with tosa::AvgPool2dOp
     SmallVector<int64_t> rank4Shape(selfShape);
@@ -5755,6 +5747,18 @@ public:
         RankedTensorType::get(makeShapeTorchCompatible(rank4Shape),
                               selfTy.getElementType()),
         self, rewriter.getDenseI64ArrayAttr(rank4Shape));
+
+    // Currently, we can not represent `count_include_pad` with the existing
+    // TOSA AvgPool2d specification. Without the below check, we produce silent
+    // wrong answers (SWA) when the `count_include_pad` value is `true.`
+    bool countIncludePad;
+    if (!matchPattern(op.getCountIncludePad(),
+                      m_TorchConstantBool(&countIncludePad)) ||
+        countIncludePad) {
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported `count_include_pad` value, for tosa AvgPool2dOp "
+              "`count_include_pad` value should be `False`.");
+    }
 
     SmallVector<int64_t, 2> dilationArray{1, 1};
     if (failed(getOutputTypeAndPoolingParameters<AtenAvgPool1dOp,
