@@ -1240,20 +1240,13 @@ class ElementwiseRreluWithNoiseTrainModule(torch.nn.Module):
         [None, ([-1, -1], torch.float32, True), ([-1, -1], torch.float32, True)]
     )
     def forward(self, x, noise):
-        out, out_noise = torch.ops.aten.rrelu_with_noise_functional(
-            x, noise, 0.2, 0.5, True
-        )
-        return (
-            torch.mean(out),
-            torch.std(out),
-            torch.mean(out_noise),
-            torch.std(out_noise),
-        )
+        res = torch.ops.aten.rrelu_with_noise(x, noise, 0.2, 0.5, True)
+        return torch.mean(res), torch.std(res)
 
 
 @register_test_case(module_factory=lambda: ElementwiseRreluWithNoiseTrainModule())
 def ElementwiseRreluWithNoiseTrainModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(256, 256, low=-1, high=1), tu.rand(256, 256))
+    module.forward(tu.rand(128, 128, low=-1, high=1), tu.rand(128, 128))
 
 
 # ==============================================================================
@@ -1265,23 +1258,16 @@ class ElementwiseRreluWithNoiseTrainStaticModule(torch.nn.Module):
 
     @export
     @annotate_args(
-        [None, ([256, 256], torch.float32, True), ([256, 256], torch.float32, True)]
+        [None, ([128, 128], torch.float32, True), ([128, 128], torch.float32, True)]
     )
     def forward(self, x, noise):
-        out, out_noise = torch.ops.aten.rrelu_with_noise_functional(
-            x, noise, 0.4, 0.6, True
-        )
-        return (
-            torch.mean(out),
-            torch.std(out),
-            torch.mean(out_noise),
-            torch.std(out_noise),
-        )
+        res = torch.ops.aten.rrelu_with_noise(x, noise, 0.4, 0.6, True)
+        return torch.mean(res), torch.std(res)
 
 
 @register_test_case(module_factory=lambda: ElementwiseRreluWithNoiseTrainStaticModule())
 def ElementwiseRreluWithNoiseTrainStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(256, 256, low=-1, high=1), tu.rand(256, 256))
+    module.forward(tu.rand(128, 128, low=-1, high=1), tu.rand(128, 128))
 
 
 # ==============================================================================
@@ -1296,7 +1282,7 @@ class ElementwiseRreluWithNoiseEvalModule(torch.nn.Module):
         [None, ([-1, -1], torch.float32, True), ([-1, -1], torch.float32, True)]
     )
     def forward(self, x, noise):
-        res = torch.ops.aten.rrelu_with_noise_functional(x, noise, 0.4, 0.6, False)[0]
+        res = torch.ops.aten.rrelu_with_noise(x, noise, 0.4, 0.6, False)
         return torch.mean(res), torch.std(res)
 
 
@@ -1315,7 +1301,7 @@ class ElementwiseRreluWithNoiseEvalStaticModule(torch.nn.Module):
     @export
     @annotate_args([None, ([5, 3], torch.float32, True), ([5, 3], torch.float32, True)])
     def forward(self, x, noise):
-        res = torch.ops.aten.rrelu_with_noise_functional(x, noise, 0.4, 0.6, False)[0]
+        res = torch.ops.aten.rrelu_with_noise(x, noise, 0.4, 0.6, False)
         return torch.mean(res), torch.std(res)
 
 

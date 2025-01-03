@@ -501,7 +501,6 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenPreluOp>();
   target.addIllegalOp<AtenRreluOp>();
   target.addIllegalOp<AtenRreluWithNoiseOp>();
-  target.addIllegalOp<AtenRreluWithNoiseFunctionalOp>();
   target.addIllegalOp<AtenRreluWithNoiseBackwardOp>();
   target.addIllegalOp<AtenCeluOp>();
   target.addIllegalOp<AtenToDtypeLayoutOp>();
