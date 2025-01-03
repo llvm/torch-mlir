@@ -83,25 +83,6 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenNegIntOp : public OpConversionPattern<AtenNegIntOp> {
-public:
-  using OpConversionPattern<AtenNegIntOp>::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenNegIntOp op,
-                  typename OpConversionPattern<AtenNegIntOp>::OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Value a = adaptor.getA();
-    rewriter.replaceOpWithNewOp<arith::SubIOp>(
-        op,
-        rewriter.create<arith::ConstantIntOp>(op.getLoc(), /*value=*/0,
-                                              /*bitwidth=*/64),
-        a);
-    return success();
-  }
-};
-} // namespace
-
-namespace {
 template <typename AtenOp, typename UnaryOp>
 class ConvertAtenUnaryOpToFloatMathOp : public OpConversionPattern<AtenOp> {
 public:
@@ -484,13 +465,10 @@ public:
 
     target.addIllegalOp<AtenAddOp>();
     patterns.add<ConvertAtenAddOp>(typeConverter, context);
-    target.addIllegalOp<AtenNegIntOp>();
-    patterns.add<ConvertAtenNegIntOp>(typeConverter, context);
+
     target.addIllegalOp<AtenAddIntOp, AtenAddFloatIntOp, AtenSubIntOp,
-                        AtenMulIntOp, AtenRemainderIntOp>();
+                        AtenMulIntOp>();
     patterns.add<ConvertAtenBinaryOp<AtenAddIntOp, arith::AddIOp>>(
-        typeConverter, context);
-    patterns.add<ConvertAtenBinaryOp<AtenRemainderIntOp, arith::RemSIOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenAddFloatIntOp, arith::AddFOp>>(
         typeConverter, context);
