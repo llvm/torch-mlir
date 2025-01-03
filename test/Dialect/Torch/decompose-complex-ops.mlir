@@ -26,19 +26,6 @@ func.func @matmul_decompose_3d(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch
 }
 
 // -----
-// CHECK-LABEL: func.func @argmax_rank_1
-// CHECK:         %[[I0:.*]] = torch.constant.int 0
-// CHECK:         %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:         %[[VALUES:.*]], %[[INDICES:.*]] = torch.aten.max.dim %arg0, %[[I0]], %[[FALSE]] : !torch.vtensor<[20],si32>, !torch.int, !torch.bool -> !torch.vtensor<[],si32>, !torch.vtensor<[],si64>
-// CHECK:         return %[[INDICES]] : !torch.vtensor<[],si64>
-func.func @argmax_rank_1(%arg0: !torch.vtensor<[20],si32>) -> !torch.vtensor<[],si64> {
-    %none = torch.constant.none
-    %false = torch.constant.bool false
-    %7 = torch.aten.argmax %arg0, %none, %false : !torch.vtensor<[20],si32>, !torch.none, !torch.bool -> !torch.vtensor<[],si64>
-    return %7 : !torch.vtensor<[],si64>
-}
-
-// -----
 // CHECK-LABEL:  func.func @torch.aten.type_as$basic(
 // CHECK-SAME:                                %[[ARG_0:.*]]: !torch.tensor, %[[ARG_1:.*]]: !torch.tensor) -> !torch.tensor {
 // CHECK-DAG:      %[[FALSE:.*]] = torch.constant.bool false

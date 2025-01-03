@@ -2593,22 +2593,16 @@ public:
     // first the input tensor is flattened to 1d tensor and then the reduction
     // happens on the 0th dimension.
     if (isa<Torch::NoneType>(dim.getType())) {
-      Value zero = rewriter.create<ConstantIntOp>(loc, 0);
+      BaseTensorType flattenType =
+          cast<BaseTensorType>(inputType.getWithSizesAndDtype(
+              {kUnknownSize}, inputType.getOptionalDtype()));
+      Value zero =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+      Value end = rewriter.create<ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(inputRank - 1));
       Value falseValue = rewriter.create<ConstantBoolOp>(loc, false);
-      if (inputType.getSizes().size() > 1) {
-        int64_t flattenSize = Torch::kUnknownSize;
-        if (inputType.areAllSizesKnown()) {
-          flattenSize = 1;
-          for (int64_t sze : inputType.getSizes())
-            flattenSize *= sze;
-        }
-        auto flattenType = cast<BaseTensorType>(inputType.getWithSizesAndDtype(
-            {flattenSize}, inputType.getOptionalDtype()));
-        Value end = rewriter.create<ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(inputRank - 1));
-        input = rewriter.create<AtenFlattenUsingIntsOp>(loc, flattenType, input,
-                                                        zero, end);
-      }
+      input = rewriter.create<AtenFlattenUsingIntsOp>(loc, flattenType, input,
+                                                      zero, end);
       Value resultIndices =
           rewriter
               .create<DecompOpTy>(
