@@ -116,22 +116,6 @@ Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
   else
     division = b.createOrFold<arith::FloorDivSIOp>(loc, dividend, strideInt);
   Value out = b.createOrFold<arith::AddIOp>(loc, division, c1);
-
-  if (ceilMode) {
-    Value outMinusOneTimesStride =
-        b.createOrFold<arith::MulIOp>(loc, division, strideInt);
-    Value inAddLeftPadding = b.createOrFold<arith::AddIOp>(
-        loc, castIndexToInt64(b, loc, in), paddingInt);
-
-    auto reduceOutputDimCond =
-        b.createOrFold<arith::CmpIOp>(loc, arith::CmpIPredicate::uge,
-                                      outMinusOneTimesStride, inAddLeftPadding);
-
-    auto reducedDim = b.createOrFold<arith::SelectOp>(loc, reduceOutputDimCond,
-                                                      division, out);
-    return castIntToIndex(b, loc, reducedDim);
-  }
-
   return castIntToIndex(b, loc, out);
 }
 

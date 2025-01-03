@@ -735,7 +735,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "LenStrModule_basic",
     "MaxPool2dCeilModeTrueModule_basic",
     "MaxPool2dStaticCeilModeTrueModule_basic",
-    "MaxPool2dStaticCeilModeTrueReduceOutputModule_basic",
     "MaxPool2dWithIndicesBackwardDynamic3DModule_basic",
     "MaxPool2dWithIndicesBackwardDynamic4DModule_basic",
     "MaxPool2dWithIndicesBackwardStatic3DModule_basic",
@@ -2256,7 +2255,6 @@ TOSA_PASS_SET = {
     "MatmulStaticBroadcast_basic",
     "MaxPool2dEmptyStrideStaticModule_basic",
     "MaxPool2dStaticCeilModeTrueModule_basic",
-    "MaxPool2dStaticCeilModeTrueReduceOutputModule_basic",
     "MaxPool2dStaticModule_basic",
     "MeanModule_basic",
     "MmDagModule_basic",
@@ -3380,13 +3378,6 @@ if torch_version_for_comparison() >= version.parse("2.5.0.dev"):
     ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
         # ERROR: value (Tensor with shape=[2, 3, 8, 20], dtype=torch.float32, min=+nan, max=+nan, mean=+nan) is not close to golden value (Tensor with shape=[2, 3, 8, 20], dtype=torch.float32, min=-2.394, max=+2.454, mean=-0.02828)
         "ScaledDotProductAttentionBoolMaskModule_basic",
-    }
-
-if torch_version_for_comparison() > version.parse("2.5.1"):
-    ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
-        # error: 'memref.cast' op operand type 'memref<2x6x4x3xf32>' and result type 'memref<2x6x5x3xf32>' are cast incompatible
-        # torch.onnx.export produces onnx.MaxPool op with incorrect output shape of 2x6x5x3 instead of 2x6x4x3
-        "MaxPool2dStaticCeilModeTrueReduceOutputModule_basic",
     }
 
 if torch_version_for_comparison() < version.parse("2.4.0.dev"):
@@ -4941,10 +4932,3 @@ ONNX_TOSA_XFAIL_SET = {
     "_LogSoftmaxModule_basic",
     "_SoftmaxModule_basic",
 }
-
-if torch_version_for_comparison() > version.parse("2.5.1"):
-    ONNX_TOSA_XFAIL_SET = ONNX_TOSA_XFAIL_SET | {
-        # error: 'memref.cast' op operand type 'memref<2x6x4x3xf32>' and result type 'memref<2x6x5x3xf32>' are cast incompatible
-        # torch.onnx.export produces onnx.MaxPool op with incorrect output shape of 2x6x5x3 instead of 2x6x4x3
-        "MaxPool2dStaticCeilModeTrueReduceOutputModule_basic",
-    }
