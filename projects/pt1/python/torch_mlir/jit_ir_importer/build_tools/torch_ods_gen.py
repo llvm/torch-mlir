@@ -452,7 +452,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants("aten::ceil : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::round : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::trunc : (Tensor) -> (Tensor)", has_folder=True)
-    emit("aten::special_expm1 : (Tensor) -> (Tensor)")
     emit_with_mutating_variants(
         "aten::sign : (Tensor) -> (Tensor)", has_canonicalizer=True
     )

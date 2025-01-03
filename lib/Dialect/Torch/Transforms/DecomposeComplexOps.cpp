@@ -11178,19 +11178,6 @@ public:
 } // namespace
 
 namespace {
-class DecomposeAtenSpecialExpm1Op
-    : public OpRewritePattern<AtenSpecialExpm1Op> {
-public:
-  using OpRewritePattern<AtenSpecialExpm1Op>::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenSpecialExpm1Op op,
-                                PatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<AtenExpm1Op>(op, op.getType(), op.getSelf());
-    return success();
-  }
-};
-} // namespace
-
-namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -11475,7 +11462,6 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenThresholdOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloatPowerTensorTensorOp>(
         patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenSpecialExpm1Op>(patterns);
 
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenFMaxMinOp<AtenFmaxOp, AtenMaximumOp>>(patterns);
