@@ -727,21 +727,15 @@ public:
     // Check the matrixs shapes are valid for mulplication.
     checkDimEqualHelper(rewriter, loc, lhsDim2, rhsDim1);
 
-    Type accumulatorDType = getDefaultAccType(rewriter, resultElementType);
     Value initTensor0 = createZeroInitTensor(
-        rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2}, accumulatorDType);
+        rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2},
+        resultElementType);
 
     Value bmm =
         rewriter
             .create<linalg::BatchMatmulOp>(loc, initTensor0.getType(),
                                            ValueRange{lhs, rhs}, initTensor0)
             .getResult(0);
-
-    if (accumulatorDType != resultElementType) {
-      bmm = torch_to_linalg::convertTensorToElementType(rewriter, loc, bmm,
-                                                        resultElementType);
-    }
-
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, bmm);
     return success();
   }
