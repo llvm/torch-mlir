@@ -43,15 +43,16 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: ncipollo/release-action@2c591bcc8ecdcd2db72b97d6147f871fcd833ba5 # v1.14.0
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
         with:
-          tag: ${{ env.tag_name }}
-          name: torch-mlir snapshot ${{ env.tag_name }}
+          tag_name: ${{ env.tag_name }}
+          release_name: torch-mlir snapshot ${{ env.tag_name }}
           body: |
             Automatic snapshot release of torch-mlir.
           draft: true
           prerelease: false
-          token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
 
       - name: "Invoke workflow :: Build and Test"
         uses: benc-uk/workflow-dispatch@v1
