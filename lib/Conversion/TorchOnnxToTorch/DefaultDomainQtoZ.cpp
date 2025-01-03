@@ -3332,7 +3332,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (mode != "nearest" && mode != "linear")
           return rewriter.notifyMatchFailure(
               binder.op,
-              "unsupported interpolation mode other than nearest, linear");
+              "Expected valid interpolation mode: nearest | linear");
 
         int64_t resultRank = resultType.getSizes().size();
         if (resultRank > 5)
