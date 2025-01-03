@@ -34,10 +34,10 @@ using namespace mlir::torch::Torch;
 
 namespace {
 
-// These legalizations are for unary ops with promoting input to floating-point
-// datatypes only. There is no supported quantized integer mode for these.
+// These legalizations are for unary ops with only for floating point datatypes.
+// There is no supported quantized integer mode for these.
 template <typename AtenOpT, typename TosaOpT>
-class ConvertAtenUnaryPromoteToFPOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenUnaryFPOnlyOp : public OpConversionPattern<AtenOpT> {
 public:
   using OpConversionPattern<AtenOpT>::OpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
@@ -51,22 +51,17 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Only Tensor types supported in TOSA");
 
-    auto resultTy = dyn_cast<TensorType>(
-        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-            op.getType()));
-
-    if (!isa<mlir::FloatType>(resultTy.getElementType()))
+    if (isa<mlir::FloatType>(selfTy.getElementType())) {
+      rewriter.replaceOpWithNewOp<TosaOpT>(
+          op,
+          OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+              op.getType()),
+          self);
+      return success();
+    } else {
       return rewriter.notifyMatchFailure(
-          op, "Only floating-point datatype result types are supported");
-
-    // Non floating point inputs are not supported in TOSA so we cast the input
-    // to result type
-    if (!isa<mlir::FloatType>(selfTy.getElementType()))
-      self = tosa::promoteType(rewriter, self, resultTy);
-
-    rewriter.replaceOpWithNewOp<TosaOpT>(op, resultTy, self);
-
-    return success();
+          op, "Only floating-point datatype legalization supported");
+    }
   }
 };
 
@@ -2927,32 +2922,24 @@ template <>
 LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewrite(
     AtenLog2Op op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  auto self = adaptor.getSelf();
 
   // Not a tensor type.
-  auto selfType = dyn_cast<TensorType>(self.getType());
+  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types are currently supported");
 
-  auto outType =
-      dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType()));
-
-  // If input is not a float type then cast it to output type
-  auto selfElemTy = selfType.getElementType();
-  if (!isa<mlir::FloatType>(selfElemTy))
-    self = tosa::promoteType(rewriter, self, outType);
-
   // Constant value of ln2.
   SmallVector<int64_t> ln2Shape(selfType.getRank(), 1);
   auto ln2Op = tosa::getConstTensor<float>(rewriter, op, {0.69314718056f},
-                                           ln2Shape, outType.getElementType())
+                                           ln2Shape, selfType.getElementType())
                    .value();
-
   auto rcpOp =
       rewriter.create<tosa::ReciprocalOp>(op.getLoc(), ln2Op.getType(), ln2Op);
 
-  auto logOp = rewriter.create<tosa::LogOp>(op.getLoc(), outType, self);
+  auto outType = getTypeConverter()->convertType(op.getType());
+  auto logOp =
+      rewriter.create<tosa::LogOp>(op.getLoc(), outType, adaptor.getSelf());
   rewriter.replaceOpWithNewOp<tosa::MulOp>(op, outType, logOp, rcpOp,
                                            /*shift=*/0);
 
@@ -8038,166 +8025,6 @@ public:
   }
 };
 
-// Legalization for aten.logit
-template <>
-LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
-    AtenLogitOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  // Logit formula:
-  // result = log(zi / (1 - zi))
-  // Where: if eps is not None:
-  //          zi = input clampled to [eps, 1 - eps]
-  //        else:
-  //          zi = input
-  auto self = adaptor.getSelf();
-
-  auto selfType = dyn_cast<TensorType>(self.getType());
-  if (!selfType)
-    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
-
-  auto resultType =
-      dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
-  auto resultElemTy = resultType.getElementType();
-
-  if (!isa<mlir::FloatType>(resultElemTy))
-    return rewriter.notifyMatchFailure(
-        op, "Only floating-point datatype result types are supported");
-
-  // If input is not a float type then cast it to result element type
-  auto selfElemTy = selfType.getElementType();
-  if (!isa<mlir::FloatType>(selfElemTy))
-    self = tosa::promoteType(rewriter, self, resultType);
-
-  bool isEpsNone = isa<Torch::NoneType>(op.getEps().getType());
-
-  double eps;
-  if (!isEpsNone && !matchPattern(op.getEps(), m_TorchConstantFloat(&eps)))
-    return rewriter.notifyMatchFailure(op,
-                                       "Non-const eps value is not supported");
-
-  auto zi = self;
-
-  // Clamp input to [eps, 1 - eps] when eps is not None
-  if (!isEpsNone) {
-    zi = rewriter
-             .create<tosa::ClampOp>(
-                 op->getLoc(), resultType, self,
-                 rewriter.getI64IntegerAttr(static_cast<int64_t>(eps)),
-                 rewriter.getI64IntegerAttr(static_cast<int64_t>(1 - eps)),
-                 rewriter.getF32FloatAttr(static_cast<float>(eps)),
-                 rewriter.getF32FloatAttr(static_cast<float>(1 - eps)))
-             .getResult();
-  }
-
-  auto one =
-      tosa::getConstTensor<float>(rewriter, op, 1.0f, {}, resultElemTy).value();
-
-  auto oneMinusZi =
-      rewriter.create<tosa::SubOp>(op->getLoc(), resultType, one, zi);
-
-  auto oneMinusZiReciprocal = rewriter.create<tosa::ReciprocalOp>(
-      op->getLoc(), resultType, oneMinusZi.getResult());
-
-  auto mulOp = rewriter.create<tosa::MulOp>(op->getLoc(), resultType, zi,
-                                            oneMinusZiReciprocal.getResult(),
-                                            /*shift=*/0);
-
-  auto result =
-      rewriter.create<tosa::LogOp>(op->getLoc(), resultType, mulOp.getResult());
-
-  rewriter.replaceOp(op, {result.getResult()});
-
-  return success();
-}
-
-// Legalization for aten.log1p
-template <>
-LogicalResult ConvertAtenOp<AtenLog1pOp>::matchAndRewrite(
-    AtenLog1pOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  // log1p formula:
-  // yi = log(xi + 1)
-  auto self = adaptor.getSelf();
-
-  auto selfType = dyn_cast<TensorType>(self.getType());
-  if (!selfType)
-    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
-
-  auto resultType =
-      dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
-  auto resultElemTy = resultType.getElementType();
-
-  if (!isa<mlir::FloatType>(resultElemTy))
-    return rewriter.notifyMatchFailure(
-        op, "Only floating-point datatype result types are supported");
-
-  // If input is not a float type then cast it to result element type
-  auto selfElemTy = selfType.getElementType();
-  if (!isa<mlir::FloatType>(selfElemTy))
-    self = tosa::promoteType(rewriter, self, resultType);
-
-  auto one =
-      tosa::getConstTensor<float>(rewriter, op, 1.0f, {}, resultElemTy).value();
-
-  auto addOp =
-      rewriter.create<tosa::AddOp>(op->getLoc(), resultType, self, one);
-
-  auto result =
-      rewriter.create<tosa::LogOp>(op->getLoc(), resultType, addOp.getResult());
-
-  rewriter.replaceOp(op, {result.getResult()});
-
-  return success();
-}
-
-// Legalization for aten.log10
-template <>
-LogicalResult ConvertAtenOp<AtenLog10Op>::matchAndRewrite(
-    AtenLog10Op op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  // log10 formula (using log base changing formula since TOSA doesn't have a
-  // builtin log10 op):
-  // yi = log(xi) / log(10)
-  auto self = adaptor.getSelf();
-
-  auto selfType = dyn_cast<TensorType>(self.getType());
-  if (!selfType)
-    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
-
-  auto resultType =
-      dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
-  auto resultElemTy = resultType.getElementType();
-
-  if (!isa<mlir::FloatType>(resultElemTy))
-    return rewriter.notifyMatchFailure(
-        op, "Only floating-point datatype result types are supported");
-
-  // If input is not a float type then cast it to result element type
-  auto selfElemTy = selfType.getElementType();
-  if (!isa<mlir::FloatType>(selfElemTy))
-    self = tosa::promoteType(rewriter, self, resultType);
-
-  auto ten = tosa::getConstTensor<float>(rewriter, op, 10.0f, {}, resultElemTy)
-                 .value();
-
-  auto logOfSelf = rewriter.create<tosa::LogOp>(op->getLoc(), resultType, self);
-
-  auto constType = RankedTensorType::get({}, resultElemTy);
-
-  auto logOfTen = rewriter.create<tosa::LogOp>(op->getLoc(), constType, ten);
-
-  auto reciprocalOp = rewriter.create<tosa::ReciprocalOp>(
-      op->getLoc(), constType, logOfTen.getResult());
-
-  auto result = rewriter.create<tosa::MulOp>(
-      op->getLoc(), resultType, logOfSelf.getResult(), reciprocalOp.getResult(),
-      /*shift=*/0);
-
-  rewriter.replaceOp(op, {result.getResult()});
-
-  return success();
-}
-
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -8242,13 +8069,13 @@ public:
 
     RewritePatternSet patterns(context);
 
-#define INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenOp, TosaOp)                     \
+#define INSERT_UNARY_FPONLY_PATTERN(AtenOp, TosaOp)                            \
   target.addIllegalOp<AtenOp>();                                               \
-  patterns.add<ConvertAtenUnaryPromoteToFPOp<AtenOp, TosaOp>>(typeConverter,   \
-                                                              context);
-    INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenLogOp, tosa::LogOp)
-    INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenExpOp, tosa::ExpOp)
-#undef INSERT_UNARY_PROMOTE_TO_FP_PATTERN
+  patterns.add<ConvertAtenUnaryFPOnlyOp<AtenOp, TosaOp>>(typeConverter,        \
+                                                         context);
+    INSERT_UNARY_FPONLY_PATTERN(AtenLogOp, tosa::LogOp)
+    INSERT_UNARY_FPONLY_PATTERN(AtenExpOp, tosa::ExpOp)
+#undef INSERT_UNARY_FPONLY_PATTERN
 
 #define INSERT_UNARY_PATTERN(AtenOp, TosaOp)                                   \
   target.addIllegalOp<AtenOp>();                                               \
@@ -8537,9 +8364,6 @@ public:
     INSERT_ATENOP_PATTERN(AtenReplicationPad2dOp);
     INSERT_ATENOP_PATTERN(PrimsSplitDimOp);
     INSERT_ATENOP_PATTERN(AtenOuterOp);
-    INSERT_ATENOP_PATTERN(AtenLogitOp);
-    INSERT_ATENOP_PATTERN(AtenLog1pOp);
-    INSERT_ATENOP_PATTERN(AtenLog10Op);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
