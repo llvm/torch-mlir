@@ -4192,68 +4192,6 @@ public:
 };
 } // namespace
 
-// Decompose `aten.column_stack` into `aten.reshape` and `aten.cat`.
-// https://github.com/pytorch/pytorch/blob/207564bab1c4fe42750931765734ee604032fb69/torch/_refs/__init__.py#L2822
-namespace {
-class DecomposeAtenColumnStackOp : public OpRewritePattern<AtenColumnStackOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenColumnStackOp op,
-                                PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
-
-    SmallVector<Value> tensors;
-    if (!getListConstructElements(op.getTensors(), tensors))
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: the tensor list is not from list construct");
-
-    for (auto tensor : tensors) {
-      auto tTy = dyn_cast<BaseTensorType>(tensor.getType());
-      if (!tTy || !tTy.hasSizes())
-        return rewriter.notifyMatchFailure(
-            op, "unimplemented: one tensor does not have known sizes");
-    }
-
-    SmallVector<Value> tensors2d;
-    for (auto tensor : tensors) {
-      auto tTy = dyn_cast<BaseTensorType>(tensor.getType());
-      SmallVector<int64_t> tSizes(tTy.getSizes());
-      if (tSizes.size() <= 1) {
-        if (tSizes.size() == 0) {
-          tSizes.push_back(1);
-        }
-        tSizes.push_back(1);
-        auto newTy = tTy.getWithSizesAndDtype(tSizes, tTy.getDtype());
-        SmallVector<Value> newShapeList;
-        for (auto tSize : tSizes) {
-          newShapeList.push_back(rewriter.create<ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(tSize)));
-        }
-        auto newShape = rewriter.create<PrimListConstructOp>(
-            loc, Torch::ListType::get(rewriter.getType<IntType>()),
-            newShapeList);
-        Value tensor2d =
-            rewriter.create<AtenReshapeOp>(loc, newTy, tensor, newShape);
-        tensors2d.push_back(tensor2d);
-      } else {
-        tensors2d.push_back(tensor);
-      }
-    }
-
-    auto elemType = cast<BaseTensorType>(tensors2d[0].getType())
-                        .getWithSizesAndDtype(std::nullopt, nullptr);
-    Value newTensors = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(elemType), tensors2d);
-
-    rewriter.replaceOpWithNewOp<AtenCatOp>(
-        op, op.getType(), newTensors,
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1)));
-
-    return success();
-  }
-};
-} // namespace
-
 // Decompose aten.roll into aten.slice and aten.cat ops.
 // https://pytorch.org/docs/stable/generated/torch.roll.html
 namespace {
@@ -10616,7 +10554,6 @@ public:
         DecomposeConstantTensorAllocLikeOp<AtenZerosLikeOp, 0>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStackOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHstackOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenColumnStackOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRollOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatInterleaveSelfIntOp>(
