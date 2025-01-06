@@ -25,14 +25,14 @@ Reference Examples
 
 Resources:
 
-- how to set up torch-mlir: [https://github.com/llvm/torch-mlir/blob/main/docs/development.md](https://github.com/llvm/torch-mlir/blob/main/docs/development.md#checkout-and-build-from-source)
-- torch-mlir doc on how to debug and test: [ttps://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing](https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing)
+- [how to set up torch-mlir](https://github.com/llvm/torch-mlir/blob/main/docs/development.md)
+- [torch-mlir doc on how to debug and test](https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing)
 - [torch op registry](https://github.com/pytorch/pytorch/blob/7451dd058564b5398af79bfc1e2669d75f9ecfa2/torch/csrc/jit/passes/utils/op_registry.cpp#L21)
 - [torch shape functions](https://github.com/pytorch/pytorch/blob/7451dd058564b5398af79bfc1e2669d75f9ecfa2/torch/jit/_shape_functions.py#L1311)
 
 ### How to TorchOnnxToTorch
 
-1. Generate the big folder of ONNX IR. Use <https://github.com/llvm/torch-mlir/blob/main/test/python/onnx_importer/import_smoke_test.py> . Alternatively, if you're trying to support a certain model, convert that model to onnx IR with
+1. Generate the big folder of ONNX IR. Use [this Python script](https://github.com/llvm/torch-mlir/blob/main/test/python/onnx_importer/import_smoke_test.py). Alternatively, if you're trying to support a certain model, convert that model to onnx IR with
 
    ```shell
    optimum-cli export onnx --model facebook/opt-125M fb-opt
@@ -41,7 +41,7 @@ Resources:
 
 1. Find an instance of the Op that you're trying to implement inside the smoke tests folder or the generated model IR, and write a test case. Later you will save it to one of the files in `torch-mlir/test/Conversion/TorchOnnxToTorch`, but for now feel free to put it anywhere.
 1. Implement the op in `lib/Conversion/TorchOnnxToTorch/something.cpp`.
-1. Test the conversion by running `./build/bin/torch-mlir-opt -split-input-file -verify-diagnostics -convert-torch-onnx-to-torch your_mlir_file.mlir`. For more details, see <https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing> . Xida usually creates a separate MLIR file to test it to his satisfaction before integrating it into one of the files at `torch-mlir/test/Conversion/TorchOnnxToTorch`.
+1. Test the conversion by running `./build/bin/torch-mlir-opt -split-input-file -verify-diagnostics -convert-torch-onnx-to-torch your_mlir_file.mlir`. For more details, see [the testing section of the doc on development](https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing). Xida usually creates a separate MLIR file to test it to his satisfaction before integrating it into one of the files at `torch-mlir/test/Conversion/TorchOnnxToTorch`.
 
 Helpful examples:
 
@@ -58,16 +58,16 @@ Helpful examples:
 People who've worked on this for a while
 
 - Vivek (@vivek97 on discord)
-- <Chi.Liu@amd.com>
+- [Chi Liu](mailto:Chi.Liu@amd.com)
 
 Recent Turbine Camp Attendees, from recent to less recent
 
-- <Xida.ren@amd.com> (@xida_ren on discord)
-- <Sungsoon.Cho@amd.com>
+- [Xida Ren](mailto:Xida.ren@amd.com) (@xida_ren on discord)
+- [Sungsoon Cho](mailto:Sungsoon.Cho@amd.com)
 
 ## Links
 
-- IMPORTANT: read the LLVM style guide: <https://llvm.org/docs/CodingStandards.html#style-issues>
+- IMPORTANT: read [the LLVM style guide](https://llvm.org/docs/CodingStandards.html#style-issues)
 - Tutorials
   - [Sungsoon's Shark Getting Started Google Doc](https://docs.google.com/document/d/1H79DwW_wnVzUU81EogwY5ueXgnl-QzKet1p2lnqPar4/edit?pli=1)
     - This document contains commands that would help you set up shark and run demos
@@ -86,13 +86,9 @@ Recent Turbine Camp Attendees, from recent to less recent
     - [Model and Op Support](https://github.com/nod-ai/SHARK-Turbine/issues/119)
     - [ONNX op support](https://github.com/nod-ai/SHARK-Turbine/issues/215)
 
-## Chi's useful commands for debugging torch mlir
+## [Chi's useful commands for debugging torch mlir](https://gist.github.com/AmosLewis/dd31ab37517977b1c499d06495b4adc2)
 
-<https://gist.github.com/AmosLewis/dd31ab37517977b1c499d06495b4adc2>
-
-## How to write test cases and test your new op
-
-<https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing>
+## [How to write test cases and test your new op](https://github.com/llvm/torch-mlir/blob/main/docs/development.md#testing)
 
 ## How to set up vs code and intellisence for [torch-mlir]
 
