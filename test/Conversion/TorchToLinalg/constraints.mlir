@@ -10,20 +10,19 @@
 // CHECK:           %[[VAL_5:.*]] = torch_c.to_i64 %[[VAL_4]]
 // CHECK:           %[[VAL_6:.*]] = arith.constant 0 : i64
 // CHECK:           %[[VAL_7:.*]] = arith.constant 9223372036854775807 : i64
-// CHECK:           %[[VAL_8:.*]] = arith.cmpi ule, %[[VAL_6]], %[[VAL_5]] : i64
-// CHECK:           %[[VAL_9:.*]] = arith.cmpi ule, %[[VAL_5]], %[[VAL_7]] : i64
+// CHECK:           %[[VAL_8:.*]] = arith.cmpi sle, %[[VAL_6]], %[[VAL_5]] : i64
+// CHECK:           %[[VAL_9:.*]] = arith.cmpi sle, %[[VAL_5]], %[[VAL_7]] : i64
 // CHECK:           %[[VAL_10:.*]] = arith.andi %[[VAL_8]], %[[VAL_9]] : i1
 // CHECK:           cf.assert %[[VAL_10]], "Invalid value range for size between [0, 9223372036854775807]"
 // CHECK:           %[[VAL_11:.*]] = arith.constant 0 : i64
 // CHECK:           %[[VAL_12:.*]] = arith.constant 7 : i64
-// CHECK:           %[[VAL_13:.*]] = arith.cmpi ule, %[[VAL_11]], %[[VAL_5]] : i64
-// CHECK:           %[[VAL_14:.*]] = arith.cmpi ule, %[[VAL_5]], %[[VAL_12]] : i64
+// CHECK:           %[[VAL_13:.*]] = arith.cmpi sle, %[[VAL_11]], %[[VAL_5]] : i64
+// CHECK:           %[[VAL_14:.*]] = arith.cmpi sle, %[[VAL_5]], %[[VAL_12]] : i64
 // CHECK:           %[[VAL_15:.*]] = arith.andi %[[VAL_13]], %[[VAL_14]] : i1
 // CHECK:           cf.assert %[[VAL_15]], "Invalid value range for size between [0, 7]"
 // CHECK:           return %[[VAL_4]] : !torch.int
 
-module {
-  func.func @torch.aten.sym_constrain_range(%arg0: !torch.vtensor<[],si64>) -> !torch.int {
+func.func @torch.aten.sym_constrain_range(%arg0: !torch.vtensor<[],si64>) -> !torch.int {
     %int7 = torch.constant.int 7
     %int0 = torch.constant.int 0
     %none = torch.constant.none
@@ -31,7 +30,6 @@ module {
     torch.aten.sym_constrain_range %0, %int0, %none : !torch.int, !torch.int, !torch.none
     torch.aten.sym_constrain_range %0, %int0, %int7 : !torch.int, !torch.int, !torch.int
     return %0 : !torch.int
-  }
 }
 
 // -----
@@ -47,8 +45,8 @@ module {
 // CHECK:           %[[VAL_7:.*]] = torch_c.to_i64 %[[VAL_6]]
 // CHECK:           %[[VAL_8:.*]] = arith.constant 0 : i64
 // CHECK:           %[[VAL_9:.*]] = arith.constant 9223372036854775807 : i64
-// CHECK:           %[[VAL_10:.*]] = arith.cmpi ule, %[[VAL_8]], %[[VAL_7]] : i64
-// CHECK:           %[[VAL_11:.*]] = arith.cmpi ule, %[[VAL_7]], %[[VAL_9]] : i64
+// CHECK:           %[[VAL_10:.*]] = arith.cmpi sle, %[[VAL_8]], %[[VAL_7]] : i64
+// CHECK:           %[[VAL_11:.*]] = arith.cmpi sle, %[[VAL_7]], %[[VAL_9]] : i64
 // CHECK:           %[[VAL_12:.*]] = arith.andi %[[VAL_10]], %[[VAL_11]] : i1
 // CHECK:           cf.assert %[[VAL_12]], "Invalid value range for size between [0, 9223372036854775807]"
 // CHECK:           %[[VAL_13:.*]] = torch.aten.ge.int %[[VAL_6]], %[[VAL_4]] : !torch.int, !torch.int -> !torch.bool
