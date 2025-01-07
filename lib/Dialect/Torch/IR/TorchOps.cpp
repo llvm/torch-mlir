@@ -770,22 +770,6 @@ OpFoldResult Aten__Or__BoolOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenEqBoolOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult AtenEqBoolOp::fold(FoldAdaptor adaptor) {
-  if (getOperand(0) == getOperand(1))
-    return IntegerAttr::get(IntegerType::get(getContext(), 1), true);
-
-  auto intAttrA = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
-  auto intAttrB = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
-  if (!intAttrA || !intAttrB)
-    return nullptr;
-  return IntegerAttr::get(IntegerType::get(getContext(), 1),
-                          intAttrA.getValue() == intAttrB.getValue());
-}
-
-//===----------------------------------------------------------------------===//
 // AtenNeBoolOp
 //===----------------------------------------------------------------------===//
 
@@ -793,12 +777,12 @@ OpFoldResult AtenNeBoolOp::fold(FoldAdaptor adaptor) {
   if (getOperand(0) == getOperand(1))
     return IntegerAttr::get(IntegerType::get(getContext(), 1), false);
 
-  auto intAttrA = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
-  auto intAttrB = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
-  if (!intAttrA || !intAttrB)
+  bool a, b;
+  if (!matchPattern(getOperand(0), m_TorchConstantBool(&a)))
     return nullptr;
-  return IntegerAttr::get(IntegerType::get(getContext(), 1),
-                          intAttrA.getValue() != intAttrB.getValue());
+  if (!matchPattern(getOperand(1), m_TorchConstantBool(&b)))
+    return nullptr;
+  return IntegerAttr::get(IntegerType::get(getContext(), 1), a != b);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1143,35 +1127,6 @@ void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     if (!size)
       return rewriter.notifyMatchFailure(op, "operand not AtenSizeOp");
     rewriter.replaceOpWithNewOp<AtenDimOp>(op, size.getOperand());
-    return success();
-  });
-}
-
-//===----------------------------------------------------------------------===//
-// AtenMulLeftTOp
-//===----------------------------------------------------------------------===//
-
-void AtenMulLeftTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
-                                                 MLIRContext *context) {
-  // `[1,2] * 3` -> `[1,2,1,2,1,2]`, if it is not mutated.
-  patterns.add(+[](AtenMulLeftTOp op, PatternRewriter &rewriter) {
-    auto listLiteral = op.getL().getDefiningOp<Torch::PrimListConstructOp>();
-    if (!listLiteral || isListPotentiallyMutated(listLiteral))
-      return failure();
-
-    int64_t numReps;
-    if (!matchPattern(op.getN(), m_TorchConstantInt(&numReps)))
-      return failure();
-
-    SmallVector<Value> newListElements;
-    for (int rep = 0; rep < numReps; ++rep) {
-      for (auto operand : listLiteral.getOperands()) {
-        newListElements.push_back(operand);
-      }
-    }
-
-    rewriter.replaceOpWithNewOp<PrimListConstructOp>(op, op.getL().getType(),
-                                                     newListElements);
     return success();
   });
 }
@@ -4113,10 +4068,6 @@ OpFoldResult AtenMulIntOp::fold(FoldAdaptor adaptor) {
   int64_t lhs, rhs;
   bool lConstant = matchPattern(getOperand(0), m_TorchConstantInt(&lhs));
   bool rConstant = matchPattern(getOperand(1), m_TorchConstantInt(&rhs));
-  if (lConstant && lhs == 1)
-    return getOperand(1);
-  if (rConstant && rhs == 1)
-    return getOperand(0);
   if ((lConstant && lhs == 0) || (rConstant && rhs == 0))
     return getI64IntegerAttr(getContext(), 0);
   if (lConstant && rConstant)
@@ -4220,19 +4171,6 @@ OpFoldResult AtenMulOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenMulIntFloatOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult AtenMulIntFloatOp::fold(FoldAdaptor adaptor) {
-  if (!adaptor.getA() || !adaptor.getB()) {
-    return nullptr;
-  }
-  return atenBinaryFloatOperatorFoldHelper(
-      adaptor.getOperands(),
-      [](double a, double b) -> double { return a * b; });
-}
-
-//===----------------------------------------------------------------------===//
 // AtenSubOp
 //===----------------------------------------------------------------------===//
 
@@ -4276,18 +4214,6 @@ OpFoldResult AtenAddFloatIntOp::fold(FoldAdaptor adaptor) {
   }
   return atenBinaryFloatOperatorFoldHelper(
       adaptor.getOperands(), [](double a, double b) { return a + b; });
-}
-
-//===----------------------------------------------------------------------===//
-// AtenMulFloatIntOp
-//===----------------------------------------------------------------------===//
-
-OpFoldResult AtenMulFloatIntOp::fold(FoldAdaptor adaptor) {
-  if (!adaptor.getA() || !adaptor.getB()) {
-    return nullptr;
-  }
-  return atenBinaryFloatOperatorFoldHelper(
-      adaptor.getOperands(), [](double a, double b) { return a * b; });
 }
 
 //===----------------------------------------------------------------------===//

@@ -1642,18 +1642,69 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
+    Value input = adaptor.getSelf();
+    auto inputType = cast<RankedTensorType>(input.getType());
+    int64_t inputRank = inputType.getRank();
+
+    if (inputRank == 0) {
+      return rewriter.notifyMatchFailure(
+          op, "zero input rank should have been handled by the folder");
+    }
+
     int64_t dim;
     if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
       return rewriter.notifyMatchFailure(op, "dim must be constant");
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank))
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
-    auto squeezeTensorInfo =
-        squeezeTensor(rewriter, op, adaptor.getSelf(), dim);
-    if (failed(squeezeTensorInfo)) {
-      return rewriter.notifyMatchFailure(op,
-                                         "cannot generate unsqueeze tensor");
+    // assert dynamic squeeze dim size == 1
+    if (inputType.isDynamicDim(dim)) {
+      Value cstDim = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), dim);
+      Value dimVal = rewriter.create<tensor::DimOp>(op.getLoc(), input, cstDim);
+      Value cstOne = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 1);
+      Value cmp = rewriter.create<arith::CmpIOp>(
+          op.getLoc(), arith::CmpIPredicate::eq, dimVal, cstOne);
+      rewriter.create<cf::AssertOp>(
+          op.getLoc(), cmp,
+          rewriter.getStringAttr(
+              "Expected dynamic squeeze dim size to be statically 1"));
     }
 
-    rewriter.replaceOp(op, squeezeTensorInfo.value());
+    const TypeConverter *typeConverter = getTypeConverter();
+    auto resultType =
+        cast<RankedTensorType>(typeConverter->convertType(op.getType()));
+    int64_t resultRank = resultType.getRank();
+
+    // If the dim(th) dimension of operand tensor type is not statically unit,
+    // `aten.squeeze` will behave as an identity operation.
+    if (inputType.getDimSize(dim) != 1 && !inputType.isDynamicDim(dim)) {
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, input);
+      return success();
+    }
+
+    SmallVector<ReassociationIndices> reassociationMap(resultRank);
+    bool alreadyCrossedSqueezedDim = false;
+    for (int i = 0; i != resultRank; i++) {
+      if (alreadyCrossedSqueezedDim) {
+        reassociationMap[i].push_back(i + 1);
+      } else {
+        reassociationMap[i].push_back(i);
+        if (dim != 0 && i != dim - 1)
+          continue;
+
+        alreadyCrossedSqueezedDim = true;
+        if (dim == 0)
+          reassociationMap[0].push_back(1);
+        if (i == dim - 1)
+          reassociationMap[i].push_back(dim);
+      }
+    }
+    // Note: In case the operand tensor type is of unit rank and is statically
+    // shaped with unit dimension, the `reassociationMap` will be empty and the
+    // input will be collapsed to a 0-D tensor.
+    rewriter.replaceOpWithNewOp<tensor::CollapseShapeOp>(op, resultType, input,
+                                                         reassociationMap);
     return success();
   }
 };
@@ -1671,15 +1722,36 @@ public:
     int64_t dim;
     if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
       return rewriter.notifyMatchFailure(op, "dim must be constant");
+    auto inputRank =
+        cast<RankedTensorType>(adaptor.getSelf().getType()).getRank();
+    dim = toPositiveDim(dim, inputRank + 1);
+    if (!isValidDim(dim, inputRank + 1))
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
-    auto unsqueezeTensorInfo =
-        unsqueezeTensor(rewriter, op, adaptor.getSelf(), dim);
-    if (failed(unsqueezeTensorInfo)) {
-      return rewriter.notifyMatchFailure(op,
-                                         "cannot generate unsqueeze tensor");
+    SmallVector<ReassociationIndices> reassociationMap(inputRank);
+    // From the perspective of the reassociation map, the situation of
+    // unsqueezing before or after the last dimension is symmetrical.
+    // Normalize it to the "before" case.
+    // The 0 case is special here, since there is no last dimension to insert
+    // before -- we simply rely on the loop below iterating 0 times.
+    if (dim == inputRank && inputRank != 0)
+      dim = inputRank - 1;
+    bool alreadyCrossedExpandedDim = false;
+    for (int i = 0; i != inputRank; i++) {
+      if (alreadyCrossedExpandedDim) {
+        reassociationMap[i].push_back(i + 1);
+      } else {
+        reassociationMap[i].push_back(i);
+        if (i == dim) {
+          reassociationMap[i].push_back(i + 1);
+          alreadyCrossedExpandedDim = true;
+        }
+      }
     }
-
-    rewriter.replaceOp(op, unsqueezeTensorInfo.value());
+    auto resultType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
+    rewriter.replaceOpWithNewOp<tensor::ExpandShapeOp>(
+        op, resultType, adaptor.getSelf(), reassociationMap);
     return success();
   }
 };

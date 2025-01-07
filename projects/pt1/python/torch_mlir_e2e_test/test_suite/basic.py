@@ -87,29 +87,6 @@ def BmmFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5), tu.rand(3, 5, 4))
 
 
-class BmmFloat16Module(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([-1, -1, -1], torch.float16, True),
-            ([-1, -1, -1], torch.float16, True),
-        ]
-    )
-    def forward(self, lhs, rhs):
-        return torch.bmm(lhs, rhs)
-
-
-@register_test_case(module_factory=lambda: BmmFloat16Module())
-def BmmFloat16Module_basic(module, tu: TestUtils):
-    module.forward(
-        tu.rand(3, 4, 5).to(torch.float16), tu.rand(3, 5, 4).to(torch.float16)
-    )
-
-
 class BmmIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1427,83 +1404,6 @@ def HstackBasicComplexModule_basic(module, tu: TestUtils):
         tu.rand(4, 6, 4, 2).type(torch.complex64),
         tu.rand(4, 3, 4, 2).type(torch.complex128),
     )
-
-
-# ==============================================================================
-
-
-class ColumnStackBasicIntModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([2, 3, 4], torch.bool, True),
-            ([2, 3, 4], torch.int32, True),
-            ([2, 3, 4], torch.int64, True),
-        ]
-    )
-    def forward(self, x, y, z):
-        return torch.ops.aten.column_stack([x, y, z])
-
-
-@register_test_case(module_factory=lambda: ColumnStackBasicIntModule())
-def ColumnStackBasicIntModule_basic(module, tu: TestUtils):
-    module.forward(
-        tu.randint(2, 3, 4, low=0, high=2).bool(),
-        tu.randint(2, 3, 4, low=0, high=100).int(),
-        tu.randint(2, 3, 4, low=0, high=100).long(),
-    )
-
-
-# ==============================================================================
-
-
-class ColumnStack1dModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([4], torch.float32, True),
-            ([4], torch.float32, True),
-        ]
-    )
-    def forward(self, x, y):
-        return torch.ops.aten.column_stack([x, y])
-
-
-@register_test_case(module_factory=lambda: ColumnStack1dModule())
-def ColumnStack1dModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(4), tu.rand(4))
-
-
-# ==============================================================================
-
-
-class ColumnStack0dModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([], torch.float32, True),
-            ([], torch.float32, True),
-        ]
-    )
-    def forward(self, x, y):
-        return torch.ops.aten.column_stack([x, y])
-
-
-@register_test_case(module_factory=lambda: ColumnStack0dModule())
-def ColumnStack0dModule_basic(module, tu: TestUtils):
-    module.forward(torch.tensor(4.0), torch.tensor(1.0))
 
 
 # ==============================================================================
@@ -4449,100 +4349,25 @@ def IntImplicitModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class PowModule(torch.nn.Module):
+class PowIntFloat(torch.nn.Module):
     def __init__(self):
         super().__init__()
+        self.value = 2
+        self.power_value = 3.0
 
     @export
     @annotate_args(
         [
             None,
-            ([-1, -1, -1], torch.float32, True),
-            ([-1, -1, -1], torch.float32, True),
         ]
     )
-    def forward(self, x, y):
-        return torch.ops.aten.pow(x, y)
+    def forward(self):
+        return torch.ops.aten.pow(self.value, self.power_value)
 
 
-@register_test_case(module_factory=lambda: PowModule())
-def PowFloatFloatModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5), tu.rand(3, 4, 5))
-
-
-# ==============================================================================
-
-
-class PowIntFloatModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([-1, -1, -1], torch.int32, True),
-            ([-1, -1, -1], torch.float32, True),
-        ]
-    )
-    def forward(self, x, y):
-        return torch.ops.aten.pow(x, y)
-
-
-@register_test_case(module_factory=lambda: PowIntFloatModule())
+@register_test_case(module_factory=lambda: IntFloatModule())
 def PowIntFloatModule_basic(module, tu: TestUtils):
-    module.forward(tu.randint(3, 4, 5, dtype=torch.int32), tu.rand(3, 4, 5))
-
-
-# ==============================================================================
-
-
-class PowFloatIntModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([-1, -1, -1], torch.float32, True),
-            ([-1, -1, -1], torch.int32, True),
-        ]
-    )
-    def forward(self, x, y):
-        return torch.ops.aten.pow(x, y)
-
-
-@register_test_case(module_factory=lambda: PowFloatIntModule())
-def PowFloatIntModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 5), tu.randint(3, 4, 5, dtype=torch.int32))
-
-
-# ==============================================================================
-
-
-class PowIntIntModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([-1, -1, -1], torch.int32, True),
-            ([-1, -1, -1], torch.int32, True),
-        ]
-    )
-    def forward(self, x, y):
-        return torch.ops.aten.pow(x, y)
-
-
-@register_test_case(module_factory=lambda: PowIntIntModule())
-def PowIntIntModule_basic(module, tu: TestUtils):
-    module.forward(
-        tu.randint(3, 4, 5, high=10, dtype=torch.int32),
-        tu.randint(3, 4, 5, high=20, dtype=torch.int32),
-    )
+    module.forward()
 
 
 # ==============================================================================
@@ -6430,26 +6255,3 @@ def AtenPolarDoubleModule_basic(module, tu: TestUtils):
     module.forward(
         tu.rand(2, 5, 3, 4).to(torch.float64), tu.rand(2, 5, 3, 4).to(torch.float64)
     )
-
-
-# ==============================================================================
-
-
-class AtenNonzero1DDynamicModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([-1], torch.bool, True),
-        ]
-    )
-    def forward(self, x):
-        return torch.ops.aten.nonzero(x)
-
-
-@register_test_case(module_factory=lambda: AtenNonzero1DDynamicModule())
-def AtenNonzero1DDynamicModule_basic(module, tu: TestUtils):
-    module.forward(torch.tensor([0, 0, 1, 1, 0, 0], dtype=torch.bool))
