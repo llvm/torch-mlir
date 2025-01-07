@@ -25,6 +25,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
 #include <numeric>
+#include <string>
 #include <type_traits>
 
 using namespace mlir;
@@ -3564,6 +3565,98 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertSymConstrainRangeOp
+    : public OpConversionPattern<AtenSymConstrainRangeOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenSymConstrainRangeOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    auto loc = op.getLoc();
+    auto min = op.getMin();
+    auto max = op.getMax();
+
+    auto minOp = min.getDefiningOp();
+    auto maxOp = max.getDefiningOp();
+
+    if (!minOp || !maxOp)
+      return op.emitError("Unimplemented: Non constant min/max values");
+
+    int64_t minValue = std::numeric_limits<int64_t>::min();
+    int64_t maxValue = std::numeric_limits<int64_t>::max();
+
+    Type operandType = rewriter.getI64Type();
+
+    if (!isa<Torch::ConstantNoneOp>(minOp))
+      if (!matchPattern(min, m_TorchConstantInt(&minValue)))
+        return rewriter.notifyMatchFailure(
+            op, "Expected min value to be constant integer");
+
+    if (!isa<Torch::ConstantNoneOp>(maxOp))
+      if (!matchPattern(max, m_TorchConstantInt(&maxValue)))
+        return rewriter.notifyMatchFailure(
+            op, "Expected max value to be constant integer");
+
+    if (maxValue < minValue) {
+      std::string errorMsg =
+          "Max must be greater than or equal to min, got min = " +
+          std::to_string(minValue) + ", max = " + std::to_string(maxValue);
+      return op.emitError(errorMsg);
+    }
+
+    min = getConstant(rewriter, loc, minValue, operandType);
+    max = getConstant(rewriter, loc, maxValue, operandType);
+
+    // Check min <= size <= max
+
+    // FIXME:: Skip the below checks if constraint ops are already inserted as
+    // part of symbol expr evaluation
+    auto checkMin = createLessThanOrEqual(rewriter, loc, operandType, min,
+                                          adaptor.getSize());
+    auto checkMax = createLessThanOrEqual(rewriter, loc, operandType,
+                                          adaptor.getSize(), max);
+    auto compareVal = rewriter.create<arith::AndIOp>(loc, checkMin, checkMax);
+
+    std::string assertMessage = "Invalid value range for size between [" +
+                                std::to_string(minValue) + ", " +
+                                std::to_string(maxValue) + "]";
+    rewriter.create<cf::AssertOp>(loc, compareVal,
+                                  rewriter.getStringAttr(assertMessage));
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertAssertScalarOp : public OpConversionPattern<Aten_AssertScalarOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(Aten_AssertScalarOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    auto assertCond = convertScalarToDtype(
+        rewriter, op.getLoc(), adaptor.getSelf(), rewriter.getI1Type());
+
+    std::string assertMessage;
+    if (!matchPattern(op.getAssertMsg(), m_TorchConstantStr(assertMessage)))
+      return rewriter.notifyMatchFailure(
+          op, "Assert message must be a constant string");
+
+    rewriter.replaceOpWithNewOp<cf::AssertOp>(op, assertCond, assertMessage);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -3626,4 +3719,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenLinalgDetOp>(typeConverter, context);
   target.addIllegalOp<AtenPolarOp>();
   patterns.add<ConvertAtenPolarOp>(typeConverter, context);
+  target.addIllegalOp<AtenSymConstrainRangeOp>();
+  patterns.add<ConvertSymConstrainRangeOp>(typeConverter, context);
+  target.addIllegalOp<Aten_AssertScalarOp>();
+  patterns.add<ConvertAssertScalarOp>(typeConverter, context);
 }

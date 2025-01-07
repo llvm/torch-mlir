@@ -1232,6 +1232,11 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     )
     emit("aten::_make_per_tensor_quantized_tensor : (Tensor, float, int) -> (Tensor)")
 
+    # Constraint ops
+    emit("aten::sym_constrain_range : (Scalar, int?, int?) -> ()")
+    emit("aten::sym_constrain_range_for_size : (Scalar, int?, int?) -> ()")
+    emit("aten::_assert_scalar : (Scalar, str) -> ()")
+
     # ==========================================================================
     # `prim::` namespace.
     # ==========================================================================

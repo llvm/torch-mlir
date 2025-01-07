@@ -35,6 +35,10 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "Aten_TrilinearModuleZerodDimBug_basic",
     # missing lowering from aten.pow.Tensor_Tensor for integer result
     "PowIntIntModule_basic",
+    # Unknown builtin op: aten::_check_is_size in TorchScript
+    "AtenSymConstrainRange_basic",
+    "AtenSymConstrainRangeForSize_basic",
+    "AtenAssertScalar",
 }
 
 if torch_version_for_comparison() < version.parse("2.5.0.dev"):

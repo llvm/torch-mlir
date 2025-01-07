@@ -17771,6 +17771,77 @@ def Torch_Aten_MakePerTensorQuantizedTensorOp : Torch_Op<"aten._make_per_tensor_
   }];
 }
 
+def Torch_AtenSymConstrainRangeOp : Torch_Op<"aten.sym_constrain_range", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::sym_constrain_range : (Scalar, int?, int?) -> ()`";
+  let arguments = (ins
+    AnyTorchScalarType:$size,
+    AnyTorchOptionalIntType:$min,
+    AnyTorchOptionalIntType:$max
+  );
+  let results = (outs
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenSymConstrainRangeOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 0);
+    }
+    void AtenSymConstrainRangeOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 0);
+    }
+  }];
+}
+
+def Torch_AtenSymConstrainRangeForSizeOp : Torch_Op<"aten.sym_constrain_range_for_size", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::sym_constrain_range_for_size : (Scalar, int?, int?) -> ()`";
+  let arguments = (ins
+    AnyTorchScalarType:$size,
+    AnyTorchOptionalIntType:$min,
+    AnyTorchOptionalIntType:$max
+  );
+  let results = (outs
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenSymConstrainRangeForSizeOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 0);
+    }
+    void AtenSymConstrainRangeForSizeOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 0);
+    }
+  }];
+}
+
+def Torch_Aten_AssertScalarOp : Torch_Op<"aten._assert_scalar", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_assert_scalar : (Scalar, str) -> ()`";
+  let arguments = (ins
+    AnyTorchScalarType:$self,
+    Torch_StringType:$assert_msg
+  );
+  let results = (outs
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_AssertScalarOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 0);
+    }
+    void Aten_AssertScalarOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 0);
+    }
+  }];
+}
+
 def Torch_PrimLayoutOp : Torch_Op<"prim.layout", [
     AllowsTypeRefinement,
     HasValueSemantics,
