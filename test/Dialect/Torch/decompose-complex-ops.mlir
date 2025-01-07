@@ -228,3 +228,27 @@ func.func @torch.aten.fft_rfft$2d_first_dim(%arg0: !torch.vtensor<[36,23],f32>) 
   %out = torch.aten.fft_rfft %arg0, %none, %int0, %none : !torch.vtensor<[36,23],f32>, !torch.none, !torch.int, !torch.none -> !torch.vtensor<[19,23],complex<f32>>
   return %out : !torch.vtensor<[19,23],complex<f32>>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.sym_constrain_range_for_size(
+// CHECK-SAME:                                                       %[[VAL_0:.*]]: !torch.vtensor<[],si64>) -> !torch.int {
+// CHECK:           %[[VAL_1:.*]] = torch.constant.int 7
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_3:.*]] = torch.constant.none
+// CHECK:           %[[VAL_4:.*]] = torch.aten.item %[[VAL_0]] : !torch.vtensor<[],si64> -> !torch.int
+// CHECK:           torch.aten.sym_constrain_range %[[VAL_4]], %[[VAL_2]], %[[VAL_3]] : !torch.int, !torch.int, !torch.none
+// CHECK:           torch.aten.sym_constrain_range %[[VAL_4]], %[[VAL_2]], %[[VAL_1]] : !torch.int, !torch.int, !torch.int
+// CHECK:           return %[[VAL_4]] : !torch.int
+module {
+  func.func @torch.aten.sym_constrain_range_for_size(%arg0: !torch.vtensor<[],si64>) -> !torch.int {
+    %0 = torch.aten.item %arg0 : !torch.vtensor<[],si64> -> !torch.int
+    %none = torch.constant.none
+    %none_0 = torch.constant.none
+    torch.aten.sym_constrain_range_for_size %0, %none, %none_0 : !torch.int, !torch.none, !torch.none
+    %int0_6 = torch.constant.int 0
+    %int7_7 = torch.constant.int 7
+    torch.aten.sym_constrain_range_for_size %0, %int0_6, %int7_7 : !torch.int, !torch.int, !torch.int
+    return %0 : !torch.int
+  }
+}
