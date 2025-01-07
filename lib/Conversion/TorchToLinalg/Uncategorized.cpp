@@ -3589,7 +3589,7 @@ public:
     int64_t minValue = std::numeric_limits<int64_t>::min();
     int64_t maxValue = std::numeric_limits<int64_t>::max();
 
-    Type operandType = rewriter.getI64Type();
+    Type operandType = getTypeConverter()->convertType(op.getSize().getType());
 
     if (!isa<Torch::ConstantNoneOp>(minOp))
       if (!matchPattern(min, m_TorchConstantInt(&minValue)))
@@ -3615,10 +3615,10 @@ public:
 
     // FIXME:: Skip the below checks if constraint ops are already inserted as
     // part of symbol expr evaluation
-    auto checkMin = createLessThanOrEqual(rewriter, loc, operandType, min,
-                                          adaptor.getSize());
-    auto checkMax = createLessThanOrEqual(rewriter, loc, operandType,
-                                          adaptor.getSize(), max);
+    auto checkMin = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::sle, min, adaptor.getSize());
+    auto checkMax = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::sle, adaptor.getSize(), max);
     auto compareVal = rewriter.create<arith::AndIOp>(loc, checkMin, checkMax);
 
     std::string assertMessage = "Invalid value range for size between [" +
