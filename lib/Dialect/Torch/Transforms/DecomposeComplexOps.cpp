@@ -11456,6 +11456,56 @@ public:
 } // namespace
 
 namespace {
+class DecomposeConstrainRangeForSizeOp
+    : public OpRewritePattern<AtenSymConstrainRangeForSizeOp> {
+public:
+  using OpRewritePattern<AtenSymConstrainRangeForSizeOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSymConstrainRangeForSizeOp op,
+                                PatternRewriter &rewriter) const override {
+
+    auto loc = op.getLoc();
+    auto min = op.getMin();
+    auto max = op.getMax();
+    auto minOp = min.getDefiningOp();
+    auto maxOp = max.getDefiningOp();
+
+    if (!minOp || !maxOp)
+      return op.emitError("Unimplemented: Non constant min/max values");
+
+    int64_t minValue, maxValue;
+
+    if (isa<Torch::ConstantNoneOp>(minOp)) {
+      // Set min value to 0
+      min = rewriter.create<Torch::ConstantIntOp>(loc, 0);
+    } else {
+      // Check if min value is a constant
+      if (!matchPattern(min, m_TorchConstantInt(&minValue)))
+        return rewriter.notifyMatchFailure(
+            op, "Expected min value to be constant integer");
+    }
+
+    if (!isa<Torch::ConstantNoneOp>(maxOp)) {
+      // Verify that max value is greater than 2
+      if (!matchPattern(max, m_TorchConstantInt(&maxValue)))
+        return rewriter.notifyMatchFailure(
+            op, "Expected max value to be constant integer");
+
+      if (maxValue <= 2) {
+        std::string errorMsg = "Max value to constrain_range_for_size must be "
+                               "greater than 2, got: " +
+                               std::to_string(maxValue);
+        return op.emitError(errorMsg);
+      }
+    }
+
+    rewriter.replaceOpWithNewOp<AtenSymConstrainRangeOp>(op, op.getSize(), min,
+                                                         max);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -11752,6 +11802,8 @@ public:
 
     // Torchvision ops
     addPatternIfTargetOpIsIllegal<DecomposeTorchvisionNmsOp>(patterns);
+
+    addPatternIfTargetOpIsIllegal<DecomposeConstrainRangeForSizeOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
