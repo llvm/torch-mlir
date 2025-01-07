@@ -6515,7 +6515,7 @@ class AtenSymConstrainRangeForSize(torch.nn.Module):
     def forward(self, x):
         a = x.item()
         torch._check_is_size(a)
-        # max should be >= 2
+        # max should be > 2
         torch.ops.aten.sym_constrain_range_for_size(a, min=0, max=10)
         return a
 
