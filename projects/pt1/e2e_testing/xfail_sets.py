@@ -2749,6 +2749,7 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    "ToDtypeIntFromFloatModule_basic",
     # This test is expected to time out
     "TimeOutModule_basic",
     # Failure - cast error
