@@ -627,7 +627,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenMmQMixedSigni8_basic",
     "AtenMmQint8_basic",
     "AtenMmQuint8_basic",
-    "AtenNonzero1DDynamicModule_basic",
     "AtenRealView128Module_basic",
     "AtenRealView64Module_basic",
     "AtenTopKModule_basic",
@@ -971,6 +970,7 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
+    "AtenNonzero1DDynamicModule_basic",  # error: Mismatched ranks of types2 vs 1
 }
 
 STABLEHLO_PASS_SET = {
