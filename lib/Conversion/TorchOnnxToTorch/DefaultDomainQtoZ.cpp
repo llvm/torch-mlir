@@ -2778,7 +2778,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           modeStrValue = rewriter.create<Torch::ConstantStrOp>(loc, modeStr);
         }
 
-        unsigned rank = dyn_cast<Torch::ValueTensorType>(operands[0].getType())
+        unsigned rank = cast<Torch::ValueTensorType>(operands[0].getType())
                             .getSizes()
                             .size();
 
