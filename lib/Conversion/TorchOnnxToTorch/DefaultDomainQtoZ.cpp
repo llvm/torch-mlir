@@ -2705,7 +2705,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         std::string mode, nearest_mode, coordTfMode;
         int64_t antialias, exclude_outside;
         float extrapolation_value, cubic_coeff_a;
-        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
 
         if (auto attr = binder.op->getAttr("torch.onnx.axes")) {
           return rewriter.notifyMatchFailure(
@@ -2828,6 +2827,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         Value scalesValueList;
         Value sizesValueList;
+
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
 
         if (numberOfOperands == 3) {
           Value scaleOperand = operands[2];
