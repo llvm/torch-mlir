@@ -2691,7 +2691,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         std::string mode, nearest_mode, coordTfMode;
         int64_t antialias, exclude_outside;
         float extrapolation_value, cubic_coeff_a;
-        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
 
         if (auto attr = binder.op->getAttr("torch.onnx.axes")) {
           return rewriter.notifyMatchFailure(
@@ -2760,6 +2759,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
         Value modeStrValue;
 
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         Value scalesValueList = noneVal;
         Value sizesValueList = noneVal;
         Value alignCorners =
