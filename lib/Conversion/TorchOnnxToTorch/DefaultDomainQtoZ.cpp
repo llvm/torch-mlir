@@ -2700,7 +2700,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       });
   patterns.onOp(
       "Resize", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
+        Torch::ValueTensorType outputTensorType;
         llvm::SmallVector<Value> operands;
         std::string mode, nearest_mode, coordTfMode;
         int64_t antialias, exclude_outside;
@@ -2719,7 +2719,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
 
         if (binder.tensorOperandsList(operands) ||
-            binder.tensorResultType(resultType) ||
+            binder.tensorResultType(outputTensorType) ||
             binder.customOpNameStringAttr(mode, "mode", "nearest") ||
             binder.customOpNameStringAttr(
                 coordTfMode, "coordinate_transformation_mode", "half_pixel") ||
@@ -2845,7 +2845,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         rewriter
             .replaceOpWithNewOp<Torch::Aten__InterpolateSizeListScaleListOp>(
-                binder.op, resultType, inputTensor, sizesValueList,
+                binder.op, outputTensorType, inputTensor, sizesValueList,
                 scalesValueList, modeStrValue,
                 /* AnyTorchOptionalBoolType:$align_corners */ alignCorners,
                 /* AnyTorchOptionalBoolType:$recompute_scale_factor */ noneVal,
