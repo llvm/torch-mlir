@@ -2773,7 +2773,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value inputTensor = operands[0];
         Torch::ValueTensorType inputTensor_type =
             cast<Torch::ValueTensorType>(inputTensor.getType());
-        unsigned rank = inputTensor_type.getSizes().size();
+        ArrayRef<int64_t> inputTensor_sizes = inputTensor_type.getSizes();
+        unsigned rank = inputTensor_sizes.size();
 
         // supported modes:
         // bilinear (half_pixel), bilinear with align_corners,
