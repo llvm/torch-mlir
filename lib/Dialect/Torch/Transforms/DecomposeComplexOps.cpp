@@ -11456,7 +11456,7 @@ public:
 } // namespace
 
 namespace {
-class DecomposeConstrainRangeForSizeOp
+class DecomposeAtenConstrainRangeForSizeOp
     : public OpRewritePattern<AtenSymConstrainRangeForSizeOp> {
 public:
   using OpRewritePattern<AtenSymConstrainRangeForSizeOp>::OpRewritePattern;
@@ -11466,15 +11466,10 @@ public:
     auto loc = op.getLoc();
     auto min = op.getMin();
     auto max = op.getMax();
-    auto minOp = min.getDefiningOp();
-    auto maxOp = max.getDefiningOp();
-
-    if (!minOp || !maxOp)
-      return op.emitError("Unimplemented: Non constant min/max values");
 
     int64_t minValue, maxValue;
 
-    if (isa<Torch::ConstantNoneOp>(minOp)) {
+    if (isa<Torch::NoneType>(min.getType())) {
       // Set min value to 0
       min = rewriter.create<Torch::ConstantIntOp>(loc, 0);
     } else {
@@ -11484,7 +11479,7 @@ public:
             op, "Expected min value to be constant integer");
     }
 
-    if (!isa<Torch::ConstantNoneOp>(maxOp)) {
+    if (!isa<Torch::NoneType>(max.getType())) {
       // Verify that max value is greater than 2
       if (!matchPattern(max, m_TorchConstantInt(&maxValue)))
         return rewriter.notifyMatchFailure(
@@ -11500,6 +11495,35 @@ public:
 
     rewriter.replaceOpWithNewOp<AtenSymConstrainRangeOp>(op, op.getSize(), min,
                                                          max);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAten_AssertScalarOp
+    : public OpRewritePattern<Aten_AssertScalarOp> {
+public:
+  using OpRewritePattern<Aten_AssertScalarOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_AssertScalarOp op,
+                                PatternRewriter &rewriter) const override {
+
+    auto loc = op.getLoc();
+    auto assertCond = op.getSelf();
+
+    if (isa<Torch::IntType>(assertCond.getType()))
+      assertCond = rewriter.create<AtenBoolIntOp>(loc, assertCond);
+    else if (isa<Torch::FloatType>(assertCond.getType()))
+      assertCond = rewriter.create<AtenBoolFloatOp>(loc, assertCond);
+    assert(isa<Torch::BoolType>(assertCond.getType()) &&
+           "Unhandled type encountered in aten._assert_scalar op");
+
+    std::string assertMessage;
+    if (!matchPattern(op.getAssertMsg(), m_TorchConstantStr(assertMessage)))
+      return rewriter.notifyMatchFailure(
+          op, "Assert message must be a constant string");
+
+    rewriter.replaceOpWithNewOp<RuntimeAssertOp>(op, assertCond, assertMessage);
     return success();
   }
 };
@@ -11803,7 +11827,9 @@ public:
     // Torchvision ops
     addPatternIfTargetOpIsIllegal<DecomposeTorchvisionNmsOp>(patterns);
 
-    addPatternIfTargetOpIsIllegal<DecomposeConstrainRangeForSizeOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenConstrainRangeForSizeOp>(
+        patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_AssertScalarOp>(patterns);
 
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;

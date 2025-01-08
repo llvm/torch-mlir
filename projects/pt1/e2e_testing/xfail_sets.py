@@ -38,7 +38,7 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # Unknown builtin op: aten::_check_is_size in TorchScript
     "AtenSymConstrainRange_basic",
     "AtenSymConstrainRangeForSize_basic",
-    "AtenAssertScalar",
+    "Aten_AssertScalar_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.5.0.dev"):
@@ -944,6 +944,9 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "BernoulliFloatModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
+    "AtenSymConstrainRange_basic",
+    "AtenSymConstrainRangeForSize_basic",
+    "Aten_AssertScalar_basic",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
@@ -3256,6 +3259,9 @@ ONNX_XFAIL_SET = {
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
+    "AtenSymConstrainRange_basic",
+    "AtenSymConstrainRangeForSize_basic",
+    "Aten_AssertScalar_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
