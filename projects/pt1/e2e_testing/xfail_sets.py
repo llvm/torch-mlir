@@ -4713,6 +4713,7 @@ ONNX_TOSA_XFAIL_SET = {
     "ToDtypeLayoutNoneModule_basic",
     "ToDtypeLayoutStridedModule_basic",
     "ToDtypeIntFromFloatModule_basic",
+    "ToDtypeFloatFromIntModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
     "TraceModule_basic",
