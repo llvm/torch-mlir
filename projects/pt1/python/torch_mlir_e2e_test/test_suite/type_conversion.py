@@ -255,6 +255,26 @@ def ToDtypeBoolLayoutNoneStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 5))
 
 
+class ToDtypeIntFromFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.float64, True)])
+    def forward(self, x):
+        return torch.ops.aten.to(
+            x,
+            dtype=torch.int64,
+        )
+
+
+@register_test_case(module_factory=lambda: ToDtypeIntFromFloatModule())
+def ToDtypeIntFromFloatModule_basic(module, tu: TestUtils):
+    input = tu.rand(2, 2, low=-5, high=5)
+    input[1][1] = tu.randint(1, 1) + 0.7
+    module.forward(input)
+
+
 class TypeAsSameModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
