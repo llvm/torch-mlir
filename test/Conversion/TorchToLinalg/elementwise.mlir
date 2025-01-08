@@ -102,3 +102,36 @@ func.func @elementwise_sinh(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3
   %0 = torch.aten.sinh %arg0 : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
   return %0 : !torch.vtensor<[3],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch_aten_round_decimals
+// CHECK:       %[[VAL2:.*]] = linalg.generic
+// CHECK-NEXT:  ^bb0(%[[IN:.*]]: f32, %{{.*}}: f32):
+// CHECK-NEXT:    %[[CONST_64:.*]] = arith.constant
+// CHECK-NEXT:    %[[CONST_10:.*]] = arith.constant 1.000000e+01
+// CHECK-NEXT:    %[[VAL4:.*]] = math.fpowi %[[CONST_10]], %[[CONST_64]]
+// CHECK-NEXT:    %[[VAL5:.*]] = arith.mulf %[[IN]], %[[VAL4]]
+// CHECK-NEXT:    %[[VAL6:.*]] = math.roundeven %[[VAL5]]
+// CHECK-NEXT:    %[[VAL7:.*]] = arith.divf %[[VAL6]], %[[VAL4]]
+// CHECK-NEXT:    linalg.yield %[[VAL7]]
+// CHECK:       %[[CAST:.*]] = tensor.cast %[[VAL2]]
+// CHECK-NEXT:  %[[VAL3:.*]] = torch_c.from_builtin_tensor %[[CAST]]
+// CHECK-NEXT:  return %[[VAL3]]
+func.func @torch_aten_round_decimals(%0: !torch.vtensor<[1,1024,1024,3],f32>) -> !torch.vtensor<[1, 1024,1024,3],f32> {
+  %int0 = torch.constant.int 0
+  %1 = torch.operator "torch.aten.round.decimals"(%0, %int0) : (!torch.vtensor<[1,1024,1024,3],f32>, !torch.int) -> !torch.vtensor<[1,1024,1024,3],f32>
+  return %1 : !torch.vtensor<[1, 1024,1024,3],f32>
+}
+
+// -----
+
+// Test that unhandled versions of `torch.operator` op are not legalized.
+func.func @torch.prims.device_put(%arg0: !torch.vtensor<[1,77],si64>) -> !torch.vtensor<[1,77],si64> {
+  %cuda3A0 = torch.constant.device "cuda:0"
+  // expected-error @+1 {{failed to legalize operation 'torch.operator' that was explicitly marked illegal}}
+  %0 = torch.operator "torch.prims.device_put"(%arg0, %cuda3A0) : (!torch.vtensor<[1,77],si64>, !torch.Device) -> !torch.vtensor<[1,77],si64>
+  %int4 = torch.constant.int 4
+  %1 = torch.prims.convert_element_type %0, %int4 : !torch.vtensor<[1,77],si64>, !torch.int -> !torch.vtensor<[1,77],si64>
+  return %1 : !torch.vtensor<[1,77],si64>
+}
