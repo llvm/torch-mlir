@@ -21,6 +21,7 @@
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
@@ -3580,23 +3581,17 @@ public:
     auto min = op.getMin();
     auto max = op.getMax();
 
-    auto minOp = min.getDefiningOp();
-    auto maxOp = max.getDefiningOp();
-
-    if (!minOp || !maxOp)
-      return op.emitError("Unimplemented: Non constant min/max values");
-
     int64_t minValue = std::numeric_limits<int64_t>::min();
     int64_t maxValue = std::numeric_limits<int64_t>::max();
 
     Type operandType = getTypeConverter()->convertType(op.getSize().getType());
 
-    if (!isa<Torch::ConstantNoneOp>(minOp))
+    if (!isa<Torch::NoneType>(min.getType()))
       if (!matchPattern(min, m_TorchConstantInt(&minValue)))
         return rewriter.notifyMatchFailure(
             op, "Expected min value to be constant integer");
 
-    if (!isa<Torch::ConstantNoneOp>(maxOp))
+    if (!isa<Torch::NoneType>(max.getType()))
       if (!matchPattern(max, m_TorchConstantInt(&maxValue)))
         return rewriter.notifyMatchFailure(
             op, "Expected max value to be constant integer");
@@ -3621,37 +3616,13 @@ public:
         loc, arith::CmpIPredicate::sle, adaptor.getSize(), max);
     auto compareVal = rewriter.create<arith::AndIOp>(loc, checkMin, checkMax);
 
-    std::string assertMessage = "Invalid value range for size between [" +
+    std::string assertMessage = "Size constraint failed. Expected range: [" +
                                 std::to_string(minValue) + ", " +
                                 std::to_string(maxValue) + "]";
     rewriter.create<cf::AssertOp>(loc, compareVal,
                                   rewriter.getStringAttr(assertMessage));
 
     rewriter.eraseOp(op);
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-class ConvertAssertScalarOp : public OpConversionPattern<Aten_AssertScalarOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(Aten_AssertScalarOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
-
-    auto assertCond = convertScalarToDtype(
-        rewriter, op.getLoc(), adaptor.getSelf(), rewriter.getI1Type());
-
-    std::string assertMessage;
-    if (!matchPattern(op.getAssertMsg(), m_TorchConstantStr(assertMessage)))
-      return rewriter.notifyMatchFailure(
-          op, "Assert message must be a constant string");
-
-    rewriter.replaceOpWithNewOp<cf::AssertOp>(op, assertCond, assertMessage);
     return success();
   }
 };
@@ -3721,6 +3692,4 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenPolarOp>(typeConverter, context);
   target.addIllegalOp<AtenSymConstrainRangeOp>();
   patterns.add<ConvertSymConstrainRangeOp>(typeConverter, context);
-  target.addIllegalOp<Aten_AssertScalarOp>();
-  patterns.add<ConvertAssertScalarOp>(typeConverter, context);
 }
