@@ -6466,7 +6466,6 @@ class AtenSymConstrainRange(torch.nn.Module):
     @annotate_args([None, ([-1], torch.int, True)])
     def forward(self, x):
         a = x.item()
-        torch._check_is_size(a)
         torch.ops.aten.sym_constrain_range(a, max=5)
         return a
 
@@ -6487,8 +6486,6 @@ class AtenSymConstrainRangeForSize(torch.nn.Module):
     @annotate_args([None, ([-1], torch.int, True)])
     def forward(self, x):
         a = x.item()
-        torch._check_is_size(a)
-        # max should be > 2
         torch.ops.aten.sym_constrain_range_for_size(a, min=0, max=10)
         return a
 
@@ -6499,7 +6496,7 @@ def AtenSymConstrainRangeForSize_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
-class AtenAssertScalar(torch.nn.Module):
+class Aten_AssertScalar(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -6507,12 +6504,11 @@ class AtenAssertScalar(torch.nn.Module):
     @annotate_args([None, ([-1], torch.int, True)])
     def forward(self, x):
         a = x.item()
-        # The below checks introduces aten._assert_scalar op
-        torch._check_is_size(a)
-        torch._check(a <= 5)
+        assert_msg = "Assertion failed for condition x.item() > 3"
+        torch.ops.aten._assert_scalar(a > 3, assert_msg)
         return a
 
 
-@register_test_case(module_factory=lambda: AtenAssertScalar())
-def AtenAssertScalar_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: Aten_AssertScalar())
+def Aten_AssertScalar_basic(module, tu: TestUtils):
     module.forward(torch.tensor(4))

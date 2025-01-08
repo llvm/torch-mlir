@@ -240,8 +240,7 @@ func.func @torch.aten.fft_rfft$2d_first_dim(%arg0: !torch.vtensor<[36,23],f32>) 
 // CHECK:           torch.aten.sym_constrain_range %[[VAL_4]], %[[VAL_2]], %[[VAL_3]] : !torch.int, !torch.int, !torch.none
 // CHECK:           torch.aten.sym_constrain_range %[[VAL_4]], %[[VAL_2]], %[[VAL_1]] : !torch.int, !torch.int, !torch.int
 // CHECK:           return %[[VAL_4]] : !torch.int
-module {
-  func.func @torch.aten.sym_constrain_range_for_size(%arg0: !torch.vtensor<[],si64>) -> !torch.int {
+func.func @torch.aten.sym_constrain_range_for_size(%arg0: !torch.vtensor<[],si64>) -> !torch.int {
     %0 = torch.aten.item %arg0 : !torch.vtensor<[],si64> -> !torch.int
     %none = torch.constant.none
     %none_0 = torch.constant.none
@@ -250,5 +249,35 @@ module {
     %int7_7 = torch.constant.int 7
     torch.aten.sym_constrain_range_for_size %0, %int0_6, %int7_7 : !torch.int, !torch.int, !torch.int
     return %0 : !torch.int
-  }
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten._assert_scalar(
+// CHECK-SAME:                                         %[[VAL_0:.*]]: !torch.vtensor<[],si64>) -> !torch.int {
+// CHECK:           %[[VAL_1:.*]] = torch.constant.int 2
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 3
+// CHECK:           %[[VAL_3:.*]] = torch.aten.item %[[VAL_0]] : !torch.vtensor<[],si64> -> !torch.int
+// CHECK:           %[[VAL_4:.*]] = torch.aten.ge.int %[[VAL_3]], %[[VAL_2]] : !torch.int, !torch.int -> !torch.bool
+// CHECK:           %[[VAL_5:.*]] = torch.aten.Int.bool %[[VAL_4]] : !torch.bool -> !torch.int
+// CHECK:           %[[VAL_6:.*]] = torch.aten.Bool.int %[[VAL_5]] : !torch.int -> !torch.bool
+// CHECK:           torch.runtime.assert %[[VAL_6]], "Runtime assertion failed for expression u0 >= 3 on node 'ge_1'"
+// CHECK:           %[[VAL_7:.*]] = torch.aten.gt.int %[[VAL_3]], %[[VAL_1]] : !torch.int, !torch.int -> !torch.bool
+// CHECK:           %[[VAL_8:.*]] = torch.aten.Int.bool %[[VAL_7]] : !torch.bool -> !torch.int
+// CHECK:           %[[VAL_9:.*]] = torch.aten.Bool.int %[[VAL_8]] : !torch.int -> !torch.bool
+// CHECK:           torch.runtime.assert %[[VAL_9]], "Runtime assertion failed for expression 2 < u0 on node 'gt_1'"
+// CHECK:           return %[[VAL_3]] : !torch.int
+func.func @torch.aten._assert_scalar(%arg0: !torch.vtensor<[],si64>) -> !torch.int {
+  %0 = torch.aten.item %arg0 : !torch.vtensor<[],si64> -> !torch.int
+  %int3 = torch.constant.int 3
+  %1 = torch.aten.ge.int %0, %int3 : !torch.int, !torch.int -> !torch.bool
+  %2 = torch.aten.Int.bool %1 : !torch.bool -> !torch.int
+  %str = torch.constant.str "Runtime assertion failed for expression u0 >= 3 on node 'ge_1'"
+  torch.aten._assert_scalar %2, %str : !torch.int, !torch.str
+  %int2 = torch.constant.int 2
+  %3 = torch.aten.gt.int %0, %int2 : !torch.int, !torch.int -> !torch.bool
+  %4 = torch.aten.Int.bool %3 : !torch.bool -> !torch.int
+  %str_0 = torch.constant.str "Runtime assertion failed for expression 2 < u0 on node 'gt_1'"
+  torch.aten._assert_scalar %4, %str_0 : !torch.int, !torch.str
+  return %0 : !torch.int
 }
