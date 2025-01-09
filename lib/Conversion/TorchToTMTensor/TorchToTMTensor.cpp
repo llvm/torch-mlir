@@ -1915,6 +1915,11 @@ public:
       return rewriter.notifyMatchFailure(
           loc, "Expected enable_gqa flag to be constant bool");
 
+    // For the cases when `enable_gqa` flag is set to true, we have to
+    // pre-process the inputs specifically key and value by repeating the
+    // elements for the head dim.
+    // The reference code is available here:
+    // https://github.com/pytorch/pytorch/pull/132689/files#diff-e726853e9795dfb6c74ab1e10945f5d5f24540eb7bc633e5c76f69bc258f24d6R612
     if (enableGQA) {
       if (failed(preProcessGroupQueryAttentionInput(
               op, rewriter, getTypeConverter(), query, key, value)))
