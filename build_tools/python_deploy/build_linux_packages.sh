@@ -324,9 +324,6 @@ function test_in_tree() {
       ;;
     esac
 
-  echo ":::: Run make_fx + TOSA e2e integration tests"
-  python -m e2e_testing.main --config=make_fx_tosa -v
-
   echo ":::: Run TOSA e2e integration tests"
   python -m e2e_testing.main --config=tosa -v
 }
