@@ -925,6 +925,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "BernoulliFloatModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
+    "ScaledDotProductAttentionGQAModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
@@ -3352,6 +3353,7 @@ ONNX_XFAIL_SET = {
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
+    "ScaledDotProductAttentionGQAModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
@@ -3893,6 +3895,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ScaledDotProductAttentionSameCausalModule_basic",
     "ScaledDotProductAttentionSameDynamicModule_basic",
     "ScaledDotProductAttentionSameModule_basic",
+    "ScaledDotProductAttentionGQAModule_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {
