@@ -2767,10 +2767,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                             .getSizes()
                             .size();
 
-        Value cstFalse =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
-        Value cstTrue =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+        auto loc = binder.getLoc();
+
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+        Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
         Value modeStrValue;
 
         Value alignCorners =
@@ -2779,8 +2779,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           std::string modeStr = "cubic";
           if (coordTfMode != "half_pixel")
             modeStr = modeStr + "_" + coordTfMode;
-          modeStrValue =
-              rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), modeStr);
+          modeStrValue = rewriter.create<Torch::ConstantStrOp>(loc, modeStr);
         }
         // supported modes:
         // bilinear (half_pixel), bilinear with align_corners,
@@ -2806,8 +2805,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           // mode is apparently half_pixel, NOT pytorch_half_pixel
           if (coordTfMode != "half_pixel" && coordTfMode != "align_corners")
             modeStr = (modeStr + "_") + coordTfMode;
-          modeStrValue =
-              rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), modeStr);
+          modeStrValue = rewriter.create<Torch::ConstantStrOp>(loc, modeStr);
         }
         if (mode == "nearest") {
           std::string modeStr = "nearest";
@@ -2817,8 +2815,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             modeStr = (modeStr + "_") + coordTfMode;
           if (nearest_mode != "floor" && nearest_mode != "")
             modeStr = modeStr + "," + nearest_mode;
-          modeStrValue =
-              rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), modeStr);
+          modeStrValue = rewriter.create<Torch::ConstantStrOp>(loc, modeStr);
         }
 
         auto numberOfOperands = operands.size();
@@ -2828,20 +2825,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value scalesValueList;
         Value sizesValueList;
 
-        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(loc);
 
         if (numberOfOperands == 3) {
           Value scaleOperand = operands[2];
-          scalesValueList =
-              createScalarSublist(binder.getLoc(), scaleOperand,
-                                  assumedForemostSpatialDim, rewriter);
+          scalesValueList = createScalarSublist(
+              loc, scaleOperand, assumedForemostSpatialDim, rewriter);
           sizesValueList = noneVal;
         } else if (numberOfOperands == 4) {
           Value sizeOperand = operands[3];
           scalesValueList = noneVal;
-          sizesValueList =
-              createScalarSublist(binder.getLoc(), sizeOperand,
-                                  assumedForemostSpatialDim, rewriter);
+          sizesValueList = createScalarSublist(
+              loc, sizeOperand, assumedForemostSpatialDim, rewriter);
         } else
           return rewriter.notifyMatchFailure(binder.op, "unknown scaling mode");
 
