@@ -2749,10 +2749,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "unimplemented: cubic coeff must be -0.75");
         }
 
-        unsigned rank = dyn_cast<Torch::ValueTensorType>(operands[0].getType())
-                            .getSizes()
-                            .size();
-
         auto binderLocation = binder.getLoc();
 
         Value cstFalse =
@@ -2773,6 +2769,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           modeStrValue =
               rewriter.create<Torch::ConstantStrOp>(binderLocation, modeStr);
         }
+
+        unsigned rank = dyn_cast<Torch::ValueTensorType>(operands[0].getType())
+                            .getSizes()
+                            .size();
+
         // supported modes:
         // bilinear (half_pixel), bilinear with align_corners,
         // bilinear_pytorch_half_pixel, bilinear_asymmetric nearest
