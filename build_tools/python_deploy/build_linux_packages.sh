@@ -238,7 +238,7 @@ function build_in_tree() {
       -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="/main_checkout/torch-mlir" \
       -DLLVM_TARGETS_TO_BUILD=host \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-      -DTORCH_MLIR_ENABLE_LTC=${enable_ltc} \
+      -DTORCH_MLIR_ENABLE_LTC=ON \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
       -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
@@ -407,7 +407,7 @@ function build_out_of_tree() {
       -DLLVM_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/llvm/" \
       -DMLIR_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" \
       -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
-      -DTORCH_MLIR_ENABLE_LTC=${enable_ltc} \
+      -DTORCH_MLIR_ENABLE_LTC=ON \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
       -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
