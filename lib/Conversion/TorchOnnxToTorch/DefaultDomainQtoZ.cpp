@@ -2749,7 +2749,68 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "unimplemented: cubic coeff must be -0.75");
         }
 
+        Value inputTensor = operands[0];
+        Torch::ValueTensorType inputTensor_type =
+            cast<Torch::ValueTensorType>(inputTensor.getType());
+        ArrayRef<int64_t> inputTensor_sizes = inputTensor_type.getSizes();
+        ArrayRef<int64_t> outputTensor_sizes = outputTensor_type.getSizes();
+
+        int64_t const batchDimension = 0;
+        int64_t const channelDimension = 1;
+        int64_t nonScalableDimensions[] = {
+            batchDimension,
+            channelDimension,
+        };
+
+        auto errorMessageForScaling = [](int64_t givenDimension) {
+          switch (givenDimension) {
+          case batchDimension:
+            return "Unexpected intent to scale the batch dimension";
+          case channelDimension:
+            return "Unexpected intent to scale the channel dimension";
+          default:
+            return "Scalable dimension treated as non-scalable";
+          }
+        };
+
+        auto unknownSize = Torch::kUnknownSize;
+
+        // Compile-time check for dimensions of static size
+        for (auto eachDimension : nonScalableDimensions) {
+          auto eachInputSize = inputTensor_sizes[eachDimension];
+          auto eachOutputSize = outputTensor_sizes[eachDimension];
+
+          if (eachInputSize == unknownSize || eachOutputSize == unknownSize) {
+            continue;
+          } else if (eachInputSize == eachOutputSize) {
+            continue;
+          }
+
+          return rewriter.notifyMatchFailure(
+              binder.op, errorMessageForScaling(eachDimension));
+        }
+
         auto binderLocation = binder.getLoc();
+
+        // Run-time check for dimensions of dynamic size
+        for (auto eachDimension : nonScalableDimensions) {
+          auto eachDimensionAsValue = rewriter.create<Torch::ConstantIntOp>(
+              binderLocation, rewriter.getI64IntegerAttr(eachDimension));
+
+          Value eachInputSizeAsValue = rewriter.create<Torch::AtenSizeIntOp>(
+              binderLocation, inputTensor, eachDimensionAsValue);
+
+          int64_t eachOutputSize = outputTensor_sizes[eachDimension];
+          Value eachOutputSizeAsValue = rewriter.create<Torch::ConstantIntOp>(
+              binderLocation, rewriter.getI64IntegerAttr(eachOutputSize));
+
+          Value eachSizeComparison = rewriter.create<Torch::AtenEqIntOp>(
+              binderLocation, eachInputSizeAsValue, eachOutputSizeAsValue);
+
+          rewriter.create<Torch::RuntimeAssertOp>(
+              binderLocation, eachSizeComparison,
+              rewriter.getStringAttr(errorMessageForScaling(eachDimension)));
+        };
 
         Value cstFalse =
             rewriter.create<Torch::ConstantBoolOp>(binderLocation, false);
@@ -2770,10 +2831,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               rewriter.create<Torch::ConstantStrOp>(binderLocation, modeStr);
         }
 
-        Value inputTensor = operands[0];
-        Torch::ValueTensorType inputTensor_type =
-            cast<Torch::ValueTensorType>(inputTensor.getType());
-        ArrayRef<int64_t> inputTensor_sizes = inputTensor_type.getSizes();
         unsigned inputTensor_rank = inputTensor_sizes.size();
 
         // supported modes:
