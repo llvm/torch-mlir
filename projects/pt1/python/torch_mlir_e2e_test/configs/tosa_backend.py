@@ -24,10 +24,9 @@ class TosaBackendTestConfig(TestConfig):
     reaching the TOSA abstraction level.
     """
 
-    def __init__(self, backend: TosaBackend, use_make_fx: bool = False):
+    def __init__(self, backend: TosaBackend):
         super().__init__()
         self.backend = backend
-        self.use_make_fx = use_make_fx
 
     def compile(self, program: torch.nn.Module, verbose: bool = False) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
@@ -35,7 +34,6 @@ class TosaBackendTestConfig(TestConfig):
             program,
             example_args,
             output_type="tosa",
-            use_make_fx=self.use_make_fx,
             verbose=verbose,
         )
 
