@@ -5513,11 +5513,7 @@ public:
           rewriter.getDenseI64ArrayAttr(makeShapeTorchCompatible(resultShape)));
     }
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(
-        op, resultTy,
-        // OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-        //     op.getType()),
-        result);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultTy, result);
 
     return success();
   }
@@ -6451,11 +6447,7 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewrite(
       tosa::getConstTensor<int32_t>(rewriter, op,
                                     /*vec=*/{0, 3, 1, 2},
                                     /*shape=*/{static_cast<int32_t>(4)});
-  // SmallVector<int64_t> transposedOutputShape(
-  //     {transposedResizedOpShape[0], transposedResizedOpShape[3],
-  //      transposedResizedOpShape[1], transposedResizedOpShape[2]});
-  // auto transposedOutputType = RankedTensorType::get(
-  //     makeShapeLLVMCompatible(transposedOutputShape), inputElemTy);
+
   rewriter
       .replaceOpWithNewOp<tosa::TransposeOp>(
           op, getTypeConverter()->convertType(resultType), resizeOpResult,
