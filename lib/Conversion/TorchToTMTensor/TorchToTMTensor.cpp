@@ -147,8 +147,8 @@ convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(PatternRewriter &rewriter,
                 }
                 // Replace the original index with the index specified
                 // by the scatter.
-                yieldVals[dim] = b.create<arith::TruncIOp>(
-                    loc, rewriter.getI32Type(), extractIndexValue);
+                yieldVals[dim] = convertScalarToDtype(
+                    rewriter, loc, extractIndexValue, rewriter.getI32Type());
                 yieldVals.push_back(extractSrcValue);
                 b.create<linalg::YieldOp>(loc, yieldVals);
               })
