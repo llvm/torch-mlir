@@ -217,10 +217,10 @@ function build_in_tree() {
 
   local torch_version="$3"
   local enable_ltc="ON"
-  if [[ "${torch_version}" == "stable" ]]
-  then
-    enable_ltc="OFF"
-  fi
+  #if [[ "${torch_version}" == "stable" ]]
+  #then
+  #  enable_ltc="OFF"
+  #fi
 
   echo ":::: Build in-tree Torch from binary: $torch_from_bin with Python: $python_version"
   cmake -GNinja -B/main_checkout/torch-mlir/build \
@@ -238,12 +238,13 @@ function build_in_tree() {
       -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="/main_checkout/torch-mlir" \
       -DLLVM_TARGETS_TO_BUILD=host \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-      -DTORCH_MLIR_ENABLE_LTC=${enable_ltc} \
+      -DTORCH_MLIR_ENABLE_LTC=ON \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
       -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DTM_PYTORCH_INSTALL_WITHOUT_REBUILD=${TM_PYTORCH_INSTALL_WITHOUT_REBUILD} \
       -DPython3_EXECUTABLE="$(which python3)" \
+      -DCMAKE_VERBOSE_MAKEFILE=ON \
       /main_checkout/torch-mlir/externals/llvm-project/llvm
   cmake --build /main_checkout/torch-mlir/build --target tools/torch-mlir/all
   ccache -s
@@ -369,10 +370,10 @@ function build_out_of_tree() {
   echo ":::: Build out-of-tree Torch from binary: $torch_from_bin with Python: $python_version ($torch_version)"
 
   local enable_ltc="ON"
-  if [[ "${torch_version}" == "stable" ]]
-  then
-    enable_ltc="OFF"
-  fi
+  #if [[ "${torch_version}" == "stable" ]]
+  #then
+  #  enable_ltc="OFF"
+  #fi
 
   if [ ! -d "/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" ]
   then
@@ -396,7 +397,7 @@ function build_out_of_tree() {
   fi
 
   # Incremental builds come here directly and can run cmake if required.
-  cmake -GNinja -B/main_checkout/torch-mlir/build_oot \
+  cmake -GNinja --verbose -B/main_checkout/torch-mlir/build_oot \
       -DCMAKE_C_COMPILER=clang \
       -DCMAKE_CXX_COMPILER=clang++ \
       -DCMAKE_C_COMPILER_LAUNCHER=ccache \
@@ -407,7 +408,7 @@ function build_out_of_tree() {
       -DLLVM_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/llvm/" \
       -DMLIR_DIR="/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" \
       -DMLIR_ENABLE_BINDINGS_PYTHON=OFF \
-      -DTORCH_MLIR_ENABLE_LTC=${enable_ltc} \
+      -DTORCH_MLIR_ENABLE_LTC=ON \
       -DTORCH_MLIR_USE_INSTALLED_PYTORCH="$torch_from_bin" \
       -DTORCH_MLIR_SRC_PYTORCH_REPO=${TORCH_MLIR_SRC_PYTORCH_REPO} \
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
@@ -433,7 +434,7 @@ function clean_build() {
 
 function build_torch_mlir_ext() {
   # Disable LTC build for releases
-  export TORCH_MLIR_ENABLE_LTC=0
+  export TORCH_MLIR_ENABLE_LTC=1
   local torch_version="$1"
   case $torch_version in
     nightly)
@@ -472,7 +473,7 @@ function run_audit_wheel() {
 
 function build_torch_mlir() {
   # Disable LTC build for releases
-  export TORCH_MLIR_ENABLE_LTC=0
+  export TORCH_MLIR_ENABLE_LTC=1
   python -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
   CMAKE_GENERATOR=Ninja \
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
