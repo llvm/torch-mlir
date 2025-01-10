@@ -1,5 +1,7 @@
 include(AddMLIRPython)
 
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 if(TORCH_MLIR_ENABLE_ONNX_C_IMPORTER)
   add_subdirectory(onnx_c_importer)
 endif()
@@ -9,10 +11,12 @@ endif()
 # Configure PyTorch if we have any features enabled which require it.
 ################################################################################
 
- message(STATUS "CHECK RAHUL LTC ENABLED")
+message(STATUS "CHECK RAHUL LTC ENABLED")
+set(TORCH_MLIR_ENABLE_LTC 1)
 if(TORCH_MLIR_ENABLE_LTC)
     message(STATUS "RAHUL LTC ENABLED")
 endif()
+
 
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OR TORCH_MLIR_ENABLE_LTC)
 

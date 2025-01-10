@@ -223,7 +223,7 @@ function build_in_tree() {
   #fi
 
   echo ":::: Build in-tree Torch from binary: $torch_from_bin with Python: $python_version"
-  cmake -GNinja -B/main_checkout/torch-mlir/build \
+  cmake -GNinja  -B/main_checkout/torch-mlir/build \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang \
       -DCMAKE_CXX_COMPILER=clang++ \

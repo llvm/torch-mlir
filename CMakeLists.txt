@@ -24,6 +24,8 @@ endif()
 project(torch-mlir LANGUAGES CXX C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 
 include(CMakeDependentOption)
 
