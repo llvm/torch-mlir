@@ -5742,6 +5742,33 @@ def ScaledDotProductAttentionBoolMaskModule_basic(module, tu: TestUtils):
     module.forward(query, key, value, mask)
 
 
+class ScaledDotProductAttentionGQAModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 32, 3, 8], torch.float32, True),
+            ([4, 8, 3, 8], torch.float32, True),
+            ([4, 8, 3, 8], torch.float32, True),
+        ]
+    )
+    def forward(self, query, key, value):
+        return torch.ops.aten.scaled_dot_product_attention(
+            query, key, value, enable_gqa=True
+        )
+
+
+@register_test_case(module_factory=lambda: ScaledDotProductAttentionGQAModule())
+def ScaledDotProductAttentionGQAModule_basic(module, tu: TestUtils):
+    query = torch.randn(4, 32, 3, 8, dtype=torch.float32)
+    key = torch.randn(4, 8, 3, 8, dtype=torch.float32)
+    value = torch.randn(4, 8, 3, 8, dtype=torch.float32)
+    module.forward(query, key, value)
+
+
 # ==============================================================================
 
 
