@@ -1705,6 +1705,8 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "LinspaceDtypeModule_basic",
+    "Aten_CastLongModule_basic",
     "Unfold_Module_Rank_4",
     "Unfold_Module_Rank_Zero_basic",
     "Unfold_Module_basic",
@@ -2748,6 +2750,7 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    "ToDtypeIntFromFloatModule_basic",
     # This test is expected to time out
     "TimeOutModule_basic",
     # Failure - cast error
@@ -3571,7 +3574,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenSubFloatModule_basic",
     "AtenTopKModule_basic",
     "AtenTopKSmallestModule_basic",
-    "Aten_CastLongModule_basic",
     "Aten_EmbeddingBagExample_basic",
     "AvgPool1dFloatModule_basic",
     "AvgPool1dIntModule_basic",
@@ -3631,7 +3633,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ConvolutionModule2DTransposeStridedStatic_basic",
     "ConvolutionModule2DTransposeStrided_basic",
     "ConvolutionModule2DTranspose_basic",
-    "CopyWithDifferentDTypesModule_basic",
     "CumsumInputDtypeInt32Module_basic",
     "CumsumModule_basic",
     "CumsumStaticModule_basic",
@@ -3678,7 +3679,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseSinhModule_basic",
     "ElementwiseSpecialExpm1IntModule_basic",
     "ElementwiseSpecialExpm1Module_basic",
-    "ElementwiseToDtypeF32ToI64Module_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
     "ElementwiseWhereScalarOtherStaticModule_basic",
     "EqIntModule_basic",
@@ -3714,8 +3714,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "IndexPutImpl2DNoneIndexStaticModule_basic",
     "IndexPutImpl3DFloatAccumulateModule_basic",
     "IndexPutImplIndexWithNoneModule_basic",
-    "InterpolateDynamicModule_sizes_bilinear",
-    "InterpolateDynamicModule_scales_recompute_bilinear",
     "IntFloatModule_basic",
     "IntImplicitModule_basic",
     "IsFloatingPointFloat_True",
@@ -3723,7 +3721,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "LenStrModule_basic",
     "LinalgNormKeepDimComplexModule_basic",
     "LinalgVectorNormComplexModule_basic",
-    "LinspaceDtypeModule_basic",
     "LinspaceEmptyModule_basic",
     "MaskedScatterStaticBasic_basic",
     "MaxPool1dCeilModeTrueModule_basic",
@@ -3789,7 +3786,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "PrimMaxIntModule_basic",
     "PrimMinIntDynamicModule_basic",
     "PrimMinIntModule_basic",
-    "PrimsConvertElementTypeModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
     "PrimsSqueezeModule_basic",
     "PrimsViewOfModule_basic",
@@ -3874,8 +3870,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "TensorToInt_basic",
     "TestMultipleTensorAndPrimitiveTypesReturn_basic",
     "ThresholdBackward2dMixedModule_basic",
-    "ToCopyWithDTypeFalsePinMemoryModule_basic",
-    "ToCopyWithDTypeModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
     "TraceModule_empty",
@@ -4145,7 +4139,6 @@ ONNX_TOSA_XFAIL_SET = {
     "AtenTriuModule_basic",
     "AtenTriuWithNegDiagonalModule_basic",
     "AtenTriuWithPosDiagonalModule_basic",
-    "Aten_CastLongModule_basic",
     "Aten_EmbeddingBagExample_basic",
     "AvgPool1dFloatModule_basic",
     "AvgPool1dIntModule_basic",
@@ -4861,6 +4854,8 @@ ONNX_TOSA_XFAIL_SET = {
     "ToDtypeLayoutCPUModule_basic",
     "ToDtypeLayoutNoneModule_basic",
     "ToDtypeLayoutStridedModule_basic",
+    "ToDtypeIntFromFloatModule_basic",
+    "ToDtypeFloatFromIntModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
     "TraceModule_basic",
