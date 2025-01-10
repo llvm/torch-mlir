@@ -217,10 +217,10 @@ function build_in_tree() {
 
   local torch_version="$3"
   local enable_ltc="ON"
-  if [[ "${torch_version}" == "stable" ]]
-  then
-    enable_ltc="OFF"
-  fi
+  #if [[ "${torch_version}" == "stable" ]]
+  #then
+  #  enable_ltc="OFF"
+  #fi
 
   echo ":::: Build in-tree Torch from binary: $torch_from_bin with Python: $python_version"
   cmake -GNinja -B/main_checkout/torch-mlir/build \
@@ -369,10 +369,10 @@ function build_out_of_tree() {
   echo ":::: Build out-of-tree Torch from binary: $torch_from_bin with Python: $python_version ($torch_version)"
 
   local enable_ltc="ON"
-  if [[ "${torch_version}" == "stable" ]]
-  then
-    enable_ltc="OFF"
-  fi
+  #if [[ "${torch_version}" == "stable" ]]
+  #then
+  #  enable_ltc="OFF"
+  #fi
 
   if [ ! -d "/main_checkout/torch-mlir/llvm-build/lib/cmake/mlir/" ]
   then
@@ -396,7 +396,7 @@ function build_out_of_tree() {
   fi
 
   # Incremental builds come here directly and can run cmake if required.
-  cmake -GNinja -B/main_checkout/torch-mlir/build_oot \
+  cmake -GNinja --verbose -B/main_checkout/torch-mlir/build_oot \
       -DCMAKE_C_COMPILER=clang \
       -DCMAKE_CXX_COMPILER=clang++ \
       -DCMAKE_C_COMPILER_LAUNCHER=ccache \
@@ -433,7 +433,7 @@ function clean_build() {
 
 function build_torch_mlir_ext() {
   # Disable LTC build for releases
-  export TORCH_MLIR_ENABLE_LTC=0
+  export TORCH_MLIR_ENABLE_LTC=1
   local torch_version="$1"
   case $torch_version in
     nightly)
@@ -472,7 +472,7 @@ function run_audit_wheel() {
 
 function build_torch_mlir() {
   # Disable LTC build for releases
-  export TORCH_MLIR_ENABLE_LTC=0
+  export TORCH_MLIR_ENABLE_LTC=1
   python -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
   CMAKE_GENERATOR=Ninja \
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \

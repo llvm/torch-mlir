@@ -8,6 +8,12 @@ endif()
 # PyTorch
 # Configure PyTorch if we have any features enabled which require it.
 ################################################################################
+
+ message(STATUS "CHECK RAHUL LTC ENABLED")
+if(TORCH_MLIR_ENABLE_LTC)
+    message(STATUS "RAHUL LTC ENABLED")
+endif()
+
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OR TORCH_MLIR_ENABLE_LTC)
 
   if (NOT TORCH_MLIR_USE_INSTALLED_PYTORCH)
