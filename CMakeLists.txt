@@ -142,7 +142,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 
 function(torch_mlir_target_includes target)
   set(_dirs
-    $<BUILD_INTERFACE:${MLIR_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${TORCH_MLIR_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${TORCH_MLIR_BINARY_DIR}/include>
   )
