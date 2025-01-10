@@ -399,7 +399,6 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenIntBoolOpModule_basic",
     "AtenIntMM_basic",
     "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
-    "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluInt8_basic",
@@ -521,9 +520,6 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "_SoftmaxModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
-    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
-    "Aten_TrilinearModuleSumAllDims_basic",
-    "Aten_TrilinearModuleSumdims_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
@@ -629,7 +625,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenTopKModule_basic",
     "AtenTopKSmallestModule_basic",
     "Aten_EmbeddingBagExample_basic",
-    "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
     "AvgPool2dDivisorOverrideModule_basic",
     "BernoulliTensorModule_basic",
@@ -958,9 +953,6 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
     #  materialization callback produced value of incorrect type failed
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
-    "Aten_TrilinearModuleSumdims_basic",
-    "Aten_TrilinearModuleSumAllDims_basic",
-    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
 }
@@ -993,6 +985,14 @@ STABLEHLO_PASS_SET = {
     "AtenLinearMatVec_basic",
     "AtenLinearVecMatBias_basic",
     "AtenLinearVecMat_basic",
+    "Aten_BilinearModule1D_basic",
+    "Aten_BilinearModuleND_basic",
+    "Aten_BilinearModule_basic",
+    "Aten_TrilinearModuleSumAllDims_basic",
+    "Aten_TrilinearModuleSumdims_basic",
+    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
+    "Aten_TrilinearModuleVaryingRanks_basic",
+    "Aten_TrilinearModule_basic",
     "ReduceAminSingleDim_basic",
     "AtenDotModule_basic",
     "AdaptiveAvgPool1dNonUnitOutputSizeStaticModule_basic",
@@ -1692,9 +1692,6 @@ TOSA_CRASHING_SET = {
 }
 
 FX_IMPORTER_TOSA_CRASHING_SET = {
-    "Aten_TrilinearModuleSumAllDims_basic",
-    "Aten_TrilinearModuleSumdims_basic",
-    "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
     "ScatterSrcModule_basic",
@@ -1810,6 +1807,9 @@ TOSA_PASS_SET = {
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModule_basic",
+    "Aten_BilinearModule1D_basic",
+    "Aten_BilinearModuleND_basic",
+    "Aten_BilinearModule_basic",
     "ElementwiseAddBoolModule_basic",
     "Exp2StaticModule_basic",
     "CosineSimilarityStaticBroadcastModule_basic",
@@ -3391,6 +3391,10 @@ ONNX_XFAIL_SET = {
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
+    "Aten_BilinearModule1D_basic",
+    "Aten_BilinearModuleDynamic_basic",
+    "Aten_BilinearModuleND_basic",
+    "Aten_BilinearModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
@@ -3485,7 +3489,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "SelfAttentionFwAndBwModule_basic",
     "ElementwiseCopysignModule_basic",
     "ElementwiseSignbitModule_basic",
-    "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
     "AtenNonzero1DDynamicModule_basic",
     "MaxPool3dEmptyStrideStaticModule_basic",
@@ -4138,6 +4141,10 @@ ONNX_TOSA_XFAIL_SET = {
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
+    "Aten_BilinearModule1D_basic",
+    "Aten_BilinearModuleDynamic_basic",
+    "Aten_BilinearModuleND_basic",
+    "Aten_BilinearModule_basic",
     "AtenTrilModule_basic",
     "AtenTrilWithNegDiagonalModule_basic",
     "AtenTrilWithPosDiagonalModule_basic",
