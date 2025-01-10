@@ -223,7 +223,7 @@ function build_in_tree() {
   #fi
 
   echo ":::: Build in-tree Torch from binary: $torch_from_bin with Python: $python_version"
-  cmake -GNinja  -B/main_checkout/torch-mlir/build \
+  cmake -GNinja -B/main_checkout/torch-mlir/build \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=clang \
       -DCMAKE_CXX_COMPILER=clang++ \
@@ -244,6 +244,7 @@ function build_in_tree() {
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DTM_PYTORCH_INSTALL_WITHOUT_REBUILD=${TM_PYTORCH_INSTALL_WITHOUT_REBUILD} \
       -DPython3_EXECUTABLE="$(which python3)" \
+      -DCMAKE_VERBOSE_MAKEFILE=ON \
       /main_checkout/torch-mlir/externals/llvm-project/llvm
   cmake --build /main_checkout/torch-mlir/build --target tools/torch-mlir/all
   ccache -s

@@ -80,6 +80,42 @@ endif()
 #-------------------------------------------------------------------------------
 # Configure out-of-tree vs in-tree build
 #-------------------------------------------------------------------------------
+execute_process(
+    COMMAND nm -D /opt/python/cp311-cp311/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so
+    OUTPUT_VARIABLE OUTPUT
+    RESULT_VARIABLE RESULT
+    ERROR_VARIABLE ERR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+# Print the command output
+message("Command output:\n${OUTPUT}")
+
+# Print the result status
+if(RESULT EQUAL 0)
+    message("Command executed successfully.")
+else()
+    message("Command failed with error: ${ERR}")
+endif()
+
+execute_process(
+    COMMAND ldd /opt/python/cp311-cp311/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so
+    OUTPUT_VARIABLE OUTPUT1
+    RESULT_VARIABLE RESULT1
+    ERROR_VARIABLE ERR1
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+# Print the command output
+message("Command output:\n${OUTPUT1}")
+
+# Print the result status
+if(RESULT1 EQUAL 0)
+    message("Command executed successfully.")
+else()
+    message("Command failed with error: ${ERR1}")
+endif()
+
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR TORCH_MLIR_OUT_OF_TREE_BUILD)
   message(STATUS "Torch-MLIR out-of-tree build.")
