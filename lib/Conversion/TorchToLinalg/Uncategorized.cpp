@@ -1568,6 +1568,43 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                                    threshold);
   }
 
+  if (auto operatorOp = dyn_cast<OperatorOp>(op)) {
+    // We do not yet implement lowering for other variants of the op.
+    if (operatorOp.getNameAttr().str() != "torch.aten.round.decimals")
+      return nullptr;
+
+    // Lower the op in a similar fashion as described here:
+    // https://github.com/pytorch/pytorch/blob/de4c2a3b4e89d96334dc678d1c3f2ae51a6630a0/torch/_inductor/decomposition.py#L223.
+    // Note that `aten.round` is converted to `math.roundeven`, we do this
+    // implicitly here because `aten.round` cannot operate on a single input
+    // tensor element which is what we get as payload argument.
+
+    Location loc = op->getLoc();
+    Type i64Type = b.getI64Type();
+
+    auto torchIntOp = dyn_cast<ConstantIntOp>(
+        operatorOp.getOperands().back().getDefiningOp());
+    if (!torchIntOp)
+      return nullptr;
+    int64_t numDecimalsArg = torchIntOp.getValue();
+
+    Value inputTensorElem = payloadArgs[0];
+    Type inputTensorElemType = inputTensorElem.getType();
+
+    auto numDecimals = b.create<arith::ConstantOp>(
+        loc, i64Type, IntegerAttr::get(i64Type, numDecimalsArg));
+    auto const10 = b.create<arith::ConstantOp>(
+        loc, inputTensorElemType, FloatAttr::get(inputTensorElemType, 10));
+    auto tenPowDecimals = b.create<math::FPowIOp>(loc, const10, numDecimals);
+
+    auto mulTenPowDecimalsinputTensorElem =
+        b.create<arith::MulFOp>(loc, inputTensorElem, tenPowDecimals);
+    auto roundOp =
+        b.create<math::RoundEvenOp>(loc, mulTenPowDecimalsinputTensorElem);
+    auto res = b.create<arith::DivFOp>(loc, roundOp, tenPowDecimals);
+    return res;
+  }
+
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForElementwiseOp");
   return nullptr;
@@ -1627,8 +1664,13 @@ public:
              AtenFillScalarOp, AtenFillTensorOp, AtenAtanOp, AtenAcosOp,
              AtenAtanhOp, AtenAcoshOp, AtenAsinOp, AtenAsinhOp, AtenRealOp,
              AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
-             AtenQuantizePerTensorOp, AtenIscloseOp>(op))
+             AtenQuantizePerTensorOp, AtenIscloseOp, OperatorOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
+
+    if (auto operatorOp = dyn_cast<OperatorOp>(op))
+      if (operatorOp.getNameAttr().str() != "torch.aten.round.decimals")
+        return rewriter.notifyMatchFailure(op,
+                                           "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -3591,7 +3633,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenTrilOp, AtenRemainderScalarOp, AtenRemainderTensorOp,
       AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
       AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
-      AtenQuantizePerTensorOp, AtenIscloseOp>();
+      AtenQuantizePerTensorOp, AtenIscloseOp, OperatorOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);

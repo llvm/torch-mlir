@@ -148,6 +148,9 @@ def ReduceOpVariants : Pass<"torch-reduce-op-variants", "func::FuncOp"> {
   let options = [
     Option<"extraLibrary", "extra-library", "std::string", /*default=*/"",
            "MLIR module for verifying custom op value semantics">,
+    ListOption<"legalOps", "legal-ops", "std::string",
+               "Comma separated list of operation names that should be considered legal",
+               "llvm::cl::ZeroOrMore">
   ];
   let description = [{
     Replaces ops with other ops to reduce the number of variants that
