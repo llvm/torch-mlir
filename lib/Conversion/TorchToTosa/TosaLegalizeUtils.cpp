@@ -390,7 +390,8 @@ LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
       auto floor = rewriter.create<tosa::FloorOp>(op->getLoc(), srcType, src);
       auto ceil = rewriter.create<tosa::CeilOp>(op->getLoc(), srcType, src);
 
-      auto zeroValue = tosa::getConstTensor<float>(rewriter, op, 0, {}).value();
+      auto zeroValue =
+          tosa::getConstTensor<float>(rewriter, op, 0, {}, srcElemTy).value();
 
       auto boolType = srcType.clone(rewriter.getIntegerType(1));
       auto isNegative = tosa::CreateOpAndInfer<tosa::GreaterOp>(

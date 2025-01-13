@@ -3336,6 +3336,7 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
+    "ScatterAddDynamicModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
     "AtenFftRfft2DLastDim_basic",
@@ -3545,9 +3546,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseQuantizePerTensorUIntModule_basic",
     "ElementwiseSinhIntModule_basic",
     "ElementwiseSinhModule_basic",
-    "ElementwiseSpecialExpm1IntModule_basic",
-    "ElementwiseSpecialExpm1Module_basic",
-    "ElementwiseToDtypeF32ToI64Module_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
     "EqIntModule_basic",
     "FloatImplicitModule_basic",
