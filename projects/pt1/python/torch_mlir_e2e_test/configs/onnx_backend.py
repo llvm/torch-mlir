@@ -140,12 +140,10 @@ class OnnxBackendTestConfig(TestConfig):
     def __init__(
         self,
         backend,
-        use_make_fx: bool = False,
         output_type="linalg-on-tensors",
     ):
         super().__init__()
         self.backend = backend
-        self.use_make_fx = use_make_fx
         self.output_type = output_type
 
     def compile(self, program: torch.nn.Module, verbose: bool = False) -> Any:

@@ -14,8 +14,6 @@ import os
 from torch._functorch.compile_utils import strip_overloads
 import torch
 import torch.fx
-from torch_mlir.dynamo import _get_decomposition_table
-from torch.fx.experimental.proxy_tensor import make_fx
 
 from torch_mlir.compiler_utils import (
     run_pipeline_with_repro_report,
@@ -249,7 +247,6 @@ def compile(
     backend_legal_ops: Optional[Sequence[str]] = None,
     extra_library: Iterable[Callable] = [],
     verbose: bool = False,
-    use_make_fx: bool = False,
     enable_ir_printing: bool = False,
 ):
     """Convert a PyTorch model to MLIR.
@@ -311,12 +308,6 @@ def compile(
         backend_legal_ops = list(sorted(set(backend_legal_ops)))
     else:
         backend_legal_ops = BACKEND_LEGAL_OPS.get(output_type, [])
-
-    if use_make_fx:
-        args = example_args._get_for_tracing(
-            use_tracing=True, ignore_traced_shapes=True
-        )["forward"]
-        model = make_fx(model, decomposition_table=_get_decomposition_table())(*args)
 
     # For FX-based models, automatically strip overloads.
     if isinstance(model, torch.fx.GraphModule):
