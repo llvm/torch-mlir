@@ -5513,11 +5513,7 @@ public:
           rewriter.getDenseI64ArrayAttr(makeShapeTorchCompatible(resultShape)));
     }
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(
-        op, resultTy,
-        // OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-        //     op.getType()),
-        result);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultTy, result);
 
     return success();
   }
@@ -6451,11 +6447,7 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewrite(
       tosa::getConstTensor<int32_t>(rewriter, op,
                                     /*vec=*/{0, 3, 1, 2},
                                     /*shape=*/{static_cast<int32_t>(4)});
-  // SmallVector<int64_t> transposedOutputShape(
-  //     {transposedResizedOpShape[0], transposedResizedOpShape[3],
-  //      transposedResizedOpShape[1], transposedResizedOpShape[2]});
-  // auto transposedOutputType = RankedTensorType::get(
-  //     makeShapeLLVMCompatible(transposedOutputShape), inputElemTy);
+
   rewriter
       .replaceOpWithNewOp<tosa::TransposeOp>(
           op, getTypeConverter()->convertType(resultType), resizeOpResult,
@@ -8212,6 +8204,47 @@ LogicalResult ConvertAtenOp<AtenLog10Op>::matchAndRewrite(
   return success();
 }
 
+// Legalization for aten.expm1
+template <>
+LogicalResult ConvertAtenOp<AtenExpm1Op>::matchAndRewrite(
+    AtenExpm1Op op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // expm1 formula:
+  // yi = exp(x) - 1
+  // Note: This lowering might not provide as great precision as aten.expm1
+  // since TOSA doesn't have a built-in expm1 op.
+  auto self = adaptor.getSelf();
+
+  auto selfType = dyn_cast<TensorType>(self.getType());
+  if (!selfType)
+    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
+
+  auto resultType =
+      dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
+  auto resultElemTy = resultType.getElementType();
+
+  if (!isa<mlir::FloatType>(resultElemTy))
+    return rewriter.notifyMatchFailure(
+        op, "Only floating-point datatype result types are supported");
+
+  // If input is not a float type then cast it to result element type
+  auto selfElemTy = selfType.getElementType();
+  if (!isa<mlir::FloatType>(selfElemTy))
+    self = tosa::promoteType(rewriter, self, resultType);
+
+  auto one =
+      tosa::getConstTensor<float>(rewriter, op, 1.0f, {}, resultElemTy).value();
+
+  auto expOp = rewriter.create<tosa::ExpOp>(op->getLoc(), resultType, self);
+
+  auto result = rewriter.create<tosa::SubOp>(op->getLoc(), resultType,
+                                             expOp.getResult(), one);
+
+  rewriter.replaceOp(op, {result.getResult()});
+
+  return success();
+}
+
 // Legalization for aten.tan
 template <>
 LogicalResult ConvertAtenOp<AtenTanOp>::matchAndRewrite(
@@ -8805,6 +8838,7 @@ std::set<StringRef> torch::populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ATENOP_PATTERN(AtenLogitOp);
   INSERT_ATENOP_PATTERN(AtenLog1pOp);
   INSERT_ATENOP_PATTERN(AtenLog10Op);
+  INSERT_ATENOP_PATTERN(AtenExpm1Op);
   INSERT_ATENOP_PATTERN(AtenTanOp);
   INSERT_ATENOP_PATTERN(AtenUnfoldOp);
 #undef INSERT_ATENOP_PATTERN
