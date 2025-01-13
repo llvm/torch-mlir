@@ -3057,3 +3057,27 @@ func.func @torch.aten.expm1$int(%arg0: !torch.vtensor<[3,4],si32>) -> !torch.vte
 }
 
 // -----
+
+// CHECK-LABEL:   func.func @torch.aten.constant_pad_nd$basic(
+// CHECK-SAME:                                                %[[VAL_0:.*]]: !torch.vtensor<[1,1,20,20,4,4],f32>) -> !torch.vtensor<[1,1,20,20,4,5],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,20,20,4,4],f32> -> tensor<1x1x20x20x4x4xf32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.float 0xFFF0000000000000
+// CHECK:           %[[VAL_3:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_4:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_5:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_6:.*]] = "tosa.const"() <{value = dense<[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]> : tensor<12xi64>}> : () -> tensor<12xi64>
+// CHECK:           %[[VAL_7:.*]] = "tosa.const"() <{value = dense<0xFF800000> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[VAL_8:.*]] = tosa.pad %[[VAL_1]], %[[VAL_6]], %[[VAL_7]] : (tensor<1x1x20x20x4x4xf32>, tensor<12xi64>, tensor<f32>) -> tensor<1x1x20x20x4x5xf32>
+// CHECK:           %[[VAL_9:.*]] = torch_c.from_builtin_tensor %[[VAL_8]] : tensor<1x1x20x20x4x5xf32> -> !torch.vtensor<[1,1,20,20,4,5],f32>
+// CHECK:           return %[[VAL_9]] : !torch.vtensor<[1,1,20,20,4,5],f32>
+// CHECK:         }
+func.func @torch.aten.constant_pad_nd$basic(%arg0: !torch.vtensor<[1,1,20,20,4,4],f32>) -> !torch.vtensor<[1,1,20,20,4,5],f32> {
+  %float-Inf = torch.constant.float 0xFFF0000000000000
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %0 = torch.prim.ListConstruct %int0, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.constant_pad_nd %arg0, %0, %float-Inf : !torch.vtensor<[1,1,20,20,4,4],f32>, !torch.list<int>, !torch.float -> !torch.vtensor<[1,1,20,20,4,5],f32>
+  return %1 : !torch.vtensor<[1,1,20,20,4,5],f32>
+}
+
+// -----
