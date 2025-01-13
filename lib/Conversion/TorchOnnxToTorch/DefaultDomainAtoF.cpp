@@ -24,7 +24,7 @@ LogicalResult windowFunctionImpl(OpBinder binder,
                                  Torch::ValueTensorType resultType,
                                  int64_t output_datatype, int64_t periodic) {
 
-  Location loc = binder.getLoc();
+  auto loc = binder.getLoc();
   ImplicitLocOpBuilder b(loc, rewriter);
 
   double isPeriodicFp = static_cast<double>(periodic);
@@ -355,7 +355,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultTypeAtIndex(resultType, 0))
           return failure();
 
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
         Value cstMomentum = rewriter.create<Torch::ConstantFloatOp>(
             loc, rewriter.getF64FloatAttr(momentum));
@@ -1290,7 +1290,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
       });
   patterns.onOp(
       "Conv", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         Torch::ValueTensorType resultType;
         Value input, weight;
         int64_t group;
@@ -2325,7 +2325,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                 });
   patterns.onOp(
       "Dropout", 12, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         Torch::ValueTensorType resultType;
         int64_t numOperands = binder.op->getNumOperands();
         SmallVector<Value> operands;
@@ -2407,7 +2407,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
   patterns.onOp(
       "DynamicQuantizeLinear", 11,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         Value input;
         Torch::ValueTensorType resultType, scaleType, zeroPointType;
         if (binder.tensorOperand(input) ||
@@ -2496,7 +2496,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                 });
   patterns.onOp("Elu", 6,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Location loc = binder.getLoc();
+                  auto loc = binder.getLoc();
                   Torch::ValueTensorType resultType;
                   Value input;
                   float alpha;
@@ -2955,7 +2955,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return failure();
         }
 
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         Value a0 = rewriter.create<Torch::ConstantFloatOp>(
             loc, rewriter.getF64FloatAttr(0.42));
         Value a1 = rewriter.create<Torch::ConstantFloatOp>(
@@ -2986,7 +2986,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return failure();
         }
 
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         Value a0 = rewriter.create<Torch::ConstantFloatOp>(
             loc, rewriter.getF64FloatAttr(0.5));
         Value a1 = rewriter.create<Torch::ConstantFloatOp>(
@@ -3017,7 +3017,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return failure();
         }
 
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         Value a0 = rewriter.create<Torch::ConstantFloatOp>(
             loc, rewriter.getF64FloatAttr(0.543478));
         Value a1 = rewriter.create<Torch::ConstantFloatOp>(

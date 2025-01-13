@@ -945,7 +945,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // discussion can be found here:
         // https://github.com/pytorch/pytorch/issues/9410
         // So, for now, we unroll into multiple unsqueezes.
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         Torch::ValueTensorType resultType;
         Value data, axes;
         if (binder.tensorOperands(data, axes) ||
@@ -1766,7 +1766,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(
               binder.op, "Expected result type to be a ranked tensor type");
 
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
 
         // Binding `axes` from its arguments or through a default value
         Value axes;
@@ -2860,7 +2860,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "unsupported: roi max pooling without default "
                          "coordTfMode and sampling_ratio");
 
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         // concatenate the batchIndices to the rois to get rois as a num_roisx5
         // tensor. The batchIndices tensor is an int64 tensor, and needs to be
         // converted to float before concatenation.
@@ -3029,7 +3029,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       });
   patterns.onOp(
       "Shrink", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         Torch::ValueTensorType resultType;
         Value input;
         float bias, lambd;
@@ -3665,7 +3665,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                          "none(default)");
         }
 
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         auto dataTy = dyn_cast<Torch::ValueTensorType>(data.getType());
         auto indicesTy = dyn_cast<Torch::ValueTensorType>(indices.getType());
         auto updatesTy = dyn_cast<Torch::ValueTensorType>(updates.getType());
@@ -4451,7 +4451,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       });
   patterns.onOp(
       "Scan", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         SmallVector<Value> operands;
         int64_t numScanInputs;
         if (binder.tensorOperandsList(operands) || operands.size() == 0 ||

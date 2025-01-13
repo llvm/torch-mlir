@@ -1330,7 +1330,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         Value outputShapeList =
             createConstantIntList(binder, rewriter, pooledShape);
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
 
         auto inputTy = cast<Torch::ValueTensorType>(input.getType());
         auto roisTy = cast<Torch::ValueTensorType>(rois.getType());
@@ -1696,7 +1696,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.s64IntegerAttr(batchDimCount, "batch_dims", 0))
           return failure();
 
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         auto dataTy = cast<Torch::ValueTensorType>(data.getType());
         auto indicesTy = cast<Torch::ValueTensorType>(indices.getType());
         if (!dataTy || !dataTy.hasSizes())
@@ -1957,7 +1957,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType) ||
             binder.s64IntegerAttr(axis, "axis", 0))
           return failure();
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         auto ctx = binder.op->getContext();
         auto indicesTy = cast<Torch::ValueTensorType>(indices.getType());
         auto dataTy = cast<Torch::ValueTensorType>(data.getType());
@@ -2692,7 +2692,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // https://onnx.ai/onnx/operators/onnx__LRN.html
 
         // squared = operand^2
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         Torch::ValueTensorType inTy =
             cast<Torch::ValueTensorType>(operand.getType());
         Value sqOperand = rewriter.create<Torch::AtenMulTensorOp>(
@@ -2803,7 +2803,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         int64_t dataRank = dataTensor.getRank();
         int64_t padsSize = 2 * dataRank;
 
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
 
         // get pads (earlier versions use an attribute, newer versions use a
         // tensor input)
@@ -3688,7 +3688,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
   patterns.onOp(
       "NonMaxSuppression", 10,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Location loc = binder.getLoc();
+        auto loc = binder.getLoc();
         Torch::ValueTensorType resultType;
         SmallVector<Value> operands;
         int64_t centerPointBox;

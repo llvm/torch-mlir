@@ -169,7 +169,7 @@ static Value StaticTranspose(ImplicitLocOpBuilder b, Value value, int64_t dim0,
 
 LogicalResult OnnxRnnExpander(OpBinder binder,
                               ConversionPatternRewriter &rewriter) {
-  Location loc = binder.getLoc();
+  auto loc = binder.getLoc();
   mlir::ImplicitLocOpBuilder b(loc, rewriter);
 
   auto intType = b.getType<IntType>();
@@ -655,7 +655,7 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
 // @param binder The OpBinder object used for binding operands.
 LogicalResult OnnxLstmExpander(OpBinder binder,
                                ConversionPatternRewriter &rewriter) {
-  Location loc = binder.getLoc();
+  auto loc = binder.getLoc();
   mlir::ImplicitLocOpBuilder b(loc, rewriter);
 
   std::string direction;
@@ -1266,7 +1266,7 @@ GruLayerOutput gru_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
 
 LogicalResult OnnxGruExpander(OpBinder binder,
                               ConversionPatternRewriter &rewriter) {
-  Location loc = binder.getLoc();
+  auto loc = binder.getLoc();
   mlir::ImplicitLocOpBuilder b(loc, rewriter);
 
   auto intType = b.getType<IntType>();
