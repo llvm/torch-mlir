@@ -8,22 +8,6 @@ torch_version="${1:-unknown}"
 
 export PYTHONPATH="$repo_root/build/tools/torch-mlir/python_packages/torch_mlir:$repo_root/projects/pt1"
 
-echo "::group::Run Linalg e2e integration tests"
-python -m e2e_testing.main --config=linalg -v
-echo "::endgroup::"
-
-echo "::group::Run make_fx + TOSA e2e integration tests"
-python -m e2e_testing.main --config=make_fx_tosa -v
-echo "::endgroup::"
-
-echo "::group::Run TOSA e2e integration tests"
-python -m e2e_testing.main --config=tosa -v
-echo "::endgroup::"
-
-echo "::group::Run Stablehlo e2e integration tests"
-python -m e2e_testing.main --config=stablehlo -v
-echo "::endgroup::"
-
 echo "::group::Run ONNX e2e integration tests"
 python -m e2e_testing.main --config=onnx -v
 echo "::endgroup::"
@@ -40,6 +24,11 @@ case $torch_version in
     # TODO: Need to verify in the stable version
     echo "::group::Run FxImporter e2e integration tests"
     python -m e2e_testing.main --config=fx_importer -v
+    echo "::endgroup::"
+
+    # TODO: Need to verify in the stable version
+    echo "::group::Run FxImporter2Stablehlo e2e integration tests"
+    python -m e2e_testing.main --config=fx_importer_stablehlo -v
     echo "::endgroup::"
     ;;
   stable)

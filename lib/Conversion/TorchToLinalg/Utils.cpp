@@ -116,6 +116,22 @@ Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
   else
     division = b.createOrFold<arith::FloorDivSIOp>(loc, dividend, strideInt);
   Value out = b.createOrFold<arith::AddIOp>(loc, division, c1);
+
+  if (ceilMode) {
+    Value outMinusOneTimesStride =
+        b.createOrFold<arith::MulIOp>(loc, division, strideInt);
+    Value inAddLeftPadding = b.createOrFold<arith::AddIOp>(
+        loc, castIndexToInt64(b, loc, in), paddingInt);
+
+    auto reduceOutputDimCond =
+        b.createOrFold<arith::CmpIOp>(loc, arith::CmpIPredicate::uge,
+                                      outMinusOneTimesStride, inAddLeftPadding);
+
+    auto reducedDim = b.createOrFold<arith::SelectOp>(loc, reduceOutputDimCond,
+                                                      division, out);
+    return castIntToIndex(b, loc, reducedDim);
+  }
+
   return castIntToIndex(b, loc, out);
 }
 
@@ -578,6 +594,12 @@ LogicalResult torch_to_linalg::permuteTensor(Operation *op,
   int64_t inputRank = inType.getRank();
   Type elementType = inType.getElementType();
 
+  // Check for 0-D tensor.
+  if (inputRank == 0) {
+    result = input;
+    return success();
+  }
+
   // Check if the dimensions are a valid constants.
   int64_t numDimensions = dimensions.size();
   if (inputRank != numDimensions)
@@ -596,27 +618,50 @@ LogicalResult torch_to_linalg::permuteTensor(Operation *op,
 
   Value outVector = rewriter.create<tensor::EmptyOp>(
       loc, getAsOpFoldResult(outputDims), elementType);
-  SmallVector<AffineExpr> idExprs;
-  SmallVector<AffineExpr> swapExprs;
-  for (uint32_t i = 0; i < inputRank; i++)
-    idExprs.push_back(getAffineDimExpr(i, rewriter.getContext()));
-  for (uint32_t i = 0; i < inputRank; i++)
-    swapExprs.push_back(idExprs[dimensions[i]]);
 
-  AffineMap inputMap =
-      AffineMap::get(inputRank, /*symbolCount=*/0, idExprs, op->getContext());
-  AffineMap outputMap =
-      AffineMap::get(inputRank, /*symbolCount=*/0, swapExprs, op->getContext());
-  SmallVector<AffineMap> indexingMaps{inputMap, outputMap};
-  SmallVector<utils::IteratorType> iteratorTypes(inputRank,
-                                                 utils::IteratorType::parallel);
-  result = rewriter
-               .create<linalg::GenericOp>(
-                   loc, outVector.getType(), input, outVector, indexingMaps,
-                   iteratorTypes,
-                   [](OpBuilder &b, Location loc, ValueRange args) {
-                     b.create<linalg::YieldOp>(loc, args[0]);
-                   })
-               .getResult(0);
+  result =
+      rewriter.create<linalg::TransposeOp>(loc, input, outVector, dimensions)
+          ->getResult(0);
   return success();
+}
+
+// Flips an input tensor based on the values of axis list.
+Value torch_to_linalg::flipTensor(PatternRewriter &rewriter, Location loc,
+                                  Value input, SmallVector<int64_t> axis) {
+  Value c1 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+  Type elementType = cast<RankedTensorType>(input.getType()).getElementType();
+  auto selfRank = cast<RankedTensorType>(input.getType()).getRank();
+
+  // Only used to calculate flipped values, i.e. those on the flip axes. Other
+  // dims won't be used.
+  SmallVector<Value> dims = getTensorSizes(rewriter, loc, input);
+  for (auto flipDim : axis)
+    dims[flipDim] = rewriter.create<arith::SubIOp>(loc, dims[flipDim], c1);
+
+  Value initTensor = createZeroInitTensor(
+      rewriter, loc, getTensorSizes(rewriter, loc, input), elementType);
+
+  SmallVector<utils::IteratorType> iteratorTypes(selfRank,
+                                                 utils::IteratorType::parallel);
+  SmallVector<AffineMap> indexingMaps(
+      2, AffineMap::getMultiDimIdentityMap(selfRank, rewriter.getContext()));
+  Value flipped =
+      rewriter
+          .create<linalg::GenericOp>(
+              loc, input.getType(), input, initTensor, indexingMaps,
+              iteratorTypes,
+              [&](OpBuilder &b, Location loc, ValueRange args) {
+                SmallVector<Value> indices;
+                for (auto i = 0; i < selfRank; i++)
+                  indices.push_back(b.create<linalg::IndexOp>(loc, i));
+                for (auto flipDim : axis) {
+                  indices[flipDim] = b.create<arith::SubIOp>(loc, dims[flipDim],
+                                                             indices[flipDim]);
+                }
+                Value res = b.create<tensor::ExtractOp>(loc, input, indices)
+                                .getResult();
+                b.create<linalg::YieldOp>(loc, res);
+              })
+          .getResult(0);
+  return flipped;
 }

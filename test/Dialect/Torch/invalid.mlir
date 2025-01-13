@@ -381,8 +381,16 @@ func.func private @tensor.sparse() -> !torch.vtensor<[64,64],f32,12345>
 
 func.func @torch.symbolic_int$no_shape_symbols(%arg0: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
   %0 = torch.symbolic_int "s0" {min_val = 3, max_val = 6} : !torch.int
-  // expected-error @+1 {{op requires non-empty shapeSymbols}}
+  // expected-error @+1 {{op requires equal number of shape symbol args and symbol args to the attached affine map, since they are 1:1 mapped}}
   torch.bind_symbolic_shape %arg0, [], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
+  return %arg0 : !torch.vtensor<[?],f32>
+}
+
+// -----
+
+// Verifier should not fail here since the op does not require shapeSymbols.
+func.func @torch.symbolic_int$no_shape_symbols_no_symbols_in_map(%arg0: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
+  torch.bind_symbolic_shape %arg0, [], affine_map<()[] -> (1)> : !torch.vtensor<[?],f32>
   return %arg0 : !torch.vtensor<[?],f32>
 }
 

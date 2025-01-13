@@ -420,6 +420,35 @@ def MaxPool2dCeilModeTrueModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20, low=0.5, high=1.0))
 
 
+class MaxPool2dStaticCeilModeTrueReduceOutputModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp2d = torch.nn.MaxPool2d(
+            kernel_size=6,
+            stride=6,
+            padding=3,
+            dilation=1,
+            ceil_mode=True,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 6, 20, 10], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mp2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: MaxPool2dStaticCeilModeTrueReduceOutputModule()
+)
+def MaxPool2dStaticCeilModeTrueReduceOutputModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 6, 20, 10, low=0.5, high=1.0))
+
+
 # ==============================================================================
 
 
@@ -951,6 +980,252 @@ class MaxPool2dWithIndicesBackwardDynamic3DModule(torch.nn.Module):
 )
 def MaxPool2dWithIndicesBackwardDynamic3DModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 7, 6), tu.rand(2, 6, 5), tu.randint(2, 7, 6, high=16))
+
+
+# ==============================================================================
+
+
+class MaxPool3dWithIndicesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.max_pool3d_with_indices(
+            x,
+            kernel_size=[2, 2, 2],
+            stride=[1, 1, 1],
+            padding=[0, 0, 0],
+            dilation=[1, 1, 1],
+        )
+
+
+@register_test_case(module_factory=lambda: MaxPool3dWithIndicesModule())
+def MaxPool3dWithIndicesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 8, 8, 8, low=0.5, high=1.0))
+
+
+class MaxPool3dWithIndicesFullSizeKernelModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.max_pool3d_with_indices(
+            x, kernel_size=[4, 4, 4], stride=1, padding=0, dilation=1
+        )
+
+
+@register_test_case(module_factory=lambda: MaxPool3dWithIndicesFullSizeKernelModule())
+def MaxPool3dWithIndicesFullSizeKernelModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4, 4, 4, low=0.5, high=1.0))
+
+
+class MaxPool3dWithIndicesNonDefaultPaddingModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.max_pool3d_with_indices(
+            x, kernel_size=[4, 8, 4], stride=[1, 1, 1], padding=[2, 4, 2], dilation=1
+        )
+
+
+@register_test_case(
+    module_factory=lambda: MaxPool3dWithIndicesNonDefaultPaddingModule()
+)
+def MaxPool3dWithIndicesNonDefaultPaddingModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 16, 16, 16, low=-1.5, high=1.0))
+
+
+class MaxPool3dWithIndicesNonDefaultStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.max_pool3d_with_indices(
+            x, kernel_size=[4, 4, 4], stride=[1, 2, 1], padding=0, dilation=1
+        )
+
+
+@register_test_case(module_factory=lambda: MaxPool3dWithIndicesNonDefaultStrideModule())
+def MaxPool3dWithIndicesNonDefaultStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 4, 16, 80, 16, low=0.5, high=2.0))
+
+
+class MaxPool3dWithIndicesNonDefaultDilationModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.max_pool3d_with_indices(
+            x, kernel_size=[4, 4, 4], stride=[1, 1, 1], padding=0, dilation=[2, 2, 2]
+        )
+
+
+@register_test_case(
+    module_factory=lambda: MaxPool3dWithIndicesNonDefaultDilationModule()
+)
+def MaxPool3dWithIndicesNonDefaultDilationModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 4, 16, 80, 16, low=0.5, high=2.0))
+
+
+class MaxPool3dWithIndicesNonDefaultParamsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.max_pool3d_with_indices(
+            x,
+            kernel_size=[8, 4, 8],
+            stride=[2, 2, 2],
+            padding=[1, 2, 1],
+            dilation=[2, 2, 2],
+        )
+
+
+@register_test_case(module_factory=lambda: MaxPool3dWithIndicesNonDefaultParamsModule())
+def MaxPool3dWithIndicesNonDefaultParamsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 4, 16, 80, 16, low=-0.5, high=4.0))
+
+
+class MaxPool3dWithIndicesAllNegativeValuesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.max_pool3d_with_indices(
+            x, kernel_size=[4, 8, 4], stride=[1, 1, 1], padding=[2, 4, 2], dilation=1
+        )
+
+
+@register_test_case(
+    module_factory=lambda: MaxPool3dWithIndicesAllNegativeValuesModule()
+)
+def MaxPool3dWithIndicesAllNegativeValuesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 16, 16, 16, low=-4.5, high=-1.0))
+
+
+class MaxPool3dWithIndicesStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4, 16, 16, 16], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.max_pool3d_with_indices(
+            x, kernel_size=[4, 8, 4], stride=[1, 1, 1], padding=[2, 4, 2], dilation=1
+        )
+
+
+@register_test_case(module_factory=lambda: MaxPool3dWithIndicesStaticModule())
+def MaxPool3dWithIndicesStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 16, 16, 16, low=-4.5, high=-1.0))
+
+
+class MaxPool3dWithIndicesAllOnesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.max_pool3d_with_indices(
+            x,
+            kernel_size=[2, 2, 2],
+            stride=[1, 1, 1],
+            padding=[0, 0, 0],
+            dilation=[1, 1, 1],
+        )
+
+
+@register_test_case(module_factory=lambda: MaxPool3dWithIndicesAllOnesModule())
+def MaxPool3dWithIndicesAllOnesModule_basic(module, tu: TestUtils):
+    module.forward(torch.ones(1, 1, 8, 8, 8))
+
+
+class MaxPool3dWithIndicesCeilModeTrueModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.max_pool3d_with_indices(
+            x,
+            kernel_size=[2, 2, 2],
+            stride=[1, 1, 1],
+            padding=[0, 0, 0],
+            dilation=[1, 1, 1],
+            ceil_mode=True,
+        )
+
+
+@register_test_case(module_factory=lambda: MaxPool3dWithIndicesCeilModeTrueModule())
+def MaxPool3dWithIndicesCeilModeTrueModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 8, 8, 8, low=0.5, high=1.0))
 
 
 # ==============================================================================
@@ -1535,6 +1810,22 @@ class AdaptiveMaxPool1dStatic(torch.nn.Module):
 @register_test_case(module_factory=lambda: AdaptiveMaxPool1dStatic())
 def AdaptiveMaxPool1dStatic_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 512, 10))
+
+
+class AdaptiveMaxPool1dDimOneStatic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.amp1d = torch.nn.AdaptiveMaxPool1d(output_size=(1), return_indices=False)
+
+    @export
+    @annotate_args([None, ([1, 512, 7], torch.float32, True)])
+    def forward(self, x):
+        return self.amp1d(x)
+
+
+@register_test_case(module_factory=lambda: AdaptiveMaxPool1dDimOneStatic())
+def AdaptiveMaxPool1dDimOneStatic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 7))
 
 
 # AdaptiveMaxPool2d

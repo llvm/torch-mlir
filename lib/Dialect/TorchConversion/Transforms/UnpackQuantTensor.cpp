@@ -104,7 +104,8 @@ public:
       char mask = (1 << unpackedBitWidth) - 1;
       for (int b = 0; b < packRatio; b++) {
         newData[i * packRatio + b] =
-            APInt(unpackedBitWidth, (el & mask) >> (unpackedBitWidth * b));
+            APInt(unpackedBitWidth, (el & mask) >> (unpackedBitWidth * b),
+                  /*isSigned=*/false, /*implicitTrunc=*/true);
         mask = mask << unpackedBitWidth;
       }
     }

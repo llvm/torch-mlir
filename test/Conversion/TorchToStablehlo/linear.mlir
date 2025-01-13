@@ -259,7 +259,6 @@ func.func @torch.aten.mm$proj(%arg0: !torch.vtensor<[?,256],f32>) -> !torch.vten
 // CHECK:           %[[T_5:.*]] = torch.constant.int 1
 // CHECK:           %[[T_6:.*]] = torch.constant.int 4
 // CHECK:           %[[T_7:.*]] = torch.constant.int 3
-// CHECK:           %[[T_8:.*]] = arith.constant 3 : i64
 // CHECK:           %[[T_9:.*]] = torch.prim.ListConstruct %[[T_4]], %[[T_5]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_10:.*]] = torch.prim.ListConstruct %[[T_6]], %[[T_4]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_11:.*]] = torch.prim.ListConstruct %[[T_7]], %[[T_5]] : (!torch.int, !torch.int) -> !torch.list<int>
@@ -295,7 +294,6 @@ func.func @torch.aten.convolution(%arg0: !torch.vtensor<[?,?,?,?],f32>, %arg1: !
 // CHECK:           %int2 = torch.constant.int 2
 // CHECK:           %int1 = torch.constant.int 1
 // CHECK:           %int4 = torch.constant.int 4
-// CHECK:           %[[T_3:.*]] = arith.constant 3 : i64
 // CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int2, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_5:.*]] = torch.prim.ListConstruct %int4, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_6:.*]] = torch.prim.ListConstruct %int3, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
@@ -336,7 +334,6 @@ func.func @torch.aten.convolution$bias(%arg0: !torch.vtensor<[?,?,?,?],f32>, %ar
 // CHECK:           %none = torch.constant.none
 // CHECK:           %int0 = torch.constant.int 0
 // CHECK:           %int1 = torch.constant.int 1
-// CHECK:           %[[T_2:.*]] = arith.constant 1 : i64
 // CHECK:           %[[T_3:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_5:.*]] = stablehlo.transpose %[[T_1]], dims = [2, 3, 1, 0] : (tensor<2x4x3x3xf32>) -> tensor<3x3x4x2xf32>
@@ -367,7 +364,6 @@ func.func @torch.aten.convolution$transposed_basic(%arg0: !torch.vtensor<[1,2,7,
 // CHECK:           %none = torch.constant.none
 // CHECK:           %int0 = torch.constant.int 0
 // CHECK:           %int1 = torch.constant.int 1
-// CHECK:           %[[T_2:.*]] = arith.constant 1 : i64
 // CHECK:           %int2 = torch.constant.int 2
 // CHECK:           %[[T_3:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
@@ -402,7 +398,6 @@ func.func @torch.aten.convolution$transposed_stride(%arg0: !torch.vtensor<[1,2,7
 // CHECK:           %none = torch.constant.none
 // CHECK:           %int0 = torch.constant.int 0
 // CHECK:           %int1 = torch.constant.int 1
-// CHECK:           %[[T_2:.*]] = arith.constant 1 : i64
 // CHECK:           %int2 = torch.constant.int 2
 // CHECK:           %[[T_3:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
@@ -438,10 +433,6 @@ func.func @torch.aten.convolution$transposed_outputpadding(%arg0: !torch.vtensor
 // CHECK:           %int0 = torch.constant.int 0
 // CHECK:           %int1 = torch.constant.int 1
 // CHECK:           %int2 = torch.constant.int 2
-// CHECK:           %[[T_2:.*]] = arith.constant 2 : i64
-// CHECK:           %[[T_3:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[T_4:.*]] = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[T_5:.*]] = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[T_6:.*]] = stablehlo.transpose %[[T_1]], dims = [2, 3, 1, 0] : (tensor<2x2x3x3xf32>) -> tensor<3x3x2x2xf32>
 // CHECK:           %[[T_7:.*]] = stablehlo.reverse %[[T_6]], dims = [0, 1] : tensor<3x3x2x2xf32>
 // CHECK:           %c0 = arith.constant 0 : index

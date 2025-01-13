@@ -191,6 +191,54 @@ def Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier(
     module.forward(tu.rand(5, 4, 10, 20))
 
 
+class Conv2dWithSamePaddingModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.conv = torch.nn.Conv2d(2, 10, 3, bias=False, padding="same")
+        self.train(False)
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.conv(x)
+
+
+@register_test_case(module_factory=lambda: Conv2dWithSamePaddingModule())
+def Conv2dWithSamePaddingModule_basic(module, tu: TestUtils):
+    t = tu.rand(5, 2, 10, 20)
+    module.forward(t)
+
+
+class Conv2dWithValidPaddingModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.conv = torch.nn.Conv2d(2, 10, 3, bias=False, padding="valid")
+        self.train(False)
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.conv(x)
+
+
+@register_test_case(module_factory=lambda: Conv2dWithValidPaddingModule())
+def Conv2dWithValidPaddingModule_basic(module, tu: TestUtils):
+    t = tu.rand(5, 2, 10, 20)
+    module.forward(t)
+
+
 # ==============================================================================
 
 
@@ -1067,6 +1115,117 @@ def Conv1dModule_basic(module, tu: TestUtils):
     module.forward(inputVec, weight, bias)
 
 
+class Conv1dDepthwiseWithPaddingDilationStrideStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4, 6], torch.float32, True),
+            ([4, 1, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.conv1d(
+            inputVec, weight, bias=None, stride=[1], padding=[4], dilation=[1], groups=4
+        )
+
+
+@register_test_case(
+    module_factory=lambda: Conv1dDepthwiseWithPaddingDilationStrideStaticModule()
+)
+def Conv1dDepthwiseWithPaddingDilationStrideStaticModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 4, 6)
+    weight = torch.randn(4, 1, 3)
+    module.forward(inputVec, weight)
+
+
+class Conv1dWithSamePaddingModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        torch.manual_seed(0)
+        self.conv = torch.nn.Conv1d(2, 10, 3, bias=False, padding="same")
+        self.train(False)
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.conv(x)
+
+
+@register_test_case(module_factory=lambda: Conv1dWithSamePaddingModule())
+def Conv1dWithSamePaddingModule_basic(module, tu: TestUtils):
+    t = tu.rand(5, 2, 10)
+    module.forward(t)
+
+
+class Conv1dWithValidPaddingModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight, bias):
+        return torch.ops.aten.conv1d(
+            inputVec,
+            weight,
+            bias=bias,
+            stride=[1],
+            padding="valid",
+            dilation=[1],
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: Conv1dWithValidPaddingModule())
+def Conv1dWithValidPaddingModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 2, 6)
+    weight = torch.randn(8, 2, 3)
+    bias = torch.randn(8)
+    module.forward(inputVec, weight, bias)
+
+
+class Conv1dGroupModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight, bias):
+        return torch.ops.aten.conv1d(
+            inputVec, weight, bias=bias, stride=[1], padding=[0], dilation=[1], groups=2
+        )
+
+
+@register_test_case(module_factory=lambda: Conv1dGroupModule())
+def Conv1dGroupModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 4, 6)
+    weight = torch.randn(8, 2, 3)
+    bias = torch.randn(8)
+    module.forward(inputVec, weight, bias)
+
+
 class Conv2dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1133,6 +1292,72 @@ def Conv3dModule_basic(module, tu: TestUtils):
     module.forward(inputVec, weight, bias)
 
 
+class Conv3dWithSamePaddingModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight, bias):
+        return torch.ops.aten.conv3d(
+            inputVec,
+            weight,
+            bias=bias,
+            stride=[1, 1, 1],
+            padding="same",
+            dilation=[1, 1, 1],
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: Conv3dWithSamePaddingModule())
+def Conv3dWithSamePaddingModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 2, 6, 6, 6)
+    weight = torch.randn(8, 2, 3, 3, 3)
+    bias = torch.randn(8)
+    module.forward(inputVec, weight, bias)
+
+
+class Conv3dWithValidPaddingModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight, bias):
+        return torch.ops.aten.conv3d(
+            inputVec,
+            weight,
+            bias=bias,
+            stride=[1, 1, 1],
+            padding="valid",
+            dilation=[1, 1, 1],
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: Conv3dWithValidPaddingModule())
+def Conv3dWithValidPaddingModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 2, 6, 6, 6)
+    weight = torch.randn(8, 2, 3, 3, 3)
+    bias = torch.randn(8)
+    module.forward(inputVec, weight, bias)
+
+
 class ConvTbcModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1156,29 +1381,39 @@ def ConvTbcModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(9, 4, 5), tu.rand(3, 5, 6), tu.rand(6))
 
 
+# For DQ-Q fake quantization ops
+import torch.ao.quantization.fx._decomposed
+
+
 class Conv2dQInt8ModuleBase(torch.nn.Module):
     def __init__(self, groups=1):
         self.groups = groups
         super().__init__()
 
-    def _forward(self, inputVec, weight, bias):
-        inputVec = torch._make_per_tensor_quantized_tensor(inputVec, 0.01, 7)
-        inputVec = torch.dequantize(inputVec)
+    def _forward(self, input, weight, bias):
+        input = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            input, 0.01, 7, -128, 127, torch.int8
+        )
+        weight = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            weight, 0.01, 3, -128, 127, torch.int8
+        )
+        bias = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            bias, 1, 0, -1000, 1000, torch.int32
+        )
 
-        weight = torch._make_per_tensor_quantized_tensor(weight, 0.01, 3)
-        weight = torch.dequantize(weight)
-
-        bias = torch.quantize_per_tensor(bias, 0.0001, 0, torch.qint32)
-        bias = torch.dequantize(bias)
-
-        return torch.ops.aten.conv2d(
-            inputVec,
+        conv = torch.ops.aten.conv2d(
+            input,
             weight,
             bias=bias,
             stride=[1, 1],
             padding=[0, 0],
             dilation=[1, 1],
             groups=self.groups,
+        )
+
+        # Use int32 to avoid overflows
+        return torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            conv, 1, 0, -(2**31), 2**31 - 1, torch.int32
         )
 
 
@@ -1189,7 +1424,7 @@ class Conv2dQInt8ModuleDyn(Conv2dQInt8ModuleBase):
             None,
             ([-1, -1, -1, -1], torch.int8, True),
             ([-1, -1, -1, -1], torch.int8, True),
-            ([-1], torch.float, True),
+            ([-1], torch.int32, True),
         ]
     )
     def forward(self, inputVec, weight, bias):
@@ -1203,7 +1438,7 @@ class Conv2dQInt8ModuleStatic(Conv2dQInt8ModuleBase):
             None,
             ([2, 3, 12, 12], torch.int8, True),
             ([3, 1, 5, 3], torch.int8, True),
-            ([3], torch.float, True),
+            ([3], torch.int32, True),
         ]
     )
     def forward(self, inputVec, weight, bias):
@@ -1217,7 +1452,7 @@ class Conv2dQInt8ModuleStatic_MoreOutChannels(Conv2dQInt8ModuleBase):
             None,
             ([2, 3, 12, 12], torch.int8, True),
             ([6, 1, 5, 3], torch.int8, True),
-            ([6], torch.float, True),
+            ([6], torch.int32, True),
         ]
     )
     def forward(self, inputVec, weight, bias):
@@ -1228,7 +1463,7 @@ class Conv2dQInt8ModuleStatic_MoreOutChannels(Conv2dQInt8ModuleBase):
 def Conv2dQInt8Module_basic(module, tu: TestUtils):
     inputVec = tu.randint(2, 4, 7, 8, low=-128, high=127).to(torch.int8)
     weight = tu.randint(3, 4, 3, 2, low=-128, high=127).to(torch.int8)
-    bias = torch.rand(3)
+    bias = tu.randint(3, low=-1000, high=1000).to(torch.int32)
     module.forward(inputVec, weight, bias)
 
 
@@ -1236,7 +1471,7 @@ def Conv2dQInt8Module_basic(module, tu: TestUtils):
 def Conv2dQInt8Module_grouped(module, tu: TestUtils):
     inputVec = tu.randint(2, 8, 7, 8, low=-128, high=127).to(torch.int8)
     weight = tu.randint(6, 4, 3, 2, low=-128, high=127).to(torch.int8)
-    bias = torch.rand(6)
+    bias = tu.randint(6, low=-1000, high=1000).to(torch.int32)
     module.forward(inputVec, weight, bias)
 
 
@@ -1244,7 +1479,7 @@ def Conv2dQInt8Module_grouped(module, tu: TestUtils):
 def Conv2dQInt8Module_depthwise(module, tu: TestUtils):
     inputVec = tu.randint(2, 3, 12, 12, low=-128, high=127).to(torch.int8)
     weight = tu.randint(3, 1, 5, 3, low=-128, high=127).to(torch.int8)
-    bias = torch.rand(3)
+    bias = tu.randint(3, low=-1000, high=1000).to(torch.int32)
     module.forward(inputVec, weight, bias)
 
 
@@ -1254,7 +1489,7 @@ def Conv2dQInt8Module_depthwise(module, tu: TestUtils):
 def Conv2dQInt8Module_not_depthwise(module, tu: TestUtils):
     inputVec = tu.randint(2, 3, 12, 12, low=-128, high=127).to(torch.int8)
     weight = tu.randint(6, 1, 5, 3, low=-128, high=127).to(torch.int8)
-    bias = torch.rand(6)
+    bias = tu.randint(6, low=-1000, high=1000).to(torch.int32)
     module.forward(inputVec, weight, bias)
 
 
@@ -1273,16 +1508,17 @@ class ConvTranspose2DQInt8Module(torch.nn.Module):
         ]
     )
     def forward(self, input, weight, bias):
-        qinput = torch._make_per_tensor_quantized_tensor(input, 0.01, -25)
-        qinput = torch.dequantize(qinput)
-        qweight = torch._make_per_tensor_quantized_tensor(weight, 0.01, 50)
-        qweight = torch.dequantize(qweight)
-        qbias = torch.quantize_per_tensor(bias, 0.0001, 0, torch.qint32)
-        qbias = torch.dequantize(qbias)
-        qz = torch.ops.aten.convolution(
-            qinput,
-            qweight,
-            bias=qbias,
+        input = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            input, 0.01, -25, -128, 127, torch.int8
+        )
+        weight = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            weight, 0.01, 50, -128, 127, torch.int8
+        )
+
+        res = torch.ops.aten.convolution(
+            input,
+            weight,
+            bias=bias,
             stride=[2, 1],
             padding=[1, 1],
             dilation=[1, 1],
@@ -1290,7 +1526,11 @@ class ConvTranspose2DQInt8Module(torch.nn.Module):
             output_padding=[0, 0],
             groups=1,
         )
-        return qz
+
+        # Use int32 to avoid overflows
+        return torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            res, 1, 0, -(2**31), 2**31 - 1, torch.int32
+        )
 
 
 @register_test_case(module_factory=lambda: ConvTranspose2DQInt8Module())
@@ -1315,18 +1555,14 @@ class Conv2dQInt8PerChannelModuleBase(torch.nn.Module):
         super().__init__()
 
     def _forward(self, inputVec, weight, scales, zeropoints, bias):
-        inputVec = torch._make_per_tensor_quantized_tensor(inputVec, 0.01, 7)
-        inputVec = torch.dequantize(inputVec)
-
-        weight = torch._make_per_channel_quantized_tensor(
-            weight, scales, zeropoints, axis=0
+        inputVec = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            inputVec, 0.01, 7, -128, 127, torch.int8
         )
-        weight = torch.dequantize(weight)
+        weight = torch.ops.quantized_decomposed.dequantize_per_channel.default(
+            weight, scales, zeropoints, 0, -128, 127, torch.int8
+        )
 
-        bias = torch.quantize_per_tensor(bias, 0.0001, 0, torch.qint32)
-        bias = torch.dequantize(bias)
-
-        return torch.ops.aten.conv2d(
+        conv = torch.ops.aten.conv2d(
             inputVec,
             weight,
             bias=bias,
@@ -1334,6 +1570,11 @@ class Conv2dQInt8PerChannelModuleBase(torch.nn.Module):
             padding=[0, 0],
             dilation=[1, 1],
             groups=self.groups,
+        )
+
+        # Use int32 to avoid overflows
+        return torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            conv, 1, 0, -(2**31), 2**31 - 1, torch.int32
         )
 
 

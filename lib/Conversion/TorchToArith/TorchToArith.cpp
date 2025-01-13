@@ -74,9 +74,31 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     Value a = adaptor.getA();
     Value b = adaptor.getB();
-    if (llvm::is_one_of<AtenOp, AtenAddFloatIntOp>::value)
+    if (llvm::is_one_of<AtenOp, AtenAddFloatIntOp>::value ||
+        llvm::is_one_of<AtenOp, AtenMulFloatIntOp>::value)
       b = convertScalarToDtype(rewriter, op.getLoc(), b, a.getType());
+    if (llvm::is_one_of<AtenOp, AtenMulIntFloatOp>::value)
+      a = convertScalarToDtype(rewriter, op.getLoc(), a, b.getType());
     rewriter.template replaceOpWithNewOp<BinOp>(op, a, b);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertAtenNegIntOp : public OpConversionPattern<AtenNegIntOp> {
+public:
+  using OpConversionPattern<AtenNegIntOp>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenNegIntOp op,
+                  typename OpConversionPattern<AtenNegIntOp>::OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value a = adaptor.getA();
+    rewriter.replaceOpWithNewOp<arith::SubIOp>(
+        op,
+        rewriter.create<arith::ConstantIntOp>(op.getLoc(), /*value=*/0,
+                                              /*bitwidth=*/64),
+        a);
     return success();
   }
 };
@@ -432,10 +454,13 @@ public:
     patterns.add<
         ConvertAtenIntComparisonOp<AtenLeIntOp, arith::CmpIPredicate::sle>>(
         typeConverter, context);
-    target.addIllegalOp<AtenGeFloatOp, AtenGeFloatIntOp, AtenNeFloatIntOp,
-                        AtenGtFloatIntOp>();
+    target.addIllegalOp<AtenGeFloatOp, AtenGtFloatOp, AtenGeFloatIntOp,
+                        AtenNeFloatIntOp, AtenGtFloatIntOp>();
     patterns.add<
         ConvertAtenFloatComparisonOp<AtenGeFloatOp, arith::CmpFPredicate::UGE>>(
+        typeConverter, context);
+    patterns.add<
+        ConvertAtenFloatComparisonOp<AtenGtFloatOp, arith::CmpFPredicate::UGT>>(
         typeConverter, context);
     patterns.add<ConvertAtenFloatComparisonOp<AtenGeFloatIntOp,
                                               arith::CmpFPredicate::UGE>>(
@@ -465,16 +490,24 @@ public:
 
     target.addIllegalOp<AtenAddOp>();
     patterns.add<ConvertAtenAddOp>(typeConverter, context);
-
+    target.addIllegalOp<AtenNegIntOp>();
+    patterns.add<ConvertAtenNegIntOp>(typeConverter, context);
     target.addIllegalOp<AtenAddIntOp, AtenAddFloatIntOp, AtenSubIntOp,
-                        AtenMulIntOp>();
+                        AtenMulIntOp, AtenRemainderIntOp, AtenMulIntFloatOp,
+                        AtenMulFloatIntOp>();
     patterns.add<ConvertAtenBinaryOp<AtenAddIntOp, arith::AddIOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<AtenRemainderIntOp, arith::RemSIOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenAddFloatIntOp, arith::AddFOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenSubIntOp, arith::SubIOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenMulIntOp, arith::MulIOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<AtenMulIntFloatOp, arith::MulFOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<AtenMulFloatIntOp, arith::MulFOp>>(
         typeConverter, context);
     target.addIllegalOp<AtenSubFloatOp, AtenMulFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenSubFloatOp, arith::SubFOp>>(
@@ -496,6 +529,13 @@ public:
     patterns.add<ConvertAtenBinaryOp<PrimMinIntOp, arith::MinSIOp>>(
         typeConverter, context);
     target.addIllegalOp<AtenCeilFloatOp>();
+    target.addIllegalOp<Aten__Or__BoolOp, Aten__And__BoolOp, AtenNeBoolOp>();
+    patterns.add<ConvertAtenBinaryOp<Aten__Or__BoolOp, arith::OrIOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<Aten__And__BoolOp, arith::AndIOp>>(
+        typeConverter, context);
+    patterns.add<ConvertAtenBinaryOp<AtenNeBoolOp, arith::XOrIOp>>(
+        typeConverter, context);
     patterns
         .add<ConvertAtenUnaryOpToFloatMathOp<AtenCeilFloatOp, math::CeilOp>>(
             typeConverter, context);

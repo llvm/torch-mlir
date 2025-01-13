@@ -170,6 +170,26 @@ def ReduceAllFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
 
+class ReduceAllDimFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.all(a, dim=0)
+
+
+@register_test_case(module_factory=lambda: ReduceAllDimFloatModule())
+def ReduceAllDimFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
 # ==============================================================================
 
 
@@ -2240,6 +2260,78 @@ def MseLossSumReductionWithDifferentElemTypeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class L1LossNoReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4], torch.float32, True),
+            ([2, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.l1_loss(x, y, reduction=0)
+
+
+@register_test_case(module_factory=lambda: L1LossNoReductionModule())
+def L1LossNoReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 4))
+
+
+# ==============================================================================
+
+
+class L1LossMeanReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4], torch.float32, True),
+            ([2, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.l1_loss(x, y, reduction=1)
+
+
+@register_test_case(module_factory=lambda: L1LossMeanReductionModule())
+def L1LossMeanReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 4))
+
+
+# ==============================================================================
+
+
+class L1LossSumReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4], torch.float32, True),
+            ([2, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.l1_loss(x, y, reduction=2)
+
+
+@register_test_case(module_factory=lambda: L1LossSumReductionModule())
+def L1LossSumReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 4))
+
+
+# ==============================================================================
+
+
 class CrossEntropyLossModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2292,6 +2384,29 @@ class CrossEntropyLossNoReductionModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: CrossEntropyLossNoReductionModule())
 def CrossEntropyLossNoReductionModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(8, 2), tu.randint(8, high=2))
+
+
+class BinaryCrossEntropyWithLogitsStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([8, 2], torch.float32, True),
+            ([8, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, input, target):
+        return torch.ops.aten.binary_cross_entropy_with_logits(
+            input, target, reduction=0
+        )
+
+
+@register_test_case(module_factory=lambda: BinaryCrossEntropyWithLogitsStaticModule())
+def BinaryCrossEntropyWithLogitsStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 2), tu.rand(8, 2))
 
 
 # ==============================================================================

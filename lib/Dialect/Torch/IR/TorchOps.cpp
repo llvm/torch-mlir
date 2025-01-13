@@ -30,6 +30,24 @@ using namespace mlir::torch::Torch;
 // Utilities
 //===----------------------------------------------------------------------===//
 
+OpFoldResult genericViewLikeFold(Attribute self, Type resultType) {
+  auto selfAttr = dyn_cast_or_null<DenseElementsAttr>(self);
+  if (!selfAttr)
+    return nullptr;
+
+  auto resultTy = dyn_cast_or_null<ValueTensorType>(resultType);
+  if (!resultTy || !resultTy.areAllSizesKnown())
+    return nullptr;
+
+  if (selfAttr.isSplat()) {
+    return SplatElementsAttr::get(resultTy.toBuiltinTensor(),
+                                  selfAttr.getSplatValue<Attribute>());
+  }
+  return DenseElementsAttr::get(
+      resultTy.toBuiltinTensor(),
+      llvm::to_vector(selfAttr.getValues<Attribute>()));
+}
+
 Value mlir::torch::Torch::adjustStaticInformation(OpBuilder &builder,
                                                   Location loc, Value value,
                                                   Type desiredType,
@@ -739,12 +757,32 @@ OpFoldResult Aten__Not__Op::fold(FoldAdaptor adaptor) {
 OpFoldResult Aten__Or__BoolOp::fold(FoldAdaptor adaptor) {
   auto valueA = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
   auto valueB = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
-  if (!valueA || !valueB) {
+  if (!valueA && !valueB)
     return nullptr;
-  }
+  if ((valueA && valueA.getValue() == 1) || (valueB && valueB.getValue() == 1))
+    return IntegerAttr::get(IntegerType::get(getContext(), 1), 1);
+  if (valueA && valueA.getValue() == 0)
+    return getB();
+  if (valueB && valueB.getValue() == 0)
+    return getA();
+  // unreachable
+  return nullptr;
+}
 
+//===----------------------------------------------------------------------===//
+// AtenEqBoolOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenEqBoolOp::fold(FoldAdaptor adaptor) {
+  if (getOperand(0) == getOperand(1))
+    return IntegerAttr::get(IntegerType::get(getContext(), 1), true);
+
+  auto intAttrA = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
+  auto intAttrB = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
+  if (!intAttrA || !intAttrB)
+    return nullptr;
   return IntegerAttr::get(IntegerType::get(getContext(), 1),
-                          valueA.getValue() | valueB.getValue());
+                          intAttrA.getValue() == intAttrB.getValue());
 }
 
 //===----------------------------------------------------------------------===//
@@ -755,12 +793,12 @@ OpFoldResult AtenNeBoolOp::fold(FoldAdaptor adaptor) {
   if (getOperand(0) == getOperand(1))
     return IntegerAttr::get(IntegerType::get(getContext(), 1), false);
 
-  bool a, b;
-  if (!matchPattern(getOperand(0), m_TorchConstantBool(&a)))
+  auto intAttrA = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
+  auto intAttrB = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
+  if (!intAttrA || !intAttrB)
     return nullptr;
-  if (!matchPattern(getOperand(1), m_TorchConstantBool(&b)))
-    return nullptr;
-  return IntegerAttr::get(IntegerType::get(getContext(), 1), a != b);
+  return IntegerAttr::get(IntegerType::get(getContext(), 1),
+                          intAttrA.getValue() != intAttrB.getValue());
 }
 
 //===----------------------------------------------------------------------===//
@@ -1045,6 +1083,8 @@ void Aten_CastLongOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenViewOp::fold(FoldAdaptor adaptor) {
+  if (auto genericFold = genericViewLikeFold(adaptor.getSelf(), getType()))
+    return genericFold;
   auto inputType = dyn_cast<BaseTensorType>(getOperand(0).getType());
   if (!inputType || !inputType.hasSizes() || inputType.getSizes().size() != 1)
     return nullptr;
@@ -1103,6 +1143,35 @@ void AtenLenTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     if (!size)
       return rewriter.notifyMatchFailure(op, "operand not AtenSizeOp");
     rewriter.replaceOpWithNewOp<AtenDimOp>(op, size.getOperand());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenMulLeftTOp
+//===----------------------------------------------------------------------===//
+
+void AtenMulLeftTOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                 MLIRContext *context) {
+  // `[1,2] * 3` -> `[1,2,1,2,1,2]`, if it is not mutated.
+  patterns.add(+[](AtenMulLeftTOp op, PatternRewriter &rewriter) {
+    auto listLiteral = op.getL().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!listLiteral || isListPotentiallyMutated(listLiteral))
+      return failure();
+
+    int64_t numReps;
+    if (!matchPattern(op.getN(), m_TorchConstantInt(&numReps)))
+      return failure();
+
+    SmallVector<Value> newListElements;
+    for (int rep = 0; rep < numReps; ++rep) {
+      for (auto operand : listLiteral.getOperands()) {
+        newListElements.push_back(operand);
+      }
+    }
+
+    rewriter.replaceOpWithNewOp<PrimListConstructOp>(op, op.getL().getType(),
+                                                     newListElements);
     return success();
   });
 }
@@ -1529,6 +1598,24 @@ void AtenRsubScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   patterns.add(+[](AtenRsubScalarOp op, PatternRewriter &rewriter) {
     return rewrite0DBinaryTensorOp(op, rewriter);
   });
+}
+
+// ===----------------------------------------------------------------------===//
+// AtenRSubScalarOp
+// ===----------------------------------------------------------------------===//
+
+OpFoldResult AtenRsubScalarOp::fold(FoldAdaptor adaptor) {
+  auto fpFold = [](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 3);
+    return inputs[1] - inputs[0] * inputs[2];
+  };
+
+  auto intFold = [](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 3);
+    return inputs[1] - inputs[0] * inputs[2];
+  };
+
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1975,6 +2062,58 @@ void AtenDivTensorModeOp::getCanonicalizationPatterns(
   });
 }
 
+// ===----------------------------------------------------------------------===//
+// AtenDivTensorModeOp
+// ===----------------------------------------------------------------------===//
+
+OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
+  auto resultTy = dyn_cast_or_null<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype()) {
+    return nullptr;
+  }
+  std::function<double(ArrayRef<double>)> fpFold;
+  std::function<APInt(ArrayRef<APInt>)> intFold;
+
+  auto roundMode = dyn_cast_or_null<StringAttr>(adaptor.getRoundingMode());
+  auto unsign = false;
+  if (isa<mlir::IntegerType>(resultTy.getDtype())) {
+    unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
+  }
+
+  fpFold = [roundMode](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 2);
+    if (!roundMode) {
+      return (double)inputs[0] / inputs[1];
+    } else if (roundMode.getValue().str() == "floor") {
+      return std::floor((double)inputs[0] / inputs[1]);
+    } else {
+      return std::trunc((double)inputs[0] / inputs[1]);
+    }
+  };
+
+  intFold = [unsign, roundMode](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 2);
+    auto lhs = unsign ? inputs[0].getZExtValue() : inputs[0].getSExtValue();
+    auto rhs = unsign ? inputs[1].getZExtValue() : inputs[1].getSExtValue();
+    int64_t bits = std::max(inputs[0].getBitWidth(), inputs[1].getBitWidth());
+    int64_t res;
+    if (roundMode.getValue().str() == "floor") {
+      res = std::floor(lhs / rhs);
+    } else {
+      res = std::trunc(lhs / rhs);
+    }
+    return APInt(bits, res);
+  };
+
+  if (!roundMode) {
+    return naryFolderHelper({adaptor.getSelf(), adaptor.getOther()}, getType(),
+                            fpFold, std::nullopt);
+  }
+
+  return naryFolderHelper({adaptor.getSelf(), adaptor.getOther()}, getType(),
+                          fpFold, intFold);
+}
+
 //===----------------------------------------------------------------------===//
 // AtenDivScalarModeOp
 //===----------------------------------------------------------------------===//
@@ -2160,6 +2299,126 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     rewriter.eraseOp(op);
     return failure();
   });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenFlattenUsingIntsOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenFlattenUsingIntsOp::fold(FoldAdaptor adaptor) {
+  return genericViewLikeFold(adaptor.getSelf(), getType());
+}
+
+//===----------------------------------------------------------------------===//
+// AtenUnflattenIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenUnflattenIntOp::fold(FoldAdaptor adaptor) {
+  return genericViewLikeFold(adaptor.getSelf(), getType());
+}
+
+void AtenUnflattenIntOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  // if there are only two sizes and one of them is statically 1, then convert
+  // to an unqueeze.
+  patterns.add(+[](AtenUnflattenIntOp op, PatternRewriter &rewriter) {
+    SmallVector<Value> sizeValues;
+    if (!getListConstructElements(op.getSizes(), sizeValues))
+      return rewriter.notifyMatchFailure(op,
+                                         "sizes must come from list construct");
+    if (sizeValues.size() != 2)
+      return failure();
+    int64_t dim0, dim1;
+    bool dim0Constant = matchPattern(sizeValues[0], m_TorchConstantInt(&dim0));
+    bool dim1Constant = matchPattern(sizeValues[1], m_TorchConstantInt(&dim1));
+    if (!dim0Constant && !dim1Constant)
+      return failure();
+    if (dim0 != 1 && dim1 != 1)
+      return failure();
+    Value unflattenDim = op.getDim();
+    int64_t dimAsInt;
+    bool dimWasConstant =
+        matchPattern(unflattenDim, m_TorchConstantInt(&dimAsInt));
+    Value self = op.getSelf();
+    Value cstMOne = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), -1);
+    // the runtime asserts below are introduced to catch malformed unflatten ops
+    // possibly generated from onnx IR.
+    Value unsqueeze;
+    if (dim0 == 1) {
+      // unsqueeze at dim
+      FailureOr<Value> maybeUnsqueeze =
+          Torch::unsqueezeTensor(rewriter, op, self, unflattenDim);
+      if (failed(maybeUnsqueeze))
+        return rewriter.notifyMatchFailure(op, "failed to create unsqueeze op");
+      unsqueeze = maybeUnsqueeze.value();
+      // check if the remaining size value is either -1 or equal to original
+      // size at dim
+      Value selfSizeAtDim =
+          rewriter.create<AtenSizeIntOp>(op.getLoc(), self, unflattenDim);
+      Value isSameSize = rewriter.create<AtenEqIntOp>(
+          op.getLoc(), selfSizeAtDim, sizeValues[1]);
+      Value isMinusOne =
+          rewriter.create<AtenEqIntOp>(op.getLoc(), cstMOne, sizeValues[1]);
+      Value isMOneOrSameSize = rewriter.create<Aten__Or__BoolOp>(
+          op.getLoc(), isMinusOne, isSameSize);
+      rewriter.create<Torch::RuntimeAssertOp>(
+          op.getLoc(), isMOneOrSameSize,
+          rewriter.getStringAttr("unflatten sizes must be compatible"));
+    }
+    if (dim1 == 1) {
+      // unsqueeze at dim + 1
+      Value dimPlusOne;
+      if (!dimWasConstant) {
+        Value cstOne = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), 1);
+        dimPlusOne =
+            rewriter.create<AtenAddIntOp>(op.getLoc(), unflattenDim, cstOne);
+      } else {
+        // If dim was constant, creating an AtenAddIntOp will make
+        // Torch::unsqueezeTensor() interpret it as still not being a constant,
+        // and the resultant shape would consist of only dynamic dims. To fix
+        // this, emit a ConstantIntOp for (dim + 1) to avoid an assertion
+        // failure, when AtenUnsqueezeOp is in a later pass converted to
+        // ExpandShapeOp, which is bound to fail shape inference in MLIR if
+        // output dims are dynamic.
+        dimPlusOne = rewriter.create<Torch::ConstantIntOp>(
+            op.getLoc(), rewriter.getI64IntegerAttr(dimAsInt + 1));
+      }
+      FailureOr<Value> maybeUnsqueeze =
+          Torch::unsqueezeTensor(rewriter, op, self, dimPlusOne);
+      if (failed(maybeUnsqueeze))
+        return rewriter.notifyMatchFailure(op, "failed to create unsqueeze op");
+      unsqueeze = maybeUnsqueeze.value();
+      // check if the remaining size value is either -1 or equal to original
+      // size at dim
+      Value selfSizeAtDim =
+          rewriter.create<AtenSizeIntOp>(op.getLoc(), self, unflattenDim);
+      Value isSameSize = rewriter.create<AtenEqIntOp>(
+          op.getLoc(), selfSizeAtDim, sizeValues[0]);
+      Value isMinusOne =
+          rewriter.create<AtenEqIntOp>(op.getLoc(), cstMOne, sizeValues[0]);
+      Value isMOneOrSameSize = rewriter.create<Aten__Or__BoolOp>(
+          op.getLoc(), isMinusOne, isSameSize);
+      rewriter.create<Torch::RuntimeAssertOp>(
+          op.getLoc(), isMOneOrSameSize,
+          rewriter.getStringAttr("unflatten sizes must be compatible"));
+    }
+    rewriter.replaceOpWithNewOp<Torch::TensorStaticInfoCastOp>(op, op.getType(),
+                                                               unsqueeze);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenReshapeOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenReshapeOp::fold(FoldAdaptor adaptor) {
+  auto selfTy = dyn_cast<ValueTensorType>(getSelf().getType());
+  auto opTy = dyn_cast<ValueTensorType>(getType());
+  if (selfTy && selfTy == opTy && selfTy.hasSizes() &&
+      selfTy.toBuiltinTensor().hasStaticShape())
+    return getSelf();
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
@@ -3422,7 +3681,11 @@ atenBinaryFloatOperatorFoldHelper(ArrayRef<Attribute> operands,
 // AtenAliasOp
 //===----------------------------------------------------------------------===//
 
-OpFoldResult AtenAliasOp::fold(FoldAdaptor adaptor) { return getOperand(); }
+OpFoldResult AtenAliasOp::fold(FoldAdaptor adaptor) {
+  if (getOperand().getType() != getResult().getType())
+    return {};
+  return getOperand();
+}
 
 //===----------------------------------------------------------------------===//
 // AtenFloordivIntOp
@@ -3434,6 +3697,44 @@ OpFoldResult AtenFloordivIntOp::fold(FoldAdaptor adaptor) {
       [](int64_t a, int64_t b) { return std::floor(a / (double)b); });
 }
 
+void AtenFloordivIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                    MLIRContext *context) {
+  patterns.add(+[](AtenFloordivIntOp op, PatternRewriter &rewriter) {
+    int64_t lhs, rhs;
+    bool lConstant = matchPattern(op.getA(), m_TorchConstantInt(&lhs));
+    bool rConstant = matchPattern(op.getB(), m_TorchConstantInt(&rhs));
+    if (lConstant && rConstant)
+      return failure();
+    if (lConstant || rConstant) {
+      int64_t firstConstant = lConstant ? lhs : rhs;
+      Value firstOperand = lConstant ? op.getB() : op.getA();
+      if (firstOperand.getDefiningOp() &&
+          firstOperand.getDefiningOp<AtenMulIntOp>()) {
+        auto prevMulIntOp = firstOperand.getDefiningOp<AtenMulIntOp>();
+        int64_t prevLhs, prevRhs;
+        bool prevLConstant =
+            matchPattern(prevMulIntOp.getA(), m_TorchConstantInt(&prevLhs));
+        bool prevRConstant =
+            matchPattern(prevMulIntOp.getB(), m_TorchConstantInt(&prevRhs));
+        if (prevLConstant && prevRConstant)
+          return failure();
+        if ((prevLConstant || prevRConstant) &&
+            prevMulIntOp->hasOneUse() == 1) {
+          int64_t secondConstant = prevLConstant ? prevLhs : prevRhs;
+          if (secondConstant == firstConstant) {
+            rewriter.replaceAllUsesWith(
+                op.getResult(), prevMulIntOp.getOperand(prevLConstant ? 1 : 0));
+            rewriter.eraseOp(op);
+            rewriter.eraseOp(prevMulIntOp);
+            return success();
+          }
+        }
+      }
+    }
+    return failure();
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // AtenRemainderIntOp
 //===----------------------------------------------------------------------===//
@@ -3443,11 +3744,45 @@ OpFoldResult AtenRemainderIntOp::fold(FoldAdaptor adaptor) {
       adaptor.getOperands(), [](int64_t a, int64_t b) { return a % b; });
 }
 
+// ===----------------------------------------------------------------------===//
+// AtenRemainderScalarOp
+// ===----------------------------------------------------------------------===//
+
+OpFoldResult AtenRemainderScalarOp::fold(FoldAdaptor adaptor) {
+  auto resultTy = dyn_cast_or_null<ValueTensorType>(getType());
+  if (!resultTy || !resultTy.hasDtype()) {
+    return nullptr;
+  }
+
+  auto unsign = false;
+  if (isa<mlir::IntegerType>(resultTy.getDtype())) {
+    unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
+  }
+  auto fpFold = [](llvm::ArrayRef<double> inputs) {
+    assert(inputs.size() == 2);
+    return std::fmod(inputs[0], inputs[1]);
+  };
+
+  auto intFold = [unsign](llvm::ArrayRef<APInt> inputs) {
+    assert(inputs.size() == 2);
+    auto ret = unsign ? inputs[0].urem(inputs[1]) : inputs[0].srem(inputs[1]);
+    return ret;
+  };
+
+  return naryFolderHelper(adaptor.getOperands(), getType(), fpFold, intFold);
+}
+
 //===----------------------------------------------------------------------===//
 // AtenAddIntOp
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenAddIntOp::fold(FoldAdaptor adaptor) {
+  auto intLhs = dyn_cast_or_null<IntegerAttr>(adaptor.getA());
+  auto intRhs = dyn_cast_or_null<IntegerAttr>(adaptor.getB());
+  if (intRhs && intRhs.getValue().getSExtValue() == 0)
+    return getA();
+  if (intLhs && intLhs.getValue().getSExtValue() == 0)
+    return getB();
   return atenBinaryIntOperatorFoldHelper(
       adaptor.getOperands(), [](int64_t a, int64_t b) { return a + b; });
 }
@@ -3457,8 +3792,74 @@ OpFoldResult AtenAddIntOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenSubIntOp::fold(FoldAdaptor adaptor) {
+  if (getA() == getB())
+    return IntegerAttr::get(
+        IntegerType::get(getContext(), 64, IntegerType::Signless), 0);
   return atenBinaryIntOperatorFoldHelper(
       adaptor.getOperands(), [](int64_t a, int64_t b) { return a - b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenTransposeIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenTransposeIntOp::fold(FoldAdaptor adaptor) {
+  // first check for no-op
+  IntegerAttr dim0 = dyn_cast_or_null<IntegerAttr>(adaptor.getDim0());
+  IntegerAttr dim1 = dyn_cast_or_null<IntegerAttr>(adaptor.getDim1());
+  if (!dim0 || !dim1)
+    return nullptr;
+  int64_t _dim0 = dim0.getValue().getSExtValue();
+  int64_t _dim1 = dim1.getValue().getSExtValue();
+  auto selfTy = dyn_cast<ValueTensorType>(getSelf().getType());
+  if (!selfTy || !selfTy.hasSizes())
+    return nullptr;
+  int64_t rank = selfTy.getSizes().size();
+  _dim0 = toPositiveDim(_dim0, rank);
+  _dim1 = toPositiveDim(_dim1, rank);
+  if (!isValidDim(_dim0, rank) || !isValidDim(_dim1, rank))
+    return nullptr;
+  // if dims are the same, return self
+  if (_dim0 == _dim1)
+    return getSelf();
+
+  // We set a maximum folding size of 16. This is a reasonable upper limit
+  // for shape computations.
+  constexpr int64_t kMaxFoldSize = 16;
+  auto self = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  if (!self || self.getNumElements() > kMaxFoldSize)
+    return nullptr;
+  auto resultTy = dyn_cast<ValueTensorType>(getType());
+  if (!selfTy || !resultTy || !selfTy.areAllSizesKnown())
+    return nullptr;
+  if (self.isSplat())
+    return SplatElementsAttr::get(resultTy.toBuiltinTensor(),
+                                  self.getSplatValue<Attribute>());
+
+  // TODO: add support for rank != 2
+  if (rank != 2)
+    return nullptr;
+
+  ArrayRef<int64_t> sizes = selfTy.getSizes();
+  auto values = llvm::to_vector(self.getValues<Attribute>());
+  // reordered[i] = Trans[i//sizes[0], i % sizes[0]] = Self[i % sizes[0],
+  // i//sizes[0]] = values[(i % sizes[0])*sizes[1] + (i//sizes[0])].
+  // e.g., Self size = [4,2]; Trans size = [2,4].
+  // reindex(i) = (i % 4)*2 + (i // 4) .
+  // i = 0 -> Trans[0,0] -> Self[0,0] -> 0 .
+  // i = 1 -> Trans[0,1] -> Self[1,0] -> 2 .
+  // i = 2 -> Trans[0,2] -> Self[2,0] -> 4 .
+  // i = 3 -> Trans[0,3] -> Self[3,0] -> 6 .
+  // i = 4 -> Trans[1,0] -> Self[0,1] -> 1 .
+  // i = 5 -> Trans[1,1] -> Self[1,1] -> 3 .
+  auto reindex = [&](int64_t i) {
+    return (i % sizes[0]) * sizes[1] + (i / sizes[0]);
+  };
+  SmallVector<Attribute> reordered;
+  for (int64_t i = 0; i < self.getNumElements(); i++) {
+    reordered.push_back(values[reindex(i)]);
+  }
+  return DenseElementsAttr::get(resultTy.toBuiltinTensor(), reordered);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3637,15 +4038,18 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
   // Fold the slice if the output tensor is relatively small, currently
   // coded to 16:
   constexpr int64_t kMaxFold = 16;
-  if (input && start && step && dim && count <= kMaxFold) {
+  if (input && start && step && dim && end && count <= kMaxFold) {
     int64_t begin = start.getValue().getSExtValue();
     int64_t limit = end.getValue().getSExtValue();
     int64_t stride = step.getValue().getSExtValue();
-    if (stride < 1)
-      return nullptr;
     begin = begin < 0 ? begin + inType.getSizes()[dimInt] : begin;
+    begin = std::max<int64_t>(begin, 0);
     limit = limit < 0 ? limit + inType.getSizes()[dimInt] : limit;
+    limit = limit < 0 ? -1 : limit;
     limit = std::min(limit, inType.getSizes()[dimInt]);
+    assert((stride > 0 && begin < limit) ||
+           (stride < 0 && begin > limit) &&
+               "aten.slice.Tensor iteration args are statically invalid.");
 
     int64_t inputRank = inType.getSizes().size();
     llvm::SmallVector<int64_t> inputStrides(inputRank, 1);
@@ -3658,10 +4062,21 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
     auto recursiveIter = [&](auto &self, int64_t currDim, int64_t currOffset) {
       if (currDim >= inputRank)
         return;
-      size_t _begin = (currDim == dimInt) ? begin : 0;
-      size_t _limit = (currDim == dimInt) ? limit : inType.getSizes()[currDim];
-      size_t _stride = (currDim == dimInt) ? stride : 1;
-      for (size_t i = _begin; i < _limit; i += _stride) {
+      int64_t _stride = (currDim == dimInt) ? stride : 1;
+      int64_t _begin = (currDim == dimInt) ? begin : 0;
+      int64_t _limit = (currDim == dimInt) ? limit : inType.getSizes()[currDim];
+      // ensure that the limit is reached exactly (even with negative strides)
+      // E.g., with begin = 0, limit = 10, stride = 3, we modify limit to be 11
+      // = 10 + (10-0) % 3 .
+      // E.g., with begin = 8, limit = -1, stride = -2, limit becomes -2 = -1 +
+      // (-1-8) % (-2) - stride = -1 + 1 - 2 = -2 .
+      // Note: cpp uses true math remainder "n % d = least positive int, x, such
+      // that d divides (n - x)"
+      int64_t limit_rem = (_limit - _begin) % _stride;
+      limit_rem =
+          (_stride > 0 || limit_rem == 0) ? limit_rem : limit_rem - _stride;
+      _limit += limit_rem;
+      for (int64_t i = _begin; std::abs(_limit - i) > 0; i += _stride) {
         if (currDim == inputRank - 1) {
           values.push_back(input.getValues<Attribute>()[currOffset + i]);
         }
@@ -3669,6 +4084,14 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
       }
     };
     recursiveIter(recursiveIter, 0, 0);
+    if (static_cast<int64_t>(values.size()) != count) {
+      emitError(
+          "Op has incorrect result shape for provided arguments.\nNum elements "
+          "present in slice: " +
+          std::to_string(values.size()) +
+          "\nNum elements implied by result type: " + std::to_string(count));
+      return nullptr;
+    }
     return DenseElementsAttr::get(outType.toBuiltinTensor(), values);
   }
 
@@ -3690,11 +4113,54 @@ OpFoldResult AtenMulIntOp::fold(FoldAdaptor adaptor) {
   int64_t lhs, rhs;
   bool lConstant = matchPattern(getOperand(0), m_TorchConstantInt(&lhs));
   bool rConstant = matchPattern(getOperand(1), m_TorchConstantInt(&rhs));
+  if (lConstant && lhs == 1)
+    return getOperand(1);
+  if (rConstant && rhs == 1)
+    return getOperand(0);
   if ((lConstant && lhs == 0) || (rConstant && rhs == 0))
     return getI64IntegerAttr(getContext(), 0);
   if (lConstant && rConstant)
     return getI64IntegerAttr(getContext(), lhs * rhs);
   return nullptr;
+}
+
+void AtenMulIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                               MLIRContext *context) {
+  patterns.add(+[](AtenMulIntOp op, PatternRewriter &rewriter) {
+    int64_t lhs, rhs;
+    bool lConstant = matchPattern(op.getA(), m_TorchConstantInt(&lhs));
+    bool rConstant = matchPattern(op.getB(), m_TorchConstantInt(&rhs));
+    if (lConstant && rConstant)
+      return failure();
+    if (lConstant || rConstant) {
+      int64_t firstConstant = lConstant ? lhs : rhs;
+      Value firstOperand = lConstant ? op.getB() : op.getA();
+      if (firstOperand.getDefiningOp() &&
+          firstOperand.getDefiningOp<AtenMulIntOp>()) {
+        auto prevMulIntOp = firstOperand.getDefiningOp<AtenMulIntOp>();
+        int64_t prevLhs, prevRhs;
+        bool prevLConstant =
+            matchPattern(prevMulIntOp.getA(), m_TorchConstantInt(&prevLhs));
+        bool prevRConstant =
+            matchPattern(prevMulIntOp.getB(), m_TorchConstantInt(&prevRhs));
+        if (prevLConstant && prevRConstant)
+          return failure();
+        if ((prevLConstant || prevRConstant) &&
+            prevMulIntOp->hasOneUse() == 1) {
+          auto newConstant = rewriter.create<Torch::ConstantIntOp>(
+              op.getLoc(), rewriter.getI64IntegerAttr(
+                               prevLConstant ? prevLhs * firstConstant
+                                             : prevRhs * firstConstant));
+          rewriter.replaceOpWithNewOp<AtenMulIntOp>(
+              op, op.getType(), prevMulIntOp.getOperand(prevLConstant ? 1 : 0),
+              newConstant);
+          rewriter.eraseOp(prevMulIntOp);
+          return success();
+        }
+      }
+    }
+    return failure();
+  });
 }
 
 //===----------------------------------------------------------------------===//
@@ -3754,6 +4220,19 @@ OpFoldResult AtenMulOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenMulIntFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenMulIntFloatOp::fold(FoldAdaptor adaptor) {
+  if (!adaptor.getA() || !adaptor.getB()) {
+    return nullptr;
+  }
+  return atenBinaryFloatOperatorFoldHelper(
+      adaptor.getOperands(),
+      [](double a, double b) -> double { return a * b; });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSubOp
 //===----------------------------------------------------------------------===//
 
@@ -3797,6 +4276,18 @@ OpFoldResult AtenAddFloatIntOp::fold(FoldAdaptor adaptor) {
   }
   return atenBinaryFloatOperatorFoldHelper(
       adaptor.getOperands(), [](double a, double b) { return a + b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenMulFloatIntOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenMulFloatIntOp::fold(FoldAdaptor adaptor) {
+  if (!adaptor.getA() || !adaptor.getB()) {
+    return nullptr;
+  }
+  return atenBinaryFloatOperatorFoldHelper(
+      adaptor.getOperands(), [](double a, double b) { return a * b; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -4037,6 +4528,42 @@ void AtenIntTensorOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenIntTensorOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenIntTensorOp::fold(FoldAdaptor adaptor) {
+  auto value = adaptor.getA();
+  auto dense = dyn_cast_or_null<DenseElementsAttr>(value);
+  if (!dense || !dense.isSplat()) {
+    return nullptr;
+  }
+
+  auto splat = dense.getSplatValue<Attribute>();
+  if (auto intAttr = dyn_cast<IntegerAttr>(splat)) {
+    auto type = getType();
+    if (!isa<mlir::IntegerType>(type)) {
+      return nullptr;
+    }
+
+    if (type.isSignlessInteger()) {
+      return getI64IntegerAttr(getContext(), intAttr.getInt());
+    } else if (type.isSignedInteger()) {
+      return getI64IntegerAttr(getContext(), intAttr.getSInt());
+    } else {
+      return getI64IntegerAttr(getContext(), intAttr.getUInt());
+    }
+  }
+
+  if (auto floatAttr = dyn_cast<FloatAttr>(splat)) {
+    return getI64IntegerAttr(
+        getContext(),
+        static_cast<long>(floatAttr.getValue().convertToDouble()));
+  }
+
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenFloatTensorOp
 //===----------------------------------------------------------------------===//
 
@@ -4179,7 +4706,8 @@ OpFoldResult AtenItemOp::fold(FoldAdaptor adaptor) {
     if (auto intAttr = dyn_cast<IntegerAttr>(splat)) {
       return intAttr.getType().isUnsignedInteger()
                  ? getI64IntegerAttr(getContext(), intAttr.getUInt())
-                 : getI64IntegerAttr(getContext(), intAttr.getSInt());
+                 : getI64IntegerAttr(getContext(),
+                                     intAttr.getValue().getSExtValue());
     }
     if (auto floatAttr = dyn_cast<FloatAttr>(splat)) {
       return getF64FloatAttr(getContext(), floatAttr.getValueAsDouble());
@@ -4851,18 +5379,38 @@ OpFoldResult PrimsConvertElementTypeOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
-// AtenMaxPool2dWithIndicesOp
+// AtenMaxPoolWithIndicesOp
 //===----------------------------------------------------------------------===//
 
-void AtenMaxPool2dWithIndicesOp::getCanonicalizationPatterns(
-    RewritePatternSet &patterns, MLIRContext *context) {
-  patterns.add(+[](AtenMaxPool2dWithIndicesOp op, PatternRewriter &rewriter) {
+namespace {
+
+template <typename OpTy> struct MaxPoolWithoutIndices {
+  using type = OpTy;
+};
+
+template <> struct MaxPoolWithoutIndices<AtenMaxPool2dWithIndicesOp> {
+  using type = AtenMaxPool2dOp;
+};
+
+template <> struct MaxPoolWithoutIndices<AtenMaxPool3dWithIndicesOp> {
+  using type = AtenMaxPool3dOp;
+};
+
+} // namespace
+
+template <typename OpTy>
+struct SimplifyMaxPoolWithIndices : public mlir::OpRewritePattern<OpTy> {
+  SimplifyMaxPoolWithIndices(mlir::MLIRContext *context)
+      : OpRewritePattern<OpTy>(context, /*benefit=*/1) {}
+
+  LogicalResult
+  matchAndRewrite(OpTy op, mlir::PatternRewriter &rewriter) const override {
     if (!op.getResult1().use_empty()) {
       return rewriter.notifyMatchFailure(
-          op, "result1 of MaxPool2dWithIndices should be unused");
+          op, "result1 of MaxPoolWithIndices should be unused");
     }
 
-    Value result = rewriter.create<Torch::AtenMaxPool2dOp>(
+    Value result = rewriter.create<typename MaxPoolWithoutIndices<OpTy>::type>(
         op->getLoc(), op.getResult0().getType(), op.getSelf(),
         op.getKernelSize(), op.getStride(), op.getPadding(), op.getDilation(),
         op.getCeilMode());
@@ -4870,7 +5418,17 @@ void AtenMaxPool2dWithIndicesOp::getCanonicalizationPatterns(
     op.getResult0().replaceAllUsesWith(result);
     rewriter.eraseOp(op);
     return success();
-  });
+  }
+};
+
+void AtenMaxPool2dWithIndicesOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add<SimplifyMaxPoolWithIndices<AtenMaxPool2dWithIndicesOp>>(context);
+}
+
+void AtenMaxPool3dWithIndicesOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  patterns.add<SimplifyMaxPoolWithIndices<AtenMaxPool3dWithIndicesOp>>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -5225,8 +5783,11 @@ void BindSymbolicShapeOp::print(OpAsmPrinter &p) {
 }
 
 LogicalResult BindSymbolicShapeOp::verify() {
-  if (getShapeSymbols().empty())
-    return emitOpError() << "requires non-empty shapeSymbols";
+  if (getShapeSymbols().size() !=
+      getShapeExpressions().getValue().getNumSymbols())
+    return emitOpError()
+           << "requires equal number of shape symbol args and symbol args to "
+              "the attached affine map, since they are 1:1 mapped";
 
   for (auto symbol : getShapeSymbols()) {
     Operation *definingOp = symbol.getDefiningOp();
@@ -5308,6 +5869,39 @@ LogicalResult AtenTrilIndicesOp::verify() {
       dtype != (int)torch_upstream::ScalarType::Long)
     return emitOpError(
         "'triu_indices' implemented only for torch.int32 and torch.int64");
+
+  return success();
+}
+
+// AtenRot90Op
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenRot90Op::verify() {
+  // Check rotation dimensions.
+  SmallVector<Value> dims;
+  if (!getListConstructElements(getDims(), dims))
+    return success();
+
+  if (dims.size() != 2)
+    return emitOpError("expected total rotation dims == 2, but got dims = ")
+           << dims.size();
+
+  // Check a rank of the input tensor.
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+  if (!selfType.hasSizes())
+    return success();
+
+  auto selfShape = selfType.getSizes();
+  int64_t selfRank = selfShape.size();
+
+  if (selfRank < 2)
+    return emitOpError("expected total dims >= 2, but got total dims = ")
+           << selfRank;
+
+  if (dims[0] == dims[1])
+    return emitOpError(
+               "expected rotation dims to be different, but got dim0 = ")
+           << dims[0] << " and dim1 = " << dims[1];
 
   return success();
 }

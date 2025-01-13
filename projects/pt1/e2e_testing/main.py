@@ -42,8 +42,6 @@ from torch_mlir_e2e_test.stablehlo_backends.linalg_on_tensors import (
 from .xfail_sets import (
     LINALG_XFAIL_SET,
     LINALG_CRASHING_SET,
-    MAKE_FX_TOSA_PASS_SET,
-    MAKE_FX_TOSA_CRASHING_SET,
     STABLEHLO_PASS_SET,
     STABLEHLO_CRASHING_SET,
     TOSA_PASS_SET,
@@ -58,8 +56,10 @@ from .xfail_sets import (
     FX_IMPORTER_CRASHING_SET,
     FX_IMPORTER_STABLEHLO_XFAIL_SET,
     FX_IMPORTER_STABLEHLO_CRASHING_SET,
+    FX_IMPORTER_TOSA_CRASHING_SET,
     FX_IMPORTER_TOSA_XFAIL_SET,
     ONNX_TOSA_XFAIL_SET,
+    ONNX_TOSA_CRASHING_SET,
 )
 
 # Import tests to register them in the global registry.
@@ -74,7 +74,6 @@ def _get_argparse():
         "torchscript",
         "linalg",
         "stablehlo",
-        "make_fx_tosa",
         "tosa",
         "lazy_tensor_core",
         "torchdynamo",
@@ -164,10 +163,6 @@ def main():
         config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend())
         xfail_set = all_test_unique_names - TOSA_PASS_SET
         crashing_set = TOSA_CRASHING_SET
-    elif args.config == "make_fx_tosa":
-        config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend(), use_make_fx=True)
-        xfail_set = all_test_unique_names - MAKE_FX_TOSA_PASS_SET
-        crashing_set = MAKE_FX_TOSA_CRASHING_SET
     elif args.config == "native_torch":
         config = NativeTorchTestConfig()
         xfail_set = set()
@@ -191,7 +186,7 @@ def main():
     elif args.config == "fx_importer_tosa":
         config = FxImporterTestConfig(LinalgOnTensorsTosaBackend(), "tosa")
         xfail_set = FX_IMPORTER_TOSA_XFAIL_SET
-        crashing_set = set()
+        crashing_set = FX_IMPORTER_TOSA_CRASHING_SET
     elif args.config == "torchdynamo":
         # TODO: Enanble runtime verification and extend crashing set.
         config = TorchDynamoTestConfig(
@@ -206,7 +201,7 @@ def main():
     elif args.config == "onnx_tosa":
         config = OnnxBackendTestConfig(LinalgOnTensorsTosaBackend(), output_type="tosa")
         xfail_set = ONNX_TOSA_XFAIL_SET
-        crashing_set = set()
+        crashing_set = ONNX_TOSA_CRASHING_SET
 
     do_not_attempt = set(
         args.crashing_tests_to_not_attempt_to_run_and_a_bug_is_filed or []

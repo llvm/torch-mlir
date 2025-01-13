@@ -575,6 +575,16 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         b.create<arith::ConstantOp>(loc, b.getFloatAttr(floatDtype, 0));
     return createEqual(b, loc, floatDtype, self, zero);
   }
+  if (auto complex = dyn_cast<AtenComplexOp>(op)) {
+    auto ctype = cast<ComplexType>(
+        cast<RankedTensorType>(converter->convertType(complex.getType()))
+            .getElementType());
+    Type stype = ctype.getElementType();
+
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], stype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], stype);
+    return b.create<complex::CreateOp>(loc, ctype, lhs, rhs);
+  }
   if (isa<AtenAbsOp>(op)) {
     if (isa<IntegerType>(payloadArgs[0].getType()))
       return b.create<math::AbsIOp>(loc, payloadArgs[0]);
@@ -817,6 +827,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     if (isa<mlir::FloatType>(dtype)) {
       Value scaled = b.create<arith::MulFOp>(loc, rhs, alpha);
       return b.create<arith::AddFOp>(loc, lhs, scaled);
+    } else if (dtype.isInteger(1)) {
+      Value scaled = b.create<arith::MulIOp>(loc, rhs, alpha);
+      return b.create<arith::OrIOp>(loc, lhs, scaled);
     } else {
       Value scaled = b.create<arith::MulIOp>(loc, rhs, alpha);
       return b.create<arith::AddIOp>(loc, lhs, scaled);
@@ -844,6 +857,28 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       Value scaled = b.create<arith::MulIOp>(loc, rhs, alpha);
       return b.create<arith::SubIOp>(loc, lhs, scaled);
     }
+  }
+  if (auto lshiftScalar = dyn_cast<Aten__Lshift__ScalarOp>(op)) {
+    Type dtype =
+        cast<RankedTensorType>(converter->convertType(lshiftScalar.getType()))
+            .getElementType();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value other =
+        convertScalarToDtype(b, loc, operands[1], dtype,
+                             /*srcOriginalDtype=*/operands[1].getType(),
+                             /*dstOriginalDtype=*/dtype);
+    return b.create<arith::ShLIOp>(loc, self, other);
+  }
+  if (auto rshiftScalar = dyn_cast<Aten__Rshift__ScalarOp>(op)) {
+    Type dtype =
+        cast<RankedTensorType>(converter->convertType(rshiftScalar.getType()))
+            .getElementType();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value other =
+        convertScalarToDtype(b, loc, operands[1], dtype,
+                             /*srcOriginalDtype=*/operands[1].getType(),
+                             /*dstOriginalDtype=*/dtype);
+    return b.create<arith::ShRUIOp>(loc, self, other);
   }
   if (auto subScalar = dyn_cast<AtenSubScalarOp>(op)) {
     Type dtype =
@@ -984,12 +1019,20 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = cast<RankedTensorType>(converter->convertType(pow.getType()))
                      .getElementType();
     if (!isa<mlir::FloatType>(dtype)) {
+      // The result type is integer when both operands are integer.
+      // Torch then uses the following implementation:
+      // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/Pow.h
       pow.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    return b.create<math::PowFOp>(loc, lhs, rhs);
+    Type powType = dtype;
+    if (payloadArgs[0].getType().isInteger() ||
+        payloadArgs[1].getType().isInteger())
+      powType = mlir::FloatType::getF64(op->getContext());
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], powType);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], powType);
+    auto powOp = b.create<math::PowFOp>(loc, lhs, rhs);
+    return convertScalarToDtype(b, loc, powOp, dtype);
   }
 
   if (auto imag = dyn_cast<AtenImagOp>(op)) {
@@ -1260,29 +1303,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return createRemainderPayload(b, loc, converter, payloadArgs, remTensor,
                                   operands);
   }
-  if (auto fmod = dyn_cast<AtenFmodTensorOp>(op)) {
-    Type newResultType =
-        cast<RankedTensorType>(converter->convertType(fmod.getType()))
-            .getElementType();
-
-    Value self = convertScalarToDtype(b, loc, payloadArgs[0], newResultType);
-    Value other = convertScalarToDtype(b, loc, payloadArgs[1], newResultType);
-    Value result;
-
-    if (isa<mlir::FloatType>(newResultType)) {
-      Value n = b.create<arith::DivFOp>(loc, self, other);
-      n = b.create<math::TruncOp>(loc, n);
-      Value n_y = b.create<arith::MulFOp>(loc, n, other);
-      result = b.create<arith::SubFOp>(loc, self, n_y);
-    } else if (isa<mlir::IntegerType>(newResultType)) {
-      Value n = b.create<arith::DivSIOp>(loc, self, other);
-      Value n_y = b.create<arith::MulIOp>(loc, n, other);
-      result = b.create<arith::SubIOp>(loc, self, n_y);
-    } else {
-      fmod.emitError("Unsupported type encountered for AtenFmodTensorOp.");
-    }
-    return result;
-  }
   if (auto reciprocal = dyn_cast<AtenReciprocalOp>(op)) {
     Type dtype =
         cast<RankedTensorType>(converter->convertType(reciprocal.getType()))
@@ -1506,6 +1526,48 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return value;
   }
 
+  if (auto isClose = dyn_cast<AtenIscloseOp>(op)) {
+    double rtol, atol;
+    bool equalNan;
+    if (!matchPattern(isClose.getRtol(), m_TorchConstantFloat(&rtol))) {
+      isClose.emitError("rtol must be a scalar constant");
+      return nullptr;
+    }
+    if (!matchPattern(isClose.getAtol(), m_TorchConstantFloat(&atol))) {
+      isClose.emitError("atol must be a scalar constant");
+      return nullptr;
+    }
+    if (!matchPattern(isClose.getEqualNan(), m_TorchConstantBool(&equalNan))) {
+      isClose.emitError("unimplemented: equal_nan is expected to be false");
+      return nullptr;
+    }
+    auto lhsType = mlir::dyn_cast<mlir::FloatType>(payloadArgs[0].getType());
+    auto rhsType = mlir::dyn_cast<mlir::FloatType>(payloadArgs[1].getType());
+    if (!lhsType || !rhsType) {
+      isClose.emitError("unimplemented: only FP element type is supported");
+      return nullptr;
+    }
+    // Choose the widest float type as compute type.
+    auto computeType =
+        lhsType.getWidth() > rhsType.getWidth() ? lhsType : rhsType;
+    computeType = computeType.getWidth() >= 32 ? computeType : b.getF32Type();
+    auto cvtArg0 = convertScalarToDtype(b, loc, payloadArgs[0], computeType);
+    auto cvtArg1 = convertScalarToDtype(b, loc, payloadArgs[1], computeType);
+    // Reference to the definition of torch.isclose:
+    //   ∣input − other∣ <= atol + rtol × ∣other∣
+    auto diff = b.create<arith::SubFOp>(loc, computeType, cvtArg0, cvtArg1);
+    auto absDiff = b.create<math::AbsFOp>(loc, computeType, diff);
+    auto cstRtol =
+        b.create<arith::ConstantOp>(loc, b.getFloatAttr(computeType, rtol));
+    auto absOther = b.create<math::AbsFOp>(loc, computeType, cvtArg1);
+    auto mul = b.create<arith::MulFOp>(loc, computeType, cstRtol, absOther);
+    auto cstAtol =
+        b.create<arith::ConstantOp>(loc, b.getFloatAttr(computeType, atol));
+    auto threshold = b.create<arith::AddFOp>(loc, computeType, cstAtol, mul);
+    return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ULE, absDiff,
+                                   threshold);
+  }
+
   op->emitError("unimplemented lowering in "
                 "createLinalgPayloadCalculationForElementwiseOp");
   return nullptr;
@@ -1548,11 +1610,12 @@ public:
              AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenPowScalarOp,
              AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op,
              AtenLog10Op, AtenLog1pOp, AtenRsqrtOp, AtenDivScalarOp,
-             AtenRemainderScalarOp, AtenRemainderTensorOp, AtenFmodTensorOp,
-             AtenAbsOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
+             AtenRemainderScalarOp, AtenRemainderTensorOp, AtenAbsOp,
+             AtenComplexOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
              AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
              AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
-             AtenBitwiseRightShiftTensorOp, AtenGtScalarOp, AtenGeScalarOp,
+             AtenBitwiseRightShiftTensorOp, Aten__Lshift__ScalarOp,
+             Aten__Rshift__ScalarOp, AtenGtScalarOp, AtenGeScalarOp,
              AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
              AtenCeilOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
              AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp, AtenSubScalarOp,
@@ -1564,7 +1627,7 @@ public:
              AtenFillScalarOp, AtenFillTensorOp, AtenAtanOp, AtenAcosOp,
              AtenAtanhOp, AtenAcoshOp, AtenAsinOp, AtenAsinhOp, AtenRealOp,
              AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
-             AtenQuantizePerTensorOp>(op))
+             AtenQuantizePerTensorOp, AtenIscloseOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -2431,9 +2494,7 @@ public:
     Location loc = op->getLoc();
     Type int64type = rewriter.getI64Type();
     Type floatType = rewriter.getF32Type();
-    Value zeroIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value oneIndex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value twoIndex = rewriter.create<arith::ConstantIndexOp>(loc, 2);
     Value zeroFloat = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getFloatAttr(floatType, 0.0));
     Value oneFloat = rewriter.create<arith::ConstantOp>(
@@ -2442,7 +2503,6 @@ public:
         loc, rewriter.getFloatAttr(floatType, 2.0));
     Value input = adaptor.getInput();
     auto inputType = cast<RankedTensorType>(input.getType());
-    auto inputShape = inputType.getShape();
     Value innerDim0a = rewriter.create<tensor::DimOp>(loc, input, 2);
     Value innerDim1a = rewriter.create<tensor::DimOp>(loc, input, 3);
     Value innerDim0b =
@@ -2463,42 +2523,21 @@ public:
         rewriter.create<arith::DivFOp>(loc, innerDim1d, twoFloat);
     Value grid = adaptor.getGrid();
     auto gridType = cast<RankedTensorType>(grid.getType());
-    auto gridShape = gridType.getShape();
     auto gridRank = gridType.getRank();
-    SmallVector<Value> extractGridOffsets0(gridRank, zeroIndex);
-    SmallVector<Value> extractGridShape = getTensorSizes(rewriter, loc, grid);
-    SmallVector<Value> extractGridStride(gridRank, oneIndex);
-    int64_t lastGridDim = gridRank - 1;
-    extractGridShape[lastGridDim] = oneIndex;
-    extractGridStride[lastGridDim] = twoIndex;
-    SmallVector<Value> extractGridOffsets1(gridRank, zeroIndex);
-    extractGridOffsets1[lastGridDim] = oneIndex;
-    SmallVector<int64_t> gridShapeExtracted(gridShape);
-    gridShapeExtracted.back() = 1;
-    SmallVector<int64_t> gridShapeCollapsed{gridShape[0], gridShape[1],
-                                            gridShape[2]};
-    auto grid0 = rewriter.create<tensor::ExtractSliceOp>(
-        loc, grid, extractGridOffsets0, extractGridShape, extractGridStride);
-    auto grid1 = rewriter.create<tensor::ExtractSliceOp>(
-        loc, grid, extractGridOffsets1, extractGridShape, extractGridStride);
-    SmallVector<ReassociationIndices> associations{ReassociationIndices{0},
-                                                   ReassociationIndices{1},
-                                                   ReassociationIndices{2, 3}};
-    auto gridCollapsed0 =
-        rewriter.create<tensor::CollapseShapeOp>(loc, grid0, associations);
-    auto gridCollapsed1 =
-        rewriter.create<tensor::CollapseShapeOp>(loc, grid1, associations);
-    AffineMap gridMap = AffineMap::get(4, 0,
-                                       {rewriter.getAffineDimExpr(0),
-                                        rewriter.getAffineDimExpr(2),
-                                        rewriter.getAffineDimExpr(3)},
-                                       op->getContext());
-    SmallVector<AffineMap> gridMaps{gridMap, gridMap,
-                                    rewriter.getMultiDimIdentityMap(gridRank)};
+    SmallVector<AffineMap> gridMaps{
+        AffineMap::get(
+            4, 0,
+            {rewriter.getAffineDimExpr(0), rewriter.getAffineDimExpr(2),
+             rewriter.getAffineDimExpr(3), rewriter.getAffineConstantExpr(0)},
+            op->getContext()),
+        AffineMap::get(
+            4, 0,
+            {rewriter.getAffineDimExpr(0), rewriter.getAffineDimExpr(2),
+             rewriter.getAffineDimExpr(3), rewriter.getAffineConstantExpr(1)},
+            op->getContext()),
+        rewriter.getMultiDimIdentityMap(inputType.getRank())};
     SmallVector<utils::IteratorType> gridIterators(
         gridRank, utils::IteratorType::parallel);
-    SmallVector<int64_t> resultShape{inputShape[0], inputShape[1], gridShape[1],
-                                     gridShape[2]};
     auto lambdaExtract = [](OpBuilder &b, Location loc, Value input, Value idxA,
                             Value idxB, Value idxC, Value idxD) -> Value {
       SmallVector<Value> index{idxA, idxB, idxC, idxD};
@@ -2539,22 +2578,22 @@ public:
 
     auto resultType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op.getResult().getType()));
-    SmallVector<Value> resultSize{};
-    if (resultType.isDynamicDim(0))
-      resultSize.push_back(rewriter.create<tensor::DimOp>(loc, input, 0));
-    if (resultType.isDynamicDim(1))
-      resultSize.push_back(rewriter.create<tensor::DimOp>(loc, input, 1));
-    if (resultType.isDynamicDim(2))
-      resultSize.push_back(rewriter.create<tensor::DimOp>(loc, grid, 1));
-    if (resultType.isDynamicDim(3))
-      resultSize.push_back(rewriter.create<tensor::DimOp>(loc, grid, 2));
     Value alignCorners = adaptor.getAlignCorners();
     Value interMode = adaptor.getInterpolationMode();
-    Value resultFinal =
-        rewriter.create<tensor::EmptyOp>(loc, resultType, resultSize);
+    SmallVector<Value> dynamicSizes{};
+    if (resultType.isDynamicDim(0))
+      dynamicSizes.push_back(rewriter.create<tensor::DimOp>(loc, input, 0));
+    if (resultType.isDynamicDim(1))
+      dynamicSizes.push_back(rewriter.create<tensor::DimOp>(loc, input, 1));
+    if (resultType.isDynamicDim(2))
+      dynamicSizes.push_back(rewriter.create<tensor::DimOp>(loc, grid, 1));
+    if (resultType.isDynamicDim(3))
+      dynamicSizes.push_back(rewriter.create<tensor::DimOp>(loc, grid, 2));
+    tensor::EmptyOp emptyOp =
+        rewriter.create<tensor::EmptyOp>(loc, resultType, dynamicSizes);
     auto sGrid = rewriter.create<linalg::GenericOp>(
-        loc, TypeRange{resultType}, ValueRange{gridCollapsed0, gridCollapsed1},
-        ValueRange(resultFinal), gridMaps, gridIterators,
+        loc, TypeRange{resultType}, ValueRange{grid, grid}, ValueRange(emptyOp),
+        gridMaps, gridIterators,
         [&](OpBuilder &b, Location loc, ValueRange args) {
           Value gr0 = args[1];
           Value gr1 = args[0];
@@ -2652,7 +2691,7 @@ public:
 };
 } // namespace
 
-static Value NearestInterpolate(OpBuilder &b, Location loc,
+static Value nearestInterpolate(OpBuilder &b, Location loc,
                                 SmallVector<Value> outputSizes, Value input,
                                 SmallVector<Value> inputSizes,
                                 SmallVector<Value> scaleValues,
@@ -2740,12 +2779,12 @@ static Value NearestInterpolate(OpBuilder &b, Location loc,
   return retVal;
 }
 
-static Value BilinearInterpolate(OpBuilder &b,
-                                 Aten__InterpolateSizeListScaleListOp op,
-                                 Location loc, SmallVector<Value> outputSizes,
-                                 Value input, SmallVector<Value> inputSizes,
-                                 SmallVector<Value> scaleValues,
-                                 std::string coordStr) {
+static SmallVector<Value> coordinateTransform(
+    OpBuilder &b, Aten__InterpolateSizeListScaleListOp op, Location loc,
+    SmallVector<Value> outputSizes, Value input, SmallVector<Value> inputSizes,
+    SmallVector<Value> scaleValues, std::string coordStr, bool alignCornersBool,
+    SmallVector<Value> indices, bool clip) {
+
   unsigned dimOffset = 2;
   auto inputType = cast<RankedTensorType>(input.getType());
   auto inputRank = inputType.getRank();
@@ -2754,15 +2793,7 @@ static Value BilinearInterpolate(OpBuilder &b,
   Value cstHalf = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.5));
   Value zero = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.0));
 
-  bool alignCornersBool;
-  matchPattern(op.getAlignCorners(), m_TorchConstantBool(&alignCornersBool));
-
-  SmallVector<Value> indices;
-  for (unsigned i = 0; i < inputRank; i++) {
-    indices.push_back(b.create<linalg::IndexOp>(loc, i));
-  }
-
-  SmallVector<Value> proj, projEps, high, low, highFP, lowFP;
+  SmallVector<Value> proj;
   for (unsigned i = 0; i < inputRank - dimOffset; i++) {
     // length_original
     Value inputFP =
@@ -2825,13 +2856,50 @@ static Value BilinearInterpolate(OpBuilder &b,
                                           outputSizeFP, cstOneFloat);
       preClip = b.create<arith::SelectOp>(loc, cmp, zero, preClip);
     }
-    // preClip is the fp position inside the input image to extract from.
-    // clip to [0,inf)
-    Value max = b.create<arith::MaximumFOp>(loc, preClip, zero);
+    if (clip) {
+      // preClip is the fp position inside the input image to extract from.
+      // clip to [0,inf)
+      Value max = b.create<arith::MaximumFOp>(loc, preClip, zero);
+      Value inputSubOne = b.create<arith::SubFOp>(loc, inputFP, cstOneFloat);
+      // clip to [0,length_original - 1].
+      // proj is properly within the input image.
+      proj.push_back(b.create<arith::MinimumFOp>(loc, max, inputSubOne));
+    } else {
+      proj.push_back(preClip);
+    }
+  }
+  return proj;
+}
+
+static Value bilinearInterpolate(OpBuilder &b,
+                                 Aten__InterpolateSizeListScaleListOp op,
+                                 Location loc, SmallVector<Value> outputSizes,
+                                 Value input, SmallVector<Value> inputSizes,
+                                 SmallVector<Value> scaleValues,
+                                 std::string coordStr) {
+  unsigned dimOffset = 2;
+  auto inputType = cast<RankedTensorType>(input.getType());
+  auto inputRank = inputType.getRank();
+
+  Value cstOneFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.0));
+
+  bool alignCornersBool;
+  matchPattern(op.getAlignCorners(), m_TorchConstantBool(&alignCornersBool));
+
+  SmallVector<Value> indices;
+  for (unsigned i = 0; i < inputRank; i++) {
+    indices.push_back(b.create<linalg::IndexOp>(loc, i));
+  }
+
+  SmallVector<Value> proj, high, low, highFP, lowFP;
+  proj = coordinateTransform(b, op, loc, outputSizes, input, inputSizes,
+                             scaleValues, coordStr, alignCornersBool, indices,
+                             true);
+  for (unsigned i = 0; i < inputRank - dimOffset; i++) {
+    // length_original
+    Value inputFP =
+        b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizes[i]);
     Value inputSubOne = b.create<arith::SubFOp>(loc, inputFP, cstOneFloat);
-    // clip to [0,length_original - 1].
-    // proj is properly within the input image.
-    proj.push_back(b.create<arith::MinimumFOp>(loc, max, inputSubOne));
 
     // for bilinear interpolation, we look for the nearest indices below and
     // above proj
@@ -2895,6 +2963,176 @@ static Value BilinearInterpolate(OpBuilder &b,
   return b.create<arith::AddFOp>(loc, left, right);
 }
 
+static Value bicubicInterpolate(OpBuilder &b,
+                                Aten__InterpolateSizeListScaleListOp op,
+                                Location loc, SmallVector<Value> outputSizes,
+                                Value input, SmallVector<Value> inputSizes,
+                                SmallVector<Value> scaleValues,
+                                std::string coordStr) {
+  unsigned dimOffset = 2;
+  auto inputType = cast<RankedTensorType>(input.getType());
+  auto inputRank = inputType.getRank();
+
+  Value inputFPH =
+      b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizes[0]);
+  Value inputFPW =
+      b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizes[1]);
+
+  Value a = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(-0.75));
+  Value zero = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.0));
+  Value cstOneFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.0));
+  Value cstTwoFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(2.0));
+  Value cstThreeFloat =
+      b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(3.0));
+  Value cstFourFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(4.0));
+  Value cstFiveFloat = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(5.0));
+  Value cstEightFloat =
+      b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(8.0));
+
+  // (a+2)|x|^3 - (a+3)|x|^2 + 1 for xDistance (|x| <= 1)
+  auto WeightLessThanEqualOne = [&](Value xDistance) -> Value {
+    Value xDistanceSquared = b.create<arith::MulFOp>(loc, xDistance, xDistance);
+    Value xDistanceCubed =
+        b.create<arith::MulFOp>(loc, xDistanceSquared, xDistance);
+
+    Value lessEqualOne = b.create<arith::AddFOp>(loc, a, cstTwoFloat);
+    lessEqualOne = b.create<arith::MulFOp>(loc, xDistanceCubed, lessEqualOne);
+    Value aPlusThree = b.create<arith::AddFOp>(loc, a, cstThreeFloat);
+    aPlusThree = b.create<arith::MulFOp>(loc, xDistanceSquared, aPlusThree);
+    lessEqualOne = b.create<arith::SubFOp>(loc, lessEqualOne, aPlusThree);
+    lessEqualOne = b.create<arith::AddFOp>(loc, lessEqualOne, cstOneFloat);
+
+    return lessEqualOne;
+  };
+
+  // a|x|^3 - 5a|x|^2 + 8a|x| - 4a for xDistance (1 < |x| < 2)
+  auto WeightLessThanTwo = [&](Value xDistance) -> Value {
+    Value xDistanceSquared = b.create<arith::MulFOp>(loc, xDistance, xDistance);
+    Value xDistanceCubed =
+        b.create<arith::MulFOp>(loc, xDistanceSquared, xDistance);
+    // a|x|^3
+    Value lessThanTwo = b.create<arith::MulFOp>(loc, xDistanceCubed, a);
+
+    Value fiveA = b.create<arith::MulFOp>(loc, xDistanceSquared, a);
+    fiveA = b.create<arith::MulFOp>(loc, fiveA, cstFiveFloat);
+    // a|x|^3 - 5a|x|^2
+    lessThanTwo = b.create<arith::SubFOp>(loc, lessThanTwo, fiveA);
+
+    Value eightA = b.create<arith::MulFOp>(loc, a, xDistance);
+    eightA = b.create<arith::MulFOp>(loc, eightA, cstEightFloat);
+    // a|x|^3 - 5a|x|^2 + 8a|x|
+    lessThanTwo = b.create<arith::AddFOp>(loc, eightA, lessThanTwo);
+
+    Value fourA = b.create<arith::MulFOp>(loc, a, cstFourFloat);
+    // a|x|^3 - 5a|x|^2 + 8a|x| - 4a
+    lessThanTwo = b.create<arith::SubFOp>(loc, lessThanTwo, fourA);
+    return lessThanTwo;
+  };
+
+  bool alignCornersBool;
+  matchPattern(op.getAlignCorners(), m_TorchConstantBool(&alignCornersBool));
+
+  SmallVector<Value> indices;
+  for (unsigned i = 0; i < inputRank; i++) {
+    indices.push_back(b.create<linalg::IndexOp>(loc, i));
+  }
+
+  SmallVector<Value> proj;
+
+  proj = coordinateTransform(b, op, loc, outputSizes, input, inputSizes,
+                             scaleValues, coordStr, alignCornersBool, indices,
+                             false);
+
+  // get the nearest neighbors of proj
+  Value x1 = b.create<math::CeilOp>(loc, proj[1]);
+  Value x_1 = b.create<arith::SubFOp>(loc, x1, cstOneFloat);
+  Value x_2 = b.create<arith::SubFOp>(loc, x_1, cstOneFloat);
+  Value x2 = b.create<arith::AddFOp>(loc, x1, cstOneFloat);
+
+  Value y1 = b.create<math::CeilOp>(loc, proj[0]);
+  Value y_1 = b.create<arith::SubFOp>(loc, y1, cstOneFloat);
+  Value y_2 = b.create<arith::SubFOp>(loc, y_1, cstOneFloat);
+  Value y2 = b.create<arith::AddFOp>(loc, y1, cstOneFloat);
+
+  // calculate the distance of nearest neighbors x and y to proj
+  Value y2Distance = b.create<arith::SubFOp>(loc, proj[0], y2);
+  y2Distance = b.create<math::AbsFOp>(loc, y2Distance);
+  Value y1Distance = b.create<arith::SubFOp>(loc, proj[0], y1);
+  y1Distance = b.create<math::AbsFOp>(loc, y1Distance);
+  Value y_1Distance = b.create<arith::SubFOp>(loc, proj[0], y_1);
+  y_1Distance = b.create<math::AbsFOp>(loc, y_1Distance);
+  Value y_2Distance = b.create<arith::SubFOp>(loc, proj[0], y_2);
+  y_2Distance = b.create<math::AbsFOp>(loc, y_2Distance);
+
+  Value x2Distance = b.create<arith::SubFOp>(loc, proj[1], x2);
+  x2Distance = b.create<math::AbsFOp>(loc, x2Distance);
+  Value x1Distance = b.create<arith::SubFOp>(loc, proj[1], x1);
+  x1Distance = b.create<math::AbsFOp>(loc, x1Distance);
+  Value x_1Distance = b.create<arith::SubFOp>(loc, proj[1], x_1);
+  x_1Distance = b.create<math::AbsFOp>(loc, x_1Distance);
+  Value x_2Distance = b.create<arith::SubFOp>(loc, proj[1], x_2);
+  x_2Distance = b.create<math::AbsFOp>(loc, x_2Distance);
+
+  SmallVector<Value> y{y_2, y_1, y1, y2};
+  SmallVector<Value> x{x_2, x_1, x1, x2};
+
+  SmallVector<Value> wys{
+      WeightLessThanTwo(y_2Distance), WeightLessThanEqualOne(y_1Distance),
+      WeightLessThanEqualOne(y1Distance), WeightLessThanTwo(y2Distance)};
+  SmallVector<Value> wxs{
+      WeightLessThanTwo(x_2Distance), WeightLessThanEqualOne(x_1Distance),
+      WeightLessThanEqualOne(x1Distance), WeightLessThanTwo(x2Distance)};
+
+  // clip the nearest neighbors points to inside the original image
+  for (int k = 0; k < 4; k++) {
+    Value yClipped = b.create<arith::MaximumFOp>(loc, y[k], zero);
+    Value inputHSubOne = b.create<arith::SubFOp>(loc, inputFPH, cstOneFloat);
+    yClipped = b.create<arith::MinimumFOp>(loc, yClipped, inputHSubOne);
+    Value yInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), yClipped);
+    y[k] = b.create<arith::IndexCastOp>(loc, b.getIndexType(), yInt);
+
+    Value xClipped = b.create<arith::MaximumFOp>(loc, x[k], zero);
+    Value inputWSubOne = b.create<arith::SubFOp>(loc, inputFPW, cstOneFloat);
+    xClipped = b.create<arith::MinimumFOp>(loc, xClipped, inputWSubOne);
+    Value xInt = b.create<arith::FPToSIOp>(loc, b.getI64Type(), xClipped);
+    x[k] = b.create<arith::IndexCastOp>(loc, b.getIndexType(), xInt);
+  }
+  // 1. Compute x_original and y_original (proj)
+  // 2. Compute nearest x and y neighbors
+  // 3. Compute Wx Wy
+  // 4. Extract inputs at nearest neighbors (inputExtracts)
+  // 5. Compute weighted sum (yield this)
+
+  // 4 nearest x neighbors : [x_2, x_1, x1, x2] of x_original
+  // 4 nearest y neighbors : [y_2, y_1, y1, y2] of y_original
+  // Sum_x is over 4 nearest x neighbors (similar for Sum_y)
+  // f(x_original, y_original) = Sum_y Sum_x W(x_original - x)*input[x,y]
+  //                     * W(y_original - y)
+  Value fxy = zero;
+
+  for (int j = 0; j < 4; j++) {
+    Value wy = wys[j];
+    Value xInterpy = zero;
+
+    indices[dimOffset] = y[j];
+
+    for (int i = 0; i < 4; i++) {
+      Value wx = wxs[i];
+
+      indices[dimOffset + 1] = x[i];
+
+      Value p = b.create<tensor::ExtractOp>(loc, input, indices);
+
+      Value wxp = b.create<arith::MulFOp>(loc, wx, p);
+      xInterpy = b.create<arith::AddFOp>(loc, xInterpy, wxp);
+    }
+    Value wyXInterpy = b.create<arith::MulFOp>(loc, wy, xInterpy);
+    fxy = b.create<arith::AddFOp>(loc, fxy, wyXInterpy);
+  }
+
+  return fxy;
+}
+
 namespace {
 class ConvertInterpolateOp
     : public OpConversionPattern<Aten__InterpolateSizeListScaleListOp> {
@@ -2910,7 +3148,8 @@ public:
     // coordinate_transformation_mode="asymmetric" will lower to an interpolate
     // op with the non-standard mode="bilinear_asymmetric".
     matchPattern(op.getMode(), m_TorchConstantStr(mode));
-    if (mode.substr(0, 8) != "bilinear" && mode.substr(0, 7) != "nearest") {
+    if (mode.substr(0, 8) != "bilinear" && mode.substr(0, 7) != "nearest" &&
+        mode.substr(0, 5) != "cubic") {
       return failure();
     }
 
@@ -2992,13 +3231,18 @@ public:
                         (mode.find(",") == std::string::npos)
                             ? ""
                             : mode.substr(mode.find(",") + 1);
-                    retVal = NearestInterpolate(
+                    retVal = nearestInterpolate(
                         b, loc, outputSizeIntValues, input, inputSizes,
                         ScaleFactorFloatValues, coordTfMode, nearestMode);
                   } else if (mode.substr(0, 8) == "bilinear") {
-                    retVal = BilinearInterpolate(
+                    retVal = bilinearInterpolate(
                         b, op, loc, outputSizeIntValues, input, inputSizes,
                         ScaleFactorFloatValues, mode.substr(8));
+                  } else if (mode.substr(0, 5) == "cubic") {
+
+                    retVal = bicubicInterpolate(
+                        b, op, loc, outputSizeIntValues, input, inputSizes,
+                        ScaleFactorFloatValues, mode.substr(5));
                   }
                   b.create<linalg::YieldOp>(loc, retVal);
                 })
@@ -3254,6 +3498,72 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenPolarOp : public OpConversionPattern<AtenPolarOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenPolarOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op.getLoc();
+    const TypeConverter *typeConverter = getTypeConverter();
+    MLIRContext *context = rewriter.getContext();
+
+    Value absTensor = adaptor.getAbs();
+    Value angleTensor = adaptor.getAngle();
+
+    RankedTensorType resultType =
+        cast<RankedTensorType>(typeConverter->convertType(op.getType()));
+    auto elementType = resultType.getElementType();
+
+    SmallVector<Value> resultShape;
+    for (int64_t i = 0; i < resultType.getRank(); i++) {
+      auto currentDimSize = rewriter.create<tensor::DimOp>(loc, absTensor, i);
+      resultShape.push_back(currentDimSize);
+    }
+
+    Value outTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(resultShape), elementType);
+
+    SmallVector<AffineExpr> outputExpr;
+    for (unsigned i = 0; i < resultType.getRank(); i++) {
+      outputExpr.push_back(getAffineDimExpr(i, context));
+    }
+
+    AffineMap identityMap =
+        AffineMap::get(resultType.getRank(), 0, outputExpr, op->getContext());
+
+    SmallVector<AffineMap> indexingMaps{identityMap, identityMap, identityMap};
+    SmallVector<utils::IteratorType> iteratorTypes(
+        resultType.getRank(), utils::IteratorType::parallel);
+    auto complexVar =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, outTensor.getType(), ValueRange{absTensor, angleTensor},
+                outTensor, indexingMaps, iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  // out = abs⋅cos(angle) + abs⋅sin(angle)⋅j
+                  Value abs = args[0];
+                  Value angle = args[1];
+                  Value realVal = b.create<math::CosOp>(loc, angle);
+                  Value imagVal = b.create<math::SinOp>(loc, angle);
+                  realVal = b.create<arith::MulFOp>(loc, abs, realVal);
+                  imagVal = b.create<arith::MulFOp>(loc, abs, imagVal);
+                  Value complexVal = b.create<complex::CreateOp>(
+                      loc, elementType, realVal, imagVal);
+                  b.create<linalg::YieldOp>(loc, complexVal);
+                })
+            .getResult(0);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, complexVar);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -3267,20 +3577,21 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenClampTensorOp, AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp,
       AtenFloorOp, AtenCeilOp, AtenPreluOp, AtenPowScalarOp,
       AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op,
-      AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenReciprocalOp,
+      AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenComplexOp, AtenReciprocalOp,
       AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
       AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
-      AtenBitwiseRightShiftTensorOp, AtenGtScalarOp, AtenGeScalarOp,
-      AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp,
-      AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp,
-      AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
+      AtenBitwiseRightShiftTensorOp, Aten__Lshift__ScalarOp,
+      Aten__Rshift__ScalarOp, AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp,
+      AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
+      AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp, AtenLtTensorOp,
+      AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
       AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
       AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
       AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
-      AtenTrilOp, AtenRemainderScalarOp, AtenFmodTensorOp,
-      AtenRemainderTensorOp, AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp,
-      AtenFillTensorOp, AtenRealOp, AtenImagOp, AtenDequantizeSelfOp,
-      AtenDequantizeTensorOp, AtenQuantizePerTensorOp>();
+      AtenTrilOp, AtenRemainderScalarOp, AtenRemainderTensorOp,
+      AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
+      AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
+      AtenQuantizePerTensorOp, AtenIscloseOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);
@@ -3313,4 +3624,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertInterpolateOp>(typeConverter, context);
   target.addIllegalOp<AtenLinalgDetOp>();
   patterns.add<ConvertAtenLinalgDetOp>(typeConverter, context);
+  target.addIllegalOp<AtenPolarOp>();
+  patterns.add<ConvertAtenPolarOp>(typeConverter, context);
 }

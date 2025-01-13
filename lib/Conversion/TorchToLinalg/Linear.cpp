@@ -11,6 +11,7 @@
 
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/IR/Matchers.h"
@@ -222,14 +223,9 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
 
     Location loc = op->getLoc();
-    MLIRContext *context = op.getContext();
     Value self = adaptor.getSelf();
     auto selfRank =
         cast<RankedTensorType>(adaptor.getSelf().getType()).getRank();
-    Type elementType =
-        cast<RankedTensorType>(adaptor.getSelf().getType()).getElementType();
-    Value c1 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
 
     SmallVector<int64_t> axis;
     if (!matchPattern(adaptor.getDims(), m_TorchListOfConstantInts(axis)))
@@ -242,40 +238,8 @@ public:
       }
     }
 
-    // Only used to calculate flipped values, i.e. those on the flip axes. Other
-    // dims won't be used.
-    SmallVector<Value> dims = getTensorSizes(rewriter, loc, self);
-    for (auto flipDim : axis)
-      dims[flipDim] = rewriter.create<arith::SubIOp>(loc, dims[flipDim], c1);
-
-    Value initTensor = createZeroInitTensor(
-        rewriter, loc, getTensorSizes(rewriter, loc, self), elementType);
-
-    SmallVector<utils::IteratorType> iteratorTypes(
-        selfRank, utils::IteratorType::parallel);
-    SmallVector<AffineMap> indexingMaps(
-        2, AffineMap::getMultiDimIdentityMap(selfRank, context));
-    Value flipped =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, self.getType(), self, initTensor, indexingMaps,
-                iteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  SmallVector<Value> indices;
-                  for (auto i = 0; i < selfRank; i++)
-                    indices.push_back(b.create<linalg::IndexOp>(loc, i));
-                  for (auto flipDim : axis) {
-                    indices[flipDim] = b.create<arith::SubIOp>(
-                        loc, dims[flipDim], indices[flipDim]);
-                  }
-                  Value res = b.create<tensor::ExtractOp>(loc, self, indices)
-                                  .getResult();
-                  b.create<linalg::YieldOp>(loc, res);
-                })
-            .getResult(0);
-
+    Value flipped = torch_to_linalg::flipTensor(rewriter, loc, self, axis);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, self.getType(), flipped);
-
     return success();
   }
 };
@@ -763,15 +727,21 @@ public:
     // Check the matrixs shapes are valid for mulplication.
     checkDimEqualHelper(rewriter, loc, lhsDim2, rhsDim1);
 
+    Type accumulatorDType = getDefaultAccType(rewriter, resultElementType);
     Value initTensor0 = createZeroInitTensor(
-        rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2},
-        resultElementType);
+        rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2}, accumulatorDType);
 
     Value bmm =
         rewriter
             .create<linalg::BatchMatmulOp>(loc, initTensor0.getType(),
                                            ValueRange{lhs, rhs}, initTensor0)
             .getResult(0);
+
+    if (accumulatorDType != resultElementType) {
+      bmm = torch_to_linalg::convertTensorToElementType(rewriter, loc, bmm,
+                                                        resultElementType);
+    }
+
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, bmm);
     return success();
   }
@@ -886,6 +856,48 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "only support constant int dilations");
 
+    // Checks for valid group size
+    int64_t numGroups;
+    if (!matchPattern(op.getGroups(), m_TorchConstantInt(&numGroups)))
+      return rewriter.notifyMatchFailure(op,
+                                         "only constant group size supported.");
+    Value groups = castIntToIndex(rewriter, loc, adaptor.getGroups());
+
+    // Adding support for 1d group convolution by converting the 1d-conv to
+    // 2d-conv.
+    // TODO: Replace this logic with the appropriate linalg op for 1-d group
+    // convolution once that support is added.
+    bool is1DGroupConv = (numSpatialDims == 1 && numGroups != 1);
+    if (is1DGroupConv) {
+      // Unsqueezing the last dim of input and weight. Also extending the
+      // dilation, stride, padding, and output padding lists.
+      auto unsqueezeInputInfo =
+          unsqueezeTensor(rewriter, op, input, /*dim=*/-1);
+      if (failed(unsqueezeInputInfo)) {
+        return rewriter.notifyMatchFailure(op,
+                                           "cannot generate unsqueeze tensor");
+      }
+      input = unsqueezeInputInfo.value();
+
+      auto unsqueezeWeightInfo =
+          unsqueezeTensor(rewriter, op, weight, /*dim=*/-1);
+      if (failed(unsqueezeWeightInfo)) {
+        return rewriter.notifyMatchFailure(op,
+                                           "cannot generate unsqueeze tensor");
+      }
+      weight = unsqueezeWeightInfo.value();
+
+      Value cstZero = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getI64IntegerAttr(0));
+      paddingIntValues.push_back(cstZero);
+      outputPaddingIntValues.push_back(cstZero);
+      strideInts.push_back(1);
+      dilationInts.push_back(1);
+
+      inRank++;
+      numSpatialDims++;
+    }
+
     Value inBatch = getDimOp(rewriter, loc, input, 0);
     Value inChannels = getDimOp(rewriter, loc, input, 1);
     SmallVector<Value> inDims;
@@ -896,13 +908,6 @@ public:
     SmallVector<Value> weightDims;
     for (size_t i = 2; i < inRank; i++)
       weightDims.push_back(getDimOp(rewriter, loc, weight, i));
-
-    // Checks for valid group size
-    int64_t numGroups;
-    if (!matchPattern(op.getGroups(), m_TorchConstantInt(&numGroups)))
-      return rewriter.notifyMatchFailure(op,
-                                         "only constant group size supported.");
-    Value groups = castIntToIndex(rewriter, loc, adaptor.getGroups());
 
     auto validate = [&](Value toValidate, std::string err) {
       Value c0 =
@@ -1080,21 +1085,16 @@ public:
         return rewriter.notifyMatchFailure(op, "expect bias to be rank 1");
 
       auto resultRank = cast<RankedTensorType>(initTensor.getType()).getRank();
-      SmallVector<AffineMap> indexingMaps = {
-          // bias is used to initialize the channels - dimension 1 of output
-          AffineMap::get(/*dimCount=*/resultRank, /*symbolCount=*/0,
-                         rewriter.getAffineDimExpr(1), context),
-          rewriter.getMultiDimIdentityMap(resultRank)};
-      SmallVector<utils::IteratorType> iteratorTypes(
-          resultRank, utils::IteratorType::parallel);
+      SmallVector<int64_t, 4> addedDimensions;
+      // bias is used to initialize the channels - dimension 1 of
+      // output
+      for (int i = 0; i < resultRank; ++i)
+        if (i != 1)
+          addedDimensions.push_back(i);
       outputTensor = rewriter
-                         .create<linalg::GenericOp>(
-                             loc, initTensor.getType(), bias, initTensor,
-                             indexingMaps, iteratorTypes,
-                             [](OpBuilder &b, Location loc, ValueRange args) {
-                               b.create<linalg::YieldOp>(loc, args[0]);
-                             })
-                         .getResult(0);
+                         .create<linalg::BroadcastOp>(loc, bias, initTensor,
+                                                      addedDimensions)
+                         ->getResult(0);
     }
 
     auto stridesAttr = rewriter.getI64VectorAttr(strideInts);
@@ -1167,53 +1167,56 @@ public:
     }
 
     if (numGroups == 1 && inputZp) {
-      // The quantized version uses a different channel ordering so we need to
-      // permute the tensors in order to use the existing path. We should
-      // eventually directly support this channel ordering.
-      llvm::SmallVector<int64_t> inPerms, weightPerms;
-      inPerms.push_back(0); // N stays at the front for input.
-      // Then we expect the spatial dimensions
-      for (size_t i = 0; i < numSpatialDims; ++i) {
-        inPerms.push_back(i + 2);
-        weightPerms.push_back(i + 2);
-      }
-      inPerms.push_back(1);
-      weightPerms.append({1, 0});
-
-      paddedInput = transposeValue(op.getLoc(), paddedInput, inPerms, rewriter);
-      weight = transposeValue(op.getLoc(), weight, weightPerms, rewriter);
-      outputTensor =
-          transposeValue(op.getLoc(), outputTensor, inPerms, rewriter);
-
       switch (numSpatialDims) {
       case 2:
         conv = rewriter
-                   .create<linalg::Conv2DNhwcHwcfQOp>(
+                   .create<linalg::Conv2DNchwFchwQOp>(
                        loc, outputTensor.getType(),
                        ValueRange{paddedInput, weight, inputZp, weightZp},
                        outputTensor, stridesAttr, dilationAttr)
                    .getResult(0);
         break;
-      case 3:
+      case 3: {
+        // The quantized version uses a different channel ordering so we need to
+        // permute the tensors in order to use the existing path. We should
+        // eventually directly support this channel ordering.
+        llvm::SmallVector<int64_t> inPerms, weightPerms;
+        inPerms.push_back(0); // N stays at the front for input.
+        // Then we expect the spatial dimensions
+        for (size_t i = 0; i < numSpatialDims; ++i) {
+          inPerms.push_back(i + 2);
+          weightPerms.push_back(i + 2);
+        }
+        inPerms.push_back(1);
+        weightPerms.append({1, 0});
+
+        paddedInput =
+            transposeValue(op.getLoc(), paddedInput, inPerms, rewriter);
+        weight = transposeValue(op.getLoc(), weight, weightPerms, rewriter);
+        outputTensor =
+            transposeValue(op.getLoc(), outputTensor, inPerms, rewriter);
+
         conv = rewriter
                    .create<linalg::Conv3DNdhwcDhwcfQOp>(
                        loc, outputTensor.getType(),
                        ValueRange{paddedInput, weight, inputZp, weightZp},
                        outputTensor, stridesAttr, dilationAttr)
                    .getResult(0);
+
+        llvm::SmallVector<int64_t> outPerms;
+        outPerms.push_back(0);
+        outPerms.push_back(inPerms.size() - 1);
+        for (size_t i = 0; i < numSpatialDims; ++i) {
+          outPerms.push_back(i + 1);
+        }
+        conv = transposeValue(op.getLoc(), conv, outPerms, rewriter);
+
         break;
+      }
       default:
         return rewriter.notifyMatchFailure(
             op, "unimplemented: only 1D, 2D, and 3D convolution supported");
       };
-
-      llvm::SmallVector<int64_t> outPerms;
-      outPerms.push_back(0);
-      outPerms.push_back(inPerms.size() - 1);
-      for (size_t i = 0; i < numSpatialDims; ++i) {
-        outPerms.push_back(i + 1);
-      }
-      conv = transposeValue(op.getLoc(), conv, outPerms, rewriter);
 
       Type newResultType = getTypeConverter()->convertType(op.getType());
       if (accumulatorDType != resultDTy) {
@@ -1226,10 +1229,6 @@ public:
       return success();
     }
 
-    if (numSpatialDims != 2)
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: only 2D grouped convolution supported");
-
     // Special depthwise case: Cin = Cout = groups.
     // Note: pytorch considers Cin == groups (Cout possibly a non-zero multiple
     // of groups) to be depthwise in their documentation, but the linalg ops
@@ -1241,21 +1240,45 @@ public:
     if (inShape[1] == numGroups && weightShape[0] == numGroups &&
         weightShape[1] == 1) {
       // Collapse weight shape (C/G == 1)
-      SmallVector<ReassociationIndices, 4> collapsedDims = {{0, 1}, {2}, {3}};
-      SmallVector<int64_t> collapsedShape{weightShape[0] * weightShape[1],
-                                          weightShape[2], weightShape[3]};
+      SmallVector<ReassociationIndices> collapsedDims = {{0, 1}};
+      SmallVector<int64_t> collapsedShape{weightShape[0] * weightShape[1]};
+      for (unsigned i = 0; i < numSpatialDims; i++) {
+        collapsedDims.push_back({i + 2});
+        collapsedShape.push_back(weightShape[i + 2]);
+      }
       Type collapsedType = RankedTensorType::get(
           makeShapeLLVMCompatible(collapsedShape), weightDTy);
       Value collapsedWeight = rewriter.create<tensor::CollapseShapeOp>(
           loc, collapsedType, weight, collapsedDims);
       if (!inputZp) {
-        conv = rewriter
-                   .create<linalg::DepthwiseConv2DNchwChwOp>(
-                       loc, outputTensor.getType(),
-                       ValueRange{paddedInput, collapsedWeight}, outputTensor,
-                       stridesAttr, dilationAttr)
-                   .getResult(0);
+        switch (numSpatialDims) {
+        case 1:
+          conv = rewriter
+                     .create<linalg::DepthwiseConv1DNcwCwOp>(
+                         loc, outputTensor.getType(),
+                         ValueRange{paddedInput, collapsedWeight}, outputTensor,
+                         stridesAttr, dilationAttr)
+                     .getResult(0);
+          break;
+        case 2:
+          conv = rewriter
+                     .create<linalg::DepthwiseConv2DNchwChwOp>(
+                         loc, outputTensor.getType(),
+                         ValueRange{paddedInput, collapsedWeight}, outputTensor,
+                         stridesAttr, dilationAttr)
+                     .getResult(0);
+          break;
+        default:
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: only 1D and 2D depthwise convolution "
+                  "supported for special case of group convolution");
+        };
       } else {
+        if (numSpatialDims != 2)
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: only 2D depthwise quantized convolution "
+                  "supported for special case of group convolution");
+
         // currently, the only named depthwise qconv op is nhwc_hwc
         // input: nchw -> nhwc; weight (collapsed): chw -> hwc
         // linalg conv result nhwc -> nchw
@@ -1298,9 +1321,24 @@ public:
         conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
                                                            resultElementType);
       }
+
+      if (is1DGroupConv) {
+        // Squeezing the last dim of the result of conv.
+        auto squeezeOutputInfo = squeezeTensor(rewriter, op, conv, /*dim=*/-1);
+        if (failed(squeezeOutputInfo)) {
+          return rewriter.notifyMatchFailure(op,
+                                             "cannot generate squeeze tensor");
+        }
+        conv = squeezeOutputInfo.value();
+      }
+
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
     }
+
+    if (numSpatialDims != 2)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only 1D and 2D grouped convolution supported");
 
     // Grouped case, use the grouped conv linalg op
     auto expandGroups = [&](Value tensor, size_t dim) {
@@ -1385,10 +1423,208 @@ public:
       conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
                                                          resultElementType);
     }
+
+    if (is1DGroupConv) {
+      // Squeezing the last dim of the result of conv.
+      auto squeezeOutputInfo = squeezeTensor(rewriter, op, conv, /*dim=*/-1);
+      if (failed(squeezeOutputInfo)) {
+        return rewriter.notifyMatchFailure(op,
+                                           "cannot generate squeeze tensor");
+      }
+      conv = squeezeOutputInfo.value();
+    }
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
     return success();
   }
 };
+} // namespace
+
+namespace {
+
+/// Creates coefficients based on DFT definition, see
+/// https://en.wikipedia.org/wiki/Discrete_Fourier_transform.
+Value getDFTMatmulCoeff(OpBuilder b, Location loc,
+                        RankedTensorType matrixType) {
+
+  ComplexType complexTy = llvm::cast<ComplexType>(matrixType.getElementType());
+  mlir::FloatType floatType =
+      llvm::cast<mlir::FloatType>(complexTy.getElementType());
+
+  // scale = 2 * pi / N
+  double scale = 2 * M_PI / matrixType.getDimSize(0);
+
+  SmallVector<std::complex<APFloat>> values;
+  for (auto i : llvm::seq<unsigned>(0, matrixType.getDimSize(0))) {
+    for (auto j : llvm::seq<unsigned>(0, matrixType.getDimSize(1))) {
+      double v = scale * i * j;
+      double realV = cos(v);
+      double imagV = -sin(v);
+
+      bool unused;
+      APFloat real(realV);
+      real.convert(floatType.getFloatSemantics(), APFloat::rmNearestTiesToEven,
+                   &unused);
+      APFloat imag(imagV);
+      imag.convert(floatType.getFloatSemantics(), APFloat::rmNearestTiesToEven,
+                   &unused);
+
+      values.push_back(std::complex<APFloat>(real, imag));
+    }
+  }
+  return b.create<arith::ConstantOp>(
+      loc, matrixType, DenseElementsAttr::get(matrixType, values));
+}
+
+struct ConvertAtenFftRfftOp final : OpConversionPattern<AtenFftRfftOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AtenFftRfftOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = adaptor.getSelf();
+
+    int64_t dim;
+    auto dimVal = op.getDim();
+    if (isa<torch::Torch::NoneType>(dimVal.getType())) {
+      dim = -1;
+    } else if (!matchPattern(dimVal, torch::Torch::m_TorchConstantInt(&dim))) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: requires dim to be constant");
+    }
+
+    if (!isa<torch::Torch::NoneType>(op.getN().getType())) {
+      return rewriter.notifyMatchFailure(op, "unimplemented: parameter n");
+    }
+
+    if (!isa<torch::Torch::NoneType>(op.getNorm().getType())) {
+      return rewriter.notifyMatchFailure(op, "unimplemented: parameter norm");
+    }
+
+    RankedTensorType inputType =
+        cast<RankedTensorType>(adaptor.getSelf().getType());
+    if (!inputType.hasRank()) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: only ranked tensors are supported");
+    }
+
+    const ArrayRef<int64_t> inputShape = inputType.getShape();
+    dim += dim < 0 ? inputShape.size() : 0;
+
+    const int64_t fftLength = inputShape[dim];
+    if (fftLength == ShapedType::kDynamic) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: FFT signal length must be static");
+    }
+    const int64_t rank = inputType.getRank();
+    const int64_t lastDim = rank - 1;
+    const int64_t outputFftDim = fftLength / 2 + 1;
+    const bool needTranspose = dim != lastDim;
+
+    // Transpose if FFT dimension is not the last one
+    llvm::SmallVector<int64_t> perms = llvm::to_vector(llvm::seq(rank));
+    std::swap(perms[dim], perms[lastDim]);
+    if (needTranspose) {
+      self = transposeValue(loc, self, perms, rewriter);
+    }
+
+    RankedTensorType newResultType = llvm::cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getType()));
+    ComplexType complexElemType =
+        llvm::cast<ComplexType>(newResultType.getElementType());
+    Type elemType = complexElemType.getElementType();
+
+    // coeffMatrix : tensor<fftLength x outputFftDim x complex<f32>>
+    RankedTensorType coeffType =
+        RankedTensorType::get({fftLength, outputFftDim}, complexElemType);
+    // coeffMatrix(n,m) = cos(2 pi n m / N) - j sin(2 pi n m / N)
+    Value coeffMatrix = getDFTMatmulCoeff(rewriter, loc, coeffType);
+
+    // #matmul_trait = {
+    //   indexing_maps = [
+    //     affine_map<(d_0, ... d_m, f, o) -> (d_0, ... d_m, f)>,
+    //     affine_map<(d_0, ... d_m, f, o) -> (f, o)>,
+    //     affine_map<(d_0, ... d_m, f, o) -> (d_0, ... d_m, o)>
+    //   ],
+    //   iterator_types = ["parallel", ..., "parallel", "reduction", "parallel"]
+    // }
+    // linalg.generic #matmul_trait
+    //   ins(%A, %B : tensor<D_0 x ... x D_m x fftLength x f32>,
+    //                tensor<fftLength x outputFftDim x complex<f32>>)
+    //   outs(%C : tensor<D_0 x ... x D_m x outputFftDim x complex<f32>>) {
+    //   ^bb0(%a: f32, %b: complex<f32>, %c: complex<f32>) :
+    //     %re = complex.re %b : f32
+    //     %im = complex.im %b : f32
+    //     %mulre = arith.mulf %a, %re: f32
+    //     %mulim = arith.mulf %a, %im: f32
+    //     %mulcplx = complex.create %mulre, %mulim : complex<f32>
+    //     %add = complex.add %c, %mulcplx: complex<f32>
+    //     linalg.yield %add : complex<f32>
+    // } -> (tensor<D_0 x ... x D_m x outputFftDim x complex<f32>>)
+
+    Value lhs = self;
+    Value rhs = coeffMatrix;
+    RankedTensorType lhsType = llvm::cast<RankedTensorType>(lhs.getType());
+    ArrayRef<int64_t> lhsShape(lhsType.getShape());
+    ArrayRef<int64_t> rhsShape(coeffType.getShape());
+
+    unsigned batchRank = lhsShape.size() - 1;
+
+    SmallVector<AffineExpr> lhsExpr;
+    SmallVector<AffineExpr> rhsExpr;
+    SmallVector<AffineExpr> outExpr;
+    SmallVector<utils::IteratorType> iteratorTypes(
+        batchRank, utils::IteratorType::parallel);
+    SmallVector<Value> resultShape;
+    for (unsigned i = 0; i < batchRank; i++) {
+      lhsExpr.push_back(rewriter.getAffineDimExpr(i));
+      outExpr.push_back(rewriter.getAffineDimExpr(i));
+      resultShape.push_back(getDimOp(rewriter, loc, lhs, i));
+    }
+    unsigned fIdx = batchRank, oIdx = batchRank + 1;
+    lhsExpr.insert(lhsExpr.end(), {rewriter.getAffineDimExpr(fIdx)});
+    rhsExpr.insert(rhsExpr.end(), {rewriter.getAffineDimExpr(fIdx),
+                                   rewriter.getAffineDimExpr(oIdx)});
+    outExpr.insert(outExpr.end(), {rewriter.getAffineDimExpr(oIdx)});
+    resultShape.insert(resultShape.end(),
+                       {getDimOp(rewriter, loc, rhs, rhsShape.size() - 1)});
+
+    Value zeroTensor =
+        createZeroInitTensor(rewriter, loc, resultShape, complexElemType);
+    auto indexingMaps = AffineMap::inferFromExprList(
+        {lhsExpr, rhsExpr, outExpr}, rewriter.getContext());
+    iteratorTypes.insert(iteratorTypes.end(), {utils::IteratorType::reduction,
+                                               utils::IteratorType::parallel});
+
+    Value complexRes =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, zeroTensor.getType(),
+                /*inputs=*/ValueRange{lhs, rhs},
+                /*outputs=*/zeroTensor, indexingMaps, iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value l = args[0], r = args[1], res = args[2];
+                  Value re = b.create<complex::ReOp>(loc, elemType, r);
+                  Value im = b.create<complex::ImOp>(loc, elemType, r);
+                  Value mulRe = b.create<arith::MulFOp>(loc, l, re);
+                  Value mulIm = b.create<arith::MulFOp>(loc, l, im);
+                  Value mulCplx = b.create<complex::CreateOp>(
+                      loc, complexElemType, mulRe, mulIm);
+                  Value add = b.create<complex::AddOp>(loc, mulCplx, res);
+                  b.create<linalg::YieldOp>(loc, add);
+                })
+            .getResult(0);
+
+    // Transpose back
+    if (needTranspose) {
+      complexRes = transposeValue(loc, complexRes, perms, rewriter);
+    }
+
+    rewriter.replaceOp(op, complexRes);
+    return success();
+  }
+};
+
 } // namespace
 
 void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
@@ -1405,4 +1641,6 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   patterns.add<ConvertAtenBmmOp>(typeConverter, context);
   target.addIllegalOp<AtenConvolutionOp>();
   patterns.add<ConvertAtenConvolutionOp>(typeConverter, context);
+  target.addIllegalOp<AtenFftRfftOp>();
+  patterns.add<ConvertAtenFftRfftOp>(typeConverter, context);
 }

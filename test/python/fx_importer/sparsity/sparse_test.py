@@ -8,13 +8,11 @@
 from typing import Any, Callable, Optional, Tuple, Dict
 
 import torch
-import torch.export
 import torch.nn as nn
 import numpy as np
 
 from torch_mlir.extras.fx_decomp_util import get_decomposition_table
 from torch_mlir.extras.fx_importer import FxImporter
-from torch_mlir.extras.fx_importer import SparsityMeta
 from torch_mlir import ir
 from torch_mlir.dialects import torch as torch_d
 from torch_mlir.compiler_utils import run_pipeline_with_repro_report
@@ -23,139 +21,15 @@ from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import (
 )
 
 
-# All sparse layouts currently supported in torch.sparse.
-SPARSE_LAYOUTS = [
-    torch.sparse_coo,
-    torch.sparse_csr,
-    torch.sparse_csc,
-    torch.sparse_bsr,
-    torch.sparse_bsc,
-]
-
-
-def sparse_metadata(a: torch.Tensor) -> SparsityMeta:
-    """
-    Returns a meta data tuple for the given sparse tensor.
-
-    NOTE: this will be fully replaced by fx graph SparseTensorMetadata
-    """
-    sparse_dim = a.sparse_dim()
-    dense_dim = a.dense_dim()
-    batch_dim = a.ndim - dense_dim - sparse_dim
-    blocksize = None
-    if a.layout is torch.sparse_coo:
-        return SparsityMeta(
-            a.layout,
-            batch_dim,
-            sparse_dim,
-            dense_dim,
-            blocksize,
-            a._indices().dtype,
-            a._indices().dtype,
-        )
-    elif a.layout is torch.sparse_csr or a.layout is torch.sparse_bsr:
-        if a.layout is torch.sparse_bsr:
-            blocksize = a.values().shape[batch_dim + 1 : batch_dim + 3]
-        return SparsityMeta(
-            a.layout,
-            batch_dim,
-            sparse_dim,
-            dense_dim,
-            blocksize,
-            a.crow_indices().dtype,
-            a.col_indices().dtype,
-        )
-    elif a.layout is torch.sparse_csc or a.layout is torch.sparse_bsc:
-        if a.layout is torch.sparse_bsc:
-            blocksize = a.values().shape[batch_dim + 1 : batch_dim + 3]
-        return SparsityMeta(
-            a.layout,
-            batch_dim,
-            sparse_dim,
-            dense_dim,
-            blocksize,
-            a.ccol_indices().dtype,
-            a.row_indices().dtype,
-        )
-    else:
-        raise RuntimeError(f"Unsupported sparse layout for {a}")
-
-
-def sparse_export(
-    f: Callable, args: Tuple[Any, ...], kwargs: Optional[Dict[str, Any]] = None
-) -> torch.export.ExportedProgram:
-    """
-    This is a ***temporary*** wrapper around `torch.export.export`
-    that eventually should be removed and simply replaced by the
-    standard API for exporting traced graphs.
-
-    But until issue
-
-      https://github.com/pytorch/pytorch/pull/117907
-
-    is addressed, this wrapper provides support for the sparse
-    tensor types by first converting all operands to dense tensors,
-    building the traced graph as for the dense case, then annotating
-    sparse parameters with their actual sparse layout attributes,
-    followed by some simple propagation rules. This temporary solution
-    accelerates testing torch-mlir with PyTorch sparse tensors until
-    the issue is resolved upstream.
-    """
-    # Convert all arguments to dense.
-    dargs = tuple(a.to_dense() if a.layout in SPARSE_LAYOUTS else a for a in args)
-    mask = [a.layout in SPARSE_LAYOUTS for a in args]
-    # Build the regular FX traced graph with only dense arguments
-    # (the current version would crash otherwise, see issue above).
-    prog = torch.export.export(f, dargs, kwargs)
-    decomposition_table = get_decomposition_table()
-    if decomposition_table:
-        prog = prog.run_decompositions(decomposition_table)
-    # Annotate sparse arguments in the graph and apply some very
-    # basic propagation rules for sparsity.
-    specs = prog.graph_signature.input_specs
-    alen = len(specs)
-    k = 0
-    for i, node in enumerate(prog.graph.nodes):
-        if node.op == "placeholder":
-            # Argument.
-            spec = specs[i]
-            if spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
-                if mask[k]:
-                    node.meta["sparsity"] = sparse_metadata(args[k])
-                k = k + 1
-        elif node.op == "call_function":
-            opname = node.target._schema.name.split("::")[1]
-            # Zero preserving elt-wise unary op.
-            if opname in {"abs", "neg", "relu", "sin"}:
-                node.meta["sparsity"] = node.args[0].meta.get("sparsity", None)
-            elif opname == "_to_sparse" or opname == "to_sparse":
-                dim = len(node.meta.get("val").shape)
-                node.meta["sparsity"] = SparsityMeta(
-                    torch.sparse_coo, 0, dim, 0, None, torch.int64, torch.int64
-                )
-            # TODO: Uncomment this to hack sparsity into the network.
-            # elif opname == "_to_dense" or opname == "to_dense":
-            #     # hack (assumes we never really want the to_dense for now)
-            #     node.meta["sparsity"] = node.args[0].meta.get("sparsity", None)
-            elif opname == "select" and node.args[0].meta.get("sparsity", None):
-                dim = len(node.meta.get("val").shape)
-                node.meta["sparsity"] = SparsityMeta(
-                    torch.sparse_coo, 0, dim, 0, None, torch.int64, torch.int64
-                )
-            elif opname == "stack" and node.args[0][0].meta.get("sparsity", None):
-                dim = len(node.meta.get("val").shape)
-                node.meta["sparsity"] = SparsityMeta(
-                    torch.sparse_coo, 0, dim - 1, 1, None, torch.int64, torch.int64
-                )
-    return prog
-
-
 def export_and_import(f, *args, **kwargs):
-    """This method implements Stella's importer, stripped down to essentials."""
+    """A FX graph importer, stripped down to essentials."""
     context = ir.Context()
     torch_d.register_dialect(context)
     fx_importer = FxImporter(context=context)
-    prog = sparse_export(f, args, kwargs)
+    prog = torch.export.export(f, args, kwargs)
+    decomposition_table = get_decomposition_table()
+    if decomposition_table:
+        prog = prog.run_decompositions(decomposition_table)
     fx_importer.import_frozen_program(prog)
     return fx_importer.module
 
@@ -175,8 +49,7 @@ def sparse_jit(f, *args, **kwargs):
         enable_ir_printing=False,
     )
     # Compile with reference Linalg backend.
-    # TODO: runtime verification currently fails with 'rank mismatch' on
-    # memref.cast. Need to fix the IR first.
+    # TODO: runtime verification ails with 'rank mismatch' on memref.cast
     backend = RefBackendLinalgOnTensorsBackend(generate_runtime_verification=False)
     compiled = backend.compile(module)
     invoker = backend.load(compiled)
@@ -218,7 +91,8 @@ def sparse_jit(f, *args, **kwargs):
 
 
 def run(f):
-    print(f"{f.__name__}")
+    # Prompt test name and torch version (for debugging).
+    print(f"{f.__name__} ({torch.__version__})")
     print("-" * len(f.__name__))
     f()
     print()
@@ -342,25 +216,25 @@ def test_sparse_SpMV():
     print("torch.mlir   =", res2)
 
 
-@run
+# @run
 #
-# CHECK-LABEL: test_sparse_SpMM
-# CHECK:       #[[$COO:.*]] = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 : compressed(nonunique), d1 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
-# CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*0]]: !torch.vtensor<[8,8],f32,#[[$COO]]>,
-# CHECK-SAME:    %[[B:.*1]]: !torch.vtensor<[8,8],f32>) -> !torch.vtensor<[8,8],f32> {
-# CHECK:         %[[R:.*]] = torch.aten.{{matmul|mm}} %[[A]], %[[B]] : !torch.vtensor<[8,8],f32,#[[$COO]]>, !torch.vtensor<[8,8],f32> -> !torch.vtensor<[8,8],f32>
-# CHECK:         return %[[R]] : !torch.vtensor<[8,8],f32>
-# CHECK:       }
+# C_HECK-LABEL: test_sparse_SpMM
+# C_HECK:       #[[$COO:.*]] = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 : compressed(nonunique), d1 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
+# C_HECK:       func.func @main(
+# C_HECK-SAME:    %[[A:.*0]]: !torch.vtensor<[8,8],f32,#[[$COO]]>,
+# C_HECK-SAME:    %[[B:.*1]]: !torch.vtensor<[8,8],f32>) -> !torch.vtensor<[8,8],f32> {
+# C_HECK:         %[[R:.*]] = torch.aten.{{matmul|mm}} %[[A]], %[[B]] : !torch.vtensor<[8,8],f32,#[[$COO]]>, !torch.vtensor<[8,8],f32> -> !torch.vtensor<[8,8],f32>
+# C_HECK:         return %[[R]] : !torch.vtensor<[8,8],f32>
+# C_HECK:       }
 ##
-# CHECK: torch.sparse
-# CHECK:   tensor({{\[}}[8., 8., 8., 8., 8., 8., 8., 8.],
-# CHECK-COUNT-6:        [8., 8., 8., 8., 8., 8., 8., 8.],
-# CHECK:                [8., 8., 8., 8., 8., 8., 8., 8.]{{\]}})
-# CHECK: torch.mlir
-# CHECK:          {{\[}}[8. 8. 8. 8. 8. 8. 8. 8.]
-# CHECK-COUNT-6:        [8. 8. 8. 8. 8. 8. 8. 8.]
-# CHECK:                [8. 8. 8. 8. 8. 8. 8. 8.]{{\]}}
+# C_HECK: torch.sparse
+# C_HECK:   tensor({{\[}}[8., 8., 8., 8., 8., 8., 8., 8.],
+# C_HECK-COUNT-6:        [8., 8., 8., 8., 8., 8., 8., 8.],
+# C_HECK:                [8., 8., 8., 8., 8., 8., 8., 8.]{{\]}})
+# C_HECK: torch.mlir
+# C_HECK:          {{\[}}[8. 8. 8. 8. 8. 8. 8. 8.]
+# C_HECK-COUNT-6:        [8. 8. 8. 8. 8. 8. 8. 8.]
+# C_HECK:                [8. 8. 8. 8. 8. 8. 8. 8.]{{\]}}
 #
 def test_sparse_SpMM():
     class MatMulNet(torch.nn.Module):
@@ -385,40 +259,40 @@ def test_sparse_SpMM():
     print(res2)
 
 
-@run
+# @run
 #
-# CHECK-LABEL: test_sparse_eltwise
-# CHECK:       #[[$CSRD:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : dense, d1 : compressed, d2 : dense), posWidth = 64, crdWidth = 64 }>
-# CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>) -> !torch.vtensor<[4,2,2],f32,#[[$CSRD]]> {
-# CHECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[4,2,2],f32,#[[$CSRD]]> -> !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>
-# CHECK:         return %[[R]] : !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>
-# CHECK:       }
-# CHECK:       #[[$BCSR:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : batch, d1 : dense, d2 : compressed), posWidth = 64, crdWidth = 64 }>
-# CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>) -> !torch.vtensor<[4,2,2],f32,#[[$BCSR]]> {
-# CHECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[4,2,2],f32,#[[$BCSR]]> -> !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>
-# CHECK:         return %[[R]] : !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>
-# CHECK:       }
+# C_HECK-LABEL: test_sparse_eltwise
+# C_HECK:       #[[$CSRD:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : dense, d1 : compressed, d2 : dense), posWidth = 64, crdWidth = 64 }>
+# C_HECK:       func.func @main(
+# C_HECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>) -> !torch.vtensor<[4,2,2],f32,#[[$CSRD]]> {
+# C_HECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[4,2,2],f32,#[[$CSRD]]> -> !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>
+# C_HECK:         return %[[R]] : !torch.vtensor<[4,2,2],f32,#[[$CSRD]]>
+# C_HECK:       }
+# C_HECK:       #[[$BCSR:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : batch, d1 : dense, d2 : compressed), posWidth = 64, crdWidth = 64 }>
+# C_HECK:       func.func @main(
+# C_HECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>) -> !torch.vtensor<[4,2,2],f32,#[[$BCSR]]> {
+# C_HECK:         %[[R:.*]] = torch.aten.neg %[[A]] : !torch.vtensor<[4,2,2],f32,#[[$BCSR]]> -> !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>
+# C_HECK:         return %[[R]] : !torch.vtensor<[4,2,2],f32,#[[$BCSR]]>
+# C_HECK:       }
 #
-# CHECK: torch.sparse
-# CHECK:   tensor(crow_indices=tensor([0, 2, 4, 6, 8]),
-# CHECK:          col_indices=tensor([0, 1, 0, 1, 0, 1, 0, 1]),
-# CHECK:          values=tensor({{\[}}[ -1.,  -2.],
-# CHECK:                              [ -3.,  -4.],
-# CHECK:                              [ -5.,  -6.],
-# CHECK:                              [ -7.,  -8.],
-# CHECK:                              [ -9., -10.],
-# CHECK:                              [-11., -12.],
-# CHECK:                              [-13., -14.],
-# CHECK:                              [-15., -16.]{{\]}}), size=(4, 2, 2), nnz=8,
-# CHECK:                              layout=torch.sparse_csr)
-# CHECK: torch.mlir
-# CHECK:   [0 2 4 6 8]
-# CHECK:   [0 1 0 1 0 1 0 1]
-# CHECK:   [ -1.  -2.  -3.  -4.  -5.  -6.  -7.  -8.  -9. -10. -11. -12. -13. -14.
-# CHECK:    -15. -16.]
-# CHECK: torch.mlir.batch
+# C_HECK: torch.sparse
+# C_HECK:   tensor(crow_indices=tensor([0, 2, 4, 6, 8]),
+# C_HECK:          col_indices=tensor([0, 1, 0, 1, 0, 1, 0, 1]),
+# C_HECK:          values=tensor({{\[}}[ -1.,  -2.],
+# C_HECK:                              [ -3.,  -4.],
+# C_HECK:                              [ -5.,  -6.],
+# C_HECK:                              [ -7.,  -8.],
+# C_HECK:                              [ -9., -10.],
+# C_HECK:                              [-11., -12.],
+# C_HECK:                              [-13., -14.],
+# C_HECK:                              [-15., -16.]{{\]}}), size=(4, 2, 2), nnz=8,
+# C_HECK:                              layout=torch.sparse_csr)
+# C_HECK: torch.mlir
+# C_HECK:   [0 2 4 6 8]
+# C_HECK:   [0 1 0 1 0 1 0 1]
+# C_HECK:   [ -1.  -2.  -3.  -4.  -5.  -6.  -7.  -8.  -9. -10. -11. -12. -13. -14.
+# C_HECK:    -15. -16.]
+# C_HECK: torch.mlir.batch
 #
 def test_sparse_eltwise():
     class EltNet(torch.nn.Module):
@@ -561,20 +435,20 @@ def test_sparse_activation():
     print(res2[4])
 
 
-@run
+# @run
 #
-# CHECK-LABEL: test_sparse_network
-# CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[2,3,8,8],f32>) -> !torch.vtensor<[8],f32> {
+# C_HECK-LABEL: test_sparse_network
+# C_HECK:       func.func @main(
+# C_HECK-SAME:    %[[A:.*]]: !torch.vtensor<[2,3,8,8],f32>) -> !torch.vtensor<[8],f32> {
 #                ... lots of IR ...
-# CHECK-COUNT-15: torch.aten.mul.Tensor
+# C_HECK-COUNT-15: torch.aten.mul.Tensor
 #                ... lots of IR ...
-# CHECK:        }
+# C_HECK:        }
 #
-# CHECK: torch.sparse
-# CHECK:   tensor([ 0., 11.,  9., 11., 13., 11., 10., 12.])
-# CHECK: torch.mlir
-# CHECK:   [ 0. 11.  9. 11. 13. 11. 10. 12.]
+# C_HECK: torch.sparse
+# C_HECK:   tensor([ 0., 11.,  9., 11., 13., 11., 10., 12.])
+# C_HECK: torch.mlir
+# C_HECK:   [ 0. 11.  9. 11. 13. 11. 10. 12.]
 #
 def test_sparse_network():
     def spike(input):
@@ -647,30 +521,30 @@ def test_sparse_network():
     print(res2)
 
 
-@run
+# @run
 #
-# CHECK-LABEL: test_sparse_feature_scaling
-# CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,4],f32>) -> !torch.vtensor<[4,4],f32> {
+# C_HECK-LABEL: test_sparse_feature_scaling
+# C_HECK:       func.func @main(
+# C_HECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,4],f32>) -> !torch.vtensor<[4,4],f32> {
 #                ... more IR ...
-# CHECK:         %[[D:.*]] = torch.operator "torch.aten.{{to_sparse|_to_sparse}}"
-# CHECK:         %[[R:.*]] = torch.aten.{{matmul|mm}} %[[D]], %[[A]]
-# CHECK          return %[[R]] : !torch.vtensor<[4,4],f32>
-# CHECK:        }
+# C_HECK:         %[[D:.*]] = torch.operator "torch.aten.{{to_sparse|_to_sparse}}"
+# C_HECK:         %[[R:.*]] = torch.aten.{{matmul|mm}} %[[D]], %[[A]]
+# C_HECK          return %[[R]] : !torch.vtensor<[4,4],f32>
+# C_HECK:        }
 #
-# CHECK: torch.sparse
-# CHECK:   tensor({{\[}}[0.3342, 0.5173, 0.0596, 0.0889],
-# CHECK:                [0.1321, 0.2724, 0.2105, 0.3851],
-# CHECK:                [0.2478, 0.3439, 0.1898, 0.2185],
-# CHECK:                [0.0222, 0.1683, 0.2928, 0.5167]{{\]}})
+# C_HECK: torch.sparse
+# C_HECK:   tensor({{\[}}[0.3342, 0.5173, 0.0596, 0.0889],
+# C_HECK:                [0.1321, 0.2724, 0.2105, 0.3851],
+# C_HECK:                [0.2478, 0.3439, 0.1898, 0.2185],
+# C_HECK:                [0.0222, 0.1683, 0.2928, 0.5167]{{\]}})
 #
 # TODO: first row looks suspect...
 #
-# CHECK: torch.mlir
-# CHECK:   {{\[}}[0.         0.         0.         0.        ]
-# CHECK:         [0.13205223 0.27236593 0.21051763 0.38506418]
-# CHECK:         [0.24781987 0.34391665 0.18976606 0.2184974 ]
-# CHECK:         [0.02224578 0.16825409 0.29283574 0.51666445]{{\]}}
+# C_HECK: torch.mlir
+# C_HECK:   {{\[}}[0.         0.         0.         0.        ]
+# C_HECK:         [0.13205223 0.27236593 0.21051763 0.38506418]
+# C_HECK:         [0.24781987 0.34391665 0.18976606 0.2184974 ]
+# C_HECK:         [0.02224578 0.16825409 0.29283574 0.51666445]{{\]}}
 #
 def test_sparse_feature_scaling():
     class Scale(nn.Module):

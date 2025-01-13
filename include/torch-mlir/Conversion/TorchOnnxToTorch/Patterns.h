@@ -34,6 +34,7 @@ struct OpBinder {
   Location getLoc() { return op->getLoc(); }
 
   int getNumOperands() { return op->getNumOperands(); }
+  int getNumResults() { return op->getNumResults(); }
 
   // Operand matches of different arities.
   ParseResult tensorOperand(Value &value0) {
@@ -332,6 +333,31 @@ struct OpBinder {
         if (!t.isSigned() || t.getWidth() != 64)
           return failure();
         values.push_back(integerAttr.getSInt());
+      }
+      return success();
+    }
+    return failure();
+  }
+
+  ParseResult f32FloatArrayAttr(llvm::SmallVector<float> &values,
+                                StringRef nameSuffix,
+                                ArrayRef<float> defaults) {
+    SmallString<64> name("torch.onnx.");
+    name.append(nameSuffix);
+    auto attr = op->getAttr(name);
+    if (!attr) {
+      values.append(defaults.begin(), defaults.end());
+      return success();
+    }
+    if (auto arrayAttr = dyn_cast<ArrayAttr>(attr)) {
+      for (auto element : arrayAttr) {
+        auto floatAttr = dyn_cast<FloatAttr>(element);
+        if (!floatAttr)
+          return failure();
+        FloatType t = cast<FloatType>(floatAttr.getType());
+        if (t.getWidth() != 32)
+          return failure();
+        values.push_back(floatAttr.getValue().convertToFloat());
       }
       return success();
     }

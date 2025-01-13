@@ -36,6 +36,18 @@ Torch::matchLegalConstantIndexIntoListOfSize(Value v, int64_t length) {
   return dim;
 }
 
+Value Torch::toIntListConstruct(PatternRewriter &rewriter, Location loc,
+                                ArrayRef<int64_t> cstInput) {
+  SmallVector<Value> cstValues;
+  for (int64_t i : cstInput) {
+    cstValues.push_back(rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(i)));
+  }
+  return rewriter.create<Torch::PrimListConstructOp>(
+      loc, Torch::ListType::get(IntType::get(rewriter.getContext())),
+      cstValues);
+}
+
 bool Torch::getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
   auto listConstruct = v.getDefiningOp<PrimListConstructOp>();
   if (!listConstruct)
@@ -90,7 +102,28 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::Float8_e5m2fnuz;
   if (isa<Float8E4M3FNUZType>(type))
     return torch_upstream::ScalarType::Float8_e4m3fnuz;
-  llvm::report_fatal_error("unhandled type for getScalarTypeForType");
+  std::string errorMsg = "Unhandled type in getScalarTypeForType: ";
+  llvm::raw_string_ostream os(errorMsg);
+  type.print(os);
+  // os << "\nType ID: " << type.getTypeID();
+  os << "\nType properties:";
+  os << "\n  Is integer: " << (type.isInteger() ? "yes" : "no");
+  os << "\n  Is float: "
+     << (type.isIntOrFloat() && !type.isInteger() ? "yes" : "no");
+  os << "\n  Is index: " << (type.isIndex() ? "yes" : "no");
+  os << "\n  Bit width: "
+     << (type.isIntOrFloat() ? std::to_string(type.getIntOrFloatBitWidth())
+                             : "N/A");
+  os << "\n  Is signless: " << (type.isSignlessInteger() ? "yes" : "no");
+  os << "\n  Is signed: " << (type.isSignedInteger() ? "yes" : "no");
+  // special error message for unsigned integer
+  if (type.isUnsignedInteger()) {
+    os << "\n  Is unsigned: yes";
+    os << "\nUnsigned integer support is currently spotty. Please seeheck "
+          "https://github.com/llvm/torch-mlir/issues/3720 "
+          "for more details.";
+  }
+  llvm::report_fatal_error(llvm::StringRef(errorMsg));
 }
 Type Torch::getTypeForTorchType(
     MLIRContext *context, Type type,
@@ -247,16 +280,17 @@ bool Torch::isViewLikeOp(Operation *op) {
   // correct. We could potentially be more precise and identify the cases
   // that it does not return a view and treat those as having value
   // semantics.
-  return isa<AtenBroadcastToOp, AtenContiguousOp, AtenDetachOp, AtenExpandAsOp,
-             AtenExpandOp, AtenFlattenUsingIntsOp, AtenUnflattenIntOp,
-             AtenPermuteOp, AtenReshapeOp, Aten_ReshapeAliasOp, AtenSelectIntOp,
-             AtenSliceTensorOp, AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp,
-             AtenToDtypeOp, AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
+  return isa<AtenAsStridedOp, AtenBroadcastToOp, AtenContiguousOp, AtenDetachOp,
+             AtenExpandAsOp, AtenExpandOp, AtenFlattenUsingIntsOp,
+             AtenUnflattenIntOp, AtenPermuteOp, AtenReshapeOp,
+             Aten_ReshapeAliasOp, AtenSelectIntOp, AtenSliceTensorOp,
+             AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp, AtenToDtypeOp,
+             AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
              TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp,
              AtenNarrowOp, AtenNarrowTensorOp, AtenToDeviceOp, PrimsSqueezeOp,
              AtenMovedimIntOp, PrimsViewOfOp, AtenRealOp, AtenImagOp,
              PrimsSplitDimOp, AtenViewAsComplexOp, AtenViewAsRealOp,
-             AtenPixelShuffleOp, AtenDiagonalOp>(op);
+             AtenPixelShuffleOp, AtenDiagonalOp, AtenUnfoldOp>(op);
 }
 
 Value Torch::getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter,
