@@ -2252,6 +2252,12 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op,
                                        "non-const dilation list unsupported");
 
+  TypeAttr accType;
+  if (failed(tosa::getConvOpsAccType(rewriter, inputTy, weightTy, outputTy,
+                                     accType)))
+    return rewriter.notifyMatchFailure(
+        op, "failed to get accumulator type for convolution ops");
+
   // TOSA works in NHWC and takes OHWI (conv) / HWIM (depthwise conv) weights.
   // Perform the necessary transformations.
   std::optional<Value> nchwToNhwcTransposeConst =
@@ -2365,12 +2371,12 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     // full convolution
     convOpResult =
         rewriter
-            .create<tosa::Conv2DOp>(op->getLoc(),
-                                    getTypeConverter()->convertType(convOpTy),
-                                    transposedInput, transformedWeight, bias,
-                                    rewriter.getDenseI64ArrayAttr(padding),
-                                    rewriter.getDenseI64ArrayAttr(stride),
-                                    rewriter.getDenseI64ArrayAttr(dilation))
+            .create<tosa::Conv2DOp>(
+                op->getLoc(), getTypeConverter()->convertType(convOpTy),
+                transposedInput, transformedWeight, bias,
+                rewriter.getDenseI64ArrayAttr(padding),
+                rewriter.getDenseI64ArrayAttr(stride),
+                rewriter.getDenseI64ArrayAttr(dilation), accType)
             .getResult();
   } else if (weightShape[1] == 1) {
     // depthwise convolution
@@ -2381,7 +2387,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
                 transposedInput, transformedWeight, bias,
                 rewriter.getDenseI64ArrayAttr(padding),
                 rewriter.getDenseI64ArrayAttr(stride),
-                rewriter.getDenseI64ArrayAttr(dilation))
+                rewriter.getDenseI64ArrayAttr(dilation), accType)
             .getResult();
   } else {
     llvm_unreachable("Unhandled convolution type");
