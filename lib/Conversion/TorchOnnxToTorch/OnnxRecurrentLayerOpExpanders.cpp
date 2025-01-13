@@ -169,8 +169,8 @@ static Value StaticTranspose(ImplicitLocOpBuilder b, Value value, int64_t dim0,
 
 LogicalResult OnnxRnnExpander(OpBinder binder,
                               ConversionPatternRewriter &rewriter) {
-  auto loc = binder.getLoc();
-  mlir::ImplicitLocOpBuilder b(loc, rewriter);
+  auto opLocation = binder.getLoc();
+  mlir::ImplicitLocOpBuilder b(opLocation, rewriter);
 
   auto intType = b.getType<IntType>();
   Value cstNone = b.create<ConstantNoneOp>();
@@ -342,7 +342,8 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
 
   // Create B and initial_h if not provided,
   // using same dtype as X
-  Value cstXDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
+  Value cstXDtype =
+      getDtypeIntValueForType(rewriter, opLocation, xTy.getDtype());
   if (B == nullptr) {
     SmallVector<int64_t> BShape = {num_directions, 2 * hidden_size};
     SmallVector<Value> BShapeListContents = {
@@ -655,8 +656,8 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
 // @param binder The OpBinder object used for binding operands.
 LogicalResult OnnxLstmExpander(OpBinder binder,
                                ConversionPatternRewriter &rewriter) {
-  auto loc = binder.getLoc();
-  mlir::ImplicitLocOpBuilder b(loc, rewriter);
+  auto opLocation = binder.getLoc();
+  mlir::ImplicitLocOpBuilder b(opLocation, rewriter);
 
   std::string direction;
 
@@ -832,7 +833,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
       b.getType<ListType>(intType),
       ValueRange({cstNumDirections, cstBatchSize, cstHiddenSize}));
 
-  Value cstDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
+  Value cstDtype =
+      getDtypeIntValueForType(rewriter, opLocation, xTy.getDtype());
 
   Value initial_h;
   if (binder.tensorOperandAtIndex(initial_h, 5)) {
@@ -1266,8 +1268,8 @@ GruLayerOutput gru_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
 
 LogicalResult OnnxGruExpander(OpBinder binder,
                               ConversionPatternRewriter &rewriter) {
-  auto loc = binder.getLoc();
-  mlir::ImplicitLocOpBuilder b(loc, rewriter);
+  auto opLocation = binder.getLoc();
+  mlir::ImplicitLocOpBuilder b(opLocation, rewriter);
 
   auto intType = b.getType<IntType>();
   Value cstNone = b.create<ConstantNoneOp>();
@@ -1371,7 +1373,8 @@ LogicalResult OnnxGruExpander(OpBinder binder,
     Value hShape = b.create<PrimListConstructOp>(
         b.getType<ListType>(intType),
         ValueRange({cstNumDirections, cstBatchSize, cstHiddenSize}));
-    Value cstDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
+    Value cstDtype =
+        getDtypeIntValueForType(rewriter, opLocation, xTy.getDtype());
     initial_h =
         b.create<AtenZerosOp>(hTy, hShape, cstDtype, cstNone, cstNone, cstNone);
   } else {
@@ -1395,7 +1398,8 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   bool linear_before_reset = linear_before_reset_int != 0;
 
   // fill in B
-  Value cstXDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
+  Value cstXDtype =
+      getDtypeIntValueForType(rewriter, opLocation, xTy.getDtype());
   if (B == nullptr) {
     SmallVector<int64_t> BShape = {num_directions, 6 * hidden_size};
     SmallVector<Value> BShapeListContents = {

@@ -241,7 +241,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.tensorResultType(resultType))
           return failure();
 
-        auto loc = binder.getLoc();
+        auto opLocation = binder.getLoc();
         Value operand = operands[0];
         Value scale = operands[1];
         Value zeropoint = operands[2];
@@ -272,29 +272,30 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         auto torchqTy = Torch::getScalarTypeForType(qTensorTy.getDtype());
 
         Value tyConst = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getType<Torch::IntType>(),
+            opLocation, rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64),
                                     static_cast<int64_t>(torchqTy)));
 
         scale = rewriter.create<Torch::AtenItemOp>(
-            loc, rewriter.getType<Torch::FloatType>(), scale);
+            opLocation, rewriter.getType<Torch::FloatType>(), scale);
 
         bool fpResult = isa<mlir::FloatType>(resultETy);
         Type zeropointTy = rewriter.getType<Torch::IntType>();
         if (fpResult)
           zeropointTy = rewriter.getType<Torch::FloatType>();
-        zeropoint =
-            rewriter.create<Torch::AtenItemOp>(loc, zeropointTy, zeropoint);
+        zeropoint = rewriter.create<Torch::AtenItemOp>(opLocation, zeropointTy,
+                                                       zeropoint);
 
         if (fpResult) {
-          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-          Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+          Value none = rewriter.create<Torch::ConstantNoneOp>(opLocation);
+          Value cstFalse =
+              rewriter.create<Torch::ConstantBoolOp>(opLocation, false);
           Value one = rewriter.create<Torch::ConstantFloatOp>(
-              loc, rewriter.getF64FloatAttr(1.0));
+              opLocation, rewriter.getF64FloatAttr(1.0));
           Value div = rewriter.create<Torch::AtenDivScalarOp>(
-              loc, operand.getType(), operand, scale);
+              opLocation, operand.getType(), operand, scale);
           Value add = rewriter.create<Torch::AtenAddScalarOp>(
-              loc, operand.getType(), div, zeropoint, one);
+              opLocation, operand.getType(), div, zeropoint, one);
 
           rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
               binder.op, resultType, add, tyConst,
@@ -304,7 +305,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
 
         auto quantize = rewriter.create<Torch::AtenQuantizePerTensorOp>(
-            loc, qTensorTy, operand, scale, zeropoint, tyConst);
+            opLocation, qTensorTy, operand, scale, zeropoint, tyConst);
         rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
                                                           quantize);
         return success();
@@ -616,7 +617,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.tensorResultType(resultType))
           return failure();
 
-        auto loc = binder.getLoc();
+        auto opLocation = binder.getLoc();
         Value data = valList[0];
         Value indices = valList[1];
         Value updates = valList[2];
@@ -627,7 +628,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               cast<Torch::ValueTensorType>(data.getType()).getSizes().size();
 
         Value constAxis = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getType<Torch::IntType>(),
+            opLocation, rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), axis));
 
         Value zero = rewriter.create<Torch::ConstantIntOp>(
@@ -643,16 +644,16 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         auto indicesTy = cast<Torch::ValueTensorType>(indices.getType());
         Value indicesAdd = rewriter.create<Torch::AtenAddScalarOp>(
-            loc, indicesTy, indices, axisSize, one);
+            opLocation, indicesTy, indices, axisSize, one);
 
         Value inputNeg = rewriter.create<Torch::AtenLtScalarOp>(
-            loc,
+            opLocation,
             rewriter.getType<Torch::ValueTensorType>(indicesTy.getSizes(),
                                                      rewriter.getI1Type()),
             indices, zero);
 
         indices = rewriter.create<Torch::AtenWhereSelfOp>(
-            loc, indicesTy, inputNeg, indicesAdd, indices);
+            opLocation, indicesTy, inputNeg, indicesAdd, indices);
 
         if (reduction == "none") {
           rewriter.replaceOpWithNewOp<Torch::AtenScatterSrcOp>(
@@ -945,7 +946,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // discussion can be found here:
         // https://github.com/pytorch/pytorch/issues/9410
         // So, for now, we unroll into multiple unsqueezes.
-        auto loc = binder.getLoc();
+        auto opLocation = binder.getLoc();
         Torch::ValueTensorType resultType;
         Value data, axes;
         if (binder.tensorOperands(data, axes) ||
@@ -1003,9 +1004,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           Type unsqueezeType = resultType.getWithSizesAndDtype(
               unsqueezeShape, resultType.getOptionalDtype());
           Value cstDim = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(dim));
-          result = rewriter.create<Torch::AtenUnsqueezeOp>(loc, unsqueezeType,
-                                                           result, cstDim);
+              opLocation, rewriter.getI64IntegerAttr(dim));
+          result = rewriter.create<Torch::AtenUnsqueezeOp>(
+              opLocation, unsqueezeType, result, cstDim);
         }
         rewriter.replaceOp(binder.op, result);
         return success();
@@ -1506,7 +1507,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(
               binder.op, "Failed to get num_outputs attribute");
 
-        auto loc = binder.getLoc();
+        auto opLocation = binder.getLoc();
         auto result0Ty =
             cast<Torch::ValueTensorType>(binder.op->getResult(0).getType());
         auto resultNTy = cast<Torch::ValueTensorType>(
@@ -1518,44 +1519,44 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           dim += selfTy.getSizes().size();
 
         Value dimValue = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getType<Torch::IntType>(),
+            opLocation, rewriter.getType<Torch::IntType>(),
             rewriter.getI64IntegerAttr(dim));
 
         Value vNumOutputs = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getType<Torch::IntType>(),
+            opLocation, rewriter.getType<Torch::IntType>(),
             rewriter.getI64IntegerAttr(numOutputs));
 
         Value one = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(1));
+            opLocation, rewriter.getI64IntegerAttr(1));
         Value zero = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(0));
+            opLocation, rewriter.getI64IntegerAttr(0));
 
         Value vDimSize = rewriter.create<Torch::AtenSizeIntOp>(
-            loc, rewriter.getType<Torch::IntType>(), self, dimValue);
+            opLocation, rewriter.getType<Torch::IntType>(), self, dimValue);
 
-        Value addNumOutputs =
-            rewriter.create<Torch::AtenAddIntOp>(loc, vDimSize, vNumOutputs);
-        Value subOne =
-            rewriter.create<Torch::AtenSubIntOp>(loc, addNumOutputs, one);
-        Value splitSize =
-            rewriter.create<Torch::AtenFloordivIntOp>(loc, subOne, vNumOutputs);
+        Value addNumOutputs = rewriter.create<Torch::AtenAddIntOp>(
+            opLocation, vDimSize, vNumOutputs);
+        Value subOne = rewriter.create<Torch::AtenSubIntOp>(opLocation,
+                                                            addNumOutputs, one);
+        Value splitSize = rewriter.create<Torch::AtenFloordivIntOp>(
+            opLocation, subOne, vNumOutputs);
 
         llvm::SmallVector<Value> outputs;
         Value step = one;
         Value start = zero;
 
         for (int i = 0; i < numOutputs - 1; ++i) {
-          Value end =
-              rewriter.create<Torch::AtenAddIntOp>(loc, start, splitSize);
+          Value end = rewriter.create<Torch::AtenAddIntOp>(opLocation, start,
+                                                           splitSize);
           Value slice = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, result0Ty, self, dimValue, start, end, step);
+              opLocation, result0Ty, self, dimValue, start, end, step);
           start = end;
           outputs.push_back(slice);
         }
 
         Value end = vDimSize;
         Value lastSlice = rewriter.create<Torch::AtenSliceTensorOp>(
-            loc, resultNTy, self, dimValue, start, end, step);
+            opLocation, resultNTy, self, dimValue, start, end, step);
         outputs.push_back(lastSlice);
 
         rewriter.replaceOp(binder.op, outputs);
@@ -1649,7 +1650,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
   patterns.onOp(
       "Transpose", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        auto loc = binder.getLoc();
+        auto opLocation = binder.getLoc();
         Torch::ValueTensorType resultType;
         Value operand;
         if (binder.tensorOperand(operand) ||
@@ -1720,7 +1721,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), target));
 
           operand = rewriter.create<Torch::AtenTransposeIntOp>(
-              loc,
+              opLocation,
               Torch::ValueTensorType::get(tensorType.getContext(), shape,
                                           operandType.getOptionalDtype()),
               operand, dim0, dim1);
@@ -1766,7 +1767,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(
               binder.op, "Expected result type to be a ranked tensor type");
 
-        auto loc = binder.getLoc();
+        auto opLocation = binder.getLoc();
 
         // Binding `axes` from its arguments or through a default value
         Value axes;
@@ -1785,17 +1786,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         } else {
           // The default `steps` value is a 1d tensor filled with ones with a
           // size equal to the size of `starts` and `ends`.
-          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+          Value none = rewriter.create<Torch::ConstantNoneOp>(opLocation);
           Value sizeStepInput = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getType<Torch::IntType>(),
+              opLocation, rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), startSize));
           Value sizeStepsInput = rewriter.create<Torch::PrimListConstructOp>(
-              loc,
+              opLocation,
               Torch::ListType::get(
                   Torch::IntType::get(binder.op->getContext())),
               sizeStepInput);
-          steps = rewriter.create<Torch::AtenOnesOp>(
-              loc, startsTorchTy, sizeStepsInput, none, none, none, none);
+          steps = rewriter.create<Torch::AtenOnesOp>(opLocation, startsTorchTy,
+                                                     sizeStepsInput, none, none,
+                                                     none, none);
         }
 
         if (!(endsTy.getRank() == 1 && startsTy.getRank() == 1 &&
@@ -1823,18 +1825,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "Steps should be the same size of starts and ends");
 
         Value zero = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getType<Torch::IntType>(),
+            opLocation, rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
 
         auto select = [&](Value v, Value k) -> Value {
           auto ty = cast<Torch::ValueTensorType>(v.getType());
           auto sel = rewriter.create<Torch::AtenIndexSelectOp>(
-              loc,
+              opLocation,
               Torch::ValueTensorType::get(ty.getContext(), ArrayRef<int64_t>{1},
                                           ty.getOptionalDtype()),
               v, zero, k);
           Value item = rewriter.create<Torch::AtenItemOp>(
-              loc, rewriter.getType<Torch::IntType>(), sel);
+              opLocation, rewriter.getType<Torch::IntType>(), sel);
           return item;
         };
 
@@ -1850,10 +1852,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         for (int i = 0; i < endSize; ++i) {
 
           Value k = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getType<Torch::IntType>(),
+              opLocation, rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
           Value kTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
-              loc,
+              opLocation,
               Torch::ValueTensorType::get(
                   context, ArrayRef<int64_t>{1},
                   rewriter.getIntegerType(64, /*signed*/ 1)),
@@ -1867,7 +1869,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           auto sliceType = intermediateType;
           sliceType = i == (endSize - 1) ? resultTorchType : sliceType;
           operand = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, sliceType, operand, axis, start, end, step);
+              opLocation, sliceType, operand, axis, start, end, step);
         }
 
         rewriter.replaceOp(binder.op, operand);
@@ -2157,8 +2159,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         Torch::ValueTensorType resultType;
         Value start, limit, delta;
-        auto loc = binder.getLoc();
-        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        auto opLocation = binder.getLoc();
+        Value none = rewriter.create<Torch::ConstantNoneOp>(opLocation);
         if (binder.tensorOperandAtIndex(start, 0) ||
             binder.tensorOperandAtIndex(limit, 1) ||
             binder.tensorOperandAtIndex(delta, 2) ||
@@ -2205,7 +2207,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.tensorResultType(resultType))
           return failure();
 
-        auto loc = binder.getLoc();
+        auto opLocation = binder.getLoc();
         auto &op = binder.op;
         auto operandTy = cast<Torch::BaseTensorType>(operand.getType());
 
@@ -2216,18 +2218,19 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         int64_t rank = operandTy.getSizes().size();
         for (int i = 0; i < rank; ++i) {
           auto iv = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(i));
+              opLocation, rewriter.getI64IntegerAttr(i));
           Value dim = rewriter.create<Torch::AtenSizeIntOp>(
-              loc, rewriter.getType<Torch::IntType>(), operand, iv);
+              opLocation, rewriter.getType<Torch::IntType>(), operand, iv);
           dims.push_back(dim);
         }
 
-        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
-        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        Value cstFalse =
+            rewriter.create<Torch::ConstantBoolOp>(opLocation, false);
+        Value none = rewriter.create<Torch::ConstantNoneOp>(opLocation);
 
         if (dims.empty()) {
           Value one = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(1));
+              opLocation, rewriter.getI64IntegerAttr(1));
           rewriter.replaceOpWithNewOp<Torch::AtenTensorIntOp>(
               op, resultType, one, none, none, cstFalse);
           return success();
@@ -2235,7 +2238,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         Value prod = dims[0];
         for (int i = 1, s = dims.size(); i < s; ++i)
-          prod = rewriter.create<Torch::AtenMulIntOp>(loc, prod, dims[i]);
+          prod =
+              rewriter.create<Torch::AtenMulIntOp>(opLocation, prod, dims[i]);
 
         rewriter.replaceOpWithNewOp<Torch::AtenTensorIntOp>(
             op, resultType, prod, none, none, cstFalse);
@@ -2860,7 +2864,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "unsupported: roi max pooling without default "
                          "coordTfMode and sampling_ratio");
 
-        auto loc = binder.getLoc();
+        auto opLocation = binder.getLoc();
         // concatenate the batchIndices to the rois to get rois as a num_roisx5
         // tensor. The batchIndices tensor is an int64 tensor, and needs to be
         // converted to float before concatenation.
@@ -2876,13 +2880,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         batchIndices = unsqueezeIndices.value();
         auto batchIndicesType =
             cast<Torch::ValueTensorType>(batchIndices.getType());
-        Value dTypeInt =
-            Torch::getDtypeIntValueForType(rewriter, loc, roisType.getDtype());
+        Value dTypeInt = Torch::getDtypeIntValueForType(rewriter, opLocation,
+                                                        roisType.getDtype());
         Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
         Value cstFalse =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
         Value newBatchIndices = rewriter.create<Torch::AtenToDtypeOp>(
-            loc,
+            opLocation,
             batchIndicesType.getWithSizesAndDtype(
                 batchIndicesType.getOptionalSizes(),
                 roisType.getOptionalDtype()),
@@ -2897,22 +2901,23 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Type listType = Torch::ListType::get(listElemType);
         Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
             binder.op->getLoc(), listType, ValueRange{newBatchIndices, rois});
-        Value newRois =
-            rewriter.create<Torch::AtenCatOp>(loc, catType, tensorList, cstDim);
+        Value newRois = rewriter.create<Torch::AtenCatOp>(opLocation, catType,
+                                                          tensorList, cstDim);
 
         // make constants from attributes
         Value cstSpatialScale = rewriter.create<Torch::ConstantFloatOp>(
-            loc, rewriter.getF64FloatAttr(spatialScaleFloat));
+            opLocation, rewriter.getF64FloatAttr(spatialScaleFloat));
         Value pooledHeight = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(outHInt));
+            opLocation, rewriter.getI64IntegerAttr(outHInt));
         Value pooledWidth = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(outWInt));
+            opLocation, rewriter.getI64IntegerAttr(outWInt));
         // this is for consistency with the default pytorch sampling ratio value
         samplingRatioInt = (samplingRatioInt == 0) ? -1 : samplingRatioInt;
         Value samplingRatio = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(samplingRatioInt));
+            opLocation, rewriter.getI64IntegerAttr(samplingRatioInt));
         bool aligned = coordTfMode == "half_pixel";
-        Value cstAligned = rewriter.create<Torch::ConstantBoolOp>(loc, aligned);
+        Value cstAligned =
+            rewriter.create<Torch::ConstantBoolOp>(opLocation, aligned);
 
         if (mode == "avg") {
           rewriter.replaceOpWithNewOp<Torch::TorchvisionRoiAlignOp>(
@@ -2924,7 +2929,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         auto indicesType = resultType.getWithSizesAndDtype(
             resultType.getOptionalSizes(), batchIndicesType.getDtype());
         auto roiPool = rewriter.create<Torch::TorchvisionRoiPoolOp>(
-            loc, TypeRange{resultType, indicesType}, input, newRois,
+            opLocation, TypeRange{resultType, indicesType}, input, newRois,
             cstSpatialScale, pooledHeight, pooledWidth);
         rewriter.replaceOp(binder.op, roiPool.getResult(0));
         return success();
@@ -3029,7 +3034,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       });
   patterns.onOp(
       "Shrink", 9, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        auto loc = binder.getLoc();
+        auto opLocation = binder.getLoc();
         Torch::ValueTensorType resultType;
         Value input;
         float bias, lambd;
@@ -3071,28 +3076,28 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         //    InputSubBiasOrZero)
         // }
         Value constLambd = rewriter.create<Torch::ConstantFloatOp>(
-            loc, rewriter.getFloatAttr(rewriter.getF64Type(), lambd));
+            opLocation, rewriter.getFloatAttr(rewriter.getF64Type(), lambd));
         Value constBias = rewriter.create<Torch::ConstantFloatOp>(
-            loc, rewriter.getFloatAttr(rewriter.getF64Type(), bias));
+            opLocation, rewriter.getFloatAttr(rewriter.getF64Type(), bias));
         Value constZero = rewriter.create<Torch::ConstantFloatOp>(
-            loc, rewriter.getFloatAttr(rewriter.getF64Type(), 0.0));
+            opLocation, rewriter.getFloatAttr(rewriter.getF64Type(), 0.0));
         Value constOne = rewriter.create<Torch::ConstantFloatOp>(
-            loc, rewriter.getFloatAttr(rewriter.getF64Type(), 1.0));
+            opLocation, rewriter.getFloatAttr(rewriter.getF64Type(), 1.0));
         Value constNegLambd = rewriter.create<Torch::ConstantFloatOp>(
-            loc, rewriter.getFloatAttr(rewriter.getF64Type(), -lambd));
+            opLocation, rewriter.getFloatAttr(rewriter.getF64Type(), -lambd));
 
         Value inputLTNegLambd = rewriter.create<Torch::AtenLtScalarOp>(
-            loc, comparisonResultType, input, constNegLambd);
+            opLocation, comparisonResultType, input, constNegLambd);
         Value inputPlusBias = rewriter.create<Torch::AtenAddScalarOp>(
-            loc, inputType, input, constBias, /*alpha=*/constOne);
+            opLocation, inputType, input, constBias, /*alpha=*/constOne);
         Value inputSubBias = rewriter.create<Torch::AtenSubScalarOp>(
-            loc, inputType, input, constBias, /*alpha=*/constOne);
+            opLocation, inputType, input, constBias, /*alpha=*/constOne);
         Value inputGTLambd = rewriter.create<Torch::AtenGtScalarOp>(
-            loc, comparisonResultType, input, constLambd);
+            opLocation, comparisonResultType, input, constLambd);
 
         Value inputSubBiasOrZero =
             rewriter.create<Torch::AtenWhereScalarOtherOp>(
-                loc, resultType, inputGTLambd, inputSubBias, constZero);
+                opLocation, resultType, inputGTLambd, inputSubBias, constZero);
         rewriter.replaceOpWithNewOp<Torch::AtenWhereSelfOp>(
             binder.op, resultType, inputLTNegLambd, inputPlusBias,
             inputSubBiasOrZero);
@@ -3665,7 +3670,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                          "none(default)");
         }
 
-        auto loc = binder.getLoc();
+        auto opLocation = binder.getLoc();
         auto dataTy = dyn_cast<Torch::ValueTensorType>(data.getType());
         auto indicesTy = dyn_cast<Torch::ValueTensorType>(indices.getType());
         auto updatesTy = dyn_cast<Torch::ValueTensorType>(updates.getType());
@@ -3700,25 +3705,26 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // step 2. Get dimension list of data.
         SmallVector<Value> dataDims;
         for (int64_t i = 0; i < dataRank; ++i) {
-          Value k = rewriter.create<Torch::ConstantIntOp>(loc, i);
-          Value dataDim = rewriter.create<Torch::AtenSizeIntOp>(loc, data, k);
+          Value k = rewriter.create<Torch::ConstantIntOp>(opLocation, i);
+          Value dataDim =
+              rewriter.create<Torch::AtenSizeIntOp>(opLocation, data, k);
           dataDims.push_back(dataDim);
         }
 
         // step 3. Get dimension list of indices.
         Value constZero = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(0));
+            opLocation, rewriter.getI64IntegerAttr(0));
         Value constOne = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(1));
+            opLocation, rewriter.getI64IntegerAttr(1));
         SmallVector<Value> indicesDimsMinusOne;
         Value indicesFlattenDim = constOne;
         for (int64_t i = 0; i < indicesRank - 1; ++i) {
-          Value k = rewriter.create<Torch::ConstantIntOp>(loc, i);
+          Value k = rewriter.create<Torch::ConstantIntOp>(opLocation, i);
           Value indicesDim =
-              rewriter.create<Torch::AtenSizeIntOp>(loc, indices, k);
+              rewriter.create<Torch::AtenSizeIntOp>(opLocation, indices, k);
           indicesDimsMinusOne.push_back(indicesDim);
           indicesFlattenDim = rewriter.create<Torch::AtenMulIntOp>(
-              loc, indicesFlattenDim, indicesDim);
+              opLocation, indicesFlattenDim, indicesDim);
         }
         ArrayRef<int64_t> indicesShapeMinusOne = indicesShape.drop_back();
 
@@ -3745,7 +3751,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // step 4. Convert indices_shape[-1] dimensional indexing to 1D
         // indexing.
         Value sliceDim = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(indicesRank - 1));
+            opLocation, rewriter.getI64IntegerAttr(indicesRank - 1));
         SmallVector<int64_t> indicesSliceShape(indicesShapeMinusOne);
         indicesSliceShape.push_back(1);
         auto indicesSliceTy = rewriter.getType<Torch::ValueTensorType>(
@@ -3755,27 +3761,28 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value updatedIndices;
         for (int64_t i = 0; i < indicesLastDim; ++i) {
           Value end = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(i + 1));
+              opLocation, rewriter.getI64IntegerAttr(i + 1));
           Value indicesSlice = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, indicesSliceTy, indices, sliceDim, start, end,
+              opLocation, indicesSliceTy, indices, sliceDim, start, end,
               /*step=*/constOne);
           start = end;
           // Apply bounds checking on the indices slice.
           auto boolTy = rewriter.getType<Torch::ValueTensorType>(
               indicesSliceShape, rewriter.getI1Type());
           Value lt = rewriter.create<Torch::AtenLtScalarOp>(
-              loc, boolTy, indicesSlice, constZero);
+              opLocation, boolTy, indicesSlice, constZero);
           Value add = rewriter.create<Torch::AtenAddScalarOp>(
-              loc, indicesSliceTy, indicesSlice, dataDims[i],
+              opLocation, indicesSliceTy, indicesSlice, dataDims[i],
               /*alpha=*/constOne);
           indicesSlice = rewriter.create<Torch::AtenWhereSelfOp>(
-              loc, indicesSliceTy, lt, add, indicesSlice);
+              opLocation, indicesSliceTy, lt, add, indicesSlice);
           if (i == 0) {
             updatedIndices = indicesSlice;
             continue;
           }
           updatedIndices = rewriter.create<Torch::AtenAddTensorOp>(
-              loc, indicesSliceTy, indicesSlice, updatedIndices, dataDims[i]);
+              opLocation, indicesSliceTy, indicesSlice, updatedIndices,
+              dataDims[i]);
         }
 
         // step 5. Compute all the required result types here.
@@ -3839,12 +3846,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         auto intListTy = rewriter.getType<Torch::ListType>(
             rewriter.getType<Torch::IntType>());
         Value reshapeIndicesSizeList =
-            rewriter.create<Torch::PrimListConstructOp>(loc, intListTy,
+            rewriter.create<Torch::PrimListConstructOp>(opLocation, intListTy,
                                                         reshapeIndicesDims);
         auto reshapeIndicesTy = rewriter.getType<Torch::ValueTensorType>(
             reshapeIndicesShape, indicesTy.getOptionalDtype());
         Value reshapedIndices = rewriter.create<Torch::AtenViewOp>(
-            loc, reshapeIndicesTy, updatedIndices, reshapeIndicesSizeList);
+            opLocation, reshapeIndicesTy, updatedIndices,
+            reshapeIndicesSizeList);
 
         // step 7. Flatten `q-1` dimensions of the indices and updates.
         auto flattenIndicesTy = rewriter.getType<Torch::ValueTensorType>(
@@ -3855,38 +3863,39 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value flattenedUpdates = updates;
         if (indicesRank == 1) {
           flattenedIndices = rewriter.create<Torch::AtenUnsqueezeOp>(
-              loc, flattenIndicesTy, reshapedIndices, constZero);
+              opLocation, flattenIndicesTy, reshapedIndices, constZero);
           flattenedUpdates = rewriter.create<Torch::AtenUnsqueezeOp>(
-              loc, flattenUpdatesTy, updates, constZero);
+              opLocation, flattenUpdatesTy, updates, constZero);
         } else if (indicesRank > 1) {
           Value endDim = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(indicesRank - 2));
+              opLocation, rewriter.getI64IntegerAttr(indicesRank - 2));
           flattenedIndices = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
-              loc, flattenIndicesTy, reshapedIndices, constZero, endDim);
+              opLocation, flattenIndicesTy, reshapedIndices, constZero, endDim);
           flattenedUpdates = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
-              loc, flattenUpdatesTy, updates, constZero, endDim);
+              opLocation, flattenUpdatesTy, updates, constZero, endDim);
         }
 
         // step 8. Expand `r-indices_shape[-1]` dims of flattened indices.
         auto expandIndicesTy = rewriter.getType<Torch::ValueTensorType>(
             expandIndicesShape, indicesTy.getOptionalDtype());
         Value expandIndicesSizeList =
-            rewriter.create<Torch::PrimListConstructOp>(loc, intListTy,
+            rewriter.create<Torch::PrimListConstructOp>(opLocation, intListTy,
                                                         expandIndicesDims);
         Value constFalse = rewriter.create<Torch::ConstantBoolOp>(
-            loc, rewriter.getType<Torch::BoolType>(),
+            opLocation, rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(false));
         Value expandedIndices = rewriter.create<Torch::AtenExpandOp>(
-            loc, expandIndicesTy, flattenedIndices, expandIndicesSizeList,
+            opLocation, expandIndicesTy, flattenedIndices,
+            expandIndicesSizeList,
             /*implicit=*/constFalse);
 
         // step 9. Flatten indices_shape[-1] dimensions of data.
         auto flattenDataTy = rewriter.getType<Torch::ValueTensorType>(
             flattenDataShape, dataTy.getOptionalDtype());
         Value endDim = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(indicesLastDim - 1));
+            opLocation, rewriter.getI64IntegerAttr(indicesLastDim - 1));
         Value flattenedData = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
-            loc, flattenDataTy, data, constZero, endDim);
+            opLocation, flattenDataTy, data, constZero, endDim);
 
         // step 10. Now we have flattenedData, expandedIndices and
         // flattenedUpdates of same rank to perform scatter operation.
@@ -3896,16 +3905,16 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value scatter;
         if (reduction == "none") {
           scatter = rewriter.create<Torch::AtenScatterSrcOp>(
-              loc, scatterTy, flattenedData, /*axis=*/constZero,
+              opLocation, scatterTy, flattenedData, /*axis=*/constZero,
               expandedIndices, flattenedUpdates);
         } else {
           Value cstReduction =
-              rewriter.create<Torch::ConstantStrOp>(loc, reduction);
+              rewriter.create<Torch::ConstantStrOp>(opLocation, reduction);
           Value constTrue = rewriter.create<Torch::ConstantBoolOp>(
-              loc, rewriter.getType<Torch::BoolType>(),
+              opLocation, rewriter.getType<Torch::BoolType>(),
               rewriter.getBoolAttr(true));
           scatter = rewriter.create<Torch::AtenScatterReduceTwoOp>(
-              loc, scatterTy, flattenedData, /*axis=*/constZero,
+              opLocation, scatterTy, flattenedData, /*axis=*/constZero,
               expandedIndices, flattenedUpdates, cstReduction,
               /*include_self=*/constTrue);
         }
@@ -3916,7 +3925,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return success();
         }
         Value unflattenSizeList = rewriter.create<Torch::PrimListConstructOp>(
-            loc, intListTy, dataDims);
+            opLocation, intListTy, dataDims);
         rewriter.replaceOpWithNewOp<Torch::AtenUnflattenIntOp>(
             binder.op, resultType, scatter, constZero, unflattenSizeList);
         return success();
@@ -4451,7 +4460,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       });
   patterns.onOp(
       "Scan", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        auto loc = binder.getLoc();
+        auto opLocation = binder.getLoc();
         SmallVector<Value> operands;
         int64_t numScanInputs;
         if (binder.tensorOperandsList(operands) || operands.size() == 0 ||
@@ -4481,32 +4490,32 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
 
         Value constZero = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(0));
+            opLocation, rewriter.getI64IntegerAttr(0));
         Value constOne = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(1));
+            opLocation, rewriter.getI64IntegerAttr(1));
         SmallVector<Type> scanOutTypes;
         for (unsigned i = numInits; i < resultTypes.size(); i++) {
           auto scanOutTy = cast<Torch::ValueTensorType>(resultTypes[i]);
           Value sizeList =
               createConstantIntList(binder, rewriter, scanOutTy.getSizes());
-          initVals.push_back(Torch::createInitTensor(rewriter, loc, scanOutTy,
-                                                     constZero, sizeList));
+          initVals.push_back(Torch::createInitTensor(
+              rewriter, opLocation, scanOutTy, constZero, sizeList));
           scanOutTypes.push_back(resultTypes[i]);
         }
         // Create torch.prim.Loop op.
         Value maxTripCount = rewriter.create<Torch::AtenSizeIntOp>(
-            loc, scanInputs[0], constZero);
+            opLocation, scanInputs[0], constZero);
         auto constBoolTrue = rewriter.create<Torch::ConstantBoolOp>(
             binder.getLoc(), rewriter.getBoolAttr(true));
         auto primLoop = rewriter.create<Torch::PrimLoopOp>(
-            loc, resultTypes, maxTripCount, constBoolTrue, initVals);
+            opLocation, resultTypes, maxTripCount, constBoolTrue, initVals);
         rewriter.cloneRegionBefore(*loopBodyIn, primLoop.getRegion(),
                                    primLoop.getRegion().begin());
 
         // Insert index var as torch.int argument in the loop body, as
         // the primLoopOp loopBody expects torch.int as first argument.
         primLoop.getRegion().insertArgument(
-            0u, rewriter.getType<Torch::IntType>(), loc);
+            0u, rewriter.getType<Torch::IntType>(), opLocation);
         auto loopInd = primLoop.getRegion().getArgument(0);
 
         // The block arguments of onnx.scan needs to be replaced with
@@ -4516,7 +4525,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           auto loopBlockArg =
               primLoop.getRegion().getArgument(numInits + 1 + i);
           Value extract = rewriter.create<Torch::AtenSelectIntOp>(
-              loc, loopBlockArg.getType(), scanInputs[i], constZero, loopInd);
+              opLocation, loopBlockArg.getType(), scanInputs[i], constZero,
+              loopInd);
           loopBlockArg.replaceAllUsesWith(extract);
         }
         primLoop.getRegion().front().eraseArguments(numInits + 1,
@@ -4524,7 +4534,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         // Collect the output slices to form scan outputs and replace the
         // terminator.
-        SmallVector<Location> locs(scanOutTypes.size(), loc);
+        SmallVector<Location> locs(scanOutTypes.size(), opLocation);
         primLoop.getRegion().front().addArguments(scanOutTypes, locs);
 
         PatternRewriter::InsertionGuard guard(rewriter);
@@ -4543,7 +4553,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           if (failed(src))
             return failure();
           Value scanOut = rewriter.create<Torch::AtenSliceScatterOp>(
-              loc, scanOutTypes[i], self, src.value(), constZero,
+              opLocation, scanOutTypes[i], self, src.value(), constZero,
               /*start=*/loopInd,
               /*end=*/loopInd, constOne);
           resTerminatorOperands.push_back(scanOut);
