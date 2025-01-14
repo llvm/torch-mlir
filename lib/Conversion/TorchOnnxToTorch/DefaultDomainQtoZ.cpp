@@ -228,11 +228,11 @@ Value getValueList(
   auto sizes = operandType.getSizes();
   auto lengthOfFullList = sizes[0];
 
-  SmallVector<Value> itemList;
+  SmallVector<Value> runningScalarSublist;
 
   for (int i = givenIndex; i < lengthOfFullList; i++) {
     Value item = extractTorchScalar(givenLoc, i, operand, rewriter);
-    itemList.push_back(item);
+    runningScalarSublist.push_back(item);
   }
 
   auto someTorchScalarType = getTorchScalarType(operandType, rewriter);
@@ -241,7 +241,7 @@ Value getValueList(
       rewriter.getType<Torch::ListType>(someTorchScalarType);
 
   return rewriter.create<Torch::PrimListConstructOp>(
-      givenLoc, someTorchScalarListType, itemList);
+      givenLoc, someTorchScalarListType, runningScalarSublist);
 }
 } // namespace
 
