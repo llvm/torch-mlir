@@ -222,8 +222,10 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
     someTorchScalarType = Torch::FloatType::get(context);
   }
 
+  Type someTorchScalarListType = Torch::ListType::get(someTorchScalarType);
+
   return rewriter.create<Torch::PrimListConstructOp>(
-      binder.getLoc(), Torch::ListType::get(someTorchScalarType), itemList);
+      binder.getLoc(), someTorchScalarListType, itemList);
 }
 } // namespace
 
