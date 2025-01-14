@@ -2826,8 +2826,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         int64_t assumedForemostSpatialDim = 2;
 
-        Value scalesValueList = noneVal;
-        Value sizesValueList = noneVal;
+        Value scalesValueList;
+        Value sizesValueList;
 
         if (numberOfOperands == 3) {
           Value scaleOperand = operands[2];
