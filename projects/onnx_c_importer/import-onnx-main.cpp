@@ -11,7 +11,6 @@
 // The actual importer libraries, however, only depend on the C API so that
 // they can be included in foreign projects more easily.
 
-#include "torch-mlir-c/Registration.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/raw_ostream.h"
@@ -26,21 +25,6 @@
 using namespace llvm;
 using namespace torch_mlir_onnx;
 
-struct MlirState {
-  MlirState() {
-    context = mlirContextCreateWithThreading(false);
-    torchMlirRegisterAllDialects(context);
-    module = mlirModuleCreateEmpty(mlirLocationUnknownGet(context));
-  }
-  ~MlirState() {
-    mlirModuleDestroy(module);
-    mlirContextDestroy(context);
-  }
-
-  MlirContext context;
-  MlirModule module;
-};
-
 int main(int argc, char **argv) {
   static cl::opt<std::string> inputFilename(
       cl::Positional, cl::desc("<input file>"), cl::init("-"));
@@ -52,7 +36,8 @@ int main(int argc, char **argv) {
   InitLLVM y(argc, argv);
   cl::ParseCommandLineOptions(argc, argv, "torch-mlir-onnx-import-c");
 
-  // Open the input as an istream because that is what protobuf likes.
+  // TODO: load_onnx_model()
+  //  Open the input as an istream because that is what protobuf likes.
   std::unique_ptr<std::ifstream> alloced_input_stream;
   std::istream *input_stream = nullptr;
   if (inputFilename == "-") {
@@ -67,37 +52,30 @@ int main(int argc, char **argv) {
     }
     input_stream = alloced_input_stream.get();
   }
+  onnx::ModelProto modelProto;
 
-  // Parse the model proto.
-  ModelInfo model_info;
-  if (!model_info.model_proto().ParseFromIstream(input_stream)) {
-    errs() << "Failed to parse ONNX ModelProto from " << inputFilename << "\n";
-    return 2;
+  if (!modelProto.ParseFromIstream(input_stream)) {
+    errs() << "Failed to parse ONNX ModelProto \n";
+    return 1;
   }
 
-  if (failed(model_info.Initialize())) {
-    errs() << "error: Import failure: " << model_info.error_message() << "\n";
-    model_info.DebugDumpProto();
-    return 3;
+  std::unique_ptr<std::ofstream> allocatedOutputStream;
+  std::ostream *outputStream = nullptr;
+  if (outputFilename == "-") {
+    outputStream = &std::cout;
+  } else {
+    allocatedOutputStream =
+        std::make_unique<std::ofstream>(outputFilename, std::ios::out);
+    if (!*allocatedOutputStream) {
+      errs() << "error: could not open output file " << outputFilename << "\n";
+      return 1;
+    }
+    outputStream = allocatedOutputStream.get();
   }
-  model_info.DebugDumpProto();
 
-  // Import.
-  MlirState owned_state;
-  ContextCache cc(model_info, owned_state.context);
-  NodeImporter importer(model_info.main_graph(), cc,
-                        mlirModuleGetOperation(owned_state.module));
-  if (failed(importer.DefineFunction())) {
-    errs() << "error: Could not define MLIR function for graph: "
-           << model_info.error_message() << "\n";
-    return 4;
-  }
-  if (failed(importer.ImportAll())) {
-    errs() << "error: Could not import one or more graph nodes: "
-           << model_info.error_message() << "\n";
-    return 5;
-  }
-  importer.DebugDumpModule();
+  Status status = OnnxImporter::Import(std::move(modelProto), outputStream);
+  if (failed(status))
+    return 1;
 
   return 0;
 }

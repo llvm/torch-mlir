@@ -18,6 +18,7 @@
 // this kind of style.
 
 #include "mlir-c/IR.h"
+#include "mlir/Support/LLVM.h"
 #include "onnx/onnx_pb.h"
 
 #include <optional>
@@ -26,11 +27,16 @@
 
 namespace torch_mlir_onnx {
 
+template <typename T> using opt_ref = std::optional<std::reference_wrapper<T>>;
+
 struct Config;
 class GraphInfo;
 class ModelInfo;
 
 struct Config {
+  // Disable verification prior to printing
+  bool no_verify = false;
+
   // Ancient ONNX exporters would often add a model input for anything that
   // might be mutable, providing an initializer for it as well. More modern
   // tools tools realized this is a really bad idea for a lot of reasons.
@@ -40,6 +46,39 @@ struct Config {
   // We mainly use it as a way to document in the code that we are
   // making an assumption.
   bool elide_initialized_inputs = true;
+
+  // Some ONNX operators are defined by ONNX functions and will be
+  // automatically expanded (see get_operator_function() below) to MLIR
+  // functions by the importer. This option allows allowlisting functions that
+  // should be expanded. If this is None, then allowlisting is not used (all
+  // functions not explicitly denylisted will be expanded).
+  //
+  // Since function expansion has not always been supported, the default should
+  // be to use allowlisting, to avoid disruption.
+  std::optional<std::unordered_map<std::string, std::set<std::string>>>
+      function_expansion_allowlists_by_domain =
+          std::unordered_map<std::string, std::set<std::string>>{
+              // Default domain (ONNX built-in ops)
+              {"", std::set<std::string>{"MeanVarianceNormalization"}}};
+
+  // Some ONNX operators are defined by ONNX functions and will be
+  // automatically expanded (see get_operator_function() below) to MLIR
+  // functions by the importer. This option allows denylisting functions that
+  // should not be expanded.
+  std::unordered_map<std::string, std::set<std::string>>
+      function_expansion_denylists_by_domain = {
+          // Default domain (ONNX built-in ops)
+          {"",
+           {// CastLike's second input `target_type` is used only for its
+            // type (T2), from which its output's type is inferred, but
+            // because its value is unused, ONNX's shape inference doesn't
+            // annotate the input value with a type, so looking up the
+            // function by the provided input types will fail.
+            "CastLike",
+            // ONNX errors when trying to infer the type of the Loop op
+            // within this function: "[ShapeInferenceError] Inferred shape
+            // and existing shape differ in rank: (1) vs (0)"
+            "Range"}}};
 };
 
 /// A light-weight status. It only encapsulates success/failure.
@@ -64,8 +103,10 @@ static inline bool failed(Status status) { return !status.is_success(); }
 // Accounting for a GraphProto.
 class GraphInfo {
 public:
-  GraphInfo(ModelInfo &model_info, const onnx::GraphProto &graph_proto)
-      : model_info_(model_info), graph_proto_(graph_proto) {}
+  GraphInfo(ModelInfo &model_info, const onnx::GraphProto &graph_proto,
+            bool top_level = true)
+      : model_info_(model_info), graph_proto_(graph_proto),
+        is_top_level_(top_level) {}
   ModelInfo &model_info() { return model_info_; }
   const onnx::GraphProto &graph_proto() { return graph_proto_; }
 
@@ -121,12 +162,15 @@ private:
   std::unordered_map<std::string_view, const onnx::ValueInfoProto &> input_map_;
   std::unordered_map<std::string_view, const onnx::ValueInfoProto &>
       output_map_;
+
+  bool is_top_level_;
 };
 
 /// Top-level accounting and accessors for an ONNX model.
 class ModelInfo {
 public:
-  ModelInfo();
+  ModelInfo(onnx::ModelProto &&model_proto, const Config &config)
+      : config_(config), model_proto_(std::move(model_proto)) {}
   Config &config() { return config_; }
   onnx::ModelProto &model_proto() { return model_proto_; }
 
@@ -151,6 +195,9 @@ private:
   std::string error_message_;
 };
 
+/// Caches per-context lookups of various things.
+// TODO: need exceptions instead of errors, to escape execution. Would also
+// avoid passing around ModelInfo/GraphInfo
 class ContextCache {
 public:
   ContextCache(ModelInfo &model_info, MlirContext context)
@@ -158,23 +205,17 @@ public:
 
   MlirContext context() { return context_; }
 
-  /// Converts the TypeProto to an MlirType, returning a null type and
-  /// setting an error if not possible.
-  MlirType ConvertTypeProto(const onnx::TypeProto &tp);
-
   /// Converts the ONNX element type code to an MlirType, returning a null type
   /// and setting an error if not possible.
   MlirType ConvertTensorElementType(int element_type_code);
 
-  /// Converts an ONNX TensorProto to an MlirAttribute, returning a null
-  /// attribute and setting an error if not possible.
-  MlirAttribute ConvertTensorProtoToAttr(const onnx::TensorProto &tp);
+  MlirType GetNoneType();
 
-  /// Converts the ONNX TensorProto to an Mlir RankedTensor type.
-  MlirType ConvertTensorProtoToBuiltinType(const onnx::TensorProto &tp);
+  MlirType GetListType(MlirType element_type);
+  MlirType GetOptionalType(MlirType element_type);
 
-  /// Converts the ONNX TensorProto to a !torch.vtensor type.
-  MlirType ConvertTensorProtoToVtensorType(const onnx::TensorProto &tp);
+  MlirType GetListElementType(const onnx::TypeProto &tp);
+  MlirType GetOptionalElementType(const onnx::TypeProto &tp);
 
   /// Gets a !torch.vtensor type for the given dims and element type.
   /// Dynamic dims are represented as -1.
@@ -183,31 +224,87 @@ public:
   MlirType GetVtensorType(const std::vector<int64_t> &dims,
                           MlirType element_type);
 
-  MlirType GetNoneType();
+  /// Converts the ONNX TensorProto to a !torch.vtensor type.
+  MlirType ConvertTensorProtoToVtensorType(const onnx::TensorProto &tp);
+
+  /// Converts the ONNX TensorProto to an Mlir RankedTensor type.
+  MlirType ConvertTensorProtoToBuiltinType(const onnx::TensorProto &tp);
+
+  /// Converts the TypeProto to an MlirType, returning a null type and
+  /// setting an error if not possible.
+  MlirType ConvertTypeProto(const onnx::TypeProto *tp);
+
+  /// Converts an ONNX TensorProto to an MlirAttribute, returning a null
+  /// attribute and setting an error if not possible.
+  MlirAttribute ConvertTensorProtoToAttr(const onnx::TensorProto &tp);
 
 private:
   ModelInfo &model_info_;
   MlirContext context_;
 
   std::unordered_map<int, MlirType> elem_type_map_;
-  std::unordered_map<std::string, MlirType> asm_type_map_;
-  std::vector<int64_t> shared_dims_;
+  std::unordered_map<std::string, MlirType> list_type_map_;
+  std::unordered_map<std::string, MlirType> optional_type_map_;
+
+  struct VTensorSign {
+    std::vector<int64_t> dims;
+    MlirType element_type;
+
+    bool operator==(const VTensorSign &rhs) const;
+  };
+  struct VTensorSignHash {
+    std::size_t operator()(const VTensorSign &val) const;
+  };
+  std::unordered_map<VTensorSign, MlirType, VTensorSignHash> vtensor_type_map_;
 };
 
-/// Imports graph nodes into a function.
+class ModuleCache {
+public:
+  ModuleCache(MlirOperation module_op, ContextCache &cc)
+      : cc_(cc), m_(module_op) {};
+
+  /// Get or create the MLIR function corresponding to an ONNX operator.
+  /// Returns failure for ONNX operators that aren't functions.
+  llvm::FailureOr<MlirOperation>
+  GetOperatorFunction(std::string_view op_name, std::string_view op_domain,
+                      int opset_version, int ir_version,
+                      llvm::ArrayRef<const onnx::TypeProto> input_type_protos,
+                      llvm::ArrayRef<const onnx::TypeProto> output_type_protos,
+                      const onnx::NodeProto &caller_node, const Config &config);
+
+private:
+  ContextCache &cc_;
+  MlirOperation m_;
+  std::unordered_map<std::string, MlirOperation> operator_function_map_;
+};
+
+/// Imports graph nodes into MLIR.
+///
+/// Typically, the top level graph will be imported into a func whereas
+/// dependent graphs may just be imported with references to pre-existing
+/// values.
+///
+/// Note that ONNX requires that graphs be sorted topologically and free of
+/// cycles, so we don't take any special steps to order them for dominance.
 class NodeImporter {
 public:
-  NodeImporter(GraphInfo &graph_info, ContextCache &cc,
-               MlirOperation module_op);
+  NodeImporter(GraphInfo &graphInfo, MlirOperation parentOp, MlirBlock block,
+               ContextCache &cc, MlirOperation moduleOp,
+               ModuleCache &moduleCache);
+
+  MlirOperation &ParentOp() { return parent_op_; }
 
   /// Called after construction to define the function in the module. Must be
   /// called prior to importing nodes.
-  Status DefineFunction(std::optional<std::string> name = {});
+  static llvm::FailureOr<NodeImporter>
+  DefineFunction(GraphInfo &graphInfo, MlirOperation moduleOp,
+                 ContextCache &contextCache, ModuleCache &moduleCache,
+                 bool isPrivate = false);
 
   /// Imports all nodes topologically.
-  Status ImportAll();
+  Status ImportAll(bool func = true);
 
-  void DebugDumpModule();
+  void WriteModule(std::ostream *stream, bool assumeVerified);
 
 private:
   void PopulateGraphAttrs(MlirOperation container_op);
@@ -221,7 +318,12 @@ private:
   Status ImportGeneralNode(const onnx::NodeProto &node);
   Status ImportConstantNodeValueAttr(const onnx::NodeProto &node);
 
-  void GetNone();
+  void
+  ImportRegions(const google::protobuf::RepeatedPtrField<onnx::AttributeProto>
+                    &onnx_attrs,
+                MlirOperation op);
+
+  MlirValue GetNone();
 
   /// Looks for an initializer for `name` and attempts to treat it as a 1D
   /// shape, filling `shape` if successful. Returns failure and sets an error
@@ -233,14 +335,30 @@ private:
     return graph_info_.model_info().SetError(std::move(msg));
   }
 
-  GraphInfo &graph_info_;
-  ContextCache &cc_;
   MlirContext context_;
+  ContextCache &cc_;
   MlirOperation module_op_;
-  MlirOperation func_op_;
+  ModuleCache &mc_;
+  GraphInfo &graph_info_;
+  MlirOperation parent_op_;
   MlirBlock body_block_;
-  MlirLocation default_loc_;
   std::unordered_map<std::string_view, MlirValue> nv_map_;
+};
+
+class OnnxImporter {
+public:
+  static Status Import(onnx::ModelProto &&modelProto,
+                       std::ostream *output_stream,
+                       const Config config = Config());
+
+protected:
+  struct MlirState {
+    MlirState();
+    ~MlirState();
+
+    MlirContext context_;
+    MlirModule module_;
+  };
 };
 
 } // namespace torch_mlir_onnx

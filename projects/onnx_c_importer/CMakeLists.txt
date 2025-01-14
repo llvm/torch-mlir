@@ -10,7 +10,7 @@ FetchContent_Declare(
     onnx
     EXCLUDE_FROM_ALL
     GIT_REPOSITORY https://github.com/onnx/onnx.git
-    GIT_TAG v1.15.0
+    GIT_TAG v1.16.1
     GIT_SHALLOW ON
     GIT_PROGRESS ON
 )
@@ -24,6 +24,16 @@ add_llvm_executable(
     OnnxImporter.h
     OnnxImporter.cpp
 )
+
+target_compile_definitions(torch-mlir-import-onnx PRIVATE ONNX_NO_EXCEPTIONS)
+
+# Supress compiler warnings from onnx headers
+check_cxx_compiler_flag(-Wno-c++98-compat-extra-semi
+CXX_SUPPORTS_NO_CXX98_COMPAT_EXTRA_SEMI_FLAG)
+if (CXX_SUPPORTS_CXX98_COMPAT_EXTRA_SEMI_FLAG)
+    target_compile_options(torch-mlir-import-onnx PRIVATE
+        "-Wno-c++98-compat-extra-semi")
+endif()
 
 target_link_libraries(
     torch-mlir-import-onnx
