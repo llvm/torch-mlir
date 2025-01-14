@@ -239,16 +239,16 @@ Value createScalarSublist(ConversionPatternRewriter &rewriter,
                           Location givenLoc,
                           /* movingForwardsThrough */ Value given1DTensor,
                           /*            startingAt */ int64_t givenIndex) {
-  SmallVector<Value> runningScalarSublist;
+  SmallVector<Value> runningTorchScalars;
 
   for (int indexOfEachScalar = givenIndex;
        indexOfEachScalar < lengthOfListIn(given1DTensor); indexOfEachScalar++) {
     Value eachScalar = createTorchScalarForElement(
         rewriter, givenLoc, given1DTensor, indexOfEachScalar);
-    runningScalarSublist.push_back(eachScalar);
+    runningTorchScalars.push_back(eachScalar);
   }
 
-  return createTorchList(rewriter, givenLoc, runningScalarSublist);
+  return createTorchList(rewriter, givenLoc, runningTorchScalars);
 }
 } // namespace
 
