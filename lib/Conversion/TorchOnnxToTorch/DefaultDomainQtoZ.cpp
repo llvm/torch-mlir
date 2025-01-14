@@ -220,10 +220,10 @@ Value extractTorchScalar(
 
 Value getValueList(
     /*                    at */ Location givenLoc,
-    /* movingForwardsThrough */ Value operand,
+    /* movingForwardsThrough */ Value given1DTensor,
     /*            startingAt */ int64_t givenIndex,
     /*                 using */ ConversionPatternRewriter &rewriter) {
-  auto operandType = cast<Torch::BaseTensorType>(operand.getType());
+  auto operandType = cast<Torch::BaseTensorType>(given1DTensor.getType());
   auto sizes = operandType.getSizes();
   auto lengthOfFullList = sizes[0];
 
@@ -231,8 +231,8 @@ Value getValueList(
 
   for (int indexOfEachScalar = givenIndex; indexOfEachScalar < lengthOfFullList;
        indexOfEachScalar++) {
-    Value eachScalar =
-        extractTorchScalar(givenLoc, indexOfEachScalar, operand, rewriter);
+    Value eachScalar = extractTorchScalar(givenLoc, indexOfEachScalar,
+                                          given1DTensor, rewriter);
     runningScalarSublist.push_back(eachScalar);
   }
 
