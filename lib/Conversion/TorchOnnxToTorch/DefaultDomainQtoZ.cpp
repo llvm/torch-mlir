@@ -243,9 +243,9 @@ Value createScalarSublist(ConversionPatternRewriter &rewriter,
 
   for (int indexOfEachScalar = givenIndex;
        indexOfEachScalar < lengthOfListIn(given1DTensor); indexOfEachScalar++) {
-    Value eachScalar = createTorchScalarForElement(
+    Value eachTorchScalar = createTorchScalarForElement(
         rewriter, givenLoc, given1DTensor, indexOfEachScalar);
-    runningTorchScalars.push_back(eachScalar);
+    runningTorchScalars.push_back(eachTorchScalar);
   }
 
   return createTorchList(rewriter, givenLoc, runningTorchScalars);
