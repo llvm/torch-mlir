@@ -225,10 +225,11 @@ Value getValueList(
     /*                 using */ ConversionPatternRewriter &rewriter) {
   auto operandType = cast<Torch::BaseTensorType>(operand.getType());
   auto sizes = operandType.getSizes();
+  auto lengthOfFullList = sizes[0];
 
   SmallVector<Value> itemList;
 
-  for (int i = givenIndex; i < sizes[0]; i++) {
+  for (int i = givenIndex; i < lengthOfFullList; i++) {
     Value item = extractTorchScalar(givenLoc, i, operand, rewriter);
     itemList.push_back(item);
   }
