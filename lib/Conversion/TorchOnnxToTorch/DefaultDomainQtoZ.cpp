@@ -2774,8 +2774,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
         Value modeStrValue;
 
-        Value scalesValueList = noneVal;
-        Value sizesValueList = noneVal;
         Value alignCorners =
             coordTfMode == "align_corners" ? cstTrue : cstFalse;
         if (mode == "cubic") {
@@ -2827,6 +2825,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         auto numberOfOperands = operands.size();
 
         int64_t assumedForemostSpatialDim = 2;
+
+        Value scalesValueList = noneVal;
+        Value sizesValueList = noneVal;
 
         if (numberOfOperands == 3) {
           Value scaleOperand = operands[2];
