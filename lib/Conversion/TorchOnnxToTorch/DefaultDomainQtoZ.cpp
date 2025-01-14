@@ -2831,9 +2831,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(loc);
 
         if (numberOfOperands == 3) {
-          Value scaleOperand = operands[2];
+          Value proposedScaleFactors = operands[2];
           supportedScaleFactors = createScalarSublist(
-              loc, scaleOperand, assumedForemostSpatialDim, rewriter);
+              loc, proposedScaleFactors, assumedForemostSpatialDim, rewriter);
           supportedSizes = noneVal;
         } else if (numberOfOperands == 4) {
           Value sizeOperand = operands[3];
