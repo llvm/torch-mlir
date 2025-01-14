@@ -224,10 +224,12 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
   auto operandType = cast<Torch::BaseTensorType>(operand.getType());
   auto sizes = operandType.getSizes();
 
+  auto loc = binder.getLoc();
+
   SmallVector<Value> itemList;
 
   for (int i = 2; i < sizes[0]; i++) {
-    Value item = extractTorchScalar(binder.getLoc(), i, operand, rewriter);
+    Value item = extractTorchScalar(loc, i, operand, rewriter);
     itemList.push_back(item);
   }
 
@@ -237,7 +239,7 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
       rewriter.getType<Torch::ListType>(someTorchScalarType);
 
   return rewriter.create<Torch::PrimListConstructOp>(
-      binder.getLoc(), someTorchScalarListType, itemList);
+      loc, someTorchScalarListType, itemList);
 }
 } // namespace
 
