@@ -235,17 +235,16 @@ Value createTorchList(ConversionPatternRewriter &rewriter, Location givenLoc,
       givenLoc, someTorchListType, givenTorchElements);
 }
 
-Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
+Value getValueList(ConversionPatternRewriter &rewriter, Location givenLoc,
                    /* movingForwardsThrough */ Value operand) {
   SmallVector<Value> itemList;
 
   for (int i = 2; i < lengthOfListIn(operand); i++) {
-    Value item =
-        createTorchScalarForElement(rewriter, binder.getLoc(), operand, i);
+    Value item = createTorchScalarForElement(rewriter, givenLoc, operand, i);
     itemList.push_back(item);
   }
 
-  return createTorchList(rewriter, binder.getLoc(), itemList);
+  return createTorchList(rewriter, givenLoc, itemList);
 }
 } // namespace
 
@@ -2830,12 +2829,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
         if (operands.size() < 4) {
           Value scaleOperand = operands[2];
-          scalesValueList = getValueList(binder, rewriter, scaleOperand);
+          scalesValueList =
+              getValueList(rewriter, binder.getLoc(), scaleOperand);
           sizesValueList = noneVal;
         } else {
           Value sizeOperand = operands[3];
           scalesValueList = noneVal;
-          sizesValueList = getValueList(binder, rewriter, sizeOperand);
+          sizesValueList = getValueList(rewriter, binder.getLoc(), sizeOperand);
         }
         if (isa<Torch::NoneType>(scalesValueList.getType()) &&
             isa<Torch::NoneType>(sizesValueList.getType())) {
@@ -3358,7 +3358,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(
               binder.op, "supports upto 3d upsampling only");
 
-        Value scalesValueList = getValueList(binder, rewriter, scales);
+        Value scalesValueList = getValueList(rewriter, binder.getLoc(), scales);
         if (mode == "linear") {
           if (resultRank == 4)
             mode = "bilinear";
