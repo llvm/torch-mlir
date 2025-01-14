@@ -236,14 +236,14 @@ Value createTorchList(ConversionPatternRewriter &rewriter, Location givenLoc,
 }
 
 Value getValueList(ConversionPatternRewriter &rewriter, Location givenLoc,
-                   /* movingForwardsThrough */ Value operand,
+                   /* movingForwardsThrough */ Value given1DTensor,
                    /*            startingAt */ int64_t givenIndex) {
   SmallVector<Value> runningTorchScalars;
 
   for (int indexOfEachScalar = givenIndex;
-       indexOfEachScalar < lengthOfListIn(operand); indexOfEachScalar++) {
+       indexOfEachScalar < lengthOfListIn(given1DTensor); indexOfEachScalar++) {
     Value eachTorchScalar = createTorchScalarForElement(
-        rewriter, givenLoc, operand, indexOfEachScalar);
+        rewriter, givenLoc, given1DTensor, indexOfEachScalar);
     runningTorchScalars.push_back(eachTorchScalar);
   }
 
