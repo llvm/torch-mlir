@@ -227,18 +227,18 @@ Value getValueList(
   auto sizes = operandType.getSizes();
   auto lengthOfFullList = sizes[0];
 
-  SmallVector<Value> itemList;
+  SmallVector<Value> runningScalarSublist;
 
   for (int i = givenIndex; i < lengthOfFullList; i++) {
     Value item = extractTorchScalar(givenLoc, i, operand, rewriter);
-    itemList.push_back(item);
+    runningScalarSublist.push_back(item);
   }
 
-  auto someTorchScalarType = itemList.front().getType();
+  auto someTorchScalarType = runningScalarSublist.front().getType();
   Type someTorchScalarListType = Torch::ListType::get(someTorchScalarType);
 
   return rewriter.create<Torch::PrimListConstructOp>(
-      givenLoc, someTorchScalarListType, itemList);
+      givenLoc, someTorchScalarListType, runningScalarSublist);
 }
 } // namespace
 
