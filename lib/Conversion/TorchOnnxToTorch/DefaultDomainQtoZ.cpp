@@ -219,13 +219,13 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
   Value ValueList;
   if (isa<IntegerType>(xTy.getDtype())) {
     someTorchScalarType = Torch::IntType::get(context);
-    ValueList = rewriter.create<Torch::PrimListConstructOp>(
-        binder.getLoc(), Torch::ListType::get(someTorchScalarType), itemList);
   } else {
     someTorchScalarType = Torch::FloatType::get(context);
-    ValueList = rewriter.create<Torch::PrimListConstructOp>(
-        binder.getLoc(), Torch::ListType::get(someTorchScalarType), itemList);
   }
+
+  ValueList = rewriter.create<Torch::PrimListConstructOp>(
+      binder.getLoc(), Torch::ListType::get(someTorchScalarType), itemList);
+
   return ValueList;
 }
 } // namespace
