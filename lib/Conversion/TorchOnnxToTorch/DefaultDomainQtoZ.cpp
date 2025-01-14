@@ -224,8 +224,8 @@ Value getValueList(
     /*            startingAt */ int64_t givenIndex,
     /*                 using */ ConversionPatternRewriter &rewriter) {
   auto some1DTensorType = cast<Torch::BaseTensorType>(given1DTensor.getType());
-  auto sizes = some1DTensorType.getSizes();
-  auto lengthOfFullList = sizes[0];
+  auto sizesOfSome1DTensor = some1DTensorType.getSizes();
+  auto lengthOfFullList = sizesOfSome1DTensor[0];
 
   SmallVector<Value> runningScalarSublist;
 
