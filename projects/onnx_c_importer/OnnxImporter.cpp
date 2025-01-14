@@ -29,6 +29,10 @@
 #include <cstdio>
 #include <functional>
 
+// TODO: check all map emplace(): they are non-destructive, contrarily to python
+// TODO: make sure error flow is correct and reflects behavior of python
+// exceptions
+
 namespace std {
 template <> struct hash<MlirType> {
   size_t operator()(const MlirType &x) const {
@@ -202,7 +206,7 @@ template <typename V, typename T = typename V::value_type>
 V FillVector(uint32_t size, std::function<T()> &&gen_fun) {
   V res;
   res.reserve(size);
-  // TODO check
+  // TODO check!!
   for ([[maybe_unused]] uint32_t idx : llvm::seq(size)) {
     res.push_back(gen_fun());
   }
@@ -211,13 +215,12 @@ V FillVector(uint32_t size, std::function<T()> &&gen_fun) {
 
 llvm::FailureOr<onnx::FunctionProto> GetCDFunctionWithOpsetVersion(
     const onnx::OpSchema *op, int opset_version, const onnx::NodeProto &node,
-    const llvm::ArrayRef<const onnx::TypeProto> &input_types) {
+    const llvm::ArrayRef<const onnx::TypeProto *> &input_types) {
   if (op->HasContextDependentFunctionWithOpsetVersion(opset_version)) {
-    // TODO: maybe there's a way to avoid a copy here?
     std::vector<onnx::TypeProto> input_types_non_const;
     input_types_non_const.reserve(input_types.size());
-    for (const auto &tp : input_types) {
-      input_types_non_const.push_back(tp);
+    for (const auto *tp : input_types) {
+      input_types_non_const.push_back(*tp);
     }
     onnx::FunctionBodyBuildContextImpl ctx(node, input_types_non_const);
     onnx::FunctionProto func_proto;
@@ -243,8 +246,8 @@ llvm::FailureOr<onnx::FunctionProto> GetCDFunctionWithOpsetVersion(
 onnx::ModelProto SpecializeFunctionAndCreateModel(
     const onnx::FunctionProto &functionProto, const onnx::OpSchema *opSchema,
     const std::string &nameToGive, int ir_version,
-    const llvm::ArrayRef<const onnx::TypeProto> &inputTypeProtos,
-    const llvm::ArrayRef<const onnx::TypeProto> &outputTypeProtos,
+    const llvm::ArrayRef<const onnx::TypeProto *> &inputTypeProtos,
+    const llvm::ArrayRef<const onnx::TypeProto *> &outputTypeProtos,
     const onnx::NodeProto &callerNode) {
   onnx::ModelProto modelProto;
   modelProto.mutable_opset_import()->MergeFrom(functionProto.opset_import());
@@ -253,18 +256,18 @@ onnx::ModelProto SpecializeFunctionAndCreateModel(
 
   for (const auto it : llvm::enumerate(functionProto.input())) {
     const auto &inputName = it.value();
-    const auto &inputTypeProto = inputTypeProtos[it.index()];
+    const auto *inputTypeProto = inputTypeProtos[it.index()];
     onnx::ValueInfoProto &inputProto = *graphProto.add_input();
     inputProto.set_name(inputName);
-    inputProto.mutable_type()->CopyFrom(inputTypeProto);
+    inputProto.mutable_type()->CopyFrom(*inputTypeProto);
   }
 
   for (auto it : llvm::enumerate(functionProto.output())) {
     const auto &outputName = it.value();
-    const auto &outputTypeProto = outputTypeProtos[it.index()];
+    const auto *outputTypeProto = outputTypeProtos[it.index()];
     onnx::ValueInfoProto &outputProto = *graphProto.add_output();
     outputProto.set_name(outputName);
-    outputProto.mutable_type()->CopyFrom(outputTypeProto);
+    outputProto.mutable_type()->CopyFrom(*outputTypeProto);
   }
 
   onnx::FunctionProto specializedFunProto;
@@ -791,10 +794,10 @@ std::size_t ContextCache::VTensorSignHash::operator()(
 // ---------------------------------------------------------------------------//
 // ModuleCache
 // ---------------------------------------------------------------------------//
-llvm::FailureOr<MlirOperation> ModuleCache::GetOperatorFunction(
+llvm::FailureOr<std::optional<MlirOperation>> ModuleCache::GetOperatorFunction(
     std::string_view op_name, std::string_view op_domain, int opset_version,
-    int ir_version, llvm::ArrayRef<const onnx::TypeProto> input_type_protos,
-    llvm::ArrayRef<const onnx::TypeProto> output_type_protos,
+    int ir_version, llvm::ArrayRef<const onnx::TypeProto *> input_type_protos,
+    llvm::ArrayRef<const onnx::TypeProto *> output_type_protos,
     const onnx::NodeProto &caller_node, const Config &config) {
 
   auto allowlists = config.function_expansion_allowlists_by_domain;
@@ -805,16 +808,15 @@ llvm::FailureOr<MlirOperation> ModuleCache::GetOperatorFunction(
 
   if (allowlists && !(allowlists->count(op_domain_str) &&
                       (*allowlists)[op_domain_str].count(op_name_str)))
-    return llvm::failure();
+    return std::optional<MlirOperation>();
 
   if (denylists.count(op_domain_str) &&
       denylists[op_domain_str].count(op_name_str))
-    return llvm::failure();
+    return std::optional<MlirOperation>();
 
   const onnx::OpSchema *opSchema =
       onnx::OpSchemaRegistry::Schema(op_name_str, opset_version, op_domain_str);
   if (opSchema == nullptr) {
-    // TODO need exception here
     llvm::errs() << "Schema not found: (" << op_name_str << ", "
                  << opset_version << ", " << op_domain_str << ")";
     return llvm::failure();
@@ -842,7 +844,7 @@ llvm::FailureOr<MlirOperation> ModuleCache::GetOperatorFunction(
     bool cd_empty = cd_filtered_max == cd_filtered.end();
     if (ncd_empty && cd_empty)
       // No relevant function definition
-      return llvm::failure();
+      return std::optional<MlirOperation>();
 
     if (!ncd_empty && (cd_empty || *cd_filtered_max < *ncd_filtered_max)) {
       specific_version = *ncd_filtered_max;
@@ -864,7 +866,7 @@ llvm::FailureOr<MlirOperation> ModuleCache::GetOperatorFunction(
         output_type_protos_str;
     llvm::transform(
         input_type_protos, input_type_protos_str.begin(),
-        [](const onnx::TypeProto &tp) { return tp.SerializeAsString(); });
+        [](const onnx::TypeProto *tp) { return tp->SerializeAsString(); });
     // Though output types can be inferred from input types, it does
     // not seem to be the case that there's only one legal set of
     // outputs for a given set of inputs. When attemtping to always
@@ -872,7 +874,7 @@ llvm::FailureOr<MlirOperation> ModuleCache::GetOperatorFunction(
     // of the caller-provided types, sometimes IR verification fails
     llvm::transform(
         output_type_protos, output_type_protos_str.begin(),
-        [](const onnx::TypeProto &tp) { return tp.SerializeAsString(); });
+        [](const onnx::TypeProto *tp) { return tp->SerializeAsString(); });
 
     keyBuffer << op_name << ";" << op_domain << ";" << opset_version << ";"
               << llvm::join(input_type_protos_str, ",") << ";"
@@ -896,7 +898,7 @@ llvm::FailureOr<MlirOperation> ModuleCache::GetOperatorFunction(
 
   auto it = operator_function_map_.find(key);
   if (it != operator_function_map_.end()) {
-    return it->second;
+    return std::optional<MlirOperation>(it->second);
   }
 
   llvm::FailureOr<const onnx::FunctionProto> funProto =
@@ -930,7 +932,7 @@ llvm::FailureOr<MlirOperation> ModuleCache::GetOperatorFunction(
   imp->ImportAll();
   MlirOperation &funcOp = imp->ParentOp();
   operator_function_map_[key] = funcOp;
-  return funcOp;
+  return std::optional<MlirOperation>(funcOp);
 }
 
 // ---------------------------------------------------------------------------//
@@ -941,7 +943,8 @@ NodeImporter::NodeImporter(GraphInfo &graphInfo, MlirOperation parentOp,
                            MlirOperation moduleOp, ModuleCache &moduleCache)
     : context_(mlirOperationGetContext(parentOp)), cc_(cc),
       module_op_(std::move(moduleOp)), mc_(moduleCache), graph_info_(graphInfo),
-      parent_op_(std::move(parentOp)), body_block_(std::move(block)) {}
+      parent_op_(std::move(parentOp)), body_block_(std::move(block)),
+      empty_type_proto_(std::make_unique<onnx::TypeProto>()) {}
 
 llvm::FailureOr<NodeImporter>
 NodeImporter::DefineFunction(GraphInfo &graphInfo, MlirOperation moduleOp,
@@ -1146,64 +1149,93 @@ Status NodeImporter::ImportNode(const onnx::NodeProto &node) {
 Status NodeImporter::ImportGeneralNode(const onnx::NodeProto &node) {
   MlirLocation loc = mlirLocationNameGet(context_, toMlirStringRef(node.name()),
                                          /*childLoc=*/{nullptr});
+  const std::string &op_type = node.op_type();
+  const std::string &op_domain = node.domain();
 
   // Map inputs to values.
   std::vector<MlirValue> input_values;
+  std::vector<const onnx::TypeProto *> input_type_protos;
   for (auto &input_name : node.input()) {
     auto found_it = nv_map_.find(input_name);
     if (found_it == nv_map_.end()) {
-      std::string msg = "Non topologically produced ONNX node input '";
-      msg.append(input_name);
-      msg.append("'");
+      std::string msg =
+          "Non topologically produced ONNX node input '" + input_name + "'";
       return SetError(std::move(msg));
     }
     input_values.push_back(found_it->second);
+    const onnx::TypeProto *tp = graph_info_.FindTypeProtoForName(input_name);
+    // Missing optional arguments will have empty types
+    input_type_protos.push_back(tp != nullptr ? tp : GetEmptyTypeProto());
   }
 
   // Map outputs to types.
   std::vector<MlirType> output_types;
+  std::vector<const onnx::TypeProto *> output_type_protos;
   for (auto &output_name : node.output()) {
-    const onnx::TypeProto *type_proto =
-        graph_info_.FindTypeProtoForName(output_name);
-
-    MlirType t = cc_.ConvertTypeProto(type_proto);
+    const onnx::TypeProto *tp = graph_info_.FindTypeProtoForName(output_name);
+    assert(tp);
+    output_type_protos.push_back(tp);
+    MlirType t = cc_.ConvertTypeProto(tp);
     if (mlirTypeIsNull(t))
       return failure();
     output_types.push_back(t);
   }
 
-  // Derive the op name.
-  std::string op_name = "onnx.";
-  op_name.append(node.op_type());
-  MlirAttribute op_name_attr =
-      mlirStringAttrGet(context_, toMlirStringRef(op_name));
+  int64_t opset_version = 0;
+  for (const auto &opset_import :
+       graph_info_.model_info().model_proto().opset_import()) {
+    if (opset_import.domain() == op_domain) {
+      opset_version = opset_import.version();
+    }
+  }
+  assert(opset_version);
 
-  // General attributes.
-  std::vector<std::pair<std::string, MlirAttribute>> general_attributes;
-  for (auto &onnx_attr : node.attribute()) {
-    MlirAttribute attr = ImportGeneralAttribute(onnx_attr);
-    if (mlirAttributeIsNull(attr))
-      return failure();
-    std::string full_name = "torch.onnx.";
-    full_name.append(onnx_attr.name());
-    general_attributes.push_back(std::make_pair(full_name, attr));
+  auto operator_func_op = mc_.GetOperatorFunction(
+      op_type, op_domain, opset_version,
+      graph_info_.model_info().model_proto().ir_version(), input_type_protos,
+      output_type_protos, node, graph_info_.model_info().config());
+  if (llvm::failed(operator_func_op)) {
+    return failure();
   }
 
-  uint32_t num_regions = CountRegions(node.attribute());
-  std::vector<MlirRegion> regions(FillVector<std::vector<MlirRegion>>(
-      num_regions, std::function<MlirRegion()>(mlirRegionCreate)));
+  MlirOperation custom_op;
+  if (*operator_func_op != std::nullopt) {
+    MlirAttribute sym_name = mlirOperationGetAttributeByName(
+        **operator_func_op, toMlirStringRef("sym_name"));
+    custom_op = createMlirOperationAtEnd(
+        body_block_, "func.call", loc, output_types, input_values,
+        toMlirNamedAttribute("callee",
+                             mlirFlatSymbolRefAttrGet(
+                                 context_, mlirStringAttrGetValue(sym_name))));
+  } else {
+    // Derive the op name.
+    std::string op_name = "onnx." + node.op_type();
+    MlirAttribute op_name_attr =
+        mlirStringAttrGet(context_, toMlirStringRef(op_name));
 
-  // Create op.
-  MlirOperation op = createMlirOperationAtEnd(
-      body_block_, "torch.operator", loc, output_types, input_values,
-      toMlirNamedAttribute("name", op_name_attr), general_attributes, regions);
+    // General attributes.
+    auto general_attributes = ImportGeneralAttributes(node.attribute());
+    if (llvm::failed(general_attributes)) {
+      return failure();
+    }
 
-  ImportRegions(node.attribute(), op);
+    uint32_t num_regions = CountRegions(node.attribute());
+    std::vector<MlirRegion> regions(FillVector<std::vector<MlirRegion>>(
+        num_regions, std::function<MlirRegion()>(mlirRegionCreate)));
+
+    custom_op = createMlirOperationAtEnd(
+        body_block_, "torch.operator", loc, output_types, input_values,
+        toMlirNamedAttribute("name", op_name_attr), *general_attributes,
+        regions);
+
+    if (failed(ImportRegions(node.attribute(), custom_op)))
+      return failure();
+  }
 
   // Record the result values.
-  for (int i = 0, e = output_types.size(); i < e; ++i) {
-    MlirValue result = mlirOperationGetResult(op, i);
-    std::string_view name = node.output(i);
+  for (auto output_it : llvm::enumerate(node.output())) {
+    MlirValue result = mlirOperationGetResult(custom_op, output_it.index());
+    std::string_view name = output_it.value();
     auto inserted = nv_map_.insert(std::make_pair(name, result));
     if (!inserted.second) {
       std::string msg = "Multiple nodes produced a value for '";
@@ -1217,82 +1249,116 @@ Status NodeImporter::ImportGeneralNode(const onnx::NodeProto &node) {
   return success();
 }
 
-MlirAttribute
-NodeImporter::ImportGeneralAttribute(const onnx::AttributeProto &onnx_attr) {
-  switch (onnx_attr.type()) {
-    // TODO: update
-  case onnx::AttributeProto::UNDEFINED:
-    SetError("'UNDEFINED' attribute type not supported");
-    return {nullptr};
-  case onnx::AttributeProto::FLOAT:
-    return mlirFloatAttrDoubleGet(context_, mlirF32TypeGet(context_),
-                                  onnx_attr.f());
-  case onnx::AttributeProto::INT:
-    return mlirIntegerAttrGet(mlirIntegerTypeSignedGet(context_, 64),
-                              onnx_attr.i());
-  case onnx::AttributeProto::STRING:
-    return mlirStringAttrGet(context_, toMlirStringRef(onnx_attr.s()));
-  case onnx::AttributeProto::TENSOR:
-    return cc_.ConvertTensorProtoToAttr(onnx_attr.t());
-  case onnx::AttributeProto::GRAPH:
-    SetError("'GRAPH' attribute type not supported on this node");
-    return {nullptr};
-  case onnx::AttributeProto::SPARSE_TENSOR:
-    SetError("'SPARSE_TENSOR' attribute type not supported on this node");
-    return {nullptr};
-  case onnx::AttributeProto::TYPE_PROTO:
-    SetError("'TYPE_PROTO' attribute type not supported on this node");
-    return {nullptr};
-  case onnx::AttributeProto::FLOATS: {
-    std::vector<MlirAttribute> attrs;
-    for (auto f : onnx_attr.floats())
-      attrs.push_back(
-          mlirFloatAttrDoubleGet(context_, mlirF32TypeGet(context_), f));
-    return mlirArrayAttrGet(context_, attrs.size(), attrs.data());
-  }
-  case onnx::AttributeProto::INTS: {
-    std::vector<MlirAttribute> attrs;
-    for (auto i : onnx_attr.ints())
-      attrs.push_back(
-          mlirIntegerAttrGet(mlirIntegerTypeSignedGet(context_, 64), i));
-    return mlirArrayAttrGet(context_, attrs.size(), attrs.data());
-  }
-  case onnx::AttributeProto::STRINGS: {
-    std::vector<MlirAttribute> attrs;
-    for (auto s : onnx_attr.strings())
-      attrs.push_back(mlirStringAttrGet(context_, toMlirStringRef(s)));
-    return mlirArrayAttrGet(context_, attrs.size(), attrs.data());
-  }
-  case onnx::AttributeProto::TENSORS: {
-    std::vector<MlirAttribute> attrs;
-    for (auto &t : onnx_attr.tensors()) {
-      MlirAttribute attr = cc_.ConvertTensorProtoToAttr(t);
-      if (mlirAttributeIsNull(attr))
-        return {nullptr};
-      attrs.push_back(attr);
-    }
-    return mlirArrayAttrGet(context_, attrs.size(), attrs.data());
-  }
-  case onnx::AttributeProto::GRAPHS:
-    SetError("'GRAPHS' attribute type not supported on this node");
-    return {nullptr};
-  case onnx::AttributeProto::SPARSE_TENSORS:
-    SetError("'SPARSE_TENSORS' attribute type not supported on this node");
-    return {nullptr};
-  case onnx::AttributeProto::TYPE_PROTOS:
-    SetError("'TYPE_PROTOS' attribute type not supported on this node");
-    return {nullptr};
-  }
+llvm::FailureOr<std::vector<std::pair<std::string, MlirAttribute>>>
+NodeImporter::ImportGeneralAttributes(const onnx::AttrList &attrs) {
+  std::vector<std::pair<std::string, MlirAttribute>> general_attributes;
 
-  std::string msg = "Unhandled ONNX attribute type code ";
-  msg.append(std::to_string(onnx_attr.type()));
-  msg.append(": ");
-  msg.append(onnx_attr.DebugString());
-  SetError(std::move(msg));
-  return {nullptr};
+  // Mapping of AttributeType code to one of:
+  //   std::nullopt: Ignore attribute and do not output to MLIR
+  //   llvm::failure(): Error if an attribute of this type is present
+  //   MlirAttribute: Return MLIR attribute from onnx attribute
+  auto handle_attribute = [this](const onnx::AttributeProto &onnx_attr)
+      -> llvm::FailureOr<std::optional<MlirAttribute>> {
+    onnx::AttributeProto_AttributeType type = onnx_attr.type();
+    switch (type) {
+    case onnx::AttributeProto::UNDEFINED:
+      return llvm::failure();
+    case onnx::AttributeProto::FLOAT:
+      return {mlirFloatAttrDoubleGet(context_, mlirF32TypeGet(context_),
+                                     onnx_attr.f())};
+    case onnx::AttributeProto::INT:
+      return {mlirIntegerAttrGet(mlirIntegerTypeSignedGet(context_, 64),
+                                 onnx_attr.i())};
+    case onnx::AttributeProto::STRING:
+      return {mlirStringAttrGet(context_, toMlirStringRef(onnx_attr.s()))};
+    case onnx::AttributeProto::TENSOR: {
+      MlirAttribute attr = cc_.ConvertTensorProtoToAttr(onnx_attr.t());
+      if (mlirAttributeIsNull(attr))
+        return llvm::failure();
+      return {attr};
+    }
+    case onnx::AttributeProto::GRAPH:
+      return {std::nullopt};
+    case onnx::AttributeProto::SPARSE_TENSOR:
+      return llvm::failure();
+    case onnx::AttributeProto::TYPE_PROTO:
+      return llvm::failure();
+    case onnx::AttributeProto::FLOATS: {
+      std::vector<MlirAttribute> attrs;
+      for (auto f : onnx_attr.floats())
+        attrs.push_back(
+            mlirFloatAttrDoubleGet(context_, mlirF32TypeGet(context_), f));
+      return {mlirArrayAttrGet(context_, attrs.size(), attrs.data())};
+    }
+    case onnx::AttributeProto::INTS: {
+      std::vector<MlirAttribute> attrs;
+      for (auto i : onnx_attr.ints())
+        attrs.push_back(
+            mlirIntegerAttrGet(mlirIntegerTypeSignedGet(context_, 64), i));
+      return {mlirArrayAttrGet(context_, attrs.size(), attrs.data())};
+    }
+    case onnx::AttributeProto::STRINGS: {
+      std::vector<MlirAttribute> attrs;
+      for (auto &s : onnx_attr.strings())
+        attrs.push_back(mlirStringAttrGet(context_, toMlirStringRef(s)));
+      return {mlirArrayAttrGet(context_, attrs.size(), attrs.data())};
+    }
+    case onnx::AttributeProto::TENSORS: {
+      std::vector<MlirAttribute> attrs;
+      for (auto &t : onnx_attr.tensors()) {
+        MlirAttribute attr = cc_.ConvertTensorProtoToAttr(t);
+        if (mlirAttributeIsNull(attr))
+          return llvm::failure();
+        attrs.push_back(attr);
+      }
+      return {mlirArrayAttrGet(context_, attrs.size(), attrs.data())};
+    }
+    case onnx::AttributeProto::GRAPHS:
+      return llvm::failure();
+    case onnx::AttributeProto::SPARSE_TENSORS:
+      return llvm::failure();
+    case onnx::AttributeProto::TYPE_PROTOS:
+      return llvm::failure();
+    }
+
+    std::string msg = "Unhandled ONNX attribute type code ";
+    msg.append(std::to_string(onnx_attr.type()));
+    msg.append(": ");
+    msg.append(onnx_attr.DebugString());
+    SetError(std::move(msg));
+    return llvm::failure();
+  };
+
+  for (const onnx::AttributeProto &onnx_attr : attrs) {
+    auto res = handle_attribute(onnx_attr);
+
+    if (llvm::failed(res)) {
+      // Active error.
+      // Try matching attribute type ID to name for a more descriptive error
+      // message.
+      auto attr_type = onnx_attr.type();
+      std::string attr_type_name =
+          onnx::AttributeProto_AttributeType_Name(attr_type);
+      if (attr_type_name.empty())
+        attr_type_name = "UNKNOWN";
+      SetError("ONNX importer does not support generic node attribute type " +
+               attr_type_name + " with ID " + std::to_string(attr_type) +
+               ". This likely means that this is a special node which requires "
+               "specific handling in the importer: " +
+               onnx_attr.DebugString());
+      return llvm::failure();
+    } else if (*res == std::nullopt) {
+      // Active skip
+      continue;
+    }
+
+    std::string full_name = "torch.onnx." + onnx_attr.name();
+    general_attributes.push_back(std::make_pair(full_name, **res));
+  }
+  return general_attributes;
 }
 
-void NodeImporter::ImportRegions(
+Status NodeImporter::ImportRegions(
     const google::protobuf::RepeatedPtrField<onnx::AttributeProto> &onnx_attrs,
     MlirOperation op) {
   llvm::SmallVector<std::reference_wrapper<const onnx::AttributeProto>>
@@ -1313,6 +1379,9 @@ void NodeImporter::ImportRegions(
                      return cc_.ConvertTypeProto(vi.has_type() ? &vi.type()
                                                                : nullptr);
                    });
+    if (std::any_of(block_types.begin(), block_types.end(),
+                    [](const MlirType &t) { return mlirTypeIsNull(t); }))
+      return failure();
     MlirRegion region = mlirOperationGetRegion(op, it.index());
     llvm::SmallVector<MlirLocation> block_locations(
         FillVector<llvm::SmallVector<MlirLocation>>(
@@ -1340,12 +1409,16 @@ void NodeImporter::ImportRegions(
     }
     importer.nv_map_.insert(nv_map_.begin(), nv_map_.end());
 
-    importer.ImportAll(/*func=*/false);
+    if (failed(importer.ImportAll(/*func=*/false)))
+      return failure();
   }
+  return success();
 }
 
 Status NodeImporter::ImportInitializer(const onnx::TensorProto &initializer,
                                        std::optional<std::string> extern_name) {
+  // If an explicitly specified name is given, use that; otherwise, pick
+  // up the name from the tensor proto itself
   std::string_view name = extern_name ? *extern_name : initializer.name();
   MlirLocation loc = mlirLocationNameGet(context_, toMlirStringRef(name),
                                          /*childLoc=*/{nullptr});
@@ -1375,76 +1448,6 @@ Status NodeImporter::ImportInitializer(const onnx::TensorProto &initializer,
   return success();
 }
 
-Status NodeImporter::GetImmediateShapeTensor(const std::string &name,
-                                             std::vector<int64_t> &shape) {
-  auto found_it = graph_info_.initializer_map().find(name);
-  if (found_it == graph_info_.initializer_map().end()) {
-    std::string message = "An immediate shape value for '";
-    message.append(name);
-    message.append("' was required but it is dynamically produced");
-    return SetError(std::move(message));
-  }
-
-  const onnx::TensorProto &tp = found_it->second;
-  shape.clear();
-
-  // Since this is being interpreted as a shape, we only support some limited
-  // types.
-  size_t raw_data_size;
-  switch (tp.data_type()) {
-  case onnx::TensorProto::DataType::TensorProto_DataType_INT32: {
-    auto *raw_data = graph_info_.GetOptionalRawData<int32_t>(tp, raw_data_size);
-    if (raw_data) {
-      std::copy(raw_data, raw_data + raw_data_size, std::back_inserter(shape));
-    } else {
-      for (auto v : tp.int32_data())
-        shape.push_back(v);
-    }
-    return success();
-  }
-  case onnx::TensorProto::DataType::TensorProto_DataType_INT64: {
-    auto *raw_data = graph_info_.GetOptionalRawData<int64_t>(tp, raw_data_size);
-    if (raw_data) {
-      std::copy(raw_data, raw_data + raw_data_size, std::back_inserter(shape));
-    } else {
-      for (auto v : tp.int64_data())
-        shape.push_back(v);
-    }
-    return success();
-  }
-  case onnx::TensorProto::DataType::TensorProto_DataType_UINT32: {
-    auto *raw_data =
-        graph_info_.GetOptionalRawData<uint32_t>(tp, raw_data_size);
-    if (raw_data) {
-      std::copy(raw_data, raw_data + raw_data_size, std::back_inserter(shape));
-    } else {
-      // Stupid special case: stored in uint64.
-      for (auto v : tp.uint64_data())
-        shape.push_back(v);
-    }
-    return success();
-  }
-  case onnx::TensorProto::DataType::TensorProto_DataType_UINT64: {
-    auto *raw_data =
-        graph_info_.GetOptionalRawData<uint64_t>(tp, raw_data_size);
-    if (raw_data) {
-      std::copy(raw_data, raw_data + raw_data_size, std::back_inserter(shape));
-    } else {
-      for (auto v : tp.uint64_data())
-        shape.push_back(v);
-    }
-    return success();
-  }
-  }
-
-  {
-    std::string message =
-        "An immediate shape value could not be converted from TensorProto: ";
-    message.append(tp.DebugString());
-    return SetError(std::move(message));
-  }
-}
-
 void NodeImporter::WriteModule(std::ostream *stream, bool assumeVerified) {
   MlirOpPrintingFlags flags = mlirOpPrintingFlagsCreate();
   if (assumeVerified) {
@@ -1460,13 +1463,11 @@ void NodeImporter::WriteModule(std::ostream *stream, bool assumeVerified) {
 }
 
 Status NodeImporter::ImportConstantNodeValueAttr(const onnx::NodeProto &node) {
-
   const onnx::AttributeProto *value_proto = GetValueProto(node);
 
   // Produce an initializer for the constant, so that it can be used in
   // combination with other ops, such as ConstantOfShape, requiring
   // constant input.
-
   if (value_proto->type() != onnx::AttributeProto_AttributeType_TENSOR) {
     return SetError("Constant node must have a tensor value attribute");
   }

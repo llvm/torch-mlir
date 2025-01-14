@@ -25,6 +25,10 @@
 #include <string_view>
 #include <unordered_map>
 
+namespace onnx {
+using AttrList = google::protobuf::RepeatedPtrField<AttributeProto>;
+}
+
 namespace torch_mlir_onnx {
 
 template <typename T> using opt_ref = std::optional<std::reference_wrapper<T>>;
@@ -117,20 +121,6 @@ public:
   /// an error will have been set.
   const onnx::TypeProto *FindTypeProtoForName(std::string_view name);
 
-  /// Attempts to access the raw or external data of the TensorProto. If the
-  /// the data is located in those positions, returns a types pointer to it
-  /// and stores the number of elements to `out_size`. Otherwise, nullptr is
-  /// returned (and no error is set).
-  template <typename ElementType>
-  const ElementType *GetOptionalRawData(const onnx::TensorProto &tp,
-                                        size_t &out_size) {
-    if (tp.has_raw_data()) {
-      out_size = tp.raw_data().size() / sizeof(ElementType);
-      return reinterpret_cast<const ElementType *>(tp.raw_data().data());
-    }
-    return nullptr;
-  }
-
   std::vector<const onnx::ValueInfoProto *> &inputs() { return inputs_; }
   std::unordered_map<std::string_view, const onnx::ValueInfoProto &> &
   input_map() {
@@ -196,8 +186,6 @@ private:
 };
 
 /// Caches per-context lookups of various things.
-// TODO: need exceptions instead of errors, to escape execution. Would also
-// avoid passing around ModelInfo/GraphInfo
 class ContextCache {
 public:
   ContextCache(ModelInfo &model_info, MlirContext context)
@@ -265,12 +253,11 @@ public:
 
   /// Get or create the MLIR function corresponding to an ONNX operator.
   /// Returns failure for ONNX operators that aren't functions.
-  llvm::FailureOr<MlirOperation>
-  GetOperatorFunction(std::string_view op_name, std::string_view op_domain,
-                      int opset_version, int ir_version,
-                      llvm::ArrayRef<const onnx::TypeProto> input_type_protos,
-                      llvm::ArrayRef<const onnx::TypeProto> output_type_protos,
-                      const onnx::NodeProto &caller_node, const Config &config);
+  llvm::FailureOr<std::optional<MlirOperation>> GetOperatorFunction(
+      std::string_view op_name, std::string_view op_domain, int opset_version,
+      int ir_version, llvm::ArrayRef<const onnx::TypeProto *> input_type_protos,
+      llvm::ArrayRef<const onnx::TypeProto *> output_type_protos,
+      const onnx::NodeProto &caller_node, const Config &config);
 
 private:
   ContextCache &cc_;
@@ -312,27 +299,26 @@ private:
   ImportInitializer(const onnx::TensorProto &initializer,
                     std::optional<std::string> extern_name = std::nullopt);
   Status ImportNode(const onnx::NodeProto &node);
-  MlirAttribute ImportGeneralAttribute(const onnx::AttributeProto &onnx_attr);
+  llvm::FailureOr<std::vector<std::pair<std::string, MlirAttribute>>>
+  ImportGeneralAttributes(const onnx::AttrList &attrs);
 
   // Special-form nodes.
   Status ImportGeneralNode(const onnx::NodeProto &node);
   Status ImportConstantNodeValueAttr(const onnx::NodeProto &node);
 
-  void
+  Status
   ImportRegions(const google::protobuf::RepeatedPtrField<onnx::AttributeProto>
                     &onnx_attrs,
                 MlirOperation op);
 
   MlirValue GetNone();
 
-  /// Looks for an initializer for `name` and attempts to treat it as a 1D
-  /// shape, filling `shape` if successful. Returns failure and sets an error
-  /// if not.
-  Status GetImmediateShapeTensor(const std::string &name,
-                                 std::vector<int64_t> &shape);
-
   Status SetError(std::string msg) {
     return graph_info_.model_info().SetError(std::move(msg));
+  }
+
+  const onnx::TypeProto *GetEmptyTypeProto() const {
+    return empty_type_proto_.get();
   }
 
   MlirContext context_;
@@ -343,6 +329,7 @@ private:
   MlirOperation parent_op_;
   MlirBlock body_block_;
   std::unordered_map<std::string_view, MlirValue> nv_map_;
+  std::unique_ptr<const onnx::TypeProto> empty_type_proto_;
 };
 
 class OnnxImporter {
