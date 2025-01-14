@@ -221,13 +221,14 @@ Value extractTorchScalar(
 Value getValueList(
     /*                    at */ Location givenLoc,
     /* movingForwardsThrough */ Value operand,
+    /*            startingAt */ int64_t givenIndex,
     /*                 using */ ConversionPatternRewriter &rewriter) {
   auto operandType = cast<Torch::BaseTensorType>(operand.getType());
   auto sizes = operandType.getSizes();
 
   SmallVector<Value> itemList;
 
-  for (int i = 2; i < sizes[0]; i++) {
+  for (int i = givenIndex; i < sizes[0]; i++) {
     Value item = extractTorchScalar(givenLoc, i, operand, rewriter);
     itemList.push_back(item);
   }
@@ -2819,15 +2820,19 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           modeStrValue =
               rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), modeStr);
         }
+
+        int64_t assumedForemostSpatialDim = 2;
+
         if (operands.size() < 4) {
           Value scaleOperand = operands[2];
-          scalesValueList =
-              getValueList(binder.getLoc(), scaleOperand, rewriter);
+          scalesValueList = getValueList(binder.getLoc(), scaleOperand,
+                                         assumedForemostSpatialDim, rewriter);
           sizesValueList = noneVal;
         } else {
           Value sizeOperand = operands[3];
           scalesValueList = noneVal;
-          sizesValueList = getValueList(binder.getLoc(), sizeOperand, rewriter);
+          sizesValueList = getValueList(binder.getLoc(), sizeOperand,
+                                        assumedForemostSpatialDim, rewriter);
         }
         if (isa<Torch::NoneType>(scalesValueList.getType()) &&
             isa<Torch::NoneType>(sizesValueList.getType())) {
@@ -3350,7 +3355,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(
               binder.op, "supports upto 3d upsampling only");
 
-        Value scalesValueList = getValueList(binder.getLoc(), scales, rewriter);
+        int64_t assumedForemostSpatialDim = 2;
+        Value scalesValueList = getValueList(
+            binder.getLoc(), scales, assumedForemostSpatialDim, rewriter);
         if (mode == "linear") {
           if (resultRank == 4)
             mode = "bilinear";
