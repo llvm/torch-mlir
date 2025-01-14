@@ -183,8 +183,8 @@ LogicalResult reduceOpImpl(OpBinder binder, ConversionPatternRewriter &rewriter,
 Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
                    Value operand) {
   SmallVector<Value> itemList;
-  auto sizes = dyn_cast<Torch::ValueTensorType>(operand.getType()).getSizes();
   auto operandType = cast<Torch::BaseTensorType>(operand.getType());
+  auto sizes = operandType.getSizes();
 
   SmallVector<int64_t> selectSizes;
   selectSizes.push_back(1);
