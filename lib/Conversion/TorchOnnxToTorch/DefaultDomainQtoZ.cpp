@@ -195,7 +195,6 @@ Type getTorchScalarType(
 
 Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
                    Value operand) {
-  SmallVector<Value> itemList;
   auto operandType = cast<Torch::BaseTensorType>(operand.getType());
   auto sizes = operandType.getSizes();
 
@@ -213,6 +212,8 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
   Value zero = rewriter.create<Torch::ConstantIntOp>(
       binder.getLoc(), rewriter.getType<Torch::IntType>(),
       rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+
+  SmallVector<Value> itemList;
 
   for (int i = 2; i < sizes[0]; i++) {
     Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
