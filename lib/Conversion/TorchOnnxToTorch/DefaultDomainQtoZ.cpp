@@ -2836,10 +2836,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               loc, proposedScaleFactors, assumedForemostSpatialDim, rewriter);
           supportedSizes = noneVal;
         } else if (numberOfOperands == 4) {
-          Value sizeOperand = operands[3];
+          Value proposedSizes = operands[3];
           supportedScaleFactors = noneVal;
           supportedSizes = createScalarSublist(
-              loc, sizeOperand, assumedForemostSpatialDim, rewriter);
+              loc, proposedSizes, assumedForemostSpatialDim, rewriter);
         } else
           return rewriter.notifyMatchFailure(binder.op, "unknown scaling mode");
 
