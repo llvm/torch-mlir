@@ -238,14 +238,14 @@ Value createTorchList(ConversionPatternRewriter &rewriter, Location givenLoc,
 Value getValueList(ConversionPatternRewriter &rewriter, Location givenLoc,
                    /* movingForwardsThrough */ Value operand,
                    /*            startingAt */ int64_t givenIndex) {
-  SmallVector<Value> itemList;
+  SmallVector<Value> runningTorchScalars;
 
   for (int i = givenIndex; i < lengthOfListIn(operand); i++) {
     Value item = createTorchScalarForElement(rewriter, givenLoc, operand, i);
-    itemList.push_back(item);
+    runningTorchScalars.push_back(item);
   }
 
-  return createTorchList(rewriter, givenLoc, itemList);
+  return createTorchList(rewriter, givenLoc, runningTorchScalars);
 }
 } // namespace
 
