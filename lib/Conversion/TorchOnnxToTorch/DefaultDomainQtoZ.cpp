@@ -235,11 +235,10 @@ Value createTorchList(ConversionPatternRewriter &rewriter, Location givenLoc,
       givenLoc, someTorchListType, givenTorchElements);
 }
 
-Value createScalarSublist(
-    /*                    at */ Location givenLoc,
-    /* movingForwardsThrough */ Value given1DTensor,
-    /*            startingAt */ int64_t givenIndex,
-    /*                 using */ ConversionPatternRewriter &rewriter) {
+Value createScalarSublist(ConversionPatternRewriter &rewriter,
+                          Location givenLoc,
+                          /* movingForwardsThrough */ Value given1DTensor,
+                          /*            startingAt */ int64_t givenIndex) {
   SmallVector<Value> runningScalarSublist;
 
   for (int indexOfEachScalar = givenIndex;
@@ -2898,7 +2897,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           };
 
           supportedScaleFactors = createScalarSublist(
-              loc, proposedScaleFactors, assumedForemostSpatialDim, rewriter);
+              rewriter, loc, proposedScaleFactors, assumedForemostSpatialDim);
           supportedSizes = noneVal;
         } else if (numberOfOperands == 4) {
           Value proposedSizes = operands[3];
@@ -2928,8 +2927,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           };
 
           supportedScaleFactors = noneVal;
-          supportedSizes = createScalarSublist(
-              loc, proposedSizes, assumedForemostSpatialDim, rewriter);
+          supportedSizes = createScalarSublist(rewriter, loc, proposedSizes,
+                                               assumedForemostSpatialDim);
         } else
           return rewriter.notifyMatchFailure(binder.op, "unknown scaling mode");
 
@@ -3452,7 +3451,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         int64_t assumedForemostSpatialDim = 2;
         Value scalesValueList = createScalarSublist(
-            binder.getLoc(), scales, assumedForemostSpatialDim, rewriter);
+            rewriter, binder.getLoc(), scales, assumedForemostSpatialDim);
         if (mode == "linear") {
           if (resultRank == 4)
             mode = "bilinear";
