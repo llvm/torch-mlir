@@ -2826,7 +2826,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         int64_t assumedForemostSpatialDim = 2;
 
         Value scalesValueList;
-        Value sizesValueList;
+        Value supportedSizes;
 
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(loc);
 
@@ -2834,18 +2834,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           Value scaleOperand = operands[2];
           scalesValueList = createScalarSublist(
               loc, scaleOperand, assumedForemostSpatialDim, rewriter);
-          sizesValueList = noneVal;
+          supportedSizes = noneVal;
         } else if (numberOfOperands == 4) {
           Value sizeOperand = operands[3];
           scalesValueList = noneVal;
-          sizesValueList = createScalarSublist(
+          supportedSizes = createScalarSublist(
               loc, sizeOperand, assumedForemostSpatialDim, rewriter);
         } else
           return rewriter.notifyMatchFailure(binder.op, "unknown scaling mode");
 
         rewriter
             .replaceOpWithNewOp<Torch::Aten__InterpolateSizeListScaleListOp>(
-                binder.op, outputTensorType, inputTensor, sizesValueList,
+                binder.op, outputTensorType, inputTensor, supportedSizes,
                 scalesValueList, modeStrValue,
                 /* AnyTorchOptionalBoolType:$align_corners */ alignCorners,
                 /* AnyTorchOptionalBoolType:$recompute_scale_factor */ noneVal,
