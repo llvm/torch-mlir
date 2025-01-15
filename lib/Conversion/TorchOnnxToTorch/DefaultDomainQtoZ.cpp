@@ -184,8 +184,7 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
                    Value operand) {
   SmallVector<Value> itemList;
   auto sizes = dyn_cast<Torch::ValueTensorType>(operand.getType()).getSizes();
-  Torch::BaseTensorType operandType =
-      cast<Torch::BaseTensorType>(operand.getType());
+  auto operandType = cast<Torch::BaseTensorType>(operand.getType());
 
   SmallVector<int64_t> selectSizes;
   selectSizes.push_back(1);
