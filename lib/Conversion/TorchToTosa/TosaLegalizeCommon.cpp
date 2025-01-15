@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
+#include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 
@@ -566,11 +567,12 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
 
     // [0] -> [0,0,0]
     SmallVector<int64_t, 1> tileShape({W}); // {3}
+    auto tileOpMultiples =
+        tosa::getTosaConstShape(rewriter, op->getLoc(), tileShape);
     auto tosaFillValuesTileOp = tosa::CreateOpAndInfer<tosa::TileOp>(
         rewriter, op->getLoc(),
         GetTypeFromTensorShape(tileShape, fillValuesType.getElementType()),
-        tosaFillValuesOneReshapeOp.getResult(),
-        rewriter.getDenseI64ArrayAttr(tileShape));
+        tosaFillValuesOneReshapeOp.getResult(), tileOpMultiples);
 
     // [0,0,0] -> [[0,0,0]]
     SmallVector<int64_t, 2> newTosaFillValuesShape({N, W}); // {1,3}

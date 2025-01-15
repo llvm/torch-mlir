@@ -500,5 +500,17 @@ LogicalResult getConvOpsAccType(PatternRewriter &rewriter,
   return success();
 }
 
+// Temporary function to get TOSA const shape
+// TODO: Remove this function when getTosaConstShape is available in
+// externals/llvm-project/mlir/include/mlir/Dialect/Tosa/Utils/ConversionUtils.h
+Value getTosaConstShape(PatternRewriter &rewriter, Location loc,
+                        llvm::ArrayRef<int64_t> shape) {
+  auto attr = rewriter.getIndexTensorAttr(shape);
+  auto type = mlir::tosa::shapeType::get(rewriter.getContext(), shape.size());
+  mlir::Operation *mlir_op =
+      rewriter.create<tosa::ConstShapeOp>(loc, type, attr);
+  return mlir_op->getResult(0);
+}
+
 } // namespace tosa
 } // namespace mlir
