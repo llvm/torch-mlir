@@ -2731,6 +2731,42 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                           "round_prefer_floor") ||
             binder.f32FloatAttr(cubic_coeff_a, "cubic_coeff_a", -0.75))
           return failure();
+
+        int64_t const /*  */ batchDim = 0;
+        int64_t const /**/ channelDim = 1;
+
+        SmallVector<int64_t> nonResizableDims{
+            batchDim,
+            channelDim,
+        };
+
+        Value inputTensor = operands[0];
+        auto inputTensorType =
+            cast<Torch::BaseTensorType>(inputTensor.getType());
+        auto sizesOfInputTensor = inputTensorType.getSizes();
+        auto sizesOfOutputTensor = outputTensorType.getSizes();
+
+        auto unknownSize = Torch::kUnknownSize;
+
+        // Compile-time check for dimensions of static size
+        for (auto &eachDim : nonResizableDims) {
+          auto eachSizeOfInputTensor = sizesOfInputTensor[eachDim];
+          auto eachSizeOfOutputTensor = sizesOfOutputTensor[eachDim];
+
+          if (eachSizeOfInputTensor == unknownSize ||
+              eachSizeOfOutputTensor == unknownSize)
+            continue;
+          if (eachSizeOfInputTensor == eachSizeOfOutputTensor)
+            continue;
+
+          auto resizingIntentErrorMessage =
+              "unsupported: non-trivial intent to resize dimension: " +
+              std::to_string(eachDim);
+
+          return rewriter.notifyMatchFailure(binder.op,
+                                             resizingIntentErrorMessage);
+        };
+
         if (antialias != 0) {
           return rewriter.notifyMatchFailure(
               binder.op,
@@ -2778,10 +2814,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           modeStrValue = rewriter.create<Torch::ConstantStrOp>(loc, modeStr);
         }
 
-        Value inputTensor = operands[0];
-        auto inputTensorType =
-            cast<Torch::BaseTensorType>(inputTensor.getType());
-        auto sizesOfInputTensor = inputTensorType.getSizes();
         auto rankOfInputTensor = sizesOfInputTensor.size();
 
         // supported modes:
@@ -2823,7 +2855,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         auto numberOfOperands = operands.size();
 
-        int64_t assumedForemostSpatialDim = 2;
+        Type boolType = rewriter.getType<Torch::BoolType>();
+
+        int64_t assumedForemostSpatialDim = 1 + nonResizableDims.back();
 
         Value supportedScaleFactors;
         Value supportedSizes;
@@ -2832,11 +2866,58 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         if (numberOfOperands == 3) {
           Value proposedScaleFactors = operands[2];
+
+          Value scaleIdentity = rewriter.create<Torch::ConstantFloatOp>(
+              loc, rewriter.getF64FloatAttr(1.0));
+
+          // run-time scale factor check for dynamic sizes
+          for (auto &eachDim : nonResizableDims) {
+            Value eachProposedScaleFactor = extractTorchScalar(
+                loc, eachDim, proposedScaleFactors, rewriter);
+
+            Value eachScaleFactorIsIdentity =
+                rewriter.create<Torch::AtenEqFloatOp>(
+                    loc, boolType, eachProposedScaleFactor, scaleIdentity);
+
+            auto errorMessageForEachDim =
+                "Unsupported: non-trivial scale factor for dimension " +
+                std::to_string(eachDim);
+
+            rewriter.create<Torch::RuntimeAssertOp>(
+                loc, eachScaleFactorIsIdentity,
+                rewriter.getStringAttr(errorMessageForEachDim));
+          };
+
           supportedScaleFactors = createScalarSublist(
               loc, proposedScaleFactors, assumedForemostSpatialDim, rewriter);
           supportedSizes = noneVal;
         } else if (numberOfOperands == 4) {
           Value proposedSizes = operands[3];
+
+          // run-time target size check for dynamic sizes
+          for (auto &eachDimAsInt : nonResizableDims) {
+            Value eachDimAsValue =
+                rewriter.create<Torch::ConstantIntOp>(loc, eachDimAsInt);
+
+            Value eachSizeOfInputTensor = rewriter.create<Torch::AtenSizeIntOp>(
+                loc, inputTensor, eachDimAsValue);
+
+            Value eachProposedSize =
+                extractTorchScalar(loc, eachDimAsInt, proposedSizes, rewriter);
+
+            Value eachProposedSizeIsTrivial =
+                rewriter.create<Torch::AtenEqIntOp>(
+                    loc, boolType, eachProposedSize, eachSizeOfInputTensor);
+
+            auto errorMessageForEachDim =
+                "Unsupported: non-trivial resizing of dimension " +
+                std::to_string(eachDimAsInt);
+
+            rewriter.create<Torch::RuntimeAssertOp>(
+                loc, eachProposedSizeIsTrivial,
+                rewriter.getStringAttr(errorMessageForEachDim));
+          };
+
           supportedScaleFactors = noneVal;
           supportedSizes = createScalarSublist(
               loc, proposedSizes, assumedForemostSpatialDim, rewriter);
