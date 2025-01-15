@@ -29,10 +29,6 @@
 #include <cstdio>
 #include <functional>
 
-// TODO: check all map emplace(): they are non-destructive, contrarily to python
-// TODO: make sure error flow is correct and reflects behavior of python
-// exceptions
-
 namespace std {
 template <> struct hash<MlirType> {
   size_t operator()(const MlirType &x) const {
@@ -319,9 +315,17 @@ Status ModelInfo::Initialize() {
 Status GraphInfo::Initialize() {
   // Initialize look up tables.
   for (const onnx::TensorProto &t : graph_proto_.initializer()) {
+    if (initializer_map_.find(t.name()) != initializer_map_.end()) {
+      return model_info_.SetError("ONNX initializer name already used: " +
+                                  t.name());
+    }
     initializer_map_.emplace(t.name(), t);
   }
   for (const onnx::ValueInfoProto &v : graph_proto_.value_info()) {
+    if (value_info_map_.find(v.name()) != value_info_map_.end()) {
+      return model_info_.SetError("ONNX value_info name already used: " +
+                                  v.name());
+    }
     value_info_map_.emplace(v.name(), v);
   }
   for (const onnx::ValueInfoProto &v : graph_proto_.input()) {
@@ -365,9 +369,17 @@ Status GraphInfo::Initialize() {
 
   // Index the inputs and outputs.
   for (auto *input : inputs_) {
+    if (input_map_.find(input->name()) != input_map_.end()) {
+      return model_info_.SetError("ONNX input name already used: " +
+                                  input->name());
+    }
     input_map_.emplace(input->name(), *input);
   }
   for (auto *output : outputs_) {
+    if (output_map_.find(output->name()) != output_map_.end()) {
+      return model_info_.SetError("ONNX output name already used: " +
+                                  output->name());
+    }
     output_map_.emplace(output->name(), *output);
   }
   return success();
@@ -1405,9 +1417,21 @@ Status NodeImporter::ImportRegions(
            block_names.size());
     for (auto name_it : llvm::enumerate(block_names)) {
       MlirValue input_value = mlirBlockGetArgument(block, name_it.index());
-      importer.nv_map_.emplace(name_it.value(), input_value);
+      auto inserted = importer.nv_map_.emplace(name_it.value(), input_value);
+      if (!inserted.second) {
+        std::string msg = "Block argument name collision: '";
+        msg.append(name_it.value());
+        return SetError(std::move(msg));
+      }
     }
-    importer.nv_map_.insert(nv_map_.begin(), nv_map_.end());
+    for (const auto &pair : nv_map_) {
+      auto inserted = importer.nv_map_.insert(pair);
+      if (!inserted.second) {
+        std::string msg = "Outer value collision in block: '";
+        msg.append(pair.first);
+        return SetError(std::move(msg));
+      }
+    }
 
     if (failed(importer.ImportAll(/*func=*/false)))
       return failure();
@@ -1477,6 +1501,11 @@ Status NodeImporter::ImportConstantNodeValueAttr(const onnx::NodeProto &node) {
   const std::string &const_name = node.output(0);
   if (failed(ImportInitializer(value_proto->t(), const_name)))
     return failure();
+
+  if (graph_info_.initializer_map().find(const_name) !=
+      graph_info_.initializer_map().end()) {
+    return SetError("ONNX initializer name already present: " + const_name);
+  }
   graph_info_.initializer_map().emplace(const_name, value_proto->t());
   return success();
 }
