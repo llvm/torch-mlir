@@ -2825,19 +2825,19 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         int64_t assumedForemostSpatialDim = 2;
 
-        Value scalesValueList;
+        Value supportedScaleFactors;
         Value supportedSizes;
 
         Value noneVal = rewriter.create<Torch::ConstantNoneOp>(loc);
 
         if (numberOfOperands == 3) {
           Value scaleOperand = operands[2];
-          scalesValueList = createScalarSublist(
+          supportedScaleFactors = createScalarSublist(
               loc, scaleOperand, assumedForemostSpatialDim, rewriter);
           supportedSizes = noneVal;
         } else if (numberOfOperands == 4) {
           Value sizeOperand = operands[3];
-          scalesValueList = noneVal;
+          supportedScaleFactors = noneVal;
           supportedSizes = createScalarSublist(
               loc, sizeOperand, assumedForemostSpatialDim, rewriter);
         } else
@@ -2846,7 +2846,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         rewriter
             .replaceOpWithNewOp<Torch::Aten__InterpolateSizeListScaleListOp>(
                 binder.op, outputTensorType, inputTensor, supportedSizes,
-                scalesValueList, modeStrValue,
+                supportedScaleFactors, modeStrValue,
                 /* AnyTorchOptionalBoolType:$align_corners */ alignCorners,
                 /* AnyTorchOptionalBoolType:$recompute_scale_factor */ noneVal,
                 /*Torch_BoolType:$antialias*/ cstFalse);
