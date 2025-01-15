@@ -56,8 +56,11 @@ std::string SanitizeNameAsIdentifier(std::string_view in) {
     out.append("_");
   }
   out.append(in);
+
+  // Remove characters that are invalid in MLIR identifier names.
+  // https://mlir.llvm.org/docs/LangRef/#identifiers-and-keywords
   for (char &c : out) {
-    if (c == ':' || c == '/')
+    if (!std::isalnum(c) && c != '.')
       c = '_';
   }
   return out;
