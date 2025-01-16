@@ -6389,12 +6389,7 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
     translatePadsList.push_back(highPadding[i]);
   }
 
-  DenseElementsAttr paddingAttr = DenseIntElementsAttr::get(
-      RankedTensorType::get({2 * rank}, rewriter.getI64Type()),
-      translatePadsList);
-
-  Value padsList1 = rewriter.create<mlir::tosa::ConstOp>(
-      loc, paddingAttr.getType(), paddingAttr);
+  Value padsList1 = tosa::getTosaConstShape(rewriter, loc, translatePadsList);
 
   Value padValue = adaptor.getValue();
   Operation *padOp = padValue.getDefiningOp();

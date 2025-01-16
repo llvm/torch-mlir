@@ -3188,9 +3188,9 @@ func.func @torch.aten.expm1$int(%arg0: !torch.vtensor<[3,4],si32>) -> !torch.vte
 // CHECK:           %[[VAL_3:.*]] = torch.constant.int 0
 // CHECK:           %[[VAL_4:.*]] = torch.constant.int 1
 // CHECK:           %[[VAL_5:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_6:.*]] = "tosa.const"() <{value = dense<[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]> : tensor<12xi64>}> : () -> tensor<12xi64>
+// CHECK:           %[[VAL_6:.*]] = tosa.const_shape  {value = dense<[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]> : tensor<12xindex>} : () -> !tosa.shape<12>
 // CHECK:           %[[VAL_7:.*]] = "tosa.const"() <{value = dense<0xFF800000> : tensor<f32>}> : () -> tensor<f32>
-// CHECK:           %[[VAL_8:.*]] = tosa.pad %[[VAL_1]], %[[VAL_6]], %[[VAL_7]] : (tensor<1x1x20x20x4x4xf32>, tensor<12xi64>, tensor<f32>) -> tensor<1x1x20x20x4x5xf32>
+// CHECK:           %[[VAL_8:.*]] = tosa.pad %[[VAL_1]], %[[VAL_6]], %[[VAL_7]] : (tensor<1x1x20x20x4x4xf32>, !tosa.shape<12>, tensor<f32>) -> tensor<1x1x20x20x4x5xf32>
 // CHECK:           %[[VAL_9:.*]] = torch_c.from_builtin_tensor %[[VAL_8]] : tensor<1x1x20x20x4x5xf32> -> !torch.vtensor<[1,1,20,20,4,5],f32>
 // CHECK:           return %[[VAL_9]] : !torch.vtensor<[1,1,20,20,4,5],f32>
 // CHECK:         }
