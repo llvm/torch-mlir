@@ -25,6 +25,8 @@ add_llvm_executable(
     OnnxImporter.cpp
 )
 
+set_target_properties(torch-mlir-import-onnx PROPERTIES CXX_STANDARD 20)
+
 target_compile_definitions(torch-mlir-import-onnx PRIVATE ONNX_NO_EXCEPTIONS)
 
 # Supress compiler warnings from onnx headers
