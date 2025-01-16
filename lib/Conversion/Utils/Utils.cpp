@@ -335,6 +335,10 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
 
   if (auto dtypeFloat = dyn_cast<mlir::FloatType>(dtype)) {
     if (auto scalarFloat = dyn_cast<mlir::FloatType>(scalarType)) {
+      if (scalarFloat.getWidth() == 16 && dtypeFloat.getWidth() == 16) {
+        auto scalarF32 = b.create<arith::ExtFOp>(loc, b.getF32Type(), scalar);
+        return b.create<arith::TruncFOp>(loc, dtype, scalarF32);
+      }
       if (scalarFloat.getWidth() > dtypeFloat.getWidth())
         return b.create<arith::TruncFOp>(loc, dtype, scalar);
       // Only scalarFloat width < dtypeFloat width can reach here.
