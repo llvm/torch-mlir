@@ -23,20 +23,10 @@ jobs:
       matrix:
         torch-version: [nightly, stable]
     name: Build and Test (Linux, torch-${{ matrix.torch-version }}, assertions)
-    runs-on: torch-mlir-cpubuilder-manylinux-x86-64
+    runs-on: torch-mlir-cpubuilder-linux-x86-64-scale
     env:
       CACHE_DIR: ${{ github.workspace }}/.container-cache
     steps:
-      - name: Configure local git mirrors
-        run: |
-          # Our stock runners have access to certain local git caches. If these
-          # files are available, it will prime the cache and configure git to
-          # use them. Practically, this eliminates network/latency for cloning
-          # llvm.
-          if [[ -x /gitmirror/scripts/trigger_update_mirrors.sh ]]; then
-            /gitmirror/scripts/trigger_update_mirrors.sh
-            /gitmirror/scripts/git_config.sh
-          fi
       - name: "Checking out repository"
         uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
         with:
@@ -50,10 +40,24 @@ jobs:
           restore-keys: |
             build-test-cpp-asserts-manylinux-${{ matrix.torch-version }}-v2-
 
+      - name: "Setting up Python"
+        run: |
+          sudo apt update
+          sudo apt install software-properties-common -y
+          sudo add-apt-repository ppa:deadsnakes/ppa -y
+          sudo apt install python3.11 python3-pip -y
+          sudo apt-get install python3.11-dev python3.11-venv build-essential -y
+
       - name: Install python deps (torch-${{ matrix.torch-version }})
         run: |
           export cache_dir="${{ env.CACHE_DIR }}"
           bash build_tools/ci/install_python_deps.sh ${{ matrix.torch-version }}
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@53911442209d5c18de8a31615e0923161e435875 # v1.2.16
+        with:
+          key: ${{ github.job }}-${{ matrix.torch-version }}
+          save: ${{ needs.setup.outputs.write-caches == 1 }}
 
       - name: Build project
         run: |

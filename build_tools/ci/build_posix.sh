@@ -20,7 +20,7 @@ echo "Caching to ${cache_dir}"
 mkdir -p "${cache_dir}/ccache"
 mkdir -p "${cache_dir}/pip"
 
-python="$(which python)"
+python="$(which python3)"
 echo "Using python: $python"
 
 export CMAKE_TOOLCHAIN_FILE="$this_dir/linux_default_toolchain.cmake"
@@ -40,7 +40,7 @@ echo "::group::CMake configure"
 cmake -S "$repo_root/externals/llvm-project/llvm" -B "$build_dir" \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
-  -DPython3_EXECUTABLE="$(which python)" \
+  -DPython3_EXECUTABLE="$(which python3)" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DTORCH_MLIR_ENABLE_WERROR_FLAG=ON \
   -DCMAKE_INSTALL_PREFIX="$install_dir" \
