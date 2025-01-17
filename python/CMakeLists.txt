@@ -53,6 +53,7 @@ declare_mlir_python_sources(TorchMLIRPythonSources.Tools
   ADD_TO_PARENT TorchMLIRPythonSources
   SOURCES
     tools/import_onnx/__main__.py
+    tools/opt/__main__.py
 )
 
 declare_mlir_python_sources(TorchMLIRSiteInitialize
@@ -123,3 +124,5 @@ add_mlir_python_modules(TorchMLIRPythonModules
   COMMON_CAPI_LINK_LIBS
     TorchMLIRAggregateCAPI
 )
+
+add_dependencies(TorchMLIRPythonModules torch-mlir-opt)
