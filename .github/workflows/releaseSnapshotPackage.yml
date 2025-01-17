@@ -38,7 +38,7 @@ jobs:
           git tag "${tag_name}"
 
       - name: Pushing changes
-        uses: ad-m/github-push-action@v0.6.0
+        uses: ad-m/github-push-action@v0.8.0
         with:
           github_token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
           branch: main
@@ -46,7 +46,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: ncipollo/release-action@2c591bcc8ecdcd2db72b97d6147f871fcd833ba5 # v1.14.0
+        uses: ncipollo/release-action@cdcc88a9acf3ca41c16c37bb7d21b9ad48560d87 # v1.15.0
         with:
           tag: ${{ env.tag_name }}
           name: torch-mlir snapshot ${{ env.tag_name }}
