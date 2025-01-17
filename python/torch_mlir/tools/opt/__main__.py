@@ -3,6 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
+"""Torch-MLIR modular optimizer driver
+
+Typically, when installed from a wheel, this can be invoked as:
+
+  torch-mlir-opt [options] <input file>
+
+To see available passes, dialects, and options, run:
+
+  torch-mlir-opt --help
+"""
 import os
 import platform
 import subprocess
