@@ -272,7 +272,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "torch-mlir-import-onnx = torch_mlir.tools.import_onnx:_cli_main",
+            "torch-mlir-import-onnx = torch_mlir.tools.import_onnx.__main__:_cli_main",
             "torch-mlir-opt = torch_mlir.tools.opt.__main__:main",
         ],
     },
