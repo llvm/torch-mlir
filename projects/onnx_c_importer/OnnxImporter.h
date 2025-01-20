@@ -18,10 +18,10 @@
 // this kind of style.
 
 #include "mlir-c/IR.h"
-#include "mlir/Support/LLVM.h"
 #include "onnx/onnx_pb.h"
 
 #include <optional>
+#include <span>
 #include <string_view>
 #include <unordered_map>
 
@@ -99,10 +99,51 @@ private:
   bool is_success_;
 };
 
-static inline Status success() { return Status::success(); }
-static inline Status failure() { return Status::failure(); }
 static inline bool succeeded(Status status) { return status.is_success(); }
 static inline bool failed(Status status) { return !status.is_success(); }
+
+// (inspired by std::nullopt_t)
+struct FailureT {
+  enum class _Construct { _Token };
+
+  explicit constexpr FailureT(_Construct) noexcept {}
+
+  operator Status() const { return Status::failure(); }
+};
+
+inline constexpr FailureT failure{FailureT::_Construct::_Token};
+
+// (inspired by std::nullopt_t)
+struct SuccessT {
+  enum class _Construct { _Token };
+
+  explicit constexpr SuccessT(_Construct) noexcept {}
+
+  operator Status() const { return Status::success(); }
+};
+
+inline constexpr SuccessT success{SuccessT::_Construct::_Token};
+
+// (see llvm::FailureOr)
+template <typename T> class [[nodiscard]] FailureOr : public std::optional<T> {
+public:
+  FailureOr(FailureT) : std::optional<T>() {}
+  FailureOr() : FailureOr(failure) {}
+  FailureOr(T &&Y) : std::optional<T>(std::forward<T>(Y)) {}
+  FailureOr(const T &Y) : std::optional<T>(Y) {}
+  template <typename U,
+            std::enable_if_t<std::is_constructible<T, U>::value> * = nullptr>
+  FailureOr(const FailureOr<U> &Other)
+      : std::optional<T>(failed(Other) ? std::optional<T>()
+                                       : std::optional<T>(*Other)) {}
+
+  operator Status() const { return Status::success(has_value()); }
+
+private:
+  /// Hide the bool conversion as it easily creates confusion.
+  using std::optional<T>::operator bool;
+  using std::optional<T>::has_value;
+};
 
 // Accounting for a GraphProto.
 class GraphInfo {
@@ -172,7 +213,7 @@ public:
 
   Status SetError(std::string msg) {
     error_message_ = std::move(msg);
-    return failure();
+    return failure;
   }
 
   void DebugDumpProto();
@@ -253,10 +294,10 @@ public:
 
   /// Get or create the MLIR function corresponding to an ONNX operator.
   /// Returns failure for ONNX operators that aren't functions.
-  llvm::FailureOr<std::optional<MlirOperation>> GetOperatorFunction(
+  FailureOr<std::optional<MlirOperation>> GetOperatorFunction(
       std::string_view op_name, std::string_view op_domain, int opset_version,
-      int ir_version, llvm::ArrayRef<const onnx::TypeProto *> input_type_protos,
-      llvm::ArrayRef<const onnx::TypeProto *> output_type_protos,
+      int ir_version, std::span<const onnx::TypeProto *const> input_type_protos,
+      std::span<const onnx::TypeProto *const> output_type_protos,
       const onnx::NodeProto &caller_node, const Config &config);
 
 private:
@@ -283,10 +324,11 @@ public:
 
   /// Called after construction to define the function in the module. Must be
   /// called prior to importing nodes.
-  static llvm::FailureOr<NodeImporter>
-  DefineFunction(GraphInfo &graphInfo, MlirOperation moduleOp,
-                 ContextCache &contextCache, ModuleCache &moduleCache,
-                 bool isPrivate = false);
+  static FailureOr<NodeImporter> DefineFunction(GraphInfo &graphInfo,
+                                                MlirOperation moduleOp,
+                                                ContextCache &contextCache,
+                                                ModuleCache &moduleCache,
+                                                bool isPrivate = false);
 
   /// Imports all nodes topologically.
   Status ImportAll(bool func = true);
@@ -299,7 +341,7 @@ private:
   ImportInitializer(const onnx::TensorProto &initializer,
                     std::optional<std::string> extern_name = std::nullopt);
   Status ImportNode(const onnx::NodeProto &node);
-  llvm::FailureOr<std::vector<std::pair<std::string, MlirAttribute>>>
+  FailureOr<std::vector<std::pair<std::string, MlirAttribute>>>
   ImportGeneralAttributes(const onnx::AttrList &attrs);
 
   // Special-form nodes.
