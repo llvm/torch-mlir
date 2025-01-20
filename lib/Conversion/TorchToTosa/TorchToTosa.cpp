@@ -4019,7 +4019,7 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
 
   auto index = adaptor.getIndex();
   auto indexType = dyn_cast<RankedTensorType>(index.getType());
-  auto indexShape = indexType.getShape();
+  auto indexShape = SmallVector<int64_t>(indexType.getShape());
 
   if (!indexType)
     return rewriter.notifyMatchFailure(
