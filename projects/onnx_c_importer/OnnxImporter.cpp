@@ -43,9 +43,19 @@ inline std::vector<TOut> elementwiseCast(std::span<TIn> arr) {
   return std::vector<TOut>(arr.begin(), arr.end());
 }
 
+bool IsIdentifer(std::string_view s) {
+  bool res = true;
+  res &= !s.empty();
+  res &= std::all_of(s.begin(), s.end(), [](unsigned char c) {
+    return std::isalnum(c) || c == '_';
+  });
+  res &= !std::isdigit(static_cast<unsigned char>(s[0]));
+  return res;
+}
+
 std::string SanitizeNameAsIdentifier(std::string_view in) {
   std::string out;
-  if (!in.empty() && !std::isalnum(in.front())) {
+  if (!IsIdentifer(in)) {
     out.append("_");
   }
   out.append(in);
@@ -1041,7 +1051,7 @@ FailureOr<NodeImporter> NodeImporter::DefineFunction(GraphInfo &graphInfo,
 
   // Create func.func.
   MlirOperation funcOp;
-  if (isPrivate) {
+  if (!isPrivate) {
     funcOp = createMlirOperationAtEnd(
         moduleBody, "func.func", defaultLoc, mlirRegionCreate(),
         toMlirNamedAttribute("function_type", mlirTypeAttrGet(ftype)),
