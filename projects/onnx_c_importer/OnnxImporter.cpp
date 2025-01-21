@@ -19,13 +19,10 @@
 #ifndef NDEBUG
 #include "onnx/checker.h"
 #endif
-// TODO remove!
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/Sequence.h"
-#include "llvm/ADT/StringExtras.h"
 
 #include <cstdio>
 #include <functional>
+#include <numeric>
 #include <type_traits>
 
 namespace std {
@@ -191,21 +188,41 @@ const onnx::AttributeProto *GetValueProto(const onnx::NodeProto &node) {
 uint32_t
 CountRegions(const google::protobuf::RepeatedPtrField<onnx::AttributeProto>
                  &onnx_attrs) {
-  llvm::SmallVector<onnx::AttributeProto::AttributeType> types;
+  std::vector<onnx::AttributeProto::AttributeType> types;
+  types.reserve(onnx_attrs.size());
   std::transform(onnx_attrs.cbegin(), onnx_attrs.cend(), types.begin(),
                  [](const onnx::AttributeProto &attr) { return attr.type(); });
   return std::count(types.begin(), types.end(), onnx::AttributeProto::GRAPH);
 }
 
-template <typename V, typename T = typename V::value_type>
-V FillVector(uint32_t size, std::function<T()> &&gen_fun) {
-  V res;
+template <typename T>
+std::vector<T> FillVector(uint32_t size, std::function<T()> &&gen_fun) {
+  std::vector<T> res;
   res.reserve(size);
   // TODO check!!
-  for ([[maybe_unused]] uint32_t idx : llvm::seq(size)) {
+  for ([[maybe_unused]] uint32_t idx = 0; idx < size; ++idx) {
     res.push_back(gen_fun());
   }
   return res;
+}
+
+auto StringJoin(const auto &range, const auto &sep) {
+  if (range.empty())
+    return std::string();
+
+  return std::accumulate(
+      next(begin(range)), end(range), range[0],
+      [&sep](auto result, const auto &value) { return result + sep + value; });
+}
+
+size_t HashCombineRange(const auto &range) {
+  if (range.empty())
+    return 0;
+  return std::accumulate(
+      next(begin(range)), end(range), range[0], [](auto res, const auto &val) {
+        return res ^ std::hash<std::remove_const_t<
+                         std::remove_reference_t<decltype(val)>>>{}(val);
+      });
 }
 
 FailureOr<onnx::FunctionProto> GetCDFunctionWithOpsetVersion(
@@ -249,17 +266,17 @@ onnx::ModelProto SpecializeFunctionAndCreateModel(
   modelProto.set_ir_version(ir_version);
   onnx::GraphProto &graphProto = *modelProto.mutable_graph();
 
-  for (const auto it : llvm::enumerate(functionProto.input())) {
-    const auto &inputName = it.value();
-    const auto *inputTypeProto = inputTypeProtos[it.index()];
+  for (int index = 0; index < functionProto.input().size(); ++index) {
+    const auto &inputName = functionProto.input()[index];
+    const auto *inputTypeProto = inputTypeProtos[index];
     onnx::ValueInfoProto &inputProto = *graphProto.add_input();
     inputProto.set_name(inputName);
     inputProto.mutable_type()->CopyFrom(*inputTypeProto);
   }
 
-  for (auto it : llvm::enumerate(functionProto.output())) {
-    const auto &outputName = it.value();
-    const auto *outputTypeProto = outputTypeProtos[it.index()];
+  for (int index = 0; index < functionProto.output().size(); ++index) {
+    const auto &outputName = functionProto.output()[index];
+    const auto *outputTypeProto = outputTypeProtos[index];
     onnx::ValueInfoProto &outputProto = *graphProto.add_output();
     outputProto.set_name(outputName);
     outputProto.mutable_type()->CopyFrom(*outputTypeProto);
@@ -547,7 +564,8 @@ MlirType ContextCache::GetListElementType(const onnx::TypeProto &tp) {
     if (tt.has_elem_type() && tt.elem_type()) {
       MlirType element_type = ConvertTensorElementType(tt.elem_type());
       assert(!mlirTypeIsNull(element_type));
-      llvm::SmallVector<std::string> dims;
+      std::vector<std::string> dims;
+      dims.reserve(tt.shape().dim_size());
       assert(tt.has_shape());
       for (const onnx::TensorShapeProto::Dimension &dim : tt.shape().dim()) {
         if (dim.has_dim_value()) {
@@ -556,7 +574,7 @@ MlirType ContextCache::GetListElementType(const onnx::TypeProto &tp) {
           dims.push_back("?");
         }
       }
-      std::string type_asm = "vtensor<[" + llvm::join(dims, ",") + "]," +
+      std::string type_asm = "vtensor<[" + StringJoin(dims, ",") + "]," +
                              getMlirAsm(element_type) + ">";
       return mlirTypeParseGet(context_, toMlirStringRef(type_asm));
     }
@@ -573,8 +591,9 @@ MlirType ContextCache::GetOptionalElementType(const onnx::TypeProto &tp) {
     if (tt.has_elem_type()) {
       MlirType element_type = ConvertTensorElementType(tt.elem_type());
       assert(!mlirTypeIsNull(element_type));
-      llvm::SmallVector<std::string> dims;
+      std::vector<std::string> dims;
       assert(tt.has_shape());
+      dims.reserve(tt.shape().dim_size());
       for (const onnx::TensorShapeProto::Dimension &dim : tt.shape().dim()) {
         if (dim.has_dim_value()) {
           dims.push_back(std::to_string(dim.dim_value()));
@@ -582,7 +601,7 @@ MlirType ContextCache::GetOptionalElementType(const onnx::TypeProto &tp) {
           dims.push_back("?");
         }
       }
-      std::string type_asm = "vtensor<[" + llvm::join(dims, ",") + "]," +
+      std::string type_asm = "vtensor<[" + StringJoin(dims, ",") + "]," +
                              getMlirAsm(element_type) + ">";
       return mlirTypeParseGet(context_, toMlirStringRef(type_asm));
     }
@@ -610,7 +629,8 @@ MlirType ContextCache::GetVtensorType(const std::vector<int64_t> &dims,
     return it->second;
   }
 
-  llvm::SmallVector<std::string> str_dims;
+  std::vector<std::string> str_dims;
+  str_dims.reserve(dims.size());
   for (const int64_t &dim : dims) {
     if (dim == -1) {
       str_dims.push_back("?");
@@ -619,7 +639,7 @@ MlirType ContextCache::GetVtensorType(const std::vector<int64_t> &dims,
     }
   }
 
-  std::string type_asm = "!torch.vtensor<[" + llvm::join(str_dims, ",") + "]," +
+  std::string type_asm = "!torch.vtensor<[" + StringJoin(str_dims, ",") + "]," +
                          getMlirAsm(element_type) + ">";
   MlirType t = mlirTypeParseGet(context_, toMlirStringRef(type_asm));
   if (mlirTypeIsNull(t)) {
@@ -640,7 +660,10 @@ ContextCache::ConvertTensorProtoToVtensorType(const onnx::TensorProto &tp) {
     return {nullptr};
 
   std::vector<int64_t> dims;
-  llvm::copy(tp.dims(), dims.begin());
+  dims.reserve(tp.dims_size());
+  for (int64_t dim : tp.dims()) {
+    dims.push_back(dim);
+  }
 
   return GetVtensorType(dims, element_type);
 }
@@ -653,7 +676,10 @@ ContextCache::ConvertTensorProtoToBuiltinType(const onnx::TensorProto &tp) {
     return {nullptr};
 
   std::vector<int64_t> dims;
-  llvm::copy(tp.dims(), dims.begin());
+  dims.reserve(tp.dims_size());
+  for (int64_t dim : tp.dims()) {
+    dims.push_back(dim);
+  }
 
   return mlirRankedTensorTypeGet(dims.size(), dims.data(), element_type,
                                  /*encoding=*/mlirAttributeGetNull());
@@ -796,7 +822,7 @@ bool ContextCache::VTensorSign::operator==(const VTensorSign &rhs) const {
 
 std::size_t ContextCache::VTensorSignHash::operator()(
     const ContextCache::VTensorSign &val) const {
-  auto h1 = llvm::hash_combine_range(val.dims.begin(), val.dims.end());
+  auto h1 = HashCombineRange(val.dims);
   auto h2 = std::hash<MlirType>{}(val.element_type);
   return h1 ^ h2;
 }
@@ -841,26 +867,35 @@ FailureOr<std::optional<MlirOperation>> ModuleCache::GetOperatorFunction(
     // https://github.com/onnx/onnx/blob/093a8d335a66ea136eb1f16b3a1ce6237ee353ab/onnx/defs/schema.h#L1070-L1086
     // There also seem to be cases where a function goes from being not
     // context-dependent to context-dependent.
-    auto f = [opset_version](const int &v) { return v <= opset_version; };
-    auto ncd_versions = opSchema->function_opset_versions();
-    auto cd_versions = opSchema->context_dependent_function_opset_versions();
-    auto ncd_filtered_range = llvm::make_filter_range(ncd_versions, f);
-    llvm::SmallVector<int> ncd_filtered(ncd_filtered_range);
-    auto cd_filtered_range = llvm::make_filter_range(cd_versions, f);
-    llvm::SmallVector<int> cd_filtered(cd_filtered_range);
-    auto ncd_filtered_max = llvm::max_element(ncd_filtered);
-    auto cd_filtered_max = llvm::max_element(cd_filtered);
-    bool ncd_empty = ncd_filtered_max == ncd_filtered.end();
-    bool cd_empty = cd_filtered_max == cd_filtered.end();
-    if (ncd_empty && cd_empty)
+    auto f = [opset_version](int v) { return v <= opset_version; };
+
+    // Non context-dependent
+    auto ncd_fns = opSchema->function_opset_versions();
+    std::vector<int> ncd_fns_filtered;
+    std::copy_if(ncd_fns.begin(), ncd_fns.end(), ncd_fns_filtered.begin(), f);
+    std::optional<int> ncd_function_version;
+    if (!ncd_fns_filtered.empty())
+      ncd_function_version = std::ranges::max(ncd_fns_filtered);
+
+    // Context-dependent
+    auto cd_fns = opSchema->context_dependent_function_opset_versions();
+    std::vector<int> cd_fns_filtered;
+    std::copy_if(cd_fns.begin(), cd_fns.end(), cd_fns_filtered.begin(), f);
+    std::optional<int> cd_function_version;
+    if (!cd_fns_filtered.empty())
+      cd_function_version = std::ranges::max(cd_fns_filtered);
+
+    if (!ncd_function_version && !cd_function_version)
       // No relevant function definition
       return std::optional<MlirOperation>();
 
-    if (!ncd_empty && (cd_empty || *cd_filtered_max < *ncd_filtered_max)) {
-      specific_version = *ncd_filtered_max;
+    if (ncd_function_version &&
+        (!cd_function_version ||
+         *cd_function_version < *ncd_function_version)) {
+      specific_version = *ncd_function_version;
       is_context_dependent = false;
     } else {
-      specific_version = *cd_filtered_max;
+      specific_version = *cd_function_version;
       is_context_dependent = true;
     }
   }
@@ -872,36 +907,40 @@ FailureOr<std::optional<MlirOperation>> ModuleCache::GetOperatorFunction(
   std::string key;
   {
     std::ostringstream keyBuffer;
-    llvm::SmallVector<std::string> input_type_protos_str,
-        output_type_protos_str;
-    llvm::transform(
-        input_type_protos, input_type_protos_str.begin(),
+    std::vector<std::string> input_type_protos_str, output_type_protos_str;
+    input_type_protos_str.reserve(input_type_protos.size());
+    output_type_protos_str.reserve(output_type_protos.size());
+    std::transform(
+        input_type_protos.begin(), input_type_protos.end(),
+        input_type_protos_str.begin(),
         [](const onnx::TypeProto *tp) { return tp->SerializeAsString(); });
     // Though output types can be inferred from input types, it does
     // not seem to be the case that there's only one legal set of
     // outputs for a given set of inputs. When attemtping to always
     // use onnx.shape_inference.infer_function_output_types instead
     // of the caller-provided types, sometimes IR verification fails
-    llvm::transform(
-        output_type_protos, output_type_protos_str.begin(),
+    std::transform(
+        output_type_protos.begin(), output_type_protos.end(),
+        output_type_protos_str.begin(),
         [](const onnx::TypeProto *tp) { return tp->SerializeAsString(); });
 
     keyBuffer << op_name << ";" << op_domain << ";" << opset_version << ";"
-              << llvm::join(input_type_protos_str, ",") << ";"
-              << llvm::join(output_type_protos_str, ",") << ";";
+              << StringJoin(input_type_protos_str, ",") << ";"
+              << StringJoin(output_type_protos_str, ",") << ";";
     if (is_context_dependent) {
       keyBuffer << caller_node.SerializeAsString();
     } else {
       const auto node_desc = caller_node.GetDescriptor();
       const auto attribute_desc = node_desc->FindFieldByName("attribute");
-      llvm::SmallVector<std::string> attribute_strs;
+      std::vector<std::string> attribute_strs;
+      attribute_strs.reserve(caller_node.attribute_size());
       for (int idx = 0; idx < caller_node.attribute_size(); ++idx) {
         std::string attribute_str;
         google::protobuf::TextFormat::PrintFieldValueToString(
             caller_node, attribute_desc, idx, &attribute_str);
         attribute_strs.push_back(std::move(attribute_str));
       }
-      keyBuffer << llvm::join(attribute_strs, ",");
+      keyBuffer << StringJoin(attribute_strs, ",");
     }
     key = keyBuffer.str();
   }
@@ -1027,9 +1066,9 @@ FailureOr<NodeImporter> NodeImporter::DefineFunction(GraphInfo &graphInfo,
                    moduleCache);
 
   // Map the block args to names and store for evaluation.
-  for (auto it : llvm::enumerate(graphInfo.inputs())) {
-    std::string_view name = it.value()->name();
-    imp.nv_map_[name] = mlirBlockGetArgument(bodyBlock, it.index());
+  for (size_t index = 0; index < graphInfo.inputs().size(); ++index) {
+    std::string_view name = graphInfo.inputs()[index]->name();
+    imp.nv_map_[name] = mlirBlockGetArgument(bodyBlock, index);
   }
 
   imp.PopulateGraphAttrs(funcOp);
@@ -1044,7 +1083,7 @@ void NodeImporter::PopulateGraphAttrs(MlirOperation containerOp) {
   std::unordered_map<std::string_view, MlirAttribute> opset_versions;
   // Determine model level opset versions.
   for (const onnx::OperatorSetIdProto &opset_import : m.opset_import()) {
-    if (opset_import.has_domain()) {
+    if (opset_import.has_domain() && opset_import.domain() != "") {
       opset_versions[opset_import.domain()] =
           mlirIntegerAttrGet(i64_type, opset_import.version());
     } else {
@@ -1230,8 +1269,8 @@ Status NodeImporter::ImportGeneralNode(const onnx::NodeProto &node) {
     }
 
     uint32_t num_regions = CountRegions(node.attribute());
-    std::vector<MlirRegion> regions(FillVector<std::vector<MlirRegion>>(
-        num_regions, std::function<MlirRegion()>(mlirRegionCreate)));
+    std::vector<MlirRegion> regions =
+        FillVector(num_regions, std::function<MlirRegion()>(mlirRegionCreate));
 
     custom_op = createMlirOperationAtEnd(
         body_block_, "torch.operator", loc, output_types, input_values,
@@ -1243,9 +1282,9 @@ Status NodeImporter::ImportGeneralNode(const onnx::NodeProto &node) {
   }
 
   // Record the result values.
-  for (auto output_it : llvm::enumerate(node.output())) {
-    MlirValue result = mlirOperationGetResult(custom_op, output_it.index());
-    std::string_view name = output_it.value();
+  for (int index = 0; index < node.output().size(); ++index) {
+    MlirValue result = mlirOperationGetResult(custom_op, index);
+    std::string_view name = node.output()[index];
     auto inserted = nv_map_.insert(std::make_pair(name, result));
     if (!inserted.second) {
       std::string msg = "Multiple nodes produced a value for '";
@@ -1371,8 +1410,8 @@ NodeImporter::ImportGeneralAttributes(const onnx::AttrList &attrs) {
 Status NodeImporter::ImportRegions(
     const google::protobuf::RepeatedPtrField<onnx::AttributeProto> &onnx_attrs,
     MlirOperation op) {
-  llvm::SmallVector<std::reference_wrapper<const onnx::AttributeProto>>
-      graph_attrs;
+  std::vector<std::reference_wrapper<const onnx::AttributeProto>> graph_attrs;
+  graph_attrs.reserve(onnx_attrs.size());
   std::copy_if(onnx_attrs.cbegin(), onnx_attrs.cend(), graph_attrs.begin(),
                [](const onnx::AttributeProto &attr) {
                  return attr.type() == onnx::AttributeProto::GRAPH;
@@ -1381,9 +1420,10 @@ Status NodeImporter::ImportRegions(
             [](const onnx::AttributeProto &a, const onnx::AttributeProto &b) {
               return a.name() > b.name();
             });
-  for (auto it : llvm::enumerate(graph_attrs)) {
-    auto g_input = it.value().get().g().input();
-    llvm::SmallVector<MlirType> block_types;
+  for (size_t index = 0; index < graph_attrs.size(); ++index) {
+    auto g_input = graph_attrs[index].get().g().input();
+    std::vector<MlirType> block_types;
+    block_types.reserve(g_input.size());
     std::transform(g_input.cbegin(), g_input.cend(), block_types.begin(),
                    [this](const onnx::ValueInfoProto &vi) {
                      return cc_.ConvertTypeProto(vi.has_type() ? &vi.type()
@@ -1392,33 +1432,34 @@ Status NodeImporter::ImportRegions(
     if (std::any_of(block_types.begin(), block_types.end(),
                     [](const MlirType &t) { return mlirTypeIsNull(t); }))
       return failure;
-    MlirRegion region = mlirOperationGetRegion(op, it.index());
-    llvm::SmallVector<MlirLocation> block_locations(
-        FillVector<llvm::SmallVector<MlirLocation>>(
-            block_types.size(), std::function<MlirLocation()>([&op]() {
-              return mlirOperationGetLocation(op);
-            })));
+    MlirRegion region = mlirOperationGetRegion(op, index);
+    std::vector<MlirLocation> block_locations =
+        FillVector(block_types.size(), std::function<MlirLocation()>([&op]() {
+                     return mlirOperationGetLocation(op);
+                   }));
 
     mlirRegionAppendOwnedBlock(region, mlirBlockCreate(block_types.size(),
                                                        block_types.data(),
                                                        block_locations.data()));
     MlirBlock block = mlirRegionGetFirstBlock(region);
 
-    GraphInfo graph_info(graph_info_.model_info(), it.value().get().g(),
+    GraphInfo graph_info(graph_info_.model_info(), graph_attrs[index].get().g(),
                          /*top_level=*/false);
     NodeImporter importer(graph_info, op, block, cc_, module_op_, mc_);
 
-    llvm::SmallVector<std::string_view> block_names;
+    std::vector<std::string_view> block_names;
+    block_names.reserve(g_input.size());
     std::transform(g_input.cbegin(), g_input.cend(), block_names.begin(),
                    [](const onnx::ValueInfoProto &vi) { return vi.name(); });
     assert(static_cast<size_t>(mlirBlockGetNumArguments(block)) ==
            block_names.size());
-    for (auto name_it : llvm::enumerate(block_names)) {
-      MlirValue input_value = mlirBlockGetArgument(block, name_it.index());
-      auto inserted = importer.nv_map_.emplace(name_it.value(), input_value);
+    for (size_t block_idx = 0; block_idx < block_names.size(); ++block_idx) {
+      MlirValue input_value = mlirBlockGetArgument(block, block_idx);
+      auto inserted =
+          importer.nv_map_.emplace(block_names[block_idx], input_value);
       if (!inserted.second) {
         std::string msg = "Block argument name collision: '";
-        msg.append(name_it.value());
+        msg.append(block_names[block_idx]);
         return SetError(std::move(msg));
       }
     }

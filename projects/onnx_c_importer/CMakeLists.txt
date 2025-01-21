@@ -41,7 +41,6 @@ endif()
 
 target_link_libraries(
     torch-mlir-import-onnx
-    LLVMSupport
     MLIRCAPIIR
     TorchMLIRCAPI
     onnx
