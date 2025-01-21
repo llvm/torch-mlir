@@ -229,8 +229,10 @@ Value getValueList(
 
   SmallVector<Value> runningScalarSublist;
 
-  for (int i = givenIndex; i < lengthOfFullList; i++) {
-    Value eachScalar = extractTorchScalar(givenLoc, i, operand, rewriter);
+  for (int indexOfEachScalar = givenIndex; indexOfEachScalar < lengthOfFullList;
+       indexOfEachScalar++) {
+    Value eachScalar =
+        extractTorchScalar(givenLoc, indexOfEachScalar, operand, rewriter);
     runningScalarSublist.push_back(eachScalar);
   }
 
