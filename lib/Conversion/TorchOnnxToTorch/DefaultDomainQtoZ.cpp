@@ -240,9 +240,10 @@ Value getValueList(ConversionPatternRewriter &rewriter, Location givenLoc,
                    /*            startingAt */ int64_t givenIndex) {
   SmallVector<Value> runningTorchScalars;
 
-  for (int i = givenIndex; i < lengthOfListIn(operand); i++) {
-    Value eachTorchScalar =
-        createTorchScalarForElement(rewriter, givenLoc, operand, i);
+  for (int indexOfEachScalar = givenIndex;
+       indexOfEachScalar < lengthOfListIn(operand); indexOfEachScalar++) {
+    Value eachTorchScalar = createTorchScalarForElement(
+        rewriter, givenLoc, operand, indexOfEachScalar);
     runningTorchScalars.push_back(eachTorchScalar);
   }
 
