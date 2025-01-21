@@ -25,7 +25,8 @@
 
 using namespace torch_mlir_onnx;
 
-static arg<PositionalArg, std::string> inputFilenameArg("<input file>");
+static arg<PositionalArg, std::string> inputFilenameArg("ONNX protobuf input",
+                                                        "<input file>");
 
 static arg<OptionalArg, std::string>
     outputFilenameArg("Output path (or '-' for stdout)", "-o", "-", "filename");

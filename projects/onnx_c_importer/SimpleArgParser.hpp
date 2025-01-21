@@ -1,3 +1,4 @@
+// TODO: license
 #pragma once
 
 #include <iostream>
@@ -20,7 +21,8 @@ public:
   virtual bool parse(std::span<char *>::iterator &args_it,
                      const std::span<char *>::iterator end) = 0;
   virtual ~base_arg() {};
-  virtual void Print() const = 0;
+  virtual void PrintUsage() const = 0;
+  virtual void PrintDesc() const = 0;
 };
 
 struct args {
@@ -34,14 +36,15 @@ public:
     optionals_.emplace(name, arg);
   }
   static bool ParseArgs(std::span<char *>::iterator args_it,
-                        const std::span<char *>::iterator end) {
+                        const std::span<char *>::iterator end,
+                        const std::string &command_desc = "") {
 
     if (args_it == end) {
-      PrintHelp();
+      PrintHelp(command_desc);
       return false;
     }
 
-    for (; (*args_it)[0] == '-' && args_it != end;
+    for (; args_it != end && (*args_it)[0] == '-';
          args_it = std::next(args_it)) {
       if (optionals_.count(std::string_view(*args_it))) {
         if (!(optionals_[std::string_view(*args_it)])->parse(args_it, end))
@@ -53,8 +56,12 @@ public:
     }
 
     for (auto &p : positionals_) {
-      if (args_it == end)
+      if (args_it == end) {
+        std::cerr << "Positional argument missing:";
+        p->PrintUsage();
+        std::cerr << "\n";
         return false;
+      }
 
       if (!p->parse(args_it, end))
         return false;
@@ -63,26 +70,39 @@ public:
     }
 
     if (args_it != end) {
-      std::cerr << "Unexpected positional argument.\n";
+      std::cerr << "Unexpected positional argument: " << *args_it << "\n";
       return false;
     }
 
     return true;
   }
 
-  static void PrintHelp() {
+  static void PrintHelp(const std::string &command_desc) {
     std::cerr << "usage: torch-mlir-import-onnx";
 
     for (auto &o : optionals_) {
-      o.second->Print();
+      o.second->PrintUsage();
     }
 
     for (auto &p : positionals_) {
-      p->Print();
+      p->PrintUsage();
     }
 
     std::cerr << "\n";
-    // TODO: print full desc for optional arguments!
+    if (command_desc != "") {
+      std::cerr << "\n";
+      std::cerr << command_desc << "\n";
+    }
+    std::cerr << "\n";
+    std::cerr << "positional arguments: \n";
+    for (auto &p : positionals_) {
+      p->PrintDesc();
+    }
+    std::cerr << "\n";
+    std::cerr << "optional arguments: \n";
+    for (auto &o : optionals_) {
+      o.second->PrintDesc();
+    }
   }
 };
 
@@ -130,9 +150,9 @@ private:
   }
 
 public:
-  arg(std::string desc)
+  arg(std::string desc, std::string name)
     requires(P::value)
-      : desc_(desc), value_() {
+      : desc_(desc), name_(name), value_() {
     register_arg();
   }
   arg(std::string desc, std::string name, T init = T(),
@@ -158,7 +178,7 @@ public:
   const std::string &GetValueDesc() const { return value_desc_; }
   const std::string &GetDesc() const { return desc_; }
 
-  virtual void Print() const override {
+  virtual void PrintUsage() const override {
     std::cerr << " ";
     if constexpr (!P::value) {
       std::cerr << "[";
@@ -169,7 +189,20 @@ public:
       }
       std::cerr << "]";
     } else {
-      std::cerr << GetDesc();
+      std::cerr << GetName();
+    }
+  }
+  virtual void PrintDesc() const override {
+    if constexpr (!P::value) {
+      std::cerr << "\t";
+      if constexpr (std::is_same<bool, T>::value) {
+        std::cerr << GetName();
+      } else {
+        std::cerr << GetName() << " " << GetValueDesc();
+      }
+      std::cerr << "\t\t\t" << GetDesc() << "\n";
+    } else {
+      std::cerr << "\t" << GetName() << "\t\t\t" << GetDesc() << "\n";
     }
   }
 };
