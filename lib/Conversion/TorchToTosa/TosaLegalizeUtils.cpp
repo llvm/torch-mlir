@@ -336,7 +336,8 @@ std::optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
 LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
                                    Value src, Type destType, Value &result) {
 
-  Type srcElemTy = dyn_cast<TensorType>(src.getType()).getElementType();
+  TensorType srcType = dyn_cast<TensorType>(src.getType());
+  Type srcElemTy = srcType.getElementType();
   Type destElemTy = dyn_cast<TensorType>(destType).getElementType();
 
   // Temporarily disable checkValidityOfCast as it's currently strictly
@@ -381,6 +382,23 @@ LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
     result = rewriter.create<tosa::LogicalNotOp>(op->getLoc(), destType,
                                                  equalToZero);
   } else {
+    if (llvm::isa<FloatType>(srcElemTy) && destElemTy.isInteger()) {
+      // for float->int conversion, tosa.cast performs round-to-nearest
+      // torch performs round-to-zero instead
+      // generate round-to-zero conversion prior to tosa.cast to match with
+      // expected torch behavior
+      auto floor = rewriter.create<tosa::FloorOp>(op->getLoc(), srcType, src);
+      auto ceil = rewriter.create<tosa::CeilOp>(op->getLoc(), srcType, src);
+
+      auto zeroValue =
+          tosa::getConstTensor<float>(rewriter, op, 0, {}, srcElemTy).value();
+
+      auto boolType = srcType.clone(rewriter.getIntegerType(1));
+      auto isNegative = tosa::CreateOpAndInfer<tosa::GreaterOp>(
+          rewriter, op->getLoc(), boolType, zeroValue, src);
+      src = tosa::CreateOpAndInfer<tosa::SelectOp>(
+          rewriter, op->getLoc(), srcType, isNegative, ceil, floor);
+    }
     result = rewriter.create<tosa::CastOp>(op->getLoc(), destType, src);
   }
   return success();
