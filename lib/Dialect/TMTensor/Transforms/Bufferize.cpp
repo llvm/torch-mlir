@@ -133,17 +133,17 @@ struct TMTensorBufferizePass
   void runOnOperation() override {
     MLIRContext &context = getContext();
     ConversionTarget target(context);
-    bufferization::BufferizeTypeConverter typeConverter;
+    // bufferization::BufferizeTypeConverter typeConverter;
 
     // Mark all Standard operations legal.
     target.addLegalDialect<arith::ArithDialect, func::FuncDialect,
                            memref::MemRefDialect, tensor::TensorDialect>();
 
     // Mark all TMTensor operations illegal as long as they work on tensors.
-    auto isLegalOperation = [&](Operation *op) {
-      return typeConverter.isLegal(op);
-    };
-    target.addDynamicallyLegalDialect<TMTensorDialect>(isLegalOperation);
+    // auto isLegalOperation = [&](Operation *op) {
+    //   return typeConverter.isLegal(op);
+    // };
+    // target.addDynamicallyLegalDialect<TMTensorDialect>(isLegalOperation);
     RewritePatternSet patterns(&context);
     patterns.add<BufferizeAnyTMTensorOp>(typeConverter, patterns.getContext());
     if (failed(applyPartialConversion(getOperation(), target,

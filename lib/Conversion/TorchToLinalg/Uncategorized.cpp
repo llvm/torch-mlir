@@ -549,7 +549,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (isa<AtenLogicalOrOp, AtenLogicalAndOp, AtenLogicalXorOp>(op)) {
     MLIRContext *context = op->getContext();
-    Type floatDtype = mlir::FloatType::getF64(context);
+    Type floatDtype = mlir::Float64Type::get(context);
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], floatDtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], floatDtype);
     Value zero =
@@ -569,7 +569,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (isa<AtenLogicalNotOp>(op)) {
     MLIRContext *context = op->getContext();
-    Type floatDtype = mlir::FloatType::getF64(context);
+    Type floatDtype = mlir::Float64Type::get(context);
     Value self = convertScalarToDtype(b, loc, payloadArgs[0], floatDtype);
     Value zero =
         b.create<arith::ConstantOp>(loc, b.getFloatAttr(floatDtype, 0));
@@ -1028,7 +1028,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type powType = dtype;
     if (payloadArgs[0].getType().isInteger() ||
         payloadArgs[1].getType().isInteger())
-      powType = mlir::FloatType::getF64(op->getContext());
+      powType = mlir::Float64Type::get(op->getContext());
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], powType);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], powType);
     auto powOp = b.create<math::PowFOp>(loc, lhs, rhs);

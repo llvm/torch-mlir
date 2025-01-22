@@ -11757,8 +11757,8 @@ public:
     config.useTopDownTraversal = true;
     config.maxIterations = GreedyRewriteConfig::kNoLimit;
 
-    if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
-                                            config))) {
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns),
+                                     config))) {
       return signalPassFailure();
     }
   }

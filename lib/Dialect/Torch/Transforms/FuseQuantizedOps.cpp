@@ -457,8 +457,8 @@ public:
         context);
 
     GreedyRewriteConfig config;
-    if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
-                                            config))) {
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns),
+                                     config))) {
       return signalPassFailure();
     }
   }
