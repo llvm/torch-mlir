@@ -3697,11 +3697,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType))
           return failure();
 
-        // TODO: Add support for non-zero center_point_box value.
-        if (centerPointBox != 0)
+        if (centerPointBox != 0 && centerPointBox != 1)
           return rewriter.notifyMatchFailure(
-              binder.op, "unimplemented: expected center_point_box "
-                         "attribute value to be 0");
+              binder.op, "expected center_point_box attribute to be 0 or 1");
 
         // TODO: Support multiple batches and classes
         // Squeeze the boxes and scores tensor.
@@ -3727,6 +3725,49 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                              "failed to squeeze scores tensor");
         boxes = squeezedBoxes.value();
         scores = squeezedScores.value();
+        if (centerPointBox == 1) {
+          // When center_point_box is 1, the box data is supplied as
+          // [[x_center, y_center, width, height], ...]. Slice it to
+          // [[x_center, y_center], ...] and [[width, height], ...],
+          // calculate the [[x1, y1], ...] and [[x2, y2], ...], and concatnate
+          // to [[x1, y1, x2, y2], ...]
+          auto boxesTensorType =
+              dyn_cast<Torch::ValueTensorType>(boxes.getType());
+          Value const0 = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(0));
+          Value const1 = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(1));
+          Value const2 = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(2));
+          Value const4 = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(4));
+          Value const2F = rewriter.create<Torch::ConstantFloatOp>(
+              loc, rewriter.getF64FloatAttr(2.0));
+
+          // extract scaled ranges for regions of interest
+          auto sliceShape = SmallVector<int64_t>{Torch::kUnknownSize, 2};
+          auto sliceTensorType = rewriter.getType<Torch::ValueTensorType>(
+              sliceShape, boxesTensorType.getDtype());
+          Value centers = rewriter.create<Torch::AtenSliceTensorOp>(
+              loc, sliceTensorType, boxes, const1, const0, const2, const1);
+          Value sizes = rewriter.create<Torch::AtenSliceTensorOp>(
+              loc, sliceTensorType, boxes, const1, const2, const4, const1);
+          Value halfSizes = rewriter.create<Torch::AtenDivScalarOp>(
+              loc, sizes.getType(), sizes, const2F);
+          Value x1y1s = rewriter.create<Torch::AtenSubTensorOp>(
+              loc, centers.getType(), centers, halfSizes, const1);
+          Value x2y2s = rewriter.create<Torch::AtenAddTensorOp>(
+              loc, centers.getType(), centers, halfSizes, const1);
+
+          Type listElemType = boxesTensorType.getWithSizesAndDtype(
+              /*optionalSizes=*/std::nullopt,
+              /*optionalDtype=*/nullptr);
+          Type listType = Torch::ListType::get(listElemType);
+          Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
+              loc, listType, SmallVector<Value>{x1y1s, x2y2s});
+          boxes = rewriter.create<Torch::AtenCatOp>(loc, boxesTensorType,
+                                                    tensorList, const1);
+        }
 
         // TODO: Support score_threshold input
         // Filter out the boxes if the score < score_threshold
