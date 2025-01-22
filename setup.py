@@ -46,6 +46,7 @@
 # that here, and just package up its contents.
 import os
 import pathlib
+import platform
 import shutil
 import subprocess
 import sys
@@ -202,6 +203,9 @@ class CMakeBuild(build_py):
         torch_mlir_opt_dst = os.path.join(
             target_dir, "torch_mlir", "_mlir_libs", "torch-mlir-opt"
         )
+        if platform.system() == "Windows":
+            torch_mlir_opt_src += ".exe"
+            torch_mlir_opt_dst += ".exe"
         shutil.copy2(torch_mlir_opt_src, torch_mlir_opt_dst, follow_symlinks=False)
 
 
