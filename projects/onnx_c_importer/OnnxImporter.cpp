@@ -341,6 +341,7 @@ Status ModelInfo::Initialize() {
 Status GraphInfo::Initialize() {
   // Initialize look up tables.
   for (const onnx::TensorProto &t : graph_proto_.initializer()) {
+    std::cout << t.name() << "\n";
     if (initializer_map_.find(t.name()) != initializer_map_.end()) {
       return model_info_.SetError("ONNX initializer name already used: " +
                                   t.name());

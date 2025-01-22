@@ -20,6 +20,8 @@
 #include "mlir-c/IR.h"
 #include "onnx/onnx_pb.h"
 
+#include "Dict.hpp"
+
 #include <optional>
 #include <span>
 #include <string_view>
@@ -163,18 +165,15 @@ public:
   const onnx::TypeProto *FindTypeProtoForName(std::string_view name);
 
   std::vector<const onnx::ValueInfoProto *> &inputs() { return inputs_; }
-  std::unordered_map<std::string_view, const onnx::ValueInfoProto &> &
-  input_map() {
+  Dict<std::string_view, const onnx::ValueInfoProto &> &input_map() {
     return input_map_;
   }
   std::vector<const onnx::ValueInfoProto *> &outputs() { return outputs_; }
-  std::unordered_map<std::string_view, const onnx::ValueInfoProto &> &
-  output_map() {
+  Dict<std::string_view, const onnx::ValueInfoProto &> &output_map() {
     return output_map_;
   }
 
-  std::unordered_map<std::string_view, const onnx::TensorProto &> &
-  initializer_map() {
+  Dict<std::string_view, const onnx::TensorProto &> &initializer_map() {
     return initializer_map_;
   }
 
@@ -182,17 +181,14 @@ private:
   ModelInfo &model_info_;
   const onnx::GraphProto &graph_proto_;
 
-  std::unordered_map<std::string_view, const onnx::TensorProto &>
-      initializer_map_;
-  std::unordered_map<std::string_view, const onnx::ValueInfoProto &>
-      value_info_map_;
+  Dict<std::string_view, const onnx::TensorProto &> initializer_map_;
+  Dict<std::string_view, const onnx::ValueInfoProto &> value_info_map_;
 
   std::vector<const onnx::ValueInfoProto *> declared_inputs_;
   std::vector<const onnx::ValueInfoProto *> inputs_;
   std::vector<const onnx::ValueInfoProto *> outputs_;
-  std::unordered_map<std::string_view, const onnx::ValueInfoProto &> input_map_;
-  std::unordered_map<std::string_view, const onnx::ValueInfoProto &>
-      output_map_;
+  Dict<std::string_view, const onnx::ValueInfoProto &> input_map_;
+  Dict<std::string_view, const onnx::ValueInfoProto &> output_map_;
 
   bool is_top_level_;
 };
@@ -370,7 +366,7 @@ private:
   GraphInfo &graph_info_;
   MlirOperation parent_op_;
   MlirBlock body_block_;
-  std::unordered_map<std::string_view, MlirValue> nv_map_;
+  Dict<std::string_view, MlirValue> nv_map_;
   std::unique_ptr<const onnx::TypeProto> empty_type_proto_;
 };
 
