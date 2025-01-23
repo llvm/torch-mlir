@@ -220,8 +220,8 @@ Value extractTorchScalar(
 
 Value getValueList(
     /*                    at */ Location givenLoc,
-    /*                 using */ ConversionPatternRewriter &rewriter,
-    /* movingForwardsThrough */ Value operand) {
+    /* movingForwardsThrough */ Value operand,
+    /*                 using */ ConversionPatternRewriter &rewriter) {
   auto operandType = cast<Torch::BaseTensorType>(operand.getType());
   auto sizes = operandType.getSizes();
 
@@ -2822,12 +2822,12 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (operands.size() < 4) {
           Value scaleOperand = operands[2];
           scalesValueList =
-              getValueList(binder.getLoc(), rewriter, scaleOperand);
+              getValueList(binder.getLoc(), scaleOperand, rewriter);
           sizesValueList = noneVal;
         } else {
           Value sizeOperand = operands[3];
           scalesValueList = noneVal;
-          sizesValueList = getValueList(binder.getLoc(), rewriter, sizeOperand);
+          sizesValueList = getValueList(binder.getLoc(), sizeOperand, rewriter);
         }
         if (isa<Torch::NoneType>(scalesValueList.getType()) &&
             isa<Torch::NoneType>(sizesValueList.getType())) {
@@ -3350,7 +3350,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(
               binder.op, "supports upto 3d upsampling only");
 
-        Value scalesValueList = getValueList(binder.getLoc(), rewriter, scales);
+        Value scalesValueList = getValueList(binder.getLoc(), scales, rewriter);
         if (mode == "linear") {
           if (resultRank == 4)
             mode = "bilinear";
