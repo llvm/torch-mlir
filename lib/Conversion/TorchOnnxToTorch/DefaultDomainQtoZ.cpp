@@ -193,6 +193,31 @@ Type getTorchScalarTypeForElements(
   assert(false && "dtype for given tensor expected to be either int or float");
 }
 
+Value createTorchScalarForElement(ConversionPatternRewriter &rewriter,
+                                  Location givenLoc,
+                                  /* in */ Value given1DTensor,
+                                  /* at */ int64_t givenIndex) {
+  auto some1DTensorType = cast<Torch::BaseTensorType>(given1DTensor.getType());
+
+  Type selectionTypeForSome1DTensor = some1DTensorType.getWithSizesAndDtype(
+      ArrayRef<int64_t>{1}, some1DTensorType.getOptionalDtype());
+
+  Value soleDim = rewriter.create<Torch::ConstantIntOp>(givenLoc, 0);
+
+  Value selectionIndex =
+      rewriter.create<Torch::ConstantIntOp>(givenLoc, givenIndex);
+
+  auto someTorchScalarType =
+      getTorchScalarTypeForElements(rewriter, some1DTensorType);
+
+  Value selectionFromGiven1DTensor = rewriter.create<Torch::AtenSelectIntOp>(
+      givenLoc, selectionTypeForSome1DTensor, given1DTensor, soleDim,
+      selectionIndex);
+
+  return rewriter.create<Torch::AtenItemOp>(givenLoc, someTorchScalarType,
+                                            selectionFromGiven1DTensor);
+}
+
 Value createTorchList(ConversionPatternRewriter &rewriter, Location givenLoc,
                       /* from */ SmallVector<Value> givenTorchElements) {
   auto someTorchElement = givenTorchElements.front();
@@ -210,28 +235,9 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
   Torch::BaseTensorType operandType =
       cast<Torch::BaseTensorType>(operand.getType());
 
-  SmallVector<int64_t> selectSizes;
-  selectSizes.push_back(1);
-  Type selectResultType = operandType.getWithSizesAndDtype(
-      llvm::ArrayRef(selectSizes), operandType.getOptionalDtype());
-
-  auto extract = [&rewriter, &binder](Value x, Value v) {
-    auto xTy = cast<Torch::ValueTensorType>(x.getType());
-    auto extractTy = getTorchScalarTypeForElements(rewriter, xTy);
-    return rewriter.create<Torch::AtenItemOp>(binder.getLoc(), extractTy, v);
-  };
-
-  Value zero = rewriter.create<Torch::ConstantIntOp>(
-      binder.getLoc(), rewriter.getType<Torch::IntType>(),
-      rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
-
   for (int i = 2; i < sizes[0]; i++) {
-    Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
-        binder.getLoc(), rewriter.getType<Torch::IntType>(),
-        rewriter.getIntegerAttr(rewriter.getIntegerType(64), i));
-    Value ext = rewriter.create<Torch::AtenSelectIntOp>(
-        binder.getLoc(), selectResultType, operand, zero, selectIndex);
-    Value item = extract(operand, ext);
+    Value item =
+        createTorchScalarForElement(rewriter, binder.getLoc(), operand, i);
     itemList.push_back(item);
   }
 
