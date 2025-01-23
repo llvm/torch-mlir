@@ -235,10 +235,10 @@ Value createTorchList(ConversionPatternRewriter &rewriter, Location givenLoc,
       givenLoc, someTorchListType, givenTorchElements);
 }
 
-Value createScalarSublist(ConversionPatternRewriter &rewriter,
-                          Location givenLoc,
-                          /* movingForwardsThrough */ Value given1DTensor,
-                          /*            startingAt */ int64_t givenIndex) {
+Value createTorchScalarSublist(ConversionPatternRewriter &rewriter,
+                               Location givenLoc,
+                               /* movingForwardsThrough */ Value given1DTensor,
+                               /*            startingAt */ int64_t givenIndex) {
   SmallVector<Value> runningTorchScalars;
 
   for (int indexOfEachScalar = givenIndex;
@@ -2896,7 +2896,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 rewriter.getStringAttr(errorMessageForEachDim));
           };
 
-          supportedScaleFactors = createScalarSublist(
+          supportedScaleFactors = createTorchScalarSublist(
               rewriter, loc, proposedScaleFactors, assumedForemostSpatialDim);
           supportedSizes = noneVal;
         } else if (numberOfOperands == 4) {
@@ -2927,8 +2927,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           };
 
           supportedScaleFactors = noneVal;
-          supportedSizes = createScalarSublist(rewriter, loc, proposedSizes,
-                                               assumedForemostSpatialDim);
+          supportedSizes = createTorchScalarSublist(
+              rewriter, loc, proposedSizes, assumedForemostSpatialDim);
         } else
           return rewriter.notifyMatchFailure(binder.op, "unknown scaling mode");
 
@@ -3450,7 +3450,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "supports upto 3d upsampling only");
 
         int64_t assumedForemostSpatialDim = 2;
-        Value scalesValueList = createScalarSublist(
+        Value scalesValueList = createTorchScalarSublist(
             rewriter, binder.getLoc(), scales, assumedForemostSpatialDim);
         if (mode == "linear") {
           if (resultRank == 4)
