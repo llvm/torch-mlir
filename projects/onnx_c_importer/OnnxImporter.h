@@ -165,15 +165,36 @@ public:
   const onnx::TypeProto *FindTypeProtoForName(std::string_view name);
 
   std::vector<const onnx::ValueInfoProto *> &inputs() { return inputs_; }
+  const std::vector<const onnx::ValueInfoProto *> &inputs() const {
+    return inputs_;
+  }
+
   Dict<std::string_view, const onnx::ValueInfoProto &> &input_map() {
     return input_map_;
   }
+  const Dict<std::string_view, const onnx::ValueInfoProto &> &
+  input_map() const {
+    return input_map_;
+  }
+
   std::vector<const onnx::ValueInfoProto *> &outputs() { return outputs_; }
+  const std::vector<const onnx::ValueInfoProto *> &outputs() const {
+    return outputs_;
+  }
+
   Dict<std::string_view, const onnx::ValueInfoProto &> &output_map() {
+    return output_map_;
+  }
+  const Dict<std::string_view, const onnx::ValueInfoProto &> &
+  output_map() const {
     return output_map_;
   }
 
   Dict<std::string_view, const onnx::TensorProto &> &initializer_map() {
+    return initializer_map_;
+  }
+  const Dict<std::string_view, const onnx::TensorProto &> &
+  initializer_map() const {
     return initializer_map_;
   }
 
@@ -335,7 +356,7 @@ private:
   void PopulateGraphAttrs(MlirOperation container_op);
   Status
   ImportInitializer(const onnx::TensorProto &initializer,
-                    std::optional<std::string> extern_name = std::nullopt);
+                    std::optional<std::string_view> extern_name = std::nullopt);
   Status ImportNode(const onnx::NodeProto &node);
   FailureOr<std::vector<std::pair<std::string, MlirAttribute>>>
   ImportGeneralAttributes(const onnx::AttrList &attrs);
