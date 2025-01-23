@@ -1146,8 +1146,8 @@ Status NodeImporter::ImportAll(bool func) {
   // Lookup the outputs, which should all be in the nv_map if the graph was
   // properly formed.
   std::vector<MlirValue> output_values;
-  for (const onnx::ValueInfoProto *output : graph_info_.outputs()) {
-    std::string_view name = output->name();
+  for (const auto &output : graph_info_.output_map()) {
+    std::string_view name = output.first;
     auto found_it = nv_map_.find(name);
     if (found_it == nv_map_.end()) {
       std::string msg = "Non topologically produced ONNX graph output '" +
@@ -1223,8 +1223,8 @@ Status NodeImporter::ImportGeneralNode(const onnx::NodeProto &node) {
   std::vector<const onnx::TypeProto *> output_type_protos;
   for (const std::string &output_name : node.output()) {
     const onnx::TypeProto *tp = graph_info_.FindTypeProtoForName(output_name);
-    assert(tp);
-    output_type_protos.push_back(tp);
+    // Unreferenced outputs will have empty types
+    output_type_protos.push_back(tp != nullptr ? tp : GetEmptyTypeProto());
     MlirType t = cc_.ConvertTypeProto(tp);
     if (mlirTypeIsNull(t))
       return failure;
@@ -1418,7 +1418,7 @@ Status NodeImporter::ImportRegions(
       graph_attrs.push_back(attr);
   std::sort(graph_attrs.begin(), graph_attrs.end(),
             [](const onnx::AttributeProto &a, const onnx::AttributeProto &b) {
-              return a.name() > b.name();
+              return a.name() < b.name();
             });
   for (size_t index = 0; index < graph_attrs.size(); ++index) {
     const onnx::ValueInfoList &g_input = graph_attrs[index].get().g().input();
