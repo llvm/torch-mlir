@@ -218,7 +218,7 @@ Value extractTorchScalar(
                                             selectionFromGiven1DTensor);
 }
 
-Value getValueList(
+Value createScalarSublist(
     /*                    at */ Location givenLoc,
     /* movingForwardsThrough */ Value given1DTensor,
     /*            startingAt */ int64_t givenIndex,
@@ -2828,14 +2828,16 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         if (operands.size() < 4) {
           Value scaleOperand = operands[2];
-          scalesValueList = getValueList(binder.getLoc(), scaleOperand,
-                                         assumedForemostSpatialDim, rewriter);
+          scalesValueList =
+              createScalarSublist(binder.getLoc(), scaleOperand,
+                                  assumedForemostSpatialDim, rewriter);
           sizesValueList = noneVal;
         } else {
           Value sizeOperand = operands[3];
           scalesValueList = noneVal;
-          sizesValueList = getValueList(binder.getLoc(), sizeOperand,
-                                        assumedForemostSpatialDim, rewriter);
+          sizesValueList =
+              createScalarSublist(binder.getLoc(), sizeOperand,
+                                  assumedForemostSpatialDim, rewriter);
         }
         if (isa<Torch::NoneType>(scalesValueList.getType()) &&
             isa<Torch::NoneType>(sizesValueList.getType())) {
@@ -3359,7 +3361,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "supports upto 3d upsampling only");
 
         int64_t assumedForemostSpatialDim = 2;
-        Value scalesValueList = getValueList(
+        Value scalesValueList = createScalarSublist(
             binder.getLoc(), scales, assumedForemostSpatialDim, rewriter);
         if (mode == "linear") {
           if (resultRank == 4)
