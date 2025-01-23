@@ -969,16 +969,21 @@ FailureOr<std::optional<MlirOperation>> ModuleCache::GetOperatorFunction(
   }
 
   ModelInfo tmpModelInfo(std::move(tmpModelProto), config);
-  GraphInfo tmpGraphInfo(tmpModelInfo, tmpModelInfo.model_proto().graph());
+  Status initS = tmpModelInfo.Initialize();
+  if (failed(initS))
+    return failure;
+
   // Mark function as private so it will be thrown away after inlining
   FailureOr<NodeImporter> imp =
-      NodeImporter::DefineFunction(tmpGraphInfo, m_, cc_, *this,
+      NodeImporter::DefineFunction(tmpModelInfo.main_graph(), m_, cc_, *this,
                                    /*is_private=*/true);
-  if (failed(imp)) {
+  if (failed(imp))
     return failure;
-  }
 
-  imp->ImportAll();
+  Status importS = imp->ImportAll();
+  if (failed(importS))
+    return failure;
+
   MlirOperation &funcOp = imp->ParentOp();
   operator_function_map_[key] = funcOp;
   return std::optional<MlirOperation>(funcOp);
@@ -1136,7 +1141,9 @@ Status NodeImporter::ImportAll(bool func) {
       return failure;
   }
 
-  GetNone();
+  // NOTE: present in the python version. Unclear what's the purpose. It adds an
+  // unused none torch constant to every MLIR output.
+  [[maybe_unused]] auto none = GetNone();
 
   for (const onnx::NodeProto &node : graph_info_.graph_proto().node()) {
     if (failed(ImportNode(node)))
@@ -1443,6 +1450,9 @@ Status NodeImporter::ImportRegions(
 
     GraphInfo graph_info(graph_info_.model_info(), graph_attrs[index].get().g(),
                          /*top_level=*/false);
+    Status initS = graph_info.Initialize();
+    if (failed(initS))
+      return failure;
     NodeImporter importer(graph_info, op, block, cc_, module_op_, mc_);
 
     std::vector<std::string_view> block_names;

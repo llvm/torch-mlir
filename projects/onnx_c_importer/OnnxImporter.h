@@ -158,7 +158,7 @@ public:
   const onnx::GraphProto &graph_proto() { return graph_proto_; }
 
   /// Post-construction, failable initialization.
-  Status Initialize();
+  [[nodiscard]] Status Initialize();
 
   /// Finds a TypeProto for the given value name. If returning nullptr, then
   /// an error will have been set.
@@ -223,7 +223,7 @@ public:
   onnx::ModelProto &model_proto() { return model_proto_; }
 
   /// Post-construction, failable initialization.
-  Status Initialize();
+  [[nodiscard]] Status Initialize();
 
   GraphInfo &main_graph() { return *main_graph_; }
   const std::string &error_message() { return error_message_; }
@@ -341,36 +341,35 @@ public:
 
   /// Called after construction to define the function in the module. Must be
   /// called prior to importing nodes.
-  static FailureOr<NodeImporter> DefineFunction(GraphInfo &graphInfo,
-                                                MlirOperation moduleOp,
-                                                ContextCache &contextCache,
-                                                ModuleCache &moduleCache,
-                                                bool isPrivate = false);
+  [[nodiscard]] static FailureOr<NodeImporter>
+  DefineFunction(GraphInfo &graphInfo, MlirOperation moduleOp,
+                 ContextCache &contextCache, ModuleCache &moduleCache,
+                 bool isPrivate = false);
 
   /// Imports all nodes topologically.
-  Status ImportAll(bool func = true);
+  [[nodiscard]] Status ImportAll(bool func = true);
 
   void WriteModule(std::ostream *stream, bool assumeVerified);
 
 private:
   void PopulateGraphAttrs(MlirOperation container_op);
-  Status
+  [[nodiscard]] Status
   ImportInitializer(const onnx::TensorProto &initializer,
                     std::optional<std::string_view> extern_name = std::nullopt);
-  Status ImportNode(const onnx::NodeProto &node);
-  FailureOr<std::vector<std::pair<std::string, MlirAttribute>>>
+  [[nodiscard]] Status ImportNode(const onnx::NodeProto &node);
+  [[nodiscard]] FailureOr<std::vector<std::pair<std::string, MlirAttribute>>>
   ImportGeneralAttributes(const onnx::AttrList &attrs);
 
   // Special-form nodes.
-  Status ImportGeneralNode(const onnx::NodeProto &node);
-  Status ImportConstantNodeValueAttr(const onnx::NodeProto &node);
+  [[nodiscard]] Status ImportGeneralNode(const onnx::NodeProto &node);
+  [[nodiscard]] Status ImportConstantNodeValueAttr(const onnx::NodeProto &node);
 
-  Status
+  [[nodiscard]] Status
   ImportRegions(const google::protobuf::RepeatedPtrField<onnx::AttributeProto>
                     &onnx_attrs,
                 MlirOperation op);
 
-  MlirValue GetNone();
+  [[nodiscard]] MlirValue GetNone();
 
   Status SetError(std::string msg) {
     return graph_info_.model_info().SetError(std::move(msg));
