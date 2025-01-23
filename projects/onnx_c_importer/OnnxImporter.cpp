@@ -293,9 +293,11 @@ onnx::ModelProto SpecializeFunctionAndCreateModel(
                                       /*enable_data_propagation=*/true};
   onnx::shape_inference::InferShapes(
       modelProto, onnx::OpSchemaRegistry::Instance(), options);
-#ifndef NDEBUG
-  onnx::checker::check_model(modelProto, /*fullCheck=*/true);
-#endif
+
+  // NOTE: (from onnx_importer.py) Useful for debugging.
+  //
+  // onnx::checker::check_model(modelProto, /*fullCheck=*/true);
+
   return modelProto;
 }
 
