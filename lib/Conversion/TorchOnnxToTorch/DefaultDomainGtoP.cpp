@@ -3703,30 +3703,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.op, "unimplemented: expected center_point_box "
                          "attribute value to be 0");
 
-        // TODO: Support multiple batches and classes
-        // Squeeze the boxes and scores tensor.
         // In Onnx, the shape of boxes is [BxNx4] while the
         // torchvision expects it to be of shape [Nx4]. Similarly, for
         // the scores tensor shape in Onnx is [BxCxN] while the
         // torchvision expects it to be of shape [N].
         Value boxes = operands[0], scores = operands[1];
-        FailureOr<Value> squeezedBoxes =
-            Torch::squeezeTensor(rewriter, binder.op, loc, 0, boxes);
-        if (failed(squeezedBoxes))
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "failed to squeeze boxes tensor");
-        FailureOr<Value> squeezedScores =
-            Torch::squeezeTensor(rewriter, binder.op, loc, 0, scores);
-        if (failed(squeezedScores))
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "failed to squeeze scores tensor");
-        squeezedScores = Torch::squeezeTensor(rewriter, binder.op, loc, 0,
-                                              squeezedScores.value());
-        if (failed(squeezedScores))
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "failed to squeeze scores tensor");
-        boxes = squeezedBoxes.value();
-        scores = squeezedScores.value();
 
         // TODO: Support score_threshold input
         // Filter out the boxes if the score < score_threshold
@@ -3755,6 +3736,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             loc, rewriter.getI64IntegerAttr(0));
         Value cst1 = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(1));
+        Value cst3 = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(3));
+        Value cst4 = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(4));
+        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
+
         Value maxOutputBoxesPerClass = cst0;
         Value iouThreshold = rewriter.create<Torch::ConstantFloatOp>(
             loc, rewriter.getF64FloatAttr(0.0));
@@ -3769,87 +3756,196 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               loc, rewriter.getType<Torch::IntType>(), operands[2]);
         }
 
+        auto boxTensorType = cast<Torch::ValueTensorType>(boxes.getType());
+        auto boxSlicedType = rewriter.getType<Torch::ValueTensorType>(
+            boxTensorType.getSizes().slice(1), boxTensorType.getDtype());
+        auto scoreTensorType = cast<Torch::ValueTensorType>(scores.getType());
+        auto scoreSlicedType = rewriter.getType<Torch::ValueTensorType>(
+            scoreTensorType.getSizes().slice(1), scoreTensorType.getDtype());
+
+        auto intListTy = rewriter.getType<Torch::ListType>(
+            rewriter.getType<Torch::IntType>());
+        Value lenShapeList = rewriter.create<Torch::PrimListConstructOp>(
+            loc, intListTy, SmallVector<Value>{cst0, cst3});
+
+        auto emptyResType = rewriter.getType<Torch::ValueTensorType>(
+            ArrayRef<int64_t>{-1, 3}, resultType.getDtype());
+        Value finalResult = rewriter.create<Torch::AtenEmptyMemoryFormatOp>(
+            loc, emptyResType, lenShapeList, /*dtype=*/cst4, /*layout=*/cstNone,
+            /*device=*/cstNone, /*pinMemory=*/cstNone,
+            /*memoryFormat=*/cstNone);
+
         auto nmsTy = Torch::ValueTensorType::get(
             binder.op->getContext(), SmallVector<int64_t>{-1},
             rewriter.getIntegerType(64, /*signed=*/true));
-        Value result = rewriter.create<Torch::TorchvisionNmsOp>(
-            loc, nmsTy, boxes, scores, iouThreshold);
 
-        // Slice the result if numOutputBoxes (N) > max_output_boxes_per_class
-        Value numOutputBoxes =
-            rewriter.create<Torch::AtenSizeIntOp>(loc, result, cst0);
-        Value boxesCond = rewriter.create<Torch::AtenGtIntOp>(
-            loc, numOutputBoxes, maxOutputBoxesPerClass);
+        auto numBatches =
+            rewriter.create<Torch::AtenSizeIntOp>(loc, scores, cst0);
+        auto numClasses =
+            rewriter.create<Torch::AtenSizeIntOp>(loc, scores, cst1);
+        Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(
+            loc, rewriter.getBoolAttr(true));
+        auto intTy = rewriter.getType<Torch::IntType>();
 
-        auto nmsResultTy = Torch::ValueTensorType::get(
-            binder.op->getContext(),
-            SmallVector<int64_t>{resultType.getSizes()[0]},
-            rewriter.getIntegerType(64, /*signed=*/true));
-        auto ifSlice = rewriter.create<Torch::PrimIfOp>(
-            loc, TypeRange({nmsResultTy}), boxesCond);
+        auto nmsBatchLoop = rewriter.create<Torch::PrimLoopOp>(
+            loc, TypeRange({finalResult.getType(), intTy}), numBatches, cstTrue,
+            ValueRange({finalResult, /*Index to finalResult*/ cst0}));
+
         {
+
+          // Batch loop body
           PatternRewriter::InsertionGuard guard(rewriter);
-          rewriter.createBlock(&ifSlice.getThenRegion(),
-                               ifSlice.getThenRegion().begin());
+          Block *batchLoopBody = rewriter.createBlock(
+              &nmsBatchLoop.getRegion(), nmsBatchLoop.getRegion().begin(),
+              TypeRange({intTy, finalResult.getType(), intTy}),
+              {loc, loc, loc});
+          auto batchIV = batchLoopBody->getArgument(0);
+          auto currRes = batchLoopBody->getArgument(1);
+          auto finalResIdx = batchLoopBody->getArgument(2);
 
-          Value curResult = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, nmsResultTy, result, /*dim=*/cst0, /*start=*/cst0,
-              /*end=*/maxOutputBoxesPerClass, /*step=*/cst1);
-          rewriter.create<Torch::PrimIfYieldOp>(loc, curResult);
+          auto boxValue = rewriter.create<Torch::AtenSelectIntOp>(
+              loc, boxSlicedType, boxes, cst0, batchIV);
+
+          auto nmsClassLoop = rewriter.create<Torch::PrimLoopOp>(
+              loc, TypeRange({finalResult.getType(), intTy}), numClasses,
+              cstTrue, ValueRange({currRes, finalResIdx}));
+
+          {
+            // Class loop body
+            PatternRewriter::InsertionGuard guard(rewriter);
+            Block *classLoopBody = rewriter.createBlock(
+                &nmsClassLoop.getRegion(), nmsClassLoop.getRegion().begin(),
+                TypeRange({intTy, finalResult.getType(), intTy}),
+                {loc, loc, loc});
+            auto classIV = classLoopBody->getArgument(0);
+            auto currRes = classLoopBody->getArgument(1);
+            auto finalResIdx = classLoopBody->getArgument(2);
+
+            auto scoreSelect = rewriter.create<Torch::AtenSelectIntOp>(
+                loc, scoreSlicedType, scores, cst0, batchIV);
+
+            auto scoreSelectType =
+                dyn_cast<Torch::ValueTensorType>(scoreSelect.getType());
+            assert(scoreSelectType);
+            auto scoreValueType = rewriter.getType<Torch::ValueTensorType>(
+                scoreSelectType.getSizes().slice(1),
+                scoreSelectType.getDtype());
+
+            auto scoreValue = rewriter.create<Torch::AtenSelectIntOp>(
+                loc, scoreValueType, scoreSelect, cst0, classIV);
+
+            Value result = rewriter.create<Torch::TorchvisionNmsOp>(
+                loc, nmsTy, boxValue, scoreValue, iouThreshold);
+
+            // Slice the result if numOutputBoxes (N) >
+            // max_output_boxes_per_class
+            Value numOutputBoxes =
+                rewriter.create<Torch::AtenSizeIntOp>(loc, result, cst0);
+            Value boxesCond = rewriter.create<Torch::AtenGtIntOp>(
+                loc, numOutputBoxes, maxOutputBoxesPerClass);
+
+            auto nmsResultTy = Torch::ValueTensorType::get(
+                binder.op->getContext(), SmallVector<int64_t>{-1},
+                rewriter.getIntegerType(64, /*signed=*/true));
+            auto ifSlice = rewriter.create<Torch::PrimIfOp>(
+                loc, TypeRange({nmsResultTy}), boxesCond);
+            {
+              PatternRewriter::InsertionGuard guard(rewriter);
+              rewriter.createBlock(&ifSlice.getThenRegion(),
+                                   ifSlice.getThenRegion().begin());
+
+              Value curResult = rewriter.create<Torch::AtenSliceTensorOp>(
+                  loc, nmsResultTy, result, /*dim=*/cst0, /*start=*/cst0,
+                  /*end=*/maxOutputBoxesPerClass, /*step=*/cst1);
+              rewriter.create<Torch::PrimIfYieldOp>(loc, curResult);
+            }
+            {
+              PatternRewriter::InsertionGuard guard(rewriter);
+              rewriter.createBlock(&ifSlice.getElseRegion(),
+                                   ifSlice.getElseRegion().begin());
+
+              Value curResult = rewriter.create<Torch::TensorStaticInfoCastOp>(
+                  loc, nmsResultTy, result);
+              rewriter.create<Torch::PrimIfYieldOp>(loc, curResult);
+            }
+            result = ifSlice.getResult(0);
+
+            // The result generated by torchvision.nms op is of shape [n], while
+            // the onnx expects it to be of shape [n, 3]. Hence, we unsqueeze
+            // the tensor and make it of shape [n, 1] and then concatenate it
+            // with batch and class values to make it shape [n, 3].
+            FailureOr<Value> unsqueezedResult =
+                Torch::unsqueezeTensor(rewriter, binder.op, result, cst1);
+            if (failed(unsqueezedResult))
+              return rewriter.notifyMatchFailure(
+                  binder.op, "failed to  unsqueeze result tensor");
+            result = unsqueezedResult.value();
+
+            auto resultNmsType = cast<Torch::ValueTensorType>(result.getType());
+            numOutputBoxes =
+                rewriter.create<Torch::AtenSizeIntOp>(loc, result, cst0);
+
+            Value catList = rewriter.create<Torch::PrimListConstructOp>(
+                loc, intListTy, SmallVector<Value>{numOutputBoxes, cst1});
+
+            Value resB = rewriter.create<Torch::AtenEmptyMemoryFormatOp>(
+                loc, resultNmsType, catList, /*dtype=*/cst4,
+                /*layout=*/cstNone,
+                /*device=*/cstNone, /*pinMemory=*/cstNone,
+                /*memoryFormat=*/cstNone);
+            auto bVal = rewriter.create<Torch::AtenFillScalarOp>(
+                loc, resultNmsType, resB, batchIV);
+
+            Value resC = rewriter.create<Torch::AtenEmptyMemoryFormatOp>(
+                loc, resultNmsType, catList, /*dtype=*/cst4,
+                /*layout=*/cstNone,
+                /*device=*/cstNone, /*pinMemory=*/cstNone,
+                /*memoryFormat=*/cstNone);
+            auto cVal = rewriter.create<Torch::AtenFillScalarOp>(
+                loc, resultNmsType, resC, classIV);
+
+            Type listElemType =
+                cast<Torch::BaseTensorType>(resultType)
+                    .getWithSizesAndDtype(/*optionalSizes=*/std::nullopt,
+                                          /*optionalDtype=*/nullptr);
+            Type listType = Torch::ListType::get(listElemType);
+
+            // c1 = concat (class, res), results in [n, 2] tensor
+            Value classResList = rewriter.create<Torch::PrimListConstructOp>(
+                loc, listType, SmallVector<Value>{cVal, result});
+            auto cat1Type = rewriter.getType<Torch::ValueTensorType>(
+                ArrayRef<int64_t>{-1, 2}, resultNmsType.getDtype());
+            auto cat1 = rewriter.create<Torch::AtenCatOp>(loc, cat1Type,
+                                                          classResList, cst1);
+
+            // c2 = concat (batch, c1), results in [n, 3] tensor
+            auto cat2Type = rewriter.getType<Torch::ValueTensorType>(
+                SmallVector<int64_t>{-1, 3}, resultNmsType.getDtype());
+            Value batchClassResList =
+                rewriter.create<Torch::PrimListConstructOp>(
+                    loc, listType, SmallVector<Value>{bVal, cat1});
+            auto cat2 = rewriter.create<Torch::AtenCatOp>(
+                loc, cat2Type, batchClassResList, cst1);
+
+            // concat (finalResult, c2) along dim 0
+            Value appendRes = rewriter.create<Torch::PrimListConstructOp>(
+                loc, listType, SmallVector<Value>{currRes, cat2});
+
+            auto catResult = rewriter.create<Torch::AtenCatOp>(loc, cat2Type,
+                                                               appendRes, cst0);
+            Value next =
+                rewriter.create<Torch::AtenAddIntOp>(loc, finalResIdx, cst1);
+            rewriter.create<Torch::PrimLoopConditionOp>(
+                loc, cstTrue, ValueRange({catResult, next}));
+          }
+          rewriter.create<Torch::PrimLoopConditionOp>(
+              loc, cstTrue,
+              ValueRange(
+                  {nmsClassLoop.getResult(0), nmsClassLoop.getResult(1)}));
         }
-        {
-          PatternRewriter::InsertionGuard guard(rewriter);
-          rewriter.createBlock(&ifSlice.getElseRegion(),
-                               ifSlice.getElseRegion().begin());
 
-          Value curResult = rewriter.create<Torch::TensorStaticInfoCastOp>(
-              loc, nmsResultTy, result);
-          rewriter.create<Torch::PrimIfYieldOp>(loc, curResult);
-        }
-        result = ifSlice.getResult(0);
-
-        // The result generated by torchvision.nms op is of shape [n], while the
-        // onnx expects it to be of shape [n, 3]. Hence, we unsqueeze the tensor
-        // and make it of shape [n, 1] and then concatenate it with a zero
-        // tensor of shape [n, 2] to make it of shape [n, 3].
-        FailureOr<Value> unsqueezedResult =
-            Torch::unsqueezeTensor(rewriter, binder.op, result, cst1);
-        if (failed(unsqueezedResult))
-          return rewriter.notifyMatchFailure(
-              binder.op, "failed to  unsqueeze result tensor");
-        result = unsqueezedResult.value();
-
-        numOutputBoxes =
-            rewriter.create<Torch::AtenSizeIntOp>(loc, result, cst0);
-        SmallVector<Value> zerosShapeValues{numOutputBoxes};
-        zerosShapeValues.push_back(rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(2)));
-        Value zerosShapeList = rewriter.create<Torch::PrimListConstructOp>(
-            loc,
-            rewriter.getType<Torch::ListType>(
-                rewriter.getType<Torch::IntType>()),
-            zerosShapeValues);
-        std::optional<ArrayRef<int64_t>> resultShape =
-            cast<Torch::ValueTensorType>(result.getType()).getOptionalSizes();
-        if (!resultShape.has_value())
-          return rewriter.notifyMatchFailure(
-              binder.op, "expected result tensor to have shape");
-        llvm::SmallVector<int64_t> zerosShape = {resultShape->front(), 2};
-        auto zerosTy = Torch::ValueTensorType::get(
-            resultType.getContext(), zerosShape, resultType.getOptionalDtype());
-        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
-        Value zeros = rewriter.create<Torch::AtenZerosOp>(
-            loc, zerosTy, zerosShapeList, cstNone, cstNone, cstNone, cstNone);
-
-        Type listElemType =
-            cast<Torch::BaseTensorType>(resultType)
-                .getWithSizesAndDtype(/*optionalSizes=*/std::nullopt,
-                                      /*optionalDtype=*/nullptr);
-        Type listType = Torch::ListType::get(listElemType);
-        Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
-            loc, listType, SmallVector<Value>{zeros, result});
-        rewriter.replaceOpWithNewOp<Torch::AtenCatOp>(binder.op, resultType,
-                                                      tensorList, cst1);
+        rewriter.replaceOpWithNewOp<Torch::TensorStaticInfoCastOp>(
+            binder.op, resultType, nmsBatchLoop.getResult(0));
         return success();
       });
 }
