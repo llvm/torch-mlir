@@ -235,9 +235,10 @@ Value createTorchList(ConversionPatternRewriter &rewriter, Location givenLoc,
       givenLoc, someTorchListType, givenTorchElements);
 }
 
-Value getValueList(ConversionPatternRewriter &rewriter, Location givenLoc,
-                   /* movingForwardsThrough */ Value given1DTensor,
-                   /*            startingAt */ int64_t givenIndex) {
+Value createTorchScalarSublist(ConversionPatternRewriter &rewriter,
+                               Location givenLoc,
+                               /* movingForwardsThrough */ Value given1DTensor,
+                               /*            startingAt */ int64_t givenIndex) {
   SmallVector<Value> runningTorchScalars;
 
   for (int indexOfEachScalar = givenIndex;
@@ -2836,14 +2837,15 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (operands.size() < 4) {
           Value scaleOperand = operands[2];
           scalesValueList =
-              getValueList(rewriter, binder.getLoc(), scaleOperand,
-                           assumedForemostSpatialDim);
+              createTorchScalarSublist(rewriter, binder.getLoc(), scaleOperand,
+                                       assumedForemostSpatialDim);
           sizesValueList = noneVal;
         } else {
           Value sizeOperand = operands[3];
           scalesValueList = noneVal;
-          sizesValueList = getValueList(rewriter, binder.getLoc(), sizeOperand,
-                                        assumedForemostSpatialDim);
+          sizesValueList =
+              createTorchScalarSublist(rewriter, binder.getLoc(), sizeOperand,
+                                       assumedForemostSpatialDim);
         }
         if (isa<Torch::NoneType>(scalesValueList.getType()) &&
             isa<Torch::NoneType>(sizesValueList.getType())) {
@@ -3367,8 +3369,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "supports upto 3d upsampling only");
 
         int64_t assumedForemostSpatialDim = 2;
-        Value scalesValueList = getValueList(rewriter, binder.getLoc(), scales,
-                                             assumedForemostSpatialDim);
+        Value scalesValueList = createTorchScalarSublist(
+            rewriter, binder.getLoc(), scales, assumedForemostSpatialDim);
         if (mode == "linear") {
           if (resultRank == 4)
             mode = "bilinear";
