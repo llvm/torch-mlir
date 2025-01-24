@@ -236,7 +236,7 @@ Value createTorchList(ConversionPatternRewriter &rewriter, Location givenLoc,
 }
 
 Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
-                   Value operand) {
+                   /* movingForwardsThrough */ Value operand) {
   SmallVector<Value> itemList;
 
   for (int i = 2; i < lengthOfListIn(operand); i++) {
