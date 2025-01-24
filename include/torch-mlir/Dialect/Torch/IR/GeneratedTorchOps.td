@@ -13826,6 +13826,34 @@ def Torch_AtenAsStridedOp : Torch_Op<"aten.as_strided", [
   }];
 }
 
+def Torch_Aten_AssertTensorMetadataOp : Torch_Op<"aten._assert_tensor_metadata", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_assert_tensor_metadata : (Tensor, int[]?, int[]?, int?, Device?, int?) -> ()`";
+  let arguments = (ins
+    AnyTorchTensorType:$a,
+    AnyTorchOptionalListOfTorchIntType:$size,
+    AnyTorchOptionalListOfTorchIntType:$stride,
+    AnyTorchOptionalIntType:$dtype,
+    AnyTorchOptionalDeviceType:$device,
+    AnyTorchOptionalIntType:$layout
+  );
+  let results = (outs
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_AssertTensorMetadataOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 6, 0);
+    }
+    void Aten_AssertTensorMetadataOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 6, 0);
+    }
+  }];
+  let hasFolder = 1;
+}
+
 def Torch_AtenDiagonalOp : Torch_Op<"aten.diagonal", [
     AllowsTypeRefinement,
     ReadOnly
