@@ -218,8 +218,10 @@ Value extractTorchScalar(
                                             selectionFromGiven1DTensor);
 }
 
-Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
-                   Value operand) {
+Value getValueList(
+    /*                  with */ OpBinder binder,
+    /*                 using */ ConversionPatternRewriter &rewriter,
+    /* movingForwardsThrough */ Value operand) {
   auto operandType = cast<Torch::BaseTensorType>(operand.getType());
   auto sizes = operandType.getSizes();
 
