@@ -215,15 +215,16 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
     itemList.push_back(item);
   }
   auto xTy = cast<Torch::ValueTensorType>(operand.getType());
+  Type someTorchScalarType;
   Value ValueList;
   if (isa<IntegerType>(xTy.getDtype())) {
+    someTorchScalarType = Torch::IntType::get(context);
     ValueList = rewriter.create<Torch::PrimListConstructOp>(
-        binder.getLoc(), Torch::ListType::get(Torch::IntType::get(context)),
-        itemList);
+        binder.getLoc(), Torch::ListType::get(someTorchScalarType), itemList);
   } else {
+    someTorchScalarType = Torch::FloatType::get(context);
     ValueList = rewriter.create<Torch::PrimListConstructOp>(
-        binder.getLoc(), Torch::ListType::get(Torch::FloatType::get(context)),
-        itemList);
+        binder.getLoc(), Torch::ListType::get(someTorchScalarType), itemList);
   }
   return ValueList;
 }
