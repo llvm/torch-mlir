@@ -2346,7 +2346,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
         unsigned inputRank = inputShape.size();
         // only handle 2D, 3D and 5D pooling cases
-        if (inputRank > 5 or inputRank < 3) {
+        if (inputRank > 5 || inputRank < 3) {
           return failure();
         }
         if (!resultType || !resultType.hasSizes()) {
@@ -2454,7 +2454,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                              "Unimplemented: unranked tensor");
         unsigned rank = *maybeRank;
         // only 1D, 2D and 3D LpPool is supported.
-        if (rank > 5 or rank < 3) {
+        if (rank > 5 || rank < 3) {
           return failure();
         }
 
