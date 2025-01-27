@@ -220,18 +220,16 @@ Value extractTorchScalar(
 }
 
 Value getValueList(
-    /*                  with */ OpBinder binder,
+    /*                    at */ Location givenLoc,
     /*                 using */ ConversionPatternRewriter &rewriter,
     /* movingForwardsThrough */ Value operand) {
   auto operandType = cast<Torch::BaseTensorType>(operand.getType());
   auto sizes = operandType.getSizes();
 
-  auto loc = binder.getLoc();
-
   SmallVector<Value> itemList;
 
   for (int i = 2; i < sizes[0]; i++) {
-    Value item = extractTorchScalar(loc, i, operand, rewriter);
+    Value item = extractTorchScalar(givenLoc, i, operand, rewriter);
     itemList.push_back(item);
   }
 
@@ -241,7 +239,7 @@ Value getValueList(
       rewriter.getType<Torch::ListType>(someTorchScalarType);
 
   return rewriter.create<Torch::PrimListConstructOp>(
-      loc, someTorchScalarListType, itemList);
+      givenLoc, someTorchScalarListType, itemList);
 }
 } // namespace
 
@@ -2826,12 +2824,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
         if (operands.size() < 4) {
           Value scaleOperand = operands[2];
-          scalesValueList = getValueList(binder, rewriter, scaleOperand);
+          scalesValueList =
+              getValueList(binder.getLoc(), rewriter, scaleOperand);
           sizesValueList = noneVal;
         } else {
           Value sizeOperand = operands[3];
           scalesValueList = noneVal;
-          sizesValueList = getValueList(binder, rewriter, sizeOperand);
+          sizesValueList = getValueList(binder.getLoc(), rewriter, sizeOperand);
         }
         if (isa<Torch::NoneType>(scalesValueList.getType()) &&
             isa<Torch::NoneType>(sizesValueList.getType())) {
@@ -3354,7 +3353,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(
               binder.op, "supports upto 3d upsampling only");
 
-        Value scalesValueList = getValueList(binder, rewriter, scales);
+        Value scalesValueList = getValueList(binder.getLoc(), rewriter, scales);
         if (mode == "linear") {
           if (resultRank == 4)
             mode = "bilinear";
