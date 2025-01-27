@@ -9780,7 +9780,7 @@ public:
     auto targetSizes = targetType.getSizes();
     int64_t selfRank = selfSizes.size();
     int64_t targetRank = targetSizes.size();
-    if (selfRank <= 0 or selfRank > 2) {
+    if (selfRank <= 0 || selfRank > 2) {
       return rewriter.notifyMatchFailure(op, "input tensor should be 1D or 2D");
     }
     if (targetRank > 1) {
@@ -9788,8 +9788,8 @@ public:
                                          "target tensor shoule be 0D or 1D!");
     }
 
-    if (selfRank != 1 or targetRank != 0) {
-      if (!(selfSizes[0] == kUnknownSize and targetSizes[0] == kUnknownSize) and
+    if (selfRank != 1 || targetRank != 0) {
+      if (!(selfSizes[0] == kUnknownSize && targetSizes[0] == kUnknownSize) &&
           selfSizes[0] != targetSizes[0]) {
         return rewriter.notifyMatchFailure(
             op,
@@ -9907,7 +9907,7 @@ public:
         zeroTensor);
 
     Value totalWeight;
-    if (reduction == 0 and selfRank > 1) {
+    if (reduction == 0 && selfRank > 1) {
       auto zeroFloat =
           rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0));
       Value twSize = rewriter.create<PrimListConstructOp>(
