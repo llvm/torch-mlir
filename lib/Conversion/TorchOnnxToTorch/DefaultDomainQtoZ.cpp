@@ -3331,8 +3331,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         if (mode != "nearest" && mode != "linear")
           return rewriter.notifyMatchFailure(
-              binder.op, "unsupported interpolation mode other than nearest, "
-                         "linear");
+              binder.op,
+              R"(Expected valid interpolation mode: "nearest" | "linear")");
 
         int64_t resultRank = resultType.getSizes().size();
         if (resultRank > 5)
@@ -4487,11 +4487,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         SmallVector<Type> scanOutTypes;
         for (unsigned i = numInits; i < resultTypes.size(); i++) {
           auto scanOutTy = cast<Torch::ValueTensorType>(resultTypes[i]);
-          // TODO: Handle dynamic result types.
-          if (!scanOutTy.hasSizes() || !scanOutTy.areAllSizesKnown()) {
-            return rewriter.notifyMatchFailure(
-                binder.op, "Expects result type to be static");
-          }
           Value sizeList =
               createConstantIntList(binder, rewriter, scanOutTy.getSizes());
           initVals.push_back(Torch::createInitTensor(rewriter, loc, scanOutTy,

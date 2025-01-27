@@ -1,0 +1,5 @@
+# The original constant name : "abz_.(1, 2)[$something, %anotherthing]"
+
+# RUN: %PYTHON -m torch_mlir.tools.import_onnx %S/BadName.onnx | FileCheck %s
+
+# CHECK: torch.operator "onnx.Constant"() {torch.onnx.value = dense_resource<_abz_._1__2___something___anotherthing_>

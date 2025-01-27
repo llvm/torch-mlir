@@ -87,6 +87,29 @@ def BmmFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5), tu.rand(3, 5, 4))
 
 
+class BmmFloat16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float16, True),
+            ([-1, -1, -1], torch.float16, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.bmm(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: BmmFloat16Module())
+def BmmFloat16Module_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(3, 4, 5).to(torch.float16), tu.rand(3, 5, 4).to(torch.float16)
+    )
+
+
 class BmmIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -6407,3 +6430,26 @@ def AtenPolarDoubleModule_basic(module, tu: TestUtils):
     module.forward(
         tu.rand(2, 5, 3, 4).to(torch.float64), tu.rand(2, 5, 3, 4).to(torch.float64)
     )
+
+
+# ==============================================================================
+
+
+class AtenNonzero1DDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.bool, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.nonzero(x)
+
+
+@register_test_case(module_factory=lambda: AtenNonzero1DDynamicModule())
+def AtenNonzero1DDynamicModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 0, 1, 1, 0, 0], dtype=torch.bool))

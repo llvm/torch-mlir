@@ -7,7 +7,7 @@ repo_root="$(cd $this_dir/../.. && pwd)"
 torch_version="${1:-unknown}"
 
 echo "::group::installing llvm python deps"
-python -m pip install --no-cache-dir -r $repo_root/externals/llvm-project/mlir/python/requirements.txt
+python3 -m pip install --no-cache-dir -r $repo_root/externals/llvm-project/mlir/python/requirements.txt
 echo "::endgroup::"
 
 case $torch_version in
@@ -30,5 +30,5 @@ case $torch_version in
 esac
 
 echo "::group::installing test requirements"
-python -m pip install --no-cache-dir -r $repo_root/test-requirements.txt
+python3 -m pip install --no-cache-dir -r $repo_root/test-requirements.txt
 echo "::endgroup::"
