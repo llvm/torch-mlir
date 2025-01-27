@@ -204,7 +204,6 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
       binder.getLoc(), rewriter.getType<Torch::IntType>(),
       rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
 
-  MLIRContext *context = binder.op->getContext();
   for (int i = 2; i < sizes[0]; i++) {
     Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
         binder.getLoc(), rewriter.getType<Torch::IntType>(),
@@ -217,12 +216,13 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
   auto xTy = cast<Torch::ValueTensorType>(operand.getType());
   Type someTorchScalarType;
   if (isa<IntegerType>(xTy.getDtype())) {
-    someTorchScalarType = Torch::IntType::get(context);
+    someTorchScalarType = rewriter.getType<Torch::IntType>();
   } else {
-    someTorchScalarType = Torch::FloatType::get(context);
+    someTorchScalarType = rewriter.getType<Torch::FloatType>();
   }
 
-  Type someTorchScalarListType = Torch::ListType::get(someTorchScalarType);
+  Type someTorchScalarListType =
+      rewriter.getType<Torch::ListType>(someTorchScalarType);
 
   return rewriter.create<Torch::PrimListConstructOp>(
       binder.getLoc(), someTorchScalarListType, itemList);
