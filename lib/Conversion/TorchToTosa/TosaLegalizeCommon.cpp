@@ -351,7 +351,7 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
 
   // %3 = "tosa.reshape"(%1) {new_shape = [8, 3]} : (tensor<1x4x2x3xi32>) ->
   // tensor<8x3xi32> Flatten the input indices tensor to an [W, ND] matrix.
-  auto indicesMatrixReshapeOp = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
+  Value indicesMatrixReshapeOp = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
       rewriter, op->getLoc(),
       GetTypeFromTensorShape(indicesMatrixShape, indicesType.getElementType()),
       indicesValue, rewriter.getDenseI64ArrayAttr(indicesMatrixShape));
@@ -378,13 +378,18 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
   if (!flattenedCoeffValue)
     return std::nullopt;
 
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), indicesMatrixReshapeOp,
+                                flattenedCoeffValue.value())
+          .failed())
+    return std::nullopt;
+
   // Multiply the coefficients by the coordinates
   // %5 = "tosa.mul"(%3, %4) {shift = 0 : i32} : (tensor<8x3xi32>,
   // tensor<3xi32>) -> tensor<8x3xi32>
   auto flattenedIndicesMulOp = tosa::CreateOpAndInfer<tosa::MulOp>(
       rewriter, op->getLoc(),
       GetTypeFromTensorShape(indicesMatrixShape, indicesType.getElementType()),
-      indicesMatrixReshapeOp.getResult(), flattenedCoeffValue.value(), 0);
+      indicesMatrixReshapeOp, flattenedCoeffValue.value(), 0);
 
   // Sum up the products of the coefficients and coordinates
   // %6 = "tosa.reduce_sum"(%5) {axis = 1 : i64} : (tensor<8x3xi32>) ->
@@ -616,7 +621,7 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
   // [[0, 1], [0, 2],  [0, 3]] -> [[0, 1], [0, 2],  [0, 3]]
   // %11 = "tosa.reshape"(%8) {new_shape = array<i64: 3, 2>} : (tensor<3x2xi32>)
   // -> tensor<3x2xi32>
-  auto indicesMatrixReshapeOp = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
+  Value indicesMatrixReshapeOp = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
       rewriter, op->getLoc(),
       GetTypeFromTensorShape(indicesMatrixShape, indicesType.getElementType()),
       indicesValue, rewriter.getDenseI64ArrayAttr(indicesMatrixShape));
@@ -643,6 +648,11 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
   if (!flattenedCoeffValue)
     return std::nullopt;
 
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), indicesMatrixReshapeOp,
+                                flattenedCoeffValue.value())
+          .failed())
+    return std::nullopt;
+
   // Multiply the coefficients by the coordinates.
   // [[0, 1], [0, 2],  [0, 3]] X [4, 1] -> [[4*0, 1*1], [4*0, 1*2], [4*0, 1*3]]
   // %13 = "tosa.mul"(%11, %12) {shift = 0 : i32} : (tensor<3x2xi32>,
@@ -650,7 +660,7 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
   auto flattenedIndicesMulOp = tosa::CreateOpAndInfer<tosa::MulOp>(
       rewriter, op->getLoc(),
       GetTypeFromTensorShape(indicesMatrixShape, indicesType.getElementType()),
-      indicesMatrixReshapeOp.getResult(), flattenedCoeffValue.value(), 0);
+      indicesMatrixReshapeOp, flattenedCoeffValue.value(), 0);
 
   // Sum up the products of the coefficients and coordinates
   // [[4*0 + 1*1], [4*0 + 1*2], [4*0 + 1*3]] = [[1],[2],[3]]
@@ -973,6 +983,12 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
 
   if (!input_is_qtype) {
     Value div_const = getTosaConstTensorSingleF32(rewriter, op, div_scale);
+
+    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), val.value(),
+                                  div_const)
+            .failed())
+      return std::nullopt;
+
     return CreateOpAndInfer<tosa::MulOp>(rewriter, op->getLoc(), output_type,
                                          val.value(), div_const, 0)
         .getResult();
@@ -1021,6 +1037,11 @@ convertLinalgVectorNormOp(PatternRewriter &rewriter, Operation *op,
     return std::nullopt;
   }
 
+  Value ordValRank0 = ordVal;
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), input_value, ordVal)
+          .failed())
+    return std::nullopt;
+
   if (fabs(ordLiteralFloat) < epsilon ||
       fabs(static_cast<double>(ordLiteralInt)) < epsilon) {
     op->emitOpError("unimplemented: L0 norm");
@@ -1049,9 +1070,17 @@ convertLinalgVectorNormOp(PatternRewriter &rewriter, Operation *op,
       rewriter, op, output_type, powVal, axes_elems, keep_dims);
   if (!result)
     return std::nullopt;
-  auto reciprocalVal = CreateOpAndInfer<tosa::ReciprocalOp>(
-                           rewriter, op->getLoc(), ordVal.getType(), ordVal)
-                           .getResult();
+
+  Value reciprocalVal =
+      CreateOpAndInfer<tosa::ReciprocalOp>(rewriter, op->getLoc(),
+                                           ordValRank0.getType(), ordValRank0)
+          .getResult();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), result.value(),
+                                reciprocalVal)
+          .failed())
+    return std::nullopt;
+
   return CreateOpAndInfer<tosa::PowOp>(rewriter, op->getLoc(), output_type,
                                        result.value(), reciprocalVal)
       .getResult();
