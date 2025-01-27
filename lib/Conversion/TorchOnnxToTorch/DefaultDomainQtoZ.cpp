@@ -216,17 +216,14 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
   }
   auto xTy = cast<Torch::ValueTensorType>(operand.getType());
   Type someTorchScalarType;
-  Value ValueList;
   if (isa<IntegerType>(xTy.getDtype())) {
     someTorchScalarType = Torch::IntType::get(context);
   } else {
     someTorchScalarType = Torch::FloatType::get(context);
   }
 
-  ValueList = rewriter.create<Torch::PrimListConstructOp>(
+  return rewriter.create<Torch::PrimListConstructOp>(
       binder.getLoc(), Torch::ListType::get(someTorchScalarType), itemList);
-
-  return ValueList;
 }
 } // namespace
 
