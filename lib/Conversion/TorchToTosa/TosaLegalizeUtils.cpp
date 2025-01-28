@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
+#include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"       // from @llvm-project
 #include "mlir/Dialect/Tosa/Utils/QuantUtils.h" // from @llvm-project
 
@@ -392,6 +393,10 @@ LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
 
       auto zeroValue =
           tosa::getConstTensor<float>(rewriter, op, 0, {}, srcElemTy).value();
+
+      if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), src, zeroValue).failed())
+        return rewriter.notifyMatchFailure(
+            op, "Failed to equalize ranks among operands and result");
 
       auto boolType = srcType.clone(rewriter.getIntegerType(1));
       auto isNegative = tosa::CreateOpAndInfer<tosa::GreaterOp>(

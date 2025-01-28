@@ -744,10 +744,20 @@ std::optional<Value> convertReduceOpCommon(
       RankedTensorType reduce_type =
           RankedTensorType::get(shape_vec, reduce_element_type);
 
-      auto reduce_op = CreateOpAndInfer<T>(rewriter, op->getLoc(), reduce_type,
-                                           val, axis_attr);
+      Value reduce_op;
+      if constexpr (std::is_same<T, tosa::ReduceMinOp>() ||
+                    std::is_same<T, tosa::ReduceMaxOp>()) {
+        // Use default NaN Propagation mode "PROPAGATE" for tosa.reduce_min
+        // and tosa.reduce_max
+        reduce_op = CreateOpAndInfer<T>(
+            rewriter, op->getLoc(), reduce_type, val, axis_attr,
+            /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+      } else {
+        reduce_op = CreateOpAndInfer<T>(rewriter, op->getLoc(), reduce_type,
+                                        val, axis_attr);
+      }
 
-      val = reduce_op.getResult();
+      val = reduce_op;
     }
 
     if (is_quantized) {

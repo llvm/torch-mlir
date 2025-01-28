@@ -124,10 +124,19 @@ public:
 
     Value binaryOp;
 
-    // TOSA ArithmeticRightShiftOp has a round parameter.
     if constexpr (std::is_same<AtenOpT, AtenBitwiseRightShiftTensorOp>()) {
+      // TOSA ArithmeticRightShiftOp has a round parameter.
       binaryOp = rewriter.create<TosaOpT>(op->getLoc(), outTy, lhs, rhs,
                                           /*round=*/false);
+    } else if constexpr (std::is_same<TosaOpT, tosa::MaximumOp>() ||
+                         std::is_same<TosaOpT, tosa::MinimumOp>()) {
+      lhs = tosa::promoteType(rewriter, lhs, outTy);
+      rhs = tosa::promoteType(rewriter, rhs, outTy);
+      // Use default NaN Propagation mode "PROPAGATE" for tosa.maximum and
+      // tosa.minimum
+      binaryOp = rewriter.create<TosaOpT>(
+          op->getLoc(), outTy, lhs, rhs,
+          /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
     } else {
       binaryOp =
           tosa::createBinaryOpAndCast<TosaOpT>(rewriter, op, outTy, lhs, rhs);
@@ -862,12 +871,15 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Only floating-point datatype legalization currently supported");
   }
+
+  // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   rewriter.replaceOpWithNewOp<tosa::ClampOp>(
       op, getTypeConverter()->convertType(op.getType()), clampIn,
       rewriter.getI64IntegerAttr(clampMin),
       rewriter.getI64IntegerAttr(std::numeric_limits<int32_t>::max()),
       rewriter.getF32FloatAttr(0.0f),
-      rewriter.getF32FloatAttr(std::numeric_limits<float>::max()));
+      rewriter.getF32FloatAttr(std::numeric_limits<float>::max()),
+      /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
   return success();
 }
 
@@ -1186,10 +1198,13 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
         rewriter.getI32Type());
     auto reduceDimAttr =
         rewriter.getIntegerAttr(rewriter.getI64Type(), reduceDim);
+
+    // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
     return rewriter
-        .create<tosa::ArgMaxOp>(op->getLoc(),
-                                getTypeConverter()->convertType(outputReduceTy),
-                                input, reduceDimAttr)
+        .create<tosa::ArgMaxOp>(
+            op->getLoc(), getTypeConverter()->convertType(outputReduceTy),
+            input, reduceDimAttr,
+            /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))
         .getResult();
   };
 
@@ -3847,11 +3862,23 @@ public:
     auto dimAttr = rewriter.getIntegerAttr(rewriter.getI32Type(), dim);
     auto prunedShapeAttr = rewriter.getDenseI64ArrayAttr(prunedShape);
 
-    Value reduceOp = rewriter.create<TosaOpT>(
-        op->getLoc(),
-        RankedTensorType::get(makeShapeLLVMCompatible(reducedShape),
-                              selfElemType),
-        self, dimAttr);
+    Value reduceOp;
+    if constexpr (std::is_same<TosaOpT, tosa::ReduceMinOp>() ||
+                  std::is_same<TosaOpT, tosa::ReduceMaxOp>()) {
+      // Use default NaN Propagation mode "PROPAGATE" for tosa.reduce_min
+      // and tosa.reduce_max
+      reduceOp = rewriter.create<TosaOpT>(
+          op->getLoc(),
+          RankedTensorType::get(makeShapeLLVMCompatible(reducedShape),
+                                selfElemType),
+          self, dimAttr, /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+    } else {
+      reduceOp = rewriter.create<TosaOpT>(
+          op->getLoc(),
+          RankedTensorType::get(makeShapeLLVMCompatible(reducedShape),
+                                selfElemType),
+          self, dimAttr);
+    }
 
     // To handle ReduceMinDim indices, we apply ArgMaxOp on the negate
     // of the input tensor, which will return indices of input's min values
@@ -3860,17 +3887,19 @@ public:
       Value negateOp =
           rewriter.create<tosa::NegateOp>(op->getLoc(), selfType, self);
 
+      // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
       argMaxOp = rewriter.create<tosa::ArgMaxOp>(
           op->getLoc(),
           RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
                                 indicesElemType),
-          negateOp, dimAttr);
+          negateOp, dimAttr, /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
     } else {
+      // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
       argMaxOp = rewriter.create<tosa::ArgMaxOp>(
           op->getLoc(),
           RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
                                 indicesElemType),
-          self, dimAttr);
+          self, dimAttr, /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
     }
 
     if (argMaxOp.getType() != indicesType) {
@@ -5070,9 +5099,11 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
                                        "max attr should be a torch constant");
   }
 
+  // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   auto outType = getTypeConverter()->convertType(op.getType());
-  rewriter.replaceOpWithNewOp<tosa::ClampOp>(op, outType, adaptor.getSelf(),
-                                             min_int, max_int, min_fp, max_fp);
+  rewriter.replaceOpWithNewOp<tosa::ClampOp>(
+      op, outType, adaptor.getSelf(), min_int, max_int, min_fp, max_fp,
+      /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
 
   return success();
 }
@@ -5172,13 +5203,21 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Failed to equalize ranks among operands and result");
 
+  self = tosa::promoteType(rewriter, self, resultType);
+  min = tosa::promoteType(rewriter, min, resultType);
+  max = tosa::promoteType(rewriter, max, resultType);
+
   // max(xi, min_valuei)
-  auto minThresholdCheck = tosa::createBinaryOpAndCast<tosa::MaximumOp>(
-      rewriter, op, resultType, self, min);
+  // Use default NaN Propagation mode "PROPAGATE" for tosa.maximum
+  auto minThresholdCheck = rewriter.create<tosa::MaximumOp>(
+      op->getLoc(), resultType, self, min,
+      /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
 
   // yi = min(max(xi, min_valuei), max_valuei)
-  auto result = tosa::createBinaryOpAndCast<tosa::MinimumOp>(
-      rewriter, op, resultType, minThresholdCheck, max);
+  // Use default NaN Propagation mode "PROPAGATE" for tosa.minimum
+  auto result = rewriter.create<tosa::MinimumOp>(
+      op->getLoc(), resultType, minThresholdCheck, max,
+      /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
 
   rewriter.replaceOp(op, result);
   return success();
@@ -5679,9 +5718,11 @@ public:
                       std::is_same<TosaOpT, tosa::AvgPool2dOp>::value,
                   "Expected either tosa::MaxPool2dOp or tosa::AvgPool2dOp");
     if constexpr (std::is_same<TosaOpT, tosa::MaxPool2dOp>::value) {
+      // Use default NaN Propagation mode "PROPAGATE" for tosa.max_pool2d
       pooledOutput = rewriter
-                         .create<TosaOpT>(op->getLoc(), outputTy, input, kernel,
-                                          stride, pad)
+                         .create<TosaOpT>(
+                             op->getLoc(), outputTy, input, kernel, stride, pad,
+                             /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))
                          .getResult();
     } else if constexpr (std::is_same<TosaOpT, tosa::AvgPool2dOp>::value) {
       TypeAttr accType;
@@ -8319,6 +8360,7 @@ LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
   auto zi = self;
 
   // Clamp input to [eps, 1 - eps] when eps is not None
+  // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   if (!isEpsNone) {
     zi = rewriter
              .create<tosa::ClampOp>(
@@ -8326,7 +8368,8 @@ LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
                  rewriter.getI64IntegerAttr(static_cast<int64_t>(eps)),
                  rewriter.getI64IntegerAttr(static_cast<int64_t>(1 - eps)),
                  rewriter.getF32FloatAttr(static_cast<float>(eps)),
-                 rewriter.getF32FloatAttr(static_cast<float>(1 - eps)))
+                 rewriter.getF32FloatAttr(static_cast<float>(1 - eps)),
+                 /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))
              .getResult();
   }
 

@@ -1072,19 +1072,21 @@ func.func @torch.aten.to.dtype(%arg0: !torch.vtensor<[1,128],i1>) -> !torch.vten
 
 // -----
 // CHECK-LABEL:   func.func @torch.aten.to.dtype$floatToInt(
-// CHECK-SAME:                                              %[[ARG0:.*]]: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,5],si64> {
-// CHECK:           %[[TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[3,5],f32> -> tensor<3x5xf32>
-// CHECK:           %[[INT4:.*]] = torch.constant.int 4
-// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
-// CHECK:           %[[NONE:.*]] = torch.constant.none
-// CHECK:           %[[FLOOR:.*]] = tosa.floor %[[TENSOR]] : (tensor<3x5xf32>) -> tensor<3x5xf32>
-// CHECK:           %[[CEIL:.*]] = tosa.ceil %[[TENSOR]] : (tensor<3x5xf32>) -> tensor<3x5xf32>
-// CHECK:           %[[F0:.*]] = "tosa.const"() <{value = dense<0.000000e+00> : tensor<f32>}> : () -> tensor<f32>
-// CHECK:           %[[IS_NEG:.*]] = tosa.greater %[[F0]], %[[TENSOR]] : (tensor<f32>, tensor<3x5xf32>) -> tensor<3x5xi1>
-// CHECK:           %[[SELECT:.*]] = tosa.select %[[IS_NEG]], %[[CEIL]], %[[FLOOR]] : (tensor<3x5xi1>, tensor<3x5xf32>, tensor<3x5xf32>) -> tensor<3x5xf32>
-// CHECK:           %[[CAST:.*]] = tosa.cast %[[SELECT]] : (tensor<3x5xf32>) -> tensor<3x5xi64>
-// CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %[[CAST]] : tensor<3x5xi64> -> !torch.vtensor<[3,5],si64>
-// CHECK:           return %[[RES]] : !torch.vtensor<[3,5],si64>
+// CHECK-SAME:                                              %[[VAL_0:.*]]: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,5],si64> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,5],f32> -> tensor<3x5xf32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 4
+// CHECK:           %[[VAL_3:.*]] = torch.constant.bool false
+// CHECK:           %[[VAL_4:.*]] = torch.constant.none
+// CHECK:           %[[VAL_5:.*]] = tosa.floor %[[VAL_1]] : (tensor<3x5xf32>) -> tensor<3x5xf32>
+// CHECK:           %[[VAL_6:.*]] = tosa.ceil %[[VAL_1]] : (tensor<3x5xf32>) -> tensor<3x5xf32>
+// CHECK:           %[[VAL_7:.*]] = "tosa.const"() <{value = dense<0.000000e+00> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[VAL_8:.*]] = tosa.reshape %[[VAL_7]] {new_shape = array<i64: 1, 1>} : (tensor<f32>) -> tensor<1x1xf32>
+// CHECK:           %[[VAL_9:.*]] = tosa.greater %[[VAL_8]], %[[VAL_1]] : (tensor<1x1xf32>, tensor<3x5xf32>) -> tensor<3x5xi1>
+// CHECK:           %[[VAL_10:.*]] = tosa.select %[[VAL_9]], %[[VAL_6]], %[[VAL_5]] : (tensor<3x5xi1>, tensor<3x5xf32>, tensor<3x5xf32>) -> tensor<3x5xf32>
+// CHECK:           %[[VAL_11:.*]] = tosa.cast %[[VAL_10]] : (tensor<3x5xf32>) -> tensor<3x5xi64>
+// CHECK:           %[[VAL_12:.*]] = torch_c.from_builtin_tensor %[[VAL_11]] : tensor<3x5xi64> -> !torch.vtensor<[3,5],si64>
+// CHECK:           return %[[VAL_12]] : !torch.vtensor<[3,5],si64>
+// CHECK:         }
 func.func @torch.aten.to.dtype$floatToInt(%arg0: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,5],si64> {
     %int4 = torch.constant.int 4
     %false = torch.constant.bool false
