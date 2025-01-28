@@ -121,6 +121,17 @@ void CreateReplaceOpAndInfer(PatternRewriter &rewriter, Operation *op,
 LogicalResult getAvgPool2dAccType(PatternRewriter &rewriter, Value input,
                                   TypeAttr &accType);
 
+// Get accumulator type for TOSA convolution ops
+LogicalResult getConvOpsAccType(PatternRewriter &rewriter,
+                                RankedTensorType inputTy,
+                                RankedTensorType weightTy,
+                                RankedTensorType outputTy, TypeAttr &accType);
+
+// Temporary function to get TOSA const shape
+// TODO: Remove this function when getTosaConstShape is available in
+// externals/llvm-project/mlir/include/mlir/Dialect/Tosa/Utils/ConversionUtils.h
+Value getTosaConstShape(PatternRewriter &rewriter, Location loc,
+                        llvm::ArrayRef<int64_t> shape);
 } // namespace tosa
 } // namespace mlir
 

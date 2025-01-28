@@ -425,8 +425,7 @@ class MungeMemrefCopy : public MungeMemrefCopyBase<MungeMemrefCopy> {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(&getContext());
     patterns.insert<MemrefCopyOpToLinalg>(context);
-    if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                            std::move(patterns)))) {
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns)))) {
       return signalPassFailure();
     }
   }
@@ -448,8 +447,7 @@ class GeneralizeTensorConcat
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     tensor::populateDecomposeTensorConcatPatterns(patterns);
-    if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                            std::move(patterns)))) {
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns)))) {
       return signalPassFailure();
     }
   }
@@ -471,9 +469,8 @@ class GeneralizeTensorPad
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(&getContext());
-    patterns.insert<linalg::GeneralizePadOpPattern>(context);
-    if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                            std::move(patterns)))) {
+    patterns.insert<linalg::DecomposePadOpPattern>(context);
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns)))) {
       return signalPassFailure();
     }
   }

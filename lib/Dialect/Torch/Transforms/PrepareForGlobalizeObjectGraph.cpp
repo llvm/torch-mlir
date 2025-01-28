@@ -75,14 +75,13 @@ class PrepareForGlobalizeObjectGraphPass
     func::CallIndirectOp::getCanonicalizationPatterns(patterns, context);
     patterns.add<EraseUnusedConstantOp>(context);
 
-    // Use applyPatternsAndFoldGreedily because the CallIndirectOp folding
+    // Use applyPatternsGreedily because the CallIndirectOp folding
     // makes the ConstantOp unused, which does not work with the visitation
     // order of the dialect conversion infrastructure.
     // TODO: Do this with the dialect conversion infrastructure to avoid doing
     // folding as part of this. Or avoid folding during greedy pattern
     // application. See: https://llvm.org/PR49502
-    if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                            std::move(patterns)))) {
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns)))) {
       return signalPassFailure();
     }
 

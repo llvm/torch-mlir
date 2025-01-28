@@ -26,6 +26,15 @@ using namespace mlir::torch::Torch;
 using TypeBoundMap = DenseMap<std::pair<StringRef, int>, Type>;
 
 namespace {
+
+Value materializeAsCopyTensorToType(OpBuilder &builder,
+                                    Torch::BaseTensorType type,
+                                    ValueRange inputs, Location loc) {
+  assert(inputs.size() == 1);
+  assert(isa<BaseTensorType>(inputs[0].getType()));
+  return copyTensorToType(builder, loc, type, inputs[0]);
+}
+
 class AdjustCallingConventionForFunc
     : public OpConversionPattern<func::FuncOp> {
 public:
@@ -198,13 +207,9 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
         return success();
       });
 
-  typeConverter.addArgumentMaterialization(
-      [](OpBuilder &builder, Torch::BaseTensorType type, ValueRange inputs,
-         Location loc) -> Value {
-        assert(inputs.size() == 1);
-        assert(isa<BaseTensorType>(inputs[0].getType()));
-        return copyTensorToType(builder, loc, type, inputs[0]);
-      });
+  typeConverter.addArgumentMaterialization(materializeAsCopyTensorToType);
+  typeConverter.addSourceMaterialization(materializeAsCopyTensorToType);
+  typeConverter.addTargetMaterialization(materializeAsCopyTensorToType);
   patterns.add<AdjustCallingConventionForFunc>(typeConverter, context);
   patterns.add<AdjustCallingConventionForCall>(typeConverter, context,
                                                typeBoundMap);
