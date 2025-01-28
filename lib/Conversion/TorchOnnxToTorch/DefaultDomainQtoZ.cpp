@@ -2824,15 +2824,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), modeStr);
         }
 
+        auto numberOfOperands = operands.size();
+
         int64_t assumedForemostSpatialDim = 2;
 
-        if (operands.size() == 3) {
+        if (numberOfOperands == 3) {
           Value scaleOperand = operands[2];
           scalesValueList =
               createScalarSublist(binder.getLoc(), scaleOperand,
                                   assumedForemostSpatialDim, rewriter);
           sizesValueList = noneVal;
-        } else if (operands.size() == 4) {
+        } else if (numberOfOperands == 4) {
           Value sizeOperand = operands[3];
           scalesValueList = noneVal;
           sizesValueList =
