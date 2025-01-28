@@ -2826,7 +2826,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         int64_t assumedForemostSpatialDim = 2;
 
-        if (operands.size() < 4) {
+        if (operands.size() == 3) {
           Value scaleOperand = operands[2];
           scalesValueList =
               createScalarSublist(binder.getLoc(), scaleOperand,
