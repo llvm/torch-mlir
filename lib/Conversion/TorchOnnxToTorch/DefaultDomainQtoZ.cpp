@@ -2832,17 +2832,15 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               createScalarSublist(binder.getLoc(), scaleOperand,
                                   assumedForemostSpatialDim, rewriter);
           sizesValueList = noneVal;
-        } else {
+        } else if (operands.size() == 4) {
           Value sizeOperand = operands[3];
           scalesValueList = noneVal;
           sizesValueList =
               createScalarSublist(binder.getLoc(), sizeOperand,
                                   assumedForemostSpatialDim, rewriter);
-        }
-        if (isa<Torch::NoneType>(scalesValueList.getType()) &&
-            isa<Torch::NoneType>(sizesValueList.getType())) {
+        } else
           return rewriter.notifyMatchFailure(binder.op, "unknown scaling mode");
-        }
+
         rewriter
             .replaceOpWithNewOp<Torch::Aten__InterpolateSizeListScaleListOp>(
                 binder.op, resultType, operands[0], sizesValueList,
