@@ -302,31 +302,31 @@ std::optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
       (src.isF32() && dest.isInteger(8)) ||
       (src.isF32() && dest.isBF16()) ||
       (src.isF32() && dest.isF16()) ||
-      (src.isF32() && dest.isFloat8E4M3()) ||
-      (src.isF32() && dest.isFloat8E5M2()) ||
+      (src.isF32() && isa<Float8E4M3Type>(dest)) ||
+      (src.isF32() && isa<Float8E5M2Type>(dest)) ||
       // f16 -> *
       (src.isF16() && dest.isInteger(32)) ||
       (src.isF16() && dest.isInteger(16)) ||
       (src.isF16() && dest.isInteger(8)) ||
       (src.isF16() && dest.isBF16()) ||
       (src.isF16() && dest.isF32()) ||
-      (src.isF16() && dest.isFloat8E4M3()) ||
-      (src.isF16() && dest.isFloat8E5M2()) ||
+      (src.isF16() && isa<Float8E4M3Type>(dest)) ||
+      (src.isF16() && isa<Float8E5M2Type>(dest)) ||
       // bf16 -> *
       (src.isBF16() && dest.isInteger(32)) ||
       (src.isBF16() && dest.isInteger(16)) ||
       (src.isBF16() && dest.isInteger(8)) ||
       (src.isBF16() && dest.isF32()) ||
-      (src.isBF16() && dest.isFloat8E4M3()) ||
-      (src.isBF16() && dest.isFloat8E5M2()) ||
+      (src.isBF16() && isa<Float8E4M3Type>(dest)) ||
+      (src.isBF16() && isa<Float8E5M2Type>(dest)) ||
       // fp8e4m3 -> *
-      (src.isFloat8E4M3() && dest.isBF16()) ||
-      (src.isFloat8E4M3() && dest.isF32()) ||
-      (src.isFloat8E4M3() && dest.isF16()) ||
+      (isa<Float8E4M3Type>(src) && dest.isBF16()) ||
+      (isa<Float8E4M3Type>(src) && dest.isF32()) ||
+      (isa<Float8E4M3Type>(src) && dest.isF16()) ||
       // fp8e5m2 -> *
-      (src.isFloat8E5M2() && dest.isBF16()) ||
-      (src.isFloat8E5M2() && dest.isF32()) ||
-      (src.isFloat8E5M2() && dest.isF16())) {
+      (isa<Float8E5M2Type>(src) && dest.isBF16()) ||
+      (isa<Float8E5M2Type>(src) && dest.isF32()) ||
+      (isa<Float8E5M2Type>(src) && dest.isF16())) {
     return success();
   }
   // clang-format on
@@ -493,9 +493,9 @@ LogicalResult getConvOpsAccType(PatternRewriter &rewriter,
   } else if (inputElemTy.isInteger(16) && weightElemTy.isInteger(8) &&
              outputElemTy.isInteger(48)) {
     accType = mlir::TypeAttr::get(rewriter.getIntegerType(48));
-  } else if ((inputElemTy.isFloat8E4M3() && weightElemTy.isFloat8E4M3() &&
+  } else if ((isa<Float8E4M3Type>(inputElemTy) && isa<Float8E4M3Type>(weightElemTy) &&
               outputElemTy.isF16()) ||
-             (inputElemTy.isFloat8E5M2() && weightElemTy.isFloat8E5M2() &&
+             (isa<Float8E5M2Type>(inputElemTy) && isa<Float8E5M2Type>(weightElemTy) &&
               outputElemTy.isF16())) {
     accType = mlir::TypeAttr::get(rewriter.getF16Type());
   } else {
