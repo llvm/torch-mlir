@@ -257,11 +257,11 @@ public:
 
   MlirType GetNoneType();
 
-  MlirType GetListType(MlirType element_type);
-  MlirType GetOptionalType(MlirType element_type);
+  MlirType GetListType(const std::string &element_type_asm);
+  MlirType GetOptionalType(const std::string &element_type_asm);
 
-  MlirType GetListElementType(const onnx::TypeProto &tp);
-  MlirType GetOptionalElementType(const onnx::TypeProto &tp);
+  FailureOr<std::string> GetListElementTypeAsm(const onnx::TypeProto &tp);
+  FailureOr<std::string> GetOptionalElementTypeAsm(const onnx::TypeProto &tp);
 
   /// Gets a !torch.vtensor type for the given dims and element type.
   /// Dynamic dims are represented as -1.

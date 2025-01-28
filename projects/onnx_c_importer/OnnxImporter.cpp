@@ -45,11 +45,10 @@ inline std::vector<TOut> elementwiseCast(std::span<TIn> arr) {
 
 bool IsIdentifer(std::string_view s) {
   bool res = true;
-  res &= !s.empty();
+  res &= !s.empty() && !std::isdigit(static_cast<unsigned char>(s[0]));
   res &= std::all_of(s.begin(), s.end(), [](unsigned char c) {
     return std::isalnum(c) || c == '_';
   });
-  res &= !std::isdigit(static_cast<unsigned char>(s[0]));
   return res;
 }
 
@@ -519,14 +518,13 @@ MlirType ContextCache::GetNoneType() {
   return mlirTypeParseGet(context_, toMlirStringRef(type_asm));
 }
 
-MlirType ContextCache::GetListType(MlirType element_type) {
-  std::string key = getMlirAsm(element_type);
-  auto it = list_type_map_.find(key);
+MlirType ContextCache::GetListType(const std::string &element_type_asm) {
+  auto it = list_type_map_.find(element_type_asm);
   if (it != list_type_map_.end()) {
     return it->second;
   }
 
-  std::string type_asm = "!torch.list<" + key + ">";
+  std::string type_asm = "!torch.list<" + element_type_asm + ">";
   MlirType t = mlirTypeParseGet(context_, toMlirStringRef(type_asm));
   if (mlirTypeIsNull(t)) {
     std::string msg =
@@ -534,18 +532,17 @@ MlirType ContextCache::GetListType(MlirType element_type) {
     model_info_.SetError(std::move(msg));
     return {nullptr};
   }
-  list_type_map_[key] = t;
+  list_type_map_[element_type_asm] = t;
   return t;
 }
 
-MlirType ContextCache::GetOptionalType(MlirType element_type) {
-  std::string key = getMlirAsm(element_type);
-  auto it = optional_type_map_.find(key);
+MlirType ContextCache::GetOptionalType(const std::string &element_type_asm) {
+  auto it = optional_type_map_.find(element_type_asm);
   if (it != optional_type_map_.end()) {
     return it->second;
   }
 
-  std::string type_asm = "!torch.optional<" + key + ">";
+  std::string type_asm = "!torch.optional<" + element_type_asm + ">";
   MlirType t = mlirTypeParseGet(context_, toMlirStringRef(type_asm));
   if (mlirTypeIsNull(t)) {
     std::string msg =
@@ -553,38 +550,40 @@ MlirType ContextCache::GetOptionalType(MlirType element_type) {
     model_info_.SetError(std::move(msg));
     return {nullptr};
   }
-  optional_type_map_[key] = t;
+  optional_type_map_[element_type_asm] = t;
   return t;
 }
 
-MlirType ContextCache::GetListElementType(const onnx::TypeProto &tp) {
+FailureOr<std::string>
+ContextCache::GetListElementTypeAsm(const onnx::TypeProto &tp) {
   if (tp.has_tensor_type()) {
     const onnx::TypeProto_Tensor &tt = tp.tensor_type();
     if (tt.has_elem_type() && tt.elem_type()) {
       MlirType element_type = ConvertTensorElementType(tt.elem_type());
       assert(!mlirTypeIsNull(element_type));
       std::vector<std::string> dims;
-      dims.reserve(tt.shape().dim_size());
-      assert(tt.has_shape());
-      for (const onnx::TensorShapeProto::Dimension &dim : tt.shape().dim()) {
-        if (dim.has_dim_value()) {
-          dims.push_back(std::to_string(dim.dim_value()));
-        } else {
-          dims.push_back("?");
+      if (tt.has_shape()) {
+        dims.reserve(tt.shape().dim_size());
+        for (const onnx::TensorShapeProto::Dimension &dim : tt.shape().dim()) {
+          if (dim.has_dim_value()) {
+            dims.push_back(std::to_string(dim.dim_value()));
+          } else {
+            dims.push_back("?");
+          }
         }
       }
-      std::string type_asm = "vtensor<[" + StringJoin(dims, ",") + "]," +
-                             getMlirAsm(element_type) + ">";
-      return mlirTypeParseGet(context_, toMlirStringRef(type_asm));
+      return "vtensor<[" + StringJoin(dims, ",") + "]," +
+             getMlirAsm(element_type) + ">";
     }
   }
 
   std::string msg = "Unsupported list element type.";
   model_info_.SetError(std::move(msg));
-  return {nullptr};
+  return failure;
 }
 
-MlirType ContextCache::GetOptionalElementType(const onnx::TypeProto &tp) {
+FailureOr<std::string>
+ContextCache::GetOptionalElementTypeAsm(const onnx::TypeProto &tp) {
   if (tp.has_tensor_type()) {
     const onnx::TypeProto_Tensor &tt = tp.tensor_type();
     if (tt.has_elem_type()) {
@@ -600,22 +599,22 @@ MlirType ContextCache::GetOptionalElementType(const onnx::TypeProto &tp) {
           dims.push_back("?");
         }
       }
-      std::string type_asm = "vtensor<[" + StringJoin(dims, ",") + "]," +
-                             getMlirAsm(element_type) + ">";
-      return mlirTypeParseGet(context_, toMlirStringRef(type_asm));
+      return "vtensor<[" + StringJoin(dims, ",") + "]," +
+             getMlirAsm(element_type) + ">";
     }
   } else if (tp.has_sequence_type()) {
     const onnx::TypeProto_Sequence &st = tp.sequence_type();
     if (st.has_elem_type()) {
-      MlirType element_type = GetListElementType(st.elem_type());
-      std::string type_asm = "list<" + getMlirAsm(element_type) + ">";
-      return mlirTypeParseGet(context_, toMlirStringRef(type_asm));
+      auto element_type_asm = GetListElementTypeAsm(st.elem_type());
+      if (failed(element_type_asm))
+        return failure;
+      return "list<" + *element_type_asm + ">";
     }
   }
 
   std::string msg = "Unsupported optional element type.";
   model_info_.SetError(std::move(msg));
-  return {nullptr};
+  return failure;
 }
 
 MlirType ContextCache::GetVtensorType(const std::vector<int64_t> &dims,
@@ -696,13 +695,18 @@ MlirType ContextCache::ConvertTypeProto(const onnx::TypeProto *ptr_tp) {
   if (tp.has_tensor_type()) {
     // Convert Tensor TypeProto.
     const onnx::TypeProto_Tensor &tt = tp.tensor_type();
-    if (!tt.has_shape()) {
-      std::string msg =
-          "Unsupported Tensor type without shape (run shape inference?): ";
-      msg.append(tp.DebugString());
-      model_info_.SetError(std::move(msg));
-      return {nullptr};
-    }
+
+    // NOTE: Python onnx_importer.py has a check here that tt.shape is not None.
+    //       However this is never the case, as, when not specified, shape is an
+    //       empty TensorShapeProto, thus the check can be removed.
+    //
+    // if (!tt.has_shape()) {
+    //   std::string msg =
+    //       "Unsupported Tensor type without shape (run shape inference?): ";
+    //   msg.append(tp.DebugString());
+    //   model_info_.SetError(std::move(msg));
+    //   return {nullptr};
+    // }
 
     assert(tt.has_elem_type());
     MlirType element_type = ConvertTensorElementType(tt.elem_type());
@@ -710,26 +714,31 @@ MlirType ContextCache::ConvertTypeProto(const onnx::TypeProto *ptr_tp) {
       return {nullptr};
     }
     std::vector<int64_t> dims;
-    for (const onnx::TensorShapeProto::Dimension &dim : tt.shape().dim()) {
-      if (dim.has_dim_value()) {
-        dims.push_back(dim.dim_value());
-      } else {
-        dims.push_back(-1);
+    if (tt.has_shape())
+      for (const onnx::TensorShapeProto::Dimension &dim : tt.shape().dim()) {
+        if (dim.has_dim_value()) {
+          dims.push_back(dim.dim_value());
+        } else {
+          dims.push_back(-1);
+        }
       }
-    }
 
     return GetVtensorType(dims, element_type);
   } else if (tp.has_sequence_type()) {
     const onnx::TypeProto_Sequence &st = tp.sequence_type();
     if (st.has_elem_type()) {
-      MlirType element_type = GetListElementType(st.elem_type());
-      return GetListType(element_type);
+      auto element_type_asm = GetListElementTypeAsm(st.elem_type());
+      if (failed(element_type_asm))
+        return {nullptr};
+      return GetListType(*element_type_asm);
     }
   } else if (tp.has_optional_type()) {
     const onnx::TypeProto_Optional &ot = tp.optional_type();
     if (ot.has_elem_type()) {
-      MlirType element_type = GetOptionalElementType(ot.elem_type());
-      return GetOptionalType(element_type);
+      auto element_type_asm = GetOptionalElementTypeAsm(ot.elem_type());
+      if (failed(element_type_asm))
+        return {nullptr};
+      return GetOptionalType(*element_type_asm);
     }
   } else if (tp.value_case() == onnx::TypeProto::ValueCase::VALUE_NOT_SET) {
     // (sometime happens for unused function arguments)
@@ -1295,14 +1304,7 @@ Status NodeImporter::ImportGeneralNode(const onnx::NodeProto &node) {
   for (int index = 0; index < node.output().size(); ++index) {
     MlirValue result = mlirOperationGetResult(custom_op, index);
     std::string_view name = node.output()[index];
-    auto inserted = nv_map_.insert(std::make_pair(name, result));
-    if (!inserted.second) {
-      std::string msg = "Multiple nodes produced a value for '";
-      msg.append(name);
-      msg.append("', most recent from ");
-      msg.append(node.DebugString());
-      return SetError(std::move(msg));
-    }
+    nv_map_[name] = result;
   }
 
   return success;

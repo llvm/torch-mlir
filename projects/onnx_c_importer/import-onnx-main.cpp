@@ -69,6 +69,7 @@ static arg<OptionalArg, bool> disableFunctionExpansionAllowlistArg(
 //       for external data due to limitations of the onnx::checker API
 
 FailureOr<onnx::ModelProto> loadOnnxModel() {
+  namespace fs = std::filesystem;
   // Do shape inference two ways.  First, attempt in-memory to avoid redundant
   // loading and the need for writing a temporary file somewhere.  If that
   // fails, typically because of the 2 GB protobuf size limit, try again via
@@ -83,34 +84,15 @@ FailureOr<onnx::ModelProto> loadOnnxModel() {
   // TODO: If the program temp_dir is None, we should be using an ephemeral
   // temp directory instead of a hard-coded path in order to avoid data races
   // by default.
-
-  // SmallString<512> inputFile;
-  // inputFile = inputFilenameArg.getValue();
-  // if (!sys::fs::make_absolute(inputFile)) {
-  //   errs() << "Invalid input file path: " << inputFilenameArg << "\n";
-  //   return llvm::failure();
-  // }
-  // if (sys::fs::is_directory(inputFile)) {
-  //   errs() << "Input file path is a directory: " << inputFilenameArg << "\n";
-  //   return llvm::failure();
-  // }
-  // llvm::StringRef inputDir = sys::path::parent_path(inputFile);
-
-  // SmallString<512> tempDir;
-  // if (tempDirArg == "-") {
-  //   tempDir = inputDir;
-  // } else {
-  //   tempDir = tempDirArg;
-  // }
-  // sys::path::append(tempDir, "onnx-importer-temp");
-  // if (!sys::fs::remove_directories(tempDir, /*IgnoreErrors=*/true)) {
-  //   errs() << "Couldn't clean temp directory: " << tempDir << "\n";
-  //   return llvm::failure();
-  // }
-  // if (!sys::fs::create_directory(tempDir)) {
-  //   errs() << "Couldn't create temp directory: " << tempDir << "\n";
-  //   return llvm::failure();
-  // }
+  fs::path inputFile(*inputFilenameArg);
+  if (!fs::exists(inputFile) || fs::is_directory(inputFile)) {
+    std::cerr << "Invalid input file path: " << *inputFilenameArg << "\n";
+    return failure;
+  }
+  fs::path inputDir = inputFile.parent_path();
+  fs::path tempDir = *tempDirArg == "-" ? inputDir : fs::path(*tempDirArg);
+  tempDir /= "onnx-importer-temp";
+  fs::remove_all(tempDir);
 
   onnx::ModelProto mp;
   {
@@ -151,25 +133,26 @@ FailureOr<onnx::ModelProto> loadOnnxModel() {
     // Model is too big for in-memory inference: do file-based shape inference
     // to a temp file.
 
-    // SmallString<512> tempInferredFile = tempDir;
-    // sys::path::append(tempInferredFile, "inferred.onnx");
-    // TODO
-    std::string tempInferredFileStr = std::string("temp/inferred.onnx");
+    if (!fs::create_directory(tempDir)) {
+      std::cerr << "Couldn't create temp directory: " << tempDir << "\n";
+      return failure;
+    }
+    fs::path tempInferredFile = tempDir / "inferred.onnx";
     // First save intermediate to file
     {
-      std::fstream output(tempInferredFileStr,
+      std::fstream output(tempInferredFile,
                           std::ios::out | std::ios::trunc | std::ios::binary);
       std::string model_string;
       mp.SerializeToString(&model_string);
       output << model_string;
     }
 
-    onnx::shape_inference::InferShapes(tempInferredFileStr, tempInferredFileStr,
+    onnx::shape_inference::InferShapes(tempInferredFile, tempInferredFile,
                                        onnx::OpSchemaRegistry::Instance(),
                                        opts);
 
     {
-      std::ifstream inputStream(tempInferredFileStr,
+      std::ifstream inputStream(tempInferredFile,
                                 std::ios::in | std::ios::binary);
       mp.Clear();
       if (!mp.ParseFromIstream(&inputStream)) {
@@ -179,12 +162,10 @@ FailureOr<onnx::ModelProto> loadOnnxModel() {
     }
   }
 
-  // if (!keepTempsArg) {
-  //   if (!sys::fs::remove_directories(tempDir, /*IgnoreErrors=*/true)) {
-  //     std::cerr << "Couldn't clean temp directory: " << tempDir << "\n";
-  //     return failure;
-  //   }
-  // }
+  // Remove the inferred shape file unless asked to keep it
+  if (!keepTempsArg) {
+    fs::remove_all(tempDir);
+  }
 
   return mp;
 }
