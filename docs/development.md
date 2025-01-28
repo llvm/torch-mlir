@@ -97,7 +97,7 @@ sudo apt install clang ccache lld
 
 1. [Activate the Python environment](#set-up-the-python-environment)
 1. Choose command relevant to LLVM setup:
-    1. **If building "in-tree"**, run:
+    1. **If building "in-tree"**, run/append:
 
         ```shell
         cmake -GNinja -Bbuild \
@@ -115,7 +115,7 @@ sudo apt install clang ccache lld
         ```
 
         - NOTE: uses external/llvm-project/llvm as the main build, so LLVM will be built in addition to torch-mlir and its sub-projects.
-    1. **If using "out-of-tree" build**, run:
+    1. **If using "out-of-tree" build**, run/append:
 
         ```shell
         cmake -GNinja -Bbuild \
@@ -159,6 +159,7 @@ sudo apt install clang ccache lld
     ```
 
     - NOTE: The JIT IR importer depends on the native PyTorch extension features and defaults to `ON` if not changed.
+1. Run assembled command (once you've appended the flags pertaining to your workflow)
 
 #### Initiate Build
 
