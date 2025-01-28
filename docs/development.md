@@ -95,22 +95,17 @@ sudo apt install clang ccache lld
 
 #### Configure for Building
 
-1. Append (not "run") command with "common" options:
-
-    ```shell
-    cmake -GNinja -Bbuild \
-      `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
-      -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-      -DLLVM_ENABLE_ASSERTIONS=ON \
-      -DPython3_FIND_VIRTUALENV=ONLY \
-      -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-      -DLLVM_TARGETS_TO_BUILD=host
-    ```
-
-1. Specify LLVM options
-    1. **If building "in-tree"**, append:
+1. Choose command with relevant LLVM options:
+    1. **If building "in-tree"**, run/append:
 
         ```shell
+        cmake -GNinja -Bbuild \
+          `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          -DLLVM_ENABLE_ASSERTIONS=ON \
+          -DPython3_FIND_VIRTUALENV=ONLY \
+          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DLLVM_TARGETS_TO_BUILD=host \
           \
           `# For building LLVM "in-tree"` \
           externals/llvm-project/llvm \
@@ -120,9 +115,16 @@ sudo apt install clang ccache lld
         ```
 
         - NOTE: uses external/llvm-project/llvm as the main build, so LLVM will be built in additional to torch-mlir and its sub-projects.
-    1. **If using "out-of-tree" build**, append:
+    1. **If using "out-of-tree" build**, run/append:
 
         ```shell
+        cmake -GNinja -Bbuild \
+          `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          -DLLVM_ENABLE_ASSERTIONS=ON \
+          -DPython3_FIND_VIRTUALENV=ONLY \
+          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DLLVM_TARGETS_TO_BUILD=host \
           \
           `# For building LLVM "out-of-tree"` \
           -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir/" \
