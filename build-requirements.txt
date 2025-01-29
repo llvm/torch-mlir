@@ -5,7 +5,7 @@ setuptools
 cmake
 ninja
 packaging
-nanobind
+nanobind>=2.4, <3.0
 
 # Workaround for what should be a torch dep
 # See discussion in #1174
