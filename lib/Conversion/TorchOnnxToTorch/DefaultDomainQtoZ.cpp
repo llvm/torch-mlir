@@ -180,6 +180,19 @@ LogicalResult reduceOpImpl(OpBinder binder, ConversionPatternRewriter &rewriter,
   return success();
 }
 
+Type getTorchScalarType(
+    /* forElementIn */ Torch::BaseTensorType givenTensorType,
+    /*        using */ ConversionPatternRewriter &rewriter) {
+  auto elementTypeForGivenTensor = givenTensorType.getDtype();
+
+  if (isa<IntegerType>(elementTypeForGivenTensor))
+    return rewriter.getType<Torch::IntType>();
+  if (isa<FloatType>(elementTypeForGivenTensor))
+    return rewriter.getType<Torch::FloatType>();
+
+  assert(false && "dtype for given tensor expected to be either int or float");
+}
+
 Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
                    Value operand) {
   SmallVector<Value> itemList;
@@ -193,10 +206,7 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
 
   auto extract = [&rewriter, &binder](Value x, Value v) {
     auto xTy = cast<Torch::ValueTensorType>(x.getType());
-    Type extractTy = rewriter.getType<Torch::FloatType>();
-    if (isa<IntegerType>(xTy.getDtype()))
-      extractTy = rewriter.getType<Torch::IntType>();
-
+    auto extractTy = getTorchScalarType(xTy, rewriter);
     return rewriter.create<Torch::AtenItemOp>(binder.getLoc(), extractTy, v);
   };
 
