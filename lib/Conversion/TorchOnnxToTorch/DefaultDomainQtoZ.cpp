@@ -187,9 +187,9 @@ int64_t lengthOfListIn(Value given1DTensor) {
   return sizesOfSome1DTensor[soleDimInAny1DTensor];
 }
 
-Type getTorchScalarType(
-    /* forElementIn */ Torch::BaseTensorType givenTensorType,
-    /*        using */ ConversionPatternRewriter &rewriter) {
+Type getTorchScalarTypeForElements(
+    ConversionPatternRewriter &rewriter,
+    /* in */ Torch::BaseTensorType givenTensorType) {
   auto elementTypeForGivenTensor = givenTensorType.getDtype();
 
   if (isa<IntegerType>(elementTypeForGivenTensor))
@@ -215,7 +215,8 @@ Value extractTorchScalar(
   Value selectionIndex =
       rewriter.create<Torch::ConstantIntOp>(givenLoc, givenIndex);
 
-  auto someTorchScalarType = getTorchScalarType(some1DTensorType, rewriter);
+  auto someTorchScalarType =
+      getTorchScalarTypeForElements(rewriter, some1DTensorType);
 
   Value selectionFromGiven1DTensor = rewriter.create<Torch::AtenSelectIntOp>(
       givenLoc, selectionTypeForSome1DTensor, given1DTensor, frontDim,
