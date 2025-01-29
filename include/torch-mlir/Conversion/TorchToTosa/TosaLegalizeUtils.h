@@ -45,6 +45,10 @@ bool isScale32(mlir::quant::UniformQuantizedType output_element_type);
 Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
                                   float val);
 
+// Create a 8-bit int constant operator from a int
+Value getTosaConstTensorSingleI8(PatternRewriter &rewriter, Operation *op,
+                                 int32_t val);
+
 // Create a zero constant tensor of the desired type and shape.
 std::optional<Value> getZerosLikeTensor(PatternRewriter &rewriter,
                                         Operation *op, Type type);
@@ -127,11 +131,6 @@ LogicalResult getConvOpsAccType(PatternRewriter &rewriter,
                                 RankedTensorType weightTy,
                                 RankedTensorType outputTy, TypeAttr &accType);
 
-// Temporary function to get TOSA const shape
-// TODO: Remove this function when getTosaConstShape is available in
-// externals/llvm-project/mlir/include/mlir/Dialect/Tosa/Utils/ConversionUtils.h
-Value getTosaConstShape(PatternRewriter &rewriter, Location loc,
-                        llvm::ArrayRef<int64_t> shape);
 } // namespace tosa
 } // namespace mlir
 
