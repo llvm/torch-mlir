@@ -5,6 +5,7 @@ setuptools
 cmake
 ninja
 packaging
+nanobind
 
 # Workaround for what should be a torch dep
 # See discussion in #1174
