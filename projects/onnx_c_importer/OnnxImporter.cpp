@@ -181,6 +181,22 @@ const onnx::AttributeProto *GetValueProto(const onnx::NodeProto &node) {
   return value_proto;
 }
 
+onnx::TypeProto MakeTensorTypeProto(onnx::TensorProto_DataType elem_type,
+                                    const auto &shape) {
+  onnx::TypeProto type_proto;
+  onnx::TypeProto_Tensor *tensor_type_proto = type_proto.mutable_tensor_type();
+  tensor_type_proto->set_elem_type(elem_type);
+  onnx::TensorShapeProto *tensor_shape_proto =
+      tensor_type_proto->mutable_shape();
+
+  tensor_shape_proto->clear_dim();
+  for (int64_t d : shape) {
+    onnx::TensorShapeProto_Dimension *dim = tensor_shape_proto->add_dim();
+    dim->set_dim_value(d);
+  }
+  return type_proto;
+}
+
 uint32_t
 CountRegions(const google::protobuf::RepeatedPtrField<onnx::AttributeProto>
                  &onnx_attrs) {
@@ -241,6 +257,28 @@ FailureOr<onnx::FunctionProto> GetCDFunctionWithOpsetVersion(
   return failure;
 }
 
+// Helper for SpecializeFunctionAndCreateModel() that binds concrete
+// values to attributes on a node in the interior of a function.
+// Defaults are taken from opSchema.
+//
+// Relies on ONNX's attribute binder.
+void BindAttributesWithDefaults(const onnx::NodeProto &callnode,
+                                onnx::FunctionProto &callee,
+                                const onnx::OpSchema *opSchema) {
+  onnx::internal::AttributeMap map;
+  for (const auto &defaultPair : opSchema->attributes()) {
+    const onnx::AttributeProto &default_value =
+        defaultPair.second.default_value;
+    if (default_value.type())
+      map.emplace(defaultPair.first, &default_value);
+  }
+  for (auto &attr : callnode.attribute()) {
+    map[attr.name()] = &attr;
+  }
+  onnx::internal::AttributeBinder attr_binder(map);
+  attr_binder.VisitFunction(&callee);
+}
+
 //     Helper for ModuleCache::get_operator_function() that specializes a
 //     function and coverts it to a model. An ONNX function may be polymorphic,
 //     parameterized over the types of its inputs and values of its attributes
@@ -281,8 +319,7 @@ onnx::ModelProto SpecializeFunctionAndCreateModel(
 
   onnx::FunctionProto specializedFunProto;
   specializedFunProto.CopyFrom(functionProto);
-  onnx::internal::AttributeBinder::BindAttributes(callerNode,
-                                                  specializedFunProto);
+  BindAttributesWithDefaults(callerNode, specializedFunProto, opSchema);
   graphProto.mutable_node()->Add(specializedFunProto.node().begin(),
                                  specializedFunProto.node().end());
 
@@ -334,7 +371,7 @@ Status GraphInfo::Initialize() {
       return model_info_.SetError("ONNX initializer name already used: " +
                                   t.name());
     }
-    initializer_map_.emplace(t.name(), t);
+    initializer_map_emplace(t.name(), t);
   }
   for (const onnx::ValueInfoProto &v : graph_proto_.value_info()) {
     if (value_info_map_.find(v.name()) != value_info_map_.end()) {
@@ -344,10 +381,18 @@ Status GraphInfo::Initialize() {
     value_info_map_.emplace(v.name(), v);
   }
   for (const onnx::ValueInfoProto &v : graph_proto_.input()) {
-    declared_inputs_.emplace_back(&v);
+    if (declared_input_map_.find(v.name()) != declared_input_map_.end()) {
+      return model_info_.SetError("ONNX value_info name already used: " +
+                                  v.name());
+    }
+    declared_input_map_.emplace(v.name(), v);
   }
   for (const onnx::ValueInfoProto &v : graph_proto_.output()) {
-    outputs_.emplace_back(&v);
+    if (output_map_.find(v.name()) != output_map_.end()) {
+      return model_info_.SetError("ONNX value_info name already used: " +
+                                  v.name());
+    }
+    output_map_.emplace(v.name(), v);
   }
 
   // Generate the effective input map, which for old models can be a subset of
@@ -355,20 +400,20 @@ Status GraphInfo::Initialize() {
   if (is_top_level_ && model_info_.config().elide_initialized_inputs) {
     // Default. Add declared inputs to the input map unless if they appear
     // as an initializer.
-    for (const onnx::ValueInfoProto *it : declared_inputs_) {
-      std::string_view key = it->name();
+    for (const auto &dec_in : declared_input_map_) {
+      const std::string_view &key = dec_in.first;
       if (initializer_map_.find(key) != initializer_map_.end()) {
         // In initializers. Skip.
         continue;
       }
-      inputs_.emplace_back(it);
+      input_map_.emplace(key, dec_in.second);
     }
   } else {
     // Fallback for some legacy compatibility.
-    inputs_ = declared_inputs_;
+    input_map_ = declared_input_map_;
     std::vector<std::string_view> illegal_keys;
-    for (const onnx::ValueInfoProto *it : inputs_) {
-      std::string_view key = it->name();
+    for (const auto &input : input_map_) {
+      const std::string_view &key = input.first;
       if (initializer_map_.find(key) != initializer_map_.end()) {
         illegal_keys.push_back(key);
       }
@@ -381,21 +426,6 @@ Status GraphInfo::Initialize() {
     }
   }
 
-  // Index the inputs and outputs.
-  for (const onnx::ValueInfoProto *input : inputs_) {
-    if (input_map_.find(input->name()) != input_map_.end()) {
-      return model_info_.SetError("ONNX input name already used: " +
-                                  input->name());
-    }
-    input_map_.emplace(input->name(), *input);
-  }
-  for (const onnx::ValueInfoProto *output : outputs_) {
-    if (output_map_.find(output->name()) != output_map_.end()) {
-      return model_info_.SetError("ONNX output name already used: " +
-                                  output->name());
-    }
-    output_map_.emplace(output->name(), *output);
-  }
   return success;
 }
 
@@ -415,8 +445,29 @@ const onnx::TypeProto *GraphInfo::FindTypeProtoForName(std::string_view name) {
       return &it->second.type();
     }
   }
+  {
+    auto it = declared_input_map_.find(name);
+    if (it != declared_input_map_.end()) {
+      return &it->second.type();
+    }
+  }
+  {
+    auto it = initializer_map_.find(name);
+    if (it != initializer_map_.end()) {
+      return &it->second.second;
+    }
+  }
   // No type information is associated, this can occur when the value is unused.
   return nullptr;
+}
+
+void GraphInfo::initializer_map_emplace(const std::string_view &name,
+                                        const onnx::TensorProto &tp) {
+  initializer_map_.emplace(
+      name,
+      std::pair<const onnx::TensorProto &, onnx::TypeProto>(
+          tp, MakeTensorTypeProto(onnx::TensorProto_DataType(tp.data_type()),
+                                  tp.dims())));
 }
 
 // ---------------------------------------------------------------------------//
@@ -921,20 +972,21 @@ FailureOr<std::optional<MlirOperation>> ModuleCache::GetOperatorFunction(
     input_type_protos_str.reserve(input_type_protos.size());
     output_type_protos_str.reserve(output_type_protos.size());
     for (const onnx::TypeProto *tp : input_type_protos)
-      input_type_protos_str.push_back(tp->SerializeAsString());
+      input_type_protos_str.push_back(tp->DebugString());
     // Though output types can be inferred from input types, it does
     // not seem to be the case that there's only one legal set of
     // outputs for a given set of inputs. When attemtping to always
     // use onnx.shape_inference.infer_function_output_types instead
     // of the caller-provided types, sometimes IR verification fails
     for (const onnx::TypeProto *tp : output_type_protos)
-      output_type_protos_str.push_back(tp->SerializeAsString());
+      output_type_protos_str.push_back(tp->DebugString());
 
-    keyBuffer << op_name << ";" << op_domain << ";" << opset_version << ";"
-              << StringJoin(input_type_protos_str, ",") << ";"
-              << StringJoin(output_type_protos_str, ",") << ";";
+    keyBuffer << "('" << op_name << "', '" << op_domain << "', "
+              << opset_version << ", ["
+              << StringJoin(input_type_protos_str, ",") << "], ["
+              << StringJoin(output_type_protos_str, ",") << "], ";
     if (is_context_dependent) {
-      keyBuffer << caller_node.SerializeAsString();
+      keyBuffer << caller_node.DebugString();
     } else {
       const google::protobuf::Descriptor *node_desc =
           caller_node.GetDescriptor();
@@ -948,8 +1000,9 @@ FailureOr<std::optional<MlirOperation>> ModuleCache::GetOperatorFunction(
             caller_node, attribute_desc, idx, &attribute_str);
         attribute_strs.push_back(std::move(attribute_str));
       }
-      keyBuffer << StringJoin(attribute_strs, ",");
+      keyBuffer << "[" << StringJoin(attribute_strs, ",") << "]";
     }
+    keyBuffer << ")";
     key = keyBuffer.str();
   }
 
@@ -1035,18 +1088,18 @@ FailureOr<NodeImporter> NodeImporter::DefineFunction(GraphInfo &graphInfo,
   std::vector<MlirType> inputTypes;
   std::vector<MlirLocation> inputLocs;
   std::vector<MlirType> outputTypes;
-  for (const onnx::ValueInfoProto *input : graphInfo.inputs()) {
-    MlirType t = contextCache.ConvertTypeProto(&input->type());
+  for (const auto &input : graphInfo.input_map()) {
+    MlirType t = contextCache.ConvertTypeProto(&input.second.type());
     if (mlirTypeIsNull(t)) {
       return failure;
     }
     inputTypes.push_back(t);
     inputLocs.push_back(mlirLocationNameGet(context,
-                                            toMlirStringRef(input->name()),
+                                            toMlirStringRef(input.first),
                                             /*childLoc=*/{nullptr}));
   }
-  for (const onnx::ValueInfoProto *output : graphInfo.outputs()) {
-    MlirType t = contextCache.ConvertTypeProto(&output->type());
+  for (const auto &output : graphInfo.output_map()) {
+    MlirType t = contextCache.ConvertTypeProto(&output.second.type());
     if (mlirTypeIsNull(t)) {
       return failure;
     }
@@ -1083,9 +1136,12 @@ FailureOr<NodeImporter> NodeImporter::DefineFunction(GraphInfo &graphInfo,
                    moduleCache);
 
   // Map the block args to names and store for evaluation.
-  for (size_t index = 0; index < graphInfo.inputs().size(); ++index) {
-    std::string_view name = graphInfo.inputs()[index]->name();
-    imp.nv_map_[name] = mlirBlockGetArgument(bodyBlock, index);
+  {
+    size_t index = 0;
+    for (const auto &input : graphInfo.input_map()) {
+      imp.nv_map_[input.first] = mlirBlockGetArgument(bodyBlock, index);
+      ++index;
+    }
   }
 
   imp.PopulateGraphAttrs(funcOp);
@@ -1148,7 +1204,7 @@ Status NodeImporter::ImportAll(bool func) {
   // TODO: Consider pulling in initializers on demand since there can be so
   // much unused crap.
   for (const auto &it : graph_info_.initializer_map()) {
-    if (failed(ImportInitializer(it.second)))
+    if (failed(ImportInitializer(it.second.first)))
       return failure;
   }
 
@@ -1560,7 +1616,7 @@ Status NodeImporter::ImportConstantNodeValueAttr(const onnx::NodeProto &node) {
     return SetError("ONNX initializer name already present: " +
                     std::string(const_name));
   }
-  graph_info_.initializer_map().emplace(const_name, value_proto->t());
+  graph_info_.initializer_map_emplace(const_name, value_proto->t());
   return success;
 }
 

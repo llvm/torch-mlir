@@ -121,6 +121,8 @@ FailureOr<onnx::ModelProto> loadOnnxModel() {
   onnx::checker::check_model(mp);
 
   onnx::ShapeInferenceOptions opts;
+  opts.error_mode = 0;
+  opts.check_type = false;
   opts.enable_data_propagation = dataPropArg;
 
   const size_t MAXIMUM_PROTOBUF = 2000000000;

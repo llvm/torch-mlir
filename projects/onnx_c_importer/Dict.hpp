@@ -78,7 +78,7 @@ public:
 
   DictConstIterator() = default;
 
-  explicit DictConstIterator(vector_const_iterator &&it,
+  explicit DictConstIterator(const vector_const_iterator &it,
                              const key_value_map *m) noexcept
       : v_it_(it), m_(m) {}
 
@@ -95,6 +95,10 @@ public:
     self _tmp(*this);
     ++*this;
     return _tmp;
+  }
+
+  friend bool operator==(const self &x, const self &y) noexcept {
+    return x.v_it_ == y.v_it_ && x.m_ == y.m_;
   }
 };
 
@@ -187,12 +191,12 @@ public:
   }
 
   /* Iterators */
-  iterator begin() { return iterator{k_.begin(), &m_}; }
-  const_iterator begin() const { return {k_.cbegin(), &m_}; }
-  const_iterator cbegin() const { return {k_.cbegin(), &m_}; }
-  iterator end() { return iterator{k_.end(), &m_}; }
-  const_iterator end() const { return {k_.cend(), &m_}; }
-  const_iterator cend() const { return {k_.cend(), &m_}; }
+  iterator begin() { return iterator(k_.begin(), &m_); }
+  const_iterator begin() const { return const_iterator(k_.cbegin(), &m_); }
+  const_iterator cbegin() const { return const_iterator(k_.cbegin(), &m_); }
+  iterator end() { return iterator(k_.end(), &m_); }
+  const_iterator end() const { return const_iterator(k_.cend(), &m_); }
+  const_iterator cend() const { return const_iterator(k_.cend(), &m_); }
 };
 
 } // namespace torch_mlir_onnx

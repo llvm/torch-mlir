@@ -150,6 +150,10 @@ private:
 // Accounting for a GraphProto.
 class GraphInfo {
 public:
+  using InitializerMapT =
+      Dict<std::string_view,
+           std::pair<const onnx::TensorProto &, onnx::TypeProto>>;
+
   GraphInfo(ModelInfo &model_info, const onnx::GraphProto &graph_proto,
             bool top_level = true)
       : model_info_(model_info), graph_proto_(graph_proto),
@@ -164,22 +168,12 @@ public:
   /// an error will have been set.
   const onnx::TypeProto *FindTypeProtoForName(std::string_view name);
 
-  std::vector<const onnx::ValueInfoProto *> &inputs() { return inputs_; }
-  const std::vector<const onnx::ValueInfoProto *> &inputs() const {
-    return inputs_;
-  }
-
   Dict<std::string_view, const onnx::ValueInfoProto &> &input_map() {
     return input_map_;
   }
   const Dict<std::string_view, const onnx::ValueInfoProto &> &
   input_map() const {
     return input_map_;
-  }
-
-  std::vector<const onnx::ValueInfoProto *> &outputs() { return outputs_; }
-  const std::vector<const onnx::ValueInfoProto *> &outputs() const {
-    return outputs_;
   }
 
   Dict<std::string_view, const onnx::ValueInfoProto &> &output_map() {
@@ -190,26 +184,19 @@ public:
     return output_map_;
   }
 
-  Dict<std::string_view, const onnx::TensorProto &> &initializer_map() {
-    return initializer_map_;
-  }
-  const Dict<std::string_view, const onnx::TensorProto &> &
-  initializer_map() const {
-    return initializer_map_;
-  }
+  void initializer_map_emplace(const std::string_view &name,
+                               const onnx::TensorProto &tp);
+  const InitializerMapT &initializer_map() const { return initializer_map_; }
 
 private:
   ModelInfo &model_info_;
   const onnx::GraphProto &graph_proto_;
 
-  Dict<std::string_view, const onnx::TensorProto &> initializer_map_;
+  InitializerMapT initializer_map_;
   Dict<std::string_view, const onnx::ValueInfoProto &> value_info_map_;
-
-  std::vector<const onnx::ValueInfoProto *> declared_inputs_;
-  std::vector<const onnx::ValueInfoProto *> inputs_;
-  std::vector<const onnx::ValueInfoProto *> outputs_;
-  Dict<std::string_view, const onnx::ValueInfoProto &> input_map_;
+  Dict<std::string_view, const onnx::ValueInfoProto &> declared_input_map_;
   Dict<std::string_view, const onnx::ValueInfoProto &> output_map_;
+  Dict<std::string_view, const onnx::ValueInfoProto &> input_map_;
 
   bool is_top_level_;
 };
