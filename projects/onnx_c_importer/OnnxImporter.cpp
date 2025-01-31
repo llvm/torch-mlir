@@ -819,8 +819,10 @@ ContextCache::ConvertTensorProtoToAttr(const onnx::TensorProto &tp) {
       return mlirDenseElementsAttrFloatGet(tensor_type, tp.float_data_size(),
                                            tp.float_data().data());
     case onnx::TensorProto::DataType::TensorProto_DataType_BOOL:
-      // TODO: either this or the python implementation is wrong (it packs
-      // bits). Thoroughly test!
+      // NOTE: either this or the python implementation is wrong (it packs
+      // bits). At the time of writing there are no passing tests that use this.
+      // onnx-ml.proto documentation is not clear about how bools are organized
+      // in an int32 buffer.
       return mlirDenseElementsAttrBoolGet(tensor_type, tp.int32_data_size(),
                                           tp.int32_data().data());
     case onnx::TensorProto::DataType::TensorProto_DataType_UINT8: {
