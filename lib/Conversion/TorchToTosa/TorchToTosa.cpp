@@ -114,16 +114,29 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Only Tensor types supported in TOSA");
 
+    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, rhs).failed())
+      return rewriter.notifyMatchFailure(
+          op, "Failed to equalize ranks among operands and result");
+
     auto outTy = cast<TensorType>(
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()));
 
     Value binaryOp;
 
-    // TOSA ArithmeticRightShiftOp has a round parameter.
     if constexpr (std::is_same<AtenOpT, AtenBitwiseRightShiftTensorOp>()) {
+      // TOSA ArithmeticRightShiftOp has a round parameter.
       binaryOp = rewriter.create<TosaOpT>(op->getLoc(), outTy, lhs, rhs,
                                           /*round=*/false);
+    } else if constexpr (std::is_same<TosaOpT, tosa::MaximumOp>() ||
+                         std::is_same<TosaOpT, tosa::MinimumOp>()) {
+      lhs = tosa::promoteType(rewriter, lhs, outTy);
+      rhs = tosa::promoteType(rewriter, rhs, outTy);
+      // Use default NaN Propagation mode "PROPAGATE" for tosa.maximum and
+      // tosa.minimum
+      binaryOp = rewriter.create<TosaOpT>(
+          op->getLoc(), outTy, lhs, rhs,
+          /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
     } else {
       binaryOp =
           tosa::createBinaryOpAndCast<TosaOpT>(rewriter, op, outTy, lhs, rhs);
@@ -318,16 +331,25 @@ public:
         return rewriter.notifyMatchFailure(
             op, "Currently only scalar constants are supported for "
                 "conversion in TOSA operation");
-    } else if (rhsType.getElementType() != rhsAlphaMulElemType) {
-      // right is tensor, rhsType == tensor<i32/i64/f32>
-      // right must be cast to same type as the alpha, so MulOp success
-      rhs = rewriter.create<tosa::CastOp>(
-          op->getLoc(),
-          RankedTensorType::get(rhsType.getShape(), rhsAlphaMulElemType), rhs);
-      // reinitialize right value type to tensor<i32/f32>
-      rhsType = dyn_cast<TensorType>(rhs.getType());
+    } else {
+      if (rhsType.getElementType() != rhsAlphaMulElemType) {
+        // right is tensor, rhsType == tensor<i32/i64/f32>
+        // right must be cast to same type as the alpha, so MulOp success
+        rhs = rewriter.create<tosa::CastOp>(
+            op->getLoc(),
+            RankedTensorType::get(rhsType.getShape(), rhsAlphaMulElemType),
+            rhs);
+        // reinitialize right value type to tensor<i32/f32>
+        rhsType = dyn_cast<TensorType>(rhs.getType());
+      }
     }
     auto rhsTensor = rhsType ? rhs : rhsAsTensor;
+    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, rhsTensor)
+            .failed())
+      return rewriter.notifyMatchFailure(
+          op, "Failed to equalize ranks among operands and result");
+
+    auto rhsTensorType = dyn_cast<TensorType>(rhsTensor.getType());
 
     // Handle scalar value alpha.
     // It should be either f32/i32
@@ -340,11 +362,13 @@ public:
           op, "Currently only scalar constants are supported for "
               "alpha in conversion to TOSA operation");
     }
+    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, alphaTensor)
+            .failed())
+      return rewriter.notifyMatchFailure(
+          op, "Failed to equalize ranks among operands and result");
 
     auto mulAlphaOp = tosa::createMulOpAndCast(
-        rewriter, op,
-        rhsType ? rhsType : RankedTensorType::get({}, rhsAlphaMulElemType),
-        rhsTensor, alphaTensor, /*shift=*/0);
+        rewriter, op, rhsTensorType, rhsTensor, alphaTensor, /*shift=*/0);
 
     if (outElemTy.isInteger(64)) {
       // Tosa doesn't support 64-bit elementwise addition and subtraction.
@@ -411,7 +435,13 @@ public:
             op, "Currently only scalar constants are supported for "
                 "conversion in TOSA operation");
     }
+
     auto rhsTensor = rhsTy ? rhs : rhsAsTensor;
+    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, rhsTensor)
+            .failed())
+      return rewriter.notifyMatchFailure(
+          op, "Failed to equalize ranks among operands and result");
+
     auto rhsTensorTy = dyn_cast<TensorType>(rhsTensor.getType());
     auto rhsElemTy = rhsTensorTy.getElementType();
 
@@ -467,9 +497,7 @@ public:
                   std::is_same<AtenOpT, AtenNeScalarOp>()) {
       rewriter.replaceOpWithNewOp<tosa::LogicalNotOp>(op, resultTy,
                                                       resultOp.getResult());
-    }
-
-    else {
+    } else {
       rewriter.replaceOp(op, resultOp.getResult());
     }
 
@@ -520,6 +548,11 @@ public:
       rhsTensor = rhsType ? rhs : rhsAsTensor;
     }
 
+    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, rhsTensor)
+            .failed())
+      return rewriter.notifyMatchFailure(
+          op, "Failed to equalize ranks among operands and result");
+
     if (isa<mlir::FloatType>(outElemTy) || isa<mlir::IntegerType>(outElemTy)) {
       auto outType = cast<TensorType>(
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -542,8 +575,10 @@ public:
 // towards zero) for float type inputs.
 // This function takes in the division result between lhs and rhs rather
 // than takes in the original lhs and rhs tensors as parameters.
-Value truncFloatDivWithDivResult(PatternRewriter &rewriter, Operation *op,
-                                 TensorType outType, Value divResult) {
+std::optional<Value> truncFloatDivWithDivResult(PatternRewriter &rewriter,
+                                                Operation *op,
+                                                TensorType outType,
+                                                Value divResult) {
   // To implement trunc mode for float inputs, multiply the floored abs
   // of the tensor with the elementwise signedness of the tensor.
   // div_result = lhs / rhs
@@ -559,6 +594,14 @@ Value truncFloatDivWithDivResult(PatternRewriter &rewriter, Operation *op,
   auto minusOne = tosa::getConstTensor<float>(rewriter, op, -1, {},
                                               outType.getElementType())
                       .value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), divResult, one)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), divResult, zero)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), divResult, minusOne)
+          .failed())
+    return std::nullopt;
 
   auto cond = rewriter.create<tosa::GreaterEqualOp>(
       op->getLoc(),
@@ -594,17 +637,20 @@ Value truncFloatDiv(PatternRewriter &rewriter, Operation *op,
   auto divResult = tosa::createMulOpAndCast(rewriter, op, outType, lhs, rhsRcp,
                                             /*shift=*/0);
 
-  return truncFloatDivWithDivResult(rewriter, op, outType, divResult);
+  return truncFloatDivWithDivResult(rewriter, op, outType, divResult).value();
 }
 
 // Function to perform division with floor rounding mode (rounding result
 // down) for integer type inputs.
-Value floorIntDiv(PatternRewriter &rewriter, Operation *op, TensorType outType,
-                  Value lhs, Value rhs) {
+std::optional<Value> floorIntDiv(PatternRewriter &rewriter, Operation *op,
+                                 TensorType outType, Value lhs, Value rhs) {
   // To implement floor mode int input, utilize tosa::IntDivOp (trunc div
   // result) with the following formula elementwise:
   // floor_val = trunc_val - ((trunc_val * rhs != lhs)
   //                                && (sign(lhs) != sign(rhs)))
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, rhs).failed())
+    return std::nullopt;
 
   // TOSA IntDiv requires inputs to be i32
   auto i32Type =
@@ -618,6 +664,10 @@ Value floorIntDiv(PatternRewriter &rewriter, Operation *op, TensorType outType,
   auto zero = tosa::getConstTensor<int32_t>(rewriter, op, 0, {}).value();
 
   auto one = tosa::getConstTensor<int32_t>(rewriter, op, 1, {}).value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, one).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, zero).failed())
+    return std::nullopt;
 
   auto boolType =
       RankedTensorType::get(outType.getShape(), rewriter.getIntegerType(1));
@@ -682,6 +732,11 @@ public:
                 "conversion in TOSA operation");
     }
     auto rhsTensor = rhsTy ? rhs : rhsAsTensor;
+    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, rhsTensor)
+            .failed())
+      return rewriter.notifyMatchFailure(
+          op, "Failed to equalize ranks among operands and result");
+
     auto outType = cast<TensorType>(
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()));
@@ -718,7 +773,8 @@ public:
       } else if (roundMode.compare("trunc") == 0) {
         // "trunc": rounds the results of the division towards zero. Equivalent
         // to C-style integer division.
-        result = truncFloatDivWithDivResult(rewriter, op, outType, divResult);
+        result = truncFloatDivWithDivResult(rewriter, op, outType, divResult)
+                     .value();
       } else {
         // None: No rounding mode
         result = divResult.getResult();
@@ -727,7 +783,7 @@ public:
       if (roundMode.compare("floor") == 0) {
         // "floor": rounds the results of the division down. Equivalent to floor
         // division in Python (the // operator).
-        result = floorIntDiv(rewriter, op, outType, lhs, rhsTensor);
+        result = floorIntDiv(rewriter, op, outType, lhs, rhsTensor).value();
       } else {
         // "trunc": rounds the results of the division towards zero. Equivalent
         // to C-style integer division.
@@ -815,12 +871,15 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Only floating-point datatype legalization currently supported");
   }
+
+  // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   rewriter.replaceOpWithNewOp<tosa::ClampOp>(
       op, getTypeConverter()->convertType(op.getType()), clampIn,
       rewriter.getI64IntegerAttr(clampMin),
       rewriter.getI64IntegerAttr(std::numeric_limits<int32_t>::max()),
       rewriter.getF32FloatAttr(0.0f),
-      rewriter.getF32FloatAttr(std::numeric_limits<float>::max()));
+      rewriter.getF32FloatAttr(std::numeric_limits<float>::max()),
+      /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
   return success();
 }
 
@@ -843,10 +902,18 @@ LogicalResult ConvertAtenOp<AtenLeakyReluOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Negative slope needs to be a scalar constant for conversion to "
             "TOSA LeakyReLU operation");
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), alphaTensor, self)
+          .failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
 
   auto zero =
       tosa::getConstTensor<float>(rewriter, op, 0, {}, selfTy.getElementType())
           .value();
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), zero, self).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
   auto cond = rewriter.create<tosa::GreaterEqualOp>(
       op->getLoc(),
       RankedTensorType::get(selfTy.getShape(), rewriter.getIntegerType(1)),
@@ -1131,10 +1198,13 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
         rewriter.getI32Type());
     auto reduceDimAttr =
         rewriter.getIntegerAttr(rewriter.getI64Type(), reduceDim);
+
+    // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
     return rewriter
-        .create<tosa::ArgMaxOp>(op->getLoc(),
-                                getTypeConverter()->convertType(outputReduceTy),
-                                input, reduceDimAttr)
+        .create<tosa::ArgMaxOp>(
+            op->getLoc(), getTypeConverter()->convertType(outputReduceTy),
+            input, reduceDimAttr,
+            /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))
         .getResult();
   };
 
@@ -1339,6 +1409,11 @@ public:
       if (!isa<mlir::FloatType>(expTy.getElementType()))
         expTensor = tosa::promoteType(rewriter, expTensor, outType);
     }
+
+    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), selfTensor, expTensor)
+            .failed())
+      return rewriter.notifyMatchFailure(
+          op, "Failed to equalize ranks among operands and result");
 
     auto powOp = tosa::createBinaryOpAndCast<tosa::PowOp>(
         rewriter, op, outType, selfTensor, expTensor);
@@ -2053,6 +2128,10 @@ public:
     auto bias = adaptor.getBias();
     auto biasTy = bias.getType();
 
+    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, bias).failed())
+      return rewriter.notifyMatchFailure(
+          op, "Failed to equalize ranks among operands and result");
+
     // TOSA does not mandate that elementwise op tensors need to be ranked.
     if (!isa<Torch::NoneType>(biasTy) && !isa<TensorType>(biasTy))
       return rewriter.notifyMatchFailure(
@@ -2150,6 +2229,13 @@ LogicalResult ConvertAtenOp<AtenRsubScalarOp>::matchAndRewrite(
                                     alphaTensor, resultElemTy,
                                     /*checkForUnity=*/true)))
     return failure();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, otherTensor)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, alphaTensor)
+          .failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
 
   auto multTensor = rewriter.create<tosa::MulOp>(op->getLoc(), resultTy, self,
                                                  alphaTensor, /*shift=*/0);
@@ -2458,9 +2544,11 @@ LogicalResult ConvertAtenOp<AtenReshapeOp>::matchAndRewrite(
   return success();
 }
 
-Value computeBatchNorm(Operation *op, ConversionPatternRewriter &rewriter,
-                       Type outType, Value input, Value variance, Value eps,
-                       Value mean, Value weight, Value bias) {
+std::optional<Value> computeBatchNorm(Operation *op,
+                                      ConversionPatternRewriter &rewriter,
+                                      Type outType, Value input, Value variance,
+                                      Value eps, Value mean, Value weight,
+                                      Value bias) {
   // For PyTorch:
   //   scale  = gamma = weight
   //   offset = beta  = bias
@@ -2483,6 +2571,15 @@ Value computeBatchNorm(Operation *op, ConversionPatternRewriter &rewriter,
   // op4 = mul(op1, bvar)
   // op5 = mul(op4, bscale)
   // op6 = add(op5, boffset)
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), input, mean).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), input, variance)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), input, eps).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), input, weight)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), input, bias).failed())
+    return std::nullopt;
 
   auto op1SubInputMean =
       rewriter.create<tosa::SubOp>(op->getLoc(), outType, input, mean);
@@ -2592,7 +2689,8 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
 
   auto batchNorm =
       computeBatchNorm(op, rewriter, outType, adaptor.getInput(), varianceVal,
-                       epsilonConst, meanVal, weightVal, biasVal);
+                       epsilonConst, meanVal, weightVal, biasVal)
+          .value();
 
   rewriter.replaceOp(op, {batchNorm});
 
@@ -2612,11 +2710,13 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   // eventually being reshaped for broadcasting.
 
   // Not a ranked tensor output
-  if (!dyn_cast<RankedTensorType>(adaptor.getInput().getType()))
+  auto input = adaptor.getInput();
+  auto inputType = dyn_cast<RankedTensorType>(input.getType());
+
+  if (!inputType)
     return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types are supported");
 
-  auto inputType = cast<RankedTensorType>(adaptor.getInput().getType());
   if (inputType.getRank() > 4)
     return rewriter.notifyMatchFailure(op,
                                        "Only up to 4D tensors are supported");
@@ -2626,13 +2726,16 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   // Note: cudnn_enabled is not handled.
 
   // FIXME: Handle the None cases for the optional parameters.
-  if (isa<Torch::NoneType>(adaptor.getWeight().getType()))
+  auto weight = adaptor.getWeight();
+  if (isa<Torch::NoneType>(weight.getType()))
     return rewriter.notifyMatchFailure(op, "Unsupported None for weight");
-  if (isa<Torch::NoneType>(adaptor.getBias().getType()))
+
+  auto bias = adaptor.getBias();
+  if (isa<Torch::NoneType>(bias.getType()))
     return rewriter.notifyMatchFailure(op, "Unsupported None for bias");
 
-  auto weightType = cast<RankedTensorType>(adaptor.getWeight().getType());
-  auto biasType = cast<RankedTensorType>(adaptor.getBias().getType());
+  auto weightType = cast<RankedTensorType>(weight.getType());
+  auto biasType = cast<RankedTensorType>(bias.getType());
   int64_t inputRank = inputType.getRank();
   Type elemTy = inputType.getElementType();
   SmallVector<int64_t> inputTypeShape(
@@ -2697,6 +2800,11 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
   Value elemCntRcp = rewriter.create<tosa::ReciprocalOp>(
       op.getLoc(), elemCntConst.getType(), elemCntConst);
 
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), input, elemCntRcp)
+          .failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
   // Broadcast type and shape for various intermediate values.
   SmallVector<int64_t> bcastOutShape;
   for (auto en : llvm::enumerate(inputTypeShape)) {
@@ -2708,14 +2816,14 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
       RankedTensorType::get(makeShapeLLVMCompatible(bcastOutShape), elemTy);
 
   // Compute mean.
-  Value sum = computeSumAndReshape(adaptor.getInput(), inputType, bcastOutType,
-                                   bcastOutShape);
+  Value sum =
+      computeSumAndReshape(input, inputType, bcastOutType, bcastOutShape);
   Value meanVal = rewriter.create<tosa::MulOp>(op.getLoc(), bcastOutType, sum,
                                                elemCntRcp, /*shift=*/0);
 
   // Compute variance.
-  Value squareSumSub = rewriter.create<tosa::SubOp>(
-      op.getLoc(), inputType, adaptor.getInput(), meanVal);
+  Value squareSumSub =
+      rewriter.create<tosa::SubOp>(op.getLoc(), inputType, input, meanVal);
   Value squareSum = rewriter.create<tosa::MulOp>(op.getLoc(), inputType,
                                                  squareSumSub, squareSumSub, 0);
 
@@ -2736,11 +2844,11 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
       makeShapeLLVMCompatible(weightAndBiasBcastShape), elemTy);
 
   Value weightVal = rewriter.create<tosa::ReshapeOp>(
-      op.getLoc(), weightAndMeanBcastType, adaptor.getWeight(),
+      op.getLoc(), weightAndMeanBcastType, weight,
       rewriter.getDenseI64ArrayAttr(weightAndBiasBcastShape));
 
   Value biasVal = rewriter.create<tosa::ReshapeOp>(
-      op.getLoc(), weightAndMeanBcastType, adaptor.getBias(),
+      op.getLoc(), weightAndMeanBcastType, bias,
       rewriter.getDenseI64ArrayAttr(weightAndBiasBcastShape));
 
   double eps;
@@ -2752,9 +2860,9 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
           .value();
 
   // Compute layer norm.
-  auto layerNorm =
-      computeBatchNorm(op, rewriter, outType, adaptor.getInput(), varianceVal,
-                       epsilonConst, meanVal, weightVal, biasVal);
+  auto layerNorm = computeBatchNorm(op, rewriter, outType, input, varianceVal,
+                                    epsilonConst, meanVal, weightVal, biasVal)
+                       .value();
 
   rewriter.replaceOp(op, {layerNorm, meanVal, varianceVal});
 
@@ -2974,6 +3082,10 @@ LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewrite(
                                            ln2Shape, outType.getElementType())
                    .value();
 
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, ln2Op).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
   auto rcpOp =
       rewriter.create<tosa::ReciprocalOp>(op.getLoc(), ln2Op.getType(), ln2Op);
 
@@ -3016,6 +3128,12 @@ LogicalResult ConvertAtenOp<AtenThresholdOp>::matchAndRewrite(
                                      outElemTy, constTypeShape)))
     return rewriter.notifyMatchFailure(
         op, "Only scalar constant is supported for value");
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, threshold)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, value).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
 
   auto cmpOp = rewriter.create<tosa::GreaterOp>(
       op.getLoc(),
@@ -3178,8 +3296,9 @@ LogicalResult ConvertAtenOp<AtenViewOp>::matchAndRewrite(
   return success();
 }
 
-static Value approximateErfOp(ConversionPatternRewriter &rewriter,
-                              Operation *op, Value x, Type dtype) {
+static std::optional<Value>
+approximateErfOp(ConversionPatternRewriter &rewriter, Operation *op, Value x,
+                 Type dtype) {
   // Using:
   // https://en.wikipedia.org/wiki/Error_function#Numerical_approximations with
   // maximum error as 5 x 10^-4 where a1 = 0.278393, a2 = 0.230389, a3 =
@@ -3192,26 +3311,34 @@ static Value approximateErfOp(ConversionPatternRewriter &rewriter,
   auto absX = rewriter.create<tosa::AbsOp>(loc, outType, x);
   auto zero = tosa::getConstTensor<float>(rewriter, op, 0, {}, dtype).value();
   auto one = tosa::getConstTensor<float>(rewriter, op, 1, {}, dtype).value();
-
   auto a1 =
       tosa::getConstTensor<float>(rewriter, op, 0.278393f, {}, dtype).value();
+  auto a2 =
+      tosa::getConstTensor<float>(rewriter, op, 0.230389f, {}, dtype).value();
+  auto a3 =
+      tosa::getConstTensor<float>(rewriter, op, 0.000972f, {}, dtype).value();
+  auto a4 =
+      tosa::getConstTensor<float>(rewriter, op, 0.078108f, {}, dtype).value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, zero).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, one).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, a1).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, a2).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, a3).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, a4).failed())
+    return std::nullopt;
+
   auto a1X = rewriter.create<tosa::MulOp>(loc, outType, a1, absX, /*shift=*/0);
   auto sum = rewriter.create<tosa::AddOp>(loc, outType, a1X, one);
 
-  auto a2 =
-      tosa::getConstTensor<float>(rewriter, op, 0.230389f, {}, dtype).value();
   auto x2 = rewriter.create<tosa::MulOp>(loc, outType, absX, absX, /*shift=*/0);
   auto a2X = rewriter.create<tosa::MulOp>(loc, outType, a2, x2, /*shift=*/0);
   sum = rewriter.create<tosa::AddOp>(loc, outType, sum, a2X);
 
-  auto a3 =
-      tosa::getConstTensor<float>(rewriter, op, 0.000972f, {}, dtype).value();
   auto x3 = rewriter.create<tosa::MulOp>(loc, outType, x2, absX, /*shift=*/0);
   auto a3X = rewriter.create<tosa::MulOp>(loc, outType, a3, x3, /*shift=*/0);
   sum = rewriter.create<tosa::AddOp>(loc, outType, sum, a3X);
 
-  auto a4 =
-      tosa::getConstTensor<float>(rewriter, op, 0.078108f, {}, dtype).value();
   auto x4 = rewriter.create<tosa::MulOp>(loc, outType, x3, absX, /*shift=*/0);
   auto a4X = rewriter.create<tosa::MulOp>(loc, outType, a4, x4, /*shift=*/0);
   sum = rewriter.create<tosa::AddOp>(loc, outType, sum, a4X);
@@ -3233,10 +3360,22 @@ static Value approximateErfOp(ConversionPatternRewriter &rewriter,
   return rewriter.create<tosa::SelectOp>(loc, outType, cond, erf, negateErf);
 }
 
-static Value buildUnitNormalCdf(ConversionPatternRewriter &rewriter,
-                                Operation *op, Value x, Type dtype) {
+static std::optional<Value>
+buildUnitNormalCdf(ConversionPatternRewriter &rewriter, Operation *op, Value x,
+                   Type dtype) {
   auto zero = tosa::getConstTensor<float>(rewriter, op, 0, {}, dtype).value();
   auto one = tosa::getConstTensor<float>(rewriter, op, 1, {}, dtype).value();
+  auto oneHalf =
+      tosa::getConstTensor<float>(rewriter, op, 0.5, {}, dtype).value();
+  // rsqrt of 2
+  auto rsqrt2 =
+      tosa::getConstTensor<float>(rewriter, op, 0.70710678f, {}, dtype).value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, zero).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, one).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, oneHalf).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, rsqrt2).failed())
+    return std::nullopt;
 
   auto loc = op->getLoc();
 
@@ -3244,16 +3383,11 @@ static Value buildUnitNormalCdf(ConversionPatternRewriter &rewriter,
   auto outType = x.getType();
   auto mean = zero;
   Value xMinusMean = rewriter.create<tosa::SubOp>(loc, outType, x, mean);
-  // rsqrt of 2
-  Value rsqrt2 =
-      tosa::getConstTensor<float>(rewriter, op, 0.70710678f, {}, dtype).value();
 
   Value erfArg = rewriter.create<tosa::MulOp>(loc, outType, xMinusMean, rsqrt2,
                                               /*shift=*/0);
-  Value erf = approximateErfOp(rewriter, op, erfArg, dtype);
+  Value erf = approximateErfOp(rewriter, op, erfArg, dtype).value();
   Value erfPlus1 = rewriter.create<tosa::AddOp>(loc, outType, one, erf);
-  Value oneHalf =
-      tosa::getConstTensor<float>(rewriter, op, 0.5, {}, dtype).value();
 
   Value normalCdf = rewriter.create<tosa::MulOp>(loc, outType, oneHalf,
                                                  erfPlus1, /*shift=*/0);
@@ -3290,7 +3424,8 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
 
   if (approximate.compare("none") == 0) {
     // GELU(x) = x * CDF(x)
-    Value cdf = buildUnitNormalCdf(rewriter, op, adaptor.getSelf(), selfElemTy);
+    Value cdf =
+        buildUnitNormalCdf(rewriter, op, adaptor.getSelf(), selfElemTy).value();
     cdf = rewriter.createOrFold<tosa::CastOp>(
         op->getLoc(),
         cast<RankedTensorType>(cdf.getType()).cloneWith({}, selfElemTy), cdf);
@@ -3388,7 +3523,8 @@ LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
+  auto self = adaptor.getSelf();
+  auto selfType = dyn_cast<TensorType>(self.getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types are currently supported");
@@ -3418,15 +3554,21 @@ LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
                          .value();
   Value negOneHalf =
       tosa::getConstTensor<float>(rewriter, op, -0.5f, {}, selfElemTy).value();
-  Value inputSquared = rewriter.create<tosa::MulOp>(
-      loc, selfType, adaptor.getSelf(), adaptor.getSelf(), /*shift=*/0);
+
+  if (mlir::tosa::EqualizeRanks(rewriter, loc, self, kAlphaHalf).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, loc, self, negOneHalf).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
+  Value inputSquared =
+      rewriter.create<tosa::MulOp>(loc, selfType, self, self, /*shift=*/0);
   Value negHalfInputSquared = rewriter.create<tosa::MulOp>(
       loc, selfType, inputSquared, negOneHalf, /*shift=*/0);
   Value dinput =
       rewriter.create<tosa::ExpOp>(loc, selfType, negHalfInputSquared);
-  Value cdf = buildUnitNormalCdf(rewriter, op, adaptor.getSelf(), selfElemTy);
-  Value dinputInput = rewriter.create<tosa::MulOp>(
-      loc, selfType, dinput, adaptor.getSelf(), /*shift=*/0);
+  Value cdf = buildUnitNormalCdf(rewriter, op, self, selfElemTy).value();
+  Value dinputInput =
+      rewriter.create<tosa::MulOp>(loc, selfType, dinput, self, /*shift=*/0);
   Value dinputInputAlpha = rewriter.create<tosa::MulOp>(
       loc, selfType, dinputInput, kAlphaHalf, /*shift=*/0);
   Value cdfExt =
@@ -3445,7 +3587,8 @@ LogicalResult ConvertAtenOp<AtenHardtanhBackwardOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
+  auto self = adaptor.getSelf();
+  auto selfType = dyn_cast<TensorType>(self.getType());
   if (!selfType) {
     return rewriter.notifyMatchFailure(
         op, "Only tensor types are currently supported");
@@ -3465,7 +3608,7 @@ LogicalResult ConvertAtenOp<AtenHardtanhBackwardOp>::matchAndRewrite(
   }
 
   Value gradOutput = adaptor.getGradOutput();
-  auto gradOutputType = dyn_cast<TensorType>(adaptor.getSelf().getType());
+  auto gradOutputType = dyn_cast<TensorType>(gradOutput.getType());
 
   Type gradOutputElemType = gradOutputType.getElementType();
 
@@ -3490,17 +3633,28 @@ LogicalResult ConvertAtenOp<AtenHardtanhBackwardOp>::matchAndRewrite(
 
   Value replace =
       tosa::getConstTensor<float>(rewriter, op, 0, {}, selfElemTy).value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, minVal)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, maxVal)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, gradOutput)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, replace).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
   Type outType = getTypeConverter()->convertType(op.getType());
 
   Value lesser = rewriter.create<tosa::GreaterOp>(
       op.getLoc(),
       RankedTensorType::get(selfType.getShape(), rewriter.getIntegerType(1)),
-      minVal, adaptor.getSelf());
+      minVal, self);
 
   Value greater = rewriter.create<tosa::GreaterOp>(
       op.getLoc(),
       RankedTensorType::get(selfType.getShape(), rewriter.getIntegerType(1)),
-      adaptor.getSelf(), maxVal);
+      self, maxVal);
 
   Value cmp = rewriter.create<tosa::LogicalOrOp>(
       op.getLoc(),
@@ -3708,11 +3862,23 @@ public:
     auto dimAttr = rewriter.getIntegerAttr(rewriter.getI32Type(), dim);
     auto prunedShapeAttr = rewriter.getDenseI64ArrayAttr(prunedShape);
 
-    Value reduceOp = rewriter.create<TosaOpT>(
-        op->getLoc(),
-        RankedTensorType::get(makeShapeLLVMCompatible(reducedShape),
-                              selfElemType),
-        self, dimAttr);
+    Value reduceOp;
+    if constexpr (std::is_same<TosaOpT, tosa::ReduceMinOp>() ||
+                  std::is_same<TosaOpT, tosa::ReduceMaxOp>()) {
+      // Use default NaN Propagation mode "PROPAGATE" for tosa.reduce_min
+      // and tosa.reduce_max
+      reduceOp = rewriter.create<TosaOpT>(
+          op->getLoc(),
+          RankedTensorType::get(makeShapeLLVMCompatible(reducedShape),
+                                selfElemType),
+          self, dimAttr, /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+    } else {
+      reduceOp = rewriter.create<TosaOpT>(
+          op->getLoc(),
+          RankedTensorType::get(makeShapeLLVMCompatible(reducedShape),
+                                selfElemType),
+          self, dimAttr);
+    }
 
     // To handle ReduceMinDim indices, we apply ArgMaxOp on the negate
     // of the input tensor, which will return indices of input's min values
@@ -3721,17 +3887,19 @@ public:
       Value negateOp =
           rewriter.create<tosa::NegateOp>(op->getLoc(), selfType, self);
 
+      // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
       argMaxOp = rewriter.create<tosa::ArgMaxOp>(
           op->getLoc(),
           RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
                                 indicesElemType),
-          negateOp, dimAttr);
+          negateOp, dimAttr, /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
     } else {
+      // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
       argMaxOp = rewriter.create<tosa::ArgMaxOp>(
           op->getLoc(),
           RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
                                 indicesElemType),
-          self, dimAttr);
+          self, dimAttr, /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
     }
 
     if (argMaxOp.getType() != indicesType) {
@@ -4249,12 +4417,19 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
   return success();
 }
 
-Value wrapNegativeIndices(Value index, int maxIndex, Operation *op,
-                          ConversionPatternRewriter &rewriter) {
+std::optional<Value> wrapNegativeIndices(Value index, int maxIndex,
+                                         Operation *op,
+                                         ConversionPatternRewriter &rewriter) {
 
   auto zeroValue = tosa::getConstTensor<int32_t>(rewriter, op, 0, {}).value();
   auto maxIndexValue =
       tosa::getConstTensor<int32_t>(rewriter, op, maxIndex, {}).value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), index, zeroValue)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), index, maxIndexValue)
+          .failed())
+    return std::nullopt;
 
   auto indexType = dyn_cast<RankedTensorType>(index.getType());
 
@@ -4335,7 +4510,8 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
       }
 
       index = wrapNegativeIndices(index, inputTensorType.getShape()[i], op,
-                                  rewriter);
+                                  rewriter)
+                  .value();
       // Expand last dim of index to tf indices [2,3] -> [2,3,1]
       SmallVector<int64_t> indiceShapeOneDim;
       for (auto shape : indexShape) {
@@ -4504,7 +4680,8 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
     }
 
     index =
-        wrapNegativeIndices(index, inputTensorType.getShape()[0], op, rewriter);
+        wrapNegativeIndices(index, inputTensorType.getShape()[0], op, rewriter)
+            .value();
 
     // Expand last dim of index to tf indices [2,3] -> [2,3,1]
     SmallVector<int64_t> indicesShape;
@@ -4772,19 +4949,33 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   // Not a tensor type.
-  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
+  auto self = adaptor.getSelf();
+  auto selfType = dyn_cast<TensorType>(self.getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
-        op, "Only tensor types input are currently supported");
-  auto condType = dyn_cast<TensorType>(adaptor.getCondition().getType());
+        op, "Only tensor types inputs are currently supported");
+
+  auto cond = adaptor.getCondition();
+  auto condType = dyn_cast<TensorType>(cond.getType());
   if (!condType)
     return rewriter.notifyMatchFailure(
-        op, "Only tensor types condition are currently supported");
+        op, "Only tensor types conditions are currently supported");
 
-  auto outType = getTypeConverter()->convertType(op.getType());
-  rewriter.replaceOpWithNewOp<tosa::SelectOp>(
-      op, outType, adaptor.getCondition(), adaptor.getSelf(),
-      adaptor.getOther());
+  auto other = adaptor.getOther();
+  auto otherType = dyn_cast<TensorType>(other.getType());
+  if (!otherType)
+    return rewriter.notifyMatchFailure(
+        op, "Only tensor types inputs are currently supported");
+
+  auto outType =
+      dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), cond, self).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), cond, other).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
+  rewriter.replaceOpWithNewOp<tosa::SelectOp>(op, outType, cond, self, other);
 
   return success();
 }
@@ -4805,8 +4996,10 @@ LogicalResult ConvertAtenOp<AtenIscloseOp>::matchAndRewrite(
         op, "unimplemented: equal_nan is expected to be false");
 
   // check tensor type.
-  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
-  auto otherType = dyn_cast<TensorType>(adaptor.getOther().getType());
+  auto self = adaptor.getSelf();
+  auto selfType = dyn_cast<TensorType>(self.getType());
+  auto other = adaptor.getOther();
+  auto otherType = dyn_cast<TensorType>(other.getType());
   if (!selfType || !otherType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types input are currently supported");
@@ -4818,20 +5011,31 @@ LogicalResult ConvertAtenOp<AtenIscloseOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "unimplemented: only FP element type is supported");
   }
+  auto rtolConstOp =
+      tosa::getTosaConstTensorSingleF32(rewriter, op, static_cast<float>(rtol));
+  auto atolConstOp =
+      tosa::getTosaConstTensorSingleF32(rewriter, op, static_cast<float>(atol));
 
-  auto rhsSubOp = rewriter.create<tosa::SubOp>(
-      op->getLoc(), selfType, adaptor.getSelf(), adaptor.getOther());
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, other).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, rtolConstOp)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, atolConstOp)
+          .failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
+  // Reinitialize selfType and otherType after equalizing ranks
+  selfType = dyn_cast<TensorType>(self.getType());
+  otherType = dyn_cast<TensorType>(other.getType());
+
+  auto rhsSubOp =
+      rewriter.create<tosa::SubOp>(op->getLoc(), selfType, self, other);
   auto rhsAbsOp =
       rewriter.create<tosa::AbsOp>(op->getLoc(), selfType, rhsSubOp);
 
-  auto lhsAbsOp =
-      rewriter.create<tosa::AbsOp>(op->getLoc(), otherType, adaptor.getOther());
-  auto rtolConstOp =
-      tosa::getTosaConstTensorSingleF32(rewriter, op, static_cast<float>(rtol));
+  auto lhsAbsOp = rewriter.create<tosa::AbsOp>(op->getLoc(), otherType, other);
   auto mulOp = rewriter.create<tosa::MulOp>(op->getLoc(), otherType,
                                             rtolConstOp, lhsAbsOp, /*shift=*/0);
-  auto atolConstOp =
-      tosa::getTosaConstTensorSingleF32(rewriter, op, static_cast<float>(atol));
   auto addOp =
       rewriter.create<tosa::AddOp>(op->getLoc(), otherType, atolConstOp, mulOp);
 
@@ -4895,9 +5099,11 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
                                        "max attr should be a torch constant");
   }
 
+  // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   auto outType = getTypeConverter()->convertType(op.getType());
-  rewriter.replaceOpWithNewOp<tosa::ClampOp>(op, outType, adaptor.getSelf(),
-                                             min_int, max_int, min_fp, max_fp);
+  rewriter.replaceOpWithNewOp<tosa::ClampOp>(
+      op, outType, adaptor.getSelf(), min_int, max_int, min_fp, max_fp,
+      /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
 
   return success();
 }
@@ -4992,13 +5198,26 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
             });
   }
 
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, min).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, max).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
+  self = tosa::promoteType(rewriter, self, resultType);
+  min = tosa::promoteType(rewriter, min, resultType);
+  max = tosa::promoteType(rewriter, max, resultType);
+
   // max(xi, min_valuei)
-  auto minThresholdCheck = tosa::createBinaryOpAndCast<tosa::MaximumOp>(
-      rewriter, op, resultType, self, min);
+  // Use default NaN Propagation mode "PROPAGATE" for tosa.maximum
+  auto minThresholdCheck = rewriter.create<tosa::MaximumOp>(
+      op->getLoc(), resultType, self, min,
+      /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
 
   // yi = min(max(xi, min_valuei), max_valuei)
-  auto result = tosa::createBinaryOpAndCast<tosa::MinimumOp>(
-      rewriter, op, resultType, minThresholdCheck, max);
+  // Use default NaN Propagation mode "PROPAGATE" for tosa.minimum
+  auto result = rewriter.create<tosa::MinimumOp>(
+      op->getLoc(), resultType, minThresholdCheck, max,
+      /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
 
   rewriter.replaceOp(op, result);
   return success();
@@ -5339,6 +5558,11 @@ public:
             op, "Only ranked tensor types supported in TOSA Remainder/Fmod");
     }
 
+    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, otherTensor)
+            .failed())
+      return rewriter.notifyMatchFailure(
+          op, "Failed to equalize ranks among operands and result");
+
     constexpr bool isRemainderOp =
         std::is_same<AtenOpT, AtenRemainderScalarOp>() ||
         std::is_same<AtenOpT, AtenRemainderTensorOp>() ||
@@ -5358,7 +5582,8 @@ public:
         divTensor =
             rewriter.create<tosa::FloorOp>(op.getLoc(), outType, divTensor);
       } else {
-        divTensor = floorIntDiv(rewriter, op, outType, self, otherTensor);
+        divTensor =
+            floorIntDiv(rewriter, op, outType, self, otherTensor).value();
       }
     } else {
       // torch.fmod(a, b) == a - a.div(b, rounding_mode="trunc") * b
@@ -5493,9 +5718,11 @@ public:
                       std::is_same<TosaOpT, tosa::AvgPool2dOp>::value,
                   "Expected either tosa::MaxPool2dOp or tosa::AvgPool2dOp");
     if constexpr (std::is_same<TosaOpT, tosa::MaxPool2dOp>::value) {
+      // Use default NaN Propagation mode "PROPAGATE" for tosa.max_pool2d
       pooledOutput = rewriter
-                         .create<TosaOpT>(op->getLoc(), outputTy, input, kernel,
-                                          stride, pad)
+                         .create<TosaOpT>(
+                             op->getLoc(), outputTy, input, kernel, stride, pad,
+                             /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))
                          .getResult();
     } else if constexpr (std::is_same<TosaOpT, tosa::AvgPool2dOp>::value) {
       TypeAttr accType;
@@ -6086,7 +6313,8 @@ public:
     }
 
     // Not a tensor type.
-    auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
+    auto self = adaptor.getSelf();
+    auto selfType = dyn_cast<TensorType>(self.getType());
     if (!selfType || !outType.hasStaticShape())
       return rewriter.notifyMatchFailure(
           op,
@@ -6118,8 +6346,13 @@ public:
           RankedTensorType::get(rhsTensorType.getShape(), outElemTy),
           rhsTensor);
 
+    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, rhsTensor)
+            .failed())
+      return rewriter.notifyMatchFailure(
+          op, "Failed to equalize ranks among operands and result");
+
     rewriter.replaceOpWithNewOp<tosa::SelectOp>(op, outType, adaptor.getMask(),
-                                                rhsTensor, adaptor.getSelf());
+                                                rhsTensor, self);
     return success();
   }
 };
@@ -6197,12 +6430,7 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
     translatePadsList.push_back(highPadding[i]);
   }
 
-  DenseElementsAttr paddingAttr = DenseIntElementsAttr::get(
-      RankedTensorType::get({2 * rank}, rewriter.getI64Type()),
-      translatePadsList);
-
-  Value padsList1 = rewriter.create<mlir::tosa::ConstOp>(
-      loc, paddingAttr.getType(), paddingAttr);
+  Value padsList1 = tosa::getTosaConstShape(rewriter, loc, translatePadsList);
 
   Value padValue = adaptor.getValue();
   Operation *padOp = padValue.getDefiningOp();
@@ -6288,6 +6516,10 @@ LogicalResult ConvertAtenOp<AtenSqrtOp>::matchAndRewrite(
 
   auto oneHalf =
       tosa::getConstTensor<float>(rewriter, op, 0.5, {}, elementType).value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, oneHalf).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
 
   rewriter.replaceOpWithNewOp<tosa::PowOp>(op, resultType, self, oneHalf);
   return success();
@@ -6572,6 +6804,11 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
                          llvm_unreachable("Invalid integer width");
                        });
 
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, trilMask)
+          .failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
   rewriter.replaceOpWithNewOp<tosa::MulOp>(op, resultType, self, trilMask,
                                            /*shift=*/0);
 
@@ -6652,6 +6889,12 @@ LogicalResult ConvertAtenOp<AtenRoundOp>::matchAndRewrite(
 
   auto two =
       tosa::getConstTensor<float>(rewriter, op, 2, {}, resultElemTy).value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, oneHalf)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, two).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
 
   auto floorInput =
       rewriter.create<tosa::FloorOp>(op->getLoc(), resultTy, self);
@@ -6846,6 +7089,11 @@ LogicalResult ConvertAtenOp<AtenDiagonalOp>::matchAndRewrite(
             }
             llvm_unreachable("Invalid integer width");
           });
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, diagonalMask)
+          .failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
 
   Value diagonalTensor = rewriter.create<tosa::MulOp>(
       op->getLoc(), transposedInputType, selfTransposed, diagonalMask,
@@ -7199,6 +7447,11 @@ LogicalResult ConvertAtenOp<AtenThresholdBackwardOp>::matchAndRewrite(
 
   self = tosa::promoteType(rewriter, self, resultType);
   grad = tosa::promoteType(rewriter, grad, resultType);
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, zero).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, grad).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
 
   auto result = rewriter.create<tosa::SelectOp>(op->getLoc(), resultType,
                                                 cond.getResult(), zero, grad);
@@ -8107,6 +8360,7 @@ LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
   auto zi = self;
 
   // Clamp input to [eps, 1 - eps] when eps is not None
+  // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   if (!isEpsNone) {
     zi = rewriter
              .create<tosa::ClampOp>(
@@ -8114,12 +8368,17 @@ LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
                  rewriter.getI64IntegerAttr(static_cast<int64_t>(eps)),
                  rewriter.getI64IntegerAttr(static_cast<int64_t>(1 - eps)),
                  rewriter.getF32FloatAttr(static_cast<float>(eps)),
-                 rewriter.getF32FloatAttr(static_cast<float>(1 - eps)))
+                 rewriter.getF32FloatAttr(static_cast<float>(1 - eps)),
+                 /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))
              .getResult();
   }
 
   auto one =
       tosa::getConstTensor<float>(rewriter, op, 1.0f, {}, resultElemTy).value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, one).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
 
   auto oneMinusZi =
       rewriter.create<tosa::SubOp>(op->getLoc(), resultType, one, zi);
@@ -8168,6 +8427,10 @@ LogicalResult ConvertAtenOp<AtenLog1pOp>::matchAndRewrite(
   auto one =
       tosa::getConstTensor<float>(rewriter, op, 1.0f, {}, resultElemTy).value();
 
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, one).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
   auto addOp =
       rewriter.create<tosa::AddOp>(op->getLoc(), resultType, self, one);
 
@@ -8209,14 +8472,19 @@ LogicalResult ConvertAtenOp<AtenLog10Op>::matchAndRewrite(
   auto ten = tosa::getConstTensor<float>(rewriter, op, 10.0f, {}, resultElemTy)
                  .value();
 
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, ten).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
   auto logOfSelf = rewriter.create<tosa::LogOp>(op->getLoc(), resultType, self);
 
-  auto constType = RankedTensorType::get({}, resultElemTy);
+  auto constTenType = RankedTensorType::get(
+      dyn_cast<TensorType>(ten.getType()).getShape(), resultElemTy);
 
-  auto logOfTen = rewriter.create<tosa::LogOp>(op->getLoc(), constType, ten);
+  auto logOfTen = rewriter.create<tosa::LogOp>(op->getLoc(), constTenType, ten);
 
   auto reciprocalOp = rewriter.create<tosa::ReciprocalOp>(
-      op->getLoc(), constType, logOfTen.getResult());
+      op->getLoc(), constTenType, logOfTen.getResult());
 
   auto result = rewriter.create<tosa::MulOp>(
       op->getLoc(), resultType, logOfSelf.getResult(), reciprocalOp.getResult(),
@@ -8257,6 +8525,10 @@ LogicalResult ConvertAtenOp<AtenExpm1Op>::matchAndRewrite(
 
   auto one =
       tosa::getConstTensor<float>(rewriter, op, 1.0f, {}, resultElemTy).value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, one).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
 
   auto expOp = rewriter.create<tosa::ExpOp>(op->getLoc(), resultType, self);
 
