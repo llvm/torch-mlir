@@ -180,6 +180,13 @@ LogicalResult reduceOpImpl(OpBinder binder, ConversionPatternRewriter &rewriter,
   return success();
 }
 
+int64_t lengthOfListIn(Value given1DTensor) {
+  auto some1DTensorType = cast<Torch::BaseTensorType>(given1DTensor.getType());
+  auto sizesOfSome1DTensor = some1DTensorType.getSizes();
+  size_t soleDimInAny1DTensor = 0;
+  return sizesOfSome1DTensor[soleDimInAny1DTensor];
+}
+
 Type getTorchScalarType(
     /* forElementIn */ Torch::BaseTensorType givenTensorType,
     /*        using */ ConversionPatternRewriter &rewriter) {
@@ -233,14 +240,10 @@ Value createScalarSublist(
     /* movingForwardsThrough */ Value given1DTensor,
     /*            startingAt */ int64_t givenIndex,
     /*                 using */ ConversionPatternRewriter &rewriter) {
-  auto some1DTensorType = cast<Torch::BaseTensorType>(given1DTensor.getType());
-  auto sizesOfSome1DTensor = some1DTensorType.getSizes();
-  auto lengthOfFullList = sizesOfSome1DTensor[0];
-
   SmallVector<Value> runningScalarSublist;
 
-  for (int indexOfEachScalar = givenIndex; indexOfEachScalar < lengthOfFullList;
-       indexOfEachScalar++) {
+  for (int indexOfEachScalar = givenIndex;
+       indexOfEachScalar < lengthOfListIn(given1DTensor); indexOfEachScalar++) {
     Value eachScalar = extractTorchScalar(givenLoc, indexOfEachScalar,
                                           given1DTensor, rewriter);
     runningScalarSublist.push_back(eachScalar);
