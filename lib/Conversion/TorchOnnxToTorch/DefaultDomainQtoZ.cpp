@@ -180,6 +180,13 @@ LogicalResult reduceOpImpl(OpBinder binder, ConversionPatternRewriter &rewriter,
   return success();
 }
 
+int64_t lengthOfListIn(Value given1DTensor) {
+  auto some1DTensorType = cast<Torch::BaseTensorType>(given1DTensor.getType());
+  auto sizesOfSome1DTensor = some1DTensorType.getSizes();
+  size_t soleDimInAny1DTensor = 0;
+  return sizesOfSome1DTensor[soleDimInAny1DTensor];
+}
+
 Type getTorchScalarTypeForElements(
     ConversionPatternRewriter &rewriter,
     /* in */ Torch::BaseTensorType givenTensorType) {
@@ -231,11 +238,8 @@ Value createTorchList(ConversionPatternRewriter &rewriter, Location givenLoc,
 Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
                    Value operand) {
   SmallVector<Value> itemList;
-  auto sizes = dyn_cast<Torch::ValueTensorType>(operand.getType()).getSizes();
-  Torch::BaseTensorType operandType =
-      cast<Torch::BaseTensorType>(operand.getType());
 
-  for (int i = 2; i < sizes[0]; i++) {
+  for (int i = 2; i < lengthOfListIn(operand); i++) {
     Value item =
         createTorchScalarForElement(rewriter, binder.getLoc(), operand, i);
     itemList.push_back(item);
