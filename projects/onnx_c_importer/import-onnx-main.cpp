@@ -109,6 +109,8 @@ FailureOr<onnx::ModelProto> loadOnnxModel() {
   }
 
   if ((*opsetVersionArg).has_value()) {
+    // see `convert_version` in onnx/cpp2py_export.cc
+    onnx::shape_inference::InferShapes(mp);
     mp = onnx::version_conversion::ConvertVersion(mp, **opsetVersionArg);
   }
 
