@@ -180,6 +180,16 @@ LogicalResult reduceOpImpl(OpBinder binder, ConversionPatternRewriter &rewriter,
   return success();
 }
 
+Value createTorchList(ConversionPatternRewriter &rewriter, Location givenLoc,
+                      /* from */ SmallVector<Value> givenTorchElements) {
+  auto someTorchElement = givenTorchElements.front();
+  auto someTorchElementType = someTorchElement.getType();
+  Type someTorchListType = Torch::ListType::get(someTorchElementType);
+
+  return rewriter.create<Torch::PrimListConstructOp>(
+      givenLoc, someTorchListType, givenTorchElements);
+}
+
 Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
                    Value operand) {
   SmallVector<Value> itemList;
@@ -205,7 +215,6 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
       binder.getLoc(), rewriter.getType<Torch::IntType>(),
       rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
 
-  MLIRContext *context = binder.op->getContext();
   for (int i = 2; i < sizes[0]; i++) {
     Value selectIndex = rewriter.create<Torch::ConstantIntOp>(
         binder.getLoc(), rewriter.getType<Torch::IntType>(),
@@ -215,18 +224,8 @@ Value getValueList(OpBinder binder, ConversionPatternRewriter &rewriter,
     Value item = extract(operand, ext);
     itemList.push_back(item);
   }
-  auto xTy = cast<Torch::ValueTensorType>(operand.getType());
-  Value ValueList;
-  if (isa<IntegerType>(xTy.getDtype())) {
-    ValueList = rewriter.create<Torch::PrimListConstructOp>(
-        binder.getLoc(), Torch::ListType::get(Torch::IntType::get(context)),
-        itemList);
-  } else {
-    ValueList = rewriter.create<Torch::PrimListConstructOp>(
-        binder.getLoc(), Torch::ListType::get(Torch::FloatType::get(context)),
-        itemList);
-  }
-  return ValueList;
+
+  return createTorchList(rewriter, binder.getLoc(), itemList);
 }
 } // namespace
 
