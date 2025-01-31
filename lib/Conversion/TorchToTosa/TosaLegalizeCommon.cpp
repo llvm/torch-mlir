@@ -114,13 +114,17 @@ createOneDimTfIndices(PatternRewriter &rewriter, Operation *op,
   return indicesDim;
 }
 
+// Default function to create TOSA op with shift value
 tosa::MulOp createMulOpAndCast(PatternRewriter &rewriter, Operation *op,
                                TensorType outType, Value lhs, Value rhs,
                                int32_t shift) {
   lhs = promoteType(rewriter, lhs, outType);
   rhs = promoteType(rewriter, rhs, outType);
+
+  auto constShift = tosa::getTosaMulShiftConstTensor(rewriter, op, shift);
+
   return tosa::CreateOpAndInfer<tosa::MulOp>(rewriter, op->getLoc(), outType,
-                                             lhs, rhs, shift);
+                                             lhs, rhs, constShift);
 }
 
 template <>
@@ -386,8 +390,8 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
   // Multiply the coefficients by the coordinates
   // %5 = "tosa.mul"(%3, %4) {shift = 0 : i32} : (tensor<8x3xi32>,
   // tensor<3xi32>) -> tensor<8x3xi32>
-  auto flattenedIndicesMulOp = tosa::CreateOpAndInfer<tosa::MulOp>(
-      rewriter, op->getLoc(),
+  auto flattenedIndicesMulOp = tosa::createMulOpAndCast(
+      rewriter, op,
       GetTypeFromTensorShape(indicesMatrixShape, indicesType.getElementType()),
       indicesMatrixReshapeOp, flattenedCoeffValue.value(), 0);
 
@@ -657,8 +661,8 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
   // [[0, 1], [0, 2],  [0, 3]] X [4, 1] -> [[4*0, 1*1], [4*0, 1*2], [4*0, 1*3]]
   // %13 = "tosa.mul"(%11, %12) {shift = 0 : i32} : (tensor<3x2xi32>,
   // tensor<2xi32>) -> tensor<3x2xi32>
-  auto flattenedIndicesMulOp = tosa::CreateOpAndInfer<tosa::MulOp>(
-      rewriter, op->getLoc(),
+  auto flattenedIndicesMulOp = tosa::createMulOpAndCast(
+      rewriter, op,
       GetTypeFromTensorShape(indicesMatrixShape, indicesType.getElementType()),
       indicesMatrixReshapeOp, flattenedCoeffValue.value(), 0);
 
@@ -999,8 +1003,8 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
             .failed())
       return std::nullopt;
 
-    return CreateOpAndInfer<tosa::MulOp>(rewriter, op->getLoc(), output_type,
-                                         val.value(), div_const, 0)
+    return tosa::createMulOpAndCast(rewriter, op, output_type, val.value(),
+                                    div_const, 0)
         .getResult();
   }
 
