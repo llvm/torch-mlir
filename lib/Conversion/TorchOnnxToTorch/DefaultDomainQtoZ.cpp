@@ -218,6 +218,16 @@ Value extractTorchScalar(
                                             selectionFromGiven1DTensor);
 }
 
+Value createTorchList(ConversionPatternRewriter &rewriter, Location givenLoc,
+                      /* from */ SmallVector<Value> givenTorchElements) {
+  auto someTorchElement = givenTorchElements.front();
+  auto someTorchElementType = someTorchElement.getType();
+  Type someTorchListType = Torch::ListType::get(someTorchElementType);
+
+  return rewriter.create<Torch::PrimListConstructOp>(
+      givenLoc, someTorchListType, givenTorchElements);
+}
+
 Value createScalarSublist(
     /*                    at */ Location givenLoc,
     /* movingForwardsThrough */ Value given1DTensor,
@@ -236,11 +246,7 @@ Value createScalarSublist(
     runningScalarSublist.push_back(eachScalar);
   }
 
-  auto someTorchScalarType = runningScalarSublist.front().getType();
-  Type someTorchScalarListType = Torch::ListType::get(someTorchScalarType);
-
-  return rewriter.create<Torch::PrimListConstructOp>(
-      givenLoc, someTorchScalarListType, runningScalarSublist);
+  return createTorchList(rewriter, givenLoc, runningScalarSublist);
 }
 } // namespace
 
