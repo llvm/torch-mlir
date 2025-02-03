@@ -120,7 +120,7 @@ tosa::MulOp createMulOpAndCast(PatternRewriter &rewriter, Operation *op,
   lhs = promoteType(rewriter, lhs, outType);
   rhs = promoteType(rewriter, rhs, outType);
   return tosa::CreateOpAndInfer<tosa::MulOp>(rewriter, op->getLoc(), outType,
-                                             lhs, rhs, shift);
+                                             lhs, rhs, tosa::getTosaConstTensorSingleI8(rewriter, op, shift));
 }
 
 template <>
@@ -389,7 +389,7 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
   auto flattenedIndicesMulOp = tosa::CreateOpAndInfer<tosa::MulOp>(
       rewriter, op->getLoc(),
       GetTypeFromTensorShape(indicesMatrixShape, indicesType.getElementType()),
-      indicesMatrixReshapeOp, flattenedCoeffValue.value(), 0);
+      indicesMatrixReshapeOp, flattenedCoeffValue.value(), tosa::getTosaConstTensorSingleI8(rewriter, op, 0));
 
   // Sum up the products of the coefficients and coordinates
   // %6 = "tosa.reduce_sum"(%5) {axis = 1 : i64} : (tensor<8x3xi32>) ->
@@ -660,7 +660,7 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
   auto flattenedIndicesMulOp = tosa::CreateOpAndInfer<tosa::MulOp>(
       rewriter, op->getLoc(),
       GetTypeFromTensorShape(indicesMatrixShape, indicesType.getElementType()),
-      indicesMatrixReshapeOp, flattenedCoeffValue.value(), 0);
+      indicesMatrixReshapeOp, flattenedCoeffValue.value(), tosa::getTosaConstTensorSingleI8(rewriter, op, 0));
 
   // Sum up the products of the coefficients and coordinates
   // [[4*0 + 1*1], [4*0 + 1*2], [4*0 + 1*3]] = [[1],[2],[3]]
@@ -1000,7 +1000,7 @@ convertReduceMeanOp(PatternRewriter &rewriter, Operation *op,
       return std::nullopt;
 
     return CreateOpAndInfer<tosa::MulOp>(rewriter, op->getLoc(), output_type,
-                                         val.value(), div_const, 0)
+                                         val.value(), div_const, tosa::getTosaConstTensorSingleI8(rewriter, op, 0))
         .getResult();
   }
 

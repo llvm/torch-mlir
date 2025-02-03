@@ -140,6 +140,18 @@ bool isScale32(mlir::quant::UniformQuantizedType output_element_type) {
   return (output_element_type.getStorageTypeIntegralWidth() == 8);
 }
 
+// Create a 8-bit int constant operator from a int
+Value getTosaConstTensorSingleI8(PatternRewriter &rewriter, Operation *op,
+                                 int32_t val) {
+  auto shiftElementType = IntegerType::get(rewriter.getContext(), 8);
+  auto shiftType = RankedTensorType::get({1}, shiftElementType);
+  auto shiftZeroAttr = DenseElementsAttr::get(
+      shiftType, rewriter.getIntegerAttr(shiftElementType, val));
+  Value constVal =
+      rewriter.create<tosa::ConstOp>(op->getLoc(), shiftType, shiftZeroAttr);
+  return constVal;
+}
+
 // Create a 32-bit float constant operator from a float
 Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
                                   float val) {

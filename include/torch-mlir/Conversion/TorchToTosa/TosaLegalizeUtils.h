@@ -41,6 +41,10 @@ Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
 // Check if scale32 mode is used for given output_element_type
 bool isScale32(mlir::quant::UniformQuantizedType output_element_type);
 
+// Create a 8-bit int constant operator from a int
+Value getTosaConstTensorSingleI8(PatternRewriter &rewriter, Operation *op,
+                                 int32_t val);
+
 // Create a 32-bit float constant operator from a float
 Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
                                   float val);
