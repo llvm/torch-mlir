@@ -63,10 +63,10 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
                                     ArrayRef<T> vec, ArrayRef<int64_t> shape,
                                     std::optional<Type> dtype = {});
 
-LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
-                                   Value src, Type destType, Value &result);
-
-Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType);
+// Default function to create tosa.cast op. This should be called instead of
+// directly calling rewriter.create<tosa::CastOp>.
+std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
+                                          TensorType destType);
 
 // Creates a TOSA operation and performs shape inference on the individual
 // op. This allows shape inference during the framework to TOSA lowering.

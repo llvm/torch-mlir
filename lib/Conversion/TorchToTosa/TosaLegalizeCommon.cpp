@@ -118,8 +118,8 @@ createOneDimTfIndices(PatternRewriter &rewriter, Operation *op,
 tosa::MulOp createMulOpAndCast(PatternRewriter &rewriter, Operation *op,
                                TensorType outType, Value lhs, Value rhs,
                                int32_t shift) {
-  lhs = promoteType(rewriter, lhs, outType);
-  rhs = promoteType(rewriter, rhs, outType);
+  lhs = tosa::tosaCastTensorToType(rewriter, lhs, outType).value();
+  rhs = tosa::tosaCastTensorToType(rewriter, rhs, outType).value();
 
   auto constShift = tosa::getTosaMulShiftConstTensor(rewriter, op, shift);
 
@@ -138,8 +138,8 @@ createBinaryOpAndCast<IntDivOp>(PatternRewriter &rewriter, Operation *op,
         op, "tosa.int_div only supports integer type");
   }
 
-  lhs = promoteType(rewriter, lhs, outType);
-  rhs = promoteType(rewriter, rhs, outType);
+  lhs = tosa::tosaCastTensorToType(rewriter, lhs, outType).value();
+  rhs = tosa::tosaCastTensorToType(rewriter, rhs, outType).value();
   return tosa::CreateOpAndInfer<tosa::IntDivOp>(rewriter, op->getLoc(), outType,
                                                 lhs, rhs);
 }
@@ -1069,7 +1069,7 @@ convertLinalgVectorNormOp(PatternRewriter &rewriter, Operation *op,
   }
 
   auto input_value_casted =
-      tosa::promoteType(rewriter, input_value, output_type);
+      tosa::tosaCastTensorToType(rewriter, input_value, output_type).value();
   auto absVal = CreateOpAndInfer<tosa::AbsOp>(
                     rewriter, op->getLoc(),
                     RankedTensorType::get(input_type.getShape(), elemType),
