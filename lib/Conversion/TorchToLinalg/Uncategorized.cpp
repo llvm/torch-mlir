@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
@@ -25,6 +26,8 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/SmallVector.h"
+#include <cstdint>
 #include <numeric>
 #include <string>
 #include <type_traits>
@@ -3632,6 +3635,103 @@ public:
                                   rewriter.getStringAttr(assertMessage));
 
     rewriter.eraseOp(op);
+  }
+};
+} // namespace
+
+namespace {
+class ConvertOnnxVariantAtenRotaryEmbeddingOp
+    : public OpConversionPattern<OnnxVariantAtenRotaryEmbeddingOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(OnnxVariantAtenRotaryEmbeddingOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op.getLoc();
+    const TypeConverter *typeConverter = getTypeConverter();
+    MLIRContext *context = rewriter.getContext();
+
+    Value input = adaptor.getInput();
+    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
+    if (!inputType.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: expected input to have static shape");
+    SmallVector<int64_t> inputShape{inputType.getShape()};
+    unsigned inputRank = inputShape.size();
+
+    RankedTensorType resultType =
+        cast<RankedTensorType>(typeConverter->convertType(op.getType()));
+    auto elementType = resultType.getElementType();
+
+    Value positionIds = adaptor.getPositionIds();
+    Value cosCache = adaptor.getCosCache();
+    Value sinCache = adaptor.getSinCache();
+
+    int64_t interleaved, isPackedBatching, numHeads, rotaryEmbeddingDim;
+    if (!matchPattern(op.getInterleaved(), m_TorchConstantInt(&interleaved)))
+      return rewriter.notifyMatchFailure(
+          op, "interleaved must be constant integer");
+    if (!matchPattern(op.getIsPackedBatching(),
+                      m_TorchConstantInt(&isPackedBatching)))
+      return rewriter.notifyMatchFailure(
+          op, "is_packed_batching must be constant integer");
+    if (!matchPattern(op.getNumHeads(), m_TorchConstantInt(&numHeads)))
+      return rewriter.notifyMatchFailure(op,
+                                         "num_heads must be constant integer");
+    if (!matchPattern(op.getRotaryEmbeddingDim(),
+                      m_TorchConstantInt(&rotaryEmbeddingDim)))
+      return rewriter.notifyMatchFailure(
+          op, "rotary_embedding_dim must be constant integer");
+
+    double scale;
+    if (!matchPattern(op.getScale(), m_TorchConstantFloat(&scale)))
+      return rewriter.notifyMatchFailure(op, "scale must be constant float");
+
+    SmallVector<Value> resultShape;
+    for (int64_t i = 0; i < inputRank; i++) {
+      auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
+      resultShape.push_back(currentDimSize);
+    }
+
+    Value outTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(resultShape), elementType);
+
+    SmallVector<AffineExpr> outputExpr;
+    for (unsigned i = 0; i < inputRank; i++) {
+      outputExpr.push_back(getAffineDimExpr(i, context));
+    }
+
+    AffineMap inputMap =
+        AffineMap::getMultiDimIdentityMap(inputRank, op->getContext());
+
+    // AffineMap identityMap =
+    //     AffineMap::get(inputRank, 0, outputExpr, op->getContext());
+
+    // SmallVector<AffineMap> indexingMaps{identityMap, identityMap,
+    // identityMap}; SmallVector<utils::IteratorType> iteratorTypes(
+    //     resultType.getRank(), utils::IteratorType::parallel);
+    // auto complexVar =
+    //     rewriter
+    //         .create<linalg::GenericOp>(
+    //             loc, outTensor.getType(), ValueRange{absTensor, angleTensor},
+    //             outTensor, indexingMaps, iteratorTypes,
+    //             [&](OpBuilder &b, Location loc, ValueRange args) {
+    //               // out = abs⋅cos(angle) + abs⋅sin(angle)⋅j
+    //               Value abs = args[0];
+    //               Value angle = args[1];
+    //               Value realVal = b.create<math::CosOp>(loc, angle);
+    //               Value imagVal = b.create<math::SinOp>(loc, angle);
+    //               realVal = b.create<arith::MulFOp>(loc, abs, realVal);
+    //               imagVal = b.create<arith::MulFOp>(loc, abs, imagVal);
+    //                   loc, elementType, realVal, imagVal);
+    //               b.create<linalg::YieldOp>(loc, complexVal);
+    //             })
+    //         .getResult(0);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, inputTensor);
     return success();
   }
 };
@@ -3701,4 +3801,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenPolarOp>(typeConverter, context);
   target.addIllegalOp<AtenSymConstrainRangeOp>();
   patterns.add<ConvertSymConstrainRangeOp>(typeConverter, context);
+  target.addIllegalOp<OnnxVariantAtenRotaryEmbeddingOp>();
+  patterns.add<ConvertOnnxVariantAtenRotaryEmbeddingOp>(typeConverter, context);
 }
