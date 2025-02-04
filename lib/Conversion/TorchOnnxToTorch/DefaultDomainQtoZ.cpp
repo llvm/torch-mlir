@@ -9,6 +9,7 @@
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -4666,14 +4667,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
   patterns.onOp(
       "RotaryEmbedding", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        // Location loc = binder.getLoc();
+        Location loc = binder.getLoc();
         int64_t interleaved, isPackedBatching, numHeads, rotaryEmbeddingDim;
         float scale;
         Value input, positionIds, cosCache, sinCache;
-        if (binder.tensorListOperandAtIndex(input, 0) ||
-            binder.tensorListOperandAtIndex(positionIds, 1) ||
-            binder.tensorListOperandAtIndex(cosCache, 2) ||
-            binder.tensorListOperandAtIndex(sinCache, 3) ||
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorOperandAtIndex(positionIds, 1) ||
+            binder.tensorOperandAtIndex(cosCache, 2) ||
+            binder.tensorOperandAtIndex(sinCache, 3) ||
             binder.s64IntegerAttr(interleaved, "interleaved", 0) ||
             binder.s64IntegerAttr(isPackedBatching, "is_packed_batching", 0) ||
             binder.s64IntegerAttr(numHeads, "num_heads", 0) ||
@@ -4690,94 +4691,21 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                              "result type bind failure");
         }
 
-        // int64_t numInits = operands.size() - numScanInputs;
-        // SmallVector<Value> initVals(operands.begin(),
-        //                             operands.begin() + numInits);
-        // SmallVector<Value> scanInputs(operands.begin() + numInits,
-        //                               operands.end());
-        // if (scanInputs.size() < 1) {
-        //   return rewriter.notifyMatchFailure(binder.op,
-        //                                      "Expects at least one scan
-        //                                      input");
-        // }
+        Value cstInterleaved = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(interleaved));
+        Value cstIsPackedBatching = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(isPackedBatching));
+        Value cstNumHeads = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(numHeads));
+        Value cstRotaryEmbeddingDim = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(rotaryEmbeddingDim));
+        Value cstScale = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getF64FloatAttr(scale));
 
-        // Value constZero = rewriter.create<Torch::ConstantIntOp>(
-        //     loc, rewriter.getI64IntegerAttr(0));
-        // Value constOne = rewriter.create<Torch::ConstantIntOp>(
-        //     loc, rewriter.getI64IntegerAttr(1));
-        // SmallVector<Type> scanOutTypes;
-        // for (unsigned i = numInits; i < resultTypes.size(); i++) {
-        //   auto scanOutTy = cast<Torch::ValueTensorType>(resultTypes[i]);
-        //   Value sizeList =
-        //       createConstantIntList(binder, rewriter, scanOutTy.getSizes());
-        //   initVals.push_back(Torch::createInitTensor(rewriter, loc,
-        //   scanOutTy,
-        //                                              constZero, sizeList));
-        //   scanOutTypes.push_back(resultTypes[i]);
-        // }
-        // // Create torch.prim.Loop op.
-        // Value maxTripCount = rewriter.create<Torch::AtenSizeIntOp>(
-        //     loc, scanInputs[0], constZero);
-        // auto constBoolTrue = rewriter.create<Torch::ConstantBoolOp>(
-        //     binder.getLoc(), rewriter.getBoolAttr(true));
-        // auto primLoop = rewriter.create<Torch::PrimLoopOp>(
-        //     loc, resultTypes, maxTripCount, constBoolTrue, initVals);
-        // rewriter.cloneRegionBefore(*loopBodyIn, primLoop.getRegion(),
-        //                            primLoop.getRegion().begin());
-
-        // // Insert index var as torch.int argument in the loop body, as
-        // // the primLoopOp loopBody expects torch.int as first argument.
-        // primLoop.getRegion().insertArgument(
-        //     0u, rewriter.getType<Torch::IntType>(), loc);
-        // auto loopInd = primLoop.getRegion().getArgument(0);
-
-        // // The block arguments of onnx.scan needs to be replaced with
-        // // slice of scan inputs.
-        // rewriter.setInsertionPointToStart(&primLoop.getRegion().front());
-        // for (unsigned i = 0; i < numScanInputs; i++) {
-        //   auto loopBlockArg =
-        //       primLoop.getRegion().getArgument(numInits + 1 + i);
-        //   Value extract = rewriter.create<Torch::AtenSelectIntOp>(
-        //       loc, loopBlockArg.getType(), scanInputs[i], constZero,
-        //       loopInd);
-        //   loopBlockArg.replaceAllUsesWith(extract);
-        // }
-        // primLoop.getRegion().front().eraseArguments(numInits + 1,
-        //                                             /*count=*/numScanInputs);
-
-        // // Collect the output slices to form scan outputs and replace the
-        // // terminator.
-        // SmallVector<Location> locs(scanOutTypes.size(), loc);
-        // primLoop.getRegion().front().addArguments(scanOutTypes, locs);
-
-        // PatternRewriter::InsertionGuard guard(rewriter);
-        // Operation *terminator = primLoop.getRegion().front().getTerminator();
-        // auto terminatorOperands = terminator->getOperands();
-        // SmallVector<Value> resTerminatorOperands(
-        //     terminatorOperands.begin(), terminatorOperands.begin() +
-        //     numInits);
-        // SmallVector<Value> scanOutSlices(terminatorOperands.begin() +
-        // numInits,
-        //                                  terminatorOperands.end());
-        // rewriter.setInsertionPoint(terminator);
-        // for (unsigned i = 0; i < scanOutSlices.size(); i++) {
-        //   Value self = BlockArgument::Value(
-        //       primLoop.getRegion().getArgument(numInits + 1 + i));
-        //   FailureOr<Value> src = Torch::unsqueezeTensor(
-        //       rewriter, binder.op, scanOutSlices[i], constZero);
-        //   if (failed(src))
-        //     return failure();
-        //   Value scanOut = rewriter.create<Torch::AtenSliceScatterOp>(
-        //       loc, scanOutTypes[i], self, src.value(), constZero,
-        //       /*start=*/loopInd,
-        //       /*end=*/loopInd, constOne);
-        //   resTerminatorOperands.push_back(scanOut);
-        // }
-
-        // Value terminatorCond = constBoolTrue;
-        // rewriter.replaceOpWithNewOp<Torch::PrimLoopConditionOp>(
-        //     terminator, terminatorCond, resTerminatorOperands);
-        // rewriter.replaceOp(binder.op, primLoop);
+        rewriter.replaceOpWithNewOp<Torch::OnnxVariantAtenRotaryEmbeddingOp>(
+            binder.op, resultType, input, positionIds, cosCache, sinCache,
+            cstInterleaved, cstIsPackedBatching, cstNumHeads,
+            cstRotaryEmbeddingDim, cstScale);
         return success();
       });
 }
