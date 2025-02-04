@@ -1966,24 +1966,6 @@ LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewrite(
   return success();
 }
 
-// AtenRemainderTensorOp
-template <>
-LogicalResult ConvertAtenOp<AtenRemainderTensorOp>::matchAndRewrite(
-    AtenRemainderTensorOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Value lhs = adaptor.getSelf();
-  Value rhs = adaptor.getOther();
-
-  auto resultType =
-      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
-  lhs = hlo::promoteType(rewriter, op->getLoc(), lhs,
-                         resultType.getElementType());
-  rhs = hlo::promoteType(rewriter, op->getLoc(), rhs,
-                         resultType.getElementType());
-  rewriter.replaceOpWithNewOp<stablehlo::RemOp>(op, lhs, rhs);
-  return success();
-}
-
 // AtenFmodTensorOp
 // torch.fmod(a, b) == a - a.div(b, rounding_mode="trunc") * b
 template <>
@@ -2231,6 +2213,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_BINARY_MULDIV_PATTERN(AtenDivTensorModeOp, chlo::BroadcastDivOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenDivScalarOp, chlo::BroadcastDivOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenDivScalarModeOp, chlo::BroadcastDivOp);
+  INSERT_BINARY_MULDIV_PATTERN(AtenRemainderTensorOp, chlo::BroadcastRemOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenRemainderScalarOp, chlo::BroadcastRemOp);
 #undef INSERT_BINARY_MULDIV_PATTERN
 
@@ -2310,7 +2293,6 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
   INSERT_ATENOP_PATTERN(AtenFlipOp);
-  INSERT_ATENOP_PATTERN(AtenRemainderTensorOp);
   INSERT_ATENOP_PATTERN(AtenFmodTensorOp);
   INSERT_ATENOP_PATTERN(AtenBitwiseLeftShiftTensorOp);
   INSERT_ATENOP_PATTERN(AtenBitwiseRightShiftTensorOp);
