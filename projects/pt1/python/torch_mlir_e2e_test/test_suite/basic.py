@@ -6480,3 +6480,62 @@ class AtenNonzero1DDynamicModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenNonzero1DDynamicModule())
 def AtenNonzero1DDynamicModule_basic(module, tu: TestUtils):
     module.forward(torch.tensor([0, 0, 1, 1, 0, 0], dtype=torch.bool))
+
+
+# ==============================================================================
+
+
+class AtenSymConstrainRange(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1], torch.int, True)])
+    def forward(self, x):
+        a = x.item()
+        torch.ops.aten.sym_constrain_range(a, max=5)
+        return a
+
+
+@register_test_case(module_factory=lambda: AtenSymConstrainRange())
+def AtenSymConstrainRange_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(4))
+
+
+# ==============================================================================
+
+
+class AtenSymConstrainRangeForSize(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1], torch.int, True)])
+    def forward(self, x):
+        a = x.item()
+        torch.ops.aten.sym_constrain_range_for_size(a, min=0, max=10)
+        return a
+
+
+@register_test_case(module_factory=lambda: AtenSymConstrainRangeForSize())
+def AtenSymConstrainRangeForSize_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(4))
+
+
+# ==============================================================================
+class Aten_AssertScalar(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1], torch.int, True)])
+    def forward(self, x):
+        a = x.item()
+        assert_msg = "Assertion failed for condition x.item() > 3"
+        torch.ops.aten._assert_scalar(a > 3, assert_msg)
+        return a
+
+
+@register_test_case(module_factory=lambda: Aten_AssertScalar())
+def Aten_AssertScalar_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(4))

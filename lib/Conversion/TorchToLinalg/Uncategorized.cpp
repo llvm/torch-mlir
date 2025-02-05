@@ -21,10 +21,12 @@
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
 #include <numeric>
+#include <string>
 #include <type_traits>
 
 using namespace mlir;
@@ -3564,6 +3566,68 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertSymConstrainRangeOp
+    : public OpConversionPattern<AtenSymConstrainRangeOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenSymConstrainRangeOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    auto loc = op.getLoc();
+    auto min = op.getMin();
+    auto max = op.getMax();
+
+    int64_t minValue = std::numeric_limits<int64_t>::min();
+    int64_t maxValue = std::numeric_limits<int64_t>::max();
+
+    Type operandType = getTypeConverter()->convertType(op.getSize().getType());
+
+    if (!isa<Torch::NoneType>(min.getType()))
+      if (!matchPattern(min, m_TorchConstantInt(&minValue)))
+        return rewriter.notifyMatchFailure(
+            op, "Expected min value to be constant integer");
+
+    if (!isa<Torch::NoneType>(max.getType()))
+      if (!matchPattern(max, m_TorchConstantInt(&maxValue)))
+        return rewriter.notifyMatchFailure(
+            op, "Expected max value to be constant integer");
+
+    if (maxValue < minValue) {
+      std::string errorMsg =
+          "Max must be greater than or equal to min, got min = " +
+          std::to_string(minValue) + ", max = " + std::to_string(maxValue);
+      return op.emitError(errorMsg);
+    }
+
+    min = getConstant(rewriter, loc, minValue, operandType);
+    max = getConstant(rewriter, loc, maxValue, operandType);
+
+    // Check min <= size <= max
+
+    // FIXME:: Skip the below checks if constraint ops are already inserted as
+    // part of symbol expr evaluation
+    auto checkMin = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::sle, min, adaptor.getSize());
+    auto checkMax = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::sle, adaptor.getSize(), max);
+    auto compareVal = rewriter.create<arith::AndIOp>(loc, checkMin, checkMax);
+
+    std::string assertMessage = "Size constraint failed. Expected range: [" +
+                                std::to_string(minValue) + ", " +
+                                std::to_string(maxValue) + "]";
+    rewriter.create<cf::AssertOp>(loc, compareVal,
+                                  rewriter.getStringAttr(assertMessage));
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -3626,4 +3690,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenLinalgDetOp>(typeConverter, context);
   target.addIllegalOp<AtenPolarOp>();
   patterns.add<ConvertAtenPolarOp>(typeConverter, context);
+  target.addIllegalOp<AtenSymConstrainRangeOp>();
+  patterns.add<ConvertSymConstrainRangeOp>(typeConverter, context);
 }
