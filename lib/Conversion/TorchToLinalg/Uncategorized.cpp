@@ -29,6 +29,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/LogicalResult.h"
 #include "llvm/Support/raw_ostream.h"
@@ -3659,19 +3660,137 @@ private:
     int64_t rotaryEmbeddingDim;
     int64_t numHeads;
     int64_t maxSequenceLength;
-    int64_t head_stride;
-    int64_t seq_stride;
-    int64_t batch_stride;
     int64_t positionIdsFormat;
-    bool transposed;
   };
-  static LogicalResult checkInputs(Value input, Value positionIds,
+
+  static LogicalResult checkInputs(OnnxVariantAtenRotaryEmbeddingOp op,
+                                   Value input, Value positionIds,
                                    Value cosCache, Value sinCache,
                                    int64_t numHeads, int64_t rotaryEmbeddingDim,
-                                   RotaryParameters &parameters) {
+                                   RotaryParameters &parameters,
+                                   ConversionPatternRewriter &rewriter) {
+    //    input        : (batch_size, num_heads, sequence_length, hidden_size)
+    //    position_ids : (batch_size, sequence_length)
+    //    cos_cache    : (max_sequence_length, head_size / 2) or
+    //                   (max_sequence_length, rotary_embedding_dim / 2)
+    //    sin_cache    : (max_sequence_length, head_size / 2) or
+    //                   (max_sequence_length, rotary_embedding_dim / 2)
+
+    // For the `RotaryEmbedding` lowering to work, shapes of all the inputs are
+    // required to be statically known.
+
+    // TODO: Add a check for inputs to be floating-point
+
+    // Check input
+    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
+    if (!inputType.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: expected input to have static shape");
+
+    SmallVector<int64_t> inputShape{inputType.getShape()};
+    if (inputShape.size() != 4)
+      return rewriter.notifyMatchFailure(op,
+                                         "input is expected to have rank 4");
+
+    // Check position_ids
+    RankedTensorType positionIdsType =
+        cast<RankedTensorType>(positionIds.getType());
+    if (!positionIdsType.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: expected position_ids to have static shape");
+
+    SmallVector<int64_t> positionIdsShape{positionIdsType.getShape()};
+    if (positionIdsShape.size() != 2)
+      return rewriter.notifyMatchFailure(
+          op, "position_ids is expected to have rank 2");
+
+    // Check cos_cache and sin_cache
     RankedTensorType cosCacheType = cast<RankedTensorType>(cosCache.getType());
-    parameters.batchSize = 1;
-    parameters.rotaryEmbeddingDim = cosCacheType.getShape()[1] * 2;
+    if (!cosCacheType.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: expected cos_cache to have static shape");
+
+    SmallVector<int64_t> cosCacheShape{cosCacheType.getShape()};
+    if (cosCacheShape.size() != 2)
+      return rewriter.notifyMatchFailure(
+          op, "cos_cache is expected to have rank 2");
+
+    RankedTensorType sinCacheType = cast<RankedTensorType>(sinCache.getType());
+    if (!sinCacheType.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: expected sin_cache to have static shape");
+
+    SmallVector<int64_t> sinCacheShape{sinCacheType.getShape()};
+    if (sinCacheShape.size() != 2)
+      return rewriter.notifyMatchFailure(
+          op, "sin_cache is expected to have rank 2");
+
+    if (!llvm::equal(cosCacheShape, sinCacheShape))
+      return rewriter.notifyMatchFailure(
+          op,
+          "Inputs cos_cache and sin_cache are expected to have the same shape");
+
+    // Check for element types.
+    bool areAllElementTypesEqual = llvm::all_equal(
+        {inputType.getElementType(), cosCacheType.getElementType(),
+         sinCacheType.getElementType()});
+    if (!(areAllElementTypesEqual &&
+          isa<mlir::FloatType>(inputType.getElementType())))
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: expected input, cos_cache, and sin_cache to be "
+              "of floating-point type");
+
+    if (!isa<mlir::IntegerType>(positionIdsType.getElementType()))
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: expected position_ids to be of integer type");
+
+    // Check num_heads and rotary_embedding_dim
+    if (rotaryEmbeddingDim > 0 && numHeads == 0)
+      return rewriter.notifyMatchFailure(
+          op,
+          "num_heads must be non-zero if rotary_embedding_dim is specified");
+
+    // Get attributes from inputs
+    int64_t batchSize = inputShape[0];
+    int64_t sequenceLength = inputShape[2];
+    int64_t hiddenSize = inputShape[1] * inputShape[3];
+    int maxSequenceLength = cosCacheShape[0];
+    int headSize = rotaryEmbeddingDim == 0 ? cosCacheShape[1] * 2
+                                           : (int64_t)(hiddenSize / numHeads);
+
+    if (rotaryEmbeddingDim > 0 && rotaryEmbeddingDim > headSize)
+      return rewriter.notifyMatchFailure(
+          op, "rotary_embedding_dim must be less than or equal to head_size");
+
+    // Check position_ids input shapes
+    if (positionIdsShape[0] != batchSize)
+      return rewriter.notifyMatchFailure(
+          op, "position_ids shape dimension 0 should be of size batch_size");
+
+    if (positionIdsShape[1] != sequenceLength)
+      return rewriter.notifyMatchFailure(
+          op,
+          "position_ids shape dimension 1 should be of size sequence_length");
+
+    // Check cos_cache input shapes
+    if (cosCacheShape[1] != (headSize / 2) &&
+        (rotaryEmbeddingDim > 0 &&
+         (cosCacheShape[1] != (rotaryEmbeddingDim / 2))))
+      return rewriter.notifyMatchFailure(
+          op, "cos_cache shape dimension 1 should be equal to head_size / 2 "
+              "orrotary_embedding_dim / 2");
+
+    numHeads = numHeads > 0 ? numHeads : (int64_t)(hiddenSize / headSize);
+
+    parameters.batchSize = batchSize;
+    parameters.sequenceLength = sequenceLength;
+    parameters.hiddenSize = hiddenSize;
+    parameters.headSize = headSize;
+    parameters.numHeads = numHeads;
+    parameters.maxSequenceLength = maxSequenceLength;
+    parameters.rotaryEmbeddingDim =
+        rotaryEmbeddingDim > 0 ? rotaryEmbeddingDim : headSize;
+
     return success();
   }
 
@@ -3687,23 +3806,17 @@ private:
     MLIRContext *context = rewriter.getContext();
 
     Value input = adaptor.getInput();
-    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
-    if (!inputType.hasStaticShape())
-      return rewriter.notifyMatchFailure(
-          op, "Unimplemented: expected input to have static shape");
-    SmallVector<int64_t> inputShape{inputType.getShape()};
-    unsigned inputRank = inputShape.size();
-    auto elementType = inputType.getElementType();
-
-    // TODO
-    unsigned positionIdsRank = 2;
-
-    RankedTensorType resultType =
-        cast<RankedTensorType>(typeConverter->convertType(op.getType()));
-
     Value positionIds = adaptor.getPositionIds();
     Value cosCache = adaptor.getCosCache();
     Value sinCache = adaptor.getSinCache();
+
+    RankedTensorType resultType =
+        cast<RankedTensorType>(typeConverter->convertType(op.getType()));
+    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
+
+    if (inputType.getElementType() != resultType.getElementType())
+      return rewriter.notifyMatchFailure(
+          op, "Expected input and result to have the same element type");
 
     int64_t interleaved, isPackedBatching, numHeads, rotaryEmbeddingDim;
     if (!matchPattern(op.getInterleaved(), m_TorchConstantInt(&interleaved)))
@@ -3725,82 +3838,127 @@ private:
     if (!matchPattern(op.getScale(), m_TorchConstantFloat(&scale)))
       return rewriter.notifyMatchFailure(op, "scale must be constant float");
 
-    // TODO: Call the checkInputs function from here.
+    // The `checkInputs` function verifies the validity of all the inputs for
+    // the cases supported by this lowering and also computes the required
+    // rotary parameters.
     RotaryParameters parameters;
-    if (failed(checkInputs(input, positionIds, cosCache, sinCache, numHeads,
-                           rotaryEmbeddingDim, parameters)))
-      return failure();
+    if (failed(checkInputs(op, input, positionIds, cosCache, sinCache, numHeads,
+                           rotaryEmbeddingDim, parameters, rewriter)))
+      return rewriter.notifyMatchFailure(
+          op, "Failed to satisfy the constraints in checkInputs function");
+
     rotaryEmbeddingDim = parameters.rotaryEmbeddingDim;
     int64_t halfRotaryEmbDim = rotaryEmbeddingDim / 2;
-    Value cstHalfRotaryEmbDim = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIndexAttr(halfRotaryEmbDim));
-    Value cstRotaryEmbDim = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIndexAttr(rotaryEmbeddingDim));
+
+    auto elementType = inputType.getElementType();
+    unsigned inputRank = inputType.getRank();
 
     SmallVector<Value> resultShape;
     for (int64_t i = 0; i < inputRank; i++) {
       auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
       resultShape.push_back(currentDimSize);
     }
+    Value outTensor =
+        createZeroInitTensor(rewriter, loc, resultShape, elementType);
+
+    Value cstFloatOne = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getFloatAttr(elementType, 1.0));
+    Value cstFloatMinusOne = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getFloatAttr(elementType, -1.0));
+    Value cstIndexTwo =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(2));
+    Value cstIndexOne =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+    Value cstRotaryEmbDim = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIndexAttr(rotaryEmbeddingDim));
+    Value cstHalfRotaryEmbDim = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIndexAttr(halfRotaryEmbDim));
 
     AffineMap identityMap =
         AffineMap::getMultiDimIdentityMap(inputRank, context);
-
     AffineMap positionIdsMap = identityMap.getSubMap({0, inputRank - 2});
-
-    Value cstOne = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getFloatAttr(elementType, 1.0));
-    Value cstMinusOne = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getFloatAttr(elementType, -1.0));
-
-    Value outTensor =
-        createZeroInitTensor(rewriter, loc, resultShape, elementType);
 
     SmallVector<AffineMap> indexingMaps{identityMap, positionIdsMap,
                                         /*outputMap=*/identityMap};
     SmallVector<utils::IteratorType> iteratorTypes(
         inputRank, utils::IteratorType::parallel);
+
     auto rotaryEmbedding =
         rewriter
             .create<linalg::GenericOp>(
                 loc, outTensor.getType(), ValueRange{input, positionIds},
                 outTensor, indexingMaps, iteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
-                  // cos_emb = cos_cache[cache_idx_i][cache_idx_j]
-                  // sin_emb = sin_cache[cache_idx_i][cache_idx_j]
-                  // out = (input * cos_emb) + {(rotated_input * sin_emb) *
-                  // sign}
+                  // This linalg.generic will be iterating over the 4 dimensions
+                  // of the input "b, n, s, h", respectively.
+                  //
+                  // if (interleaved):
+                  //     cache_idx = (h / 2) % half_rotary_emb_dim
+                  //     sign = h & 1
+                  //     j = sign ? h - 1: h + 1
+                  // else:
+                  //     cache_idx = h % half_rotary_emb_dim
+                  //     sign = (h >= rotary_emb_dim)
+                  //     j = (h + half_rotary_emb_dim) % rotary_emb_dim
+                  //
+                  // orig_input = input[b][n][s][h]
+                  // rotated_input = input[b][n][s][j]
+                  // position_id = position_ids[b][s]
+                  // cos_emb = cos_cache[position_id][cache_idx]
+                  // sin_emb = sin_cache[position_id][cache_idx]
+                  // out[b][n][s][h] = orig_input * cos_emb
+                  //                             +
+                  //                  (rotated_input * sin_emb) * sign
 
                   Value indexA = b.create<linalg::IndexOp>(loc, 0);
                   Value indexB = b.create<linalg::IndexOp>(loc, 1);
                   Value indexC = b.create<linalg::IndexOp>(loc, 2);
                   Value indexD = b.create<linalg::IndexOp>(loc, 3);
 
-                  Value cacheIdxI = castIntToIndex(b, loc, args[1]);
-                  Value cacheIdxJ = b.create<arith::RemSIOp>(
-                      loc, indexD, cstHalfRotaryEmbDim);
-                  Value cosEmb = b.create<tensor::ExtractOp>(
-                      loc, cosCache, ValueRange{cacheIdxI, cacheIdxJ});
-                  Value sinEmb = b.create<tensor::ExtractOp>(
-                      loc, sinCache, ValueRange{cacheIdxI, cacheIdxJ});
+                  Value cacheIdx, sign, rotatedInputLastIdx;
+                  if (interleaved) {
+                    cacheIdx =
+                        b.create<arith::DivSIOp>(loc, indexD, cstIndexTwo);
+                    cacheIdx = b.create<arith::RemSIOp>(loc, cacheIdx,
+                                                        cstHalfRotaryEmbDim);
+                    sign = b.create<arith::AndIOp>(loc, indexD, cstIndexOne);
+                    // Converting sign value from index type to bool type.
+                    sign = b.create<arith::TruncIOp>(loc, rewriter.getI1Type(),
+                                                     sign);
+                    rotatedInputLastIdx = b.create<arith::SelectOp>(
+                        loc, sign,
+                        b.create<arith::SubIOp>(loc, indexD, cstIndexOne),
+                        b.create<arith::AddIOp>(loc, indexD, cstIndexOne));
+                  } else {
+                    cacheIdx = b.create<arith::RemSIOp>(loc, indexD,
+                                                        cstHalfRotaryEmbDim);
+                    sign =
+                        b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
+                                                indexD, cstHalfRotaryEmbDim);
+                    rotatedInputLastIdx = b.create<arith::AddIOp>(
+                        loc, indexD, cstHalfRotaryEmbDim);
+                    rotatedInputLastIdx = b.create<arith::RemSIOp>(
+                        loc, rotatedInputLastIdx, cstRotaryEmbDim);
+                  }
 
-                  Value rotatedInputLastIdx =
-                      b.create<arith::AddIOp>(loc, indexD, cstHalfRotaryEmbDim);
-                  rotatedInputLastIdx = b.create<arith::RemSIOp>(
-                      loc, rotatedInputLastIdx, cstRotaryEmbDim);
-                  Value inputJ = b.create<tensor::ExtractOp>(
+                  Value positionId = castIntToIndex(b, loc, args[1]);
+                  Value cosEmb = b.create<tensor::ExtractOp>(
+                      loc, cosCache, ValueRange{positionId, cacheIdx});
+                  Value sinEmb = b.create<tensor::ExtractOp>(
+                      loc, sinCache, ValueRange{positionId, cacheIdx});
+
+                  Value origInput = args[0];
+                  Value rotatedInput = b.create<tensor::ExtractOp>(
                       loc, input,
                       ValueRange{indexA, indexB, indexC, rotatedInputLastIdx});
-                  Value inputI = args[0];
 
-                  Value sign =
-                      b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
-                                              indexD, cstHalfRotaryEmbDim);
-                  Value signMultiplier =
-                      b.create<arith::SelectOp>(loc, sign, cstOne, cstMinusOne);
+                  Value signMultiplier = b.create<arith::SelectOp>(
+                      loc, sign, cstFloatOne, cstFloatMinusOne);
 
-                  Value outputI = b.create<arith::MulFOp>(loc, inputI, cosEmb);
-                  Value outputJ = b.create<arith::MulFOp>(loc, inputJ, sinEmb);
+                  Value outputI =
+                      b.create<arith::MulFOp>(loc, origInput, cosEmb);
+                  Value outputJ =
+                      b.create<arith::MulFOp>(loc, rotatedInput, sinEmb);
                   outputJ =
                       b.create<arith::MulFOp>(loc, outputJ, signMultiplier);
                   Value out = b.create<arith::AddFOp>(loc, outputI, outputJ);
