@@ -641,6 +641,26 @@ def EmptyLikeModule_falsePinMemory(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 4))
 
 
+class EmptyLikeDefaultDtypeFloat64InputModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float64, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.empty_like(x).fill_(0)
+
+
+@register_test_case(module_factory=lambda: EmptyLikeDefaultDtypeFloat64InputModule())
+def EmptyLikeDefaultDtypeFloat64InputModule_basic(module, tu: TestUtils):
+    module.forward(torch.ones((200, 200, 26), dtype=torch.float64))
+
+
 # ==============================================================================
 
 
