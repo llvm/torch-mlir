@@ -3530,3 +3530,28 @@ func.func @test_thresholdedrelu(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vt
   %0 = torch.operator "onnx.ThresholdedRelu"(%arg0) {torch.onnx.alpha = 2.000000e+00 : f32} : (!torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],f32>
   return %0 : !torch.vtensor<[3,4,5],f32>
 }
+
+// -----
+
+// CHECK-LABEL: @test_rotary_embedding
+func.func @test_rotary_embedding() -> !torch.vtensor<[1,3,2,6],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INPUT:.*]] = torch.vtensor.literal
+  // CHECK: %[[POSITION_IDS:.*]] = torch.vtensor.literal
+  // CHECK: %[[COS_CACHE:.*]] = torch.vtensor.literal
+  // CHECK: %[[SIN_CACHE:.*]] = torch.vtensor.literal
+  // CHECK: %[[NONE:.*]] = torch.constant.none
+  // CHECK: %[[INT0:.*]] = torch.constant.int 0
+  // CHECK: %[[INT0_0:.*]] = torch.constant.int 0
+  // CHECK: %[[INT0_1:.*]] = torch.constant.int 0
+  // CHECK: %[[INT0_2:.*]] = torch.constant.int 0
+  // CHECK: %[[FP0:.*]] = torch.constant.float 1.000000e+00
+  // CHECK: %[[ROTARY_EMBEDDING:.*]] = torch.onnx.aten.rotary_embedding %[[INPUT]], %[[POSITION_IDS]], %[[COS_CACHE]], %[[SIN_CACHE]], %[[INT0]], %[[INT0_0]], %[[INT0_1]], %[[INT0_2]], %[[FP0]] : !torch.vtensor<[1,3,2,6],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,3,2,6],f32>
+  // CHECK: return %[[ROTARY_EMBEDDING]] : !torch.vtensor<[1,3,2,6],f32>
+  %0 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<[[[[-1.040800e+00, 9.166000e-01, -1.304200e+00, -1.109700e+00, -1.218800e+00, 1.167600e+00], [-1.057400e+00, -1.188000e-01, -9.078000e-01, 3.452000e-01, -5.713000e-01, -2.351000e-01]], [[1.007600e+00, -7.529000e-01, -2.250000e-01, -4.327000e-01, -1.507100e+00, -4.586000e-01], [-0.847999989, 5.266000e-01, -1.294400e+00, -2.430000e-02, -2.354000e-01, -7.087000e-01]], [[-0.866299986, -2.656000e-01, 1.665000e-01, 7.911000e-01, -0.931999981, -8.579000e-01], [-0.964699983, -9.910000e-02, -2.994000e-01, -6.500000e-02, -1.572000e+00, -1.321100e+00]]]]> : tensor<1x3x2x6xf32>} : () -> !torch.vtensor<[1,3,2,6],f32>
+  %1 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<[[0, 1]]> : tensor<1x2xsi64>} : () -> !torch.vtensor<[1,2],si64>
+  %2 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<[[1.000000e+00, 1.000000e+00, 1.000000e+00], [5.403000e-01, 0.998899996, 1.000000e+00], [-4.161000e-01, 9.957000e-01, 1.000000e+00], [-9.900000e-01, 0.990299999, 1.000000e+00]]> : tensor<4x3xf32>} : () -> !torch.vtensor<[4,3],f32>
+  %3 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<[[0.000000e+00, 0.000000e+00, 0.000000e+00], [0.841499984, 4.640000e-02, 2.200000e-03], [9.093000e-01, 0.0926999971, 4.300000e-03], [1.411000e-01, 1.388000e-01, 6.500000e-03]]> : tensor<4x3xf32>} : () -> !torch.vtensor<[4,3],f32>
+  %none = torch.constant.none
+  %4 = torch.operator "onnx.RotaryEmbedding"(%0, %1, %2, %3) : (!torch.vtensor<[1,3,2,6],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[1,3,2,6],f32>
+  return %4 : !torch.vtensor<[1,3,2,6],f32>
+}
