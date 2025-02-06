@@ -616,7 +616,7 @@ ContextCache::GetListElementTypeAsm(const onnx::TypeProto &tp) {
       if (tt.has_shape()) {
         dims.reserve(tt.shape().dim_size());
         for (const onnx::TensorShapeProto::Dimension &dim : tt.shape().dim()) {
-          if (dim.has_dim_value()) {
+          if (dim.has_dim_value() && dim.dim_value() != 0) {
             dims.push_back(std::to_string(dim.dim_value()));
           } else {
             dims.push_back("?");
@@ -644,7 +644,7 @@ ContextCache::GetOptionalElementTypeAsm(const onnx::TypeProto &tp) {
       assert(tt.has_shape());
       dims.reserve(tt.shape().dim_size());
       for (const onnx::TensorShapeProto::Dimension &dim : tt.shape().dim()) {
-        if (dim.has_dim_value()) {
+        if (dim.has_dim_value() && dim.dim_value() != 0) {
           dims.push_back(std::to_string(dim.dim_value()));
         } else {
           dims.push_back("?");
@@ -767,7 +767,11 @@ MlirType ContextCache::ConvertTypeProto(const onnx::TypeProto *ptr_tp) {
     std::vector<int64_t> dims;
     if (tt.has_shape())
       for (const onnx::TensorShapeProto::Dimension &dim : tt.shape().dim()) {
-        if (dim.has_dim_value()) {
+        // NOTE: dynamic dimension can either be denoted by d.dim_param being
+        // set or by neither d.dim_value nor d.dim_param being set. Also note
+        // that d.dim_value being 0 corresponds to the protobuf default
+        // when the field is not set.
+        if (dim.has_dim_value() && dim.dim_value() != 0) {
           dims.push_back(dim.dim_value());
         } else {
           dims.push_back(-1);
