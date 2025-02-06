@@ -252,12 +252,13 @@ std::vector<torch::lazy::Shape> compute_shape_native_group_norm(
   return shapes;
 }
 
-std::vector<torch::lazy::Shape> compute_shape_prod(const at::Tensor& self,
-                        c10::optional<at::ScalarType> dtype) {
+std::vector<torch::lazy::Shape>
+compute_shape_prod(const at::Tensor &self,
+                   c10::optional<at::ScalarType> dtype) {
   if (dtype.has_value()) {
     return {Shape(dtype.value(), {})};
   }
-  if (isIntegralType(self.scalar_type(),  true)) {
+  if (isIntegralType(self.scalar_type(), true)) {
     return {Shape(c10::ScalarType::Long, {})};
   }
   return {Shape(self.scalar_type(), {})};
