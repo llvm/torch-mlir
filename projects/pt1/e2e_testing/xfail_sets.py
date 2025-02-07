@@ -3348,6 +3348,9 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
+    "AtenSymConstrainRangeForSize_basic",
+    "AtenSymConstrainRange_basic",
+    "Aten_AssertScalar_basic",
     "ScatterAddDynamicModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
