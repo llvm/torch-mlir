@@ -18,6 +18,7 @@
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -830,6 +831,251 @@ public:
 } // namespace
 
 namespace {
+// The following structures and the adsfdasf method
+// are used to get the number of dimensions from the
+// average pooling type at compile time.
+template <typename OpTy> struct AtenAvgPoolTypeNumOfDims {
+  static constexpr int getNumOfDims() { return -1; }
+};
+template <> struct AtenAvgPoolTypeNumOfDims<AtenAvgPool1dOp> {
+  static constexpr int getNumOfDims() { return 1; }
+};
+template <> struct AtenAvgPoolTypeNumOfDims<AtenAvgPool2dOp> {
+  static constexpr int getNumOfDims() { return 2; }
+};
+template <> struct AtenAvgPoolTypeNumOfDims<AtenAvgPool3dOp> {
+  static constexpr int getNumOfDims() { return 3; }
+};
+template <typename OpTy> constexpr int getAvgPoolNumOfDims() {
+  return AtenAvgPoolTypeNumOfDims<OpTy>::getNumOfDims();
+}
+} // namespace
+
+namespace {
+// This structure, used solely in PoolSizeCalculator, provides
+// the intermediate values for each dimension to compute the
+// divisor of the average pooling operator.
+struct PoolSizeValues {
+  int64_t SpatialDimsInt64;
+  int64_t DimSpatialInt;
+  Value InputSpatialDimValues;
+  Value IndexODim;
+  Value ODim;
+  Value DDim;
+  Value PadDim;
+  Value ODimDDim;
+  Value IDim0;
+  Value IDim;
+  Value IDim0KDim;
+  Value IDimPadDim;
+  Value IDim1;
+  Value IDim1IDims0;
+  Value IDim0Clamped;
+  Value IDim1Clamped;
+  Value IDim1_IDim0;
+};
+} // namespace
+
+namespace {
+// This is a helper class to create the pooling size value
+// used in the divisor of the average pooling operator.
+template <int NumOfDims> class PoolSizeCalculator {
+public:
+  PoolSizeCalculator(Value self, Value sumPool,
+                     ConversionPatternRewriter &rewriter, Location loc);
+
+  // The algorithm for computing the divisor with
+  // count_include_pad is manily based on pytorch
+  // implementation. The following code is comment
+  // with pytorch code.
+  // https://github.com/pytorch/pytorch/blob/4a6dfbe4806b361c43210dfd56db64c4097c66bb/aten/src/ATen/native/cpu/AvgPoolKernel.cpp#L78
+  // Dim below stands for spatial dimension. It replaces the
+  // height and width labels in variables.
+  Value getPoolSize(OpBuilder &b, SmallVectorImpl<Value> &kernelSizeIntValues,
+                    SmallVectorImpl<int64_t> &strideInts,
+                    SmallVectorImpl<int64_t> &paddingInts);
+
+private:
+  PoolSizeValues dims[NumOfDims];
+  ConversionPatternRewriter &rewriterHandle;
+  Location location;
+};
+
+} // namespace
+
+template <int NumOfDims>
+PoolSizeCalculator<NumOfDims>::PoolSizeCalculator(
+    Value self, Value sumPool, ConversionPatternRewriter &rewriter,
+    Location loc)
+    : rewriterHandle(rewriter), location(loc) {
+  auto selfType = cast<RankedTensorType>(self.getType());
+  const int64_t selfRank = selfType.getRank();
+  RankedTensorType sumPoolType = cast<RankedTensorType>(sumPool.getType());
+  const int64_t rank = sumPoolType.getRank();
+
+  // Store dimensions in this order:
+  // 0 => width, 1 => height, 2 => depth
+  for (int i = 0; i < NumOfDims; ++i) {
+    dims[i].SpatialDimsInt64 = toPositiveDim(-(i + 1), selfRank);
+    dims[i].InputSpatialDimValues =
+        getDimOp(rewriterHandle, location, self, dims[i].SpatialDimsInt64);
+    dims[i].DimSpatialInt = toPositiveDim(-(i + 1), rank);
+  }
+};
+
+template <int NumOfDims>
+Value PoolSizeCalculator<NumOfDims>::getPoolSize(
+    OpBuilder &b, SmallVectorImpl<Value> &kernelSizeIntValues,
+    SmallVectorImpl<int64_t> &strideInts,
+    SmallVectorImpl<int64_t> &paddingInts) {
+  Value poolSize;
+
+  Value cstZero = rewriterHandle.create<arith::ConstantOp>(
+      location, rewriterHandle.getI64IntegerAttr(0));
+
+  for (int i = 0; i < NumOfDims; ++i) {
+    dims[i].IndexODim =
+        b.create<linalg::IndexOp>(location, /*value=*/dims[i].DimSpatialInt);
+    dims[i].ODim = castIndexToInt64(b, location, dims[i].IndexODim);
+    dims[i].DDim = rewriterHandle.create<arith::ConstantOp>(
+        location, rewriterHandle.getI64IntegerAttr(strideInts[i]));
+    dims[i].PadDim = rewriterHandle.create<arith::ConstantOp>(
+        location, rewriterHandle.getI64IntegerAttr(paddingInts[i]));
+    dims[i].ODimDDim =
+        b.create<arith::MulIOp>(location, dims[i].ODim, dims[i].DDim);
+    dims[i].IDim0 =
+        b.create<arith::SubIOp>(location, dims[i].ODimDDim, dims[i].PadDim);
+    dims[i].IDim = castIndexToInt64(b, location, dims[i].InputSpatialDimValues);
+    dims[i].IDim0KDim = b.create<arith::AddIOp>(location, dims[i].IDim0,
+                                                kernelSizeIntValues[i]);
+    dims[i].IDimPadDim =
+        b.create<arith::AddIOp>(location, dims[i].IDim, dims[i].PadDim);
+    dims[i].IDim1 = b.create<arith::MinSIOp>(location, dims[i].IDim0KDim,
+                                             dims[i].IDimPadDim);
+    dims[i].IDim1IDims0 =
+        b.create<arith::SubIOp>(location, dims[i].IDim1, dims[i].IDim0);
+
+    dims[i].IDim0Clamped =
+        b.create<arith::MaxSIOp>(location, dims[i].IDim0, cstZero);
+    dims[i].IDim1Clamped =
+        b.create<arith::MinSIOp>(location, dims[i].IDim1, dims[i].IDim);
+    dims[i].IDim1_IDim0 = b.create<arith::SubIOp>(
+        location, dims[i].IDim1Clamped, dims[i].IDim0Clamped);
+    if (i == 0) {
+      poolSize = dims[0].IDim1_IDim0;
+    } else {
+      poolSize =
+          b.create<arith::MulIOp>(location, poolSize, dims[i].IDim1_IDim0);
+    }
+  }
+  return poolSize;
+}
+
+// Creates the average pooling operation value when the
+// count_include_pad parameter is equal to false.
+template <typename OpTy>
+static std::optional<LogicalResult> createAvgPoolValueCountIncludePadFalseCase(
+    bool countIncludePad, OpTy op, typename OpTy::Adaptor adaptor,
+    ConversionPatternRewriter &rewriter, Value self, Value sumPool,
+    Value outputTensor, Type resultType,
+    SmallVectorImpl<Value> &kernelSizeIntValues,
+    SmallVectorImpl<int64_t> &strideInts, SmallVectorImpl<int64_t> &paddingInts,
+    SmallVector<AffineMap> &indexingMapsAvg,
+    SmallVector<utils::IteratorType> &iteratorTypesAvg) {
+  Location loc = op->getLoc();
+
+  constexpr int avgPoolDims = getAvgPoolNumOfDims<OpTy>();
+
+  bool noPadding = llvm::all_of(paddingInts, [](int64_t p) { return p == 0; });
+  if (countIncludePad || noPadding) {
+    // These cases are not handled here.
+    return std::nullopt;
+  }
+  if (avgPoolDims < 1) {
+    return rewriter.notifyMatchFailure(
+        op, "Unexpected type. Only expected AtenAvgPool1dOp, AtenAvgPool2dOp, "
+            "and AtenAvgPool3dOp.");
+  }
+
+  Type resultElementType = cast<RankedTensorType>(resultType).getElementType();
+
+  PoolSizeCalculator<avgPoolDims> poolSizeCalculator(self, sumPool, rewriter,
+                                                     loc);
+  Value avgPool =
+      rewriter
+          .create<linalg::GenericOp>(
+              loc, outputTensor.getType(), sumPool, outputTensor,
+              /*indexingMaps=*/indexingMapsAvg,
+              /*iteratorTypes=*/iteratorTypesAvg,
+              [&](OpBuilder &b, Location loc, ValueRange args) {
+                auto poolSize = poolSizeCalculator.getPoolSize(
+                    b, kernelSizeIntValues, strideInts, paddingInts);
+                // AtenAvgPool2/3dOp has an optional divisor_override
+                // attribute while AtenAvgPool1dOp does not.
+                if constexpr (avgPoolDims > 1) {
+                  if (!isa<Torch::NoneType>(op.getDivisorOverride().getType()))
+                    poolSize = adaptor.getDivisorOverride();
+                }
+                Value divisor =
+                    convertScalarToDtype(b, loc, poolSize, resultElementType);
+                Value avg;
+                if (isa<mlir::IntegerType>(resultElementType))
+                  avg = b.create<arith::DivSIOp>(loc, args[0], divisor);
+                else if (isa<mlir::FloatType>(resultElementType))
+                  avg = b.create<arith::DivFOp>(loc, args[0], divisor);
+                b.create<linalg::YieldOp>(loc, avg);
+              })
+          .getResult(0);
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, avgPool);
+  return success();
+}
+
+// Creates the average pooling operation value when the
+// count_include_pad parameter is equal to true.
+template <typename OpTy>
+static LogicalResult createAvgPoolValueCountIncludePadTrueCase(
+    OpTy op, typename OpTy::Adaptor &adaptor,
+    ConversionPatternRewriter &rewriter, Value self, Value sumPool,
+    Value outputTensor, Type resultType,
+    SmallVectorImpl<Value> &kernelSizeIntValues,
+    SmallVector<AffineMap> &indexingMapsAvg,
+    SmallVector<utils::IteratorType> &iteratorTypesAvg) {
+  Location loc = op->getLoc();
+
+  Type resultElementType = cast<RankedTensorType>(resultType).getElementType();
+
+  Value divisor = kernelSizeIntValues[0];
+  for (uint32_t i = 1; i < kernelSizeIntValues.size(); ++i) {
+    divisor =
+        rewriter.create<arith::MulIOp>(loc, divisor, kernelSizeIntValues[i]);
+  }
+  if constexpr (!std::is_same<OpTy, AtenAvgPool1dOp>()) {
+    divisor = isa<Torch::NoneType>(op.getDivisorOverride().getType())
+                  ? divisor
+                  : adaptor.getDivisorOverride();
+  }
+  divisor = convertScalarToDtype(rewriter, loc, divisor, resultElementType);
+
+  Value avgPool =
+      rewriter
+          .create<linalg::GenericOp>(
+              loc, outputTensor.getType(), sumPool, outputTensor,
+              /*indexingMaps=*/indexingMapsAvg,
+              /*iteratorTypes=*/iteratorTypesAvg,
+              [&](OpBuilder &b, Location loc, ValueRange args) {
+                Value avg;
+                if (isa<mlir::IntegerType>(resultElementType))
+                  avg = b.create<arith::DivSIOp>(loc, args[0], divisor);
+                else if (isa<mlir::FloatType>(resultElementType))
+                  avg = b.create<arith::DivFOp>(loc, args[0], divisor);
+                b.create<linalg::YieldOp>(loc, avg);
+              })
+          .getResult(0);
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, avgPool);
+  return success();
+}
+
+namespace {
 template <typename OpTy, typename PoolingOpTy, int Dim>
 class ConvertAtenAvgPoolOp : public OpConversionPattern<OpTy> {
 public:
@@ -892,159 +1138,18 @@ public:
         2, rewriter.getMultiDimIdentityMap(Dim + 2));
     SmallVector<utils::IteratorType> iteratorTypesAvg(
         Dim + 2, utils::IteratorType::parallel);
-    Value avgPool;
-    Value divisor;
-    // Case1: AtenAvgPool1d/2dOp with countIncludePad=false support.
-    if constexpr (std::is_same<OpTy, AtenAvgPool2dOp>()) {
-      auto selfType = cast<RankedTensorType>(self.getType());
-      const int64_t selfRank = selfType.getRank();
-      int64_t wDim = toPositiveDim(-1, selfRank);
-      int64_t hDim = toPositiveDim(-2, selfRank);
-      Value inputHeight = getDimOp(rewriter, loc, self, hDim);
-      Value inputWidth = getDimOp(rewriter, loc, self, wDim);
-      RankedTensorType sumPoolType = cast<RankedTensorType>(sumPool.getType());
-      const int64_t rank = sumPoolType.getRank();
-      int dimH = toPositiveDim(-2, rank);
-      int dimW = toPositiveDim(-1, rank);
-      avgPool =
-          rewriter
-              .create<linalg::GenericOp>(
-                  loc, outputTensor.getType(), sumPool, outputTensor,
-                  /*indexingMaps=*/indexingMapsAvg,
-                  /*iteratorTypes=*/iteratorTypesAvg,
-                  [&](OpBuilder &b, Location loc, ValueRange args) {
-                    // The algorithm for computing the divisor with
-                    // count_include_pad is manily based on pytorch
-                    // implementation. The following code is comment
-                    // with pytorch code.
-                    // https://github.com/pytorch/pytorch/blob/4a6dfbe4806b361c43210dfd56db64c4097c66bb/aten/src/ATen/native/cpu/AvgPoolKernel.cpp#L78
-                    Value indexOh =
-                        b.create<linalg::IndexOp>(loc, /*value=*/dimH);
-                    Value oh = castIndexToInt64(b, loc, indexOh);
-                    Value indexOw =
-                        b.create<linalg::IndexOp>(loc, /*value=*/dimW);
-                    Value ow = castIndexToInt64(b, loc, indexOw);
 
-                    // int64_t ih0 = oh * dH - padH;
-                    Value dH = rewriter.create<arith::ConstantOp>(
-                        loc, rewriter.getI64IntegerAttr(strideInts[0]));
-                    Value padH = rewriter.create<arith::ConstantOp>(
-                        loc, rewriter.getI64IntegerAttr(paddingInts[0]));
-                    Value ohDH = b.create<arith::MulIOp>(loc, oh, dH);
-                    Value ih0 = b.create<arith::SubIOp>(loc, ohDH, padH);
-                    // int64_t iw0 = ow * dW - padW;
-                    Value dW = rewriter.create<arith::ConstantOp>(
-                        loc, rewriter.getI64IntegerAttr(strideInts[1]));
-                    Value padW = rewriter.create<arith::ConstantOp>(
-                        loc, rewriter.getI64IntegerAttr(paddingInts[1]));
-                    Value owDW = b.create<arith::MulIOp>(loc, ow, dW);
-                    Value iw0 = b.create<arith::SubIOp>(loc, owDW, padW);
-                    // int64_t ih1 = std::min(ih0 + kH, input_height + padH);
-                    Value ih = castIndexToInt64(b, loc, inputHeight);
-                    Value ih0KH = b.create<arith::AddIOp>(
-                        loc, ih0, kernelSizeIntValues[0]);
-                    Value ihPadH = b.create<arith::AddIOp>(loc, ih, padH);
-                    Value ih1 = b.create<arith::MinSIOp>(loc, ih0KH, ihPadH);
-                    // int64_t iw1 = std::min(iw0 + kW, input_width + padW);
-                    Value iw = castIndexToInt64(b, loc, inputWidth);
-                    Value iw0KW = b.create<arith::AddIOp>(
-                        loc, iw0, kernelSizeIntValues[1]);
-                    Value iwPadW = b.create<arith::AddIOp>(loc, iw, padW);
-                    Value iw1 = b.create<arith::MinSIOp>(loc, iw0KW, iwPadW);
-                    // int64_t pool_size = (ih1 - ih0) * (iw1 - iw0);
-                    Value ih1Ih0 = b.create<arith::SubIOp>(loc, ih1, ih0);
-                    Value iw1Iw0 = b.create<arith::SubIOp>(loc, iw1, iw0);
-                    Value poolSize =
-                        b.create<arith::MulIOp>(loc, ih1Ih0, iw1Iw0);
-                    // ih0 = std::max(ih0, 0);
-                    Value cstZero = rewriter.create<arith::ConstantOp>(
-                        loc, rewriter.getI64IntegerAttr(0));
-                    Value ih0Clamped =
-                        b.create<arith::MaxSIOp>(loc, ih0, cstZero);
-                    // iw0 = std::max(iw0, 0);
-                    Value iw0Clamped =
-                        b.create<arith::MaxSIOp>(loc, iw0, cstZero);
-                    // ih1 = std::min(ih1, input_height);
-                    Value ih1Clamped = b.create<arith::MinSIOp>(loc, ih1, ih);
-                    // iw1 = std::min(iw1, input_width);
-                    Value iw1Clamped = b.create<arith::MinSIOp>(loc, iw1, iw);
-                    // if (divisor_override.has_value()) {
-                    //   divisor = divisor_override.value();
-                    // } else {
-                    //   if(count_include_pad) {
-                    //     divisor = pool_size;
-                    //   } else {
-                    //     divisor = (ih1 - ih0) * (iw1 - iw0);
-                    //   }
-                    // }
-                    if (countIncludePad) {
-                      divisor = convertScalarToDtype(b, loc, poolSize,
-                                                     resultElementType);
-                    } else {
-                      Value ih1_ih0 =
-                          b.create<arith::SubIOp>(loc, ih1Clamped, ih0Clamped);
-                      Value iw1_iw0 =
-                          b.create<arith::SubIOp>(loc, iw1Clamped, iw0Clamped);
-                      divisor = b.create<arith::MulIOp>(loc, ih1_ih0, iw1_iw0);
-                    }
-                    // AtenAvgPool2/3dOp has an optional divisor_override
-                    // attribute while AtenAvgPool1dOp does not.
-                    if constexpr (std::is_same<OpTy, AtenAvgPool2dOp>()) {
-                      if (!isa<Torch::NoneType>(
-                              op.getDivisorOverride().getType()))
-                        divisor = adaptor.getDivisorOverride();
-                    }
+    auto divisorOpResult = createAvgPoolValueCountIncludePadFalseCase<OpTy>(
+        countIncludePad, op, adaptor, rewriter, self, sumPool, outputTensor,
+        resultType, kernelSizeIntValues, strideInts, paddingInts,
+        indexingMapsAvg, iteratorTypesAvg);
+    if (divisorOpResult)
+      return *divisorOpResult;
 
-                    divisor = convertScalarToDtype(b, loc, divisor,
-                                                   resultElementType);
-                    Value avg;
-                    if (isa<mlir::IntegerType>(resultElementType))
-                      avg = b.create<arith::DivSIOp>(loc, args[0], divisor);
-                    else if (isa<mlir::FloatType>(resultElementType))
-                      avg = b.create<arith::DivFOp>(loc, args[0], divisor);
-                    b.create<linalg::YieldOp>(loc, avg);
-                  })
-              .getResult(0);
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, avgPool);
-      return success();
-    }
+    return createAvgPoolValueCountIncludePadTrueCase<OpTy>(
+        op, adaptor, rewriter, self, sumPool, outputTensor, resultType,
+        kernelSizeIntValues, indexingMapsAvg, iteratorTypesAvg);
 
-    // TODO: Add support for count_include_pad equal to `False` in
-    // AtenAvgPool1/3dOp.
-    if (!countIncludePad &&
-        !llvm::all_of(paddingInts, [](int64_t p) { return p == 0; })) {
-      return rewriter.notifyMatchFailure(
-          op, "unimplemented: count_include_pad is expected to be true for "
-              "AtenAvgPool3dOp");
-    }
-
-    // Case2: AtenAvgPool1/3dOp without count_include_pad equal to `False`.
-    divisor = kernelSizeIntValues[0];
-    for (uint32_t i = 1; i < kernelSizeIntValues.size(); i++) {
-      divisor =
-          rewriter.create<arith::MulIOp>(loc, divisor, kernelSizeIntValues[i]);
-    }
-    if constexpr (!std::is_same<OpTy, AtenAvgPool1dOp>()) {
-      divisor = isa<Torch::NoneType>(op.getDivisorOverride().getType())
-                    ? divisor
-                    : adaptor.getDivisorOverride();
-    }
-    divisor = convertScalarToDtype(rewriter, loc, divisor, resultElementType);
-    avgPool = rewriter
-                  .create<linalg::GenericOp>(
-                      loc, outputTensor.getType(), sumPool, outputTensor,
-                      /*indexingMaps=*/indexingMapsAvg,
-                      /*iteratorTypes=*/iteratorTypesAvg,
-                      [&](OpBuilder &b, Location loc, ValueRange args) {
-                        Value avg;
-                        if (isa<mlir::IntegerType>(resultElementType))
-                          avg = b.create<arith::DivSIOp>(loc, args[0], divisor);
-                        else if (isa<mlir::FloatType>(resultElementType))
-                          avg = b.create<arith::DivFOp>(loc, args[0], divisor);
-                        b.create<linalg::YieldOp>(loc, avg);
-                      })
-                  .getResult(0);
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, avgPool);
     return success();
   }
 };
