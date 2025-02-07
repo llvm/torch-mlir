@@ -120,8 +120,6 @@ FailureOr<onnx::ModelProto> loadOnnxModel() {
     }
   }
 
-  onnx::checker::check_model(mp);
-
   onnx::ShapeInferenceOptions opts;
   opts.error_mode = 0;
   opts.check_type = false;
