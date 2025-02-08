@@ -3447,29 +3447,32 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
                                    std::multiplies<int64_t>());
 
     Value half = tosa::getConstTensor<float>(rewriter, op,
-                                             SmallVector<float>(numElem, 0.5),
+                                             SmallVector<float>(numElem, 0.5f),
                                              selfShape, selfElemTy)
                      .value();
     Value one = tosa::getConstTensor<float>(rewriter, op,
-                                            SmallVector<float>(numElem, 1.0),
+                                            SmallVector<float>(numElem, 1.0f),
                                             selfShape, selfElemTy)
                     .value();
     Value three = tosa::getConstTensor<float>(rewriter, op,
-                                              SmallVector<float>(numElem, 3.0),
+                                              SmallVector<float>(numElem, 3.0f),
                                               selfShape, selfElemTy)
                       .value();
 
     // 0.044715
-    Value magicNumber = tosa::getConstTensor<float>(
-                            rewriter, op, SmallVector<float>(numElem, 0.044715),
-                            selfShape, selfElemTy)
-                            .value();
+    Value magicNumber =
+        tosa::getConstTensor<float>(rewriter, op,
+                                    SmallVector<float>(numElem, 0.044715f),
+                                    selfShape, selfElemTy)
+            .value();
 
     // From <cmath> header: M_2_PI = 2 / pi
-    Value twoOverPi = tosa::getConstTensor<float>(
-                          rewriter, op, SmallVector<float>(numElem, M_2_PI),
-                          selfShape, selfElemTy)
-                          .value();
+    Value twoOverPi =
+        tosa::getConstTensor<float>(
+            rewriter, op,
+            SmallVector<float>(numElem, static_cast<float>(M_2_PI)), selfShape,
+            selfElemTy)
+            .value();
 
     // 0.5 * x
     auto halfInput = rewriter.create<tosa::MulOp>(op->getLoc(), resultType,
