@@ -190,7 +190,7 @@ Type getTorchScalarType(
   if (isa<FloatType>(elementTypeForGivenTensor))
     return rewriter.getType<Torch::FloatType>();
 
-  assert(false && "dtype for given tensor expected to be either int or float");
+  llvm_unreachable("dtype for given tensor expected to be either int or float");
 }
 
 Value extractTorchScalar(
