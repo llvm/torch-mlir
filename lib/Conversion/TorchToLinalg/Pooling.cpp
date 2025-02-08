@@ -921,7 +921,7 @@ PoolSizeCalculator<NumOfDims>::PoolSizeCalculator(
         getDimOp(rewriterHandle, location, self, dims[i].SpatialDimsInt64);
     dims[i].DimSpatialInt = toPositiveDim(-(i + 1), rank);
   }
-};
+}
 
 template <int NumOfDims>
 Value PoolSizeCalculator<NumOfDims>::getPoolSize(
