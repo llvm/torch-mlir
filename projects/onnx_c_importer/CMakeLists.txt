@@ -27,6 +27,8 @@ add_llvm_executable(
     OnnxImporter.cpp
     SimpleArgParser.hpp
     Dict.hpp
+    status.hpp
+    onnx_extras.hpp
 )
 
 set_target_properties(torch-mlir-import-onnx PROPERTIES CXX_STANDARD 20)

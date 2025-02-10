@@ -13,6 +13,7 @@
 
 #include "OnnxImporter.h"
 #include "SimpleArgParser.hpp"
+#include "onnx_extras.hpp"
 
 #include "onnx/checker.h"
 #include "onnx/common/file_utils.h"
@@ -64,12 +65,10 @@ static arg<OptionalArg, bool> disableFunctionExpansionAllowlistArg(
     " allowing non-allowlisted functions to be expanded.",
     "--disable-function-expansion-allowlist", false);
 
-// NOTE: -data-dir
-//       unfortunately it's not possible to specify a different base directory
-//       for external data due to limitations of the onnx::checker API
+// TODO: add -data-dir ?
 
 FailureOr<onnx::ModelProto> loadOnnxModel() {
-  namespace fs = std::filesystem;
+
   // Do shape inference two ways.  First, attempt in-memory to avoid redundant
   // loading and the need for writing a temporary file somewhere.  If that
   // fails, typically because of the 2 GB protobuf size limit, try again via
@@ -95,6 +94,7 @@ FailureOr<onnx::ModelProto> loadOnnxModel() {
   fs::remove_all(tempDir);
 
   onnx::ModelProto mp;
+  // Load model (and external data)
   {
     std::ifstream inputStream(inputFilenameArg,
                               std::ios::in | std::ios::binary);
@@ -104,6 +104,10 @@ FailureOr<onnx::ModelProto> loadOnnxModel() {
     }
     if (!mp.ParseFromIstream(&inputStream)) {
       std::cerr << "Failed to parse ONNX ModelProto \n";
+      return failure;
+    }
+    if (failed(loadExternalDataForModel(mp, inputDir))) {
+      std::cerr << "Failed to load external data \n";
       return failure;
     }
   }
@@ -140,16 +144,8 @@ FailureOr<onnx::ModelProto> loadOnnxModel() {
       return failure;
     }
     fs::path tempInferredFile = tempDir / "inferred.onnx";
-    // First save intermediate to file
-    {
-      std::fstream output(tempInferredFile,
-                          std::ios::out | std::ios::trunc | std::ios::binary);
-      std::string model_string;
-      mp.SerializeToString(&model_string);
-      output << model_string;
-    }
 
-    onnx::shape_inference::InferShapes(tempInferredFile, tempInferredFile,
+    onnx::shape_inference::InferShapes(*inputFilenameArg, tempInferredFile,
                                        onnx::OpSchemaRegistry::Instance(),
                                        opts);
 
@@ -159,6 +155,10 @@ FailureOr<onnx::ModelProto> loadOnnxModel() {
       mp.Clear();
       if (!mp.ParseFromIstream(&inputStream)) {
         std::cerr << "Failed to parse ONNX ModelProto \n";
+        return failure;
+      }
+      if (failed(loadExternalDataForModel(mp, inputDir))) {
+        std::cerr << "Failed to load external data \n";
         return failure;
       }
     }
