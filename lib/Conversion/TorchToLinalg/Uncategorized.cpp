@@ -3652,7 +3652,6 @@ private:
     int64_t rotaryEmbeddingDim;
     int64_t numHeads;
     int64_t maxSequenceLength;
-    int64_t positionIdsFormat;
   };
 
   static LogicalResult checkInputs(OnnxVariantAtenRotaryEmbeddingOp op,
@@ -3671,14 +3670,14 @@ private:
     // For the `RotaryEmbedding` lowering to work, shapes of all the inputs are
     // required to be statically known.
 
-    // TODO: Add a check for inputs to be floating-point
-
     // Check input
     RankedTensorType inputType = cast<RankedTensorType>(input.getType());
     if (!inputType.hasStaticShape())
       return rewriter.notifyMatchFailure(
           op, "Unimplemented: expected input to have static shape");
 
+    // TODO: Add support for 3d input of shape: (batch_size, sequence_length,
+    // hidden_size)
     SmallVector<int64_t> inputShape{inputType.getShape()};
     if (inputShape.size() != 4)
       return rewriter.notifyMatchFailure(op,
@@ -3770,7 +3769,7 @@ private:
          (cosCacheShape[1] != (rotaryEmbeddingDim / 2))))
       return rewriter.notifyMatchFailure(
           op, "cos_cache shape dimension 1 should be equal to head_size / 2 "
-              "orrotary_embedding_dim / 2");
+              "or rotary_embedding_dim / 2");
 
     numHeads = numHeads > 0 ? numHeads : (int64_t)(hiddenSize / headSize);
 
@@ -3880,7 +3879,7 @@ private:
             .create<linalg::GenericOp>(
                 loc, outTensor.getType(), ValueRange{input, positionIds},
                 outTensor, indexingMaps, iteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
+                [&](OpBuilder &builder, Location loc, ValueRange args) {
                   // This linalg.generic will be iterating over the 4 dimensions
                   // of the input "b, n, s, h", respectively.
                   //
@@ -3902,59 +3901,58 @@ private:
                   //                             +
                   //                  (rotated_input * sin_emb) * sign
 
-                  Value indexA = b.create<linalg::IndexOp>(loc, 0);
-                  Value indexB = b.create<linalg::IndexOp>(loc, 1);
-                  Value indexC = b.create<linalg::IndexOp>(loc, 2);
-                  Value indexD = b.create<linalg::IndexOp>(loc, 3);
+                  Value b = builder.create<linalg::IndexOp>(loc, 0);
+                  Value n = builder.create<linalg::IndexOp>(loc, 1);
+                  Value s = builder.create<linalg::IndexOp>(loc, 2);
+                  Value h = builder.create<linalg::IndexOp>(loc, 3);
 
                   Value cacheIdx, sign, rotatedInputLastIdx;
                   if (interleaved) {
                     cacheIdx =
-                        b.create<arith::DivSIOp>(loc, indexD, cstIndexTwo);
-                    cacheIdx = b.create<arith::RemSIOp>(loc, cacheIdx,
-                                                        cstHalfRotaryEmbDim);
-                    sign = b.create<arith::AndIOp>(loc, indexD, cstIndexOne);
+                        builder.create<arith::DivSIOp>(loc, h, cstIndexTwo);
+                    cacheIdx = builder.create<arith::RemSIOp>(
+                        loc, cacheIdx, cstHalfRotaryEmbDim);
+                    sign = builder.create<arith::AndIOp>(loc, h, cstIndexOne);
                     // Converting sign value from index type to bool type.
-                    sign = b.create<arith::TruncIOp>(loc, rewriter.getI1Type(),
-                                                     sign);
-                    rotatedInputLastIdx = b.create<arith::SelectOp>(
+                    sign = builder.create<arith::TruncIOp>(
+                        loc, rewriter.getI1Type(), sign);
+                    rotatedInputLastIdx = builder.create<arith::SelectOp>(
                         loc, sign,
-                        b.create<arith::SubIOp>(loc, indexD, cstIndexOne),
-                        b.create<arith::AddIOp>(loc, indexD, cstIndexOne));
+                        builder.create<arith::SubIOp>(loc, h, cstIndexOne),
+                        builder.create<arith::AddIOp>(loc, h, cstIndexOne));
                   } else {
-                    cacheIdx = b.create<arith::RemSIOp>(loc, indexD,
-                                                        cstHalfRotaryEmbDim);
-                    sign =
-                        b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
-                                                indexD, cstHalfRotaryEmbDim);
-                    rotatedInputLastIdx = b.create<arith::AddIOp>(
-                        loc, indexD, cstHalfRotaryEmbDim);
-                    rotatedInputLastIdx = b.create<arith::RemSIOp>(
+                    cacheIdx = builder.create<arith::RemSIOp>(
+                        loc, h, cstHalfRotaryEmbDim);
+                    sign = builder.create<arith::CmpIOp>(
+                        loc, arith::CmpIPredicate::sge, h, cstHalfRotaryEmbDim);
+                    rotatedInputLastIdx = builder.create<arith::AddIOp>(
+                        loc, h, cstHalfRotaryEmbDim);
+                    rotatedInputLastIdx = builder.create<arith::RemSIOp>(
                         loc, rotatedInputLastIdx, cstRotaryEmbDim);
                   }
 
-                  Value positionId = castIntToIndex(b, loc, args[1]);
-                  Value cosEmb = b.create<tensor::ExtractOp>(
+                  Value positionId = castIntToIndex(builder, loc, args[1]);
+                  Value cosEmb = builder.create<tensor::ExtractOp>(
                       loc, cosCache, ValueRange{positionId, cacheIdx});
-                  Value sinEmb = b.create<tensor::ExtractOp>(
+                  Value sinEmb = builder.create<tensor::ExtractOp>(
                       loc, sinCache, ValueRange{positionId, cacheIdx});
 
                   Value origInput = args[0];
-                  Value rotatedInput = b.create<tensor::ExtractOp>(
-                      loc, input,
-                      ValueRange{indexA, indexB, indexC, rotatedInputLastIdx});
+                  Value rotatedInput = builder.create<tensor::ExtractOp>(
+                      loc, input, ValueRange{b, n, s, rotatedInputLastIdx});
 
-                  Value signMultiplier = b.create<arith::SelectOp>(
+                  Value signMultiplier = builder.create<arith::SelectOp>(
                       loc, sign, cstFloatOne, cstFloatMinusOne);
 
                   Value outputI =
-                      b.create<arith::MulFOp>(loc, origInput, cosEmb);
+                      builder.create<arith::MulFOp>(loc, origInput, cosEmb);
                   Value outputJ =
-                      b.create<arith::MulFOp>(loc, rotatedInput, sinEmb);
-                  outputJ =
-                      b.create<arith::MulFOp>(loc, outputJ, signMultiplier);
-                  Value out = b.create<arith::AddFOp>(loc, outputI, outputJ);
-                  b.create<linalg::YieldOp>(loc, out);
+                      builder.create<arith::MulFOp>(loc, rotatedInput, sinEmb);
+                  outputJ = builder.create<arith::MulFOp>(loc, outputJ,
+                                                          signMultiplier);
+                  Value out =
+                      builder.create<arith::AddFOp>(loc, outputI, outputJ);
+                  builder.create<linalg::YieldOp>(loc, out);
                 })
             .getResult(0);
 
