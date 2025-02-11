@@ -4700,7 +4700,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value cstScale = rewriter.create<Torch::ConstantFloatOp>(
             loc, rewriter.getF64FloatAttr(scale));
 
-        rewriter.replaceOpWithNewOp<Torch::OnnxVariantAtenRotaryEmbeddingOp>(
+        rewriter.replaceOpWithNewOp<Torch::OnnxVariantRotaryEmbeddingOp>(
             binder.op, resultType, input, positionIds, cosCache, sinCache,
             cstInterleaved, cstIsPackedBatching, cstNumHeads,
             cstRotaryEmbeddingDim, cstScale);

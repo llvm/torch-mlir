@@ -3638,8 +3638,8 @@ public:
 } // namespace
 
 namespace {
-class ConvertOnnxVariantAtenRotaryEmbeddingOp
-    : public OpConversionPattern<OnnxVariantAtenRotaryEmbeddingOp> {
+class ConvertOnnxVariantRotaryEmbeddingOp
+    : public OpConversionPattern<OnnxVariantRotaryEmbeddingOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
 
@@ -3654,10 +3654,10 @@ private:
     int64_t maxSequenceLength;
   };
 
-  static LogicalResult checkInputs(OnnxVariantAtenRotaryEmbeddingOp op,
-                                   Value input, Value positionIds,
-                                   Value cosCache, Value sinCache,
-                                   int64_t numHeads, int64_t rotaryEmbeddingDim,
+  static LogicalResult checkInputs(OnnxVariantRotaryEmbeddingOp op, Value input,
+                                   Value positionIds, Value cosCache,
+                                   Value sinCache, int64_t numHeads,
+                                   int64_t rotaryEmbeddingDim,
                                    RotaryParameters &parameters,
                                    ConversionPatternRewriter &rewriter) {
     //    input        : (batch_size, num_heads, sequence_length, hidden_size)
@@ -3786,7 +3786,7 @@ private:
   }
 
   LogicalResult
-  matchAndRewrite(OnnxVariantAtenRotaryEmbeddingOp op, OpAdaptor adaptor,
+  matchAndRewrite(OnnxVariantRotaryEmbeddingOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -4027,6 +4027,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenPolarOp>(typeConverter, context);
   target.addIllegalOp<AtenSymConstrainRangeOp>();
   patterns.add<ConvertSymConstrainRangeOp>(typeConverter, context);
-  target.addIllegalOp<OnnxVariantAtenRotaryEmbeddingOp>();
-  patterns.add<ConvertOnnxVariantAtenRotaryEmbeddingOp>(typeConverter, context);
+  target.addIllegalOp<OnnxVariantRotaryEmbeddingOp>();
+  patterns.add<ConvertOnnxVariantRotaryEmbeddingOp>(typeConverter, context);
 }

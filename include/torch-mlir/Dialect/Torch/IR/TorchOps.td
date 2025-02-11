@@ -1412,12 +1412,19 @@ def Torch_BindSymbolicShapeOp : Torch_Op<"bind_symbolic_shape", []> {
 
 // This op is corresponding to the Onnx's RotaryEmbedding operator.
 // Ref: https://github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#commicrosoftrotaryembedding
-def Torch_OnnxVariantAtenRotaryEmbeddingOp: Torch_Op<"onnx.aten.rotary_embedding", [
+def Torch_OnnxVariantRotaryEmbeddingOp: Torch_Op<"onnx.rotary_embedding", [
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly
   ]> {
   let summary = "`rotary_embedding op : (Tensor, Tensor, Tensor, Tensor, int, int, int, int, float) -> (Tensor)`";
+  let description = [{
+    The `torch.onnx.rotary_embedding` operation is an op which is used
+    specifically for supporting the Onnx's Rotary Embedding op. The
+    reason for this is that the Onnx ops can't be directly lowered to
+    Linalg and we have to map them to a legal Torch Dialect op, hence
+    this op is used for that purpose.
+  }];
   let arguments = (ins
     AnyTorchTensorType:$input,
     AnyTorchTensorType:$position_ids,
