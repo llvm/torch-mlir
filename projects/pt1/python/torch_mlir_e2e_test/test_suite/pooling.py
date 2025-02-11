@@ -1603,7 +1603,7 @@ class AvgPool1dCountIncludePadFalseWithoutPadding(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([-1, -1, -1], torch.float32, True),
+            ([3, 4, 20], torch.float32, True),
         ]
     )
     def forward(self, x):
@@ -1628,7 +1628,7 @@ class AvgPool1dCountIncludePadFalse(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([-1, -1, -1], torch.float32, True),
+            ([3, 4, 20], torch.float32, True),
         ]
     )
     def forward(self, x):
