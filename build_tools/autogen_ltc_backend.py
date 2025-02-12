@@ -30,7 +30,7 @@ if not TORCH_INCLUDE_DIR.is_dir():
 TORCHGEN_DIR = Path(torchgen.__path__[0]).resolve()
 TORCH_MLIR_DIR = Path(__file__).resolve().parent.parent
 
-# Safely load fast C Yaml loader if it is are available
+# Safely load fast C Yaml loader if it is available
 try:
     from yaml import CSafeLoader as Loader
 except ImportError:
