@@ -35,7 +35,7 @@ if(TORCH_MLIR_ENABLE_STABLEHLO)
   list(APPEND LinkedLibs StablehloLinalgTransforms StablehloPasses)
 endif()
 
-if (TORCH_MLIR_ENABLE_TOSA)
+if(TORCH_MLIR_ENABLE_TOSA)
   list(APPEND LinkedLibs MLIRTosaDialect)
 endif()
 

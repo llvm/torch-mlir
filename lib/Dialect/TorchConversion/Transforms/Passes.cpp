@@ -18,21 +18,20 @@
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchToTensor/TorchToTensor.h"
-#ifdef TORCH_MLIR_ENABLE_TOSA
-#include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
-#endif
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
+
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 #include "stablehlo/transforms/Passes.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 #endif
-#include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
+
+#ifdef TORCH_MLIR_ENABLE_TOSA
+#include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
+using namespace mlir::tosa;
+#endif
 
 using namespace mlir;
 using namespace mlir::torch;
-#ifdef TORCH_MLIR_ENABLE_TOSA
-using namespace mlir::tosa;
-#endif
 
 //===----------------------------------------------------------------------===//
 // Pass registration

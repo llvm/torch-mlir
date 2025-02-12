@@ -19,9 +19,6 @@
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/IR/TensorInferTypeOpInterfaceImpl.h"
-#ifdef TORCH_MLIR_ENABLE_TOSA
-#include "mlir/Dialect/Tosa/IR/TosaOps.h"
-#endif
 #include "mlir/IR/Dialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h"
@@ -36,6 +33,10 @@
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 #include "stablehlo/conversions/linalg/transforms/Passes.h"
 #include "stablehlo/transforms/Passes.h"
+#endif
+
+#ifdef TORCH_MLIR_ENABLE_TOSA
+#include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #endif
 
 void mlir::torch::registerAllDialects(mlir::DialectRegistry &registry) {
