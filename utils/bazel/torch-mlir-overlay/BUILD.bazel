@@ -278,6 +278,7 @@ gentbl_cc_library(
             [
                 "-gen-pass-decls",
                 "-DTORCH_MLIR_ENABLE_STABLEHLO",
+                "-DTORCH_MLIR_ENABLE_TOSA",
             ],
             "include/torch-mlir/Conversion/Passes.h.inc",
         ),
@@ -334,6 +335,7 @@ gentbl_cc_library(
             [
                 "-gen-pass-decls",
                 "-DTORCH_MLIR_ENABLE_STABLEHLO",
+                "-DTORCH_MLIR_ENABLE_TOSA",
             ],
             "include/torch-mlir/Dialect/TorchConversion/Transforms/Passes.h.inc",
         ),
@@ -887,6 +889,7 @@ cc_library(
     copts = [
         "-DTORCH_MLIR_ENABLE_REFBACKEND",
         "-DTORCH_MLIR_ENABLE_STABLEHLO",
+        "-DTORCH_MLIR_ENABLE_TOSA",
     ],
     strip_include_prefix = "include",
     deps = [
