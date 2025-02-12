@@ -459,6 +459,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants("aten::ceil : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::round : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::trunc : (Tensor) -> (Tensor)", has_folder=True)
+    emit("aten::special_expm1 : (Tensor) -> (Tensor)")
     emit_with_mutating_variants(
         "aten::sign : (Tensor) -> (Tensor)", has_canonicalizer=True
     )
@@ -795,6 +796,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::replication_pad2d : (Tensor, int[]) -> (Tensor)")
     emit("aten::reflection_pad1d : (Tensor, int[]) -> (Tensor)")
     emit("aten::reflection_pad2d : (Tensor, int[]) -> (Tensor)")
+    emit("aten::reflection_pad3d : (Tensor, int[]) -> (Tensor)")
     emit("aten::pad : (Tensor, int[], str, float?) -> (Tensor)")
     emit("aten::squeeze.dim : (Tensor, int) -> (Tensor)", has_folder=True)
     emit("aten::squeeze : (Tensor) -> (Tensor)", has_folder=True)
@@ -1015,6 +1017,10 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::alias : (Tensor) -> (Tensor)", has_folder=True)
     emit("aten::as_strided_copy : (Tensor, int[], int[], int?) -> (Tensor)")
     emit("aten::as_strided : (Tensor, int[], int[], int?) -> (Tensor)")
+    emit(
+        "aten::_assert_tensor_metadata : (Tensor, int[]?, int[]?, int?, Device?, int?) -> ()",
+        has_folder=True,
+    )
     emit("aten::diagonal : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::diagonal_copy : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::expand_copy : (Tensor, int[], bool) -> (Tensor)")
@@ -1218,6 +1224,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::rrelu_with_noise_backward : (Tensor, Tensor, Tensor, Scalar, Scalar, bool, bool) -> (Tensor)"
     )
+    emit(
+        "aten::rrelu_with_noise_functional : (Tensor, Tensor, Scalar, Scalar, bool, Generator?) -> (Tensor, Tensor)"
+    )
 
     # quantized ops
     emit("aten::quantize_per_channel : (Tensor, Tensor, Tensor, int, int) -> (Tensor)")
@@ -1229,6 +1238,11 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::_make_per_channel_quantized_tensor : (Tensor, Tensor, Tensor, int) -> (Tensor)"
     )
     emit("aten::_make_per_tensor_quantized_tensor : (Tensor, float, int) -> (Tensor)")
+
+    # Constraint ops
+    emit("aten::sym_constrain_range : (Scalar, int?, int?) -> ()")
+    emit("aten::sym_constrain_range_for_size : (Scalar, int?, int?) -> ()")
+    emit("aten::_assert_scalar : (Scalar, str) -> ()")
 
     # ==========================================================================
     # `prim::` namespace.

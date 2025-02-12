@@ -46,6 +46,7 @@
 # that here, and just package up its contents.
 import os
 import pathlib
+import platform
 import shutil
 import subprocess
 import sys
@@ -198,6 +199,15 @@ class CMakeBuild(build_py):
 
         shutil.copytree(python_package_dir, target_dir, symlinks=False)
 
+        torch_mlir_opt_src = os.path.join(cmake_build_dir, "bin", "torch-mlir-opt")
+        torch_mlir_opt_dst = os.path.join(
+            target_dir, "torch_mlir", "_mlir_libs", "torch-mlir-opt"
+        )
+        if platform.system() == "Windows":
+            torch_mlir_opt_src += ".exe"
+            torch_mlir_opt_dst += ".exe"
+        shutil.copy2(torch_mlir_opt_src, torch_mlir_opt_dst, follow_symlinks=False)
+
 
 class CMakeExtension(Extension):
     def __init__(self, name, sourcedir=""):
@@ -266,7 +276,8 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "torch-mlir-import-onnx = torch_mlir.tools.import_onnx:_cli_main",
+            "torch-mlir-import-onnx = torch_mlir.tools.import_onnx.__main__:_cli_main",
+            "torch-mlir-opt = torch_mlir.tools.opt.__main__:main",
         ],
     },
     zip_safe=False,

@@ -454,8 +454,11 @@ public:
     patterns.add<
         ConvertAtenIntComparisonOp<AtenLeIntOp, arith::CmpIPredicate::sle>>(
         typeConverter, context);
-    target.addIllegalOp<AtenGeFloatOp, AtenGtFloatOp, AtenGeFloatIntOp,
-                        AtenNeFloatIntOp, AtenGtFloatIntOp>();
+    target.addIllegalOp<AtenEqFloatOp, AtenGeFloatOp, AtenGtFloatOp,
+                        AtenGeFloatIntOp, AtenNeFloatIntOp, AtenGtFloatIntOp>();
+    patterns.add<
+        ConvertAtenFloatComparisonOp<AtenEqFloatOp, arith::CmpFPredicate::UEQ>>(
+        typeConverter, context);
     patterns.add<
         ConvertAtenFloatComparisonOp<AtenGeFloatOp, arith::CmpFPredicate::UGE>>(
         typeConverter, context);

@@ -87,6 +87,29 @@ def BmmFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5), tu.rand(3, 5, 4))
 
 
+class BmmFloat16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float16, True),
+            ([-1, -1, -1], torch.float16, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.bmm(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: BmmFloat16Module())
+def BmmFloat16Module_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(3, 4, 5).to(torch.float16), tu.rand(3, 5, 4).to(torch.float16)
+    )
+
+
 class BmmIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -5719,6 +5742,33 @@ def ScaledDotProductAttentionBoolMaskModule_basic(module, tu: TestUtils):
     module.forward(query, key, value, mask)
 
 
+class ScaledDotProductAttentionGQAModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 32, 3, 8], torch.float32, True),
+            ([4, 8, 3, 8], torch.float32, True),
+            ([4, 8, 3, 8], torch.float32, True),
+        ]
+    )
+    def forward(self, query, key, value):
+        return torch.ops.aten.scaled_dot_product_attention(
+            query, key, value, enable_gqa=True
+        )
+
+
+@register_test_case(module_factory=lambda: ScaledDotProductAttentionGQAModule())
+def ScaledDotProductAttentionGQAModule_basic(module, tu: TestUtils):
+    query = torch.randn(4, 32, 3, 8, dtype=torch.float32)
+    key = torch.randn(4, 8, 3, 8, dtype=torch.float32)
+    value = torch.randn(4, 8, 3, 8, dtype=torch.float32)
+    module.forward(query, key, value)
+
+
 # ==============================================================================
 
 
@@ -6407,3 +6457,85 @@ def AtenPolarDoubleModule_basic(module, tu: TestUtils):
     module.forward(
         tu.rand(2, 5, 3, 4).to(torch.float64), tu.rand(2, 5, 3, 4).to(torch.float64)
     )
+
+
+# ==============================================================================
+
+
+class AtenNonzero1DDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.bool, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.nonzero(x)
+
+
+@register_test_case(module_factory=lambda: AtenNonzero1DDynamicModule())
+def AtenNonzero1DDynamicModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 0, 1, 1, 0, 0], dtype=torch.bool))
+
+
+# ==============================================================================
+
+
+class AtenSymConstrainRange(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1], torch.int, True)])
+    def forward(self, x):
+        a = x.item()
+        torch.ops.aten.sym_constrain_range(a, max=5)
+        return a
+
+
+@register_test_case(module_factory=lambda: AtenSymConstrainRange())
+def AtenSymConstrainRange_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(4))
+
+
+# ==============================================================================
+
+
+class AtenSymConstrainRangeForSize(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1], torch.int, True)])
+    def forward(self, x):
+        a = x.item()
+        torch.ops.aten.sym_constrain_range_for_size(a, min=0, max=10)
+        return a
+
+
+@register_test_case(module_factory=lambda: AtenSymConstrainRangeForSize())
+def AtenSymConstrainRangeForSize_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(4))
+
+
+# ==============================================================================
+class Aten_AssertScalar(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1], torch.int, True)])
+    def forward(self, x):
+        a = x.item()
+        assert_msg = "Assertion failed for condition x.item() > 3"
+        torch.ops.aten._assert_scalar(a > 3, assert_msg)
+        return a
+
+
+@register_test_case(module_factory=lambda: Aten_AssertScalar())
+def Aten_AssertScalar_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(4))

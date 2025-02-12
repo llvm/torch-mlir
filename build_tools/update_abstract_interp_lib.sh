@@ -44,7 +44,7 @@ fi
 # To enable this python package, manually build torch_mlir with:
 #   -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON
 # TODO: move this package out of JIT_IR_IMPORTER.
-PYTHONPATH="${pypath}" python \
+PYTHONPATH="${pypath}" python3 \
   -m torch_mlir.jit_ir_importer.build_tools.abstract_interp_lib_gen \
   --pytorch_op_extensions=${ext_module:-""} \
   --torch_transforms_cpp_dir="${torch_transforms_cpp_dir}"

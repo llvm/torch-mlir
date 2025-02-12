@@ -147,8 +147,8 @@ convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(PatternRewriter &rewriter,
                 }
                 // Replace the original index with the index specified
                 // by the scatter.
-                yieldVals[dim] = b.create<arith::TruncIOp>(
-                    loc, rewriter.getI32Type(), extractIndexValue);
+                yieldVals[dim] = convertScalarToDtype(
+                    rewriter, loc, extractIndexValue, rewriter.getI32Type());
                 yieldVals.push_back(extractSrcValue);
                 b.create<linalg::YieldOp>(loc, yieldVals);
               })
@@ -370,6 +370,54 @@ static FailureOr<SmallVector<Value>> createTMTensorTopkOp(
   // Yield the comparison result.
   rewriter.create<TMTensor::YieldOp>(loc, compareOpRetVal.value());
   return SmallVector<Value>(topkOp.getResults());
+}
+
+static FailureOr<Value>
+repeatTensorElementsForDim(Operation *op, ConversionPatternRewriter &rewriter,
+                           Type resType, Value self, int64_t repeats,
+                           int64_t dim) {
+  Location loc = op->getLoc();
+  auto context = op->getContext();
+  auto selfTy = cast<BaseTensorType>(self.getType());
+
+  int64_t inputRank = selfTy.getSizes().size();
+  dim = toPositiveDim(dim, inputRank);
+  Value dimValue =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
+  Value dimValuePlusOne =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim + 1));
+
+  auto unsqueezedInfo = unsqueezeTensor(rewriter, op, self, dimValuePlusOne);
+  if (failed(unsqueezedInfo))
+    return rewriter.notifyMatchFailure(op,
+                                       "cannot generate unsqueeze tensor op");
+  self = *unsqueezedInfo;
+
+  Value constMinusOne =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+  SmallVector<Value> expandShapeValueList(inputRank + 1, constMinusOne);
+  expandShapeValueList[dim + 1] =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(repeats));
+  Value expandShapeList = rewriter.create<PrimListConstructOp>(
+      loc, ListType::get(IntType::get(context)), expandShapeValueList);
+
+  SmallVector<int64_t> expandShape(inputRank + 1);
+  for (int64_t i = 0; i <= dim; i++) {
+    expandShape[i] = selfTy.getSizes()[i];
+  }
+  expandShape[dim + 1] = repeats;
+  for (int64_t i = dim + 1; i < inputRank; i++) {
+    expandShape[i + 1] = selfTy.getSizes()[i];
+  }
+
+  BaseTensorType expandTy =
+      rewriter.getType<ValueTensorType>(expandShape, selfTy.getOptionalDtype());
+  Value expandSelf =
+      rewriter.create<AtenBroadcastToOp>(loc, expandTy, self, expandShapeList);
+
+  Value result = rewriter.create<PrimsCollapseOp>(loc, resType, expandSelf,
+                                                  dimValue, dimValuePlusOne);
+  return result;
 }
 
 namespace {
@@ -1651,6 +1699,65 @@ class ConvertAtenScaledDotProductAttentionOp
     : public OpConversionPattern<AtenScaledDotProductAttentionOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
+
+  static LogicalResult
+  preProcessGroupQueryAttentionInput(AtenScaledDotProductAttentionOp op,
+                                     ConversionPatternRewriter &rewriter,
+                                     const TypeConverter *typeConverter,
+                                     Value query, Value &key, Value &value) {
+    auto queryTy = cast<ShapedType>(query.getType());
+    auto valueTy = cast<ShapedType>(value.getType());
+    auto keyTy = cast<ShapedType>(key.getType());
+
+    int64_t rank = queryTy.getRank();
+
+    int64_t qNumHeads = queryTy.getDimSize(rank - 3);
+    int64_t kNumHeads = valueTy.getDimSize(rank - 3);
+    int64_t vNumHeads = keyTy.getDimSize(rank - 3);
+
+    if (llvm::any_of(llvm::ArrayRef<int64_t>{qNumHeads, kNumHeads, vNumHeads},
+                     [](int64_t d) { return d == Torch::kUnknownSize; })) {
+      return llvm::failure();
+    }
+
+    if (llvm::all_equal(
+            llvm::ArrayRef<int64_t>{qNumHeads, kNumHeads, vNumHeads}))
+      return llvm::success();
+
+    if ((qNumHeads % kNumHeads) && (qNumHeads % vNumHeads))
+      return llvm::failure();
+
+    int64_t repeatKeyShape = qNumHeads / kNumHeads;
+    int64_t repeatValueShape = qNumHeads / vNumHeads;
+
+    Location loc = op.getLoc();
+    FailureOr<Value> keyRepeated = repeatTensorElementsForDim(
+        op.getOperation(), rewriter, /*resType=*/op.getQuery().getType(),
+        op.getKey(),
+        /*repeats=*/repeatKeyShape, /*dim=*/rank - 3);
+    if (failed(keyRepeated))
+      return rewriter.notifyMatchFailure(
+          loc, "Failed to repeat the tensor elements for key.");
+
+    FailureOr<Value> valueRepeated = repeatTensorElementsForDim(
+        op.getOperation(), rewriter, /*resType=*/op.getQuery().getType(),
+        op.getValue(),
+        /*repeats=*/repeatValueShape, /*dim=*/rank - 3);
+    if (failed(valueRepeated))
+      return rewriter.notifyMatchFailure(
+          loc, "Failed to repeat the tensor elements for value.");
+
+    key = typeConverter->materializeTargetConversion(
+        rewriter, loc,
+        typeConverter->convertType(keyRepeated.value().getType()),
+        keyRepeated.value());
+    value = typeConverter->materializeTargetConversion(
+        rewriter, loc,
+        typeConverter->convertType(valueRepeated.value().getType()),
+        valueRepeated.value());
+    return success();
+  }
+
   LogicalResult
   matchAndRewrite(AtenScaledDotProductAttentionOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
@@ -1795,11 +1902,6 @@ public:
           scaleFloat != 1.0)
         return rewriter.notifyMatchFailure(loc, "only default scale supported");
     }
-    bool isGQAEnabled;
-    if (!matchPattern(enableGQA, m_TorchConstantBool(&isGQAEnabled)) ||
-        isGQAEnabled)
-      return rewriter.notifyMatchFailure(
-          loc, "grouped query attention not supported");
 
     if (queryTy.getRank() != valueTy.getRank() ||
         queryTy.getRank() != keyTy.getRank())
@@ -1807,6 +1909,22 @@ public:
 
     if (queryTy.getRank() < 3)
       return rewriter.notifyMatchFailure(op, "missing batch dimension");
+
+    bool isGQAEnabled;
+    if (!matchPattern(enableGQA, m_TorchConstantBool(&isGQAEnabled)))
+      return rewriter.notifyMatchFailure(
+          loc, "Expected enable_gqa flag to be constant bool");
+
+    // For the cases when `enable_gqa` flag is set to true, we have to
+    // pre-process the inputs specifically key and value by repeating the
+    // elements for the head dim.
+    // The reference code is available here:
+    // https://github.com/pytorch/pytorch/pull/132689/files#diff-e726853e9795dfb6c74ab1e10945f5d5f24540eb7bc633e5c76f69bc258f24d6R612
+    if (enableGQA) {
+      if (failed(preProcessGroupQueryAttentionInput(
+              op, rewriter, getTypeConverter(), query, key, value)))
+        return failure();
+    }
 
     llvm::SmallVector<ReassociationIndices, 3> reassociation(3);
     for (int i = 0, s = valueTy.getRank() - 2; i < s; ++i)

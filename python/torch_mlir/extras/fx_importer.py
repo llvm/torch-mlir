@@ -2247,13 +2247,15 @@ class RefTracker:
         if existing:
             return existing
         info = RefMapping(referrent)
-        if referrent is not Empty:
-            weakref.finalize(referrent, self._ref_finalizer, ref_id)
+        # Finalizer is removed due to a memory leak
+        # See: https://github.com/iree-org/iree-turbine/issues/281
+        # if referrent is not Empty:
+        #    weakref.finalize(referrent, self._ref_finalizer, ref_id)
         self._refs[ref_id] = info
         return info
 
-    def _ref_finalizer(self, ref_id: int):
-        del self._refs[ref_id]
+    # def _ref_finalizer(self, ref_id: int):
+    #    del self._refs[ref_id]
 
 
 ################################################################################

@@ -102,3 +102,19 @@ func.func @elementwise_sinh(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3
   %0 = torch.aten.sinh %arg0 : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
   return %0 : !torch.vtensor<[3],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_todtype_bf162f16(
+// CHECK:                linalg.generic
+// CHECK:                  arith.extf
+// CHECK-SAME:               bf16 to f32
+// CHECK:                  arith.truncf
+// CHECK-SAME:               f32 to f16
+func.func @elementwise_todtype_bf162f16(%arg0: !torch.vtensor<[1,?,32,128],bf16>) -> !torch.vtensor<[1,?,32,128],f16> {
+  %int5 = torch.constant.int 5
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %0 = torch.aten.to.dtype %arg0, %int5, %false, %false, %none : !torch.vtensor<[1,?,32,128],bf16>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,?,32,128],f16>
+  return %0 : !torch.vtensor<[1,?,32,128],f16>
+}

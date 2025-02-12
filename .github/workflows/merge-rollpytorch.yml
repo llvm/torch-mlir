@@ -9,7 +9,7 @@ on:
 
 jobs:
   merge-pr:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     if: |
       github.repository == 'llvm/torch-mlir' &&
       github.event.workflow_run.actor.login == 'stellaraccident' &&
@@ -18,7 +18,7 @@ jobs:
     steps:
       # Fetch the repo first so that the gh command knows where to look for the PR
       - name: Fetch Repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
 

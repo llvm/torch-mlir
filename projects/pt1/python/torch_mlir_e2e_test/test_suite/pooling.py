@@ -420,6 +420,35 @@ def MaxPool2dCeilModeTrueModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20, low=0.5, high=1.0))
 
 
+class MaxPool2dStaticCeilModeTrueReduceOutputModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp2d = torch.nn.MaxPool2d(
+            kernel_size=6,
+            stride=6,
+            padding=3,
+            dilation=1,
+            ceil_mode=True,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 6, 20, 10], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mp2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: MaxPool2dStaticCeilModeTrueReduceOutputModule()
+)
+def MaxPool2dStaticCeilModeTrueReduceOutputModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 6, 20, 10, low=0.5, high=1.0))
+
+
 # ==============================================================================
 
 
