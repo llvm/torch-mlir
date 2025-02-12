@@ -18,7 +18,9 @@
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchToTensor/TorchToTensor.h"
+#ifdef TORCH_MLIR_ENABLE_TOSA
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
+#endif
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 #include "stablehlo/transforms/Passes.h"
@@ -28,7 +30,9 @@
 
 using namespace mlir;
 using namespace mlir::torch;
+#ifdef TORCH_MLIR_ENABLE_TOSA
 using namespace mlir::tosa;
+#endif
 
 //===----------------------------------------------------------------------===//
 // Pass registration
@@ -46,12 +50,13 @@ void mlir::torch::registerTorchConversionPasses() {
       "Pipeline lowering torch backend contract to linalg-on-tensors backend "
       "contract.",
       TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline);
-
+#ifdef TORCH_MLIR_ENABLE_TOSA
   mlir::PassPipelineRegistration<>(
       "torch-backend-to-tosa-backend-pipeline",
       "Pipeline lowering torch backend contract to TOSA backend "
       "contract.",
       TorchConversion::createTorchBackendToTosaBackendPipeline);
+#endif
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
   mlir::PassPipelineRegistration<
       TorchConversion::StablehloBackendPipelineOptions>(
@@ -107,6 +112,7 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   pm.addPass(TorchConversion::createVerifyLinalgOnTensorsBackendContractPass());
 }
 
+#ifdef TORCH_MLIR_ENABLE_TOSA
 void TorchConversion::createTorchBackendToTosaBackendPipeline(
     OpPassManager &pm) {
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTosaPass());
@@ -130,6 +136,7 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
   // correct form.
   pm.addPass(TorchConversion::createVerifyTosaBackendContractPass());
 }
+#endif
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 void TorchConversion::createTorchBackendToStablehloBackendPipeline(

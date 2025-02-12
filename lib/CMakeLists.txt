@@ -14,7 +14,6 @@ set(LinkedLibs
   MLIRSCFDialect
   MLIRTensorDialect
   MLIRTensorInferTypeOpInterfaceImpl
-  MLIRTosaDialect
   MLIRSupport
 
   # Dialects.
@@ -33,7 +32,11 @@ set(LinkedLibs
 )
 
 if(TORCH_MLIR_ENABLE_STABLEHLO)
-list(APPEND LinkedLibs StablehloLinalgTransforms StablehloPasses)
+  list(APPEND LinkedLibs StablehloLinalgTransforms StablehloPasses)
+endif()
+
+if (TORCH_MLIR_ENABLE_TOSA)
+  list(APPEND LinkedLibs MLIRTosaDialect)
 endif()
 
 if(TORCH_MLIR_ENABLE_REFBACKEND)
