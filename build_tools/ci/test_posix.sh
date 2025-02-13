@@ -30,6 +30,10 @@ case $torch_version in
     echo "::group::Run FxImporter2Stablehlo e2e integration tests"
     python3 -m e2e_testing.main --config=fx_importer_stablehlo -v
     echo "::endgroup::"
+
+    echo "::group::Run FxImporter TOSA e2e integration tests"
+    python3 -m e2e_testing.main --config=fx_importer_tosa -v
+    echo "::endgroup::"
     ;;
   stable)
     ;;

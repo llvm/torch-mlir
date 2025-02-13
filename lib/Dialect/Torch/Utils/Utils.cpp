@@ -9,6 +9,7 @@
 
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "mlir/IR/BuiltinDialect.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/SparsityUtils.h"
@@ -152,9 +153,9 @@ Torch::getTypeForScalarType(MLIRContext *context,
   case torch_upstream::ScalarType::Bool:
     return IntegerType::get(context, 1);
   case torch_upstream::ScalarType::BFloat16:
-    return mlir::FloatType::getBF16(context);
+    return mlir::BFloat16Type::get(context);
   case torch_upstream::ScalarType::Half:
-    return mlir::FloatType::getF16(context);
+    return mlir::Float16Type::get(context);
   case torch_upstream::ScalarType::Byte:
     return mlir::IntegerType::get(context, 8, mlir::IntegerType::Unsigned);
   case torch_upstream::ScalarType::Char:
@@ -651,13 +652,13 @@ Type Torch::getDefaultAccType(PatternRewriter &rewriter, Type inputType) {
     return rewriter.getF32Type();
   if (isa<Float64Type>(inputType))
     return rewriter.getF64Type();
-  if (inputType.isFloat8E5M2())
+  if (isa<Float8E5M2Type>(inputType))
     return rewriter.getF32Type();
-  if (inputType.isFloat8E4M3FN())
+  if (isa<Float8E4M3FNType>(inputType))
     return rewriter.getF32Type();
-  if (inputType.isFloat8E5M2FNUZ())
+  if (isa<Float8E5M2FNUZType>(inputType))
     return rewriter.getF32Type();
-  if (inputType.isFloat8E4M3FNUZ())
+  if (isa<Float8E4M3FNUZType>(inputType))
     return rewriter.getF32Type();
   if (inputType.isInteger(8))
     // this is an intentional deviation from CUDA (which accumulates i8 to i64)

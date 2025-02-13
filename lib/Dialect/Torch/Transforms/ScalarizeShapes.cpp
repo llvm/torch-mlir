@@ -1602,8 +1602,8 @@ public:
     // have been futher propagated. It is also necessary to add newly created
     // ops for custom folding after scalarizing a where.self op.
     config.strictMode = GreedyRewriteStrictness::ExistingAndNewOps;
-    if (failed(applyOpPatternsAndFold(shapeCalculationOps.getArrayRef(),
-                                      std::move(patterns), config))) {
+    if (failed(applyOpPatternsGreedily(shapeCalculationOps.getArrayRef(),
+                                       std::move(patterns), config))) {
       return signalPassFailure();
     }
 

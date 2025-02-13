@@ -131,8 +131,7 @@ class UnpackQuantTensorPass
     RewritePatternSet patterns(context);
     patterns.add<UnpackQuantizedMatmulWeights>(context);
 
-    if (failed(
-            applyPatternsAndFoldGreedily(getOperation(), std::move(patterns))))
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns))))
       signalPassFailure();
   }
 };
