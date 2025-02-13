@@ -61,6 +61,7 @@ cmake -GNinja -Bbuild \
   -DCMAKE_BUILD_TYPE=Release \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DPython3_FIND_VIRTUALENV=ONLY \
+  -DPython_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD" \
@@ -93,6 +94,7 @@ If you're running into issues with the above build command, consider using the f
 cmake -GNinja -Bbuild \
   -DCMAKE_BUILD_TYPE=Release \
   -DPython3_FIND_VIRTUALENV=ONLY \
+  -DPython_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD" \
@@ -125,6 +127,7 @@ If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, 
 cmake -GNinja -Bbuild \
   -DCMAKE_BUILD_TYPE=Release \
   -DPython3_FIND_VIRTUALENV=ONLY \
+  -DPython_FIND_VIRTUALENV=ONLY \
   -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir/" \
   -DLLVM_DIR="$LLVM_INSTALL_DIR/lib/cmake/llvm/" \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
