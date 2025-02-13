@@ -36,6 +36,9 @@ Type getTypeForTorchType(
     MLIRContext *context, Type type,
     mlir::IntegerType::SignednessSemantics signedness = IntegerType::Signed);
 
+template <typename OpTy>
+FailureOr<Value> getDtypeFromOp(PatternRewriter &rewriter, OpTy op);
+
 FailureOr<Type> getTorchTypeForScalarType(MLIRContext *context,
                                           torch_upstream::ScalarType dtypeInt);
 
