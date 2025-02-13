@@ -4709,30 +4709,8 @@ def Torch_AtenTrunc_Op : Torch_Op<"aten.trunc_", [
 def Torch_AtenSpecialExpm1Op : Torch_Op<"aten.special_expm1", [
     AllowsTypeRefinement,
     HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::special_expm1 : (Tensor) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self
-  );
-  let results = (outs
-    AnyTorchOptionalTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenSpecialExpm1Op::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 1, 1);
-    }
-    void AtenSpecialExpm1Op::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 1, 1);
-    }
-  }];
-}
-
-def Torch_AtenSpecialExpm1Op : Torch_Op<"aten.special_expm1", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
+    ReadOnly,
+    NoMemoryEffect
   ]> {
   let summary = "Generated op for `aten::special_expm1 : (Tensor) -> (Tensor)`";
   let arguments = (ins
@@ -10314,31 +10292,8 @@ def Torch_AtenReflectionPad2dOp : Torch_Op<"aten.reflection_pad2d", [
 def Torch_AtenReflectionPad3dOp : Torch_Op<"aten.reflection_pad3d", [
     AllowsTypeRefinement,
     HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::reflection_pad3d : (Tensor, int[]) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchListOfTorchIntType:$padding
-  );
-  let results = (outs
-    AnyTorchOptionalTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenReflectionPad3dOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 2, 1);
-    }
-    void AtenReflectionPad3dOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 2, 1);
-    }
-  }];
-}
-
-def Torch_AtenReflectionPad3dOp : Torch_Op<"aten.reflection_pad3d", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
+    ReadOnly,
+    NoMemoryEffect
   ]> {
   let summary = "Generated op for `aten::reflection_pad3d : (Tensor, int[]) -> (Tensor)`";
   let arguments = (ins
@@ -14333,33 +14288,6 @@ def Torch_Aten_AssertTensorMetadataOp : Torch_Op<"aten._assert_tensor_metadata",
   let hasFolder = 1;
 }
 
-def Torch_Aten_AssertTensorMetadataOp : Torch_Op<"aten._assert_tensor_metadata", [
-    AllowsTypeRefinement,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::_assert_tensor_metadata : (Tensor, int[]?, int[]?, int?, Device?, int?) -> ()`";
-  let arguments = (ins
-    AnyTorchTensorType:$a,
-    AnyTorchOptionalListOfTorchIntType:$size,
-    AnyTorchOptionalListOfTorchIntType:$stride,
-    AnyTorchOptionalIntType:$dtype,
-    AnyTorchOptionalDeviceType:$device,
-    AnyTorchOptionalIntType:$layout
-  );
-  let results = (outs
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult Aten_AssertTensorMetadataOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 6, 0);
-    }
-    void Aten_AssertTensorMetadataOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 6, 0);
-    }
-  }];
-  let hasFolder = 1;
-}
-
 def Torch_AtenDiagonalOp : Torch_Op<"aten.diagonal", [
     AllowsTypeRefinement,
     ReadOnly,
@@ -18220,36 +18148,8 @@ def Torch_AtenRreluWithNoiseBackwardOp : Torch_Op<"aten.rrelu_with_noise_backwar
 def Torch_AtenRreluWithNoiseFunctionalOp : Torch_Op<"aten.rrelu_with_noise_functional", [
     AllowsTypeRefinement,
     HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::rrelu_with_noise_functional : (Tensor, Tensor, Scalar, Scalar, bool, Generator?) -> (Tensor, Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    AnyTorchTensorType:$noise,
-    AnyTorchScalarType:$lower,
-    AnyTorchScalarType:$upper,
-    Torch_BoolType:$training,
-    AnyTorchOptionalGeneratorType:$generator
-  );
-  let results = (outs
-    AnyTorchOptionalTensorType:$result0,
-    AnyTorchOptionalTensorType:$noise_out
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenRreluWithNoiseFunctionalOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 6, 2);
-    }
-    void AtenRreluWithNoiseFunctionalOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 6, 2);
-    }
-  }];
-}
-
-def Torch_AtenRreluWithNoiseFunctionalOp : Torch_Op<"aten.rrelu_with_noise_functional", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
+    ReadOnly,
+    NoMemoryEffect
   ]> {
   let summary = "Generated op for `aten::rrelu_with_noise_functional : (Tensor, Tensor, Scalar, Scalar, bool, Generator?) -> (Tensor, Tensor)`";
   let arguments = (ins
@@ -18451,77 +18351,6 @@ def Torch_Aten_MakePerTensorQuantizedTensorOp : Torch_Op<"aten._make_per_tensor_
     }
     void Aten_MakePerTensorQuantizedTensorOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 3, 1);
-    }
-  }];
-}
-
-def Torch_AtenSymConstrainRangeOp : Torch_Op<"aten.sym_constrain_range", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::sym_constrain_range : (Scalar, int?, int?) -> ()`";
-  let arguments = (ins
-    AnyTorchScalarType:$size,
-    AnyTorchOptionalIntType:$min,
-    AnyTorchOptionalIntType:$max
-  );
-  let results = (outs
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenSymConstrainRangeOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 3, 0);
-    }
-    void AtenSymConstrainRangeOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 3, 0);
-    }
-  }];
-}
-
-def Torch_AtenSymConstrainRangeForSizeOp : Torch_Op<"aten.sym_constrain_range_for_size", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::sym_constrain_range_for_size : (Scalar, int?, int?) -> ()`";
-  let arguments = (ins
-    AnyTorchScalarType:$size,
-    AnyTorchOptionalIntType:$min,
-    AnyTorchOptionalIntType:$max
-  );
-  let results = (outs
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenSymConstrainRangeForSizeOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 3, 0);
-    }
-    void AtenSymConstrainRangeForSizeOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 3, 0);
-    }
-  }];
-}
-
-def Torch_Aten_AssertScalarOp : Torch_Op<"aten._assert_scalar", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::_assert_scalar : (Scalar, str) -> ()`";
-  let arguments = (ins
-    AnyTorchScalarType:$self,
-    Torch_StringType:$assert_msg
-  );
-  let results = (outs
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult Aten_AssertScalarOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 2, 0);
-    }
-    void Aten_AssertScalarOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 2, 0);
     }
   }];
 }
