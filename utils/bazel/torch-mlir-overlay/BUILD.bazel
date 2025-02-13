@@ -544,6 +544,7 @@ cc_library(
     ],
     defines = [
         "TORCH_MLIR_ENABLE_STABLEHLO",
+        "TORCH_MLIR_ENABLE_TOSA",
     ],
     strip_include_prefix = "include",
     deps = [
@@ -568,6 +569,7 @@ cc_library(
     hdrs = glob(["include/torch-mlir/Dialect/TorchConversion/Transforms/*.h"]),
     defines = [
         "TORCH_MLIR_ENABLE_STABLEHLO",
+        "TORCH_MLIR_ENABLE_TOSA",
     ],
     strip_include_prefix = "include",
     deps = [
@@ -602,6 +604,9 @@ cc_library(
         "lib/Conversion/TorchToTosa/*.cpp",
     ]),
     hdrs = glob(["include/torch-mlir/Conversion/TorchToTosa/*.h"]),
+    defines = [
+        "TORCH_MLIR_ENABLE_TOSA",
+    ],
     strip_include_prefix = "include",
     deps = [
         ":TorchMLIRConversionPassesIncGen",
