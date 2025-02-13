@@ -3470,8 +3470,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AvgPool1dFloatModule_basic",
     "AvgPool1dIntModule_basic",
     "AvgPool1dStaticModule_basic",
-    # "AvgPool1dCountIncludePadFalseWithoutPadding_basic",
-    # "AvgPool1dCountIncludePadFalse_basic",
     "AvgPool2dCeilModeTrueModule_basic",
     "AvgPool2dDivisorOverrideModule_basic",
     "AvgPool2dFloatModule_basic",
