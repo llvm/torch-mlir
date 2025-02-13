@@ -3644,8 +3644,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // permutation; both outputs will be equivalent.
         Value stft = rewriter.create<Torch::AtenStftOp>(
             binder.getLoc(), stftTy, signal, frameLengthItem, frameStepItem,
-            windowLen, window, falseVal, onesided ? trueVal : falseVal,
-            trueVal);
+            windowLen, window, falseVal, onesided ? trueVal : falseVal, trueVal,
+            falseVal);
 
         auto permuteStftTy = complexSignalTy.getWithSizesAndDtype(
             ArrayRef<int64_t>({resultShape[0], resultShape[1], resultShape[2]}),
