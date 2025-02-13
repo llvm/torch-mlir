@@ -3780,6 +3780,9 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ScaledDotProductAttentionSameDynamicModule_basic",
     "ScaledDotProductAttentionSameModule_basic",
     "ScaledDotProductAttentionGQAModule_basic",
+    "AtenSymConstrainRangeForSize_basic",
+    "AtenSymConstrainRange_basic",
+    "Aten_AssertScalar_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {
