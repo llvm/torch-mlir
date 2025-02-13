@@ -1410,4 +1410,36 @@ def Torch_BindSymbolicShapeOp : Torch_Op<"bind_symbolic_shape", []> {
   let hasVerifier = 1;
 }
 
+// This op is corresponding to the Onnx's RotaryEmbedding operator.
+// Ref: https://github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#commicrosoftrotaryembedding
+def Torch_OnnxVariantRotaryEmbeddingOp: Torch_Op<"onnx.rotary_embedding", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "`rotary_embedding op : (Tensor, Tensor, Tensor, Tensor, int, int, int, int, float) -> (Tensor)`";
+  let description = [{
+    The `torch.onnx.rotary_embedding` operation is an op which is used
+    specifically for supporting the Onnx's Rotary Embedding op. The
+    reason for this is that the Onnx ops can't be directly lowered to
+    Linalg and we have to map them to a legal Torch Dialect op, hence
+    this op is used for that purpose.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$position_ids,
+    AnyTorchTensorType:$cos_cache,
+    AnyTorchTensorType:$sin_cache,
+    Torch_IntType:$interleaved,
+    Torch_IntType:$is_packed_batching,
+    Torch_IntType:$num_heads,
+    Torch_IntType:$rotary_embedding_dim,
+    Torch_FloatType:$scale
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let assemblyFormat = "$input `,` $position_ids `,` $cos_cache `,` $sin_cache `,` $interleaved `,` $is_packed_batching `,` $num_heads `,` $rotary_embedding_dim `,` $scale attr-dict `:` type($input) `,` type($position_ids) `,` type($cos_cache) `,` type($sin_cache)  `,` type($interleaved)  `,` type($is_packed_batching)  `,` type($num_heads)  `,` type($rotary_embedding_dim)  `,` type($scale) `->` type($result)";
+}
+
 #endif // TORCH_OPS
