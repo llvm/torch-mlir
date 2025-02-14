@@ -914,37 +914,25 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     // Dim below stands for spatial dimension. Prior to the February
     // 2025 change, these variables used "height" and "width" (or
     // "h" and "w") in these intermediate variables instead of "Dim".
-    Value IndexODim;
-    Value ODim;
-    Value DDim;
-    Value PadDim;
-    Value ODimDDim;
-    Value IDim0;
-    Value IDim;
-    Value IDim0KDim;
-    Value IDimPadDim;
-    Value IDim1;
-    Value IDim0Clamped;
-    Value IDim1Clamped;
-    Value IDim1_IDim0_Clamped;
-    IndexODim = b.create<linalg::IndexOp>(location,
-                                          /*value=*/DimSizeFromSumPoolType[i]);
-    ODim = castIndexToInt64(b, location, IndexODim);
-    DDim = b.create<arith::ConstantOp>(location,
-                                       b.getI64IntegerAttr(strideInts[i]));
-    PadDim = b.create<arith::ConstantOp>(location,
-                                         b.getI64IntegerAttr(paddingInts[i]));
-    ODimDDim = b.create<arith::MulIOp>(location, ODim, DDim);
-    IDim0 = b.create<arith::SubIOp>(location, ODimDDim, PadDim);
-    IDim = castIndexToInt64(b, location, InputSpatialDimValues[i]);
-    IDim0KDim =
+    Value IndexODim =
+        b.create<linalg::IndexOp>(location,
+                                  /*value=*/DimSizeFromSumPoolType[i]);
+    Value ODim = castIndexToInt64(b, location, IndexODim);
+    Value DDim = b.create<arith::ConstantOp>(
+        location, b.getI64IntegerAttr(strideInts[i]));
+    Value PadDim = b.create<arith::ConstantOp>(
+        location, b.getI64IntegerAttr(paddingInts[i]));
+    Value ODimDDim = b.create<arith::MulIOp>(location, ODim, DDim);
+    Value IDim0 = b.create<arith::SubIOp>(location, ODimDDim, PadDim);
+    Value IDim = castIndexToInt64(b, location, InputSpatialDimValues[i]);
+    Value IDim0KDim =
         b.create<arith::AddIOp>(location, IDim0, kernelSizeIntValues[i]);
-    IDimPadDim = b.create<arith::AddIOp>(location, IDim, PadDim);
-    IDim1 = b.create<arith::MinSIOp>(location, IDim0KDim, IDimPadDim);
+    Value IDimPadDim = b.create<arith::AddIOp>(location, IDim, PadDim);
+    Value IDim1 = b.create<arith::MinSIOp>(location, IDim0KDim, IDimPadDim);
 
-    IDim0Clamped = b.create<arith::MaxSIOp>(location, IDim0, cstZero);
-    IDim1Clamped = b.create<arith::MinSIOp>(location, IDim1, IDim);
-    IDim1_IDim0_Clamped =
+    Value IDim0Clamped = b.create<arith::MaxSIOp>(location, IDim0, cstZero);
+    Value IDim1Clamped = b.create<arith::MinSIOp>(location, IDim1, IDim);
+    Value IDim1_IDim0_Clamped =
         b.create<arith::SubIOp>(location, IDim1Clamped, IDim0Clamped);
     if (i == 0) {
       poolSize = IDim1_IDim0_Clamped;
