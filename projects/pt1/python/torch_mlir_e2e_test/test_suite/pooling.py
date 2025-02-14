@@ -1464,7 +1464,7 @@ class AvgPool3dCountIncludePadFalse(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.ap2d = torch.nn.AvgPool3d(
+        self.ap3d = torch.nn.AvgPool3d(
             kernel_size=[3, 3, 3],
             stride=[1, 1, 1],
             padding=[1, 1, 1],
@@ -1481,7 +1481,7 @@ class AvgPool3dCountIncludePadFalse(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        return self.ap2d(x)
+        return self.ap3d(x)
 
 
 @register_test_case(module_factory=lambda: AvgPool3dCountIncludePadFalse())
@@ -1493,7 +1493,7 @@ class AvgPool3dCountIncludePadFalseWithoutPadding(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.ap2d = torch.nn.AvgPool3d(
+        self.ap3d = torch.nn.AvgPool3d(
             kernel_size=[3, 3, 3],
             stride=[1, 1, 1],
             padding=[0, 0, 0],
@@ -1510,7 +1510,7 @@ class AvgPool3dCountIncludePadFalseWithoutPadding(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        return self.ap2d(x)
+        return self.ap3d(x)
 
 
 @register_test_case(
