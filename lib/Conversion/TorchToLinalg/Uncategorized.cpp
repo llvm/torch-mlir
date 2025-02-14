@@ -1012,6 +1012,15 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       pow.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
+    Value exp = operands[1];
+    Type expType = exp.getType();
+    if (!expType.isIntOrFloat()) {
+      pow.emitError("unimplemented: exp type neither float nor int");
+      return nullptr;
+    }
+    if (isa<mlir::IntegerType>(expType)) {
+      return b.create<math::FPowIOp>(loc, payloadArgs[0], exp);
+    }
     Type dtype = cast<ValueTensorType>(pow.getSelf().getType()).getDtype();
     Value expPromoted = convertScalarToDtype(b, loc, operands[1], dtype);
     return b.create<math::PowFOp>(loc, payloadArgs[0], expPromoted);

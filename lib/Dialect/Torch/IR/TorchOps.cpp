@@ -12,6 +12,7 @@
 #include "llvm/Support/Debug.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
@@ -2419,6 +2420,64 @@ OpFoldResult AtenReshapeOp::fold(FoldAdaptor adaptor) {
       selfTy.toBuiltinTensor().hasStaticShape())
     return getSelf();
   return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
+// AtenPowTensorScalarOp
+//===----------------------------------------------------------------------===//
+
+void AtenPowTensorScalarOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  // If the exponent is a float representation of an int,
+  // convert the exponent to an int
+  patterns.add(+[](AtenPowTensorScalarOp op, PatternRewriter &rewriter) {
+    auto exp = getAsOpFoldResult(op.getExponent());
+    auto baseAttr = dyn_cast<mlir::Attribute>(exp);
+    auto floatAttr = dyn_cast_or_null<mlir::FloatAttr>(baseAttr);
+    if (!floatAttr)
+      return failure();
+    double expValue = floatAttr.getValueAsDouble();
+    auto truncValue = static_cast<int64_t>(expValue);
+    if (expValue != static_cast<double>(truncValue))
+      return failure();
+    Value IRScalar =
+        rewriter.create<Torch::ConstantIntOp>(op.getLoc(), truncValue);
+    op->setOperand(1, IRScalar);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenPowTensorTensorOp
+//===----------------------------------------------------------------------===//
+
+void AtenPowTensorTensorOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  // If the exponent is splat, convert to AtenPowTensorScalar.
+  patterns.add(+[](AtenPowTensorTensorOp op, PatternRewriter &rewriter) {
+    OpFoldResult exp = getAsOpFoldResult(op.getExponent());
+    auto expAttr = dyn_cast<Attribute>(exp);
+    auto attr = dyn_cast_or_null<DenseElementsAttr>(expAttr);
+    if (!attr || !attr.isSplat())
+      return failure();
+    auto elem = attr.getSplatValue<Attribute>();
+    auto intAttr = dyn_cast<mlir::IntegerAttr>(elem);
+    auto floatAttr = dyn_cast<mlir::FloatAttr>(elem);
+    if (!intAttr && !floatAttr)
+      return failure();
+    Value IRScalar;
+    if (intAttr)
+      IRScalar = rewriter.create<Torch::ConstantIntOp>(
+          op.getLoc(), getIntAttrAsSigned(intAttr));
+    if (floatAttr) {
+      double expValue = floatAttr.getValueAsDouble();
+      IRScalar = rewriter.create<Torch::ConstantFloatOp>(op.getLoc(),
+                                                         APFloat(expValue));
+    }
+    rewriter.replaceOpWithNewOp<AtenPowTensorScalarOp>(op, op.getType(),
+                                                       op.getSelf(), IRScalar);
+    return success();
+  });
 }
 
 //===----------------------------------------------------------------------===//
