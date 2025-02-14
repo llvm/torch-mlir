@@ -27,7 +27,7 @@ add_llvm_executable(
     OnnxImporter.cpp
     SimpleArgParser.hpp
     Dict.hpp
-    status.hpp
+    Status.hpp
     onnx_extras.hpp
 )
 

@@ -21,7 +21,7 @@
 #include "onnx/onnx_pb.h"
 
 #include "Dict.hpp"
-#include "status.hpp"
+#include "Status.hpp"
 
 #include <optional>
 #include <span>
@@ -95,12 +95,12 @@ public:
       Dict<std::string_view,
            std::pair<const onnx::TensorProto &, onnx::TypeProto>>;
 
-  GraphInfo(ModelInfo &model_info, const onnx::GraphProto &graph_proto,
-            bool top_level = true)
-      : model_info_(model_info), graph_proto_(graph_proto),
-        is_top_level_(top_level) {}
-  ModelInfo &model_info() { return model_info_; }
-  const onnx::GraphProto &graph_proto() { return graph_proto_; }
+  GraphInfo(ModelInfo &modelInfo, const onnx::GraphProto &graphProto,
+            bool topLevel = true)
+      : model_info_(modelInfo), graph_proto_(graphProto),
+        is_top_level_(topLevel) {}
+  ModelInfo &GetModelInfo() { return model_info_; }
+  const onnx::GraphProto &GetGraphProto() { return graph_proto_; }
 
   /// Post-construction, failable initialization.
   [[nodiscard]] Status Initialize();
@@ -109,25 +109,25 @@ public:
   /// an error will have been set.
   const onnx::TypeProto *FindTypeProtoForName(std::string_view name);
 
-  Dict<std::string_view, const onnx::ValueInfoProto &> &input_map() {
+  Dict<std::string_view, const onnx::ValueInfoProto &> &GetInputMap() {
     return input_map_;
   }
   const Dict<std::string_view, const onnx::ValueInfoProto &> &
-  input_map() const {
+  GetInputMap() const {
     return input_map_;
   }
 
-  Dict<std::string_view, const onnx::ValueInfoProto &> &output_map() {
+  Dict<std::string_view, const onnx::ValueInfoProto &> &GetOutputMap() {
     return output_map_;
   }
   const Dict<std::string_view, const onnx::ValueInfoProto &> &
-  output_map() const {
+  GetOutputMap() const {
     return output_map_;
   }
 
-  void initializer_map_emplace(const std::string_view &name,
-                               const onnx::TensorProto &tp);
-  const InitializerMapT &initializer_map() const { return initializer_map_; }
+  void InitializerMapEmplace(const std::string_view &name,
+                             const onnx::TensorProto &tp);
+  const InitializerMapT &GetInitializerMap() const { return initializer_map_; }
 
 private:
   ModelInfo &model_info_;
@@ -145,16 +145,16 @@ private:
 /// Top-level accounting and accessors for an ONNX model.
 class ModelInfo {
 public:
-  ModelInfo(onnx::ModelProto &&model_proto, const Config &config)
-      : config_(config), model_proto_(std::move(model_proto)) {}
-  Config &config() { return config_; }
-  onnx::ModelProto &model_proto() { return model_proto_; }
+  ModelInfo(onnx::ModelProto &&modelProto, const Config &config)
+      : config_(config), model_proto_(std::move(modelProto)) {}
+  Config &GetConfig() { return config_; }
+  onnx::ModelProto &GetModelProto() { return model_proto_; }
 
   /// Post-construction, failable initialization.
   [[nodiscard]] Status Initialize();
 
-  GraphInfo &main_graph() { return *main_graph_; }
-  const std::string &error_message() { return error_message_; }
+  GraphInfo &GetMainGraph() { return *main_graph_; }
+  const std::string &GetErrorMessage() { return error_message_; }
 
   Status SetError(std::string msg) {
     error_message_ = std::move(msg);
@@ -174,19 +174,17 @@ private:
 /// Caches per-context lookups of various things.
 class ContextCache {
 public:
-  ContextCache(ModelInfo &model_info, MlirContext context)
-      : model_info_(model_info), context_(context) {}
-
-  MlirContext context() { return context_; }
+  ContextCache(ModelInfo &modelInfo, MlirContext context)
+      : model_info_(modelInfo), context_(context) {}
 
   /// Converts the ONNX element type code to an MlirType, returning a null type
   /// and setting an error if not possible.
-  MlirType ConvertTensorElementType(int element_type_code);
+  MlirType ConvertTensorElementType(int elemTypeCode);
 
   MlirType GetNoneType();
 
-  MlirType GetListType(const std::string &element_type_asm);
-  MlirType GetOptionalType(const std::string &element_type_asm);
+  MlirType GetListType(const std::string &elemTypeAsm);
+  MlirType GetOptionalType(const std::string &elemTypeAsm);
 
   FailureOr<std::string> GetListElementTypeAsm(const onnx::TypeProto &tp);
   FailureOr<std::string> GetOptionalElementTypeAsm(const onnx::TypeProto &tp);
@@ -195,8 +193,7 @@ public:
   /// Dynamic dims are represented as -1.
   /// If it was not possible to create the type, sets an error and returns
   /// the null type.
-  MlirType GetVtensorType(const std::vector<int64_t> &dims,
-                          MlirType element_type);
+  MlirType GetVtensorType(const std::vector<int64_t> &dims, MlirType elemType);
 
   /// Converts the ONNX TensorProto to a !torch.vtensor type.
   MlirType ConvertTensorProtoToVtensorType(const onnx::TensorProto &tp);
@@ -234,16 +231,17 @@ private:
 
 class ModuleCache {
 public:
-  ModuleCache(MlirOperation module_op, ContextCache &cc)
-      : cc_(cc), m_(module_op) {};
+  ModuleCache(MlirOperation moduleOp, ContextCache &cc)
+      : cc_(cc), m_(moduleOp) {};
 
   /// Get or create the MLIR function corresponding to an ONNX operator.
   /// Returns failure for ONNX operators that aren't functions.
-  FailureOr<std::optional<MlirOperation>> GetOperatorFunction(
-      std::string_view op_name, std::string_view op_domain, int opset_version,
-      int ir_version, std::span<const onnx::TypeProto *const> input_type_protos,
-      std::span<const onnx::TypeProto *const> output_type_protos,
-      const onnx::NodeProto &caller_node, const Config &config);
+  FailureOr<std::optional<MlirOperation>>
+  GetOperatorFunction(std::string_view opName, std::string_view opDomain,
+                      int opsetVersion, int irVersion,
+                      std::span<const onnx::TypeProto *const> inputTypeProtos,
+                      std::span<const onnx::TypeProto *const> outputTypeProtos,
+                      const onnx::NodeProto &callerNode, const Config &config);
 
 private:
   ContextCache &cc_;
@@ -265,7 +263,7 @@ public:
                ContextCache &cc, MlirOperation moduleOp,
                ModuleCache &moduleCache);
 
-  MlirOperation &ParentOp() { return parent_op_; }
+  MlirOperation &GetParentOp() { return parent_op_; }
 
   /// Called after construction to define the function in the module. Must be
   /// called prior to importing nodes.
@@ -280,10 +278,10 @@ public:
   void WriteModule(std::ostream *stream, bool assumeVerified);
 
 private:
-  void PopulateGraphAttrs(MlirOperation container_op);
+  void PopulateGraphAttrs(MlirOperation containerOp);
   [[nodiscard]] Status
   ImportInitializer(const onnx::TensorProto &initializer,
-                    std::optional<std::string_view> extern_name = std::nullopt);
+                    std::optional<std::string_view> externName = std::nullopt);
   [[nodiscard]] Status ImportNode(const onnx::NodeProto &node);
   [[nodiscard]] FailureOr<std::vector<std::pair<std::string, MlirAttribute>>>
   ImportGeneralAttributes(const onnx::AttrList &attrs);
@@ -292,15 +290,14 @@ private:
   [[nodiscard]] Status ImportGeneralNode(const onnx::NodeProto &node);
   [[nodiscard]] Status ImportConstantNodeValueAttr(const onnx::NodeProto &node);
 
-  [[nodiscard]] Status
-  ImportRegions(const google::protobuf::RepeatedPtrField<onnx::AttributeProto>
-                    &onnx_attrs,
-                MlirOperation op);
+  [[nodiscard]] Status ImportRegions(
+      const google::protobuf::RepeatedPtrField<onnx::AttributeProto> &onnxAttrs,
+      MlirOperation op);
 
   [[nodiscard]] MlirValue GetNone();
 
   Status SetError(std::string msg) {
-    return graph_info_.model_info().SetError(std::move(msg));
+    return graph_info_.GetModelInfo().SetError(std::move(msg));
   }
 
   const onnx::TypeProto *GetEmptyTypeProto() const {
@@ -321,7 +318,7 @@ private:
 class OnnxImporter {
 public:
   static Status Import(onnx::ModelProto &&modelProto,
-                       std::ostream *output_stream,
+                       std::ostream *outputStream,
                        const Config config = Config());
 
 protected:

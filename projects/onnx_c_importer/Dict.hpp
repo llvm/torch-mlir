@@ -1,12 +1,21 @@
-#pragma once
+//===------------------------------------------------------------*- C++ -*-===//
+//
+// This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Also available under a BSD-style license. See LICENSE.
+//
+//===----------------------------------------------------------------------===//
 
 /// (almost) STL-compatible container that implements an associative map
-/// iteratable according to insertion order. Mimicks Python Dict. Rationale: to
-/// ease testing of the C++ importer against Python onnx_importer we need to
-/// compare text outputs. MLIR values corresponding to tensors might be written
-/// in different (compatible) orders due to differences in iteration order
-/// between C++ STL unordered_map and Python Dict. Therefore we adopt the
+/// iteratable according to insertion order. Mimicks Python Dict.
+/// Rationale: to ease testing of the C++ importer against onnx_importer.py we
+/// need to compare text outputs. MLIR values corresponding to tensors might be
+/// written in different (compatible) orders due to differences in iteration
+/// order between C++ STL unordered_map and Python Dict. Therefore we adopt the
 /// insertion order here as well.
+
+#pragma once
 
 #include <unordered_map>
 #include <vector>

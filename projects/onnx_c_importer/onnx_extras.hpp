@@ -1,13 +1,24 @@
+//===------------------------------------------------------------*- C++ -*-===//
+//
+// This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Also available under a BSD-style license. See LICENSE.
+//
+//===----------------------------------------------------------------------===//
+
 #pragma once
 
 #include "onnx/common/file_utils.h"
 #include "onnx/onnx_pb.h"
 
-#include "status.hpp"
+#include "Status.hpp"
 
 #include <optional>
 
 namespace fs = std::filesystem;
+
+namespace torch_mlir_onnx {
 
 struct ExternalDataInfo {
   std::string location = "";
@@ -51,10 +62,10 @@ struct ExternalDataInfo {
 /// Loads data from an external file for tensor. Ideally TensorProto should
 /// not hold any raw data but if it does it will be ignored.
 Status loadExternalDataForTensor(onnx::TensorProto &tp,
-                                 const fs::path &base_dir) {
+                                 const fs::path &baseDir) {
   ExternalDataInfo edi = ExternalDataInfo::FromTensorProto(tp);
   std::string externalDataFilePath =
-      onnx::checker::resolve_external_data_location(base_dir.generic_string(),
+      onnx::checker::resolve_external_data_location(baseDir.generic_string(),
                                                     edi.location, tp.name());
   std::ifstream inputStream(externalDataFilePath,
                             std::ios::in | std::ios::binary);
@@ -76,10 +87,10 @@ Status loadExternalDataForTensor(onnx::TensorProto &tp,
   if (edi.length) {
     length = *edi.length;
   }
-  std::string *string_ptr = tp.mutable_raw_data();
+  std::string *strPtr = tp.mutable_raw_data();
   // NOTE: could be optimizated using c++23's std::string::resize_and_overwrite
-  string_ptr->resize(length); // unfortunately default-inizializes bytes to '/0'
-  inputStream.read(string_ptr->data(), length);
+  strPtr->resize(length); // unfortunately default-inizializes bytes to '/0'
+  inputStream.read(strPtr->data(), length);
 
   return success;
 }
@@ -119,13 +130,12 @@ bool usesExternalData(const onnx::TensorProto &tp) {
 /// Loads external tensors into the model
 ///     Arguments:
 ///        model: ModelProto to load external data to
-///         base_dir: directory that contains external data
-Status loadExternalDataForModel(onnx::ModelProto &mp,
-                                const fs::path &base_dir) {
+///         baseDir: directory that contains external data
+Status loadExternalDataForModel(onnx::ModelProto &mp, const fs::path &baseDir) {
   Status s = success;
-  forEachTensor(mp, [&base_dir, &s](onnx::TensorProto &tp) {
+  forEachTensor(mp, [&baseDir, &s](onnx::TensorProto &tp) {
     if (usesExternalData(tp)) {
-      if (failed(loadExternalDataForTensor(tp, base_dir))) {
+      if (failed(loadExternalDataForTensor(tp, baseDir))) {
         s = failure;
         return;
       }
@@ -137,3 +147,5 @@ Status loadExternalDataForModel(onnx::ModelProto &mp,
   });
   return s;
 }
+
+} // namespace torch_mlir_onnx

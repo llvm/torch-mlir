@@ -1,4 +1,14 @@
-// TODO: license
+//===------------------------------------------------------------*- C++ -*-===//
+//
+// This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Also available under a BSD-style license. See LICENSE.
+//
+//===----------------------------------------------------------------------===//
+
+// Minimal argument parser to avoid depending on LLVM support lib.
+
 #pragma once
 
 #include <iostream>
@@ -9,16 +19,16 @@
 
 namespace torch_mlir_onnx {
 
-struct PositionalArg {
+struct positional_tag {
   constexpr static bool value = true;
 };
-struct OptionalArg {
+struct optional_tag {
   constexpr static bool value = false;
 };
 
 class base_arg {
 public:
-  virtual bool parse(std::span<char *>::iterator &args_it,
+  virtual bool Parse(std::span<char *>::iterator &args_it,
                      const std::span<char *>::iterator end) = 0;
   virtual ~base_arg() {};
   virtual void PrintUsage() const = 0;
@@ -47,7 +57,7 @@ public:
     for (; args_it != end && (*args_it)[0] == '-';
          args_it = std::next(args_it)) {
       if (optionals_.count(std::string_view(*args_it))) {
-        if (!(optionals_[std::string_view(*args_it)])->parse(args_it, end))
+        if (!(optionals_[std::string_view(*args_it)])->Parse(args_it, end))
           return false;
       } else {
         std::cerr << "Unknown argument: " << *args_it << "\n";
@@ -63,7 +73,7 @@ public:
         return false;
       }
 
-      if (!p->parse(args_it, end))
+      if (!p->Parse(args_it, end))
         return false;
 
       args_it = std::next(args_it);
@@ -122,7 +132,7 @@ private:
     }
   }
 
-  virtual bool parse(std::span<char *>::iterator &args_it,
+  virtual bool Parse(std::span<char *>::iterator &args_it,
                      const std::span<char *>::iterator end) override {
     if (args_it == end)
       return false;

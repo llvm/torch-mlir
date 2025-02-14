@@ -1,6 +1,17 @@
+//===------------------------------------------------------------*- C++ -*-===//
+//
+// This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Also available under a BSD-style license. See LICENSE.
+//
+//===----------------------------------------------------------------------===//
+
 #pragma once
 
 #include <optional>
+
+namespace torch_mlir_onnx {
 
 /// A light-weight status. It only encapsulates success/failure.
 /// Full error information will be set on the ModelInfo.
@@ -61,3 +72,5 @@ private:
   using std::optional<T>::operator bool;
   using std::optional<T>::has_value;
 };
+
+} // namespace torch_mlir_onnx

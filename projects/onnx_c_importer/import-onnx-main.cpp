@@ -26,46 +26,46 @@
 
 using namespace torch_mlir_onnx;
 
-static arg<PositionalArg, std::string> inputFilenameArg("ONNX protobuf input",
-                                                        "<input file>");
+static arg<positional_tag, std::string> inputFilenameArg("ONNX protobuf input",
+                                                         "<input file>");
 
-static arg<OptionalArg, std::string>
+static arg<optional_tag, std::string>
     outputFilenameArg("Output path (or '-' for stdout)", "-o", "-", "filename");
 
-static arg<OptionalArg, bool>
+static arg<optional_tag, bool>
     noVerifyArg("Disable verification prior to printing", "--no-verify", false);
 
-static arg<OptionalArg, bool>
+static arg<optional_tag, bool>
     dataPropArg("Toggle data propogation for onnx shape inference",
                 "--data-prop", true);
 
-static arg<OptionalArg, bool> clearDomainArg(
+static arg<optional_tag, bool> clearDomainArg(
     "If enabled, this will clear the domain attribute from each node"
     " in the onnx graph before performing shape inference.",
     "--clear-domain", false);
 
-static arg<OptionalArg, bool> keepTempsArg("Keep intermediate files",
-                                           "--keep-temps", false);
+static arg<optional_tag, bool> keepTempsArg("Keep intermediate files",
+                                            "--keep-temps", false);
 
-static arg<OptionalArg, std::string> tempDirArg(
+static arg<optional_tag, std::string> tempDirArg(
     "Pre-existing directory in which to create temporary files."
     " For example, to place temporaries under the directory \"foo/bar\""
     " specify --temp-dir=foo/bar.  \"foo/bar\" must already exist."
     " Defaults to the directory of the input file.",
     "--temp-dir", "-", "directory");
 
-static arg<OptionalArg, std::optional<int>> opsetVersionArg(
+static arg<optional_tag, std::optional<int>> opsetVersionArg(
     "Allows specification of a newer opset_version to update the model"
     " to before importing to MLIR. This can sometime assist with shape "
     "inference.",
     "--opset-version");
 
-static arg<OptionalArg, bool> disableFunctionExpansionAllowlistArg(
+static arg<optional_tag, bool> disableFunctionExpansionAllowlistArg(
     "Disable the allowlist for ONNX function expansion,"
     " allowing non-allowlisted functions to be expanded.",
     "--disable-function-expansion-allowlist", false);
 
-// TODO: add -data-dir ?
+// NOTE: onnx_importer.py -data-dir argument is not used in tests
 
 FailureOr<onnx::ModelProto> loadOnnxModel() {
 
@@ -80,9 +80,9 @@ FailureOr<onnx::ModelProto> loadOnnxModel() {
   // effect of infering shapes.  For now, the only file is a new .onnx holding
   // the revised model with shapes.
   //
-  // TODO: If the program temp_dir is None, we should be using an ephemeral
-  // temp directory instead of a hard-coded path in order to avoid data races
-  // by default.
+  // NOTE: TODO from onnx_importer.py: If the program temp_dir is None, we
+  // should be using an ephemeral temp directory instead of a hard-coded path in
+  // order to avoid data races by default.
   fs::path inputFile(*inputFilenameArg);
   if (!fs::exists(inputFile) || fs::is_directory(inputFile)) {
     std::cerr << "Invalid input file path: " << *inputFilenameArg << "\n";
