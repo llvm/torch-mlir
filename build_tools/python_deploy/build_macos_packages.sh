@@ -59,7 +59,7 @@ function run() {
         torch-mlir-ext)
           clean_wheels torch_mlir_ext "$python_version"
           build_torch_mlir_ext torch_mlir_ext "$python_version"
-          run_audit_wheel torch_mlir_ext "$python_version"
+          run_audit_wheel_ext torch_mlir_ext "$python_version"
           ;;
         torch-mlir)
           clean_wheels torch_mlir "$python_version"
@@ -120,7 +120,7 @@ function clean_wheels() {
   rm -f "$output_dir"/"${wheel_basename}"-*-"${python_version//./}"-*.whl
 }
 
-function run_audit_wheel() {
+function run_audit_wheel_ext() {
   set +x
   local wheel_basename="$1"
   local python_version="$2"
@@ -135,6 +135,26 @@ function run_audit_wheel() {
     python"${python_version}" -m pip install -r "$repo_root"/pytorch-requirements.txt --extra-index-url https://download.pytorch.org/whl/nightly/cpu
     python"${python_version}" -m pip install -r "$repo_root"/build-requirements.txt
     python"${python_version}" -m pip install "$generic_wheel" --extra-index-url https://download.pytorch.org/whl/nightly/cpu
+    DYLD_LIBRARY_PATH="$output_dir"/test_venv/lib/python"${python_version}"/site-packages/torch/lib delocate-wheel -v "$generic_wheel"
+    deactivate
+    rm -rf "$output_dir"/test_venv
+  fi
+}
+
+function run_audit_wheel() {
+  set +x
+  local wheel_basename="$1"
+  local python_version="$2"
+  generic_wheel=$(ls "$output_dir"/"${wheel_basename}"-* | grep "${python_version//./}")
+  echo "Looking for $generic_wheel"
+  if [ -f "$generic_wheel" ]; then
+    echo "$generic_wheel found. Delocating it.."
+    rm -rf "$output_dir"/test_venv
+    python"${python_version}" -m venv "$output_dir"/test_venv
+    source "$output_dir"/test_venv/bin/activate
+    python"${python_version}" -m pip install -U pip
+    python"${python_version}" -m pip install -r "$repo_root"/build-requirements.txt
+    python"${python_version}" -m pip install "$generic_wheel"
     DYLD_LIBRARY_PATH="$output_dir"/test_venv/lib/python"${python_version}"/site-packages/torch/lib delocate-wheel -v "$generic_wheel"
     deactivate
     rm -rf "$output_dir"/test_venv
