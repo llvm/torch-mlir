@@ -40,8 +40,7 @@ runs:
     - name: Install PyTorch nightly depends
       if: ${{ runner.os != 'Linux' }}
       run: |
-        python -m pip install -r pytorch-requirements.txt
-        python -m pip install -r build-requirements.txt
+        python -m pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
       shell: bash
 
     - name: Install prerequisites (Linux)
