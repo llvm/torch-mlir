@@ -114,7 +114,11 @@ FailureOr<onnx::ModelProto> loadOnnxModel() {
 
   if ((*opsetVersionArg).has_value()) {
     // see `convert_version` in onnx/cpp2py_export.cc
-    onnx::shape_inference::InferShapes(mp);
+    try {
+      onnx::shape_inference::InferShapes(mp);
+    } catch (const onnx::InferenceError &e) {
+      std::cerr << e.what() << "\n";
+    }
     mp = onnx::version_conversion::ConvertVersion(mp, **opsetVersionArg);
   }
 
@@ -133,8 +137,12 @@ FailureOr<onnx::ModelProto> loadOnnxModel() {
   // Check whether serialized size is within threshold for in-memory shape
   // inference
   if (mp.ByteSizeLong() <= MAXIMUM_PROTOBUF) {
-    onnx::shape_inference::InferShapes(mp, onnx::OpSchemaRegistry::Instance(),
-                                       opts);
+    try {
+      onnx::shape_inference::InferShapes(mp, onnx::OpSchemaRegistry::Instance(),
+                                         opts);
+    } catch (const onnx::InferenceError &e) {
+      std::cerr << e.what() << "\n";
+    }
   } else {
     // Model is too big for in-memory inference: do file-based shape inference
     // to a temp file.
