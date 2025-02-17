@@ -34,7 +34,8 @@ TORCH_MLIR_DIR = Path(__file__).resolve().parent.parent
 try:
     from yaml import CSafeLoader as Loader
 except ImportError:
-    from yaml import SafeLoader as Loader #type:ignore[assignment, misc]
+    from yaml import SafeLoader as Loader  # type:ignore[assignment, misc]
+
 
 def reindent(text, prefix=""):
     return indent(dedent(text), prefix)

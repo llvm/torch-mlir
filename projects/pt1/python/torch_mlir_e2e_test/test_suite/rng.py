@@ -196,7 +196,7 @@ class ExponentialModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ExponentialModule())
 def ExponentialModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(512, 512, 16).double())
+    module.forward(tu.rand(1024, 1024, 16).double())
 
 
 # ==============================================================================
