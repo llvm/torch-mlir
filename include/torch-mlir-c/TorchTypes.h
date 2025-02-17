@@ -260,7 +260,7 @@ torchMlirTorchNonValueTensorTypeGetWithLeastStaticInformation(
 MLIR_CAPI_EXPORTED MlirType
 torchMlirTorchNonValueTensorTypeGetFromAttribute(MlirAttribute attr);
 
-/// Gets the the rank (number of dimensions) of a !torch.tensor
+/// Gets the rank (number of dimensions) of a !torch.tensor
 MLIR_CAPI_EXPORTED int64_t torchMlirTorchNonValueTensorTypeGetRank(MlirType t);
 
 /// Return true if this type has a list of sizes.
@@ -269,12 +269,12 @@ MLIR_CAPI_EXPORTED bool torchMlirTorchNonValueTensorTypeHasSizes(MlirType t);
 /// Return true if this type has a dtype.
 MLIR_CAPI_EXPORTED bool torchMlirTorchNonValueTensorTypeHasDtype(MlirType t);
 
-/// Gets the the sizes of the dimensions of a !torch.tensor; note -1 size
+/// Gets the sizes of the dimensions of a !torch.tensor; note -1 size
 /// indicates an unrefined/unknown size dimension.
 MLIR_CAPI_EXPORTED int64_t
 torchMlirTorchNonValueTensorTypeGetSizes(MlirType t, int64_t *sizes);
 
-/// Gets the the dtype (data type) of a !torch.tensor.
+/// Gets the dtype (data type) of a !torch.tensor.
 MLIR_CAPI_EXPORTED MlirType
 torchMlirTorchNonValueTensorTypeGetDtype(MlirType t);
 
@@ -307,7 +307,7 @@ torchMlirTorchValueTensorTypeGetWithLeastStaticInformation(MlirContext context);
 MLIR_CAPI_EXPORTED MlirType
 torchMlirTorchValueTensorTypeGetFromAttribute(MlirAttribute attr);
 
-/// Gets the the rank (number of dimensions) of a !torch.vtensor
+/// Gets the rank (number of dimensions) of a !torch.vtensor
 MLIR_CAPI_EXPORTED int64_t torchMlirTorchValueTensorTypeGetRank(MlirType t);
 
 /// Return true if this type has a list of sizes.
@@ -316,12 +316,12 @@ MLIR_CAPI_EXPORTED bool torchMlirTorchValueTensorTypeHasSizes(MlirType t);
 /// Return true if this type has a dtype.
 MLIR_CAPI_EXPORTED bool torchMlirTorchValueTensorTypeHasDtype(MlirType t);
 
-/// Gets the the sizes of the dimensions of a !torch.vtensor; note -1 size
+/// Gets the sizes of the dimensions of a !torch.vtensor; note -1 size
 /// indicates an unrefined/unknown size dimension.
 MLIR_CAPI_EXPORTED int64_t
 torchMlirTorchValueTensorTypeGetSizes(MlirType t, int64_t *sizes);
 
-/// Gets the the dtype (data type) of a !torch.vtensor.
+/// Gets the dtype (data type) of a !torch.vtensor.
 MLIR_CAPI_EXPORTED MlirType torchMlirTorchValueTensorTypeGetDtype(MlirType t);
 
 /// Gets the !torch.vtensor typeid.
