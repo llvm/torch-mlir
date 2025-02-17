@@ -13704,7 +13704,7 @@ def Torch_AtenStftOp : Torch_Op<"aten.stft", [
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::stft : (Tensor, int, int?, int?, Tensor?, bool, bool?, bool?) -> (Tensor)`";
+  let summary = "Generated op for `aten::stft : (Tensor, int, int?, int?, Tensor?, bool, bool?, bool?, bool?) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
     Torch_IntType:$n_fft,
@@ -13713,7 +13713,8 @@ def Torch_AtenStftOp : Torch_Op<"aten.stft", [
     AnyTorchOptionalTensorType:$window,
     Torch_BoolType:$normalized,
     AnyTorchOptionalBoolType:$onesided,
-    AnyTorchOptionalBoolType:$return_complex
+    AnyTorchOptionalBoolType:$return_complex,
+    AnyTorchOptionalBoolType:$align_to_window
   );
   let results = (outs
     AnyTorchOptionalTensorType:$result
@@ -13721,10 +13722,10 @@ def Torch_AtenStftOp : Torch_Op<"aten.stft", [
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
     ParseResult AtenStftOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 8, 1);
+      return parseDefaultTorchOp(parser, result, 9, 1);
     }
     void AtenStftOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 8, 1);
+      printDefaultTorchOp(printer, *this, 9, 1);
     }
   }];
 }
