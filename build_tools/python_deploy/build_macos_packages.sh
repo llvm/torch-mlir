@@ -23,6 +23,22 @@ repo_root="$(cd "$this_dir"/../../ && pwd)"
 python_versions="${TORCH_MLIR_PYTHON_VERSIONS:-3.9 3.10 3.11}"
 output_dir="${output_dir:-${this_dir}/wheelhouse}"
 packages="${packages:-torch-mlir}"
+cache_dir="${cache_dir:-}"
+
+# Setup cache dir.
+if [ -z "${cache_dir}" ]; then
+  cache_dir="${repo_root}/.build-cache"
+  mkdir -p "${cache_dir}"
+  cache_dir="$(cd ${cache_dir} && pwd)"
+fi
+echo "Caching to ${cache_dir}"
+mkdir -p "${cache_dir}/ccache"
+mkdir -p "${cache_dir}/pip"
+
+export CCACHE_DIR="${cache_dir}/ccache"
+export CCACHE_MAXSIZE="350M"
+export CMAKE_C_COMPILER_LAUNCHER=ccache
+export CMAKE_CXX_COMPILER_LAUNCHER=ccache
 
 PKG_VER_FILE="${repo_root}"/torch_mlir_package_version ; [ -f "$PKG_VER_FILE" ] && . "$PKG_VER_FILE"
 export TORCH_MLIR_PYTHON_PACKAGE_VERSION="${TORCH_MLIR_PYTHON_PACKAGE_VERSION:-0.0.1}"
