@@ -1439,7 +1439,7 @@ def Torch_OnnxVariantRotaryEmbeddingOp: Torch_Op<"onnx.rotary_embedding", [
   let results = (outs
     AnyTorchTensorType:$result
   );
-  let assemblyFormat = "$input `,` $position_ids `,` $cos_cache `,` $sin_cache `,` $interleaved `,` $is_packed_batching `,` $num_heads `,` $rotary_embedding_dim `,` $scale attr-dict `:` type($input) `,` type($position_ids) `,` type($cos_cache) `,` type($sin_cache)  `,` type($interleaved)  `,` type($is_packed_batching)  `,` type($num_heads)  `,` type($rotary_embedding_dim)  `,` type($scale) `->` type($result)";
+  let hasCustomAssemblyFormat = 1;
 }
 
 #endif // TORCH_OPS

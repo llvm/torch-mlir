@@ -472,6 +472,7 @@ private:
 
 // Patterns are split into chunks to speed compile time and reduce some
 // contention on the same source files.
+void populateComMicrosoftDomain(OnnxCustomOpConversionPattern &patterns);
 void populateDefaultDomainAtoF(OnnxCustomOpConversionPattern &patterns);
 void populateDefaultDomainGtoP(OnnxCustomOpConversionPattern &patterns);
 void populateDefaultDomainQtoZ(OnnxCustomOpConversionPattern &patterns);

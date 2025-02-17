@@ -6013,3 +6013,30 @@ LogicalResult AtenRot90Op::verify() {
 
   return success();
 }
+
+//===----------------------------------------------------------------------===//
+// OnnxVariantRotaryEmbeddingOp
+//===----------------------------------------------------------------------===//
+
+ParseResult OnnxVariantRotaryEmbeddingOp::parse(OpAsmParser &parser,
+                                                OperationState &result) {
+  SmallVector<OpAsmParser::UnresolvedOperand> operands;
+  SmallVector<Type> operandTypes;
+
+  if (parser.parseOperandList(operands, /*requiredOperandCount=*/9) ||
+      parser.parseColonTypeList(operandTypes)) {
+    return failure();
+  }
+
+  if (parser.resolveOperands(operands, operandTypes,
+                             parser.getCurrentLocation(), result.operands)) {
+    return failure();
+  }
+
+  return success();
+}
+
+void OnnxVariantRotaryEmbeddingOp::print(OpAsmPrinter &p) {
+  p << " " << getOperands() << " : " << getOperandTypes() << " -> "
+    << getResult().getType();
+}

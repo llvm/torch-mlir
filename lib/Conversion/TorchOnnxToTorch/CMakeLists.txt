@@ -1,4 +1,5 @@
 add_mlir_conversion_library(TorchMLIRTorchOnnxToTorch
+    ComMicrosoftDomain.cpp
     DefaultDomainAtoF.cpp
     DefaultDomainGtoP.cpp
     DefaultDomainQtoZ.cpp
