@@ -2,9 +2,10 @@
 
 // CHECK-LABEL:   func.func @torch.aten.mul.Scalar$mixed_type(
 // CHECK-SAME:                                                %[[VAL_0:.*]]: tensor<5xbf16>) -> tensor<5xbf16> {
-// CHECK:           %[[VAL_1:.*]] = "tosa.const"() <{value = dense<2.000000e+00> : tensor<1xbf16>}> : () -> tensor<1xbf16>
-// CHECK:           %[[VAL_2:.*]] = tosa.mul %[[VAL_0]], %[[VAL_1]] {shift = 0 : i8} : (tensor<5xbf16>, tensor<1xbf16>) -> tensor<5xbf16>
-// CHECK:           return %[[VAL_2]] : tensor<5xbf16>
+// CHECK:           %[[VAL_1:.*]] = "tosa.const"() <{value = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+// CHECK:           %[[VAL_2:.*]] = "tosa.const"() <{value = dense<2.000000e+00> : tensor<1xbf16>}> : () -> tensor<1xbf16>
+// CHECK:           %[[VAL_3:.*]] = tosa.mul %[[VAL_0]], %[[VAL_2]], %[[VAL_1]] : (tensor<5xbf16>, tensor<1xbf16>, tensor<1xi8>) -> tensor<5xbf16>
+// CHECK:           return %[[VAL_3]] : tensor<5xbf16>
 // CHECK:         }
 func.func @torch.aten.mul.Scalar$mixed_type(%arg0: !torch.vtensor<[5],bf16>) -> !torch.vtensor<[5],bf16> {
   %float2.000000e00 = torch.constant.float 2.000000e+00
@@ -93,10 +94,11 @@ func.func @torch.aten.bitwise_and.Tensor$mixed_type(%arg0: !torch.vtensor<[?,?],
 // CHECK-LABEL:   func.func @torch.aten.div.Tensor$mixed_type_fp(
 // CHECK-SAME:                                                   %[[VAL_0:.*]]: tensor<?x?xf32>,
 // CHECK-SAME:                                                   %[[VAL_1:.*]]: tensor<?x?xi32>) -> tensor<?x?xf32> {
-// CHECK:           %[[VAL_2:.*]] = tosa.cast %[[VAL_1]] : (tensor<?x?xi32>) -> tensor<?x?xf32>
-// CHECK:           %[[VAL_3:.*]] = tosa.reciprocal %[[VAL_2]] : (tensor<?x?xf32>) -> tensor<?x?xf32>
-// CHECK:           %[[VAL_4:.*]] = tosa.mul %[[VAL_0]], %[[VAL_3]] {shift = 0 : i8} : (tensor<?x?xf32>, tensor<?x?xf32>) -> tensor<?x?xf32>
-// CHECK:           return %[[VAL_4]] : tensor<?x?xf32>
+// CHECK:           %[[VAL_2:.*]] = "tosa.const"() <{value = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+// CHECK:           %[[VAL_3:.*]] = tosa.cast %[[VAL_1]] : (tensor<?x?xi32>) -> tensor<?x?xf32>
+// CHECK:           %[[VAL_4:.*]] = tosa.reciprocal %[[VAL_3]] : (tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:           %[[VAL_5:.*]] = tosa.mul %[[VAL_0]], %[[VAL_4]], %[[VAL_2]] : (tensor<?x?xf32>, tensor<?x?xf32>, tensor<1xi8>) -> tensor<?x?xf32>
+// CHECK:           return %[[VAL_5]] : tensor<?x?xf32>
 // CHECK:         }
 func.func @torch.aten.div.Tensor$mixed_type_fp(%arg0: !torch.vtensor<[?, ?],f32>, %arg1: !torch.vtensor<[?, ?],si32>) -> !torch.vtensor<[?, ?],f32> {
   %0 = torch.aten.div.Tensor %arg0, %arg1 : !torch.vtensor<[?, ?],f32>, !torch.vtensor<[?, ?],si32> -> !torch.vtensor<[?, ?],f32>

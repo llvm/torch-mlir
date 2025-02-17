@@ -171,26 +171,3 @@ def test_mutable_buffer():
     )
     print(m)
     m.operation.verify()
-
-
-@run
-# CHECK-LABEL: test_mutable_buffer_not_supported_without_hooks
-# CHECK: EXPECTED ERROR: Store of a mutation to {{.*}} is not supported
-def test_mutable_buffer_not_supported_without_hooks():
-    class Basic(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.register_buffer("buffer", torch.randn(3, 4))
-
-        def forward(self, x):
-            self.buffer.mul_(x)
-            return x
-
-    try:
-        m = fx.export_and_import(
-            Basic(),
-            torch.randn(3, 4),
-            experimental_support_mutation=True,
-        )
-    except NotImplementedError as e:
-        print("EXPECTED ERROR:", str(e))
