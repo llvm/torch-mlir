@@ -231,6 +231,56 @@ func.func @torch.aten.fft_rfft$2d_first_dim(%arg0: !torch.vtensor<[36,23],f32>) 
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.sym_constrain_range_for_size(
+// CHECK-SAME:                                                       %[[VAL_0:.*]]: !torch.int) -> !torch.int {
+// CHECK:           %[[VAL_1:.*]] = torch.constant.int 7
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_3:.*]] = torch.constant.none
+// CHECK:           torch.aten.sym_constrain_range %[[VAL_0]], %[[VAL_2]], %[[VAL_3]] : !torch.int, !torch.int, !torch.none
+// CHECK:           torch.aten.sym_constrain_range %[[VAL_0]], %[[VAL_2]], %[[VAL_1]] : !torch.int, !torch.int, !torch.int
+// CHECK:           return %[[VAL_0]] : !torch.int
+// CHECK:         }
+func.func @torch.aten.sym_constrain_range_for_size(%arg0: !torch.int) -> !torch.int {
+  %int7 = torch.constant.int 7
+  %int0 = torch.constant.int 0
+  %none = torch.constant.none
+  torch.aten.sym_constrain_range_for_size %arg0, %none, %none : !torch.int, !torch.none, !torch.none
+  torch.aten.sym_constrain_range_for_size %arg0, %int0, %int7 : !torch.int, !torch.int, !torch.int
+  return %arg0 : !torch.int
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten._assert_scalar(
+// CHECK-SAME:                                         %[[VAL_0:.*]]: !torch.int) -> !torch.int {
+// CHECK:           %[[VAL_1:.*]] = torch.constant.int 2
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 3
+// CHECK:           %[[VAL_3:.*]] = torch.aten.ge.int %[[VAL_0]], %[[VAL_2]] : !torch.int, !torch.int -> !torch.bool
+// CHECK:           %[[VAL_4:.*]] = torch.aten.Int.bool %[[VAL_3]] : !torch.bool -> !torch.int
+// CHECK:           %[[VAL_5:.*]] = torch.aten.Bool.int %[[VAL_4]] : !torch.int -> !torch.bool
+// CHECK:           torch.runtime.assert %[[VAL_5]], "Runtime assertion failed for expression u0 >= 3 on node 'ge_1'"
+// CHECK:           %[[VAL_6:.*]] = torch.aten.gt.int %[[VAL_0]], %[[VAL_1]] : !torch.int, !torch.int -> !torch.bool
+// CHECK:           %[[VAL_7:.*]] = torch.aten.Int.bool %[[VAL_6]] : !torch.bool -> !torch.int
+// CHECK:           %[[VAL_8:.*]] = torch.aten.Bool.int %[[VAL_7]] : !torch.int -> !torch.bool
+// CHECK:           torch.runtime.assert %[[VAL_8]], "Runtime assertion failed for expression 2 < u0 on node 'gt_1'"
+// CHECK:           return %[[VAL_0]] : !torch.int
+// CHECK:         }
+func.func @torch.aten._assert_scalar(%arg0: !torch.int) -> !torch.int {
+  %str = torch.constant.str "Runtime assertion failed for expression 2 < u0 on node 'gt_1'"
+  %int2 = torch.constant.int 2
+  %str_0 = torch.constant.str "Runtime assertion failed for expression u0 >= 3 on node 'ge_1'"
+  %int3 = torch.constant.int 3
+  %0 = torch.aten.ge.int %arg0, %int3 : !torch.int, !torch.int -> !torch.bool
+  %1 = torch.aten.Int.bool %0 : !torch.bool -> !torch.int
+  torch.aten._assert_scalar %1, %str_0 : !torch.int, !torch.str
+  %2 = torch.aten.gt.int %arg0, %int2 : !torch.int, !torch.int -> !torch.bool
+  %3 = torch.aten.Int.bool %2 : !torch.bool -> !torch.int
+  torch.aten._assert_scalar %3, %str : !torch.int, !torch.str
+  return %arg0 : !torch.int
+}
+
+// -----
+
 
 // CHECK-LABEL:   func.func @torch.aten.stft.center_1D(
 // CHECK-SAME:           %arg0: !torch.vtensor<[40],f32>, %arg1: !torch.vtensor<[4],f32>) -> !torch.vtensor<[3,37],complex<f32>> {
@@ -272,7 +322,7 @@ func.func @torch.aten.stft.center_1D(%arg0: !torch.vtensor<[40],f32>, %arg1: !to
   %winlen = torch.constant.int 4
   %cstfalse = torch.constant.bool false
   %csttrue = torch.constant.bool true
-  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue : !torch.vtensor<[40],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[4],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[3,37],complex<f32>>
+  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue, %cstfalse : !torch.vtensor<[40],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[4],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[3,37],complex<f32>>
   return %0 : !torch.vtensor<[3,37],complex<f32>>
 }
 
@@ -322,7 +372,7 @@ func.func @torch.aten.stft.center_1D_unk_sig_len(%arg0: !torch.vtensor<[?],f32>,
   %winlen = torch.constant.int 10
   %cstfalse = torch.constant.bool false
   %csttrue = torch.constant.bool true
-  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue : !torch.vtensor<[?],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[10],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[6,?],complex<f32>>
+  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue, %cstfalse : !torch.vtensor<[?],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[10],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[6,?],complex<f32>>
   return %0 : !torch.vtensor<[6,?],complex<f32>>
 }
 
@@ -372,7 +422,7 @@ func.func @torch.aten.stft.center_2D(%arg0: !torch.vtensor<[4,46],f32>, %arg1: !
   %winlen = torch.constant.int 7
   %cstfalse = torch.constant.bool false
   %csttrue = torch.constant.bool true
-  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue : !torch.vtensor<[4,46],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[7],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[4,4,40],complex<f32>>
+  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue, %cstfalse : !torch.vtensor<[4,46],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[7],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[4,4,40],complex<f32>>
   return %0 : !torch.vtensor<[4,4,40],complex<f32>>
 }
 
@@ -429,7 +479,7 @@ func.func @torch.aten.stft.center_2D_win_unk_size(%arg0: !torch.vtensor<[3,38],f
   %winlen = torch.constant.int 6
   %cstfalse = torch.constant.bool false
   %csttrue = torch.constant.bool true
-  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue : !torch.vtensor<[3,38],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[?],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[3,4,32],complex<f32>>
+  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue, %cstfalse : !torch.vtensor<[3,38],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[?],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[3,4,32],complex<f32>>
   return %0 : !torch.vtensor<[3,4,32],complex<f32>>
 }
 
@@ -477,7 +527,7 @@ func.func @torch.aten.stft.center_2D_no_window(%arg0: !torch.vtensor<[2,32],f32>
   %cstfalse = torch.constant.bool false
   %csttrue = torch.constant.bool true
   %cstnone = torch.constant.none
-  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %cstnone, %cstnone, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue : !torch.vtensor<[2,32],f32>, !torch.int, !torch.int, !torch.none, !torch.none, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[2,5,25],complex<f32>>
+  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %cstnone, %cstnone, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue, %cstfalse : !torch.vtensor<[2,32],f32>, !torch.int, !torch.int, !torch.none, !torch.none, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[2,5,25],complex<f32>>
   return %0 : !torch.vtensor<[2,5,25],complex<f32>>
 }
 
@@ -529,7 +579,7 @@ func.func @torch.aten.stft.center_2D_hop_length_2(%arg0: !torch.vtensor<[2,61],f
   %winlen = torch.constant.int 8
   %cstfalse = torch.constant.bool false
   %csttrue = torch.constant.bool true
-  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue : !torch.vtensor<[2,61],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[8],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[2,5,27],complex<f32>>
+  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue, %cstfalse : !torch.vtensor<[2,61],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[8],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[2,5,27],complex<f32>>
   return %0 : !torch.vtensor<[2,5,27],complex<f32>>
 }
 
@@ -583,7 +633,7 @@ func.func @torch.aten.stft.center_2D_window_pad_left(%arg0: !torch.vtensor<[2,68
   %winlen = torch.constant.int 6
   %cstfalse = torch.constant.bool false
   %csttrue = torch.constant.bool true
-  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue : !torch.vtensor<[2,68],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[6],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[2,4,31],complex<f32>>
+  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue, %cstfalse : !torch.vtensor<[2,68],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[6],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[2,4,31],complex<f32>>
   return %0 : !torch.vtensor<[2,4,31],complex<f32>>
 }
 
@@ -637,6 +687,6 @@ func.func @torch.aten.stft.center_2D_hop_length_3_window_pad_both(%arg0: !torch.
   %winlen = torch.constant.int 8
   %cstfalse = torch.constant.bool false
   %csttrue = torch.constant.bool true
-  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue : !torch.vtensor<[3,90],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[8],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[3,6,27],complex<f32>>
+  %0 = torch.aten.stft.center %arg0, %nfft, %hoplen, %winlen, %arg1, %cstfalse, %padmode, %cstfalse, %cstfalse, %csttrue, %cstfalse : !torch.vtensor<[3,90],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[8],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[3,6,27],complex<f32>>
   return %0 : !torch.vtensor<[3,6,27],complex<f32>>
 }

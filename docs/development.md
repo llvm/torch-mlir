@@ -349,9 +349,9 @@ The following additional environmental variables can be used to customize your d
 ```
 
 * Custom Python Versions for Release builds:
-  Version of Python to use in Release builds. Ignored in CIs. Defaults to `cp38-cp38 cp39-cp39 cp310-cp310`
+  Version of Python to use in Release builds. Ignored in CIs. Defaults to `cp39-cp39 cp310-cp310 cp312-cp312`
 ```shell
-  TM_PYTHON_VERSIONS="cp38-cp38 cp39-cp39 cp310-cp310"
+  TM_PYTHON_VERSIONS="cp39-cp39 cp310-cp310 cp312-cp312"
 ```
 
 * Location to store Release build wheels

@@ -3690,7 +3690,8 @@ void AtenStftOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     rewriter.replaceOpWithNewOp<AtenStftCenterOp>(
         op, op.getType(), op.getSelf(), op.getNFft(), op.getHopLength(),
         op.getWinLength(), op.getWindow(), falseVal, padMode,
-        op.getNormalized(), op.getOnesided(), op.getReturnComplex());
+        op.getNormalized(), op.getOnesided(), op.getReturnComplex(),
+        op.getAlignToWindow());
 
     return success();
   });
@@ -5395,6 +5396,54 @@ OpFoldResult PrimsConvertElementTypeOp::fold(FoldAdaptor adaptor) {
   if (inputType.getDtype() != outputType.getDtype())
     return nullptr;
   return getA();
+}
+
+//===----------------------------------------------------------------------===//
+// Aten_AssertTensorMetadataOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult Aten_AssertTensorMetadataOp::fold(
+    FoldAdaptor adaptor, SmallVectorImpl<::mlir::OpFoldResult> &results) {
+  Value input = getA();
+  auto inputType = cast<BaseTensorType>(input.getType());
+  if (!inputType.hasDtype() || !inputType.hasSizes())
+    return failure();
+
+  // TODO: Add checks for stride, device, and layout when we can extract that
+  // information from the torch tensor. For now, we can only get the shape and
+  // dtype info from the tensor hence adding checks for them.
+
+  // convert size to a list of integers.
+  SmallVector<int64_t> size;
+  if (!isa<Torch::NoneType>(getSize().getType())) {
+    if (!matchPattern(getSize(), m_TorchListOfConstantInts(size))) {
+      return emitOpError("expected dtype to be a constant int");
+    }
+    if (!llvm::all_of(llvm::zip(inputType.getSizes(), size),
+                      [](const auto &pair) {
+                        return std::get<0>(pair) == std::get<1>(pair);
+                      }))
+      return emitOpError("Failed to fold the _assert_tensor_metadata op since "
+                         "the sizes do not match");
+  }
+
+  // convert dtype to an integer.
+  int64_t dtype;
+  if (!isa<Torch::NoneType>(getDtype().getType())) {
+    if (!matchPattern(getDtype(), m_TorchConstantInt(&dtype))) {
+      return emitOpError("expected dtype to be a constant int");
+    }
+    FailureOr<Type> inputDtype =
+        getTypeForScalarType(getContext(), (torch_upstream::ScalarType)dtype);
+    if (failed(inputDtype))
+      return failure();
+    if (inputType.getDtype() != inputDtype)
+      return emitOpError("Failed to fold the _assert_tensor_metadata op since "
+                         "the dtype does not match");
+  }
+
+  getOperation()->erase();
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

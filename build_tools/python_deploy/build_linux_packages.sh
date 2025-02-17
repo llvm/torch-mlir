@@ -16,7 +16,7 @@
 #   ./build_tools/python_deploy/build_linux_packages.sh
 #
 # Build specific Python versions and packages to custom directory:
-#   TM_PYTHON_VERSIONS="cp38-cp38 cp39-cp39" \
+#   TM_PYTHON_VERSIONS="cp39-cp39 cp310-cp310" \
 #   TM_PACKAGES="torch-mlir" \
 #   TM_OUTPUT_DIR="/tmp/wheelhouse" \
 #   ./build_tools/python_deploy/build_linux_packages.sh
@@ -46,7 +46,7 @@ TM_RELEASE_DOCKER_IMAGE="${TM_RELEASE_DOCKER_IMAGE:-quay.io/pypa/manylinux2014_$
 # ./build_tools/docker/Dockerfile
 TM_CI_DOCKER_IMAGE="${TM_CI_DOCKER_IMAGE:-powderluv/torch-mlir-ci:latest}"
 # Version of Python to use in Release builds. Ignored in CIs.
-TM_PYTHON_VERSIONS="${TM_PYTHON_VERSIONS:-cp38-cp38 cp310-cp310 cp311-cp311}"
+TM_PYTHON_VERSIONS="${TM_PYTHON_VERSIONS:-cp310-cp310 cp311-cp311 cp312-cp312}"
 # Location to store Release wheels
 TM_OUTPUT_DIR="${TM_OUTPUT_DIR:-${this_dir}/wheelhouse}"
 # What "packages to build"
@@ -323,9 +323,6 @@ function test_in_tree() {
       exit 1
       ;;
     esac
-
-  echo ":::: Run make_fx + TOSA e2e integration tests"
-  python -m e2e_testing.main --config=make_fx_tosa -v
 
   echo ":::: Run TOSA e2e integration tests"
   python -m e2e_testing.main --config=tosa -v

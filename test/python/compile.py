@@ -1,4 +1,4 @@
-# RUN: %PYTHON -s %s 2>&1 | FileCheck %s
+# RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import gc
 import sys

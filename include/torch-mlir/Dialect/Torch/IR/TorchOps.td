@@ -1361,6 +1361,15 @@ def Torch_SymbolicIntOp : Torch_Op<"symbolic_int", [Pure]> {
     %0 = torch.symbolic_int "s0" {min_val = 5, max_val = 10} : !torch.int
     %1 = torch.symbolic_int "s1" {min_val = 2, max_val = 20} : !torch.int
     ```
+
+    In this case, we see that `s0` has the range [5, 10] and `s1` has the
+    range [2, 20]. When unspecified, the range constraints feeding in from
+    TorchDynamo default to [0, INT_MAX] (or [2, INT_MAX] in older PyTorch
+    releases). In either case, the interpretation (as specified by TorchDynamo)
+    is that the dynamic dimension is assumed to be not 0 or 1. This is not a
+    bug, and does not necessarily mean that the exported program will not work
+    for dimensions 0 or 1. For an in-depth discussion of this topic, see
+    [The 0/1 Specialization Problem](https://docs.google.com/document/d/16VPOa3d-Liikf48teAOmxLc92rgvJdfosIy-yoT38Io/edit?fbclid=IwAR3HNwmmexcitV0pbZm_x1a4ykdXZ9th_eJWK-3hBtVgKnrkmemz6Pm5jRQ#heading=h.ez923tomjvyk).
   }];
   let arguments = (ins
     StrAttr:$symbol_name,

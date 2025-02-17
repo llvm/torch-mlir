@@ -8,7 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
-#include "mlir/Dialect/Tosa/IR/TosaOps.h"       // from @llvm-project
+#include "mlir/Dialect/Tosa/IR/TosaOps.h" // from @llvm-project
+#include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
 #include "mlir/Dialect/Tosa/Utils/QuantUtils.h" // from @llvm-project
 
 namespace mlir {
@@ -150,6 +151,19 @@ Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
   return const_op.getResult();
 }
 
+// Create an int8_t const tosa.mul shift tensor from an int
+Value getTosaMulShiftConstTensor(PatternRewriter &rewriter, Operation *op,
+                                 int32_t shift) {
+  auto shiftType = RankedTensorType::get({1}, rewriter.getIntegerType(8));
+  auto shiftAttr = DenseElementsAttr::get(
+      shiftType, rewriter.getIntegerAttr(rewriter.getIntegerType(8), shift));
+
+  auto constShift =
+      rewriter.create<tosa::ConstOp>(op->getLoc(), shiftType, shiftAttr);
+
+  return constShift.getResult();
+}
+
 // Create a zero constant tensor of the desired type and shape.
 std::optional<Value> getZerosLikeTensor(PatternRewriter &rewriter,
                                         Operation *op, Type type) {
@@ -199,8 +213,9 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
       rewriter.create<tosa::ConstOp>(op->getLoc(), const_type, const_attr);
 
   if (dtype) {
-    return rewriter.createOrFold<tosa::CastOp>(
-        op->getLoc(), RankedTensorType::get(shape, *dtype), const_op);
+    return tosa::tosaCastTensorToType(rewriter, const_op,
+                                      RankedTensorType::get(shape, *dtype))
+        .value();
   }
   return const_op.getResult();
 }
@@ -229,8 +244,9 @@ std::optional<Value> getConstTensor<APInt>(PatternRewriter &rewriter,
       rewriter.create<tosa::ConstOp>(op->getLoc(), const_type, const_attr);
 
   if (dtype) {
-    return rewriter.createOrFold<tosa::CastOp>(
-        op->getLoc(), RankedTensorType::get(shape, *dtype), const_op);
+    return tosa::tosaCastTensorToType(rewriter, const_op,
+                                      RankedTensorType::get(shape, *dtype))
+        .value();
   }
   return const_op.getResult();
 }
@@ -258,110 +274,129 @@ std::optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
       rewriter.create<tosa::ConstOp>(op->getLoc(), const_type, const_attr);
 
   if (dtype) {
-    return rewriter.createOrFold<tosa::CastOp>(
-        op->getLoc(), RankedTensorType::get(shape, *dtype), const_op);
+    return tosa::tosaCastTensorToType(rewriter, const_op,
+                                      RankedTensorType::get(shape, *dtype))
+        .value();
   }
   return const_op.getResult();
 }
 
-static LogicalResult checkValidityOfCast(Type src, Type dest) {
+// Valid TOSA casting pairs according to TOSA spec:
+// https://www.mlplatform.org/tosa/tosa_spec.html#_cast
+// Note: currently TOSA doesn't support casting to and from I64 and F64
+[[maybe_unused]] static LogicalResult checkValidityOfCast(Type src, Type dest) {
   // clang-format off
   if ((src == dest) ||
-      // int64 -> *
-      (src.isInteger(64) && dest.isInteger(32)) ||
-      (src.isInteger(64) && dest.isInteger(8)) ||
-      (src.isInteger(64) && dest.isInteger(1)) ||
-      (src.isInteger(64) && dest.isF32()) ||
       // int32 -> *
-      (src.isInteger(32) && dest.isInteger(64)) ||
+      (src.isInteger(32) && dest.isInteger(16)) ||
+      (src.isInteger(32) && dest.isInteger(8)) ||
       (src.isInteger(32) && dest.isInteger(1)) ||
       (src.isInteger(32) && dest.isF32()) ||
+      (src.isInteger(32) && dest.isF16()) ||
       (src.isInteger(32) && dest.isBF16()) ||
       // int16 -> *
+      (src.isInteger(16) && dest.isInteger(32)) ||
+      (src.isInteger(16) && dest.isInteger(8)) ||
+      (src.isInteger(16) && dest.isInteger(1)) ||
       (src.isInteger(16) && dest.isBF16()) ||
+      (src.isInteger(16) && dest.isF32()) ||
+      (src.isInteger(16) && dest.isF16()) ||
       // int8 -> *
+      (src.isInteger(8) && dest.isInteger(32)) ||
+      (src.isInteger(8) && dest.isInteger(16)) ||
       (src.isInteger(8) && dest.isInteger(1)) ||
       (src.isInteger(8) && dest.isBF16()) ||
+      (src.isInteger(8) && dest.isF32()) ||
+      (src.isInteger(8) && dest.isF16()) ||
       // int1 -> *
-      (src.isInteger(1) && dest.isInteger(64)) ||
-      (src.isInteger(1) && dest.isF32()) ||
-      // f64 -> *
-      (src.isF64() && dest.isF32()) ||
-      (src.isF64() && dest.isBF16()) ||
+      (src.isInteger(1) && dest.isInteger(32)) ||
+      (src.isInteger(1) && dest.isInteger(16)) ||
+      (src.isInteger(1) && dest.isInteger(8)) ||
       // f32 -> *
-      (src.isF32() && dest.isF64()) ||
+      (src.isF32() && dest.isInteger(32)) ||
+      (src.isF32() && dest.isInteger(16)) ||
+      (src.isF32() && dest.isInteger(8)) ||
       (src.isF32() && dest.isBF16()) ||
       (src.isF32() && dest.isF16()) ||
-      (src.isF32() && dest.isInteger(8)) ||
-      (src.isF32() && dest.isInteger(64)) ||
-      (src.isF32() && dest.isInteger(1)) ||
+      (src.isF32() && isa<Float8E4M3Type>(dest)) ||
+      (src.isF32() && isa<Float8E5M2Type>(dest)) ||
+      // f16 -> *
+      (src.isF16() && dest.isInteger(32)) ||
+      (src.isF16() && dest.isInteger(16)) ||
+      (src.isF16() && dest.isInteger(8)) ||
+      (src.isF16() && dest.isBF16()) ||
+      (src.isF16() && dest.isF32()) ||
+      (src.isF16() && isa<Float8E4M3Type>(dest)) ||
+      (src.isF16() && isa<Float8E5M2Type>(dest)) ||
       // bf16 -> *
-      (src.isBF16() && dest.isInteger(8)) ||
-      (src.isBF16() && dest.isInteger(16)) ||
       (src.isBF16() && dest.isInteger(32)) ||
-      (src.isBF16() && dest.isF32())) {
+      (src.isBF16() && dest.isInteger(16)) ||
+      (src.isBF16() && dest.isInteger(8)) ||
+      (src.isBF16() && dest.isF32()) ||
+      (src.isBF16() && isa<Float8E4M3Type>(dest)) ||
+      (src.isBF16() && isa<Float8E5M2Type>(dest)) ||
+      // fp8e4m3 -> *
+      (isa<Float8E4M3Type>(src) && dest.isBF16()) ||
+      (isa<Float8E4M3Type>(src) && dest.isF32()) ||
+      (isa<Float8E4M3Type>(src) && dest.isF16()) ||
+      // fp8e5m2 -> *
+      (isa<Float8E5M2Type>(src) && dest.isBF16()) ||
+      (isa<Float8E5M2Type>(src) && dest.isF32()) ||
+      (isa<Float8E5M2Type>(src) && dest.isF16())) {
     return success();
   }
   // clang-format on
   return failure();
 }
 
-// Template specialization for float
-LogicalResult tosaCastTensorToType(PatternRewriter &rewriter, Operation *op,
-                                   Value src, Type destType, Value &result) {
-
-  Type srcElemTy = dyn_cast<TensorType>(src.getType()).getElementType();
+// Default function to create tosa.cast op. This should be called instead of
+// directly calling rewriter.create<tosa::CastOp>.
+std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
+                                          TensorType destType) {
+  Operation *op = src.getDefiningOp();
+  TensorType srcType = dyn_cast<TensorType>(src.getType());
+  Type srcElemTy = srcType.getElementType();
   Type destElemTy = dyn_cast<TensorType>(destType).getElementType();
 
-  if (failed(checkValidityOfCast(srcElemTy, destElemTy)))
-    return rewriter.notifyMatchFailure(
-        op, "casting to result dtype is invalid or unsupported");
+  // Temporarily disable checkValidityOfCast as it's currently strictly
+  // following TOSA spec and might cause many e2e tests to fail. This is because
+  // even though there are some casting pairs that are not congruent to TOSA
+  // spec, they are still permissible. TOSA validation should flag these illegal
+  // constructs in a per-profile manner. This strict validity check will be
+  // enabled later in a potential `--strict` mode which checks for strict
+  // casting only when needed (the default value of `--strict` mode will be
+  // off).
+  // if (failed(checkValidityOfCast(srcElemTy, destElemTy)))
+  //   return std::nullopt;
 
-  if (destElemTy.isInteger(1)) {
-    auto srcType = dyn_cast<TensorType>(src.getType());
-    SmallVector<int64_t> srcShape(srcType.getShape());
-    uint64_t num_total_elements = 1;
-    for (int64_t a : srcShape)
-      num_total_elements *= a;
+  if (srcElemTy == destElemTy)
+    return src;
 
-    std::optional<Value> constOp;
-    if (srcElemTy.isInteger(64)) {
-      SmallVector<int64_t> values(num_total_elements, 0);
-      constOp =
-          tosa::getConstTensor<int64_t>(rewriter, op, values, srcShape).value();
-    } else if (srcElemTy.isInteger(32)) {
-      SmallVector<int32_t> values(num_total_elements, 0);
-      constOp =
-          tosa::getConstTensor<int32_t>(rewriter, op, values, srcShape).value();
-    } else if (srcElemTy.isF32()) {
-      SmallVector<float> values(num_total_elements, 0.0);
-      constOp =
-          tosa::getConstTensor<float>(rewriter, op, values, srcShape).value();
-    } else if (srcElemTy.isInteger(8)) {
-      SmallVector<int8_t> values(num_total_elements, 0);
-      constOp =
-          tosa::getConstTensor<int8_t>(rewriter, op, values, srcShape).value();
-    }
-    Value equalToZero = rewriter.create<tosa::EqualOp>(op->getLoc(), destType,
-                                                       src, constOp.value());
-    result = rewriter.create<tosa::LogicalNotOp>(op->getLoc(), destType,
-                                                 equalToZero);
-  } else {
-    result = rewriter.create<tosa::CastOp>(op->getLoc(), destType, src);
+  if (llvm::isa<FloatType>(srcElemTy) && destElemTy.isInteger() &&
+      !destElemTy.isInteger(1)) {
+    // For float->int conversion, tosa.cast performs round-to-nearest.
+    // PyTorch performs round-to-zero instead.
+    // Generate round-to-zero conversion prior to tosa.cast to match with
+    // expected torch behavior.
+    auto floor = rewriter.create<tosa::FloorOp>(op->getLoc(), srcType, src);
+    auto ceil = rewriter.create<tosa::CeilOp>(op->getLoc(), srcType, src);
+
+    auto zeroValue =
+        tosa::getConstTensor<float>(rewriter, op, 0, {}, srcElemTy).value();
+
+    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), src, zeroValue)
+            .failed())
+      return std::nullopt;
+
+    auto boolType = srcType.clone(rewriter.getIntegerType(1));
+    auto isNegative = tosa::CreateOpAndInfer<tosa::GreaterOp>(
+        rewriter, op->getLoc(), boolType, zeroValue, src);
+    src = tosa::CreateOpAndInfer<tosa::SelectOp>(
+        rewriter, op->getLoc(), srcType, isNegative, ceil, floor);
   }
-  return success();
-}
 
-Value promoteType(PatternRewriter &rewriter, Value input, TensorType outType) {
-  Operation *op = input.getDefiningOp();
-  TensorType inType = cast<TensorType>(input.getType());
-
-  if (inType.getElementType() != outType.getElementType()) {
-    TensorType promotedType =
-        inType.cloneWith(inType.getShape(), outType.getElementType());
-    return rewriter.create<tosa::CastOp>(op->getLoc(), promotedType, input);
-  }
-  return input;
+  TensorType castedSrcType = srcType.clone(destElemTy);
+  return rewriter.create<tosa::CastOp>(op->getLoc(), castedSrcType, src);
 }
 
 // Template instantiation
@@ -398,6 +433,52 @@ LogicalResult getAvgPool2dAccType(PatternRewriter &rewriter, Value input,
   accType = isa<FloatType>(inputETy)
                 ? mlir::TypeAttr::get(rewriter.getF32Type())
                 : mlir::TypeAttr::get(rewriter.getIntegerType(32));
+
+  return success();
+}
+
+// Get accumulator type for TOSA convolution ops
+LogicalResult getConvOpsAccType(PatternRewriter &rewriter,
+                                RankedTensorType inputTy,
+                                RankedTensorType weightTy,
+                                RankedTensorType outputTy, TypeAttr &accType) {
+  auto inputElemTy = inputTy.getElementType();
+  auto weightElemTy = weightTy.getElementType();
+  auto outputElemTy = outputTy.getElementType();
+
+  auto quantTy = dyn_cast<quant::QuantizedType>(inputElemTy);
+  if (quantTy)
+    inputElemTy = quantTy.getStorageType();
+
+  // Get TOSA conv ops acc type based on input, weight, and output types
+  // according to the spec:
+  // https://www.mlplatform.org/tosa/tosa_spec.html#_conv2d
+  // https://www.mlplatform.org/tosa/tosa_spec.html#_depthwise_conv2d
+  // https://www.mlplatform.org/tosa/tosa_spec.html#_conv3d
+  //
+  // For undefined dtypes in TOSA like I64 and F64, acc_type will be set to the
+  // output type but does not offer any guarantee on the numerical precision
+  // since such cases will fail TOSA validation.
+  if ((inputElemTy.isF32() && weightElemTy.isF32() && outputElemTy.isF32()) ||
+      (inputElemTy.isF16() && weightElemTy.isF16() && outputElemTy.isF16()) ||
+      (inputElemTy.isBF16() && weightElemTy.isBF16() &&
+       outputElemTy.isBF16())) {
+    accType = mlir::TypeAttr::get(rewriter.getF32Type());
+  } else if (inputElemTy.isInteger(8) &&
+             (weightElemTy.isInteger(8) || weightElemTy.isInteger(4)) &&
+             outputElemTy.isInteger(32)) {
+    accType = mlir::TypeAttr::get(rewriter.getIntegerType(32));
+  } else if (inputElemTy.isInteger(16) && weightElemTy.isInteger(8) &&
+             outputElemTy.isInteger(48)) {
+    accType = mlir::TypeAttr::get(rewriter.getIntegerType(48));
+  } else if ((isa<Float8E4M3Type>(inputElemTy) &&
+              isa<Float8E4M3Type>(weightElemTy) && outputElemTy.isF16()) ||
+             (isa<Float8E5M2Type>(inputElemTy) &&
+              isa<Float8E5M2Type>(weightElemTy) && outputElemTy.isF16())) {
+    accType = mlir::TypeAttr::get(rewriter.getF16Type());
+  } else {
+    accType = mlir::TypeAttr::get(outputElemTy);
+  }
 
   return success();
 }
