@@ -4290,6 +4290,42 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
   return success();
 }
 
+Value wrapIndicesAroundMax(Value index, int maxIndex, Operation *op,
+                           ConversionPatternRewriter &rewriter) {
+  // performs the operation : index = index % maxIndex to wrap index around
+  // maxIndex
+
+  auto maxIndexValue =
+      tosa::getConstTensor<int32_t>(rewriter, op, maxIndex, {}).value();
+  auto maxIndexValueMinusOne =
+      tosa::getConstTensor<int32_t>(rewriter, op, maxIndex - 1, {}).value();
+
+  auto indexType = dyn_cast<RankedTensorType>(index.getType());
+  auto boolType = indexType.clone(rewriter.getIntegerType(1));
+
+  auto isBeyondMaxIndices = tosa::CreateOpAndInfer<tosa::GreaterOp>(
+      rewriter, op->getLoc(), boolType, index, maxIndexValueMinusOne);
+  auto wrappedBeyondMaxIndicesQuotient =
+      tosa::CreateOpAndInfer<tosa::IntDivOp>(rewriter, op->getLoc(), indexType,
+                                             index, maxIndexValue)
+          .getResult();
+  auto wrappedBeyondMaxIndicesQuotientTimesIndices =
+      tosa::createMulOpAndCast(rewriter, op, indexType,
+                               wrappedBeyondMaxIndicesQuotient,
+                               wrappedBeyondMaxIndicesQuotient,
+                               /*shift=*/0)
+          .getResult();
+  auto wrappedBeyondMaxIndices =
+      tosa::CreateOpAndInfer<tosa::SubOp>(
+          rewriter, op->getLoc(), indexType, index,
+          wrappedBeyondMaxIndicesQuotientTimesIndices)
+          .getResult();
+
+  return tosa::CreateOpAndInfer<tosa::SelectOp>(rewriter, op->getLoc(),
+                                                indexType, isBeyondMaxIndices,
+                                                wrappedBeyondMaxIndices, index);
+}
+
 template <>
 LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
     AtenIndexSelectOp op, OpAdaptor adaptor,
@@ -4333,6 +4369,10 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
                 RankedTensorType::get(indexShape, rewriter.getIntegerType(32)))
                 .value();
   }
+
+  int64_t selfNumElems = std::accumulate(inputShape.begin(), inputShape.end(),
+                                         1, std::multiplies<int64_t>());
+  index = wrapIndicesAroundMax(index, selfNumElems, op, rewriter);
 
   // Get positive dim
   int64_t dim;
@@ -7705,10 +7745,12 @@ LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewrite(
     //              coord_i_n * stride[n]
     int32_t index = offset;
     int64_t coordFinder = i;
+
     for (int64_t dim = 0; dim < outputRank; dim++) {
       int64_t indexCoord = coordFinder % outputSize[outputRank - dim - 1];
       index += indexCoord * stride[outputRank - dim - 1];
       coordFinder /= outputSize[outputRank - dim - 1];
+      index = (index % selfNumElems);
     }
     targetIndicesVec.push_back(index);
   }
