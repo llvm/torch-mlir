@@ -2453,14 +2453,15 @@ void AtenPowTensorScalarOp::getCanonicalizationPatterns(
 
 void AtenPowTensorTensorOp::getCanonicalizationPatterns(
     RewritePatternSet &patterns, MLIRContext *context) {
-  // If the exponent is splat, convert to AtenPowTensorScalar.
+  // If the exponent is a single element constant, convert to
+  // AtenPowTensorScalar.
   patterns.add(+[](AtenPowTensorTensorOp op, PatternRewriter &rewriter) {
     OpFoldResult exp = getAsOpFoldResult(op.getExponent());
     auto expAttr = dyn_cast<Attribute>(exp);
     auto attr = dyn_cast_or_null<DenseElementsAttr>(expAttr);
-    if (!attr || !attr.isSplat())
+    if (!attr || attr.getNumElements() != 1)
       return failure();
-    auto elem = attr.getSplatValue<Attribute>();
+    auto elem = *attr.value_begin<Attribute>();
     auto intAttr = dyn_cast<mlir::IntegerAttr>(elem);
     auto floatAttr = dyn_cast<mlir::FloatAttr>(elem);
     if (!intAttr && !floatAttr)
