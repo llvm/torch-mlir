@@ -1049,6 +1049,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::any.bool : (bool[]) -> (bool)", has_folder=True)
     emit("aten::sort.int : (int[], bool) -> ()", has_canonicalizer=True)
     emit("aten::sort : (Tensor, int, bool) -> (Tensor, Tensor)", has_folder=True)
+    emit("aten::argsort : (Tensor, int, bool) -> (Tensor)")
     emit("aten::split.Tensor : (Tensor, int, int) -> (Tensor[])")
     emit("aten::split_with_sizes : (Tensor, int[], int) -> (Tensor[])")
     emit(
