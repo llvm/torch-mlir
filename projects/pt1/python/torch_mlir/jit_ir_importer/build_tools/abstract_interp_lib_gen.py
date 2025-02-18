@@ -1988,6 +1988,12 @@ def aten〇sort〡dtype(self_rank_dtype: Tuple[int, int], dim: int = -1, descend
     _, input_dtype = self_rank_dtype
     return input_dtype, torch.long
 
+def aten〇argsort〡shape(self: List[int], dim: int = -1, descending: bool = False) -> List[int]:
+    return self
+
+def aten〇argsort〡dtype(self_rank_dtype: Tuple[int, int], dim: int = -1, descending: bool = False) -> int:
+    return torch.long
+
 def aten〇narrow〡shape(self: List[int], dim: int, start: int, length: int) -> List[int]:
     return upstream_shape_functions.slice(self, dim, start, start + length, 1)
 

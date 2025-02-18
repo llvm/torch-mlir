@@ -5357,6 +5357,36 @@ def SortTensorNegativeDimension_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
 
+class ArgsortTensor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1, -1], torch.float32, True)])
+    def forward(self, input):
+        return torch.argsort(input)
+
+
+@register_test_case(module_factory=lambda: ArgsortTensor())
+def ArgsortTensor_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+class ArgsortTensorInteger(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.int64, True)])
+    def forward(self, input):
+        return torch.argsort(input)
+
+
+@register_test_case(module_factory=lambda: ArgsortTensorInteger())
+def ArgsortTensorInteger_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3))
+
+
 # ==============================================================================
 
 
