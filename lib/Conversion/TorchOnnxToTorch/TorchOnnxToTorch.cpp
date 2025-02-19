@@ -56,6 +56,7 @@ public:
         std::make_unique<OnnxCustomOpConversionPattern>(
             context, "onnx.",
             /*domainVersion=*/defaultOpsetVersion);
+    populateComMicrosoftDomain(*defaultDomainPatterns);
     populateDefaultDomainAtoF(*defaultDomainPatterns);
     populateDefaultDomainGtoP(*defaultDomainPatterns);
     populateDefaultDomainQtoZ(*defaultDomainPatterns);
