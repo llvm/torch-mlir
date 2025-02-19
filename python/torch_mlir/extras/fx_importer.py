@@ -291,7 +291,7 @@ _IS_TORCH_2_1_OR_EARLIER = torch.__version__.split("+")[0] <= "2.1.0"
 # In the mapping below (torch.aten.sym_size, 2) indicates len(args)=2 therefore
 # map to torch.aten.size.int.
 # Thankfully, newer versions provide a specific torch.ops.aten.sym_size.<type>.
-# Once we drop support for <2.1.0, we can get rid of the the SYMBOLIC_TORCH_OPS
+# Once we drop support for <2.1.0, we can get rid of the SYMBOLIC_TORCH_OPS
 # set and just check key existence in SYMBOLIC_OP_TO_TORCH_OP
 
 if _IS_TORCH_2_1_OR_EARLIER:
@@ -2247,13 +2247,15 @@ class RefTracker:
         if existing:
             return existing
         info = RefMapping(referrent)
-        if referrent is not Empty:
-            weakref.finalize(referrent, self._ref_finalizer, ref_id)
+        # Finalizer is removed due to a memory leak
+        # See: https://github.com/iree-org/iree-turbine/issues/281
+        # if referrent is not Empty:
+        #    weakref.finalize(referrent, self._ref_finalizer, ref_id)
         self._refs[ref_id] = info
         return info
 
-    def _ref_finalizer(self, ref_id: int):
-        del self._refs[ref_id]
+    # def _ref_finalizer(self, ref_id: int):
+    #    del self._refs[ref_id]
 
 
 ################################################################################

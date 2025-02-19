@@ -5236,6 +5236,7 @@ def Torch_AtenPowTensorScalarOp : Torch_Op<"aten.pow.Tensor_Scalar", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenPowTensorTensorOp : Torch_Op<"aten.pow.Tensor_Tensor", [
@@ -5260,6 +5261,7 @@ def Torch_AtenPowTensorTensorOp : Torch_Op<"aten.pow.Tensor_Tensor", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenPowScalarOp : Torch_Op<"aten.pow.Scalar", [
@@ -13704,7 +13706,7 @@ def Torch_AtenStftOp : Torch_Op<"aten.stft", [
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::stft : (Tensor, int, int?, int?, Tensor?, bool, bool?, bool?) -> (Tensor)`";
+  let summary = "Generated op for `aten::stft : (Tensor, int, int?, int?, Tensor?, bool, bool?, bool?, bool?) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
     Torch_IntType:$n_fft,
@@ -13713,7 +13715,8 @@ def Torch_AtenStftOp : Torch_Op<"aten.stft", [
     AnyTorchOptionalTensorType:$window,
     Torch_BoolType:$normalized,
     AnyTorchOptionalBoolType:$onesided,
-    AnyTorchOptionalBoolType:$return_complex
+    AnyTorchOptionalBoolType:$return_complex,
+    AnyTorchOptionalBoolType:$align_to_window
   );
   let results = (outs
     AnyTorchOptionalTensorType:$result
@@ -13721,10 +13724,10 @@ def Torch_AtenStftOp : Torch_Op<"aten.stft", [
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
     ParseResult AtenStftOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 8, 1);
+      return parseDefaultTorchOp(parser, result, 9, 1);
     }
     void AtenStftOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 8, 1);
+      printDefaultTorchOp(printer, *this, 9, 1);
     }
   }];
 }
@@ -15173,6 +15176,31 @@ def Torch_AtenSortOp : Torch_Op<"aten.sort", [
     }
   }];
   let hasFolder = 1;
+}
+
+def Torch_AtenArgsortOp : Torch_Op<"aten.argsort", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::argsort : (Tensor, int, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim,
+    Torch_BoolType:$descending
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenArgsortOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenArgsortOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
 }
 
 def Torch_AtenSplitTensorOp : Torch_Op<"aten.split.Tensor", [

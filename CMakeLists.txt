@@ -35,13 +35,17 @@ option(TORCH_MLIR_ENABLE_WERROR_FLAG "Enable `-Werror` flag on supported directo
 option(TORCH_MLIR_USE_INSTALLED_PYTORCH "If depending on PyTorch use it as installed in the current Python environment" ON)
 
 option(TORCH_MLIR_ENABLE_REFBACKEND "Enable reference backend" ON)
+
 if(TORCH_MLIR_ENABLE_REFBACKEND)
   add_definitions(-DTORCH_MLIR_ENABLE_REFBACKEND)
 endif()
 
+set(TORCH_MLIR_TABLEGEN_FLAGS "")
+
 option(TORCH_MLIR_ENABLE_STABLEHLO "Add stablehlo dialect" ON)
 if(TORCH_MLIR_ENABLE_STABLEHLO)
   add_definitions(-DTORCH_MLIR_ENABLE_STABLEHLO)
+  list(APPEND TORCH_MLIR_TABLEGEN_FLAGS "-DTORCH_MLIR_ENABLE_STABLEHLO")
 endif()
 # It is possible that both stablehlo and torch_mlir projects are used in some compiler project.
 # In this case, we don't want to use stablehlo that is downloaded by torch_mlir (in external/stablehlo)
@@ -49,6 +53,12 @@ endif()
 # With TORCH_MLIR_USE_EXTERNAL_STABLEHLO enables, it is assumed that top level compiler project makes
 # stablehlo targets AND includes available (for example with `add_subdirectory` and `include_directories`).
 option(TORCH_MLIR_USE_EXTERNAL_STABLEHLO "Use stablehlo from top level project" OFF)
+
+option(TORCH_MLIR_ENABLE_TOSA "Add TOSA support" ON)
+if(TORCH_MLIR_ENABLE_TOSA)
+  add_definitions(-DTORCH_MLIR_ENABLE_TOSA)
+  list(APPEND TORCH_MLIR_TABLEGEN_FLAGS "-DTORCH_MLIR_ENABLE_TOSA")
+endif()
 
 option(TORCH_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
 
