@@ -180,9 +180,16 @@ LogicalResult reduceOpImpl(OpBinder binder, ConversionPatternRewriter &rewriter,
   return success();
 }
 
-Type getTorchScalarType(
-    /* forElementIn */ Torch::BaseTensorType givenTensorType,
-    /*        using */ ConversionPatternRewriter &rewriter) {
+int64_t lengthOfListIn(Value given1DTensor) {
+  auto some1DTensorType = cast<Torch::BaseTensorType>(given1DTensor.getType());
+  auto sizesOfSome1DTensor = some1DTensorType.getSizes();
+  size_t soleDimInAny1DTensor = 0;
+  return sizesOfSome1DTensor[soleDimInAny1DTensor];
+}
+
+Type getTorchScalarTypeForElements(
+    ConversionPatternRewriter &rewriter,
+    /* in */ Torch::BaseTensorType givenTensorType) {
   auto elementTypeForGivenTensor = givenTensorType.getDtype();
 
   if (isa<IntegerType>(elementTypeForGivenTensor))
@@ -193,54 +200,55 @@ Type getTorchScalarType(
   llvm_unreachable("dtype for given tensor expected to be either int or float");
 }
 
-Value extractTorchScalar(
-    /*    at */ Location givenLoc,
-    /*  from */ int64_t givenIndex,
-    /*    in */ Value given1DTensor,
-    /* using */ ConversionPatternRewriter &rewriter) {
+Value createTorchScalarForElement(ConversionPatternRewriter &rewriter,
+                                  Location givenLoc,
+                                  /* in */ Value given1DTensor,
+                                  /* at */ int64_t givenIndex) {
   auto some1DTensorType = cast<Torch::BaseTensorType>(given1DTensor.getType());
 
   Type selectionTypeForSome1DTensor = some1DTensorType.getWithSizesAndDtype(
       ArrayRef<int64_t>{1}, some1DTensorType.getOptionalDtype());
 
-  Value frontDim = rewriter.create<Torch::ConstantIntOp>(givenLoc, 0);
+  Value soleDim = rewriter.create<Torch::ConstantIntOp>(givenLoc, 0);
 
   Value selectionIndex =
       rewriter.create<Torch::ConstantIntOp>(givenLoc, givenIndex);
 
-  auto someTorchScalarType = getTorchScalarType(some1DTensorType, rewriter);
+  auto someTorchScalarType =
+      getTorchScalarTypeForElements(rewriter, some1DTensorType);
 
   Value selectionFromGiven1DTensor = rewriter.create<Torch::AtenSelectIntOp>(
-      givenLoc, selectionTypeForSome1DTensor, given1DTensor, frontDim,
+      givenLoc, selectionTypeForSome1DTensor, given1DTensor, soleDim,
       selectionIndex);
 
   return rewriter.create<Torch::AtenItemOp>(givenLoc, someTorchScalarType,
                                             selectionFromGiven1DTensor);
 }
 
-Value createScalarSublist(
-    /*                    at */ Location givenLoc,
-    /* movingForwardsThrough */ Value given1DTensor,
-    /*            startingAt */ int64_t givenIndex,
-    /*                 using */ ConversionPatternRewriter &rewriter) {
-  auto some1DTensorType = cast<Torch::BaseTensorType>(given1DTensor.getType());
-  auto sizesOfSome1DTensor = some1DTensorType.getSizes();
-  auto lengthOfFullList = sizesOfSome1DTensor[0];
-
-  SmallVector<Value> runningScalarSublist;
-
-  for (int indexOfEachScalar = givenIndex; indexOfEachScalar < lengthOfFullList;
-       indexOfEachScalar++) {
-    Value eachScalar = extractTorchScalar(givenLoc, indexOfEachScalar,
-                                          given1DTensor, rewriter);
-    runningScalarSublist.push_back(eachScalar);
-  }
-
-  auto someTorchScalarType = runningScalarSublist.front().getType();
-  Type someTorchScalarListType = Torch::ListType::get(someTorchScalarType);
+Value createTorchList(ConversionPatternRewriter &rewriter, Location givenLoc,
+                      /* from */ SmallVector<Value> givenTorchElements) {
+  auto someTorchElement = givenTorchElements.front();
+  auto someTorchElementType = someTorchElement.getType();
+  Type someTorchListType = Torch::ListType::get(someTorchElementType);
 
   return rewriter.create<Torch::PrimListConstructOp>(
-      givenLoc, someTorchScalarListType, runningScalarSublist);
+      givenLoc, someTorchListType, givenTorchElements);
+}
+
+Value createTorchScalarSublist(ConversionPatternRewriter &rewriter,
+                               Location givenLoc,
+                               /* movingForwardsThrough */ Value given1DTensor,
+                               /*            startingAt */ int64_t givenIndex) {
+  SmallVector<Value> runningTorchScalars;
+
+  for (int indexOfEachScalar = givenIndex;
+       indexOfEachScalar < lengthOfListIn(given1DTensor); indexOfEachScalar++) {
+    Value eachTorchScalar = createTorchScalarForElement(
+        rewriter, givenLoc, given1DTensor, indexOfEachScalar);
+    runningTorchScalars.push_back(eachTorchScalar);
+  }
+
+  return createTorchList(rewriter, givenLoc, runningTorchScalars);
 }
 } // namespace
 
@@ -2872,8 +2880,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
           // run-time scale factor check for dynamic sizes
           for (auto &eachDim : nonResizableDims) {
-            Value eachProposedScaleFactor = extractTorchScalar(
-                loc, eachDim, proposedScaleFactors, rewriter);
+            Value eachProposedScaleFactor = createTorchScalarForElement(
+                rewriter, loc, proposedScaleFactors, eachDim);
 
             Value eachScaleFactorIsIdentity =
                 rewriter.create<Torch::AtenEqFloatOp>(
@@ -2888,8 +2896,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 rewriter.getStringAttr(errorMessageForEachDim));
           };
 
-          supportedScaleFactors = createScalarSublist(
-              loc, proposedScaleFactors, assumedForemostSpatialDim, rewriter);
+          supportedScaleFactors = createTorchScalarSublist(
+              rewriter, loc, proposedScaleFactors, assumedForemostSpatialDim);
           supportedSizes = noneVal;
         } else if (numberOfOperands == 4) {
           Value proposedSizes = operands[3];
@@ -2902,8 +2910,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             Value eachSizeOfInputTensor = rewriter.create<Torch::AtenSizeIntOp>(
                 loc, inputTensor, eachDimAsValue);
 
-            Value eachProposedSize =
-                extractTorchScalar(loc, eachDimAsInt, proposedSizes, rewriter);
+            Value eachProposedSize = createTorchScalarForElement(
+                rewriter, loc, proposedSizes, eachDimAsInt);
 
             Value eachProposedSizeIsTrivial =
                 rewriter.create<Torch::AtenEqIntOp>(
@@ -2919,8 +2927,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           };
 
           supportedScaleFactors = noneVal;
-          supportedSizes = createScalarSublist(
-              loc, proposedSizes, assumedForemostSpatialDim, rewriter);
+          supportedSizes = createTorchScalarSublist(
+              rewriter, loc, proposedSizes, assumedForemostSpatialDim);
         } else
           return rewriter.notifyMatchFailure(binder.op, "unknown scaling mode");
 
@@ -3442,8 +3450,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "supports upto 3d upsampling only");
 
         int64_t assumedForemostSpatialDim = 2;
-        Value scalesValueList = createScalarSublist(
-            binder.getLoc(), scales, assumedForemostSpatialDim, rewriter);
+        Value scalesValueList = createTorchScalarSublist(
+            rewriter, binder.getLoc(), scales, assumedForemostSpatialDim);
         if (mode == "linear") {
           if (resultRank == 4)
             mode = "bilinear";
