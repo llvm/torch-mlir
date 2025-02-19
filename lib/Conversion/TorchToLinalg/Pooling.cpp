@@ -1025,6 +1025,7 @@ static LogicalResult createAvgPoolValueCountIncludePadTrueCase(
     divisor = rewriter.createOrFold<arith::MulIOp>(loc, divisor,
                                                    kernelSizeIntValues[i]);
   }
+
   // Only average pooling 2D/3D have optional divisor override.
   if constexpr (!std::is_same<OpTy, AtenAvgPool1dOp>()) {
     divisor = isa<Torch::NoneType>(op.getDivisorOverride().getType())
