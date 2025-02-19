@@ -13,7 +13,9 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
@@ -884,10 +886,18 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
   }
 
   // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
+  auto ClampType =
+      cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+  Attribute MinVal, MaxVal;
+  if (isa<mlir::FloatType>(ClampType.getElementType())) {
+    MinVal = rewriter.getF32FloatAttr(0.0f);
+    MaxVal = rewriter.getF32FloatAttr(std::numeric_limits<float>::max());
+  } else {
+    MinVal = rewriter.getI64IntegerAttr(0);
+    MaxVal = rewriter.getI64IntegerAttr(std::numeric_limits<int32_t>::max());
+  }
   rewriter.replaceOpWithNewOp<tosa::ClampOp>(
-      op, getTypeConverter()->convertType(op.getType()), clampIn,
-      rewriter.getF32FloatAttr(0.0f),
-      rewriter.getF32FloatAttr(std::numeric_limits<float>::max()),
+      op, ClampType, clampIn, MinVal, MaxVal,
       /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
   return success();
 }
@@ -5160,9 +5170,18 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
   }
 
   // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
-  auto outType = getTypeConverter()->convertType(op.getType());
+  auto outType =
+      cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+  Attribute MinVal, MaxVal;
+  if (isa<mlir::FloatType>(outType.getElementType())) {
+    MinVal = min_fp;
+    MaxVal = max_fp;
+  } else {
+    MinVal = min_int;
+    MaxVal = max_int;
+  }
   rewriter.replaceOpWithNewOp<tosa::ClampOp>(
-      op, outType, adaptor.getSelf(), min_fp, max_fp,
+      op, outType, adaptor.getSelf(), MinVal, MaxVal,
       /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
 
   return success();
@@ -8436,6 +8455,15 @@ LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op,
                                        "Non-const eps value is not supported");
 
+  Attribute MinVal, MaxVal;
+  if (isa<mlir::FloatType>(selfElemTy)) {
+    MinVal = rewriter.getF32FloatAttr(static_cast<float>(eps));
+    MaxVal = rewriter.getF32FloatAttr(static_cast<float>(1 - eps));
+  } else {
+    MinVal = rewriter.getI64IntegerAttr(static_cast<int64_t>(eps));
+    MaxVal = rewriter.getI64IntegerAttr(static_cast<int64_t>(1 - eps));
+  }
+
   auto zi = self;
 
   // Clamp input to [eps, 1 - eps] when eps is not None
@@ -8443,9 +8471,7 @@ LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
   if (!isEpsNone) {
     zi = rewriter
              .create<tosa::ClampOp>(
-                 op->getLoc(), resultType, self,
-                 rewriter.getF32FloatAttr(static_cast<float>(eps)),
-                 rewriter.getF32FloatAttr(static_cast<float>(1 - eps)),
+                 op->getLoc(), resultType, self, MinVal, MaxVal,
                  /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))
              .getResult();
   }
