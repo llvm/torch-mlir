@@ -889,8 +889,6 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
       op, getTypeConverter()->convertType(op.getType()), clampIn,
       rewriter.getI64IntegerAttr(clampMin),
       rewriter.getI64IntegerAttr(std::numeric_limits<int32_t>::max()),
-      rewriter.getF32FloatAttr(0.0f),
-      rewriter.getF32FloatAttr(std::numeric_limits<float>::max()),
       /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
   return success();
 }
@@ -5165,7 +5163,7 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
   // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   auto outType = getTypeConverter()->convertType(op.getType());
   rewriter.replaceOpWithNewOp<tosa::ClampOp>(
-      op, outType, adaptor.getSelf(), min_int, max_int, min_fp, max_fp,
+      op, outType, adaptor.getSelf(), min_int, max_int,
       /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
 
   return success();
@@ -8449,8 +8447,6 @@ LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
                  op->getLoc(), resultType, self,
                  rewriter.getI64IntegerAttr(static_cast<int64_t>(eps)),
                  rewriter.getI64IntegerAttr(static_cast<int64_t>(1 - eps)),
-                 rewriter.getF32FloatAttr(static_cast<float>(eps)),
-                 rewriter.getF32FloatAttr(static_cast<float>(1 - eps)),
                  /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))
              .getResult();
   }
