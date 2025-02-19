@@ -905,7 +905,8 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     SmallVectorImpl<int64_t> &paddingInts) {
   Value poolSize;
 
-  Value cstZero = b.create<arith::ConstantOp>(location, b.getI64IntegerAttr(0));
+  Value cstZero =
+      b.createOrFold<arith::ConstantOp>(location, b.getI64IntegerAttr(0));
 
   for (int i = 0; i < NumOfDims; ++i) {
     // See the link below for the PyTorch implementation where
@@ -915,30 +916,32 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     // 2025 change, these variables used "height" and "width" (or
     // "h" and "w") in these intermediate variables instead of "Dim".
     Value IndexODim =
-        b.create<linalg::IndexOp>(location,
-                                  /*value=*/DimSizeFromSumPoolType[i]);
+        b.createOrFold<linalg::IndexOp>(location,
+                                        /*value=*/DimSizeFromSumPoolType[i]);
     Value ODim = castIndexToInt64(b, location, IndexODim);
-    Value DDim = b.create<arith::ConstantOp>(
+    Value DDim = b.createOrFold<arith::ConstantOp>(
         location, b.getI64IntegerAttr(strideInts[i]));
-    Value PadDim = b.create<arith::ConstantOp>(
+    Value PadDim = b.createOrFold<arith::ConstantOp>(
         location, b.getI64IntegerAttr(paddingInts[i]));
-    Value ODimDDim = b.create<arith::MulIOp>(location, ODim, DDim);
-    Value IDim0 = b.create<arith::SubIOp>(location, ODimDDim, PadDim);
+    Value ODimDDim = b.createOrFold<arith::MulIOp>(location, ODim, DDim);
+    Value IDim0 = b.createOrFold<arith::SubIOp>(location, ODimDDim, PadDim);
     Value IDim = castIndexToInt64(b, location, InputSpatialDimValues[i]);
     Value IDim0KDim =
-        b.create<arith::AddIOp>(location, IDim0, kernelSizeIntValues[i]);
-    Value IDimPadDim = b.create<arith::AddIOp>(location, IDim, PadDim);
-    Value IDim1 = b.create<arith::MinSIOp>(location, IDim0KDim, IDimPadDim);
+        b.createOrFold<arith::AddIOp>(location, IDim0, kernelSizeIntValues[i]);
+    Value IDimPadDim = b.createOrFold<arith::AddIOp>(location, IDim, PadDim);
+    Value IDim1 =
+        b.createOrFold<arith::MinSIOp>(location, IDim0KDim, IDimPadDim);
 
-    Value IDim0Clamped = b.create<arith::MaxSIOp>(location, IDim0, cstZero);
-    Value IDim1Clamped = b.create<arith::MinSIOp>(location, IDim1, IDim);
+    Value IDim0Clamped =
+        b.createOrFold<arith::MaxSIOp>(location, IDim0, cstZero);
+    Value IDim1Clamped = b.createOrFold<arith::MinSIOp>(location, IDim1, IDim);
     Value IDim1_IDim0_Clamped =
-        b.create<arith::SubIOp>(location, IDim1Clamped, IDim0Clamped);
+        b.createOrFold<arith::SubIOp>(location, IDim1Clamped, IDim0Clamped);
     if (i == 0) {
       poolSize = IDim1_IDim0_Clamped;
     } else {
-      poolSize =
-          b.create<arith::MulIOp>(location, poolSize, IDim1_IDim0_Clamped);
+      poolSize = b.createOrFold<arith::MulIOp>(location, poolSize,
+                                               IDim1_IDim0_Clamped);
     }
   }
   return poolSize;
@@ -993,10 +996,10 @@ static std::optional<LogicalResult> createAvgPoolValueCountIncludePadFalseCase(
                     convertScalarToDtype(b, loc, poolSize, resultElementType);
                 Value avg;
                 if (isa<mlir::IntegerType>(resultElementType))
-                  avg = b.create<arith::DivSIOp>(loc, args[0], divisor);
+                  avg = b.createOrFold<arith::DivSIOp>(loc, args[0], divisor);
                 else if (isa<mlir::FloatType>(resultElementType))
-                  avg = b.create<arith::DivFOp>(loc, args[0], divisor);
-                b.create<linalg::YieldOp>(loc, avg);
+                  avg = b.createOrFold<arith::DivFOp>(loc, args[0], divisor);
+                b.createOrFold<linalg::YieldOp>(loc, avg);
               })
           .getResult(0);
   rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, avgPool);
@@ -1019,9 +1022,10 @@ static LogicalResult createAvgPoolValueCountIncludePadTrueCase(
 
   Value divisor = kernelSizeIntValues[0];
   for (uint32_t i = 1; i < kernelSizeIntValues.size(); ++i) {
-    divisor =
-        rewriter.create<arith::MulIOp>(loc, divisor, kernelSizeIntValues[i]);
+    divisor = rewriter.createOrFold<arith::MulIOp>(loc, divisor,
+                                                   kernelSizeIntValues[i]);
   }
+  // Only average pooling 2D/3D have optional divisor override.
   if constexpr (!std::is_same<OpTy, AtenAvgPool1dOp>()) {
     divisor = isa<Torch::NoneType>(op.getDivisorOverride().getType())
                   ? divisor
