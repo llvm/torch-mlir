@@ -10215,6 +10215,31 @@ public:
 } // namespace
 
 namespace {
+// decompose aten.argsort to aten.sort
+class DecomposeAtenArgsortOp : public OpRewritePattern<AtenArgsortOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenArgsortOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto context = op.getContext();
+
+    Value self = op.getSelf();
+    Value dim = op.getDim();
+    Value descending = op.getDescending();
+    auto selfType = cast<BaseTensorType>(self.getType());
+    auto sortIndicesType = selfType.getWithSizesAndDtype(
+        selfType.getOptionalSizes(),
+        IntegerType::get(context, 64, IntegerType::Signed));
+    auto sortOpResult = rewriter.create<AtenSortOp>(
+        loc, self.getType(), sortIndicesType, self, dim, descending);
+    rewriter.replaceOp(op, sortOpResult->getResult(1));
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 
 /// Creates coefficients based on DFT definition, see
 /// https://en.wikipedia.org/wiki/Discrete_Fourier_transform.
@@ -11781,6 +11806,7 @@ public:
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenArgsortOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFftRfftOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHannWindowPeriodicOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScalarTensor>(patterns);

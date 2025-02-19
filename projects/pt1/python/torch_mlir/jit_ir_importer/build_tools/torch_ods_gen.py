@@ -498,8 +498,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         has_canonicalizer=True,
     )
     emit("aten::gelu : (Tensor, str) -> (Tensor)")
-    emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
-    emit("aten::pow.Tensor_Tensor : (Tensor, Tensor) -> (Tensor)")
+    emit(
+        "aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)", has_canonicalizer=True
+    )
+    emit(
+        "aten::pow.Tensor_Tensor : (Tensor, Tensor) -> (Tensor)", has_canonicalizer=True
+    )
     emit("aten::pow.Scalar : (Scalar, Tensor) -> (Tensor)")
     emit("aten::float_power.Tensor_Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::threshold_backward : (Tensor, Tensor, Scalar) -> (Tensor)")
@@ -1002,7 +1006,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         has_verifier=True,
     )
     emit(
-        "aten::stft : (Tensor, int, int?, int?, Tensor?, bool, bool?, bool?) -> (Tensor)"
+        "aten::stft : (Tensor, int, int?, int?, Tensor?, bool, bool?, bool?, bool?) -> (Tensor)"
     )
 
     # Functionalization ops
@@ -1081,6 +1085,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::any.bool : (bool[]) -> (bool)", has_folder=True)
     emit("aten::sort.int : (int[], bool) -> ()", has_canonicalizer=True)
     emit("aten::sort : (Tensor, int, bool) -> (Tensor, Tensor)", has_folder=True)
+    emit("aten::argsort : (Tensor, int, bool) -> (Tensor)")
     emit("aten::split.Tensor : (Tensor, int, int) -> (Tensor[])")
     emit("aten::split_with_sizes : (Tensor, int[], int) -> (Tensor[])")
     emit(
