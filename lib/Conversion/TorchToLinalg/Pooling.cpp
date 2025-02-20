@@ -947,17 +947,124 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
   return poolSize;
 }
 
-// Creates the average pooling operation value when the
-// count_include_pad parameter is equal to false.
-template <typename OpTy>
-static std::optional<LogicalResult> createAvgPoolValueCountIncludePadFalseCase(
-    bool countIncludePad, OpTy op, typename OpTy::Adaptor adaptor,
-    ConversionPatternRewriter &rewriter, Value self, Value sumPool,
-    Value outputTensor, Type resultType,
-    SmallVectorImpl<Value> &kernelSizeIntValues,
-    SmallVectorImpl<int64_t> &strideInts, SmallVectorImpl<int64_t> &paddingInts,
-    SmallVector<AffineMap> &indexingMapsAvg,
-    SmallVector<utils::IteratorType> &iteratorTypesAvg) {
+namespace {
+template <typename OpTy, typename PoolingOpTy, int Dim>
+class ConvertAtenAvgPoolOp : public OpConversionPattern<OpTy> {
+public:
+  using OpConversionPattern<OpTy>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override;
+
+  // Creates the average pooling operation value when the
+  // count_include_pad parameter is equal to false.
+  static std::optional<LogicalResult>
+  createAvgPoolValueCountIncludePadFalseCase(
+      bool countIncludePad, OpTy op, typename OpTy::Adaptor adaptor,
+      ConversionPatternRewriter &rewriter, Value self, Value sumPool,
+      Value outputTensor, Type resultType,
+      SmallVectorImpl<Value> &kernelSizeIntValues,
+      SmallVectorImpl<int64_t> &strideInts,
+      SmallVectorImpl<int64_t> &paddingInts,
+      SmallVector<AffineMap> &indexingMapsAvg,
+      SmallVector<utils::IteratorType> &iteratorTypesAvg);
+
+  // Creates the average pooling operation value when the
+  // count_include_pad parameter is equal to true.
+  static LogicalResult createAvgPoolValueCountIncludePadTrueCase(
+      OpTy op, typename OpTy::Adaptor &adaptor,
+      ConversionPatternRewriter &rewriter, Value self, Value sumPool,
+      Value outputTensor, Type resultType,
+      SmallVectorImpl<Value> &kernelSizeIntValues,
+      SmallVector<AffineMap> &indexingMapsAvg,
+      SmallVector<utils::IteratorType> &iteratorTypesAvg);
+};
+} // namespace
+
+template <typename OpTy, typename PoolingOpTy, int Dim>
+LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::matchAndRewrite(
+    OpTy op, typename OpTy::Adaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+    return failure();
+
+  Location loc = op->getLoc();
+  const TypeConverter *typeConverter = this->getTypeConverter();
+  Value self = adaptor.getSelf();
+
+  Type inputElementType =
+      cast<RankedTensorType>(self.getType()).getElementType();
+  Type resultType = typeConverter->convertType(op.getType());
+  Type resultElementType = cast<RankedTensorType>(resultType).getElementType();
+
+  bool ceilMode;
+  SmallVector<Value, Dim> kernelSizeIntValues;
+  SmallVector<int64_t, Dim> strideInts, paddingInts, dilationInts(Dim, 1);
+  if (failed(checkAndGetPoolingParameters<OpTy>(op, rewriter, typeConverter,
+                                                ceilMode, kernelSizeIntValues,
+                                                strideInts, paddingInts)))
+    return rewriter.notifyMatchFailure(op, "invalid pooling parameters");
+
+  // Decode strideInts into strideInts and dilation
+  if (strideInts.size() == 2 * Dim) {
+    for (int i = 0; i < Dim; i++) {
+      dilationInts[i] = strideInts[Dim + i];
+    }
+    for (int i = 0; i < Dim; i++) {
+      strideInts.pop_back();
+    }
+  }
+
+  bool countIncludePad;
+  if (!matchPattern(op.getCountIncludePad(),
+                    m_TorchConstantBool(&countIncludePad)))
+    return rewriter.notifyMatchFailure(op,
+                                       "count_include_pad must be a constant");
+
+  // `sumPool` contains the result of sumpool operation over the input.
+  Value sumPool, paddedInput;
+  SmallVector<Value, Dim + 2> outTensorShape;
+  if (failed(createPoolingOp<PoolingOpTy>(
+          op, rewriter, self, /*supportNonFPInput=*/true, ceilMode,
+          /*dimensionality=*/Dim, kernelSizeIntValues, strideInts, paddingInts,
+          dilationInts, rewriter.getZeroAttr(inputElementType), outTensorShape,
+          paddedInput, sumPool)))
+    return rewriter.notifyMatchFailure(op, "unable to compute sumpool");
+
+  // Compute the average of sumPool.
+  Value outputTensor = rewriter.create<tensor::EmptyOp>(
+      loc, getAsOpFoldResult(outTensorShape), resultElementType);
+  SmallVector<AffineMap> indexingMapsAvg(
+      2, rewriter.getMultiDimIdentityMap(Dim + 2));
+  SmallVector<utils::IteratorType> iteratorTypesAvg(
+      Dim + 2, utils::IteratorType::parallel);
+
+  auto divisorOpResult = createAvgPoolValueCountIncludePadFalseCase(
+      countIncludePad, op, adaptor, rewriter, self, sumPool, outputTensor,
+      resultType, kernelSizeIntValues, strideInts, paddingInts, indexingMapsAvg,
+      iteratorTypesAvg);
+  if (divisorOpResult)
+    return *divisorOpResult;
+
+  return createAvgPoolValueCountIncludePadTrueCase(
+      op, adaptor, rewriter, self, sumPool, outputTensor, resultType,
+      kernelSizeIntValues, indexingMapsAvg, iteratorTypesAvg);
+
+  return success();
+}
+
+template <typename OpTy, typename PoolingOpTy, int Dim>
+std::optional<LogicalResult> ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
+    createAvgPoolValueCountIncludePadFalseCase(
+        bool countIncludePad, OpTy op, typename OpTy::Adaptor adaptor,
+        ConversionPatternRewriter &rewriter, Value self, Value sumPool,
+        Value outputTensor, Type resultType,
+        SmallVectorImpl<Value> &kernelSizeIntValues,
+        SmallVectorImpl<int64_t> &strideInts,
+        SmallVectorImpl<int64_t> &paddingInts,
+        SmallVector<AffineMap> &indexingMapsAvg,
+        SmallVector<utils::IteratorType> &iteratorTypesAvg) {
   Location loc = op->getLoc();
 
   constexpr int avgPoolDims = getAvgPoolNumOfDims<OpTy>();
@@ -1006,16 +1113,15 @@ static std::optional<LogicalResult> createAvgPoolValueCountIncludePadFalseCase(
   return success();
 }
 
-// Creates the average pooling operation value when the
-// count_include_pad parameter is equal to true.
-template <typename OpTy>
-static LogicalResult createAvgPoolValueCountIncludePadTrueCase(
-    OpTy op, typename OpTy::Adaptor &adaptor,
-    ConversionPatternRewriter &rewriter, Value self, Value sumPool,
-    Value outputTensor, Type resultType,
-    SmallVectorImpl<Value> &kernelSizeIntValues,
-    SmallVector<AffineMap> &indexingMapsAvg,
-    SmallVector<utils::IteratorType> &iteratorTypesAvg) {
+template <typename OpTy, typename PoolingOpTy, int Dim>
+LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
+    createAvgPoolValueCountIncludePadTrueCase(
+        OpTy op, typename OpTy::Adaptor &adaptor,
+        ConversionPatternRewriter &rewriter, Value self, Value sumPool,
+        Value outputTensor, Type resultType,
+        SmallVectorImpl<Value> &kernelSizeIntValues,
+        SmallVector<AffineMap> &indexingMapsAvg,
+        SmallVector<utils::IteratorType> &iteratorTypesAvg) {
   Location loc = op->getLoc();
 
   Type resultElementType = cast<RankedTensorType>(resultType).getElementType();
@@ -1051,86 +1157,6 @@ static LogicalResult createAvgPoolValueCountIncludePadTrueCase(
   rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, avgPool);
   return success();
 }
-
-namespace {
-template <typename OpTy, typename PoolingOpTy, int Dim>
-class ConvertAtenAvgPoolOp : public OpConversionPattern<OpTy> {
-public:
-  using OpConversionPattern<OpTy>::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
-
-    Location loc = op->getLoc();
-    const TypeConverter *typeConverter = this->getTypeConverter();
-    Value self = adaptor.getSelf();
-
-    Type inputElementType =
-        cast<RankedTensorType>(self.getType()).getElementType();
-    Type resultType = typeConverter->convertType(op.getType());
-    Type resultElementType =
-        cast<RankedTensorType>(resultType).getElementType();
-
-    bool ceilMode;
-    SmallVector<Value, Dim> kernelSizeIntValues;
-    SmallVector<int64_t, Dim> strideInts, paddingInts, dilationInts(Dim, 1);
-    if (failed(checkAndGetPoolingParameters<OpTy>(op, rewriter, typeConverter,
-                                                  ceilMode, kernelSizeIntValues,
-                                                  strideInts, paddingInts)))
-      return rewriter.notifyMatchFailure(op, "invalid pooling parameters");
-
-    // Decode strideInts into strideInts and dilation
-    if (strideInts.size() == 2 * Dim) {
-      for (int i = 0; i < Dim; i++) {
-        dilationInts[i] = strideInts[Dim + i];
-      }
-      for (int i = 0; i < Dim; i++) {
-        strideInts.pop_back();
-      }
-    }
-
-    // TODO: Add support for count_include_pad equal to `False`.
-    bool countIncludePad;
-    if (!matchPattern(op.getCountIncludePad(),
-                      m_TorchConstantBool(&countIncludePad)))
-      return rewriter.notifyMatchFailure(
-          op, "count_include_pad must be a constant");
-
-    // `sumPool` contains the result of sumpool operation over the input.
-    Value sumPool, paddedInput;
-    SmallVector<Value, Dim + 2> outTensorShape;
-    if (failed(createPoolingOp<PoolingOpTy>(
-            op, rewriter, self, /*supportNonFPInput=*/true, ceilMode,
-            /*dimensionality=*/Dim, kernelSizeIntValues, strideInts,
-            paddingInts, dilationInts, rewriter.getZeroAttr(inputElementType),
-            outTensorShape, paddedInput, sumPool)))
-      return rewriter.notifyMatchFailure(op, "unable to compute sumpool");
-
-    // Compute the average of sumPool.
-    Value outputTensor = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(outTensorShape), resultElementType);
-    SmallVector<AffineMap> indexingMapsAvg(
-        2, rewriter.getMultiDimIdentityMap(Dim + 2));
-    SmallVector<utils::IteratorType> iteratorTypesAvg(
-        Dim + 2, utils::IteratorType::parallel);
-
-    auto divisorOpResult = createAvgPoolValueCountIncludePadFalseCase<OpTy>(
-        countIncludePad, op, adaptor, rewriter, self, sumPool, outputTensor,
-        resultType, kernelSizeIntValues, strideInts, paddingInts,
-        indexingMapsAvg, iteratorTypesAvg);
-    if (divisorOpResult)
-      return *divisorOpResult;
-
-    return createAvgPoolValueCountIncludePadTrueCase<OpTy>(
-        op, adaptor, rewriter, self, sumPool, outputTensor, resultType,
-        kernelSizeIntValues, indexingMapsAvg, iteratorTypesAvg);
-
-    return success();
-  }
-};
-} // namespace
 
 /*
 This section is for lowering adaptive pooling ops, which cannot generally be
