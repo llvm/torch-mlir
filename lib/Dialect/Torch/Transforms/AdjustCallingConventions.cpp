@@ -164,11 +164,44 @@ class AdjustCallingConventionForReturn
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(func::ReturnOp op, OpAdaptor adaptor,
+  matchAndRewrite(func::ReturnOp op, OneToNOpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    // The dialect conversion framework inserts unrealized conversion casts to
+    // materialize legal types from illegal types. For example, for input IR
+    // like
+    //   %1 = torch.prim.TupleConstruct %arg0, %arg1 : !torch.tensor,
+    //        torch.tensor -> !torch.tuple<tensor, tensor>
+    //   return %1 : !torch.tuple<tensor, tensor>
+    // at this stage in the conversion process we'll have something like
+    //   %1 = torch.prim.TupleConstruct %arg0, %arg1 : !torch.tensor,
+    //        !torch.tensor -> !torch.tuple<tensor, tensor>
+    //   %2 = builtin.unrealized_conversion_cast %1 :
+    //        !torch.tuple<tensor, tensor> to !torch.tensor
+    //   %3 = builtin.unrealized_conversion_cast %1 :
+    //        !torch.tuple<tensor, tensor> to !torch.tensor
+    //   return %2, %3 : !torch.tensor, !torch.tensor
+    //
+    //  Here we map back to the original torch.prim.TupleConstruct's
+    SmallVector<Value> flatOperands;
+    for (const auto &vals : adaptor.getOperands()) {
+      for (const auto &operand : vals) {
+        // A block argument won't have a defining op.
+        if (operand.getDefiningOp() &&
+            isa<mlir::UnrealizedConversionCastOp>(operand.getDefiningOp())) {
+          auto definingOp = operand.getDefiningOp()->getOperand(0);
+          // de-duplicate
+          if (std::find(flatOperands.begin(), flatOperands.end(), definingOp) ==
+              flatOperands.end()) {
+            flatOperands.push_back(definingOp);
+          }
+        } else {
+          flatOperands.push_back(operand);
+        }
+      }
+    }
 
     SmallVector<Value> newOperands;
-    for (auto operand : adaptor.getOperands()) {
+    for (auto operand : flatOperands) {
       if (!operand)
         continue;
       if (isa<Torch::NoneType>(operand.getType()))
