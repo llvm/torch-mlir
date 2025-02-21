@@ -1428,6 +1428,84 @@ def AvgPool2dWithoutPadModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 20, 20, low=0.5, high=1.0))
 
 
+class AvgPool2dCHWModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[6, 8],
+            stride=[2, 2],
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dCHWModule())
+def AvgPool2dCHWModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 20, 20, low=0.5, high=1.0))
+
+
+class AvgPool2dSingleIntTupleParamsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=(6,),
+            stride=(2,),
+            padding=(1,),
+            count_include_pad=False,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dSingleIntTupleParamsModule())
+def AvgPool2dSingleIntTupleParamsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 20, 20, low=0.5, high=1.0))
+
+
+class AvgPool2dSingleIntTupleParamsIncludePadModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=(6,),
+            stride=(2,),
+            padding=(1,),
+            count_include_pad=True,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dSingleIntTupleParamsIncludePadModule()
+)
+def AvgPool2dSingleIntTupleParamsIncludePadModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 20, 20, low=0.5, high=1.0))
+
+
 # ==============================================================================
 
 

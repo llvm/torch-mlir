@@ -5764,6 +5764,35 @@ public:
                                           : nhwcToNchw4DTransposeDims);
   }
 
+  void
+  unsqueezeInputOutputFor2dPool(RankedTensorType inputTy, Value &input,
+                                Type &outputTy, Location loc,
+                                ConversionPatternRewriter &rewriter) const {
+    // 1d pool AtenOps mapped to TosaOp will already have the data in 4D format,
+    // here we can have 3D data only if the AtenOp itself is a 2d pool op with
+    // data in HWC format.
+
+    // Unsqueeze input tensor in HWC format to NHWC format to be
+    // compatible with tosa::AvgPool2dOp, batch is made explicitly 1.
+    SmallVector<int64_t> rank4Shape(inputTy.getShape());
+    assert(inputTy.getRank() == 3 &&
+           "Expected input to be atleast 3 dimensional.");
+    rank4Shape.insert(rank4Shape.begin(), 1);
+    input = rewriter.create<tosa::ReshapeOp>(
+        loc,
+        RankedTensorType::get(makeShapeTorchCompatible(rank4Shape),
+                              inputTy.getElementType()),
+        input, tosa::getTosaConstShape(rewriter, loc, rank4Shape));
+
+    // Unsqueeze output type
+    auto outRankedTy = cast<RankedTensorType>(outputTy);
+    assert(outRankedTy.getRank() == 3 &&
+           "Expected output rank to be same as input.");
+    SmallVector<int64_t> rank4ShapeOut(outRankedTy.getShape());
+    rank4ShapeOut.insert(rank4ShapeOut.begin(), 1);
+    outputTy = outRankedTy.clone(rank4ShapeOut);
+  }
+
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
@@ -5777,6 +5806,13 @@ public:
                              outputTy)))
       return rewriter.notifyMatchFailure(
           op, "Failed to process inputs for pooling");
+
+    // input has already been verified to be RankedTensorType
+    auto inputTy = cast<RankedTensorType>(input.getType());
+    if (inputTy.getRank() != 4) {
+      unsqueezeInputOutputFor2dPool(inputTy, input, outputTy, op->getLoc(),
+                                    rewriter);
+    }
 
     Value pooledOutput;
     static_assert(std::is_same<TosaOpT, tosa::MaxPool2dOp>::value ||
@@ -5805,14 +5841,14 @@ public:
             op, rewriter, pooledOutput);
 
     Value result = transposedOutput;
-    auto resultTy = dyn_cast<TensorType>(
+    auto resultTy = cast<TensorType>(result.getType());
+    auto expectedResultTy = dyn_cast<TensorType>(
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()));
 
-    if constexpr (std::is_same<AtenOpT, AtenMaxPool1dOp>() ||
-                  std::is_same<AtenOpT, AtenAvgPool1dOp>()) {
-      auto resultShape = resultTy.getShape();
-      auto resultElemTy = resultTy.getElementType();
+    if (resultTy.getRank() != expectedResultTy.getRank()) {
+      auto resultShape = expectedResultTy.getShape();
+      auto resultElemTy = expectedResultTy.getElementType();
 
       result = rewriter.create<tosa::ReshapeOp>(
           op->getLoc(),
@@ -5823,7 +5859,7 @@ public:
                                   makeShapeTorchCompatible(resultShape)));
     }
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultTy, result);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, expectedResultTy, result);
 
     return success();
   }
@@ -5851,7 +5887,7 @@ public:
     auto inputElemTy = inputTy.getElementType();
 
     // Rank sanity check.
-    if (inputTy.getRank() != 4 && inputRank != 3)
+    if (inputRank != 4 && inputRank != 3)
       return rewriter.notifyMatchFailure(
           op, "NCHW->NHWC transpose requires 3D or 4D tensor");
 
@@ -5944,6 +5980,22 @@ static Type getOutputTypeForNonAdaptivePoolingOp(
                                inputElemTy);
 }
 
+template <typename AtenOpT>
+void expandPoolParams(AtenOpT op, SmallVectorImpl<int64_t> &params,
+                      int64_t val) {
+  // Expand pooling parameter (kernel, stride) to size 2 to be compatible with
+  // tosa::MaxPool2dOp or tosa::AvgPool2dOp
+  if constexpr (std::is_same<AtenOpT, AtenMaxPool1dOp>() ||
+                std::is_same<AtenOpT, AtenAvgPool1dOp>())
+    params.push_back(val);
+
+  if constexpr (std::is_same<AtenOpT, AtenMaxPool2dOp>() ||
+                std::is_same<AtenOpT, AtenAvgPool2dOp>()) {
+    if (params.size() == 1)
+      params.push_back(params[0]);
+  }
+}
+
 // Checks the validity of pooling parameters and stores them in the respective
 // vector. Also, gets the output type for the pooling op.
 template <typename AtenOpT, typename tosaOp>
@@ -5969,12 +6021,7 @@ static LogicalResult getOutputTypeAndPoolingParameters(
                     m_TorchListOfConstantInts(kernelSizeInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const kernel_size for pooling op unsupported");
-
-  // Expand kernel size parameter to size 2 to be compatible with
-  // tosa::MaxPool2dOp or tosa::AvgPool2dOp
-  if constexpr (std::is_same<AtenOpT, AtenMaxPool1dOp>() ||
-                std::is_same<AtenOpT, AtenAvgPool1dOp>())
-    kernelSizeInts.push_back(1);
+  expandPoolParams(op, kernelSizeInts, 1);
 
   if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
     return rewriter.notifyMatchFailure(
@@ -5986,22 +6033,13 @@ static LogicalResult getOutputTypeAndPoolingParameters(
   if (strideInts.empty()) {
     strideInts.assign(kernelSizeInts);
   } else {
-    // Expand stride parameter to size 2 to be compatible with
-    // tosa::MaxPool2dOp or tosa::AvgPool2dOp
-    if constexpr (std::is_same<AtenOpT, AtenMaxPool1dOp>() ||
-                  std::is_same<AtenOpT, AtenAvgPool1dOp>())
-      strideInts.push_back(1);
+    expandPoolParams(op, strideInts, 1);
   }
 
   if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(paddingInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const padding factor for pooling op unsupported");
-
-  // Expand padding parameter to size 2 to be compatible with
-  // tosa::MaxPool2dOp or tosa::AvgPool2dOp
-  if constexpr (std::is_same<AtenOpT, AtenMaxPool1dOp>() ||
-                std::is_same<AtenOpT, AtenAvgPool1dOp>())
-    paddingInts.push_back(0);
+  expandPoolParams(op, paddingInts, 0);
 
   if constexpr (std::is_same<AtenOpT, AtenAvgPool1dOp>() ||
                 std::is_same<AtenOpT, AtenAvgPool2dOp>()) {
@@ -6033,6 +6071,7 @@ static LogicalResult getOutputTypeAndPoolingParameters(
     return rewriter.notifyMatchFailure(
         op, "only support constant bool ceil_mode for pooling op");
 
+  expandPoolParams(op, dilationArray, 1);
   outputTy = getOutputTypeForNonAdaptivePoolingOp<AtenOpT, tosaOp>(
       inputTy, kernelSizeInts, strideInts, paddingInts, dilationArray,
       ceilMode);
