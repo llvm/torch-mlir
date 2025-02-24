@@ -2300,6 +2300,25 @@ f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_ve
 
 // -----
 
+// CHECK-LABEL: func.func @test_resize_defaults
+func.func @test_resize_defaults(%arg0: !torch.vtensor<[1,3,224,224],f32>, %arg1: !torch.vtensor<[4],si64>) -> !torch.vtensor<[1,3,800,800],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 21 : si64, torch.onnx_meta.producer_name = "pytorch", torch.onnx_meta.producer_version = "2.1.0"} {
+  %none = torch.constant.none
+  // CHECK: torch.aten.__interpolate.size_list_scale_list
+  %0 = torch.operator "onnx.Resize"(%arg0, %none, %none, %arg1) {
+    torch.onnx.antialias = 0 : si64,
+    torch.onnx.coordinate_transformation_mode = "half_pixel",
+    torch.onnx.cubic_coeff_a = -7.500000e-01 : f32,
+    torch.onnx.exclude_outside = 0 : si64,
+    torch.onnx.extrapolation_value = 0.000000e+00 : f32,
+    torch.onnx.keep_aspect_ratio_policy = "stretch",
+    torch.onnx.mode = "nearest",
+    torch.onnx.nearest_mode = "round_prefer_floor"
+  } : (!torch.vtensor<[1,3,224,224],f32>, !torch.none, !torch.none, !torch.vtensor<[4],si64>) -> !torch.vtensor<[1,3,800,800],f32>
+  return %0 : !torch.vtensor<[1,3,800,800],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @test_roialign_avg
   func.func @test_roialign_avg(%arg0: !torch.vtensor<[6,2,100,100],f32>, %arg1: !torch.vtensor<[30,4],f32>, %arg2: !torch.vtensor<[30],si64>) -> !torch.vtensor<[30,2,5,5],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
     // CHECK: %[[Dim:.*]] = torch.constant.int 1
