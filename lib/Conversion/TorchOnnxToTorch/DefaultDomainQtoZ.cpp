@@ -2702,7 +2702,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       "Resize", 11, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType outputTensorType;
         llvm::SmallVector<Value> operands;
-        std::string mode, nearest_mode, coordTfMode;
+        std::string mode, nearest_mode, coordTfMode, keepAspectRatioPolicy;
         int64_t antialias, exclude_outside;
         float extrapolation_value, cubic_coeff_a;
 
@@ -2710,12 +2710,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(
               binder.op,
               "unimplemented: support not present for axes attribute");
-        }
-        if (auto attr =
-                binder.op->getAttr("torch.onnx.keep_aspect_ratio_policy")) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "unimplemented: support not present for "
-                         "keep_aspect_ratio_policy attribute");
         }
 
         if (binder.tensorOperandsList(operands) ||
@@ -2729,6 +2723,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                 0.0) ||
             binder.customOpNameStringAttr(nearest_mode, "nearest_mode",
                                           "round_prefer_floor") ||
+            binder.customOpNameStringAttr(keepAspectRatioPolicy,
+                                          "torch.onnx.keep_aspect_ratio_policy",
+                                          "stretch") ||
             binder.f32FloatAttr(cubic_coeff_a, "cubic_coeff_a", -0.75))
           return failure();
 
@@ -2797,6 +2794,12 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (mode == "cubic" && cubic_coeff_a != -0.75) {
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: cubic coeff must be -0.75");
+        }
+
+        if (keepAspectRatioPolicy != "stretch") {
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: non-default keep_aspect_ratio_policy "
+                         "attribute for resize");
         }
 
         auto loc = binder.getLoc();
