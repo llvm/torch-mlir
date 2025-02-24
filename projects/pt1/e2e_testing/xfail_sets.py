@@ -2999,6 +2999,7 @@ ONNX_XFAIL_SET = {
     "PrimsConvertElementTypeModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
     "PrimsSqueezeModule_basic",
+    "PrimsSumFloatModule_basic",
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "QuantizedReluInt8_basic",
