@@ -249,23 +249,23 @@ Torch-MLIR can also be built using Bazel (apart from the official CMake build) f
 
 1. Launch an interactive docker container with the required deps installed:
 
-```shell
-./utils/bazel/docker/run_docker.sh
-```
+    ```shell
+    ./utils/bazel/docker/run_docker.sh
+    ```
 
 2. Build torch-mlir:
 
-```shell
-bazel build @torch-mlir//:torch-mlir-opt
-```
+    ```shell
+    bazel build @torch-mlir//:torch-mlir-opt
+    ```
 
-The built binary should be at `bazel-bin/external/torch-mlir/torch-mlir-opt`.
+    The built binary should be at `bazel-bin/external/torch-mlir/torch-mlir-opt`.
 
 3. Test torch-mlir (lit test only):
 
-```shell
-bazel test @torch-mlir//test/...
-```
+    ```shell
+    bazel test @torch-mlir//test/...
+    ```
 
 We welcome patches to torch-mlir's Bazel build. If you do contribute,
 please complete your PR with an invocation of buildifier to ensure
@@ -357,50 +357,50 @@ The following additional environmental variables can be used to customize your d
 * Custom Release Docker image:
   Defaults to `stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest`
 
-```shell
-  TM_RELEASE_DOCKER_IMAGE="stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest"
-```
+    ```shell
+      TM_RELEASE_DOCKER_IMAGE="stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest"
+    ```
 
 * Custom CI Docker image:
   Defaults to `powderluv/torch-mlir-ci:latest`. This assumes an Ubuntu LTS like image. You can build your own with `./build_tools/docker/Dockerfile`
 
-```shell
-  TM_CI_DOCKER_IMAGE="powderluv/torch-mlir-ci:latest"
-```
+    ```shell
+      TM_CI_DOCKER_IMAGE="powderluv/torch-mlir-ci:latest"
+    ```
 
 * Custom Python Versions for Release builds:
   Version of Python to use in Release builds. Ignored in CIs. Defaults to `cp39-cp39 cp310-cp310 cp312-cp312`
 
-```shell
-  TM_PYTHON_VERSIONS="cp39-cp39 cp310-cp310 cp312-cp312"
-```
+    ```shell
+      TM_PYTHON_VERSIONS="cp39-cp39 cp310-cp310 cp312-cp312"
+    ```
 
 * Location to store Release build wheels
 
-```shell
-  TM_OUTPUT_DIR="./build_tools/python_deploy/wheelhouse"
-```
+    ```shell
+      TM_OUTPUT_DIR="./build_tools/python_deploy/wheelhouse"
+    ```
 
 * What "packages" to build:
   Defaults to torch-mlir. Options are `torch-mlir out-of-tree in-tree`
 
-```shell
-  TM_PACKAGES="torch-mlir out-of-tree in-tree"
-```
+    ```shell
+      TM_PACKAGES="torch-mlir out-of-tree in-tree"
+    ```
 
 * Use pre-built Pytorch:
   Defaults to using pre-built Pytorch. Setting it to `OFF` builds from source
 
-```shell
-  TM_USE_PYTORCH_BINARY="OFF"
-```
+    ```shell
+      TM_USE_PYTORCH_BINARY="OFF"
+    ```
 
 * Skip running tests
   Skip running tests if you want quick build only iteration. Default set to `OFF`
 
-```shell
-  TM_SKIP_TESTS="OFF"
-```
+    ```shell
+      TM_SKIP_TESTS="OFF"
+    ```
 
 
 ### Build Python Packages
