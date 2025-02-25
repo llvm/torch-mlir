@@ -1467,6 +1467,10 @@ def aten〇rand〡shape(size: List[int], dtype: Optional[int] = None, layout: Op
 def aten〇bernoulli〇float〡shape(self: List[int], p: float = 0.5, generator: Any = None) -> List[int]:
     return self
 
+@not_present_in_registry
+def onnx〇rotary_embedding〡shape(input: List[int], position_ids: List[int], cos_cache: List[int], sin_cache: List[int], interleaved: int, is_packed_batching: int, num_heads: int, rotary_embedding_dim: int, scale: float) -> List[int]:
+    return input
+
 def aten〇bernoulli〇Tensor〡shape(self: List[int], p: List[int], generator: Any = None) -> List[int]:
     return self
 
@@ -2976,6 +2980,11 @@ def aten〇_weight_norm_interface〡dtype(v_rank_dtype: Tuple[int, int], g_rank_
 def aten〇bernoulli_〇float〡dtype(self_rank_dtype: Tuple[int, int], p: float = 0.5, generator: Any = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+@not_present_in_registry
+def onnx〇rotary_embedding〡dtype(input_rank_dtype: Tuple[int, int], position_ids_rank_dtype: Tuple[int, int], cos_cache_rank_dtype: Tuple[int, int], sin_cache_rank_dtype: Tuple[int, int], interleaved: int, is_packed_batching: int, num_heads: int, rotary_embedding_dim: int, scale: float) -> int:
+    input_rank, input_dtype = input_rank_dtype
+    return input_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇bernoulli〡dtype(self_rank_dtype: Tuple[int, int], generator: Any = None) -> int:

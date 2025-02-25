@@ -87,3 +87,16 @@ func.func @derefine_int_to_number() -> !torch.vtensor {
   %0 = torch.aten.arange %int1, %none, %none, %none, %none : !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor
   return %0 : !torch.vtensor
 }
+
+// -----
+
+// CHECK-LABEL:   func.func private @__torch_mlir_dtype_fn.onnx.rotary_embedding(
+
+// CHECK-LABEL:   func.func @custom_onnx_rotary_embedding(
+// CHECK:           func.call @__torch_mlir_dtype_fn.onnx.rotary_embedding
+func.func @custom_onnx_rotary_embedding(%arg0: !torch.vtensor<[1,3,2,6],f32>, %arg1: !torch.vtensor, %arg2: !torch.vtensor, %arg3: !torch.vtensor) -> !torch.vtensor {
+  %int0 = torch.constant.int 0
+  %float1.000000e00 = torch.constant.float 1.000000e+00
+  %4 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0, %int0, %int0, %float1.000000e00 : !torch.vtensor<[1,3,2,6],f32>, !torch.vtensor, !torch.vtensor, !torch.vtensor, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor
+  return %4 : !torch.vtensor
+}

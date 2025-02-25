@@ -3530,3 +3530,22 @@ func.func @test_thresholdedrelu(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vt
   %0 = torch.operator "onnx.ThresholdedRelu"(%arg0) {torch.onnx.alpha = 2.000000e+00 : f32} : (!torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],f32>
   return %0 : !torch.vtensor<[3,4,5],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @test_rotary_embedding(
+// CHECK-SAME:                                     %[[INPUT:.*]]: !torch.vtensor<[1,3,2,6],f32>,
+// CHECK-SAME:                                     %[[POSITION_IDS:.*]]: !torch.vtensor<[1,2],si64>,
+// CHECK-SAME:                                     %[[COS_CACHE:.*]]: !torch.vtensor<[4,3],f32>,
+// CHECK-SAME:                                     %[[SIN_CACHE:.*]]: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[1,3,2,6],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+func.func @test_rotary_embedding(%arg0: !torch.vtensor<[1,3,2,6],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[4,3],f32>, %arg3: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[1,3,2,6],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT0:.*]] = torch.constant.int 0
+  // CHECK: %[[INT0_0:.*]] = torch.constant.int 0
+  // CHECK: %[[INT0_1:.*]] = torch.constant.int 0
+  // CHECK: %[[INT0_2:.*]] = torch.constant.int 0
+  // CHECK: %[[FP0:.*]] = torch.constant.float 1.000000e+00
+  // CHECK: %[[ROTARY_EMBEDDING:.*]] = torch.onnx.rotary_embedding %[[INPUT]], %[[POSITION_IDS]], %[[COS_CACHE]], %[[SIN_CACHE]], %[[INT0]], %[[INT0_0]], %[[INT0_1]], %[[INT0_2]], %[[FP0]] : !torch.vtensor<[1,3,2,6],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,3,2,6],f32>
+  // CHECK: return %[[ROTARY_EMBEDDING]] : !torch.vtensor<[1,3,2,6],f32>
+  %4 = torch.operator "onnx.RotaryEmbedding"(%arg0, %arg1, %arg2, %arg3) : (!torch.vtensor<[1,3,2,6],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[1,3,2,6],f32>
+  return %4 : !torch.vtensor<[1,3,2,6],f32>
+}
