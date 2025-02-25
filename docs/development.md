@@ -1,6 +1,8 @@
-# Checkout and build from source
+# Development Guide
 
-## Check out the code
+## Setting Up Environment
+
+### Check out the code
 
 ```shell
 git clone https://github.com/llvm/torch-mlir
@@ -11,7 +13,7 @@ git submodule update --init --progress
 Optionally, use `--depth=1` to make a shallow clone of the submodules.
 While this is running, you can already setup the Python venv and dependencies in the next step.
 
-## Setup your Python VirtualEnvironment and Dependencies
+### Setup your Python VirtualEnvironment and Dependencies
 
 ```shell
 python3 -m venv mlir_venv
@@ -31,8 +33,7 @@ it with the following `apt` command on Ubuntu/Debian.
 sudo apt install python3-dev
 ```
 
-
-## (Optional) Set up pre-commit
+### (Optional) Set up pre-commit
 
 This project uses [pre-commit](https://pre-commit.com/) in its CI. You can
 install it locally too in order to lint and fix your code prior to the CI
@@ -45,15 +46,21 @@ pip install pre-commit
 pre-commit install
 ```
 
-## CMake Build
+## Building
+
+### With CMake
+
+#### Configure for Building...
 
 Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
 
-### Building torch-mlir in-tree
+##### ...with LLVM "in-tree" using...
 
-The following command generates configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.  On Windows, use the "Developer PowerShell for Visual Studio" to ensure that the compiler and linker binaries are in the `PATH` variable.
+The following commands generate configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.  On Windows, use the "Developer PowerShell for Visual Studio" to ensure that the compiler and linker binaries are in the `PATH` variable.
 
-This requires `lld`, `clang`, `ccache`, and other dependencies for building `libtorch` / `PyTorch` wheels from source. If you run into issues because of these, try the [simplified build command](#simplified-build).
+###### ...Base + Optimization Options
+
+This requires `lld`, `clang`, `ccache`, and other dependencies for building `libtorch` / `PyTorch` wheels from source. If you run into issues because of these, try the [simplified build command](#base-options).
 
 ```shell
 cmake -GNinja -Bbuild \
@@ -85,7 +92,7 @@ cmake -GNinja -Bbuild \
   -DLIBTORCH_VARIANT=shared
 ```
 
-# Simplified build
+###### ...Base Options
 
 If you're running into issues with the above build command, consider using the following:
 
@@ -101,7 +108,7 @@ cmake -GNinja -Bbuild \
   externals/llvm-project/llvm
 ```
 
-#### Flags to enable MLIR debugging:
+##### Options to enable MLIR debugging
 
 * Enabling `--debug` and `--debug-only` flags (see [MLIR docs](https://mlir.llvm.org/getting_started/Debugging/)) for the `torch-mlir-opt` tool
 ```shell
@@ -109,7 +116,7 @@ cmake -GNinja -Bbuild \
   -DLLVM_ENABLE_ASSERTIONS=ON \
 ```
 
-#### Flags to run end-to-end tests:
+##### Options to run end-to-end tests
 
 Running the end-to-end execution tests locally requires enabling the native PyTorch extension features and the JIT IR importer, which depends on the
 former and defaults to `ON` if not changed:
@@ -118,7 +125,7 @@ former and defaults to `ON` if not changed:
   -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON \
 ```
 
-### Building against a pre-built LLVM
+##### ...with LLVM "out-of-tree"
 
 If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following command as template:
 ```shell
@@ -135,10 +142,10 @@ The same QoL CMake flags can be used to enable clang, ccache, and lld. Be sure t
 
 Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
 
-
-### Build commands
+#### Initiate Build
 
 After either cmake run (in-tree/out-of-tree), use one of the following commands to build the project:
+
 ```shell
 # Build just torch-mlir (not all of LLVM)
 cmake --build build --target tools/torch-mlir/all
@@ -153,26 +160,27 @@ cmake --build build --target check-torch-mlir-python
 cmake --build build
 ```
 
-## Setup Python Environment to export the built Python packages
+### Setup Python Environment to export the built Python packages
 
-### Linux and macOS
+#### Linux and macOS
 
 ```shell
 export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/test/python/fx_importer
 ```
 
-### Windows PowerShell
+#### Windows PowerShell
 
 ```shell
 $env:PYTHONPATH = "$PWD/build/tools/torch-mlir/python_packages/torch_mlir;$PWD/test/python/fx_importer"
 ```
 
-## Testing MLIR output in various dialects
+### Testing MLIR output in various dialects
 
 To test the MLIR output to torch dialect, you can use `test/python/fx_importer/basic_test.py`.
 
 Make sure you have activated the virtualenv and set the `PYTHONPATH` above
 (if running on Windows, modify the environment variable as shown above):
+
 ```shell
 source mlir_venv/bin/activate
 export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/test/python/fx_importer
@@ -187,6 +195,7 @@ This path doesn't give access to the current generation work that is being drive
 and may lead to errors.
 
 Same as above, but with different python path and example:
+
 ```shell
 export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/projects/pt1/examples
 python projects/pt1/examples/torchscript_resnet18_all_output_types.py
@@ -197,15 +206,17 @@ This will display the Resnet18 network example in three dialects: TORCH, LINALG 
 The main functionality is on `torch_mlir.torchscript.compile()`'s `output_type`.
 
 Ex:
+
 ```python
 module = torch_mlir.torchscript.compile(resnet18, torch.ones(1, 3, 224, 224), output_type="torch")
 ```
 
 `output_type` can be: `TORCH`, `TOSA`, `LINALG_ON_TENSORS`, `RAW` and `STABLEHLO`.
 
-## Jupyter
+### Jupyter
 
 Jupyter notebook:
+
 ```shell
 python -m ipykernel install --user --name=torch-mlir --env PYTHONPATH "$PYTHONPATH"
 # Open in jupyter, and then navigate to
@@ -216,7 +227,7 @@ jupyter notebook
 [Example IR](https://gist.github.com/silvasean/e74780f8a8a449339aac05c51e8b0caa) for a simple 1 layer MLP to show the compilation steps from TorchScript.
 
 
-## Interactive Use
+### Interactive Use
 
 The `build_tools/write_env_file.sh` script will output a `.env`
 file in the workspace folder with the correct PYTHONPATH set. This allows
@@ -224,7 +235,7 @@ tools like VSCode to work by default for debugging. This file can also be
 manually `source`'d in a shell.
 
 
-## Bazel Build
+### Bazel Build
 
 > **NOTE** Our Bazel build follows LLVM's Bazel build policy: only the
 > subcommunity interested in Bazel is responsible for fixing it. Average
@@ -237,29 +248,34 @@ manually `source`'d in a shell.
 Torch-MLIR can also be built using Bazel (apart from the official CMake build) for users that depend on Bazel in their workflows. To build `torch-mlir-opt` using Bazel, follow these steps:
 
 1. Launch an interactive docker container with the required deps installed:
-```shell
-./utils/bazel/docker/run_docker.sh
-```
+
+    ```shell
+    ./utils/bazel/docker/run_docker.sh
+    ```
 
 2. Build torch-mlir:
-```shell
-bazel build @torch-mlir//:torch-mlir-opt
-```
-The built binary should be at `bazel-bin/external/torch-mlir/torch-mlir-opt`.
+
+    ```shell
+    bazel build @torch-mlir//:torch-mlir-opt
+    ```
+
+    The built binary should be at `bazel-bin/external/torch-mlir/torch-mlir-opt`.
 
 3. Test torch-mlir (lit test only):
-```shell
-bazel test @torch-mlir//test/...
-```
+
+    ```shell
+    bazel test @torch-mlir//test/...
+    ```
 
 We welcome patches to torch-mlir's Bazel build. If you do contribute,
 please complete your PR with an invocation of buildifier to ensure
 the BUILD files are formatted consistently:
+
 ```shell
 bazel run @torch-mlir//:buildifier
 ```
 
-## Docker Builds
+### Docker Builds
 
 We have preliminary support for building with Docker images. Currently this
 is not very convenient for day-to-day interactive development and
@@ -276,7 +292,7 @@ is built as part of the LLVM project along with MLIR.
 We mount a ccache and pip cache inside the docker container to speed up iterative builds. Iterative
 builds should be as fast as running without docker.
 
-### In-Tree builds
+#### In-Tree builds
 
 Build MLIR and Torch-MLIR together as part of the LLVM repo.
 
@@ -284,14 +300,15 @@ Build MLIR and Torch-MLIR together as part of the LLVM repo.
 TM_PACKAGES="in-tree" ./build_tools/python_deploy/build_linux_packages.sh
 ```
 
-### Out-of-Tree builds
+#### Out-of-Tree builds
 
 Build LLVM/MLIR first and then build Torch-MLIR referencing that build
+
 ```shell
 TM_PACKAGES="out-of-tree" ./build_tools/python_deploy/build_linux_packages.sh
 ```
 
-### Release builds
+#### Release builds
 
 Build in a manylinux Docker image so we can upload artifacts to PyPI.
 
@@ -299,7 +316,7 @@ Build in a manylinux Docker image so we can upload artifacts to PyPI.
 TM_PACKAGES="torch-mlir" ./build_tools/python_deploy/build_linux_packages.sh
 ```
 
-### Mimicing CI+Release builds
+#### Mimicing CI+Release builds
 
 If you wanted to build all the CIs locally
 
@@ -315,7 +332,7 @@ TM_PACKAGES="torch-mlir out-of-tree in-tree" TM_PYTHON_VERSIONS="cp310-cp310" ./
 
 Note: The Release docker still runs as root so it may generate some files owned by root:root. We hope to move it to run as a user in the future.
 
-### Cleaning up
+#### Cleaning up
 
 Docker builds tend to leave a wide variety of files around. Luckily most are owned by the user but there are still some that need to be removed
 as superuser.
@@ -324,7 +341,7 @@ as superuser.
 rm -rf build build_oot llvm-build docker_venv externals/pytorch/build .ccache
 ```
 
-## Building your own Docker image
+### Building your own Docker image
 
 If you would like to build your own docker image (usually not necessary). You can run:
 
@@ -333,50 +350,60 @@ cd ./build_tools/docker
 docker build -t your-name/torch-mlir-ci --no-cache .
 ```
 
-### Other configurable environmental variables
+#### Other configurable environmental variables
 
 The following additional environmental variables can be used to customize your docker build:
 
 * Custom Release Docker image:
   Defaults to `stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest`
-```shell
-  TM_RELEASE_DOCKER_IMAGE="stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest"
-```
+
+    ```shell
+      TM_RELEASE_DOCKER_IMAGE="stellaraccident/manylinux2014_x86_64-bazel-5.1.0:latest"
+    ```
+
 * Custom CI Docker image:
   Defaults to `powderluv/torch-mlir-ci:latest`. This assumes an Ubuntu LTS like image. You can build your own with `./build_tools/docker/Dockerfile`
-```shell
-  TM_CI_DOCKER_IMAGE="powderluv/torch-mlir-ci:latest"
-```
+
+    ```shell
+      TM_CI_DOCKER_IMAGE="powderluv/torch-mlir-ci:latest"
+    ```
 
 * Custom Python Versions for Release builds:
   Version of Python to use in Release builds. Ignored in CIs. Defaults to `cp39-cp39 cp310-cp310 cp312-cp312`
-```shell
-  TM_PYTHON_VERSIONS="cp39-cp39 cp310-cp310 cp312-cp312"
-```
+
+    ```shell
+      TM_PYTHON_VERSIONS="cp39-cp39 cp310-cp310 cp312-cp312"
+    ```
 
 * Location to store Release build wheels
-```shell
-  TM_OUTPUT_DIR="./build_tools/python_deploy/wheelhouse"
-```
+
+    ```shell
+      TM_OUTPUT_DIR="./build_tools/python_deploy/wheelhouse"
+    ```
 
 * What "packages" to build:
   Defaults to torch-mlir. Options are `torch-mlir out-of-tree in-tree`
-```shell
-  TM_PACKAGES="torch-mlir out-of-tree in-tree"
-```
+
+    ```shell
+      TM_PACKAGES="torch-mlir out-of-tree in-tree"
+    ```
+
 * Use pre-built Pytorch:
   Defaults to using pre-built Pytorch. Setting it to `OFF` builds from source
-```shell
-  TM_USE_PYTORCH_BINARY="OFF"
-```
+
+    ```shell
+      TM_USE_PYTORCH_BINARY="OFF"
+    ```
+
 * Skip running tests
   Skip running tests if you want quick build only iteration. Default set to `OFF`
-```shell
-  TM_SKIP_TESTS="OFF"
-```
+
+    ```shell
+      TM_SKIP_TESTS="OFF"
+    ```
 
 
-## Build Python Packages
+### Build Python Packages
 
 We have preliminary support for building Python packages. This can be done
 with the following commands:
@@ -389,6 +416,7 @@ CMAKE_GENERATOR=Ninja python setup.py bdist_wheel
 
 To package a completed CMake build directory,
 you can use the `TORCH_MLIR_CMAKE_BUILD_DIR` and `TORCH_MLIR_CMAKE_ALREADY_BUILT` environment variables:
+
 ```shell
 TORCH_MLIR_CMAKE_BUILD_DIR=build/ TORCH_MLIR_CMAKE_ALREADY_BUILT=1 python setup.py bdist_wheel
 ```
@@ -396,7 +424,7 @@ TORCH_MLIR_CMAKE_BUILD_DIR=build/ TORCH_MLIR_CMAKE_ALREADY_BUILT=1 python setup.
 Note: The setup.py script is only used for building the Python packages,
 not support commands like `setup.py develop` to build the development environment.
 
-# Testing
+## Testing
 
 Torch-MLIR has two types of tests:
 
@@ -416,7 +444,7 @@ Torch-MLIR has two types of tests:
    [LLVM Testing Guide](https://llvm.org/docs/TestingGuide.html#regression-test-structure).
 
 
-## Running execution (end-to-end) tests:
+### Running execution (end-to-end) tests:
 
 > **Note**
 > An `.env` file must be generated via `build_tools/write_env_file.sh` before these commands can be run.
@@ -454,7 +482,7 @@ vars like this makes it easy to set in GH action files, etc. Note that the
 verbose flags are very verbose. Basic sequential progress reports will be
 printed regardless when not running in parallel.
 
-## Running unit tests.
+### Running unit tests.
 
 To run all of the unit tests, run:
 
@@ -487,16 +515,17 @@ $TORCH_MLIR_BUILD_DIR/bin/llvm-lit $TORCH_MLIR_SRC_ROOT/test -v --filter=canonic
 
 Most of the unit tests use the [`FileCheck` tool](https://llvm.org/docs/CommandGuide/FileCheck.html) to verify expected outputs.
 
-# PyTorch source builds and custom PyTorch versions
+## PyTorch source builds and custom PyTorch versions
 
 Torch-MLIR by default builds with the latest nightly PyTorch version. This can be toggled to build from latest PyTorch source with
+
 ```
 -DTORCH_MLIR_USE_INSTALLED_PYTORCH=OFF
 -DTORCH_MLIR_SRC_PYTORCH_REPO=vivekkhandelwal1/pytorch # Optional. Github path. Defaults to pytorch/pytorch
 -DTORCH_MLIR_SRC_PYTORCH_BRANCH=master # Optional. Defaults to PyTorch's main branch
 ```
 
-# Updating the LLVM and MLIR-HLO submodules
+## Updating the LLVM and MLIR-HLO submodules
 
 Torch-MLIR depends on `llvm-project` (which contains, among other things,
 upstream MLIR) and `stablehlo`, both of which are submodules in the `externals/`
@@ -504,7 +533,7 @@ directory. We aim to update these at least weekly to bring in the latest
 features and spread out over time the effort of updating our code for MLIR API
 breakages.
 
-## Which LLVM commit should I pick?
+### Which LLVM commit should I pick?
 
 NOTE: This section is in flux. Specifically, the `mlir-hlo` dep has been
 dropped and the project is running off of a `stablehlo` fork which can be
@@ -524,7 +553,7 @@ our submodule updates on these green commits also helps us stay in sync with
 LLVM updates in other projects like ONNX-MLIR and MLIR-HLO. The person
 responsible for the update each week is listed [here](https://github.com/llvm/torch-mlir/wiki/Weekly-LLVM-Update).
 
-## What is the update process?
+### What is the update process?
 
 1. **Lookup green commit hashes**: From the Github issue
    https://github.com/llvm/torch-mlir/issues/1178, find the LLVM and MLIR-HLO
@@ -556,7 +585,7 @@ Here are some examples of PRs updating the LLVM and MLIR-HLO submodules:
 - https://github.com/llvm/torch-mlir/pull/1180
 - https://github.com/llvm/torch-mlir/pull/1229
 
-# Enabling Address Sanitizer (ASan)
+## Enabling Address Sanitizer (ASan)
 
 To enable ASAN, pass `-DLLVM_USE_SANITIZER=Address` to CMake. This should "just
 work" with all C++ tools like `torch-mlir-opt`. When running a Python script
@@ -570,7 +599,7 @@ LD_PRELOAD="$(clang -print-file-name=libclang_rt.asan-x86_64.so)" ./projects/pt1
 
 TODO: Add ASan docs for LTC.
 
-# Other docs
+## Other docs
 
 - GitHub wiki: https://github.com/llvm/torch-mlir/wiki
 - Of particular interest in the [How to add end-to-end support for new Torch ops](https://github.com/llvm/torch-mlir/wiki/Torch-ops-E2E-implementation) doc.
