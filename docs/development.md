@@ -1,6 +1,6 @@
 # Development Guide
 
-## Environment
+## Setting Up Environment
 
 ### Check out the code
 
