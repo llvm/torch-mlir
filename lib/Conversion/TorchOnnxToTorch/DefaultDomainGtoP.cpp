@@ -1541,7 +1541,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         return success();
       });
-  patterns.onOp("Greater", 16,
+  patterns.onOp("Greater", 7,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value lhs, rhs;
@@ -1948,7 +1948,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         return success();
       });
   patterns.onOp(
-      "Gather", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Gather", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value data, indices;
         int64_t axis;
