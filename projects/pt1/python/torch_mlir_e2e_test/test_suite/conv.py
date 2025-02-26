@@ -1756,4 +1756,3 @@ class ConvolutionModule2DGroupedTranspose(torch.nn.Module):
 @register_test_case(module_factory=lambda: ConvolutionModule2DGroupedTranspose())
 def ConvolutionModule2DGroupedTranspose_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 2, 5, 7), tu.rand(2, 2, 3, 3), tu.rand(4))
-

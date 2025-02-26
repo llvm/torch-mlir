@@ -147,4 +147,3 @@ func.func @transposedGroupedConvolution2D(%arg0: !torch.vtensor<[1,2,5,7],f32>) 
   %6 = torch.aten.convolution %arg0, %0, %1, %2, %3, %4, %true, %5, %int2 : !torch.vtensor<[1,2,5,7],f32>, !torch.vtensor<[2,2,3,3],f32>, !torch.vtensor<[4],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,4,10,14],f32>
   return %6 : !torch.vtensor<[1,4,10,14],f32>
 }
-
