@@ -1020,8 +1020,7 @@ public:
         std::iter_swap(weightInitDims.begin(), weightInitDims.begin() + 1);
         outDims[1] = weightInitDims[0];
       }
-      auto weightRank =
-          weightInitDims.size(); // isGroupedConv ? inRank + 1 : inRank;
+      auto weightRank = weightInitDims.size();
       Value weightInitTensor =
           createZeroInitTensor(rewriter, loc, weightInitDims, weightDTy);
       SmallVector<utils::IteratorType> iteratorTypes(
