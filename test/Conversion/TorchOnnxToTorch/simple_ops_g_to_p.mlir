@@ -2337,61 +2337,54 @@ func.func @test_mwm(%arg0: !torch.vtensor<[],si64>, %arg1: !torch.vtensor<[],si6
 
 // -----
 
-// CHECK-LABEL:   func.func @test_group_query_attention() -> (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
-func.func @test_group_query_attention() -> (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
-  // CHECK:           %[[VAL_0:.*]] = torch.vtensor.literal(dense<{{\[\[}}[0.000000e+00, 1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00, 6.000000e+00, 7.000000e+00, 8.000000e+00, 9.000000e+00, 1.000000e+01, 1.100000e+01, 1.200000e+01, 1.300000e+01, 1.400000e+01, 1.500000e+01]]]> : tensor<1x1x16xf32>) : !torch.vtensor<[1,1,16],f32>
-  // CHECK:           %[[VAL_1:.*]] = torch.vtensor.literal(dense<{{\[\[}}[1.600000e+01, 1.700000e+01, 1.800000e+01, 1.900000e+01, 2.000000e+01, 2.100000e+01, 2.200000e+01, 2.300000e+01, 2.400000e+01, 2.500000e+01, 2.600000e+01, 2.700000e+01, 2.800000e+01, 2.900000e+01, 3.000000e+01, 3.100000e+01]]]> : tensor<1x1x16xf32>) : !torch.vtensor<[1,1,16],f32>
-  // CHECK:           %[[VAL_2:.*]] = torch.vtensor.literal(dense<{{\[\[}}[3.200000e+01, 3.300000e+01, 3.400000e+01, 3.500000e+01, 3.600000e+01, 3.700000e+01, 3.800000e+01, 3.900000e+01, 4.000000e+01, 4.100000e+01, 4.200000e+01, 4.300000e+01, 4.400000e+01, 4.500000e+01, 4.600000e+01, 4.700000e+01]]]> : tensor<1x1x16xf32>) : !torch.vtensor<[1,1,16],f32>
+// CHECK-LABEL:   func.func @test_group_query_attention(
+func.func @test_group_query_attention(%arg0: !torch.vtensor<[1,1,16],f32>, %arg1: !torch.vtensor<[1,1,16],f32>, %arg2: !torch.vtensor<[1,1,16],f32>) -> (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  // CHECK-SAME:                                          %[[VAL_0:.*]]: !torch.vtensor<[1,1,16],f32>, %[[VAL_1:.*]]: !torch.vtensor<[1,1,16],f32>,
+  // CHECK-SAME:                                          %[[VAL_2:.*]]: !torch.vtensor<[1,1,16],f32>)
   // CHECK:           %[[VAL_3:.*]] = torch.vtensor.literal(dense<> : tensor<1x2x0x8xf32>) : !torch.vtensor<[1,2,0,8],f32>
   // CHECK:           %[[VAL_4:.*]] = torch.vtensor.literal(dense<> : tensor<1x2x0x8xf32>) : !torch.vtensor<[1,2,0,8],f32>
   // CHECK:           %[[VAL_5:.*]] = torch.vtensor.literal(dense<1> : tensor<1xsi32>) : !torch.vtensor<[1],si32>
   // CHECK:           %[[VAL_6:.*]] = torch.vtensor.literal(dense<1> : tensor<1xsi32>) : !torch.vtensor<[1],si32>
-  // CHECK:           %[[VAL_7:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_7:.*]] = torch.constant.int 1
   // CHECK:           %[[VAL_8:.*]] = torch.constant.int 1
-  // CHECK:           %[[VAL_9:.*]] = torch.constant.int 1
-  // CHECK:           %[[VAL_10:.*]] = torch.constant.int 16
-  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 8
+  // CHECK:           %[[VAL_9:.*]] = torch.constant.int 16
+  // CHECK:           %[[VAL_10:.*]] = torch.constant.int 8
+  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 2
   // CHECK:           %[[VAL_12:.*]] = torch.constant.int 2
-  // CHECK:           %[[VAL_13:.*]] = torch.constant.int 2
-  // CHECK:           %[[VAL_14:.*]] = torch.prim.ListConstruct %[[VAL_8]], %[[VAL_12]], %[[VAL_9]], %[[VAL_11]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-  // CHECK:           %[[VAL_15:.*]] = torch.aten.reshape %[[VAL_0]], %[[VAL_14]] : !torch.vtensor<[1,1,16],f32>, !torch.list<int> -> !torch.vtensor<[1,2,1,8],f32>
-  // CHECK:           %[[VAL_16:.*]] = torch.prim.ListConstruct %[[VAL_8]], %[[VAL_13]], %[[VAL_9]], %[[VAL_11]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-  // CHECK:           %[[VAL_17:.*]] = torch.aten.reshape %[[VAL_1]], %[[VAL_16]] : !torch.vtensor<[1,1,16],f32>, !torch.list<int> -> !torch.vtensor<[1,2,1,8],f32>
-  // CHECK:           %[[VAL_18:.*]] = torch.aten.reshape %[[VAL_2]], %[[VAL_16]] : !torch.vtensor<[1,1,16],f32>, !torch.list<int> -> !torch.vtensor<[1,2,1,8],f32>
-  // CHECK:           %[[VAL_19:.*]] = torch.constant.none
-  // CHECK:           %[[VAL_20:.*]] = torch.constant.bool false
-  // CHECK:           %[[VAL_21:.*]] = torch.constant.bool true
-  // CHECK:           %[[VAL_22:.*]] = torch.constant.float 0.000000e+00
-  // CHECK:           %[[VAL_23:.*]] = torch.aten.scaled_dot_product_attention %[[VAL_15]], %[[VAL_17]], %[[VAL_18]], %[[VAL_19]], %[[VAL_22]], %[[VAL_20]], %[[VAL_19]], %[[VAL_21]] : !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.none, !torch.float, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,2,1,8],f32>
-  // CHECK:           %[[VAL_24:.*]] = torch.prim.ListConstruct %[[VAL_8]], %[[VAL_9]], %[[VAL_10]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
-  // CHECK:           %[[VAL_25:.*]] = torch.aten.reshape %[[VAL_23]], %[[VAL_24]] : !torch.vtensor<[1,2,1,8],f32>, !torch.list<int> -> !torch.vtensor<[1,1,16],f32>
-  // CHECK:           %[[VAL_26:.*]] = torch.constant.int 2
-  // CHECK:           %[[VAL_27:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_17]] : (!torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,1,8],f32>) -> !torch.list<vtensor>
-  // CHECK:           %[[VAL_28:.*]] = torch.aten.cat %[[VAL_27]], %[[VAL_26]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,2,1,8],f32>
-  // CHECK:           %[[VAL_29:.*]] = torch.prim.ListConstruct %[[VAL_4]], %[[VAL_18]] : (!torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,1,8],f32>) -> !torch.list<vtensor>
-  // CHECK:           %[[VAL_30:.*]] = torch.aten.cat %[[VAL_29]], %[[VAL_26]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,2,1,8],f32>
-  // CHECK:           return %[[VAL_25]], %[[VAL_28]], %[[VAL_30]] : !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
-  %0 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<[[[0.000000e+00, 1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00, 6.000000e+00, 7.000000e+00, 8.000000e+00, 9.000000e+00, 1.000000e+01, 1.100000e+01, 1.200000e+01, 1.300000e+01, 1.400000e+01, 1.500000e+01]]]> : tensor<1x1x16xf32>} : () -> !torch.vtensor<[1,1,16],f32>
-  %1 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<[[[1.600000e+01, 1.700000e+01, 1.800000e+01, 1.900000e+01, 2.000000e+01, 2.100000e+01, 2.200000e+01, 2.300000e+01, 2.400000e+01, 2.500000e+01, 2.600000e+01, 2.700000e+01, 2.800000e+01, 2.900000e+01, 3.000000e+01, 3.100000e+01]]]> : tensor<1x1x16xf32>} : () -> !torch.vtensor<[1,1,16],f32>
-  %2 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<[[[3.200000e+01, 3.300000e+01, 3.400000e+01, 3.500000e+01, 3.600000e+01, 3.700000e+01, 3.800000e+01, 3.900000e+01, 4.000000e+01, 4.100000e+01, 4.200000e+01, 4.300000e+01, 4.400000e+01, 4.500000e+01, 4.600000e+01, 4.700000e+01]]]> : tensor<1x1x16xf32>} : () -> !torch.vtensor<[1,1,16],f32>
-  %3 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<> : tensor<1x2x0x8xf32>} : () -> !torch.vtensor<[1,2,0,8],f32>
-  %4 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<> : tensor<1x2x0x8xf32>} : () -> !torch.vtensor<[1,2,0,8],f32>
-  %5 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<1> : tensor<1xsi32>} : () -> !torch.vtensor<[1],si32>
-  %6 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<1> : tensor<1xsi32>} : () -> !torch.vtensor<[1],si32>
-  %none = torch.constant.none
-  %7:3 = torch.operator "onnx.GroupQueryAttention"(%0, %1, %2, %3, %4, %5, %6) {torch.onnx.kv_num_heads = 2 : si64, torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1],si32>, !torch.vtensor<[1],si32>) -> (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>)
-  return %7#0, %7#1, %7#2 : !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
+  // CHECK:           %[[VAL_13:.*]] = torch.prim.ListConstruct %[[VAL_7]], %[[VAL_11]], %[[VAL_8]], %[[VAL_10]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_14:.*]] = torch.aten.reshape %[[VAL_0]], %[[VAL_13]] : !torch.vtensor<[1,1,16],f32>, !torch.list<int> -> !torch.vtensor<[1,2,1,8],f32>
+  // CHECK:           %[[VAL_15:.*]] = torch.prim.ListConstruct %[[VAL_7]], %[[VAL_12]], %[[VAL_8]], %[[VAL_10]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_16:.*]] = torch.aten.reshape %[[VAL_1]], %[[VAL_15]] : !torch.vtensor<[1,1,16],f32>, !torch.list<int> -> !torch.vtensor<[1,2,1,8],f32>
+  // CHECK:           %[[VAL_17:.*]] = torch.aten.reshape %[[VAL_2]], %[[VAL_15]] : !torch.vtensor<[1,1,16],f32>, !torch.list<int> -> !torch.vtensor<[1,2,1,8],f32>
+  // CHECK:           %[[VAL_18:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_19:.*]] = torch.constant.bool false
+  // CHECK:           %[[VAL_20:.*]] = torch.constant.bool true
+  // CHECK:           %[[VAL_21:.*]] = torch.constant.float 0.000000e+00
+  // CHECK:           %[[VAL_22:.*]] = torch.aten.scaled_dot_product_attention %[[VAL_14]], %[[VAL_16]], %[[VAL_17]], %[[VAL_18]], %[[VAL_21]], %[[VAL_19]], %[[VAL_18]], %[[VAL_20]] : !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.none, !torch.float, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,2,1,8],f32>
+  // CHECK:           %[[VAL_23:.*]] = torch.prim.ListConstruct %[[VAL_7]], %[[VAL_8]], %[[VAL_9]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_24:.*]] = torch.aten.reshape %[[VAL_22]], %[[VAL_23]] : !torch.vtensor<[1,2,1,8],f32>, !torch.list<int> -> !torch.vtensor<[1,1,16],f32>
+  // CHECK:           %[[VAL_25:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_26:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_16]] : (!torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,1,8],f32>) -> !torch.list<vtensor>
+  // CHECK:           %[[VAL_27:.*]] = torch.aten.cat %[[VAL_26]], %[[VAL_25]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,2,1,8],f32>
+  // CHECK:           %[[VAL_28:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_29:.*]] = torch.prim.ListConstruct %[[VAL_4]], %[[VAL_17]] : (!torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,1,8],f32>) -> !torch.list<vtensor>
+  // CHECK:           %[[VAL_30:.*]] = torch.aten.cat %[[VAL_29]], %[[VAL_28]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,2,1,8],f32>
+  // CHECK:           return %[[VAL_24]], %[[VAL_27]], %[[VAL_30]] : !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
+  %0 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<> : tensor<1x2x0x8xf32>} : () -> !torch.vtensor<[1,2,0,8],f32>
+  %1 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<> : tensor<1x2x0x8xf32>} : () -> !torch.vtensor<[1,2,0,8],f32>
+  %2 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<1> : tensor<1xsi32>} : () -> !torch.vtensor<[1],si32>
+  %3 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<1> : tensor<1xsi32>} : () -> !torch.vtensor<[1],si32>
+  %4:3 = torch.operator "onnx.GroupQueryAttention"(%arg0, %arg1, %arg2, %0, %1, %2, %3) {torch.onnx.kv_num_heads = 2 : si64, torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1],si32>, !torch.vtensor<[1],si32>) -> (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>)
+  return %4#0, %4#1, %4#2 : !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
 }
 
 // -----
 
 // CHECK-LABEL:   func.func @test_group_query_attention_with_rotary_embedding(
-func.func @test_group_query_attention_with_rotary_embedding(%cos_cache: !torch.vtensor<[2,4],f32>, %sin_cache: !torch.vtensor<[2,4],f32>) -> (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
-  // CHECK-SAME:                                                                %[[VAL_0:.*]]: !torch.vtensor<[2,4],f32>,
-  // CHECK-SAME:                                                                %[[VAL_1:.*]]: !torch.vtensor<[2,4],f32>) -> (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
-  // CHECK:           %[[VAL_2:.*]] = torch.vtensor.literal(dense<{{\[\[}}[0.000000e+00, 1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00, 6.000000e+00, 7.000000e+00, 8.000000e+00, 9.000000e+00, 1.000000e+01, 1.100000e+01, 1.200000e+01, 1.300000e+01, 1.400000e+01, 1.500000e+01]]]> : tensor<1x1x16xf32>) : !torch.vtensor<[1,1,16],f32>
-  // CHECK:           %[[VAL_3:.*]] = torch.vtensor.literal(dense<{{\[\[}}[1.600000e+01, 1.700000e+01, 1.800000e+01, 1.900000e+01, 2.000000e+01, 2.100000e+01, 2.200000e+01, 2.300000e+01, 2.400000e+01, 2.500000e+01, 2.600000e+01, 2.700000e+01, 2.800000e+01, 2.900000e+01, 3.000000e+01, 3.100000e+01]]]> : tensor<1x1x16xf32>) : !torch.vtensor<[1,1,16],f32>
-  // CHECK:           %[[VAL_4:.*]] = torch.vtensor.literal(dense<{{\[\[}}[3.200000e+01, 3.300000e+01, 3.400000e+01, 3.500000e+01, 3.600000e+01, 3.700000e+01, 3.800000e+01, 3.900000e+01, 4.000000e+01, 4.100000e+01, 4.200000e+01, 4.300000e+01, 4.400000e+01, 4.500000e+01, 4.600000e+01, 4.700000e+01]]]> : tensor<1x1x16xf32>) : !torch.vtensor<[1,1,16],f32>
+func.func @test_group_query_attention_with_rotary_embedding(%query: !torch.vtensor<[1,1,16],f32>, %key: !torch.vtensor<[1,1,16],f32>, %value: !torch.vtensor<[1,1,16],f32>, %cos_cache: !torch.vtensor<[2,4],f32>, %sin_cache: !torch.vtensor<[2,4],f32>) -> (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  // CHECK-SAME:                                                                %[[VAL_0:.*]]: !torch.vtensor<[1,1,16],f32>, %[[VAL_1:.*]]: !torch.vtensor<[1,1,16],f32>, %[[VAL_2:.*]]: !torch.vtensor<[1,1,16],f32>,
+  // CHECK-SAME:                                                                %[[VAL_3:.*]]: !torch.vtensor<[2,4],f32>,
+  // CHECK-SAME:                                                                %[[VAL_4:.*]]: !torch.vtensor<[2,4],f32>) -> (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
   // CHECK:           %[[VAL_5:.*]] = torch.vtensor.literal(dense<> : tensor<1x2x0x8xf32>) : !torch.vtensor<[1,2,0,8],f32>
   // CHECK:           %[[VAL_6:.*]] = torch.vtensor.literal(dense<> : tensor<1x2x0x8xf32>) : !torch.vtensor<[1,2,0,8],f32>
   // CHECK:           %[[VAL_7:.*]] = torch.vtensor.literal(dense<1> : tensor<1xsi32>) : !torch.vtensor<[1],si32>
@@ -2404,10 +2397,10 @@ func.func @test_group_query_attention_with_rotary_embedding(%cos_cache: !torch.v
   // CHECK:           %[[VAL_14:.*]] = torch.constant.int 2
   // CHECK:           %[[VAL_15:.*]] = torch.constant.int 2
   // CHECK:           %[[VAL_16:.*]] = torch.prim.ListConstruct %[[VAL_10]], %[[VAL_14]], %[[VAL_11]], %[[VAL_13]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-  // CHECK:           %[[VAL_17:.*]] = torch.aten.reshape %[[VAL_2]], %[[VAL_16]] : !torch.vtensor<[1,1,16],f32>, !torch.list<int> -> !torch.vtensor<[1,2,1,8],f32>
+  // CHECK:           %[[VAL_17:.*]] = torch.aten.reshape %[[VAL_0]], %[[VAL_16]] : !torch.vtensor<[1,1,16],f32>, !torch.list<int> -> !torch.vtensor<[1,2,1,8],f32>
   // CHECK:           %[[VAL_18:.*]] = torch.prim.ListConstruct %[[VAL_10]], %[[VAL_15]], %[[VAL_11]], %[[VAL_13]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-  // CHECK:           %[[VAL_19:.*]] = torch.aten.reshape %[[VAL_3]], %[[VAL_18]] : !torch.vtensor<[1,1,16],f32>, !torch.list<int> -> !torch.vtensor<[1,2,1,8],f32>
-  // CHECK:           %[[VAL_20:.*]] = torch.aten.reshape %[[VAL_4]], %[[VAL_18]] : !torch.vtensor<[1,1,16],f32>, !torch.list<int> -> !torch.vtensor<[1,2,1,8],f32>
+  // CHECK:           %[[VAL_19:.*]] = torch.aten.reshape %[[VAL_1]], %[[VAL_18]] : !torch.vtensor<[1,1,16],f32>, !torch.list<int> -> !torch.vtensor<[1,2,1,8],f32>
+  // CHECK:           %[[VAL_20:.*]] = torch.aten.reshape %[[VAL_2]], %[[VAL_18]] : !torch.vtensor<[1,1,16],f32>, !torch.list<int> -> !torch.vtensor<[1,2,1,8],f32>
   // CHECK:           %[[VAL_21:.*]] = torch.constant.none
   // CHECK:           %[[VAL_22:.*]] = torch.constant.bool false
   // CHECK:           %[[VAL_23:.*]] = torch.aten.item %[[VAL_8]] : !torch.vtensor<[1],si32> -> !torch.int
@@ -2440,8 +2433,8 @@ func.func @test_group_query_attention_with_rotary_embedding(%cos_cache: !torch.v
   // CHECK:           %[[VAL_50:.*]] = torch.constant.int 11
   // CHECK:           %[[VAL_51:.*]] = torch.aten.full %[[VAL_32]], %[[VAL_49]], %[[VAL_50]], %[[VAL_21]], %[[VAL_21]], %[[VAL_21]] : !torch.list<int>, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[1,1],i1>
   // CHECK:           %[[VAL_52:.*]] = torch.aten.where.self %[[VAL_51]], %[[VAL_48]], %[[VAL_33]] : !torch.vtensor<[1,1],i1>, !torch.vtensor<[1,1],si64>, !torch.vtensor<[1,1],si64> -> !torch.vtensor<[1,1],si64>
-  // CHECK:           %[[VAL_53:.*]] = torch.onnx.aten.rotary_embedding %[[VAL_17]], %[[VAL_52]], %[[VAL_0]], %[[VAL_1]], %[[VAL_29]], %[[VAL_30]], %[[VAL_30]], %[[VAL_30]], %[[VAL_31]] : !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,1],si64>, !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,1,8],f32>
-  // CHECK:           %[[VAL_54:.*]] = torch.onnx.aten.rotary_embedding %[[VAL_19]], %[[VAL_52]], %[[VAL_0]], %[[VAL_1]], %[[VAL_29]], %[[VAL_30]], %[[VAL_30]], %[[VAL_30]], %[[VAL_31]] : !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,1],si64>, !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,1,8],f32>
+  // CHECK:           %[[VAL_53:.*]] = torch.onnx.rotary_embedding %[[VAL_17]], %[[VAL_52]], %[[VAL_3]], %[[VAL_4]], %[[VAL_29]], %[[VAL_30]], %[[VAL_30]], %[[VAL_30]], %[[VAL_31]] : !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,1],si64>, !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,1,8],f32>
+  // CHECK:           %[[VAL_54:.*]] = torch.onnx.rotary_embedding %[[VAL_19]], %[[VAL_52]], %[[VAL_3]], %[[VAL_4]], %[[VAL_29]], %[[VAL_30]], %[[VAL_30]], %[[VAL_30]], %[[VAL_31]] : !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,1],si64>, !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,1,8],f32>
   // CHECK:           %[[VAL_55:.*]] = torch.constant.bool true
   // CHECK:           %[[VAL_56:.*]] = torch.constant.float 0.000000e+00
   // CHECK:           %[[VAL_57:.*]] = torch.aten.scaled_dot_product_attention %[[VAL_53]], %[[VAL_54]], %[[VAL_20]], %[[VAL_21]], %[[VAL_56]], %[[VAL_22]], %[[VAL_21]], %[[VAL_55]] : !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.none, !torch.float, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,2,1,8],f32>
@@ -2450,17 +2443,15 @@ func.func @test_group_query_attention_with_rotary_embedding(%cos_cache: !torch.v
   // CHECK:           %[[VAL_60:.*]] = torch.constant.int 2
   // CHECK:           %[[VAL_61:.*]] = torch.prim.ListConstruct %[[VAL_5]], %[[VAL_54]] : (!torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,1,8],f32>) -> !torch.list<vtensor>
   // CHECK:           %[[VAL_62:.*]] = torch.aten.cat %[[VAL_61]], %[[VAL_60]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,2,1,8],f32>
-  // CHECK:           %[[VAL_63:.*]] = torch.prim.ListConstruct %[[VAL_6]], %[[VAL_20]] : (!torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,1,8],f32>) -> !torch.list<vtensor>
-  // CHECK:           %[[VAL_64:.*]] = torch.aten.cat %[[VAL_63]], %[[VAL_60]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,2,1,8],f32>
-  // CHECK:           return %[[VAL_59]], %[[VAL_62]], %[[VAL_64]] : !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
-  %0 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<[[[0.000000e+00, 1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00, 6.000000e+00, 7.000000e+00, 8.000000e+00, 9.000000e+00, 1.000000e+01, 1.100000e+01, 1.200000e+01, 1.300000e+01, 1.400000e+01, 1.500000e+01]]]> : tensor<1x1x16xf32>} : () -> !torch.vtensor<[1,1,16],f32>
-  %1 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<[[[1.600000e+01, 1.700000e+01, 1.800000e+01, 1.900000e+01, 2.000000e+01, 2.100000e+01, 2.200000e+01, 2.300000e+01, 2.400000e+01, 2.500000e+01, 2.600000e+01, 2.700000e+01, 2.800000e+01, 2.900000e+01, 3.000000e+01, 3.100000e+01]]]> : tensor<1x1x16xf32>} : () -> !torch.vtensor<[1,1,16],f32>
-  %2 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<[[[3.200000e+01, 3.300000e+01, 3.400000e+01, 3.500000e+01, 3.600000e+01, 3.700000e+01, 3.800000e+01, 3.900000e+01, 4.000000e+01, 4.100000e+01, 4.200000e+01, 4.300000e+01, 4.400000e+01, 4.500000e+01, 4.600000e+01, 4.700000e+01]]]> : tensor<1x1x16xf32>} : () -> !torch.vtensor<[1,1,16],f32>
-  %3 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<> : tensor<1x2x0x8xf32>} : () -> !torch.vtensor<[1,2,0,8],f32>
-  %4 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<> : tensor<1x2x0x8xf32>} : () -> !torch.vtensor<[1,2,0,8],f32>
-  %5 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<1> : tensor<1xsi32>} : () -> !torch.vtensor<[1],si32>
-  %6 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<1> : tensor<1xsi32>} : () -> !torch.vtensor<[1],si32>
+  // CHECK:           %[[VAL_63:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_64:.*]] = torch.prim.ListConstruct %[[VAL_6]], %[[VAL_20]] : (!torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,1,8],f32>) -> !torch.list<vtensor>
+  // CHECK:           %[[VAL_65:.*]] = torch.aten.cat %[[VAL_64]], %[[VAL_63]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,2,1,8],f32>
+  // CHECK:           return %[[VAL_59]], %[[VAL_62]], %[[VAL_65]] : !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
+  %0 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<> : tensor<1x2x0x8xf32>} : () -> !torch.vtensor<[1,2,0,8],f32>
+  %1 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<> : tensor<1x2x0x8xf32>} : () -> !torch.vtensor<[1,2,0,8],f32>
+  %2 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<1> : tensor<1xsi32>} : () -> !torch.vtensor<[1],si32>
+  %3 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<1> : tensor<1xsi32>} : () -> !torch.vtensor<[1],si32>
   %none = torch.constant.none
-  %7:3 = torch.operator "onnx.GroupQueryAttention"(%0, %1, %2, %3, %4, %5, %6, %cos_cache, %sin_cache) {torch.onnx.kv_num_heads = 2 : si64, torch.onnx.num_heads = 2 : si64, torch.onnx.do_rotary = 1 : si64} : (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1],si32>, !torch.vtensor<[1],si32>, !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],f32>) -> (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>)
-  return %7#0, %7#1, %7#2 : !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
+  %4:3 = torch.operator "onnx.GroupQueryAttention"(%query, %key, %value, %0, %1, %2, %3, %cos_cache, %sin_cache) {torch.onnx.kv_num_heads = 2 : si64, torch.onnx.num_heads = 2 : si64, torch.onnx.do_rotary = 1 : si64} : (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1],si32>, !torch.vtensor<[1],si32>, !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],f32>) -> (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>)
+  return %4#0, %4#1, %4#2 : !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
 }
