@@ -3266,6 +3266,8 @@ ONNX_XFAIL_SET = {
     "AtenSymConstrainRange_basic",
     "AtenSymConstrainRangeForSize_basic",
     "Aten_AssertScalar_basic",
+    # JIT session error: Symbols not found: [ memrefCopy ]
+    "SplitWithSizes_Module_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
