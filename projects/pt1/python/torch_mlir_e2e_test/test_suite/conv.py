@@ -1725,3 +1725,35 @@ def DeformConv2D_basic(module, tu: TestUtils):
     offset = tu.rand(N, offset_dim1, Hout, Wout)
     weight = tu.rand(Cout, Cin, Hker, Wker)
     module.forward(input, offset, weight)
+
+
+class ConvolutionModule2DGroupedTranspose(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 2, 5, 7], torch.float32, True),
+            ([2, 2, 3, 3], torch.float32, True),
+            ([4], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight, bias):
+        return torch.ops.aten.convolution(
+            inputVec,
+            weight,
+            bias=bias,
+            stride=[2, 2],
+            padding=[1, 1],
+            dilation=[1, 1],
+            transposed=True,
+            output_padding=[0, 0],
+            groups=2,
+        )
+
+@register_test_case(module_factory=lambda: ConvolutionModule2DGroupedTranspose())
+def ConvolutionModule2DGroupedTranspose_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 5, 7), tu.rand(2, 2, 3, 3), tu.rand(4))
+
