@@ -517,6 +517,8 @@ FX_IMPORTER_XFAIL_SET = {
     "ReflectionPad3dModuleRight_basic",
     "ReflectionPad3dModuleFront_basic",
     "ReflectionPad3dModuleBack_basic",
+    # RuntimeError: Unknown function SliceOutOfLowerBoundEndIndexModule
+    "SliceOutOfLowerBoundEndIndexModule_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
