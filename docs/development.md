@@ -2,16 +2,18 @@
 
 ## Setting Up Environment
 
-### Check out the code
+### Clone the Repository
 
-```shell
-git clone https://github.com/llvm/torch-mlir
-cd torch-mlir
-git submodule update --init --progress
-```
+1. ```shell
+   git clone https://github.com/llvm/torch-mlir && cd torch-mlir
+   ```
 
-Optionally, use `--depth=1` to make a shallow clone of the submodules.
-While this is running, you can already setup the Python venv and dependencies in the next step.
+1. ```shell
+   git submodule update --init --progress
+   ```
+
+   - Optionally, use `--depth=1` to make a shallow clone of the submodules.
+   - While this is running, you can already setup the Python venv and dependencies in the next step.
 
 ### Setup your Python VirtualEnvironment and Dependencies
 
