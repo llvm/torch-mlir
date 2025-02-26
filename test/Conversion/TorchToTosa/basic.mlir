@@ -2260,6 +2260,45 @@ func.func @torch.aten.avg_pool2d.divisor_override_unsupported_value(%arg0: !torc
 }
 
 // -----
+// CHECK-LABEL:   func.func @avgPool2dCHWInput(
+// CHECK-SAME:                                 %[[ARG0:.*]]: !torch.vtensor<[1,64,56],f32>) -> !torch.vtensor<[1,59,51],f32> {
+// CHECK:           %[[TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1,64,56],f32> -> tensor<1x64x56xf32>
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           %[[C0:.*]] = torch.constant.int 0
+// CHECK:           %[[C1:.*]] = torch.constant.int 1
+// CHECK:           %[[C6:.*]] = torch.constant.int 6
+// CHECK:           %[[L1:.*]] = torch.prim.ListConstruct %[[C6]], %[[C6]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[L2:.*]] = torch.prim.ListConstruct %[[C1]], %[[C1]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[L3:.*]] = torch.prim.ListConstruct %[[C0]], %[[C0]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[PERMS_IN:.*]] = "tosa.const"() <{value = dense<[1, 2, 0]> : tensor<3xi32>}> : () -> tensor<3xi32>
+// CHECK:           %[[TRANSPOSE_IN:.*]] = tosa.transpose %[[TENSOR]], %[[PERMS_IN]] : (tensor<1x64x56xf32>, tensor<3xi32>) -> tensor<64x56x1xf32>
+// CHECK:           %[[CONST_SHAPE_IN:.*]] = tosa.const_shape  {value = dense<[1, 64, 56, 1]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[RESHAPE_IN:.*]] = tosa.reshape %[[TRANSPOSE_IN]], %[[CONST_SHAPE_IN]] : (tensor<64x56x1xf32>, !tosa.shape<4>) -> tensor<1x64x56x1xf32>
+// CHECK:           %[[POOL:.*]] = tosa.avg_pool2d %[[RESHAPE_IN]] {acc_type = f32, kernel = array<i64: 6, 6>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<1x64x56x1xf32>) -> tensor<1x59x51x1xf32>
+// CHECK:           %[[PERMS_OUT:.*]] = "tosa.const"() <{value = dense<[0, 3, 1, 2]> : tensor<4xi32>}> : () -> tensor<4xi32>
+// CHECK:           %[[TRANSPOSE_OUT:.*]] = tosa.transpose %[[POOL]], %[[PERMS_OUT]] : (tensor<1x59x51x1xf32>, tensor<4xi32>) -> tensor<1x1x59x51xf32>
+// CHECK:           %[[CONST_SHAPE_OUT:.*]] = tosa.const_shape  {value = dense<[1, 59, 51]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[RESHAPE_OUT:.*]] = tosa.reshape %[[TRANSPOSE_OUT]], %[[CONST_SHAPE_OUT]] : (tensor<1x1x59x51xf32>, !tosa.shape<3>) -> tensor<1x59x51xf32>
+// CHECK:           %[[CAST:.*]] = tensor.cast %[[RESHAPE_OUT]] : tensor<1x59x51xf32> to tensor<1x59x51xf32>
+// CHECK:           %[[TORCH:.*]] = torch_c.from_builtin_tensor %[[CAST]] : tensor<1x59x51xf32> -> !torch.vtensor<[1,59,51],f32>
+// CHECK:           return %[[TORCH]]
+func.func @avgPool2dCHWInput(%arg0: !torch.vtensor<[1,64,56],f32>) -> !torch.vtensor<[1,59,51],f32> {
+    %none = torch.constant.none
+    %false = torch.constant.bool false
+    %true = torch.constant.bool true
+    %int0 = torch.constant.int 0
+    %int1 = torch.constant.int 1
+    %int6 = torch.constant.int 6
+    %0 = torch.prim.ListConstruct %int6, %int6 : (!torch.int, !torch.int) -> !torch.list<int>
+    %1 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+    %2 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+    %3 = torch.aten.avg_pool2d %arg0, %0, %1, %2, %true, %false, %none : !torch.vtensor<[1,64,56],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,59,51],f32>
+    return %3 : !torch.vtensor<[1,59,51],f32>
+  }
+
+// -----
 
 // CHECK-LABEL:   func.func @torch.aten.empty.memory_format$basic() -> !torch.vtensor<[3,4],si64> {
 // CHECK:           %[[VAL_0:.*]] = torch.constant.int 0

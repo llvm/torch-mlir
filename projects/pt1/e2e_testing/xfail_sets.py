@@ -405,6 +405,7 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
+    "AvgPool2dCHWModule_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluInt8_basic",
     "QuantizedReluUint8_basic",
@@ -528,6 +529,8 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "Aten_TrilinearModuleSumAllDims_basic",
     "Aten_TrilinearModuleSumdims_basic",
+    "AvgPool2dSingleIntTupleParamsIncludePadModule_basic",
+    "AvgPool2dSingleIntTupleParamsModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
@@ -952,6 +955,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
+    "AvgPool2dSingleIntTupleParamsIncludePadModule_basic",
+    "AvgPool2dSingleIntTupleParamsModule_basic",
     "BatchNorm1DModule_basic",
     "BatchNorm2DModule_basic",
     "BatchNorm3DModule_basic",
@@ -2756,6 +2761,9 @@ ONNX_XFAIL_SET = {
     "AtenTopKModule_basic",
     "AtenTopKSmallestModule_basic",
     "Aten_EmbeddingBagExample_basic",
+    "AvgPool2dCHWModule_basic",
+    "AvgPool2dSingleIntTupleParamsIncludePadModule_basic",
+    "AvgPool2dSingleIntTupleParamsModule_basic",
     "AvgPool2dWithoutPadModule_basic",
     "BatchMlpLayerModule_basic",
     "BincountMinlengthModule_basic",
@@ -3355,6 +3363,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenSymConstrainRangeForSize_basic",
     "AtenSymConstrainRange_basic",
     "Aten_AssertScalar_basic",
+    "AvgPool2dSingleIntTupleParamsIncludePadModule_basic",
     "ScatterAddDynamicModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
