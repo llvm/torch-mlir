@@ -16,6 +16,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/IR/DialectResourceBlobManager.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
@@ -883,11 +884,27 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
 
     DenseElementsAttr valueAttr =
         elements.mapValues(builtinTensorElemTy, [&](const APInt &v) {
-          return APInt(bitWidth, v.getSExtValue());
+          return APInt(bitWidth,
+                       bitWidth == 1 ? v.getZExtValue() : v.getSExtValue());
         });
     rewriter.replaceOpWithNewOp<stablehlo::ConstantOp>(op, resultType,
                                                        valueAttr);
     return success();
+  }
+
+  if (auto elements = dyn_cast<DenseResourceElementsAttr>(op.getValueAttr())) {
+    if (auto elementTy = dyn_cast<IntegerType>(elements.getElementType())) {
+      auto shapeType = RankedTensorType::get(
+          elements.getShapedType().getShape(),
+          IntegerType::get(getContext(), elementTy.getWidth(),
+                           IntegerType::SignednessSemantics::Signless));
+
+      elements =
+          DenseResourceElementsAttr::get(shapeType, elements.getRawHandle());
+      rewriter.replaceOpWithNewOp<stablehlo::ConstantOp>(op, shapeType,
+                                                         elements);
+      return success();
+    }
   }
 
   rewriter.replaceOpWithNewOp<stablehlo::ConstantOp>(op, resultType,
