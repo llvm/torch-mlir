@@ -1841,7 +1841,7 @@ public:
       int64_t rank = maskTy.getRank();
       bool needsBroadcast = false;
       for (int i = 0, s = rank - 2; i < s; ++i) {
-        needsBroadcast |= maskTy.getDimSize(i) != keyTy.getDimSize(i);
+        needsBroadcast |= maskTy.getDimSize(i) != queryTy.getDimSize(i);
       }
 
       if (needsBroadcast) {
