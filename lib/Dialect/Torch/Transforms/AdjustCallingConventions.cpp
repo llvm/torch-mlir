@@ -166,58 +166,49 @@ public:
   LogicalResult
   matchAndRewrite(func::ReturnOp op, OneToNOpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    // The dialect conversion framework inserts unrealized conversion casts to
-    // materialize legal types from illegal types. For example, for input IR
-    // like
-    //   %1 = torch.prim.TupleConstruct %arg0, %arg1 : !torch.tensor,
-    //        torch.tensor -> !torch.tuple<tensor, tensor>
-    //   return %1 : !torch.tuple<tensor, tensor>
-    // at this stage in the conversion process we'll have something like
-    //   %1 = torch.prim.TupleConstruct %arg0, %arg1 : !torch.tensor,
-    //        !torch.tensor -> !torch.tuple<tensor, tensor>
-    //   %2 = builtin.unrealized_conversion_cast %1 :
-    //        !torch.tuple<tensor, tensor> to !torch.tensor
-    //   %3 = builtin.unrealized_conversion_cast %1 :
-    //        !torch.tuple<tensor, tensor> to !torch.tensor
-    //   return %2, %3 : !torch.tensor, !torch.tensor
-    //
-    //  Here we map back to the original torch.prim.TupleConstruct's
-    SmallVector<Value> flatOperands;
+    SmallVector<Value> newOperands;
     for (const auto &vals : adaptor.getOperands()) {
-      for (const auto &operand : vals) {
-        // A block argument won't have a defining op.
-        if (operand.getDefiningOp() &&
-            isa<mlir::UnrealizedConversionCastOp>(operand.getDefiningOp())) {
-          auto definingOp = operand.getDefiningOp()->getOperand(0);
-          // de-duplicate
-          if (std::find(flatOperands.begin(), flatOperands.end(), definingOp) ==
-              flatOperands.end()) {
-            flatOperands.push_back(definingOp);
+      if (vals.size() == 1) {
+        if (isa<Torch::NoneType>(vals[0].getType()))
+          continue;
+        newOperands.push_back(vals[0]);
+      } else if (vals.size() > 1) {
+        // The dialect conversion framework inserts unrealized conversion casts
+        // to materialize legal types from illegal types. For example, for input
+        // IR like
+        //   %1 = torch.prim.TupleConstruct %arg0, %arg1 : !torch.tensor,
+        //        torch.tensor -> !torch.tuple<tensor, tensor>
+        //   return %1 : !torch.tuple<tensor, tensor>
+        // at this stage in the conversion process we'll have something like
+        //   %1 = torch.prim.TupleConstruct %arg0, %arg1 : !torch.tensor,
+        //        !torch.tensor -> !torch.tuple<tensor, tensor>
+        //   %2 = builtin.unrealized_conversion_cast %1 :
+        //        !torch.tuple<tensor, tensor> to !torch.tensor
+        //   %3 = builtin.unrealized_conversion_cast %1 :
+        //        !torch.tuple<tensor, tensor> to !torch.tensor
+        //   return %2, %3 : !torch.tensor, !torch.tensor
+        //
+        //  Given (%2, %3) as operands, here we map back to the original
+        //  torch.prim.TupleConstruct.
+        if (vals[0].getDefiningOp() &&
+            isa<mlir::UnrealizedConversionCastOp>(vals[0].getDefiningOp())) {
+          Value operand = vals[0].getDefiningOp()->getOperand(0);
+          if (auto tuple = dyn_cast<Torch::TupleType>(operand.getType())) {
+            Location loc = op.getLoc();
+            for (auto en : llvm::enumerate(tuple.getContainedTypes())) {
+              auto i = rewriter.create<ConstantIntOp>(
+                  loc, rewriter.getI64IntegerAttr(en.index()));
+              newOperands.push_back(rewriter.create<PrimTupleIndexOp>(
+                  loc, en.value(), operand, i));
+            }
+            continue;
           }
-        } else {
-          flatOperands.push_back(operand);
         }
+
+        llvm::append_range(newOperands, vals);
       }
     }
 
-    SmallVector<Value> newOperands;
-    for (auto operand : flatOperands) {
-      if (!operand)
-        continue;
-      if (isa<Torch::NoneType>(operand.getType()))
-        continue;
-      if (auto tuple = dyn_cast<Torch::TupleType>(operand.getType())) {
-        Location loc = op.getLoc();
-        for (auto en : llvm::enumerate(tuple.getContainedTypes())) {
-          auto i = rewriter.create<ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(en.index()));
-          newOperands.push_back(
-              rewriter.create<PrimTupleIndexOp>(loc, en.value(), operand, i));
-        }
-        continue;
-      }
-      newOperands.push_back(operand);
-    }
     rewriter.replaceOpWithNewOp<func::ReturnOp>(op, newOperands);
     return success();
   }
