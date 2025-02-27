@@ -5787,7 +5787,7 @@ class ScaledDotProductAttentionGQAModule(torch.nn.Module):
     )
     def forward(self, query, key, value):
         return torch.ops.aten.scaled_dot_product_attention(
-            query, key, value, enable_gqa=True
+            query, key, value, enable_gqa=True, is_causal=True
         )
 
 

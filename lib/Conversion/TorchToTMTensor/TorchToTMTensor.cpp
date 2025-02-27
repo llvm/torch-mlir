@@ -1841,7 +1841,7 @@ public:
       int64_t rank = maskTy.getRank();
       bool needsBroadcast = false;
       for (int i = 0, s = rank - 2; i < s; ++i) {
-        needsBroadcast |= maskTy.getDimSize(i) != keyTy.getDimSize(i);
+        needsBroadcast |= maskTy.getDimSize(i) != queryTy.getDimSize(i);
       }
 
       if (needsBroadcast) {
@@ -1850,16 +1850,17 @@ public:
 
         SmallVector<AffineExpr> maskExprs;
         for (int i = 0, s = rank - 2; i < s; ++i) {
-          maskShape.push_back(keyTy.getDimSize(i));
+          maskShape.push_back(queryTy.getDimSize(i));
 
-          if (maskTy.getDimSize(i) != keyTy.getDimSize(i)) {
+          if (maskTy.getDimSize(i) != queryTy.getDimSize(i)) {
             maskExprs.push_back(rewriter.getAffineConstantExpr(0));
           } else {
             maskExprs.push_back(rewriter.getAffineDimExpr(i));
           }
 
-          if (keyTy.isDynamicDim(i)) {
-            maskDynDims.push_back(rewriter.create<tensor::DimOp>(loc, key, i));
+          if (queryTy.isDynamicDim(i)) {
+            maskDynDims.push_back(
+                rewriter.create<tensor::DimOp>(loc, query, i));
           }
         }
 
