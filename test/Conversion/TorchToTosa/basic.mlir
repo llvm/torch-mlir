@@ -1024,6 +1024,18 @@ func.func @torch.vtensor.literal_si64$basic() -> !torch.vtensor<[1,512],si64> {
 }
 
 // -----
+
+// CHECK-LABEL: @torch.vtensor.literal_si32$basic(
+// CHECK: %[[VAL_0:.*]] = "tosa.const"() <{value = dense<-1> : tensor<1x512xi32>}> : () -> tensor<1x512xi32>
+// CHECK: %[[VAL_1:.*]] = torch_c.from_builtin_tensor %[[VAL_0]] : tensor<1x512xi32> -> !torch.vtensor<[1,512],si32>
+// CHECK: return %[[VAL_1]] : !torch.vtensor<[1,512],si32>
+func.func @torch.vtensor.literal_si32$basic() -> !torch.vtensor<[1,512],si32> {
+  %0 = torch.vtensor.literal(dense<-1> : tensor<1x512xsi32>) : !torch.vtensor<[1,512],si32>
+  return %0 : !torch.vtensor<[1,512],si32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.arange.start_step() -> !torch.vtensor<[5],si64> {
 // CHECK:           %[[VAL_0:.*]] = torch.constant.none
 // CHECK:           %[[VAL_1:.*]] = torch.constant.int 0

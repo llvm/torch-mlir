@@ -2917,7 +2917,7 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
       unsigned bitWidth = builtinTensorElemTy.getIntOrFloatBitWidth();
       DenseElementsAttr valueAttr =
           elements.mapValues(builtinTensorElemTy, [&](const APInt &v) {
-            return APInt(bitWidth, v.getSExtValue());
+            return APInt(bitWidth, v.getSExtValue(), /*isSigned=*/true);
           });
       rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputTy, valueAttr);
       return success();
