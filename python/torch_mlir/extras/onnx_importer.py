@@ -1137,7 +1137,8 @@ ELEM_TYPE_INLINE_TENSOR_PROTO_CB = {
             axis=None,
             bitorder="little",
         ),
-        signless=False,
+        shape=tp.dims,
+        type=IntegerType.get_signless(1),
     ),
     onnx.TensorProto.DataType.UINT8: lambda tp: DenseElementsAttr.get(
         np.asarray(tp.int32_data, dtype=np.uint8).reshape(tp.dims), signless=False
