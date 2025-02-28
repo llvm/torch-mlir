@@ -4501,22 +4501,15 @@ public:
                                                selfTy.getOptionalDtype());
     self = rewriter.create<AtenBroadcastToOp>(loc, selfTy, self, lengthv);
 
-    auto mulDim = [](int64_t lhs, int64_t rhs) {
-      if (lhs == Torch::kUnknownSize || rhs == Torch::kUnknownSize)
-        return Torch::kUnknownSize;
-      return lhs * rhs;
-    };
-
+    auto outShape = cast<ValueTensorType>(op.getResult().getType()).getSizes();
     for (int i = batch, s = repeats.size(); i < s; ++i) {
       if (repeatInts[i] == 1)
         continue;
 
       auto selfShape = selfTy.getSizes();
       llvm::SmallVector<int64_t> flattenShape;
-      for (int j = 0; j < i; ++j)
-        flattenShape.push_back(selfTy.getSizes()[j]);
-
-      flattenShape.push_back(mulDim(selfShape[i], selfShape[i + 1]));
+      for (int j = 0; j <= i; ++j)
+        flattenShape.push_back(outShape[j]);
 
       for (int j = i + 2, s = selfShape.size(); j < s; ++j)
         flattenShape.push_back(selfShape[j]);
