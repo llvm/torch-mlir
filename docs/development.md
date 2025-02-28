@@ -17,7 +17,7 @@
 
 ### Set up the Python environment
 
-1. Install the libraries and headers required for development
+1. Install Python development libraries and headers
 
     - For Ubuntu or Debian, run:
 
