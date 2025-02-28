@@ -4427,7 +4427,7 @@ public:
       return rewriter.notifyMatchFailure(op, "input sizes unknown");
 
     auto unsqueeze = [&](Value input, int64_t dim) {
-      auto inputTy = input.getType().cast<ValueTensorType>();
+      auto inputTy = cast<ValueTensorType>(input.getType());
       auto oldSizes = inputTy.getSizes();
 
       llvm::SmallVector<int64_t> sizes;
@@ -4459,7 +4459,7 @@ public:
     llvm::SmallVector<int> unsqueezeDims;
     for (int i = 0; i < batch; ++i) {
       self = unsqueeze(self, i);
-      selfTy = self.getType().cast<ValueTensorType>();
+      selfTy = cast<ValueTensorType>(self.getType());
       unsqueezeDims.push_back(i);
     }
 
@@ -4468,7 +4468,7 @@ public:
         continue;
       int64_t dim = i + unsqueezeDims.size() - batch;
       self = unsqueeze(self, dim);
-      selfTy = self.getType().cast<ValueTensorType>();
+      selfTy = cast<ValueTensorType>(self.getType());
       unsqueezeDims.push_back(dim);
     }
 
