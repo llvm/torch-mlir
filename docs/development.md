@@ -15,25 +15,38 @@
    - Optionally, use `--depth=1` to make a shallow clone of the submodules.
    - While this is running, you can already setup the Python venv and dependencies in the next step.
 
-### Setup your Python VirtualEnvironment and Dependencies
+### Set up the Python environment
 
-```shell
-python3 -m venv mlir_venv
-source mlir_venv/bin/activate
-# Some older pip installs may not be able to handle the recent PyTorch deps
-python -m pip install --upgrade pip
-# Install latest PyTorch nightlies and build requirements.
-python -m pip install -r requirements.txt
-python -m pip install -r torchvision-requirements.txt
-```
+1. Install Python development libraries and headers
 
-Also, ensure that you have the appropriate `python-dev` package installed
-to access the Python development libraries / headers. For example, you can install
-it with the following `apt` command on Ubuntu/Debian.
+    - For Ubuntu or Debian, run:
 
-```shell
-sudo apt install python3-dev
-```
+      ```shell
+      sudo apt install python3-dev
+      ```
+
+    - For other operating systems, [download Python](https://www.python.org/downloads)
+
+1. Create and Activate Python VirtualEnvironment + MLIR variant
+
+    ```shell
+    python3 -m venv mlir_venv
+    source mlir_venv/bin/activate
+    ```
+
+1. Get the latest version of pip
+
+    ```shell
+    python -m pip install --upgrade pip
+    ```
+
+    NOTE: Some older pip installs may not be able to handle the recent PyTorch deps
+1. Install the latest requirements.
+
+    ```shell
+    python -m pip install -r requirements.txt -r torchvision-requirements.txt
+    ```
+
 
 ### (Optional) Set up pre-commit
 
