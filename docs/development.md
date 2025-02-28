@@ -25,6 +25,8 @@
       sudo apt install python3-dev
       ```
 
+    NOTE: For Windows/macOS, these are already included with [each full release](https://www.python.org/downloads)
+
 1. Create and Activate Python VirtualEnvironment + MLIR variant
 
     ```shell
