@@ -475,8 +475,10 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
       }
     }
 
-    input = rewriter.create<tensor::CollapseShapeOp>(op->getLoc(), input,
-                                                     collapseExprs);
+    if (collapseExprs.size() < inputRank) {
+      input = rewriter.create<tensor::CollapseShapeOp>(op->getLoc(), input,
+                                                       collapseExprs);
+    }
 
     SmallVector<AffineExpr> inputExprs;
     for (int64_t i = 0, e = inputRank; i < e; ++i) {
