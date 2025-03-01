@@ -4426,25 +4426,6 @@ public:
     if (!selfTy.hasSizes())
       return rewriter.notifyMatchFailure(op, "input sizes unknown");
 
-    auto unsqueeze = [&](Value input, int64_t dim) {
-      auto inputTy = cast<ValueTensorType>(input.getType());
-      auto oldSizes = inputTy.getSizes();
-
-      llvm::SmallVector<int64_t> sizes;
-      for (int j = 0; j < dim; ++j)
-        sizes.push_back(oldSizes[j]);
-      sizes.push_back(1);
-      for (int j = dim, s = oldSizes.size(); j < s; j++)
-        sizes.push_back(oldSizes[j]);
-
-      Value dimVal = rewriter.create<Torch::ConstantIntOp>(loc, dim);
-      inputTy =
-          rewriter.getType<ValueTensorType>(sizes, inputTy.getOptionalDtype());
-      input = rewriter.create<AtenUnsqueezeOp>(loc, inputTy, input, dimVal);
-
-      return input;
-    };
-
     // Fold the constant values so that we know which we materialize:
     llvm::SmallVector<int64_t> repeatInts;
     for (int i = 0, s = repeats.size(); i < s; ++i) {
@@ -4455,19 +4436,24 @@ public:
       repeatInts.push_back(repeat);
     }
 
-    // Unsqueeze any non-unary repeats:
+    // Unsqueeze all newly created dims
     llvm::SmallVector<int> unsqueezeDims;
     for (int i = 0; i < batch; ++i) {
-      self = unsqueeze(self, i);
+      Value iv =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
+      self = *unsqueezeTensor(rewriter, op, self, iv);
       selfTy = cast<ValueTensorType>(self.getType());
       unsqueezeDims.push_back(i);
     }
 
+    // Unsqueeze any non-unary repeats for existing dims
     for (int i = batch, s = repeats.size(); i < s; ++i) {
       if (repeatInts[i] == 1)
         continue;
       int64_t dim = i + unsqueezeDims.size() - batch;
-      self = unsqueeze(self, dim);
+      Value iv =
+          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
+      self = *unsqueezeTensor(rewriter, op, self, iv);
       selfTy = cast<ValueTensorType>(self.getType());
       unsqueezeDims.push_back(dim);
     }

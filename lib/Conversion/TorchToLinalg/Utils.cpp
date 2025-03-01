@@ -457,13 +457,32 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
       return success();
     }
 
+    SmallVector<ReassociationIndices> collapseExprs;
+    for (int64_t i = 0, e = inputRank; i < e; ++i) {
+      if (!broadcastedStatus[i]) {
+        collapseExprs.push_back({});
+      }
+    }
+
+    int64_t previous = -1;
+    for (int64_t i = 0, e = inputRank; i < e; ++i) {
+      if (!broadcastedStatus[i]) {
+        previous++;
+        collapseExprs[previous].push_back(i + diff);
+      } else {
+        int64_t clamped = previous < 0 ? 0 : previous;
+        collapseExprs[clamped].push_back(i + diff);
+      }
+    }
+
+    input = rewriter.create<tensor::CollapseShapeOp>(op->getLoc(), input,
+                                                     collapseExprs);
+
     SmallVector<AffineExpr> inputExprs;
     for (int64_t i = 0, e = inputRank; i < e; ++i) {
-      if (broadcastedStatus[i]) {
-        inputExprs.push_back(rewriter.getAffineConstantExpr(0));
-        continue;
+      if (!broadcastedStatus[i]) {
+        inputExprs.push_back(rewriter.getAffineDimExpr(i + diff));
       }
-      inputExprs.push_back(rewriter.getAffineDimExpr(i + diff));
     }
 
     SmallVector<AffineMap> indexingMaps = {
