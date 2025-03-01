@@ -475,7 +475,7 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
       }
     }
 
-    if (collapseExprs.size() < inputRank) {
+    if (collapseExprs.size() < static_cast<size_t>(inputRank)) {
       input = rewriter.create<tensor::CollapseShapeOp>(op->getLoc(), input,
                                                        collapseExprs);
     }
