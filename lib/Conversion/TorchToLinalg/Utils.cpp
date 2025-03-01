@@ -465,17 +465,22 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
     }
 
     int64_t previous = -1;
+    bool collapse = false;
     for (int64_t i = 0, e = inputRank; i < e; ++i) {
       if (!broadcastedStatus[i]) {
         previous++;
-        collapseExprs[previous].push_back(i + diff);
-      } else {
-        int64_t clamped = previous < 0 ? 0 : previous;
-        collapseExprs[clamped].push_back(i + diff);
+        collapseExprs[previous].push_back(i);
+        continue;
       }
+
+      int64_t clamped = previous < 0 ? 0 : previous;
+      if (!collapseExprs.empty()) {
+        collapseExprs[clamped].push_back(i);
+      }
+      collapse = true;
     }
 
-    if (collapseExprs.size() < static_cast<size_t>(inputRank)) {
+    if (collapse) {
       input = rewriter.create<tensor::CollapseShapeOp>(op->getLoc(), input,
                                                        collapseExprs);
     }
