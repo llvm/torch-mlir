@@ -870,25 +870,21 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
   Value self = adaptor.getSelf();
   auto selfTy = cast<TensorType>(self.getType());
 
-  // Maps to tosa.clamp which has both int and fp limits.
-  int64_t clampMin = 0;
-  Value clampIn = self;
   if (!selfTy) {
     return rewriter.notifyMatchFailure(op,
                                        "Only Tensor types supported in TOSA");
   }
 
-  // Rescale the clampIn for quantized types. TBD
+  // Rescale self for quantized types. TBD
   if (!isa<mlir::FloatType>(selfTy.getElementType())) {
     return rewriter.notifyMatchFailure(
         op, "Only floating-point datatype legalization currently supported");
   }
 
+  // Maps to tosa.clamp
   // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   rewriter.replaceOpWithNewOp<tosa::ClampOp>(
-      op, getTypeConverter()->convertType(op.getType()), clampIn,
-      rewriter.getI64IntegerAttr(clampMin),
-      rewriter.getI64IntegerAttr(std::numeric_limits<int32_t>::max()),
+      op, getTypeConverter()->convertType(op.getType()), self,
       rewriter.getF32FloatAttr(0.0f),
       rewriter.getF32FloatAttr(std::numeric_limits<float>::max()),
       /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
@@ -5120,53 +5116,88 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "only tensor types input are currently supported");
 
-  IntegerAttr min_int =
-      rewriter.getI64IntegerAttr(std::numeric_limits<int64_t>::min());
-  IntegerAttr max_int =
-      rewriter.getI64IntegerAttr(std::numeric_limits<int64_t>::max());
-  FloatAttr min_fp =
-      rewriter.getF32FloatAttr(std::numeric_limits<float>::lowest());
-  FloatAttr max_fp =
-      rewriter.getF32FloatAttr(std::numeric_limits<float>::max());
+  auto outType =
+      dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+  auto outElemTy = outType.getElementType();
 
-  auto getValAttr = [&](Value operand, IntegerAttr &intAttr,
-                        FloatAttr &fpAttr) -> LogicalResult {
-    double valFloat;
-    int64_t valInt;
-    if (matchPattern(operand, m_TorchConstantFloat(&valFloat))) {
-      intAttr = rewriter.getI64IntegerAttr(static_cast<int64_t>(valFloat));
-      fpAttr = rewriter.getF32FloatAttr(static_cast<float>(valFloat));
-    } else if (matchPattern(operand, m_TorchConstantInt(&valInt))) {
-      intAttr = rewriter.getI64IntegerAttr(valInt);
-      fpAttr = rewriter.getF32FloatAttr(static_cast<float>(valInt));
+  int64_t minInt, maxInt;
+  double minFloat, maxFloat;
+  bool isMinNotNone = false;
+  bool isMaxNotNone = false;
+
+  auto isMinInt = matchPattern(op.getMin(), m_TorchConstantInt(&minInt));
+  auto isMinFloat = matchPattern(op.getMin(), m_TorchConstantFloat(&minFloat));
+  if (isMinInt) {
+    minFloat = static_cast<float>(minInt);
+    isMinNotNone = true;
+  } else if (isMinFloat) {
+    minInt = static_cast<int64_t>(minFloat);
+    isMinNotNone = true;
+  } else {
+    if (succeeded(checkNotNone(rewriter, op, op.getMin())))
+      return rewriter.notifyMatchFailure(op,
+                                         "min attr should be a torch constant");
+  }
+
+  auto isMaxInt = matchPattern(op.getMax(), m_TorchConstantInt(&maxInt));
+  auto isMaxFloat = matchPattern(op.getMax(), m_TorchConstantFloat(&maxFloat));
+  if (isMaxInt) {
+    maxFloat = static_cast<float>(maxInt);
+    isMaxNotNone = true;
+  } else if (isMaxFloat) {
+    maxInt = static_cast<int64_t>(maxFloat);
+    isMaxNotNone = true;
+  } else {
+    if (succeeded(checkNotNone(rewriter, op, op.getMax())))
+      return rewriter.notifyMatchFailure(op,
+                                         "max attr should be a torch constant");
+  }
+
+  if (!isa<mlir::FloatType>(outElemTy)) {
+    IntegerAttr minIntAttr, maxIntAttr;
+    if (outElemTy.isInteger(8)) {
+      minIntAttr = rewriter.getIntegerAttr(
+          outElemTy,
+          isMinNotNone ? minInt : std::numeric_limits<int8_t>::min());
+      maxIntAttr = rewriter.getIntegerAttr(
+          outElemTy,
+          isMaxNotNone ? maxInt : std::numeric_limits<int8_t>::max());
+    } else if (outElemTy.isInteger(16)) {
+      minIntAttr = rewriter.getIntegerAttr(
+          outElemTy,
+          isMinNotNone ? minInt : std::numeric_limits<int16_t>::min());
+      maxIntAttr = rewriter.getIntegerAttr(
+          outElemTy,
+          isMaxNotNone ? maxInt : std::numeric_limits<int16_t>::max());
+    } else if (outElemTy.isInteger(32)) {
+      minIntAttr = rewriter.getIntegerAttr(
+          outElemTy,
+          isMinNotNone ? minInt : std::numeric_limits<int32_t>::min());
+      maxIntAttr = rewriter.getIntegerAttr(
+          outElemTy,
+          isMaxNotNone ? maxInt : std::numeric_limits<int32_t>::max());
+    } else if (outElemTy.isInteger(64)) {
+      minIntAttr = rewriter.getI64IntegerAttr(
+          isMinNotNone ? minInt : std::numeric_limits<int64_t>::min());
+      maxIntAttr = rewriter.getI64IntegerAttr(
+          isMaxNotNone ? maxInt : std::numeric_limits<int64_t>::max());
     } else {
-      return failure();
+      return rewriter.notifyMatchFailure(op, "Unsupported integer type");
     }
-    return success();
-  };
 
-  LogicalResult minAttrResult = getValAttr(op.getMin(), min_int, min_fp);
-  LogicalResult maxAttrResult = getValAttr(op.getMax(), max_int, max_fp);
-  if (failed(minAttrResult) && failed(maxAttrResult)) {
-    return rewriter.notifyMatchFailure(
-        op, "either `min` or `max` should be a torch constant");
-  }
-  if (failed(minAttrResult) &&
-      succeeded(checkNotNone(rewriter, op, op.getMin()))) {
-    return rewriter.notifyMatchFailure(op,
-                                       "min attr should be a torch constant");
-  }
-  if (failed(maxAttrResult) &&
-      succeeded(checkNotNone(rewriter, op, op.getMax()))) {
-    return rewriter.notifyMatchFailure(op,
-                                       "max attr should be a torch constant");
-  }
+    rewriter.replaceOpWithNewOp<tosa::ClampOp>(
+        op, outType, adaptor.getSelf(), minIntAttr, maxIntAttr,
+        /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+  } else {
+    FloatAttr minFloatAttr = rewriter.getF32FloatAttr(
+        isMinNotNone ? minFloat : std::numeric_limits<float>::lowest());
+    FloatAttr maxFloatAttr = rewriter.getF32FloatAttr(
+        isMaxNotNone ? maxFloat : std::numeric_limits<float>::max());
 
-  // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
-  auto outType = getTypeConverter()->convertType(op.getType());
-  rewriter.replaceOpWithNewOp<tosa::ClampOp>(
-      op, outType, adaptor.getSelf(), min_int, max_int, min_fp, max_fp,
-      /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+    rewriter.replaceOpWithNewOp<tosa::ClampOp>(
+        op, outType, adaptor.getSelf(), minFloatAttr, maxFloatAttr,
+        /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+  }
 
   return success();
 }
@@ -6788,12 +6819,12 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewrite(
             border_y);
   normalize(inputWidth, outputWidth, scale_x_n, scale_x_d, offset_x, border_x);
 
-  DenseI64ArrayAttr scale = rewriter.getDenseI64ArrayAttr(
-      {scale_y_n, scale_y_d, scale_x_n, scale_x_d});
-  DenseI64ArrayAttr offset =
-      rewriter.getDenseI64ArrayAttr({offset_y, offset_x});
-  DenseI64ArrayAttr border =
-      rewriter.getDenseI64ArrayAttr({border_y, border_x});
+  auto scale = tosa::getTosaConstShape(
+      rewriter, op->getLoc(), {scale_y_n, scale_y_d, scale_x_n, scale_x_d});
+  auto offset =
+      tosa::getTosaConstShape(rewriter, op->getLoc(), {offset_y, offset_x});
+  auto border =
+      tosa::getTosaConstShape(rewriter, op->getLoc(), {border_y, border_x});
   StringAttr modeAttr = rewriter.getStringAttr(mode);
 
   auto resizeOpResult =
@@ -8486,8 +8517,6 @@ LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
     zi = rewriter
              .create<tosa::ClampOp>(
                  op->getLoc(), resultType, self,
-                 rewriter.getI64IntegerAttr(static_cast<int64_t>(eps)),
-                 rewriter.getI64IntegerAttr(static_cast<int64_t>(1 - eps)),
                  rewriter.getF32FloatAttr(static_cast<float>(eps)),
                  rewriter.getF32FloatAttr(static_cast<float>(1 - eps)),
                  /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))

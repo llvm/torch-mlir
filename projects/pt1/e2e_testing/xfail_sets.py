@@ -518,6 +518,8 @@ FX_IMPORTER_XFAIL_SET = {
     "ReflectionPad3dModuleRight_basic",
     "ReflectionPad3dModuleFront_basic",
     "ReflectionPad3dModuleBack_basic",
+    # RuntimeError: Unknown function SliceOutOfLowerBoundEndIndexModule
+    "SliceOutOfLowerBoundEndIndexModule_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
@@ -3275,6 +3277,8 @@ ONNX_XFAIL_SET = {
     "AtenSymConstrainRange_basic",
     "AtenSymConstrainRangeForSize_basic",
     "Aten_AssertScalar_basic",
+    # JIT session error: Symbols not found: [ memrefCopy ]
+    "SplitWithSizes_Module_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
