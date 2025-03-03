@@ -47,19 +47,30 @@
     python -m pip install -r requirements.txt -r torchvision-requirements.txt
     ```
 
+### Set up pre-commit hooks
 
-### (Optional) Set up pre-commit
+We recommend linting and formatting your commits _before_ the CI has a chance to complain about it.
 
-This project uses [pre-commit](https://pre-commit.com/) in its CI. You can
-install it locally too in order to lint and fix your code prior to the CI
-complaining about it.
+1. Install [pre-commit](https://pre-commit.com/)
 
-```shell
-pip install pre-commit
-# You can run interactively with `pre-commit run`
-# or install hooks so it runs automatically:
-pre-commit install
-```
+    ```shell
+    pip install pre-commit
+    ```
+
+    - This is the same package used by the CI.
+1. Either:
+    - Run the hooks manually.
+
+      ```shell
+      pre-commit run
+      ```
+
+      OR
+    - Install them so they run automatically.
+
+      ```shell
+      pre-commit install
+      ```
 
 ## Building
 
