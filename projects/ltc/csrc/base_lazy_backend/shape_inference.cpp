@@ -470,12 +470,10 @@ compute_shape_randn(at::IntArrayRef size, ::std::optional<at::ScalarType> dtype,
       Shape(dtype.value_or(at::get_default_dtype_as_scalartype()), size.vec())};
 }
 
-std::vector<torch::lazy::Shape>
-compute_shape_randn(at::IntArrayRef size, ::std::optional<at::Generator> generator, 
-                    ::std::optional<at::ScalarType> dtype,
-                    ::std::optional<at::Layout> layout,
-                    ::std::optional<at::Device> device,
-                    ::std::optional<bool> pin_memory) {
+std::vector<torch::lazy::Shape> compute_shape_randn(
+    at::IntArrayRef size, ::std::optional<at::Generator> generator,
+    ::std::optional<at::ScalarType> dtype, ::std::optional<at::Layout> layout,
+    ::std::optional<at::Device> device, ::std::optional<bool> pin_memory) {
   return {
       Shape(dtype.value_or(at::get_default_dtype_as_scalartype()), size.vec())};
 }
