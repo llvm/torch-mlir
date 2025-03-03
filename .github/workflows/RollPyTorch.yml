@@ -111,7 +111,7 @@ jobs:
       - name: Update PyTorch Build Cache (if running on main branch)
         if: github.ref_name == 'main'
         id: cache-pytorch
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
           key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
@@ -127,7 +127,7 @@ jobs:
           git pull origin main
 
       - name: Create pull request
-        uses: peter-evans/create-pull-request@67ccf781d68cd99b580ae25a5c18a1cc84ffff1f # v7.0.6
+        uses: peter-evans/create-pull-request@dd2324fc52d5d43c699a5636bcf19fceaa70c284 # v7.0.7
         with:
           author: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
           branch: rollpytorch
