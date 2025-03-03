@@ -3738,6 +3738,26 @@ atenBinaryFloatOperatorFoldHelper(ArrayRef<Attribute> operands,
 }
 
 //===----------------------------------------------------------------------===//
+// AtenStftOp
+//===----------------------------------------------------------------------===//
+
+void AtenStftOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                             MLIRContext *context) {
+  patterns.add(+[](AtenStftOp op, PatternRewriter &rewriter) {
+    Value falseVal = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    Value padMode =
+        rewriter.create<Torch::ConstantStrOp>(op.getLoc(), "reflect");
+    rewriter.replaceOpWithNewOp<AtenStftCenterOp>(
+        op, op.getType(), op.getSelf(), op.getNFft(), op.getHopLength(),
+        op.getWinLength(), op.getWindow(), falseVal, padMode,
+        op.getNormalized(), op.getOnesided(), op.getReturnComplex(),
+        op.getAlignToWindow());
+
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenAliasOp
 //===----------------------------------------------------------------------===//
 
