@@ -406,8 +406,7 @@ public:
 
     auto verifyPadding = [&](int64_t padArgument, int64_t dim,
                              StringRef errorMessage) {
-      auto padValue =
-          rewriter.create<arith::ConstantIndexOp>(loc, padArgument);
+      auto padValue = rewriter.create<arith::ConstantIndexOp>(loc, padArgument);
       Value index = rewriter.create<arith::ConstantIndexOp>(loc, dim);
       Value shapeDim = rewriter.create<tensor::DimOp>(loc, input, index);
       Value cmpPred = rewriter.create<arith::CmpIOp>(
