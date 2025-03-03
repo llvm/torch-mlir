@@ -22,10 +22,11 @@ func.func @torch.aten.broadcast_to$simple_static(%arg0: !torch.vtensor<[4,2],f32
 
 // CHECK-LABEL:   func.func @torch.aten.broadcast_to$static_numpy_broadcast(
 // CHECK:           %[[INIT_TENSOR:.*]] = tensor.empty() : tensor<1x4x2xf32>
+// CHECK:           %[[COLLAPSE:.*]] = tensor.collapse_shape %{{.*}} {{\[\[}}0, 1], [2]] : tensor<1x1x2xf32> into tensor<1x2xf32>
 // CHECK:           %[[GENERIC:.*]] = linalg.generic
-// CHECK-SAME:        indexing_maps = [affine_map<(d0, d1, d2) -> (d0, 0, d2)>, affine_map<(d0, d1, d2) -> (d0, d1, d2)>]
+// CHECK-SAME:        indexing_maps = [affine_map<(d0, d1, d2) -> (d0, d2)>, affine_map<(d0, d1, d2) -> (d0, d1, d2)>]
 // CHECK-SAME:        iterator_types = ["parallel", "parallel", "parallel"]}
-// CHECK-SAME:        ins({{.*}} : tensor<1x1x2xf32>) outs({{.*}} : tensor<1x4x2xf32>) {
+// CHECK-SAME:        ins(%[[COLLAPSE]] : tensor<1x2xf32>) outs({{.*}} : tensor<1x4x2xf32>) {
 // CHECK:           ^bb0(%[[IN:.*]]: f32, %{{.*}}: f32):
 // CHECK:             linalg.yield %[[IN]] : f32
 // CHECK:           } -> tensor<1x4x2xf32>
