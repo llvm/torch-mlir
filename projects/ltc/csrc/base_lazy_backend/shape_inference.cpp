@@ -475,7 +475,7 @@ compute_shape_randn(at::IntArrayRef size, ::std::optional<at::Generator> generat
                     ::std::optional<at::ScalarType> dtype,
                     ::std::optional<at::Layout> layout,
                     ::std::optional<at::Device> device,
--                    ::std::optional<bool> pin_memory) {
+                    ::std::optional<bool> pin_memory) {
   return {
       Shape(dtype.value_or(at::get_default_dtype_as_scalartype()), size.vec())};
 }
