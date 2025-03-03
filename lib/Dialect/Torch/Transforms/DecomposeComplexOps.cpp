@@ -1941,6 +1941,41 @@ public:
 };
 } // namespace
 
+class DecomposeAtenAtleast3dOp : public OpRewritePattern<AtenAtleast3dOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAtleast3dOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Type opType = op.getType();
+
+    auto inputType = cast<BaseTensorType>(input.getType());
+    SmallVector<int64_t> inputShape(inputType.getSizes());
+
+    if (inputShape.size() >= 3) {
+      rewriter.replaceOp(op, input);
+      return success();
+    }
+
+    auto atleast2dResShape =
+        inputShape.empty()
+            ? SmallVector<int64_t>{1, 1}
+            : (inputShape.size() == 1 ? SmallVector<int64_t>{1, inputShape[0]}
+                                      : inputShape);
+    auto atleast2dResType = rewriter.getType<ValueTensorType>(
+        atleast2dResShape, inputType.getOptionalDtype());
+    auto atleast2dRes =
+        rewriter.create<AtenAtleast2dOp>(loc, atleast2dResType, input);
+
+    Value zero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    rewriter.replaceOpWithNewOp<AtenUnsqueezeOp>(op, opType, atleast2dRes,
+                                                 zero);
+    return success();
+  }
+};
+
 namespace {
 // Decompose AtenEinsumOp to AtenMatmulOp, and supports possible reduce
 // operation and permute operation. Currently, this pass doesn't support
@@ -11722,6 +11757,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenCeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast2dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast3dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_TrilinearOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
