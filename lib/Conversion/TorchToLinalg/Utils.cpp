@@ -457,6 +457,9 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
       return success();
     }
 
+    // Flatten size-1 broadcast dims to simplify the final generic op.
+    // If all dims are size-1 broadcast dims, then this will collapse to a
+    // rank-0 tensor.
     SmallVector<ReassociationIndices> collapseExprs;
     for (int64_t i = 0, e = inputRank; i < e; ++i) {
       if (!broadcastedStatus[i]) {
@@ -466,10 +469,12 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
 
     int64_t previous = -1;
     bool collapse = false;
+    SmallVector<AffineExpr> inputExprs;
     for (int64_t i = 0, e = inputRank; i < e; ++i) {
       if (!broadcastedStatus[i]) {
         previous++;
         collapseExprs[previous].push_back(i);
+        inputExprs.push_back(rewriter.getAffineDimExpr(i + diff));
         continue;
       }
 
@@ -483,13 +488,6 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
     if (collapse) {
       input = rewriter.create<tensor::CollapseShapeOp>(op->getLoc(), input,
                                                        collapseExprs);
-    }
-
-    SmallVector<AffineExpr> inputExprs;
-    for (int64_t i = 0, e = inputRank; i < e; ++i) {
-      if (!broadcastedStatus[i]) {
-        inputExprs.push_back(rewriter.getAffineDimExpr(i + diff));
-      }
     }
 
     SmallVector<AffineMap> indexingMaps = {
