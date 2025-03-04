@@ -1175,9 +1175,13 @@ class ContextCache:
         stack_trace = node.stack_trace
         if stack_trace:
             matches = re.findall(r"""File "([^"]+)", line ([0-9]+),""", stack_trace)
-            locations = [Location.file(m[0], int(m[1]), col=0, context=self._c) for m in matches]
+            locations = [
+                Location.file(m[0], int(m[1]), col=0, context=self._c) for m in matches
+            ]
             if len(locations) > 1:
-                return Location.callsite(locations[-1], locations[-2::-1], context=self._c)
+                return Location.callsite(
+                    locations[-1], locations[-2::-1], context=self._c
+                )
             elif len(locations) == 1:
                 return locations[0]
         return Location.unknown(context=self._c)
