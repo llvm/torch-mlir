@@ -909,12 +909,12 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
       b.createOrFold<arith::ConstantOp>(location, b.getI64IntegerAttr(0));
 
   for (int i = 0; i < NumOfDims; ++i) {
-    // See the link below for the PyTorch implementation where
-    // this is derived from:
+    // See the link below for the PyTorch implementation where this is
+    // derived from:
     // https://github.com/pytorch/pytorch/blob/4a6dfbe4806b361c43210dfd56db64c4097c66bb/aten/src/ATen/native/cpu/AvgPoolKernel.cpp#L78
-    // Dim below stands for spatial dimension. Prior to the February
-    // 2025 change, these variables used "height" and "width" (or
-    // "h" and "w") in these intermediate variables instead of "Dim".
+    // Dim below stands for spatial dimension. Prior to the February 2025
+    // change, these variables used "height" and "width" (or "h" and "w")
+    // in these intermediate variables instead of "Dim".
     Value IndexODim =
         b.createOrFold<linalg::IndexOp>(location,
                                         /*value=*/DimSizeFromSumPoolType[i]);
