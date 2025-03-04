@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/BuiltinAttributes.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
 #include "../PassDetail.h"
@@ -26,7 +27,12 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/APInt.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
 #include <cmath>
+#include <cstdint>
 #include <numeric>
 #include <type_traits>
 
@@ -158,6 +164,134 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertAtenQuantizePerChannelOp
+    : public OpConversionPattern<AtenQuantizePerChannelOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(AtenQuantizePerChannelOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto *zeroPoints = op.getZeroPoints().getDefiningOp();
+    if (!zeroPoints || !isa<ValueTensorLiteralOp>(zeroPoints)) {
+      return failure();
+    }
+    auto zeroPointsOp = mlir::cast<ValueTensorLiteralOp>(zeroPoints);
+
+    llvm::SmallVector<int64_t, 4> zeroPointsVec;
+    for (auto zp : zeroPointsOp.getValue().getValues<llvm::APInt>()) {
+      zeroPointsVec.emplace_back(zp.getSExtValue());
+    }
+
+    auto scales = op.getScales().getDefiningOp();
+    if (!scales || !isa<ValueTensorLiteralOp>(scales)) {
+      return failure();
+    }
+
+    llvm::SmallVector<double, 4> scalesVec;
+    auto scalesOp = mlir::cast<ValueTensorLiteralOp>(scales);
+    for (auto scale : scalesOp.getValue().getValues<llvm::APFloat>()) {
+      scalesVec.emplace_back(scale.convertToDouble());
+    }
+
+    auto axis = op.getAxis().getDefiningOp();
+    if (!axis || !isa<ConstantIntOp>(axis)) {
+      return failure();
+    }
+    auto axisOp = mlir::cast<ConstantIntOp>(axis);
+    auto axisValue = axisOp.getValueAttr().getInt();
+
+    auto users = op.getResult().getUsers();
+    auto opUser = *op.getResult().user_begin();
+    if (!(std::distance(users.begin(), users.end()) == 1) ||
+        !isa<AtenIntReprOp>(opUser)) {
+      return failure();
+    }
+
+    auto inputElemType =
+        mlir::cast<RankedTensorType>(
+            getTypeConverter()->convertType(op.getOperands().front().getType()))
+            .getElementType();
+
+    mlir::Type dtype =
+        cast<ValueTensorType>(op->getResult(0).getType()).getDtype();
+    int32_t bitWidth = 0;
+    int32_t flags = quant::QuantizationFlags::FlagValue::Signed;
+    if (isa<QUInt8Type>(dtype)) {
+      bitWidth = 8;
+      flags = 0;
+    } else if (isa<QInt8Type>(dtype)) {
+      bitWidth = 8;
+    } else if (isa<QInt16Type>(dtype)) {
+      bitWidth = 16;
+    } else if (isa<QInt32Type>(dtype)) {
+      bitWidth = 32;
+    } else {
+      return failure();
+    }
+    auto storageType = IntegerType::get(getContext(), bitWidth);
+
+    // Minimum and maximum values for unsigned integer.
+    int64_t minValue = 0;
+    int64_t maxValue = (1LL << bitWidth) - 1;
+    // Update the minimum and maximum for signed integer.
+    if (flags) {
+      // For signed integers (2's complement representation)
+      minValue = -(1LL << (bitWidth - 1));
+      maxValue = (1LL << (bitWidth - 1)) - 1;
+    }
+
+    auto qty = quant::UniformQuantizedPerAxisType::get(
+        flags, storageType, inputElemType, scalesVec, zeroPointsVec, axisValue,
+        minValue, maxValue);
+
+    RankedTensorType outputType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op->getResult(0).getType()));
+    mlir::TensorType new_type = outputType.clone(qty);
+
+    stablehlo::UniformQuantizeOp quantize =
+        rewriter.replaceOpWithNewOp<stablehlo::UniformQuantizeOp>(
+            opUser, new_type, adaptor.getOperands().front());
+
+    opUser->getResults().front().replaceAllUsesWith(
+        quantize->getResults().front());
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertAten_MakePerChannelQuantizedTensorOp
+    : public OpConversionPattern<Aten_MakePerChannelQuantizedTensorOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(Aten_MakePerChannelQuantizedTensorOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto opUser = *op.getResult().user_begin();
+    auto users = op.getResult().getUsers();
+    if (!(std::distance(users.begin(), users.end()) == 1) ||
+        !isa<AtenDequantizeSelfOp>(opUser)) {
+      return failure();
+    }
+    // [TODO] verify that zeroPoint and Scale matches with the input operand
+    // type.
+    RankedTensorType outputType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(opUser->getResult(0).getType()));
+
+    rewriter.replaceOpWithNewOp<stablehlo::UniformDequantizeOp>(
+        opUser, outputType, adaptor.getOperands().front());
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_stablehlo::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -170,4 +304,8 @@ void mlir::torch::torch_to_stablehlo::populateUncategorizedPatternsAndLegality(
   target.addIllegalOp<AtenDequantizeSelfOp>();
   patterns.add<ConvertAten_MakePerTensorQuantizedTensorOp>(typeConverter,
                                                            context);
+  target.addIllegalOp<AtenQuantizePerChannelOp>();
+  patterns.add<ConvertAtenQuantizePerChannelOp>(typeConverter, context);
+  patterns.add<ConvertAten_MakePerChannelQuantizedTensorOp>(typeConverter,
+                                                            context);
 }
