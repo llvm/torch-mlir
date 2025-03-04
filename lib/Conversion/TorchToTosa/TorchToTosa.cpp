@@ -1848,22 +1848,52 @@ public:
     SmallVector<int64_t> matmulOutputShape(
         {matmulLhsShape[0], matmulLhsShape[1], matmulRhsShape[2]});
     Type outputElemTy;
-    if (isa<mlir::FloatType>(lhsElemTy)) {
-      outputElemTy = lhsElemTy;
-    } else { // qint8 emits i32 matmul output
+
+    bool isInputElemTyQInt8 = false;
+    if (isa<mlir::quant::UniformQuantizedType>(lhsElemTy)) {
+      mlir::quant::UniformQuantizedType inputQTy =
+          dyn_cast<mlir::quant::UniformQuantizedType>(lhsElemTy);
+      if (inputQTy.getStorageTypeIntegralWidth() == 8)
+        isInputElemTyQInt8 = true;
+    }
+
+    if (isInputElemTyQInt8) {
+      // qint8 emits i32 matmul output
       outputElemTy = rewriter.getIntegerType(32);
+    } else {
+      outputElemTy = lhsElemTy;
     }
 
     auto mmOutputTy = RankedTensorType::get(
         makeShapeLLVMCompatible(matmulOutputShape), outputElemTy);
-    auto mmOpResult =
-        rewriter
-            .create<tosa::MatMulOp>(
-                op->getLoc(),
-                OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-                    mmOutputTy),
-                matmulLhs, matmulRhs)
-            .getResult();
+
+    Value mmOpResult;
+    if (!isInputElemTyQInt8) {
+      // LHS and RHS tensors' zero points must be zero for non-int8 types
+      Value lhsZp =
+          tosa::createZeroPointTensor(rewriter, op->getLoc(), lhsElemTy, 0)
+              .value();
+      Value rhsZp =
+          tosa::createZeroPointTensor(rewriter, op->getLoc(), rhsElemTy, 0)
+              .value();
+      mmOpResult =
+          rewriter
+              .create<tosa::MatMulOp>(
+                  op->getLoc(),
+                  OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+                      mmOutputTy),
+                  matmulLhs, matmulRhs, lhsZp, rhsZp)
+              .getResult();
+    } else {
+      mmOpResult =
+          rewriter
+              .create<tosa::MatMulOp>(
+                  op->getLoc(),
+                  OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+                      mmOutputTy),
+                  matmulLhs, matmulRhs)
+              .getResult();
+    }
 
     // Perform the reshape to output shape. This is always required unless max
     // input rank=3 and there was no broadcasting, in which case the tosa.matmul
