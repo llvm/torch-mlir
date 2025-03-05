@@ -105,7 +105,8 @@ jobs:
         uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         with:
           path: ${{ env.CACHE_DIR }}
-          key: build-test-cpp-asserts-windows-${{ matrix.torch-version }}-v2-${{ github.sha }}
+          # Use as cache key a PR number if a pull request and otherwise the commit hash. This reuses the cache for a PR irrespective of the commit hash. Otherwise, it uses commit hash for merges into the main branch
+          key: build-test-cpp-asserts-windows-${{ matrix.torch-version }}-v2-${{ github.event.number || github.sha }}
           restore-keys: |
             build-test-cpp-asserts-windows-${{ matrix.torch-version }}-v2-
 
@@ -132,7 +133,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           path: ${{ env.CACHE_DIR }}
-          key: build-test-cpp-asserts-windows-${{ matrix.torch-version }}-v2-${{ github.sha }}
+          key: build-test-cpp-asserts-windows-${{ matrix.torch-version }}-v2-${{ github.event.number || github.sha }}
 
       # todo: enable when use of `signal` for timeout is enhanced to be platform-agnostic
       # - name: Integration tests (torch-${{ matrix.torch-version }})
