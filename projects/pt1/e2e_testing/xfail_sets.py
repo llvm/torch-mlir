@@ -3407,6 +3407,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenKthvalueKeepDimModule_basic",
     "AtenKthvalueModule_basic",
     "AvgPool3dStaticModule_basic",
+    "AvgPool3dCountIncludePadFalse_basic",
+    "AvgPool3dCountIncludePadFalseWithoutPadding_basic",
     "Conv_Transpose1dModule_basic",
     "Conv_Transpose1dStaticModule_basic",
     "Conv_Transpose2dStaticModule_basic",
