@@ -7,11 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
-
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -170,15 +169,23 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    RankedTensorType resultType = cast<RankedTensorType>(
-        getTypeConverter()->convertType(op->getResult(0).getType()));
+    RankedTensorType resultType =
+        cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+    if (!resultType.hasStaticShape())
+      return rewriter.notifyMatchFailure(op,
+                                         "result type must have static shape");
+
     Type outElementType = resultType.getElementType();
     Value elemVal = adaptor.getA();
     Value elemValProm =
         convertScalarToDtype(rewriter, loc, elemVal, outElementType);
-    Value zeroDTensor =
-        createInitTensor(rewriter, loc, {}, outElementType, elemValProm);
-    rewriter.replaceOp(op, zeroDTensor);
+
+    auto initTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsIndexOpFoldResult(getContext(), resultType.getShape()),
+        outElementType);
+    auto filledTensor = rewriter.create<linalg::FillOp>(loc, elemValProm,
+                                                        initTensor.getResult());
+    rewriter.replaceOp(op, filledTensor);
     return success();
   }
 };
