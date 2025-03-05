@@ -3391,8 +3391,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ViewDtypeStaticModule_basic",
     "Unfold_Module_Rank_Zero_Size_Zero_basic",
     "ArangeZeroElementOutputModule_basic",
-    "NumpyTRank0Module_basic",
-    "Permute0RankModule_basic",
     "SliceOutOfUpperBoundIndexModule_basic",
     "SliceOutOfUpperBoundIndexStaticModule_basic",
     "SliceStartEqEndModule_basic",
