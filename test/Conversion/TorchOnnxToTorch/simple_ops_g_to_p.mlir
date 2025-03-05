@@ -1977,7 +1977,10 @@ func.func @test_loop_forlike(%arg0: !torch.vtensor<[],si64>, %arg1: !torch.vtens
   // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
   // CHECK:           %[[LOOP:.*]] = torch.prim.Loop %[[MAX_TRIP_COUNT_INT]], %[[TRUE]], init(%[[LCD_1]]) {
   // CHECK:           ^bb0(%[[ITER_NUM:.*]]: !torch.int, %[[LCD_1_BODY:.*]]: !torch.vtensor<[1],f32>):
-  // CHECK:             %[[ITER_NUM_T:.*]] = torch.prim.NumToTensor.Scalar %[[ITER_NUM]] : !torch.int -> !torch.vtensor<[],si64>
+  // CHECK:             %[[SHAPE:.*]] = torch.prim.ListConstruct : () -> !torch.list
+  // CHECK:             %[[NONE_ITER_NUM_T:.*]] = torch.constant.none
+  // CHECK:             %[[DTYPE:.*]] = torch.constant.int 4
+  // CHECK:             %[[ITER_NUM_T:.*]] = torch.aten.full %[[SHAPE]], %[[ITER_NUM]], %[[DTYPE]], %[[NONE_ITER_NUM_T]], %[[NONE_ITER_NUM_T]], %[[NONE_ITER_NUM_T]] : !torch.list<int>, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[],si64>
   // CHECK:             %[[NONE_1:.*]] = torch.constant.none
   // CHECK:             %[[CLONE_INP_COND:.*]] = torch.aten.clone %[[CONDITION_INP]], %[[NONE_1]] : !torch.vtensor<[],i1>, !torch.none -> !torch.vtensor<[],i1>
   // CHECK:             %[[CONST_ARR:.*]] = torch.vtensor.literal(dense<[1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00]> : tensor<5xf32>) : !torch.vtensor<[5],f32>
