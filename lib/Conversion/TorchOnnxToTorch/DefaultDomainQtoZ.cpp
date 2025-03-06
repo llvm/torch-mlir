@@ -390,8 +390,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         } else if (weightScaleShape.size() == 1 &&
                    weightScaleShape[0] != Torch::kUnknownSize &&
                    weightScaleShape[0] == weightShape[0]) {
-          // Since the convolution opertaion in the downstream pipeline
-          // ("Linalg") does not support the per channel quantization, hence for
+          // Since the convolution operation in the downstream pipeline
+          // ("Linalg") does not support the per-channel quantization, hence for
           // this particular case we perform the convolution over the
           // dequantized input and weight instead of relying on the downstream
           // pipeline to handle this. This code can be removed and made similar
