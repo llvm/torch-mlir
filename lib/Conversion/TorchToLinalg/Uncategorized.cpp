@@ -1497,13 +1497,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value zp = quant.getZeroPoint();
     auto valueTy = value.getType();
 
-    // The `torch.quantize_per_tensor` op accepts only float tensor as inputs.
-    // Hence, converting the non-float value to float type.
-    if (isa<mlir::IntegerType>(valueTy)) {
-      valueTy = b.getF32Type();
-      value = convertScalarToDtype(b, loc, value, valueTy);
-    }
-
     zp = converter->materializeTargetConversion(
         b, loc, converter->convertType(zp.getType()), zp);
     zp = b.create<arith::SIToFPOp>(loc, valueTy, zp);
