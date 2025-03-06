@@ -955,7 +955,55 @@ public:
       if (isa<mlir::IntegerType>(inputDTy))
         pad = rewriter.create<arith::TruncIOp>(op.getLoc(), inputDTy, pad);
     }
+
+    // The expandWeight lambda function below is used to expand the group
+    // dimension. For the normal case the group dimension is expanded out
+    // of the output filter dimension:
+    // expand F,C,H,W -> G,F/G,C,H,W
+    //
+    // Note that the group dimension has to be the first dimension. For the
+    // transposed convolution case, the group convolution is extracted out
+    // of the input channel dimension. But note that the input channel
+    // dimension is interchanged with the output filter dimension (due to
+    // the transposed operation). Because of this the group and input
+    // channel dimensions will not be adjacent and the expand_shape
+    // operation will not work.
+    //
+    // For this reason, in the transposed convolution case the expandWeight
+    // lambda needs to be executed before this dimension flipping by doing
+    // these two steps:
+    //
+    // Expansion:    C,F,H,W -> G,C/G,F,H,W
+    //
+    // Dimension interchange: G,C/G,F,H,W -> G,F,C/G,H,W
+    //
+    auto expandWeight = [&](Value tensor) {
+      auto inType = cast<RankedTensorType>(tensor.getType());
+      auto inShape = makeShapeTorchCompatible(inType.getShape());
+
+      SmallVector<int64_t> outShape{numGroups,
+                                    (inShape[0] == kUnknownSize
+                                         ? kUnknownSize
+                                         : (inShape[0] / numGroups)),
+                                    inShape[1]};
+      outShape.append(inShape.begin() + 2, inShape.end());
+
+      SmallVector<ReassociationIndices> indices{};
+      int currIndex = 0;
+      indices.push_back({0, 1});
+      currIndex += 2;
+      for (int i = currIndex; i <= (long)inShape.size(); i++)
+        indices.push_back({i});
+
+      auto retType = inType.clone(makeShapeLLVMCompatible(outShape));
+      return rewriter.create<tensor::ExpandShapeOp>(loc, retType, tensor,
+                                                    indices);
+    };
+
     if (transposed) {
+      bool isGroupedConv = numGroups > 1;
+      weight = isGroupedConv ? expandWeight(weight) : weight;
+
       Value c0 =
           rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
       Value c1 =
@@ -965,25 +1013,40 @@ public:
 
       // Transpose and flip weight
       SmallVector<Value> weightInitDims = getTensorSizes(rewriter, loc, weight);
-      std::iter_swap(weightInitDims.begin(), weightInitDims.begin() + 1);
-      outDims[1] = weightInitDims[0];
+      if (isGroupedConv) {
+        // We need to skip the first dimension (group) in this case, also the
+        // output dimension needs to consider the number of groups.
+        std::iter_swap(weightInitDims.begin() + 1, weightInitDims.begin() + 2);
+        auto numGroupsVal =
+            rewriter.create<mlir::arith::ConstantIndexOp>(loc, numGroups);
+        outDims[1] = rewriter.createOrFold<mlir::arith::MulIOp>(
+            loc, weightInitDims[1], numGroupsVal);
+      } else {
+        std::iter_swap(weightInitDims.begin(), weightInitDims.begin() + 1);
+        outDims[1] = weightInitDims[0];
+      }
+      auto weightRank = weightInitDims.size();
       Value weightInitTensor =
           createZeroInitTensor(rewriter, loc, weightInitDims, weightDTy);
       SmallVector<utils::IteratorType> iteratorTypes(
-          inRank, utils::IteratorType::parallel);
+          weightRank, utils::IteratorType::parallel);
       SmallVector<AffineMap> indexingMaps{
-          AffineMap::getMultiDimIdentityMap(inRank, context)};
+          AffineMap::getMultiDimIdentityMap(weightRank, context)};
       weight = rewriter
                    .create<linalg::GenericOp>(
                        loc, weightInitTensor.getType(), ValueRange{},
                        weightInitTensor, indexingMaps, iteratorTypes,
                        [&](OpBuilder &b, Location loc, ValueRange args) {
                          SmallVector<Value> indices;
-                         for (size_t i = 0; i < inRank; i++)
+                         for (size_t i = 0; i < weightRank; i++)
                            indices.push_back(b.create<linalg::IndexOp>(loc, i));
-                         std::iter_swap(indices.begin(), indices.begin() + 1);
-                         // Flip only the spatial dimensions (from 2 to inRank)
-                         for (size_t flipDim = 2; flipDim < inRank; flipDim++) {
+                         auto fcIdxSwapOffset = isGroupedConv ? 1 : 0;
+                         std::iter_swap(indices.begin() + fcIdxSwapOffset,
+                                        indices.begin() + fcIdxSwapOffset + 1);
+                         // Flip only the spatial dimensions (from 2 to
+                         // weightRank)
+                         for (size_t flipDim = fcIdxSwapOffset + 2;
+                              flipDim < weightRank; flipDim++) {
                            indices[flipDim] = b.create<arith::SubIOp>(
                                loc,
                                b.create<arith::SubIOp>(
@@ -1373,27 +1436,11 @@ public:
                                                     indices);
     };
 
-    // expand F,C,H,W -> G,F/G,C,H,W
-    auto expandWeight = [&](Value tensor) {
-      auto inType = cast<RankedTensorType>(tensor.getType());
-      auto inShape = makeShapeTorchCompatible(inType.getShape());
-
-      SmallVector<int64_t> outShape{
-          numGroups,
-          (inShape[0] == kUnknownSize ? kUnknownSize : inShape[0] / numGroups)};
-      outShape.append(inShape.begin() + 1, inShape.end());
-
-      SmallVector<ReassociationIndices> indices{{0, 1}};
-      for (auto i = 2; i <= (long)inShape.size(); i++)
-        indices.push_back({i});
-
-      auto retType = inType.clone(makeShapeLLVMCompatible(outShape));
-      return rewriter.create<tensor::ExpandShapeOp>(loc, retType, tensor,
-                                                    indices);
-    };
-
     Value paddedInputExpanded = expandGroups(paddedInput, 1);
-    Value weightExpanded = expandWeight(weight);
+    // If we have a transposed convolution, this needs to be handled before
+    // dimension permutation. See comments in the expandWeight lambda definition
+    // for details.
+    weight = transposed ? weight : expandWeight(weight);
     auto expandOutputTensor = expandGroups(outputTensor, 1);
 
     // TODO: add 1D and 3D case
@@ -1401,15 +1448,14 @@ public:
       conv = rewriter
                  .create<linalg::Conv2DNgchwGfchwOp>(
                      loc, expandOutputTensor.getResultType(),
-                     ValueRange{paddedInputExpanded, weightExpanded},
+                     ValueRange{paddedInputExpanded, weight},
                      expandOutputTensor.getResult(), stridesAttr, dilationAttr)
                  .getResult(0);
     } else {
       conv = rewriter
                  .create<linalg::Conv2DNgchwGfchwQOp>(
                      loc, expandOutputTensor.getResultType(),
-                     ValueRange{paddedInputExpanded, weightExpanded, inputZp,
-                                weightZp},
+                     ValueRange{paddedInputExpanded, weight, inputZp, weightZp},
                      expandOutputTensor.getResult(), stridesAttr, dilationAttr)
                  .getResult(0);
     }
