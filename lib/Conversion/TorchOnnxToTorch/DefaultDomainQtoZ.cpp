@@ -497,7 +497,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         if (!isPerChannelQuantization)
           input = makePerTensor(input, inputScale, inputZp);
 
-        // TODO(suderman): insert convolution operator.
         llvm::SmallVector<Value> newOperands = {input, weight};
         if (bias)
           newOperands.push_back(bias);
@@ -523,6 +522,22 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                binder.getLoc(), outputTy, newOperands,
                                newAttributes, binder.op->getRegions().size())
                            .getResult(0);
+
+        if (!isPerChannelQuantization) {
+          Value outScale = rewriter.create<Torch::AtenMulFloatOp>(
+              binder.getLoc(), rewriter.getType<Torch::FloatType>(), inputScale,
+              weightScale);
+          Value outZp = rewriter.create<Torch::ConstantIntOp>(
+              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+          output = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
+              binder.getLoc(), outputTy, output, outScale, outZp);
+          outputTy = rewriter.getType<Torch::ValueTensorType>(
+              resultType.getOptionalSizes(), rewriter.getF32Type());
+
+          output = rewriter.create<Torch::AtenDequantizeSelfOp>(
+              binder.getLoc(), outputTy, output);
+        }
 
         outputTy = getQTorchTypeFromTorchIntType(resultType);
         Value dtyVal = rewriter.create<Torch::ConstantIntOp>(
