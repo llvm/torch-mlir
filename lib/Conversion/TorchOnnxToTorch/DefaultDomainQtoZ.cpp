@@ -9,6 +9,7 @@
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -272,8 +273,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         bool rank0 = scaleTy.getSizes().size() == 0;
         bool length1 =
             scaleTy.getSizes().size() == 1 && scaleTy.getSizes()[0] == 1;
+        bool length2 =
+            scaleTy.getSizes().size() == 1 && scaleTy.getSizes()[0] > 1;
 
-        if (!rank0 && !length1)
+        if (!rank0 && !length1 && !length2)
           return rewriter.notifyMatchFailure(binder.op,
                                              "unimplemented: non-scalar scale");
 
@@ -290,6 +293,21 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             rewriter.getIntegerAttr(rewriter.getIntegerType(64),
                                     static_cast<int64_t>(torchqTy)));
 
+        if (length2) {
+          int64_t axis;
+          if (binder.s64IntegerAttr(axis, "axis", 0)) {
+            return rewriter.notifyMatchFailure(
+                binder.op, "unable to parse axis attribute.");
+          };
+          Value axisValue = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), axis));
+          auto quantize = rewriter.create<Torch::AtenQuantizePerChannelOp>(
+              loc, qTensorTy, operand, scale, zeropoint, axisValue, tyConst);
+          rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(
+              binder.op, resultType, quantize);
+          return success();
+        }
         scale = rewriter.create<Torch::AtenItemOp>(
             loc, rewriter.getType<Torch::FloatType>(), scale);
 
