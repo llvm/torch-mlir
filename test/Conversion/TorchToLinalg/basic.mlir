@@ -252,6 +252,27 @@ func.func @torch.prim.NumToTensor.Scalar$basic(%arg0: !torch.int) -> !torch.vten
 
 // -----
 
+// CHECK:    func.func @torch.prim.NumToTensor.Scalar$non_zero_rank(%[[IN:.*]]: !torch.int) -> !torch.vtensor<[1,1],si64> {
+// CHECK:      %[[INI64:.*]] = torch_c.to_i64 %[[IN]]
+// CHECK:      %[[NEWVEC:.*]] = tensor.empty() : tensor<1x1xi64>
+// CHECK:      %[[FILLVEC:.*]] = linalg.fill ins(%[[INI64]] : i64) outs(%[[NEWVEC]] : tensor<1x1xi64>) -> tensor<1x1xi64>
+// CHECK:      %[[OUTVEC:.*]] = torch_c.from_builtin_tensor %[[FILLVEC]] : tensor<1x1xi64> -> !torch.vtensor<[1,1],si64>
+// CHECK:      return %[[OUTVEC]] : !torch.vtensor<[1,1],si64>
+func.func @torch.prim.NumToTensor.Scalar$non_zero_rank(%arg0: !torch.int) -> !torch.vtensor<[1,1],si64> {
+  %0 = torch.prim.NumToTensor.Scalar %arg0 : !torch.int -> !torch.vtensor<[1,1],si64>
+  return %0 : !torch.vtensor<[1,1],si64>
+}
+
+// -----
+
+func.func @torch.prim.NumToTensor.Scalar$dynamic_dims(%arg0: !torch.int) -> !torch.vtensor<[?],si64> {
+  // expected-error@below {{failed to legalize}}
+  %0 = torch.prim.NumToTensor.Scalar %arg0 : !torch.int -> !torch.vtensor<[?],si64>
+  return %0 : !torch.vtensor<[?],si64>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.tensor_static_info_cast$basic(
 // CHECK-SAME:                                              %[[VALUE_T:.*]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[4],f32> {
 // CHECK:           %[[T:.*]] = torch_c.to_builtin_tensor %[[VALUE_T]] : !torch.vtensor<[?],f32> -> tensor<?xf32>
