@@ -1174,10 +1174,16 @@ class ContextCache:
         # https://github.com/pytorch/pytorch/issues/91000
         stack_trace = node.stack_trace
         if stack_trace:
-            m = re.search(r"""File "([^"]+)", line ([0-9]+),""", stack_trace)
-            if m:
-                filename, line = m.group(1), int(m.group(2))
-                return Location.file(filename, line, col=0, context=self._c)
+            matches = re.findall(r"""File "([^"]+)", line ([0-9]+),""", stack_trace)
+            locations = [
+                Location.file(m[0], int(m[1]), col=0, context=self._c) for m in matches
+            ]
+            if len(locations) > 1:
+                return Location.callsite(
+                    locations[-1], locations[-2::-1], context=self._c
+                )
+            elif len(locations) == 1:
+                return locations[0]
         return Location.unknown(context=self._c)
 
     def set_symbolic_guards(
