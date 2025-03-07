@@ -1616,6 +1616,223 @@ public:
 };
 } // namespace
 
+namespace {
+template <typename OpTy, typename PoolingOpTy, int Dim>
+class ConvertRoiAlignOp : public OpConversionPattern<OpTy> {
+public:
+  using OpConversionPattern<OpTy>::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op->getLoc();
+    const TypeConverter *typeConverter = this->getTypeConverter();
+    Value result = op.getResult();
+
+    uint64_t pooledHeight =
+        cast<ConstantIntOp>(op.getPooledHeight().getDefiningOp()).getValue();
+    uint64_t pooledWidth =
+        cast<ConstantIntOp>(op.getPooledWidth().getDefiningOp()).getValue();
+    uint64_t samplingRatio =
+        cast<ConstantIntOp>(op.getSamplingRatio().getDefiningOp()).getValue();
+    Value pooledH = op.getPooledHeight();
+    Value pooledW = op.getPooledWidth();
+    Value spatialScaleVal = op.getSpatialScale();
+    llvm::APFloat spatialScale =
+        cast<ConstantFloatOp>(op.getSpatialScale().getDefiningOp()).getValue();
+    Value rois = op.getRois();
+    Value input = op.getInput();
+    // RankedTensorType inputType = input.getType();
+    Value offset =
+        rewriter.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.0));
+    Type resultType = cast<RankedTensorType>(result.getType());
+    Type resultElementType = resultType.getElementType();
+    if (!op.getAligned()) {
+      offset = rewriter.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.5));
+    }
+
+    Value lb = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value ub0 = rewriter.create<tensor::DimOp>(loc, rois, 0);
+    Value ub1 = rewriter.create<tensor::DimOp>(loc, input, 1);
+    Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    SmallVector<Value> finalOutputShape = {ub0, ub1, pooledH, pooledW};
+    Value finalOutputTensor = rewriter.create<tensor::EmptyOp>(
+        loc, getAsOpFoldResult(finalOutputShape), resultElementType);
+    auto forLoop = rewriter.create<scf::ForOp>(
+        loc, lb, ub0, step, ValueRange{},
+        [&](OpBuilder &b1, Location loc, Value iv0, ValueRange args) {
+          auto forLoop = b1.create<scf::ForOp>(
+              loc, lb, ub1, step, ValueRange{},
+              [&](OpBuilder &b, Location loc, Value iv1, ValueRange args) {
+                // Step 1: Extract bounds for region of interest (roi)
+                OpFoldResult zeroAttr = b.getI64IntegerAttr(0);
+                OpFoldResult oneAttr = b.getI64IntegerAttr(1);
+                OpFoldResult twoAttr = b.getI64IntegerAttr(2);
+                OpFoldResult threeAttr = b.getI64IntegerAttr(3);
+                OpFoldResult fourAttr = b.getI64IntegerAttr(4);
+                OpFoldResult fiveAttr = b.getI64IntegerAttr(5);
+                // SmallVector<Value> offsetVals{iv0, zeroAttr};
+                // SmallVector<OpFoldResult> sizeVals{oneAttr, fiveAttr};
+                SmallVector<OpFoldResult> strideVals{oneAttr, oneAttr, oneAttr,
+                                                     oneAttr};
+                // Value extractRoiBounds = b.create<tensor::ExtractSliceOp>(
+                //     loc, rois, offsetVals, sizeVals, strideVals);
+                Value lowY = b.create<tensor::ExtractOp>(
+                    loc, rois, ValueRange{iv0, oneAttr});
+                Value lowX = b.create<tensor::ExtractOp>(
+                    loc, rois, ValueRange{iv0, twoAttr});
+                Value highY = b.create<tensor::ExtractOp>(
+                    loc, rois, ValueRange{iv0, threeAttr});
+                Value highX = b.create<tensor::ExtractOp>(
+                    loc, rois, ValueRange{iv0, fourAttr});
+
+                lowY = b.create<arith::MulFOp>(loc, lowY, spatialScaleVal);
+                lowX = b.create<arith::MulFOp>(loc, lowX, spatialScaleVal);
+                highY = b.create<arith::MulFOp>(loc, highY, spatialScaleVal);
+                highX = b.create<arith::MulFOp>(loc, highX, spatialScaleVal);
+
+                lowY = b.create<arith::SubFOp>(loc, lowY, offset);
+                lowX = b.create<arith::SubFOp>(loc, lowX, offset);
+                highY = b.create<arith::SubFOp>(loc, highY, offset);
+                highX = b.create<arith::SubFOp>(loc, highX, offset);
+
+                // Step 2: Extract region of interest using bounds
+                Value lowY_int = b.create<math::FloorOp>(loc, lowY);
+                Value lowX_int = b.create<math::FloorOp>(loc, lowX);
+                Value highY_int = b.create<math::CeilOp>(loc, highY);
+                Value highX_int = b.create<math::CeilOp>(loc, highX);
+                lowY_int =
+                    b.create<arith::FPToSIOp>(loc, b.getI64Type(), lowY_int);
+                lowX_int =
+                    b.create<arith::FPToSIOp>(loc, b.getI64Type(), lowX_int);
+                highY_int =
+                    b.create<arith::FPToSIOp>(loc, b.getI64Type(), highY_int);
+                highX_int =
+                    b.create<arith::FPToSIOp>(loc, b.getI64Type(), highX_int);
+
+                Value roiHeight =
+                    b.create<arith::SubIOp>(loc, highY_int, lowY_int);
+                Value roiWidth =
+                    b.create<arith::SubIOp>(loc, highX_int, lowX_int);
+
+                SmallVector<Value> roiOffsetVals{zeroAttr, iv1, lowY_int,
+                                                 lowX_int};
+                SmallVector<Value> roiSizeVals{oneAttr, oneAttr, roiHeight,
+                                               roiWidth};
+
+                Value extractRoi = b.create<tensor::ExtractSliceOp>(
+                    loc, input, roiOffsetVals, roiSizeVals, strideVals);
+
+                // Step 3: Perform bilinear interpolation over roi
+                Value roiBinH = b.create<arith::SubOp>(loc, highY, lowY);
+                Value roiBinW = b.create<arith::SubOp>(loc, highX, lowX);
+                Value scaleH = b.create<arith::DivOp>(loc, roiBinH, pooledH);
+                Value scaleW = b.create<arith::DivOp>(loc, roiBinW, pooledW);
+                scaleH = b.create<arith::CeilOp>(loc, scaleH);
+                scaleW = b.create<arith::CeilOp>(loc, scaleW);
+                scaleH = b.create<arith::FPToSIOp>(loc, b.getI64Type(), scaleH);
+                scaleW = b.create<arith::FPToSIOp>(loc, b.getI64Type(), scaleW);
+
+                Value roiSampleHeight =
+                    b.create<arith::MulIOp>(loc, pooledH, scaleH);
+                Value roiSampleWidth =
+                    b.create<arith::MulIOp>(loc, pooledW, scaleW);
+
+                SmallVector<Value> outputSizeIntValues = {roiSampleHeight,
+                                                          roiSampleWidth};
+                SmallVector<Value> dims =
+                    getTensorSizesUntilDim(b, loc, extractRoi, 1);
+                for (unsigned i = 2; i < inputRank; i++) {
+                  dims.push_back(
+                      castIntToIndex(b, loc, outputSizeIntValues[i - 2]));
+                }
+                SmallVector<Value> inputSizes;
+                auto inputType = cast<RankedTensorType>(extractRoi.getType());
+                auto inputRank = inputType.getRank();
+                for (unsigned i = 2; i < inputRank; i++) {
+                  Value inputSize = getDimOp(b, loc, extractRoi, i);
+                  inputSizes.push_back(b.create<arith::IndexCastOp>(
+                      loc, b.getIntegerType(64), roiSizeVals[i]));
+                }
+                Value outTensor = b.create<tensor::EmptyOp>(
+                    loc, getAsOpFoldResult(dims), inputType.getElementType());
+                AffineMap idMap = b.getMultiDimIdentityMap(inputRank);
+                SmallVector<utils::IteratorType> iteratorTypes(
+                    inputRank, utils::IteratorType::parallel);
+                Value bilinearInterpolatedRoi =
+                    b.create<linalg::GenericOp>(
+                         loc, outTensor.getType(), ValueRange{}, outTensor,
+                         /*indexingMaps=*/idMap,
+                         /*iteratorTypes=*/iteratorTypes,
+                         [&](OpBuilder &b, Location loc, ValueRange args) {
+                           Value retVal = bilinearInterpolate(
+                               b, op, loc, outputSizeIntValues, extractRoi,
+                               inputSizes, ValueRange{}, "bilinear");
+                           b.create<linalg::YieldOp>(loc, retVal);
+                         })
+                        .getResult(0);
+
+                // Step 4: Sum pool over interpolated values
+                Value sumPool, paddedInput;
+                SmallVector<Value> kernelSizeIntValues = {oneAttr, oneAttr,
+                                                          scaleH, scaleW};
+                SmallVector<Value, 2> strideInts = {scaleH, scaleW};
+                SmallVector<Value, 2> paddingInts = {zeroAttr, zeroAttr};
+                SmallVector<Value, 2> dilationInts(oneAttr, 2);
+                SmallVector<Value, 4> outTensorShape;
+                if (failed(createPoolingOp<linalg::PoolingNchwSumOp>(
+                        op, b, self, /*supportNonFPInput=*/true, false,
+                        /*dimensionality=*/2, kernelSizeIntValues, strideInts,
+                        paddingInts, dilationInts,
+                        b.getZeroAttr(resultElementType), outTensorShape,
+                        paddedInput, sumPool)))
+                  return b.notifyMatchFailure(op, "unable to compute sumpool");
+
+                // Step 5: elementwise division by number of sampling points
+                // to compute avg pool
+                Value outputTensor = b.create<tensor::EmptyOp>(
+                    loc, getAsOpFoldResult(outTensorShape), resultElementType);
+                Value divisor = b.create<arith::MulIOp>(loc, scaleH, scaleW);
+                Value avgPool =
+                    b.create<linalg::GenericOp>(
+                         loc, outputTensor.getType(), sumPool, outputTensor,
+                         /*indexingMaps=*/indexingMapsAvg,
+                         /*iteratorTypes=*/iteratorTypesAvg,
+                         [&](OpBuilder &b, Location loc, ValueRange args) {
+                           Value avg;
+                           if (isa<mlir::IntegerType>(resultElementType))
+                             avg = b.create<arith::DivSIOp>(loc, args[0],
+                                                            divisor);
+                           else if (isa<mlir::FloatType>(resultElementType))
+                             avg =
+                                 b.create<arith::DivFOp>(loc, args[0], divisor);
+                           b.create<linalg::YieldOp>(loc, avg);
+                         })
+                        .getResult(0);
+
+                SmallVector<OpFoldResult> finalStrides(inputRank, oneAttr);
+                SmallVector<OpFoldResult> finalOffsets = {
+                    getAsOpFoldResult(iv0), getAsOpFoldResult(iv1), zeroAttr,
+                    zeroAttr};
+                SmallVector<OpFoldResult> finalSizes = {
+                    oneAttr, oneAttr, getAsOpFoldResult(pooledH),
+                    getAsOpFoldResult(pooledW)};
+                SmallVector<OpFoldResult> diagStrides(inputRank, oneAttr);
+                finalOutputTensor = b.create<tensor::InsertSliceOp>(
+                    loc, finalOutputTensor, avgPool, finalOffsets, finalSizes,
+                    finalStrides);
+              });
+        });
+
+    Type resultType = typeConverter->convertType(op.getType());
+    b.replaceOp(op, finalOutputTensor);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
