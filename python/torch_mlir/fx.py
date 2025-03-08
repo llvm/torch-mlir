@@ -24,6 +24,14 @@ from .compiler_utils import (
 )
 
 
+# TODO: merge this with pt1/python/torch_mlir/torchscript.py's BACKEND_LEGAL_OPS
+BACKEND_LEGAL_OPS = {
+    OutputType.LINALG_ON_TENSORS: [
+        "aten.adaptive_max_pool2d",
+    ],
+}
+
+
 def _module_lowering(
     verbose,
     output_type,
@@ -39,11 +47,12 @@ def _module_lowering(
     # TODO: pass extra_library_file_name by caller
 
     backend_legal_op_arg_str = ""
-    if backend_legal_ops is not None:
-        if not len(backend_legal_ops) == 0:
-            backend_legal_op_arg_str = "backend-legal-ops=" + ",".join(
-                backend_legal_ops
-            )
+    if backend_legal_ops is None:
+        backend_legal_ops = BACKEND_LEGAL_OPS.get(output_type, [])
+    if not len(backend_legal_ops) == 0:
+        backend_legal_op_arg_str = "backend-legal-ops=" + ",".join(
+            backend_legal_ops
+        )
 
     if extra_library_file_name is None:
         extra_library_file_name = ""
