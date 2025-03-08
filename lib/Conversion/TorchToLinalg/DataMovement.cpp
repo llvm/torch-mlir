@@ -47,21 +47,49 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   Location loc = op.getLoc();
   auto input = adaptor.getSelf();
   RankedTensorType inputType = cast<RankedTensorType>(input.getType());
+  int64_t inputRank = inputType.getRank();
 
   Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
   Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
   Value negone = rewriter.create<arith::ConstantIndexOp>(loc, -1);
 
-  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
-    return op->emitError("unimplemented: dim is not constant");
+  Value dimSize;
+  int64_t dim;
+  Value dimv;
+  bool staticDim = false;
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) {
+    dimv = adaptor.getDim();
 
-  int64_t inputRank = inputType.getRank();
-  dim = toPositiveDim(dim, inputRank);
-  if (!isValidDim(dim, inputRank))
-    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+    Value zero = rewriter.create<arith::ConstantIntOp>(loc, 0, dimv.getType());
+    Value rankv =
+        rewriter.create<arith::ConstantIntOp>(loc, inputRank, dimv.getType());
+    Value addRank = rewriter.create<arith::AddIOp>(loc, dimv, rankv);
+    Value cmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
+                                               dimv, zero);
+    dimv = rewriter.create<arith::SelectOp>(loc, cmp, addRank, dimv);
 
-  SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
-  Value dimSize = inputShape[dim];
+    dimSize = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value icast =
+        rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(), dimv);
+    for (int i = 0; i < inputRank; ++i) {
+      Value ax = rewriter.create<arith::ConstantIndexOp>(loc, i);
+      Value eq = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                                ax, icast);
+      Value axs = rewriter.create<tensor::DimOp>(loc, rewriter.getIndexType(),
+                                                 input, ax);
+      dimSize = rewriter.create<arith::SelectOp>(loc, eq, axs, dimSize);
+    }
+
+    staticDim = false;
+  } else {
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank))
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+
+    SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
+    dimSize = inputShape[dim];
+    staticDim = true;
+  }
 
   Value torchTypeStart = op.getStart();
   Value torchTypeEnd = op.getEnd();
@@ -111,13 +139,26 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   Value szcmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
                                                resultSize, zero);
   resultSize = rewriter.create<arith::SelectOp>(loc, szcmp, zero, resultSize);
-  resultShape[dim] = resultSize;
 
   strides.resize(inputType.getRank(), one);
   offsets.resize(inputType.getRank(), zero);
 
-  offsets[dim] = start;
-  strides[dim] = stepIndex;
+  if (staticDim) {
+    resultShape[dim] = resultSize;
+    offsets[dim] = start;
+    strides[dim] = stepIndex;
+  } else {
+    for (int i = 0; i < inputRank; ++i) {
+      Value ax = rewriter.create<arith::ConstantIntOp>(loc, i, dimv.getType());
+      Value eq = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                                ax, dimv);
+      resultShape[i] =
+          rewriter.create<arith::SelectOp>(loc, eq, resultSize, resultShape[i]);
+      offsets[i] = rewriter.create<arith::SelectOp>(loc, eq, start, offsets[i]);
+      strides[i] =
+          rewriter.create<arith::SelectOp>(loc, eq, stepIndex, strides[i]);
+    }
+  }
   return success();
 }
 
