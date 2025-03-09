@@ -18,7 +18,7 @@ from .utils import (
 
 
 class JITImporterTestConfig(TestConfig):
-    """TestConfig that runs the torch.nn.Module with Fx Importer"""
+    """TestConfig that runs the torch.nn.Module with JIT Importer"""
 
     def __init__(self, backend, output_type="linalg-on-tensors"):
         super().__init__()
