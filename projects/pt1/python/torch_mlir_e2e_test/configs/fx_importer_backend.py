@@ -46,7 +46,9 @@ class FxImporterTestConfig(TestConfig):
         self._backend = backend
         self._torch_compile = torch_compile
         self._output_type = output_type
-        self._backend_legal_ops = BACKEND_LEGAL_OPS.get(OutputType.get(self._output_type), [])
+        self._backend_legal_ops = BACKEND_LEGAL_OPS.get(
+            OutputType.get(self._output_type), []
+        )
 
     def compile(
         self, program: torch.nn.Module, verbose: bool = False

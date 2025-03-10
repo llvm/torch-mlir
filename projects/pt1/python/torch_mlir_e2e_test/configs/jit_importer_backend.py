@@ -53,7 +53,9 @@ class JITImporterTestConfig(TestConfig):
         super().__init__()
         self.backend = backend
         self.output_type = output_type
-        self.backend_legal_ops = BACKEND_LEGAL_OPS.get(OutputType.get(self.output_type), [])
+        self.backend_legal_ops = BACKEND_LEGAL_OPS.get(
+            OutputType.get(self.output_type), []
+        )
 
     def compile(self, program: torch.nn.Module, verbose: bool = False) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
