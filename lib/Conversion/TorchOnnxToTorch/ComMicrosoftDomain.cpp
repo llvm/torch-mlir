@@ -130,6 +130,8 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
               binder.op, "Unimplemented: softcap attribute is not supported, "
                          "hence it should have default value equal to 0.0");
 
+        // TODO: Add support for packed_qkv.
+
         Location loc = binder.getLoc();
         MLIRContext *context = binder.op->getContext();
         Value query = operands[0];
@@ -180,8 +182,8 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         //     -> (batch_size, kv_num_heads, sequence_length, head_size)
 
         // Reshaping query.
-        SmallVector<int64_t, 6> queryReshapeSizesInt{batchSize, numHeads,
-                                                     sequenceLength, headSize};
+        SmallVector<int64_t> queryReshapeSizesInt{batchSize, numHeads,
+                                                  sequenceLength, headSize};
         Value queryReshapeSizesList =
             rewriter.create<Torch::PrimListConstructOp>(
                 binder.getLoc(),
@@ -195,8 +197,8 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             query, queryReshapeSizesList);
 
         // Reshaping key.
-        SmallVector<int64_t, 6> kvReshapeSizesInt{batchSize, kvNumHeads,
-                                                  sequenceLength, headSize};
+        SmallVector<int64_t> kvReshapeSizesInt{batchSize, kvNumHeads,
+                                               sequenceLength, headSize};
         Value kvReshapeSizesList = rewriter.create<Torch::PrimListConstructOp>(
             binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(query.getContext())),
@@ -373,6 +375,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
               loc, positionIdsType, isSubsequentPrompt, positionIdsB,
               positionIdsA);
 
+          // Performing RotaryEmbedding over Query and Key.
           qRotary = rewriter.create<Torch::OnnxVariantRotaryEmbeddingOp>(
               loc, qInput.getType(), qInput, positionIds, cosCache, sinCache,
               cstInterleaved, /*is_packed_batching=*/cstIntZero,
