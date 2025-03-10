@@ -42,6 +42,7 @@ class FxImporterTestConfig(TestConfig):
     def compile(
         self, program: torch.nn.Module, verbose: bool = False
     ) -> torch.nn.Module:
+        self._verbose = verbose
         return program
 
     def run(self, artifact: torch.nn.Module, trace: Trace):
@@ -84,6 +85,7 @@ class FxImporterTestConfig(TestConfig):
                     gm,
                     output_type=self._output_type,
                     model_name=artifact.__class__.__name__,
+                    verbose=self._verbose,
                 )
                 module = self._backend.compile(module)
                 backend_module = self._backend.load(module)
@@ -128,6 +130,7 @@ class FxImporterTestConfig(TestConfig):
                 # While the current e2e tests don't exercise symbolic shapes,
                 # enabling this here ensures they don't regress either.
                 import_symbolic_shape_expressions=True,
+                verbose=self._verbose,
             )
             module = self._backend.compile(module)
             backend_module = self._backend.load(module)
