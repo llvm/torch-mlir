@@ -8,7 +8,6 @@ from typing import Any
 import torch
 from torch_mlir import torchscript
 
-from torch_mlir_e2e_test.linalg_on_tensors_backends.abc import LinalgOnTensorsBackend
 from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 from torch_mlir_e2e_test.utils import convert_annotations_to_placeholders
 
@@ -18,21 +17,18 @@ from .utils import (
 )
 
 
-class LinalgOnTensorsBackendTestConfig(TestConfig):
-    """Base class for TestConfig's that are implemented with linalg-on-tensors.
+class JITImporterTestConfig(TestConfig):
+    """TestConfig that runs the torch.nn.Module with JIT Importer"""
 
-    This class handles all the common lowering that torch-mlir does before
-    reaching the linalg-on-tensors abstraction level.
-    """
-
-    def __init__(self, backend: LinalgOnTensorsBackend):
+    def __init__(self, backend, output_type="linalg-on-tensors"):
         super().__init__()
         self.backend = backend
+        self.output_type = output_type
 
     def compile(self, program: torch.nn.Module, verbose: bool = False) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         module = torchscript.compile(
-            program, example_args, output_type="linalg-on-tensors", verbose=verbose
+            program, example_args, output_type=self.output_type, verbose=verbose
         )
 
         return self.backend.compile(module)

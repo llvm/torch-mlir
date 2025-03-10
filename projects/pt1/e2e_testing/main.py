@@ -19,13 +19,11 @@ from torch_mlir_e2e_test.registry import GLOBAL_TEST_REGISTRY
 # Available test configs.
 from torch_mlir_e2e_test.configs import (
     LazyTensorCoreTestConfig,
-    LinalgOnTensorsBackendTestConfig,
-    StablehloBackendTestConfig,
     NativeTorchTestConfig,
     OnnxBackendTestConfig,
     TorchScriptTestConfig,
-    TosaBackendTestConfig,
     TorchDynamoTestConfig,
+    JITImporterTestConfig,
     FxImporterTestConfig,
 )
 
@@ -150,15 +148,15 @@ def main():
 
     # Find the selected config.
     if args.config == "linalg":
-        config = LinalgOnTensorsBackendTestConfig(RefBackendLinalgOnTensorsBackend())
+        config = JITImporterTestConfig(RefBackendLinalgOnTensorsBackend())
         xfail_set = LINALG_XFAIL_SET
         crashing_set = LINALG_CRASHING_SET
     elif args.config == "stablehlo":
-        config = StablehloBackendTestConfig(LinalgOnTensorsStablehloBackend())
+        config = JITImporterTestConfig(LinalgOnTensorsStablehloBackend(), "stablehlo")
         xfail_set = all_test_unique_names - STABLEHLO_PASS_SET
         crashing_set = STABLEHLO_CRASHING_SET
     elif args.config == "tosa":
-        config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend())
+        config = JITImporterTestConfig(LinalgOnTensorsTosaBackend(), "tosa")
         xfail_set = all_test_unique_names - TOSA_PASS_SET
         crashing_set = TOSA_CRASHING_SET
     elif args.config == "native_torch":
