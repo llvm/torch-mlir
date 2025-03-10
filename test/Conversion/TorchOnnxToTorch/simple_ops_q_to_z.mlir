@@ -251,6 +251,42 @@ func.func @test_qlinearmatmul_3D(%arg0: !torch.vtensor<[2,2,4],ui8>, %arg1: !tor
 
 // -----
 
+// CHECK-LABEL:   func.func @test_qlinearmatmul_per_channel_quantization(
+// CHECK-SAME:                                                           %[[A:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[1,4096],ui8>,
+// CHECK-SAME:                                                           %[[A_SCALE:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[],f32>,
+// CHECK-SAME:                                                           %[[A_ZERO_POINT:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[],ui8>,
+// CHECK-SAME:                                                           %[[B:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[4096,1024],si8>,
+// CHECK-SAME:                                                           %[[B_SCALE:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[1024],f32>,
+// CHECK-SAME:                                                           %[[B_ZERO_POINT:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[1024],si8>,
+// CHECK-SAME:                                                           %[[C_SCALE:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[],f32>,
+// CHECK-SAME:                                                           %[[C_ZERO_POINT:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[],ui8>) -> !torch.vtensor<[1,1024],ui8>
+func.func @test_qlinearmatmul_per_channel_quantization(%arg0: !torch.vtensor<[1,4096],ui8>, %arg1: !torch.vtensor<[],f32>, %arg2: !torch.vtensor<[],ui8>, %arg3: !torch.vtensor<[4096,1024],si8>, %arg4: !torch.vtensor<[1024],f32>, %arg5: !torch.vtensor<[1024],si8>, %arg6: !torch.vtensor<[],f32>, %arg7: !torch.vtensor<[],ui8>) ->  !torch.vtensor<[1,1024],ui8> attributes {torch.onnx_meta.ir_version = 3 : si64, torch.onnx_meta.opset_version = 21 : si64, torch.onnx_meta.opset_versions = {ai.onnx.contrib = 1000 : si64, ai.onnx.ml = 3 : si64, ai.onnx.preview.training = 1 : si64, ai.onnx.training = 1 : si64, com.microsoft = 1 : si64, com.microsoft.experimental = 1 : si64, com.microsoft.nchwc = 1 : si64, com.ms.internal.nhwc = 19 : si64, org.pytorch.aten = 1 : si64}, torch.onnx_meta.producer_name = "onnx.quantize", torch.onnx_meta.producer_version = "0.1.0"} {
+  %0 = torch.operator "onnx.QLinearMatMul"(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6, %arg7) : (!torch.vtensor<[1,4096],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>, !torch.vtensor<[4096,1024],si8>, !torch.vtensor<[1024],f32>, !torch.vtensor<[1024],si8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>) -> !torch.vtensor<[1,1024],ui8>
+  // CHECK: %[[EMPTY:.+]] = torch.prim.ListConstruct  : () -> !torch.list<int>
+  // CHECK: %[[AZP:.+]] = torch.aten.item %[[A_ZERO_POINT]] : !torch.vtensor<[],ui8> -> !torch.int
+  // CHECK: %[[CZP:.+]] = torch.aten.item %[[C_ZERO_POINT]] : !torch.vtensor<[],ui8> -> !torch.int
+  // CHECK: %[[ASCALE:.+]] = torch.aten.item %[[A_SCALE]] : !torch.vtensor<[],f32> -> !torch.float
+  // CHECK: %[[CSCALE:.+]] = torch.aten.item %[[C_SCALE]] : !torch.vtensor<[],f32> -> !torch.float
+  // CHECK: %[[NONE:.*]] = torch.constant.none
+  // CHECK: %[[FALSE:.*]] = torch.constant.bool false
+  // CHECK: %[[F32DTYPE:.*]] = torch.constant.int 6
+  // CHECK: %[[A_F32:.*]] = torch.aten.to.dtype %[[A]], %[[F32DTYPE]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.vtensor<[1,4096],ui8>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,4096],f32>
+  // CHECK: %[[ALPHA:.*]] = torch.constant.float 1.000000e+00
+  // CHECK: %[[A_MINUS_ZP:.*]] = torch.aten.sub.Scalar %[[A_F32]], %[[AZP]], %[[ALPHA]] : !torch.vtensor<[1,4096],f32>, !torch.int, !torch.float -> !torch.vtensor<[1,4096],f32>
+  // CHECK: %[[LHS:.*]] = torch.aten.mul.Scalar %[[A_MINUS_ZP]], %[[ASCALE]] : !torch.vtensor<[1,4096],f32>, !torch.float -> !torch.vtensor<[1,4096],f32>
+  // CHECK: %[[B_F32:.*]] = torch.aten.to.dtype %[[B]], %[[F32DTYPE]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.vtensor<[4096,1024],si8>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[4096,1024],f32>
+  // CHECK: %[[B_MINUS_ZP:.*]] = torch.aten.sub.Tensor %[[B_F32]], %[[B_ZERO_POINT]], %[[ALPHA]] : !torch.vtensor<[4096,1024],f32>, !torch.vtensor<[1024],si8>, !torch.float -> !torch.vtensor<[4096,1024],f32>
+  // CHECK: %[[RHS:.*]] = torch.aten.mul.Tensor %[[B_MINUS_ZP]], %[[B_SCALE]] : !torch.vtensor<[4096,1024],f32>, !torch.vtensor<[1024],f32> -> !torch.vtensor<[4096,1024],f32>
+  // CHECK: %[[MM:.*]] = torch.aten.mm %[[LHS]], %[[RHS]] : !torch.vtensor<[1,4096],f32>, !torch.vtensor<[4096,1024],f32> -> !torch.vtensor<[1,1024],f32>
+  // CHECK: %[[DTYPE:.*]] = torch.constant.int 13
+  // CHECK: %[[QO:.*]] = torch.aten.quantize_per_tensor %[[MM]], %[[CSCALE]], %[[CZP]], %[[DTYPE]] : !torch.vtensor<[1,1024],f32>, !torch.float, !torch.int, !torch.int -> !torch.vtensor<[1,1024],!torch.quint8>
+  // CHECK: %[[OUT:.*]] = torch.aten.int_repr %[[QO]] : !torch.vtensor<[1,1024],!torch.quint8> -> !torch.vtensor<[1,1024],ui8>
+  // CHECK: return %[[OUT]] : !torch.vtensor<[1,1024],ui8>
+  return %0 : !torch.vtensor<[1,1024],ui8>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_reciprocal
 func.func @test_reciprocal(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: torch.aten.reciprocal %arg0 : !torch.vtensor<[3,4,5],f32> -> !torch.vtensor<[3,4,5],f32>
