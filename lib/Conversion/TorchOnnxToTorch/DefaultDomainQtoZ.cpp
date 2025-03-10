@@ -459,7 +459,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               return false;
           return true;
         };
-        if (!check(aScale) || !check(aZp) || !check(cScale) || !check(cScale))
+        if (!check(aScale) || !check(aZp) || !check(cScale) || !check(cZp))
           return rewriter.notifyMatchFailure(
               binder.op, "input `a` and output not supported for non "
                          "per-tensor quantization");
