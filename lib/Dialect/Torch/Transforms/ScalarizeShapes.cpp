@@ -1397,22 +1397,6 @@ public:
 } // namespace
 
 namespace {
-template <typename T> class RemoveUnusedPattern : public OpRewritePattern<T> {
-public:
-  using OpRewritePattern<T>::OpRewritePattern;
-  LogicalResult matchAndRewrite(T op,
-                                PatternRewriter &rewriter) const override {
-    for (auto use : op->getResults())
-      if (!use.use_empty())
-        return failure();
-
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-} // namespace
-
-namespace {
 
 bool isItemForSliceOp(Operation *op) {
   auto itemOp = dyn_cast_or_null<AtenItemOp>(op);
@@ -1512,23 +1496,6 @@ void populateScalarizationPropagationPatterns(RewritePatternSet &patterns) {
       patterns.getContext());
 }
 
-void populateScalarizationRemovePatterns(RewritePatternSet &patterns) {
-  patterns.insert<RemoveUnusedPattern<Torch::AtenIntBoolOp>,
-                  RemoveUnusedPattern<Torch::AtenEqIntOp>,
-                  RemoveUnusedPattern<Torch::AtenToDtypeOp>,
-                  RemoveUnusedPattern<Torch::PrimNumToTensorScalarOp>,
-                  RemoveUnusedPattern<Torch::AtenFullOp>,
-                  RemoveUnusedPattern<Torch::AtenUnsqueezeOp>,
-                  RemoveUnusedPattern<Torch::AtenSqueezeDimOp>,
-                  RemoveUnusedPattern<Torch::AtenSizeIntOp>,
-                  RemoveUnusedPattern<Torch::AtenSliceTensorOp>,
-                  RemoveUnusedPattern<Torch::AtenTensorOp>,
-                  RemoveUnusedPattern<Torch::AtenFloatScalarOp>,
-                  RemoveUnusedPattern<Torch::AtenIntScalarOp>,
-                  RemoveUnusedPattern<Torch::PrimListConstructOp>>(
-      patterns.getContext());
-}
-
 } // namespace
 namespace {
 class ScalarizeShapesPass : public ScalarizeShapesBase<ScalarizeShapesPass> {
@@ -1545,7 +1512,6 @@ public:
     populateScalarizationPropagationPatterns(patterns);
     populateScalarizationFoldPatterns(patterns);
     populateScalarizationCanonicalizePatterns(patterns);
-    populateScalarizationRemovePatterns(patterns);
     context->getLoadedDialect<mlir::arith::ArithDialect>()
         ->getCanonicalizationPatterns(patterns);
     // don't load torch canonicalization patterns, since these may lead to
