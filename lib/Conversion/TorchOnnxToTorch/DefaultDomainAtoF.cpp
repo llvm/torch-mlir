@@ -1327,7 +1327,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
         SmallVector<int64_t> padding, strides, dilations;
         SmallVector<int64_t> defaultPadding, defaultStrides, defaultDilations;
-        SmallVector<Value, 2> paddingValues;
+        SmallVector<Value> paddingValues;
 
         for (unsigned i = 0; i < rank - 2; i++) {
           defaultPadding.push_back(0);
@@ -1367,12 +1367,12 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
           // Use the padding values
           for (int64_t pad : padding)
-            paddingValues.push_back(
-                rewriter.create<Torch::ConstantIntOp>(loc, pad));
+            paddingValues.push_back(rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(pad)));
         } else if (autoPad == "VALID") {
           for (int64_t pad : defaultPadding)
-            paddingValues.push_back(
-                rewriter.create<Torch::ConstantIntOp>(loc, pad));
+            paddingValues.push_back(rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(pad)));
         } else {
           const bool isSameLower = autoPad == "SAME_LOWER";
           const unsigned spatialRank = rank - 2;
@@ -1380,58 +1380,61 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
           for (unsigned dimIdx = 0; dimIdx < spatialRank; dimIdx++) {
             // dilatedSize = dilations[dimIdx]*(weightShape[dimIdx + 2] - 1) + 1
-            Value cst1 = rewriter.create<Torch::ConstantIntOp>(loc, 1);
-            Value dilationValue =
-                rewriter.create<Torch::ConstantIntOp>(loc, dilations[dimIdx]);
+            Value cstOne = rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(1));
+            Value dilationValue = rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(dilations[dimIdx]));
             Value weightDimSize =
                 Torch::getTensorDimSize(rewriter, weight, dimIdx + 2);
-            Value weightMinus =
-                rewriter.create<Torch::AtenSubIntOp>(loc, weightDimSize, cst1);
-            Value dilationWeight = rewriter.create<Torch::AtenMulIntOp>(
-                loc, dilationValue, weightMinus);
-            Value dilatedKernelSize =
-                rewriter.create<Torch::AtenAddIntOp>(loc, dilationWeight, cst1);
+            Value weightMinusOne = rewriter.create<Torch::AtenSubIntOp>(
+                loc, weightDimSize, cstOne);
+            Value dilationMulWeight = rewriter.create<Torch::AtenMulIntOp>(
+                loc, dilationValue, weightMinusOne);
+            Value dilatedKernelSize = rewriter.create<Torch::AtenAddIntOp>(
+                loc, dilationMulWeight, cstOne);
 
             // totalPad = (((inputShape[dimIdx + 2] + strides[dimIdx] -1) /
             //              strides[dimIdx]) - 1) * strides[dimIdx] +
             //              dilatedKernelSize - inputShape[dimIdx + 2];
 
-            Value stridesValue =
-                rewriter.create<Torch::ConstantIntOp>(loc, strides[dimIdx]);
+            Value stridesValue = rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(strides[dimIdx]));
             Value inputDimSize =
                 Torch::getTensorDimSize(rewriter, input, dimIdx + 2);
-            Value stridesMinus =
-                rewriter.create<Torch::AtenSubIntOp>(loc, stridesValue, cst1);
+            Value stridesMinusOne =
+                rewriter.create<Torch::AtenSubIntOp>(loc, stridesValue, cstOne);
             Value inputStrides = rewriter.create<Torch::AtenAddIntOp>(
-                loc, inputDimSize, stridesMinus);
+                loc, inputDimSize, stridesMinusOne);
             inputStrides = rewriter.create<Torch::AtenFloordivIntOp>(
                 loc, inputStrides, stridesValue);
             inputStrides =
-                rewriter.create<Torch::AtenSubIntOp>(loc, inputStrides, cst1);
+                rewriter.create<Torch::AtenSubIntOp>(loc, inputStrides, cstOne);
             inputStrides = rewriter.create<Torch::AtenMulIntOp>(
                 loc, inputStrides, stridesValue);
-            Value strideDilatedSize = rewriter.create<Torch::AtenAddIntOp>(
+            Value strideWithDilation = rewriter.create<Torch::AtenAddIntOp>(
                 loc, inputStrides, dilatedKernelSize);
             Value totalPad = rewriter.create<Torch::AtenSubIntOp>(
-                loc, strideDilatedSize, inputDimSize);
+                loc, strideWithDilation, inputDimSize);
 
             // totalPad = totalPad > 0 ? totalPad : 0;
-            Value cst0 = rewriter.create<Torch::ConstantIntOp>(loc, 0);
+            Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(0));
             totalPad =
-                rewriter.create<Torch::PrimMaxIntOp>(loc, totalPad, cst0);
+                rewriter.create<Torch::PrimMaxIntOp>(loc, totalPad, cstZero);
 
             // padding[dimIdx] =
             //     isSameLower ? ((totalPad + 1) / 2) : (totalPad / 2);
             // padding[spatialRank + dimIdx] = totalPad - padding[dimIdx];
-            Value cst2 = rewriter.create<Torch::ConstantIntOp>(loc, 2);
+            Value cstTwo = rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(2));
             if (isSameLower) {
-              auto padVal =
-                  rewriter.create<Torch::AtenAddIntOp>(loc, totalPad, cst1);
-              paddingValues[dimIdx] =
-                  rewriter.create<Torch::AtenFloordivIntOp>(loc, padVal, cst2);
+              auto padPlusOne =
+                  rewriter.create<Torch::AtenAddIntOp>(loc, totalPad, cstOne);
+              paddingValues[dimIdx] = rewriter.create<Torch::AtenFloordivIntOp>(
+                  loc, padPlusOne, cstTwo);
             } else {
               paddingValues[dimIdx] = rewriter.create<Torch::AtenFloordivIntOp>(
-                  loc, totalPad, cst2);
+                  loc, totalPad, cstTwo);
             }
             paddingValues[spatialRank + dimIdx] =
                 rewriter.create<Torch::AtenSubIntOp>(loc, totalPad,
@@ -1450,11 +1453,11 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value paddedInput = input;
         Value paddingList;
 
-        Value cstZero = rewriter.create<Torch::ConstantIntOp>(loc, 0);
+        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(0));
+
         if (paddingValues.size() != 2 * (rank - 2)) {
-          for (auto pad : paddingValues) {
-            cstPadding.push_back(pad);
-          }
+          cstPadding = paddingValues;
           paddingList = rewriter.create<Torch::PrimListConstructOp>(
               loc,
               Torch::ListType::get(
@@ -1469,49 +1472,86 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           // values to be rearranged since torch pad() takes pads in the order
           // rightmost dim start and end, then next to last, and so on, e.g. {l,
           // r, t, b}.
-          SmallVector<Value> padsRearrange;
-          SmallVector<Value> inputPaddingList;
-          for (uint32_t i = 0; i < paddingValues.size() / 2; i++) {
-            padsRearrange.emplace_back(
-                paddingValues[paddingValues.size() / 2 - i - 1]);
-            padsRearrange.emplace_back(
-                (paddingValues[paddingValues.size() - i - 1]));
-            inputPaddingList.emplace_back(cstZero);
+          bool matchedPads = true;
+          for (unsigned i = 0; i < paddingValues.size() / 2; i++) {
+            int64_t padLow, padHigh;
+            if (!matchPattern(paddingValues[i],
+                              Torch::m_TorchConstantInt(&padLow)) ||
+                !matchPattern(paddingValues[i + (paddingValues.size() / 2)],
+                              Torch::m_TorchConstantInt(&padHigh)) ||
+                padLow != padHigh) {
+              matchedPads = false;
+              break;
+            }
           }
-          // The conv op itself will have no padding since the actual padding
-          // is performed using the torch.pad preceding it.
-          paddingList = rewriter.create<Torch::PrimListConstructOp>(
-              loc,
-              Torch::ListType::get(
-                  Torch::IntType::get(binder.op->getContext())),
-              inputPaddingList);
-          Value padsSizeList =
-              rewriter
-                  .create<Torch::PrimListConstructOp>(
-                      loc,
-                      Torch::ListType::get(rewriter.getType<Torch::IntType>()),
-                      padsRearrange)
-                  .getResult();
-          Value modeVal = rewriter.create<Torch::ConstantStrOp>(
-              loc, rewriter.getStringAttr("constant"));
-          Value constantValue;
+          if (matchedPads) {
+            for (unsigned i = 0; i < paddingValues.size() / 2; i++)
+              cstPadding.push_back(paddingValues[i]);
+            paddingList = rewriter.create<Torch::PrimListConstructOp>(
+                loc,
+                Torch::ListType::get(
+                    Torch::IntType::get(binder.op->getContext())),
+                cstPadding);
+          } else {
+            SmallVector<Value> padsRearrange;
+            SmallVector<Value> inputPaddingList;
+            for (uint32_t i = 0; i < paddingValues.size() / 2; i++) {
+              padsRearrange.emplace_back(
+                  paddingValues[paddingValues.size() / 2 - i - 1]);
+              padsRearrange.emplace_back(
+                  (paddingValues[paddingValues.size() - i - 1]));
+              inputPaddingList.emplace_back(cstZero);
+            }
+            // The conv op itself will have no padding since the actual padding
+            // is performed using the torch.pad preceding it.
+            paddingList = rewriter.create<Torch::PrimListConstructOp>(
+                loc,
+                Torch::ListType::get(
+                    Torch::IntType::get(binder.op->getContext())),
+                inputPaddingList);
+            Value padsSizeList =
+                rewriter
+                    .create<Torch::PrimListConstructOp>(
+                        loc,
+                        Torch::ListType::get(
+                            rewriter.getType<Torch::IntType>()),
+                        padsRearrange)
+                    .getResult();
+            Value modeVal = rewriter.create<Torch::ConstantStrOp>(
+                loc, rewriter.getStringAttr("constant"));
+            Value constantValue;
 
-          if (isa<IntegerType>(inputTensorType.getDtype()))
-            constantValue = cstZero;
-          if (isa<FloatType>(inputTensorType.getDtype()))
-            constantValue = rewriter.create<Torch::ConstantFloatOp>(
-                loc, rewriter.getF64FloatAttr(0.0f));
+            if (isa<IntegerType>(inputTensorType.getDtype()))
+              constantValue = cstZero;
+            if (isa<FloatType>(inputTensorType.getDtype()))
+              constantValue = rewriter.create<Torch::ConstantFloatOp>(
+                  loc, rewriter.getF64FloatAttr(0.0f));
 
-          // Pad output shape
-          SmallVector<int64_t> newInputShape(inputTensorType.getSizes());
-          for (uint32_t i = 0; i < paddingValues.size() / 2; i++) {
-            newInputShape[2 + i] = Torch::kUnknownSize;
+            auto getPadOutputSizeForInput = [&](int64_t low, int64_t high,
+                                                int64_t inputSize) {
+              int64_t padLow, padHigh;
+              if (inputSize < 0 ||
+                  !matchPattern(paddingValues[low],
+                                Torch::m_TorchConstantInt(&padLow)) ||
+                  !matchPattern(paddingValues[high],
+                                Torch::m_TorchConstantInt(&padHigh)))
+                return Torch::kUnknownSize;
+              return inputSize + padLow + padHigh;
+            };
+
+            // Pad output shape must be computed explicitly from the pad values
+            // for static dims
+            SmallVector<int64_t> newInputShape(inputTensorType.getSizes());
+            for (uint32_t i = 0; i < paddingValues.size() / 2; i++) {
+              newInputShape[2 + i] = getPadOutputSizeForInput(
+                  i, (paddingValues.size() / 2) + i, newInputShape[2 + i]);
+            }
+
+            auto padTy = rewriter.getType<Torch::ValueTensorType>(
+                newInputShape, inputTensorType.getDtype());
+            paddedInput = rewriter.create<Torch::AtenPadOp>(
+                loc, padTy, input, padsSizeList, modeVal, constantValue);
           }
-
-          auto padTy = rewriter.getType<Torch::ValueTensorType>(
-              newInputShape, inputTensorType.getDtype());
-          paddedInput = rewriter.create<Torch::AtenPadOp>(
-              loc, padTy, input, padsSizeList, modeVal, constantValue);
         }
 
         for (int64_t i : dilations) {
