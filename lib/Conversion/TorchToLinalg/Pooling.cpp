@@ -1084,6 +1084,17 @@ std::optional<LogicalResult> ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
 
   PoolSizeCalculator<avgPoolDims> poolSizeCalculator(self, sumPool, rewriter,
                                                      loc);
+
+  // AtenAvgPool2/3dOp has an optional divisor_override
+  // attribute while AtenAvgPool1dOp does not.
+  // We evaluate the constexpr avgPoolDims outside of the lambda capture below
+  // for wider compiler support: https://github.com/llvm/torch-mlir/issues/4085.
+  Value poolSize = nullptr;
+  if constexpr (avgPoolDims > 1) {
+    if (!isa<Torch::NoneType>(op.getDivisorOverride().getType()))
+      poolSize = adaptor.getDivisorOverride();
+  }
+
   Value avgPool =
       rewriter
           .create<linalg::GenericOp>(
@@ -1091,13 +1102,9 @@ std::optional<LogicalResult> ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
               /*indexingMaps=*/indexingMapsAvg,
               /*iteratorTypes=*/iteratorTypesAvg,
               [&](OpBuilder &b, Location loc, ValueRange args) {
-                auto poolSize = poolSizeCalculator.getPoolSize(
-                    b, kernelSizeIntValues, strideInts, paddingInts);
-                // AtenAvgPool2/3dOp has an optional divisor_override
-                // attribute while AtenAvgPool1dOp does not.
-                if constexpr (avgPoolDims > 1) {
-                  if (!isa<Torch::NoneType>(op.getDivisorOverride().getType()))
-                    poolSize = adaptor.getDivisorOverride();
+                if (!poolSize) {
+                  poolSize = poolSizeCalculator.getPoolSize(
+                      b, kernelSizeIntValues, strideInts, paddingInts);
                 }
                 Value divisor =
                     convertScalarToDtype(b, loc, poolSize, resultElementType);
