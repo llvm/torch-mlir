@@ -1379,7 +1379,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           paddingValues.resize_for_overwrite(2 * spatialRank);
 
           for (unsigned dimIdx = 0; dimIdx < spatialRank; dimIdx++) {
-            // dilatedSize = dilations[dimIdx]*(weightShape[dimIdx + 2] - 1) + 1
             Value cstOne = rewriter.create<Torch::ConstantIntOp>(
                 loc, rewriter.getI64IntegerAttr(1));
             Value dilationValue = rewriter.create<Torch::ConstantIntOp>(
@@ -1392,10 +1391,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                 loc, dilationValue, weightMinusOne);
             Value dilatedKernelSize = rewriter.create<Torch::AtenAddIntOp>(
                 loc, dilationMulWeight, cstOne);
-
-            // totalPad = (((inputShape[dimIdx + 2] + strides[dimIdx] -1) /
-            //              strides[dimIdx]) - 1) * strides[dimIdx] +
-            //              dilatedKernelSize - inputShape[dimIdx + 2];
 
             Value stridesValue = rewriter.create<Torch::ConstantIntOp>(
                 loc, rewriter.getI64IntegerAttr(strides[dimIdx]));
@@ -1416,15 +1411,11 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             Value totalPad = rewriter.create<Torch::AtenSubIntOp>(
                 loc, strideWithDilation, inputDimSize);
 
-            // totalPad = totalPad > 0 ? totalPad : 0;
             Value cstZero = rewriter.create<Torch::ConstantIntOp>(
                 loc, rewriter.getI64IntegerAttr(0));
             totalPad =
                 rewriter.create<Torch::PrimMaxIntOp>(loc, totalPad, cstZero);
 
-            // padding[dimIdx] =
-            //     isSameLower ? ((totalPad + 1) / 2) : (totalPad / 2);
-            // padding[spatialRank + dimIdx] = totalPad - padding[dimIdx];
             Value cstTwo = rewriter.create<Torch::ConstantIntOp>(
                 loc, rewriter.getI64IntegerAttr(2));
             if (isSameLower) {
