@@ -153,26 +153,30 @@ static LogicalResult createPoolingOp(
     SmallVectorImpl<int64_t> &dilationInts, Attribute initValueAttr,
     SmallVectorImpl<Value> &outTensorShape, Value &paddedInput, Value &result) {
   Location loc = op->getLoc();
+  
+  
   Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
   if (!isa<mlir::FloatType>(elementType) && !supportNonFPInput)
     return op->emitError("unimplemented: non-floating point type");
-
+  
   Value initValue =
       rewriter.create<arith::ConstantOp>(loc, cast<TypedAttr>(initValueAttr));
 
   paddedInput = padInputTensor(op, rewriter, self, ceilMode, dimensionality,
                                strideInts, paddingInts, initValue);
-
+  
   auto outTensorInitialized = computeOutputTensor(
       op, rewriter, self, dimensionality, ceilMode, strideInts, paddingInts,
       dilationInts, kernelSizeIntValues, outTensorShape, initValue);
-
+  
+      
   auto stridesAttr = rewriter.getI64VectorAttr(strideInts);
   auto dilationAttr = rewriter.getI64VectorAttr(dilationInts);
   auto shape = castIntVectorToIndexVector(rewriter, loc, kernelSizeIntValues);
+  
   Value windowTensor = rewriter.create<tensor::EmptyOp>(
       loc, getAsOpFoldResult(shape), elementType);
-
+  
   Value permutedInput = paddedInput, permutedOutput = outTensorInitialized;
   if (dimensionality == 3) {
     // Permute input and output tensor as follows:
@@ -190,7 +194,7 @@ static LogicalResult createPoolingOp(
       return rewriter.notifyMatchFailure(
           op, "failed to perform permutation of tensor");
   }
-
+  
   Value poolingResult =
       rewriter
           .create<OpTy>(loc, permutedOutput.getType(),
@@ -1618,15 +1622,17 @@ public:
   }
 };
 
-template <typename OpTy>
-struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
-  using OpConversionPattern<OpTy>::OpConversionPattern;
+struct ConvertRoiAlignOp final
+    : OpConversionPattern<Torch::TorchvisionRoiAlignOp> {
+  using OpConversionPattern::OpConversionPattern;
 
-  static SmallVector<Value> coordinateTransform(
-      OpBuilder &b, OpTy op, Location loc, SmallVector<Value> outputSizes,
-      Value input, SmallVector<Value> inputSizes,
-      SmallVector<Value> scaleValues, std::string coordStr,
-      bool alignCornersBool, SmallVector<Value> indices, bool clip) {
+  static SmallVector<Value>
+  coordinateTransform(OpBuilder &b, Torch::TorchvisionRoiAlignOp op,
+                      Location loc, SmallVector<Value> outputSizes, Value input,
+                      SmallVector<Value> inputSizes,
+                      SmallVector<Value> scaleValues, std::string coordStr,
+                      bool alignCornersBool, SmallVector<Value> indices,
+                      bool clip) {
 
     unsigned dimOffset = 2;
     auto inputType = cast<RankedTensorType>(input.getType());
@@ -1647,6 +1653,7 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
           b.create<arith::SIToFPOp>(loc, b.getF32Type(), outputSizes[i]);
       // scale = length_resized/length_original
       Value scale;
+
       if (alignCornersBool) {
         // x_original = x_resized * (length_original - 1) / (length_resized - 1)
         Value inputSubOne = b.create<arith::SubFOp>(loc, inputFP, cstOneFloat);
@@ -1695,32 +1702,43 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
         Value offset = b.create<arith::MulFOp>(loc, center, oneMAdjustment);
         preClip = b.create<arith::AddFOp>(loc, offset, preClip);
       }
+
       // for pytorch half pixel , special case for length_resized == 1:
       if (coordStr == "_pytorch_half_pixel") {
+
         Value cmp = b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UEQ,
                                             outputSizeFP, cstOneFloat);
+
         preClip = b.create<arith::SelectOp>(loc, cmp, zero, preClip);
       }
       if (clip) {
         // preClip is the fp position inside the input image to extract from.
         // clip to [0,inf)
+
         Value max = b.create<arith::MaximumFOp>(loc, preClip, zero);
+
         Value inputSubOne = b.create<arith::SubFOp>(loc, inputFP, cstOneFloat);
         // clip to [0,length_original - 1].
         // proj is properly within the input image.
+
         proj.push_back(b.create<arith::MinimumFOp>(loc, max, inputSubOne));
+
       } else {
+
         proj.push_back(preClip);
       }
     }
+
     return proj;
   }
 
-  static Value bilinearInterpolate(OpBuilder &b, OpTy op, Location loc,
-                                   SmallVector<Value> outputSizes, Value input,
-                                   SmallVector<Value> inputSizes,
+  static Value bilinearInterpolate(OpBuilder &b,
+                                   Torch::TorchvisionRoiAlignOp op,
+                                   Location loc, SmallVector<Value> outputSizes,
+                                   Value input, SmallVector<Value> inputSizes,
                                    SmallVector<Value> scaleValues,
                                    std::string coordStr) {
+
     unsigned dimOffset = 2;
     auto inputType = cast<RankedTensorType>(input.getType());
     auto inputRank = inputType.getRank();
@@ -1729,21 +1747,22 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
         b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(1.0));
 
     SmallVector<Value> indices;
-    for (unsigned i = 0; i < inputRank; i++) {
+    for (unsigned i = 0; i < inputRank; ++i) {
       indices.push_back(b.create<linalg::IndexOp>(loc, i));
     }
 
     SmallVector<Value> proj, high, low, highFP, lowFP;
+
     proj = coordinateTransform(b, op, loc, outputSizes, input, inputSizes,
                                scaleValues, coordStr, false, indices, true);
-    for (unsigned i = 0; i < inputRank - dimOffset; i++) {
+    for (unsigned i = 0; i < inputRank - dimOffset; ++i) {
       // length_original
       Value inputFP =
           b.create<arith::SIToFPOp>(loc, b.getF32Type(), inputSizes[i]);
       Value inputSubOne = b.create<arith::SubFOp>(loc, inputFP, cstOneFloat);
 
       // for bilinear interpolation, we look for the nearest indices below and
-      // above proj
+      // above proj.
       lowFP.push_back(b.create<math::FloorOp>(loc, proj[i]));
       Value projPlusOne = b.create<arith::AddFOp>(loc, cstOneFloat, proj[i]);
       highFP.push_back(b.create<math::FloorOp>(loc, projPlusOne));
@@ -1759,6 +1778,7 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
       Value highExtract =
           b.create<arith::MinimumFOp>(loc, projPlusOne, inputSubOne);
       highExtract = b.create<arith::FPToSIOp>(loc, b.getI64Type(), highExtract);
+
       high.push_back(
           b.create<arith::IndexCastOp>(loc, b.getIndexType(), highExtract));
     }
@@ -1783,7 +1803,7 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
     // where i* = i+1 mod 2 and x_0 = xLow, x_1 = xHigh etc.
     // We interpolate via the weighted average of pij by weights Aij
     // the formula is retval = Sum(pij*Aij for i and j in range(2)).
-    // Note: we do not need to divide by total rect area == 1
+    // Note: we do not need to divide by total rect area == 1.
 
     // lengths : Aij == dyi*dxj
     Value dy0 = b.create<arith::SubFOp>(loc, highFP[0], proj[0]);
@@ -1797,6 +1817,7 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
     Value sum = b.create<arith::AddFOp>(loc, dx0p00, dx1p01);
     Value left = b.create<arith::MulFOp>(loc, dy0, sum);
     // right = A10*p10 + A11*p11 = dy1(dx0p10 + dx1p11)
+
     Value dx0p10 = b.create<arith::MulFOp>(loc, dx0, p10);
     Value dx1p11 = b.create<arith::MulFOp>(loc, dx1, p11);
     sum = b.create<arith::AddFOp>(loc, dx0p10, dx1p11);
@@ -1805,7 +1826,8 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
     return b.create<arith::AddFOp>(loc, left, right);
   }
   LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+  matchAndRewrite(Torch::TorchvisionRoiAlignOp op,
+                  typename Torch::TorchvisionRoiAlignOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -1818,33 +1840,33 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
     int64_t samplingRatioInt = static_cast<int64_t>(samplingRatio);
     Value pooledH = op.getPooledHeight();
     Value pooledW = op.getPooledWidth();
-    Value spatialScaleVal = op.getSpatialScale();
+    Value spatialScaleVal = adaptor.getSpatialScale();
     llvm::APFloat spatialScale =
         cast<ConstantFloatOp>(op.getSpatialScale().getDefiningOp()).getValue();
-    Value rois = op.getRois();
-    Value input = op.getInput();
+    Value rois = adaptor.getRois();
+    Value input = adaptor.getInput();
     RankedTensorType inputType = dyn_cast_or_null<RankedTensorType>(
-      this->getTypeConverter()->convertType(input.getType()));
-    llvm::dbgs() << "input";
+        this->getTypeConverter()->convertType(op.getInput().getType()));
+
     if (inputType == nullptr) {
       op.emitError("Cannot determine input shape");
     }
-    
+
     unsigned inputRank = inputType.getRank();
     Value offset =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getF32FloatAttr(0.0));
     RankedTensorType resultType = dyn_cast_or_null<RankedTensorType>(
-          this->getTypeConverter()->convertType(result.getType()));
+        this->getTypeConverter()->convertType(result.getType()));
     if (resultType == nullptr) {
       op.emitError("Cannot determine result shape");
     }
-    llvm::dbgs() << "that\n";
+
     Type resultElementType = resultType.getElementType();
     if (!op.getAligned()) {
       offset = rewriter.create<arith::ConstantOp>(
           loc, rewriter.getF32FloatAttr(0.5));
     }
-    llvm::dbgs() << "1\n";
+
     Value lb = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value ub0 = rewriter.create<tensor::DimOp>(loc, rois, 0);
     Value ub1 = rewriter.create<tensor::DimOp>(loc, input, 1);
@@ -1858,47 +1880,43 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
           b.create<scf::ForOp>(
               loc, lb, ub1, step, ValueRange{},
               [&](OpBuilder &b, Location loc, Value iv1, ValueRange args) {
-                llvm::dbgs() << "2\n";
                 // Step 1: Extract bounds for region of interest (roi).
                 OpFoldResult zeroAttr = b.getI64IntegerAttr(0);
                 OpFoldResult oneAttr = b.getI64IntegerAttr(1);
-                llvm::dbgs() << "2.1\n";
+
                 Value cstZero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
                 Value cstOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
                 Value cstTwo = rewriter.create<arith::ConstantIndexOp>(loc, 2);
                 Value cstThree =
                     rewriter.create<arith::ConstantIndexOp>(loc, 3);
                 Value cstFour = rewriter.create<arith::ConstantIndexOp>(loc, 4);
-                llvm::dbgs() << "2.2\n";
+
                 SmallVector<OpFoldResult> strideVals{oneAttr, oneAttr, oneAttr,
                                                      oneAttr};
-                llvm::dbgs() << "2.21\n";
+
                 SmallVector<Value> lowYIndices = {iv0, cstOne};
-                llvm::dbgs() << "2.211\n";
-                llvm::dbgs() << rois << "\n";
-                Value lowY =
-                    b.create<tensor::ExtractOp>(loc, rois, lowYIndices);
-                // Value lowY = b.create<arith::ConstantOp>(loc, b.getF32FloatAttr(0.0));
-                llvm::dbgs() << "2.212\n";
+                Value lowY = b.create<tensor::ExtractOp>(loc, b.getF32Type(),
+                                                         rois, lowYIndices);
+
                 SmallVector<Value> lowXIndices = {iv0, cstTwo};
-                llvm::dbgs() << "2.213\n";
-                Value lowX =
-                    b.create<tensor::ExtractOp>(loc, rois, lowXIndices);
-                llvm::dbgs() << "2.214\n";
+
+                Value lowX = b.create<tensor::ExtractOp>(loc, b.getF32Type(),
+                                                         rois, lowXIndices);
+
                 SmallVector<Value> highYIndices = {iv0, cstThree};
-                llvm::dbgs() << "2.22\n";
-                Value highY =
-                    b.create<tensor::ExtractOp>(loc, rois, highYIndices);
+
+                Value highY = b.create<tensor::ExtractOp>(loc, b.getF32Type(),
+                                                          rois, highYIndices);
                 SmallVector<Value> highXIndices = {iv0, cstFour};
-                llvm::dbgs() << "2.23\n";
-                Value highX =
-                    b.create<tensor::ExtractOp>(loc, rois, highXIndices);
-                llvm::dbgs() << "2.5\n";
+
+                Value highX = b.create<tensor::ExtractOp>(loc, b.getF32Type(),
+                                                          rois, highXIndices);
+
                 lowY = b.create<arith::MulFOp>(loc, lowY, spatialScaleVal);
                 lowX = b.create<arith::MulFOp>(loc, lowX, spatialScaleVal);
                 highY = b.create<arith::MulFOp>(loc, highY, spatialScaleVal);
                 highX = b.create<arith::MulFOp>(loc, highX, spatialScaleVal);
-                llvm::dbgs() << "3\n";
+
                 lowY = b.create<arith::SubFOp>(loc, lowY, offset);
                 lowX = b.create<arith::SubFOp>(loc, lowX, offset);
                 highY = b.create<arith::SubFOp>(loc, highY, offset);
@@ -1934,7 +1952,7 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
                     ValueRange{cstOne, cstOne, roiHeight, roiWidth},
                     ValueRange{cstOne, cstOne, cstOne, cstOne});
 
-                // Step 3: Perform bilinear interpolation over roi
+                // Step 3: Perform bilinear interpolation over roi.
                 Value roiBinH = b.create<arith::SubFOp>(loc, highY, lowY);
                 Value roiBinW = b.create<arith::SubFOp>(loc, highX, lowX);
                 Value scaleH = b.create<arith::DivFOp>(loc, roiBinH, pooledH);
@@ -1943,6 +1961,7 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
                 scaleW = b.create<math::CeilOp>(loc, scaleW);
                 scaleH = b.create<arith::FPToSIOp>(loc, b.getI64Type(), scaleH);
                 scaleW = b.create<arith::FPToSIOp>(loc, b.getI64Type(), scaleW);
+
                 if (samplingRatio > 0) {
                   scaleH = b.create<arith::ConstantOp>(
                       loc, rewriter.getI64IntegerAttr(samplingRatio));
@@ -1959,20 +1978,25 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
                                                           roiSampleWidth};
                 SmallVector<Value> dims =
                     getTensorSizesUntilDim(b, loc, extractRoi, 1);
-                for (unsigned i = 2; i < inputRank; i++) {
-                  dims.push_back(
-                      castIntToIndex(b, loc, outputSizeIntValues[i - 2]));
+
+                for (unsigned i = 2; i < inputRank; ++i) {
+                  auto dim = b.create<arith::IndexCastOp>(
+                      loc, b.getIndexType(), outputSizeIntValues[i - 2]);
+                  dims.push_back(dim);
                 }
+
                 SmallVector<Value> inputSizes;
-                for (unsigned i = 2; i < inputRank; i++) {
+                for (unsigned i = 2; i < inputRank; ++i) {
                   inputSizes.push_back(b.create<arith::IndexCastOp>(
                       loc, b.getIntegerType(64), roiSizeVals[i]));
                 }
+
                 Value outTensor = b.create<tensor::EmptyOp>(
                     loc, getAsOpFoldResult(dims), inputType.getElementType());
                 AffineMap idMap = b.getMultiDimIdentityMap(inputRank);
                 SmallVector<utils::IteratorType> iteratorTypes(
                     inputRank, utils::IteratorType::parallel);
+
                 Value bilinearInterpolatedRoi =
                     b.create<linalg::GenericOp>(
                          loc, outTensor.getType(), ValueRange{}, outTensor,
@@ -1981,20 +2005,25 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
                          [&](OpBuilder &b, Location loc, ValueRange args) {
                            Value retVal = bilinearInterpolate(
                                b, op, loc, outputSizeIntValues, extractRoi,
-                               inputSizes, ValueRange{}, "bilinear");
+                               inputSizes, ValueRange{}, "");
+
                            b.create<linalg::YieldOp>(loc, retVal);
                          })
                         .getResult(0);
 
-                // Step 4: Sum pool over interpolated values
+                // Step 4: Sum pool over interpolated values.
+
                 Value sumPool, paddedInput;
-                SmallVector<Value> kernelSizeIntValues = {cstOne, cstOne,
+                Value oneInt =
+                    b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(1));
+                SmallVector<Value> kernelSizeIntValues = {oneInt, oneInt,
                                                           scaleH, scaleW};
                 SmallVector<int64_t, 2> strideInts = {samplingRatioInt,
                                                       samplingRatioInt};
                 SmallVector<int64_t, 2> paddingInts = {0, 0};
-                SmallVector<int64_t, 2> dilationInts(2, 1);
+                SmallVector<int64_t, 2> dilationInts = {1, 1};
                 SmallVector<Value, 4> outTensorShape;
+
                 if (failed(createPoolingOp<linalg::PoolingNchwSumOp>(
                         op, rewriter, bilinearInterpolatedRoi,
                         /*supportNonFPInput=*/true, false,
@@ -2005,10 +2034,11 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
                   op.emitError("unable to compute sumpool");
 
                 // Step 5: elementwise division by number of sampling points
-                // to compute avg pool
+                // to compute avg pool.
                 Value outputTensor = b.create<tensor::EmptyOp>(
                     loc, getAsOpFoldResult(outTensorShape), resultElementType);
                 Value divisor = b.create<arith::MulIOp>(loc, scaleH, scaleW);
+
                 Value avgPool =
                     b.create<linalg::GenericOp>(
                          loc, outputTensor.getType(), sumPool, outputTensor,
@@ -2025,7 +2055,7 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
                            b.create<linalg::YieldOp>(loc, avg);
                          })
                         .getResult(0);
-                llvm::dbgs() << "4\n";
+
                 SmallVector<OpFoldResult> finalStrides(inputRank, oneAttr);
                 SmallVector<OpFoldResult> finalOffsets = {
                     getAsOpFoldResult(iv0), getAsOpFoldResult(iv1), zeroAttr,
@@ -2039,7 +2069,7 @@ struct ConvertRoiAlignOp : final OpConversionPattern<OpTy> {
                     finalStrides);
               });
         });
-    llvm::dbgs() << "5\n";
+
     rewriter.replaceOp(op, finalOutputTensor);
     return success();
   }
@@ -2095,6 +2125,5 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
       typeConverter, context);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool3dOp>>(
       typeConverter, context);
-  patterns.add<ConvertRoiAlignOp<Torch::TorchvisionRoiAlignOp>>(typeConverter,
-                                                                context);
+  patterns.add<ConvertRoiAlignOp>(typeConverter, context);
 }
