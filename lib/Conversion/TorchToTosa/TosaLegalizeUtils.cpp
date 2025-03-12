@@ -34,14 +34,15 @@ Value buildRescaleMultiplier(bool scale32, PatternRewriter &rewriter,
 // rounding mode
 Value buildRescale(PatternRewriter &rewriter, Operation *op,
                    ShapedType output_type, Value input_val, double scale,
-                   int64_t input_zp, int64_t output_zp, bool double_round,
+                   int64_t input_zp, int64_t output_zp, StringRef rounding_mode,
                    bool scale32) {
   int32_t multiplier;
   int32_t shift;
 
   int32_t scale_width = scale32 ? 32 : 16;
 
-  computeMultiplierAndShift(scale, multiplier, shift, scale_width);
+  if (!computeMultiplierAndShift(scale, multiplier, shift, scale_width))
+    op->emitError("buildRescale: shift must be in the range 2 <= shift <= 62");
 
   Value multiplier_val =
       buildRescaleMultiplier(scale32, rewriter, op, {multiplier});
@@ -52,11 +53,23 @@ Value buildRescale(PatternRewriter &rewriter, Operation *op,
   bool input_unsigned = input_val.getType().isUnsignedInteger();
   bool output_unsigned = output_type.isUnsignedInteger();
 
+  // Create input_zp matches the input type and output_zp matches the output
+  // type of RescaleOp
+  const auto input_zp_val = tosa::createZeroPointTensor(
+      rewriter, op->getLoc(), dyn_cast<TensorType>(input_val.getType()),
+      input_zp);
+  if (!input_zp_val.has_value())
+    op->emitError("Failed to create input zero-point tensor for RescaleOp.");
+
+  const auto output_zp_val = tosa::createZeroPointTensor(
+      rewriter, op->getLoc(), output_type, output_zp);
+  if (!output_zp_val.has_value())
+    op->emitError("Failed to create output zero-point tensor for RescaleOp.");
+
   auto rescale_op = CreateOpAndInfer<tosa::RescaleOp>(
       rewriter, op->getLoc(), output_type, input_val, multiplier_val, shift_val,
-      rewriter.getI32IntegerAttr(static_cast<int32_t>(input_zp)),
-      rewriter.getI32IntegerAttr(static_cast<int32_t>(output_zp)),
-      rewriter.getBoolAttr(scale32), rewriter.getBoolAttr(double_round),
+      input_zp_val.value(), output_zp_val.value(),
+      rewriter.getBoolAttr(scale32), rewriter.getStringAttr(rounding_mode),
       rewriter.getBoolAttr(false), rewriter.getBoolAttr(input_unsigned),
       rewriter.getBoolAttr(output_unsigned));
 
@@ -73,7 +86,7 @@ Value buildRescaleToInt32(PatternRewriter &rewriter, Operation *op,
   auto output_type = input_type.clone(rewriter.getI32Type());
 
   return buildRescale(rewriter, op, output_type, input_val, input_scale,
-                      input_zp, 0, false, true);
+                      input_zp, 0, "SINGLE_ROUND", true);
 }
 
 // Creates a TOSA rescale op based on conv2d parameters.
@@ -96,6 +109,16 @@ Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
   bool input_unsigned = input_qtype.isUnsignedInteger();
   bool output_unsigned = output_qtype.isUnsignedInteger();
 
+  const auto input_zp_val = tosa::createZeroPointTensor(
+      rewriter, op->getLoc(), input_type, static_cast<int64_t>(0));
+  if (!input_zp_val.has_value())
+    op->emitError("Failed to create input zero-point tensor for RescaleOp.");
+
+  const auto output_zp_val = tosa::createZeroPointTensor(
+      rewriter, op->getLoc(), output_type, output_zp);
+  if (!output_zp_val.has_value())
+    op->emitError("Failed to create output zero-point tensor for RescaleOp.");
+
   if (auto weight_per_tensor_qtype =
           dyn_cast<mlir::quant::UniformQuantizedType>(
               weight_type.getElementType())) {
@@ -107,7 +130,11 @@ Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
 
     double op_tensor_scale = (input_scale * weight_scale) / output_scale;
 
-    computeMultiplierAndShift(op_tensor_scale, multiplier, shift, scale_width);
+    if (!computeMultiplierAndShift(op_tensor_scale, multiplier, shift,
+                                   scale_width))
+      op->emitError(
+          "buildRescaleOpConvOutput: shift must be in the range 2 <= shift <= "
+          "62");
 
     Value multiplier_val =
         buildRescaleMultiplier(scale32, rewriter, op, {multiplier});
@@ -117,10 +144,9 @@ Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
 
     auto rescale_op = CreateOpAndInfer<tosa::RescaleOp>(
         rewriter, op->getLoc(), output_type, conv_val, multiplier_val,
-        shift_val, rewriter.getI32IntegerAttr(0),
-        rewriter.getI32IntegerAttr(output_zp), rewriter.getBoolAttr(scale32),
-        rewriter.getBoolAttr(true), rewriter.getBoolAttr(false),
-        rewriter.getBoolAttr(input_unsigned),
+        shift_val, input_zp_val.value(), output_zp_val.value(),
+        rewriter.getBoolAttr(scale32), rewriter.getStringAttr("DOUBLE_ROUND"),
+        rewriter.getBoolAttr(false), rewriter.getBoolAttr(input_unsigned),
         rewriter.getBoolAttr(output_unsigned));
 
     return rescale_op.getResult();
@@ -136,17 +162,16 @@ Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
         weight_per_channel_qtype.getScales().begin(),
         weight_per_channel_qtype.getScales().end());
 
-    int64_t output_zp = output_qtype.getZeroPoint();
-    double output_scale = output_qtype.getScale();
-
     for (double weight_scale : weight_scale_arr) {
       int32_t multiplier;
       int32_t shift;
 
       double op_channel_scale = (input_scale * weight_scale) / output_scale;
 
-      computeMultiplierAndShift(op_channel_scale, multiplier, shift,
-                                scale_width);
+      if (!computeMultiplierAndShift(op_channel_scale, multiplier, shift, 32))
+        op->emitError(
+            "buildRescaleOpConvOutput: shift must be in the range 2 <= shift "
+            "<= 62");
 
       multiplier_arr.push_back(multiplier);
       shift_arr.push_back(static_cast<int8_t>(shift));
@@ -161,10 +186,9 @@ Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
 
     auto rescale_op = CreateOpAndInfer<tosa::RescaleOp>(
         rewriter, op->getLoc(), output_type, conv_val, multiplier_val,
-        shift_val, rewriter.getI32IntegerAttr(0),
-        rewriter.getI32IntegerAttr(output_zp), rewriter.getBoolAttr(scale32),
-        rewriter.getBoolAttr(true), rewriter.getBoolAttr(true),
-        rewriter.getBoolAttr(input_unsigned),
+        shift_val, input_zp_val.value(), output_zp_val.value(),
+        rewriter.getBoolAttr(scale32), rewriter.getStringAttr("DOUBLE_ROUND"),
+        rewriter.getBoolAttr(true), rewriter.getBoolAttr(input_unsigned),
         rewriter.getBoolAttr(output_unsigned));
 
     return rescale_op.getResult();

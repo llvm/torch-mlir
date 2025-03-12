@@ -1727,6 +1727,8 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
     "ScatterSrcModule_basic",
     "ScatterSrcStaticModule_basic",
     "HBC_basic",
+    # 1D inputs cause generated tosa.negate ops to crash downstream
+    "NllLossModule_1D_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -3382,6 +3384,8 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
+    "NumpyTRank0Module_basic",
+    "Permute0RankModule_basic",
     "ArgsortTensor_basic",
     "ArgsortTensorInteger_basic",
     "AtenSymConstrainRangeForSize_basic",
