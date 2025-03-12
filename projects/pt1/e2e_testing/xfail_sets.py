@@ -1717,6 +1717,8 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
     "ScatterSrcModule_basic",
     "ScatterSrcStaticModule_basic",
     "HBC_basic",
+    # 1D inputs cause generated tosa.negate ops to crash downstream
+    "NllLossModule_1D_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
