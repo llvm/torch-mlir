@@ -817,6 +817,18 @@ func.func @test_dequantizelinear_fp8(%arg0: !torch.vtensor<[6],f8E4M3FN>, %arg1:
 
 // -----
 
+// CHECK-LABEL: @test_dequantizelinear_per_channel_si8
+func.func @test_dequantizelinear_per_channel_si8(%arg0: !torch.vtensor<[64,3,3,3],si8>, %arg1: !torch.vtensor<[64],f32>, %arg2: !torch.vtensor<[64],si8>) -> !torch.vtensor<[64,3,3,3],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 21 : si64} {
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) {torch.onnx.axis = 0 : si64} : (!torch.vtensor<[64,3,3,3],si8>, !torch.vtensor<[64],f32>, !torch.vtensor<[64],si8>) -> !torch.vtensor<[64,3,3,3],f32>
+  // CHECK: %[[AXIS:.+]] = torch.constant.int 0
+  // CHECK: %[[MAKE:.+]] = torch.aten._make_per_channel_quantized_tensor %arg0, %arg1, %arg2,
+  // CHECK: %[[DEQ:.+]] = torch.aten.dequantize.self %[[MAKE]]
+  // CHECK: return %[[DEQ]]
+  return %0 : !torch.vtensor<[64,3,3,3],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @test_div_bcast
 func.func @test_div_bcast(%arg0: !torch.vtensor<[3,4,5],f32>, %arg1: !torch.vtensor<[5],f32>) -> !torch.vtensor<[3,4,5],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 14 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: torch.aten.div.Tensor %arg0, %arg1 : !torch.vtensor<[3,4,5],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor<[3,4,5],f32>

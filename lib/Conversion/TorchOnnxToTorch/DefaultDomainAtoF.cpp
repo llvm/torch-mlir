@@ -2250,8 +2250,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value zeropoint = operands[2];
 
         auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
-
-        auto operandETy = operandTy.getDtype();
         auto scaleTy = dyn_cast<Torch::ValueTensorType>(scale.getType());
         if (!scaleTy || !scaleTy.hasSizes())
           return rewriter.notifyMatchFailure(binder.op, "requires known rank");
@@ -2259,57 +2257,80 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return rewriter.notifyMatchFailure(binder.op,
                                              "requires known result dtype");
 
-        bool rank0 = scaleTy.getSizes().size() == 0;
-        bool length1 =
-            scaleTy.getSizes().size() == 1 && scaleTy.getSizes()[0] == 1;
-
-        if (!rank0 && !length1)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "unimplemented: non-scalar scale");
+        int64_t scaleRank = scaleTy.getSizes().size();
+        if (scaleRank > 1)
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: only per-tensor or per-axis "
+                         "quantization supported");
         auto qTensorTy = getQTorchTypeFromTorchIntType(operandTy);
         if (!qTensorTy) {
           return rewriter.notifyMatchFailure(binder.op,
                                              "unsupported result dtype");
         }
 
-        scale = rewriter.create<Torch::AtenItemOp>(
-            loc, rewriter.getType<Torch::FloatType>(), scale);
-
+        auto operandETy = operandTy.getDtype();
         bool fpOperand = isa<mlir::FloatType>(operandETy);
-        Type zeropointTy = rewriter.getType<Torch::IntType>();
-        if (fpOperand)
-          zeropointTy = rewriter.getType<Torch::FloatType>();
 
-        zeropoint =
-            rewriter.create<Torch::AtenItemOp>(loc, zeropointTy, zeropoint);
+        // (TODO) Case: Per-Channel Quantization for floating point input.
+        if (scaleRank == 1 && fpOperand)
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: support for per-Channel Quantization "
+                         "for floating point input not present");
 
-        if (fpOperand) {
-          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-          Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
-          auto tyVal = Torch::getScalarTypeForType(resultType.getDtype());
-          Value tyConst = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getType<Torch::IntType>(),
-              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                      static_cast<int64_t>(tyVal)));
-          Value toDtype = rewriter.create<Torch::AtenToDtypeOp>(
-              loc, resultType, operand, tyConst,
-              /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
-              /*memory_format=*/none);
+        if (scaleRank == 0) {
+          scale = rewriter.create<Torch::AtenItemOp>(
+              loc, rewriter.getType<Torch::FloatType>(), scale);
 
-          Value one = rewriter.create<Torch::ConstantFloatOp>(
-              loc, rewriter.getF64FloatAttr(1.0));
-          Value sub = rewriter.create<Torch::AtenSubScalarOp>(
-              loc, resultType, toDtype, zeropoint, one);
-          rewriter.replaceOpWithNewOp<Torch::AtenMulScalarOp>(
-              binder.op, resultType, sub, scale);
+          Type zeropointTy = rewriter.getType<Torch::IntType>();
+          if (fpOperand)
+            zeropointTy = rewriter.getType<Torch::FloatType>();
+          zeropoint =
+              rewriter.create<Torch::AtenItemOp>(loc, zeropointTy, zeropoint);
+        }
+
+        if (!fpOperand) {
+          Value quantize;
+          // Case 1: Per-Tensor Quantization for non-floating point input.
+          if (scaleRank == 0) {
+            quantize =
+                rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
+                    loc, qTensorTy, operand, scale, zeropoint);
+          } else {
+            // Case 2: Per-Channel Quantization for non-floating point input.
+            int64_t axis;
+            if (binder.s64IntegerAttr(axis, "axis", 1))
+              return failure();
+
+            Value cstAxis = rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(axis));
+            quantize =
+                rewriter.create<Torch::Aten_MakePerChannelQuantizedTensorOp>(
+                    loc, qTensorTy, operand, scale, zeropoint, cstAxis);
+          }
+          rewriter.replaceOpWithNewOp<Torch::AtenDequantizeSelfOp>(
+              binder.op, resultType, quantize);
           return success();
         }
 
-        auto quantize =
-            rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-                loc, qTensorTy, operand, scale, zeropoint);
-        rewriter.replaceOpWithNewOp<Torch::AtenDequantizeSelfOp>(
-            binder.op, resultType, quantize);
+        // Case 3: Per-Tensor Quantization for floating point input.
+        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+        auto tyVal = Torch::getScalarTypeForType(resultType.getDtype());
+        Value tyConst = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    static_cast<int64_t>(tyVal)));
+        Value toDtype = rewriter.create<Torch::AtenToDtypeOp>(
+            loc, resultType, operand, tyConst,
+            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+            /*memory_format=*/none);
+
+        Value one = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getF64FloatAttr(1.0));
+        Value sub = rewriter.create<Torch::AtenSubScalarOp>(
+            loc, resultType, toDtype, zeropoint, one);
+        rewriter.replaceOpWithNewOp<Torch::AtenMulScalarOp>(
+            binder.op, resultType, sub, scale);
         return success();
       });
   patterns.onOp("Div", 7,
