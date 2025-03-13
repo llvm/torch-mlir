@@ -2270,6 +2270,10 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
         auto operandETy = operandTy.getDtype();
         bool fpOperand = isa<mlir::FloatType>(operandETy);
+        bool isPerTensorQuantization = false;
+        if (scaleRank == 0 ||
+            llvm::all_of(scaleTy.getSizes(), [](int64_t s) { return s == 1; }))
+          isPerTensorQuantization = true;
 
         // (TODO) Case: Per-Channel Quantization for floating point input.
         if (scaleRank == 1 && fpOperand)
@@ -2277,7 +2281,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               binder.op, "unimplemented: support for per-Channel Quantization "
                          "for floating point input not present");
 
-        if (scaleRank == 0) {
+        if (isPerTensorQuantization) {
           scale = rewriter.create<Torch::AtenItemOp>(
               loc, rewriter.getType<Torch::FloatType>(), scale);
 
@@ -2291,7 +2295,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         if (!fpOperand) {
           Value quantize;
           // Case 1: Per-Tensor Quantization for non-floating point input.
-          if (scaleRank == 0) {
+          if (isPerTensorQuantization) {
             quantize =
                 rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
                     loc, qTensorTy, operand, scale, zeropoint);
