@@ -777,7 +777,7 @@ std::optional<Value> convertReduceOpCommon(
       RankedTensorType output_rescale_type =
           RankedTensorType::get(shape_vec, output_type.getElementType());
       val = buildRescale(rewriter, op, output_rescale_type, val, output_scale,
-                         0, output_zp, false, true);
+                         0, output_zp, "SINGLE_ROUND", true);
     }
 
     // Optionally squeeze out the reduced axes.
