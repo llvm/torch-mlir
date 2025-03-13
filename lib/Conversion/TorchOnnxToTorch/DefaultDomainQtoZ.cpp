@@ -269,13 +269,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
         auto resultETy = resultType.getDtype();
 
-        bool rank0 = scaleTy.getSizes().size() == 0;
-        bool length1 =
-            scaleTy.getSizes().size() == 1 && scaleTy.getSizes()[0] == 1;
-
-        if (!rank0 && !length1)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "unimplemented: non-scalar scale");
+        int64_t scaleRank = scaleTy.getSizes().size();
+        if (scaleRank > 1)
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: only per-tensor or per-axis "
+                         "quantization supported");
 
         auto qTensorTy = getQTorchTypeFromTorchIntType(resultType);
         if (!qTensorTy) {
@@ -290,37 +288,66 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             rewriter.getIntegerAttr(rewriter.getIntegerType(64),
                                     static_cast<int64_t>(torchqTy)));
 
-        scale = rewriter.create<Torch::AtenItemOp>(
-            loc, rewriter.getType<Torch::FloatType>(), scale);
-
         bool fpResult = isa<mlir::FloatType>(resultETy);
-        Type zeropointTy = rewriter.getType<Torch::IntType>();
-        if (fpResult)
-          zeropointTy = rewriter.getType<Torch::FloatType>();
-        zeropoint =
-            rewriter.create<Torch::AtenItemOp>(loc, zeropointTy, zeropoint);
+        bool isPerTensorQuantization = false;
+        if (scaleRank == 0 ||
+            llvm::all_of(scaleTy.getSizes(), [](int64_t s) { return s == 1; }))
+          isPerTensorQuantization = true;
 
-        if (fpResult) {
-          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-          Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
-          Value one = rewriter.create<Torch::ConstantFloatOp>(
-              loc, rewriter.getF64FloatAttr(1.0));
-          Value div = rewriter.create<Torch::AtenDivScalarOp>(
-              loc, operand.getType(), operand, scale);
-          Value add = rewriter.create<Torch::AtenAddScalarOp>(
-              loc, operand.getType(), div, zeropoint, one);
+        // (TODO) Case: Per-Channel Quantization for floating point output.
+        if (scaleRank == 1 && fpResult)
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: support for per-Channel Quantization "
+                         "for floating point output.");
 
-          rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
-              binder.op, resultType, add, tyConst,
-              /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
-              /*memory_format=*/none);
+        if (isPerTensorQuantization) {
+          scale = rewriter.create<Torch::AtenItemOp>(
+              loc, rewriter.getType<Torch::FloatType>(), scale);
+
+          Type zeropointTy = rewriter.getType<Torch::IntType>();
+          if (fpResult)
+            zeropointTy = rewriter.getType<Torch::FloatType>();
+          zeropoint =
+              rewriter.create<Torch::AtenItemOp>(loc, zeropointTy, zeropoint);
+        }
+
+        if (!fpResult) {
+          Value quantize;
+          // Case 1: Per-Tensor Quantization for non-floating point input.
+          if (isPerTensorQuantization) {
+            quantize = rewriter.create<Torch::AtenQuantizePerTensorOp>(
+                loc, qTensorTy, operand, scale, zeropoint, tyConst);
+          } else {
+            // Case 2: Per-Channel Quantization for non-floating point input.
+            int64_t axis;
+            if (binder.s64IntegerAttr(axis, "axis", 1))
+              return failure();
+
+            Value cstAxis = rewriter.create<Torch::ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(axis));
+            quantize = rewriter.create<Torch::AtenQuantizePerChannelOp>(
+                loc, qTensorTy, operand, scale, zeropoint, cstAxis, tyConst);
+          }
+          rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(
+              binder.op, resultType, quantize);
           return success();
         }
 
-        auto quantize = rewriter.create<Torch::AtenQuantizePerTensorOp>(
-            loc, qTensorTy, operand, scale, zeropoint, tyConst);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          quantize);
+        // Case 3: Per-Tensor Quantization for floating point input.
+        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+        Value one = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getF64FloatAttr(1.0));
+        Value div = rewriter.create<Torch::AtenDivScalarOp>(
+            loc, operand.getType(), operand, scale);
+        Value add = rewriter.create<Torch::AtenAddScalarOp>(
+            loc, operand.getType(), div, zeropoint, one);
+
+        rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+            binder.op, resultType, add, tyConst,
+            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+            /*memory_format=*/none);
+
         return success();
       });
   patterns.onOp(
