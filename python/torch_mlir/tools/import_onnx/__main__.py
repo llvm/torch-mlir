@@ -119,9 +119,12 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
 
     # Model is too big for in-memory inference: do file-based shape inference
     # to a temp file.
+    # First need to save as model might have been changed (e.g. version conversion).
+    temp_raw_file = temp_dir / "raw.onnx"
     temp_inferred_file = temp_dir / "inferred.onnx"
+    onnx.save(raw_model, temp_raw_file, save_as_external_data=False)
     onnx.shape_inference.infer_shapes_path(
-        args.input_file, temp_inferred_file, data_prop=args.data_prop
+        temp_raw_file, temp_inferred_file, data_prop=args.data_prop
     )
 
     # Sanity check the shape-inferred model to be sure we have a good model
