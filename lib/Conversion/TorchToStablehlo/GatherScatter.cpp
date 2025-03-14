@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
 #include "../PassDetail.h"
@@ -22,6 +23,9 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/LogicalResult.h"
+#include <cstdint>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -1472,6 +1476,75 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
   return success();
 }
 
+template <>
+LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewrite(
+    AtenAsStridedOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  // In some cases AtenAsStridedOp is equivalent to a Stablehlo SliceOp.
+  // We will try to match those cases here.
+  auto inputShape = cast<RankedTensorType>(adaptor.getSelf().getType()).getShape().vec();
+
+  // Calculate what the strides attribute should be if the input tensor is contiguous.
+  SmallVector<int64_t> contiguousStrides(inputShape.size(), 1);
+  for (int i = inputShape.size() - 2; i >= 0; --i) {
+    contiguousStrides[i] = contiguousStrides[i + 1] * inputShape[i + 1];
+  }
+
+  SmallVector<Value> outSizeValues, opStridesValues;
+  if (!getListConstructElements(adaptor.getStride(), opStridesValues))
+    return op.emitError(
+        "unimplemented: the tensor list is not from list construct");
+
+  if (!getListConstructElements(adaptor.getSize(), outSizeValues))
+    return op.emitError(
+        "unimplemented: the tensor list is not from list construct");
+
+  // Get storage offset
+  int64_t offset;
+  if (!matchPattern(op.getStorageOffset(), m_TorchConstantInt(&offset)))
+    offset = 0;
+
+  SmallVector<int64_t> outSize(inputShape.size(), 0);
+  for (uint64_t i = 0; i < outSizeValues.size(); ++i) {
+    if (!matchPattern(outSizeValues[i], m_TorchConstantInt(&outSize[i])))
+      return failure();
+  }
+  SmallVector<int64_t> opStrides(inputShape.size(), 0);
+  for (uint64_t i = 0; i < opStridesValues.size(); ++i) {
+    if (!matchPattern(opStridesValues[i], m_TorchConstantInt(&opStrides[i])))
+      return failure();
+  }
+
+  // Slice dims are the dims where the input and output shapre are not equal.
+  SmallVector<int64_t> sliceDims;
+  for (uint64_t i = 0; i < inputShape.size(); ++i) {
+    if (outSize[i] != inputShape[i])
+      sliceDims.push_back(i);
+  }
+
+  // If there are no slice dims, then the AtenAsStridedOp is equivalent to the input tensor.
+  if (sliceDims.empty()) {
+    rewriter.replaceOp(op, adaptor.getSelf());
+    return success();
+  }
+    
+  SmallVector<int64_t> startIndices(inputShape.size(), 0);
+  SmallVector<int64_t> sliceStrides(opStrides.size(), 1);
+  SmallVector<int64_t> limitIndices = outSize;
+  for (auto dim : sliceDims) {
+    startIndices[dim] = offset / contiguousStrides[dim];
+    sliceStrides[dim] = opStrides[dim] / contiguousStrides[dim];
+    limitIndices[dim] = startIndices[dim] + outSize[dim]*opStrides[dim];
+  }
+
+
+  rewriter.replaceOpWithNewOp<stablehlo::SliceOp>(op, adaptor.getSelf(),
+                                                  startIndices, limitIndices,
+                                                  sliceStrides);
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::
     populateGatherScatterOpPatternsAndLegality(
         TypeConverter &typeConverter, RewritePatternSet &patterns,
@@ -1489,6 +1562,7 @@ void mlir::torch::torch_to_stablehlo::
   INSERT_ATENOP_PATTERN(AtenIndexTensorHackedTwinOp);
   INSERT_ATENOP_PATTERN(AtenIndexPutHackedTwinOp);
   INSERT_ATENOP_PATTERN(AtenGridSamplerOp);
+  INSERT_ATENOP_PATTERN(AtenAsStridedOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_ATEN_SCATTER_PATTERN(AtenOp, reduceType)                        \
