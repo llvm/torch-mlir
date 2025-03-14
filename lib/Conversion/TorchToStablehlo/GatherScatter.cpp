@@ -1485,8 +1485,7 @@ LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewrite(
   // We will try to match those cases here.
   auto inputShape =
       cast<RankedTensorType>(adaptor.getSelf().getType()).getShape();
-  auto outputShape =
-      cast<RankedTensorType>(op.getResult().getType()).getShape();
+  auto outputShape = cast<BaseTensorType>(op.getResult().getType()).getSizes();
 
   // If the output shape is strictly larger than the input shape at any
   // dimension than this AtenAsStridedOp is not equivalent to a slice.
@@ -1547,7 +1546,7 @@ LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewrite(
   for (auto dim : sliceDims) {
     startIndices[dim] = offset / contiguousStrides[dim];
     sliceStrides[dim] = opStrides[dim] / contiguousStrides[dim];
-    limitIndices[dim] = startIndices[dim] + outSize[dim] * opStrides[dim];
+    limitIndices[dim] = startIndices[dim] + outSize[dim] * sliceStrides[dim];
   }
 
   rewriter.replaceOpWithNewOp<stablehlo::SliceOp>(
