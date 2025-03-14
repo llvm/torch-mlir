@@ -1484,7 +1484,16 @@ LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewrite(
   // In some cases AtenAsStridedOp is equivalent to a Stablehlo SliceOp.
   // We will try to match those cases here.
   auto inputShape =
-      cast<RankedTensorType>(adaptor.getSelf().getType()).getShape().vec();
+      cast<RankedTensorType>(adaptor.getSelf().getType()).getShape();
+  auto outputShape =
+      cast<RankedTensorType>(op.getResult().getType()).getShape();
+
+  // If the output shape is strictly larger than the input shape at any
+  // dimension than this AtenAsStridedOp is not equivalent to a slice.
+  for (uint64_t i = 0; i < outputShape.size(); ++i) {
+    if (outputShape[i] > inputShape[i])
+      return failure();
+  }
 
   // Calculate what the strides attribute should be if the input tensor is
   // contiguous.
