@@ -1483,9 +1483,11 @@ LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewrite(
 
   // In some cases AtenAsStridedOp is equivalent to a Stablehlo SliceOp.
   // We will try to match those cases here.
-  auto inputShape = cast<RankedTensorType>(adaptor.getSelf().getType()).getShape().vec();
+  auto inputShape =
+      cast<RankedTensorType>(adaptor.getSelf().getType()).getShape().vec();
 
-  // Calculate what the strides attribute should be if the input tensor is contiguous.
+  // Calculate what the strides attribute should be if the input tensor is
+  // contiguous.
   SmallVector<int64_t> contiguousStrides(inputShape.size(), 1);
   for (int i = inputShape.size() - 2; i >= 0; --i) {
     contiguousStrides[i] = contiguousStrides[i + 1] * inputShape[i + 1];
@@ -1523,25 +1525,24 @@ LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewrite(
       sliceDims.push_back(i);
   }
 
-  // If there are no slice dims, then the AtenAsStridedOp is equivalent to the input tensor.
+  // If there are no slice dims, then the AtenAsStridedOp is equivalent to the
+  // input tensor.
   if (sliceDims.empty()) {
     rewriter.replaceOp(op, adaptor.getSelf());
     return success();
   }
-    
+
   SmallVector<int64_t> startIndices(inputShape.size(), 0);
   SmallVector<int64_t> sliceStrides(opStrides.size(), 1);
   SmallVector<int64_t> limitIndices = outSize;
   for (auto dim : sliceDims) {
     startIndices[dim] = offset / contiguousStrides[dim];
     sliceStrides[dim] = opStrides[dim] / contiguousStrides[dim];
-    limitIndices[dim] = startIndices[dim] + outSize[dim]*opStrides[dim];
+    limitIndices[dim] = startIndices[dim] + outSize[dim] * opStrides[dim];
   }
 
-
-  rewriter.replaceOpWithNewOp<stablehlo::SliceOp>(op, adaptor.getSelf(),
-                                                  startIndices, limitIndices,
-                                                  sliceStrides);
+  rewriter.replaceOpWithNewOp<stablehlo::SliceOp>(
+      op, adaptor.getSelf(), startIndices, limitIndices, sliceStrides);
   return success();
 }
 
