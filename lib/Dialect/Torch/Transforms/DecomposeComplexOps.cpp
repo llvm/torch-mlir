@@ -7200,105 +7200,17 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.adaptive_avg_pool1d` op into `aten.avg_pool1d`.
 // Decompose `aten.adaptive_max_pool1d` op into `aten.max_pool1d_with_indices`
-// op.
-class DecomposeAtenAdaptiveMaxPool1dOp
-    : public OpRewritePattern<AtenAdaptiveMaxPool1dOp> {
-  using OpRewritePattern<AtenAdaptiveMaxPool1dOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenAdaptiveMaxPool1dOp op,
-                                PatternRewriter &rewriter) const override {
-    Location loc = op->getLoc();
-    MLIRContext *context = op.getContext();
-
-    Value input = op.getSelf();
-    std::optional<unsigned> maybeRank = getTensorRank(input);
-    if (!maybeRank) {
-      return rewriter.notifyMatchFailure(op, "expected input to have a rank");
-    }
-    unsigned rank = *maybeRank;
-    Value sizeDim = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(rank - 1));
-    Value inputSize = rewriter.create<AtenSizeIntOp>(loc, input, sizeDim);
-
-    Value outputShape = op.getOutputSize();
-    SmallVector<Value> outputShapeSizesTorchInt;
-    getListConstructElements(outputShape, outputShapeSizesTorchInt);
-    Value outputSize = outputShapeSizesTorchInt[0];
-
-    Value constantOne = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(1));
-    Value constantZero = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(0));
-    Value constantFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
-
-    int64_t outputSizeInt;
-    if (!matchPattern(outputSize, m_TorchConstantInt(&outputSizeInt))) {
-      return rewriter.notifyMatchFailure(
-          op, "the output size of adaptive_max_pool1d must be a constant int");
-    }
-
-    SmallVector<Value, 1> kernelSize;
-    if (outputSizeInt == 1) {
-      BaseTensorType inputTensorType = cast<BaseTensorType>(input.getType());
-      ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
-      kernelSize.push_back(
-          inputShape[rank - 1] == kUnknownSize
-              ? inputSize
-              : rewriter.create<Torch::ConstantIntOp>(
-                    loc, rewriter.getI64IntegerAttr(inputShape[rank - 1])));
-    } else {
-      if (!isAssumingStrictSymbolicShapes(rewriter)) {
-        Value cond = rewriter.create<AtenEqIntOp>(loc, inputSize, outputSize);
-        rewriter.create<RuntimeAssertOp>(
-            loc, cond,
-            "unimplemented: only support cases where input and output size are "
-            "equal for non-unit output size");
-      }
-      kernelSize.push_back(constantOne);
-    }
-
-    Value kernelSizeList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)), kernelSize);
-    Value strideList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)),
-        ValueRange{constantOne});
-    Value paddingSizeList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)),
-        ValueRange{constantZero});
-    Value dialationList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)),
-        ValueRange{constantOne});
-
-    if (op.getResult(1).use_empty()) {
-      auto maxPool = rewriter.create<AtenMaxPool1dOp>(
-          loc, op.getType(0), input, kernelSizeList, strideList,
-          paddingSizeList, dialationList,
-          /*ceil_mode=*/constantFalse);
-      rewriter.replaceOp(op, {maxPool.getResult(), Value()});
-    } else {
-      auto maxPool = rewriter.create<AtenMaxPool1dWithIndicesOp>(
-          loc, op.getType(0), op.getType(1), input, kernelSizeList, strideList,
-          paddingSizeList, dialationList,
-          /*ceil_mode=*/constantFalse);
-      rewriter.replaceOp(op, maxPool.getResults());
-    }
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-// Decompose `aten.adaptive_avg_pool1d` op into `aten.avg_pool1d` op.
-
-// The logic of this decomposition is totally same with
-// the DecomposeAtenAdaptiveAvgPool2dOp, that means currently only following two
-// cases are supported:
+// or `aten.max_pool1d`.
+//
+// Only following two cases are supported:
 //  1. inputSize = outputSize
 //  2. outputSize = 1
-class DecomposeAtenAdaptiveAvgPool1dOp
-    : public OpRewritePattern<AtenAdaptiveAvgPool1dOp> {
-  using OpRewritePattern<AtenAdaptiveAvgPool1dOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenAdaptiveAvgPool1dOp op,
+template <typename AtenOpT>
+class DecomposeAtenAdaptivePool1dOp : public OpRewritePattern<AtenOpT> {
+  using OpRewritePattern<AtenOpT>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenOpT op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
     MLIRContext *context = op.getContext();
@@ -7311,11 +7223,10 @@ class DecomposeAtenAdaptiveAvgPool1dOp
     unsigned rank = *maybeRank;
     Value sizeDim = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(rank - 1));
-    Value inputSize = rewriter.create<AtenSizeIntOp>(loc, input, sizeDim);
+    Value inputSize = rewriter.createOrFold<AtenSizeIntOp>(loc, input, sizeDim);
 
-    Value outputShape = op.getOutputSize();
     SmallVector<Value> outputShapeSizesTorchInt;
-    getListConstructElements(outputShape, outputShapeSizesTorchInt);
+    getListConstructElements(op.getOutputSize(), outputShapeSizesTorchInt);
     Value outputSize = outputShapeSizesTorchInt[0];
 
     Value constantOne = rewriter.create<Torch::ConstantIntOp>(
@@ -7328,18 +7239,12 @@ class DecomposeAtenAdaptiveAvgPool1dOp
     int64_t outputSizeInt;
     if (!matchPattern(outputSize, m_TorchConstantInt(&outputSizeInt))) {
       return rewriter.notifyMatchFailure(
-          op, "the output size of adaptive_pool_1d must be a constant int");
+          op, "the output size of adaptive pool1d must be a constant int");
     }
 
     SmallVector<Value, 1> kernelSize;
     if (outputSizeInt == 1) {
-      BaseTensorType inputTensorType = cast<BaseTensorType>(input.getType());
-      ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
-      kernelSize.push_back(
-          inputShape[rank - 1] == kUnknownSize
-              ? inputSize
-              : rewriter.create<Torch::ConstantIntOp>(
-                    loc, rewriter.getI64IntegerAttr(inputShape[rank - 1])));
+      kernelSize.push_back(inputSize);
     } else {
       if (!isAssumingStrictSymbolicShapes(rewriter)) {
         Value cond = rewriter.create<AtenEqIntOp>(loc, inputSize, outputSize);
@@ -7360,16 +7265,40 @@ class DecomposeAtenAdaptiveAvgPool1dOp
         loc, Torch::ListType::get(Torch::IntType::get(context)),
         ValueRange{constantZero});
 
-    rewriter.replaceOpWithNewOp<AtenAvgPool1dOp>(
-        op, op.getType(), input, kernelSizeList, strideList, paddingSizeList,
-        /*ceil_mode=*/constantFalse, /*count_include_pad=*/constantTrue);
-    return success();
+    if constexpr (std::is_same_v<AtenAdaptiveAvgPool1dOp, AtenOpT>) {
+      rewriter.replaceOpWithNewOp<AtenAvgPool1dOp>(
+          op, op.getType(), input, kernelSizeList, strideList, paddingSizeList,
+          /*ceil_mode=*/constantFalse, /*count_include_pad=*/constantTrue);
+      return success();
+    } else if constexpr (std::is_same_v<AtenAdaptiveMaxPool1dOp, AtenOpT>) {
+      Value dilationList = rewriter.create<PrimListConstructOp>(
+          loc, Torch::ListType::get(Torch::IntType::get(context)),
+          ValueRange{constantOne});
+      if (op.getResult(1).use_empty()) {
+        auto maxPool = rewriter.create<AtenMaxPool1dOp>(
+            loc, op.getType(0), input, kernelSizeList, strideList,
+            paddingSizeList, dilationList,
+            /*ceil_mode=*/constantFalse);
+        rewriter.replaceOp(op, {maxPool.getResult(), Value()});
+      } else {
+        auto maxPool = rewriter.create<AtenMaxPool1dWithIndicesOp>(
+            loc, op.getType(0), op.getType(1), input, kernelSizeList,
+            strideList, paddingSizeList, dilationList,
+            /*ceil_mode=*/constantFalse);
+        rewriter.replaceOp(op, maxPool.getResults());
+      }
+      return success();
+    }
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: unsupported template op");
   }
 };
 } // namespace
 
 namespace {
-// Decompose `aten.adaptiveAvgPool2d` op into `aten.avgPool2d` op.
+// Decompose `aten.adaptive_avg_pool2d` op into `aten.avg_pool2d` op.
+// Decompose `aten.adaptive_max_pool2d` op into `aten.max_pool2d` or
+// `aten.max_pool2d_with_indices` op.
 //
 // For AdaptiveAvgPool2d op, when the input size is an integer multiple of
 // output size the kernelSize, stride and padding is calculated as follows:
@@ -7379,10 +7308,10 @@ namespace {
 // kernelW = inW - [(outW - 1) * strideW] = strideW
 // paddingH = 0, paddingW = 0
 //
-class DecomposeAtenAdaptiveAvgPool2dOp
-    : public OpRewritePattern<AtenAdaptiveAvgPool2dOp> {
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenAdaptiveAvgPool2dOp op,
+template <typename AtenOpT>
+class DecomposeAtenAdaptivePool2dOp : public OpRewritePattern<AtenOpT> {
+  using OpRewritePattern<AtenOpT>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenOpT op,
                                 PatternRewriter &rewriter) const override {
 
     Location loc = op.getLoc();
@@ -7398,15 +7327,14 @@ class DecomposeAtenAdaptiveAvgPool2dOp
     Value dimH = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(rank - 2));
     inputHW.push_back(
-        /*inH=*/rewriter.create<AtenSizeIntOp>(loc, input, dimH));
+        /*inH=*/rewriter.createOrFold<AtenSizeIntOp>(loc, input, dimH));
     Value dimW = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(rank - 1));
     inputHW.push_back(
-        /*inW=*/rewriter.create<AtenSizeIntOp>(loc, input, dimW));
+        /*inW=*/rewriter.createOrFold<AtenSizeIntOp>(loc, input, dimW));
 
-    Value outputShape = op.getOutputSize();
     SmallVector<Value> outputShapeSizesTorchInt;
-    getListConstructElements(outputShape, outputShapeSizesTorchInt);
+    getListConstructElements(op.getOutputSize(), outputShapeSizesTorchInt);
 
     // TODO: Add support for cases other than:
     // inH % outH != 0 or inW % outW != 0 where
@@ -7487,11 +7415,32 @@ class DecomposeAtenAdaptiveAvgPool2dOp
         loc, Torch::ListType::get(Torch::IntType::get(context)),
         ValueRange{constantZero, constantZero});
 
-    rewriter.replaceOpWithNewOp<AtenAvgPool2dOp>(
-        op, op.getType(), input, kernelSizeList, strideList, paddingSizeList,
-        /*ceilMode=*/constantFalse, /*countIncludePad=*/constantTrue,
-        /*divisorOverride=*/constantNone);
-    return success();
+    if constexpr (std::is_same_v<AtenOpT, AtenAdaptiveAvgPool2dOp>) {
+      rewriter.replaceOpWithNewOp<AtenAvgPool2dOp>(
+          op, op.getType(), input, kernelSizeList, strideList, paddingSizeList,
+          /*ceilMode=*/constantFalse, /*countIncludePad=*/constantTrue,
+          /*divisorOverride=*/constantNone);
+      return success();
+    } else if constexpr (std::is_same_v<AtenOpT, AtenAdaptiveMaxPool2dOp>) {
+      Value dilationList = rewriter.create<PrimListConstructOp>(
+          loc, Torch::ListType::get(Torch::IntType::get(context)),
+          ValueRange{constantOne, constantOne});
+      if (op.getResult(1).use_empty()) {
+        auto maxPool = rewriter.create<AtenMaxPool2dOp>(
+            loc, op.getType(0), input, kernelSizeList, strideList,
+            paddingSizeList, dilationList, /*ceil_mode=*/constantFalse);
+        rewriter.replaceOp(op, {maxPool.getResult(), Value()});
+      } else {
+        auto maxPool = rewriter.create<AtenMaxPool2dWithIndicesOp>(
+            loc, op.getType(0), op.getType(1), input, kernelSizeList,
+            strideList, paddingSizeList, dilationList,
+            /*ceil_mode=*/constantFalse);
+        rewriter.replaceOp(op, maxPool.getResults());
+      }
+      return success();
+    }
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: unsupported template op");
   }
 };
 } // namespace
@@ -10542,9 +10491,14 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDtypeLayoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDeviceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToPrimDeviceOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveMaxPool1dOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool1dOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenAdaptiveAvgPool2dOp>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenAdaptivePool1dOp<AtenAdaptiveMaxPool1dOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenAdaptivePool1dOp<AtenAdaptiveAvgPool1dOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenAdaptivePool2dOp<AtenAdaptiveMaxPool2dOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenAdaptivePool2dOp<AtenAdaptiveAvgPool2dOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);

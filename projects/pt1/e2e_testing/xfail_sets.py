@@ -2380,6 +2380,7 @@ ONNX_XFAIL_SET = {
     "AdaptiveMaxPool2dDynamicNoBatch_basic",
     "AdaptiveMaxPool2dDynamicWithIndices_basic",
     "AdaptiveMaxPool2dDynamic_basic",
+    "AdaptiveMaxPool2dFixedKernelStrideSizeStaticModule_basic",
     "AdaptiveMaxPool2dStaticWithIndices_basic",
     "AdaptiveMaxPool2dStatic_basic",
     "AdaptiveMaxPool3dDynamicNoBatch_basic",

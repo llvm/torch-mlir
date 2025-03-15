@@ -192,33 +192,6 @@ class ExampleArgs:
         return result
 
 
-# The set of ops that are considered legal for each backend.
-# These are currently quite load-bearing, since different backends might be
-# missing patterns for decomposed forms of certain ops.
-# TODO: Tighten up the definition of these "conditionally legal for backends"
-# ops in the backend contract, and move these lists somewhere deeper in the
-# compiler where each backend can "own" its set of legal ops.
-BACKEND_LEGAL_OPS = {
-    OutputType.TOSA: [
-        "aten.flatten.using_ints",
-        "aten.native_layer_norm",
-        "aten.linear",
-    ],
-    OutputType.LINALG_ON_TENSORS: [
-        "aten.flatten.using_ints",
-        "aten.adaptive_avg_pool1d",
-        "aten.adaptive_avg_pool2d",
-        "aten.unflatten.int",
-    ],
-    OutputType.STABLEHLO: [
-        "aten.amax",
-        "aten.amin",
-        "aten.randn.generator",
-        "aten.normal_functional",
-    ],
-}
-
-
 def _canon_extra_library(
     extra_library, extra_library_file_name="custom_op_extra_library.mlir"
 ):
@@ -295,19 +268,10 @@ def compile(
     if ignore_traced_shapes and not use_tracing:
         raise Exception("`ignore_traced_shapes` requires `use_tracing`")
 
-    # We only allow `backend_legal_ops` to be specified for the `"torch"`
-    # output type because the other output types actually invoke their
-    # respective backends (Linalg, TOSA, or STABLEHLO), and those backends have
-    # very specific requirements about the ops which are legal.
-    # See `BACKEND_LEGAL_OPS` for more details.
     if backend_legal_ops is not None:
-        if output_type != OutputType.TORCH:
-            raise Exception(
-                "`backend_legal_ops` is only valid with the " "`torch` output type"
-            )
         backend_legal_ops = list(sorted(set(backend_legal_ops)))
     else:
-        backend_legal_ops = BACKEND_LEGAL_OPS.get(output_type, [])
+        backend_legal_ops = []
 
     # For FX-based models, automatically strip overloads.
     if isinstance(model, torch.fx.GraphModule):
