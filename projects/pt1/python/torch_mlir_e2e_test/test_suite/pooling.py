@@ -2107,6 +2107,52 @@ def AdaptiveMaxPool2dStaticWithIndices_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 512, 10, 16))
 
 
+class AdaptiveMaxPool2dFixedKernelStrideSizeStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.amp2d = torch.nn.AdaptiveMaxPool2d((2, 2))
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 3, 7, 7], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.amp2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AdaptiveMaxPool2dFixedKernelStrideSizeStaticModule()
+)
+def AdaptiveMaxPool2dFixedKernelStrideSizeStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3, 7, 7))
+
+
+class AdaptiveMaxPool2dUnitOutputSizeStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.amp2d = torch.nn.AdaptiveMaxPool2d((1, 1))
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 512, 7, 7], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.amp2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AdaptiveMaxPool2dUnitOutputSizeStaticModule()
+)
+def AdaptiveMaxPool2dUnitOutputSizeStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 512, 7, 7))
+
+
 # AdaptiveMaxPool3d
 
 
