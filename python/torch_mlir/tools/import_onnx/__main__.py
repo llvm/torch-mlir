@@ -86,15 +86,19 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
         raw_model = onnx.load(args.input_file, load_external_data=False)
         onnx.load_external_data_for_model(raw_model, str(args.data_dir))
 
+    raw_model_modified = False
+
     if args.opset_version:
         raw_model = onnx.version_converter.convert_version(
             raw_model, args.opset_version
         )
+        raw_model_modified = True
 
     if args.clear_domain:
         graph = raw_model.graph
         for n in graph.node:
             n.ClearField("domain")
+        raw_model_modified = True
 
     # Run the checker to test whether the file is above the threshold for
     # in-memory shape inference.  If not, go ahead and do the shape inference.
@@ -119,12 +123,15 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
 
     # Model is too big for in-memory inference: do file-based shape inference
     # to a temp file.
-    # First need to save as model might have been changed (e.g. version conversion).
-    temp_raw_file = temp_dir / "raw.onnx"
+    # First need to save as model when it has been changed (e.g. version conversion).
+    if raw_model_modified:
+        temp_raw_file = temp_dir / "raw.onnx"
+        onnx.save(raw_model, temp_raw_file, save_as_external_data=True)
     temp_inferred_file = temp_dir / "inferred.onnx"
-    onnx.save(raw_model, temp_raw_file, save_as_external_data=False)
     onnx.shape_inference.infer_shapes_path(
-        temp_raw_file, temp_inferred_file, data_prop=args.data_prop
+        temp_raw_file if raw_model_modified else args.input_file,
+        temp_inferred_file,
+        data_prop=args.data_prop,
     )
 
     # Sanity check the shape-inferred model to be sure we have a good model

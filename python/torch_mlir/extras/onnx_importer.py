@@ -643,7 +643,9 @@ class ContextCache:
         tt = tp.tensor_type
         if tt.elem_type:
             element_type = self.tensor_element_type(tt.elem_type)
-            dims = tuple((d.dim_value if d.dim_value else None) for d in tt.shape.dim)
+            dims = tuple(
+                (d.dim_value if d.HasField("dim_value") else None) for d in tt.shape.dim
+            )
             shape_asm = ",".join("?" if d is None else str(d) for d in dims)
             return f"vtensor<[{shape_asm}],{element_type}>"
 
@@ -654,7 +656,9 @@ class ContextCache:
         tt = tp.tensor_type
         if tt.elem_type:
             element_type = self.tensor_element_type(tt.elem_type)
-            dims = tuple((d.dim_value if d.dim_value else None) for d in tt.shape.dim)
+            dims = tuple(
+                (d.dim_value if d.HasField("dim_value") else None) for d in tt.shape.dim
+            )
             shape_asm = ",".join("?" if d is None else str(d) for d in dims)
             return f"vtensor<[{shape_asm}],{element_type}>"
 
@@ -711,11 +715,12 @@ class ContextCache:
                 )
             element_type = self.tensor_element_type(tt.elem_type)
             dims = tuple(
-                # NOTE: dynamic dimension can either be denoted by d.dim_param being set or
+                # NOTE: dynamic dimension can either be denoted by d.dim_param being set
+                #       (and d.dim_value consequently not set) or
                 #       by neither d.dim_value nor d.dim_param being set. Also note that
                 #       d.dim_value being 0 corresponds to the protobuf default when the field
                 #       is not set.
-                d.dim_value if d.dim_value else None
+                d.dim_value if d.HasField("dim_value") else None
                 for d in tt.shape.dim
             )
             return self.get_vtensor_type(dims, element_type)
