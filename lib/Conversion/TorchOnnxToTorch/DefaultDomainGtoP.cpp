@@ -376,7 +376,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // primLoopOp loopBody expects torch.int as first arg
         // insert torch.int arg in loop body, convert to tensor,
         // replace all uses of old arg, delete old arg.
-        auto loopVarArg = loop.getRegion().front().getArgument(0);
+        auto loopVar = loop.getRegion().front().getArgument(0);
         // insert new Arg
         loop.getRegion().front().insertArgument(
             0U, rewriter.getType<Torch::IntType>(), binder.getLoc());
@@ -384,12 +384,17 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // convert int arg to tensor of original Type
         rewriter.setInsertionPointToStart(&loop.getRegion().front());
-        Value loopVarVal = BlockArgument::Value(loopVarArg);
-        auto newTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
-            loop.getRegion().op_begin()->getLoc(), loopVarVal.getType(),
-            newLoopVarArg);
+        auto loopVarType = dyn_cast<Torch::BaseTensorType>(loopVar.getType());
+        if (!loopVarType || !loopVarType.areAllSizesKnown())
+          return rewriter.notifyMatchFailure(
+              loopVar.getLoc(),
+              "loop iteration value must be a tensor with known sizes");
+        Value sizes = Torch::toIntListConstruct(rewriter, loopVar.getLoc(),
+                                                loopVarType.getSizes());
+        auto newTensor = torch::Torch::createInitTensor(
+            rewriter, loopVar.getLoc(), loopVarType, newLoopVarArg, sizes);
 
-        loopVarArg.replaceAllUsesWith(newTensor);
+        loopVar.replaceAllUsesWith(newTensor);
         loop.getRegion().eraseArgument(1);
 
         // primLoopOp loopBody has no condition arg
