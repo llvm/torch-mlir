@@ -817,6 +817,54 @@ func.func @test_dequantizelinear_fp8(%arg0: !torch.vtensor<[6],f8E4M3FN>, %arg1:
 
 // -----
 
+// CHECK-LABEL: @test_dequantizelinear_per_channel_si8
+func.func @test_dequantizelinear_per_channel_si8(%arg0: !torch.vtensor<[4,3,7,7],si8>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4],si8>) -> !torch.vtensor<[4,3,7,7],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK: %[[AXIS:.+]] = torch.constant.int 1
+  // CHECK: %[[MAKE:.+]] = torch.aten._make_per_channel_quantized_tensor %arg0, %arg1, %arg2, %[[AXIS]]
+  // CHECK: %[[DEQ:.+]] = torch.aten.dequantize.self %[[MAKE]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) {torch.onnx.axis = 1 : si64} : (!torch.vtensor<[4,3,7,7],si8>, !torch.vtensor<[4],f32>, !torch.vtensor<[4],si8>) -> !torch.vtensor<[4,3,7,7],f32>
+  // CHECK: return %[[DEQ]]
+  return %0: !torch.vtensor<[4,3,7,7],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_dequantizelinear_per_channel_ui8
+func.func @test_dequantizelinear_per_channel_ui8(%arg0: !torch.vtensor<[4,3,7,7],ui8>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[4,3,7,7],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK: %[[AXIS:.+]] = torch.constant.int 1
+  // CHECK: %[[MAKE:.+]] = torch.aten._make_per_channel_quantized_tensor %arg0, %arg1, %arg2, %[[AXIS]]
+  // CHECK: %[[DEQ:.+]] = torch.aten.dequantize.self %[[MAKE]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) {torch.onnx.axis = 1 : si64} : (!torch.vtensor<[4,3,7,7],ui8>, !torch.vtensor<[4],f32>, !torch.vtensor<[4],ui8>) -> !torch.vtensor<[4,3,7,7],f32>
+  // CHECK: return %[[DEQ]]
+  return %0: !torch.vtensor<[4,3,7,7],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_dequantizelinear_per_channel_si16
+func.func @test_dequantizelinear_per_channel_si16(%arg0: !torch.vtensor<[4,3,7,7],si16>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4],si16>) -> !torch.vtensor<[4,3,7,7],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK: %[[AXIS:.+]] = torch.constant.int 1
+  // CHECK: %[[MAKE:.+]] = torch.aten._make_per_channel_quantized_tensor %arg0, %arg1, %arg2, %[[AXIS]]
+  // CHECK: %[[DEQ:.+]] = torch.aten.dequantize.self %[[MAKE]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) {torch.onnx.axis = 1 : si64} : (!torch.vtensor<[4,3,7,7],si16>, !torch.vtensor<[4],f32>, !torch.vtensor<[4],si16>) -> !torch.vtensor<[4,3,7,7],f32>
+  // CHECK: return %[[DEQ]]
+  return %0: !torch.vtensor<[4,3,7,7],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_dequantizelinear_per_channel_si32
+func.func @test_dequantizelinear_per_channel_si32(%arg0: !torch.vtensor<[4,3,7,7],si32>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4],si32>) -> !torch.vtensor<[4,3,7,7],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK: %[[AXIS:.+]] = torch.constant.int 1
+  // CHECK: %[[MAKE:.+]] = torch.aten._make_per_channel_quantized_tensor %arg0, %arg1, %arg2, %[[AXIS]]
+  // CHECK: %[[DEQ:.+]] = torch.aten.dequantize.self %[[MAKE]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) {torch.onnx.axis = 1 : si64} : (!torch.vtensor<[4,3,7,7],si32>, !torch.vtensor<[4],f32>, !torch.vtensor<[4],si32>) -> !torch.vtensor<[4,3,7,7],f32>
+  // CHECK: return %[[DEQ]]
+  return %0: !torch.vtensor<[4,3,7,7],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @test_div_bcast
 func.func @test_div_bcast(%arg0: !torch.vtensor<[3,4,5],f32>, %arg1: !torch.vtensor<[5],f32>) -> !torch.vtensor<[3,4,5],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 14 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: torch.aten.div.Tensor %arg0, %arg1 : !torch.vtensor<[3,4,5],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor<[3,4,5],f32>
