@@ -918,3 +918,27 @@ class AtenLinalgCrossDynamic(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenLinalgCrossDynamic())
 def AtenLinalgCrossDynamic_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 3, 1, 6), tu.rand(4, 3, 7, 1))
+
+
+# ==============================================================================
+
+
+class AtenOuter(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.outer(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: AtenOuter())
+def AtenOuter_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3), tu.rand(3))

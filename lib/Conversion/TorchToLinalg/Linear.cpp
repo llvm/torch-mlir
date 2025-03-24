@@ -1760,136 +1760,75 @@ struct ConvertAtenFftRfftOp final : OpConversionPattern<AtenFftRfftOp> {
 } // namespace
 
 namespace {
-  class ConvertAtenOuterOp : public OpConversionPattern<AtenOuterOp> {
-  public:
-    using OpConversionPattern::OpConversionPattern;
-    LogicalResult
-    matchAndRewrite(AtenOuterOp op, OpAdaptor adaptor,
-                    ConversionPatternRewriter &rewriter) const override {
+class ConvertAtenOuterOp : public OpConversionPattern<AtenOuterOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenOuterOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
 
-      Location loc = op->getLoc();
-      Value lhs = adaptor.getSelf();
-      Value rhs = op->getOperand(1);
-  
-      if (failed(verifyLinalgCompatibleTypes(op, rewriter))) {
-        return failure();
-      }
-      auto lhsType = cast<RankedTensorType>(lhs.getType());
-      auto rhsType = cast<RankedTensorType>(rhs.getType());
-  
-      auto lhsTorchType = cast<ValueTensorType>(op.getSelf().getType());
-      auto rhsTorchType = cast<ValueTensorType>(op.getOperand(1).getType());
-  
-      // Get the rank of both matrix.
-      unsigned lhsRank = lhsType.getRank();
-      unsigned rhsRank = rhsType.getRank();
-  
-      Value lhsZeroPoint, rhsZeroPoint;
-      getZeroPoint(op.getSelf(), lhsZeroPoint);
-      getZeroPoint(op.getOperand(1), rhsZeroPoint);
-  
-      if (static_cast<bool>(lhsZeroPoint) != static_cast<bool>(rhsZeroPoint)) {
-        return rewriter.notifyMatchFailure(
-            op, "unsupported: aten.outer with mixed quantization");
-      }
-  
-      bool isUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
-      bool isUnsignedR = torch_to_linalg::isUnsignedTorchType(rhsTorchType);
-  
-      if (!lhsZeroPoint && lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
-        // Allows quantized types to mismatch
-        return rewriter.notifyMatchFailure(
-            op, "unsupported: aten.outer with different input element types");
-      }
-  
-      Type newResultType = getTypeConverter()->convertType(op.getType());
-      auto resultType = cast<RankedTensorType>(newResultType);
-      Type elementType = resultType.getElementType();
-      
-      // Quantized case
-      if (lhsZeroPoint) {
-        // get each zero point ready to pass to a quantized_matmul
-        lhsZeroPoint = typeConverter->materializeTargetConversion(
-            rewriter, loc,
-            getTypeConverter()->convertType(lhsZeroPoint.getType()),
-            lhsZeroPoint);
-        rhsZeroPoint = typeConverter->materializeTargetConversion(
-            rewriter, loc,
-            getTypeConverter()->convertType(rhsZeroPoint.getType()),
-            rhsZeroPoint);
-        lhsZeroPoint = rewriter.create<arith::TruncIOp>(
-            loc, rewriter.getI32Type(), lhsZeroPoint);
-        rhsZeroPoint = rewriter.create<arith::TruncIOp>(
-            loc, rewriter.getI32Type(), rhsZeroPoint);
-  
-        // change uint8 quantization -> int8 quantization
-        int64_t numBits =
-            cast<mlir::IntegerType>(lhsType.getElementType()).getWidth();
-        signShift(rewriter, loc, lhs, lhsZeroPoint, isUnsigned, numBits);
-        numBits = cast<mlir::IntegerType>(rhsType.getElementType()).getWidth();
-        signShift(rewriter, loc, rhs, rhsZeroPoint, isUnsignedR, numBits);
-  
-        if (lhsRank == 1 && rhsRank == 1) {
-          int64_t lhsDim = lhsType.getShape()[0];
-          int64_t rhsDim = rhsType.getShape()[0];
+    Location loc = op->getLoc();
+    Value lhs = adaptor.getSelf();
+    Value rhs = op->getOperand(1);
 
-          // Unsqueeze: lhs: [n] -> [n, 1] and rhs: [m] -> [1, m]
-          auto lhsUnsqueezeType = RankedTensorType::get({lhsDim, 1}, lhsType.getElementType());
-          auto rhsUnsqueezeType = RankedTensorType::get({1, rhsDim}, rhsType.getElementType());
-          SmallVector<ReassociationIndices> reassociation = {{0, 1}};
-          lhs = rewriter.create<tensor::ExpandShapeOp>(loc, lhsUnsqueezeType, lhs, reassociation);
-          rhs = rewriter.create<tensor::ExpandShapeOp>(loc, rhsUnsqueezeType, rhs, reassociation);
-
-          // Create a zero tensor with shape [lhsDim, rhsDim] for the accumulator.
-          Value lhsDimVal = rewriter.create<tensor::DimOp>(loc, lhs, 0);
-          Value rhsDimVal = rewriter.create<tensor::DimOp>(loc, rhs, 1);
-          Value zeroTensor = createZeroInitTensor(rewriter, loc,
-                                                  ValueRange{lhsDimVal, rhsDimVal},
-                                                  elementType);
-
-          // Use the quantized version of matmul.
-          Value outerProd = rewriter.create<linalg::QuantizedMatmulOp>(
-              loc, zeroTensor.getType(),
-              ValueRange{lhs, rhs, lhsZeroPoint, rhsZeroPoint},
-              zeroTensor).getResult(0);
-
-          rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, outerProd);
-          return success();
-        }
-        return rewriter.notifyMatchFailure(op, "unsupported: quantized aten.outer op case");
-      }
-  
-  
-      // Non Quantized Outter Product
-      if (lhsRank == 1 && rhsRank == 1) {
-        int64_t lhsDim = lhsType.getShape()[0];
-        int64_t rhsDim = rhsType.getShape()[0];
-
-        // Unsqueeze: lhs from [n] -> [n, 1] and rhs from [m] -> [1, m]
-        auto lhsUnsqueezeType = RankedTensorType::get({lhsDim, 1}, lhsType.getElementType());
-        auto rhsUnsqueezeType = RankedTensorType::get({1, rhsDim}, rhsType.getElementType());
-        SmallVector<ReassociationIndices> reassociation = {{0, 1}};
-        lhs = rewriter.create<tensor::ExpandShapeOp>(loc, lhsUnsqueezeType, lhs, reassociation);
-        rhs = rewriter.create<tensor::ExpandShapeOp>(loc, rhsUnsqueezeType, rhs, reassociation);
-
-        // Create a zero-initialized tensor with shape [lhsDim, rhsDim]
-        Value lhsDimVal = rewriter.create<tensor::DimOp>(loc, lhs, 0);
-        Value rhsDimVal = rewriter.create<tensor::DimOp>(loc, rhs, 1);
-        Value zeroTensor = createZeroInitTensor(rewriter, loc,
-                                                ValueRange{lhsDimVal, rhsDimVal},
-                                                elementType);
-
-        // Use linalg::MatmulOp to compute the outer product.
-        Value outerProd = rewriter.create<linalg::MatmulOp>(
-            loc, zeroTensor.getType(), ValueRange{lhs, rhs}, zeroTensor).getResult(0);
-
-        rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, outerProd);
-        return success();
-      }
-    
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter))) {
       return failure();
     }
-  };
+    auto lhsType = cast<RankedTensorType>(lhs.getType());
+    auto rhsType = cast<RankedTensorType>(rhs.getType());
+
+    if (!lhsType || !rhsType)
+      return rewriter.notifyMatchFailure(op,
+                                         "outer: expected ranked tensor types");
+    if (lhsType.getRank() != 1 || rhsType.getRank() != 1)
+      return rewriter.notifyMatchFailure(
+          op, "outer: expected 1D tensors for outer op lowering");
+
+    Value lhsDim = getDimOp(rewriter, loc, lhs, 1);
+    Value rhsDim = getDimOp(rewriter, loc, rhs, 1);
+    Type elementType = lhsType.getElementType();
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+
+    // Create a zero-initialized tensor with shape [lhsDim, rhsDim]
+    Value zeroTensor = createZeroInitTensor(
+        rewriter, loc, ValueRange{lhsDim, rhsDim}, elementType);
+    
+        // Set up affine indexing maps:
+    // We create a 2D loop iteration space. For the lhs, we use the first index
+    // (i), for the rhs, the second index (j), and for the result, both (i, j).
+    AffineMap mapLhs =
+        AffineMap::get(2, /*symbolCount=*/0, {rewriter.getAffineDimExpr(0)},
+                       rewriter.getContext());
+    AffineMap mapRhs =
+        AffineMap::get(2, /*symbolCount=*/0, {rewriter.getAffineDimExpr(1)},
+                       rewriter.getContext());
+    AffineMap mapOut =
+        AffineMap::getMultiDimIdentityMap(2, rewriter.getContext());
+
+    SmallVector<utils::IteratorType, 2> iteratorTypes = {
+        utils::IteratorType::parallel, utils::IteratorType::parallel};
+
+    Value outerProd =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, zeroTensor.getType(),
+                /*inputs=*/ValueRange{lhsDim, rhsDim},
+                /*outputs=*/zeroTensor,
+                /*indexingMaps=*/
+                SmallVector<AffineMap, 3>{mapLhs, mapRhs, mapOut},
+                /*iteratortType=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value lhsElem = args[0];
+                  Value rhsElem = args[1];
+                  Value mult = b.create<arith::MulFOp>(loc, lhsElem, rhsElem);
+                  b.create<linalg::YieldOp>(loc, mult);
+                })
+            .getResult(0);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, outerProd);
+    return success();
+  }
+};
 } // namespace
 
 void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
