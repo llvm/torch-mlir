@@ -22,7 +22,7 @@ concurrency:
 jobs:
   ubuntu-build:
     name: ubuntu-x86_64
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Prepare workspace
@@ -32,7 +32,7 @@ jobs:
           sudo rm -rf $GITHUB_WORKSPACE/*
 
       - name: Checkout torch-mlir
-        uses: actions/checkout@v3
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: 'true'
 
@@ -40,7 +40,7 @@ jobs:
       # restore to avoid the cache going stale over time
       # https://github.com/actions/cache/blob/main/workarounds.md#update-a-cache
       - name: Setup cache for bazel
-        uses: actions/cache@v3
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: ~/.cache/bazel
           key: torch_mlir-bazel-build-cache-${{ runner.os }}-${{ github.sha }}
@@ -102,7 +102,7 @@ jobs:
 
       - name: Send mail
         if: failure()
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@611879133a9569642c41be66f4a323286e9b8a3b # v4
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
           server_port: ${{ secrets.SMTP_PORT }}

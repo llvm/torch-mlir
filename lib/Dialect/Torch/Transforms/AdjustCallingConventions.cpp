@@ -26,6 +26,15 @@ using namespace mlir::torch::Torch;
 using TypeBoundMap = DenseMap<std::pair<StringRef, int>, Type>;
 
 namespace {
+
+Value materializeAsCopyTensorToType(OpBuilder &builder,
+                                    Torch::BaseTensorType type,
+                                    ValueRange inputs, Location loc) {
+  assert(inputs.size() == 1);
+  assert(isa<BaseTensorType>(inputs[0].getType()));
+  return copyTensorToType(builder, loc, type, inputs[0]);
+}
+
 class AdjustCallingConventionForFunc
     : public OpConversionPattern<func::FuncOp> {
 public:
@@ -155,27 +164,51 @@ class AdjustCallingConventionForReturn
 public:
   using OpConversionPattern::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(func::ReturnOp op, OpAdaptor adaptor,
+  matchAndRewrite(func::ReturnOp op, OneToNOpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-
     SmallVector<Value> newOperands;
-    for (auto operand : adaptor.getOperands()) {
-      if (!operand)
-        continue;
-      if (isa<Torch::NoneType>(operand.getType()))
-        continue;
-      if (auto tuple = dyn_cast<Torch::TupleType>(operand.getType())) {
-        Location loc = op.getLoc();
-        for (auto en : llvm::enumerate(tuple.getContainedTypes())) {
-          auto i = rewriter.create<ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(en.index()));
-          newOperands.push_back(
-              rewriter.create<PrimTupleIndexOp>(loc, en.value(), operand, i));
+    for (const auto &vals : adaptor.getOperands()) {
+      if (vals.size() == 1) {
+        if (isa<Torch::NoneType>(vals[0].getType()))
+          continue;
+        newOperands.push_back(vals[0]);
+      } else if (vals.size() > 1) {
+        // The dialect conversion framework inserts unrealized conversion casts
+        // to materialize legal types from illegal types. For example, for input
+        // IR like
+        //   %1 = torch.prim.TupleConstruct %arg0, %arg1 : !torch.tensor,
+        //        torch.tensor -> !torch.tuple<tensor, tensor>
+        //   return %1 : !torch.tuple<tensor, tensor>
+        // at this stage in the conversion process we'll have something like
+        //   %1 = torch.prim.TupleConstruct %arg0, %arg1 : !torch.tensor,
+        //        !torch.tensor -> !torch.tuple<tensor, tensor>
+        //   %2 = builtin.unrealized_conversion_cast %1 :
+        //        !torch.tuple<tensor, tensor> to !torch.tensor
+        //   %3 = builtin.unrealized_conversion_cast %1 :
+        //        !torch.tuple<tensor, tensor> to !torch.tensor
+        //   return %2, %3 : !torch.tensor, !torch.tensor
+        //
+        //  Given (%2, %3) as operands, here we map back to the original
+        //  torch.prim.TupleConstruct.
+        if (vals[0].getDefiningOp() &&
+            isa<mlir::UnrealizedConversionCastOp>(vals[0].getDefiningOp())) {
+          Value operand = vals[0].getDefiningOp()->getOperand(0);
+          if (auto tuple = dyn_cast<Torch::TupleType>(operand.getType())) {
+            Location loc = op.getLoc();
+            for (auto en : llvm::enumerate(tuple.getContainedTypes())) {
+              auto i = rewriter.create<ConstantIntOp>(
+                  loc, rewriter.getI64IntegerAttr(en.index()));
+              newOperands.push_back(rewriter.create<PrimTupleIndexOp>(
+                  loc, en.value(), operand, i));
+            }
+            continue;
+          }
         }
-        continue;
+
+        llvm::append_range(newOperands, vals);
       }
-      newOperands.push_back(operand);
     }
+
     rewriter.replaceOpWithNewOp<func::ReturnOp>(op, newOperands);
     return success();
   }
@@ -198,13 +231,9 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
         return success();
       });
 
-  typeConverter.addArgumentMaterialization(
-      [](OpBuilder &builder, Torch::BaseTensorType type, ValueRange inputs,
-         Location loc) -> Value {
-        assert(inputs.size() == 1);
-        assert(isa<BaseTensorType>(inputs[0].getType()));
-        return copyTensorToType(builder, loc, type, inputs[0]);
-      });
+  typeConverter.addArgumentMaterialization(materializeAsCopyTensorToType);
+  typeConverter.addSourceMaterialization(materializeAsCopyTensorToType);
+  typeConverter.addTargetMaterialization(materializeAsCopyTensorToType);
   patterns.add<AdjustCallingConventionForFunc>(typeConverter, context);
   patterns.add<AdjustCallingConventionForCall>(typeConverter, context,
                                                typeBoundMap);

@@ -97,6 +97,15 @@ Value toPositiveValidDim(ConversionPatternRewriter &rewriter, Location loc,
                          Value torchOptionalInt, Value builtinInt,
                          Value defaultValue, Value dimSize);
 
+// Helper function to unsqueeze the input tensor at given dim.
+// Returns the unsqueezed tensor or failure.
+FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
+                                 Value input, int64_t dim);
+
+// Helper function to squeeze the input tensor at given dim.
+// Returns the squeezed tensor or failure.
+FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
+                               Value input, int64_t dim);
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

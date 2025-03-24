@@ -21,10 +21,12 @@
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
 #include <numeric>
+#include <string>
 #include <type_traits>
 
 using namespace mlir;
@@ -549,7 +551,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (isa<AtenLogicalOrOp, AtenLogicalAndOp, AtenLogicalXorOp>(op)) {
     MLIRContext *context = op->getContext();
-    Type floatDtype = mlir::FloatType::getF64(context);
+    Type floatDtype = mlir::Float64Type::get(context);
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], floatDtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], floatDtype);
     Value zero =
@@ -569,7 +571,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (isa<AtenLogicalNotOp>(op)) {
     MLIRContext *context = op->getContext();
-    Type floatDtype = mlir::FloatType::getF64(context);
+    Type floatDtype = mlir::Float64Type::get(context);
     Value self = convertScalarToDtype(b, loc, payloadArgs[0], floatDtype);
     Value zero =
         b.create<arith::ConstantOp>(loc, b.getFloatAttr(floatDtype, 0));
@@ -1010,6 +1012,15 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       pow.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
+    Value exp = operands[1];
+    Type expType = exp.getType();
+    if (!expType.isIntOrFloat()) {
+      pow.emitError("unimplemented: exp type neither float nor int");
+      return nullptr;
+    }
+    if (isa<mlir::IntegerType>(expType)) {
+      return b.create<math::FPowIOp>(loc, payloadArgs[0], exp);
+    }
     Type dtype = cast<ValueTensorType>(pow.getSelf().getType()).getDtype();
     Value expPromoted = convertScalarToDtype(b, loc, operands[1], dtype);
     return b.create<math::PowFOp>(loc, payloadArgs[0], expPromoted);
@@ -1019,12 +1030,20 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = cast<RankedTensorType>(converter->convertType(pow.getType()))
                      .getElementType();
     if (!isa<mlir::FloatType>(dtype)) {
+      // The result type is integer when both operands are integer.
+      // Torch then uses the following implementation:
+      // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/Pow.h
       pow.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
-    return b.create<math::PowFOp>(loc, lhs, rhs);
+    Type powType = dtype;
+    if (payloadArgs[0].getType().isInteger() ||
+        payloadArgs[1].getType().isInteger())
+      powType = mlir::Float64Type::get(op->getContext());
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], powType);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], powType);
+    auto powOp = b.create<math::PowFOp>(loc, lhs, rhs);
+    return convertScalarToDtype(b, loc, powOp, dtype);
   }
 
   if (auto imag = dyn_cast<AtenImagOp>(op)) {
@@ -3580,6 +3599,394 @@ public:
 };
 } // namespace
 
+namespace {
+class ConvertSymConstrainRangeOp
+    : public OpConversionPattern<AtenSymConstrainRangeOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenSymConstrainRangeOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    auto loc = op.getLoc();
+    auto min = op.getMin();
+    auto max = op.getMax();
+
+    int64_t minValue = std::numeric_limits<int64_t>::min();
+    int64_t maxValue = std::numeric_limits<int64_t>::max();
+
+    Type operandType = getTypeConverter()->convertType(op.getSize().getType());
+
+    if (!isa<Torch::NoneType>(min.getType()))
+      if (!matchPattern(min, m_TorchConstantInt(&minValue)))
+        return rewriter.notifyMatchFailure(
+            op, "Expected min value to be constant integer");
+
+    if (!isa<Torch::NoneType>(max.getType()))
+      if (!matchPattern(max, m_TorchConstantInt(&maxValue)))
+        return rewriter.notifyMatchFailure(
+            op, "Expected max value to be constant integer");
+
+    if (maxValue < minValue) {
+      std::string errorMsg =
+          "Max must be greater than or equal to min, got min = " +
+          std::to_string(minValue) + ", max = " + std::to_string(maxValue);
+      return op.emitError(errorMsg);
+    }
+
+    min = getConstant(rewriter, loc, minValue, operandType);
+    max = getConstant(rewriter, loc, maxValue, operandType);
+
+    // Check min <= size <= max
+
+    // FIXME:: Skip the below checks if constraint ops are already inserted as
+    // part of symbol expr evaluation
+    auto checkMin = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::sle, min, adaptor.getSize());
+    auto checkMax = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::sle, adaptor.getSize(), max);
+    auto compareVal = rewriter.create<arith::AndIOp>(loc, checkMin, checkMax);
+
+    std::string assertMessage = "Size constraint failed. Expected range: [" +
+                                std::to_string(minValue) + ", " +
+                                std::to_string(maxValue) + "]";
+    rewriter.create<cf::AssertOp>(loc, compareVal,
+                                  rewriter.getStringAttr(assertMessage));
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class ConvertOnnxVariantRotaryEmbeddingOp
+    : public OpConversionPattern<OnnxVariantRotaryEmbeddingOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+
+private:
+  struct RotaryParameters {
+    int64_t batchSize;
+    int64_t sequenceLength;
+    int64_t hiddenSize;
+    int64_t headSize;
+    int64_t rotaryEmbeddingDim;
+    int64_t numHeads;
+    int64_t maxSequenceLength;
+  };
+
+  static LogicalResult checkInputs(OnnxVariantRotaryEmbeddingOp op, Value input,
+                                   Value positionIds, Value cosCache,
+                                   Value sinCache, int64_t numHeads,
+                                   int64_t rotaryEmbeddingDim,
+                                   RotaryParameters &parameters,
+                                   ConversionPatternRewriter &rewriter) {
+    //    input        : (batch_size, num_heads, sequence_length, hidden_size)
+    //    position_ids : (batch_size, sequence_length)
+    //    cos_cache    : (max_sequence_length, head_size / 2) or
+    //                   (max_sequence_length, rotary_embedding_dim / 2)
+    //    sin_cache    : (max_sequence_length, head_size / 2) or
+    //                   (max_sequence_length, rotary_embedding_dim / 2)
+
+    // For the `RotaryEmbedding` lowering to work, shapes of all the inputs are
+    // required to be statically known.
+
+    // Check input
+    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
+    if (!inputType.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: expected input to have static shape");
+
+    // TODO: Add support for 3d input of shape: (batch_size, sequence_length,
+    // hidden_size)
+    SmallVector<int64_t> inputShape{inputType.getShape()};
+    if (inputShape.size() != 4)
+      return rewriter.notifyMatchFailure(op,
+                                         "input is expected to have rank 4");
+
+    // Check position_ids
+    RankedTensorType positionIdsType =
+        cast<RankedTensorType>(positionIds.getType());
+    if (!positionIdsType.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: expected position_ids to have static shape");
+
+    SmallVector<int64_t> positionIdsShape{positionIdsType.getShape()};
+    if (positionIdsShape.size() != 2)
+      return rewriter.notifyMatchFailure(
+          op, "position_ids is expected to have rank 2");
+
+    // Check cos_cache and sin_cache
+    RankedTensorType cosCacheType = cast<RankedTensorType>(cosCache.getType());
+    if (!cosCacheType.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: expected cos_cache to have static shape");
+
+    SmallVector<int64_t> cosCacheShape{cosCacheType.getShape()};
+    if (cosCacheShape.size() != 2)
+      return rewriter.notifyMatchFailure(
+          op, "cos_cache is expected to have rank 2");
+
+    RankedTensorType sinCacheType = cast<RankedTensorType>(sinCache.getType());
+    if (!sinCacheType.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: expected sin_cache to have static shape");
+
+    SmallVector<int64_t> sinCacheShape{sinCacheType.getShape()};
+    if (sinCacheShape.size() != 2)
+      return rewriter.notifyMatchFailure(
+          op, "sin_cache is expected to have rank 2");
+
+    if (!llvm::equal(cosCacheShape, sinCacheShape))
+      return rewriter.notifyMatchFailure(
+          op,
+          "Inputs cos_cache and sin_cache are expected to have the same shape");
+
+    // Check for element types.
+    bool areAllElementTypesEqual = llvm::all_equal(
+        {inputType.getElementType(), cosCacheType.getElementType(),
+         sinCacheType.getElementType()});
+    if (!(areAllElementTypesEqual &&
+          isa<mlir::FloatType>(inputType.getElementType())))
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: expected input, cos_cache, and sin_cache to be "
+              "of floating-point type");
+
+    if (!isa<mlir::IntegerType>(positionIdsType.getElementType()))
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: expected position_ids to be of integer type");
+
+    // Check num_heads and rotary_embedding_dim
+    if (rotaryEmbeddingDim > 0 && numHeads == 0)
+      return rewriter.notifyMatchFailure(
+          op,
+          "num_heads must be non-zero if rotary_embedding_dim is specified");
+
+    // Get attributes from inputs
+    int64_t batchSize = inputShape[0];
+    int64_t sequenceLength = inputShape[2];
+    int64_t hiddenSize = inputShape[1] * inputShape[3];
+    int maxSequenceLength = cosCacheShape[0];
+    int headSize = rotaryEmbeddingDim == 0 ? cosCacheShape[1] * 2
+                                           : (int64_t)(hiddenSize / numHeads);
+
+    if (rotaryEmbeddingDim > 0 && rotaryEmbeddingDim > headSize)
+      return rewriter.notifyMatchFailure(
+          op, "rotary_embedding_dim must be less than or equal to head_size");
+
+    // Check position_ids input shapes
+    if (positionIdsShape[0] != batchSize)
+      return rewriter.notifyMatchFailure(
+          op, "position_ids shape dimension 0 should be of size batch_size");
+
+    if (positionIdsShape[1] != sequenceLength)
+      return rewriter.notifyMatchFailure(
+          op,
+          "position_ids shape dimension 1 should be of size sequence_length");
+
+    // Check cos_cache input shapes
+    if (cosCacheShape[1] != (headSize / 2) &&
+        (rotaryEmbeddingDim > 0 &&
+         (cosCacheShape[1] != (rotaryEmbeddingDim / 2))))
+      return rewriter.notifyMatchFailure(
+          op, "cos_cache shape dimension 1 should be equal to head_size / 2 "
+              "or rotary_embedding_dim / 2");
+
+    numHeads = numHeads > 0 ? numHeads : (int64_t)(hiddenSize / headSize);
+
+    parameters.batchSize = batchSize;
+    parameters.sequenceLength = sequenceLength;
+    parameters.hiddenSize = hiddenSize;
+    parameters.headSize = headSize;
+    parameters.numHeads = numHeads;
+    parameters.maxSequenceLength = maxSequenceLength;
+    parameters.rotaryEmbeddingDim =
+        rotaryEmbeddingDim > 0 ? rotaryEmbeddingDim : headSize;
+
+    return success();
+  }
+
+  LogicalResult
+  matchAndRewrite(OnnxVariantRotaryEmbeddingOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op.getLoc();
+    const TypeConverter *typeConverter = getTypeConverter();
+    MLIRContext *context = rewriter.getContext();
+
+    Value input = adaptor.getInput();
+    Value positionIds = adaptor.getPositionIds();
+    Value cosCache = adaptor.getCosCache();
+    Value sinCache = adaptor.getSinCache();
+
+    RankedTensorType resultType =
+        cast<RankedTensorType>(typeConverter->convertType(op.getType()));
+    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
+
+    if (inputType.getElementType() != resultType.getElementType())
+      return rewriter.notifyMatchFailure(
+          op, "Expected input and result to have the same element type");
+
+    int64_t interleaved, isPackedBatching, numHeads, rotaryEmbeddingDim;
+    if (!matchPattern(op.getInterleaved(), m_TorchConstantInt(&interleaved)))
+      return rewriter.notifyMatchFailure(
+          op, "interleaved must be constant integer");
+    if (!matchPattern(op.getIsPackedBatching(),
+                      m_TorchConstantInt(&isPackedBatching)))
+      return rewriter.notifyMatchFailure(
+          op, "is_packed_batching must be constant integer");
+    if (!matchPattern(op.getNumHeads(), m_TorchConstantInt(&numHeads)))
+      return rewriter.notifyMatchFailure(op,
+                                         "num_heads must be constant integer");
+    if (!matchPattern(op.getRotaryEmbeddingDim(),
+                      m_TorchConstantInt(&rotaryEmbeddingDim)))
+      return rewriter.notifyMatchFailure(
+          op, "rotary_embedding_dim must be constant integer");
+
+    double scale;
+    if (!matchPattern(op.getScale(), m_TorchConstantFloat(&scale)))
+      return rewriter.notifyMatchFailure(op, "scale must be constant float");
+
+    // The `checkInputs` function verifies the validity of all the inputs for
+    // the cases supported by this lowering and also computes the required
+    // rotary parameters.
+    RotaryParameters parameters;
+    if (failed(checkInputs(op, input, positionIds, cosCache, sinCache, numHeads,
+                           rotaryEmbeddingDim, parameters, rewriter)))
+      return rewriter.notifyMatchFailure(
+          op, "Failed to satisfy the constraints in checkInputs function");
+
+    rotaryEmbeddingDim = parameters.rotaryEmbeddingDim;
+    int64_t halfRotaryEmbDim = rotaryEmbeddingDim / 2;
+
+    auto elementType = inputType.getElementType();
+    unsigned inputRank = inputType.getRank();
+
+    SmallVector<Value> resultShape;
+    for (int64_t i = 0; i < inputRank; i++) {
+      auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
+      resultShape.push_back(currentDimSize);
+    }
+    Value outTensor =
+        createZeroInitTensor(rewriter, loc, resultShape, elementType);
+
+    Value cstFloatOne = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getFloatAttr(elementType, 1.0));
+    Value cstFloatMinusOne = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getFloatAttr(elementType, -1.0));
+    Value cstIndexTwo =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(2));
+    Value cstIndexOne =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+    Value cstRotaryEmbDim = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIndexAttr(rotaryEmbeddingDim));
+    Value cstHalfRotaryEmbDim = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIndexAttr(halfRotaryEmbDim));
+
+    AffineMap identityMap =
+        AffineMap::getMultiDimIdentityMap(inputRank, context);
+    AffineMap positionIdsMap = identityMap.getSubMap({0, inputRank - 2});
+
+    SmallVector<AffineMap> indexingMaps{identityMap, positionIdsMap,
+                                        /*outputMap=*/identityMap};
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
+
+    auto rotaryEmbedding =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, outTensor.getType(), ValueRange{input, positionIds},
+                outTensor, indexingMaps, iteratorTypes,
+                [&](OpBuilder &builder, Location loc, ValueRange args) {
+                  // This linalg.generic will be iterating over the 4 dimensions
+                  // of the input "b, n, s, h", respectively.
+                  //
+                  // if (interleaved):
+                  //     cache_idx = (h / 2) % half_rotary_emb_dim
+                  //     sign = h & 1
+                  //     j = sign ? h - 1: h + 1
+                  // else:
+                  //     cache_idx = h % half_rotary_emb_dim
+                  //     sign = (h >= rotary_emb_dim)
+                  //     j = (h + half_rotary_emb_dim) % rotary_emb_dim
+                  //
+                  // orig_input = input[b][n][s][h]
+                  // rotated_input = input[b][n][s][j]
+                  // position_id = position_ids[b][s]
+                  // cos_emb = cos_cache[position_id][cache_idx]
+                  // sin_emb = sin_cache[position_id][cache_idx]
+                  // out[b][n][s][h] = orig_input * cos_emb
+                  //                             +
+                  //                  (rotated_input * sin_emb) * sign
+
+                  Value b = builder.create<linalg::IndexOp>(loc, 0);
+                  Value n = builder.create<linalg::IndexOp>(loc, 1);
+                  Value s = builder.create<linalg::IndexOp>(loc, 2);
+                  Value h = builder.create<linalg::IndexOp>(loc, 3);
+
+                  Value cacheIdx, sign, rotatedInputLastIdx;
+                  if (interleaved) {
+                    cacheIdx =
+                        builder.create<arith::DivSIOp>(loc, h, cstIndexTwo);
+                    cacheIdx = builder.create<arith::RemSIOp>(
+                        loc, cacheIdx, cstHalfRotaryEmbDim);
+                    sign = builder.create<arith::AndIOp>(loc, h, cstIndexOne);
+                    // Converting sign value from index type to bool type.
+                    sign = builder.create<arith::TruncIOp>(
+                        loc, rewriter.getI1Type(), sign);
+                    rotatedInputLastIdx = builder.create<arith::SelectOp>(
+                        loc, sign,
+                        builder.create<arith::SubIOp>(loc, h, cstIndexOne),
+                        builder.create<arith::AddIOp>(loc, h, cstIndexOne));
+                  } else {
+                    cacheIdx = builder.create<arith::RemSIOp>(
+                        loc, h, cstHalfRotaryEmbDim);
+                    sign = builder.create<arith::CmpIOp>(
+                        loc, arith::CmpIPredicate::sge, h, cstHalfRotaryEmbDim);
+                    rotatedInputLastIdx = builder.create<arith::AddIOp>(
+                        loc, h, cstHalfRotaryEmbDim);
+                    rotatedInputLastIdx = builder.create<arith::RemSIOp>(
+                        loc, rotatedInputLastIdx, cstRotaryEmbDim);
+                  }
+
+                  Value positionId = castIntToIndex(builder, loc, args[1]);
+                  Value cosEmb = builder.create<tensor::ExtractOp>(
+                      loc, cosCache, ValueRange{positionId, cacheIdx});
+                  Value sinEmb = builder.create<tensor::ExtractOp>(
+                      loc, sinCache, ValueRange{positionId, cacheIdx});
+
+                  Value origInput = args[0];
+                  Value rotatedInput = builder.create<tensor::ExtractOp>(
+                      loc, input, ValueRange{b, n, s, rotatedInputLastIdx});
+
+                  Value signMultiplier = builder.create<arith::SelectOp>(
+                      loc, sign, cstFloatOne, cstFloatMinusOne);
+
+                  Value outputI =
+                      builder.create<arith::MulFOp>(loc, origInput, cosEmb);
+                  Value outputJ =
+                      builder.create<arith::MulFOp>(loc, rotatedInput, sinEmb);
+                  outputJ = builder.create<arith::MulFOp>(loc, outputJ,
+                                                          signMultiplier);
+                  Value out =
+                      builder.create<arith::AddFOp>(loc, outputI, outputJ);
+                  builder.create<linalg::YieldOp>(loc, out);
+                })
+            .getResult(0);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
+                                                rotaryEmbedding);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -3642,4 +4049,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenLinalgDetOp>(typeConverter, context);
   target.addIllegalOp<AtenPolarOp>();
   patterns.add<ConvertAtenPolarOp>(typeConverter, context);
+  target.addIllegalOp<AtenSymConstrainRangeOp>();
+  patterns.add<ConvertSymConstrainRangeOp>(typeConverter, context);
+  target.addIllegalOp<OnnxVariantRotaryEmbeddingOp>();
+  patterns.add<ConvertOnnxVariantRotaryEmbeddingOp>(typeConverter, context);
 }

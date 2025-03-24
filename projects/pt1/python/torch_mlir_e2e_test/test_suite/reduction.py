@@ -81,6 +81,29 @@ def ReduceSumElementTypeBoolModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class PrimsSumFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.prims.sum(a, (0, 1))
+
+
+@register_test_case(module_factory=lambda: PrimsSumFloatModule())
+def PrimsSumFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
 class ReduceProdFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2255,6 +2278,78 @@ class MseLossSumReductionWithDifferentElemTypeModule(torch.nn.Module):
 )
 def MseLossSumReductionWithDifferentElemTypeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4), tu.rand(2, 4).to(torch.float64))
+
+
+# ==============================================================================
+
+
+class L1LossNoReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4], torch.float32, True),
+            ([2, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.l1_loss(x, y, reduction=0)
+
+
+@register_test_case(module_factory=lambda: L1LossNoReductionModule())
+def L1LossNoReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 4))
+
+
+# ==============================================================================
+
+
+class L1LossMeanReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4], torch.float32, True),
+            ([2, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.l1_loss(x, y, reduction=1)
+
+
+@register_test_case(module_factory=lambda: L1LossMeanReductionModule())
+def L1LossMeanReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 4))
+
+
+# ==============================================================================
+
+
+class L1LossSumReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4], torch.float32, True),
+            ([2, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.l1_loss(x, y, reduction=2)
+
+
+@register_test_case(module_factory=lambda: L1LossSumReductionModule())
+def L1LossSumReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 4))
 
 
 # ==============================================================================

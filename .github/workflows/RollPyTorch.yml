@@ -22,7 +22,7 @@ jobs:
           sudo rm -rf $GITHUB_WORKSPACE/*
 
       - name: Get torch-mlir
-        uses: actions/checkout@v3
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: 'false'
           token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
@@ -95,7 +95,7 @@ jobs:
 
       - name: Post issue comment on build failure
         if: failure()
-        uses: peter-evans/create-or-update-comment@v2
+        uses: peter-evans/create-or-update-comment@71345be0265236311c031f5c7866368bd1eff043 # v4.0.0
         with:
           issue-number: 1690
           body: |
@@ -111,7 +111,7 @@ jobs:
       - name: Update PyTorch Build Cache (if running on main branch)
         if: github.ref_name == 'main'
         id: cache-pytorch
-        uses: actions/cache@v3
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
         with:
           path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
           key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
@@ -127,7 +127,7 @@ jobs:
           git pull origin main
 
       - name: Create pull request
-        uses: peter-evans/create-pull-request@v5.0.1
+        uses: peter-evans/create-pull-request@dd2324fc52d5d43c699a5636bcf19fceaa70c284 # v7.0.7
         with:
           author: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
           branch: rollpytorch

@@ -1235,6 +1235,16 @@ func.func @torch.aten.mul.int$canonicalize(%arg0: !torch.int) -> !torch.int {
     return %ret : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.aten.mul.int_float() -> !torch.float {
+// CHECK:           %[[CST6:.*]] = torch.constant.float 6.000000e+00
+// CHECK:           return %[[CST6]] : !torch.float
+func.func @torch.aten.mul.int_float() -> !torch.float {
+    %cst2 = torch.constant.int 2
+    %cst3 = torch.constant.float 3.0
+    %ret = torch.aten.mul.int_float %cst2, %cst3: !torch.int, !torch.float -> !torch.float
+    return %ret : !torch.float
+}
+
 // CHECK-LABEL:   func.func @torch.aten.mul.float() -> !torch.float {
 // CHECK:           %[[CST30:.*]] = torch.constant.float 3.000000e+01
 // CHECK:           return %[[CST30]] : !torch.float
@@ -1242,6 +1252,16 @@ func.func @torch.aten.mul.float() -> !torch.float {
     %cst6 = torch.constant.float 6.0
     %cst5 = torch.constant.float 5.0
     %ret = torch.aten.mul.float %cst6, %cst5: !torch.float, !torch.float -> !torch.float
+    return %ret : !torch.float
+}
+
+// CHECK-LABEL:   func.func @torch.aten.mul.float_int() -> !torch.float {
+// CHECK:           %[[CST6:.*]] = torch.constant.float 6.000000e+00
+// CHECK:           return %[[CST6]] : !torch.float
+func.func @torch.aten.mul.float_int() -> !torch.float {
+    %cst2 = torch.constant.float 2.0
+    %cst3 = torch.constant.int 3
+    %ret = torch.aten.mul.float_int %cst2, %cst3: !torch.float, !torch.int -> !torch.float
     return %ret : !torch.float
 }
 
@@ -1292,6 +1312,26 @@ func.func @torch.aten.remainder.int() -> !torch.int {
     %cst5 = torch.constant.int 5
     %ret = torch.aten.remainder.int %cst18, %cst5: !torch.int, !torch.int -> !torch.int
     return %ret : !torch.int
+}
+
+// CHECK-LABEL: func.func @torch.aten.pow.Tensor_Tensor$canonicalize
+// CHECK:         %[[SCALAR_EXP:.*]] = torch.constant.float 3.5
+// CHECK:         %[[POW:.*]] = torch.aten.pow.Tensor_Scalar %arg0, %[[SCALAR_EXP]]
+// CHECK:         return %[[POW]]
+func.func @torch.aten.pow.Tensor_Tensor$canonicalize(%arg0 : !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %exponent = torch.vtensor.literal(dense<3.500000e+00> : tensor<f32>) : !torch.vtensor<[],f32>
+  %pow = torch.aten.pow.Tensor_Tensor %arg0, %exponent : !torch.vtensor<[?,?],f32>, !torch.vtensor<[],f32> -> !torch.vtensor<[?,?],f32>
+  return %pow : !torch.vtensor<[?,?],f32>
+}
+
+// CHECK-LABEL: func.func @torch.aten.pow.Tensor_Scalar$canonicalize
+// CHECK:         %[[INT_EXP:.*]] = torch.constant.int 3
+// CHECK:         %[[POW:.*]] = torch.aten.pow.Tensor_Scalar %arg0, %[[INT_EXP]]
+// CHECK:         return %[[POW]]
+func.func @torch.aten.pow.Tensor_Scalar$canonicalize(%arg0 : !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %float_exponent = torch.constant.float 3.0
+  %pow = torch.aten.pow.Tensor_Scalar %arg0, %float_exponent : !torch.vtensor<[?,?],f32>, !torch.float -> !torch.vtensor<[?,?],f32>
+  return %pow : !torch.vtensor<[?,?],f32>
 }
 
 // CHECK-LABEL:   func.func @torch.aten.pow.int_float() -> !torch.float {

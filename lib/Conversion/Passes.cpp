@@ -19,7 +19,10 @@
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchToTensor/TorchToTensor.h"
+
+#ifdef TORCH_MLIR_ENABLE_TOSA
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
+#endif // TORCH_MLIR_ENABLE_TOSA
 
 //===----------------------------------------------------------------------===//
 // Pass registration

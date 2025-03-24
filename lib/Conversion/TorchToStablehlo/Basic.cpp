@@ -1143,6 +1143,49 @@ LogicalResult ConvertAtenOp<AtenLog10Op>::matchAndRewrite(
   return success();
 }
 
+// AtenLogitOp
+template <>
+LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
+    AtenLogitOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto loc = op.getLoc();
+
+  Value self = adaptor.getSelf();
+  auto selfTy = dyn_cast<RankedTensorType>(self.getType());
+  if (!selfTy) {
+    return op.emitError("only ranked tensor type is supported.");
+  }
+
+  auto outTy = cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+  self = hlo::promoteType(rewriter, op.getLoc(), self, outTy.getElementType());
+
+  selfTy = dyn_cast<RankedTensorType>(self.getType());
+
+  Value eps = adaptor.getEps();
+  auto epsTy = eps.getType();
+  Value newSelf;
+  if (!isa<Torch::NoneType>(epsTy)) {
+    auto epsTensor = hlo::scalarToStablehloTensor(rewriter, op, eps,
+                                                  selfTy.getElementType());
+    Value oneEpsTensor = hlo::getConstantLike(rewriter, loc, 1.0, epsTensor);
+    auto max =
+        rewriter.create<stablehlo::SubtractOp>(loc, oneEpsTensor, epsTensor);
+    newSelf = rewriter.create<stablehlo::ClampOp>(loc, epsTensor, self, max);
+  } else {
+    newSelf = self;
+  }
+
+  Value one = hlo::getConstantLike(rewriter, loc, 1.0, self);
+  Value zi1 = rewriter.create<stablehlo::SubtractOp>(loc, one, newSelf);
+  Value newZi = rewriter.create<stablehlo::DivOp>(loc, newSelf, zi1);
+
+  Value log = rewriter.create<stablehlo::LogOp>(loc, outTy, newZi);
+
+  rewriter.replaceOp(op, log);
+
+  return success();
+}
+
 // AtenErfOp
 template <>
 LogicalResult ConvertAtenOp<AtenErfOp>::matchAndRewrite(
@@ -1923,24 +1966,6 @@ LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewrite(
   return success();
 }
 
-// AtenRemainderTensorOp
-template <>
-LogicalResult ConvertAtenOp<AtenRemainderTensorOp>::matchAndRewrite(
-    AtenRemainderTensorOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  Value lhs = adaptor.getSelf();
-  Value rhs = adaptor.getOther();
-
-  auto resultType =
-      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
-  lhs = hlo::promoteType(rewriter, op->getLoc(), lhs,
-                         resultType.getElementType());
-  rhs = hlo::promoteType(rewriter, op->getLoc(), rhs,
-                         resultType.getElementType());
-  rewriter.replaceOpWithNewOp<stablehlo::RemOp>(op, lhs, rhs);
-  return success();
-}
-
 // AtenFmodTensorOp
 // torch.fmod(a, b) == a - a.div(b, rounding_mode="trunc") * b
 template <>
@@ -2188,6 +2213,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_BINARY_MULDIV_PATTERN(AtenDivTensorModeOp, chlo::BroadcastDivOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenDivScalarOp, chlo::BroadcastDivOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenDivScalarModeOp, chlo::BroadcastDivOp);
+  INSERT_BINARY_MULDIV_PATTERN(AtenRemainderTensorOp, chlo::BroadcastRemOp);
   INSERT_BINARY_MULDIV_PATTERN(AtenRemainderScalarOp, chlo::BroadcastRemOp);
 #undef INSERT_BINARY_MULDIV_PATTERN
 
@@ -2248,6 +2274,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenGeluOp);
   INSERT_ATENOP_PATTERN(AtenLog2Op);
   INSERT_ATENOP_PATTERN(AtenLog10Op);
+  INSERT_ATENOP_PATTERN(AtenLogitOp);
   INSERT_ATENOP_PATTERN(AtenErfOp);
   INSERT_ATENOP_PATTERN(AtenGeluBackwardOp);
 
@@ -2266,7 +2293,6 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenEmptyMemoryFormatOp);
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
   INSERT_ATENOP_PATTERN(AtenFlipOp);
-  INSERT_ATENOP_PATTERN(AtenRemainderTensorOp);
   INSERT_ATENOP_PATTERN(AtenFmodTensorOp);
   INSERT_ATENOP_PATTERN(AtenBitwiseLeftShiftTensorOp);
   INSERT_ATENOP_PATTERN(AtenBitwiseRightShiftTensorOp);

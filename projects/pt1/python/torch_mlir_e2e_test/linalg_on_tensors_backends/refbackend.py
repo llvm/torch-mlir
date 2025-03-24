@@ -161,8 +161,8 @@ def lowering_pipeline(generate_runtime_verification: bool):
         "func.func(tm-tensor-bufferize)",
         "one-shot-bufferize{copy-before-write bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map}",
         "refback-mlprogram-bufferize",
-        "func.func(finalizing-bufferize)",
-        "func.func(buffer-deallocation)",
+        # "func.func(finalizing-bufferize)",
+        "func.func(buffer-deallocation-pipeline)",
         # Buffer-deallocation does not work with the inlined code generated
         # by sparse tensor dialect.
         "inline",  # inline sparse helper methods where useful

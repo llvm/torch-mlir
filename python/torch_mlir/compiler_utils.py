@@ -10,8 +10,8 @@ import tempfile
 from typing import Union, List
 
 import torch
-from torch_mlir.passmanager import PassManager
-from torch_mlir.ir import StringAttr
+from .passmanager import PassManager
+from .ir import StringAttr
 
 
 class TensorPlaceholder:

@@ -152,12 +152,16 @@ static LogicalResult refineShapeCalculateResult(ShapeCalculateOp op,
       sizes.push_back(kUnknownSize);
   }
 
-  auto originalResultType = cast<BaseTensorType>(result.getType());
-  auto impliedTypesFromShape = cast<BaseTensorType>(
-      cast<BaseTensorType>(originalResultType)
-          .getWithSizesAndDtype(ArrayRef(sizes),
-                                originalResultType.getOptionalDtype()));
-
+  // For the cases when the result is none, the implied type will remain the
+  // same as original result type.
+  Type impliedTypesFromShape = result.getType();
+  if (!isa<Torch::NoneType>(impliedTypesFromShape)) {
+    BaseTensorType originalResultType = cast<BaseTensorType>(result.getType());
+    impliedTypesFromShape =
+        cast<BaseTensorType>(originalResultType)
+            .getWithSizesAndDtype(ArrayRef(sizes),
+                                  originalResultType.getOptionalDtype());
+  }
   return updateCalculateOpResultTypes(op, resultNum, impliedTypesFromShape,
                                       rewriter);
 }
@@ -205,8 +209,8 @@ class SimplifyShapeCalculationsPass
     GreedyRewriteConfig config;
     config.useTopDownTraversal = true;
     config.maxIterations = GreedyRewriteConfig::kNoLimit;
-    if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
-                                            config))) {
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns),
+                                     config))) {
       return signalPassFailure();
     }
   }

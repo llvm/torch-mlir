@@ -1240,13 +1240,20 @@ class ElementwiseRreluWithNoiseTrainModule(torch.nn.Module):
         [None, ([-1, -1], torch.float32, True), ([-1, -1], torch.float32, True)]
     )
     def forward(self, x, noise):
-        res = torch.ops.aten.rrelu_with_noise(x, noise, 0.2, 0.5, True)
-        return torch.mean(res), torch.std(res)
+        out, out_noise = torch.ops.aten.rrelu_with_noise_functional(
+            x, noise, 0.2, 0.5, True
+        )
+        return (
+            torch.mean(out),
+            torch.std(out),
+            torch.mean(out_noise),
+            torch.std(out_noise),
+        )
 
 
 @register_test_case(module_factory=lambda: ElementwiseRreluWithNoiseTrainModule())
 def ElementwiseRreluWithNoiseTrainModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(128, 128, low=-1, high=1), tu.rand(128, 128))
+    module.forward(tu.rand(256, 256, low=-1, high=1), tu.rand(256, 256))
 
 
 # ==============================================================================
@@ -1258,16 +1265,23 @@ class ElementwiseRreluWithNoiseTrainStaticModule(torch.nn.Module):
 
     @export
     @annotate_args(
-        [None, ([128, 128], torch.float32, True), ([128, 128], torch.float32, True)]
+        [None, ([256, 256], torch.float32, True), ([256, 256], torch.float32, True)]
     )
     def forward(self, x, noise):
-        res = torch.ops.aten.rrelu_with_noise(x, noise, 0.4, 0.6, True)
-        return torch.mean(res), torch.std(res)
+        out, out_noise = torch.ops.aten.rrelu_with_noise_functional(
+            x, noise, 0.4, 0.6, True
+        )
+        return (
+            torch.mean(out),
+            torch.std(out),
+            torch.mean(out_noise),
+            torch.std(out_noise),
+        )
 
 
 @register_test_case(module_factory=lambda: ElementwiseRreluWithNoiseTrainStaticModule())
 def ElementwiseRreluWithNoiseTrainStaticModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(128, 128, low=-1, high=1), tu.rand(128, 128))
+    module.forward(tu.rand(256, 256, low=-1, high=1), tu.rand(256, 256))
 
 
 # ==============================================================================
@@ -1282,7 +1296,7 @@ class ElementwiseRreluWithNoiseEvalModule(torch.nn.Module):
         [None, ([-1, -1], torch.float32, True), ([-1, -1], torch.float32, True)]
     )
     def forward(self, x, noise):
-        res = torch.ops.aten.rrelu_with_noise(x, noise, 0.4, 0.6, False)
+        res = torch.ops.aten.rrelu_with_noise_functional(x, noise, 0.4, 0.6, False)[0]
         return torch.mean(res), torch.std(res)
 
 
@@ -1301,7 +1315,7 @@ class ElementwiseRreluWithNoiseEvalStaticModule(torch.nn.Module):
     @export
     @annotate_args([None, ([5, 3], torch.float32, True), ([5, 3], torch.float32, True)])
     def forward(self, x, noise):
-        res = torch.ops.aten.rrelu_with_noise(x, noise, 0.4, 0.6, False)
+        res = torch.ops.aten.rrelu_with_noise_functional(x, noise, 0.4, 0.6, False)[0]
         return torch.mean(res), torch.std(res)
 
 
@@ -5207,7 +5221,7 @@ class ElementwiseExpm1Module(torch.nn.Module):
         ]
     )
     def forward(self, a):
-        return torch.special.expm1(a)
+        return torch.expm1(a)
 
 
 @register_test_case(module_factory=lambda: ElementwiseExpm1Module())
@@ -5230,11 +5244,57 @@ class ElementwiseExpm1IntModule(torch.nn.Module):
         ]
     )
     def forward(self, a):
-        return torch.special.expm1(a)
+        return torch.expm1(a)
 
 
 @register_test_case(module_factory=lambda: ElementwiseExpm1IntModule())
 def ElementwiseExpm1IntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseSpecialExpm1Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.special.expm1(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSpecialExpm1Module())
+def ElementwiseSpecialExpm1Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseSpecialExpm1IntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.special.expm1(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSpecialExpm1IntModule())
+def ElementwiseSpecialExpm1IntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=1, high=10).to(torch.int32))
 
 
@@ -7173,3 +7233,26 @@ class TrilIndicesOfssetGreaterThanRowModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: TrilIndicesOfssetGreaterThanRowModule())
 def TrilIndicesOfssetGreaterThanRowModule_basic(module, tu: TestUtils):
     module.forward()
+
+
+# ==============================================================================
+
+
+class Deg2radModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.deg2rad(x)
+
+
+@register_test_case(module_factory=lambda: Deg2radModule())
+def Deg2radModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))

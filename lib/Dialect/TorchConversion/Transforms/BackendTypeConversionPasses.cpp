@@ -232,7 +232,7 @@ struct FinalizingBackendTypeConversionPass
 
     RewritePatternSet greedyPatterns(context);
     greedyPatterns.insert<ExtFTruncFPattern>(context);
-    if (failed(applyPatternsAndFoldGreedily(func, std::move(greedyPatterns))))
+    if (failed(applyPatternsGreedily(func, std::move(greedyPatterns))))
       signalPassFailure();
 
     // Drop attributes that are no longer used after conversion out of Torch.

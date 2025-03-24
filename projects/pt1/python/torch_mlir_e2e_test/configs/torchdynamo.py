@@ -24,8 +24,10 @@ from torch_mlir._dynamo_fx_importer import import_fx_graph_as_func
 from torch_mlir.dynamo import _get_decomposition_table
 from torch_mlir.torchscript import (
     _example_args,
-    BACKEND_LEGAL_OPS,
     _canon_extra_library,
+)
+from torch_mlir_e2e_test.configs.jit_importer_backend import (
+    BACKEND_LEGAL_OPS,
 )
 from torch_mlir_e2e_test.configs.utils import (
     recursively_convert_to_numpy,
