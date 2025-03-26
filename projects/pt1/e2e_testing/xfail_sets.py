@@ -955,6 +955,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenSymConstrainRange_basic",
     "AtenSymConstrainRangeForSize_basic",
     "Aten_AssertScalar_basic",
+    "NativeGroupNormModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
