@@ -150,22 +150,6 @@ cmake -GNinja -Bbuild \
   externals/llvm-project/llvm
 ```
 
-##### Options to enable MLIR debugging
-
-* Enabling `--debug` and `--debug-only` flags (see [MLIR docs](https://mlir.llvm.org/getting_started/Debugging/)) for the `torch-mlir-opt` tool
-```shell
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \ # or =Debug
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-```
-
-##### Options to run end-to-end tests
-
-Running the end-to-end execution tests locally requires enabling the native PyTorch extension features and the JIT IR importer, which depends on the
-former and defaults to `ON` if not changed:
-```shell
-  -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=ON \
-  -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON \
-```
 
 ##### ...with LLVM "out-of-tree"
 
@@ -183,6 +167,23 @@ cmake -GNinja -Bbuild \
 The same QoL CMake flags can be used to enable clang, ccache, and lld. Be sure to have built LLVM with `-DLLVM_ENABLE_PROJECTS=mlir`.
 
 Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
+
+##### Options to enable MLIR debugging
+
+* Enabling `--debug` and `--debug-only` flags (see [MLIR docs](https://mlir.llvm.org/getting_started/Debugging/)) for the `torch-mlir-opt` tool
+```shell
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \ # or =Debug
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+```
+
+##### Options to run end-to-end tests
+
+Running the end-to-end execution tests locally requires enabling the native PyTorch extension features and the JIT IR importer, which depends on the
+former and defaults to `ON` if not changed:
+```shell
+  -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=ON \
+  -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON \
+```
 
 #### Initiate Build
 
