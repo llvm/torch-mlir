@@ -8950,6 +8950,11 @@ LogicalResult ConvertAtenOp<AtenUnfoldOp>::matchAndRewrite(
 namespace {
 class ConvertTorchToTosa : public ConvertTorchToTosaBase<ConvertTorchToTosa> {
 public:
+  ConvertTorchToTosa() = default;
+  ConvertTorchToTosa(bool requireFullTosaConversion) {
+    this->requireFullTosaConversion = requireFullTosaConversion;
+  }
+
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<tosa::TosaDialect>();
     registry.insert<tensor::TensorDialect>();
@@ -8962,7 +8967,12 @@ public:
     ConversionTarget target(*context);
     target.addLegalDialect<tosa::TosaDialect, tensor::TensorDialect,
                            arith::ArithDialect>();
-    target.addIllegalDialect<Torch::TorchDialect>();
+
+    if (this->requireFullTosaConversion) {
+      target.addIllegalDialect<Torch::TorchDialect>();
+    } else {
+      target.addLegalDialect<Torch::TorchDialect>();
+    }
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
@@ -9318,5 +9328,10 @@ std::set<StringRef> torch::populateTorchToTosaConversionPatternsAndIllegalOps(
 
 std::unique_ptr<OperationPass<func::FuncOp>>
 mlir::torch::createConvertTorchToTosaPass() {
-  return std::make_unique<ConvertTorchToTosa>();
+  return std::make_unique<ConvertTorchToTosa>(true);
+}
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::torch::createConvertTorchToTosaPass(bool requireFullTosaConversion) {
+  return std::make_unique<ConvertTorchToTosa>(requireFullTosaConversion);
 }
