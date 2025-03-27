@@ -312,3 +312,51 @@ func.func @convolution_backward_none_result(%arg0: !torch.vtensor<[1,1,3,3],f32>
   %result0, %result1, %result2 = torch.aten.convolution_backward %arg0, %arg1, %arg2, %0, %1, %2, %1, %false, %2, %int1, %3 : !torch.vtensor<[1,1,3,3],f32>, !torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,3,3],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, !torch.vtensor<[1,1,3,3],f32>, !torch.vtensor<[1],f32>
   return %result1, %result2 : !torch.vtensor<[1,1,3,3],f32>, !torch.vtensor<[1],f32>
 }
+
+// -----
+// CHECK-LABEL:   func.func @emptyLikeNoneDtype(
+// CHECK-SAME:                    %[[ARG0:.*]]: !torch.vtensor<[200,200,26],f64>) -> !torch.vtensor<[200,200,26],f64>  {
+// CHECK:           %[[DTYPE:.*]] = torch.constant.int 7
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[C200:.*]] = torch.constant.int 200
+// CHECK:           %[[C26:.*]] = torch.constant.int 26
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[C200]], %[[C200]], %[[C26]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[MEM_FMT:.*]] = torch.aten.empty.memory_format %[[LIST]], %[[DTYPE]], %[[NONE]], %[[NONE]], %[[FALSE]], %[[NONE]] : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[200,200,26],f64>
+func.func @emptyLikeNoneDtype(%arg0: !torch.vtensor<[200,200,26],f64>) -> !torch.vtensor<[200,200,26],f64> {
+    %none = torch.constant.none
+    %none_0 = torch.constant.none
+    %none_1 = torch.constant.none
+    %false = torch.constant.bool false
+    %none_2 = torch.constant.none
+    %0 = torch.aten.empty_like %arg0, %none, %none_0, %none_1, %false, %none_2 : !torch.vtensor<[200,200,26],f64>, !torch.none, !torch.none, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[200,200,26],f64>
+    return %0 : !torch.vtensor<[200,200,26],f64>
+}
+
+// -----
+// CHECK-LABEL:   func.func @randNoneDtype(
+// CHECK-SAME:                           %[[ARG0:.*]]: !torch.vtensor<[200,200,26],f64>) -> !torch.vtensor<[200,200,26],f64> {
+// CHECK:           %[[DTYPE:.*]] = torch.constant.int 7
+// CHECK:           %[[C1:.*]] = torch.constant.float 1.000000e+00
+// CHECK:           %[[C0:.*]] = torch.constant.float 0.000000e+00
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[C200:.*]] = torch.constant.int 200
+// CHECK:           %[[C26:.*]] = torch.constant.int 26
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct %[[C200]], %[[C200]], %[[C26]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CPU:.*]] = torch.constant.device "cpu"
+// CHECK:           %[[MEM_FMT:.*]] = torch.aten.empty.memory_format %[[LIST]], %[[DTYPE]], %[[NONE]], %[[CPU]], %[[FALSE]], %[[NONE]] : !torch.list<int>, !torch.int, !torch.none, !torch.Device, !torch.bool, !torch.none -> !torch.vtensor<[200,200,26],f64>
+// CHECK:           %[[UNIFORM:.*]] = torch.aten.uniform %[[MEM_FMT]], %[[C0]], %[[C1]], %[[NONE]] : !torch.vtensor<[200,200,26],f64>, !torch.float, !torch.float, !torch.none -> !torch.vtensor<[200,200,26],f64>
+// CHECK:           return %[[UNIFORM]] : !torch.vtensor<[200,200,26],f64>
+func.func @randNoneDtype(%arg0: !torch.vtensor<[200,200,26],f64>) -> !torch.vtensor<[200,200,26],f64> {
+    %int200 = torch.constant.int 200
+    %int200_0 = torch.constant.int 200
+    %int26 = torch.constant.int 26
+    %0 = torch.prim.ListConstruct %int200, %int200_0, %int26 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %none = torch.constant.none
+    %none_1 = torch.constant.none
+    %cpu = torch.constant.device "cpu"
+    %false = torch.constant.bool false
+    %1 = torch.aten.rand %0, %none, %none_1, %cpu, %false : !torch.list<int>, !torch.none, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[200,200,26],f64>
+    return %1 : !torch.vtensor<[200,200,26],f64>
+  }
