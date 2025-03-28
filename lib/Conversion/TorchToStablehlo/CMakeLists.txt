@@ -8,6 +8,7 @@ add_mlir_conversion_library(TorchMLIRTorchToStablehlo
   Reduction.cpp
   Rng.cpp
   Pooling.cpp
+  Uncategorized.cpp
   Utils.cpp
 
   ADDITIONAL_HEADER_DIRS
