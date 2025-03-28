@@ -4127,9 +4127,8 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
     limit = limit < 0 ? limit + inType.getSizes()[dimInt] : limit;
     limit = limit < 0 ? -1 : limit;
     limit = std::min(limit, inType.getSizes()[dimInt]);
-    assert((stride > 0 && begin < limit) ||
-           (stride < 0 && begin > limit) &&
-               "aten.slice.Tensor iteration args are statically invalid.");
+    assert(((stride > 0 && begin < limit) || (stride < 0 && begin > limit)) &&
+           "aten.slice.Tensor iteration args are statically invalid.");
 
     int64_t inputRank = inType.getSizes().size();
     llvm::SmallVector<int64_t> inputStrides(inputRank, 1);

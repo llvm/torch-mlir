@@ -7337,9 +7337,16 @@ public:
         Torch::ListType::get(Torch::IntType::get(op.getContext()));
     Value sizeList =
         rewriter.create<AtenSizeOp>(op.getLoc(), sizeListType, op.getSelf());
+
+    FailureOr<Value> dtype = getDtypeFromOp(rewriter, op);
+    if (failed(dtype)) {
+      return rewriter.notifyMatchFailure(
+          op, "could not determine dtype from the op.");
+    }
+
     rewriter.replaceOpWithNewOp<AtenEmptyMemoryFormatOp>(
-        op, op.getType(), sizeList, op.getDtype(), op.getLayout(),
-        op.getDevice(), op.getPinMemory(), op.getMemoryFormat());
+        op, op.getType(), sizeList, *dtype, op.getLayout(), op.getDevice(),
+        op.getPinMemory(), op.getMemoryFormat());
     return success();
   }
 };
@@ -8088,18 +8095,13 @@ class DecomposeAtenNewEmptyOp : public OpRewritePattern<AtenNewEmptyOp> {
   LogicalResult matchAndRewrite(AtenNewEmptyOp op,
                                 PatternRewriter &rewriter) const override {
     Value noneVal = rewriter.create<ConstantNoneOp>(op.getLoc());
-    Value dtype = op.getDtype();
-    if (isa<Torch::NoneType>(dtype.getType())) {
-      BaseTensorType tensorType = cast<BaseTensorType>(op.getSelf().getType());
-      if (!tensorType.hasDtype()) {
-        return rewriter.notifyMatchFailure(
-            op, "expected input tensor to have a dtype");
-      }
-      dtype =
-          getDtypeIntValueForType(rewriter, op.getLoc(), tensorType.getDtype());
+    FailureOr<Value> dtype = getDtypeFromOp(rewriter, op);
+    if (failed(dtype)) {
+      return rewriter.notifyMatchFailure(
+          op, "could not determine dtype from the op.");
     }
     rewriter.replaceOpWithNewOp<AtenEmptyMemoryFormatOp>(
-        op, op.getType(), op.getSize(), dtype, op.getLayout(), op.getDevice(),
+        op, op.getType(), op.getSize(), *dtype, op.getLayout(), op.getDevice(),
         op.getPinMemory(), /*memoryFormat=*/noneVal);
     return success();
   }
@@ -9507,12 +9509,12 @@ public:
     Location loc = op.getLoc();
     auto resultType = cast<BaseTensorType>(op.getType());
 
-    if (!resultType.hasDtype()) {
+    FailureOr<Value> dtype = getDtypeFromOp(rewriter, op);
+    if (failed(dtype)) {
       return rewriter.notifyMatchFailure(
-          op, "expected result type to have a dtype");
+          op, "could not determine dtype from the op.");
     }
 
-    Value dtype = getDtypeIntValueForType(rewriter, loc, resultType.getDtype());
     Value none = rewriter.create<ConstantNoneOp>(loc);
     Value low = rewriter.create<Torch::ConstantFloatOp>(
         loc, rewriter.getF64FloatAttr((double)0.0));
@@ -9524,12 +9526,12 @@ public:
         loc, rewriter.getF64FloatAttr((double)(2.0 * 3.14159)));
 
     Value emptyTensorA = rewriter.create<AtenEmptyMemoryFormatOp>(
-        loc, resultType, op.getSize(), /*dtype=*/dtype,
+        loc, resultType, op.getSize(), /*dtype=*/*dtype,
         /*layout=*/op.getLayout(),
         /*device=*/op.getDevice(), /*pin_memory=*/op.getPinMemory(),
         /*memory_format=*/none);
     Value emptyTensorB = rewriter.create<AtenEmptyMemoryFormatOp>(
-        loc, resultType, op.getSize(), /*dtype=*/dtype,
+        loc, resultType, op.getSize(), /*dtype=*/*dtype,
         /*layout=*/op.getLayout(),
         /*device=*/op.getDevice(), /*pin_memory=*/op.getPinMemory(),
         /*memory_format=*/none);
@@ -9627,8 +9629,13 @@ public:
         loc, rewriter.getF64FloatAttr((double)0.0));
     Value high = rewriter.create<Torch::ConstantFloatOp>(
         loc, rewriter.getF64FloatAttr((double)1.0));
+    FailureOr<Value> dtype = getDtypeFromOp(rewriter, op);
+    if (failed(dtype)) {
+      return rewriter.notifyMatchFailure(
+          op, "could not determine dtype from the op.");
+    }
     Value emptyTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
-        loc, resultType, op.getSize(), /*dtype=*/op.getDtype(),
+        loc, resultType, op.getSize(), /*dtype=*/*dtype,
         /*layout=*/op.getLayout(),
         /*device=*/op.getDevice(), /*pin_memory=*/op.getPinMemory(),
         /*memory_format=*/noneVal);
@@ -9786,9 +9793,14 @@ public:
 
     Value noneVal = rewriter.create<ConstantNoneOp>(op.getLoc());
 
+    FailureOr<Value> dtype = getDtypeFromOp(rewriter, op);
+    if (failed(dtype)) {
+      return rewriter.notifyMatchFailure(
+          op, "could not determine dtype from the op.");
+    }
     rewriter.replaceOpWithNewOp<AtenEmptyMemoryFormatOp>(
-        op, op.getType(), op.getSize(), op.getDtype(), op.getLayout(),
-        op.getDevice(), op.getPinMemory(), /*memoryFormat=*/noneVal);
+        op, op.getType(), op.getSize(), *dtype, op.getLayout(), op.getDevice(),
+        op.getPinMemory(), /*memoryFormat=*/noneVal);
     return success();
   }
 };
