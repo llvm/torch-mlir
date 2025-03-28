@@ -222,6 +222,7 @@ def test_slice_tensor_dynamic_output():
         SliceTensorDynamicOutput(),
         x,
         dynamic_shapes=dynamic_shapes,
+        strict=True,
         import_symbolic_shape_expressions=True,
     )
     print(m)

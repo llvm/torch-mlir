@@ -73,6 +73,7 @@ def export_and_import(
     output_type: Union[str, OutputType] = OutputType.RAW,
     fx_importer: Optional[FxImporter] = None,
     dynamic_shapes: Optional[Union[Dict[str, Any], Tuple[Any]]] = None,
+    strict: bool = False,
     experimental_support_mutation: bool = False,
     import_symbolic_shape_expressions: bool = False,
     hooks: Optional[FxImporterHooks] = None,
@@ -94,7 +95,9 @@ def export_and_import(
     else:
         # pytorch 2.1 or lower doesn't have `dyanmic_shapes` keyword argument in torch.export
         if version.Version(torch.__version__) >= version.Version("2.2.0"):
-            prog = torch.export.export(f, args, kwargs, dynamic_shapes=dynamic_shapes)
+            prog = torch.export.export(
+                f, args, kwargs, dynamic_shapes=dynamic_shapes, strict=strict
+            )
         else:
             prog = torch.export.export(f, args, kwargs)
     if decomposition_table is None:

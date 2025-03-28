@@ -134,7 +134,9 @@ class FxImporterTestConfig(TestConfig):
     def _export_run(self, artifact: torch.nn.Module, trace: Trace) -> Trace:
         result: Trace = []
         for item in trace:
-            prog: ExportedProgram = torch.export.export(artifact, tuple(item.inputs))
+            prog: ExportedProgram = torch.export.export(
+                artifact, tuple(item.inputs), strict=True
+            )
             module = fx.export_and_import(
                 prog,
                 output_type=self._output_type,
