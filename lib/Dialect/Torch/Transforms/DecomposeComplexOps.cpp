@@ -6116,8 +6116,7 @@ public:
     Value hopLength = op.getHopLength();
     if (isa<Torch::NoneType>(hopLength.getType())) {
       hopLength = rewriter.create<AtenFloordivIntOp>(
-          loc, n_fft,
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(4)));
+          loc, n_fft, rewriter.create<ConstantIntOp>(loc, 4));
     }
 
     int64_t winLengthInt;
@@ -6128,36 +6127,6 @@ public:
                              m_TorchConstantInt(&winLengthInt)))
       return rewriter.notifyMatchFailure(
           op, "Unsupported: non-constant win_length");
-
-    Value window = op.getWindow();
-    ValueTensorType windowTensorType;
-    Type windowDType;
-    const bool hasWindow = !isa<Torch::NoneType>(window.getType());
-
-    if (hasWindow) {
-      windowTensorType = cast<ValueTensorType>(window.getType());
-      windowDType = windowTensorType.getOptionalDtype();
-      if (!windowTensorType.hasDtype() || !windowTensorType.hasSizes()) {
-        return rewriter.notifyMatchFailure(
-            op, "window should have dtype and sizes");
-      }
-      if (windowTensorType.getSizes().size() != 1) {
-        return op.emitError("window should be 1D");
-      }
-      if (windowTensorType.getSizes().back() == kUnknownSize) {
-        Value actualWinLen = getTensorDimSize(rewriter, window, 0);
-        Value winSizeEq = rewriter.create<AtenEqIntOp>(
-            loc, actualWinLen,
-            rewriter.create<ConstantIntOp>(
-                loc, rewriter.getI64IntegerAttr(winLengthInt)));
-        rewriter.create<RuntimeAssertOp>(
-            loc, winSizeEq,
-            rewriter.getStringAttr(
-                "window size should be equal to win_length"));
-      } else if (windowTensorType.getSizes().back() != winLengthInt) {
-        return op.emitError("window size should be equal to win_length");
-      }
-    }
 
     Value center = op.getCenter();
     bool centerBool;
@@ -6198,6 +6167,36 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Unsupported: return_complex=False");
 
+    Value window = op.getWindow();
+    ValueTensorType windowTensorType;
+    Type windowDType;
+    const bool hasWindow = !isa<Torch::NoneType>(window.getType());
+
+    if (hasWindow) {
+      windowTensorType = cast<ValueTensorType>(window.getType());
+      windowDType = windowTensorType.getOptionalDtype();
+      if (!windowTensorType.hasDtype() || !windowTensorType.hasSizes()) {
+        return rewriter.notifyMatchFailure(
+            op, "window should have dtype and sizes");
+      }
+      if (windowTensorType.getSizes().size() != 1) {
+        return op.emitError("window should be 1D");
+      }
+      if (windowTensorType.getSizes().back() == kUnknownSize) {
+        Value actualWinLen = getTensorDimSize(rewriter, window, 0);
+        Value winSizeEq = rewriter.create<AtenEqIntOp>(
+            loc, actualWinLen,
+            rewriter.create<ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(winLengthInt)));
+        rewriter.create<RuntimeAssertOp>(
+            loc, winSizeEq,
+            rewriter.getStringAttr(
+                "window size should be equal to win_length"));
+      } else if (windowTensorType.getSizes().back() != winLengthInt) {
+        return op.emitError("window size should be equal to win_length");
+      }
+    }
+
     Value cstZero =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
     Value cstMinusOne =
@@ -6209,15 +6208,6 @@ public:
     Value cstZeroFloat =
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0f));
 
-    // # Normalize window
-    // signal_len = aten.size.int(self, -1)
-    // n_frames = 1 + (signal_len - n_fft) // hop_length
-    // if(winLength < n_fft) {
-    //   tot_pad = n_fft - winLength
-    //   left_pad = tot_pad / 2
-    //   p1d = (left_pad, tot_pad - left_pad)
-    //   window = torch.nn.functional.pad(window, p1d, "constant", 0.0)
-    // }
     Value signalLen = rewriter.create<AtenSizeIntOp>(loc, self, cstMinusOne);
     Value nFrames = rewriter.create<AtenAddIntOp>(
         loc, cstOne,
@@ -6244,44 +6234,6 @@ public:
       window = rewriter.create<AtenPadOp>(loc, windowOutType, window, p1d,
                                           cstStrConstant, constantValue);
     }
-
-    // new_window_shape = [1?, n_fft]
-    // window = aten.reshape(window, new_window_shape)
-    //
-    // axis_signal = -1
-    // axis_frames = -1
-    // init_freq_tensor = aten.empty.memory_format([batch_dim?, n_freqs,
-    // n_frames],
-    //                                self.dtype, None, None, None, None)
-    // final_freq_tensor = prim.loop
-    // n_frames, %true, init(init_freq_tensor)
-    // {
-    //  ^bb0(frame, freq_tensor):
-    //    begin = frame * hop_length
-    //    end = begin + n_fft
-    //    narrow_length = min(end, signal_len) - begin
-    //    missing = n_fft - narrow_length
-    //    sliced = torch.narrow(self, axis_signal, begin, narrow_length) :
-    //            !torch.vtensor<[batch_dim?,?],f32>
-    //    padded_sliced = aten.pad(sliced, [0, missing], "constant", 0.0) :
-    //        !torch.vtensor<[batch_dim?,?],f32>
-    //    padded_sliced = tensor_static_info_cast(padded_sliced) :
-    //        !torch.vtensor<[batch_dim?,n_fft],f32>
-    //    weighted = aten.mul.Tensor(padded_sliced, window) :
-    //        !torch.vtensor<[batch_dim?,n_fft],f32>
-    //    f = onesidedBool ? aten.fft_rfft : aten.fft_fft
-    //    freq_slice_sq = f(weighted, None, axis_signal) :
-    //        !torch.vtensor<[batch_dim?,n_freqs],f32>
-    //    freq_slice = aten.unsqueeze(freq_slice_sq, axis_frames) :
-    //        !torch.vtensor<[batch_dim?,n_freqs, 1],f32>
-    //    new_freq_tensor = aten.slice_scatter(
-    //                      freq_tensor, freq_slice,
-    //                      dim=axis_frames, start=frame,
-    //                      end=None, step=1
-    //                      )
-    //    torch.prim.Loop.condition %true, iter(%new_freq_tensor)
-    // }
-    // return final_freq_tensor
 
     if (hasWindow && selfType.getSizes().size() == 2) {
       SmallVector<int64_t> newWindowSizes = {1, n_fftInt};
