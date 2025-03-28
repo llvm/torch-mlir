@@ -242,3 +242,28 @@ func.func @adjust_shape_function_arg$number(%arg0: !torch.number) -> !torch.vten
   %1 = torch.aten.arange %arg0, %none, %none, %none, %none : !torch.number, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor
   return %1 : !torch.vtensor
 }
+
+
+// -----
+
+// CHECK: module {
+// CHECK: func.func private @__torch_mlir_shape_fn.onnx.rotary_embedding(
+// CHECK: return %arg0
+
+// CHECK-LABEL:   func.func @custom_onnx_rotary_embedding(
+// CHECK: %[[X0:.*]] = torch.shape.calculate
+// CHECK: %[[X1:.*]] = torch.onnx.rotary_embedding
+// CHECK: torch.shape.calculate.yield %[[X1]]
+// CHECK: } shapes {
+// CHECK: torch.aten.size
+// CHECK: torch.aten.size
+// CHECK: torch.aten.size
+// CHECK: torch.aten.size
+// CHECK: %[[X5:.*]] = func.call @__torch_mlir_shape_fn.onnx.rotary_embedding(
+// CHECK: torch.shape.calculate.yield.shapes %[[X5]] : !torch.list<int>
+func.func @custom_onnx_rotary_embedding(%arg0: !torch.vtensor, %arg1: !torch.vtensor, %arg2: !torch.vtensor, %arg3: !torch.vtensor) -> !torch.vtensor {
+  %int0 = torch.constant.int 0
+  %float1.000000e00 = torch.constant.float 1.000000e+00
+  %4 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0, %int0, %int0, %float1.000000e00 : !torch.vtensor, !torch.vtensor, !torch.vtensor, !torch.vtensor, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor
+  return %4 : !torch.vtensor
+}

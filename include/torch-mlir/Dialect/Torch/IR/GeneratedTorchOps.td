@@ -5236,6 +5236,7 @@ def Torch_AtenPowTensorScalarOp : Torch_Op<"aten.pow.Tensor_Scalar", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenPowTensorTensorOp : Torch_Op<"aten.pow.Tensor_Tensor", [
@@ -5260,6 +5261,7 @@ def Torch_AtenPowTensorTensorOp : Torch_Op<"aten.pow.Tensor_Tensor", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenPowScalarOp : Torch_Op<"aten.pow.Scalar", [
@@ -15210,6 +15212,31 @@ def Torch_AtenSortOp : Torch_Op<"aten.sort", [
   let hasFolder = 1;
 }
 
+def Torch_AtenArgsortOp : Torch_Op<"aten.argsort", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::argsort : (Tensor, int, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$dim,
+    Torch_BoolType:$descending
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenArgsortOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void AtenArgsortOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_AtenSplitTensorOp : Torch_Op<"aten.split.Tensor", [
     AllowsTypeRefinement,
     ReadOnly
@@ -18372,6 +18399,31 @@ def Torch_PrimsSqueezeOp : Torch_Op<"prims.squeeze", [
     }
     void PrimsSqueezeOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
+def Torch_PrimsSumOp : Torch_Op<"prims.sum", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `prims::sum : (Tensor, int[]?, int?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$inp,
+    AnyTorchOptionalListOfTorchIntType:$dims,
+    AnyTorchOptionalIntType:$output_dtype
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult PrimsSumOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void PrimsSumOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
 }

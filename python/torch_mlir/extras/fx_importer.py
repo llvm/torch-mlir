@@ -291,7 +291,7 @@ _IS_TORCH_2_1_OR_EARLIER = torch.__version__.split("+")[0] <= "2.1.0"
 # In the mapping below (torch.aten.sym_size, 2) indicates len(args)=2 therefore
 # map to torch.aten.size.int.
 # Thankfully, newer versions provide a specific torch.ops.aten.sym_size.<type>.
-# Once we drop support for <2.1.0, we can get rid of the the SYMBOLIC_TORCH_OPS
+# Once we drop support for <2.1.0, we can get rid of the SYMBOLIC_TORCH_OPS
 # set and just check key existence in SYMBOLIC_OP_TO_TORCH_OP
 
 if _IS_TORCH_2_1_OR_EARLIER:
@@ -1174,10 +1174,16 @@ class ContextCache:
         # https://github.com/pytorch/pytorch/issues/91000
         stack_trace = node.stack_trace
         if stack_trace:
-            m = re.search(r"""File "([^"]+)", line ([0-9]+),""", stack_trace)
-            if m:
-                filename, line = m.group(1), int(m.group(2))
-                return Location.file(filename, line, col=0, context=self._c)
+            matches = re.findall(r"""File "([^"]+)", line ([0-9]+),""", stack_trace)
+            locations = [
+                Location.file(m[0], int(m[1]), col=0, context=self._c) for m in matches
+            ]
+            if len(locations) > 1:
+                return Location.callsite(
+                    locations[-1], locations[-2::-1], context=self._c
+                )
+            elif len(locations) == 1:
+                return locations[0]
         return Location.unknown(context=self._c)
 
     def set_symbolic_guards(

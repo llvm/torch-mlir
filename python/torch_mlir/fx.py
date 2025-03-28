@@ -26,15 +26,18 @@ from .compiler_utils import (
 
 def _module_lowering(
     verbose,
+    enable_ir_printing,
     output_type,
     torch_mod,
     extra_library_file_name=None,
     backend_legal_ops=None,
 ):
+    if verbose:
+        print("\n====================")
+        print("TorchFX IR")
+        print(torch_mod)
 
     if output_type == OutputType.RAW:
-        if verbose:
-            print(torch_mod)
         return torch_mod
     # TODO: pass extra_library_file_name by caller
 
@@ -59,7 +62,7 @@ def _module_lowering(
         torch_mod,
         f"builtin.module(func.func(torch-match-quantized-custom-ops), torchdynamo-export-to-torch-backend-pipeline{option_string})",
         "Lowering TorchFX IR -> Torch Backend IR",
-        enable_ir_printing=verbose,
+        enable_ir_printing=enable_ir_printing,
     )
     return lower_mlir_module(verbose, output_type, torch_mod)
 
@@ -76,6 +79,7 @@ def export_and_import(
     decomposition_table: Optional[Dict[torch._ops.OperatorBase, Callable]] = None,
     func_name: str = "main",
     enable_graph_printing: bool = False,
+    verbose: bool = False,
     enable_ir_printing: bool = False,
     backend_legal_ops: Optional[list[str]] = None,
     **kwargs,
@@ -115,6 +119,7 @@ def export_and_import(
         )
 
     return _module_lowering(
+        verbose,
         enable_ir_printing,
         OutputType.get(output_type),
         fx_importer.module,
@@ -129,6 +134,7 @@ def stateless_fx_import(
     hooks: Optional[FxImporterHooks] = None,
     model_name: str = "main",
     enable_graph_printing: bool = False,
+    verbose: bool = False,
     enable_ir_printing: bool = False,
     backend_legal_ops: Optional[list[str]] = None,
 ):
@@ -140,6 +146,7 @@ def stateless_fx_import(
         fx_importer = FxImporter(context=context, hooks=hooks)
     fx_importer.import_stateless_graph(gm.graph, func_name=model_name)
     return _module_lowering(
+        verbose,
         enable_ir_printing,
         OutputType.get(output_type),
         fx_importer.module,

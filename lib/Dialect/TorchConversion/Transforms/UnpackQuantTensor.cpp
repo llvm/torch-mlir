@@ -101,7 +101,7 @@ public:
                                APInt(unpackedBitWidth, 0));
     for (int i = 0, e = data.size(); i < e; ++i) {
       auto el = data[i];
-      char mask = (1 << unpackedBitWidth) - 1;
+      uint8_t mask = (1 << unpackedBitWidth) - 1;
       for (int b = 0; b < packRatio; b++) {
         newData[i * packRatio + b] =
             APInt(unpackedBitWidth, (el & mask) >> (unpackedBitWidth * b),

@@ -809,6 +809,9 @@ def aten〇mean〇dim〡shape(self: List[int], dim: Optional[List[int]], keepdim
 def aten〇sum〇dim_IntList〡shape(self: List[int], dim: Optional[List[int]], keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, dtype)
 
+def prims〇sum〡shape(inp: List[int], dims: Optional[List[int]], output_dtype: Optional[int] = None) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(inp, dims, False, output_dtype)
+
 def aten〇prod〇dim_int〡shape(self: List[int], dim: int, keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, [dim], keepdim, dtype)
 
@@ -1467,6 +1470,10 @@ def aten〇rand〡shape(size: List[int], dtype: Optional[int] = None, layout: Op
 def aten〇bernoulli〇float〡shape(self: List[int], p: float = 0.5, generator: Any = None) -> List[int]:
     return self
 
+@not_present_in_registry
+def onnx〇rotary_embedding〡shape(input: List[int], position_ids: List[int], cos_cache: List[int], sin_cache: List[int], interleaved: int, is_packed_batching: int, num_heads: int, rotary_embedding_dim: int, scale: float) -> List[int]:
+    return input
+
 def aten〇bernoulli〇Tensor〡shape(self: List[int], p: List[int], generator: Any = None) -> List[int]:
     return self
 
@@ -1987,6 +1994,12 @@ def aten〇sort〡shape(self: List[int], dim: int = -1, descending: bool = False
 def aten〇sort〡dtype(self_rank_dtype: Tuple[int, int], dim: int = -1, descending: bool = False) -> Tuple[int, int]:
     _, input_dtype = self_rank_dtype
     return input_dtype, torch.long
+
+def aten〇argsort〡shape(self: List[int], dim: int = -1, descending: bool = False) -> List[int]:
+    return self
+
+def aten〇argsort〡dtype(self_rank_dtype: Tuple[int, int], dim: int = -1, descending: bool = False) -> int:
+    return torch.long
 
 def aten〇narrow〡shape(self: List[int], dim: int, start: int, length: int) -> List[int]:
     return upstream_shape_functions.slice(self, dim, start, start + length, 1)
@@ -2915,6 +2928,15 @@ def prims〇sqrt〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
         return self_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dims=[0]))
+def prims〇sum〡dtype(inp_rank_dtype: Tuple[int, int], dims: Optional[List[int]], output_dtype: Optional[int] = None) -> int:
+    # When invoking prims.sum() with the output_dtype argument, pytorch
+    # complains that the argument is not known.
+    # See https://github.com/pytorch/pytorch/issues/102610
+    assert output_dtype is None
+    inp_rank, inp_dtype = inp_rank_dtype
+    return inp_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇abs〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -3003,6 +3025,11 @@ def aten〇_weight_norm_interface〡dtype(v_rank_dtype: Tuple[int, int], g_rank_
 def aten〇bernoulli_〇float〡dtype(self_rank_dtype: Tuple[int, int], p: float = 0.5, generator: Any = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+@not_present_in_registry
+def onnx〇rotary_embedding〡dtype(input_rank_dtype: Tuple[int, int], position_ids_rank_dtype: Tuple[int, int], cos_cache_rank_dtype: Tuple[int, int], sin_cache_rank_dtype: Tuple[int, int], interleaved: int, is_packed_batching: int, num_heads: int, rotary_embedding_dim: int, scale: float) -> int:
+    input_rank, input_dtype = input_rank_dtype
+    return input_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇bernoulli〡dtype(self_rank_dtype: Tuple[int, int], generator: Any = None) -> int:

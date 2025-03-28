@@ -205,3 +205,33 @@ def test_full():
         "torch-simplification-pipeline",
     )
     print(m)
+
+
+@run
+# CHECK-LABEL: test_stack_trace
+# CHECK: #loc[[LOC1:.+]] = loc(
+# CHECK: #loc[[LOC2:.+]] = loc(
+# CHECK: #loc[[LOC3:.+]] = loc(
+# CHECK: #loc[[LOC4:.+]] = loc(callsite(#loc[[LOC2]] at #loc[[LOC3]]))
+# CHECK: #loc[[LOC5:.+]] = loc(callsite(#loc[[LOC1]] at #loc[[LOC4]]))
+# CHECK: %{{.+}} = torch.aten.add.Tensor {{.+}} loc(#loc[[LOC4]])
+def test_stack_trace():
+    class Basic(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, y):
+            def bar(x):
+                return x + 1.0
+
+            def foo(x, y):
+                return bar(x) + bar(y)
+
+            z = foo(x, y)
+            return {"z": z}
+
+    x = torch.randn(128, 128)
+    y = torch.randn(128, 128)
+    m = fx.export_and_import(Basic(), x, y, func_name="test_stack_trace")
+    mlir_asm = m.operation.get_asm(enable_debug_info=True)
+    print(mlir_asm)

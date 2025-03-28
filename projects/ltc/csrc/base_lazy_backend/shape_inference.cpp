@@ -470,6 +470,14 @@ compute_shape_randn(at::IntArrayRef size, ::std::optional<at::ScalarType> dtype,
       Shape(dtype.value_or(at::get_default_dtype_as_scalartype()), size.vec())};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_randn(
+    at::IntArrayRef size, ::std::optional<at::Generator> generator,
+    ::std::optional<at::ScalarType> dtype, ::std::optional<at::Layout> layout,
+    ::std::optional<at::Device> device, ::std::optional<bool> pin_memory) {
+  return {
+      Shape(dtype.value_or(at::get_default_dtype_as_scalartype()), size.vec())};
+}
+
 std::vector<torch::lazy::Shape> compute_shape_randint(
     int64_t high, at::IntArrayRef size, ::std::optional<at::ScalarType> dtype,
     ::std::optional<at::Layout> layout, ::std::optional<at::Device> device,
@@ -503,6 +511,13 @@ std::vector<torch::lazy::Shape> compute_shape_scalar_tensor(
     ::std::optional<at::Layout> layout, ::std::optional<at::Device> device,
     ::std::optional<bool> pin_memory) {
   return {Shape(dtype.value_or(s.type()), c10::ArrayRef<int64_t>{})};
+}
+
+std::vector<torch::lazy::Shape>
+compute_shape_as_strided(const at::Tensor &self, at::IntArrayRef size,
+                         at::IntArrayRef stride,
+                         c10::optional<int64_t> storage_offset) {
+  return {Shape(self.scalar_type(), size.vec())};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_roll(const at::Tensor &self,

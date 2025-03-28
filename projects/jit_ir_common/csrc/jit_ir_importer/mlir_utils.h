@@ -69,11 +69,15 @@ inline void addToMlirOperationState(MlirOperationState &state,
 
 inline void addToMlirOperationState(MlirOperationState &state,
                                     const std::vector<MlirType> &resultTypes) {
+  if (resultTypes.empty())
+    return; // must not proceed when resultTypes.data() is nullptr.
   mlirOperationStateAddResults(&state, resultTypes.size(), resultTypes.data());
 }
 
 inline void addToMlirOperationState(MlirOperationState &state,
                                     c10::ArrayRef<MlirType> resultTypes) {
+  if (resultTypes.empty())
+    return; // must not proceed when resultTypes.data() is nullptr.
   mlirOperationStateAddResults(&state, resultTypes.size(), resultTypes.data());
 }
 
