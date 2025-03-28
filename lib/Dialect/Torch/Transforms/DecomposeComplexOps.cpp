@@ -6107,6 +6107,256 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenStftCenterOp : public OpRewritePattern<AtenStftCenterOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenStftCenterOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+
+    Value self = op.getSelf();
+    BaseTensorType selfType = cast<BaseTensorType>(self.getType());
+    if (!selfType.hasDtype() || !selfType.hasSizes()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "self should have dtype and sizes");
+    }
+
+    BaseTensorType resultType = cast<BaseTensorType>(op.getType());
+    if (!resultType.hasDtype() || !resultType.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "op result should have dtype and sizes");
+    }
+    ArrayRef<int64_t> resultSizes(resultType.getSizes());
+
+    Value n_fft = op.getNFft();
+    int64_t n_fftInt;
+    // TODO: add support for non-constant n_fft
+    if (!matchPattern(n_fft, m_TorchConstantInt(&n_fftInt)))
+      return rewriter.notifyMatchFailure(op, "Unsupported: non-constant n_fft");
+
+    Value hopLength = op.getHopLength();
+    if (isa<Torch::NoneType>(hopLength.getType())) {
+      hopLength = rewriter.create<AtenFloordivIntOp>(
+          loc, n_fft, rewriter.create<ConstantIntOp>(loc, 4));
+    }
+
+    int64_t winLengthInt;
+    // TODO: add support for non-constant win_length
+    if (isa<Torch::NoneType>(op.getWinLength().getType())) {
+      winLengthInt = n_fftInt;
+    } else if (!matchPattern(op.getWinLength(),
+                             m_TorchConstantInt(&winLengthInt)))
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported: non-constant win_length");
+
+    Value center = op.getCenter();
+    bool centerBool;
+    // TODO: add support for non-constant center and center=True
+    if (!matchPattern(center, m_TorchConstantBool(&centerBool)))
+      return rewriter.notifyMatchFailure(op,
+                                         "Unsupported: non-constant center");
+    if (centerBool)
+      return rewriter.notifyMatchFailure(op, "Unsupported: center=True");
+
+    Value normalized = op.getNormalized();
+    bool normalizedBool;
+    // TODO: add support for non-constant normalized and normalized=True
+    if (!matchPattern(normalized, m_TorchConstantBool(&normalizedBool)))
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported: non-constant normalized");
+    if (normalizedBool)
+      return rewriter.notifyMatchFailure(op, "Unsupported: normalized=True");
+
+    bool onesidedBool;
+    // Default: True for real input and window, False otherwise.
+    // TODO: add support for non-constant onesided
+    if (isa<Torch::NoneType>(op.getOnesided().getType())) {
+      Type dtype = selfType.getDtype();
+      onesidedBool = !isa<mlir::ComplexType>(dtype);
+    } else if (!matchPattern(op.getOnesided(),
+                             m_TorchConstantBool(&onesidedBool)))
+      return rewriter.notifyMatchFailure(op,
+                                         "Unsupported: non-constant onesided");
+
+    Value returnComplex = op.getReturnComplex();
+    bool returnComplexBool;
+    // TODO: add support for non-constant return_complex and return_complex=True
+    if (!matchPattern(returnComplex, m_TorchConstantBool(&returnComplexBool)))
+      return rewriter.notifyMatchFailure(
+          op, "Unsupported: non-constant return_complex");
+    if (!returnComplex)
+      return rewriter.notifyMatchFailure(op,
+                                         "Unsupported: return_complex=False");
+
+    Value window = op.getWindow();
+    ValueTensorType windowTensorType;
+    Type windowDType;
+    const bool hasWindow = !isa<Torch::NoneType>(window.getType());
+
+    if (hasWindow) {
+      windowTensorType = cast<ValueTensorType>(window.getType());
+      windowDType = windowTensorType.getOptionalDtype();
+      if (!windowTensorType.hasDtype() || !windowTensorType.hasSizes()) {
+        return rewriter.notifyMatchFailure(
+            op, "window should have dtype and sizes");
+      }
+      if (windowTensorType.getSizes().size() != 1) {
+        return op.emitError("window should be 1D");
+      }
+      if (windowTensorType.getSizes().back() == kUnknownSize) {
+        Value actualWinLen = getTensorDimSize(rewriter, window, 0);
+        Value winSizeEq = rewriter.create<AtenEqIntOp>(
+            loc, actualWinLen,
+            rewriter.create<ConstantIntOp>(
+                loc, rewriter.getI64IntegerAttr(winLengthInt)));
+        rewriter.create<RuntimeAssertOp>(
+            loc, winSizeEq,
+            rewriter.getStringAttr(
+                "window size should be equal to win_length"));
+      } else if (windowTensorType.getSizes().back() != winLengthInt) {
+        return op.emitError("window size should be equal to win_length");
+      }
+    }
+
+    Value cstZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value cstMinusOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+    Value cstOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value cstNone = rewriter.create<ConstantNoneOp>(loc);
+    Value cstStrConstant = rewriter.create<ConstantStrOp>(loc, "constant");
+    Value cstZeroFloat =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.0f));
+
+    Value signalLen = rewriter.create<AtenSizeIntOp>(loc, self, cstMinusOne);
+    Value nFrames = rewriter.create<AtenAddIntOp>(
+        loc, cstOne,
+        rewriter.create<AtenFloordivIntOp>(
+            loc, rewriter.create<AtenSubIntOp>(loc, signalLen, n_fft),
+            hopLength));
+    if (hasWindow && winLengthInt < n_fftInt) {
+      int64_t totalPad = n_fftInt - winLengthInt;
+      int64_t leftPad = totalPad / 2;
+      int64_t rightPad = totalPad - leftPad;
+      Value p1d = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(IntType::get(rewriter.getContext())),
+          ValueRange{rewriter.create<ConstantIntOp>(
+                         loc, rewriter.getI64IntegerAttr(leftPad)),
+                     rewriter.create<ConstantIntOp>(
+                         loc, rewriter.getI64IntegerAttr(rightPad))});
+      Type windowOutType = selfType.getWithSizesAndDtype(
+          SmallVector<int64_t>({n_fftInt}), windowDType);
+      Value constantValue;
+      if (isa<mlir::IntegerType>(windowDType))
+        constantValue = cstZero;
+      else if (isa<mlir::FloatType>(windowDType))
+        constantValue = cstZeroFloat;
+      window = rewriter.create<AtenPadOp>(loc, windowOutType, window, p1d,
+                                          cstStrConstant, constantValue);
+    }
+
+    if (hasWindow && selfType.getSizes().size() == 2) {
+      SmallVector<int64_t> newWindowSizes = {1, n_fftInt};
+      Type windowReshapeTensorType = windowTensorType.getWithSizesAndDtype(
+          newWindowSizes, windowTensorType.getOptionalDtype());
+      Value newWindowShape = toIntListConstruct(rewriter, loc, newWindowSizes);
+      window = rewriter.create<AtenReshapeOp>(loc, windowReshapeTensorType,
+                                              window, newWindowShape);
+    }
+
+    Value nFreqs = rewriter.create<ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(n_fftInt / 2 + 1));
+    SmallVector<Value> sizesValues =
+        selfType.getSizes().size() == 2
+            ? SmallVector<Value>(
+                  {/*batch_size = */ getTensorDimSize(rewriter, self, 0),
+                   nFreqs, nFrames})
+            : SmallVector<Value>({nFreqs, nFrames});
+    Value outputSizesList = rewriter.create<Torch::PrimListConstructOp>(
+        loc, Torch::ListType::get(IntType::get(rewriter.getContext())),
+        sizesValues);
+    Value resultDtype =
+        getDtypeIntValueForType(rewriter, loc, resultType.getDtype());
+    Value initFreqTensor = rewriter.create<AtenEmptyMemoryFormatOp>(
+        loc, resultType, outputSizesList, resultDtype, cstNone, cstNone,
+        cstNone, cstNone);
+    Value axisSignal = cstMinusOne;
+    Value axisFrames = cstMinusOne;
+    Value loopCondTrue = rewriter.create<ConstantBoolOp>(loc, true);
+    auto frameLoop =
+        rewriter.create<PrimLoopOp>(loc, TypeRange({resultType}), nFrames,
+                                    loopCondTrue, ValueRange({initFreqTensor}));
+    {
+      PatternRewriter::InsertionGuard guard(rewriter);
+      Type loopIndexType = rewriter.getType<IntType>();
+      Block *countLoopBody = rewriter.createBlock(
+          &frameLoop.getRegion(), frameLoop.getRegion().begin(),
+          TypeRange({loopIndexType, resultType}), {loc, loc});
+      Value frame = countLoopBody->getArgument(0);
+      Value freqTensor = countLoopBody->getArgument(1);
+      Value begin = rewriter.create<AtenMulIntOp>(loc, frame, hopLength);
+      Value end = rewriter.create<AtenAddIntOp>(loc, begin, n_fft);
+      Value narrowLen = rewriter.create<AtenSubIntOp>(
+          loc, rewriter.create<PrimMinIntOp>(loc, end, signalLen), begin);
+      Value missing = rewriter.create<AtenSubIntOp>(loc, n_fft, narrowLen);
+      SmallVector<int64_t> slicedSizes(selfType.getSizes());
+      slicedSizes.back() = kUnknownSize;
+      Type slicedTensorType = selfType.getWithSizesAndDtype(
+          slicedSizes, selfType.getOptionalDtype());
+      Value sliced = rewriter.create<AtenNarrowOp>(
+          loc, slicedTensorType, self, axisSignal, begin, narrowLen);
+      Value padList = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(IntType::get(rewriter.getContext())),
+          ValueRange{cstZero, missing});
+      SmallVector<int64_t> paddedSlicedSizes(selfType.getSizes());
+      paddedSlicedSizes.back() = n_fftInt;
+      Type paddedSlicedTensorType = selfType.getWithSizesAndDtype(
+          paddedSlicedSizes, selfType.getOptionalDtype());
+      Value paddedSliced = rewriter.create<TensorStaticInfoCastOp>(
+          loc, paddedSlicedTensorType,
+          rewriter.create<AtenPadOp>(loc, slicedTensorType, sliced, padList,
+                                     cstStrConstant, cstZeroFloat));
+      Value weighted =
+          hasWindow ? rewriter.create<AtenMulTensorOp>(
+                          loc, paddedSlicedTensorType, paddedSliced, window)
+                    : paddedSliced;
+      int64_t freqsDimSize = returnComplexBool
+                                 ? resultSizes[resultSizes.size() - 2]
+                                 : resultSizes[resultSizes.size() - 3];
+      SmallVector<int64_t> fftSizes(selfType.getSizes());
+      fftSizes.back() = freqsDimSize;
+      Type fftType = resultType.getWithSizesAndDtype(
+          fftSizes, resultType.getOptionalDtype());
+      Value freqSliceSq;
+      if (onesidedBool) {
+        freqSliceSq = rewriter.create<AtenFftRfftOp>(
+            loc, fftType, weighted, cstNone, axisSignal, cstNone);
+      } else {
+        freqSliceSq = rewriter.create<AtenFftFftOp>(
+            loc, fftType, weighted, cstNone, axisSignal, cstNone);
+      }
+      SmallVector<int64_t> freqSliceSizes(fftSizes);
+      freqSliceSizes.push_back(1);
+      Type freqSliceType = resultType.getWithSizesAndDtype(
+          freqSliceSizes, resultType.getOptionalDtype());
+      Value freqSlice = rewriter.create<AtenUnsqueezeOp>(
+          loc, freqSliceType, freqSliceSq, axisFrames);
+      Value newFreqTensor = rewriter.create<AtenSliceScatterOp>(
+          loc, resultType, freqTensor, freqSlice, /*dim=*/axisFrames,
+          /*start=*/frame, /*end=*/cstNone, /*step=*/cstOne);
+      rewriter.create<PrimLoopConditionOp>(loc, loopCondTrue,
+                                           ValueRange({newFreqTensor}));
+    }
+    rewriter.replaceOp(op, frameLoop.getResults());
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenSquareOp : public OpRewritePattern<AtenSquareOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -11631,6 +11881,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAddmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenStftCenterOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);
