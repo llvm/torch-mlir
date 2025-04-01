@@ -107,7 +107,8 @@ This will build `libtorch` / `PyTorch` wheels from source and requires [the enab
 ```shell
 cmake -GNinja -Bbuild \
   externals/llvm-project/llvm \
-  -DCMAKE_BUILD_TYPE=Release \
+  `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
@@ -140,7 +141,9 @@ If you're running into issues with the above build command, consider using the f
 
 ```shell
 cmake -GNinja -Bbuild \
-  -DCMAKE_BUILD_TYPE=Release \
+  `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
@@ -156,7 +159,9 @@ cmake -GNinja -Bbuild \
 If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following command as template:
 ```shell
 cmake -GNinja -Bbuild \
-  -DCMAKE_BUILD_TYPE=Release \
+  `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir/" \
   -DLLVM_DIR="$LLVM_INSTALL_DIR/lib/cmake/llvm/" \
@@ -168,13 +173,7 @@ The same QoL CMake flags can be used to enable clang, ccache, and lld. Be sure t
 
 Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
 
-##### Options to enable MLIR debugging
-
-* Enabling `--debug` and `--debug-only` flags (see [MLIR docs](https://mlir.llvm.org/getting_started/Debugging/)) for the `torch-mlir-opt` tool
-```shell
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \ # or =Debug
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-```
+###### [About MLIR debugging](https://mlir.llvm.org/getting_started/Debugging/)
 
 ##### Options to run end-to-end tests
 
