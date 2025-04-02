@@ -21,6 +21,7 @@ cmake -S "$repo_root/externals/llvm-project/llvm" -B "$build_dir" \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
   -DPython3_FIND_VIRTUALENV=ONLY \
+  -DPython_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD" \
