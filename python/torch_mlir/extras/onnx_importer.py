@@ -55,6 +55,7 @@ from ..ir import (
     F16Type,
     F32Type,
     F64Type,
+    Float8E4M3FNUZType,
     Float8E4M3FNType,
     Float8E5M2FNUZType,
     Float8E5M2Type,
@@ -643,7 +644,7 @@ class ContextCache:
         if tt.elem_type:
             element_type = self.tensor_element_type(tt.elem_type)
             dims = tuple(
-                (d.dim_value if not d.dim_param else None) for d in tt.shape.dim
+                (d.dim_value if d.HasField("dim_value") else None) for d in tt.shape.dim
             )
             shape_asm = ",".join("?" if d is None else str(d) for d in dims)
             return f"vtensor<[{shape_asm}],{element_type}>"
@@ -656,7 +657,7 @@ class ContextCache:
         if tt.elem_type:
             element_type = self.tensor_element_type(tt.elem_type)
             dims = tuple(
-                (d.dim_value if not d.dim_param else None) for d in tt.shape.dim
+                (d.dim_value if d.HasField("dim_value") else None) for d in tt.shape.dim
             )
             shape_asm = ",".join("?" if d is None else str(d) for d in dims)
             return f"vtensor<[{shape_asm}],{element_type}>"
@@ -707,13 +708,15 @@ class ContextCache:
 
         tt = tp.tensor_type
         if tt.elem_type:
-            if not tt.shape:
-                raise OnnxImportError(
-                    f"Unsupported Tensor type without shape (run shape inference?): {tp}"
-                )
             element_type = self.tensor_element_type(tt.elem_type)
             dims = tuple(
-                (d.dim_value if not d.dim_param else None) for d in tt.shape.dim
+                # NOTE: dynamic dimension can either be denoted by d.dim_param being set
+                #       (and d.dim_value consequently not set) or
+                #       by neither d.dim_value nor d.dim_param being set. Also note that
+                #       d.dim_value being 0 corresponds to the protobuf default when the field
+                #       is not set.
+                d.dim_value if d.HasField("dim_value") else None
+                for d in tt.shape.dim
             )
             return self.get_vtensor_type(dims, element_type)
 
@@ -1097,7 +1100,7 @@ ELEM_TYPE_TO_IR_TYPE_CB = {
     onnx.TensorProto.DataType.COMPLEX128: lambda: ComplexType.get(F64Type.get()),
     onnx.TensorProto.DataType.BFLOAT16: lambda: BF16Type.get(),
     onnx.TensorProto.DataType.FLOAT8E4M3FN: lambda: Float8E4M3FNType.get(),
-    onnx.TensorProto.DataType.FLOAT8E4M3FNUZ: lambda: Float8E5M2FNUZType.get(),
+    onnx.TensorProto.DataType.FLOAT8E4M3FNUZ: lambda: Float8E4M3FNUZType.get(),
     onnx.TensorProto.DataType.FLOAT8E5M2: lambda: Float8E5M2Type.get(),
     onnx.TensorProto.DataType.FLOAT8E5M2FNUZ: lambda: Float8E5M2FNUZType.get(),
     onnx.TensorProto.DataType.STRING: lambda: "!torch.str",
