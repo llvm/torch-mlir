@@ -2318,6 +2318,18 @@ def aten〇atleast_2d〡shape(self: List[int]) -> List[int]:
     else:
         return self
 
+def aten〇atleast_3d〡shape(self: List[int]) -> List[int]:
+    if len(self)==0:
+        return [1, 1, 1]
+    elif len(self)==1:
+        x=self[0]
+        return [1, 1, x]
+    elif len(self)==2:
+        x, y = self
+        return [1, x, y]
+    else: 
+        return self
+    
 def aten〇stack〡shape(tensors: List[List[int]], dim: int = 0) -> List[int]:
     return upstream_shape_functions.stack(tensors, dim)
 
@@ -5673,6 +5685,11 @@ def aten〇atleast_1d〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇atleast_2d〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇atleast_3d〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
