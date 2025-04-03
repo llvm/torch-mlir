@@ -820,10 +820,9 @@ ContextCache::ConvertTensorProtoToAttr(const onnx::TensorProto &tp) {
       return mlirDenseElementsAttrFloatGet(tensorType, tp.float_data_size(),
                                            tp.float_data().data());
     case onnx::TensorProto::DataType::TensorProto_DataType_BOOL:
-      // NOTE: either this or the python implementation is wrong (it packs
-      // bits). At the time of writing there are no passing tests that use this.
-      // onnx-ml.proto documentation is not clear about how bools are organized
-      // in an int32 buffer.
+      // NOTE: At the time of writing there are no passing e2e tests that use
+      // this. onnx-ml.proto documentation is not clear about how bools are
+      // organized in an int32 buffer.
       return mlirDenseElementsAttrBoolGet(tensorType, tp.int32_data_size(),
                                           tp.int32_data().data());
     case onnx::TensorProto::DataType::TensorProto_DataType_UINT8: {
@@ -1309,7 +1308,11 @@ Status NodeImporter::ImportGeneralNode(const onnx::NodeProto &node) {
       opsetVersion = opsetImport.version();
     }
   }
-  assert(opsetVersion);
+  if (!opsetVersion) {
+    std::string msg = "Op domain not found in model's opset_import: '" +
+                      opDomain + "' for op: '" + opType + "'";
+    return SetError(std::move(msg));
+  }
 
   auto operatorFuncOp = mc_.GetOperatorFunction(
       opType, opDomain, opsetVersion,
