@@ -1792,8 +1792,8 @@ public:
     // Create a zero-initialized tensor with shape [lhsDim, rhsDim]
     Value zeroTensor = createZeroInitTensor(
         rewriter, loc, ValueRange{lhsDim, rhsDim}, elementType);
-    
-        // Set up affine indexing maps:
+
+    // Set up affine indexing maps:
     // We create a 2D loop iteration space. For the lhs, we use the first index
     // (i), for the rhs, the second index (j), and for the result, both (i, j).
     AffineMap mapLhs =
