@@ -520,6 +520,7 @@ FX_IMPORTER_XFAIL_SET = {
     "ReflectionPad3dModuleBack_basic",
     # RuntimeError: Unknown function SliceOutOfLowerBoundEndIndexModule
     "SliceOutOfLowerBoundEndIndexModule_basic",
+    "NativeGroupNormModule_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
@@ -954,6 +955,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenSymConstrainRange_basic",
     "AtenSymConstrainRangeForSize_basic",
     "Aten_AssertScalar_basic",
+    "NativeGroupNormModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
