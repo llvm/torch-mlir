@@ -81,6 +81,29 @@ def ReduceSumElementTypeBoolModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class PrimsSumFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.prims.sum(a, (0, 1))
+
+
+@register_test_case(module_factory=lambda: PrimsSumFloatModule())
+def PrimsSumFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
 class ReduceProdFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

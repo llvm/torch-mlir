@@ -118,3 +118,16 @@ func.func @elementwise_todtype_bf162f16(%arg0: !torch.vtensor<[1,?,32,128],bf16>
   %0 = torch.aten.to.dtype %arg0, %int5, %false, %false, %none : !torch.vtensor<[1,?,32,128],bf16>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,?,32,128],f16>
   return %0 : !torch.vtensor<[1,?,32,128],f16>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_add_non_broadcast_unit_dims(
+// CHECK:           linalg.generic {indexing_maps = [
+// CHECK-SAME:        affine_map<(d0, d1) -> (d0, d1)>,
+// CHECK-SAME:        affine_map<(d0, d1) -> (d1)>,
+// CHECK-SAME:        affine_map<(d0, d1) -> (d0, d1)>]
+func.func @elementwise_add_non_broadcast_unit_dims(%arg0: !torch.vtensor<[6,1],bf16>, %arg1 : !torch.vtensor<[1],bf16>) -> !torch.vtensor<[6,1],bf16> {
+  %int1_13 = torch.constant.int 1
+  %11 = torch.aten.add.Tensor %arg0, %arg1, %int1_13 : !torch.vtensor<[6,1],bf16>, !torch.vtensor<[1],bf16>, !torch.int -> !torch.vtensor<[6,1],bf16>
+  return %11 : !torch.vtensor<[6,1],bf16>
+}

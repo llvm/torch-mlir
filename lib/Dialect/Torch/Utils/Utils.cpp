@@ -237,6 +237,42 @@ Value Torch::getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
                                         rewriter.getI64IntegerAttr(intType));
 }
 
+template <typename OpTy>
+FailureOr<Value> Torch::getDtypeFromOp(PatternRewriter &rewriter, OpTy op) {
+  // For ops like AtenEmptyLikeOp, if dtype specified in the op is none, then it
+  // defaults to dtype of input. Since dtype specifies the dtype of output, in
+  // this scenario we can look at dtype of output instead of input itself.
+  // For ops like AtenRandOp, if dtype specified in the op is none, then it
+  // defaults to a global value. In this case as well we can look at dtype of
+  // output as it will already be set according to the default global value.
+  Value dtype = op.getDtype();
+  if (isa<Torch::NoneType>(dtype.getType())) {
+    BaseTensorType tensorType = cast<BaseTensorType>(op.getType());
+    if (!tensorType.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "expected input tensor to have a dtype");
+    }
+    dtype =
+        getDtypeIntValueForType(rewriter, op.getLoc(), tensorType.getDtype());
+  }
+  return dtype;
+}
+// Template instantiation template std::optional<Value>
+template FailureOr<Value>
+Torch::getDtypeFromOp<AtenEmptyLikeOp>(PatternRewriter &rewriter,
+                                       AtenEmptyLikeOp op);
+template FailureOr<Value>
+Torch::getDtypeFromOp<AtenNewEmptyOp>(PatternRewriter &rewriter,
+                                      AtenNewEmptyOp op);
+template FailureOr<Value>
+Torch::getDtypeFromOp<AtenRandOp>(PatternRewriter &rewriter, AtenRandOp op);
+template FailureOr<Value>
+Torch::getDtypeFromOp<AtenEmptyStridedOp>(PatternRewriter &rewriter,
+                                          AtenEmptyStridedOp op);
+template FailureOr<Value>
+Torch::getDtypeFromOp<AtenRandnGeneratorOp>(PatternRewriter &rewriter,
+                                            AtenRandnGeneratorOp op);
+
 // Helper to convert a tensor to a specific scalar type.
 Value Torch::convertTensorToDtype(PatternRewriter &rewriter, Location loc,
                                   Value input, Type dtype) {

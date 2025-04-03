@@ -708,11 +708,6 @@ class ContextCache:
 
         tt = tp.tensor_type
         if tt.elem_type:
-            # TODO: Fixme: it's never None, but rather an empty TensorShapeProto. Remove the check?
-            if not tt.shape:
-                raise OnnxImportError(
-                    f"Unsupported Tensor type without shape (run shape inference?): {tp}"
-                )
             element_type = self.tensor_element_type(tt.elem_type)
             dims = tuple(
                 # NOTE: dynamic dimension can either be denoted by d.dim_param being set
@@ -1145,7 +1140,8 @@ ELEM_TYPE_INLINE_TENSOR_PROTO_CB = {
             axis=None,
             bitorder="little",
         ),
-        signless=False,
+        shape=tp.dims,
+        type=IntegerType.get_signless(1),
     ),
     onnx.TensorProto.DataType.UINT8: lambda tp: DenseElementsAttr.get(
         np.asarray(tp.int32_data, dtype=np.uint8).reshape(tp.dims), signless=False

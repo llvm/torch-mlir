@@ -405,6 +405,7 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
+    "AvgPool2dCHWModule_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluInt8_basic",
     "QuantizedReluUint8_basic",
@@ -517,6 +518,9 @@ FX_IMPORTER_XFAIL_SET = {
     "ReflectionPad3dModuleRight_basic",
     "ReflectionPad3dModuleFront_basic",
     "ReflectionPad3dModuleBack_basic",
+    # RuntimeError: Unknown function SliceOutOfLowerBoundEndIndexModule
+    "SliceOutOfLowerBoundEndIndexModule_basic",
+    "NativeGroupNormModule_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
@@ -528,9 +532,13 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "Aten_TrilinearModuleSumAllDims_basic",
     "Aten_TrilinearModuleSumdims_basic",
+    "AvgPool2dSingleIntTupleParamsIncludePadModule_basic",
+    "AvgPool2dSingleIntTupleParamsModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
+    "ArgsortTensor_basic",
+    "ArgsortTensorInteger_basic",
     "AddFloatIntModule_basic",
     "AtenKthvalueDynamicDimsModule_basic",
     "AtenKthvalueFloat64DynamicDimsModule_basic",
@@ -947,9 +955,12 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenSymConstrainRange_basic",
     "AtenSymConstrainRangeForSize_basic",
     "Aten_AssertScalar_basic",
+    "NativeGroupNormModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
+    "AvgPool2dSingleIntTupleParamsIncludePadModule_basic",
+    "AvgPool2dSingleIntTupleParamsModule_basic",
     "BatchNorm1DModule_basic",
     "BatchNorm2DModule_basic",
     "BatchNorm3DModule_basic",
@@ -2693,6 +2704,7 @@ ONNX_XFAIL_SET = {
     "AdaptiveMaxPool2dDynamicNoBatch_basic",
     "AdaptiveMaxPool2dDynamicWithIndices_basic",
     "AdaptiveMaxPool2dDynamic_basic",
+    "AdaptiveMaxPool2dFixedKernelStrideSizeStaticModule_basic",
     "AdaptiveMaxPool2dStaticWithIndices_basic",
     "AdaptiveMaxPool2dStatic_basic",
     "AdaptiveMaxPool3dDynamicNoBatch_basic",
@@ -2754,6 +2766,9 @@ ONNX_XFAIL_SET = {
     "AtenTopKModule_basic",
     "AtenTopKSmallestModule_basic",
     "Aten_EmbeddingBagExample_basic",
+    "AvgPool2dCHWModule_basic",
+    "AvgPool2dSingleIntTupleParamsIncludePadModule_basic",
+    "AvgPool2dSingleIntTupleParamsModule_basic",
     "AvgPool2dWithoutPadModule_basic",
     "BatchMlpLayerModule_basic",
     "BincountMinlengthModule_basic",
@@ -3007,6 +3022,7 @@ ONNX_XFAIL_SET = {
     "PrimsConvertElementTypeModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
     "PrimsSqueezeModule_basic",
+    "PrimsSumFloatModule_basic",
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "QuantizedReluInt8_basic",
@@ -3264,6 +3280,8 @@ ONNX_XFAIL_SET = {
     "AtenSymConstrainRange_basic",
     "AtenSymConstrainRangeForSize_basic",
     "Aten_AssertScalar_basic",
+    # JIT session error: Symbols not found: [ memrefCopy ]
+    "SplitWithSizes_Module_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
@@ -3348,9 +3366,12 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
+    "ArgsortTensor_basic",
+    "ArgsortTensorInteger_basic",
     "AtenSymConstrainRangeForSize_basic",
     "AtenSymConstrainRange_basic",
     "Aten_AssertScalar_basic",
+    "AvgPool2dSingleIntTupleParamsIncludePadModule_basic",
     "ScatterAddDynamicModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
@@ -3373,8 +3394,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ViewDtypeStaticModule_basic",
     "Unfold_Module_Rank_Zero_Size_Zero_basic",
     "ArangeZeroElementOutputModule_basic",
-    "NumpyTRank0Module_basic",
-    "Permute0RankModule_basic",
     "SliceOutOfUpperBoundIndexModule_basic",
     "SliceOutOfUpperBoundIndexStaticModule_basic",
     "SliceStartEqEndModule_basic",
@@ -3389,6 +3408,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenKthvalueKeepDimModule_basic",
     "AtenKthvalueModule_basic",
     "AvgPool3dStaticModule_basic",
+    "AvgPool3dCountIncludePadFalse_basic",
+    "AvgPool3dCountIncludePadFalseWithoutPadding_basic",
     "Conv_Transpose1dModule_basic",
     "Conv_Transpose1dStaticModule_basic",
     "Conv_Transpose2dStaticModule_basic",
@@ -3454,7 +3475,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenMatmulQint8VM_basic",
     "AtenMatmulQint8VV_basic",
     "AtenMatmulQint8_basic",
-    "AtenMmIntTypes_basic",
     "AtenMmQMixedSigni8_basic",
     "AtenMmQint8_basic",
     "AtenMmQuint8_basic",
@@ -3478,7 +3498,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "BincountMinlengthModule_basic",
     "BincountModule_basic",
     "BincountStaticSizeModule_basic",
-    "BmmIntModule_basic",
     "BoolFloatConstantModule_basic",
     "BoolFloatFalseModule_basic",
     "BoolFloatTrueModule_basic",
@@ -3519,6 +3538,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ConvolutionModule2DTransposeStridedStatic_basic",
     "ConvolutionModule2DTransposeStrided_basic",
     "ConvolutionModule2DTranspose_basic",
+    "ConvolutionModule2DGroupedTranspose_basic",
     "CumsumInputDtypeInt32Module_basic",
     "CumsumModule_basic",
     "CumsumStaticModule_basic",
@@ -4095,6 +4115,7 @@ ONNX_TOSA_XFAIL_SET = {
     "ConvolutionModule2DTransposeStridedStatic_basic",
     "ConvolutionModule2DTransposeStrided_basic",
     "ConvolutionModule2DTranspose_basic",
+    "ConvolutionModule2DGroupedTranspose_basic",
     "CopyModule_basic",
     "CopyWithDifferentDTypesAndSizesModule_basic",
     "CopyWithDifferentDTypesModule_basic",

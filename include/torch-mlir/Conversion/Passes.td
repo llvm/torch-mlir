@@ -122,6 +122,13 @@ def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "func::FuncOp"> {
     guards in case of shape mismatches.
   }];
   let constructor = "mlir::torch::createConvertTorchToTosaPass()";
+
+  let options = [
+    Option<"requireFullTosaConversion", "require-full-tosa-conversion",
+            "bool", /*default=*/"true",
+            "Require TorchToTosa full conversion by adding Torch Dialect to "
+            "TorchToTosa list of illegal dialects">,
+  ];
 }
 #endif
 

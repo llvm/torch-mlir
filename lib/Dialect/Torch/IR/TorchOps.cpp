@@ -12,6 +12,7 @@
 #include "llvm/Support/Debug.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
@@ -2422,6 +2423,65 @@ OpFoldResult AtenReshapeOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenPowTensorScalarOp
+//===----------------------------------------------------------------------===//
+
+void AtenPowTensorScalarOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  // If the exponent is a float representation of an int,
+  // convert the exponent to an int
+  patterns.add(+[](AtenPowTensorScalarOp op, PatternRewriter &rewriter) {
+    auto exp = getAsOpFoldResult(op.getExponent());
+    auto baseAttr = dyn_cast<mlir::Attribute>(exp);
+    auto floatAttr = dyn_cast_or_null<mlir::FloatAttr>(baseAttr);
+    if (!floatAttr)
+      return failure();
+    double expValue = floatAttr.getValueAsDouble();
+    auto truncValue = static_cast<int64_t>(expValue);
+    if (expValue != static_cast<double>(truncValue))
+      return failure();
+    Value IRScalar =
+        rewriter.create<Torch::ConstantIntOp>(op.getLoc(), truncValue);
+    op->setOperand(1, IRScalar);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenPowTensorTensorOp
+//===----------------------------------------------------------------------===//
+
+void AtenPowTensorTensorOp::getCanonicalizationPatterns(
+    RewritePatternSet &patterns, MLIRContext *context) {
+  // If the exponent is a single element constant, convert to
+  // AtenPowTensorScalar.
+  patterns.add(+[](AtenPowTensorTensorOp op, PatternRewriter &rewriter) {
+    OpFoldResult exp = getAsOpFoldResult(op.getExponent());
+    auto expAttr = dyn_cast<Attribute>(exp);
+    auto attr = dyn_cast_or_null<DenseElementsAttr>(expAttr);
+    if (!attr || attr.getNumElements() != 1)
+      return failure();
+    auto elem = *attr.value_begin<Attribute>();
+    auto intAttr = dyn_cast<mlir::IntegerAttr>(elem);
+    auto floatAttr = dyn_cast<mlir::FloatAttr>(elem);
+    if (!intAttr && !floatAttr)
+      return failure();
+    Value IRScalar;
+    if (intAttr)
+      IRScalar = rewriter.create<Torch::ConstantIntOp>(
+          op.getLoc(), getIntAttrAsSigned(intAttr));
+    if (floatAttr) {
+      double expValue = floatAttr.getValueAsDouble();
+      IRScalar = rewriter.create<Torch::ConstantFloatOp>(op.getLoc(),
+                                                         APFloat(expValue));
+    }
+    rewriter.replaceOpWithNewOp<AtenPowTensorScalarOp>(op, op.getType(),
+                                                       op.getSelf(), IRScalar);
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSelectIntOp
 //===----------------------------------------------------------------------===//
 
@@ -4047,9 +4107,8 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
     limit = limit < 0 ? limit + inType.getSizes()[dimInt] : limit;
     limit = limit < 0 ? -1 : limit;
     limit = std::min(limit, inType.getSizes()[dimInt]);
-    assert((stride > 0 && begin < limit) ||
-           (stride < 0 && begin > limit) &&
-               "aten.slice.Tensor iteration args are statically invalid.");
+    assert(((stride > 0 && begin < limit) || (stride < 0 && begin > limit)) &&
+           "aten.slice.Tensor iteration args are statically invalid.");
 
     int64_t inputRank = inType.getSizes().size();
     llvm::SmallVector<int64_t> inputStrides(inputRank, 1);
@@ -5952,4 +6011,35 @@ LogicalResult AtenRot90Op::verify() {
            << dims[0] << " and dim1 = " << dims[1];
 
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// OnnxVariantRotaryEmbeddingOp
+//===----------------------------------------------------------------------===//
+
+ParseResult OnnxVariantRotaryEmbeddingOp::parse(OpAsmParser &parser,
+                                                OperationState &result) {
+  SmallVector<OpAsmParser::UnresolvedOperand> operands;
+  SmallVector<Type> operandTypes;
+
+  if (parser.parseOperandList(operands, /*requiredOperandCount=*/9) ||
+      parser.parseColonTypeList(operandTypes)) {
+    return failure();
+  }
+
+  if (parser.resolveOperands(operands, operandTypes,
+                             parser.getCurrentLocation(), result.operands)) {
+    return failure();
+  }
+
+  // Parse result type list.
+  if (parser.parseArrowTypeList(result.types))
+    return failure();
+
+  return success();
+}
+
+void OnnxVariantRotaryEmbeddingOp::print(OpAsmPrinter &p) {
+  p << " " << getOperands() << " : " << getOperandTypes() << " -> "
+    << getResult().getType();
 }

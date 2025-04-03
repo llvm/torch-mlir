@@ -11,12 +11,20 @@ from torch.export import ExportedProgram
 from torch._dynamo.backends.common import aot_autograd
 
 from torch_mlir import fx
+from torch_mlir.compiler_utils import OutputType
 from torch_mlir_e2e_test.configs.utils import (
     recursively_convert_to_numpy,
     recursively_convert_from_numpy,
 )
 from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 from torch_mlir_e2e_test.annotations import TORCH_MLIR_ARG_ANNOTATIONS_ATTR_NAME
+
+
+BACKEND_LEGAL_OPS = {
+    OutputType.LINALG_ON_TENSORS: [
+        "aten.adaptive_max_pool2d",
+    ],
+}
 
 
 def refine_result_type(_result):
@@ -38,10 +46,14 @@ class FxImporterTestConfig(TestConfig):
         self._backend = backend
         self._torch_compile = torch_compile
         self._output_type = output_type
+        self._backend_legal_ops = BACKEND_LEGAL_OPS.get(
+            OutputType.get(self._output_type), []
+        )
 
     def compile(
         self, program: torch.nn.Module, verbose: bool = False
     ) -> torch.nn.Module:
+        self._verbose = verbose
         return program
 
     def run(self, artifact: torch.nn.Module, trace: Trace):
@@ -84,6 +96,8 @@ class FxImporterTestConfig(TestConfig):
                     gm,
                     output_type=self._output_type,
                     model_name=artifact.__class__.__name__,
+                    verbose=self._verbose,
+                    backend_legal_ops=self._backend_legal_ops,
                 )
                 module = self._backend.compile(module)
                 backend_module = self._backend.load(module)
@@ -120,7 +134,9 @@ class FxImporterTestConfig(TestConfig):
     def _export_run(self, artifact: torch.nn.Module, trace: Trace) -> Trace:
         result: Trace = []
         for item in trace:
-            prog: ExportedProgram = torch.export.export(artifact, tuple(item.inputs))
+            prog: ExportedProgram = torch.export.export(
+                artifact, tuple(item.inputs), strict=True
+            )
             module = fx.export_and_import(
                 prog,
                 output_type=self._output_type,
@@ -128,6 +144,8 @@ class FxImporterTestConfig(TestConfig):
                 # While the current e2e tests don't exercise symbolic shapes,
                 # enabling this here ensures they don't regress either.
                 import_symbolic_shape_expressions=True,
+                verbose=self._verbose,
+                backend_legal_ops=self._backend_legal_ops,
             )
             module = self._backend.compile(module)
             backend_module = self._backend.load(module)

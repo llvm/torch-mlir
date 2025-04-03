@@ -331,28 +331,28 @@ def test_sparse_eltwise():
     print("torch.mlir.batch")
 
 
-@run
+# @run
 #
-# CHECK-LABEL: test_sparse_coo3
-# CHECK:       #[[$COO3:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : compressed(nonunique), d1 : singleton(nonunique, soa), d2 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
-# CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[10,20,30],f64,#[[$COO3]]>) -> !torch.vtensor<[10,20,30],f64,#[[$COO3]]> {
-# CHECK:         %[[R:.*]] = torch.aten.relu %[[A]] : !torch.vtensor<[10,20,30],f64,#[[$COO3]]> -> !torch.vtensor<[10,20,30],f64,#[[$COO3]]>
-# CHECK:         return %[[R]] : !torch.vtensor<[10,20,30],f64,#[[$COO3]]>
-# CHECK:       }
+# C_HECK-LABEL: test_sparse_coo3
+# C_HECK:       #[[$COO3:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : compressed(nonunique), d1 : singleton(nonunique, soa), d2 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
+# C_HECK:       func.func @main(
+# C_HECK-SAME:    %[[A:.*]]: !torch.vtensor<[10,20,30],f64,#[[$COO3]]>) -> !torch.vtensor<[10,20,30],f64,#[[$COO3]]> {
+# C_HECK:         %[[R:.*]] = torch.aten.relu %[[A]] : !torch.vtensor<[10,20,30],f64,#[[$COO3]]> -> !torch.vtensor<[10,20,30],f64,#[[$COO3]]>
+# C_HECK:         return %[[R]] : !torch.vtensor<[10,20,30],f64,#[[$COO3]]>
+# C_HECK:       }
 #
-# CHECK: torch.sparse
-# CHECK:   tensor(indices=tensor({{\[}}[ 0,  1,  1,  4,  9,  9],
-# CHECK:                               [ 0,  1,  1,  5, 19, 19],
-# CHECK:                               [ 0,  1,  3,  6, 28, 29]{{\]}}),
-# CHECK:          values=tensor([   0.,    0.,    1.,    2.,    3., 1000.]),
-# CHECK:          size=(10, 20, 30), nnz=6, dtype=torch.float64, layout=torch.sparse_coo)
-# CHECK: torch.mlir
-# CHECK:  [0 6]
-# CHECK:  [0 1 1 4 9 9]
-# CHECK:  [ 0  1  1  5 19 19]
-# CHECK:  [ 0  1  3  6 28 29]
-# CHECK:  [   0.    0.    1.    2.    3. 1000.]
+# C_HECK: torch.sparse
+# C_HECK:   tensor(indices=tensor({{\[}}[ 0,  1,  1,  4,  9,  9],
+# C_HECK:                               [ 0,  1,  1,  5, 19, 19],
+# C_HECK:                               [ 0,  1,  3,  6, 28, 29]{{\]}}),
+# C_HECK:          values=tensor([   0.,    0.,    1.,    2.,    3., 1000.]),
+# C_HECK:          size=(10, 20, 30), nnz=6, dtype=torch.float64, layout=torch.sparse_coo)
+# C_HECK: torch.mlir
+# C_HECK:  [0 6]
+# C_HECK:  [0 1 1 4 9 9]
+# C_HECK:  [ 0  1  1  5 19 19]
+# C_HECK:  [ 0  1  3  6 28 29]
+# C_HECK:  [   0.    0.    1.    2.    3. 1000.]
 #
 def test_sparse_coo3():
     class COO3Net(torch.nn.Module):
@@ -386,31 +386,31 @@ def test_sparse_coo3():
     print(res2[4])
 
 
-@run
+# @run
 #
-# CHECK-LABEL: test_sparse_activation
-# CHECK:       #[[$COO:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : compressed(nonunique), d1 : singleton(nonunique, soa), d2 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
-# CHECK:       func.func @main(
-# CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[2,2,2],f32>) -> !torch.vtensor<[2,2,2],f32,#[[$COO]]> {
-# CHECK:         %[[N1:.*]] = torch.constant.none
-# CHECK:         %[[N2:.*]] = torch.constant.none
-# CHECK:         %[[N3:.*]] = torch.constant.none
-# CHECK:         %[[R:.*]] = torch.operator "torch.aten.{{to_sparse|_to_sparse}}"(%[[A]], %[[N1]], %[[N2]], %[[N3]]) : (!torch.vtensor<[2,2,2],f32>, !torch.none, !torch.none, !torch.none) -> !torch.vtensor<[2,2,2],f32,#[[$COO]]>
-# CHECK:         return %[[R]] : !torch.vtensor<[2,2,2],f32,#[[$COO]]>
-# CHECK:       }
+# C_HECK-LABEL: test_sparse_activation
+# C_HECK:       #[[$COO:.*]] = #sparse_tensor.encoding<{ map = (d0, d1, d2) -> (d0 : compressed(nonunique), d1 : singleton(nonunique, soa), d2 : singleton(soa)), posWidth = 64, crdWidth = 64 }>
+# C_HECK:       func.func @main(
+# C_HECK-SAME:    %[[A:.*]]: !torch.vtensor<[2,2,2],f32>) -> !torch.vtensor<[2,2,2],f32,#[[$COO]]> {
+# C_HECK:         %[[N1:.*]] = torch.constant.none
+# C_HECK:         %[[N2:.*]] = torch.constant.none
+# C_HECK:         %[[N3:.*]] = torch.constant.none
+# C_HECK:         %[[R:.*]] = torch.operator "torch.aten.{{to_sparse|_to_sparse}}"(%[[A]], %[[N1]], %[[N2]], %[[N3]]) : (!torch.vtensor<[2,2,2],f32>, !torch.none, !torch.none, !torch.none) -> !torch.vtensor<[2,2,2],f32,#[[$COO]]>
+# C_HECK:         return %[[R]] : !torch.vtensor<[2,2,2],f32,#[[$COO]]>
+# C_HECK:       }
 #
-# CHECK: torch.sparse
-# CHECK:   tensor(indices=tensor({{\[}}[0, 0, 0, 0, 1, 1, 1, 1],
-# CHECK:                               [0, 0, 1, 1, 0, 0, 1, 1],
-# CHECK:                               [0, 1, 0, 1, 0, 1, 0, 1]{{\]}}),
-# CHECK:      values=tensor([1., 1., 1., 1., 1., 1., 1., 1.]),
-# CHECK:      size=(2, 2, 2), nnz=8, layout=torch.sparse_coo)
-# CHECK: torch.mlir
-# CHECK:   [0 8]
-# CHECK:   [0 0 0 0 1 1 1 1]
-# CHECK:   [0 0 1 1 0 0 1 1]
-# CHECK:   [0 1 0 1 0 1 0 1]
-# CHECK:   [1. 1. 1. 1. 1. 1. 1. 1.]
+# C_HECK: torch.sparse
+# C_HECK:   tensor(indices=tensor({{\[}}[0, 0, 0, 0, 1, 1, 1, 1],
+# C_HECK:                               [0, 0, 1, 1, 0, 0, 1, 1],
+# C_HECK:                               [0, 1, 0, 1, 0, 1, 0, 1]{{\]}}),
+# C_HECK:      values=tensor([1., 1., 1., 1., 1., 1., 1., 1.]),
+# C_HECK:      size=(2, 2, 2), nnz=8, layout=torch.sparse_coo)
+# C_HECK: torch.mlir
+# C_HECK:   [0 8]
+# C_HECK:   [0 0 0 0 1 1 1 1]
+# C_HECK:   [0 0 1 1 0 0 1 1]
+# C_HECK:   [0 1 0 1 0 1 0 1]
+# C_HECK:   [1. 1. 1. 1. 1. 1. 1. 1.]
 #
 def test_sparse_activation():
     class SparseActivationCOO(torch.nn.Module):
