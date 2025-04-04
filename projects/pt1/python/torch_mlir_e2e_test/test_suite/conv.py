@@ -1759,6 +1759,38 @@ def ConvolutionModule2DGroupedTranspose_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 2, 5, 7), tu.rand(2, 2, 3, 3), tu.rand(4))
 
 
+class TransposedConv1dNegativePadding(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 7], torch.float32, True),
+            ([1, 2, 3], torch.float32, True),
+            ([2], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight, bias):
+        return torch.ops.aten.convolution(
+            inputVec,
+            weight,
+            bias=bias,
+            stride=[1],
+            padding=[3],
+            dilation=[1],
+            transposed=True,
+            output_padding=[0],
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: TransposedConv1dNegativePadding())
+def TransposedConv1dNegativePadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 7), tu.rand(1, 2, 3), tu.rand(2))
+
+
 class TransposedConv2dNegativePadding(torch.nn.Module):
     def __init__(self):
         super().__init__()

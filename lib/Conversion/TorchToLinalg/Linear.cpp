@@ -1500,9 +1500,9 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
   // For the case in which the padding dimension value is negative,
   // we will need to shrink the dimension. Note in the PyTorch
   // ConvTranspose2d operator documentation that the padding is
-  // defined by dilation * (kernel_size - 1). If the resulting
-  // padding is negative, PyTorch will extract elements from both
-  // sides of the dimension.
+  // defined by dilation * (kernel_size - 1) - padding. If the
+  // resulting padding is negative, PyTorch will extract elements
+  // from both sides of the dimension.
   SmallVector<Value> extractSliceOffsets{c0, c0};
   bool anyDimensionPaddingIsNegative = false;
 
