@@ -102,7 +102,8 @@ Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is 
 The following commands generate configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.
 
 ###### ...Base + Optimization Options
-This will build `libtorch` / `PyTorch` wheels from source and requires [the enablement mentioned earlier](#optional-enable-quicker-builds). If you encounter issues when you run this, try the [simplified build command](#base-options) instead.
+
+If you do anticipate needing to frequently rebuild LLVM "in-tree", run:
 
 ```shell
 cmake -GNinja -Bbuild \
@@ -136,9 +137,12 @@ cmake -GNinja -Bbuild \
   -DLIBTORCH_VARIANT=shared
 ```
 
+- This will build `libtorch` / `PyTorch` wheels from source and requires [the enablement mentioned earlier](#optional-enable-quicker-builds).
+- If you encounter issues when you run this, try the [simplified build command](#base-options) instead.
+
 ###### ...Base Options
 
-If you're running into issues with the above build command, consider using the following:
+If you don't anticipate needing to frequently rebuild LLVM "in-tree", run:
 
 ```shell
 cmake -GNinja -Bbuild \
