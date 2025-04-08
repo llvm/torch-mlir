@@ -578,4 +578,20 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                                           c);
         return success();
       });
+  patterns.onOp("QLinearLeakyRelu", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  float alpha;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType) ||
+                      binder.f32FloatAttr(alpha, "alpha", 0.01f))
+                    return failure();
+                  Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
+                      binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+                      rewriter.getF64FloatAttr(alpha));
+                  rewriter.replaceOpWithNewOp<Torch::AtenLeakyReluOp>(
+                      binder.op, resultType, operand, constAlpha);
+                  return success();
+                });
 }
