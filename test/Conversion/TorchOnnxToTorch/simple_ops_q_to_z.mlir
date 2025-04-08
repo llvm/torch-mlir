@@ -3712,3 +3712,29 @@ func.func @test_qlinearadd(%arg0: !torch.vtensor<[1,4096],ui8>, %arg1: !torch.vt
   // CHECK: return %[[OUT]]
   return %0 : !torch.vtensor<[1,4096],ui8>
 }
+
+// -----
+
+// CHECK-LABEL: @test_qlinearleakyrelu(
+// CHECK-SAME:                   %[[X:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[?,32,?,?],ui8>,
+// CHECK-SAME:                   %[[X_SCALE:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[],f32>,
+// CHECK-SAME:                   %[[X_ZERO_POINT:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[],ui8>,
+// CHECK-SAME:                   %[[Y_SCALE:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[],f32>,
+// CHECK-SAME:                   %[[Y_ZERO_POINT:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[],ui8>) -> !torch.vtensor<[?,32,?,?],ui8>
+func.func @test_qlinearleakyrelu(%arg0: !torch.vtensor<[?,32,?,?],ui8>, %arg1: !torch.vtensor<[],f32>, %arg2: !torch.vtensor<[],ui8>, %arg3: !torch.vtensor<[],f32>, %arg4: !torch.vtensor<[],ui8>) -> !torch.vtensor<[?,32,?,?],ui8> attributes {torch.onnx_meta.ir_version = 5 : si64, torch.onnx_meta.opset_version = 10 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  %0 = torch.operator "onnx.QLinearLeakyRelu"(%arg0, %arg1, %arg2, %arg3, %arg4) {torch.onnx.alpha = 1.000000e-01 : f32} : (!torch.vtensor<[?,32,?,?],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>) -> !torch.vtensor<[?,32,?,?],ui8>
+  // CHECK-DAG: %[[EMPTY:.+]] = torch.prim.ListConstruct  : () -> !torch.list<int>
+  // CHECK-DAG: %[[XSCALE:.+]] = torch.aten.item %[[X_SCALE]] : !torch.vtensor<[],f32> -> !torch.float
+  // CHECK-DAG: %[[YSCALE:.+]] = torch.aten.item %[[Y_SCALE]] : !torch.vtensor<[],f32> -> !torch.float
+  // CHECK-DAG: %[[XZP:.+]] = torch.aten.item %[[X_ZERO_POINT]] : !torch.vtensor<[],ui8> -> !torch.int
+  // CHECK-DAG: %[[YZP:.+]] = torch.aten.item %[[Y_ZERO_POINT]] : !torch.vtensor<[],ui8> -> !torch.int
+  // CHECK-DAG: %[[X_QUANT:.+]] = torch.aten._make_per_tensor_quantized_tensor %[[X]], %[[XSCALE]], %[[XZP]] : !torch.vtensor<[?,32,?,?],ui8>, !torch.float, !torch.int -> !torch.vtensor<[?,32,?,?],!torch.quint8>
+  // CHECK: %[[X_F32:.+]] = torch.aten.dequantize.self %[[X_QUANT]] : !torch.vtensor<[?,32,?,?],!torch.quint8> -> !torch.vtensor<[?,32,?,?],f32>
+  // CHECK: %[[ALPHA:.+]] = torch.constant.float 0.10000000149011612
+  // CHECK: %[[LEAKYRELU:.+]] = torch.aten.leaky_relu %[[X_F32]], %[[ALPHA]] : !torch.vtensor<[?,32,?,?],f32>, !torch.float -> !torch.vtensor<[?,32,?,?],f32>
+  // CHECK: %[[DTY:.+]] = torch.constant.int 13
+  // CHECK: %[[QO:.+]] = torch.aten.quantize_per_tensor %[[LEAKYRELU]], %[[YSCALE]], %[[YZP]], %[[DTY]] : !torch.vtensor<[?,32,?,?],f32>, !torch.float, !torch.int, !torch.int -> !torch.vtensor<[?,32,?,?],!torch.quint8>
+  // CHECK: %[[OUT:.+]] = torch.aten.int_repr %[[QO]] : !torch.vtensor<[?,32,?,?],!torch.quint8> -> !torch.vtensor<[?,32,?,?],ui8>
+  // CHECK: return %[[OUT]]
+  return %0 : !torch.vtensor<[?,32,?,?],ui8>
+}

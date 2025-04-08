@@ -578,20 +578,104 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                                           c);
         return success();
       });
-  patterns.onOp("QLinearLeakyRelu", 1,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value operand;
-                  float alpha;
-                  if (binder.tensorOperand(operand) ||
-                      binder.tensorResultType(resultType) ||
-                      binder.f32FloatAttr(alpha, "alpha", 0.01f))
-                    return failure();
-                  Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
-                      binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-                      rewriter.getF64FloatAttr(alpha));
-                  rewriter.replaceOpWithNewOp<Torch::AtenLeakyReluOp>(
-                      binder.op, resultType, operand, constAlpha);
-                  return success();
-                });
+  patterns.onOp(
+      "QLinearLeakyRelu", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
+        Torch::ValueTensorType resultType;
+        llvm::SmallVector<Value> operands;
+        float alpha;
+        if (binder.tensorOperandsList(operands) ||
+            binder.tensorResultType(resultType) ||
+            binder.f32FloatAttr(alpha, "alpha"))
+          return failure();
+
+        Value x = operands[0];
+        Value xScale = operands[1];
+        Value xZp = operands[2];
+        Value yScale = operands[3];
+        Value yZp = operands[4];
+
+        auto check = [](Value v) {
+          auto vTy = cast<Torch::ValueTensorType>(v.getType());
+          for (auto dim : vTy.getSizes())
+            if (dim != 1)
+              return false;
+          return true;
+        };
+        if (!check(xScale) || !check(xZp) || !check(yScale) || !check(yZp))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unsupported arguments for per-tensor quantization");
+
+        Value emptyList = rewriter.create<Torch::PrimListConstructOp>(
+            loc,
+            rewriter.getType<Torch::ListType>(
+                rewriter.getType<Torch::IntType>()),
+            ValueRange{});
+        auto extract = [&rewriter, &binder, &emptyList](Value v) {
+          auto vTy = cast<Torch::ValueTensorType>(v.getType());
+          if (!vTy.getSizes().empty()) {
+            vTy = rewriter.getType<Torch::ValueTensorType>(
+                ArrayRef<int64_t>({}), vTy.getOptionalDtype());
+            v = rewriter.create<Torch::AtenReshapeOp>(binder.getLoc(), vTy, v,
+                                                      emptyList);
+          }
+
+          Type extractTy = rewriter.getType<Torch::FloatType>();
+          if (isa<IntegerType>(vTy.getDtype()))
+            extractTy = rewriter.getType<Torch::IntType>();
+
+          return rewriter.create<Torch::AtenItemOp>(binder.getLoc(), extractTy,
+                                                    v);
+        };
+
+        xScale = extract(xScale);
+        yScale = extract(yScale);
+        xZp = extract(xZp);
+        yZp = extract(yZp);
+
+        auto makePerTensor = [&rewriter, &binder](Value v, Value scale,
+                                                  Value zp) -> Value {
+          auto ty = cast<Torch::ValueTensorType>(v.getType());
+          auto newTy = getQTorchTypeFromTorchIntType(ty);
+          return rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
+              binder.getLoc(), newTy, v, scale, zp);
+        };
+
+        x = makePerTensor(x, xScale, xZp);
+
+        auto xTy = dyn_cast<Torch::ValueTensorType>(x.getType());
+        if (!xTy || !xTy.hasSizes())
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input argument `x` to have sizes");
+
+        xTy = rewriter.getType<Torch::ValueTensorType>(xTy.getOptionalSizes(),
+                                                       rewriter.getF32Type());
+        // Dequantizing the input tensor `x`.
+        x = rewriter.create<Torch::AtenDequantizeSelfOp>(loc, xTy, x);
+
+        // Computing the LeakyRelu result.
+        Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
+            loc, rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr((double)alpha));
+        auto yTy = rewriter.getType<Torch::ValueTensorType>(
+            resultType.getOptionalSizes(), rewriter.getF32Type());
+        Value y =
+            rewriter.create<Torch::AtenLeakyReluOp>(loc, yTy, x, constAlpha);
+
+        // Quantizing the result of LeakyRelu op.
+        yTy = dyn_cast<Torch::ValueTensorType>(
+            getQTorchTypeFromTorchIntType(resultType));
+        Value dtyVal = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(
+                rewriter.getIntegerType(64),
+                static_cast<int64_t>(
+                    Torch::getScalarTypeForType(yTy.getDtype()))));
+        y = rewriter.create<Torch::AtenQuantizePerTensorOp>(loc, yTy, y, yScale,
+                                                            yZp, dtyVal);
+        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
+                                                          y);
+        return success();
+      });
 }
