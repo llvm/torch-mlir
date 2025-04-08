@@ -19,7 +19,7 @@ case $torch_version in
     ;;
   stable)
     echo "::group::installing stable torch"
-    # python3 -m pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+    python3 -m pip install --no-cache-dir torch==2.5.1 torchvision --index-url https://download.pytorch.org/whl/cpu
     python3 -m pip install --no-cache-dir -r $repo_root/build-requirements.txt
     echo "::endgroup::"
     ;;

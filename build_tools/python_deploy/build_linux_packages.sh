@@ -347,7 +347,7 @@ function setup_venv() {
       ;;
     stable)
       echo ":::: Using stable dependencies"
-      python3 -m pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      python3 -m pip install --no-cache-dir torch==2.5.1 torchvision --index-url https://download.pytorch.org/whl/cpu
       python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
       ;;
     *)
@@ -471,6 +471,8 @@ function build_torch_mlir() {
   # Disable LTC build for releases
   export TORCH_MLIR_ENABLE_LTC=0
   python -m pip install --no-cache-dir -r /main_checkout/torch-mlir/build-requirements.txt
+
+  echo ":::: Creating WHEEEEEEEEEEEEEEEEEEEEEELLLLLLLLLLLLLLLLLLLLL"
   CMAKE_GENERATOR=Ninja \
   TORCH_MLIR_PYTHON_PACKAGE_VERSION=${TORCH_MLIR_PYTHON_PACKAGE_VERSION} \
   TORCH_MLIR_ENABLE_JIT_IR_IMPORTER=0 \

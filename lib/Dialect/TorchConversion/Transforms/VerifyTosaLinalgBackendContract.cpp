@@ -82,12 +82,10 @@ class VerifyTosaLinalgBackendContractPass
     target.addDynamicallyLegalDialect<complex::ComplexDialect>(isLegalScalarOp);
 
     // Tensor operations should go through linalg and the tensor dialect.
-
     target.addDynamicallyLegalDialect<linalg::LinalgDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<sparse_tensor::SparseTensorDialect>(
         opHasLegalTypes);
     target.addDynamicallyLegalDialect<tensor::TensorDialect>(opHasLegalTypes);
-    target.addDynamicallyLegalDialect<tosa::TosaDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<affine::AffineDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<cf::ControlFlowDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<scf::SCFDialect>(opHasLegalTypes);
@@ -98,6 +96,9 @@ class VerifyTosaLinalgBackendContractPass
     // ConstantOp is used for tensors and for scalars.
     target.addDynamicallyLegalOp<arith::ConstantOp>(opHasLegalTypes);
     target.addDynamicallyLegalOp<complex::CreateOp>(opHasLegalTypes);
+
+    // Any TosaOp is valid
+    target.addLegalDialect<tosa::TosaDialect>();
 
     RewritePatternSet patterns(context);
     if (failed(applyFullConversion(module, target, std::move(patterns)))) {

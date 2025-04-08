@@ -197,7 +197,10 @@ class CMakeBuild(build_py):
         if os.path.exists(target_dir):
             shutil.rmtree(target_dir, ignore_errors=False, onerror=None)
 
-        shutil.copytree(python_package_dir, target_dir, symlinks=False)
+        python_package_dir = os.path.join(python_package_dir, "torch_mlir")
+        shutil.copytree(
+            python_package_dir, os.path.join(target_dir, "torch_mlir"), symlinks=False
+        )
 
         torch_mlir_opt_src = os.path.join(cmake_build_dir, "bin", "torch-mlir-opt")
         torch_mlir_opt_dst = os.path.join(

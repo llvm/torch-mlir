@@ -6,6 +6,7 @@ echo "Building torch-mlir"
 cache_dir="${cache_dir:-}"
 this_dir="$(cd $(dirname $0) && pwd)"
 repo_root="$(cd ${this_dir}/../.. && pwd)"
+build_dir="${build_dir:-}"
 
 # Setup cache dir.
 if [ -z "${cache_dir}" ]; then
@@ -13,6 +14,12 @@ if [ -z "${cache_dir}" ]; then
   mkdir -p "${cache_dir}"
   cache_dir="$(cd ${cache_dir} && pwd)"
 fi
+
+if [ -z "${build_dir}" ]; then
+  build_dir="${repo_root}/build"
+fi
+
+echo "Building in ${build_dir}"
 
 echo "Caching to ${cache_dir}"
 mkdir -p "${cache_dir}/ccache"
@@ -25,7 +32,7 @@ export CCACHE_MAXSIZE="350M"
 ccache -z
 
 echo "::group::CMake configure"
-cmake -GNinja -Bbuild \
+cmake -GNinja -B"${build_dir}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_COMPILER_LAUNCHER=ccache \
   -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
@@ -41,17 +48,17 @@ cmake -GNinja -Bbuild \
   -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=ON \
   -DTORCH_MLIR_ENABLE_LTC=OFF \
   -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON \
-  ${repo_root}/externals/llvm-project/llvm
+  "${repo_root}"/externals/llvm-project/llvm
 echo "::endgroup::"
 
 echo "::group::Build"
-cmake --build ${repo_root}/build  --target tools/torch-mlir/all -- -k 0
+cmake --build "${build_dir}"  --target tools/torch-mlir/all -- -k 0
 echo "::endgroup::"
 
 echo "Build completed successfully"
 
 # echo "::group::Unit tests"
-# cmake --build ${repo_root}/build --target check-torch-mlir
+# cmake --build "${build_dir}" --target check-torch-mlir
 # echo "::endgroup::"
 
 # Show ccache stats.
