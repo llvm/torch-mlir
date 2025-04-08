@@ -184,12 +184,14 @@ Be aware that the installed version of LLVM needs in general to match the commit
 
 ##### Options to run end-to-end tests
 
-Running the end-to-end execution tests locally requires enabling the native PyTorch extension features and the JIT IR importer, which depends on the
-former and defaults to `ON` if not changed:
+To enable local end-to-end tests, append:
+
 ```shell
   -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=ON \
   -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON \
 ```
+
+- NOTE: The JIT IR importer depends on the native PyTorch extension features and defaults to `ON` if not changed.
 
 #### Initiate Build
 
