@@ -471,7 +471,6 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value bScale = operands[4];
         Value bZp = operands[5];
         Value cScale = operands[6];
-        // Value cZp = operands[7];
 
         auto check = [](Value v) {
           auto vTy = cast<Torch::ValueTensorType>(v.getType());
