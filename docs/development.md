@@ -123,10 +123,7 @@ cmake -GNinja -Bbuild \
   `# use ccache to cache build results` \
   -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
   `# use LLD to link in seconds, rather than minutes` \
-  `# if using clang <= 13, replace --ld-path=ld.lld with -fuse-ld=lld` \
-  -DCMAKE_EXE_LINKER_FLAGS_INIT="--ld-path=ld.lld" \
-  -DCMAKE_MODULE_LINKER_FLAGS_INIT="--ld-path=ld.lld" \
-  -DCMAKE_SHARED_LINKER_FLAGS_INIT="--ld-path=ld.lld"
+  -DCMAKE_LINKER_TYPE=lld
 ```
 
 - This requires [the enablement mentioned earlier](#optional-enable-quicker-builds).
