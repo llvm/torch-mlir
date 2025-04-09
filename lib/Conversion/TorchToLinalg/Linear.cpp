@@ -1790,8 +1790,8 @@ public:
     Type newResultType = getTypeConverter()->convertType(op.getType());
 
     // Create a zero-initialized tensor with shape [lhsDim, rhsDim]
-    Value zeroTensor = createZeroInitTensor(
-        rewriter, loc, ValueRange{lhsDim, rhsDim}, elementType);
+    Value initTensor = createInitTensor(
+        rewriter, loc, ValueRange{lhsDim, rhsDim}, elementType, NULL);
 
     // Set up affine indexing maps:
     // We create a 2D loop iteration space. For the lhs, we use the first index
@@ -1811,9 +1811,9 @@ public:
     Value outerProd =
         rewriter
             .create<linalg::GenericOp>(
-                loc, zeroTensor.getType(),
+                loc, initTensor.getType(),
                 /*inputs=*/ValueRange{lhsDim, rhsDim},
-                /*outputs=*/zeroTensor,
+                /*outputs=*/initTensor,
                 /*indexingMaps=*/
                 SmallVector<AffineMap, 3>{mapLhs, mapRhs, mapOut},
                 /*iteratortType=*/iteratorTypes,
