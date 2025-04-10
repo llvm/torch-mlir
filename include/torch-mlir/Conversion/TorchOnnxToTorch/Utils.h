@@ -119,6 +119,12 @@ LogicalResult createTorchPermuteOp(OpBinder binder,
                                    SmallVector<int64_t> permuteDims,
                                    Value &permuted);
 
+/// This utility checks the compatibility for scale and zero_point value and
+/// extracts the scalar value from it used for per-tensor quantization.
+LogicalResult extractPerTensorQuantizationArguments(
+    ConversionPatternRewriter &rewriter, Location loc, Value inScale,
+    Value inZeroPoint, Value &outScale, Value &outZeroPoint);
+
 } // namespace mlir::torch::onnx_c
 
 #endif // TORCHMLIR_CONVERSION_TORCHONNXTOTORCH_UTILS_H

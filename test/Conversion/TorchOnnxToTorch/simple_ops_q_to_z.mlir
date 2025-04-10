@@ -3725,8 +3725,9 @@ func.func @test_qlinearleakyrelu(%arg0: !torch.vtensor<[?,32,?,?],ui8>, %arg1: !
   %0 = torch.operator "onnx.QLinearLeakyRelu"(%arg0, %arg1, %arg2, %arg3, %arg4) {torch.onnx.alpha = 1.000000e-01 : f32} : (!torch.vtensor<[?,32,?,?],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>) -> !torch.vtensor<[?,32,?,?],ui8>
   // CHECK-DAG: %[[EMPTY:.+]] = torch.prim.ListConstruct  : () -> !torch.list<int>
   // CHECK-DAG: %[[XSCALE:.+]] = torch.aten.item %[[X_SCALE]] : !torch.vtensor<[],f32> -> !torch.float
-  // CHECK-DAG: %[[YSCALE:.+]] = torch.aten.item %[[Y_SCALE]] : !torch.vtensor<[],f32> -> !torch.float
   // CHECK-DAG: %[[XZP:.+]] = torch.aten.item %[[X_ZERO_POINT]] : !torch.vtensor<[],ui8> -> !torch.int
+  // CHECK-DAG: %[[EMPTY_0:.+]] = torch.prim.ListConstruct  : () -> !torch.list<int>
+  // CHECK-DAG: %[[YSCALE:.+]] = torch.aten.item %[[Y_SCALE]] : !torch.vtensor<[],f32> -> !torch.float
   // CHECK-DAG: %[[YZP:.+]] = torch.aten.item %[[Y_ZERO_POINT]] : !torch.vtensor<[],ui8> -> !torch.int
   // CHECK-DAG: %[[X_QUANT:.+]] = torch.aten._make_per_tensor_quantized_tensor %[[X]], %[[XSCALE]], %[[XZP]] : !torch.vtensor<[?,32,?,?],ui8>, !torch.float, !torch.int -> !torch.vtensor<[?,32,?,?],!torch.quint8>
   // CHECK: %[[X_F32:.+]] = torch.aten.dequantize.self %[[X_QUANT]] : !torch.vtensor<[?,32,?,?],!torch.quint8> -> !torch.vtensor<[?,32,?,?],f32>
