@@ -3014,7 +3014,8 @@ func.func @test_stft(%arg0: !torch.vtensor<[1,128,1],f32>, %arg1: !torch.vtensor
   // CHECK:  %[[SQUEEZE:.*]] = torch.aten.squeeze.dim %arg0, %[[INT2_0]] : !torch.vtensor<[1,128,1],f32>, !torch.int -> !torch.vtensor<[1,128],f32>
   // CHECK:  %[[FALSEVAL:.*]] = torch.constant.bool false
   // CHECK:  %[[TRUEVAL:.*]] = torch.constant.bool true
-  // CHECK:  %[[STFT:.*]] = torch.aten.stft %[[SQUEEZE]], %[[FRAMELEN]], %[[FRAMESTEP]], %[[FRAMELEN]], %[[ONESLIST]], %[[FALSEVAL]], %[[TRUEVAL]], %[[TRUEVAL]], %[[FALSEVAL]] : !torch.vtensor<[1,128],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[?],f32>, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[1,9,15],complex<f32>>
+  // CHECK:  %[[REFLECT:.*]] = torch.constant.str "reflect"
+  // CHECK:  %[[STFT:.*]] = torch.aten.stft.center %[[SQUEEZE]], %[[FRAMELEN]], %[[FRAMESTEP]], %[[FRAMELEN]], %[[ONESLIST]], %[[FALSEVAL]], %[[REFLECT]], %[[FALSEVAL]], %[[TRUEVAL]], %[[TRUEVAL]], %[[FALSEVAL]] : !torch.vtensor<[1,128],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[?],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[1,9,15],complex<f32>>
   // CHECK:  %[[INT0:.*]] = torch.constant.int 0
   // CHECK:  %[[INT2_1:.*]] = torch.constant.int 2
   // CHECK:  %[[INT1:.*]] = torch.constant.int 1
@@ -3038,7 +3039,8 @@ func.func @test_stft_real_rank2(%arg0: !torch.vtensor<[1,128],f32>, %arg1: !torc
   // CHECK:  %[[ONESLIST:.*]] = torch.aten.ones %[[ONESSHAPE]], %[[NONEVAL]], %[[NONEVAL]], %[[NONEVAL]], %[[NONEVAL]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?],f32>
   // CHECK:  %[[FALSEVAL:.*]] = torch.constant.bool false
   // CHECK:  %[[TRUEVAL:.*]] = torch.constant.bool true
-  // CHECK:  %[[STFT:.*]] = torch.aten.stft %arg0, %[[FRAMELEN]], %[[FRAMESTEP]], %[[FRAMELEN]], %[[ONESLIST]], %[[FALSEVAL]], %[[TRUEVAL]], %[[TRUEVAL]], %[[FALSEVAL]] : !torch.vtensor<[1,128],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[?],f32>, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[1,9,15],complex<f32>>
+  // CHECK:  %[[REFLECT:.*]] = torch.constant.str "reflect"
+  // CHECK:  %[[STFT:.*]] = torch.aten.stft.center %arg0, %[[FRAMELEN]], %[[FRAMESTEP]], %[[FRAMELEN]], %[[ONESLIST]], %[[FALSEVAL]], %[[REFLECT]], %[[FALSEVAL]], %[[TRUEVAL]], %[[TRUEVAL]], %[[FALSEVAL]] : !torch.vtensor<[1,128],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[?],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[1,9,15],complex<f32>>
   // CHECK:  %[[INT0:.*]] = torch.constant.int 0
   // CHECK:  %[[INT2_1:.*]] = torch.constant.int 2
   // CHECK:  %[[INT1:.*]] = torch.constant.int 1
@@ -3062,7 +3064,8 @@ func.func @test_stft_with_window(%arg0: !torch.vtensor<[1,128,1],f32>, %arg1: !t
   // CHECK:  %[[WINDOWLEN:.*]] = torch.constant.int 16
   // CHECK:  %[[FALSEVAL:.*]] = torch.constant.bool false
   // CHECK:  %[[TRUEVAL:.*]] = torch.constant.bool true
-  // CHECK:  %[[STFT:.*]] = torch.aten.stft %[[SQUEEZE]], %[[FRAMELEN]], %[[FRAMESTEP]], %[[WINDOWLEN]], %arg2, %[[FALSEVAL]], %[[TRUEVAL]], %[[TRUEVAL]], %[[FALSEVAL]] : !torch.vtensor<[1,128],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[16],f32>, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[1,9,15],complex<f32>>
+  // CHECK:  %[[REFLECT:.*]] = torch.constant.str "reflect"
+  // CHECK:  %[[STFT:.*]] = torch.aten.stft.center %[[SQUEEZE]], %[[FRAMELEN]], %[[FRAMESTEP]], %[[WINDOWLEN]], %arg2, %[[FALSEVAL]], %[[REFLECT]], %[[FALSEVAL]], %[[TRUEVAL]], %[[TRUEVAL]], %[[FALSEVAL]] : !torch.vtensor<[1,128],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[16],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[1,9,15],complex<f32>>
   // CHECK:  %[[INT0:.*]] = torch.constant.int 0
   // CHECK:  %[[INT2_1:.*]] = torch.constant.int 2
   // CHECK:  %[[INT1:.*]] = torch.constant.int 1
@@ -3085,7 +3088,8 @@ func.func @test_stft_with_window_and_framelen(%arg0: !torch.vtensor<[1,128,1],f3
   // CHECK:  %[[WINDOWLEN:.*]] = torch.constant.int 16
   // CHECK:  %[[FALSEVAL:.*]] = torch.constant.bool false
   // CHECK:  %[[TRUEVAL:.*]] = torch.constant.bool true
-  // CHECK:  %[[STFT:.*]] = torch.aten.stft %[[SQUEEZE]], %[[FRAMELEN]], %[[FRAMESTEP]], %[[WINDOWLEN]], %arg2, %[[FALSEVAL]], %[[TRUEVAL]], %[[TRUEVAL]], %[[FALSEVAL]] : !torch.vtensor<[1,128],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[16],f32>, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[1,9,15],complex<f32>>
+  // CHECK:  %[[REFLECT:.*]] = torch.constant.str "reflect"
+  // CHECK:  %[[STFT:.*]] = torch.aten.stft.center %[[SQUEEZE]], %[[FRAMELEN]], %[[FRAMESTEP]], %[[WINDOWLEN]], %arg2, %[[FALSEVAL]], %[[REFLECT]], %[[FALSEVAL]], %[[TRUEVAL]], %[[TRUEVAL]], %[[FALSEVAL]] : !torch.vtensor<[1,128],f32>, !torch.int, !torch.int, !torch.int, !torch.vtensor<[16],f32>, !torch.bool, !torch.str, !torch.bool, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[1,9,15],complex<f32>>
   // CHECK:  %[[INT0:.*]] = torch.constant.int 0
   // CHECK:  %[[INT2_1:.*]] = torch.constant.int 2
   // CHECK:  %[[INT1:.*]] = torch.constant.int 1

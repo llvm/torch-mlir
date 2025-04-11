@@ -2392,6 +2392,39 @@ def aten〇stft〡shape(self: List[int], n_fft: int, hop_length: Optional[int] =
 
     return out
 
+@check_shape_function([
+    Invocation(TensorOfShape(1, 128), 16, None, 16, TensorOfShape(16), True, "reflect", False, None, True) # With an explicit 1-D window.
+])
+def aten〇stft〇center〡shape(self: List[int], n_fft: int, hop_length: Optional[int] = None, win_length: Optional[int] = None, window: Optional[List[int]] = None, center: bool = True, pad_mode: str = "reflect", normalized: bool = False, onesided: Optional[bool] = None, return_complex: Optional[bool] = None, align_to_window: Optional[bool] = None) -> List[int]:
+    assert len(self) == 1 or len(self) == 2, "Expected input tensor to be of shape (B?,L), where B is an optional batch dimension"
+
+    batch = None if len(self) == 1 else self[0]
+    length = self[0] if len(self) == 1 else self[1]
+    hop_length = (n_fft // 4) if hop_length is None else hop_length
+    assert n_fft > 0 and n_fft <= length, "Expected that 0 < n_fft <= len"
+    assert hop_length > 0, "Expected hop_length to be greater than 0"
+
+    out: List[int] = []
+    if batch is not None:
+        out.append(batch) # (B?,)
+
+    if onesided is None or onesided == True:
+        out.append(n_fft//2 + 1)
+    else:
+        out.append(n_fft) # (B?,N,)
+
+    if center is None or center == True:
+        out.append(1 + length // hop_length) #(B?,N,T,)
+    else:
+        out.append(1 + (length - n_fft)//hop_length) #(B?,N,T,)
+
+
+    if return_complex is not None and bool(return_complex) == False:
+        out.append(2) # a length-2 dimension of real and imaginary components. This gives output shape (B?,N,T,C?).
+
+    return out
+
+
 def aten〇fft_ifft〡shape(self: List[int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> List[int]:
     return self
 
@@ -4001,6 +4034,37 @@ def aten〇fft_rfft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] =
     Invocation(TensorOfShape(1,128, dtype=torch.float32), n_fft=16, return_complex=False), # output dtype = torch.float32
 ])
 def aten〇stft〡dtype(self_rank_dtype: Tuple[int, int], n_fft: int, hop_length: Optional[int] = None, win_length: Optional[int] = None, window_rank_dtype: Optional[Tuple[int, int]] = None, normalized: bool = False, onesided: Optional[bool] = None, return_complex: Optional[bool] = None, align_to_window: Optional[bool] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if is_complex_dtype(self_dtype) and return_complex is not None and return_complex:
+        return self_dtype
+    elif is_complex_dtype(self_dtype) and return_complex is not None and return_complex != True:
+        if self_dtype == torch.complex32:
+            return torch.float16
+        elif self_dtype == torch.complex64:
+            return torch.float32
+        elif self_dtype == torch.complex128:
+            return torch.float64
+    elif is_float_dtype(self_dtype) and return_complex is not None and return_complex:
+        if self_dtype == torch.float16:
+            return torch.complex32
+        elif self_dtype == torch.float32:
+            return torch.complex64
+        elif self_dtype == torch.float64:
+            return torch.complex128
+    elif is_float_dtype(self_dtype) and return_complex is not None and return_complex != True:
+        return self_dtype
+    elif is_integer_dtype(self_dtype):
+        return torch.complex64
+
+    assert False, "Unsupported dtype"
+
+@check_dtype_function([
+    Invocation(TensorOfShape(1,128, dtype=torch.complex64), n_fft=16, return_complex=False), # output dtype = torch.float32
+    Invocation(TensorOfShape(1,128, dtype=torch.complex64), n_fft=16, return_complex=True), # output dtype = torch.complex64
+    Invocation(TensorOfShape(1,128, dtype=torch.float32), n_fft=16, return_complex=True), # output dtype = torch.complex64
+    Invocation(TensorOfShape(1,128, dtype=torch.float32), n_fft=16, return_complex=False), # output dtype = torch.float32
+])
+def aten〇stft〇center〡dtype(self_rank_dtype: Tuple[int, int], n_fft: int, hop_length: Optional[int] = None, win_length: Optional[int] = None, window_rank_dtype: Optional[Tuple[int, int]] = None, center: bool = True, pad_mode: str = "reflect", normalized: bool = False, onesided: Optional[bool] = None, return_complex: Optional[bool] = None, align_to_window: Optional[bool] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     if is_complex_dtype(self_dtype) and return_complex is not None and return_complex:
         return self_dtype
