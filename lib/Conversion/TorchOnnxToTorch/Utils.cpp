@@ -142,3 +142,43 @@ Value mlir::torch::onnx_c::createActivationByName(ImplicitLocOpBuilder &b,
     return b.create<Torch::AtenReluOp>(input.getType(), input);
   llvm_unreachable("Unsupported activation function");
 }
+
+LogicalResult mlir::torch::onnx_c::extractPerTensorQuantizationArguments(
+    ConversionPatternRewriter &rewriter, Location loc, Value inScale,
+    Value inZeroPoint, Value &outScale, Value &outZeroPoint) {
+
+  auto check = [](Value v) {
+    auto vTy = cast<Torch::ValueTensorType>(v.getType());
+    for (auto dim : vTy.getSizes())
+      if (dim != 1)
+        return false;
+    return true;
+  };
+
+  if (!check(inScale) || !check(inZeroPoint))
+    return failure();
+
+  Value emptyList = rewriter.create<Torch::PrimListConstructOp>(
+      loc,
+      rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
+      ValueRange{});
+  auto extract = [&rewriter, &loc, &emptyList](Value v) {
+    auto vTy = cast<Torch::ValueTensorType>(v.getType());
+    if (!vTy.getSizes().empty()) {
+      vTy = rewriter.getType<Torch::ValueTensorType>(ArrayRef<int64_t>({}),
+                                                     vTy.getOptionalDtype());
+      v = rewriter.create<Torch::AtenReshapeOp>(loc, vTy, v, emptyList);
+    }
+
+    Type extractTy = rewriter.getType<Torch::FloatType>();
+    if (isa<IntegerType>(vTy.getDtype()))
+      extractTy = rewriter.getType<Torch::IntType>();
+
+    return rewriter.create<Torch::AtenItemOp>(loc, extractTy, v);
+  };
+
+  outScale = extract(inScale);
+  outZeroPoint = extract(inZeroPoint);
+
+  return success();
+}
