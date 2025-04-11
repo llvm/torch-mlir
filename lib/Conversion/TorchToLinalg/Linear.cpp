@@ -1759,6 +1759,78 @@ struct ConvertAtenFftRfftOp final : OpConversionPattern<AtenFftRfftOp> {
 
 } // namespace
 
+namespace {
+class ConvertAtenOuterOp : public OpConversionPattern<AtenOuterOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenOuterOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Location loc = op->getLoc();
+    Value lhs = adaptor.getSelf();
+    Value rhs = op->getOperand(1);
+
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter))) {
+      return failure();
+    }
+    auto lhsType = cast<RankedTensorType>(lhs.getType());
+    auto rhsType = cast<RankedTensorType>(rhs.getType());
+
+    if (!lhsType || !rhsType)
+      return rewriter.notifyMatchFailure(op,
+                                         "outer: expected ranked tensor types");
+    if (lhsType.getRank() != 1 || rhsType.getRank() != 1)
+      return rewriter.notifyMatchFailure(
+          op, "outer: expected 1D tensors for outer op lowering");
+
+    Value lhsDim = getDimOp(rewriter, loc, lhs, 1);
+    Value rhsDim = getDimOp(rewriter, loc, rhs, 1);
+    Type elementType = lhsType.getElementType();
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+
+    // Create a zero-initialized tensor with shape [lhsDim, rhsDim]
+    Value initTensor = createInitTensor(
+        rewriter, loc, ValueRange{lhsDim, rhsDim}, elementType, NULL);
+
+    // Set up affine indexing maps:
+    // We create a 2D loop iteration space. For the lhs, we use the first index
+    // (i), for the rhs, the second index (j), and for the result, both (i, j).
+    AffineMap mapLhs =
+        AffineMap::get(2, /*symbolCount=*/0, {rewriter.getAffineDimExpr(0)},
+                       rewriter.getContext());
+    AffineMap mapRhs =
+        AffineMap::get(2, /*symbolCount=*/0, {rewriter.getAffineDimExpr(1)},
+                       rewriter.getContext());
+    AffineMap mapOut =
+        AffineMap::getMultiDimIdentityMap(2, rewriter.getContext());
+
+    SmallVector<utils::IteratorType, 2> iteratorTypes = {
+        utils::IteratorType::parallel, utils::IteratorType::parallel};
+
+    Value outerProd =
+        rewriter
+            .create<linalg::GenericOp>(
+                loc, initTensor.getType(),
+                /*inputs=*/ValueRange{lhsDim, rhsDim},
+                /*outputs=*/initTensor,
+                /*indexingMaps=*/
+                SmallVector<AffineMap, 3>{mapLhs, mapRhs, mapOut},
+                /*iteratortType=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value lhsElem = args[0];
+                  Value rhsElem = args[1];
+                  Value mult = b.create<arith::MulFOp>(loc, lhsElem, rhsElem);
+                  b.create<linalg::YieldOp>(loc, mult);
+                })
+            .getResult(0);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, outerProd);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -1775,4 +1847,6 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   patterns.add<ConvertAtenConvolutionOp>(typeConverter, context);
   target.addIllegalOp<AtenFftRfftOp>();
   patterns.add<ConvertAtenFftRfftOp>(typeConverter, context);
+  target.addIllegalOp<AtenOuterOp>();
+  patterns.add<ConvertAtenOuterOp>(typeConverter, context);
 }
