@@ -126,18 +126,10 @@ cmake -GNinja -Bbuild \
   `# if using clang <= 13, replace --ld-path=ld.lld with -fuse-ld=lld` \
   -DCMAKE_EXE_LINKER_FLAGS_INIT="--ld-path=ld.lld" \
   -DCMAKE_MODULE_LINKER_FLAGS_INIT="--ld-path=ld.lld" \
-  -DCMAKE_SHARED_LINKER_FLAGS_INIT="--ld-path=ld.lld" \
-  `# Enabling libtorch binary cache instead of downloading the latest libtorch everytime.` \
-  `# Testing against a mismatched version of libtorch may cause failures` \
-  -DLIBTORCH_CACHE=ON \
-  `# Enable an experimental path to build libtorch (and PyTorch wheels) from source,` \
-  `# instead of downloading them` \
-  -DLIBTORCH_SRC_BUILD=ON \
-  `# Set the variant of libtorch to build / link against. (shared|static and optionally cxxabi11)` \
-  -DLIBTORCH_VARIANT=shared
+  -DCMAKE_SHARED_LINKER_FLAGS_INIT="--ld-path=ld.lld"
 ```
 
-- This will build `libtorch` / `PyTorch` wheels from source and requires [the enablement mentioned earlier](#optional-enable-quicker-builds).
+- This requires [the enablement mentioned earlier](#optional-enable-quicker-builds).
 - If you encounter issues when you run this, try the [simplified build command](#base-options) instead.
 
 ###### ...Base Options
