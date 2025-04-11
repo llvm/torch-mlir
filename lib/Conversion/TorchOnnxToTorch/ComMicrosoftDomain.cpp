@@ -658,70 +658,34 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return failure();
 
         Value x = operands[0];
-        Value xScale = operands[1];
-        Value xZp = operands[2];
-        Value yScale = operands[3];
-        Value yZp = operands[4];
+        Value xScale, xZp, yScale, yZp;
 
-        auto check = [](Value v) {
-          auto vTy = cast<Torch::ValueTensorType>(v.getType());
-          for (auto dim : vTy.getSizes())
-            if (dim != 1)
-              return false;
-          return true;
-        };
-        if (!check(xScale) || !check(xZp) || !check(yScale) || !check(yZp))
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, /*scale=*/operands[1],
+                /*zero_point=*/operands[2], xScale, xZp)))
           return rewriter.notifyMatchFailure(
-              binder.op, "Unsupported arguments for per-tensor quantization");
+              binder.op, "Incompatible arguments for per-tensor quantization");
 
-        Value emptyList = rewriter.create<Torch::PrimListConstructOp>(
-            loc,
-            rewriter.getType<Torch::ListType>(
-                rewriter.getType<Torch::IntType>()),
-            ValueRange{});
-        auto extract = [&rewriter, &binder, &emptyList](Value v) {
-          auto vTy = cast<Torch::ValueTensorType>(v.getType());
-          if (!vTy.getSizes().empty()) {
-            vTy = rewriter.getType<Torch::ValueTensorType>(
-                ArrayRef<int64_t>({}), vTy.getOptionalDtype());
-            v = rewriter.create<Torch::AtenReshapeOp>(binder.getLoc(), vTy, v,
-                                                      emptyList);
-          }
-
-          Type extractTy = rewriter.getType<Torch::FloatType>();
-          if (isa<IntegerType>(vTy.getDtype()))
-            extractTy = rewriter.getType<Torch::IntType>();
-
-          return rewriter.create<Torch::AtenItemOp>(binder.getLoc(), extractTy,
-                                                    v);
-        };
-
-        xScale = extract(xScale);
-        yScale = extract(yScale);
-        xZp = extract(xZp);
-        yZp = extract(yZp);
-
-        auto makePerTensor = [&rewriter, &binder](Value v, Value scale,
-                                                  Value zp) -> Value {
-          auto ty = cast<Torch::ValueTensorType>(v.getType());
-          auto newTy = getQTorchTypeFromTorchIntType(ty);
-          return rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-              binder.getLoc(), newTy, v, scale, zp);
-        };
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, /*scale=*/operands[3],
+                /*zero_point=*/operands[4], yScale, yZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Incompatible arguments for per-tensor quantization");
 
         auto xTy = dyn_cast<Torch::ValueTensorType>(x.getType());
         if (!xTy || !xTy.hasSizes())
           return rewriter.notifyMatchFailure(
               binder.op, "Expected input argument `x` to have sizes");
+        ArrayRef<int64_t> inputShape = xTy.getSizes();
 
-        xTy = rewriter.getType<Torch::ValueTensorType>(xTy.getSizes(),
+        xTy = getQTorchTypeFromTorchIntType(xTy);
+        x = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
+            loc, xTy, x, xScale, xZp);
+        xTy = rewriter.getType<Torch::ValueTensorType>(inputShape,
                                                        rewriter.getF32Type());
         // Dequantizing the input tensor `x`.
-        x = makePerTensor(x, xScale, xZp);
         x = rewriter.create<Torch::AtenDequantizeSelfOp>(loc, xTy, x);
 
-        ArrayRef<int64_t> inputShape = xTy.getSizes();
-        unsigned inputRank = inputShape.size();
         if (!resultType || !resultType.hasSizes()) {
           return rewriter.notifyMatchFailure(
               binder.op, "Expected result type having sizes");
@@ -734,6 +698,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             loc, rewriter.getI64IntegerAttr(0));
         Value cstOne = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(1));
+        unsigned inputRank = inputShape.size();
         for (unsigned i = 2; i < inputRank; i++) {
           if (inputShape[i] == Torch::kUnknownSize) {
             Value dim = rewriter.create<Torch::ConstantIntOp>(
