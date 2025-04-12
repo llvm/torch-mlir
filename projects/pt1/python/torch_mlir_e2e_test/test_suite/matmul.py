@@ -931,8 +931,8 @@ class AtenOuter(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([-1], torch.float32, True),
-            ([-1], torch.float32, True),
+            ([3], torch.float32, True),
+            ([3], torch.float32, True),
         ]
     )
     def forward(self, lhs, rhs):
