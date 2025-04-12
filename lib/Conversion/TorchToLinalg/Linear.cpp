@@ -1774,8 +1774,8 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter))) {
       return failure();
     }
-    auto lhsType = cast<RankedTensorType>(lhs.getType());
-    auto rhsType = cast<RankedTensorType>(rhs.getType());
+    auto lhsType = dyn_cast<RankedTensorType>(lhs.getType());
+    auto rhsType = dyn_cast<RankedTensorType>(rhs.getType());
 
     if (!lhsType || !rhsType)
       return rewriter.notifyMatchFailure(op,
@@ -1784,8 +1784,8 @@ public:
       return rewriter.notifyMatchFailure(
           op, "outer: expected 1D tensors for outer op lowering");
 
-    Value lhsDim = getDimOp(rewriter, loc, lhs, 1);
-    Value rhsDim = getDimOp(rewriter, loc, rhs, 1);
+    Value lhsDim = getDimOp(rewriter, loc, lhs, 0);
+    Value rhsDim = getDimOp(rewriter, loc, rhs, 0);
     Type elementType = lhsType.getElementType();
     Type newResultType = getTypeConverter()->convertType(op.getType());
 
