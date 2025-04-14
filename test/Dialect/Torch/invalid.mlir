@@ -184,6 +184,7 @@ func.func @torch.overwrite.tensor.contents(%arg0: !torch.vtensor<[1],f32>, %arg1
 
 // There must be only one module initialize.
 
+// expected-error @+1 {{there must be only one global slot initializer}}
 torch.global_slot.module_initializer {
   torch.initialize.global_slots [
   ]
