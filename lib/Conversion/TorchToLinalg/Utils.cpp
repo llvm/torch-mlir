@@ -255,26 +255,47 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
   // all sizes along that result dimension are statically 1.
   auto c1 = b.create<arith::ConstantIndexOp>(loc, /*value=*/1);
   SmallVector<Value> resultShape(resultRank, c1);
+
+  // Record whether or not all corresponding input dims are statically 1.
+  // We don't want to use a constant 0 expression for the input indexing maps in
+  // this case, since there is no broadcasting. Using the constant 0 expressions
+  // for the inputs, when they actually do correspond to an output dim, makes
+  // subsequent optimizations (e.g. fusions) more difficult.
+  DenseSet<int64_t> nonStaticOneResultDims;
+  for (int64_t i = 0; i < resultRank; i++) {
+    for (Value tensorOperand : tensorOperands) {
+      auto type = cast<RankedTensorType>(tensorOperand.getType());
+      auto index = i - (resultRank - type.getRank());
+      if (index < 0)
+        continue;
+      int64_t dimSize = makeShapeTorchCompatible(type.getShape())[index];
+      if (dimSize != 1) {
+        nonStaticOneResultDims.insert(i);
+        break;
+      }
+    }
+  }
+
   SmallVector<AffineMap> indexingMaps;
   bool elideDynamicBroadcastCheck = isAssumingStrictSymbolicShapes(b);
+
   for (Value tensorOperand : tensorOperands) {
     SmallVector<AffineExpr> exprs;
     auto type = cast<RankedTensorType>(tensorOperand.getType());
     for (auto size :
          llvm::enumerate(makeShapeTorchCompatible(type.getShape()))) {
-      // If the size is statically known to be 1, we don't want any
-      // error guards to be spuriously emitted, since we are specifically
-      // allowing size-1 broadcasts in this case, as they correspond to a
-      // constant-0 indexing map.
-      if (size.value() == 1) {
-        exprs.push_back(b.getAffineConstantExpr(0));
-        continue;
-      }
 
       // The rank of this operand might be smaller than the overall rank of
       // the broadcast. Add an offset to correlate it to the correct
       // dimension of the result.
-      auto resultDim = size.index() + (resultRank - type.getRank());
+      int64_t resultDim = size.index() + (resultRank - type.getRank());
+
+      // If the size is statically 1 and we don't know that the result dim is
+      // statically 1, use an affine constant expression to broadcast.
+      if (size.value() == 1 && nonStaticOneResultDims.contains(resultDim)) {
+        exprs.push_back(b.getAffineConstantExpr(0));
+        continue;
+      }
 
       // The generated linalg op will now be iterating along the full size
       // of this dimension. Record that fact.

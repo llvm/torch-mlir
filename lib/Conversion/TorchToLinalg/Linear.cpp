@@ -749,6 +749,31 @@ public:
 } // namespace
 
 namespace {
+bool isValueNegative(mlir::Value value) {
+  // Try to fold the operation to a constant
+  mlir::Operation *definingOp = value.getDefiningOp();
+
+  if (!definingOp)
+    return false;
+
+  // Attempt to fold the operation
+  mlir::SmallVector<mlir::OpFoldResult, 1> results;
+  if (failed(definingOp->fold(results)) || results.empty())
+    return false;
+
+  // Check if the folded result is a constant
+  if (auto attr = results.front().dyn_cast<mlir::Attribute>()) {
+    if (auto intAttr = dyn_cast<mlir::IntegerAttr>(attr)) {
+      int64_t intValue = intAttr.getInt();
+      return intValue < 0;
+    }
+  }
+
+  return false;
+}
+} // namespace
+
+namespace {
 class ConvertAtenConvolutionOp : public OpConversionPattern<AtenConvolutionOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -1008,8 +1033,6 @@ public:
           rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
       Value c1 =
           rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
-      Value c2 =
-          rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(2));
 
       // Transpose and flip weight
       SmallVector<Value> weightInitDims = getTensorSizes(rewriter, loc, weight);
@@ -1060,45 +1083,10 @@ public:
                        })
                    .getResult(0);
 
-      // Calculate padded input size, allocate tensor
-      SmallVector<Value> outerSizes{inBatch, inChannels};
-      SmallVector<Value> innerSizes{inBatch, inChannels};
-      SmallVector<Value> offsets{c0, c0};
-      for (size_t i = 0; i < numSpatialDims; i++) {
-        Value innerSize = rewriter.create<arith::SubIOp>(loc, inDims[i], c1);
-        innerSize = rewriter.create<arith::MulIOp>(
-            loc, innerSize, castIntToIndex(rewriter, loc, strideIntValues[i]));
-        innerSize = rewriter.create<arith::AddIOp>(loc, innerSize, c1);
-
-        Value offset = rewriter.create<arith::SubIOp>(loc, weightDims[i], c1);
-        offset = rewriter.create<arith::MulIOp>(
-            loc, offset, castIntToIndex(rewriter, loc, dilationIntValues[i]));
-        offset = rewriter.create<arith::SubIOp>(
-            loc, offset, castIntToIndex(rewriter, loc, paddingIntValues[i]));
-
-        Value outerSize = rewriter.create<arith::MulIOp>(loc, offset, c2);
-        outerSize = rewriter.create<arith::AddIOp>(loc, outerSize, innerSize);
-        outerSize = rewriter.create<arith::AddIOp>(
-            loc, outerSize,
-            castIntToIndex(rewriter, loc, outputPaddingIntValues[i]));
-
-        outerSizes.push_back(outerSize);
-        offsets.push_back(offset);
-      }
-
-      // Allocate padded input tensor
-      Value initTensor =
-          createInitTensor(rewriter, loc, outerSizes, inputDTy, pad);
-
-      // Insert input into allocated tensor
-      SmallVector<Value> strideIndexValues{c1, c1};
-      for (auto stride : strideIntValues)
-        strideIndexValues.push_back(castIntToIndex(rewriter, loc, stride));
-      SmallVector<Value> insertSizes = getTensorSizes(rewriter, loc, input);
-
-      paddedInput = rewriter.create<tensor::InsertSliceOp>(
-          loc, torch_to_linalg::removeSizeInformation(rewriter, loc, input),
-          initTensor, offsets, insertSizes, strideIndexValues);
+      paddedInput = createTransposedInputPadding(
+          inBatch, inChannels, inDims, weightDims, paddingIntValues,
+          strideIntValues, dilationIntValues, outputPaddingIntValues, input,
+          inputDTy, pad, rewriter, loc, numSpatialDims, c0, c1);
 
       // Calculate output dims
       for (size_t i = 0; i < numSpatialDims; i++)
@@ -1482,8 +1470,106 @@ public:
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
     return success();
   }
+
+  static Value createTransposedInputPadding(
+      Value inBatch, Value inChannels, SmallVector<Value> &inDims,
+      SmallVector<Value> &weightDims, SmallVector<Value> &paddingIntValues,
+      SmallVector<Value> &strideIntValues,
+      SmallVector<Value> &dilationIntValues,
+      SmallVector<Value> &outputPaddingIntValues, Value input, Type inputDTy,
+      Value pad, PatternRewriter &rewriter, Location loc, size_t numSpatialDims,
+      Value c0, Value c1);
 };
 } // namespace
+
+Value ConvertAtenConvolutionOp::createTransposedInputPadding(
+    Value inBatch, Value inChannels, SmallVector<Value> &inDims,
+    SmallVector<Value> &weightDims, SmallVector<Value> &paddingIntValues,
+    SmallVector<Value> &strideIntValues, SmallVector<Value> &dilationIntValues,
+    SmallVector<Value> &outputPaddingIntValues, Value input, Type inputDTy,
+    Value pad, PatternRewriter &rewriter, Location loc, size_t numSpatialDims,
+    Value c0, Value c1) {
+  // Calculate padded input size, allocate tensor
+  SmallVector<Value> outerSizes{inBatch, inChannels};
+  SmallVector<Value> innerSizes{inBatch, inChannels};
+  SmallVector<Value> insertSliceOffsets{c0, c0};
+
+  SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
+  SmallVector<Value> sliceSizes{inputSizes[0], inputSizes[1]};
+
+  // For the case in which the padding dimension value is negative,
+  // we will need to shrink the dimension. Note in the PyTorch
+  // ConvTranspose2d operator documentation that the padding is
+  // defined by dilation * (kernel_size - 1) - padding. If the
+  // resulting padding is negative, PyTorch will extract elements
+  // from both sides of the dimension.
+  SmallVector<Value> extractSliceOffsets{c0, c0};
+  bool anyDimensionPaddingIsNegative = false;
+
+  Value c2 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(2));
+
+  for (size_t i = 0; i < numSpatialDims; i++) {
+    Value innerSize = rewriter.createOrFold<arith::SubIOp>(loc, inDims[i], c1);
+    innerSize = rewriter.createOrFold<arith::MulIOp>(
+        loc, innerSize, castIntToIndex(rewriter, loc, strideIntValues[i]));
+    innerSize = rewriter.createOrFold<arith::AddIOp>(loc, innerSize, c1);
+
+    Value offset = rewriter.createOrFold<arith::SubIOp>(loc, weightDims[i], c1);
+    offset = rewriter.createOrFold<arith::MulIOp>(
+        loc, offset, castIntToIndex(rewriter, loc, dilationIntValues[i]));
+    offset = rewriter.createOrFold<arith::SubIOp>(
+        loc, offset, castIntToIndex(rewriter, loc, paddingIntValues[i]));
+
+    Value outerSize = rewriter.createOrFold<arith::MulIOp>(loc, offset, c2);
+    outerSize = rewriter.createOrFold<arith::AddIOp>(loc, outerSize, innerSize);
+    outerSize = rewriter.createOrFold<arith::AddIOp>(
+        loc, outerSize,
+        castIntToIndex(rewriter, loc, outputPaddingIntValues[i]));
+
+    outerSizes.push_back(outerSize);
+    if (isValueNegative(offset)) {
+      // Make the negative value positive by multiplying by -1.
+      anyDimensionPaddingIsNegative = true;
+      auto offsetType = offset.getType();
+      auto negOneConst = rewriter.createOrFold<arith::ConstantOp>(
+          loc, offsetType, rewriter.getIntegerAttr(offsetType, -1));
+      auto posOffset =
+          rewriter.createOrFold<arith::MulIOp>(loc, offset, negOneConst);
+
+      // Compute the reduced dimension size due to negative padding.
+      auto sizeReduction =
+          rewriter.createOrFold<arith::MulIOp>(loc, posOffset, c2);
+      sliceSizes.push_back(rewriter.createOrFold<arith::SubIOp>(
+          loc, inputSizes[i + 2], sizeReduction));
+
+      extractSliceOffsets.push_back(posOffset);
+      insertSliceOffsets.push_back(c0);
+    } else {
+      sliceSizes.push_back(inputSizes[i + 2]);
+      extractSliceOffsets.push_back(c0);
+      insertSliceOffsets.push_back(offset);
+    }
+  }
+  Value initTensor = createInitTensor(rewriter, loc, outerSizes, inputDTy, pad);
+
+  // Insert input into allocated tensor
+  SmallVector<Value> strideIndexValues{c1, c1};
+  for (auto stride : strideIntValues)
+    strideIndexValues.push_back(castIntToIndex(rewriter, loc, stride));
+
+  auto insertSliceOpInput = input;
+  if (anyDimensionPaddingIsNegative) {
+    insertSliceOpInput = rewriter.create<tensor::ExtractSliceOp>(
+        loc, torch_to_linalg::removeSizeInformation(rewriter, loc, input),
+        extractSliceOffsets, sliceSizes, strideIndexValues);
+  }
+
+  auto paddedInput = rewriter.create<tensor::InsertSliceOp>(
+      loc,
+      torch_to_linalg::removeSizeInformation(rewriter, loc, insertSliceOpInput),
+      initTensor, insertSliceOffsets, sliceSizes, strideIndexValues);
+  return paddedInput;
+}
 
 namespace {
 
