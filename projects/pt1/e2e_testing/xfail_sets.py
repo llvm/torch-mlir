@@ -519,7 +519,6 @@ FX_IMPORTER_XFAIL_SET = {
     "ReflectionPad3dModuleFront_basic",
     "ReflectionPad3dModuleBack_basic",
     # RuntimeError: Unknown function SliceOutOfLowerBoundEndIndexModule
-    "SliceOutOfLowerBoundEndIndexModule_basic",
     "NativeGroupNormModule_basic",
 }
 
@@ -534,6 +533,7 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "Aten_TrilinearModuleSumdims_basic",
     "AvgPool2dSingleIntTupleParamsIncludePadModule_basic",
     "AvgPool2dSingleIntTupleParamsModule_basic",
+    "SliceOutOfLowerBoundEndIndexModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
@@ -1727,6 +1727,8 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
     "ScatterSrcModule_basic",
     "ScatterSrcStaticModule_basic",
     "HBC_basic",
+    # 1D inputs cause generated tosa.negate ops to crash downstream
+    "NllLossModule_1D_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
@@ -3379,9 +3381,22 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
     "VarDimEmptyDimModule_basic",
     # Runtime op verification: rank mismatch in memref.cast
     "ViewSizeFromOtherTensor_basic",
+    "SliceOutOfLowerBoundEndIndexModule_basic",
+    "EmbeddingModuleF16_basic",
+    "EmbeddingModuleI32_basic",
+    "EmbeddingModuleI64_basic",
+    "IndexTensorHackedTwinModule3dInput_basic",
+    "IndexTensorHackedTwinModule_basic",
+    "IndexTensorModule3dInput_basic",
+    "IndexTensorModule_basic",
+    "IndexTensorSelectDimModule_basic",
+    "IndexTensorMultiInputContiguousOneDimDynamic_basic",
+    "IndexTensorMultiInputNonContiguousOneDimDynamic_basic",
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
+    "NumpyTRank0Module_basic",
+    "Permute0RankModule_basic",
     "ArgsortTensor_basic",
     "ArgsortTensorInteger_basic",
     "AtenSymConstrainRangeForSize_basic",
