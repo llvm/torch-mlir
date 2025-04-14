@@ -645,4 +645,107 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                                           y);
         return success();
       });
+  patterns.onOp(
+      "QLinearConcat", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
+        Torch::ValueTensorType resultType;
+        SmallVector<Value> operands;
+        int64_t axis;
+        if (binder.tensorOperandsList(operands) ||
+            binder.s64IntegerAttr(axis, "axis") ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        SmallVector<Value> inputs, inputScales, inputZeroPoints;
+        for (unsigned i = 2; i < operands.size(); i = i + 3) {
+          inputs.push_back(operands[i]);
+          inputScales.push_back(operands[i + 1]);
+          inputZeroPoints.push_back(operands[i + 2]);
+        }
+
+        unsigned numInputs = (operands.size() - 2) / 3;
+        if (!(llvm::all_equal({inputs.size(), inputScales.size(),
+                               inputZeroPoints.size()}) &&
+              inputs.size() == numInputs))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Incompatible number of input operands, scales and/or "
+                         "zero-points");
+
+        auto makePerTensor = [&rewriter, &binder](Value v, Value scale,
+                                                  Value zp) -> Value {
+          auto ty = cast<Torch::ValueTensorType>(v.getType());
+          auto newTy = getQTorchTypeFromTorchIntType(ty);
+          return rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
+              binder.getLoc(), newTy, v, scale, zp);
+        };
+
+        // Preparing the quantized inputs.
+        SmallVector<Value> quantizedInputs;
+        for (unsigned i = 0; i < numInputs; i++) {
+          Value scale, zeroPoint;
+          if (failed(extractPerTensorQuantizationArguments(
+                  rewriter, loc, /*scale=*/inputScales[i],
+                  /*zero_point=*/inputZeroPoints[i], scale, zeroPoint)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Incompatible scale and zero-points argument for "
+                           "per-tensor quantization");
+
+          quantizedInputs.push_back(makePerTensor(inputs[i], scale, zeroPoint));
+        }
+
+        // Dequantizing the inputs.
+        SmallVector<Value> dequantizedInputs;
+        for (unsigned i = 0; i < numInputs; i++) {
+          Torch::ValueTensorType inputTy =
+              dyn_cast<Torch::ValueTensorType>(quantizedInputs[i].getType());
+          if (!inputTy || !inputTy.hasSizes())
+            return rewriter.notifyMatchFailure(
+                binder.op, "Expected tensor input operands to be concatenated "
+                           "to have sizes");
+
+          inputTy = rewriter.getType<Torch::ValueTensorType>(
+              inputTy.getOptionalSizes(), rewriter.getF32Type());
+          dequantizedInputs.push_back(
+              rewriter.create<Torch::AtenDequantizeSelfOp>(loc, inputTy,
+                                                           quantizedInputs[i]));
+        }
+
+        // Concatenating the inputs.
+        Type listElemType =
+            cast<Torch::BaseTensorType>(dequantizedInputs[0].getType())
+                .getWithSizesAndDtype(/*optionalSizes=*/std::nullopt,
+                                      /*optionalDtype=*/nullptr);
+        Type listType = Torch::ListType::get(listElemType);
+        Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
+            binder.op->getLoc(), listType, dequantizedInputs);
+        Value cstAxis = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(axis));
+        auto concatTy = rewriter.getType<Torch::ValueTensorType>(
+            resultType.getOptionalSizes(), rewriter.getF32Type());
+        Value concat = rewriter.create<Torch::AtenCatOp>(loc, concatTy,
+                                                         tensorList, cstAxis);
+
+        // Quantizing the result of concatenated inputs.
+        Value yScale, yZp;
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, /*scale=*/operands[0],
+                /*zero_point=*/operands[1], yScale, yZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Incompatible scale and zero-points argument for "
+                         "per-tensor quantization");
+        Torch::ValueTensorType yTy = dyn_cast<Torch::ValueTensorType>(
+            getQTorchTypeFromTorchIntType(resultType));
+        Value dtyVal = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(
+                rewriter.getIntegerType(64),
+                static_cast<int64_t>(
+                    Torch::getScalarTypeForType(yTy.getDtype()))));
+        Value result = rewriter.create<Torch::AtenQuantizePerTensorOp>(
+            loc, yTy, concat, yScale, yZp, dtyVal);
+        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
+                                                          result);
+        return success();
+      });
 }

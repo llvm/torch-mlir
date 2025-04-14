@@ -3743,3 +3743,23 @@ func.func @test_qlinearleakyrelu(%arg0: !torch.vtensor<[?,32,?,?],ui8>, %arg1: !
   // CHECK: return %[[OUT]]
   return %0 : !torch.vtensor<[?,32,?,?],ui8>
 }
+
+// -----
+
+// CHECK-LABEL: @test_qlinearconcat(
+func.func @test_qlinearconcat(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtensor<[],ui8>, %arg2: !torch.vtensor<[?,?,?,?],ui8>, %arg3: !torch.vtensor<[],f32>, %arg4: !torch.vtensor<[],ui8>, %arg5: !torch.vtensor<[?,?,?,?],ui8>, %arg6: !torch.vtensor<[],f32>, %arg7: !torch.vtensor<[],ui8>) -> !torch.vtensor<[?,?,?,?],ui8> attributes {torch.onnx_meta.ir_version = 5 : si64, torch.onnx_meta.opset_version = 10 : si64} {
+  %0 = torch.operator "onnx.QLinearConcat"(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6, %arg7) {torch.onnx.axis = 1 : si64} : (!torch.vtensor<[],f32>, !torch.vtensor<[],ui8>, !torch.vtensor<[?,?,?,?],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>, !torch.vtensor<[?,?,?,?],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>) -> !torch.vtensor<[?,?,?,?],ui8>
+  // CHECK-DAG: %[[EMPTY:.+]] = torch.prim.ListConstruct  : () -> !torch.list<int>
+  // CHECK-DAG: %[[QUANT_INPUT_1:.+]] = torch.aten._make_per_tensor_quantized_tensor %arg2, %{{.+}}, %{{.+}} : !torch.vtensor<[?,?,?,?],ui8>, !torch.float, !torch.int -> !torch.vtensor<[?,?,?,?],!torch.quint8>
+  // CHECK-DAG: %[[QUANT_INPUT_2:.+]] = torch.aten._make_per_tensor_quantized_tensor %arg5, %{{.+}}, %{{.+}} : !torch.vtensor<[?,?,?,?],ui8>, !torch.float, !torch.int -> !torch.vtensor<[?,?,?,?],!torch.quint8>
+  // CHECK: %[[DEQUANT_INPUT_1:.+]] = torch.aten.dequantize.self %[[QUANT_INPUT_1]] : !torch.vtensor<[?,?,?,?],!torch.quint8> -> !torch.vtensor<[?,?,?,?],f32>
+  // CHECK: %[[DEQUANT_INPUT_2:.+]] = torch.aten.dequantize.self %[[QUANT_INPUT_2]] : !torch.vtensor<[?,?,?,?],!torch.quint8> -> !torch.vtensor<[?,?,?,?],f32>
+  // CHECK-DAG: %[[CONCAT_LIST:.+]] = torch.prim.ListConstruct %[[DEQUANT_INPUT_1]], %[[DEQUANT_INPUT_2]] : (!torch.vtensor<[?,?,?,?],f32>, !torch.vtensor<[?,?,?,?],f32>) -> !torch.list<vtensor>
+  // CHECK: %[[AXIS:.+]] = torch.constant.int 1
+  // CHECK: %[[CONCAT:.+]] = torch.aten.cat %[[CONCAT_LIST]], %[[AXIS]] : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[?,?,?,?],f32>
+  // CHECK: %[[DTY:.+]] = torch.constant.int 13
+  // CHECK: %[[QO:.+]] = torch.aten.quantize_per_tensor %[[CONCAT]], %{{.+}}, %{{.+}}, %[[DTY]] : !torch.vtensor<[?,?,?,?],f32>, !torch.float, !torch.int, !torch.int -> !torch.vtensor<[?,?,?,?],!torch.quint8>
+  // CHECK: %[[OUT:.+]] = torch.aten.int_repr %[[QO]] : !torch.vtensor<[?,?,?,?],!torch.quint8> -> !torch.vtensor<[?,?,?,?],ui8>
+  // CHECK: return %[[OUT]]
+  return %0 : !torch.vtensor<[?,?,?,?],ui8>
+}
