@@ -99,8 +99,6 @@ Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is 
 
 ##### ...with LLVM "in-tree"
 
-The following command generates configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.
-
 ```shell
 cmake -GNinja -Bbuild \
   `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
@@ -116,6 +114,7 @@ cmake -GNinja -Bbuild \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD"
 ```
 
+- NOTE: uses external/llvm-project/llvm as the main build, so LLVM will be built in addition to torch-mlir and its sub-projects.
 
 ##### ...with LLVM "out-of-tree"
 
