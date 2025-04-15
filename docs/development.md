@@ -152,6 +152,7 @@ cmake -GNinja -Bbuild \
 ##### ...with LLVM "out-of-tree"
 
 If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following command as template:
+
 ```shell
 cmake -GNinja -Bbuild \
   `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
@@ -165,6 +166,7 @@ cmake -GNinja -Bbuild \
   -DLLVM_DIR="$LLVM_INSTALL_DIR/lib/cmake/llvm/"
   .
 ```
+
 The same QoL CMake flags can be used to enable clang, ccache, and lld. Be sure to have built LLVM with `-DLLVM_ENABLE_PROJECTS=mlir`.
 
 Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
