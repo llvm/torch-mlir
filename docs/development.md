@@ -178,8 +178,9 @@ cmake -GNinja -Bbuild \
 To enable local end-to-end tests, append:
 
 ```shell
+  \
   -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=ON \
-  -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON \
+  -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON
 ```
 
 - NOTE: The JIT IR importer depends on the native PyTorch extension features and defaults to `ON` if not changed.
