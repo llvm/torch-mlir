@@ -173,7 +173,7 @@ cmake -GNinja -Bbuild \
 
 ###### [About MLIR debugging](https://mlir.llvm.org/getting_started/Debugging/)
 
-##### Options to run end-to-end tests
+##### Flags for enabling end-to-end tests
 
 To enable local end-to-end tests, append:
 
