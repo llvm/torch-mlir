@@ -870,4 +870,62 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                                           avgpool);
         return success();
       });
+  patterns.onOp(
+      "QLinearSigmoid", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
+        Torch::ValueTensorType resultType;
+        llvm::SmallVector<Value> operands;
+        if (binder.tensorOperandsList(operands) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        Value x = operands[0];
+        Value xScale, xZp, yScale, yZp;
+
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, /*scale=*/operands[1],
+                /*zero_point=*/operands[2], xScale, xZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Incompatible arguments for per-tensor quantization");
+
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, /*scale=*/operands[3],
+                /*zero_point=*/operands[4], yScale, yZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Incompatible arguments for per-tensor quantization");
+
+        auto xTy = dyn_cast<Torch::ValueTensorType>(x.getType());
+        if (!xTy || !xTy.hasSizes())
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input argument `x` to have sizes");
+
+        xTy = getQTorchTypeFromTorchIntType(xTy);
+        x = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
+            loc, xTy, x, xScale, xZp);
+        xTy = rewriter.getType<Torch::ValueTensorType>(xTy.getSizes(),
+                                                       rewriter.getF32Type());
+        // Dequantizing the input tensor `x`.
+        x = rewriter.create<Torch::AtenDequantizeSelfOp>(loc, xTy, x);
+
+        // Computing the Sigmoid result.
+        auto yTy = rewriter.getType<Torch::ValueTensorType>(
+            resultType.getOptionalSizes(), rewriter.getF32Type());
+        Value y = rewriter.create<Torch::AtenSigmoidOp>(loc, yTy, x);
+
+        // Quantizing the result of Sigmoid op.
+        yTy = dyn_cast<Torch::ValueTensorType>(
+            getQTorchTypeFromTorchIntType(resultType));
+        Value dtyVal = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(
+                rewriter.getIntegerType(64),
+                static_cast<int64_t>(
+                    Torch::getScalarTypeForType(yTy.getDtype()))));
+        y = rewriter.create<Torch::AtenQuantizePerTensorOp>(loc, yTy, y, yScale,
+                                                            yZp, dtyVal);
+        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
+                                                          y);
+        return success();
+      });
 }
