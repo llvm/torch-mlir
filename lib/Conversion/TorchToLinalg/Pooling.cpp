@@ -961,9 +961,9 @@ public:
   // count_include_pad parameter is equal to false.
   static std::optional<LogicalResult>
   createAvgPoolValueCountIncludePadFalseCase(
-      bool countIncludePad, OpTy op, typename OpTy::Adaptor adaptor,
-      ConversionPatternRewriter &rewriter, Value self, Value sumPool,
-      Value outputTensor, Type resultType,
+      bool ceilMode, bool countIncludePad, OpTy op,
+      typename OpTy::Adaptor adaptor, ConversionPatternRewriter &rewriter,
+      Value self, Value sumPool, Value outputTensor, Type resultType,
       SmallVectorImpl<Value> &kernelSizeIntValues,
       SmallVectorImpl<int64_t> &strideInts,
       SmallVectorImpl<int64_t> &paddingInts,
@@ -1041,9 +1041,9 @@ LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::matchAndRewrite(
       Dim + 2, utils::IteratorType::parallel);
 
   auto divisorOpResult = createAvgPoolValueCountIncludePadFalseCase(
-      countIncludePad, op, adaptor, rewriter, self, sumPool, outputTensor,
-      resultType, kernelSizeIntValues, strideInts, paddingInts, indexingMapsAvg,
-      iteratorTypesAvg);
+      ceilMode, countIncludePad, op, adaptor, rewriter, self, sumPool,
+      outputTensor, resultType, kernelSizeIntValues, strideInts, paddingInts,
+      indexingMapsAvg, iteratorTypesAvg);
   if (divisorOpResult)
     return *divisorOpResult;
 
@@ -1057,9 +1057,9 @@ LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::matchAndRewrite(
 template <typename OpTy, typename PoolingOpTy, int Dim>
 std::optional<LogicalResult> ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
     createAvgPoolValueCountIncludePadFalseCase(
-        bool countIncludePad, OpTy op, typename OpTy::Adaptor adaptor,
-        ConversionPatternRewriter &rewriter, Value self, Value sumPool,
-        Value outputTensor, Type resultType,
+        bool ceilMode, bool countIncludePad, OpTy op,
+        typename OpTy::Adaptor adaptor, ConversionPatternRewriter &rewriter,
+        Value self, Value sumPool, Value outputTensor, Type resultType,
         SmallVectorImpl<Value> &kernelSizeIntValues,
         SmallVectorImpl<int64_t> &strideInts,
         SmallVectorImpl<int64_t> &paddingInts,
@@ -1069,8 +1069,14 @@ std::optional<LogicalResult> ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
 
   constexpr int avgPoolDims = getAvgPoolNumOfDims<OpTy>();
 
-  bool noPadding = llvm::all_of(paddingInts, [](int64_t p) { return p == 0; });
-  if (countIncludePad || noPadding) {
+  bool hasPadding =
+      !llvm::all_of(paddingInts, [](int64_t p) { return p == 0; });
+  bool allStridesUnitary =
+      llvm::all_of(strideInts, [](int64_t s) { return s == 1; });
+  bool canKernelWindowGoOutOfBounds =
+      hasPadding || (ceilMode && !allStridesUnitary);
+
+  if (countIncludePad || !canKernelWindowGoOutOfBounds) {
     // These cases are not handled here.
     return std::nullopt;
   }

@@ -225,3 +225,31 @@ func.func @forward_avg_pool1d_countincludepad_false(%arg0: !torch.vtensor<[1,512
   %3 = torch.aten.avg_pool1d %arg0, %0, %1, %2, %false, %false : !torch.vtensor<[1,512,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[1,512,12],f32>
   return %3 : !torch.vtensor<[1,512,12],f32>
 }
+
+// CHECK-LABEL: func @forward_avgpool_2d_ceil
+func.func @forward_avgpool_2d_ceil(%arg0: !torch.vtensor<[1,1,4,4],f32>) -> !torch.vtensor<[1,1,2,2],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[POOL_OUT:.*]] = linalg.pooling_nchw_sum {dilations = dense<1> : vector<2xi64>, strides = dense<2> : vector<2xi64>} ins(%[[PADDED_IN:.*]], %[[KERNEL_IN:.*]] : tensor<1x1x6x6xf32>, tensor<3x3xf32>) outs(%[[OUT1:.*]] : tensor<1x1x2x2xf32>) -> tensor<1x1x2x2xf32>
+  // CHECK: linalg.generic {indexing_maps = [#map3, #map3], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[POOL_OUT]] : tensor<1x1x2x2xf32>) outs(%[[GEN_OUT:.*]] : tensor<1x1x2x2xf32>) {
+  // CHECK-NEXT:  ^bb0(%[[BIN1:.*]]: f32, %[[BOUT1:.*]]: f32):
+  // CHECK-COUNT-3: arith.muli
+  // CHECK-COUNT-1: arith.sitofp
+  // CHECK-COUNT-1: arith.divf
+  // CHECK-NEXT:  linalg.yield %[[TMP1:.*]] : f32
+  // CHECK-NEXT:  } -> tensor<1x1x2x2xf32>
+  %int3 = torch.constant.int 3
+  %int3_0 = torch.constant.int 3
+  %int0 = torch.constant.int 0
+  %int0_1 = torch.constant.int 0
+  %int2 = torch.constant.int 2
+  %int2_2 = torch.constant.int 2
+  %int1 = torch.constant.int 1
+  %int1_3 = torch.constant.int 1
+  %0 = torch.prim.ListConstruct %int3, %int3_0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int0, %int0_1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int2, %int2_2, %int1, %int1_3 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %true = torch.constant.bool true
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %true, %false, %none : !torch.vtensor<[1,1,4,4],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],f32>
+  return %3 : !torch.vtensor<[1,1,2,2],f32>
+}
