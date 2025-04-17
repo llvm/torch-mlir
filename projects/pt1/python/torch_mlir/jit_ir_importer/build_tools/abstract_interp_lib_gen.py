@@ -1436,6 +1436,21 @@ def aten〇rot90〡shape(self: List[int], k: int = 1, dims: List[int] = (0, 1,))
     
     return self
 
+@check_shape_function([
+    Invocation(TensorOfShape(2, 3, 4)), # Basic case.
+    Invocation(TensorOfShape(2, 3, 4), dim = 1), # Test explicit dim.
+    Invocation(TensorOfShape(2, 3, 4), dim = -1), # Test explicit dim(negative).
+    Invocation(TensorOfShape(2, 3, 4), dim = -3), # Test explicit dim(negative).
+    Invocation(TensorOfShape(2, 3, 4), dim = 0), # Test explicit dim.
+    Invocation(TensorOfShape(2, 3, 4), dim = 2), # Test explicit maximum valid dim.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim = -4), # Test dim out of bound.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim = 3), # Test dim out of bound.
+])
+def aten〇count_nonzero〡shape(self: List[int], dim: Optional[int] = None) -> List[int]:
+    if dim is None: return []
+    assert not (dim < -len(self) or dim >= len(self))
+    return upstream_shape_functions.argmax(self, dim)
+
 def aten〇_to_copy〡shape(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, non_blocking: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -5513,6 +5528,9 @@ def aten〇new_empty_strided〡dtype(self_rank_dtype: Tuple[int, int], size: Lis
 def aten〇diag_embed〡dtype(self_rank_dtype: Tuple[int, int], offset: int = 0, dim1: int = -2, dim2: int = -1) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+def aten〇count_nonzero〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[int] = None) -> int:
+    return torch.int64
 
 def aten〇rot90〡dtype(self_rank_dtype: Tuple[int, int], k: int = 1, dims: List[int] = (0, 1,)) -> int:
     self_rank, self_dtype = self_rank_dtype
