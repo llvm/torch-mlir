@@ -2496,3 +2496,54 @@ def TraceUnsignedIntModule_basic(module, tu: TestUtils):
 @register_test_case(module_factory=lambda: TraceIntModule())
 def TraceUnsignedIntModule_empty(module, tu: TestUtils):
     module.forward(tu.randint(0, 0, low=0, high=10))
+
+
+# ==============================================================================
+
+
+class CountNonzeroDimIntListModuleF32(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.dim = [-1, 1]
+
+    @export
+    @annotate_args([None, ([2, 3, 4], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.count_nonzero(x, self.dim)
+
+
+@register_test_case(module_factory=lambda: CountNonzeroDimIntListModuleF32())
+def CountNonzeroDimIntListModuleF32_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4).to(torch.float32))
+
+
+class CountNonzeroDimIntListModuleI64(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.dim = [-2, -0, -1]
+
+    @export
+    @annotate_args([None, ([2, 3, 4], torch.int64, True)])
+    def forward(self, x):
+        return torch.ops.aten.count_nonzero(x, self.dim)
+
+
+@register_test_case(module_factory=lambda: CountNonzeroDimIntListModuleI64())
+def CountNonzeroDimIntListModuleI64_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3, 4).to(torch.int64))
+
+
+class CountNonzeroDimIntListModuleBool(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.dim = [-2, -0, -1]
+
+    @export
+    @annotate_args([None, ([2, 3, 4], torch.bool, True)])
+    def forward(self, x):
+        return torch.ops.aten.count_nonzero(x, self.dim)
+
+
+@register_test_case(module_factory=lambda: CountNonzeroDimIntListModuleBool())
+def CountNonzeroDimIntListModuleBool_Basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3, 4).to(torch.bool))
