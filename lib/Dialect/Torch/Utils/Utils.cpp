@@ -338,7 +338,9 @@ Value Torch::getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter,
       dtype.isInteger(8) || dtype.isInteger(1))
     return rewriter.create<ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr((int64_t)value));
-  if (dtype.isF64() || dtype.isF32() || dtype.isF16() || dtype.isBF16())
+  if (dtype.isF64() || dtype.isF32() || dtype.isF16() || dtype.isBF16() ||
+      isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
+          Float8E4M3FNUZType>(dtype))
     return rewriter.create<ConstantFloatOp>(loc,
                                             rewriter.getF64FloatAttr(value));
   llvm::report_fatal_error(

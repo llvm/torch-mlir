@@ -25,3 +25,13 @@ func.func @torch.uint8(%arg0: !torch.tensor {torch.type_bound = !torch.vtensor<[
   %1 = torch.aten.reshape %arg0, %0 : !torch.tensor, !torch.list<int> -> !torch.tensor
   return %1 : !torch.tensor
 }
+
+// CHECK-LABEL: func.func @torch.f8type
+func.func @torch.f8type(%arg0: !torch.vtensor<[5,3],f8E4M3FNUZ>) -> !torch.vtensor<[5,3],f8E4M3FNUZ> {
+  // CHECK: torch.aten.exp
+  // CHECK: torch.aten.log1p
+  // CHECK: torch.aten.tanh
+  // CHECK-SAME: !torch.vtensor<[5,3],f8E4M3FNUZ>
+  %0 = torch.aten.mish %arg0 : !torch.vtensor<[5,3],f8E4M3FNUZ> -> !torch.vtensor<[5,3],f8E4M3FNUZ>
+  return %0 : !torch.vtensor<[5,3],f8E4M3FNUZ>
+}
