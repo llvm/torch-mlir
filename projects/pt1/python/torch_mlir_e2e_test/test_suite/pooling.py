@@ -2302,3 +2302,92 @@ def MaxUnpool3dModulePad0_basic(module, tu: TestUtils):
     output, indices = pool(input)
 
     module.forward(output, indices)
+
+
+class AvgPool2dCeilNoPadNonUnitaryStridesIreeSwa(torch.nn.Module):
+    # This test captures the torch-mlir issue reported here:
+    # https://github.com/llvm/torch-mlir/issues/4079
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[2, 2],
+            padding=[0, 0],
+            ceil_mode=True,
+            count_include_pad=False,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dCeilNoPadNonUnitaryStridesIreeSwa())
+def AvgPool2dCeilNoPadNonUnitaryStridesIreeSwa_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilNoPadUnitaryStrides(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[1, 1],
+            padding=[0, 0],
+            ceil_mode=True,
+            count_include_pad=False,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dCeilNoPadUnitaryStrides())
+def AvgPool2dCeilNoPadUnitaryStrides_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilPadNonUnitaryStrides(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[2, 2],
+            padding=[1, 1],
+            ceil_mode=True,
+            count_include_pad=False,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dCeilPadNonUnitaryStrides())
+def AvgPool2dCeilPadNonUnitaryStrides_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
