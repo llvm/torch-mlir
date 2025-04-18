@@ -449,6 +449,107 @@ def MaxPool2dStaticCeilModeTrueReduceOutputModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 6, 20, 10, low=0.5, high=1.0))
 
 
+class MaxPool2dWithoutPadFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp2d = torch.nn.MaxPool2d(
+            kernel_size=[3, 3], stride=[2, 2], padding=[0, 0]
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mp2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: MaxPool2dWithoutPadFullDimIndivisibleByStrideModule()
+)
+def MaxPool2dWithoutPadFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 56, 56, low=-1))
+
+
+class MaxPool2dWithPadFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp2d = torch.nn.MaxPool2d(
+            kernel_size=[3, 3], stride=[2, 2], padding=[1, 1]
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mp2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: MaxPool2dWithPadFullDimIndivisibleByStrideModule()
+)
+def MaxPool2dWithPadFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 112, 112, low=-1))
+
+
+class MaxPool2dFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp2d = torch.nn.MaxPool2d(
+            kernel_size=[3, 3], stride=[3, 3], padding=[1, 1]
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mp2d(x)
+
+
+@register_test_case(module_factory=lambda: MaxPool2dFullDimIndivisibleByStrideModule())
+def MaxPool2dFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 75, 75, low=-1))
+
+
+class MaxPool2dCeilModeFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp2d = torch.nn.MaxPool2d(
+            kernel_size=[3, 3],
+            stride=[3, 3],
+            padding=[1, 1],
+            ceil_mode=True,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mp2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: MaxPool2dCeilModeFullDimIndivisibleByStrideModule()
+)
+def MaxPool2dCeilModeFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 75, 75, low=-1))
+
+
 # ==============================================================================
 
 
@@ -1504,6 +1605,117 @@ class AvgPool2dSingleIntTupleParamsIncludePadModule(torch.nn.Module):
 )
 def AvgPool2dSingleIntTupleParamsIncludePadModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 20, 20, low=0.5, high=1.0))
+
+
+class AvgPool2dWithoutPadFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[2, 2],
+            padding=[0, 0],
+            count_include_pad=False,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dWithoutPadFullDimIndivisibleByStrideModule()
+)
+def AvgPool2dWithoutPadFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 56, 56, low=-1))
+
+
+class AvgPool2dWithPadFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[2, 2],
+            padding=[1, 1],
+            count_include_pad=False,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dWithPadFullDimIndivisibleByStrideModule()
+)
+def AvgPool2dWithPadFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 112, 112, low=-1))
+
+
+class AvgPool2dFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[3, 3],
+            padding=[1, 1],
+            count_include_pad=False,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dFullDimIndivisibleByStrideModule())
+def AvgPool2dFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 75, 75, low=-1))
+
+
+class AvgPool2dCeilModeFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[3, 3],
+            padding=[1, 1],
+            ceil_mode=True,
+            count_include_pad=False,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dCeilModeFullDimIndivisibleByStrideModule()
+)
+def AvgPool2dCeilModeFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 75, 75, low=-1))
 
 
 # ==============================================================================
