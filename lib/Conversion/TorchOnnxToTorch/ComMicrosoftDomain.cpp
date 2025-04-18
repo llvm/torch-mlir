@@ -876,17 +876,9 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Location loc = binder.getLoc();
         Torch::ValueTensorType resultType;
         llvm::SmallVector<Value> operands;
-        int64_t channelsLast;
         if (binder.tensorOperandsList(operands) ||
-            binder.tensorResultType(resultType) ||
-            binder.s64IntegerAttr(channelsLast, "channels_last"))
+            binder.tensorResultType(resultType))
           return failure();
-
-        // TODO: Add support for channels_last attribute.
-        if (channelsLast)
-          return rewriter.notifyMatchFailure(
-              binder.op,
-              "Unimplemented: support not present for channels_last attribute");
 
         Value x = operands[0];
         Value xScale, xZp, yScale, yZp;
