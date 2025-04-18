@@ -2921,3 +2921,17 @@ func.func @test_dft_inverse_real(%arg0: !torch.vtensor<[10,10,1],f32>, %arg1: !t
   %0 = torch.operator "onnx.DFT"(%arg0, %none, %arg1) {torch.onnx.inverse = 1 : si64} : (!torch.vtensor<[10,10,1],f32>, !torch.none, !torch.vtensor<[],si64>) -> !torch.vtensor<[10,10,2],f32>
   return %0 : !torch.vtensor<[10,10,2],f32>
 }
+
+// -----
+
+// CHECK-LABEL: @test_fusedMatmul(
+// CHECK-SAME:                   %[[LHS:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[?,12,256,64],f32>,
+// CHECK-SAME:                   %[[RHS:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[?,12,256,64],f32>) -> !torch.vtensor<[?,12,256,256],f32>
+func.func @test_fusedMatmul(%arg0: !torch.vtensor<[?,12,256,64],f32>, %arg1: !torch.vtensor<[?,12,256,64],f32>) -> !torch.vtensor<[?,12,256,256],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 21 : si64, torch.onnx_meta.opset_versions = {com.microsoft = 1 : si64}} {
+    %0 = torch.operator "onnx.FusedMatMul"(%arg0, %arg1) {torch.onnx.alpha = 1.250000e-01 : f32, torch.onnx.transA = 0 : si64, torch.onnx.transB = 1 : si64} : (!torch.vtensor<[?,12,256,64],f32>, !torch.vtensor<[?,12,256,64],f32>) -> !torch.vtensor<[?,12,256,256],f32>
+    // CHECK: %[[DIMA:.*]] = torch.constant.int 2
+    // CHECK: %[[DIMB:.*]] = torch.constant.int 3
+    // CHECK: %[[TRANSPOSED_RHS:.*]] = torch.aten.transpose.int %[[RHS]], %[[DIMA]], %[[DIMB]] : !torch.vtensor<[?,12,256,64],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,12,64,256],f32>
+    // CHECK: torch.aten.matmul %[[LHS]], %[[TRANSPOSED_RHS]] : !torch.vtensor<[?,12,256,64],f32>, !torch.vtensor<[?,12,64,256],f32> -> !torch.vtensor<[?,12,256,256],f32>
+    return %0 : !torch.vtensor<[?,12,256,256],f32>
+}
