@@ -788,6 +788,10 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::_weight_norm_interface : (Tensor, Tensor, int) -> (Tensor, Tensor)")
     emit("aten::rot90 : (Tensor, int, int[]) -> (Tensor)", has_verifier=True)
     emit("aten::count_nonzero : (Tensor, int?) -> (Tensor)", has_verifier=True)
+    emit(
+        "aten::count_nonzero.dim_IntList : (Tensor, int[]) -> (Tensor)",
+        has_verifier=True,
+    )
 
     # Misc tensor ops.
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
