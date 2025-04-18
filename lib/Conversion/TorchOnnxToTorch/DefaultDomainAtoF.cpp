@@ -454,7 +454,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         return success();
       });
   patterns.onOp(
-      "AveragePool", 11,
+      "AveragePool", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         std::string autoPad;
         SmallVector<int64_t> dilations;

@@ -928,4 +928,85 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                                           y);
         return success();
       });
+  patterns.onOp(
+      "QLinearAveragePool", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
+        Torch::ValueTensorType resultType;
+        llvm::SmallVector<Value> operands;
+        int64_t channelsLast;
+        if (binder.tensorOperandsList(operands) ||
+            binder.tensorResultType(resultType) ||
+            binder.s64IntegerAttr(channelsLast, "channels_last"))
+          return failure();
+
+        // TODO: Add support for channels_last attribute.
+        if (channelsLast)
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Unimplemented: support not present for channels_last attribute");
+
+        Value x = operands[0];
+        Value xScale, xZp, yScale, yZp;
+
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, /*scale=*/operands[1],
+                /*zero_point=*/operands[2], xScale, xZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Incompatible arguments for per-tensor quantization");
+
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, /*scale=*/operands[3],
+                /*zero_point=*/operands[4], yScale, yZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Incompatible arguments for per-tensor quantization");
+
+        auto xTy = dyn_cast<Torch::ValueTensorType>(x.getType());
+        if (!xTy || !xTy.hasSizes())
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input argument `x` to have sizes");
+
+        xTy = getQTorchTypeFromTorchIntType(xTy);
+        x = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
+            loc, xTy, x, xScale, xZp);
+        xTy = rewriter.getType<Torch::ValueTensorType>(xTy.getSizes(),
+                                                       rewriter.getF32Type());
+        // Dequantizing the input tensor `x`.
+        x = rewriter.create<Torch::AtenDequantizeSelfOp>(loc, xTy, x);
+
+        // Creating Onnx.AveragePool op.
+        llvm::SmallVector<Value> newOperands = {x};
+        llvm::SmallVector<NamedAttribute> newAttributes;
+        newAttributes.push_back(rewriter.getNamedAttr(
+            "name", rewriter.getStringAttr("onnx.AveragePool")));
+        for (auto namedAttr : binder.op->getAttrDictionary()) {
+          if (namedAttr.getName().getValue().compare("name") == 0)
+            continue;
+          newAttributes.push_back(namedAttr);
+        }
+
+        auto yTy = rewriter.getType<Torch::ValueTensorType>(
+            resultType.getOptionalSizes(), rewriter.getF32Type());
+        Value averagePool =
+            rewriter
+                .create<Torch::OperatorOp>(binder.getLoc(), yTy, newOperands,
+                                           newAttributes,
+                                           binder.op->getRegions().size())
+                .getResult(0);
+
+        // Quantizing the result of AveragePool op.
+        yTy = dyn_cast<Torch::ValueTensorType>(
+            getQTorchTypeFromTorchIntType(resultType));
+        Value dtyVal = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(
+                rewriter.getIntegerType(64),
+                static_cast<int64_t>(
+                    Torch::getScalarTypeForType(yTy.getDtype()))));
+        averagePool = rewriter.create<Torch::AtenQuantizePerTensorOp>(
+            loc, yTy, averagePool, yScale, yZp, dtyVal);
+        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
+                                                          averagePool);
+        return success();
+      });
 }
