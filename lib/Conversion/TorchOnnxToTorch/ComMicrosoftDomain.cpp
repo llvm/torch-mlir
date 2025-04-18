@@ -1009,4 +1009,60 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                                           averagePool);
         return success();
       });
+  patterns.onOp(
+      "FusedMatMul", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value lhs, rhs;
+        int64_t transA, transB, transBatchA, transBatchB;
+        if (binder.tensorOperands(lhs, rhs) ||
+            binder.s64IntegerAttr(transA, "transA", 0) ||
+            binder.s64IntegerAttr(transB, "transB", 0) ||
+            binder.s64IntegerAttr(transBatchA, "transBatchA", 0) ||
+            binder.s64IntegerAttr(transBatchB, "transBatchB", 0) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        // Transposing the LHS argument.
+        Value transposedLhs = lhs;
+        if (transA) {
+          // Determine the rank of lhs tensor.
+          std::optional<unsigned> maybeRank = Torch::getTensorRank(lhs);
+          if (!maybeRank)
+            return rewriter.notifyMatchFailure(
+                binder.op, "Unimplemented: unranked lhs tensor");
+          unsigned lhsRank = *maybeRank;
+          if (failed(createTorchTransposeOp(
+                  rewriter, binder.getLoc(), lhs,
+                  /*dimA=*/lhsRank - 2, /*dimB=*/lhsRank - 1, transposedLhs)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Failed to create TorchTranspose op for lhs");
+        }
+
+        // Transposing the RHS argument.
+        Value transposedRhs = rhs;
+        if (transB) {
+          std::optional<unsigned> maybeRank = Torch::getTensorRank(rhs);
+          if (!maybeRank)
+            return rewriter.notifyMatchFailure(
+                binder.op, "Unimplemented: unranked rhs tensor");
+          unsigned rhsRank = *maybeRank;
+          if (failed(createTorchTransposeOp(
+                  rewriter, binder.getLoc(), rhs,
+                  /*dimA=*/rhsRank - 2, /*dimB=*/rhsRank - 1, transposedRhs)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Failed to create TorchTranspose op for rhs");
+        }
+
+        // TODO: Add support for `transBatchA` and `transBatchB`
+        // attribute.
+        if (transBatchA || transBatchB)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unimplemented: support not present for "
+                         "transBatchA and transBatchB attribute");
+
+        rewriter.replaceOpWithNewOp<Torch::AtenMatmulOp>(
+            binder.op, resultType, transposedLhs, transposedRhs);
+        return success();
+      });
 }
