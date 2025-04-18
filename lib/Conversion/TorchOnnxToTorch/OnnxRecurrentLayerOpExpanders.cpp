@@ -1,3 +1,4 @@
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -795,11 +796,25 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
         binder.op, "4 times hidden_size (" + std::to_string(4 * hidden_size) +
                        ") does not match the second dimension of wTy (" +
                        std::to_string(wTy.getSizes()[1]) + ")");
-  if (wTy.getSizes()[2] != input_size)
-    return rewriter.notifyMatchFailure(
-        binder.op,
-        "The third dimension of wTy (" + std::to_string(wTy.getSizes()[2]) +
-            ") does not match input_size (" + std::to_string(input_size) + ")");
+  if (input_size != Torch::kUnknownSize) {
+    if (wTy.getSizes()[2] != input_size)
+      return rewriter.notifyMatchFailure(binder.op,
+                                         "The third dimension of wTy (" +
+                                             std::to_string(wTy.getSizes()[2]) +
+                                             ") does not match input_size (" +
+                                             std::to_string(input_size) + ")");
+
+  } else {
+    Value x_input_size = Torch::getTensorDimSize(rewriter, X, 2);
+    Value w_input_size =
+        b.create<ConstantIntOp>(loc, b.getI64IntegerAttr(wTy.getSizes()[2]));
+
+    Value eq = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                              w_input_size, x_input_size);
+
+    rewriter.create<Torch::RuntimeAssertOp>(
+        loc, eq, rewriter.getStringAttr("W.dim(2) must equal X.dim(2)"));
+  }
 
   Value W_forward = getDirection(b, 0, W);
   Value R_forward = getDirection(b, 0, R);
