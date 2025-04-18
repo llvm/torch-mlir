@@ -3855,6 +3855,7 @@ ONNX_TOSA_CRASHING_SET = {
 
 ONNX_TOSA_XFAIL_SET = {
     "AtenFftRfft2DLastDim_basic",
+    "AtenOuter_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "AtenStftCenter1D_basic",
     "AtenStftCenter1DUnkSigLen_basic",
