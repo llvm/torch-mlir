@@ -1769,7 +1769,7 @@ public:
 
     Location loc = op->getLoc();
     Value lhs = adaptor.getSelf();
-    Value rhs = op->getOperand(1);
+    Value rhs = adaptor.getVec2();
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter))) {
       return failure();
@@ -1790,8 +1790,10 @@ public:
     Type newResultType = getTypeConverter()->convertType(op.getType());
 
     // Create a zero-initialized tensor with shape [lhsDim, rhsDim]
-    Value initTensor = createInitTensor(
-        rewriter, loc, ValueRange{lhsDim, rhsDim}, elementType, NULL);
+    SmallVector<OpFoldResult> resultShape =
+        getAsOpFoldResult(ValueRange{lhsDim, rhsDim});
+    Value initTensor =
+        rewriter.create<tensor::EmptyOp>(loc, resultShape, elementType);
 
     // Set up affine indexing maps:
     // We create a 2D loop iteration space. For the lhs, we use the first index
