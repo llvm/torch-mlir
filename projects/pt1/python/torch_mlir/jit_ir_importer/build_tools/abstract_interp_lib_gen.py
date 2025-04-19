@@ -1436,6 +1436,23 @@ def aten〇rot90〡shape(self: List[int], k: int = 1, dims: List[int] = (0, 1,))
     
     return self
 
+@check_shape_function([
+    Invocation(TensorOfShape(2, 3, 4), dim = []), # Basic case.
+    Invocation(TensorOfShape(2, 3, 4), dim=[1]), # Test explicit dim.
+    Invocation(TensorOfShape(2, 3, 4), dim=[-1]), # Test explicit dim.
+    Invocation(TensorOfShape(2, 3, 4), dim=[0,1]), # Test explicit dim.
+    Invocation(TensorOfShape(2, 3, 4), dim=[-3]), # Test explicit dim(negative).
+    Invocation(TensorOfShape(2, 3, 4), dim=[2]), # Maximum valid dim.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim=[-4]), # Test dim out of bound.
+     ErrorInvocation(TensorOfShape(2, 3, 4), dim=[1,-4]), # Test dim out of bound.
+    ErrorInvocation(TensorOfShape(2, 3, 4), dim=[3]), # Test dim out of bound.
+])
+def aten〇count_nonzero〇dim_IntList〡shape(self: List[int], dim: List[int]) -> List[int]:
+    if dim is None: return []
+    for d in dim:
+        assert not (d < -len(self) or d >= len(self))
+    return upstream_shape_functions.sum_mean_dim(self, dim,False,0)
+
 def aten〇_to_copy〡shape(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, non_blocking: bool = False, memory_format: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 

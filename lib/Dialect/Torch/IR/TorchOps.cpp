@@ -6034,6 +6034,35 @@ LogicalResult AtenRot90Op::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenCountNonzeroDimIntListOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenCountNonzeroDimIntListOp::verify() {
+
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+
+  if (!selfType.hasDtype() || !selfType.hasSizes())
+    return success();
+
+  SmallVector<int64_t> dims;
+  if (!matchPattern(getDim(), m_TorchListOfConstantInts(dims)))
+    return emitOpError("expected dim to be constructed from list construct");
+  if (!isa<Torch::IntType>(getDim().getType().getContainedType()))
+    return emitOpError("list elements must be int type");
+
+  int64_t selfRank;
+  selfRank = selfType.getSizes().size();
+
+  for (auto d : dims) {
+    if (d >= selfRank || d < -selfRank)
+      return emitOpError("expected to be in [ ")
+             << -selfRank << " , " << selfRank - 1 << " ], but got dim = " << d;
+  }
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // OnnxVariantRotaryEmbeddingOp
 //===----------------------------------------------------------------------===//
 

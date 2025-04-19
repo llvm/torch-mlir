@@ -9902,6 +9902,31 @@ def Torch_AtenRot90Op : Torch_Op<"aten.rot90", [
   let hasVerifier = 1;
 }
 
+def Torch_AtenCountNonzeroDimIntListOp : Torch_Op<"aten.count_nonzero.dim_IntList", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::count_nonzero.dim_IntList : (Tensor, int[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$dim
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenCountNonzeroDimIntListOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenCountNonzeroDimIntListOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+  let hasVerifier = 1;
+}
+
 def Torch_AtenConstantPadNdOp : Torch_Op<"aten.constant_pad_nd", [
     AllowsTypeRefinement,
     HasValueSemantics,
