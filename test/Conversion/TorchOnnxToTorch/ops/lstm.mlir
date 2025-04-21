@@ -84,3 +84,37 @@ func.func @test_lstm_batchwise_two_outputs(%arg0: !torch.vtensor<[3,1,2],f32>, %
   %0:2 = torch.operator "onnx.LSTM"(%arg0, %arg1, %arg2) {torch.onnx.hidden_size = 7 : si64, torch.onnx.layout = 1 : si64} : (!torch.vtensor<[3,1,2],f32>, !torch.vtensor<[1,28,2],f32>, !torch.vtensor<[1,28,7],f32>) -> (!torch.vtensor<[3,1,1,7],f32>, !torch.vtensor<[3,1,7],f32>)
   return %0#0, %0#1 : !torch.vtensor<[3,1,1,7],f32>, !torch.vtensor<[3,1,7],f32>
 }
+
+      func.func @test_lstm_dynamic(
+    %arg0: !torch.vtensor<[?,?,?],f32>,
+    %arg1: !torch.vtensor<[1,12,4],f32>,
+    %arg2: !torch.vtensor<[1,12,3],f32>,
+    %arg3: !torch.vtensor<[1,24],f32>
+  ) -> (
+    !torch.vtensor<[?,1,?,3],f32>,
+    !torch.vtensor<[1,?,3],f32>,
+    !torch.vtensor<[1,?,3],f32>
+  ) attributes {
+    torch.onnx_meta.ir_version = 9 : si64,
+    torch.onnx_meta.opset_version = 20 : si64
+  } {
+    %none = torch.constant.none
+    %0:3 = torch.operator "onnx.LSTM"(
+      %arg0, %arg1, %arg2, %arg3
+    ) { torch.onnx.hidden_size = 3 : si64 }
+      : (
+        !torch.vtensor<[?,?,?],f32>,
+        !torch.vtensor<[1,12,4],f32>,
+        !torch.vtensor<[1,12,3],f32>,
+        !torch.vtensor<[1,24],f32>
+      )
+      -> (
+        !torch.vtensor<[?,1,?,3],f32>,
+        !torch.vtensor<[1,?,3],f32>,
+        !torch.vtensor<[1,?,3],f32>
+      )
+    return %0#0, %0#1, %0#2 :
+      !torch.vtensor<[?,1,?,3],f32>,
+      !torch.vtensor<[1,?,3],f32>,
+      !torch.vtensor<[1,?,3],f32>
+  }
