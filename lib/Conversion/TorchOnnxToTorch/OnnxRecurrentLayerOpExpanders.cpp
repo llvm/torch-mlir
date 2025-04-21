@@ -544,8 +544,8 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
   Value cstHiddenSize =
       b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
 
-  auto yTy = Torch::getTensorTypeFromShapeValues(
-      {seq_len, batch_size, cstHiddenSize}, hTy.getDtype());
+  auto yTy = getTensorTypeFromShapeValues({seq_len, batch_size, cstHiddenSize},
+                                          hTy.getDtype());
   auto YShapeList = b.create<PrimListConstructOp>(
       b.getType<ListType>(intType),
       ValueRange({seq_len, batch_size, cstHiddenSize}));
@@ -585,15 +585,15 @@ LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
     Value C_prev = loopBody->getArgument(3);
 
     auto xTy = cast<ValueTensorType>(X.getType());
-    auto XtType = Torch::getTensorTypeFromShapeValues({batch_size, input_size},
-                                                      xTy.getDtype());
+    auto XtType =
+        getTensorTypeFromShapeValues({batch_size, input_size}, xTy.getDtype());
 
     Value Xt = b.create<AtenSelectIntOp>(XtType, X, cstZero, loopIndex);
 
     auto [H_new, C_new] =
         lstm_cell(b, Xt, H_prev, C_prev, weights, activations);
 
-    auto hTyUnsqueezed = Torch::getTensorTypeFromShapeValues(
+    auto hTyUnsqueezed = getTensorTypeFromShapeValues(
         {cstOne, batch_size, cstHiddenSize}, hTy.getDtype());
     Value H_new_unsqueezed =
         b.create<AtenUnsqueezeOp>(hTyUnsqueezed, H_new, cstZero);
@@ -771,8 +771,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
         binder.op, "invalid value of layout attribute, expecting 0 / 1 got " +
                        std::to_string(layout));
 
-  Value seqLen = Torch::getTensorDimSize(rewriter, X, layout == 0 ? 0 : 1);
-  Value batchSize = Torch::getTensorDimSize(rewriter, X, layout == 0 ? 1 : 0);
+  Value seqLen = getTensorDimSize(rewriter, X, layout == 0 ? 0 : 1);
+  Value batchSize = getTensorDimSize(rewriter, X, layout == 0 ? 1 : 0);
 
   int64_t x_input_size = xTy.getSizes()[2];
   int64_t w_input_size = wTy.getSizes()[2];
@@ -826,7 +826,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
   Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
 
-  auto hTy = Torch::getTensorTypeFromShapeValues(
+  auto hTy = getTensorTypeFromShapeValues(
       {cstNumDirections, batchSize, cstHiddenSize}, xTy.getDtype());
   Value hShape = b.create<PrimListConstructOp>(
       b.getType<ListType>(intType),
@@ -994,16 +994,16 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   // if forward (unidirectional) unsqueeze and output
   auto YallDtype =
       cast<ValueTensorType>(lstmLayerOutput.Y_h.getType()).getDtype();
-  auto Y_h_Y_c_uni_type = Torch::getTensorTypeFromShapeValues(
+  auto Y_h_Y_c_uni_type = getTensorTypeFromShapeValues(
       {cstOne, batchSize, cstHiddenSize}, YallDtype);
 
-  auto Y_uni_type = Torch::getTensorTypeFromShapeValues(
+  auto Y_uni_type = getTensorTypeFromShapeValues(
       {seqLen, cstOne, batchSize, cstHiddenSize}, YallDtype);
 
-  auto Y_h_Y_c_res_type = Torch::getTensorTypeFromShapeValues(
+  auto Y_h_Y_c_res_type = getTensorTypeFromShapeValues(
       {cstNumDirections, batchSize, cstHiddenSize}, YallDtype);
 
-  auto Y_res_type = Torch::getTensorTypeFromShapeValues(
+  auto Y_res_type = getTensorTypeFromShapeValues(
       {seqLen, cstNumDirections, batchSize, cstHiddenSize}, YallDtype);
 
   Value Y_h_forward =
