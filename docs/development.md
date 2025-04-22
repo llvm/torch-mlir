@@ -97,41 +97,9 @@ sudo apt install clang ccache lld
 
 Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
 
-##### ...with LLVM "in-tree" using...
+##### ...with LLVM "in-tree"
 
-The following commands generate configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.
-
-###### ...Base + Optimization Options
-
-If you do anticipate needing to frequently rebuild LLVM "in-tree", run:
-
-```shell
-cmake -GNinja -Bbuild \
-  `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DPython3_FIND_VIRTUALENV=ONLY \
-  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-  -DLLVM_TARGETS_TO_BUILD=host \
-  `# For building LLVM "in-tree"` \
-  externals/llvm-project/llvm \
-  -DLLVM_ENABLE_PROJECTS=mlir \
-  -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
-  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD" \
-  `# use clang`\
-  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-  `# use ccache to cache build results` \
-  -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-  `# use LLD to link in seconds, rather than minutes` \
-  -DCMAKE_LINKER_TYPE=lld
-```
-
-- This requires [the enablement mentioned earlier](#optional-enable-quicker-builds).
-- If you encounter issues when you run this, try the [simplified build command](#base-options) instead.
-
-###### ...Base Options
-
-If you don't anticipate needing to frequently rebuild LLVM "in-tree", run:
+The following command generates configuration files to build the project *in-tree*, that is, using llvm/llvm-project as the main build. This will build LLVM as well as torch-mlir and its subprojects.
 
 ```shell
 cmake -GNinja -Bbuild \
@@ -167,11 +135,29 @@ cmake -GNinja -Bbuild \
   .
 ```
 
-- The same QoL CMake flags can be used to enable clang, ccache, and lld.
 - Be sure to have built LLVM with `-DLLVM_ENABLE_PROJECTS=mlir`.
 - Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
 
 ###### [About MLIR debugging](https://mlir.llvm.org/getting_started/Debugging/)
+
+##### (Optional) Flags for leveraging quicker builds
+
+If you anticipate needing to frequently rebuild LLVM, append:
+
+```shell
+  \
+  `# use clang`\
+  -DCMAKE_C_COMPILER=clang \
+  -DCMAKE_CXX_COMPILER=clang++ \
+  `# use ccache to cache build results` \
+  -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+  -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+  `# use LLD to link in seconds, rather than minutes` \
+  -DCMAKE_LINKER_TYPE=lld
+```
+
+- This requires [the enablement mentioned earlier](#optional-enable-quicker-builds).
+- If these flags cause issues, just skip them for now.
 
 ##### (Optional) Flags for enabling end-to-end tests
 
