@@ -154,7 +154,6 @@ struct TMTensorBufferizePass
     typeConverter.addConversion([](UnrankedTensorType type) -> Type {
       return UnrankedMemRefType::get(type.getElementType(), 0);
     });
-    typeConverter.addArgumentMaterialization(materializeToTensor);
     typeConverter.addSourceMaterialization(materializeToTensor);
     typeConverter.addTargetMaterialization([](OpBuilder &builder,
                                               BaseMemRefType type,
