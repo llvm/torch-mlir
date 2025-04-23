@@ -2391,3 +2391,220 @@ class AvgPool2dCeilPadNonUnitaryStrides(torch.nn.Module):
 @register_test_case(module_factory=lambda: AvgPool2dCeilPadNonUnitaryStrides())
 def AvgPool2dCeilPadNonUnitaryStrides_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilNoPadStridedIncludePadding(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[2, 2],
+            padding=[0, 0],
+            ceil_mode=True,
+            count_include_pad=True,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dCeilNoPadStridedIncludePadding())
+def AvgPool2dCeilNoPadStridedIncludePadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilNoPadUnitaryStrideIncludePadding(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[1, 1],
+            padding=[0, 0],
+            ceil_mode=True,
+            count_include_pad=True,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dCeilNoPadUnitaryStrideIncludePadding()
+)
+def AvgPool2dCeilNoPadUnitaryStrideIncludePadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilPaddingUnitaryStrideIncludePaddingFalse(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[1, 1],
+            padding=[1, 1],
+            ceil_mode=True,
+            count_include_pad=False,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dCeilPaddingUnitaryStrideIncludePaddingFalse()
+)
+def AvgPool2dCeilPaddingUnitaryStrideIncludePaddingFalse_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dFloorNoPadUnitaryStrideIncludePadding(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[1, 1],
+            padding=[0, 0],
+            ceil_mode=False,
+            count_include_pad=True,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dFloorNoPadUnitaryStrideIncludePadding()
+)
+def AvgPool2dFloorNoPadUnitaryStrideIncludePadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dFloorPaddingUnitaryStrideIncludePadding(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[1, 1],
+            padding=[1, 1],
+            ceil_mode=False,
+            count_include_pad=True,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dFloorPaddingUnitaryStrideIncludePadding()
+)
+def AvgPool2dFloorPaddingUnitaryStrideIncludePadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilPaddingUnitaryStrideIncludePadding(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[1, 1],
+            padding=[1, 1],
+            ceil_mode=True,
+            count_include_pad=True,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dCeilPaddingUnitaryStrideIncludePadding()
+)
+def AvgPool2dCeilPaddingUnitaryStrideIncludePadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilPaddingStridedIncludePadding(torch.nn.Module):
+    # Note that in this case the kernel window center will go into the padding.
+    # When this happens the padding elements are counted in the divisor, but
+    # the out of bound elements from the ceiling are not counted
+    # (i.e., clamped from the divisor count).
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[2, 2],
+            padding=[1, 1],
+            ceil_mode=True,
+            count_include_pad=True,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dCeilPaddingStridedIncludePadding())
+def AvgPool2dCeilPaddingStridedIncludePadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
