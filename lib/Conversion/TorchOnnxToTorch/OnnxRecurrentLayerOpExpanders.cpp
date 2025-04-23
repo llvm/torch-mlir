@@ -516,22 +516,17 @@ struct LstmLayerOutput {
 //
 // @return A struct containing the hidden state history, final hidden state,
 // and final cell state.
-LstmLayerOutput lstm_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
-                           Value initial_c, LstmWeights weights,
-                           LstmActivations activations) {
+LstmLayerOutput lstm_layer(ConversionPatternRewriter &rewriter, Location &loc,
+                           Value X, Value initial_h, Value initial_c,
+                           LstmWeights weights, LstmActivations activations) {
 
-  Location loc = b.getLoc();
-
-  auto getTensorDimSize = [&](Value tensor, int64_t dim) {
-    auto dimVal = b.create<ConstantIntOp>(loc, b.getI64IntegerAttr(dim));
-    return b.createOrFold<AtenSizeIntOp>(loc, tensor, dimVal);
-  };
+  mlir::ImplicitLocOpBuilder b(loc, rewriter);
 
   auto hTy = cast<ValueTensorType>(initial_h.getType());
   // these names are snake_case for consistency with onnx.LSTM documentation
-  Value seq_len = getTensorDimSize(X, 0);
-  Value batch_size = getTensorDimSize(X, 1);
-  Value input_size = getTensorDimSize(X, 2);
+  Value seq_len = getTensorDimSize(rewriter, X, 0);
+  Value batch_size = getTensorDimSize(rewriter, X, 1);
+  Value input_size = getTensorDimSize(rewriter, X, 2);
   int64_t hidden_size = hTy.getSizes()[1];
 
   auto cTy = hTy;
@@ -986,8 +981,9 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
     std::tie(weightsRev.R_i, weightsRev.R_o, weightsRev.R_f, weightsRev.R_c) =
         sliceIOFC(sliceGateWeightsHH, R_reverse);
 
-  LstmLayerOutput lstmLayerOutput = lstm_layer(
-      b, X, initial_h_forward, initial_c_forward, weights, activations);
+  LstmLayerOutput lstmLayerOutput =
+      lstm_layer(rewriter, loc, X, initial_h_forward, initial_c_forward,
+                 weights, activations);
 
   Value Y_h_result, Y_c_result, Y_result;
 
@@ -1033,8 +1029,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
                                          SmallVector<Value>{cstZero});
     X_reverse = b.create<AtenFlipOp>(xTy, X, dim0); // flip along seq_len dim
     revLstmLayerOutput =
-        lstm_layer(b, X_reverse, initial_h_reverse, initial_c_reverse,
-                   weightsRev, activationsRev);
+        lstm_layer(rewriter, loc, X_reverse, initial_h_reverse,
+                   initial_c_reverse, weightsRev, activationsRev);
 
     // unsqueeze  Y_rev, Y_h_rev, Y_c_rev
     Y_h_reverse = b.create<AtenUnsqueezeOp>(Y_h_Y_c_uni_type,
