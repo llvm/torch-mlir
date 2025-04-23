@@ -46,6 +46,8 @@ declare_mlir_python_sources(TorchMLIRPythonSources.PublicAPI
     compiler_utils.py
     fx.py
     extras/fx_decomp_util.py
+    compiler_utils_mw.py
+    fx_mw.py
 )
 
 declare_mlir_python_sources(TorchMLIRPythonSources.Tools
