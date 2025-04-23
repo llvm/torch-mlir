@@ -5025,6 +5025,26 @@ def CumsumInputDtypeInt32Module_basic(module, tu: TestUtils):
     module.forward(tu.randint(2, 7, 4).to(torch.int32))
 
 
+class CumsumWithDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 7, 4], torch.bool, True),
+        ]
+    )
+    def forward(self, val):
+        return torch.ops.aten.cumsum(val, dim=1, dtype=6)
+
+
+@register_test_case(module_factory=lambda: CumsumWithDtypeModule())
+def CumsumWithDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 7, 4, low=-1, high=10).to(torch.bool))
+
+
 # ==============================================================================
 
 
