@@ -679,7 +679,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ConvolutionBackwardModule2DStrided_basic",
     "ConvolutionBackwardModule2D_basic",
     "CumsumModule_basic",
-    "CumsumWithDtypeModule_basic",
     "CumprodModule_basic",
     "CumprodInputDtypeInt32Module_basic",
     "CumprodStaticModule_basic",
