@@ -3579,6 +3579,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ConvolutionModule2DTranspose_basic",
     "ConvolutionModule2DGroupedTranspose_basic",
     "CumsumInputDtypeInt32Module_basic",
+    "CumsumWithDtypeModule_basic",
     "CumsumModule_basic",
     "CumsumStaticModule_basic",
     "CumsumStaticNegativeDimModule_basic",
