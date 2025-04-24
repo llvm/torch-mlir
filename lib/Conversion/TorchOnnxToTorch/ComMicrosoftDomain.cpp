@@ -1077,4 +1077,73 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             binder.op, resultType, transposedLhs, transposedRhs);
         return success();
       });
+  patterns.onOp(
+      "QLinearMul", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
+        Torch::ValueTensorType resultType;
+        llvm::SmallVector<Value> operands;
+        if (binder.tensorOperandsList(operands) ||
+            binder.tensorResultType(resultType))
+          return failure();
+
+        if (operands.size() != 8)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unimplemented: expected 8 input operands");
+
+        Value a, b, aScale, aZp, bScale, bZp, cScale, cZp;
+
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, /*scale=*/operands[1],
+                /*zero_point=*/operands[2], aScale, aZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Incompatible arguments for per-tensor quantization");
+
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, /*scale=*/operands[4],
+                /*zero_point=*/operands[5], bScale, bZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Incompatible arguments for per-tensor quantization");
+
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, /*scale=*/operands[6],
+                /*zero_point=*/operands[7], cScale, cZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Incompatible arguments for per-tensor quantization");
+
+        if (failed(createDequantizeTensor(rewriter, loc, /*input=*/operands[0],
+                                          /*scale=*/aScale, /*zero_point=*/aZp,
+                                          /*output=*/a)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to dequantize the input tensor `a` because of "
+                         "missing sizes");
+
+        if (failed(createDequantizeTensor(rewriter, loc, /*input=*/operands[3],
+                                          /*scale=*/bScale, /*zero_point=*/bZp,
+                                          /*output=*/b)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to dequantize the input tensor `b` because of "
+                         "missing sizes");
+
+        // Computing the Mul result.
+        auto cTy = rewriter.getType<Torch::ValueTensorType>(
+            resultType.getOptionalSizes(), rewriter.getF32Type());
+        Value c =
+            rewriter.create<Torch::AtenMulTensorOp>(binder.getLoc(), cTy, a, b);
+
+        // Quantizing the result of Mul operation.
+        cTy = dyn_cast<Torch::ValueTensorType>(
+            getQTorchTypeFromTorchIntType(resultType));
+        Value dtyVal = rewriter.create<Torch::ConstantIntOp>(
+            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(
+                rewriter.getIntegerType(64),
+                static_cast<int64_t>(
+                    Torch::getScalarTypeForType(cTy.getDtype()))));
+        c = rewriter.create<Torch::AtenQuantizePerTensorOp>(
+            binder.getLoc(), cTy, c, cScale, cZp, dtyVal);
+        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
+                                                          c);
+        return success();
+      });
 }
