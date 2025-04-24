@@ -5126,7 +5126,8 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
       dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType()));
 
   if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), cond, self).failed() ||
-      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), cond, other).failed())
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), cond, other).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, other).failed())
     return rewriter.notifyMatchFailure(
         op, "Failed to equalize ranks among operands and result");
 
