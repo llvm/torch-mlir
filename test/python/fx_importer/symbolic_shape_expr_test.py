@@ -89,8 +89,8 @@ def test_tanh_sigmoid_cat():
 # CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
 # CHECK:        torch.bind_symbolic_shape %[[ARG1]], [%[[S0]]], affine_map<()[s0] -> (s0 + 1)> : !torch.vtensor<[?],f32>
 # CHECK-DISABLED:        %[[SLICE:.+]] = torch.aten.slice.Tensor %arg1, {{.*}}, {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[?],f32>, !torch.int, !torch.int, !torch.none, !torch.int -> !torch.vtensor<[?],f32>
-# CHECK:        torch.bind_symbolic_shape %[[SLICE]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
-# CHECK:        %[[ADD:.+]] = torch.aten.add.Tensor %[[ARG0]], %[[SLICE]], {{.*}} : !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>, !torch.int -> !torch.vtensor<[?],f32>
+# CHECK:        torch.bind_symbolic_shape %{{.*}}, [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
+# CHECK:        %[[ADD:.+]] = torch.aten.add.Tensor %[[ARG0]], %{{.*}}, {{.*}} : !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>, !torch.int -> !torch.vtensor<[?],f32>
 # CHECK:        torch.bind_symbolic_shape %[[ADD]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
 # CHECK:        return %[[ADD]] : !torch.vtensor<[?],f32>
 def test_symbolic_dim_differ_by_one():
@@ -169,8 +169,8 @@ def test_outer_with_squared_shape():
 # CHECK:        %[[S0:.+]] = torch.symbolic_int "{{[a-z0-9]+}}" {min_val = 3, max_val = 10} : !torch.int
 # CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0, 3)> : !torch.vtensor<[?,3],f32>
 # CHECK:        %[[SLICE1:.+]] = torch.aten.slice.Tensor %[[ARG0]], {{.*}}, {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[?,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3],f32>
-# CHECK-DISABLED:        %[[SLICE2:.+]] = torch.aten.slice.Tensor %[[SLICE1]], {{.*}}, {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[2,3],f32>, !torch.int, !torch.none, !torch.int, !torch.int -> !torch.vtensor<[2,1],f32>
-# CHECK:        return %[[SLICE2]] : !torch.vtensor<[2,1],f32>
+# CHECK-DISABLED:        %[[SLICE2:.+]] = torch.aten.slice.Tensor %{{.*}}, {{.*}}, {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[2,3],f32>, !torch.int, !torch.none, !torch.int, !torch.int -> !torch.vtensor<[2,1],f32>
+# CHECK:        return %{{.*}} : !torch.vtensor<[2,1],f32>
 def test_slice_tensor_static_output():
     class SliceTensorStaticOutput(torch.nn.Module):
         def __init__(self):
