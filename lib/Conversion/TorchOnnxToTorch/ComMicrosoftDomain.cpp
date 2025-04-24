@@ -464,6 +464,11 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         if (binder.tensorOperandsList(operands) ||
             binder.tensorResultType(resultType))
           return failure();
+
+        if (operands.size() != 8)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unimplemented: expected 8 input operands");
+
         Value a = operands[0];
         Value aScale = operands[1];
         Value aZp = operands[2];
@@ -471,6 +476,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value bScale = operands[4];
         Value bZp = operands[5];
         Value cScale = operands[6];
+        Value cZp = operands[7];
 
         auto check = [](Value v) {
           auto vTy = cast<Torch::ValueTensorType>(v.getType());
@@ -480,7 +486,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return true;
         };
         if (!check(aScale) || !check(aZp) || !check(bScale) || !check(bZp) ||
-            !check(cScale))
+            !check(cScale) || !check(cZp))
           return rewriter.notifyMatchFailure(
               binder.op, "Unsupported per-tensor quantization");
 
@@ -508,19 +514,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
 
         aZp = extract(aZp);
         bZp = extract(bZp);
-
-        Value cZp;
-        if (operands.size() == 8) {
-          cZp = operands[7];
-          if (!check(cZp))
-            return rewriter.notifyMatchFailure(
-                binder.op,
-                "Unsupported c_zero_point for per-tensor quantization");
-          cZp = extract(cZp);
-        } else {
-          cZp = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(0));
-        }
+        cZp = extract(cZp);
 
         aScale = extract(aScale);
         bScale = extract(bScale);
@@ -589,6 +583,10 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             binder.tensorResultType(resultType) ||
             binder.f32FloatAttr(alpha, "alpha"))
           return failure();
+
+        if (operands.size() != 5)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unimplemented: expected 5 input operands");
 
         Value x = operands[0];
         Value xScale = operands[1];
@@ -760,6 +758,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             binder.s64IntegerAttr(channelsLast, "channels_last"))
           return failure();
 
+        // TODO: Add support for channels_last attribute.
+        if (channelsLast)
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Unimplemented: support not present for channels_last attribute");
+
         Value x = operands[0];
         Value xScale, xZp, yScale, yZp;
 
@@ -880,6 +884,10 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             binder.tensorResultType(resultType))
           return failure();
 
+        if (operands.size() != 5)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unimplemented: expected 5 input operands");
+
         Value x = operands[0];
         Value xScale, xZp, yScale, yZp;
 
@@ -945,6 +953,10 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(
               binder.op,
               "Unimplemented: support not present for channels_last attribute");
+
+        if (operands.size() != 5)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unimplemented: expected 5 input operands");
 
         Value x = operands[0];
         Value xScale, xZp, yScale, yZp;
