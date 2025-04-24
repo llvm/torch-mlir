@@ -857,7 +857,8 @@ namespace {
 template <int NumOfDims> class PoolSizeCalculator {
 public:
   PoolSizeCalculator(Value self, Value sumPool, bool countIncludePad,
-                     ConversionPatternRewriter &rewriter, Location loc);
+                     bool ceilMode, ConversionPatternRewriter &rewriter,
+                     Location loc);
 
   // The algorithm for computing the divisor with
   // count_include_pad equal is mainly based on pytorch
@@ -875,15 +876,16 @@ private:
   Value InputSpatialDimSizes[NumOfDims];
   Location location;
   bool isCountIncludePad;
+  bool isCeilMode;
 };
 
 } // namespace
 
 template <int NumOfDims>
 PoolSizeCalculator<NumOfDims>::PoolSizeCalculator(
-    Value self, Value sumPool, bool countIncludePad,
+    Value self, Value sumPool, bool countIncludePad, bool ceilMode,
     ConversionPatternRewriter &rewriter, Location loc)
-    : location(loc), isCountIncludePad(countIncludePad) {
+    : location(loc), isCountIncludePad(countIncludePad), isCeilMode(ceilMode) {
   auto selfType = cast<RankedTensorType>(self.getType());
   const int64_t selfRank = selfType.getRank();
   RankedTensorType sumPoolType = cast<RankedTensorType>(sumPool.getType());
@@ -943,13 +945,19 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     // count_include_pad parameter. See the
     // AvgPool2dCeilPaddingStridedIncludePadding E2E test for details.
 
+    // The average pool properties of kernel size, strides, and padding are
+    // stored in the reverse order of the input tensor dimensions. The
+    // following code computes the index of the average pool property that
+    // corresponds to the current spatial dimension.
+    int avgPoolPropIdx = NumOfDims - i - 1;
+
     Value padding = b.createOrFold<arith::ConstantOp>(
-        location, b.getI64IntegerAttr(paddingInts[i]));
+        location, b.getI64IntegerAttr(paddingInts[avgPoolPropIdx]));
     Value InputSpatialDimSize =
         castIndexToInt64(b, location, InputSpatialDimSizes[i]);
     // Subtract center element from kernel size before division by two.
-    Value kernelSizeMinusOne =
-        b.createOrFold<arith::SubIOp>(location, kernelDimSizes[i], cstOne);
+    Value kernelSizeMinusOne = b.createOrFold<arith::SubIOp>(
+        location, kernelDimSizes[avgPoolPropIdx], cstOne);
     // PyTorch even kernel dimensions are biased to the lower side of the
     // dimension. Hence the lower lenght uses ceiling.
     Value kernelLowerLength = b.createOrFold<arith::CeilDivSIOp>(
@@ -969,7 +977,7 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     Value outIntIndex = castIndexToInt64(b, location, outIndex);
 
     Value stride = b.createOrFold<arith::ConstantOp>(
-        location, b.getI64IntegerAttr(strideInts[i]));
+        location, b.getI64IntegerAttr(strideInts[avgPoolPropIdx]));
 
     Value indexStrided = b.createOrFold<arith::AddIOp>(
         location, b.createOrFold<arith::MulIOp>(location, outIntIndex, stride),
@@ -979,6 +987,7 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
                                 ? b.createOrFold<arith::AddIOp>(
                                       location, InputSpatialDimSize, padding)
                                 : InputSpatialDimSize;
+
     Value inputLowerBound =
         isCountIncludePad
             ? b.createOrFold<arith::SubIOp>(location, cstZero, padding)
@@ -1173,7 +1182,7 @@ std::optional<LogicalResult> ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
   Type resultElementType = cast<RankedTensorType>(resultType).getElementType();
 
   PoolSizeCalculator<avgPoolDims> poolSizeCalculator(
-      self, sumPool, countIncludePad, rewriter, loc);
+      self, sumPool, countIncludePad, ceilMode, rewriter, loc);
 
   // AtenAvgPool2/3dOp has an optional divisor_override
   // attribute while AtenAvgPool1dOp does not.
