@@ -124,7 +124,7 @@ func.func @forward_avg_pool2d_countincludepad_false(%arg0: !torch.vtensor<[1,3,6
   // CHECK: linalg.pooling_nchw_sum {dilations = dense<1> : vector<2xi64>, strides = dense<[1, 2]> : vector<2xi64>} ins(%[[IN1:.*]], %[[KSIZE1:.*]] : tensor<1x3x64x58xf32>, tensor<4x5xf32>) outs(%[[OUT1:.*]] : tensor<1x3x61x27xf32>) -> tensor<1x3x61x27xf32>
   // CHECK: linalg.generic {indexing_maps = [#map3, #map3], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[IN2:.*]] : tensor<1x3x61x27xf32>) outs(%[[OUT2:.*]] : tensor<1x3x61x27xf32>)
   // CHECK-NEXT:  ^bb0(%[[BIIN1:.*]]: f32, %[[BOUT1:.*]]: f32):
-  // CHECK-COUNT-4: arith.minsi
+  // CHECK-COUNT-1: arith.minsi
   // CHECK-COUNT-1: arith.divf
   // CHECK:  linalg.yield %[[TMP1:.*]] : f32
   // CHECK-NEXT:  } -> tensor<1x3x61x27xf32>
@@ -171,7 +171,7 @@ func.func @forward_avg_pool3dd_countincludepad_false(%arg0: !torch.vtensor<[1,3,
   // CHECK: linalg.pooling_ndhwc_sum {dilations = dense<1> : vector<3xi64>, strides = dense<[1, 2, 1]> : vector<3xi64>} ins(%[[IN1:.*]], %[[KSIZE1:.*]] : tensor<1x7x66x58x3xf32>, tensor<4x5x5xf32>) outs(%[[OUT1:.*]] : tensor<1x4x31x54x3xf32>) -> tensor<1x4x31x54x3xf32>
   // CHECK: linalg.generic {indexing_maps = [#map4, #map4], iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel"]} ins(%[[IN2:.*]] : tensor<1x3x4x31x54xf32>) outs(%[[OUT2:.*]] : tensor<1x3x4x31x54xf32>)
   // CHECK-NEXT:  ^bb0(%[[BIN1:.*]]: f32, %[[BOUT1:.*]]: f32):
-  // CHECK-COUNT-6: arith.minsi
+  // CHECK-COUNT-3: arith.minsi
   // CHECK-COUNT-1: arith.divf
   // CHECK-NEXT:  linalg.yield %[[TMP1:.*]] : f32
   // CHECK-NEXT:  } -> tensor<1x3x4x31x54xf32>
@@ -213,7 +213,7 @@ func.func @forward_avg_pool1d_countincludepad_false(%arg0: !torch.vtensor<[1,512
   // CHECK: linalg.pooling_ncw_sum {dilations = dense<1> : vector<1xi64>, strides = dense<1> : vector<1xi64>} ins(%[[IN1:.*]], %[[IN2:.*]] : tensor<1x512x12xf32>, tensor<1xf32>) outs(%[[OUT1:.*]] : tensor<1x512x12xf32>) -> tensor<1x512x12xf32>
   // CHECK: linalg.generic {indexing_maps = [#map5, #map5], iterator_types = ["parallel", "parallel", "parallel"]} ins(%[[IN3:.*]] : tensor<1x512x12xf32>) outs(%[[OUT2:.*]] : tensor<1x512x12xf32>
   // CHECK-NEXT:  ^bb0(%[[BIN1:.*]]: f32, %[[BOUT1:.*]]: f32):
-  // CHECK-COUNT-2: arith.minsi
+  // CHECK-COUNT-1: arith.minsi
   // CHECK-COUNT-1: arith.divf
   // CHECK-NEXT:  linalg.yield %[[TMP1:.*]] : f32
   // CHECK-NEXT:  } -> tensor<1x512x12xf32>
