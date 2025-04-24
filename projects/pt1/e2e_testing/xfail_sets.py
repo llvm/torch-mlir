@@ -966,6 +966,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenSymConstrainRangeForSize_basic",
     "Aten_AssertScalar_basic",
     "NativeGroupNormModule_basic",
+    "AvgPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
+    "MaxPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
@@ -3303,6 +3305,9 @@ ONNX_XFAIL_SET = {
     "Aten_AssertScalar_basic",
     # JIT session error: Symbols not found: [ memrefCopy ]
     "SplitWithSizes_Module_basic",
+    # RuntimeError: Given input size: (1x1x1). Calculated output size: (1x0x0). Output size is too small
+    "AvgPool2dWithoutPadFullDimIndivisibleByStrideModule_basic",
+    "MaxPool2dWithoutPadFullDimIndivisibleByStrideModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):

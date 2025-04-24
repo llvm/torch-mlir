@@ -5828,19 +5828,69 @@ public:
         op, "Unimplemented pooling input parsing function");
   }
 
-  static int64_t getOutputDim(int64_t inputDim, int64_t kernelDim,
-                              int64_t stride, int64_t padBefore,
-                              int64_t padAfter, int64_t dilation,
+  static int64_t getOutputDim(PatternRewriter &rewriter, Value &input,
+                              Location loc, int64_t inputRank,
+                              ArrayRef<int64_t> inputShape, Type inputElemTy,
+                              int64_t dimIndex, int64_t kernelDim,
+                              int64_t stride, int64_t &padBefore,
+                              int64_t &padAfter, int64_t dilation,
                               bool ceilMode = false) {
+    int64_t inputDim = inputShape[dimIndex];
     if (inputDim == kUnknownSize) {
       return kUnknownSize;
     } else {
+      // TOSA requires dimSize = inputDim + padBefore + padAfter - kernelDim to
+      // be fully divisible by stride. We would have to modify the after pad
+      // and/ input in order to achieve that.
+      // Note: The dimSize calculation below is the same as TOSA's dimSize
+      // calculation when dilation = 1, which is the only dilation value that
+      // TOSA supports for MaxPool2d (AvgPool2d doesn't have dilation so the
+      // value will be defaulted to 1)
       int64_t dimSize =
           inputDim + padBefore + padAfter - dilation * (kernelDim - 1) - 1;
+      int64_t remainderDim = dimSize % stride;
+
+      // When PyTorch uses floor mode for output dim calculation, to achieve the
+      // TOSA's divisibility requirement, we will remove the unused after pad
+      // and slice the unused input rows/columns.
+      if (!ceilMode && (remainderDim != 0)) {
+        if (remainderDim > padAfter) {
+          SmallVector<int64_t> startSlice(inputRank, 0);
+          // In cases where we have to do 2 slice operations (one for height and
+          // one for width), we need to use the new sliced shape before doing
+          // the second slice, not the original inputShape. Therefore, the shape
+          // needs to be retrieved again here.
+          SmallVector<int64_t> sizeSlice(
+              dyn_cast<TensorType>(input.getType()).getShape());
+          sizeSlice[dimIndex] = inputDim - (remainderDim - padAfter);
+          input = rewriter.create<tosa::SliceOp>(
+              loc, RankedTensorType::get(sizeSlice, inputElemTy), input,
+              tosa::getTosaConstShape(rewriter, loc, startSlice),
+              tosa::getTosaConstShape(rewriter, loc, sizeSlice));
+          dimSize = dimSize - padAfter;
+          padAfter = 0;
+        } else {
+          dimSize = dimSize - padAfter;
+          padAfter = padAfter - remainderDim;
+          dimSize = dimSize + padAfter;
+        }
+      }
+
       int64_t outputDim = dimSize / stride + 1;
-      if (ceilMode && (dimSize % stride != 0) &&
-          (outputDim * stride < inputDim + padBefore))
-        outputDim++;
+
+      // When PyTorch uses ceil mode for output dim calculation, to achieve the
+      // TOSA's divisibility requirement, we will remove the unused after pad
+      // or add more after pad in case the remainder is more than the after pad
+      if (ceilMode && (remainderDim != 0)) {
+        if (remainderDim < padAfter) {
+          padAfter = padAfter - remainderDim;
+        } else {
+          padAfter = padAfter + (stride - remainderDim);
+        }
+
+        if (outputDim * stride < inputDim + padBefore)
+          outputDim++;
+      }
       return outputDim;
     }
   }
@@ -6078,6 +6128,7 @@ public:
 
 template <typename AtenOpT, typename tosaOp>
 static Type getOutputTypeForNonAdaptivePoolingOp(
+    PatternRewriter &rewriter, Operation *op, Value &input,
     RankedTensorType inputTy, SmallVectorImpl<int64_t> &kernelSize,
     SmallVectorImpl<int64_t> &strideArray, SmallVectorImpl<int64_t> &padArray,
     SmallVectorImpl<int64_t> &dilationArray, bool ceilMode = false) {
@@ -6085,18 +6136,16 @@ static Type getOutputTypeForNonAdaptivePoolingOp(
   auto inputRank = inputTy.getRank();
   auto inputElemTy = inputTy.getElementType();
 
+  // PyTorch uses xCHW, so Height dim index is rank-2 and Width dim index is
+  // rank-1
   int64_t outputHDim = ConvertAtenPoolingBaseOp<AtenOpT, tosaOp>::getOutputDim(
-      inputShape[inputRank - 2], kernelSize[0], strideArray[0], padArray[0],
-      padArray[0], dilationArray[0], ceilMode);
+      rewriter, input, op->getLoc(), inputRank, inputShape, inputElemTy,
+      /*dimIndex=*/inputRank - 2, kernelSize[0], strideArray[0], padArray[0],
+      padArray[1], dilationArray[0], ceilMode);
   int64_t outputWDim = ConvertAtenPoolingBaseOp<AtenOpT, tosaOp>::getOutputDim(
-      inputShape[inputRank - 1], kernelSize[1], strideArray[1], padArray[1],
-      padArray[1], dilationArray[1], ceilMode);
-  padArray[0] = (outputHDim - 1) * strideArray[0] +
-                dilationArray[0] * kernelSize[0] - dilationArray[0] + 1 -
-                padArray[0] * 2 - inputShape[inputRank - 2];
-  padArray[1] = (outputWDim - 1) * strideArray[1] +
-                dilationArray[0] * kernelSize[1] - dilationArray[0] + 1 -
-                padArray[1] * 2 - inputShape[inputRank - 1];
+      rewriter, input, op->getLoc(), inputRank, inputShape, inputElemTy,
+      /*dimIndex=*/inputRank - 1, kernelSize[1], strideArray[1], padArray[2],
+      padArray[3], dilationArray[1], ceilMode);
   SmallVector<int64_t> outputShape;
   if (inputRank > 3)
     outputShape.push_back(inputShape[0]);
@@ -6127,7 +6176,7 @@ void expandPoolParams(AtenOpT op, SmallVectorImpl<int64_t> &params,
 // vector. Also, gets the output type for the pooling op.
 template <typename AtenOpT, typename tosaOp>
 static LogicalResult getOutputTypeAndPoolingParameters(
-    AtenOpT op, ConversionPatternRewriter &rewriter, Value inputXchw,
+    AtenOpT op, ConversionPatternRewriter &rewriter, Value &inputXchw,
     SmallVectorImpl<int64_t> &dilationArray, Type &outputTy,
     DenseI64ArrayAttr &kernel, DenseI64ArrayAttr &stride,
     DenseI64ArrayAttr &pad) {
@@ -6200,10 +6249,8 @@ static LogicalResult getOutputTypeAndPoolingParameters(
 
   expandPoolParams(op, dilationArray, 1);
   outputTy = getOutputTypeForNonAdaptivePoolingOp<AtenOpT, tosaOp>(
-      inputTy, kernelSizeInts, strideInts, paddingInts, dilationArray,
-      ceilMode);
-  padArr[1] = padArr[1] + paddingInts[0];
-  padArr[3] = padArr[3] + paddingInts[1];
+      rewriter, op, inputXchw, inputTy, kernelSizeInts, strideInts, padArr,
+      dilationArray, ceilMode);
   pad = rewriter.getDenseI64ArrayAttr(
       {padArr[0], padArr[1], padArr[2], padArr[3]});
   return success();
@@ -6219,6 +6266,7 @@ public:
                               DenseI64ArrayAttr &kernel,
                               DenseI64ArrayAttr &stride, DenseI64ArrayAttr &pad,
                               Type &outputTy) const override {
+    auto self = adaptor.getSelf();
     SmallVector<int64_t, 2> dilationArray;
     if (!matchPattern(op.getDilation(),
                       m_TorchListOfConstantInts(dilationArray)))
@@ -6231,14 +6279,13 @@ public:
 
     if (failed(getOutputTypeAndPoolingParameters<AtenMaxPool2dOp,
                                                  tosa::MaxPool2dOp>(
-            op, rewriter, adaptor.getSelf(), dilationArray, outputTy, kernel,
-            stride, pad)))
+            op, rewriter, self, dilationArray, outputTy, kernel, stride, pad)))
       return rewriter.notifyMatchFailure(
           op, "invalid pooling parameters or input type");
 
     // Transpose to xHWC
     input = ConvertAtenPoolingBaseOp<AtenMaxPool2dOp, tosa::MaxPool2dOp>::
-        transposePoolingInputToHwc(op, rewriter, adaptor.getSelf());
+        transposePoolingInputToHwc(op, rewriter, self);
 
     return success();
   }
@@ -6272,11 +6319,15 @@ public:
     // Unsqueeze input tensor to rank 4 to be compatible with tosa::MaxPool2dOp
     SmallVector<int64_t> rank4Shape(selfShape);
     rank4Shape.push_back(1);
-    auto reshapedSelf = rewriter.create<tosa::ReshapeOp>(
-        op->getLoc(),
-        RankedTensorType::get(makeShapeTorchCompatible(rank4Shape),
-                              selfTy.getElementType()),
-        self, tosa::getTosaConstShape(rewriter, op->getLoc(), rank4Shape));
+    auto reshapedSelf =
+        rewriter
+            .create<tosa::ReshapeOp>(
+                op->getLoc(),
+                RankedTensorType::get(makeShapeTorchCompatible(rank4Shape),
+                                      selfTy.getElementType()),
+                self,
+                tosa::getTosaConstShape(rewriter, op->getLoc(), rank4Shape))
+            .getResult();
 
     SmallVector<int64_t> dilationArray;
     if (!matchPattern(op.getDilation(),
@@ -6293,14 +6344,14 @@ public:
 
     if (failed(getOutputTypeAndPoolingParameters<AtenMaxPool1dOp,
                                                  tosa::MaxPool2dOp>(
-            op, rewriter, reshapedSelf.getResult(), dilationArray, outputTy,
-            kernel, stride, pad)))
+            op, rewriter, reshapedSelf, dilationArray, outputTy, kernel, stride,
+            pad)))
       return rewriter.notifyMatchFailure(
           op, "invalid pooling parameters or input type");
 
     // Transpose to xHWC
     input = ConvertAtenPoolingBaseOp<AtenMaxPool1dOp, tosa::MaxPool2dOp>::
-        transposePoolingInputToHwc(op, rewriter, reshapedSelf.getResult());
+        transposePoolingInputToHwc(op, rewriter, reshapedSelf);
 
     return success();
   }
@@ -6316,6 +6367,7 @@ public:
                               DenseI64ArrayAttr &kernel,
                               DenseI64ArrayAttr &stride, DenseI64ArrayAttr &pad,
                               Type &outputTy) const override {
+    auto self = adaptor.getSelf();
 
     // Currently, we can not represent `divisor_override` with the existing TOSA
     // AvgPool2d specification. Without the below check, we produce silent wrong
@@ -6329,14 +6381,13 @@ public:
     SmallVector<int64_t, 2> dilationArray{1, 1};
     if (failed(getOutputTypeAndPoolingParameters<AtenAvgPool2dOp,
                                                  tosa::AvgPool2dOp>(
-            op, rewriter, adaptor.getSelf(), dilationArray, outputTy, kernel,
-            stride, pad)))
+            op, rewriter, self, dilationArray, outputTy, kernel, stride, pad)))
       return rewriter.notifyMatchFailure(
           op, "invalid pooling parameters or input type");
 
     // Transpose to xHWC
     input = ConvertAtenPoolingBaseOp<AtenAvgPool2dOp, tosa::AvgPool2dOp>::
-        transposePoolingInputToHwc(op, rewriter, adaptor.getSelf());
+        transposePoolingInputToHwc(op, rewriter, self);
 
     return success();
   }
@@ -6370,23 +6421,27 @@ public:
     // Unsqueeze input tensor to rank 4 to be compatible with tosa::AvgPool2dOp
     SmallVector<int64_t> rank4Shape(selfShape);
     rank4Shape.push_back(1);
-    auto reshapedSelf = rewriter.create<tosa::ReshapeOp>(
-        op->getLoc(),
-        RankedTensorType::get(makeShapeTorchCompatible(rank4Shape),
-                              selfTy.getElementType()),
-        self, tosa::getTosaConstShape(rewriter, op->getLoc(), rank4Shape));
+    auto reshapedSelf =
+        rewriter
+            .create<tosa::ReshapeOp>(
+                op->getLoc(),
+                RankedTensorType::get(makeShapeTorchCompatible(rank4Shape),
+                                      selfTy.getElementType()),
+                self,
+                tosa::getTosaConstShape(rewriter, op->getLoc(), rank4Shape))
+            .getResult();
 
     SmallVector<int64_t, 2> dilationArray{1, 1};
     if (failed(getOutputTypeAndPoolingParameters<AtenAvgPool1dOp,
                                                  tosa::AvgPool2dOp>(
-            op, rewriter, reshapedSelf.getResult(), dilationArray, outputTy,
-            kernel, stride, pad)))
+            op, rewriter, reshapedSelf, dilationArray, outputTy, kernel, stride,
+            pad)))
       return rewriter.notifyMatchFailure(
           op, "invalid pooling parameters or input type");
 
     // Transpose to xHWC
     input = ConvertAtenPoolingBaseOp<AtenAvgPool1dOp, tosa::AvgPool2dOp>::
-        transposePoolingInputToHwc(op, rewriter, reshapedSelf.getResult());
+        transposePoolingInputToHwc(op, rewriter, reshapedSelf);
 
     return success();
   }
