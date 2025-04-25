@@ -23,6 +23,7 @@ cmake -S "$repo_root/externals/llvm-project/llvm" -B "$build_dir" \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
+  -DTORCH_MLIR_ENABLE_STABLEHLO=OFF \
   -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD" \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DLLVM_TARGETS_TO_BUILD=host
