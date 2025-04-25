@@ -231,7 +231,6 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
         return success();
       });
 
-  typeConverter.addArgumentMaterialization(materializeAsCopyTensorToType);
   typeConverter.addSourceMaterialization(materializeAsCopyTensorToType);
   typeConverter.addTargetMaterialization(materializeAsCopyTensorToType);
   patterns.add<AdjustCallingConventionForFunc>(typeConverter, context);

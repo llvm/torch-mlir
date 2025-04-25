@@ -916,8 +916,8 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     // change, these variables used "height" and "width" (or "h" and "w")
     // in these intermediate variables instead of "Dim".
     Value IndexODim =
-        b.createOrFold<linalg::IndexOp>(location,
-                                        /*value=*/DimSizeFromSumPoolType[i]);
+        b.create<linalg::IndexOp>(location,
+                                  /*value=*/DimSizeFromSumPoolType[i]);
     Value ODim = castIndexToInt64(b, location, IndexODim);
     Value DDim = b.createOrFold<arith::ConstantOp>(
         location, b.getI64IntegerAttr(strideInts[i]));
