@@ -97,7 +97,9 @@ sudo apt install clang ccache lld
 
 ##### Choose command relevant to LLVM setup:
 
-###### If building "in-tree", run:
+###### If you want the more straightforward option
+
+Run the "in-tree" setup:
 
 ```shell
 cmake -GNinja -Bbuild \
@@ -116,7 +118,9 @@ cmake -GNinja -Bbuild \
 
 - NOTE: uses external/llvm-project/llvm as the main build, so LLVM will be built in addition to torch-mlir and its sub-projects.
 
-###### If using "out-of-tree" build, run:
+###### If you want to use a separate build of LLVM from another directory
+
+Run the "out-of-tree" setup:
 
 ```shell
 cmake -GNinja -Bbuild \
