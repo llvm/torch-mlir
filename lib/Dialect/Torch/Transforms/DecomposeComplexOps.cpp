@@ -12115,8 +12115,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_AssertScalarOp>(patterns);
 
     GreedyRewriteConfig config;
-    config.useTopDownTraversal = true;
-    config.maxIterations = GreedyRewriteConfig::kNoLimit;
+    config.setUseTopDownTraversal(true);
+    config.setMaxIterations(GreedyRewriteConfig::kNoLimit);
 
     if (failed(applyPatternsGreedily(getOperation(), std::move(patterns),
                                      config))) {

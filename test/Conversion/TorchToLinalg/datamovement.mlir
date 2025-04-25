@@ -38,6 +38,7 @@ func.func @torch.aten.permute$rank0(%arg0: !torch.vtensor<[],f32>) -> !torch.vte
 // CHECK: #[[$INPUT_MAP:.+]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
 // CHECK-LABEL:   func.func @torch.aten.reflection_pad2d(
 // CHECK-SAME:                                           %[[VAL_0:.*]]: !torch.vtensor<[1,1,4,4],f32>) -> !torch.vtensor<[1,1,8,9],f32> {
+// CHECK:           %[[CST0:.*]] = arith.constant 0 : index
 // CHECK:           %[[VAL_1:.*]] = arith.constant 0.000000e+00 : f32
 // CHECK:           %[[VAL_2:.*]] = arith.constant 2 : index
 // CHECK:           %[[VAL_3:.*]] = arith.constant 1 : index
@@ -49,13 +50,11 @@ func.func @torch.aten.permute$rank0(%arg0: !torch.vtensor<[],f32>) -> !torch.vte
 // CHECK:           %[[VAL_9:.*]] = tensor.extract_slice %[[VAL_4]][0, 0, 1, 1] [1, 1, 2, 2] [1, 1, 1, 1] : tensor<1x1x4x4xf32> to tensor<1x1x2x2xf32>
 // CHECK:           %[[VAL_10:.*]] = linalg.generic {indexing_maps = [#[[$INPUT_MAP]], #[[$INPUT_MAP]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[VAL_9]] : tensor<1x1x2x2xf32>) outs(%[[VAL_8]] : tensor<1x1x2x2xf32>) {
 // CHECK:           ^bb0(%[[VAL_11:.*]]: f32, %[[VAL_12:.*]]: f32):
-// CHECK:             %[[VAL_13:.*]] = linalg.index 0 : index
-// CHECK:             %[[VAL_14:.*]] = linalg.index 1 : index
 // CHECK:             %[[VAL_15:.*]] = linalg.index 2 : index
 // CHECK:             %[[VAL_16:.*]] = linalg.index 3 : index
 // CHECK:             %[[VAL_17:.*]] = arith.subi %[[VAL_3]], %[[VAL_16]] : index
 // CHECK:             %[[VAL_18:.*]] = arith.subi %[[VAL_3]], %[[VAL_15]] : index
-// CHECK:             %[[VAL_19:.*]] = tensor.extract %[[VAL_7]]{{\[}}%[[VAL_13]], %[[VAL_14]], %[[VAL_18]], %[[VAL_17]]] : tensor<1x1x2x2xf32>
+// CHECK:             %[[VAL_19:.*]] = tensor.extract %[[VAL_7]]{{\[}}%[[CST0]], %[[CST0]], %[[VAL_18]], %[[VAL_17]]] : tensor<1x1x2x2xf32>
 // CHECK:             linalg.yield %[[VAL_19]] : f32
 // CHECK:           } -> tensor<1x1x2x2xf32>
 // CHECK:           %[[VAL_20:.*]] = tensor.insert_slice %[[VAL_10]] into %[[VAL_6]][0, 0, 0, 0] [1, 1, 2, 2] [1, 1, 1, 1] : tensor<1x1x2x2xf32> into tensor<1x1x8x9xf32>
