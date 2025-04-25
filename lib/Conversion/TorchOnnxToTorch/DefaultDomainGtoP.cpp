@@ -551,15 +551,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
   patterns.onOp(
       "MatMulInteger", 10,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
         Torch::ValueTensorType resultType;
         Value lhs, rhs, lhsZp, rhsZp;
         if (binder.tensorOperandAtIndex(lhs, 0) ||
             binder.tensorOperandAtIndex(rhs, 1) ||
             binder.tensorResultType(resultType))
           return failure();
-
-        auto lhsTy = dyn_cast<Torch::ValueTensorType>(lhs.getType());
-        auto rhsTy = dyn_cast<Torch::ValueTensorType>(rhs.getType());
 
         if (binder.tensorOperandAtIndex(lhsZp, 2)) {
           lhsZp = rewriter.create<Torch::ConstantIntOp>(
@@ -573,92 +571,39 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
         }
 
-        bool isChannelQuantizationForLhs = false;
-        if (auto zpTy = dyn_cast<Torch::ValueTensorType>(lhsZp.getType())) {
-          auto lhsZpSize = zpTy.getSizes();
-          if (lhsZpSize.size() == 0 ||
-              llvm::all_of(lhsZpSize, [](int64_t d) { return d == 1; })) {
-            lhsZp = rewriter.create<Torch::AtenItemOp>(
-                binder.getLoc(), rewriter.getType<Torch::IntType>(), lhsZp);
-          } else if (lhsZpSize.size() == 1) {
-            auto lhsSize = lhsTy.getSizes();
-            if (lhsSize.size() != 2 || lhsSize[0] != lhsZpSize[0])
-              return failure();
-            isChannelQuantizationForLhs = true;
-          } else {
-            return failure();
-          }
-        }
+        // This op is lowered as follows:
+        // lhs = lhs.to(dtype=torch.int32)
+        // rhs = rhs.to(dtype=torch.int32)
+        // lhs = lhs - lhsZp
+        // rhs = rhs - rhsZp
+        // res = torch.mm(lhs, rhs)
 
-        bool isChannelQuantizationForRhs = false;
-        if (auto zpTy = dyn_cast<Torch::ValueTensorType>(rhsZp.getType())) {
-          auto rhsZpSize = zpTy.getSizes();
-          if (rhsZpSize.size() == 0 ||
-              llvm::all_of(rhsZpSize, [](int64_t d) { return d == 1; })) {
-            rhsZp = rewriter.create<Torch::AtenItemOp>(
-                binder.getLoc(), rewriter.getType<Torch::IntType>(), rhsZp);
-          } else if (rhsZpSize.size() == 1) {
-            auto rhsSize = rhsTy.getSizes();
-            if (rhsSize.size() != 2 || rhsSize[1] != rhsZpSize[0])
-              return failure();
-            isChannelQuantizationForRhs = true;
-          } else {
-            return failure();
-          }
-        }
+        // Converting lhs and rhs tensor to `si32` type.
+        lhs = Torch::convertTensorToDtype(
+            rewriter, loc, lhs,
+            mlir::IntegerType::get(binder.op->getContext(), 32,
+                                   mlir::IntegerType::Signed));
+        rhs = Torch::convertTensorToDtype(
+            rewriter, loc, rhs,
+            mlir::IntegerType::get(binder.op->getContext(), 32,
+                                   mlir::IntegerType::Signed));
 
-        auto lhsQTy = getQTorchTypeFromTorchIntType(lhsTy);
-        auto rhsQTy = getQTorchTypeFromTorchIntType(rhsTy);
+        // Subtracting the zero_point values from lhs and rhs.
+        Value alpha = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(1));
+        if (auto lhsZpTy = dyn_cast<Torch::ValueTensorType>(lhsZp.getType()))
+          lhs = rewriter.create<Torch::AtenSubTensorOp>(loc, lhs.getType(), lhs,
+                                                        lhsZp, alpha);
+        else
+          lhs = rewriter.create<Torch::AtenSubScalarOp>(loc, lhs.getType(), lhs,
+                                                        lhsZp, alpha);
 
-        if (!lhsQTy || !rhsQTy)
-          return rewriter.notifyMatchFailure(binder.op, "failed to get qtype");
-
-        Value f32Ty = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(
-                                 (int64_t)torch_upstream::ScalarType::Float));
-        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-
-        if (isChannelQuantizationForLhs) {
-          Value axis = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(),
-              rewriter.getI64IntegerAttr(0));
-          Torch::ValueTensorType lhsZpTy =
-              dyn_cast<Torch::ValueTensorType>(lhsZp.getType());
-          Type scaleTy = lhsZpTy.getWithSizesAndDtype(lhsZpTy.getSizes(),
-                                                      rewriter.getF32Type());
-          Value scale = rewriter.create<Torch::AtenOnesLikeOp>(
-              binder.getLoc(), scaleTy, /*self=*/lhsZp, f32Ty, /*layout=*/none,
-              /*device=*/none, /*pin_memory=*/none, /*memory_format=*/none);
-          lhs = rewriter.create<Torch::Aten_MakePerChannelQuantizedTensorOp>(
-              binder.getLoc(), lhsQTy, lhs, scale, lhsZp, axis);
-        } else {
-          Value scale = rewriter.create<Torch::ConstantFloatOp>(
-              binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-              rewriter.getF64FloatAttr(1.0));
-          lhs = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-              binder.getLoc(), lhsQTy, lhs, scale, lhsZp);
-        }
-
-        if (isChannelQuantizationForRhs) {
-          Value axis = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(),
-              rewriter.getI64IntegerAttr(1));
-          Torch::ValueTensorType rhsZpTy =
-              dyn_cast<Torch::ValueTensorType>(rhsZp.getType());
-          Type scaleTy = rhsZpTy.getWithSizesAndDtype(rhsZpTy.getSizes(),
-                                                      rewriter.getF32Type());
-          Value scale = rewriter.create<Torch::AtenOnesLikeOp>(
-              binder.getLoc(), scaleTy, /*self=*/rhsZp, f32Ty, /*layout=*/none,
-              /*device=*/none, /*pin_memory=*/none, /*memory_format=*/none);
-          rhs = rewriter.create<Torch::Aten_MakePerChannelQuantizedTensorOp>(
-              binder.getLoc(), rhsQTy, rhs, scale, rhsZp, axis);
-        } else {
-          Value scale = rewriter.create<Torch::ConstantFloatOp>(
-              binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-              rewriter.getF64FloatAttr(1.0));
-          rhs = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-              binder.getLoc(), rhsQTy, rhs, scale, rhsZp);
-        }
+        if (auto rhsZpTy = dyn_cast<Torch::ValueTensorType>(rhsZp.getType()))
+          rhs = rewriter.create<Torch::AtenSubTensorOp>(loc, rhs.getType(), rhs,
+                                                        rhsZp, alpha);
+        else
+          rhs = rewriter.create<Torch::AtenSubScalarOp>(loc, rhs.getType(), rhs,
+                                                        rhsZp, alpha);
 
         rewriter.replaceOpWithNewOp<Torch::AtenMatmulOp>(binder.op, resultType,
                                                          lhs, rhs);
