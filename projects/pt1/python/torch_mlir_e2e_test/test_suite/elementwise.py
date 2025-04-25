@@ -1374,6 +1374,30 @@ def ElementwiseGeluModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseGeluTosaModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        x = torch.ops.aten.gelu(x)
+        return x
+
+
+@register_test_case(module_factory=lambda: ElementwiseGeluTosaModule())
+def ElementwiseGeluTosaModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(50, 30, low=-2.7, high=2.7))
+
+
+# ==============================================================================
+
+
 class ElementwiseGeluApproximateTanhModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
