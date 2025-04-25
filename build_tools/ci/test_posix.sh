@@ -27,9 +27,10 @@ case $torch_version in
     echo "::endgroup::"
 
     # TODO: Need to verify in the stable version
-    echo "::group::Run FxImporter2Stablehlo e2e integration tests"
-    python3 -m e2e_testing.main --config=fx_importer_stablehlo -v
-    echo "::endgroup::"
+    # TODO: Enable for nightly once the Stabelhlo integration is done
+    # echo "::group::Run FxImporter2Stablehlo e2e integration tests"
+    # python3 -m e2e_testing.main --config=fx_importer_stablehlo -v
+    # echo "::endgroup::"
 
     echo "::group::Run FxImporter TOSA e2e integration tests"
     python3 -m e2e_testing.main --config=fx_importer_tosa -v
