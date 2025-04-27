@@ -1348,10 +1348,12 @@ def aten〇_trilinear〡shape(i1: List[int], i2: List[int], i3: List[int], expan
 @check_shape_function([
     Invocation(TensorOfShape(3, 2, 8, 4), TensorOfShape(3, 2, 8, 4), TensorOfShape(3, 2, 8, 4)), # Same shape
     Invocation(TensorOfShape(3, 2, 16, 8), TensorOfShape(3, 2, 8, 8), TensorOfShape(3, 2, 8, 4)), # Different shape
+    Invocation(TensorOfShape(1, 2, 8, 4), TensorOfShape(3, 2, 8, 4), TensorOfShape(3, 2, 8, 4)), # Different batch size
 ])
 def aten〇scaled_dot_product_attention〡shape(query: List[int], key: List[int], value: List[int], attn_mask: Optional[List[int]] = None, dropout_p: float = 0., is_causal: bool = False, scale: Optional[float] = None, enable_gqa: bool = False) -> List[int]:
     outshape = query
     outshape[-1] = value[-1]
+    outshape[0] = upstream_shape_functions.broadcast_three([query[0]], [key[0]], [value[0]])[0]
     return outshape
 
 @check_shape_function([
