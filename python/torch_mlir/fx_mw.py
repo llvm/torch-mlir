@@ -14,7 +14,6 @@ from .compiler_utils_mw import (
 from . import fx
 from torch._decomp import get_decompositions
 
-
 def import_exported_model(
     prog: torch.export.ExportedProgram,
     output_type: str,
@@ -24,18 +23,44 @@ def import_exported_model(
     decomp_table = get_decompositions(
         [torch.ops.aten.lstm.input, torch.ops.aten.gru.input]
     )
-
     prog = prog.run_decompositions(decomp_table)
+
+    backend_legal_ops = None
 
     match output_type:
         case "torch":
             output_type = OutputType.TORCH
         case "tosa":
             output_type = OutputType.TOSA
+            backend_legal_ops = [
+                "aten.flatten.using_ints",
+                "aten.native_layer_norm",
+                "aten.adaptive_avg_pool1d",
+                "aten.adaptive_avg_pool2d",
+                "aten.adaptive_max_pool1d",
+                "aten.adaptive_max_pool2d",
+                "aten.linear"]
         case "linalg_on_tensors":
             output_type = OutputType.LINALG_ON_TENSORS
+            backend_legal_ops = [
+                "aten.flatten.using_ints",
+                "aten.adaptive_avg_pool1d",
+                "aten.adaptive_avg_pool2d",
+                "aten.adaptive_max_pool1d",
+                "aten.adaptive_max_pool2d",                
+                "aten.unflatten.int",
+                ]
         case "tosa_linalg":
             output_type = OutputType.TOSA_LINALG
+            backend_legal_ops = [
+                "aten.flatten.using_ints",
+                "aten.native_layer_norm",
+                "aten.adaptive_avg_pool1d",
+                "aten.adaptive_avg_pool2d",
+                "aten.adaptive_max_pool1d",
+                "aten.adaptive_max_pool2d",
+                "aten.linear",
+                "aten.unflatten.int"]
         case "raw":
             output_type = OutputType.RAW
         case _:
@@ -49,6 +74,12 @@ def import_exported_model(
 
     if output_type != OutputType.RAW:
         backend_legal_op_arg_str = ""
+        if backend_legal_ops is not None:
+            if not len(backend_legal_ops) == 0:
+                backend_legal_op_arg_str = "backend-legal-ops=" + ",".join(
+                    backend_legal_ops
+                )
+
         extra_library_file_name = ""
         option_string = (
             "{"
