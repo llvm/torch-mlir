@@ -3544,6 +3544,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AvgPool1dIntModule_basic",
     "AvgPool1dStaticModule_basic",
     "AvgPool2dCeilModeTrueModule_basic",
+    "AvgPool1dNoPadCeilPadNotIncluded_basic",
+    "AvgPool1dPadCeilPadNotIncluded_basic",
     "AvgPool2dCeilPaddingStridedIncludePadding_basic",
     "AvgPool2dCeilPaddingUnitaryStrideIncludePadding_basic",
     "AvgPool2dFloorPaddingUnitaryStrideIncludePadding_basic",
