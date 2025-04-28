@@ -1731,6 +1731,15 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
     "HBC_basic",
     # 1D inputs cause generated tosa.negate ops to crash downstream
     "NllLossModule_1D_basic",
+    # BertModule is not crashing, but is timing out due to TosaLayerwiseConstantFoldPass:
+    # Exception ignored on calling ctypes callback function: <function RefBackendInvoker.__init__.<locals>.consume_return_funcs at 0x765783f12c20>
+    # Traceback (most recent call last):
+    # File "torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir/torch_mlir_e2e_test/linalg_on_tensors_backends/refbackend.py", line 101, in consume_return_funcs
+    #     def consume_return_funcs(*args):
+    # File "torch-mlir/build/tools/torch-mlir/python_packages/torch_mlir/torch_mlir_e2e_test/framework.py", line 316, in handle_timeout
+    #     raise TimeoutError(self.error_message)
+    # TimeoutError: Timeout
+    "BertModule_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development
