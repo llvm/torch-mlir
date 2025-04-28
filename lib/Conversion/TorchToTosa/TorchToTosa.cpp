@@ -3370,77 +3370,6 @@ LogicalResult ConvertAtenOp<AtenViewOp>::matchAndRewrite(
 }
 
 static std::optional<Value>
-approximateErfOp(ConversionPatternRewriter &rewriter, Operation *op, Value x,
-                 Type dtype) {
-  // Using:
-  // https://en.wikipedia.org/wiki/Error_function#Numerical_approximations with
-  // maximum error as 5 x 10^-4 where a1 = 0.278393, a2 = 0.230389, a3 =
-  // 0.000972, a4 = 0.078108.
-  //
-  // Erf = 1 - 1 / (1 + a1X + a2X + a3X + a4X)^4
-
-  auto outType = cast<TensorType>(x.getType());
-  auto loc = op->getLoc();
-  auto absX = rewriter.create<tosa::AbsOp>(loc, outType, x);
-  auto zero = tosa::getConstTensor<float>(rewriter, op, 0, {}, dtype).value();
-  auto one = tosa::getConstTensor<float>(rewriter, op, 1, {}, dtype).value();
-  auto a1 =
-      tosa::getConstTensor<float>(rewriter, op, 0.278393f, {}, dtype).value();
-  auto a2 =
-      tosa::getConstTensor<float>(rewriter, op, 0.230389f, {}, dtype).value();
-  auto a3 =
-      tosa::getConstTensor<float>(rewriter, op, 0.000972f, {}, dtype).value();
-  auto a4 =
-      tosa::getConstTensor<float>(rewriter, op, 0.078108f, {}, dtype).value();
-
-  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, zero).failed() ||
-      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, one).failed() ||
-      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, a1).failed() ||
-      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, a2).failed() ||
-      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, a3).failed() ||
-      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), x, a4).failed())
-    return std::nullopt;
-
-  auto a1X =
-      tosa::createMulOpAndCast(rewriter, op, outType, a1, absX, /*shift=*/0);
-  auto sum = rewriter.create<tosa::AddOp>(loc, outType, a1X, one);
-
-  auto x2 =
-      tosa::createMulOpAndCast(rewriter, op, outType, absX, absX, /*shift=*/0);
-  auto a2X =
-      tosa::createMulOpAndCast(rewriter, op, outType, a2, x2, /*shift=*/0);
-  sum = rewriter.create<tosa::AddOp>(loc, outType, sum, a2X);
-
-  auto x3 =
-      tosa::createMulOpAndCast(rewriter, op, outType, x2, absX, /*shift=*/0);
-  auto a3X =
-      tosa::createMulOpAndCast(rewriter, op, outType, a3, x3, /*shift=*/0);
-  sum = rewriter.create<tosa::AddOp>(loc, outType, sum, a3X);
-
-  auto x4 =
-      tosa::createMulOpAndCast(rewriter, op, outType, x3, absX, /*shift=*/0);
-  auto a4X =
-      tosa::createMulOpAndCast(rewriter, op, outType, a4, x4, /*shift=*/0);
-  sum = rewriter.create<tosa::AddOp>(loc, outType, sum, a4X);
-
-  auto rcprl = rewriter.create<tosa::ReciprocalOp>(loc, outType, sum);
-  auto rcprl2 = tosa::createMulOpAndCast(rewriter, op, outType, rcprl, rcprl,
-                                         /*shift=*/0);
-  auto rcprl4 = tosa::createMulOpAndCast(rewriter, op, outType, rcprl2, rcprl2,
-                                         /*shift=*/0);
-  auto erf = rewriter.create<tosa::SubOp>(loc, outType, one, rcprl4);
-
-  // Deal with negative x.
-  auto cond = rewriter.create<tosa::GreaterEqualOp>(
-      loc,
-      RankedTensorType::get(outType.getShape(), rewriter.getIntegerType(1)), x,
-      zero);
-  auto negateErf = rewriter.create<tosa::NegateOp>(loc, outType, erf);
-
-  return rewriter.create<tosa::SelectOp>(loc, outType, cond, erf, negateErf);
-}
-
-static std::optional<Value>
 buildUnitNormalCdf(ConversionPatternRewriter &rewriter, Operation *op, Value x,
                    Type dtype) {
   auto zero = tosa::getConstTensor<float>(rewriter, op, 0, {}, dtype).value();
@@ -3467,7 +3396,7 @@ buildUnitNormalCdf(ConversionPatternRewriter &rewriter, Operation *op, Value x,
   Value erfArg =
       tosa::createMulOpAndCast(rewriter, op, outType, xMinusMean, rsqrt2,
                                /*shift=*/0);
-  Value erf = approximateErfOp(rewriter, op, erfArg, dtype).value();
+  Value erf = rewriter.create<tosa::ErfOp>(loc, outType, erfArg);
   Value erfPlus1 = rewriter.create<tosa::AddOp>(loc, outType, one, erf);
 
   Value normalCdf = tosa::createMulOpAndCast(rewriter, op, outType, oneHalf,

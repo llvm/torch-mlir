@@ -2197,6 +2197,7 @@ TOSA_PASS_SET = {
     "ElementwiseGeIntScalarModule_basic",
     "ElementwiseGeMixedIntScalarModule_basic",
     "ElementwiseGeluModule_basic",
+    "ElementwiseGeluTosaModule_basic",
     "ElementwiseGtFloatScalarModule_basic",
     "ElementwiseGtFloatTensorModule_basic",
     "ElementwiseGtIntScalarModule_basic",
