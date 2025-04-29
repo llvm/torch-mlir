@@ -974,6 +974,7 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     Value outIndex =
         b.create<linalg::IndexOp>(location,
                                   /*value=*/SumPoolTypeDimIndex[i]);
+
     Value outIntIndex = castIndexToInt64(b, location, outIndex);
 
     Value stride = b.createOrFold<arith::ConstantOp>(
