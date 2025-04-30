@@ -31,7 +31,7 @@ include(CMakeDependentOption)
 # Project options
 #-------------------------------------------------------------------------------
 
-option(TORCH_MLIR_ENABLE_WERROR_FLAG "Enable `-Werror` flag on supported directories, treat error as warning" OFF)
+option(TORCH_MLIR_ENABLE_WERROR_FLAG "Enable `-Werror` flag on supported directories, treat warning as error" OFF)
 option(TORCH_MLIR_USE_INSTALLED_PYTORCH "If depending on PyTorch use it as installed in the current Python environment" ON)
 
 option(TORCH_MLIR_ENABLE_REFBACKEND "Enable reference backend" ON)
