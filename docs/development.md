@@ -93,11 +93,13 @@ sudo apt install clang ccache lld
   1. Set up Developer PowerShell [for Visual Studio](https://learn.microsoft.com/en-us/visualstudio/ide/reference/command-prompt-powershell?view=vs-2022#start-in-visual-studio)
   1. Ensure that the compiler and linker binaries are in the `PATH` variable.
 
-#### Configure for Building...
+#### Configure for Building
 
-Two setups are possible to build: in-tree and out-of-tree. The in-tree setup is the most straightforward, as it will build LLVM dependencies as well.
+##### Choose command relevant to LLVM setup:
 
-##### ...with LLVM "in-tree"
+###### If you want the more straightforward option
+
+Run the "in-tree" setup:
 
 ```shell
 cmake -GNinja -Bbuild \
@@ -116,9 +118,9 @@ cmake -GNinja -Bbuild \
 
 - NOTE: uses external/llvm-project/llvm as the main build, so LLVM will be built in addition to torch-mlir and its sub-projects.
 
-##### ...with LLVM "out-of-tree"
+###### If you want to use a separate build of LLVM from another directory
 
-If you have built llvm-project separately in the directory `$LLVM_INSTALL_DIR`, you can also build the project *out-of-tree* using the following command as template:
+Run the "out-of-tree" setup:
 
 ```shell
 cmake -GNinja -Bbuild \
