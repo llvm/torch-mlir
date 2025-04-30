@@ -7273,9 +7273,11 @@ class DecomposeAtenNativeLayerNormOp
     Value inputMean = rewriter.create<AtenMeanDimOp>(
         loc, reducedTy, op.getInput(), reduceDimList, cstTrue, none);
 
+    Value inputMeanCasted =
+        convertTensorToDtype(rewriter, loc, inputMean, inputTy.getDtype());
     // x - mean(x)
-    Value inputMeanExpanded =
-        rewriter.create<AtenExpandAsOp>(loc, inputTy, inputMean, op.getInput());
+    Value inputMeanExpanded = rewriter.create<AtenExpandAsOp>(
+        loc, inputTy, inputMeanCasted, op.getInput());
     Value inputZeroMean = rewriter.create<AtenSubTensorOp>(
         loc, inputTy, op.getInput(), inputMeanExpanded, one);
     // var(x) = mean((x - mean(x))^2)
@@ -7290,9 +7292,11 @@ class DecomposeAtenNativeLayerNormOp
     Value inputRsqrtVar =
         rewriter.create<AtenRsqrtOp>(loc, reducedTy, inputVarPlusEps);
 
+    Value inputRsqrtVarCasted =
+        convertTensorToDtype(rewriter, loc, inputRsqrtVar, inputTy.getDtype());
     // (x - mean(x)) * rsqrt(var(x) + eps)
     Value inputRsqrtVarExpanded = rewriter.create<AtenExpandAsOp>(
-        loc, inputTy, inputRsqrtVar, op.getInput());
+        loc, inputTy, inputRsqrtVarCasted, op.getInput());
     Value inputNormalized = rewriter.create<AtenMulTensorOp>(
         loc, inputTy, inputZeroMean, inputRsqrtVarExpanded);
     // Convert resultType if dtype is different
