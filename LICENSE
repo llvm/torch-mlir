@@ -2,9 +2,9 @@
 Dual License
 ==============================================================================
 
-The torch-mlir project is dual licensed under both the standard LLVM Project
+The torch-mlir project is dual licensed under both the standard LLVM® Project
 license of Apache License v2.0 with LLVM Exceptions and a BSD-style license from
-PyTorch. As a user of this code you may choose to use it under either license.
+PyTorch®. As a user of this code you may choose to use it under either license.
 As a contributor, you agree to allow your code to be used under both.
 
 Full text of the relevant licenses is included below.

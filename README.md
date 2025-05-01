@@ -1,8 +1,8 @@
 # The Torch-MLIR Project
 
-The Torch-MLIR project aims to provide first class compiler support from the [PyTorch](https://pytorch.org) ecosystem to the MLIR ecosystem.
+The Torch-MLIR project aims to provide first class compiler support from the [PyTorch](https://pytorch.org)® ecosystem to the MLIR ecosystem.
 
-> This project is participating in the LLVM Incubator process: as such, it is
+> This project is participating in the LLVM® Incubator process: as such, it is
 not part of any official LLVM release.  While incubation status is not
 necessarily a reflection of the completeness or stability of the code, it
 does indicate that the project is not yet endorsed as a component of LLVM.
@@ -21,7 +21,7 @@ Several vendors have adopted MLIR as the middle layer in their systems, enabling
 ## All the roads from PyTorch to Torch MLIR Dialect
 
 We have few paths to lower down to the Torch MLIR Dialect.
- - ONNX as the entry points.
+ - ONNX™ as the entry points.
  - Fx as the entry points
 
 ## Project Communication
@@ -32,7 +32,7 @@ We have few paths to lower down to the Torch MLIR Dialect.
 
 ## Install torch-mlir snapshot
 
-At the time of writing, we release [pre-built snapshots of torch-mlir](https://github.com/llvm/torch-mlir-release) for Python 3.11 and Python 3.10.
+At the time of writing, we release [pre-built snapshots of torch-mlir](https://github.com/llvm/torch-mlir-release) for Python® 3.11 and Python 3.10.
 
 If you have supported Python version, the following commands initialize a virtual environment.
 ```shell
@@ -40,7 +40,7 @@ python3.11 -m venv mlir_venv
 source mlir_venv/bin/activate
 ```
 
-Or, if you want to switch over multiple versions of Python using conda, you can create a conda environment with Python 3.11.
+Or, if you want to switch over multiple versions of Python using conda™, you can create a conda environment with Python 3.11.
 ```shell
 conda create -n torch-mlir python=3.11
 conda activate torch-mlir
