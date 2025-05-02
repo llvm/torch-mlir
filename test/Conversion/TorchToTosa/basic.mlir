@@ -2517,6 +2517,15 @@ func.func @torch.aten.index.Tensor_hacked_twin(%arg0: !torch.vtensor<[2,4,2],si6
 
 // -----
 
+func.func @torch.aten.index.Tensor_hacked_twin.dynamic_size(%arg0: !torch.vtensor<[?,4],f32>, %arg1: !torch.vtensor<[?,1],si64>, %arg2: !torch.vtensor<[1,4],si64>) -> !torch.vtensor<[?,4],f32> attributes {torch.assume_strict_symbolic_shapes} {
+  %0 = torch.prim.ListConstruct %arg1, %arg2 : (!torch.vtensor<[?,1],si64>, !torch.vtensor<[1,4],si64>) -> !torch.list<vtensor>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.index.Tensor_hacked_twin' that was explicitly marked illegal}}
+  %1 = torch.aten.index.Tensor_hacked_twin %arg0, %0 : !torch.vtensor<[?,4],f32>, !torch.list<vtensor> -> !torch.vtensor<[?,4],f32>
+  return %1 : !torch.vtensor<[?,4],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.threshold_backward$basic(
 // CHECK-SAME:                                                   %[[VAL_0:.*]]: !torch.vtensor<[4],si64>,
 // CHECK-SAME:                                                   %[[VAL_1:.*]]: !torch.vtensor<[4],si64>) -> !torch.vtensor<[4],si64> {
