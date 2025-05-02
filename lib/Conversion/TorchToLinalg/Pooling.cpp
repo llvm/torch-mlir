@@ -1126,11 +1126,11 @@ LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::matchAndRewrite(
         ceilMode, countIncludePad, op, adaptor, rewriter, self, sumPool,
         outputTensor, resultType, kernelSizeIntValues, strideInts, paddingInts,
         indexingMapsAvg, iteratorTypesAvg);
-  } else {
-    return createAveragePoolValueWithRegularDivisor(
-        op, adaptor, rewriter, self, sumPool, outputTensor, resultType,
-        kernelSizeIntValues, indexingMapsAvg, iteratorTypesAvg);
   }
+
+  return createAveragePoolValueWithRegularDivisor(
+      op, adaptor, rewriter, self, sumPool, outputTensor, resultType,
+      kernelSizeIntValues, indexingMapsAvg, iteratorTypesAvg);
 }
 
 template <typename OpTy, typename PoolingOpTy, int Dim>

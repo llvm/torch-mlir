@@ -2516,7 +2516,7 @@ def MaxUnpool3dModulePad0_basic(module, tu: TestUtils):
     module.forward(output, indices)
 
 
-class AvgPool2dCeilNoPadNonUnitaryStridesIreeSwa(torch.nn.Module):
+class AvgPool2dCeilNoPadNonUnitaryStrides(torch.nn.Module):
     # This test captures the torch-mlir issue reported here:
     # https://github.com/llvm/torch-mlir/issues/4079
 
@@ -2542,8 +2542,8 @@ class AvgPool2dCeilNoPadNonUnitaryStridesIreeSwa(torch.nn.Module):
         return self.ap2d(x)
 
 
-@register_test_case(module_factory=lambda: AvgPool2dCeilNoPadNonUnitaryStridesIreeSwa())
-def AvgPool2dCeilNoPadNonUnitaryStridesIreeSwa_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: AvgPool2dCeilNoPadNonUnitaryStrides())
+def AvgPool2dCeilNoPadNonUnitaryStrides_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 4, 4, low=-1))
 
 
