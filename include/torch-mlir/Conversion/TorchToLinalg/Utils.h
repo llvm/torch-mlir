@@ -47,6 +47,16 @@ Value getOutputDimForConvOps(OpBuilder &b, Location loc, Value in,
                              Value kernelSizeInt, Value strideInt,
                              bool ceilMode = false);
 
+// Helper function to caculate the output tensor dims for pooling-like ops.
+// Along each dim:
+// dim_out =
+//  floor((dim_in + totalPadding - dilation * (kernelSize - 1) - 1) / stride) +
+//  1
+Value getOutputDimForPoolOps(OpBuilder &b, Location loc, Value in,
+                             int64_t totalPadding, int64_t leftPadding,
+                             Value dilationInt, Value kernelSizeInt,
+                             Value strideInt, bool ceilMode);
+
 // As above but for transposed convolution ops
 // Along each dim:
 // dim_out =

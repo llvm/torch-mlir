@@ -130,15 +130,6 @@ LogicalResult createDequantizeTensor(ConversionPatternRewriter &rewriter,
                                      Location loc, Value input, Value scale,
                                      Value zeroPoint, Value &output);
 
-// Checks the validity of pooling parameters and stores them in the respective
-// vector.
-LogicalResult checkAndGetOnnxPoolingOpParameters(
-    OpBinder binder, ConversionPatternRewriter &rewriter, Type resultDtype,
-    std::string autoPad, int64_t spatialRank, Value &input,
-    SmallVectorImpl<int64_t> &kernelSizeInts,
-    SmallVectorImpl<int64_t> &strideInts, SmallVectorImpl<int64_t> &paddingInts,
-    SmallVectorImpl<int64_t> &dilationInts);
-
 } // namespace mlir::torch::onnx_c
 
 #endif // TORCHMLIR_CONVERSION_TORCHONNXTOTORCH_UTILS_H

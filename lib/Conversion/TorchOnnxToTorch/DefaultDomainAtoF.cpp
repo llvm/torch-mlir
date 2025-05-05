@@ -476,14 +476,78 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                                              "Unimplemented: unranked tensor");
         unsigned rank = *maybeRank;
 
+        int64_t spatialRank = rank - 2;
         SmallVector<int64_t> kernel, padding, strides, dilations,
             stridesDilations;
-        if (failed(checkAndGetOnnxPoolingOpParameters(
-                binder, rewriter, resultType.getDtype(), autoPad,
-                /*spatialRank=*/rank - 2,
-                /*input=*/operand, kernel, strides, padding, dilations)))
+
+        if (binder.s64IntegerArrayAttr(kernel, "kernel_shape", {}))
           return rewriter.notifyMatchFailure(binder.op,
-                                             "invalid pooling parameters");
+                                             "kernel_shape bind failure");
+        if (kernel.size() != static_cast<size_t>(spatialRank))
+          return rewriter.notifyMatchFailure(
+              binder.op, "kernel list size does not match the number of axes");
+        if (binder.s64IntegerArrayAttr(padding, "pads", {}))
+          return rewriter.notifyMatchFailure(binder.op, "pads bind failure");
+        if (!padding.empty() &&
+            padding.size() != static_cast<size_t>(2 * spatialRank))
+          return rewriter.notifyMatchFailure(
+              binder.op, "padding list must contain (begin,end) pair for each "
+                         "spatial axis");
+        if (binder.s64IntegerArrayAttr(strides, "strides", {}))
+          return rewriter.notifyMatchFailure(binder.op, "strides bind failure");
+        if (!strides.empty() &&
+            strides.size() != static_cast<size_t>(spatialRank))
+          return rewriter.notifyMatchFailure(
+              binder.op, "strides list size does not match the number of axes");
+        if (binder.s64IntegerArrayAttr(dilations, "dilations", {}))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "dilations bind failure");
+
+        // set default values for padding, strides, and dilations.
+        if (padding.empty())
+          padding.resize(spatialRank, 0);
+        if (strides.empty())
+          strides.resize(spatialRank, 1);
+        if (dilations.empty())
+          dilations.resize(spatialRank, 1);
+
+        // Padding for the beginning and ending along each spatial axis, it can
+        // take any value greater than or equal to 0. The value represent the
+        // number of pixels added to the beginning and end part of the
+        // corresponding axis. pads format should be as follow [x1_begin,
+        // x2_begin…x1_end, x2_end,…], where xi_begin the number of pixels added
+        // at the beginning of axis i and xi_end, the number of pixels added at
+        // the end of axis i.
+        auto inputTensorType = cast<Torch::ValueTensorType>(operand.getType());
+        if (autoPad != "NOTSET" && autoPad != "VALID") {
+          const bool isSameLower = autoPad == "SAME_LOWER";
+          ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+          padding.resize_for_overwrite(2 * spatialRank);
+          for (unsigned dimIdx = 0; dimIdx < spatialRank; dimIdx++) {
+            const int64_t dilatedKernelSize =
+                dilations[dimIdx] * (kernel[dimIdx] - 1) + 1;
+            int64_t totalPad = ((inputShape[dimIdx + 2] + strides[dimIdx] - 1) /
+                                    strides[dimIdx] -
+                                1) *
+                                   strides[dimIdx] +
+                               dilatedKernelSize - inputShape[dimIdx + 2];
+            totalPad = totalPad >= 0 ? totalPad : 0;
+            padding[dimIdx] =
+                isSameLower ? ((totalPad + 1) / 2) : (totalPad / 2);
+            padding[spatialRank + dimIdx] = totalPad - padding[dimIdx];
+          }
+        }
+
+        // If the padding is symmetric we can push the padding operation to the
+        // torch operator.
+        if (padding.size() == static_cast<size_t>(2 * spatialRank)) {
+          bool equal = true;
+          for (int i = 0; i < spatialRank; ++i) {
+            equal = equal && (padding[i] == padding[i + spatialRank]);
+          }
+          if (equal)
+            padding.resize(spatialRank);
+        }
 
         // Since the PyTorch AvgPool op does not contain the `dilation` arg,
         // hence we use the trick of encoding dilation into strides. Then,
