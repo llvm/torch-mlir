@@ -4982,7 +4982,7 @@ def aten〇nan_to_num〡dtype(self_rank_dtype: Tuple[int, int], nan: Optional[fl
 @check_dtype_function(
     [Invocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(2, dtype=torch.int64),
                 TensorOfShape(3, dtype=torch.float32), reduction=0, ignore_index=0),
-     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(2, dtype=torch.int32), # target must be int64
+     Invocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(2, dtype=torch.int32), # target must be int64
                      TensorOfShape(3, dtype=torch.float32), reduction=0, ignore_index=0),
      ErrorInvocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(2, dtype=torch.float64), # target must be int64
                      TensorOfShape(3, dtype=torch.float32), reduction=0, ignore_index=0),
@@ -4995,7 +4995,7 @@ def aten〇nan_to_num〡dtype(self_rank_dtype: Tuple[int, int], nan: Optional[fl
 def aten〇nll_loss_forward〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], weight_rank_dtype: Optional[Tuple[int, int]], reduction: int, ignore_index: int) -> Tuple[int, int]:
     self_rank, self_dtype = self_rank_dtype
     target_rank, target_dtype = target_rank_dtype
-    assert target_dtype == torch.int64
+    assert target_dtype == torch.int64 or target_dtype == torch.int32
     return self_dtype, self_dtype
 
 @check_dtype_function(
