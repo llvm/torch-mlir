@@ -199,5 +199,6 @@ LogicalResult mlir::torch::onnx_c::createDequantizeTensor(
       inputTy.getSizes(), rewriter.getF32Type());
   output = rewriter.create<Torch::AtenDequantizeSelfOp>(loc, resultTy,
                                                         quantizedInput);
+
   return success();
 }
