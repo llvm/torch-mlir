@@ -4485,6 +4485,12 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Only tensor types input are currently supported");
 
+  // Dynamic shape check
+  if (!inputTensorType.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "AtenIndexTensorHackedTwinOp: support for dynamic input "
+            "shape not implemented");
+
   // Deal with torch.prim.ListConstruct of non const value to get the index
   auto tensorList = op.getIndices();
   SmallVector<Value> tensorsTorchType;
