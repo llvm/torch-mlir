@@ -2453,9 +2453,13 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   }
 
   int64_t outputHDim, outputWDim;
-  if (inputTy.hasStaticShape()) {
-    int64_t inputHDim = inputShape[2];
-    int64_t inputWDim = inputShape[3];
+  int64_t inputHDim = inputShape[2];
+  int64_t inputWDim = inputShape[3];
+
+  bool isStaticSpatialDims =
+      !ShapedType::isDynamic(inputHDim) && !ShapedType::isDynamic(inputWDim);
+  if (isStaticSpatialDims) {
+
     int64_t weightHDim = weightShape[2];
     int64_t weightWDim = weightShape[3];
 
@@ -2473,8 +2477,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
         SmallVector<int64_t> sizeHSlice(transposedInputShape);
         // TOSA uses NHWC, so we will slice dim 1 for Height value
         sizeHSlice[1] = inputHDim - (remainderHDim - padding[1]);
-        transposedInput = rewriter.create<tosa::SliceOp>(
-            op->getLoc(), RankedTensorType::get(sizeHSlice, inputElemTy),
+        transposedInput = tosa::CreateOpAndInfer<tosa::SliceOp>(
+            rewriter, op->getLoc(), UnrankedTensorType::get(inputElemTy),
             transposedInput,
             tosa::getTosaConstShape(rewriter, op->getLoc(), startHSlice),
             tosa::getTosaConstShape(rewriter, op->getLoc(), sizeHSlice));
@@ -2498,8 +2502,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
             dyn_cast<RankedTensorType>(transposedInput.getType()).getShape());
         // TOSA uses NHWC, so we will slice dim 2 for Width value
         sizeWSlice[2] = inputWDim - (remainderWDim - padding[3]);
-        transposedInput = rewriter.create<tosa::SliceOp>(
-            op->getLoc(), RankedTensorType::get(sizeWSlice, inputElemTy),
+        transposedInput = tosa::CreateOpAndInfer<tosa::SliceOp>(
+            rewriter, op->getLoc(), UnrankedTensorType::get(inputElemTy),
             transposedInput,
             tosa::getTosaConstShape(rewriter, op->getLoc(), startWSlice),
             tosa::getTosaConstShape(rewriter, op->getLoc(), sizeWSlice));
@@ -5004,7 +5008,8 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
       dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType()));
 
   if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), cond, self).failed() ||
-      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), cond, other).failed())
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), cond, other).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, other).failed())
     return rewriter.notifyMatchFailure(
         op, "Failed to equalize ranks among operands and result");
 
