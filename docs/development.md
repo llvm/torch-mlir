@@ -95,82 +95,69 @@ sudo apt install clang ccache lld
 
 #### Configure for Building
 
-##### Choose command relevant to LLVM setup:
+1. Choose command relevant to LLVM setup:
+    1. **If you want the more straightforward option**, run the "in-tree" setup:
 
-###### If you want the more straightforward option
+        ```shell
+        cmake -GNinja -Bbuild \
+          `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          -DLLVM_ENABLE_ASSERTIONS=ON \
+          -DPython3_FIND_VIRTUALENV=ONLY \
+          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DLLVM_TARGETS_TO_BUILD=host \
+          `# For building LLVM "in-tree"` \
+          externals/llvm-project/llvm \
+          -DLLVM_ENABLE_PROJECTS=mlir \
+          -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
+          -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD"
+        ```
 
-Run the "in-tree" setup:
+        - NOTE: uses external/llvm-project/llvm as the main build, so LLVM will be built in addition to torch-mlir and its sub-projects.
+    1. **If you want to use a separate build of LLVM from another directory**, run the "out-of-tree" setup:
 
-```shell
-cmake -GNinja -Bbuild \
-  `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DPython3_FIND_VIRTUALENV=ONLY \
-  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-  -DLLVM_TARGETS_TO_BUILD=host \
-  `# For building LLVM "in-tree"` \
-  externals/llvm-project/llvm \
-  -DLLVM_ENABLE_PROJECTS=mlir \
-  -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
-  -DLLVM_EXTERNAL_TORCH_MLIR_SOURCE_DIR="$PWD"
-```
+        ```shell
+        cmake -GNinja -Bbuild \
+          `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+          -DLLVM_ENABLE_ASSERTIONS=ON \
+          -DPython3_FIND_VIRTUALENV=ONLY \
+          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DLLVM_TARGETS_TO_BUILD=host \
+          `# For building LLVM "out-of-tree"` \
+          -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir/" \
+          -DLLVM_DIR="$LLVM_INSTALL_DIR/lib/cmake/llvm/"
+        ```
 
-- NOTE: uses external/llvm-project/llvm as the main build, so LLVM will be built in addition to torch-mlir and its sub-projects.
+        - Be sure to have built LLVM with `-DLLVM_ENABLE_PROJECTS=mlir`.
+        - Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
 
-###### If you want to use a separate build of LLVM from another directory
+    - [About MLIR debugging](https://mlir.llvm.org/getting_started/Debugging/)
+1. **If you anticipate needing to frequently rebuild LLVM**, leverage quicker builds by appending:
 
-Run the "out-of-tree" setup:
+    ```shell
+      \
+      `# use clang`\
+      -DCMAKE_C_COMPILER=clang \
+      -DCMAKE_CXX_COMPILER=clang++ \
+      `# use ccache to cache build results` \
+      -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+      -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+      `# use LLD to link in seconds, rather than minutes` \
+      -DCMAKE_LINKER_TYPE=lld
+    ```
 
-```shell
-cmake -GNinja -Bbuild \
-  `# Enables "--debug" and "--debug-only" flags for the "torch-mlir-opt" tool` \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DPython3_FIND_VIRTUALENV=ONLY \
-  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-  -DLLVM_TARGETS_TO_BUILD=host \
-  `# For building LLVM "out-of-tree"` \
-  -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir/" \
-  -DLLVM_DIR="$LLVM_INSTALL_DIR/lib/cmake/llvm/"
-  .
-```
+    - This requires [the enablement mentioned earlier](#optional-enable-quicker-builds).
+    - If these flags cause issues, just skip them for now.
+1. **If you're developing changes**, enable local end-to-end tests by appending:
 
-- Be sure to have built LLVM with `-DLLVM_ENABLE_PROJECTS=mlir`.
-- Be aware that the installed version of LLVM needs in general to match the committed version in `externals/llvm-project`. Using a different version may or may not work.
+    ```shell
+      \
+      -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=ON \
+      -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON
+    ```
 
-###### [About MLIR debugging](https://mlir.llvm.org/getting_started/Debugging/)
-
-##### (Optional) Flags for leveraging quicker builds
-
-If you anticipate needing to frequently rebuild LLVM, append:
-
-```shell
-  \
-  `# use clang`\
-  -DCMAKE_C_COMPILER=clang \
-  -DCMAKE_CXX_COMPILER=clang++ \
-  `# use ccache to cache build results` \
-  -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-  -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-  `# use LLD to link in seconds, rather than minutes` \
-  -DCMAKE_LINKER_TYPE=lld
-```
-
-- This requires [the enablement mentioned earlier](#optional-enable-quicker-builds).
-- If these flags cause issues, just skip them for now.
-
-##### (Optional) Flags for enabling end-to-end tests
-
-To enable local end-to-end tests, append:
-
-```shell
-  \
-  -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=ON \
-  -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON
-```
-
-- NOTE: The JIT IR importer depends on the native PyTorch extension features and defaults to `ON` if not changed.
+    - NOTE: The JIT IR importer depends on the native PyTorch extension features and defaults to `ON` if not changed.
 
 #### Initiate Build
 
