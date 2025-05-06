@@ -90,7 +90,9 @@ computeOutputTensor(Operation *op, ConversionPatternRewriter &rewriter,
 
   // Get dimension size for each dimension and calculate output size
   for (int64_t i = dimensionality - 1; i > -1; --i) {
-    // Support for asymmetric padding
+    // In case of asymmetric padding the total padding value would be the sum of
+    // low and high padding. And, in case of symmetric padding it would just be
+    // the double of padding value for the corresponding dimension.
     int64_t totalPadding = paddingInts[i] * 2;
     if ((int64_t)paddingInts.size() == 2 * dimensionality)
       totalPadding = paddingInts[i] + paddingInts[i + dimensionality];

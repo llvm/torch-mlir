@@ -146,7 +146,7 @@ Value torch_to_linalg::getOutputDimForPoolOps(OpBuilder &b, Location loc,
       b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(totalPadding));
 
   // in + totalPadding
-  Value inAddDoublePadding = b.createOrFold<arith::AddIOp>(
+  Value inAddTotalPadding = b.createOrFold<arith::AddIOp>(
       loc, castIndexToInt64(b, loc, in), totalPaddingIntCst);
 
   // dilation * (kernelSize - 1)
@@ -154,7 +154,7 @@ Value torch_to_linalg::getOutputDimForPoolOps(OpBuilder &b, Location loc,
   Value dilationTimesKernelSize =
       b.createOrFold<arith::MulIOp>(loc, dilationInt, kernelSizeSub1);
 
-  Value temp = b.createOrFold<arith::SubIOp>(loc, inAddDoublePadding,
+  Value temp = b.createOrFold<arith::SubIOp>(loc, inAddTotalPadding,
                                              dilationTimesKernelSize);
   Value dividend = b.createOrFold<arith::SubIOp>(loc, temp, c1);
   Value division;
@@ -164,24 +164,22 @@ Value torch_to_linalg::getOutputDimForPoolOps(OpBuilder &b, Location loc,
     division = b.createOrFold<arith::FloorDivSIOp>(loc, dividend, strideInt);
   Value out = b.createOrFold<arith::AddIOp>(loc, division, c1);
 
-  if (ceilMode) {
-    Value outMinusOneTimesStride =
-        b.createOrFold<arith::MulIOp>(loc, division, strideInt);
-    Value leftPaddingIntCst =
-        b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(leftPadding));
-    Value inAddLeftPadding = b.createOrFold<arith::AddIOp>(
-        loc, castIndexToInt64(b, loc, in), leftPaddingIntCst);
+  if (!ceilMode)
+    return castIntToIndex(b, loc, out);
 
-    auto reduceOutputDimCond =
-        b.createOrFold<arith::CmpIOp>(loc, arith::CmpIPredicate::uge,
-                                      outMinusOneTimesStride, inAddLeftPadding);
+  Value outMinusOneTimesStride =
+      b.createOrFold<arith::MulIOp>(loc, division, strideInt);
+  Value leftPaddingIntCst =
+      b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(leftPadding));
+  Value inAddLeftPadding = b.createOrFold<arith::AddIOp>(
+      loc, castIndexToInt64(b, loc, in), leftPaddingIntCst);
 
-    auto reducedDim = b.createOrFold<arith::SelectOp>(loc, reduceOutputDimCond,
-                                                      division, out);
-    return castIntToIndex(b, loc, reducedDim);
-  }
+  auto reduceOutputDimCond = b.createOrFold<arith::CmpIOp>(
+      loc, arith::CmpIPredicate::uge, outMinusOneTimesStride, inAddLeftPadding);
 
-  return castIntToIndex(b, loc, out);
+  auto reducedDim =
+      b.createOrFold<arith::SelectOp>(loc, reduceOutputDimCond, division, out);
+  return castIntToIndex(b, loc, reducedDim);
 }
 
 Value torch_to_linalg::getOutputDimForConvTransposeOps(

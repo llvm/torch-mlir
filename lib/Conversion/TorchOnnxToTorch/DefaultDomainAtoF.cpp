@@ -458,11 +458,11 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value operand;
-        int64_t ceilMode, countIncludePad;
+        bool ceilMode, countIncludePad;
         std::string autoPad;
         if (binder.tensorOperand(operand) ||
-            binder.s64IntegerAttr(ceilMode, "ceil_mode", 0) ||
-            binder.s64IntegerAttr(countIncludePad, "count_include_pad", 0) ||
+            binder.s64BoolAttr(ceilMode, "ceil_mode", false) ||
+            binder.s64BoolAttr(countIncludePad, "count_include_pad", false) ||
             binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET") ||
             binder.tensorResultType(resultType))
           return rewriter.notifyMatchFailure(
@@ -477,8 +477,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         unsigned rank = *maybeRank;
 
         int64_t spatialRank = rank - 2;
-        SmallVector<int64_t> kernel, padding, strides, dilations,
-            stridesDilations;
+        SmallVector<int64_t> kernel, padding, strides, dilations;
 
         if (binder.s64IntegerArrayAttr(kernel, "kernel_shape", {}))
           return rewriter.notifyMatchFailure(binder.op,
@@ -486,6 +485,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         if (kernel.size() != static_cast<size_t>(spatialRank))
           return rewriter.notifyMatchFailure(
               binder.op, "kernel list size does not match the number of axes");
+
         if (binder.s64IntegerArrayAttr(padding, "pads", {}))
           return rewriter.notifyMatchFailure(binder.op, "pads bind failure");
         if (!padding.empty() &&
@@ -493,12 +493,14 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return rewriter.notifyMatchFailure(
               binder.op, "padding list must contain (begin,end) pair for each "
                          "spatial axis");
+
         if (binder.s64IntegerArrayAttr(strides, "strides", {}))
           return rewriter.notifyMatchFailure(binder.op, "strides bind failure");
         if (!strides.empty() &&
             strides.size() != static_cast<size_t>(spatialRank))
           return rewriter.notifyMatchFailure(
               binder.op, "strides list size does not match the number of axes");
+
         if (binder.s64IntegerArrayAttr(dilations, "dilations", {}))
           return rewriter.notifyMatchFailure(binder.op,
                                              "dilations bind failure");
@@ -538,8 +540,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           }
         }
 
-        // If the padding is symmetric we can push the padding operation to the
-        // torch operator.
+        // If the padding is symmetric then we don't need seperate low/high
+        // padding values.
         if (padding.size() == static_cast<size_t>(2 * spatialRank)) {
           bool equal = true;
           for (int i = 0; i < spatialRank; ++i) {
@@ -554,7 +556,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         // during the torch->linalg lowering of the `AvgPool` op we decode the
         // `strides` arg into strides values followed by dilation like:
         // [strideDim1,strideDim2,...,dilationDim1,dilationDim2,...]
-        stridesDilations = strides;
+        SmallVector<int64_t> stridesDilations = strides;
         stridesDilations.append(dilations);
 
         Value kernelSizeList = createConstantIntList(binder, rewriter, kernel);
