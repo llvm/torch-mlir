@@ -6034,6 +6034,33 @@ LogicalResult AtenRot90Op::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenCountNonzero
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenCountNonzeroOp::verify() {
+
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+
+  if (!selfType.hasDtype() || !selfType.hasSizes())
+    return success();
+
+  if (!isa<Torch::IntType>(getDim().getType()) &&
+      !isa<Torch::NoneType>(getDim().getType()))
+    return emitOpError("parameter dim must be none or int type");
+
+  int64_t dim;
+  if (!matchPattern(getDim(), m_TorchConstantInt(&dim)))
+    return success();
+
+  int selfRank = selfType.getSizes().size();
+  if (dim >= selfRank || dim < -selfRank)
+    return emitOpError("expected dim to be in [ ")
+           << -selfRank << ", " << selfRank - 1 << " ], but got dim = " << dim;
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // OnnxVariantRotaryEmbeddingOp
 //===----------------------------------------------------------------------===//
 
