@@ -469,88 +469,41 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(
               binder.op, "Unimplemented: expected 8 input operands");
 
-        Value a = operands[0];
-        Value aScale = operands[1];
-        Value aZp = operands[2];
-        Value b = operands[3];
-        Value bScale = operands[4];
-        Value bZp = operands[5];
-        Value cScale = operands[6];
-        Value cZp = operands[7];
+        Value a, aScale, aZp, b, bScale, bZp, cScale, cZp;
 
-        auto check = [](Value v) {
-          auto vTy = cast<Torch::ValueTensorType>(v.getType());
-          for (auto dim : vTy.getSizes())
-            if (dim != 1)
-              return false;
-          return true;
-        };
-        if (!check(aScale) || !check(aZp) || !check(bScale) || !check(bZp) ||
-            !check(cScale) || !check(cZp))
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, /*scale=*/operands[1],
+                /*zero_point=*/operands[2], aScale, aZp)))
           return rewriter.notifyMatchFailure(
-              binder.op, "Unsupported per-tensor quantization");
+              binder.op, "Incompatible arguments for per-tensor quantization");
 
-        Value emptyList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            rewriter.getType<Torch::ListType>(
-                rewriter.getType<Torch::IntType>()),
-            ValueRange{});
-        auto extract = [&rewriter, &binder, &emptyList](Value v) {
-          auto vTy = cast<Torch::ValueTensorType>(v.getType());
-          if (!vTy.getSizes().empty()) {
-            vTy = rewriter.getType<Torch::ValueTensorType>(
-                ArrayRef<int64_t>({}), vTy.getOptionalDtype());
-            v = rewriter.create<Torch::AtenReshapeOp>(binder.getLoc(), vTy, v,
-                                                      emptyList);
-          }
-
-          Type extractTy = rewriter.getType<Torch::FloatType>();
-          if (isa<IntegerType>(vTy.getDtype()))
-            extractTy = rewriter.getType<Torch::IntType>();
-
-          return rewriter.create<Torch::AtenItemOp>(binder.getLoc(), extractTy,
-                                                    v);
-        };
-
-        aZp = extract(aZp);
-        bZp = extract(bZp);
-        cZp = extract(cZp);
-
-        aScale = extract(aScale);
-        bScale = extract(bScale);
-        cScale = extract(cScale);
-
-        auto makePerTensor = [&rewriter, &binder](Value v, Value scale,
-                                                  Value zp) -> Value {
-          auto ty = cast<Torch::ValueTensorType>(v.getType());
-          auto newTy = getQTorchTypeFromTorchIntType(ty);
-          return rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-              binder.getLoc(), newTy, v, scale, zp);
-        };
-
-        a = makePerTensor(a, aScale, aZp);
-        b = makePerTensor(b, bScale, bZp);
-
-        auto aTy = dyn_cast<Torch::ValueTensorType>(a.getType());
-        if (!aTy || !aTy.hasSizes())
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, /*scale=*/operands[4],
+                /*zero_point=*/operands[5], bScale, bZp)))
           return rewriter.notifyMatchFailure(
-              binder.op, "Expected input argument `a` to have sizes");
+              binder.op, "Incompatible arguments for per-tensor quantization");
 
-        aTy = rewriter.getType<Torch::ValueTensorType>(aTy.getOptionalSizes(),
-                                                       rewriter.getF32Type());
-        a = rewriter.create<Torch::AtenDequantizeSelfOp>(binder.getLoc(), aTy,
-                                                         a);
-
-        auto bTy = dyn_cast<Torch::ValueTensorType>(b.getType());
-        if (!bTy || !bTy.hasSizes())
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, /*scale=*/operands[6],
+                /*zero_point=*/operands[7], cScale, cZp)))
           return rewriter.notifyMatchFailure(
-              binder.op, "Expected input argument `b` to have sizes");
+              binder.op, "Incompatible arguments for per-tensor quantization");
 
-        bTy = rewriter.getType<Torch::ValueTensorType>(bTy.getOptionalSizes(),
-                                                       rewriter.getF32Type());
-        b = rewriter.create<Torch::AtenDequantizeSelfOp>(binder.getLoc(), bTy,
-                                                         b);
+        if (failed(createDequantizeTensor(rewriter, loc, /*input=*/operands[0],
+                                          /*scale=*/aScale, /*zero_point=*/aZp,
+                                          /*output=*/a)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to dequantize the input tensor `a` because of "
+                         "missing sizes");
 
+        if (failed(createDequantizeTensor(rewriter, loc, /*input=*/operands[3],
+                                          /*scale=*/bScale, /*zero_point=*/bZp,
+                                          /*output=*/b)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to dequantize the input tensor `b` because of "
+                         "missing sizes");
+
+        // Computing the result of "Add".
         auto cTy = rewriter.getType<Torch::ValueTensorType>(
             resultType.getOptionalSizes(), rewriter.getF32Type());
         Value alpha = rewriter.create<Torch::ConstantFloatOp>(
@@ -558,6 +511,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value c = rewriter.create<Torch::AtenAddTensorOp>(binder.getLoc(), cTy,
                                                           a, b, alpha);
 
+        // Quantizing the result of "Add" operation.
         cTy = dyn_cast<Torch::ValueTensorType>(
             getQTorchTypeFromTorchIntType(resultType));
         Value dtyVal = rewriter.create<Torch::ConstantIntOp>(
@@ -588,11 +542,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(
               binder.op, "Unimplemented: expected 5 input operands");
 
-        Value x = operands[0];
-        Value xScale = operands[1];
-        Value xZp = operands[2];
-        Value yScale = operands[3];
-        Value yZp = operands[4];
+        Value x, xScale, xZp, yScale, yZp;
 
         if (failed(extractPerTensorQuantizationArguments(
                 rewriter, loc, /*scale=*/operands[1],
@@ -606,18 +556,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(
               binder.op, "Incompatible arguments for per-tensor quantization");
 
-        auto xTy = dyn_cast<Torch::ValueTensorType>(x.getType());
-        if (!xTy || !xTy.hasSizes())
+        if (failed(createDequantizeTensor(rewriter, loc, /*input=*/operands[0],
+                                          /*scale=*/xScale, /*zero_point=*/xZp,
+                                          /*output=*/x)))
           return rewriter.notifyMatchFailure(
-              binder.op, "Expected input argument `x` to have sizes");
-
-        xTy = getQTorchTypeFromTorchIntType(xTy);
-        x = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-            loc, xTy, x, xScale, xZp);
-        xTy = rewriter.getType<Torch::ValueTensorType>(xTy.getSizes(),
-                                                       rewriter.getF32Type());
-        // Dequantizing the input tensor `x`.
-        x = rewriter.create<Torch::AtenDequantizeSelfOp>(loc, xTy, x);
+              binder.op, "Failed to dequantize the input tensor `x` because of "
+                         "missing sizes");
 
         // Computing the LeakyRelu result.
         Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
@@ -670,16 +614,8 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
               binder.op, "Incompatible number of input operands, scales and/or "
                          "zero-points");
 
-        auto makePerTensor = [&rewriter, &binder](Value v, Value scale,
-                                                  Value zp) -> Value {
-          auto ty = cast<Torch::ValueTensorType>(v.getType());
-          auto newTy = getQTorchTypeFromTorchIntType(ty);
-          return rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-              binder.getLoc(), newTy, v, scale, zp);
-        };
-
-        // Preparing the quantized inputs.
-        SmallVector<Value> quantizedInputs;
+        // Preparing the dequantized inputs.
+        SmallVector<Value> dequantizedInputs;
         for (unsigned i = 0; i < numInputs; i++) {
           Value scale, zeroPoint;
           if (failed(extractPerTensorQuantizationArguments(
@@ -689,24 +625,15 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                 binder.op, "Incompatible scale and zero-points argument for "
                            "per-tensor quantization");
 
-          quantizedInputs.push_back(makePerTensor(inputs[i], scale, zeroPoint));
-        }
-
-        // Dequantizing the inputs.
-        SmallVector<Value> dequantizedInputs;
-        for (unsigned i = 0; i < numInputs; i++) {
-          Torch::ValueTensorType inputTy =
-              dyn_cast<Torch::ValueTensorType>(quantizedInputs[i].getType());
-          if (!inputTy || !inputTy.hasSizes())
+          Value dequantizedInput;
+          if (failed(createDequantizeTensor(rewriter, loc, inputs[i], scale,
+                                            zeroPoint,
+                                            /*output=*/dequantizedInput)))
             return rewriter.notifyMatchFailure(
-                binder.op, "Expected tensor input operands to be concatenated "
-                           "to have sizes");
+                binder.op, "Failed to dequantize the input tensor because of "
+                           "missing sizes");
 
-          inputTy = rewriter.getType<Torch::ValueTensorType>(
-              inputTy.getOptionalSizes(), rewriter.getF32Type());
-          dequantizedInputs.push_back(
-              rewriter.create<Torch::AtenDequantizeSelfOp>(loc, inputTy,
-                                                           quantizedInputs[i]));
+          dequantizedInputs.push_back(dequantizedInput);
         }
 
         // Concatenating the inputs.
@@ -764,8 +691,19 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
               binder.op,
               "Unimplemented: support not present for channels_last attribute");
 
-        Value x = operands[0];
-        Value xScale, xZp, yScale, yZp;
+        auto xTy = dyn_cast<Torch::ValueTensorType>(operands[0].getType());
+        if (!xTy || !xTy.hasSizes())
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input argument `x` to have sizes");
+        ArrayRef<int64_t> inputShape = xTy.getSizes();
+
+        if (!resultType || !resultType.hasSizes()) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected result type having sizes");
+        }
+        ArrayRef<int64_t> resultShape = resultType.getSizes();
+
+        Value x, xScale, xZp, yScale, yZp;
 
         if (failed(extractPerTensorQuantizationArguments(
                 rewriter, loc, /*scale=*/operands[1],
@@ -779,25 +717,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(
               binder.op, "Incompatible arguments for per-tensor quantization");
 
-        auto xTy = dyn_cast<Torch::ValueTensorType>(x.getType());
-        if (!xTy || !xTy.hasSizes())
+        if (failed(createDequantizeTensor(rewriter, loc, /*input=*/operands[0],
+                                          /*scale=*/xScale, /*zero_point=*/xZp,
+                                          /*output=*/x)))
           return rewriter.notifyMatchFailure(
-              binder.op, "Expected input argument `x` to have sizes");
-        ArrayRef<int64_t> inputShape = xTy.getSizes();
-
-        xTy = getQTorchTypeFromTorchIntType(xTy);
-        x = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-            loc, xTy, x, xScale, xZp);
-        xTy = rewriter.getType<Torch::ValueTensorType>(inputShape,
-                                                       rewriter.getF32Type());
-        // Dequantizing the input tensor `x`.
-        x = rewriter.create<Torch::AtenDequantizeSelfOp>(loc, xTy, x);
-
-        if (!resultType || !resultType.hasSizes()) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "Expected result type having sizes");
-        }
-        ArrayRef<int64_t> resultShape = resultType.getSizes();
+              binder.op, "Failed to dequantize the input tensor `x` because of "
+                         "missing sizes");
 
         // Computing the AvgPool result.
         SmallVector<Value> cstKernel, cstPadding, cstStrides;
@@ -888,8 +813,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(
               binder.op, "Unimplemented: expected 5 input operands");
 
-        Value x = operands[0];
-        Value xScale, xZp, yScale, yZp;
+        Value x, xScale, xZp, yScale, yZp;
 
         if (failed(extractPerTensorQuantizationArguments(
                 rewriter, loc, /*scale=*/operands[1],
@@ -903,18 +827,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(
               binder.op, "Incompatible arguments for per-tensor quantization");
 
-        auto xTy = dyn_cast<Torch::ValueTensorType>(x.getType());
-        if (!xTy || !xTy.hasSizes())
+        if (failed(createDequantizeTensor(rewriter, loc, /*input=*/operands[0],
+                                          /*scale=*/xScale, /*zero_point=*/xZp,
+                                          /*output=*/x)))
           return rewriter.notifyMatchFailure(
-              binder.op, "Expected input argument `x` to have sizes");
-
-        xTy = getQTorchTypeFromTorchIntType(xTy);
-        x = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-            loc, xTy, x, xScale, xZp);
-        xTy = rewriter.getType<Torch::ValueTensorType>(xTy.getSizes(),
-                                                       rewriter.getF32Type());
-        // Dequantizing the input tensor `x`.
-        x = rewriter.create<Torch::AtenDequantizeSelfOp>(loc, xTy, x);
+              binder.op, "Failed to dequantize the input tensor `x` because of "
+                         "missing sizes");
 
         // Computing the Sigmoid result.
         auto yTy = rewriter.getType<Torch::ValueTensorType>(
@@ -958,8 +876,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(
               binder.op, "Unimplemented: expected 5 input operands");
 
-        Value x = operands[0];
-        Value xScale, xZp, yScale, yZp;
+        Value x, xScale, xZp, yScale, yZp;
 
         if (failed(extractPerTensorQuantizationArguments(
                 rewriter, loc, /*scale=*/operands[1],
@@ -973,18 +890,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(
               binder.op, "Incompatible arguments for per-tensor quantization");
 
-        auto xTy = dyn_cast<Torch::ValueTensorType>(x.getType());
-        if (!xTy || !xTy.hasSizes())
+        if (failed(createDequantizeTensor(rewriter, loc, /*input=*/operands[0],
+                                          /*scale=*/xScale, /*zero_point=*/xZp,
+                                          /*output=*/x)))
           return rewriter.notifyMatchFailure(
-              binder.op, "Expected input argument `x` to have sizes");
-
-        xTy = getQTorchTypeFromTorchIntType(xTy);
-        x = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-            loc, xTy, x, xScale, xZp);
-        xTy = rewriter.getType<Torch::ValueTensorType>(xTy.getSizes(),
-                                                       rewriter.getF32Type());
-        // Dequantizing the input tensor `x`.
-        x = rewriter.create<Torch::AtenDequantizeSelfOp>(loc, xTy, x);
+              binder.op, "Failed to dequantize the input tensor `x` because of "
+                         "missing sizes");
 
         // Creating Onnx.AveragePool op.
         llvm::SmallVector<Value> newOperands = {x};
