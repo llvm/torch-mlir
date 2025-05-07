@@ -6702,6 +6702,42 @@ class DecomposeAtenCountNonzeroOp
 };
 } // namespace
 
+// Decompose aten.count_nonzero to aten.ne.Scalar and aten.sum.dim_IntList
+namespace {
+class DecomposeAtenCountNonzeroDimIntListOp
+    : public OpRewritePattern<AtenCountNonzeroDimIntListOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCountNonzeroDimIntListOp op,
+                                PatternRewriter &rewriter) const override {
+    Value dimList = op.getDim();
+    if (isa<Torch::NoneType>(dimList.getType()))
+      return rewriter.notifyMatchFailure(
+          op, "expected `dim` to be constructed from list");
+
+    SmallVector<int64_t> dimIntListElem;
+    if (!matchPattern(dimList, m_TorchListOfConstantInts(dimIntListElem)))
+      return rewriter.notifyMatchFailure(
+          op, "expected `dim` to be constructed from list of integers");
+
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    BaseTensorType inputType = cast<BaseTensorType>(self.getType());
+    auto inpBoolTy = inputType.getWithSizesAndDtype(inputType.getSizes(),
+                                                    rewriter.getI1Type());
+    Value cstZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value nonZeroMask =
+        rewriter.create<AtenNeScalarOp>(loc, inpBoolTy, self, cstZero);
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value cstFalse = rewriter.create<ConstantBoolOp>(loc, false);
+    rewriter.replaceOpWithNewOp<AtenSumDimIntListOp>(
+        op, op.getResult().getType(), nonZeroMask, dimList, cstFalse, none);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.std.correction to sqrt(var.correction(x))
 namespace {
 class DecomposeAtenStdCorrectionOp
@@ -12064,6 +12100,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRot90Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCountNonzeroOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenCountNonzeroDimIntListOp>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSplitWithSizesOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNarrowOp>(patterns);
