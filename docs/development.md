@@ -95,6 +95,7 @@ sudo apt install clang ccache lld
 
 #### Configure for Building
 
+1. **If you haven't already**, [activate the Python environment](#set-up-the-python-environment)
 1. Choose command relevant to LLVM setup:
     1. **If you want the more straightforward option**, run the "in-tree" setup:
 
