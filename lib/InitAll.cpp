@@ -33,6 +33,7 @@
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 #include "stablehlo/conversions/linalg/transforms/Passes.h"
 #include "stablehlo/transforms/Passes.h"
+#include "stablehlo/transforms/optimization/Passes.h"
 #endif
 
 #ifdef TORCH_MLIR_ENABLE_TOSA
