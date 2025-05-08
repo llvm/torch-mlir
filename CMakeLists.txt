@@ -253,19 +253,6 @@ endif()
 if (TORCH_MLIR_ENABLE_STABLEHLO AND NOT TORCH_MLIR_USE_EXTERNAL_STABLEHLO)
   set(STABLEHLO_BUILD_EMBEDDED ON)
   set(STABLEHLO_ENABLE_BINDINGS_PYTHON ON)
-  execute_process(
-    COMMAND git apply --reverse --check ${CMAKE_CURRENT_SOURCE_DIR}/build_tools/stablehlo.patch
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo
-    RESULT_VARIABLE check_result
-    OUTPUT_QUIET ERROR_QUIET
-  )
-  if(NOT check_result EQUAL 0)
-    execute_process(
-      COMMAND git apply --ignore-space-change --whitespace=nowarn ${CMAKE_CURRENT_SOURCE_DIR}/build_tools/stablehlo.patch
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo
-      RESULT_VARIABLE patch_result
-    )
-  endif()
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo
     ${CMAKE_CURRENT_BINARY_DIR}/stablehlo
     EXCLUDE_FROM_ALL)
