@@ -65,6 +65,78 @@ func.func @torch.aten.max_pool2d$padding(%arg0: !torch.vtensor<[?,?,?,?],f32>) -
   return %3 : !torch.vtensor<[?,?,?,?],f32>
 }
 
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.max_pool2d$ceiloff(
+// CHECK-SAME:                                      %[[VAL_0:.*]]: !torch.vtensor<[1,256,56,56],f32>) -> !torch.vtensor<[1,256,27,27],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,256,56,56],f32> -> tensor<1x256x56x56xf32>
+// CHECK:           %int3 = torch.constant.int 3
+// CHECK:           %int2 = torch.constant.int 2
+// CHECK:           %int1 = torch.constant.int 1
+// CHECK:           %false = torch.constant.bool false
+// CHECK:           %int0 = torch.constant.int 0
+// CHECK:           %[[VAL_2:.*]] = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_3:.*]] = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_4:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_5:.*]] = stablehlo.constant dense<0xFF800000> : tensor<f32>
+// CHECK:           %[[VAL_6:.*]] = "stablehlo.reduce_window"(%[[VAL_1]], %[[VAL_5]])
+// CHECK{LITERAL}:    <{padding = dense<0> : tensor<4x2xi64>, window_dilations = array<i64: 1, 1, 1, 1>, window_dimensions = array<i64: 1, 1, 3, 3>, window_strides = array<i64: 1, 1, 2, 2>}> ({
+// CHECK:           ^bb0(%[[VAL_8:.*]]: tensor<f32>, %[[VAL_9:.*]]: tensor<f32>):
+// CHECK:             %[[VAL_10:.*]] = stablehlo.maximum %[[VAL_8]], %[[VAL_9]] : tensor<f32>
+// CHECK:             stablehlo.return %[[VAL_10]] : tensor<f32>
+// CHECK:           }) : (tensor<1x256x56x56xf32>, tensor<f32>) -> tensor<1x256x27x27xf32>
+// CHECK:           %[[VAL_7:.*]] = torch_c.from_builtin_tensor %[[VAL_6]] : tensor<1x256x27x27xf32> -> !torch.vtensor<[1,256,27,27],f32>
+// CHECK:           return %[[VAL_7]] : !torch.vtensor<[1,256,27,27],f32>
+func.func @torch.aten.max_pool2d$ceiloff(%arg0: !torch.vtensor<[1,256,56,56],f32>) -> !torch.vtensor<[1,256,27,27],f32> {
+  %int3 = torch.constant.int 3
+  %int2 = torch.constant.int 2
+  %int1 = torch.constant.int 1
+  %false = torch.constant.bool false
+  %int0 = torch.constant.int 0
+  %0 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.aten.max_pool2d %arg0, %0, %1, %2, %3, %false : !torch.vtensor<[1,256,56,56],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,256,27,27],f32>
+  return %4 : !torch.vtensor<[1,256,27,27],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.max_pool2d$ceilon(
+// CHECK-SAME:                                      %[[VAL_0:.*]]: !torch.vtensor<[1,256,56,56],f32>) -> !torch.vtensor<[1,256,28,28],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,256,56,56],f32> -> tensor<1x256x56x56xf32>
+// CHECK:           %int3 = torch.constant.int 3
+// CHECK:           %int2 = torch.constant.int 2
+// CHECK:           %int1 = torch.constant.int 1
+// CHECK:           %true = torch.constant.bool true
+// CHECK:           %int0 = torch.constant.int 0
+// CHECK:           %[[VAL_2:.*]] = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_3:.*]] = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_4:.*]] = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_5:.*]] = stablehlo.constant dense<0xFF800000> : tensor<f32>
+// CHECK:           %[[VAL_6:.*]] = "stablehlo.reduce_window"(%[[VAL_1]], %[[VAL_5]])
+// CHECK{LITERAL}:    <{padding = dense<[[0, 0], [0, 0], [1, 1], [1, 1]]> : tensor<4x2xi64>, window_dilations = array<i64: 1, 1, 1, 1>, window_dimensions = array<i64: 1, 1, 3, 3>, window_strides = array<i64: 1, 1, 2, 2>}> ({
+// CHECK:           ^bb0(%[[VAL_8:.*]]: tensor<f32>, %[[VAL_9:.*]]: tensor<f32>):
+// CHECK:             %[[VAL_10:.*]] = stablehlo.maximum %[[VAL_8]], %[[VAL_9]] : tensor<f32>
+// CHECK:             stablehlo.return %[[VAL_10]] : tensor<f32>
+// CHECK:           }) : (tensor<1x256x56x56xf32>, tensor<f32>) -> tensor<1x256x28x28xf32>
+// CHECK:           %[[VAL_7:.*]] = torch_c.from_builtin_tensor %[[VAL_6]] : tensor<1x256x28x28xf32> -> !torch.vtensor<[1,256,28,28],f32>
+// CHECK:           return %[[VAL_7]] : !torch.vtensor<[1,256,28,28],f32>
+func.func @torch.aten.max_pool2d$ceilon(%arg0: !torch.vtensor<[1,256,56,56],f32>) -> !torch.vtensor<[1,256,28,28],f32> {
+  %int3 = torch.constant.int 3
+  %int2 = torch.constant.int 2
+  %int1 = torch.constant.int 1
+  %true = torch.constant.bool true
+  %int0 = torch.constant.int 0
+  %0 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.aten.max_pool2d %arg0, %0, %1, %2, %3, %true : !torch.vtensor<[1,256,56,56],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,256,28,28],f32>
+  return %4 : !torch.vtensor<[1,256,28,28],f32>
+}
+
 
 // -----
 
