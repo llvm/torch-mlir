@@ -2006,6 +2006,19 @@ OpFoldResult AtenRoundOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenRoundDecimalsOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenRoundDecimalsOp::fold(FoldAdaptor adaptor) {
+  auto resultType = dyn_cast<ValueTensorType>(getType());
+  if (resultType && resultType.hasDtype() &&
+      isa<mlir::IntegerType>(resultType.getDtype())) {
+    return getSelf();
+  }
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
 // AtenTruncOp
 //===----------------------------------------------------------------------===//
 
