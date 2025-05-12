@@ -1092,7 +1092,7 @@ bool ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
   // adds zero padding in it. It also does not count the implicit zero
   // padding elements in the divisor, and it is not controlled by the
   // count_include_pad argument.
-  // But also note that if all strides are 1 there are not fractions to
+  // But also note that if all strides are 1 there are no fractions to
   // round up, hence there is no ceiling rounding and the window will
   // not go out of bounds. For this case the divisor is just the
   // product of kernel dimensions.

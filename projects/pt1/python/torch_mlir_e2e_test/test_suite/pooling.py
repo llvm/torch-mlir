@@ -2516,37 +2516,6 @@ def MaxUnpool3dModulePad0_basic(module, tu: TestUtils):
     module.forward(output, indices)
 
 
-class AvgPool2dCeilNoPadNonUnitaryStrides(torch.nn.Module):
-    # This test captures the torch-mlir issue reported here:
-    # https://github.com/llvm/torch-mlir/issues/4079
-
-    def __init__(self):
-        super().__init__()
-        self.ap2d = torch.nn.AvgPool2d(
-            kernel_size=[3, 3],
-            stride=[2, 2],
-            padding=[0, 0],
-            ceil_mode=True,
-            count_include_pad=False,
-            divisor_override=None,
-        )
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([1, 1, 4, 4], torch.float32, True),
-        ]
-    )
-    def forward(self, x):
-        return self.ap2d(x)
-
-
-@register_test_case(module_factory=lambda: AvgPool2dCeilNoPadNonUnitaryStrides())
-def AvgPool2dCeilNoPadNonUnitaryStrides_basic(module, tu: TestUtils):
-    module.forward(tu.rand(1, 1, 4, 4, low=-1))
-
-
 class AvgPool2dCeilNoPadUnitaryStrides(torch.nn.Module):
 
     def __init__(self):
@@ -2823,7 +2792,13 @@ def AvgPool2dCeilPaddingStridedIncludePadding_basic(module, tu: TestUtils):
 
 
 class AvgPool2dDiffKernelsStridesNoPadCeilPadNotIncluded(torch.nn.Module):
-    # Different sizes used for each kernel and stride.dimensions. No padding.
+    # This test captures the torch-mlir issue reported here:
+    # https://github.com/llvm/torch-mlir/issues/4079
+    # The issue was caused by having the ceil_mode = true and
+    # count_include_pad = false. Also the kernel and stride sizes are
+    # different in this test to make sure that they are processed in
+    # the right order.
+
     def __init__(self):
         super().__init__()
         self.ap2d = torch.nn.AvgPool2d(
