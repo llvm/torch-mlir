@@ -253,6 +253,18 @@ std::vector<torch::lazy::Shape> compute_shape_native_group_norm(
 }
 
 std::vector<torch::lazy::Shape>
+compute_shape_prod(const at::Tensor &self,
+                   c10::optional<at::ScalarType> dtype) {
+  if (dtype.has_value()) {
+    return {Shape(dtype.value(), {})};
+  }
+  if (isIntegralType(self.scalar_type(), true)) {
+    return {Shape(c10::ScalarType::Long, {})};
+  }
+  return {Shape(self.scalar_type(), {})};
+}
+
+std::vector<torch::lazy::Shape>
 compute_shape_im2col(const at::Tensor &self, at::IntArrayRef kernel_size,
                      at::IntArrayRef dilation, at::IntArrayRef padding,
                      at::IntArrayRef stride) {
@@ -458,6 +470,14 @@ compute_shape_randn(at::IntArrayRef size, ::std::optional<at::ScalarType> dtype,
       Shape(dtype.value_or(at::get_default_dtype_as_scalartype()), size.vec())};
 }
 
+std::vector<torch::lazy::Shape> compute_shape_randn(
+    at::IntArrayRef size, ::std::optional<at::Generator> generator,
+    ::std::optional<at::ScalarType> dtype, ::std::optional<at::Layout> layout,
+    ::std::optional<at::Device> device, ::std::optional<bool> pin_memory) {
+  return {
+      Shape(dtype.value_or(at::get_default_dtype_as_scalartype()), size.vec())};
+}
+
 std::vector<torch::lazy::Shape> compute_shape_randint(
     int64_t high, at::IntArrayRef size, ::std::optional<at::ScalarType> dtype,
     ::std::optional<at::Layout> layout, ::std::optional<at::Device> device,
@@ -491,6 +511,13 @@ std::vector<torch::lazy::Shape> compute_shape_scalar_tensor(
     ::std::optional<at::Layout> layout, ::std::optional<at::Device> device,
     ::std::optional<bool> pin_memory) {
   return {Shape(dtype.value_or(s.type()), c10::ArrayRef<int64_t>{})};
+}
+
+std::vector<torch::lazy::Shape>
+compute_shape_as_strided(const at::Tensor &self, at::IntArrayRef size,
+                         at::IntArrayRef stride,
+                         c10::optional<int64_t> storage_offset) {
+  return {Shape(self.scalar_type(), size.vec())};
 }
 
 std::vector<torch::lazy::Shape> compute_shape_roll(const at::Tensor &self,

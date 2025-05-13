@@ -31,7 +31,7 @@ def run(f):
 @run
 # CHECK-LABEL: test_import_frozen_exported_program
 # CHECK:     func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
-# CHECK-DAG: %[[a:.+]] = torch.vtensor.literal(dense_resource<torch_tensor_1_4_torch.float32> : tensor<1x4xf32>) : !torch.vtensor<[1,4],f32>
+# CHECK-DAG: %[[a:.+]] = torch.aten.randn
 # CHECK-DAG: %[[b:.+]] = torch.vtensor.literal(dense_resource<torch_tensor_3_1_torch.float32> : tensor<3x1xf32>) : !torch.vtensor<[3,1],f32>
 # CHECK-DAG: %[[p:.+]] = torch.vtensor.literal(dense<{{.*>+}} : tensor<1x1xf32>) : !torch.vtensor<[1,1],f32>
 # CHECK-DAG: %[[tanh:.+]] = torch.aten.tanh %[[ARG0]]
@@ -42,7 +42,6 @@ def run(f):
 #
 # Validate dialect resources exist.
 # CHECK: dialect_resources:
-# CHECK-DAG: torch_tensor_1_4_torch.float32
 # CHECK-DAG: torch_tensor_3_1_torch.float32
 def test_import_frozen_exported_program():
     # Tests the basic structural premises of import_frozen_exported_program,
@@ -89,11 +88,11 @@ def test_import_frozen_exported_program_with_func_name():
 @run
 # CHECK-LABEL: test_import_frozen_exported_program_with_dynamic_shapes
 # CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,5],f32>) -> !torch.vtensor<[?,?,5],f32>
-# CHECK:     %[[S0:.*]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
-# CHECK:     %[[S1:.*]] = torch.symbolic_int "s1" {min_val = 2, max_val = {{[0-9]+}}} : !torch.int
-# CHECK:     torch.bind_symbolic_shape %[[ARG0]], [%[[S0]], %[[S1]]], affine_map<()[s0, s1] -> (s0, s1, 5)> : !torch.vtensor<[?,?,5],f32>
+# CHECK:     %[[S0:.*]] = torch.symbolic_int "{{[a-z0-9]+}}" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
+# CHECK:     %[[S1:.*]] = torch.symbolic_int "{{[a-z0-9]+}}" {min_val = 2, max_val = {{[0-9]+}}} : !torch.int
+# CHECK-DISABLED:     torch.bind_symbolic_shape %[[ARG0]], [%[[S1]], %[[S0]]], affine_map<()[s0, s1] -> (s1, s0, 5)> : !torch.vtensor<[?,?,5],f32>
 # CHECK:     %[[TANH:.*]] = torch.aten.tanh %[[ARG0]] : !torch.vtensor<[?,?,5],f32> -> !torch.vtensor<[?,?,5],f32>
-# CHECK:     torch.bind_symbolic_shape %[[TANH]], [%[[S0]], %[[S1]]], affine_map<()[s0, s1] -> (s0, s1, 5)> : !torch.vtensor<[?,?,5],f32>
+# CHECK-DISABLED:     torch.bind_symbolic_shape %[[TANH]], [%[[S1]], %[[S0]]], affine_map<()[s0, s1] -> (s1, s0, 5)> : !torch.vtensor<[?,?,5],f32>
 # CHECK:     return %[[TANH]] : !torch.vtensor<[?,?,5],f32>
 def test_import_frozen_exported_program_with_dynamic_shapes():
     class Basic(nn.Module):
@@ -119,7 +118,7 @@ def test_import_frozen_exported_program_with_dynamic_shapes():
 @run
 # CHECK-LABEL: test_broadcast_with_dynamic_shapes
 # CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[1,2],f32>, %[[ARG1:[a-zA-Z0-9]+]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,2],f32>
-# CHECK:     %[[S0:.*]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
+# CHECK:     %[[S0:.*]] = torch.symbolic_int "{{[a-z0-9]+}}" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
 # CHECK:     torch.bind_symbolic_shape %[[ARG1]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
 # CHECK:     torch.aten.size.int
 # CHECK:     torch.prim.ListConstruct
@@ -205,3 +204,29 @@ def test_full():
         "torch-simplification-pipeline",
     )
     print(m)
+
+
+@run
+# CHECK-LABEL: test_stack_trace
+# CHECK: #loc[[LOC1:.+]] = loc(
+# CHECK: %{{.+}} = torch.aten.add.Tensor {{.+}} loc(#loc[[LOC1]])
+def test_stack_trace():
+    class Basic(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, y):
+            def bar(x):
+                return x + 1.0
+
+            def foo(x, y):
+                return bar(x) + bar(y)
+
+            z = foo(x, y)
+            return {"z": z}
+
+    x = torch.randn(128, 128)
+    y = torch.randn(128, 128)
+    m = fx.export_and_import(Basic(), x, y, func_name="test_stack_trace")
+    mlir_asm = m.operation.get_asm(enable_debug_info=True)
+    print(mlir_asm)

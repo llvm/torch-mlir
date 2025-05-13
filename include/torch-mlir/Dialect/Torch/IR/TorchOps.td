@@ -1361,6 +1361,15 @@ def Torch_SymbolicIntOp : Torch_Op<"symbolic_int", [Pure]> {
     %0 = torch.symbolic_int "s0" {min_val = 5, max_val = 10} : !torch.int
     %1 = torch.symbolic_int "s1" {min_val = 2, max_val = 20} : !torch.int
     ```
+
+    In this case, we see that `s0` has the range [5, 10] and `s1` has the
+    range [2, 20]. When unspecified, the range constraints feeding in from
+    TorchDynamo default to [0, INT_MAX] (or [2, INT_MAX] in older PyTorch
+    releases). In either case, the interpretation (as specified by TorchDynamo)
+    is that the dynamic dimension is assumed to be not 0 or 1. This is not a
+    bug, and does not necessarily mean that the exported program will not work
+    for dimensions 0 or 1. For an in-depth discussion of this topic, see
+    [The 0/1 Specialization Problem](https://docs.google.com/document/d/16VPOa3d-Liikf48teAOmxLc92rgvJdfosIy-yoT38Io/edit?fbclid=IwAR3HNwmmexcitV0pbZm_x1a4ykdXZ9th_eJWK-3hBtVgKnrkmemz6Pm5jRQ#heading=h.ez923tomjvyk).
   }];
   let arguments = (ins
     StrAttr:$symbol_name,
@@ -1399,6 +1408,38 @@ def Torch_BindSymbolicShapeOp : Torch_Op<"bind_symbolic_shape", []> {
   let results = (outs);
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
+}
+
+// This op is corresponding to the Onnx's RotaryEmbedding operator.
+// Ref: https://github.com/microsoft/onnxruntime/blob/main/docs/ContribOperators.md#commicrosoftrotaryembedding
+def Torch_OnnxVariantRotaryEmbeddingOp: Torch_Op<"onnx.rotary_embedding", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "`rotary_embedding op : (Tensor, Tensor, Tensor, Tensor, int, int, int, int, float) -> (Tensor)`";
+  let description = [{
+    The `torch.onnx.rotary_embedding` operation is an op which is used
+    specifically for supporting the Onnx's Rotary Embedding op. The
+    reason for this is that the Onnx ops can't be directly lowered to
+    Linalg and we have to map them to a legal Torch Dialect op, hence
+    this op is used for that purpose.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$position_ids,
+    AnyTorchTensorType:$cos_cache,
+    AnyTorchTensorType:$sin_cache,
+    Torch_IntType:$interleaved,
+    Torch_IntType:$is_packed_batching,
+    Torch_IntType:$num_heads,
+    Torch_IntType:$rotary_embedding_dim,
+    Torch_FloatType:$scale
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
 }
 
 #endif // TORCH_OPS

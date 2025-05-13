@@ -114,6 +114,7 @@ def ConvertTorchToTensor : Pass<"convert-torch-to-tensor", "func::FuncOp"> {
   let constructor = "mlir::torch::createConvertTorchToTensorPass()";
 }
 
+#ifdef TORCH_MLIR_ENABLE_TOSA
 def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "func::FuncOp"> {
   let summary = "Convert Torch ops to TOSA ops";
   let description = [{
@@ -121,7 +122,15 @@ def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "func::FuncOp"> {
     guards in case of shape mismatches.
   }];
   let constructor = "mlir::torch::createConvertTorchToTosaPass()";
+
+  let options = [
+    Option<"requireFullTosaConversion", "require-full-tosa-conversion",
+            "bool", /*default=*/"true",
+            "Require TorchToTosa full conversion by adding Torch Dialect to "
+            "TorchToTosa list of illegal dialects">,
+  ];
 }
+#endif
 
 def ConvertTorchToTMTensor : Pass<"convert-torch-to-tmtensor", "func::FuncOp"> {
   let summary = "Convert recognized Torch ops to TMTensor/Linalg ops";

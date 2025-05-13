@@ -30,6 +30,8 @@ populateTorchToTosaConversionPatternsAndIllegalOps(TypeConverter &typeConverter,
                                                    RewritePatternSet &patterns);
 
 std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToTosaPass();
+std::unique_ptr<OperationPass<func::FuncOp>>
+createConvertTorchToTosaPass(bool requireFullTosaConversion);
 } // namespace torch
 } // namespace mlir
 

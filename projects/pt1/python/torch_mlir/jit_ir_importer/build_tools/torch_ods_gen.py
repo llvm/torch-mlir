@@ -498,8 +498,12 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         has_canonicalizer=True,
     )
     emit("aten::gelu : (Tensor, str) -> (Tensor)")
-    emit("aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)")
-    emit("aten::pow.Tensor_Tensor : (Tensor, Tensor) -> (Tensor)")
+    emit(
+        "aten::pow.Tensor_Scalar : (Tensor, Scalar) -> (Tensor)", has_canonicalizer=True
+    )
+    emit(
+        "aten::pow.Tensor_Tensor : (Tensor, Tensor) -> (Tensor)", has_canonicalizer=True
+    )
     emit("aten::pow.Scalar : (Scalar, Tensor) -> (Tensor)")
     emit("aten::float_power.Tensor_Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::threshold_backward : (Tensor, Tensor, Scalar) -> (Tensor)")
@@ -784,12 +788,18 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::diag_embed : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::_weight_norm_interface : (Tensor, Tensor, int) -> (Tensor, Tensor)")
     emit("aten::rot90 : (Tensor, int, int[]) -> (Tensor)", has_verifier=True)
+    emit("aten::count_nonzero : (Tensor, int?) -> (Tensor)", has_verifier=True)
+    emit(
+        "aten::count_nonzero.dim_IntList : (Tensor, int[]) -> (Tensor)",
+        has_verifier=True,
+    )
 
     # Misc tensor ops.
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
     emit("aten::replication_pad2d : (Tensor, int[]) -> (Tensor)")
     emit("aten::reflection_pad1d : (Tensor, int[]) -> (Tensor)")
     emit("aten::reflection_pad2d : (Tensor, int[]) -> (Tensor)")
+    emit("aten::reflection_pad3d : (Tensor, int[]) -> (Tensor)")
     emit("aten::pad : (Tensor, int[], str, float?) -> (Tensor)")
     emit("aten::squeeze.dim : (Tensor, int) -> (Tensor)", has_folder=True)
     emit("aten::squeeze : (Tensor) -> (Tensor)", has_folder=True)
@@ -1002,7 +1012,11 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         has_verifier=True,
     )
     emit(
-        "aten::stft : (Tensor, int, int?, int?, Tensor?, bool, bool?, bool?) -> (Tensor)"
+        "aten::stft : (Tensor, int, int?, int?, Tensor?, bool, bool?, bool?, bool?) -> (Tensor)",
+        has_canonicalizer=True,
+    )
+    emit(
+        "aten::stft.center : (Tensor, int, int?, int?, Tensor?, bool, str, bool, bool?, bool?, bool?) -> (Tensor)"
     )
 
     # Functionalization ops
@@ -1010,6 +1024,10 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::alias : (Tensor) -> (Tensor)", has_folder=True)
     emit("aten::as_strided_copy : (Tensor, int[], int[], int?) -> (Tensor)")
     emit("aten::as_strided : (Tensor, int[], int[], int?) -> (Tensor)")
+    emit(
+        "aten::_assert_tensor_metadata : (Tensor, int[]?, int[]?, int?, Device?, int?) -> ()",
+        has_folder=True,
+    )
     emit("aten::diagonal : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::diagonal_copy : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::expand_copy : (Tensor, int[], bool) -> (Tensor)")
@@ -1077,6 +1095,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::any.bool : (bool[]) -> (bool)", has_folder=True)
     emit("aten::sort.int : (int[], bool) -> ()", has_canonicalizer=True)
     emit("aten::sort : (Tensor, int, bool) -> (Tensor, Tensor)", has_folder=True)
+    emit("aten::argsort : (Tensor, int, bool) -> (Tensor)")
     emit("aten::split.Tensor : (Tensor, int, int) -> (Tensor[])")
     emit("aten::split_with_sizes : (Tensor, int[], int) -> (Tensor[])")
     emit(
@@ -1228,6 +1247,11 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     )
     emit("aten::_make_per_tensor_quantized_tensor : (Tensor, float, int) -> (Tensor)")
 
+    # Constraint ops
+    emit("aten::sym_constrain_range : (Scalar, int?, int?) -> ()")
+    emit("aten::sym_constrain_range_for_size : (Scalar, int?, int?) -> ()")
+    emit("aten::_assert_scalar : (Scalar, str) -> ()")
+
     # ==========================================================================
     # `prim::` namespace.
     # ==========================================================================
@@ -1263,6 +1287,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("prims::collapse : (Tensor, int, int) -> (Tensor)")
     emit("prims::split_dim : (Tensor, int, int) -> (Tensor)")
     emit("prims::squeeze : (Tensor, int[]) -> (Tensor)")
+    emit("prims::sum : (Tensor, int[]?, int?) -> (Tensor)")
     emit("prims::view_of : (Tensor) -> (Tensor)", has_folder=True)
     emit("prims::iota : (int, int, int, int, Device, bool) -> (Tensor)")
 

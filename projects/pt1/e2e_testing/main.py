@@ -19,13 +19,11 @@ from torch_mlir_e2e_test.registry import GLOBAL_TEST_REGISTRY
 # Available test configs.
 from torch_mlir_e2e_test.configs import (
     LazyTensorCoreTestConfig,
-    LinalgOnTensorsBackendTestConfig,
-    StablehloBackendTestConfig,
     NativeTorchTestConfig,
     OnnxBackendTestConfig,
     TorchScriptTestConfig,
-    TosaBackendTestConfig,
     TorchDynamoTestConfig,
+    JITImporterTestConfig,
     FxImporterTestConfig,
 )
 
@@ -42,8 +40,6 @@ from torch_mlir_e2e_test.stablehlo_backends.linalg_on_tensors import (
 from .xfail_sets import (
     LINALG_XFAIL_SET,
     LINALG_CRASHING_SET,
-    MAKE_FX_TOSA_PASS_SET,
-    MAKE_FX_TOSA_CRASHING_SET,
     STABLEHLO_PASS_SET,
     STABLEHLO_CRASHING_SET,
     TOSA_PASS_SET,
@@ -76,7 +72,6 @@ def _get_argparse():
         "torchscript",
         "linalg",
         "stablehlo",
-        "make_fx_tosa",
         "tosa",
         "lazy_tensor_core",
         "torchdynamo",
@@ -155,21 +150,17 @@ def main():
 
     # Find the selected config.
     if args.config == "linalg":
-        config = LinalgOnTensorsBackendTestConfig(RefBackendLinalgOnTensorsBackend())
+        config = JITImporterTestConfig(RefBackendLinalgOnTensorsBackend())
         xfail_set = LINALG_XFAIL_SET
         crashing_set = LINALG_CRASHING_SET
     elif args.config == "stablehlo":
-        config = StablehloBackendTestConfig(LinalgOnTensorsStablehloBackend())
+        config = JITImporterTestConfig(LinalgOnTensorsStablehloBackend(), "stablehlo")
         xfail_set = all_test_unique_names - STABLEHLO_PASS_SET
         crashing_set = STABLEHLO_CRASHING_SET
     elif args.config == "tosa":
-        config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend())
+        config = JITImporterTestConfig(LinalgOnTensorsTosaBackend(), "tosa")
         xfail_set = all_test_unique_names - TOSA_PASS_SET
         crashing_set = TOSA_CRASHING_SET
-    elif args.config == "make_fx_tosa":
-        config = TosaBackendTestConfig(LinalgOnTensorsTosaBackend(), use_make_fx=True)
-        xfail_set = all_test_unique_names - MAKE_FX_TOSA_PASS_SET
-        crashing_set = MAKE_FX_TOSA_CRASHING_SET
     elif args.config == "native_torch":
         config = NativeTorchTestConfig()
         xfail_set = set()

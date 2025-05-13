@@ -121,6 +121,14 @@ public:
 };
 
 namespace {
+
+static Value materializeToTensor(OpBuilder &builder, TensorType type,
+                                 ValueRange inputs, Location loc) {
+  assert(inputs.size() == 1);
+  assert(isa<BaseMemRefType>(inputs[0].getType()));
+  return builder.create<bufferization::ToTensorOp>(loc, type, inputs[0]);
+}
+
 /// Converts TMTensor operations that work on tensor-type operands or results to
 /// work on buffers.
 struct TMTensorBufferizePass
@@ -133,7 +141,46 @@ struct TMTensorBufferizePass
   void runOnOperation() override {
     MLIRContext &context = getContext();
     ConversionTarget target(context);
-    bufferization::BufferizeTypeConverter typeConverter;
+    // Since the `BufferizeTypeConverter` has been removed here
+    // https://github.com/llvm/llvm-project/commit/2ff2e871f5e632ea493efaf4f2192f8b18a54ab1,
+    // hence we have inlined the converter here.
+    TypeConverter typeConverter;
+    typeConverter.addConversion([](Type type) { return type; });
+    // Convert RankedTensorType to MemRefType.
+    typeConverter.addConversion([](RankedTensorType type) -> Type {
+      return MemRefType::get(type.getShape(), type.getElementType());
+    });
+    // Convert UnrankedTensorType to UnrankedMemRefType.
+    typeConverter.addConversion([](UnrankedTensorType type) -> Type {
+      return UnrankedMemRefType::get(type.getElementType(), 0);
+    });
+    typeConverter.addSourceMaterialization(materializeToTensor);
+    typeConverter.addTargetMaterialization([](OpBuilder &builder,
+                                              BaseMemRefType type,
+                                              ValueRange inputs,
+                                              Location loc) -> Value {
+      assert(inputs.size() == 1 && "expected exactly one input");
+      if (auto inputType = dyn_cast<MemRefType>(inputs[0].getType())) {
+        // MemRef to MemRef cast.
+        assert(inputType != type && "expected different types");
+        // Ranked to unranked casts must be explicit.
+        auto rankedDestType = dyn_cast<MemRefType>(type);
+        if (!rankedDestType)
+          return nullptr;
+        bufferization::BufferizationOptions options;
+        options.bufferAlignment = 0;
+        FailureOr<Value> replacement = castOrReallocMemRefValue(
+            builder, inputs[0], rankedDestType, options);
+        if (failed(replacement))
+          return nullptr;
+        return *replacement;
+      }
+      if (isa<TensorType>(inputs[0].getType())) {
+        // Tensor to MemRef cast.
+        return builder.create<bufferization::ToMemrefOp>(loc, type, inputs[0]);
+      }
+      llvm_unreachable("only tensor/memref input types supported");
+    });
 
     // Mark all Standard operations legal.
     target.addLegalDialect<arith::ArithDialect, func::FuncDialect,

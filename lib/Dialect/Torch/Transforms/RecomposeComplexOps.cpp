@@ -820,11 +820,11 @@ public:
     patterns.add<RecomposeMeshgridIndexingListUnpack>(context);
 
     GreedyRewriteConfig config;
-    config.useTopDownTraversal = true;
-    config.maxIterations = GreedyRewriteConfig::kNoLimit;
+    config.setUseTopDownTraversal(true);
+    config.setMaxIterations(GreedyRewriteConfig::kNoLimit);
 
-    if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
-                                            config))) {
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns),
+                                     config))) {
       return signalPassFailure();
     }
   }

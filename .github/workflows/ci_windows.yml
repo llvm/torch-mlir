@@ -1,0 +1,77 @@
+# yamllint disable rule:line-length
+name: CI_WINDOWS
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [main]
+
+concurrency:
+  # A PR number if a pull request and otherwise the commit hash. This cancels
+  # queued and in-progress runs for the same PR (presubmit) or commit
+  # (postsubmit).
+  group: ci-build-test-cpp-windows-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+
+  build-test-windows:
+    strategy:
+      fail-fast: true
+      matrix:
+        torch-version: [nightly]
+    name: Build (Windows, torch-${{ matrix.torch-version }})
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      CACHE_DIR: ${{ github.workspace }}\.container-cache
+    steps:
+      - name: "Checking out repository"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          submodules: true
+
+      - name: Setup workspace
+        uses: ./.github/actions/setup-build
+
+      - name: Enable cache
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ${{ env.CACHE_DIR }}
+          # Use as cache key a PR number if a pull request and otherwise the commit hash. This reuses the cache for a PR irrespective of the commit hash. Otherwise, it uses commit hash for merges into the main branch
+          key: build-test-cpp-asserts-windows-${{ matrix.torch-version }}-v2-${{ github.event.number || github.sha }}
+          restore-keys: |
+            build-test-cpp-asserts-windows-${{ matrix.torch-version }}-v2-
+
+      - name: "Configuring MSVC"
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+
+      - name: Install python deps (torch-${{ matrix.torch-version }})
+        run: |
+          ./build_tools/ci/install_python_deps.sh ${{ matrix.torch-version }}
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@63069e3931dedbf3b63792097479563182fe70d1 # v1.2.18
+        with:
+          key: ${{ github.job }}-${{ matrix.torch-version }}
+          save: ${{ needs.setup.outputs.write-caches == 1 }}
+
+      - name: Build project
+        run: |
+          cache_dir="${{ env.CACHE_DIR }}" \
+          ./build_tools/python_deploy/build_windows_ci.sh
+
+      - name: Save cache
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        if: ${{ !cancelled() }}
+        with:
+          path: ${{ env.CACHE_DIR }}
+          key: build-test-cpp-asserts-windows-${{ matrix.torch-version }}-v2-${{ github.event.number || github.sha }}
+
+      # todo: enable when use of `signal` for timeout is enhanced to be platform-agnostic
+      # - name: Integration tests (torch-${{ matrix.torch-version }})
+      #   run: |
+      #     ./build_tools/ci/test_posix.sh ${{ matrix.torch-version }}

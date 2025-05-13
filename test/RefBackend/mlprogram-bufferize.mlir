@@ -4,12 +4,12 @@
 // CHECK-LABEL:   func.func @forward() -> i64 {
 // CHECK:           %[[CST127:.*]] = arith.constant 127 : i64
 // CHECK:           %[[GLOBAL_SEED:.*]] = memref.get_global @global_seed : memref<i64>
-// CHECK:           %[[TENSOR:.*]] = bufferization.to_tensor %[[GLOBAL_SEED]] : memref<i64>
+// CHECK:           %[[TENSOR:.*]] = bufferization.to_tensor %[[GLOBAL_SEED]] : memref<i64> to tensor<i64>
 // CHECK:           %[[SEED:.*]] = tensor.extract %[[TENSOR]][] : tensor<i64>
 // CHECK:           %[[NEXT_SEED:.*]] = arith.muli %[[SEED]], %[[CST127]] : i64
 // CHECK:           %[[INSERTED:.*]] = tensor.insert %[[NEXT_SEED]] into %[[TENSOR]][] : tensor<i64>
 // CHECK:           %[[GLOBAL_SEED_1:.*]] = memref.get_global @global_seed : memref<i64>
-// CHECK:           %[[MEMREF:.*]] = bufferization.to_memref %[[INSERTED]] : memref<i64>
+// CHECK:           %[[MEMREF:.*]] = bufferization.to_memref %[[INSERTED]] : tensor<i64> to memref<i64>
 // CHECK:           memref.copy %[[MEMREF]], %[[GLOBAL_SEED_1]] : memref<i64> to memref<i64>
 // CHECK:           return %[[NEXT_SEED]] : i64
 module {

@@ -372,7 +372,7 @@ class MaximizeValueSemanticsPass
     RewritePatternSet patterns(context);
     patterns.insert<AbstractlyInterpretCopyToNonValueTensorOpUsersWithinABlock,
                     RewriteViewLikeSubgraph>(context);
-    (void)applyPatternsAndFoldGreedily(func, std::move(patterns));
+    (void)applyPatternsGreedily(func, std::move(patterns));
   }
 };
 

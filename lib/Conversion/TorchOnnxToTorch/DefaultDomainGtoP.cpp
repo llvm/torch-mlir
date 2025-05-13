@@ -376,7 +376,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // primLoopOp loopBody expects torch.int as first arg
         // insert torch.int arg in loop body, convert to tensor,
         // replace all uses of old arg, delete old arg.
-        auto loopVarArg = loop.getRegion().front().getArgument(0);
+        auto loopVar = loop.getRegion().front().getArgument(0);
         // insert new Arg
         loop.getRegion().front().insertArgument(
             0U, rewriter.getType<Torch::IntType>(), binder.getLoc());
@@ -384,12 +384,17 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // convert int arg to tensor of original Type
         rewriter.setInsertionPointToStart(&loop.getRegion().front());
-        Value loopVarVal = BlockArgument::Value(loopVarArg);
-        auto newTensor = rewriter.create<Torch::PrimNumToTensorScalarOp>(
-            loop.getRegion().op_begin()->getLoc(), loopVarVal.getType(),
-            newLoopVarArg);
+        auto loopVarType = dyn_cast<Torch::BaseTensorType>(loopVar.getType());
+        if (!loopVarType || !loopVarType.areAllSizesKnown())
+          return rewriter.notifyMatchFailure(
+              loopVar.getLoc(),
+              "loop iteration value must be a tensor with known sizes");
+        Value sizes = Torch::toIntListConstruct(rewriter, loopVar.getLoc(),
+                                                loopVarType.getSizes());
+        auto newTensor = torch::Torch::createInitTensor(
+            rewriter, loopVar.getLoc(), loopVarType, newLoopVarArg, sizes);
 
-        loopVarArg.replaceAllUsesWith(newTensor);
+        loopVar.replaceAllUsesWith(newTensor);
         loop.getRegion().eraseArgument(1);
 
         // primLoopOp loopBody has no condition arg
@@ -546,15 +551,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
   patterns.onOp(
       "MatMulInteger", 10,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
         Torch::ValueTensorType resultType;
         Value lhs, rhs, lhsZp, rhsZp;
         if (binder.tensorOperandAtIndex(lhs, 0) ||
             binder.tensorOperandAtIndex(rhs, 1) ||
             binder.tensorResultType(resultType))
           return failure();
-
-        auto lhsTy = dyn_cast<Torch::ValueTensorType>(lhs.getType());
-        auto rhsTy = dyn_cast<Torch::ValueTensorType>(rhs.getType());
 
         if (binder.tensorOperandAtIndex(lhsZp, 2)) {
           lhsZp = rewriter.create<Torch::ConstantIntOp>(
@@ -568,36 +571,39 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
         }
 
-        if (auto zpTy = dyn_cast<Torch::ValueTensorType>(lhsZp.getType())) {
-          for (auto dim : zpTy.getSizes())
-            if (dim != 1)
-              return failure();
-          lhsZp = rewriter.create<Torch::AtenItemOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(), lhsZp);
-        }
+        // This op is lowered as follows:
+        // lhs = lhs.to(dtype=torch.int32)
+        // rhs = rhs.to(dtype=torch.int32)
+        // lhs = lhs - lhsZp
+        // rhs = rhs - rhsZp
+        // res = torch.mm(lhs, rhs)
 
-        if (auto zpTy = dyn_cast<Torch::ValueTensorType>(rhsZp.getType())) {
-          for (auto dim : zpTy.getSizes())
-            if (dim != 1)
-              return failure();
-          rhsZp = rewriter.create<Torch::AtenItemOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(), rhsZp);
-        }
+        // Converting lhs and rhs tensor to `si32` type.
+        lhs = Torch::convertTensorToDtype(
+            rewriter, loc, lhs,
+            mlir::IntegerType::get(binder.op->getContext(), 32,
+                                   mlir::IntegerType::Signed));
+        rhs = Torch::convertTensorToDtype(
+            rewriter, loc, rhs,
+            mlir::IntegerType::get(binder.op->getContext(), 32,
+                                   mlir::IntegerType::Signed));
 
-        Value scale = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-            rewriter.getF64FloatAttr(1.0));
+        // Subtracting the zero_point values from lhs and rhs.
+        Value alpha = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(1));
+        if (auto lhsZpTy = dyn_cast<Torch::ValueTensorType>(lhsZp.getType()))
+          lhs = rewriter.create<Torch::AtenSubTensorOp>(loc, lhs.getType(), lhs,
+                                                        lhsZp, alpha);
+        else
+          lhs = rewriter.create<Torch::AtenSubScalarOp>(loc, lhs.getType(), lhs,
+                                                        lhsZp, alpha);
 
-        auto lhsQTy = getQTorchTypeFromTorchIntType(lhsTy);
-        auto rhsQTy = getQTorchTypeFromTorchIntType(rhsTy);
-
-        if (!lhsQTy || !rhsQTy)
-          return rewriter.notifyMatchFailure(binder.op, "failed to get qtype");
-
-        lhs = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-            binder.getLoc(), lhsQTy, lhs, scale, lhsZp);
-        rhs = rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-            binder.getLoc(), rhsQTy, rhs, scale, rhsZp);
+        if (auto rhsZpTy = dyn_cast<Torch::ValueTensorType>(rhsZp.getType()))
+          rhs = rewriter.create<Torch::AtenSubTensorOp>(loc, rhs.getType(), rhs,
+                                                        rhsZp, alpha);
+        else
+          rhs = rewriter.create<Torch::AtenSubScalarOp>(loc, rhs.getType(), rhs,
+                                                        rhsZp, alpha);
 
         rewriter.replaceOpWithNewOp<Torch::AtenMatmulOp>(binder.op, resultType,
                                                          lhs, rhs);
@@ -1541,7 +1547,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         return success();
       });
-  patterns.onOp("Greater", 16,
+  patterns.onOp("Greater", 7,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value lhs, rhs;
@@ -1948,7 +1954,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         return success();
       });
   patterns.onOp(
-      "Gather", 13, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      "Gather", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
         Value data, indices;
         int64_t axis;
@@ -2346,7 +2352,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
         unsigned inputRank = inputShape.size();
         // only handle 2D, 3D and 5D pooling cases
-        if (inputRank > 5 or inputRank < 3) {
+        if (inputRank > 5 || inputRank < 3) {
           return failure();
         }
         if (!resultType || !resultType.hasSizes()) {
@@ -2454,7 +2460,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                              "Unimplemented: unranked tensor");
         unsigned rank = *maybeRank;
         // only 1D, 2D and 3D LpPool is supported.
-        if (rank > 5 or rank < 3) {
+        if (rank > 5 || rank < 3) {
           return failure();
         }
 
@@ -3697,11 +3703,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType))
           return failure();
 
-        // TODO: Add support for non-zero center_point_box value.
-        if (centerPointBox != 0)
+        if (centerPointBox != 0 && centerPointBox != 1)
           return rewriter.notifyMatchFailure(
-              binder.op, "unimplemented: expected center_point_box "
-                         "attribute value to be 0");
+              binder.op, "expected center_point_box attribute to be 0 or 1");
 
         // TODO: Support multiple batches and classes
         // Squeeze the boxes and scores tensor.
@@ -3727,6 +3731,49 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                              "failed to squeeze scores tensor");
         boxes = squeezedBoxes.value();
         scores = squeezedScores.value();
+        if (centerPointBox == 1) {
+          // When center_point_box is 1, the box data is supplied as
+          // [[x_center, y_center, width, height], ...]. Slice it to
+          // [[x_center, y_center], ...] and [[width, height], ...],
+          // calculate the [[x1, y1], ...] and [[x2, y2], ...], and concatnate
+          // to [[x1, y1, x2, y2], ...]
+          auto boxesTensorType =
+              dyn_cast<Torch::ValueTensorType>(boxes.getType());
+          Value const0 = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(0));
+          Value const1 = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(1));
+          Value const2 = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(2));
+          Value const4 = rewriter.create<Torch::ConstantIntOp>(
+              loc, rewriter.getI64IntegerAttr(4));
+          Value const2F = rewriter.create<Torch::ConstantFloatOp>(
+              loc, rewriter.getF64FloatAttr(2.0));
+
+          // extract scaled ranges for regions of interest
+          auto sliceShape = SmallVector<int64_t>{Torch::kUnknownSize, 2};
+          auto sliceTensorType = rewriter.getType<Torch::ValueTensorType>(
+              sliceShape, boxesTensorType.getDtype());
+          Value centers = rewriter.create<Torch::AtenSliceTensorOp>(
+              loc, sliceTensorType, boxes, const1, const0, const2, const1);
+          Value sizes = rewriter.create<Torch::AtenSliceTensorOp>(
+              loc, sliceTensorType, boxes, const1, const2, const4, const1);
+          Value halfSizes = rewriter.create<Torch::AtenDivScalarOp>(
+              loc, sizes.getType(), sizes, const2F);
+          Value x1y1s = rewriter.create<Torch::AtenSubTensorOp>(
+              loc, centers.getType(), centers, halfSizes, const1);
+          Value x2y2s = rewriter.create<Torch::AtenAddTensorOp>(
+              loc, centers.getType(), centers, halfSizes, const1);
+
+          Type listElemType = boxesTensorType.getWithSizesAndDtype(
+              /*optionalSizes=*/std::nullopt,
+              /*optionalDtype=*/nullptr);
+          Type listType = Torch::ListType::get(listElemType);
+          Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
+              loc, listType, SmallVector<Value>{x1y1s, x2y2s});
+          boxes = rewriter.create<Torch::AtenCatOp>(loc, boxesTensorType,
+                                                    tensorList, const1);
+        }
 
         // TODO: Support score_threshold input
         // Filter out the boxes if the score < score_threshold

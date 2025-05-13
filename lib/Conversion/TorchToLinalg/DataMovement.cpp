@@ -404,14 +404,21 @@ public:
     Value hDimSize = inputShape[hDim];
     Value vDimSize = inputShape[vDim];
 
-    assert(getHPadArgument(LEFT) < inputType.getShape()[hDim] &&
-           "Left padding too large");
-    assert(getHPadArgument(RIGHT) < inputType.getShape()[hDim] &&
-           "Right padding too large");
-    assert(getVPadArgument(TOP) < inputType.getShape()[vDim] &&
-           "Top padding too large");
-    assert(getVPadArgument(BOTTOM) < inputType.getShape()[vDim] &&
-           "Bottom padding too large");
+    auto verifyPadding = [&](int64_t padArgument, int64_t dim,
+                             StringRef errorMessage) {
+      auto padValue = rewriter.create<arith::ConstantIndexOp>(loc, padArgument);
+      Value index = rewriter.create<arith::ConstantIndexOp>(loc, dim);
+      Value shapeDim = rewriter.create<tensor::DimOp>(loc, input, index);
+      Value cmpPred = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::sle, padValue, shapeDim);
+      rewriter.create<cf::AssertOp>(loc, cmpPred,
+                                    rewriter.getStringAttr(errorMessage));
+    };
+
+    verifyPadding(getHPadArgument(LEFT), hDim, "Left padding too large");
+    verifyPadding(getHPadArgument(RIGHT), hDim, "Right padding too large");
+    verifyPadding(getVPadArgument(TOP), vDim, "Top padding too large");
+    verifyPadding(getVPadArgument(BOTTOM), vDim, "Bottom padding too large");
 
     Type indexType = rewriter.getIndexType();
     Value zero = getConstant(rewriter, loc, 0, indexType);
@@ -426,17 +433,6 @@ public:
     tileHeight[VCENTER] = vDimSize;
     for (auto v : {TOP, BOTTOM})
       tileHeight[v] = getConstant(rewriter, loc, getVPadArgument(v), indexType);
-
-    // Helper to reflect/reverse the i-th dimension of an affine map
-    // without symbols. This only works if applied on a tensor
-    // for which the corresponding dimension has a statically
-    // known size which is good enough since we only apply
-    // it to reflect the padding slices.
-    auto reflectDim = [](AffineMap map, unsigned numDims, int64_t i,
-                         int64_t size) {
-      AffineExpr d = map.getResult(i);
-      return map.replace(d, size - d - 1, numDims, 0);
-    };
 
     // Create output shape and tensor
     SmallVector<Value> resultShape{inputShape};
@@ -531,26 +527,41 @@ public:
       Value tile = rewriter.create<tensor::ExtractSliceOp>(
           loc, input, extractOffsets, extractShape, allOneStrides);
 
-      // Reverse the tile along the horizontal, vertical, or both
-      // dimensions.
       auto inputMap = AffineMap::getMultiDimIdentityMap(numDims, context);
-      if (shouldHReflect(horizontalPos)) {
-        inputMap =
-            reflectDim(inputMap, numDims, hDim, getHPadArgument(horizontalPos));
-      }
-      if (shouldVReflect(verticalPos)) {
-        inputMap =
-            reflectDim(inputMap, numDims, vDim, getVPadArgument(verticalPos));
-      }
 
-      tile = rewriter
-                 .create<linalg::GenericOp>(
-                     loc, llvm::cast<RankedTensorType>(tile.getType()), tile,
-                     tile, ArrayRef({inputMap, idMap}), iteratorTypes,
-                     [](OpBuilder &b, Location nestedLoc, ValueRange args) {
-                       b.create<linalg::YieldOp>(nestedLoc, args[0]);
-                     })
-                 .getResult(0);
+      tile =
+          rewriter
+              .create<linalg::GenericOp>(
+                  loc, llvm::cast<RankedTensorType>(tile.getType()), tile, tile,
+                  ArrayRef({inputMap, idMap}), iteratorTypes,
+                  [&](OpBuilder &b, Location nestedLoc, ValueRange args) {
+                    // Use linalg.index to reflect the dims
+                    SmallVector<Value> extractIndices(numDims);
+                    for (unsigned i = 0; i < numDims; i++)
+                      extractIndices[i] =
+                          b.create<linalg::IndexOp>(nestedLoc, i);
+
+                    auto reflectDim = [&](int64_t padSize, Value dim) {
+                      Value reflectDimSize = getConstant(
+                          rewriter, loc, padSize - 1, rewriter.getIndexType());
+                      return b.create<arith::SubIOp>(loc, reflectDimSize, dim);
+                    };
+
+                    // Reverse the tile along the horizontal, vertical, or both
+                    // dimensions.
+                    if (shouldHReflect(horizontalPos))
+                      extractIndices[hDim] = reflectDim(
+                          getHPadArgument(horizontalPos), extractIndices[hDim]);
+
+                    if (shouldVReflect(verticalPos))
+                      extractIndices[vDim] = reflectDim(
+                          getVPadArgument(verticalPos), extractIndices[vDim]);
+
+                    Value extractValue = rewriter.create<tensor::ExtractOp>(
+                        nestedLoc, tile, extractIndices);
+                    b.create<linalg::YieldOp>(nestedLoc, extractValue);
+                  })
+              .getResult(0);
 
       // Insert the tile in the resultTensor.
       SmallVector<Value> insertOffsets(numDims, zero);

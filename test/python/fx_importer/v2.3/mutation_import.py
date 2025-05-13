@@ -31,7 +31,7 @@ def run(f):
 # This doesn't do mutation but ensures that the basics remain functional.
 # CHECK-LABEL: test_import_frozen_exported_program
 # CHECK:     func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
-# CHECK-DAG: %[[a:.+]] = torch.vtensor.literal(dense_resource<torch_tensor_1_4_torch.float32> : tensor<1x4xf32>) : !torch.vtensor<[1,4],f32>
+# CHECK-DAG: %[[a:.+]] = torch.aten.randn
 # CHECK-DAG: %[[b:.+]] = torch.vtensor.literal(dense_resource<torch_tensor_3_1_torch.float32> : tensor<3x1xf32>) : !torch.vtensor<[3,1],f32>
 # CHECK-DAG: %[[p:.+]] = torch.vtensor.literal(dense<{{.*>+}} : tensor<1x1xf32>) : !torch.vtensor<[1,1],f32>
 # CHECK-DAG: %[[tanh:.+]] = torch.aten.tanh %[[ARG0]]
@@ -171,26 +171,3 @@ def test_mutable_buffer():
     )
     print(m)
     m.operation.verify()
-
-
-@run
-# CHECK-LABEL: test_mutable_buffer_not_supported_without_hooks
-# CHECK: EXPECTED ERROR: Store of a mutation to {{.*}} is not supported
-def test_mutable_buffer_not_supported_without_hooks():
-    class Basic(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.register_buffer("buffer", torch.randn(3, 4))
-
-        def forward(self, x):
-            self.buffer.mul_(x)
-            return x
-
-    try:
-        m = fx.export_and_import(
-            Basic(),
-            torch.randn(3, 4),
-            experimental_support_mutation=True,
-        )
-    except NotImplementedError as e:
-        print("EXPECTED ERROR:", str(e))

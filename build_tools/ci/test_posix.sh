@@ -9,7 +9,7 @@ torch_version="${1:-unknown}"
 export PYTHONPATH="$repo_root/build/tools/torch-mlir/python_packages/torch_mlir:$repo_root/projects/pt1"
 
 echo "::group::Run ONNX e2e integration tests"
-python -m e2e_testing.main --config=onnx -v
+python3 -m e2e_testing.main --config=onnx -v
 echo "::endgroup::"
 
 case $torch_version in
@@ -23,12 +23,17 @@ case $torch_version in
 
     # TODO: Need to verify in the stable version
     echo "::group::Run FxImporter e2e integration tests"
-    python -m e2e_testing.main --config=fx_importer -v
+    python3 -m e2e_testing.main --config=fx_importer -v
     echo "::endgroup::"
 
     # TODO: Need to verify in the stable version
+    # TODO: Enable for nightly once the Stabelhlo integration is done
     echo "::group::Run FxImporter2Stablehlo e2e integration tests"
-    python -m e2e_testing.main --config=fx_importer_stablehlo -v
+    python3 -m e2e_testing.main --config=fx_importer_stablehlo -v
+    echo "::endgroup::"
+
+    echo "::group::Run FxImporter TOSA e2e integration tests"
+    python3 -m e2e_testing.main --config=fx_importer_tosa -v
     echo "::endgroup::"
     ;;
   stable)

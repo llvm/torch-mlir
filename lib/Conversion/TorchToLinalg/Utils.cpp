@@ -116,6 +116,22 @@ Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
   else
     division = b.createOrFold<arith::FloorDivSIOp>(loc, dividend, strideInt);
   Value out = b.createOrFold<arith::AddIOp>(loc, division, c1);
+
+  if (ceilMode) {
+    Value outMinusOneTimesStride =
+        b.createOrFold<arith::MulIOp>(loc, division, strideInt);
+    Value inAddLeftPadding = b.createOrFold<arith::AddIOp>(
+        loc, castIndexToInt64(b, loc, in), paddingInt);
+
+    auto reduceOutputDimCond =
+        b.createOrFold<arith::CmpIOp>(loc, arith::CmpIPredicate::uge,
+                                      outMinusOneTimesStride, inAddLeftPadding);
+
+    auto reducedDim = b.createOrFold<arith::SelectOp>(loc, reduceOutputDimCond,
+                                                      division, out);
+    return castIntToIndex(b, loc, reducedDim);
+  }
+
   return castIntToIndex(b, loc, out);
 }
 
@@ -239,26 +255,47 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
   // all sizes along that result dimension are statically 1.
   auto c1 = b.create<arith::ConstantIndexOp>(loc, /*value=*/1);
   SmallVector<Value> resultShape(resultRank, c1);
+
+  // Record whether or not all corresponding input dims are statically 1.
+  // We don't want to use a constant 0 expression for the input indexing maps in
+  // this case, since there is no broadcasting. Using the constant 0 expressions
+  // for the inputs, when they actually do correspond to an output dim, makes
+  // subsequent optimizations (e.g. fusions) more difficult.
+  DenseSet<int64_t> nonStaticOneResultDims;
+  for (int64_t i = 0; i < resultRank; i++) {
+    for (Value tensorOperand : tensorOperands) {
+      auto type = cast<RankedTensorType>(tensorOperand.getType());
+      auto index = i - (resultRank - type.getRank());
+      if (index < 0)
+        continue;
+      int64_t dimSize = makeShapeTorchCompatible(type.getShape())[index];
+      if (dimSize != 1) {
+        nonStaticOneResultDims.insert(i);
+        break;
+      }
+    }
+  }
+
   SmallVector<AffineMap> indexingMaps;
   bool elideDynamicBroadcastCheck = isAssumingStrictSymbolicShapes(b);
+
   for (Value tensorOperand : tensorOperands) {
     SmallVector<AffineExpr> exprs;
     auto type = cast<RankedTensorType>(tensorOperand.getType());
     for (auto size :
          llvm::enumerate(makeShapeTorchCompatible(type.getShape()))) {
-      // If the size is statically known to be 1, we don't want any
-      // error guards to be spuriously emitted, since we are specifically
-      // allowing size-1 broadcasts in this case, as they correspond to a
-      // constant-0 indexing map.
-      if (size.value() == 1) {
-        exprs.push_back(b.getAffineConstantExpr(0));
-        continue;
-      }
 
       // The rank of this operand might be smaller than the overall rank of
       // the broadcast. Add an offset to correlate it to the correct
       // dimension of the result.
-      auto resultDim = size.index() + (resultRank - type.getRank());
+      int64_t resultDim = size.index() + (resultRank - type.getRank());
+
+      // If the size is statically 1 and we don't know that the result dim is
+      // statically 1, use an affine constant expression to broadcast.
+      if (size.value() == 1 && nonStaticOneResultDims.contains(resultDim)) {
+        exprs.push_back(b.getAffineConstantExpr(0));
+        continue;
+      }
 
       // The generated linalg op will now be iterating along the full size
       // of this dimension. Record that fact.
@@ -441,13 +478,37 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
       return success();
     }
 
+    // Flatten size-1 broadcast dims to simplify the final generic op.
+    // If all dims are size-1 broadcast dims, then this will collapse to a
+    // rank-0 tensor.
+    SmallVector<ReassociationIndices> collapseExprs;
+    for (int64_t i = 0, e = inputRank; i < e; ++i) {
+      if (!broadcastedStatus[i]) {
+        collapseExprs.push_back({});
+      }
+    }
+
+    int64_t previous = -1;
+    bool collapse = false;
     SmallVector<AffineExpr> inputExprs;
     for (int64_t i = 0, e = inputRank; i < e; ++i) {
-      if (broadcastedStatus[i]) {
-        inputExprs.push_back(rewriter.getAffineConstantExpr(0));
+      if (!broadcastedStatus[i]) {
+        previous++;
+        collapseExprs[previous].push_back(i);
+        inputExprs.push_back(rewriter.getAffineDimExpr(i + diff));
         continue;
       }
-      inputExprs.push_back(rewriter.getAffineDimExpr(i + diff));
+
+      int64_t clamped = previous < 0 ? 0 : previous;
+      if (!collapseExprs.empty()) {
+        collapseExprs[clamped].push_back(i);
+      }
+      collapse = true;
+    }
+
+    if (collapse) {
+      input = rewriter.create<tensor::CollapseShapeOp>(op->getLoc(), input,
+                                                       collapseExprs);
     }
 
     SmallVector<AffineMap> indexingMaps = {

@@ -261,10 +261,10 @@ public:
     // TODO: Debug visitation order to make this more efficient.
     // A single linear scan should suffice.
     GreedyRewriteConfig config;
-    config.useTopDownTraversal = true;
-    config.maxIterations = GreedyRewriteConfig::kNoLimit;
-    if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
-                                            config))) {
+    config.setUseTopDownTraversal(true);
+    config.setMaxIterations(GreedyRewriteConfig::kNoLimit);
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns),
+                                     config))) {
       return signalPassFailure();
     }
   }

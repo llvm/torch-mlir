@@ -13,11 +13,11 @@ import torch.export
 import torch.nn as nn
 from torch.export import ExportedProgram
 
-from torch_mlir.extras.fx_importer import FxImporter, FxImporterHooks
-from torch_mlir import ir
-from torch_mlir.dialects import torch as torch_d
-from torch_mlir.extras.fx_decomp_util import get_decomposition_table
-from torch_mlir.compiler_utils import (
+from .extras.fx_importer import FxImporter, FxImporterHooks
+from . import ir
+from .dialects import torch as torch_d
+from .extras.fx_decomp_util import get_decomposition_table
+from .compiler_utils import (
     OutputType,
     run_pipeline_with_repro_report,
     lower_mlir_module,
@@ -26,24 +26,43 @@ from torch_mlir.compiler_utils import (
 
 def _module_lowering(
     verbose,
+    enable_ir_printing,
     output_type,
     torch_mod,
     extra_library_file_name=None,
+    backend_legal_ops=None,
 ):
+    if verbose:
+        print("\n====================")
+        print("TorchFX IR")
+        print(torch_mod)
 
     if output_type == OutputType.RAW:
-        if verbose:
-            print(torch_mod)
         return torch_mod
     # TODO: pass extra_library_file_name by caller
+
+    backend_legal_op_arg_str = ""
+    if backend_legal_ops is not None:
+        if not len(backend_legal_ops) == 0:
+            backend_legal_op_arg_str = "backend-legal-ops=" + ",".join(
+                backend_legal_ops
+            )
+
     if extra_library_file_name is None:
         extra_library_file_name = ""
-    option_string = "{extra-library=" + extra_library_file_name + "}"
+    option_string = (
+        "{"
+        + backend_legal_op_arg_str
+        + " extra-library="
+        + extra_library_file_name
+        + "}"
+    )
+
     run_pipeline_with_repro_report(
         torch_mod,
         f"builtin.module(func.func(torch-match-quantized-custom-ops), torchdynamo-export-to-torch-backend-pipeline{option_string})",
         "Lowering TorchFX IR -> Torch Backend IR",
-        enable_ir_printing=verbose,
+        enable_ir_printing=enable_ir_printing,
     )
     return lower_mlir_module(verbose, output_type, torch_mod)
 
@@ -54,13 +73,16 @@ def export_and_import(
     output_type: Union[str, OutputType] = OutputType.RAW,
     fx_importer: Optional[FxImporter] = None,
     dynamic_shapes: Optional[Union[Dict[str, Any], Tuple[Any]]] = None,
+    strict: bool = False,
     experimental_support_mutation: bool = False,
     import_symbolic_shape_expressions: bool = False,
     hooks: Optional[FxImporterHooks] = None,
     decomposition_table: Optional[Dict[torch._ops.OperatorBase, Callable]] = None,
     func_name: str = "main",
     enable_graph_printing: bool = False,
+    verbose: bool = False,
     enable_ir_printing: bool = False,
+    backend_legal_ops: Optional[list[str]] = None,
     **kwargs,
 ):
     context = ir.Context()
@@ -73,7 +95,9 @@ def export_and_import(
     else:
         # pytorch 2.1 or lower doesn't have `dyanmic_shapes` keyword argument in torch.export
         if version.Version(torch.__version__) >= version.Version("2.2.0"):
-            prog = torch.export.export(f, args, kwargs, dynamic_shapes=dynamic_shapes)
+            prog = torch.export.export(
+                f, args, kwargs, dynamic_shapes=dynamic_shapes, strict=strict
+            )
         else:
             prog = torch.export.export(f, args, kwargs)
     if decomposition_table is None:
@@ -98,7 +122,11 @@ def export_and_import(
         )
 
     return _module_lowering(
-        enable_ir_printing, OutputType.get(output_type), fx_importer.module
+        verbose,
+        enable_ir_printing,
+        OutputType.get(output_type),
+        fx_importer.module,
+        backend_legal_ops=backend_legal_ops,
     )
 
 
@@ -109,7 +137,9 @@ def stateless_fx_import(
     hooks: Optional[FxImporterHooks] = None,
     model_name: str = "main",
     enable_graph_printing: bool = False,
+    verbose: bool = False,
     enable_ir_printing: bool = False,
+    backend_legal_ops: Optional[list[str]] = None,
 ):
     if enable_graph_printing:
         gm.print_readable()
@@ -119,5 +149,9 @@ def stateless_fx_import(
         fx_importer = FxImporter(context=context, hooks=hooks)
     fx_importer.import_stateless_graph(gm.graph, func_name=model_name)
     return _module_lowering(
-        enable_ir_printing, OutputType.get(output_type), fx_importer.module
+        verbose,
+        enable_ir_printing,
+        OutputType.get(output_type),
+        fx_importer.module,
+        backend_legal_ops=backend_legal_ops,
     )

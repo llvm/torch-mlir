@@ -564,7 +564,9 @@ static LogicalResult rewriteMonomorphizedFuncClone(
       argsToErase.set(type.index());
     }
   }
-  func.eraseArguments(argsToErase);
+  if (failed(func.eraseArguments(argsToErase)))
+    return failure();
+
   return success(!walkResult.wasInterrupted());
 }
 

@@ -37,7 +37,7 @@ jobs:
       - run: git diff --cached --exit-code || git commit -m "Update releases."
 
       - name: GitHub Push
-        uses: ad-m/github-push-action@v0.6.0
+        uses: ad-m/github-push-action@v0.8.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: github-pages
