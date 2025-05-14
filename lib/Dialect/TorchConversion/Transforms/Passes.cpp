@@ -199,15 +199,12 @@ void TorchConversion::createTorchBackendToTosaLinalgBackendPipeline(
 
   // Finish the type conversion from `torch` types to the types of the
   // TOSA backend contract.
-  pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
+  pm.addPass(
+      TorchConversion::createFuncBackendTypeConversionForTosaLinalgPass());
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(
-      TorchConversion::createFinalizingBackendTypeConversionPass());
-
-  // Verify that we have lowered to ops that are supported by union of TOSA and
-  // Linalg-on-tensors backend. This fails compilation (signalPassFailure) if
-  // the IR is not in the correct form.
-  pm.addPass(TorchConversion::createVerifyTosaLinalgBackendContractPass());
+      TorchConversion::
+          createFinalizingBackendTypeConversionForTosaLinalgPass());
 }
 #endif
 

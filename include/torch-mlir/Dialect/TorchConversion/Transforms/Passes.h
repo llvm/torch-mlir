@@ -99,6 +99,12 @@ createVerifyLinalgOnTensorsBackendContractPass();
 std::unique_ptr<OperationPass<ModuleOp>>
 createVerifyTosaLinalgBackendContractPass();
 
+std::unique_ptr<OperationPass<ModuleOp>>
+createFuncBackendTypeConversionForTosaLinalgPass();
+
+std::unique_ptr<InterfacePass<FunctionOpInterface>>
+createFinalizingBackendTypeConversionForTosaLinalgPass();
+
 } // namespace TorchConversion
 
 /// Registers all Torch transformation passes.

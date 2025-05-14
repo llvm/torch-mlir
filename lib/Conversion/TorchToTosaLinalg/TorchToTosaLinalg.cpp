@@ -65,7 +65,8 @@ public:
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
-    TorchConversion::setupBackendTypeConversion(target, typeConverter);
+    TorchConversion::setupBackendTypeConversionForTosaLinalg(target,
+                                                             typeConverter);
 
     RewritePatternSet patterns(context);
 

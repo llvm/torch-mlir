@@ -73,6 +73,26 @@ def VerifyTosaLinalgBackendContract : Pass<"torch-verify-tosa-linalg-backend-con
   let constructor = "mlir::torch::TorchConversion::createVerifyTosaLinalgBackendContractPass()";
 }
 
+def FinalizingBackendTypeConversionForTosaLinalg
+    : InterfacePass<"torch-finalizing-backend-type-conversion-for-tosa-linalg", "mlir::FunctionOpInterface"> {
+  let summary = "Finalizes a partial conversion to builtin tensors for tosa+linalg";
+  let constructor =
+    "mlir::torch::TorchConversion::createFinalizingBackendTypeConversionForTosaLinalgPass()";
+  let description = [{
+    Analogous in scope to the upstream `finalizing-bufferize` pass.
+    See details there.
+  }];
+}
+
+def FuncBackendTypeConversionForTosaLinalg : Pass<"torch-func-backend-type-conversion-for-tosa-linalg", "ModuleOp"> {
+  let summary = "Convert functions to operate on builtin tensors for tosa+linalg backend";
+  let constructor = "mlir::torch::TorchConversion::createFuncBackendTypeConversionForTosaLinalgPass()";
+  let description = [{
+    Partial type conversion pass analogous in scope to the upstream
+    `func-bufferize` pass. See details there.
+  }];
+}
+
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 def VerifyStablehloBackendContract : Pass<"torch-verify-stablehlo-backend-contract", "ModuleOp"> {
   let summary = "Verifies conformity to the stablehlo backend contract";

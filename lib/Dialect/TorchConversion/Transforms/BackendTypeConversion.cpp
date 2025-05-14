@@ -185,6 +185,33 @@ void mlir::torch::TorchConversion::setupBackendTypeConversion(
   setupTorchGeneratorToI64Conversion(target, typeConverter);
 }
 
+void mlir::torch::TorchConversion::setupBackendTypeConversionForTosaLinalg(
+    ConversionTarget &target, TypeConverter &typeConverter) {
+  auto valueTensorTypeConversion =
+      [](Torch::ValueTensorType type) -> std::optional<Type> {
+    auto builtinType = type.toBuiltinTensor();
+    if (!builtinType)
+      return std::nullopt;
+
+    // convert signed integer type to signless, keep unsigned as unsigned
+    if (type.getDtype().isUnsignedInteger()) {
+      return builtinType.clone(type.getDtype());
+    } else if (type.getDtype().isSignedInteger()) {
+      return builtinType.clone(IntegerType::get(
+          builtinType.getContext(), type.getDtype().getIntOrFloatBitWidth(),
+          IntegerType::Signless));
+    }
+
+    return builtinType;
+  };
+  setupValueTensorToBuiltinTensorConversion(target, typeConverter,
+                                            valueTensorTypeConversion);
+  setupTorchBoolToI1Conversion(target, typeConverter);
+  setupTorchIntToI64Conversion(target, typeConverter);
+  setupTorchFloatToF64Conversion(target, typeConverter);
+  setupTorchGeneratorToI64Conversion(target, typeConverter);
+}
+
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 void mlir::torch::TorchConversion::setupBackendTypeConversionForStablehlo(
     ConversionTarget &target, TypeConverter &typeConverter) {

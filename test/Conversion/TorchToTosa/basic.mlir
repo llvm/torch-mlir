@@ -2149,7 +2149,7 @@ func.func @torch.aten.diagonal$basic(%arg0: !torch.vtensor<[3,4,5,6], si32>) -> 
 // CHECK:           %[[VAL_10:.*]] = tosa.greater %[[VAL_5]], %[[VAL_9]] : (tensor<2xi32>, tensor<1xi32>) -> tensor<2xi1>
 // CHECK:           %[[VAL_11:.*]] = tosa.const_shape  {values = dense<1> : tensor<1xindex>} : () -> !tosa.shape<1>
 // CHECK:           %[[VAL_12:.*]] = tosa.reshape %[[VAL_6]], %[[VAL_11]] : (tensor<i32>, !tosa.shape<1>) -> tensor<1xi32>
-// CHECK:           %[[VAL_13:.*]] = tosa.int_div %[[VAL_5]], %[[VAL_12]] : (tensor<2xi32>, tensor<1xi32>) -> tensor<2xi32>
+// CHECK:           %[[VAL_13:.*]] = tosa.intdiv %[[VAL_5]], %[[VAL_12]] : (tensor<2xi32>, tensor<1xi32>) -> tensor<2xi32>
 // CHECK:           %[[VAL_14:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
 // CHECK:           %[[VAL_15:.*]] = tosa.mul %[[VAL_13]], %[[VAL_13]], %[[VAL_14]] : (tensor<2xi32>, tensor<2xi32>, tensor<1xi8>) -> tensor<2xi32>
 // CHECK:           %[[VAL_16:.*]] = tosa.sub %[[VAL_5]], %[[VAL_15]] : (tensor<2xi32>, tensor<2xi32>) -> tensor<2xi32>
@@ -3920,11 +3920,11 @@ func.func @torch.aten.convolution$full_dim_indivisible_by_stride_without_sliced_
 // CHECK:           %[[VAL_11:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<32xf32>}> : () -> tensor<32xf32>
 // CHECK:           %[[VAL_12:.*]] = tosa.transpose %[[VAL_1]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<?x3x225x225xf32>) -> tensor<?x225x225x3xf32>
 // CHECK:           %[[VAL_13:.*]] = tosa.transpose %[[VAL_4]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<32x3x3x3xf32>) -> tensor<32x3x3x3xf32>
-// CHECK:           %[[VAL_14:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_15:.*]] = tosa.const_shape  {values = dense<[-1, 224, 225, 3]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:           %[[VAL_14:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:           %[[VAL_15:.*]] = tosa.const_shape  {values = dense<[-1, 224, 225, 3]> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK:           %[[VAL_16:.*]] = tosa.slice %[[VAL_12]], %[[VAL_14]], %[[VAL_15]] : (tensor<?x225x225x3xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<?x224x225x3xf32>
-// CHECK:           %[[VAL_17:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_18:.*]] = tosa.const_shape  {values = dense<[-1, 224, 224, 3]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:           %[[VAL_17:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:           %[[VAL_18:.*]] = tosa.const_shape  {values = dense<[-1, 224, 224, 3]> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK:           %[[VAL_19:.*]] = tosa.slice %[[VAL_16]], %[[VAL_17]], %[[VAL_18]] : (tensor<?x224x225x3xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<?x224x224x3xf32>
 // CHECK:           %[[VAL_20:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[VAL_21:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>

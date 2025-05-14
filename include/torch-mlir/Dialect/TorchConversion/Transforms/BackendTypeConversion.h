@@ -26,6 +26,9 @@ void getBackendTypeConversionDependentDialects(DialectRegistry &registry);
 void setupBackendTypeConversion(ConversionTarget &target,
                                 TypeConverter &typeConverter);
 
+void setupBackendTypeConversionForTosaLinalg(ConversionTarget &target,
+                                             TypeConverter &typeConverter);
+
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 void setupBackendTypeConversionForStablehlo(ConversionTarget &target,
                                             TypeConverter &typeConverter);
