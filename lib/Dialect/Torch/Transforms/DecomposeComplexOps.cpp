@@ -2121,6 +2121,11 @@ public:
         for (unsigned i = 0; i < inputSize1.size(); i++) {
           int64_t size1 = inputSize1[i];
           int64_t size2 = inputSize2[i];
+          // there are three possible cases -
+          // (1) size1 or size2 is unknown, then result size is unknown;
+          // (2a) size1 == 1, then result size is size2;
+          // (2b) size2 == 1, then result size is size1;
+          // (2) size1 == size2, then the result size is size1.
           if (size1 == kUnknownSize || size2 == kUnknownSize) {
             mulShape.push_back(kUnknownSize);
           } else {
