@@ -2108,6 +2108,8 @@ public:
       input3 = *unsqueezeTensor(rewriter, op, input3, expandDim);
     }
 
+    // Given `result = input1 * input2`, infer the result type from
+    // the types of input1 and input2.
     auto mulType = [&](Value input1, Value input2) -> Type {
       BaseTensorType inputType1 = cast<BaseTensorType>(input1.getType());
       BaseTensorType inputType2 = cast<BaseTensorType>(input2.getType());
@@ -2131,6 +2133,10 @@ public:
     };
 
     // Apply multiplication operation.
+    // Note that the type of `mul1` (input1 * input2), the type of `mul2`
+    // (mul1 * input3), and the type of the original trilinear op are
+    // not garenteed to be the same, hence we need to infer the result
+    // type of the multiply ops.
     BaseTensorType opType = cast<BaseTensorType>(op.getType());
     auto type = opType.hasSizes() ? mulType(input1, input2) : opType;
     auto mul1 = rewriter.create<AtenMulTensorOp>(loc, type, input1, input2);
@@ -8064,7 +8070,10 @@ public:
     if (weightSizes.size() != 3)
       return rewriter.notifyMatchFailure(op, "expected weight to be a rank 3");
 
-    // generate `aten._trilinear` op
+    // generate `aten._trilinear` op. `aten.biliear` can be considered as a
+    // special case of `aten._trilinear`, where the result equals to
+    // aten._trilinear(input1, weight, input2, {n,n+2}, {0,...,n-1}, {n,n+1},
+    // {n+1,n+2}) and `n` equals to (rank of input - 1).
     unsigned n = inputType1.getSizes().size() - 1;
     Type listOfInt =
         rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>());
@@ -8097,15 +8106,14 @@ public:
     if (isa<Torch::NoneType>(bias.getType())) {
       rewriter.replaceOp(op, trilinear);
       return success();
-    } else {
-      BaseTensorType biasType = cast<BaseTensorType>(bias.getType());
-      if (!biasType.hasSizes() || biasType.getSizes().size() != 1)
-        return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
-      // generate `aten.add` op for bias
-      rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, op.getType(), trilinear,
-                                                   bias, constOne);
-      return success();
     }
+    BaseTensorType biasType = cast<BaseTensorType>(bias.getType());
+    if (!biasType.hasSizes() || biasType.getSizes().size() != 1)
+      return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
+    // generate `aten.add` op for bias
+    rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, op.getType(), trilinear,
+                                                 bias, constOne);
+    return success();
   }
 };
 } // namespace
