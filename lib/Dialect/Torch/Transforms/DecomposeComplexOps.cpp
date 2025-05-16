@@ -11805,6 +11805,53 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenRoundDecimalsOp
+    : public OpRewritePattern<AtenRoundDecimalsOp> {
+public:
+  using OpRewritePattern<AtenRoundDecimalsOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRoundDecimalsOp op,
+                                PatternRewriter &rewriter) const override {
+    // AtenRoundDecimalsOp is decomposed, if decimals is non-zero, as follow.
+    // scale = 10 ** decimals
+    // return round(x * scale) / scale
+
+    auto loc = op.getLoc();
+    auto input = op.getSelf();
+    auto inputType = cast<BaseTensorType>(input.getType());
+
+    if (!inputType.hasDtype() || !isa<mlir::FloatType>(inputType.getDtype())) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: non-floating point dtype");
+    }
+
+    int64_t decimals;
+    if (!matchPattern(op->getOperand(1), m_TorchConstantInt(&decimals))) {
+      return rewriter.notifyMatchFailure(
+          op, "non-constant decimal point is not supported.");
+    }
+
+    Value scale;
+    Value newOp;
+    if (decimals) {
+      auto scaleVal = pow(10, decimals);
+      scale = rewriter.create<ConstantFloatOp>(
+          loc, rewriter.getF64FloatAttr(scaleVal));
+      newOp = rewriter.create<AtenMulScalarOp>(loc, op.getType(), input, scale);
+    }
+
+    newOp = rewriter.create<AtenRoundOp>(loc, op.getType(), newOp);
+
+    if (decimals) {
+      newOp = rewriter.create<AtenDivScalarOp>(loc, op.getType(), newOp, scale);
+    }
+
+    rewriter.replaceOp(op, newOp);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -12113,6 +12160,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConstrainRangeForSizeOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_AssertScalarOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
 
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);
