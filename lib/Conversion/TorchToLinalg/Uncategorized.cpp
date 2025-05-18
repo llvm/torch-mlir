@@ -2588,16 +2588,16 @@ public:
     };
 
     auto lambdaBorder = [&](OpBuilder &b, Location loc, Value x,
-                            Value SizeSubOne) -> Value {
+                            Value sizeSubOne) -> Value {
       Value xMaxZero = b.create<arith::MaximumFOp>(loc, x, zeroFloat);
-      return b.create<arith::MinimumFOp>(loc, xMaxZero, SizeSubOne);
+      return b.create<arith::MinimumFOp>(loc, xMaxZero, sizeSubOne);
     };
 
     auto lambdaPadding = [&](OpBuilder &b, Location loc, int64_t paddingMode,
-                             Value x, Value SizeSubOne) -> Value {
+                             Value x, Value sizeSubOne) -> Value {
       // Border
       if (paddingMode == 1) {
-        return lambdaBorder(b, loc, x, SizeSubOne);
+        return lambdaBorder(b, loc, x, sizeSubOne);
       }
 
       return x;
@@ -2609,7 +2609,10 @@ public:
     Value interMode = adaptor.getInterpolationMode();
 
     int64_t paddingModeInt;
-    matchPattern(op.getPaddingMode(), m_TorchConstantInt(&paddingModeInt));
+    if(!matchPattern(op.getPaddingMode(), m_TorchConstantInt(&paddingModeInt))) {
+      return failure();
+    }
+
 
     SmallVector<Value> dynamicSizes{};
     if (resultType.isDynamicDim(0))
