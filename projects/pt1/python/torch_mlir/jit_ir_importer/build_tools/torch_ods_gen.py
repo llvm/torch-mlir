@@ -557,7 +557,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
     emit_with_mutating_variants("aten::tril : (Tensor, int) -> (Tensor)")
     emit_with_mutating_variants(
-        "aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)"
+        "aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)",
+        has_verifier=True,
     )
     emit_with_mutating_variants(
         "aten::index_put.hacked_twin : (Tensor, Tensor[], Tensor, bool) -> (Tensor)"
