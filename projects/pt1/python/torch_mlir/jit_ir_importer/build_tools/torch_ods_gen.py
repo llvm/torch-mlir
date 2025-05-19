@@ -720,6 +720,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::bmm : (Tensor, Tensor) -> (Tensor)")
     emit("aten::cumsum : (Tensor, int, int?) -> (Tensor)")
     emit("aten::cumprod : (Tensor, int, int?) -> (Tensor)")
+    emit("aten::logcumsumexp : (Tensor, int) -> (Tensor)")
+    emit("aten::_logcumsumexp : (Tensor, int) -> (Tensor)")
     emit("aten::floor_divide.Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::logsumexp : (Tensor, int[], bool) -> (Tensor)")
     emit("aten::mean.dim : (Tensor, int[]?, bool, int?) -> (Tensor)")

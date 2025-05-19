@@ -1540,6 +1540,9 @@ def aten〇cumsum〡shape(self: List[int], dim: int, dtype: Optional[int] = None
 def aten〇cumprod〡shape(self: List[int], dim: int, dtype: Optional[int] = None) -> List[int]:
     return self
 
+def aten〇logcumsumexp〡shape(self: List[int], dim: int) -> List[int]:
+    return self
+
 def aten〇rand_like〡shape(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> List[int]:
     return self
 
@@ -3233,6 +3236,10 @@ def aten〇cumsum〡dtype(self_rank_dtype: Tuple[int, int], dim: int, dtype: Opt
         return torch.int64
     return self_dtype
 
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0))
+def aten〇logcumsumexp〡dtype(self_rank_dtype: Tuple[int, int], dim: int) -> int:
+    return self_rank_dtype[1]
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0) +

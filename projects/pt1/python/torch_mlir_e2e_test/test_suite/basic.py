@@ -5141,6 +5141,69 @@ def CumsumWithDtypeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class LogCumsumExpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.logcumsumexp(x, dim=1)
+
+
+@register_test_case(module_factory=lambda: LogCumsumExpModule())
+def LogCumsumExpModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 3))
+
+
+class LogCumsumExpStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([1, 2, 3], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.logcumsumexp(x, dim=1)
+
+
+@register_test_case(module_factory=lambda: LogCumsumExpStaticModule())
+def LogCumsumExpStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 3))
+
+
+class LogCumsumExpStaticNegativeDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([8, 5, 6], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.logcumsumexp(x, dim=-2)
+
+
+@register_test_case(module_factory=lambda: LogCumsumExpStaticNegativeDimModule())
+def LogCumsumExpStaticNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 5, 6))
+
+
+class LogCumsumExpDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([5, 3, 6, 9], torch.float64, True)])
+    def forward(self, x):
+        return torch.ops.aten.logcumsumexp(x, dim=1)
+
+
+@register_test_case(module_factory=lambda: LogCumsumExpDtypeModule())
+def LogCumsumExpDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, 6, 9).to(torch.float64))
+
+
+# ==============================================================================
+
+
 class CumprodModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
