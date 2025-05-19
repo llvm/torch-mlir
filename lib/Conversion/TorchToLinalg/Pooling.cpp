@@ -1079,25 +1079,28 @@ bool ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
     doesAvgPoolDivisorNeedsClamping(bool ceilMode, bool countIncludePad,
                                     SmallVectorImpl<int64_t> &strideInts,
                                     SmallVectorImpl<int64_t> &paddingInts) {
-  // There are two ways to get the divisor clamped: through padding or
-  // ceiling mode. For the case when there is padding, the padding elements
-  // are omitted if count_include_pad == False (divisor is clamped). If
-  // there is no padding (padding == 0) then the count_include_pad value
-  // does not take effect.
-  // The divisor count can be clamped also through the ceil_mode. In this
-  // case, according to the Hout and Wout formula in this page:
-  // https://pytorch.org/docs/stable/generated/torch.nn.AvgPool2d.html#torch.nn.AvgPool2d,
-  // the ceil_mode will round up on the stride division. The round up
-  // will give an extra element that will go out of bounds which PyTorch
-  // adds zero padding in it. It also does not count the implicit zero
-  // padding elements in the divisor, and it is not controlled by the
-  // count_include_pad argument.
-  // But also note that if all strides are 1 there are no fractions to
-  // round up, hence there is no ceiling rounding and the window will
-  // not go out of bounds. For this case the divisor is just the
-  // product of kernel dimensions.
-  // Search for torch.nn.AvgPool2d E2E tests for coverage of these
-  // conditions.
+// Determines whether the average pooling divisor needs to be clamped
+// (i.e., adjusted to exclude padded or out-of-bounds elements).
+//
+// There are two primary cases where clamping is needed:
+// 1. Padding with count_include_pad == false:
+//    - If padding is applied (padding != 0) and count_include_pad is false,
+//      then padding elements are *excluded* from the divisor, effectively
+//      clamping the divisor to the number of valid input elements.
+//
+// 2. Ceil mode with non-unit stride:
+//    - When ceil_mode is enabled, output dimensions are rounded up, potentially
+//      creating pooling windows that extend beyond the input tensor bounds.
+//      PyTorch handles this by implicitly adding zero-padding outside the tensor,
+//      but these extra (implicit) padded elements are *not* included in the divisor.
+//      This behavior is independent of the count_include_pad flag.
+//    - If all strides are 1, ceil_mode will not produce fractional divisions,
+//      so the windows will not extend beyond bounds, and no clamping occurs.
+//
+// Reference: PyTorch AvgPool2d documentation and formula for H_out/W_out:
+// https://pytorch.org/docs/stable/generated/torch.nn.AvgPool2d.html
+//
+// See torch.nn.AvgPool2d E2E tests for comprehensive coverage.
 
   bool hasPadding =
       !llvm::all_of(paddingInts, [](int64_t p) { return p == 0; });
