@@ -6130,10 +6130,12 @@ LogicalResult AtenIndexPutOp::verify() {
 
   SmallVector<Torch::ValueTensorType> indicesTypes;
   for (auto index : indices) {
-    auto indexTy = cast<Torch::ValueTensorType>(index.getType());
-    if (!indexTy.hasSizes())
-      return success();
-    indicesTypes.push_back(indexTy);
+    // Skipping the none value in the indices list.
+    if (auto indexTy = dyn_cast<Torch::ValueTensorType>(index.getType())) {
+      if (!indexTy.hasSizes())
+        return success();
+      indicesTypes.push_back(indexTy);
+    }
   }
 
   auto inputType = cast<BaseTensorType>(getSelf().getType());
