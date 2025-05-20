@@ -5204,6 +5204,39 @@ def LogCumsumExpDtypeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class _LogCumsumExpStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([5, 3, 6, 9], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten._logcumsumexp(x, dim=1)
+
+
+@register_test_case(module_factory=lambda: _LogCumsumExpStaticModule())
+def _LogCumsumExpStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, 6, 9))
+
+
+class _LogCumsumExpStaticNegativeDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([6, 2, 3], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.logcumsumexp(x, dim=-1)
+
+
+@register_test_case(module_factory=lambda: _LogCumsumExpStaticNegativeDimModule())
+def _LogCumsumExpStaticNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(6, 2, 3))
+
+
+# ==============================================================================
+
+
 class CumprodModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
