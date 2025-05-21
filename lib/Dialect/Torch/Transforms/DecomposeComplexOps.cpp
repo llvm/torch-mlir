@@ -1894,6 +1894,59 @@ public:
 };
 } // namespace
 
+// Decompose 'aten.outer' into 'aten.unsqueeze', 'aten.matmul'
+
+namespace {
+class DecomposeAtenOuterOp : public OpRewritePattern<AtenOuterOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenOuterOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Value vec2 = op.getVec2();
+    Type opType = op.getType();
+
+    auto inputType = cast<BaseTensorType>(input.getType());
+    auto vec2Type = cast<BaseTensorType>(vec2.getType());
+
+    // Check if both tensors are 1-dimensional
+    SmallVector<int64_t> inputShape(inputType.getSizes());
+    SmallVector<int64_t> vec2Shape(vec2Type.getSizes());
+
+    if (inputShape.size() == 1 && vec2Shape.size() == 1) {
+
+      Value one = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(1)); // Dimension index
+      SmallVector<int64_t, 2> inputMatrixShape = {inputShape[0], 1};
+      Type inputMatrixType = inputType.getWithSizesAndDtype(
+          inputMatrixShape, inputType.getOptionalDtype());
+
+      Value inputMatrix =
+          rewriter.create<AtenUnsqueezeOp>(loc, inputMatrixType, input, one);
+
+      Value zero = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(0));
+      SmallVector<int64_t, 2> vec2MatrixShape = {1, vec2Shape[0]};
+      Type vec2MatrixType = vec2Type.getWithSizesAndDtype(
+          vec2MatrixShape, vec2Type.getOptionalDtype());
+
+      Value vec2Matrix =
+          rewriter.create<AtenUnsqueezeOp>(loc, vec2MatrixType, vec2, zero);
+
+      rewriter.replaceOpWithNewOp<AtenMatmulOp>(op, opType, inputMatrix,
+                                                vec2Matrix);
+      return success();
+    } else {
+      return failure();
+    }
+
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 // Decompose aten.atleast_2d into: aten.reshape. See
 // https://github.com/pytorch/pytorch/blob/9a8ab778d34bd24c5caceb340837483decc4c311/torch/_refs/__init__.py#L2604
@@ -11603,6 +11656,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeConstantTensorAllocLikeOp<AtenOnesLikeOp, 1>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenOuterOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeConstantTensorAllocLikeOp<AtenZerosLikeOp, 0>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStackOp>(patterns);
