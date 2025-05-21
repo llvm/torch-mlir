@@ -890,12 +890,12 @@ PoolSizeCalculator<NumOfDims>::PoolSizeCalculator(
   const int64_t rank = sumPoolType.getRank();
 
   // Store dimensions in this order:
-  // 0 => width, 1 => height, 2 => depth
+  // 0 => depth, 1 => height, 2 => width
   for (int i = 0; i < NumOfDims; ++i) {
     int64_t inputSpatialDimIndex = toPositiveDim(-(i + 1), selfRank);
-    InputSpatialDimSizes[i] =
+    InputSpatialDimSizes[NumOfDims - i - 1] =
         getDimOp(rewriter, location, self, inputSpatialDimIndex);
-    SumPoolTypeDimIndex[i] = toPositiveDim(-(i + 1), rank);
+    SumPoolTypeDimIndex[NumOfDims - i - 1] = toPositiveDim(-(i + 1), rank);
   }
 }
 
@@ -917,25 +917,19 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     // change, these variables used "height" and "width" (or "h" and "w")
     // in these intermediate variables instead of "Dim".
 
-    // The average pool properties of kernel size, strides, and padding are
-    // stored in the reverse order of the input tensor dimensions. The
-    // following code computes the index of the average pool property that
-    // corresponds to the current spatial dimension.
-    int avgPoolPropIdx = NumOfDims - i - 1;
-
     Value IndexODim =
         b.create<linalg::IndexOp>(location,
                                   /*value=*/SumPoolTypeDimIndex[i]);
     Value ODim = castIndexToInt64(b, location, IndexODim);
     Value DDim = b.createOrFold<arith::ConstantOp>(
-        location, b.getI64IntegerAttr(strideInts[avgPoolPropIdx]));
+        location, b.getI64IntegerAttr(strideInts[i]));
     Value PadDim = b.createOrFold<arith::ConstantOp>(
-        location, b.getI64IntegerAttr(paddingInts[avgPoolPropIdx]));
+        location, b.getI64IntegerAttr(paddingInts[i]));
     Value ODimDDim = b.createOrFold<arith::MulIOp>(location, ODim, DDim);
     Value IDim0 = b.createOrFold<arith::SubIOp>(location, ODimDDim, PadDim);
     Value IDim = castIndexToInt64(b, location, InputSpatialDimSizes[i]);
-    Value IDim0KDim = b.createOrFold<arith::AddIOp>(
-        location, IDim0, kernelDimSizes[avgPoolPropIdx]);
+    Value IDim0KDim =
+        b.createOrFold<arith::AddIOp>(location, IDim0, kernelDimSizes[i]);
     Value IDimPadDim = b.createOrFold<arith::AddIOp>(location, IDim, PadDim);
     Value IDim1 =
         b.createOrFold<arith::MinSIOp>(location, IDim0KDim, IDimPadDim);
@@ -1079,28 +1073,30 @@ bool ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
     doesAvgPoolDivisorNeedsClamping(bool ceilMode, bool countIncludePad,
                                     SmallVectorImpl<int64_t> &strideInts,
                                     SmallVectorImpl<int64_t> &paddingInts) {
-// Determines whether the average pooling divisor needs to be clamped
-// (i.e., adjusted to exclude padded or out-of-bounds elements).
-//
-// There are two primary cases where clamping is needed:
-// 1. Padding with count_include_pad == false:
-//    - If padding is applied (padding != 0) and count_include_pad is false,
-//      then padding elements are *excluded* from the divisor, effectively
-//      clamping the divisor to the number of valid input elements.
-//
-// 2. Ceil mode with non-unit stride:
-//    - When ceil_mode is enabled, output dimensions are rounded up, potentially
-//      creating pooling windows that extend beyond the input tensor bounds.
-//      PyTorch handles this by implicitly adding zero-padding outside the tensor,
-//      but these extra (implicit) padded elements are *not* included in the divisor.
-//      This behavior is independent of the count_include_pad flag.
-//    - If all strides are 1, ceil_mode will not produce fractional divisions,
-//      so the windows will not extend beyond bounds, and no clamping occurs.
-//
-// Reference: PyTorch AvgPool2d documentation and formula for H_out/W_out:
-// https://pytorch.org/docs/stable/generated/torch.nn.AvgPool2d.html
-//
-// See torch.nn.AvgPool2d E2E tests for comprehensive coverage.
+  // Determines whether the average pooling divisor needs to be clamped
+  // (i.e., adjusted to exclude padded or out-of-bounds elements).
+  //
+  // There are two primary cases where clamping is needed:
+  // 1. Padding with count_include_pad == false:
+  //    - If padding is applied (padding != 0) and count_include_pad is false,
+  //      then padding elements are *excluded* from the divisor, effectively
+  //      clamping the divisor to the number of valid input elements.
+  //
+  // 2. Ceil mode with non-unit stride:
+  //    - When ceil_mode is enabled, output dimensions are rounded up,
+  //    potentially
+  //      creating pooling windows that extend beyond the input tensor bounds.
+  //      PyTorch handles this by implicitly adding zero-padding outside the
+  //      tensor, but these extra (implicit) padded elements are *not* included
+  //      in the divisor. This behavior is independent of the count_include_pad
+  //      flag.
+  //    - If all strides are 1, ceil_mode will not produce fractional divisions,
+  //      so the windows will not extend beyond bounds, and no clamping occurs.
+  //
+  // Reference: PyTorch AvgPool2d documentation and formula for H_out/W_out:
+  // https://pytorch.org/docs/stable/generated/torch.nn.AvgPool2d.html
+  //
+  // See torch.nn.AvgPool2d E2E tests for comprehensive coverage.
 
   bool hasPadding =
       !llvm::all_of(paddingInts, [](int64_t p) { return p == 0; });
