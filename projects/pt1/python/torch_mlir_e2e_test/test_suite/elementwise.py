@@ -2900,6 +2900,49 @@ def ElementwiseTruncIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseFixModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.fix(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFixModule())
+def ElementwiseFixModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([torch.nan, torch.inf, -torch.inf, 2, 0.5]))
+
+
+class ElementwiseFixIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3], torch.int64, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.fix(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFixIntModule())
+def ElementwiseFixIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3, low=0, high=500))
+
+
+# ==============================================================================
+
+
 class ElementwiseSignbitModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
