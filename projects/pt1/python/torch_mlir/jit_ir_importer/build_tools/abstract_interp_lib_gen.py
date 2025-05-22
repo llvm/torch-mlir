@@ -1976,6 +1976,10 @@ def aten〇fliplr〡shape(self: List[int]) -> List[int]:
     assert len(self) >= 2
     return self
 
+def aten〇flipud〡shape(self: List[int]) -> List[int]:
+    assert len(self) >= 1
+    return self
+
 def aten〇convolution_backward〡shape(grad_output: List[int], input: List[int], weight: List[int], bias_sizes: Optional[List[int]], stride: List[int], padding: List[int], dilation: List[int], transposed: bool, output_padding: List[int], groups: int, output_mask: List[bool]) -> Tuple[List[int], List[int], List[int]]:
     return upstream_shape_functions.conv_backwards(grad_output, input, weight, bias_sizes)
 
@@ -3291,6 +3295,11 @@ def aten〇flip〡dtype(self_rank_dtype: Tuple[int, int], dims: List[int]) -> in
 
 @check_dtype_function([Invocation(TensorOfShape(2, 3, dtype=torch.float32, device="cpu"))])
 def aten〇fliplr〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function([Invocation(TensorOfShape(2, 3, dtype=torch.float32, device="cpu"))])
+def aten〇flipud〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 

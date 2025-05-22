@@ -1412,6 +1412,45 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenFlipudOp : public OpRewritePattern<AtenFlipudOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFlipudOp op,
+                                PatternRewriter &rewriter) const override {
+    auto inputTy = dyn_cast<ValueTensorType>(op.getSelf().getType());
+    auto maybeSizes = inputTy.getOptionalSizes();
+    if (!maybeSizes) {
+      return rewriter.notifyMatchFailure(
+          op, "Expected input tensor to have known rank.");
+    }
+    auto inShape = maybeSizes.value();
+    auto inRank = inShape.size();
+
+    if (inRank < 1) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Fliplr expects input rank >= 1D.");
+    }
+
+    Location loc = op.getLoc();
+    Value constI = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+
+    SmallVector<Value> dims;
+    dims.push_back(constI);
+
+    Value flipDimList = rewriter.create<Torch::PrimListConstructOp>(
+        loc,
+        rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
+        dims);
+    Value flip = rewriter.create<AtenFlipOp>(loc, op.getType(), op.getSelf(),
+                                             flipDimList);
+    rewriter.replaceOp(op, flip);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenSizeOp : public OpRewritePattern<AtenSizeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -12075,6 +12114,7 @@ public:
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCeluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFliplrOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFlipudOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);

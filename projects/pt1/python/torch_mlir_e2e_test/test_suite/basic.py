@@ -4314,6 +4314,52 @@ def FliplrEvenRankModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class FlipudOddRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.flipud(a)
+
+
+@register_test_case(module_factory=lambda: FlipudOddRankModule())
+def FlipudOddRankModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, 2))
+
+
+# ==============================================================================
+
+
+class FlipudEvenRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.flipud(a)
+
+
+@register_test_case(module_factory=lambda: FlipudEvenRankModule())
+def FlipudEvenRankModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, 2, 4))
+
+
+# ==============================================================================
+
+
 class DetachModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

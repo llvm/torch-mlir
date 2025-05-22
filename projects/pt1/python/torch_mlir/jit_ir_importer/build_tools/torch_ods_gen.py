@@ -622,6 +622,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     )
     emit("aten::flip : (Tensor, int[]) -> (Tensor)")
     emit("aten::fliplr : (Tensor) -> (Tensor)")
+    emit("aten::flipud : (Tensor) -> (Tensor)")
     emit(
         "aten::native_batch_norm : (Tensor, Tensor?, Tensor?, Tensor?, Tensor?, bool, float, float) -> (Tensor, Tensor, Tensor)"
     )
