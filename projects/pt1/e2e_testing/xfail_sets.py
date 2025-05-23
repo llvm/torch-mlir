@@ -2974,6 +2974,10 @@ ONNX_XFAIL_SET = {
     "LinalgNormKeepDimComplexModule_basic",
     "LinalgVectorNormComplexModule_basic",
     "LogSoftmaxBackwardModule_basic",
+    "LogCumsumExpModule_basic",
+    "LogCumsumExpStaticModule_basic",
+    "LogCumsumExpStaticNegativeDimModule_basic",
+    "LogCumsumExpDtypeModule_basic",
     "MaxPool1dCeilModeTrueModule_basic",
     "MaxPool1dModule_basic",
     "MaxPool2dCeilModeTrueModule_basic",
@@ -3331,6 +3335,8 @@ ONNX_XFAIL_SET = {
     # RuntimeError: Given input size: (1x1x1). Calculated output size: (1x0x0). Output size is too small
     "AvgPool2dWithoutPadFullDimIndivisibleByStrideModule_basic",
     "MaxPool2dWithoutPadFullDimIndivisibleByStrideModule_basic",
+    "_LogCumsumExpStaticModule_basic",
+    "_LogCumsumExpStaticNegativeDimModule_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
@@ -3699,6 +3705,10 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "LinalgNormKeepDimComplexModule_basic",
     "LinalgVectorNormComplexModule_basic",
     "LinspaceEmptyModule_basic",
+    "LogCumsumExpModule_basic",
+    "LogCumsumExpStaticModule_basic",
+    "LogCumsumExpStaticNegativeDimModule_basic",
+    "LogCumsumExpDtypeModule_basic",
     "MaskedScatterStaticBasic_basic",
     "MaxPool1dCeilModeTrueModule_basic",
     "MaxPool1dModule_basic",
@@ -3881,6 +3891,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ScaledDotProductAttentionSameDynamicModule_basic",
     "ScaledDotProductAttentionSameModule_basic",
     "ScaledDotProductAttentionGQAModule_basic",
+    "_LogCumsumExpStaticModule_basic",
+    "_LogCumsumExpStaticNegativeDimModule_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {
@@ -4490,6 +4502,10 @@ ONNX_TOSA_XFAIL_SET = {
     "LinalgVectorNormComplexModule_basic",
     "LogSoftmaxBackwardModule_basic",
     "LogSoftmaxIntModule_basic",
+    "logCumsumExpModule_basic",
+    "LogCumsumExpStaticModule_basic",
+    "LogCumsumExpStaticNegativeDimModule_basic",
+    "LogCumsumExpDtypeModule_basic",
     "MaskedFillTensorFloatValueModule_basic",
     "MatmulBroadcastBatchDim_basic",
     "MatmulSingleDynamicBatchDim_basic",
@@ -4944,6 +4960,8 @@ ONNX_TOSA_XFAIL_SET = {
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "_LogSoftmaxModule_basic",
     "_SoftmaxModule_basic",
+    "_LogCumsumExpStaticModule_basic",
+    "_LogCumsumExpStaticNegativeDimModule_basic",
 }
 
 if torch_version_for_comparison() > version.parse("2.5.1"):

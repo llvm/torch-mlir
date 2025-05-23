@@ -2884,6 +2884,68 @@ public:
 };
 } // namespace
 
+// Decompose AtenLogCumsumExpOp into: AtenExpOp,
+// AtenCumsumOp and AtenLogOp
+// logcumsumexp(x)[i][j] = log(sum_{k=0}^{j} exp(x[i][k]))
+
+namespace {
+template <typename OpTy>
+
+class DecomposeAtenLogCumsumExpOp : public OpRewritePattern<OpTy> {
+public:
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+
+    auto inputType = dyn_cast<BaseTensorType>(input.getType());
+    if (!inputType)
+      return rewriter.notifyMatchFailure(op, "Supports only tensor type");
+
+    if (!inputType.hasDtype() || !isa<mlir::FloatType>(inputType.getDtype()))
+      return rewriter.notifyMatchFailure(
+          op, "Currently Support only floating point type");
+
+    int64_t inputRank = inputType.getSizes().size();
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: Only constant dim value is supported");
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank))
+      return rewriter.notifyMatchFailure(op, "invalid dim");
+
+    Type elementType = inputType.getDtype();
+    torch_upstream::ScalarType scalarType;
+    // Currently it supports for float datatype
+    if (elementType.isF16())
+      scalarType = torch_upstream::ScalarType::Half;
+    else if (elementType.isF32())
+      scalarType = torch_upstream::ScalarType::Float;
+    else if (elementType.isF64())
+      scalarType = torch_upstream::ScalarType::Double;
+    else
+      return rewriter.notifyMatchFailure(op, "Unsupported data type");
+
+    int64_t scalarVal = static_cast<int64_t>(scalarType);
+
+    Value dtypeVal = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(scalarVal));
+
+    Value expInput = rewriter.create<AtenExpOp>(loc, op.getType(), input);
+
+    Value cumsum = rewriter.create<AtenCumsumOp>(loc, op.getType(), expInput,
+                                                 op.getDim(), dtypeVal);
+
+    Value result = rewriter.create<AtenLogOp>(loc, op.getType(), cumsum);
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeAtenLogSigmoidOp : public OpRewritePattern<AtenLogSigmoidOp> {
 public:
@@ -11929,6 +11991,10 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSoftmaxIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSigmoidOp>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenLogCumsumExpOp<AtenLogcumsumexpOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenLogCumsumExpOp<Aten_LogcumsumexpOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardshrinkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftshrinkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyLikeOp>(patterns);
