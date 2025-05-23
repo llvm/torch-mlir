@@ -10,6 +10,7 @@ from torch_mlir_e2e_test.framework import TestUtils
 from torch_mlir_e2e_test.registry import register_test_case
 from torch_mlir_e2e_test.annotations import annotate_args, export
 
+
 # ==============================================================================
 
 
@@ -4262,6 +4263,98 @@ class FlipNegativeIndexModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: FlipNegativeIndexModule())
 def FlipNegativeIndexModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
+
+
+# ==============================================================================
+
+
+class FliplrOddRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.fliplr(a)
+
+
+@register_test_case(module_factory=lambda: FliplrOddRankModule())
+def FliplrOddRankModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, 2))
+
+
+# ==============================================================================
+
+
+class FliplrEvenRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.fliplr(a)
+
+
+@register_test_case(module_factory=lambda: FliplrEvenRankModule())
+def FliplrEvenRankModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, 2, 4))
+
+
+# ==============================================================================
+
+
+class FlipudOddRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.flipud(a)
+
+
+@register_test_case(module_factory=lambda: FlipudOddRankModule())
+def FlipudOddRankModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, 2))
+
+
+# ==============================================================================
+
+
+class FlipudEvenRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.flipud(a)
+
+
+@register_test_case(module_factory=lambda: FlipudEvenRankModule())
+def FlipudEvenRankModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, 2, 4))
 
 
 # ==============================================================================
