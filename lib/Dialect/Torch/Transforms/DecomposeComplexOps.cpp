@@ -1428,7 +1428,7 @@ public:
 
     if (inRank < 1) {
       return rewriter.notifyMatchFailure(op,
-                                         "Fliplr expects input rank >= 1D.");
+                                         "Flipud expects input rank >= 1D.");
     }
 
     Location loc = op.getLoc();
