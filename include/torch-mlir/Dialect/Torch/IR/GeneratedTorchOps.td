@@ -8765,6 +8765,30 @@ def Torch_AtenLogsumexpOp : Torch_Op<"aten.logsumexp", [
   }];
 }
 
+def Torch_AtenLogaddexpOp : Torch_Op<"aten.logaddexp", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::logaddexp : (Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$other
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenLogaddexpOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenLogaddexpOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenMeanDimOp : Torch_Op<"aten.mean.dim", [
     AllowsTypeRefinement,
     HasValueSemantics,
