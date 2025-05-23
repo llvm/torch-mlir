@@ -6351,6 +6351,7 @@ def Torch_AtenIndexPutOp : Torch_Op<"aten.index_put", [
       printDefaultTorchOp(printer, *this, 4, 1);
     }
   }];
+  let hasVerifier = 1;
 }
 
 def Torch_AtenIndexPut_Op : Torch_Op<"aten.index_put_", [
