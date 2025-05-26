@@ -8787,8 +8787,7 @@ class DecomposeAtenFixOp : public OpRewritePattern<AtenFixOp> {
   LogicalResult matchAndRewrite(AtenFixOp op,
                                 PatternRewriter &rewriter) const override {
     Value self = op.getSelf();
-    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
-    rewriter.replaceOpWithNewOp<AtenTruncOp>(op, resultTy, self);
+    rewriter.replaceOpWithNewOp<AtenTruncOp>(op, op.getType(), self);
     return success();
   }
 };
