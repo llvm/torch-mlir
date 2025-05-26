@@ -8781,6 +8781,19 @@ class DecomposeAtenTruncOp : public OpRewritePattern<AtenTruncOp> {
 } // namespace
 
 namespace {
+// fix Op is an alias for trunc Op
+class DecomposeAtenFixOp : public OpRewritePattern<AtenFixOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFixOp op,
+                                PatternRewriter &rewriter) const override {
+    Value self = op.getSelf();
+    rewriter.replaceOpWithNewOp<AtenTruncOp>(op, op.getType(), self);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // decompose `signbit(x)` to `view.dtype(x, si32/si64) < 0 `
 class DecomposeAtenSignbitOp : public OpRewritePattern<AtenSignbitOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -12085,6 +12098,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRad2degOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTruncOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFixOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSignbitOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFracOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCopysignTensorOp>(patterns);
