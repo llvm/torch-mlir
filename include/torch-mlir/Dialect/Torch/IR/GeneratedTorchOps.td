@@ -8740,30 +8740,6 @@ def Torch_AtenLogcumsumexpOp : Torch_Op<"aten.logcumsumexp", [
   }];
 }
 
-def Torch_Aten_LogcumsumexpOp : Torch_Op<"aten._logcumsumexp", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::_logcumsumexp : (Tensor, int) -> (Tensor)`";
-  let arguments = (ins
-    AnyTorchTensorType:$self,
-    Torch_IntType:$dim
-  );
-  let results = (outs
-    AnyTorchOptionalTensorType:$result
-  );
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult Aten_LogcumsumexpOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 2, 1);
-    }
-    void Aten_LogcumsumexpOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 2, 1);
-    }
-  }];
-}
-
 def Torch_AtenFloorDivideScalarOp : Torch_Op<"aten.floor_divide.Scalar", [
     AllowsTypeRefinement,
     HasValueSemantics,
