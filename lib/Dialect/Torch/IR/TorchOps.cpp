@@ -5963,6 +5963,22 @@ LogicalResult AtenTriuIndicesOp::verify() {
   return success();
 }
 
+OpFoldResult AtenTriuIndicesOp::fold(FoldAdaptor adaptor) {
+  int64_t row, col;
+  if (matchPattern(getRow(), m_TorchConstantInt(&row)) &&
+      matchPattern(getCol(), m_TorchConstantInt(&col)) && row == 0 &&
+      col == 0) {
+    // Get the result type (should be a tensor type)
+    auto resultTy = dyn_cast<ValueTensorType>(getType());
+    if (!resultTy || !resultTy.hasSizes() || !resultTy.hasDtype())
+      return nullptr;
+    auto shapedTy = resultTy.toBuiltinTensor();
+    // Return an empty tensor (0 elements)
+    return DenseElementsAttr::get(shapedTy, ArrayRef<Attribute>{});
+  }
+  return nullptr;
+}
+
 // AtenTrilIndicesOp
 //===----------------------------------------------------------------------===//
 
@@ -5998,6 +6014,22 @@ LogicalResult AtenTrilIndicesOp::verify() {
         "'triu_indices' implemented only for torch.int32 and torch.int64");
 
   return success();
+}
+
+OpFoldResult AtenTrilIndicesOp::fold(FoldAdaptor adaptor) {
+  int64_t row, col;
+  if (matchPattern(getRow(), m_TorchConstantInt(&row)) &&
+      matchPattern(getCol(), m_TorchConstantInt(&col)) && row == 0 &&
+      col == 0) {
+    // Get the result type (should be a tensor type)
+    auto resultTy = dyn_cast<ValueTensorType>(getType());
+    if (!resultTy || !resultTy.hasSizes() || !resultTy.hasDtype())
+      return nullptr;
+    auto shapedTy = resultTy.toBuiltinTensor();
+    // Return an empty tensor (0 elements)
+    return DenseElementsAttr::get(shapedTy, ArrayRef<Attribute>{});
+  }
+  return nullptr;
 }
 
 // AtenRot90Op
