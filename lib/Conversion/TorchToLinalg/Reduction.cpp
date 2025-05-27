@@ -337,7 +337,7 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
     return b.create<arith::ConstantOp>(loc, b.getBoolAttr(true));
   }
 
-  if (isa<AtenAnyOp>(op)) {
+  if (isa<AtenAnyOp, AtenAnyDimsOp>(op)) {
     return b.create<arith::ConstantOp>(loc, b.getBoolAttr(false));
   }
 
@@ -434,7 +434,7 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     Value result = payloadArgs[1];
     Value self = convertScalarToDtype(b, loc, elem, resultElementType);
     return b.create<arith::AndIOp>(loc, self, result);
-  } else if (isa<AtenAnyOp>(op)) {
+  } else if (isa<AtenAnyOp, AtenAnyDimsOp>(op)) {
     Value elem = payloadArgs[0];
     Value result = payloadArgs[1];
     Value self = convertScalarToDtype(b, loc, elem, resultElementType);
@@ -531,6 +531,9 @@ private:
 
     if (auto allOp = dyn_cast<AtenAllDimOp>(op))
       return computeReductionOpInfoForDimVariantOp(allOp, operands, rewriter);
+
+    if (auto anyOp = dyn_cast<AtenAnyDimsOp>(op))
+      return computeReductionOpInfoForDimVariantOp(anyOp, operands, rewriter);
 
     return rewriter.notifyMatchFailure(op, "not a supported reduce op");
   }
@@ -709,6 +712,7 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   patterns.add<ConvertAtenMinMaxDimOp<AtenMinDimOp>>(typeConverter, context);
   target.addIllegalOp<AtenSumOp>();
   target.addIllegalOp<AtenAnyOp>();
+  target.addIllegalOp<AtenAnyDimsOp>();
   target.addIllegalOp<AtenAllOp>();
   target.addIllegalOp<AtenSumDimIntListOp>();
   target.addIllegalOp<AtenProdOp>();

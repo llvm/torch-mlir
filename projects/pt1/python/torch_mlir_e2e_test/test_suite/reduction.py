@@ -302,6 +302,26 @@ def ReduceAnyDimFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
 
+class ReduceAnyDimsFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.any(a, dim=[0, 1])
+
+
+@register_test_case(module_factory=lambda: ReduceAnyDimsFloatModule())
+def ReduceAnyDimsFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
 # ==============================================================================
 
 

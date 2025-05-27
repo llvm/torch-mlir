@@ -1121,6 +1121,22 @@ OpFoldResult AtenDimOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenAnyDimsOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAnyDimsOp::fold(FoldAdaptor adaptor) {
+  auto resultType = dyn_cast<ValueTensorType>(getResult().getType());
+  auto resultShape = resultType.toBuiltinTensor().getShape();
+  auto inputType = dyn_cast<ValueTensorType>(getOperand(0).getType());
+  auto inputShape = inputType.toBuiltinTensor().getShape();
+  if ((inputType.getDtype() == resultType.getDtype()) &&
+      (inputShape == resultShape)) {
+    return getSelf();
+  }
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
 // AtenLenTOp
 //===----------------------------------------------------------------------===//
 
