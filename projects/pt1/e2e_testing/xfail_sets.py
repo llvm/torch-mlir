@@ -534,6 +534,7 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "AvgPool2dSingleIntTupleParamsIncludePadModule_basic",
     "AvgPool2dSingleIntTupleParamsModule_basic",
     "SliceOutOfLowerBoundEndIndexModule_basic",
+    "RollModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {

@@ -17354,6 +17354,7 @@ def Torch_AtenTriuIndicesOp : Torch_Op<"aten.triu_indices", [
       printDefaultTorchOp(printer, *this, 7, 1);
     }
   }];
+  let hasFolder = 1;
   let hasVerifier = 1;
 }
 
@@ -17384,6 +17385,7 @@ def Torch_AtenTrilIndicesOp : Torch_Op<"aten.tril_indices", [
       printDefaultTorchOp(printer, *this, 7, 1);
     }
   }];
+  let hasFolder = 1;
   let hasVerifier = 1;
 }
 

@@ -1199,11 +1199,13 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::triu_indices : (int, int, int, int?, int?, Device?, bool?) -> (Tensor)",
         has_verifier=True,
+        has_folder=True,
     )
 
     emit(
         "aten::tril_indices : (int, int, int, int?, int?, Device?, bool?) -> (Tensor)",
         has_verifier=True,
+        has_folder=True,
     )
 
     emit("aten::deg2rad : (Tensor) -> (Tensor)")
