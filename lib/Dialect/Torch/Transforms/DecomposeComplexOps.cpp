@@ -2985,12 +2985,7 @@ public:
     Location loc = op.getLoc();
     Value self = op.getSelf();
     Value other = op.getOther();
-
-    auto outTy = dyn_cast<ValueTensorType>(op.getType());
-    if (!outTy || !outTy.hasDtype() || !outTy.hasSizes()) {
-      return rewriter.notifyMatchFailure(op,
-                                         "output should have dtype and size");
-    }
+    auto outTy = op.getType();
 
     Value constantOne =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
@@ -2998,9 +2993,7 @@ public:
     Value expOther = rewriter.create<AtenExpOp>(loc, outTy, other);
     Value addValue = rewriter.create<AtenAddTensorOp>(loc, outTy, expSelf,
                                                       expOther, constantOne);
-    Value logValue = rewriter.create<AtenLogOp>(loc, outTy, addValue);
-
-    rewriter.replaceOp(op, logValue);
+    rewriter.replaceOpWithNewOp<AtenLogOp>(op, outTy, addValue);
     return success();
   }
 };
@@ -3015,12 +3008,7 @@ public:
     Location loc = op.getLoc();
     Value self = op.getSelf();
     Value other = op.getOther();
-
-    auto outTy = dyn_cast<ValueTensorType>(op.getType());
-    if (!outTy || !outTy.hasDtype() || !outTy.hasSizes()) {
-      return rewriter.notifyMatchFailure(op,
-                                         "output should have dtype and size");
-    }
+    auto outTy = op.getType();
 
     Value constantOne =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
@@ -3028,9 +3016,7 @@ public:
     Value expOther = rewriter.create<AtenExp2Op>(loc, outTy, other);
     Value addValue = rewriter.create<AtenAddTensorOp>(loc, outTy, expSelf,
                                                       expOther, constantOne);
-    Value logValue = rewriter.create<AtenLog2Op>(loc, outTy, addValue);
-
-    rewriter.replaceOp(op, logValue);
+    rewriter.replaceOpWithNewOp<AtenLog2Op>(op, outTy, addValue);
     return success();
   }
 };
