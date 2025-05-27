@@ -352,6 +352,9 @@ def aten〇relu6〡shape(self: List[int]) -> List[int]:
 def aten〇round〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇round〇decimals〡shape(self: List[int], decimals: int) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇glu〡shape(self: List[int], dim: int = -1) -> List[int]:
     if dim < 0:
         dim += len(self)
@@ -3671,6 +3674,11 @@ def aten〇roll〡dtype(self_rank_dtype: Tuple[int, int], shifts: List[int], dim
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇round〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, decimals=0))
+def aten〇round〇decimals〡dtype(self_rank_dtype: Tuple[int, int], decimals: int) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
