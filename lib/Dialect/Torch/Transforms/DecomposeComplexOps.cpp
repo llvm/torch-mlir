@@ -10482,9 +10482,9 @@ class DecomposeAtenKlDivOp : public OpRewritePattern<AtenKlDivOp> {
     Value reductionValue = op.getReduction();
     Value logTargetValue = op.getLogTarget();
 
-    auto selfTy = dyn_cast<ValueTensorType>(self.getType());
-    auto targetTy = dyn_cast<ValueTensorType>(target.getType());
-    auto outTy = dyn_cast<ValueTensorType>(op.getType());
+    auto selfTy = cast<ValueTensorType>(self.getType());
+    auto targetTy = cast<ValueTensorType>(target.getType());
+    auto outTy = cast<ValueTensorType>(op.getType());
 
     if (!selfTy.hasSizes() || !targetTy.hasSizes() || !outTy.hasSizes()) {
       return rewriter.notifyMatchFailure(
@@ -10502,8 +10502,8 @@ class DecomposeAtenKlDivOp : public OpRewritePattern<AtenKlDivOp> {
       return rewriter.notifyMatchFailure(
           op, "Expected a constant boolean value for logTargetBool");
 
-    Value logOfTarget;
     // Default: target tensor is not in log space
+    Value logOfTarget;
     if (!logTargetBool) {
       logOfTarget = rewriter.create<AtenLogOp>(loc, targetTy, target);
     } else {
@@ -10515,7 +10515,7 @@ class DecomposeAtenKlDivOp : public OpRewritePattern<AtenKlDivOp> {
     Value subValue = rewriter.create<AtenSubTensorOp>(loc, selfTy, logOfTarget,
                                                       self, constOne);
 
-    // target tensor is already in log space
+    // if target tensor is already in log space
     if (logTargetBool) {
       target = rewriter.create<AtenExpOp>(loc, targetTy, target);
     }
@@ -10528,6 +10528,7 @@ class DecomposeAtenKlDivOp : public OpRewritePattern<AtenKlDivOp> {
       return rewriter.notifyMatchFailure(op,
                                          "reduction should be a constant int!");
     }
+
     Value loss;
     Value none = rewriter.create<ConstantNoneOp>(loc);
     // reduction: mean
