@@ -1258,6 +1258,10 @@ def aten〇avg_pool1d〡shape(self: List[int], kernel_size: List[int], stride: L
 def aten〇max_pool1d〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), dilation: List[int] = (1,), ceil_mode: bool = False) -> List[int]:
     return pool1d(self, kernel_size, stride, padding, ceil_mode)
 
+def aten〇max_pool1d_with_indices〡shape(self: List[int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), dilation: List[int] = (1,), ceil_mode: bool = False) -> Tuple[List[int], List[int]]:
+    maxpool1d = indices = pool1d(self, kernel_size, stride, padding, ceil_mode)
+    return maxpool1d, indices
+
 def aten〇adaptive_avg_pool1d〡shape(self: List[int], output_size: List[int]) -> List[int]:
     return adaptive_avg_pool1d(self, output_size)
 
@@ -3529,6 +3533,10 @@ def aten〇masked_select〡dtype(self_rank_dtype: Tuple[int, int], mask_rank_dty
 def aten〇max_pool1d〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), dilation: List[int] = (1,), ceil_mode: bool = False) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+def aten〇max_pool1d_with_indices〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), dilation: List[int] = (1,), ceil_mode: bool = False) -> Tuple[int, int]:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype, torch.int64
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 5, 7)], kernel_size=[2, 2]))
 def aten〇max_pool2d〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0, 0,), dilation: List[int] = (1, 1,), ceil_mode: bool = False) -> int:
