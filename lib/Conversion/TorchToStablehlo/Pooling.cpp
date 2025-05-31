@@ -132,6 +132,29 @@ LogicalResult ConvertAtenOp<AtenMaxPool1dWithIndicesOp>::matchAndRewrite(
   stablehloPadding[stablehloPadding.size() - 1] = padding[0];
   stablehloPadding[stablehloPadding.size() - 2] = padding[0];
 
+  if (ceilMode) {
+    // Match PyTorch output shape with extra padding. See
+    // https://github.com/pytorch/pytorch/blob/c5de6ff079e3e5b453d6ff5190c90f02db458928/aten/src/ATen/native/Pool.h#L79
+    const int64_t inputSize = inputShape[inputRank - 1];
+    const int64_t numerator =
+        (inputSize + 2 * padding[0] - dilation[0] * (kernelSize[0] - 1) - 1);
+    const int64_t floor_output_size = (numerator) / stride[0] + 1;
+    const int64_t adj = (stride[0] - 1);
+    int64_t ceil_output_size = std::ceil((numerator + adj) / stride[0]) + 1;
+
+    // Ensure last pooling starts inside input
+    if ((ceil_output_size - 1) * stride[0] >= inputSize + padding[0]) {
+      ceil_output_size--;
+    }
+
+    // Add extra padding to make output size same as torch
+    if (ceil_output_size > floor_output_size) {
+      const int64_t sizeDiff = ceil_output_size - floor_output_size;
+      const int64_t extraPadding = sizeDiff * stride[0];
+      stablehloPadding[stablehloPadding.size() - 1] += extraPadding;
+    }
+  }
+
   Value initVal = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
 
   auto windowDimensions = rewriter.getDenseI64ArrayAttr(stablehloKernelSize);
