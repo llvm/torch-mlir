@@ -685,6 +685,26 @@ def ReplicationPad2dModule_left0(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ReplicationPad1dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.replication_pad1d(x, [3, 5])
+
+
+@register_test_case(module_factory=lambda: ReplicationPad1dModule())
+def ReplicationPad1dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 15, 20, low=-1))
+
+
 class ReplicationPad2dModule_right0_module(torch.nn.Module):
     def __init__(self):
         super().__init__()
