@@ -298,6 +298,44 @@ def ElementwiseLtFloatScalarModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseHeavisideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([5], torch.float32, True), ([1], torch.float32, True)])
+    def forward(self, x, values):
+        return torch.heaviside(x, values)
+
+
+@register_test_case(module_factory=lambda: ElementwiseHeavisideModule())
+def ElementwiseHeavisideModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([1.0, -2.0, torch.inf, torch.nan, -torch.inf]), torch.tensor([5.0])
+    )
+
+
+class ElementwiseHeavisideIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.int32, True), ([-1], torch.int32, True)])
+    def forward(self, x, values):
+        return torch.heaviside(x, values)
+
+
+@register_test_case(module_factory=lambda: ElementwiseHeavisideIntModule())
+def ElementwiseHeavisideIntModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(5, 1, low=-100, high=1000).to(torch.int32),
+        tu.randint(1, low=-100, high=1000).to(torch.int32),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseLtIntScalarModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
