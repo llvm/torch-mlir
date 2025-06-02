@@ -961,8 +961,6 @@ public:
     values =
         rewriter.create<AtenViewOp>(loc, valuesType, values, valuesDimsList);
 
-    // `TMTensor::ScatterOp` expects indices of element type i32.
-
     input = typeConverter->materializeTargetConversion(
         rewriter, loc, typeConverter->convertType(input.getType()), input);
     values = typeConverter->materializeTargetConversion(
