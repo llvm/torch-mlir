@@ -11151,6 +11151,76 @@ public:
 } // namespace
 
 namespace {
+// Decomposes  aten.heaviside op into
+// using aten.eq, aten.lt, aten.logical_or, aten.where
+// Heaviside(x, y) returns:
+//  0 if x < 0
+//  y if x == 0
+//  1 if x > 0
+class DecomposeAtenHeaviside : public OpRewritePattern<AtenHeavisideOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenHeavisideOp op,
+                                PatternRewriter &rewriter) const override {
+    auto input = op.getSelf();
+    auto value = op.getValues();
+    auto loc = op.getLoc();
+    auto inputTy = dyn_cast<BaseTensorType>(input.getType());
+    if (!inputTy || !inputTy.hasDtype() || !inputTy.hasSizes())
+      return rewriter.notifyMatchFailure(op, "input must have dtype and size.");
+
+    auto valueTy = dyn_cast<BaseTensorType>(value.getType());
+    if (!valueTy || !valueTy.hasDtype() || !valueTy.hasSizes())
+      return rewriter.notifyMatchFailure(op, "value must have dtype and size.");
+    auto resultTy = dyn_cast<BaseTensorType>(op.getType());
+    SmallVector<int64_t> broadcastShape;
+    SmallVector<Value> broadcastShapeValue;
+    computeBroadcastShape(rewriter, loc, input, value, broadcastShape,
+                          broadcastShapeValue);
+
+    auto broadcastType = ValueTensorType::get(
+        op.getContext(), llvm::ArrayRef(broadcastShape), resultTy.getDtype());
+    auto boolBroadcastType = ValueTensorType::get(
+        op.getContext(), llvm::ArrayRef(broadcastShape), rewriter.getI1Type());
+    Value indexBroadcastShapeTorchList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        broadcastShapeValue);
+    auto inputBroadcasted = rewriter.create<AtenBroadcastToOp>(
+        loc, broadcastType, input, indexBroadcastShapeTorchList);
+    auto valueBroadcasted = rewriter.create<AtenBroadcastToOp>(
+        loc, broadcastType, value, indexBroadcastShapeTorchList);
+
+    Value zero = getConstantWithGivenDtypeAndValue(rewriter, loc, 0,
+                                                   resultTy.getDtype());
+    Value one = getConstantWithGivenDtypeAndValue(rewriter, loc, 1,
+                                                  resultTy.getDtype());
+    // Compute mask: input == 0
+    auto inputEqZero = rewriter
+                           .create<AtenEqScalarOp>(loc, boolBroadcastType,
+                                                   inputBroadcasted, zero)
+                           ->getResult(0);
+    // Compute mask: input < 0
+    auto inputLtZero = rewriter.create<AtenLtScalarOp>(loc, boolBroadcastType,
+                                                       inputBroadcasted, zero);
+    // Compute mask: isnan(input)
+    auto isNan =
+        rewriter.create<AtenIsnanOp>(loc, boolBroadcastType, inputBroadcasted);
+    // Combine: input < 0 || isnan(input)
+    auto inputNegativeOrNan = rewriter.create<AtenLogicalOrOp>(
+        loc, boolBroadcastType, inputLtZero, isNan);
+    // Select 0 if input < 0 or input is nan, else 1
+    auto zerosOrOnes = rewriter.create<AtenWhereScalarOp>(
+        loc, resultTy, inputNegativeOrNan, zero, one);
+    // Final result: if input == 0, take from valueBroadcasted, else take from
+    // zerosOrOnes
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resultTy, inputEqZero,
+                                                 valueBroadcasted, zerosOrOnes);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Unconditionally decompose `torch.type_as` into `prim.dtype` +
 // `torch.to.dtype`.
 class DecomposeAtenTypeAsOp : public OpRewritePattern<AtenTypeAsOp> {
@@ -12374,6 +12444,7 @@ public:
         DecomposeConstantTensorNewLikeOp<AtenNewOnesOp, AtenOnesOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardtanhOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFullOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenHeaviside>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinearOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFullLikeOp>(patterns);
