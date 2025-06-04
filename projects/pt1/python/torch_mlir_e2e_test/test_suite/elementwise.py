@@ -6570,6 +6570,26 @@ def AtenRoundIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(5, 5, low=-10))
 
 
+class AtenRoundFloatDecimalsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.round(x, decimals=2)
+
+
+@register_test_case(module_factory=lambda: AtenRoundFloatDecimalsModule())
+def AtenRoundFloatDecimalsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 5, low=-3.0, high=3.0))
+
+
 # ==============================================================================
 
 
