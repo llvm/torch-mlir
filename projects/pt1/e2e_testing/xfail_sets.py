@@ -824,6 +824,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "RandnLikeDtypeModule_basic",
     "RandnLikeModule_basic",
     "RandnModule_basic",
+    "ReduceAnyDimsFloatModule_basic",
     "ReflectionPad1dModule2dInput_Right",
     "ReflectionPad1dModule2dInput_basic",
     "ReflectionPad1dModule3dInput_Left",
@@ -2691,6 +2692,7 @@ ONNX_XFAIL_SET = {
     "PermuteNegativeIndexModule_basic",
     # Failure - incorrect numerics
     "ReduceAnyDimFloatModule_basic",
+    "ReduceAnyDimsFloatModule_basic",
     "AvgPool2dDivisorOverrideModule_basic",
     "BroadcastDynamicDimModule_basic",
     "ElementwiseAtan2TensorIntModule_basic",
@@ -3793,6 +3795,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "RandnLikeModule_basic",
     "RandnModule_basic",
     "ReduceAllDimEmpty_basic",
+    "ReduceAnyDimsFloatModule_basic",
     "ReduceFrobeniusNormComplexModule_basic",
     "ReduceL1NormComplexModule_basic",
     "ReduceL2NormComplexModule_basic",
