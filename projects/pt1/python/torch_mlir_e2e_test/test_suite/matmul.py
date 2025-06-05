@@ -941,7 +941,7 @@ class AtenOuter(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: AtenOuter())
 def AtenOuter_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3), tu.rand(3))
+    module.forward(tu.rand(3), tu.rand(2))
 
 
 # ==============================================================================
