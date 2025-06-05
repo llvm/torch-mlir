@@ -1911,37 +1911,41 @@ public:
     auto inputType = cast<BaseTensorType>(input.getType());
     auto vec2Type = cast<BaseTensorType>(vec2.getType());
 
+    // Check if tensors not empty
+    if (!inputType.hasSizes() || !vec2Type.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "Inputs must be ranked tensors for aten.outer");
+    }
+
     // Check if both tensors are 1-dimensional
     SmallVector<int64_t> inputShape(inputType.getSizes());
     SmallVector<int64_t> vec2Shape(vec2Type.getSizes());
 
-    if (inputShape.size() == 1 && vec2Shape.size() == 1) {
-
-      Value one = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(1)); // Dimension index
-      SmallVector<int64_t, 2> inputMatrixShape = {inputShape[0], 1};
-      Type inputMatrixType = inputType.getWithSizesAndDtype(
-          inputMatrixShape, inputType.getOptionalDtype());
-
-      Value inputMatrix =
-          rewriter.create<AtenUnsqueezeOp>(loc, inputMatrixType, input, one);
-
-      Value zero = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(0));
-      SmallVector<int64_t, 2> vec2MatrixShape = {1, vec2Shape[0]};
-      Type vec2MatrixType = vec2Type.getWithSizesAndDtype(
-          vec2MatrixShape, vec2Type.getOptionalDtype());
-
-      Value vec2Matrix =
-          rewriter.create<AtenUnsqueezeOp>(loc, vec2MatrixType, vec2, zero);
-
-      rewriter.replaceOpWithNewOp<AtenMatmulOp>(op, opType, inputMatrix,
-                                                vec2Matrix);
-      return success();
-    } else {
-      return failure();
+    if (inputShape.size() != 1 || vec2Shape.size() != 1) {
+      return rewriter.notifyMatchFailure(
+          op, "Inputs must be 1-dimensional vectors for aten.outer");
     }
 
+    Value one = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1)); // Dimension index
+    SmallVector<int64_t, 2> inputMatrixShape = {inputShape[0], 1};
+    Type inputMatrixType = inputType.getWithSizesAndDtype(
+        inputMatrixShape, inputType.getOptionalDtype());
+
+    Value inputMatrix =
+        rewriter.create<AtenUnsqueezeOp>(loc, inputMatrixType, input, one);
+
+    Value zero = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    SmallVector<int64_t, 2> vec2MatrixShape = {1, vec2Shape[0]};
+    Type vec2MatrixType = vec2Type.getWithSizesAndDtype(
+        vec2MatrixShape, vec2Type.getOptionalDtype());
+
+    Value vec2Matrix =
+        rewriter.create<AtenUnsqueezeOp>(loc, vec2MatrixType, vec2, zero);
+
+    rewriter.replaceOpWithNewOp<AtenMatmulOp>(op, opType, inputMatrix,
+                                              vec2Matrix);
     return success();
   }
 };
