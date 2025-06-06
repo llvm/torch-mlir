@@ -824,7 +824,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "RandnLikeDtypeModule_basic",
     "RandnLikeModule_basic",
     "RandnModule_basic",
-    "ReduceAnyDimsFloatModule_basic",
     "ReflectionPad1dModule2dInput_Right",
     "ReflectionPad1dModule2dInput_basic",
     "ReflectionPad1dModule3dInput_Left",
