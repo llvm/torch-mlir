@@ -4219,7 +4219,7 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
 
   auto index = adaptor.getIndex();
   auto indexType = dyn_cast<RankedTensorType>(index.getType());
-  auto indexShape = indexType.getShape();
+  ArrayRef<int64_t> indexShape = indexType.getShape();
 
   if (!indexType)
     return rewriter.notifyMatchFailure(
@@ -4228,8 +4228,12 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
   auto inputShape = inputType.getShape();
   int inputRank = inputType.getRank();
 
+  // indexShape is reference. storing actual data in SmallVector to avoid
+  // use-after-free
+  SmallVector<int64_t> indexShapeTorchCompatible{};
   if (indexType.getRank() == 0) {
-    indexShape = makeShapeTorchCompatible({1});
+    indexShapeTorchCompatible = makeShapeTorchCompatible({1});
+    indexShape = indexShapeTorchCompatible;
     index = rewriter.create<tosa::ReshapeOp>(
         op->getLoc(),
         RankedTensorType::get(indexShape, indexType.getElementType()), index,
