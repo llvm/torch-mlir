@@ -2976,6 +2976,52 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenLogAddExpOp : public OpRewritePattern<AtenLogaddexpOp> {
+public:
+  using OpRewritePattern<AtenLogaddexpOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLogaddexpOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+    auto outTy = op.getType();
+
+    Value constantOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value expSelf = rewriter.create<AtenExpOp>(loc, outTy, self);
+    Value expOther = rewriter.create<AtenExpOp>(loc, outTy, other);
+    Value addValue = rewriter.create<AtenAddTensorOp>(loc, outTy, expSelf,
+                                                      expOther, constantOne);
+    rewriter.replaceOpWithNewOp<AtenLogOp>(op, outTy, addValue);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenLogAddExp2Op : public OpRewritePattern<AtenLogaddexp2Op> {
+public:
+  using OpRewritePattern<AtenLogaddexp2Op>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLogaddexp2Op op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+    auto outTy = op.getType();
+
+    Value constantOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value expSelf = rewriter.create<AtenExp2Op>(loc, outTy, self);
+    Value expOther = rewriter.create<AtenExp2Op>(loc, outTy, other);
+    Value addValue = rewriter.create<AtenAddTensorOp>(loc, outTy, expSelf,
+                                                      expOther, constantOne);
+    rewriter.replaceOpWithNewOp<AtenLog2Op>(op, outTy, addValue);
+    return success();
+  }
+};
+} // namespace
+
 // SoftShrink(x, lambda) function:
 // Applies a shrinkage function where:
 // - If x > lambda, returns x - lambda
@@ -12068,6 +12114,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSoftmaxIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSigmoidOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLogAddExpOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLogAddExp2Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardshrinkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftshrinkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyLikeOp>(patterns);
