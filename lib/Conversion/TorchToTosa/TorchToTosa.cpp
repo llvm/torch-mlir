@@ -4228,6 +4228,8 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
   auto inputShape = inputType.getShape();
   int inputRank = inputType.getRank();
 
+  // indexShape is reference. storing actual data in SmallVector to avoid
+  // use-after-free
   SmallVector<int64_t> indexShapeTorchCompatible{};
   if (indexType.getRank() == 0) {
     indexShapeTorchCompatible = makeShapeTorchCompatible({1});
