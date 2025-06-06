@@ -225,6 +225,10 @@ template <> struct DimensionTraits<AtenMaxPool1dOp> {
   static_assert(Dim == Dim);
 };
 
+template <>
+struct DimensionTraits<AtenMaxPool1dWithIndicesOp>
+    : DimensionTraits<AtenMaxPool1dOp> {};
+
 template <> struct DimensionTraits<AtenMaxPool2dOp> {
   static constexpr int64_t Dim = 2;
   // unused const variable warning suppression:
@@ -250,7 +254,8 @@ class ConvertAtenMaxPoolOp : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
 
   static const bool withIndices =
-      llvm::is_one_of<OpTy, AtenMaxPool2dWithIndicesOp,
+      llvm::is_one_of<OpTy, AtenMaxPool1dWithIndicesOp,
+                      AtenMaxPool2dWithIndicesOp,
                       AtenMaxPool3dWithIndicesOp>::value;
 
 private:
@@ -1687,8 +1692,11 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dOp>>(typeConverter, context);
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dOp>>(typeConverter, context);
 
+  target.addIllegalOp<AtenMaxPool1dWithIndicesOp>();
   target.addIllegalOp<AtenMaxPool2dWithIndicesOp>();
   target.addIllegalOp<AtenMaxPool3dWithIndicesOp>();
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool1dWithIndicesOp>>(typeConverter,
+                                                                 context);
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dWithIndicesOp>>(typeConverter,
                                                                  context);
   patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dWithIndicesOp>>(typeConverter,
