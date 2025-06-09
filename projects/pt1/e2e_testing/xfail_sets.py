@@ -534,6 +534,7 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "AvgPool2dSingleIntTupleParamsIncludePadModule_basic",
     "AvgPool2dSingleIntTupleParamsModule_basic",
     "SliceOutOfLowerBoundEndIndexModule_basic",
+    "RollModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
@@ -2690,6 +2691,7 @@ ONNX_XFAIL_SET = {
     "PermuteNegativeIndexModule_basic",
     # Failure - incorrect numerics
     "ReduceAnyDimFloatModule_basic",
+    "ReduceAnyDimsFloatModule_basic",
     "AvgPool2dDivisorOverrideModule_basic",
     "BroadcastDynamicDimModule_basic",
     "ElementwiseAtan2TensorIntModule_basic",
@@ -2921,6 +2923,8 @@ ONNX_XFAIL_SET = {
     "ElementwiseEluNonDefaultModule_basic",
     "ElementwiseExpm1IntModule_basic",
     "ElementwiseExpm1Module_basic",
+    "ElementwiseLogAddExpModule_basic",
+    "ElementwiseLogAddExp2Module_basic",
     "ElementwiseSpecialExpm1IntModule_basic",
     "ElementwiseSpecialExpm1Module_basic",
     "ElementwiseFmodTensor_Int_basic",
@@ -3798,6 +3802,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "RandnLikeModule_basic",
     "RandnModule_basic",
     "ReduceAllDimEmpty_basic",
+    "ReduceAnyDimsFloatModule_basic",
     "ReduceFrobeniusNormComplexModule_basic",
     "ReduceL1NormComplexModule_basic",
     "ReduceL2NormComplexModule_basic",
@@ -3934,6 +3939,8 @@ ONNX_TOSA_XFAIL_SET = {
     "L1LossMeanReductionModule_basic",
     "L1LossNoReductionModule_basic",
     "L1LossSumReductionModule_basic",
+    "ElementwiseLogAddExpModule_basic",
+    "ElementwiseLogAddExp2Module_basic",
     "FloatPowerTensorTensorStaticModule_basic",
     "IsInfiniteModule_basic",
     "ElementwiseCopysignModule_basic",

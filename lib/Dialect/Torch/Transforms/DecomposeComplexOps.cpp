@@ -3027,6 +3027,52 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenLogAddExpOp : public OpRewritePattern<AtenLogaddexpOp> {
+public:
+  using OpRewritePattern<AtenLogaddexpOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLogaddexpOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+    auto outTy = op.getType();
+
+    Value constantOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value expSelf = rewriter.create<AtenExpOp>(loc, outTy, self);
+    Value expOther = rewriter.create<AtenExpOp>(loc, outTy, other);
+    Value addValue = rewriter.create<AtenAddTensorOp>(loc, outTy, expSelf,
+                                                      expOther, constantOne);
+    rewriter.replaceOpWithNewOp<AtenLogOp>(op, outTy, addValue);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenLogAddExp2Op : public OpRewritePattern<AtenLogaddexp2Op> {
+public:
+  using OpRewritePattern<AtenLogaddexp2Op>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLogaddexp2Op op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+    auto outTy = op.getType();
+
+    Value constantOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value expSelf = rewriter.create<AtenExp2Op>(loc, outTy, self);
+    Value expOther = rewriter.create<AtenExp2Op>(loc, outTy, other);
+    Value addValue = rewriter.create<AtenAddTensorOp>(loc, outTy, expSelf,
+                                                      expOther, constantOne);
+    rewriter.replaceOpWithNewOp<AtenLog2Op>(op, outTy, addValue);
+    return success();
+  }
+};
+} // namespace
+
 // SoftShrink(x, lambda) function:
 // Applies a shrinkage function where:
 // - If x > lambda, returns x - lambda
@@ -12028,6 +12074,54 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenRoundDecimalsOp
+    : public OpRewritePattern<AtenRoundDecimalsOp> {
+public:
+  using OpRewritePattern<AtenRoundDecimalsOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRoundDecimalsOp op,
+                                PatternRewriter &rewriter) const override {
+    // AtenRoundDecimalsOp is decomposed as follows if the decimals value is
+    // non-zero: scale = 10 ** decimals return round(x * scale) / scale
+    // otherwise:
+    // return round(x)
+
+    auto loc = op.getLoc();
+    auto input = op.getSelf();
+    auto inputType = cast<BaseTensorType>(input.getType());
+
+    if (!inputType.hasDtype() || !isa<mlir::FloatType>(inputType.getDtype())) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: non-floating point dtype");
+    }
+
+    int64_t decimals;
+    if (!matchPattern(op.getDecimals(), m_TorchConstantInt(&decimals))) {
+      return rewriter.notifyMatchFailure(
+          op, "non-constant decimal point is not supported.");
+    }
+
+    Value newOp = op->getOperand(0);
+    Value scale;
+    if (decimals) {
+      auto scaleVal = pow(10, decimals);
+      scale = rewriter.create<ConstantFloatOp>(
+          loc, rewriter.getF64FloatAttr(scaleVal));
+      newOp = rewriter.create<AtenMulScalarOp>(loc, op.getType(), input, scale);
+    }
+
+    newOp = rewriter.create<AtenRoundOp>(loc, op.getType(), newOp);
+
+    if (decimals) {
+      newOp = rewriter.create<AtenDivScalarOp>(loc, op.getType(), newOp, scale);
+    }
+
+    rewriter.replaceOp(op, newOp);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -12072,6 +12166,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSoftmaxIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogCumsumExpOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLogAddExpOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLogAddExp2Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardshrinkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftshrinkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyLikeOp>(patterns);
@@ -12343,6 +12439,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConstrainRangeForSizeOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_AssertScalarOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
 
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);

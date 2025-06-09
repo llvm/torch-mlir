@@ -105,6 +105,7 @@ sudo apt install clang ccache lld
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
           -DLLVM_ENABLE_ASSERTIONS=ON \
           -DPython3_FIND_VIRTUALENV=ONLY \
+          -DPython_FIND_VIRTUALENV=ONLY \
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
           -DLLVM_TARGETS_TO_BUILD=host \
           `# For building LLVM "in-tree"` \
@@ -123,6 +124,7 @@ sudo apt install clang ccache lld
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
           -DLLVM_ENABLE_ASSERTIONS=ON \
           -DPython3_FIND_VIRTUALENV=ONLY \
+          -DPython_FIND_VIRTUALENV=ONLY \
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
           -DLLVM_TARGETS_TO_BUILD=host \
           `# For building LLVM "out-of-tree"` \

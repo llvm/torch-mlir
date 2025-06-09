@@ -352,6 +352,9 @@ def aten〇relu6〡shape(self: List[int]) -> List[int]:
 def aten〇round〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇round〇decimals〡shape(self: List[int], decimals: int) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
 def aten〇glu〡shape(self: List[int], dim: int = -1) -> List[int]:
     if dim < 0:
         dim += len(self)
@@ -774,6 +777,9 @@ def aten〇one_hot〡shape(self: List[int], num_classes: int = -1) -> List[int]:
 
 def aten〇any〇dim〡shape(self: List[int], dim: int, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.argmax(self, dim, keepdim)
+
+def aten〇any〇dims〡shape(self: List[int], dim: Optional[List[int]] = None, keepdim: bool = False) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(self, dim, keepdim, None)
 
 def aten〇all〇dim〡shape(self: List[int], dim: int, keepdim: bool = False) -> List[int]:
     return upstream_shape_functions.argmax(self, dim, keepdim)
@@ -1474,6 +1480,12 @@ def aten〇count_nonzero〇dim_IntList〡shape(self: List[int], dim: List[int]) 
     return upstream_shape_functions.sum_mean_dim(self, dim, keep_dim=False, dt=0)
 
 def aten〇_to_copy〡shape(self: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, non_blocking: bool = False, memory_format: Optional[int] = None) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇logaddexp〡shape(self: List[int], other: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(self)
+
+def aten〇logaddexp2〡shape(self: List[int], other: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
 def aten〇masked_fill〇Scalar〡shape(self: List[int], mask: List[int], value: float) -> List[int]:
@@ -3477,6 +3489,19 @@ def aten〇kthvalue〡dtype(self_rank_dtype: Tuple[int, int], k: int, dim: int =
 def aten〇_log_softmax_backward_data〡dtype(grad_output_rank_dtype: Tuple[int, int], output_rank_dtype: Tuple[int, int], dim: int, input_dtype: int) -> int:
     return input_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=2, error_types={torch.bool}))
+def aten〇logaddexp〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    other_rank, other_dtype = other_rank_dtype
+    assert self_dtype != torch.bool and other_dtype != torch.bool
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=2, error_types={torch.bool, torch.complex32, torch.complex64, torch.complex128}))
+def aten〇logaddexp2〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    assert self_dtype not in [torch.bool, torch.complex32, torch.complex64, torch.complex128]
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(None, [(3,)], None, None, TensorOfShape(1, dtype=torch.bool), 0))
 def aten〇masked_fill〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], mask_rank_dtype: Tuple[int, int], value: Union[int, float, complex]) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -3679,6 +3704,11 @@ def aten〇roll〡dtype(self_rank_dtype: Tuple[int, int], shifts: List[int], dim
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇round〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, decimals=0))
+def aten〇round〇decimals〡dtype(self_rank_dtype: Tuple[int, int], decimals: int) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
@@ -5244,6 +5274,13 @@ def aten〇argmin〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[int] =
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0))
 def aten〇any〇dim〡dtype(self_rank_dtype: Tuple[int, int], dim: int, keepdim: bool = False) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if self_dtype == torch.uint8:
+        return self_dtype
+    return torch.bool
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇any〇dims〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[List[int]] = None, keepdim: bool = False) -> int:
     self_rank, self_dtype = self_rank_dtype
     if self_dtype == torch.uint8:
         return self_dtype

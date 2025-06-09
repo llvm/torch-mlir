@@ -451,6 +451,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit_with_mutating_variants("aten::floor : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::ceil : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::round : (Tensor) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants(
+        "aten::round.decimals : (Tensor, int) -> (Tensor)", has_folder=True
+    )
     emit_with_mutating_variants("aten::trunc : (Tensor) -> (Tensor)", has_folder=True)
     emit_with_mutating_variants("aten::fix : (Tensor) -> (Tensor)")
     emit("aten::special_expm1 : (Tensor) -> (Tensor)")
@@ -723,6 +726,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::logcumsumexp : (Tensor, int) -> (Tensor)")
     emit("aten::floor_divide.Scalar : (Tensor, Scalar) -> (Tensor)")
     emit("aten::logsumexp : (Tensor, int[], bool) -> (Tensor)")
+    emit("aten::logaddexp : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::logaddexp2 : (Tensor, Tensor) -> (Tensor)")
     emit("aten::mean.dim : (Tensor, int[]?, bool, int?) -> (Tensor)")
     emit("aten::__and__.Tensor : (Tensor, Tensor) -> (Tensor)")
     emit("aten::__and__.Scalar : (Tensor, Scalar) -> (Tensor)", has_canonicalizer=True)
@@ -840,6 +845,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::all.dim : (Tensor, int, bool) -> (Tensor)")
     emit("aten::any : (Tensor) -> (Tensor)")
     emit("aten::any.dim : (Tensor, int, bool) -> (Tensor)")
+    emit("aten::any.dims : (Tensor, int[]?, bool) -> (Tensor)", has_folder=True)
     emit("aten::arange : (Scalar, int?, int?, Device?, bool?) -> (Tensor)")
     emit(
         "aten::arange.start : (Scalar, Scalar, int?, int?, Device?, bool?) -> (Tensor)"
@@ -1200,11 +1206,13 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::triu_indices : (int, int, int, int?, int?, Device?, bool?) -> (Tensor)",
         has_verifier=True,
+        has_folder=True,
     )
 
     emit(
         "aten::tril_indices : (int, int, int, int?, int?, Device?, bool?) -> (Tensor)",
         has_verifier=True,
+        has_folder=True,
     )
 
     emit("aten::deg2rad : (Tensor) -> (Tensor)")
