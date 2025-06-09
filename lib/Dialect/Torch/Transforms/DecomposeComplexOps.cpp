@@ -1928,18 +1928,18 @@ public:
 
     Value one = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(1)); // Dimension index
-    SmallVector<int64_t, 2> inputMatrixShape = {inputShape[0], 1};
+    inputShape.push_back(1);
     Type inputMatrixType = inputType.getWithSizesAndDtype(
-        inputMatrixShape, inputType.getOptionalDtype());
+        inputShape, inputType.getOptionalDtype());
 
     Value inputMatrix =
         rewriter.create<AtenUnsqueezeOp>(loc, inputMatrixType, input, one);
 
     Value zero = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(0));
-    SmallVector<int64_t, 2> vec2MatrixShape = {1, vec2Shape[0]};
-    Type vec2MatrixType = vec2Type.getWithSizesAndDtype(
-        vec2MatrixShape, vec2Type.getOptionalDtype());
+    vec2Shape.insert(vec2Shape.begin(), 1);
+    Type vec2MatrixType =
+        vec2Type.getWithSizesAndDtype(vec2Shape, vec2Type.getOptionalDtype());
 
     Value vec2Matrix =
         rewriter.create<AtenUnsqueezeOp>(loc, vec2MatrixType, vec2, zero);
