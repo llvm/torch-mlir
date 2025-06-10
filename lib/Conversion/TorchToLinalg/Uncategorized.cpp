@@ -1039,7 +1039,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      .getElementType();
     Type powType = dtype;
     if (payloadArgs[0].getType().isInteger() ||
-        payloadArgs[1].getType().isInteger())
+        payloadArgs[1].getType().isInteger() || isa<mlir::IntegerType>(dtype))
       powType = mlir::Float64Type::get(op->getContext());
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], powType);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], powType);
