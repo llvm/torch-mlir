@@ -11151,9 +11151,9 @@ public:
 } // namespace
 
 namespace {
-// Decomposes  aten.heaviside op into
+// Decomposed aten.heaviside op into
 // using aten.eq, aten.lt, aten.logical_or, aten.where
-// Heaviside(x, y) returns:
+// Heaviside(x, y) returns
 //  0 if x < 0
 //  y if x == 0
 //  1 if x > 0
