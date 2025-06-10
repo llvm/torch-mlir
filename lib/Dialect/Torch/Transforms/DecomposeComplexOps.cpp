@@ -24,6 +24,7 @@
 #include "llvm/ADT/StringSet.h"
 #include <cstdint>
 #include <set>
+#include <stack>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -1484,6 +1485,106 @@ namespace {
 class DecomposeAtenSelectIntOp : public OpRewritePattern<AtenSelectIntOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
+
+  // Hoist `the aten.select.int` when its input is an `aten.cat`, directly
+  // select from the `aten.cat` operands.
+  LogicalResult hoistSelectInt(AtenSelectIntOp op,
+                               PatternRewriter &rewriter) const {
+    Value self = op.getSelf();
+
+    // Skip the cast ops.
+    std::stack<Value> opsToCopy;
+    while (isa<Torch::AtenToDtypeOp>(self.getDefiningOp())) {
+      opsToCopy.push(self);
+      auto cast = self.getDefiningOp<Torch::AtenToDtypeOp>();
+      self = cast.getSelf();
+    }
+
+    if (!isa<Torch::AtenCatOp>(self.getDefiningOp()))
+      return failure();
+    auto concat = self.getDefiningOp<Torch::AtenCatOp>();
+
+    Value concatDim = concat.getDim();
+    if (!isa<Torch::ConstantIntOp>(concatDim.getDefiningOp()))
+      return failure();
+    auto constantConcatDimInt = concatDim.getDefiningOp<Torch::ConstantIntOp>();
+    int64_t ConcatDimInt = constantConcatDimInt.getValueAttr().getInt();
+
+    Value dim = op.getDim();
+    if (!isa<Torch::ConstantIntOp>(dim.getDefiningOp()))
+      return failure();
+    auto constantDimInt = dim.getDefiningOp<Torch::ConstantIntOp>();
+    int64_t dimInt = constantDimInt.getValueAttr().getInt();
+
+    // Check the concat dim is the same as the select dim.
+    if (ConcatDimInt != dimInt)
+      return failure();
+
+    Value index = op.getIndex();
+    if (!isa<Torch::ConstantIntOp>(index.getDefiningOp()))
+      return failure();
+    auto constantIndexInt = index.getDefiningOp<Torch::ConstantIntOp>();
+    int64_t indexInt = constantIndexInt.getValueAttr().getInt();
+
+    Value input = concat.getTensors();
+    if (!isa<Torch::PrimListConstructOp>(input.getDefiningOp()))
+      return failure();
+    auto listConstruct = input.getDefiningOp<Torch::PrimListConstructOp>();
+    ValueRange elements = listConstruct.getElements();
+
+    // Get width of the concat operands along the concat dimension.
+    SmallVector<int64_t> elementWidths;
+    elementWidths.resize(elements.size());
+    llvm::transform(elements, elementWidths.begin(), [dimInt](Value element) {
+      auto sizes =
+          element.getType().dyn_cast<BaseTensorType>().getOptionalSizes();
+      if (!sizes.has_value())
+        return kUnknownSize;
+      if (sizes.value().size() <= (unsigned)dimInt)
+        return kUnknownSize;
+      return sizes.value()[dimInt];
+    });
+
+    // Get the selected item directly from the concat operand.
+    Value replace = op.getResult();
+    int64_t sum = 0;
+    for (unsigned i = 0; i < elements.size(); ++i) {
+      // Unsupported unknown dim size
+      if (elementWidths[i] == kUnknownSize)
+        return failure();
+      sum += elementWidths[i];
+      if (sum <= indexInt)
+        continue;
+      if (elementWidths[i] == 1) {
+        replace = elements[indexInt];
+        break;
+      }
+      Value newIndex = rewriter.create<ConstantIntOp>(
+          concat.getLoc(), rewriter.getI64IntegerAttr(sum - elementWidths[i]));
+      replace = rewriter.create<AtenSelectIntOp>(
+          op.getLoc(), op.getResult().getType(), elements[indexInt], dim,
+          newIndex);
+      break;
+    }
+
+    // Update cast ops.
+    while (!opsToCopy.empty()) {
+      Value castValue = opsToCopy.top();
+      auto cast = castValue.getDefiningOp<Torch::AtenToDtypeOp>();
+      opsToCopy.pop();
+      BaseTensorType inputType = replace.getType().cast<BaseTensorType>();
+      BaseTensorType castType = castValue.getType().cast<BaseTensorType>();
+      Type outputType = inputType.getWithSizesAndDtype(inputType.getSizes(),
+                                                       castType.getDtype());
+      replace = rewriter.create<AtenToDtypeOp>(
+          cast.getLoc(), outputType, replace, cast.getDtype(),
+          cast.getNonBlocking(), cast.getCopy(), cast.getMemoryFormat());
+    }
+
+    rewriter.replaceOp(op, replace);
+    return success();
+  }
+
   LogicalResult matchAndRewrite(AtenSelectIntOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
@@ -1496,6 +1597,9 @@ public:
       return rewriter.notifyMatchFailure(
           op, "expected result type to have sizes and dtype");
     }
+
+    if (succeeded(hoistSelectInt(op, rewriter)))
+      return success();
 
     // convert `start` to non-negative: start += int(start < 0) * dimSize
     Value zero =
