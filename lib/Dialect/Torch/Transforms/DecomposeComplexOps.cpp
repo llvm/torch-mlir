@@ -10554,6 +10554,89 @@ public:
 } // namespace
 
 namespace {
+// Decompostion of aten.hinge_embedding_loss op
+// Ref:
+// https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/Loss.cpp#L182
+// The Hinge Embedding Loss:
+//           | input,                  if target == 1
+// loss(x) = |
+//           | max(0, margin - input), if target == -1
+class DecomposeHingeEmbeddingLoss
+    : public OpRewritePattern<AtenHingeEmbeddingLossOp> {
+  using OpRewritePattern<AtenHingeEmbeddingLossOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenHingeEmbeddingLossOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto input = op.getSelf();
+    auto target = op.getTarget();
+
+    auto inputTy = dyn_cast<ValueTensorType>(input.getType());
+    if (!inputTy.hasDtype() || !inputTy.hasSizes())
+      return rewriter.notifyMatchFailure(op, "input must have dtype and size");
+
+    auto targetTy = dyn_cast<ValueTensorType>(target.getType());
+    if (!targetTy.hasDtype() || !targetTy.hasSizes())
+      return rewriter.notifyMatchFailure(op, "target must have dtype and size");
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    Value minusOne = getConstantWithGivenDtypeAndValue(rewriter, loc, -1,
+                                                       targetTy.getDtype());
+    Value one = getConstantWithGivenDtypeAndValue(rewriter, loc, 1,
+                                                  targetTy.getDtype());
+    Value zero = getConstantWithGivenDtypeAndValue(rewriter, loc, 0,
+                                                   targetTy.getDtype());
+    Value alpha =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    auto boolType = targetTy.getWithSizesAndDtype(targetTy.getSizes(),
+                                                  rewriter.getI1Type());
+    // input - margin
+    auto inputMinusMargin = rewriter.create<AtenSubScalarOp>(
+        loc, inputTy, input, op.getMargin(), alpha);
+    // multiply by -1 to get margin - input
+    auto marginDiff = rewriter.create<AtenMulScalarOp>(
+        loc, inputTy, inputMinusMargin, minusOne);
+    // max(0, margin - input) => clamping the minimum value of margin - input at
+    // 0
+    auto marginClamp =
+        rewriter.create<AtenClampMinOp>(loc, inputTy, marginDiff, zero);
+    // Compute mask: target != 1
+    auto targetNotOne =
+        rewriter.create<AtenNeScalarOp>(loc, boolType, target, one);
+    // If target != 1 use marginClamp otherwise 0.
+    auto outputMargin = rewriter.create<AtenWhereScalarOtherOp>(
+        loc, inputTy, targetNotOne, marginClamp, zero);
+    // Compute mask: target != -1
+    auto targetNotMinusOne =
+        rewriter.create<AtenNeScalarOp>(loc, boolType, target, minusOne);
+    // If target != -1 use the original input. Otherwise 0.
+    auto outputSelf = rewriter.create<AtenWhereScalarOtherOp>(
+        loc, inputTy, targetNotMinusOne, input, zero);
+    // Add : outputMargin + outputSelf
+    auto output = rewriter.create<AtenAddTensorOp>(loc, inputTy, outputMargin,
+                                                   outputSelf, /*alpha=*/alpha);
+    int64_t reduction;
+    if (!matchPattern(op.getReduction(), m_TorchConstantInt(&reduction))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "reduction should be a constant int!");
+    }
+    Value loss;
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    // reduction: mean
+    if (reduction == 1) {
+      loss = rewriter.create<AtenMeanOp>(loc, resultTy, output, none);
+    } else if (reduction == 2) {
+      // reduction: sum
+      loss = rewriter.create<AtenSumOp>(loc, resultTy, output, none);
+    } else {
+      // reduction: none
+      loss = output;
+    }
+    rewriter.replaceOp(op, loss);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenBinaryCrossEntropyWithLogitsOp
     : public OpRewritePattern<AtenBinaryCrossEntropyWithLogitsOp> {
   using OpRewritePattern<AtenBinaryCrossEntropyWithLogitsOp>::OpRewritePattern;
@@ -12467,6 +12550,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenOneHotOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNllLossForwardOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeHingeEmbeddingLoss>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBinaryCrossEntropyWithLogitsOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
