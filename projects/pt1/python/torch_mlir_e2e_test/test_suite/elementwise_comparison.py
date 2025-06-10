@@ -320,7 +320,9 @@ class ElementwiseHeavisideIntModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([-1, -1], torch.int32, True), ([-1], torch.int32, True)])
+    @annotate_args(
+        [None, ([-1, -1, -1], torch.int64, True), ([-1, -1, -1, -1], torch.int64, True)]
+    )
     def forward(self, x, values):
         return torch.heaviside(x, values)
 
@@ -328,8 +330,8 @@ class ElementwiseHeavisideIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseHeavisideIntModule())
 def ElementwiseHeavisideIntModule_basic(module, tu: TestUtils):
     module.forward(
-        tu.randint(5, 1, low=-100, high=1000).to(torch.int32),
-        tu.randint(1, low=-100, high=1000).to(torch.int32),
+        tu.randint(1, 2, 3, low=-100, high=1000),
+        tu.randint(1, 1, 1, 1, low=-100, high=1000),
     )
 
 
