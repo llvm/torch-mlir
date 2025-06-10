@@ -1045,7 +1045,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], powType);
     Value result = b.create<math::PowFOp>(loc, lhs, rhs).getResult();
     if (isa<mlir::IntegerType>(dtype)) {
-      result = b.create<math::RoundevenOp>(loc, result).getResult();
+      result = b.create<math::RoundEvenOp>(loc, result).getResult();
     }
     return convertScalarToDtype(b, loc, result, dtype);
   }
