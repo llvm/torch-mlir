@@ -1945,3 +1945,100 @@ class Aten_TrilinearModuleZerodDimBug(torch.nn.Module):
 @register_test_case(module_factory=lambda: Aten_TrilinearModuleZerodDimBug())
 def Aten_TrilinearModuleZerodDimBug_basic(module, tu: TestUtils):
     return module.forward(tu.rand(2, 3, 6), tu.rand(2, 3, 6), tu.rand(2, 3, 6))
+
+
+# ==============================================================================
+
+
+class Aten_BilinearModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([8, 2], torch.float32, True),
+            ([8, 3], torch.float32, True),
+            ([4, 2, 3], torch.float32, True),
+            ([4], torch.float32, True),
+        ]
+    )
+    def forward(self, input1, input2, weight, bias):
+        return torch.ops.aten.bilinear(input1, input2, weight, bias)
+
+
+@register_test_case(module_factory=lambda: Aten_BilinearModule())
+def Aten_BilinearModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 2), tu.rand(8, 3), tu.rand(4, 2, 3), tu.rand(4))
+
+
+class Aten_BilinearModuleDynamic(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, input1, input2, weight, bias):
+        return torch.ops.aten.bilinear(input1, input2, weight, bias)
+
+
+@register_test_case(module_factory=lambda: Aten_BilinearModuleDynamic())
+def Aten_BilinearModuleDynamic_basic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 2), tu.rand(8, 3), tu.rand(4, 2, 3), tu.rand(4))
+
+
+class Aten_BilinearModule1D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2], torch.float32, True),
+            ([3], torch.float32, True),
+            ([4, 2, 3], torch.float32, True),
+            ([4], torch.float32, True),
+        ]
+    )
+    def forward(self, input1, input2, weight, bias):
+        return torch.ops.aten.bilinear(input1, input2, weight, bias)
+
+
+@register_test_case(module_factory=lambda: Aten_BilinearModule1D())
+def Aten_BilinearModule1D_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2), tu.rand(3), tu.rand(4, 2, 3), tu.rand(4))
+
+
+class Aten_BilinearModuleND(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([8, 6, 12, 2], torch.float32, True),
+            ([8, 6, 12, 3], torch.float32, True),
+            ([4, 2, 3], torch.float32, True),
+            ([4], torch.float32, True),
+        ]
+    )
+    def forward(self, input1, input2, weight, bias):
+        return torch.ops.aten.bilinear(input1, input2, weight, bias)
+
+
+@register_test_case(module_factory=lambda: Aten_BilinearModuleND())
+def Aten_BilinearModuleND_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(8, 6, 12, 2), tu.rand(8, 6, 12, 3), tu.rand(4, 2, 3), tu.rand(4)
+    )
