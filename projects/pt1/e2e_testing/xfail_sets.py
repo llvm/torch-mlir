@@ -3906,6 +3906,14 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ScaledDotProductAttentionSameDynamicModule_basic",
     "ScaledDotProductAttentionSameModule_basic",
     "ScaledDotProductAttentionGQAModule_basic",
+    # error: 'tosa.scatter' op requires dimensions K >= W
+    "IndexPut1DFloatNonAccumulateModule_basic",
+    "IndexPut1DIntNonAccumulateModule_basic",
+    "IndexPutHackedTwin1DFloatNonAccumulateModule_basic",
+    "IndexPutHackedTwin1DIntNonAccumulateModule_basic",
+    "IndexPutImpl1DFloatNonAccumulateModule_basic",
+    "IndexPutImpl1DIntNonAccumulateModule_basic",
+    "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {
