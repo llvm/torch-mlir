@@ -667,6 +667,9 @@ def aten〇gather〡shape(self: List[int], dim: int, index: List[int], sparse_gr
 def aten〇layer_norm〡shape(input: List[int], normalized_shape: List[int], weight: Optional[List[int]] = None, bias: Optional[List[int]] = None, eps: float = 1.0000000000000001e-05, cudnn_enable: bool = True) -> List[int]:
     return upstream_shape_functions.unary(input)
 
+def aten〇rms_norm〡shape(input: List[int], normalized_shape: List[int], weight: Optional[List[int]] = None, eps: Optional[float] = None) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
 def aten〇_softmax_backward_data〡shape(grad_output: List[int], output: List[int], dim: int, input_dtype: int) -> List[int]:
     return upstream_shape_functions.unary(output)
 
@@ -3436,6 +3439,13 @@ def aten〇index〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], indices_rank
 @check_dtype_function(_check_tensors_with_the_same_dtype(
     num_of_tensors=1, error_types={*all_integer_dtypes()}, normalized_shape=[1]))
 def aten〇layer_norm〡dtype(input_rank_dtype: Tuple[int, int], normalized_shape: List[int], weight_rank_dtype: Optional[Tuple[int, int]] = None, bias_rank_dtype: Optional[Tuple[int, int]] = None, eps: float = 1.0000000000000001e-05, cudnn_enable: bool = True) -> int:
+    input_rank, input_dtype = input_rank_dtype
+    assert not is_integer_dtype(input_dtype)
+    return input_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(
+    num_of_tensors=1, error_types={*all_integer_dtypes()}, normalized_shape=[1]))
+def aten〇rms_norm〡dtype(input_rank_dtype: Tuple[int, int], normalized_shape: List[int], weight_rank_dtype: Optional[Tuple[int, int]] = None, eps: Optional[float] = None) -> int:
     input_rank, input_dtype = input_rank_dtype
     assert not is_integer_dtype(input_dtype)
     return input_dtype

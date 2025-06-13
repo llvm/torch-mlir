@@ -7582,6 +7582,85 @@ class DecomposeAtenNativeLayerNormOp
 };
 } // namespace
 
+// RMS normalization:
+//     rms(x) = sqrt(eps + mean(x^2))
+//     output = (x / rms(x)) * weight
+namespace {
+class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
+  using OpRewritePattern<AtenRmsNormOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AtenRmsNormOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto context = op.getContext();
+    auto input = op.getInput();
+    auto inputTy = dyn_cast<ValueTensorType>(input.getType());
+    if (!inputTy || !inputTy.hasSizes() || !inputTy.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "Expected input to be a tensor with sizes and a dtype");
+
+    auto outputTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!outputTy.hasDtype())
+      return rewriter.notifyMatchFailure(op, "output should have a dtype.");
+
+    int64_t inputRank = inputTy.getSizes().size();
+    Value normalizedShape = op.getNormalizedShape();
+    SmallVector<Value> normalizedShapeSizesTorchInt;
+    if (!getListConstructElements(normalizedShape,
+                                  normalizedShapeSizesTorchInt))
+      return rewriter.notifyMatchFailure(op,
+                                         "should have constant shape values.");
+
+    int64_t normalize_from_idx =
+        inputRank - normalizedShapeSizesTorchInt.size();
+    auto reduceDimInts =
+        llvm::to_vector<4>(llvm::seq<int64_t>(normalize_from_idx, inputRank));
+    auto sizeListType = ListType::get(IntType::get(context));
+
+    SmallVector<Value> reduceDimVals;
+    for (int64_t dim : reduceDimInts)
+      reduceDimVals.push_back(rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dim)));
+    Value reduceDimList =
+        rewriter.create<PrimListConstructOp>(loc, sizeListType, reduceDimVals);
+
+    auto inputShape = inputTy.getSizes();
+    SmallVector<int64_t> reducedShape(inputShape.begin(), inputShape.end());
+    for (int64_t i : reduceDimInts)
+      reducedShape[i] = 1;
+    auto reducedTy =
+        ValueTensorType::get(context, reducedShape, inputTy.getDtype());
+    // x^2
+    Value inputSquared = rewriter.create<AtenSquareOp>(loc, inputTy, input);
+    Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
+    Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+    // mean(x^2)
+    Value mean = rewriter.create<AtenMeanDimOp>(loc, reducedTy, inputSquared,
+                                                reduceDimList, cstTrue, none);
+    //  mean(x^2) + eps: Add eps if provided
+    if (!isa<Torch::NoneType>(op.getEps().getType())) {
+      Value one = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(1));
+      mean = rewriter.create<AtenAddScalarOp>(loc, reducedTy, mean, op.getEps(),
+                                              one);
+    }
+    // rsqrt(mean(x^2) + eps)
+    Value invRMS = rewriter.create<AtenRsqrtOp>(loc, reducedTy, mean);
+    // rsqrt(mean(x^2) + eps) * x
+    Value normalized =
+        rewriter.create<AtenMulTensorOp>(loc, inputTy, input, invRMS);
+    // Optionally multiply by weight if provided
+    Value weight = op.getWeight();
+    if (!isa<Torch::NoneType>(weight.getType())) {
+      normalized =
+          rewriter.create<AtenMulTensorOp>(loc, outputTy, normalized, weight);
+    }
+    rewriter.replaceOp(op, normalized);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 // Decompose `aten.emptyLike` op into `aten.size` and `aten.empty` ops.
 class DecomposeAtenEmptyLikeOp : public OpRewritePattern<AtenEmptyLikeOp> {
@@ -12218,6 +12297,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenInstanceNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLayerNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeLayerNormOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRMSLayerNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenGroupNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeGroupNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeBatchNormOp>(patterns);
