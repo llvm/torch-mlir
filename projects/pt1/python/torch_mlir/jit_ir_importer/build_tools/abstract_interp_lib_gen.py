@@ -2206,6 +2206,16 @@ def aten〇binary_cross_entropy_with_logits〡shape(self: List[int], target: Lis
     return result_shape
 
 @check_shape_function([
+    Invocation(TensorOfShape(2, 3), TensorOfShape(2, 3), True, False, 1e-8, 0), # No reduction
+    Invocation(TensorOfShape(2, 3), TensorOfShape(2, 3), True, False, 1e-8, 1), # Mean reduction
+    Invocation(TensorOfShape(2, 3), TensorOfShape(2, 3), True, False, 1e-8, 2), # Sum reduction
+])
+def aten〇poisson_nll_loss〡shape(input: List[int], target: List[int], log_input: bool, full: bool, eps: float, reduction: int) -> List[int]:
+    if reduction == 0:
+        return input
+    return []
+
+@check_shape_function([
     Invocation(TensorOfShape(2, 5, 2, 2, 3), [2, 2, 3], None, None, 1e-6), # Basic case.
 ])
 def aten〇native_layer_norm〡shape(input: List[int], normalized_shape: List[int], weight: Optional[List[int]], bias: Optional[List[int]], eps: float) -> Tuple[List[int], List[int], List[int]]:
@@ -5093,6 +5103,18 @@ def aten〇nll_loss_forward〡dtype(self_rank_dtype: Tuple[int, int], target_ran
     target_rank, target_dtype = target_rank_dtype
     assert target_dtype == torch.int64 or target_dtype == torch.int32
     return self_dtype, self_dtype
+
+@check_dtype_function([
+     Invocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(2, 3, dtype=torch.float32), # No reduction
+                True, False, 1e-8, 0),
+     Invocation(TensorOfShape(4, 5, dtype=torch.float32), TensorOfShape(4, 5, dtype=torch.float32), # Mean reduction
+                True, False, 1e-8, 1),
+     Invocation(TensorOfShape(3, 3, dtype=torch.float64), TensorOfShape(3, 3, dtype=torch.float64), # Sum reduction
+                True, False, 1e-8, 2),
+])
+def aten〇poisson_nll_loss〡dtype(input_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], log_input: bool, full: bool, eps: float, reduction: int) -> int:
+    _, in_dtype = input_rank_dtype
+    return in_dtype
 
 @check_dtype_function(
     [Invocation(TensorOfShape(2, 3, dtype=torch.float32), [3], TensorOfShape(3, dtype=torch.float32),

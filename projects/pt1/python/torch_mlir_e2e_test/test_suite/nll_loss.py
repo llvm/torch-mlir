@@ -670,3 +670,31 @@ def NllLossModuleBackward1DSumWeight_basic(module, tu: TestUtils):
     module.forward(
         tu.rand(1), tu.rand(3), torch.tensor([2, 3, 0]), tu.rand(3), torch.tensor(3.0)
     )
+
+
+class PoissonNLLLossModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, target):
+        return torch.ops.aten.poisson_nll_loss(
+            input=input,
+            target=target,
+            log_input=True,
+            full=False,
+            eps=1e-8,
+            reduction=1,
+        )
+
+
+@register_test_case(module_factory=lambda: PoissonNLLLossModule())
+def PoissonNLLLoss_basic(module: PoissonNLLLossModule, tu: TestUtils):
+    module.forward(tu.rand(5, 7).abs(), torch.poisson(tu.rand(5, 7).abs()))

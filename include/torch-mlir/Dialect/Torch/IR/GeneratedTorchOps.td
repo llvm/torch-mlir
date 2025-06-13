@@ -9452,6 +9452,34 @@ def Torch_AtenNllLossBackwardOp : Torch_Op<"aten.nll_loss_backward", [
   }];
 }
 
+def Torch_AtenPoissonNllLossOp : Torch_Op<"aten.poisson_nll_loss", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::poisson_nll_loss : (Tensor, Tensor, bool, bool, float, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$target,
+    Torch_BoolType:$log_input,
+    Torch_BoolType:$full,
+    Torch_FloatType:$eps,
+    Torch_IntType:$reduction
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenPoissonNllLossOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 6, 1);
+    }
+    void AtenPoissonNllLossOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 6, 1);
+    }
+  }];
+}
+
 def Torch_AtenBincountOp : Torch_Op<"aten.bincount", [
     AllowsTypeRefinement,
     HasValueSemantics,
