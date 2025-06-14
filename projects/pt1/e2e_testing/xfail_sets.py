@@ -840,6 +840,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ReflectionPad3dModuleRight_basic",
     "ReflectionPad3dModuleFront_basic",
     "ReflectionPad3dModuleBack_basic",
+    "ReplicationPad1dModule_2DInput_basic",
+    "ReplicationPad1dModule_3DInput_basic",
     "ReplicationPad2dModule_basic",
     "ReplicationPad2dModule_bottom0",
     "ReplicationPad2dModule_left0",
@@ -3927,6 +3929,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
     "IndexPutImpl1DIntNonAccumulateModule_basic",
     "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
+    "ReplicationPad1dModule_2DInput_basic",
+    "ReplicationPad1dModule_3DInput_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {
@@ -4766,6 +4770,8 @@ ONNX_TOSA_XFAIL_SET = {
     "RMSNormWithoutWeightModule_basic",
     "RMSNormAllNormalizeModule_basic",
     "RMSNormDynamicModule_basic",
+    "ReplicationPad1dModule_2DInput_basic",
+    "ReplicationPad1dModule_3DInput_basic",
     "RollModule_basic",
     "RsubIntModule_noalpha_basic",
     "ScalarConstantTupleModule_basic",
