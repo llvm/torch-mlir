@@ -3068,6 +3068,7 @@ ONNX_XFAIL_SET = {
     "NllLossStaticModule_mean_basic",
     "NllLossModule_sum_basic",
     "NllLossStaticModule_sum_basic",
+    "PoissonNLLLoss_basic",
     "NormScalarComplexModule_basic",
     "NormScalarModule_basic",
     "NormScalarOptDimKeepDimComplexModule_basic",

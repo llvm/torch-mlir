@@ -10483,59 +10483,71 @@ public:
     Value target = op.getTarget();
     Value logInValV = op.getLogInput();
     Value fullValV = op.getFull();
-    auto epsA = op.getEps();
-    auto red = op.getReduction();
-    red.dump();
-    //     bool logInVal, fullVal;
-    //     if (!matchPattern(logInValV, m_TorchConstantBool(&logInVal)))
-    //       return rewriter.notifyMatchFailure(op, "expected constant
-    //       log_input");
-    //     if (!matchPattern(fullValV,  m_TorchConstantBool(&fullVal)))
-    //       return rewriter.notifyMatchFailure(op, "expected constant full");
+    Value redValV = op.getReduction();
+    Value epsA = op.getEps();
 
-    //     Value epsConst = rewriter.create<ConstantFloatOp>(loc, epsA,
-    //     input.getType()); Value safeIn   =
-    //     rewriter.create<AtenAddTensorOp>(loc, input.getType(), input,
-    //     epsConst);
+    bool logInVal, fullVal;
+    if (!matchPattern(logInValV, m_TorchConstantBool(&logInVal)))
+      return rewriter.notifyMatchFailure(op, "expected constant log_input");
+    if (!matchPattern(fullValV, m_TorchConstantBool(&fullVal)))
+      return rewriter.notifyMatchFailure(op, "expected constant full");
 
-    //     Value lossElem;
-    //     if (logInVal) {
-    //       Value expIn = rewriter.create<AtenExpOp>(loc, input.getType(),
-    //       input); Value tX    = rewriter.create<AtenMulTensorOp>(loc,
-    //       input.getType(), target, input); lossElem    =
-    //       rewriter.create<AtenSubTensorOp>(loc, input.getType(), expIn, tX);
-    //     } else {
-    //       Value logOp = rewriter.create<AtenLogOp>(loc, input.getType(),
-    //       safeIn); Value tL    = rewriter.create<AtenMulTensorOp>(loc,
-    //       input.getType(), target, logOp); lossElem    =
-    //       rewriter.create<AtenSubTensorOp>(loc, input.getType(), input, tL);
-    //     }
+    int64_t r;
+    if (!matchPattern(redValV, m_TorchConstantInt(&r)))
+      return rewriter.notifyMatchFailure(op, "expected constant reduction");
 
-    //     if (fullVal) {
-    //       return rewriter.notifyMatchFailure(op, "full==true not supported
-    //       yet");
-    //     }
+    double epsValue;
+    if (!matchPattern(epsA, m_TorchConstantFloat(&epsValue))) {
+      return rewriter.notifyMatchFailure(op, "expected constant eps");
+    }
 
-    // int64_t r = red.get;
-    //     Value result;
-    //     if (r == 0) {
-    //       result = lossElem;
-    //     } else {
-    //       Value sum = rewriter.create<AtenSumOp>(loc, op.getType(), lossElem,
-    //                                             rewriter.create<ConstantNoneOp>(loc));
-    //       if (r == 2) {
-    //         result = sum;
-    //       } else {
-    //         Value nElem = rewriter.create<AtenNumelOp>(
-    //             loc, rewriter.getType<IntegerType>(64), lossElem);
-    //         Value nElemF = rewriter.create<AtenIntToFloatScalarOp>(
-    //             loc, lossElem.getType(), nElem);
-    //         result = rewriter.create<AtenDivTensorOp>(
-    //             loc, sum.getType(), sum, nElemF);
-    //       }
-    //     }
+    Value one =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value epsConst = rewriter.create<ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(epsValue));
 
-    // rewriter.replaceOp(op, result);
+    Value safeIn = rewriter.create<AtenAddScalarOp>(loc, input.getType(), input,
+                                                    epsConst, one);
+
+    Value lossElem;
+    if (logInVal) {
+      Value expIn = rewriter.create<AtenExpOp>(loc, input.getType(), input);
+      Value tX =
+          rewriter.create<AtenMulTensorOp>(loc, input.getType(), target, input);
+      lossElem = rewriter.create<AtenSubTensorOp>(loc, input.getType(), expIn,
+                                                  tX, one);
+    } else {
+      Value logOp = rewriter.create<AtenLogOp>(loc, input.getType(), safeIn);
+      Value tL =
+          rewriter.create<AtenMulTensorOp>(loc, input.getType(), target, logOp);
+      lossElem = rewriter.create<AtenSubTensorOp>(loc, input.getType(), input,
+                                                  tL, one);
+    }
+
+    if (fullVal)
+      return rewriter.notifyMatchFailure(op, "full==true not supported yet");
+
+    Value result;
+    if (r == 0) { // None reduction
+      result = lossElem;
+    } else {
+      // Create sum of all elements
+      Value sum = rewriter.create<AtenSumOp>(
+          loc, op.getType(), lossElem, rewriter.create<ConstantNoneOp>(loc));
+
+      if (r == 2) { // Sum reduction
+        result = sum;
+      } else { // Mean reduction (r == 1)
+        Value nElem = rewriter.create<AtenNumelOp>(loc, lossElem);
+
+        Value nElemFloat = rewriter.create<AtenFloatScalarOp>(loc, nElem);
+
+        result = rewriter.create<AtenDivScalarOp>(loc, sum.getType(), sum,
+                                                  nElemFloat);
+      }
+    }
+
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
