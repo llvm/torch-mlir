@@ -172,24 +172,16 @@ public:
     Value rightSlice = rewriter.create<tensor::ExtractSliceOp>(
         loc, input, rightOffsets, sizes, allOneStrides);
 
-    // Create repeated tiles
+    // Aggregate slices to concat together
     SmallVector<Value> resultParts;
 
-    if (leftPad > 0) {
-      SmallVector<Value> leftTiles(leftPad, leftSlice);
-      Value leftConcat =
-          rewriter.create<tensor::ConcatOp>(loc, dimToPad, leftTiles);
-      resultParts.push_back(leftConcat);
-    }
+    for (int i = 0; i < leftPad; ++i)
+      resultParts.push_back(leftSlice);
 
     resultParts.push_back(input);
 
-    if (rightPad > 0) {
-      SmallVector<Value> rightTiles(rightPad, rightSlice);
-      Value rightConcat =
-          rewriter.create<tensor::ConcatOp>(loc, dimToPad, rightTiles);
-      resultParts.push_back(rightConcat);
-    }
+    for (int i = 0; i < rightPad; ++i)
+      resultParts.push_back(rightSlice);
 
     Value result =
         rewriter.create<tensor::ConcatOp>(loc, dimToPad, resultParts);
