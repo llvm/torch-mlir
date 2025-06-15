@@ -8490,12 +8490,6 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
       }
     }
 
-    // we don't have support for 1-D replicate pad, so pass it as 2d if
-    // possible.
-    // TODO: add support for AtenReplicatePad1dOp and remove this.
-    if (mode == "replicate" && usefulPadIndexEnd == 2 && padValues.size() >= 4)
-      usefulPadIndexEnd = 4;
-
     // make a new list of padding ints if dimensionality reduction can be
     // performed
     if (usefulPadIndexEnd < padValues.size()) {
@@ -8533,11 +8527,20 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
     }
 
     if (mode == "replicate") {
-      // only support for replication pad 2d
-      if (numPadDims != 2)
-        return failure();
-      rewriter.replaceOpWithNewOp<AtenReplicationPad2dOp>(
-          op, op.getType(), op.getSelf(), usefulPads);
+      switch (numPadDims) {
+      case 1:
+        rewriter.replaceOpWithNewOp<AtenReplicationPad1dOp>(
+            op, op.getType(), op.getSelf(), usefulPads);
+        break;
+      case 2:
+        rewriter.replaceOpWithNewOp<AtenReplicationPad2dOp>(
+            op, op.getType(), op.getSelf(), usefulPads);
+        break;
+      default:
+        return rewriter.notifyMatchFailure(
+            op, "unsupported number of dims for 'reflect' mode: " +
+                    std::to_string(numPadDims));
+      }
       return success();
     }
 
