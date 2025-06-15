@@ -13127,6 +13127,53 @@ def Torch_AtenWhereScalarSelfOp : Torch_Op<"aten.where.ScalarSelf", [
   let hasFolder = 1;
 }
 
+def Torch_AtenHeavisideOp : Torch_Op<"aten.heaviside", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::heaviside : (Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$values
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenHeavisideOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenHeavisideOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
+def Torch_AtenHeaviside_Op : Torch_Op<"aten.heaviside_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::heaviside_ : (Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    Torch_NonValueTensorType:$self,
+    Torch_NonValueTensorType:$values
+  );
+  let results = (outs
+    AnyTorchOptionalNonValueTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenHeaviside_Op::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenHeaviside_Op::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenNanToNumOp : Torch_Op<"aten.nan_to_num", [
     AllowsTypeRefinement,
     HasValueSemantics,
