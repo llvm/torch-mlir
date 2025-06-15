@@ -2186,6 +2186,12 @@ def aten〇nll_loss_forward〡shape(self: List[int], target: List[int], weight: 
 def aten〇nll_loss_backward〡shape(grad_output: List[int], self: List[int], target: List[int], weight: Optional[List[int]], reduction: int, ignore_index: int, total_weight: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇hinge_embedding_loss〡shape(self: List[int], target: List[int], margin: float = 1., reduction: int = 1) -> List[int]:
+    if reduction in [1,2]:
+        return []
+    else:
+        return upstream_shape_functions.unary(self)
+
 # TODO: upstream this
 def aten〇mse_loss〡shape(self: List[int], target: List[int], reduction: int = 1) -> List[int]:
     if reduction == 0:
@@ -3971,6 +3977,13 @@ def aten〇nll_loss_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], se
     if result == torch.bool:
         return torch.int64
     return result
+
+def aten〇hinge_embedding_loss〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], margin: float = 1., reduction: int = 1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    target_rank, target_dtype = target_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, target_rank]
+    dtypes = [self_dtype, target_dtype]
+    return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(
     None, [(2, 4, 7, 6), (2, 4, 6, 5)], None, None,
