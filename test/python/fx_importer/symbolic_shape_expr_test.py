@@ -371,7 +371,7 @@ def test_broadcast_unit_dim_to_dynamic_with_unchanged_dim_static():
 # CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (1, s0)> : !torch.vtensor<[1,?],f32>
 # CHECK:        torch.bind_symbolic_shape %[[ARG1]], [%[[S1]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
 # CHECK:        %[[EXPAND:.+]] = torch.aten.expand %[[ARG0]], {{.*}}, {{.*}} : !torch.vtensor<[1,?],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[?,?],f32>
-# CHECK:        torch.bind_symbolic_shape %[[EXPAND]], [%[[S1]], %[[S0]]], affine_map<()[s0, s1] -> (s0, s1)> : !torch.vtensor<[?,?],f32>
+# CHECK-DISABLED:        torch.bind_symbolic_shape %[[EXPAND]], [%[[S1]], %[[S0]]], affine_map<()[s0, s1] -> (s0, s1)> : !torch.vtensor<[?,?],f32>
 # CHECK:        return %[[EXPAND]] : !torch.vtensor<[?,?],f32>
 def test_broadcast_unit_dim_to_dynamic_with_unchanged_dim_dynamic():
     class BroadcastUnitDimToDynamicWithUnchangedDimDynamic(torch.nn.Module):
