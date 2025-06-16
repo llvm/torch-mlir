@@ -5114,6 +5114,8 @@ def aten〇nll_loss_forward〡dtype(self_rank_dtype: Tuple[int, int], target_ran
 ])
 def aten〇poisson_nll_loss〡dtype(input_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], log_input: bool, full: bool, eps: float, reduction: int) -> int:
     _, in_dtype = input_rank_dtype
+    if in_dtype in (torch.float16, torch.bfloat16):
+        return torch.float32
     return in_dtype
 
 @check_dtype_function(
