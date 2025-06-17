@@ -847,6 +847,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ReplicationPad2dModule_left0",
     "ReplicationPad2dModule_right0",
     "ReplicationPad2dModule_top0",
+    "ReplicationPad3dModule_basic",
     "ScalarImplicitFloatModule_basic",
     # REMOVE WHEN ENABLE_GQA IS ADDED
     "ScatterAddDynamicModule_basic",
@@ -3931,6 +3932,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
     "ReplicationPad1dModule_2DInput_basic",
     "ReplicationPad1dModule_3DInput_basic",
+    "ReplicationPad3dModule_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {
@@ -4772,6 +4774,7 @@ ONNX_TOSA_XFAIL_SET = {
     "RMSNormDynamicModule_basic",
     "ReplicationPad1dModule_2DInput_basic",
     "ReplicationPad1dModule_3DInput_basic",
+    "ReplicationPad3dModule_basic",
     "RollModule_basic",
     "RsubIntModule_noalpha_basic",
     "ScalarConstantTupleModule_basic",

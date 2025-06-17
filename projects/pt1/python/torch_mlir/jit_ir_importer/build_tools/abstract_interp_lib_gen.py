@@ -2260,11 +2260,20 @@ def aten〇replication_pad2d〡shape(self: List[int], padding: List[int]) -> Lis
     assert len(padding) == 4, 'padding size expected to be 4'
     return pad_shape_fn(self, padding)
 
+def aten〇replication_pad3d〡shape(self: List[int], padding: List[int]) -> List[int]:
+    assert len(self) >= 3
+    assert len(padding) == 6, 'padding size expected to be 6'
+    return pad_shape_fn(self, padding)
+
 def aten〇replication_pad1d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
 def aten〇replication_pad2d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+def aten〇replication_pad3d〡dtype(self_rank_dtype: Tuple[int, int], padding: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 

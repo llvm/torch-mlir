@@ -8536,6 +8536,10 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
         rewriter.replaceOpWithNewOp<AtenReplicationPad2dOp>(
             op, op.getType(), op.getSelf(), usefulPads);
         break;
+      case 3:
+        rewriter.replaceOpWithNewOp<AtenReplicationPad3dOp>(
+            op, op.getType(), op.getSelf(), usefulPads);
+        break;
       default:
         return rewriter.notifyMatchFailure(
             op, "unsupported number of dims for 'reflect' mode: " +
