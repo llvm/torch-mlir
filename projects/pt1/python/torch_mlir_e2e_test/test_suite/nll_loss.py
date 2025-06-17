@@ -672,7 +672,7 @@ def NllLossModuleBackward1DSumWeight_basic(module, tu: TestUtils):
     )
 
 
-class PoissonNLLLossModule(torch.nn.Module):
+class PoissonNLLLossNoReductionModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -691,14 +691,16 @@ class PoissonNLLLossModule(torch.nn.Module):
         )
 
 
-@register_test_case(module_factory=lambda: PoissonNLLLossModule())
-def PoissonNLLLossModule_basic(module: PoissonNLLLossModule, tu: TestUtils):
-    inp = tu.rand(4, 3).abs()
-    tgt = torch.poisson(inp)
-    module.forward(inp, tgt)
+@register_test_case(module_factory=lambda: PoissonNLLLossNoReductionModule())
+def PoissonNLLLossNoReductionModule_basic(
+    module: PoissonNLLLossNoReductionModule, tu: TestUtils
+):
+    input = tu.rand(4, 3).abs()
+    target = torch.poisson(input)
+    module.forward(input, target)
 
 
-class PoissonNLLLossModule_mean(torch.nn.Module):
+class PoissonNLLLossMeanReductionModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -721,14 +723,16 @@ class PoissonNLLLossModule_mean(torch.nn.Module):
         )
 
 
-@register_test_case(module_factory=lambda: PoissonNLLLossModule_mean())
-def PoissonNLLLossModule_mean_basic(module: PoissonNLLLossModule_mean, tu: TestUtils):
-    inp = tu.rand(5, 7).abs()
-    tgt = torch.poisson(inp)
-    module.forward(inp, tgt)
+@register_test_case(module_factory=lambda: PoissonNLLLossMeanReductionModule())
+def PoissonNLLLossMeanReductionModule_basic(
+    module: PoissonNLLLossMeanReductionModule, tu: TestUtils
+):
+    input = tu.rand(5, 7).abs()
+    target = torch.poisson(input)
+    module.forward(input, target)
 
 
-class PoissonNLLLossModule_sum(torch.nn.Module):
+class PoissonNLLLossSumReductionModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -747,14 +751,16 @@ class PoissonNLLLossModule_sum(torch.nn.Module):
         )
 
 
-@register_test_case(module_factory=lambda: PoissonNLLLossModule_sum())
-def PoissonNLLLossModule_sum_basic(module: PoissonNLLLossModule_sum, tu: TestUtils):
-    inp = tu.rand(3, 3)
-    tgt = torch.poisson(inp.abs())
-    module.forward(inp, tgt)
+@register_test_case(module_factory=lambda: PoissonNLLLossSumReductionModule())
+def PoissonNLLLossSumReductionModule_basic(
+    module: PoissonNLLLossSumReductionModule, tu: TestUtils
+):
+    input = tu.rand(3, 3)
+    target = torch.poisson(input.abs())
+    module.forward(input, target)
 
 
-class PoissonNLLLossModule_epsCustom(torch.nn.Module):
+class PoissonNLLLossNonDefaultEpsModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -764,14 +770,19 @@ class PoissonNLLLossModule_epsCustom(torch.nn.Module):
     )
     def forward(self, input, target):
         return torch.ops.aten.poisson_nll_loss(
-            input=input, target=target, log_input=True, full=False, eps=0.5, reduction=1
+            input=input,
+            target=target,
+            log_input=False,
+            full=False,
+            eps=0.5,
+            reduction=1,
         )
 
 
-@register_test_case(module_factory=lambda: PoissonNLLLossModule_epsCustom())
-def PoissonNLLLossModule_epsCustom_basic(
-    module: PoissonNLLLossModule_epsCustom, tu: TestUtils
+@register_test_case(module_factory=lambda: PoissonNLLLossNonDefaultEpsModule())
+def PoissonNLLLossNonDefaultEpsModule_basic(
+    module: PoissonNLLLossNonDefaultEpsModule, tu: TestUtils
 ):
-    inp = tu.rand(5, 4)
-    tgt = torch.poisson(inp.abs())
-    module.forward(inp, tgt)
+    input = tu.rand(5, 4)
+    target = torch.poisson(input.abs())
+    module.forward(input, target)

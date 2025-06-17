@@ -5113,10 +5113,10 @@ def aten〇nll_loss_forward〡dtype(self_rank_dtype: Tuple[int, int], target_ran
                 True, False, 1e-8, 2),
 ])
 def aten〇poisson_nll_loss〡dtype(input_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], log_input: bool, full: bool, eps: float, reduction: int) -> int:
-    _, in_dtype = input_rank_dtype
-    if in_dtype in (torch.float16, torch.bfloat16):
+    _, input_dtype = input_rank_dtype
+    if input_dtype in (torch.float16, torch.bfloat16):
         return torch.float32
-    return in_dtype
+    return input_dtype
 
 @check_dtype_function(
     [Invocation(TensorOfShape(2, 3, dtype=torch.float32), [3], TensorOfShape(3, dtype=torch.float32),

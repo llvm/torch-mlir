@@ -10488,10 +10488,11 @@ public:
 
     bool logInVal, fullVal;
     if (!matchPattern(logInput, m_TorchConstantBool(&logInVal)))
-      return rewriter.notifyMatchFailure(op,
-                                         "expected constant bool log_input");
+      return rewriter.notifyMatchFailure(
+          op, "expected logInput argument to be constant bool");
     if (!matchPattern(full, m_TorchConstantBool(&fullVal)))
-      return rewriter.notifyMatchFailure(op, "expected constant bool full");
+      return rewriter.notifyMatchFailure(
+          op, "expected full argument to be constant bool");
 
     int64_t reductionInt;
     if (!matchPattern(reduction, m_TorchConstantInt(&reductionInt)))
@@ -10504,7 +10505,7 @@ public:
     // TODO: add support for full=true (Stirling approximation)
     if (fullVal)
       return rewriter.notifyMatchFailure(
-          op, "Stirling approximation is currently not supported.");
+          op, "Unimplemented: full loss computation is not supported");
 
     Value one =
         rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
@@ -10522,32 +10523,26 @@ public:
       loss = rewriter.create<AtenSubTensorOp>(loc, input.getType(), expIn,
                                               targetMulInput, one);
     } else {
-      Value logOp = rewriter.create<AtenLogOp>(loc, input.getType(), safeInput);
-      Value targetMulLog =
-          rewriter.create<AtenMulTensorOp>(loc, input.getType(), target, logOp);
+      Value logSafeInput =
+          rewriter.create<AtenLogOp>(loc, input.getType(), safeInput);
+      Value targetMulLog = rewriter.create<AtenMulTensorOp>(
+          loc, input.getType(), target, logSafeInput);
       loss = rewriter.create<AtenSubTensorOp>(loc, input.getType(), input,
                                               targetMulLog, one);
     }
 
     Value result;
-    if (reductionInt == 0) { // None reduction
+    if (reductionInt == 0) {
       result = loss;
-    } else {
-      // Create sum of all elements
-      Value sum = rewriter.create<AtenSumOp>(
+    } else if (reductionInt == 1) {
+      // Case 1: Mean Reduction
+      result = rewriter.create<AtenMeanOp>(
           loc, op.getType(), loss, rewriter.create<ConstantNoneOp>(loc));
-      if (reductionInt == 2) { // Sum reduction
-        result = sum;
-      } else { // Mean reduction (r == 1)
-        Value nElem = rewriter.create<AtenNumelOp>(loc, loss);
-
-        Value nElemFloat = rewriter.create<AtenFloatScalarOp>(loc, nElem);
-
-        result = rewriter.create<AtenDivScalarOp>(loc, sum.getType(), sum,
-                                                  nElemFloat);
-      }
+    } else {
+      // Case 2: Sum Reduction
+      result = rewriter.create<AtenSumOp>(loc, op.getType(), loss,
+                                          rewriter.create<ConstantNoneOp>(loc));
     }
-
     rewriter.replaceOp(op, result);
     return success();
   }
