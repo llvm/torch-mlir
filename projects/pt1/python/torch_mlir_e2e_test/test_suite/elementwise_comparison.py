@@ -335,6 +335,26 @@ def ElementwiseHeavisideIntModule_basic(module, tu: TestUtils):
     )
 
 
+class ElementwiseHeavisideNoBroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [None, ([-1, -1], torch.float32, True), ([-1, -1], torch.float32, True)]
+    )
+    def forward(self, x, values):
+        return torch.heaviside(x, values)
+
+
+@register_test_case(module_factory=lambda: ElementwiseHeavisideNoBroadcastModule())
+def ElementwiseHeavisideNoBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(5, 8),
+        tu.rand(5, 8),
+    )
+
+
 # ==============================================================================
 
 
