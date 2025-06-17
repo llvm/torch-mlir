@@ -10561,6 +10561,7 @@ namespace {
 //           | input,                  if target == 1
 // loss(x) = |
 //           | max(0, margin - input), if target == -1
+// target tensor may have values other than 1 and -1
 class DecomposeHingeEmbeddingLoss
     : public OpRewritePattern<AtenHingeEmbeddingLossOp> {
   using OpRewritePattern<AtenHingeEmbeddingLossOp>::OpRewritePattern;
@@ -10577,6 +10578,12 @@ class DecomposeHingeEmbeddingLoss
     auto targetTy = dyn_cast<ValueTensorType>(target.getType());
     if (!targetTy.hasDtype() || !targetTy.hasSizes())
       return rewriter.notifyMatchFailure(op, "target must have dtype and size");
+
+    int64_t reduction;
+    if (!matchPattern(op.getReduction(), m_TorchConstantInt(&reduction))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "reduction should be a constant int!");
+    }
     auto resultTy = dyn_cast<ValueTensorType>(op.getType());
     Value minusOne = getConstantWithGivenDtypeAndValue(rewriter, loc, -1,
                                                        targetTy.getDtype());
@@ -10613,12 +10620,7 @@ class DecomposeHingeEmbeddingLoss
     // Add : outputMargin + outputSelf
     auto output = rewriter.create<AtenAddTensorOp>(loc, inputTy, outputMargin,
                                                    outputSelf, /*alpha=*/alpha);
-    int64_t reduction;
-    if (!matchPattern(op.getReduction(), m_TorchConstantInt(&reduction))) {
-      return rewriter.notifyMatchFailure(op,
-                                         "reduction should be a constant int!");
-    }
-    Value loss;
+    Value loss = output;
     Value none = rewriter.create<ConstantNoneOp>(loc);
     // reduction: mean
     if (reduction == 1) {
@@ -10626,9 +10628,6 @@ class DecomposeHingeEmbeddingLoss
     } else if (reduction == 2) {
       // reduction: sum
       loss = rewriter.create<AtenSumOp>(loc, resultTy, output, none);
-    } else {
-      // reduction: none
-      loss = output;
     }
     rewriter.replaceOp(op, loss);
     return success();

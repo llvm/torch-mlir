@@ -2486,8 +2486,8 @@ class HingeEmbeddingLossReductionMeanModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([8, 1], torch.float32, True),
-            ([1, 1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
         ]
     )
     def forward(self, input, target):
@@ -2507,8 +2507,8 @@ class HingeEmbeddingLossReductionSumModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([2, 5], torch.float32, True),
-            ([1, 1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
         ]
     )
     def forward(self, input, target):
@@ -2520,7 +2520,7 @@ def HingeEmbeddingLossReductionSumModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 5), tu.rand(1, 1))
 
 
-class HingeEmbeddingLossWithoutReductionModule(torch.nn.Module):
+class HingeEmbeddingLossReductionNoneModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -2528,16 +2528,16 @@ class HingeEmbeddingLossWithoutReductionModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([8, 5], torch.float32, True),
-            ([1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+            ([-1], torch.float32, True),
         ]
     )
     def forward(self, input, target):
         return torch.ops.aten.hinge_embedding_loss(input, target, margin=1.0)
 
 
-@register_test_case(module_factory=lambda: HingeEmbeddingLossWithoutReductionModule())
-def HingeEmbeddingLossWithoutReductionModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: HingeEmbeddingLossReductionNoneModule())
+def HingeEmbeddingLossReductionNoneModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(8, 5), tu.rand(1))
 
 

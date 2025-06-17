@@ -2189,8 +2189,7 @@ def aten〇nll_loss_backward〡shape(grad_output: List[int], self: List[int], ta
 def aten〇hinge_embedding_loss〡shape(self: List[int], target: List[int], margin: float = 1., reduction: int = 1) -> List[int]:
     if reduction in [1,2]:
         return []
-    else:
-        return upstream_shape_functions.unary(self)
+    return upstream_shape_functions.unary(self)
 
 # TODO: upstream this
 def aten〇mse_loss〡shape(self: List[int], target: List[int], reduction: int = 1) -> List[int]:
