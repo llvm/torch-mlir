@@ -82,6 +82,30 @@ def ReplicationPad3dModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ReplicationPad3dModuleSingleIntPad(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.pad = torch.nn.ReplicationPad3d(3)
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.pad(x)
+
+
+@register_test_case(module_factory=lambda: ReplicationPad3dModuleSingleIntPad())
+def ReplicationPad3dModuleSingleIntPad_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 15, 20, 1, 10, low=-1))
+
+
+# ==============================================================================
+
+
 class ReflectionPad2dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
