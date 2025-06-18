@@ -10531,14 +10531,12 @@ public:
                                               targetMulLog, one);
     }
 
-    Value result;
-    if (reductionInt == 0) {
-      result = loss;
-    } else if (reductionInt == 1) {
+    Value result = loss;
+    if (reductionInt == 1) {
       // Case 1: Mean Reduction
       result = rewriter.create<AtenMeanOp>(
           loc, op.getType(), loss, rewriter.create<ConstantNoneOp>(loc));
-    } else {
+    } else if (reductionInt == 2) {
       // Case 2: Sum Reduction
       result = rewriter.create<AtenSumOp>(loc, op.getType(), loss,
                                           rewriter.create<ConstantNoneOp>(loc));
