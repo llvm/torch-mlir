@@ -9506,6 +9506,32 @@ def Torch_AtenPoissonNllLossOp : Torch_Op<"aten.poisson_nll_loss", [
   }];
 }
 
+def Torch_AtenKlDivOp : Torch_Op<"aten.kl_div", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::kl_div : (Tensor, Tensor, int, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$target,
+    Torch_IntType:$reduction,
+    Torch_BoolType:$log_target
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenKlDivOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenKlDivOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenBincountOp : Torch_Op<"aten.bincount", [
     AllowsTypeRefinement,
     HasValueSemantics,

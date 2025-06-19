@@ -39,6 +39,8 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "AtenSymConstrainRange_basic",
     "AtenSymConstrainRangeForSize_basic",
     "Aten_AssertScalar_basic",
+    # RuntimeError: attribute lookup is not defined on builtin:
+    "KlDivLossModule_batchmean_reduction_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.5.0.dev"):
@@ -386,6 +388,12 @@ TORCHDYNAMO_CRASHING_SET = {
     "MaxPool3dStaticModule_basic",
     # Looks like incorrect fx graph conversion
     "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
+    # error: failed to legalize operation 'torch.aten.xlogy.Tensor'
+    "KlDivLossModule_default_basic",
+    "KlDivLossModule_reduction_is_none_basic",
+    "KlDivLossModule_mean_reduction_basic",
+    "KlDivLossModule_sum_reduction_basic",
+    "KlDivLossModule_batchmean_reduction_basic",
 }
 
 FX_IMPORTER_XFAIL_SET = {
@@ -3087,6 +3095,7 @@ ONNX_XFAIL_SET = {
     "PoissonNLLLossMeanReductionModule_basic",
     "PoissonNLLLossSumReductionModule_basic",
     "PoissonNLLLossNonDefaultEpsModule_basic",
+    "KlDivLossModule_batchmean_reduction_basic",
     "NormScalarComplexModule_basic",
     "NormScalarModule_basic",
     "NormScalarOptDimKeepDimComplexModule_basic",
@@ -3982,6 +3991,12 @@ ONNX_TOSA_XFAIL_SET = {
     "NllLossStaticModule_mean_basic",
     "NllLossStaticModule_sum_basic",
     "NllLossStaticModule_weight_basic",
+    "KlDivLossModule_default_basic",
+    "KlDivLossModule_reduction_is_none_basic",
+    "KlDivLossModule_reduction_is_none_log_target_is_true_basic",
+    "KlDivLossModule_mean_reduction_basic",
+    "KlDivLossModule_sum_reduction_basic",
+    "KlDivLossModule_batchmean_reduction_basic",
     "Exp2StaticModule_basic",
     "ElementwiseRreluWithNoiseEvalModule_basic",
     "ElementwiseRreluWithNoiseEvalStaticModule_basic",
