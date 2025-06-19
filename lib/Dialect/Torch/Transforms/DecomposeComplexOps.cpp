@@ -10635,6 +10635,82 @@ class DecomposeHingeEmbeddingLoss
 };
 } // namespace
 
+namespace {    
+class DecomposeAtenPoissonNllLossOp
+    : public OpRewritePattern<AtenPoissonNllLossOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenPoissonNllLossOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getInput();
+    Value target = op.getTarget();
+    Value logInput = op.getLogInput();
+    Value full = op.getFull();
+    Value reduction = op.getReduction();
+    Value eps = op.getEps();
+
+    bool logInVal, fullVal;
+    if (!matchPattern(logInput, m_TorchConstantBool(&logInVal)))
+      return rewriter.notifyMatchFailure(
+          op, "expected logInput argument to be constant bool");
+    if (!matchPattern(full, m_TorchConstantBool(&fullVal)))
+      return rewriter.notifyMatchFailure(
+          op, "expected full argument to be constant bool");
+
+    int64_t reductionInt;
+    if (!matchPattern(reduction, m_TorchConstantInt(&reductionInt)))
+      return rewriter.notifyMatchFailure(op, "expected constant reduction");
+
+    double epsFloat;
+    if (!matchPattern(eps, m_TorchConstantFloat(&epsFloat))) {
+      return rewriter.notifyMatchFailure(op, "expected constant eps");
+    }
+    // TODO: add support for full=true (Stirling approximation)
+    if (fullVal)
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: full loss computation is not supported");
+
+    Value one =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value epsConst = rewriter.create<ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(epsFloat));
+
+    Value safeInput = rewriter.create<AtenAddScalarOp>(loc, input.getType(),
+                                                       input, epsConst, one);
+
+    Value loss;
+    if (logInVal) {
+      Value expIn = rewriter.create<AtenExpOp>(loc, input.getType(), input);
+      Value targetMulInput =
+          rewriter.create<AtenMulTensorOp>(loc, input.getType(), target, input);
+      loss = rewriter.create<AtenSubTensorOp>(loc, input.getType(), expIn,
+                                              targetMulInput, one);
+    } else {
+      Value logSafeInput =
+          rewriter.create<AtenLogOp>(loc, input.getType(), safeInput);
+      Value targetMulLog = rewriter.create<AtenMulTensorOp>(
+          loc, input.getType(), target, logSafeInput);
+      loss = rewriter.create<AtenSubTensorOp>(loc, input.getType(), input,
+                                              targetMulLog, one);
+    }
+
+    Value result = loss;
+    if (reductionInt == 1) {
+      // Case 1: Mean Reduction
+      result = rewriter.create<AtenMeanOp>(
+          loc, op.getType(), loss, rewriter.create<ConstantNoneOp>(loc));
+    } else if (reductionInt == 2) {
+      // Case 2: Sum Reduction
+      result = rewriter.create<AtenSumOp>(loc, op.getType(), loss,
+                                          rewriter.create<ConstantNoneOp>(loc));
+    }
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeAtenBinaryCrossEntropyWithLogitsOp
     : public OpRewritePattern<AtenBinaryCrossEntropyWithLogitsOp> {
@@ -12550,6 +12626,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNllLossForwardOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeHingeEmbeddingLoss>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenPoissonNllLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBinaryCrossEntropyWithLogitsOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
