@@ -2110,31 +2110,22 @@ public:
 
     // Given `result = input1 * input2`, infer the result type from
     // the types of input1 and input2.
-    auto mulType = [&](Value input1, Value input2) -> Type {
-      BaseTensorType inputType1 = cast<BaseTensorType>(input1.getType());
-      BaseTensorType inputType2 = cast<BaseTensorType>(input2.getType());
-      Type elementType = inputType1.getOptionalDtype();
-      if (inputType1.hasSizes() && inputType2.hasSizes()) {
-        SmallVector<int64_t> mulShape;
-        ArrayRef<int64_t> inputSize1 = inputType1.getSizes();
-        ArrayRef<int64_t> inputSize2 = inputType2.getSizes();
-        for (unsigned i = 0; i < inputSize1.size(); i++) {
-          int64_t size1 = inputSize1[i];
-          int64_t size2 = inputSize2[i];
-          // there are three possible cases -
-          // (1) size1 or size2 is unknown, then result size is unknown;
-          // (2a) size1 == 1, then result size is size2;
-          // (2b) size2 == 1, then result size is size1;
-          // (2) size1 == size2, then the result size is size1.
-          if (size1 == kUnknownSize || size2 == kUnknownSize) {
-            mulShape.push_back(kUnknownSize);
-          } else {
-            mulShape.push_back(size1 == 1 ? size2 : size1);
-          }
-        }
-        return inputType1.getWithSizesAndDtype(mulShape, elementType);
+    auto inferMulType = [&](PatternRewriter &rewriter, Location loc,
+                            BaseTensorType opType, Value input1,
+                            Value input2) -> Type {
+      // return unranked tensor type, if the trilinear op has unranked tensor
+      // type
+      if (!opType.hasSizes()) {
+        return opType;
       }
-      return inputType1.getWithSizesAndDtype(std::nullopt, elementType);
+
+      SmallVector<int64_t> resultShape;
+      SmallVector<Value> resultShapeValue;
+      computeBroadcastShape(rewriter, loc, input1, input2, resultShape,
+                            resultShapeValue);
+      BaseTensorType inputType1 = cast<BaseTensorType>(input1.getType());
+      return inputType1.getWithSizesAndDtype(resultShape,
+                                             inputType1.getOptionalDtype());
     };
 
     // Apply multiplication operation.
@@ -2143,9 +2134,9 @@ public:
     // not garenteed to be the same, hence we need to infer the result
     // type of the multiply ops.
     BaseTensorType opType = cast<BaseTensorType>(op.getType());
-    auto type = opType.hasSizes() ? mulType(input1, input2) : opType;
+    auto type = inferMulType(rewriter, loc, opType, input1, input2);
     auto mul1 = rewriter.create<AtenMulTensorOp>(loc, type, input1, input2);
-    type = opType.hasSizes() ? mulType(mul1, input3) : opType;
+    type = inferMulType(rewriter, loc, opType, mul1, input3);
     auto mul2 = rewriter.create<AtenMulTensorOp>(loc, type, mul1, input3);
 
     // Apply sum operation.
@@ -8075,38 +8066,38 @@ public:
     if (weightSizes.size() != 3)
       return rewriter.notifyMatchFailure(op, "expected weight to be a rank 3");
 
-    // generate `aten._trilinear` op. `aten.biliear` can be considered as a
+    // generate `aten._trilinear` op. `aten.bilinear` can be considered as a
     // special case of `aten._trilinear`, where the result equals to
     // aten._trilinear(input1, weight, input2, {n,n+2}, {0,...,n-1}, {n,n+1},
     // {n+1,n+2}) and `n` equals to (rank of input - 1).
     unsigned n = inputType1.getSizes().size() - 1;
-    Type listOfInt =
+    Type intListType =
         rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>());
-    Value zero =
+    Value n0 =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(n));
-    Value one =
+    Value n1 =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(n + 1));
-    Value two =
+    Value n2 =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(n + 2));
     Value expand1 = rewriter.create<PrimListConstructOp>(
-        loc, listOfInt, SmallVector<Value>{zero, two});
+        loc, intListType, SmallVector<Value>{n0, n2});
     Value expand2 = rewriter.create<PrimListConstructOp>(
-        loc, listOfInt, SmallVector<Value>{zero, one});
+        loc, intListType, SmallVector<Value>{n0, n1});
     SmallVector<Value> expandWeightValue;
     for (unsigned i = 0; i < n; i++) {
       Value value =
           rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
       expandWeightValue.push_back(value);
     }
-    Value expandw =
-        rewriter.create<PrimListConstructOp>(loc, listOfInt, expandWeightValue);
-    Value sumdim = rewriter.create<PrimListConstructOp>(
-        loc, listOfInt, SmallVector<Value>{one, two});
+    Value expandw = rewriter.create<PrimListConstructOp>(loc, intListType,
+                                                         expandWeightValue);
+    Value sumDimList = rewriter.create<PrimListConstructOp>(
+        loc, intListType, SmallVector<Value>{n1, n2});
     Value constOne =
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
     Value trilinear = rewriter.create<Aten_TrilinearOp>(
         loc, op.getType(), input1, weight, input2, expand1, expandw, expand2,
-        sumdim, constOne);
+        sumDimList, constOne);
 
     if (isa<Torch::NoneType>(bias.getType())) {
       rewriter.replaceOp(op, trilinear);
