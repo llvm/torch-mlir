@@ -13,6 +13,58 @@ func.func @test_abs(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5
 
 // -----
 
+// CHECK-LABEL: @test_adam_multiple
+func.func @test_adam_multiple(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtensor<[],si64>, %arg2: !torch.vtensor<[1],f32>, %arg3: !torch.vtensor<[2],f32>, %arg4: !torch.vtensor<[1],f32>, %arg5: !torch.vtensor<[2],f32>, %arg6: !torch.vtensor<[1],f32>, %arg7: !torch.vtensor<[2],f32>, %arg8: !torch.vtensor<[1],f32>, %arg9: !torch.vtensor<[2],f32>) -> (!torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64} {
+  // CHECK: %[[ZERO:.+]] = torch.constant.int 0
+  // CHECK: %[[ONE:.+]] = torch.constant.float 1.000000e+00
+  // CHECK: %[[ALPHA:.+]] = torch.constant.float 0.94999998807907104
+  // CHECK: %[[ALPHASUB:.+]] = torch.constant.float 0.050000011920928955
+  // CHECK: %[[BETA:.+]] = torch.constant.float 0.85000002384185791
+  // CHECK: %[[BETASUB:.+]] = torch.constant.float 0.14999997615814209
+  // CHECK: %[[PRENORM:.+]] = torch.constant.float 0.000000e+00
+  // CHECK: %[[POSTNORM:.+]] = torch.constant.float 0.000000e+00
+
+  // CHECK: %[[AT:.+]] = torch.aten.pow.Scalar %[[ALPHA]], %arg1 : !torch.float, !torch.vtensor<[],si64> -> !torch.vtensor<[],f32>
+  // CHECK: %[[BT:.+]] = torch.aten.pow.Scalar %[[BETA]], %arg1 : !torch.float, !torch.vtensor<[],si64> -> !torch.vtensor<[],f32>
+  // CHECK: %[[SUBA:.+]] = torch.aten.sub.Scalar %[[AT]], %[[ONE]], %[[ONE]]
+  // CHECK: %[[SUBB:.+]] = torch.aten.sub.Scalar %[[BT]], %[[ONE]], %[[ONE]]
+  // CHECK: %[[NEGA:.+]] = torch.aten.neg %[[SUBA]]
+  // CHECK: %[[NEGB:.+]] = torch.aten.neg %[[SUBB]]
+  // CHECK: %[[SQRTB:.+]] = torch.aten.sqrt %[[NEGB]]
+  // CHECK: %[[EQ:.+]] = torch.aten.eq.Scalar %arg1, %[[ZERO:.+]]
+  // CHECK: %[[DIV:.+]] = torch.aten.div.Tensor %[[SQRTB]], %[[NEGA]]
+  // CHECK: %[[MUL:.+]] = torch.aten.mul.Tensor %arg0, %[[DIV]]
+  // CHECK: %[[WHERE:.+]] = torch.aten.where.self %[[EQ]], %arg0, %[[MUL]]
+  // CHECK: %[[LR:.+]] = torch.aten.item %[[WHERE]]
+
+  // CHECK: %[[SCALEA:.+]] = torch.aten.mul.Scalar %arg6, %[[ALPHA]]
+  // CHECK: %[[G0:.+]] = torch.aten.add.Tensor %[[SCALEA]], %arg4, %[[ALPHASUB]]
+  // CHECK: %[[SQRGRAD:.+]] = torch.aten.mul.Tensor %arg4, %arg4
+  // CHECK: %[[BSCALE:.+]] = torch.aten.mul.Scalar %arg8, %[[BETA]]
+  // CHECK: %[[GG0:.+]] = torch.aten.add.Tensor %[[BSCALE]], %[[SQRGRAD]], %[[BETASUB]]
+  // CHECK: %[[SQRT:.+]] = torch.aten.sqrt %[[GG0]]
+  // CHECK: %[[ADD:.+]] = torch.aten.add.Scalar %[[SQRT]], %[[POSTNORM]], %[[ONE]]
+  // CHECK: %[[DIV:.+]] = torch.aten.div.Tensor %[[G0]], %[[ADD]]
+  // CHECK: %[[X0:.+]] = torch.aten.sub.Tensor %arg2, %[[DIV]], %[[LR]]
+
+
+  // CHECK: %[[SCALEA:.+]] = torch.aten.mul.Scalar %arg7, %[[ALPHA]]
+  // CHECK: %[[G1:.+]] = torch.aten.add.Tensor %[[SCALEA]], %arg5, %[[ALPHASUB]]
+  // CHECK: %[[SQRGRAD:.+]] = torch.aten.mul.Tensor %arg5, %arg5
+  // CHECK: %[[BSCALE:.+]] = torch.aten.mul.Scalar %arg9, %[[BETA]]
+  // CHECK: %[[GG1:.+]] = torch.aten.add.Tensor %[[BSCALE]], %[[SQRGRAD]], %[[BETASUB]]
+  // CHECK: %[[SQRT:.+]] = torch.aten.sqrt %[[GG1]]
+  // CHECK: %[[ADD:.+]] = torch.aten.add.Scalar %[[SQRT]], %[[POSTNORM]], %[[ONE]]
+  // CHECK: %[[DIV:.+]] = torch.aten.div.Tensor %[[G1]], %[[ADD]]
+  // CHECK: %[[X1:.+]] = torch.aten.sub.Tensor %arg3, %[[DIV]], %[[LR]]
+
+  %0:6 = torch.operator "onnx.Adam"(%arg0, %arg1, %arg2, %arg3, %arg4, %arg5, %arg6, %arg7, %arg8, %arg9) {torch.onnx.alpha = 0.949999988 : f32, torch.onnx.beta = 8.500000e-01 : f32, torch.onnx.norm_coefficient = 1.000000e-03 : f32} : (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>) -> (!torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>)
+  // CHECK: return %[[X0]], %29, %[[G0]], %22, %[[GG0]], %25
+  return %0#0, %0#1, %0#2, %0#3, %0#4, %0#5 : !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[2],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @test_add
 func.func @test_add(%arg0: !torch.vtensor<[3,4,5],f32>, %arg1: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 14 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[INT1:.*]] = torch.constant.int 1
