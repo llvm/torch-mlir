@@ -11,7 +11,6 @@
 
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/BuiltinDialect.h"
-#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
@@ -2958,56 +2957,6 @@ public:
       return rewriter.notifyMatchFailure(
           op, "getLogSoftmaxResult function returned nullptr");
     rewriter.replaceOp(op, _logSoftmax);
-    return success();
-  }
-};
-} // namespace
-
-// Decompose AtenLogCumsumExpOp into: AtenExpOp,
-// AtenCumsumOp and AtenLogOp
-// logcumsumexp(x)[i][j] = log(sum_{k=0}^{j} exp(x[i][k]))
-namespace {
-class DecomposeAtenLogCumsumExpOp
-    : public OpRewritePattern<AtenLogcumsumexpOp> {
-public:
-  using OpRewritePattern<AtenLogcumsumexpOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenLogcumsumexpOp op,
-                                PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
-    Value input = op.getSelf();
-
-    auto inputType = dyn_cast<BaseTensorType>(input.getType());
-    auto resultType = dyn_cast<BaseTensorType>(op.getType());
-
-    if (!inputType || !inputType.hasDtype())
-      return rewriter.notifyMatchFailure(op, "input should have dtype.");
-
-    if (isa<mlir::IntegerType>(inputType.getDtype()))
-      return rewriter.notifyMatchFailure(op, "integer dtype is not allowed.");
-
-    // TODO: support complex type in future.
-    if (isa<mlir::ComplexType>(inputType.getDtype()))
-      return rewriter.notifyMatchFailure(op,
-                                         "doesn't support complex type now");
-
-    if (!inputType.hasSizes())
-      return rewriter.notifyMatchFailure(op, "input should have known size.");
-
-    int64_t inputRank = inputType.getSizes().size();
-    int64_t dim;
-    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
-      return rewriter.notifyMatchFailure(
-          op, "Unimplemented: Only constant dim value is supported.");
-    dim = toPositiveDim(dim, inputRank);
-    if (!isValidDim(dim, inputRank))
-      return rewriter.notifyMatchFailure(op, "invalid dim.");
-
-    Value dtypeVal =
-        getDtypeIntValueForType(rewriter, loc, inputType.getDtype());
-    Value expInput = rewriter.create<AtenExpOp>(loc, resultType, input);
-    Value cumsum = rewriter.create<AtenCumsumOp>(loc, resultType, expInput,
-                                                 op.getDim(), dtypeVal);
-    rewriter.replaceOpWithNewOp<AtenLogOp>(op, resultType, cumsum);
     return success();
   }
 };
@@ -12165,7 +12114,6 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSoftmaxIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSigmoidOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenLogCumsumExpOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogAddExpOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogAddExp2Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardshrinkOp>(patterns);
