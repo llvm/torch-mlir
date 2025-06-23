@@ -1027,27 +1027,23 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (auto pow = dyn_cast<AtenPowTensorTensorOp>(op)) {
-    if (payloadArgs[0].getType().isInteger() &&
-        payloadArgs[1].getType().isInteger()) {
+    Type dtype = cast<RankedTensorType>(converter->convertType(pow.getType()))
+                     .getElementType();
+    if (!isa<mlir::FloatType>(dtype)) {
       // The result type is integer when both operands are integer.
       // Torch then uses the following implementation:
       // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/Pow.h
-      pow.emitError("unimplemented: integer power with integer operands");
+      pow.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    Type dtype = cast<RankedTensorType>(converter->convertType(pow.getType()))
-                     .getElementType();
     Type powType = dtype;
     if (payloadArgs[0].getType().isInteger() ||
-        payloadArgs[1].getType().isInteger() || isa<mlir::IntegerType>(dtype))
+        payloadArgs[1].getType().isInteger())
       powType = mlir::Float64Type::get(op->getContext());
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], powType);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], powType);
-    Value result = b.create<math::PowFOp>(loc, lhs, rhs).getResult();
-    if (isa<mlir::IntegerType>(dtype)) {
-      result = b.create<math::RoundEvenOp>(loc, result).getResult();
-    }
-    return convertScalarToDtype(b, loc, result, dtype);
+    auto powOp = b.create<math::PowFOp>(loc, lhs, rhs);
+    return convertScalarToDtype(b, loc, powOp, dtype);
   }
 
   if (auto imag = dyn_cast<AtenImagOp>(op)) {
