@@ -3072,6 +3072,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             rewriter.getIntegerAttr(rewriter.getIntegerType(64),
                                     static_cast<int64_t>(outDtype)));
 
+        pow = rewriter.create<Torch::AtenRoundOp>(loc, powType, pow);
         rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
             binder.op, resultType, pow, outTyConst, cstFalse, cstFalse, none);
 
