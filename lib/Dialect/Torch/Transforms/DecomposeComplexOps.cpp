@@ -10712,6 +10712,84 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenKlDivOp : public OpRewritePattern<AtenKlDivOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenKlDivOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value target = op.getTarget();
+    Value reductionValue = op.getReduction();
+    Value logTargetValue = op.getLogTarget();
+
+    auto selfTy = cast<ValueTensorType>(self.getType());
+    auto targetTy = cast<ValueTensorType>(target.getType());
+    auto outTy = cast<ValueTensorType>(op.getType());
+
+    if (!selfTy.hasSizes() || !targetTy.hasSizes() || !outTy.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "require self, target and output having sizes!");
+    }
+
+    if (!selfTy.hasDtype() || !targetTy.hasDtype() || !outTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "require self, target and output having dtype!");
+    }
+
+    // Extract boolean value from logTarget argument
+    bool logTargetBool;
+    if (!matchPattern(logTargetValue, m_TorchConstantBool(&logTargetBool)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected a constant boolean value for logTargetBool");
+
+    // Default: target tensor is not in log space
+    Value logOfTarget;
+    if (!logTargetBool) {
+      logOfTarget = rewriter.create<AtenLogOp>(loc, targetTy, target);
+    } else {
+      logOfTarget = target;
+    }
+
+    Value constOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value subValue = rewriter.create<AtenSubTensorOp>(loc, selfTy, logOfTarget,
+                                                      self, constOne);
+
+    // if target tensor is already in log space
+    if (logTargetBool) {
+      target = rewriter.create<AtenExpOp>(loc, targetTy, target);
+    }
+    Value lossPointwise =
+        rewriter.create<AtenMulTensorOp>(loc, targetTy, target, subValue);
+
+    // Extract reduction int value from reduction argument
+    int64_t reduction;
+    if (!matchPattern(reductionValue, m_TorchConstantInt(&reduction))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "reduction should be a constant int!");
+    }
+
+    Value loss;
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    // reduction: mean
+    if (reduction == 1) {
+      loss = rewriter.create<AtenMeanOp>(loc, outTy, lossPointwise, none);
+    } else if (reduction == 2) {
+      // reduction: sum
+      loss = rewriter.create<AtenSumOp>(loc, outTy, lossPointwise, none);
+    } else {
+      // reduction: none
+      loss = lossPointwise;
+    }
+
+    rewriter.replaceOp(op, loss);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenBinaryCrossEntropyWithLogitsOp
     : public OpRewritePattern<AtenBinaryCrossEntropyWithLogitsOp> {
   using OpRewritePattern<AtenBinaryCrossEntropyWithLogitsOp>::OpRewritePattern;
@@ -12629,6 +12707,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenPoissonNllLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBinaryCrossEntropyWithLogitsOp>(
         patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenKlDivOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArgsortOp>(patterns);
