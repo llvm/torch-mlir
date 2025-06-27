@@ -171,3 +171,233 @@ def test_mutable_buffer():
     )
     print(m)
     m.operation.verify()
+
+
+@run
+# CHECK-LABEL: test_single_input_const_argument
+# CHECK: %[[int2:.+]] = torch.constant.int 2
+# CHECK: %[[buffer:.+]] = torch.aten.mul.Scalar %arg0, %[[int2]] : !torch.vtensor<[3,4],f32>, !torch.int -> !torch.vtensor<[3,4],f32>
+# CHECK: return [[buffer]] : !torch.vtensor<[3,4],f32>
+def test_single_input_const_argument():
+    class SingleConstantInputModule(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, y=2):  # Single constant input
+            return x * y
+
+    m = fx.export_and_import(
+        SingleConstantInputModule(),
+        torch.randn(3, 4),
+        experimental_support_mutation=True,
+    )
+    print(m)
+    m.operation.verify()
+
+
+@run
+# CHECK-LABEL: test_single_output_const_argument
+# CHECK: %[[float1:.+]] = torch.constant.float 5.000000e-01
+# CHECK: %[[buffer:.+]] = torch.aten.mul.Scalar %arg0, %[[float1]]
+# CHECK: %[[float2:.+]] = torch.constant.float 5.000000e-01
+# CHECK: return %[[buffer]], %[[float2]] : !torch.vtensor<[3,4],f32>, !torch.float
+def test_single_output_const_argument():
+    class SingleConstantOutputModule(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.scale = 0.5  # Single constant output
+
+        def forward(self, x):
+            scaled = x * self.scale
+            return scaled, self.scale  # Return tensor + constant
+
+    m = fx.export_and_import(
+        SingleConstantOutputModule(),
+        torch.randn(3, 4),
+        experimental_support_mutation=True,
+    )
+    print(m)
+    m.operation.verify()
+
+
+@run
+# CHECK-LABEL: test_multiple_input_const_argument
+# CHECK: %[[float2:.+]] = torch.constant.float 2.000000e+00
+# CHECK: %[[buffer0:.+]] = torch.aten.mul.Scalar %arg0, %[[float2]] : !torch.vtensor<[3,4],f32>, !torch.float -> !torch.vtensor<[3,4],f32>
+# CHECK: %[[float3:.+]] = torch.constant.float 3.000000e+00
+# CHECK: %[[int1:.+]] = torch.constant.int 1
+# CHECK: %[[buffer1:.+]] = torch.aten.add.Scalar %[[buffer0]], %[[float3]], %[[int1]] : !torch.vtensor<[3,4],f32>, !torch.float, !torch.int -> !torch.vtensor<[3,4],f32>
+# CHECK: return %[[buffer1]] : !torch.vtensor<[3,4],f32>
+def test_multiple_input_const_argument():
+    class MultipleConstantInputModule(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(
+            self, x, scale=2.0, offset=1.0, multiplier=3
+        ):  # Multiple constant inputs
+            return x * scale + offset * multiplier
+
+    m = fx.export_and_import(
+        MultipleConstantInputModule(),
+        torch.randn(3, 4),
+        experimental_support_mutation=True,
+    )
+    print(m)
+    m.operation.verify()
+
+
+@run
+# CHECK-LABEL: test_multiple_output_const_argument
+# CHECK: %[[float5:.+]] = torch.constant.float 5.000000e-01
+# CHECK: %[[buffer:.+]] = torch.aten.mul.Scalar %arg0, %[[float5]] : !torch.vtensor<[3,4],f32>, !torch.float -> !torch.vtensor<[3,4],f32>
+# CHECK: %[[string:.+]] = torch.constant.str "model"
+# CHECK: %[[int42:.+]] = torch.constant.int 42
+# CHECK: %[[true:.+]] = torch.constant.bool true
+# CHECK: %[[none:.+]] = = torch.constant.none
+# CHECK: %[[buffer1]], %[[float5]], %[[string]], %[[int42]], %[[true]], %[[none]] : !torch.vtensor<[3,4],f32>, !torch.float, !torch.str, !torch.int, !torch.bool, !torch.none
+def test_multiple_output_const_argument():
+    class MultipleConstantOutputModule(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.scale = 0.5
+            self.name = "model"
+            self.version = 42
+
+        def forward(self, x):
+            result = x * self.scale
+            # Return tensor + multiple constants
+            return result, self.scale, self.name, self.version, True, None
+
+    m = fx.export_and_import(
+        MultipleConstantOutputModule(),
+        torch.randn(3, 4),
+        experimental_support_mutation=True,
+    )
+    print(m)
+    m.operation.verify()
+
+
+@run
+# CHECK-LABEL: test_input_output_const_argument
+# CHECK: %[[float5:.+]] = torch.constant.float 5.000000e-01
+# CHECK: %[[buffer0:.+]] = torch.aten.mul.Scalar %arg0, %[[float5]]
+# CHECK: %[[float2:.+]] = torch.constant.float 2.000000e+00
+# CHECK: %[[buffer1:.+]] = torch.aten.mul.Scalar %[[buffer0]], %[[float2]] : !torch.vtensor<[3,4],f32>, !torch.float -> !torch.vtensor<[3,4],f32>
+# CHECK: %[[float1:.+]] = torch.constant.float 1.000000e+00
+# CHECK: %[[int1:.+]] = torch.constant.int 1
+# CHECK: %[[buffer2:.+]] = torch.aten.add.Scalar %[[buffer1]], %[[float1]], %[[int1]]
+# CHECK: %[[string:.+]] = torch.constant.str "combined_model"
+# CHECK: %[[int42:.+]] = torch.constant.int 42
+# CHECK: %[[true:.+]] = torch.constant.bool true
+# CHECK: %[[none:.+]] = = torch.constant.none
+# CHECK: return %[[buffer2]], %[[float5]], %[[string]], %[[float2]], %[[true]], %[[float1]], %[[none]] : !torch.vtensor<[3,4],f32>, !torch.float, !torch.str, !torch.float, !torch.bool, !torch.float, !torch.none
+def test_input_output_const_argument():
+    class CombinedConstantModule(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.base_scale = 0.5
+            self.model_name = "combined_model"
+
+        def forward(self, x, user_scale=2.0, add_bias=True, bias_value=1.0):
+            if add_bias:
+                result = (x * self.base_scale * user_scale) + bias_value
+            else:
+                result = x * self.base_scale * user_scale
+
+            # Return mix of tensors and constants (both output and input)
+            return (
+                result,  # tensor
+                self.base_scale,  # constantArgument output
+                self.model_name,  # constantArgument output
+                user_scale,  # constantArgument input
+                add_bias,  # constantArgument input
+                bias_value,  # constantArgument input
+                None,  # constantArgument literal (output)
+            )
+
+    m = fx.export_and_import(
+        CombinedConstantModule(), torch.randn(3, 4), experimental_support_mutation=True
+    )
+    print(m)
+    m.operation.verify()
+
+
+@run
+# CHECK-LABEL: test_const_argument_edge_cases
+# CHECK: func.func @main(%arg0: !torch.vtensor<[3,4],f32>) -> (!torch.vtensor<[3,4],f32>, !torch.float, !torch.int, !torch.str, !torch.bool, !torch.none, !torch.none, !torch.str, !torch.int, !torch.bool)
+# CHECK: %[[float314:.+]] = torch.constant.float 3.140000e+00
+# CHECK: %[[buffer:.+]] = torch.aten.mul.Scalar %arg0, %[[float314]] : !torch.vtensor<[3,4],f32>, !torch.float -> !torch.vtensor<[3,4],f32>
+# CHECK: %[[int42:.+]] = torch.constant.int 42
+# CHECK: %[[string1:.+]] = torch.constant.str "test"
+# CHECK: %[[true:.+]] = torch.constant.bool true
+# CHECK: %[[none:.+]] = = torch.constant.none
+# CHECK: %[[string2:.+]] = torch.constant.str "default"
+# CHECK: %[[int0:.+]] = torch.constant.int 0
+# CHECK: %[[false:.+]] = torch.constant.bool false
+# CHECK: return %[[buffer]], %[[float314]], %[[int42]], %[[string1]], %[[true]], %[[none]], %[[none]], %[[string2]], %[[int0]], %[[false]] : !torch.vtensor<[3,4],f32>, !torch.float, !torch.int, !torch.str, !torch.bool, !torch.none, !torch.none, !torch.str, !torch.int, !torch.bool
+def test_const_argument_edge_cases():
+    class EdgeCaseConstantModule(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.float_val = 3.14
+            self.int_val = 42
+            self.str_val = "test"
+            self.bool_val = True
+            self.none_val = None
+
+        def forward(self, x, input_none=None, input_str="default"):
+            result = x * self.float_val
+
+            # Return all different ConstantArgument types
+            return (
+                result,  # tensor
+                self.float_val,  # float output constantArgument
+                self.int_val,  # int output constantArgument
+                self.str_val,  # string output constantArgument
+                self.bool_val,  # bool output constantArgument
+                self.none_val,  # None output constantArgument
+                input_none,  # None input constantArgument
+                input_str,  # string input constantArgument
+                0,  # literal int
+                False,  # literal bool
+            )
+
+    m = fx.export_and_import(
+        EdgeCaseConstantModule(), torch.randn(3, 4), experimental_support_mutation=True
+    )
+    print(m)
+    m.operation.verify()
+
+
+@run
+# CHECK-LABEL: test_const_argument_from_multiheadattention_layer
+# CHECK: func.func @main(%arg0: !torch.vtensor<[1,10,64],f32>, %arg1: !torch.vtensor<[1,10,64],f32>, %arg2: !torch.vtensor<[1,10,64],f32>) -> (!torch.vtensor<[1,10,64],f32>, !torch.none)
+# CHECK: %[[int1:.+]] = torch.constant.int 1
+# CHECK: %[[int0:.+]] = torch.constant.int 0
+# CHECK-DAG: %[[buffer:.+]] = torch.aten.transpose.int %arg0, %[[int1]], %[[int0]] : !torch.vtensor<[1,10,64],f32>, !torch.int, !torch.int -> !torch.vtensor<[10,1,64],f32>
+def test_const_argument_from_multiheadattention_layer():
+    """
+    Test case using actual MultiheadAttention where a constantArgument appears automatically
+    due to returning the attention layer without the weights (need_weights=False)
+    """
+
+    class AttentionLikeConstantModule(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.attn = torch.nn.MultiheadAttention(
+                embed_dim=64, num_heads=1, dropout=0.1, batch_first=True
+            )
+
+        def forward(self, query, key, value, need_weights=False):
+            return self.attn(query, key, value, need_weights=need_weights)
+
+    m = fx.export_and_import(
+        AttentionLikeConstantModule(),
+        torch.randn(1, 10, 64),  # query
+        torch.randn(1, 10, 64),  # key
+        torch.randn(1, 10, 64),  # value
+        experimental_support_mutation=True,
+    )
+    print(m)
+    m.operation.verify()
