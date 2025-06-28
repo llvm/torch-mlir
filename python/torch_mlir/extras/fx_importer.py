@@ -630,6 +630,7 @@ class FxImporter:
             OutputKind,
             TensorArgument,
             SymIntArgument,
+            ConstantArgument,
         )
 
         sig = prog.graph_signature
@@ -650,24 +651,35 @@ class FxImporter:
         constant_tensors: Dict[Node, torch.Tensor] = {}
         parameter_bindings: Dict[Node, Tuple[Any, InputInfo]] = {}
         buffer_bindings: Dict[Node, Tuple[Any, InputInfo]] = {}
+        constant_output_values: Dict[int, Any] = {}
+        constant_input_values: Dict[Node, Any] = {}
 
         # Derive user outputs that we preserve. These will be nodes of the
         # producer for the output.
-        user_outputs: List[Node] = []
+        user_outputs: List[Optional[Node]] = []
         user_output_types: List[IrType] = []
-        for output_spec in sig.output_specs:
+        for i, output_spec in enumerate(sig.output_specs):
             kind = output_spec.kind
             arg = output_spec.arg
             if kind == OutputKind.USER_OUTPUT:
-                if not isinstance(arg, (TensorArgument, SymIntArgument)):
+                if not isinstance(
+                    arg, (TensorArgument, SymIntArgument, ConstantArgument)
+                ):
                     raise NotImplementedError(
                         f"OutputKind.USER_OUTPUT for {type(arg)}: {arg}"
                     )
-                output_producer_node = all_producer_nodes[arg.name]
-                user_outputs.append(output_producer_node)
-                user_output_types.append(
-                    self._cc.node_val_to_type(output_producer_node)
-                )
+                if isinstance(arg, (TensorArgument, SymIntArgument)):
+                    output_producer_node = all_producer_nodes[arg.name]
+                    user_outputs.append(output_producer_node)
+                    user_output_types.append(
+                        self._cc.node_val_to_type(output_producer_node)
+                    )
+                elif isinstance(arg, ConstantArgument):
+                    # Constant Outputs don't have a node so we will only store their values
+                    constant_output_values[i] = arg.value
+                    # Placeholder for constant outputs in the node list
+                    user_outputs.append(None)
+                    user_output_types.append(self._cc.value_info_to_type(arg.value))
             elif kind == OutputKind.BUFFER_MUTATION and isinstance(arg, TensorArgument):
                 mutable_buffer_target_producers[output_spec.target] = arg.name
 
@@ -678,16 +690,22 @@ class FxImporter:
             arg = input_spec.arg
             if input_spec.kind == InputKind.USER_INPUT:
                 # Set up user input.
-                if not isinstance(arg, (TensorArgument, SymIntArgument)):
+                if not isinstance(
+                    arg, (TensorArgument, SymIntArgument, ConstantArgument)
+                ):
                     raise NotImplementedError(
                         f"InputKind.USER_INPUT for {type(arg)}: {arg}"
                     )
                 placeholder_node = placeholder_nodes[arg.name]
-                mutable = placeholder_node.name in mutated_user_inputs
-                user_inputs.append(placeholder_node)
-                user_input_types.append(
-                    self._cc.node_val_to_type(placeholder_node, mutable=mutable)
-                )
+                if isinstance(arg, (TensorArgument, SymIntArgument)):
+                    mutable = placeholder_node.name in mutated_user_inputs
+                    user_inputs.append(placeholder_node)
+                    user_input_types.append(
+                        self._cc.node_val_to_type(placeholder_node, mutable=mutable)
+                    )
+                elif isinstance(arg, ConstantArgument):
+                    # Constant argument will be handled separately, they are not mutable and do not need function parameters
+                    constant_input_values[placeholder_node] = arg.value
             elif input_spec.kind == InputKind.CONSTANT_TENSOR and isinstance(
                 arg, TensorArgument
             ):
@@ -778,6 +796,9 @@ class FxImporter:
         for constant_node, constant_tensor in constant_tensors.items():
             node_importer.import_constant(loc, constant_node, constant_tensor)
 
+        for constant_node, constant_value in constant_input_values.items():
+            node_importer.import_constant(loc, constant_node, constant_value)
+
         # Bind user inputs to IR values.
         for user_input_node, block_arg_value in zip(user_inputs, entry_block.arguments):
             if user_input_node.name in mutated_user_inputs:
@@ -804,7 +825,10 @@ class FxImporter:
             skip_placeholders_outputs=True,
             import_symbolic_shape_expressions=import_symbolic_shape_expressions,
         )
-        node_importer.return_node_values(loc, user_outputs)
+
+        # Call the return function that handles both nodes and constant values
+        node_importer.return_nodes(loc, user_outputs, constant_output_values)
+
         self.symbol_table.insert(func_op)
         return func_op
 
@@ -1422,6 +1446,20 @@ class GraphNodeImporter:
     def return_node_values(self, loc, nodes: List[Node]):
         with loc, InsertionPoint(self._b):
             operands = [self.resolve_node_value(n) for n in nodes]
+            func_dialect.ReturnOp(operands, loc=loc)
+
+    def return_nodes(self, loc, nodes: List[Node], constants: Dict[int, Any]):
+        with loc, InsertionPoint(self._b):
+            operands = []
+            for i, output in enumerate(nodes):
+                if output is not None:
+                    # Regular node output
+                    operands.append(self.resolve_node_value(output))
+                else:
+                    # Create a constant operation for this output
+                    # Use the existing literal import infrastructure
+                    constant_value_op = self._import_literal(constants[i])
+                    operands.append(constant_value_op)
             func_dialect.ReturnOp(operands, loc=loc)
 
     def import_nodes(
