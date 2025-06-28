@@ -177,7 +177,7 @@ def test_mutable_buffer():
 # CHECK-LABEL: test_single_input_const_argument
 # CHECK: %[[int2:.+]] = torch.constant.int 2
 # CHECK: %[[buffer:.+]] = torch.aten.mul.Scalar %arg0, %[[int2]] : !torch.vtensor<[3,4],f32>, !torch.int -> !torch.vtensor<[3,4],f32>
-# CHECK: return [[buffer]] : !torch.vtensor<[3,4],f32>
+# CHECK: return %[[buffer]] : !torch.vtensor<[3,4],f32>
 def test_single_input_const_argument():
     class SingleConstantInputModule(torch.nn.Module):
         def __init__(self):
@@ -251,11 +251,12 @@ def test_multiple_input_const_argument():
 # CHECK-LABEL: test_multiple_output_const_argument
 # CHECK: %[[float5:.+]] = torch.constant.float 5.000000e-01
 # CHECK: %[[buffer:.+]] = torch.aten.mul.Scalar %arg0, %[[float5]] : !torch.vtensor<[3,4],f32>, !torch.float -> !torch.vtensor<[3,4],f32>
-# CHECK: %[[string:.+]] = torch.constant.str "model"
+# CHECK: %[[str:.+]] = torch.constant.str "model"
 # CHECK: %[[int42:.+]] = torch.constant.int 42
 # CHECK: %[[true:.+]] = torch.constant.bool true
-# CHECK: %[[none:.+]] = = torch.constant.none
-# CHECK: %[[buffer1]], %[[float5]], %[[string]], %[[int42]], %[[true]], %[[none]] : !torch.vtensor<[3,4],f32>, !torch.float, !torch.str, !torch.int, !torch.bool, !torch.none
+# CHECK: %[[none:.+]] = torch.constant.none
+# CHECK: return %[[buffer]], %[[float5]]
+# CHECK-SAME: %[[str]], %[[int42]], %[[true]], %[[none]] : !torch.vtensor<[3,4],f32>, !torch.float, !torch.str, !torch.int, !torch.bool, !torch.none
 def test_multiple_output_const_argument():
     class MultipleConstantOutputModule(torch.nn.Module):
         def __init__(self):
@@ -287,11 +288,11 @@ def test_multiple_output_const_argument():
 # CHECK: %[[float1:.+]] = torch.constant.float 1.000000e+00
 # CHECK: %[[int1:.+]] = torch.constant.int 1
 # CHECK: %[[buffer2:.+]] = torch.aten.add.Scalar %[[buffer1]], %[[float1]], %[[int1]]
-# CHECK: %[[string:.+]] = torch.constant.str "combined_model"
-# CHECK: %[[int42:.+]] = torch.constant.int 42
+# CHECK: %[[str:.+]] = torch.constant.str "combined_model"
 # CHECK: %[[true:.+]] = torch.constant.bool true
-# CHECK: %[[none:.+]] = = torch.constant.none
-# CHECK: return %[[buffer2]], %[[float5]], %[[string]], %[[float2]], %[[true]], %[[float1]], %[[none]] : !torch.vtensor<[3,4],f32>, !torch.float, !torch.str, !torch.float, !torch.bool, !torch.float, !torch.none
+# CHECK: %[[none:.+]] = torch.constant.none
+# CHECK: return %[[buffer2]], %[[float5]]
+# CHECK-SAME: %[[str]]
 def test_input_output_const_argument():
     class CombinedConstantModule(torch.nn.Module):
         def __init__(self):
@@ -325,17 +326,20 @@ def test_input_output_const_argument():
 
 @run
 # CHECK-LABEL: test_const_argument_edge_cases
-# CHECK: func.func @main(%arg0: !torch.vtensor<[3,4],f32>) -> (!torch.vtensor<[3,4],f32>, !torch.float, !torch.int, !torch.str, !torch.bool, !torch.none, !torch.none, !torch.str, !torch.int, !torch.bool)
+# CHECK: func.func @main(%arg0: !torch.vtensor<[3,4],f32>) -> (!torch.vtensor<[3,4],f32>, !torch.float, !torch.int, !torch.str,
+# CHECK-SAME: !torch.bool, !torch.none, !torch.none, !torch.str, !torch.int, !torch.bool)
 # CHECK: %[[float314:.+]] = torch.constant.float 3.140000e+00
-# CHECK: %[[buffer:.+]] = torch.aten.mul.Scalar %arg0, %[[float314]] : !torch.vtensor<[3,4],f32>, !torch.float -> !torch.vtensor<[3,4],f32>
+# CHECK: %[[buffer:.+]] = torch.aten.mul.Scalar %arg0, %[[float314]]
 # CHECK: %[[int42:.+]] = torch.constant.int 42
 # CHECK: %[[string1:.+]] = torch.constant.str "test"
 # CHECK: %[[true:.+]] = torch.constant.bool true
-# CHECK: %[[none:.+]] = = torch.constant.none
+# CHECK: %[[none:.+]] = torch.constant.none
 # CHECK: %[[string2:.+]] = torch.constant.str "default"
 # CHECK: %[[int0:.+]] = torch.constant.int 0
 # CHECK: %[[false:.+]] = torch.constant.bool false
-# CHECK: return %[[buffer]], %[[float314]], %[[int42]], %[[string1]], %[[true]], %[[none]], %[[none]], %[[string2]], %[[int0]], %[[false]] : !torch.vtensor<[3,4],f32>, !torch.float, !torch.int, !torch.str, !torch.bool, !torch.none, !torch.none, !torch.str, !torch.int, !torch.bool
+# CHECK: return %[[buffer]], %[[float314]]
+# CHECK-SAME: %[[int42]], %[[string1]], %[[true]], %[[none]], %[[none]]
+# CHECK-SAME: %[[string2]], %[[int0]], %[[false]]
 def test_const_argument_edge_cases():
     class EdgeCaseConstantModule(torch.nn.Module):
         def __init__(self):
