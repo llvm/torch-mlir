@@ -326,8 +326,8 @@ def test_input_output_const_argument():
 
 @run
 # CHECK-LABEL: test_const_argument_edge_cases
-# CHECK: func.func @main(%arg0: !torch.vtensor<[3,4],f32>) -> (!torch.vtensor<[3,4],f32>, !torch.float, !torch.int, !torch.str,
-# CHECK-SAME: !torch.bool, !torch.none, !torch.none, !torch.str, !torch.int, !torch.bool)
+# CHECK: func.func @main(%arg0: !torch.vtensor<[3,4],f32>) ->
+# CHECK-SAME: (!torch.vtensor<[3,4],f32>, !torch.float, !torch.int, !torch.str, !torch.bool, !torch.none, !torch.none, !torch.str, !torch.int, !torch.bool)
 # CHECK: %[[float314:.+]] = torch.constant.float 3.140000e+00
 # CHECK: %[[buffer:.+]] = torch.aten.mul.Scalar %arg0, %[[float314]]
 # CHECK: %[[int42:.+]] = torch.constant.int 42
@@ -376,7 +376,8 @@ def test_const_argument_edge_cases():
 
 @run
 # CHECK-LABEL: test_const_argument_from_multiheadattention_layer
-# CHECK: func.func @main(%arg0: !torch.vtensor<[1,10,64],f32>, %arg1: !torch.vtensor<[1,10,64],f32>, %arg2: !torch.vtensor<[1,10,64],f32>) -> (!torch.vtensor<[1,10,64],f32>, !torch.none)
+# CHECK: func.func @main(%arg0: !torch.vtensor<[1,10,64],f32>, %arg1: !torch.vtensor<[1,10,64],f32>, %arg2: !torch.vtensor<[1,10,64],f32>) ->
+# CHECK-SAME: (!torch.vtensor<[1,10,64],f32>, !torch.none)
 # CHECK: %[[int1:.+]] = torch.constant.int 1
 # CHECK: %[[int0:.+]] = torch.constant.int 0
 # CHECK-DAG: %[[buffer:.+]] = torch.aten.transpose.int %arg0, %[[int1]], %[[int0]] : !torch.vtensor<[1,10,64],f32>, !torch.int, !torch.int -> !torch.vtensor<[10,1,64],f32>

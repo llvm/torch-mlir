@@ -827,7 +827,7 @@ class FxImporter:
         )
 
         # Call the return function that handles both nodes and constant values
-        node_importer.return_nodes(loc, user_outputs, constant_output_values)
+        node_importer.return_node_values(loc, user_outputs)
 
         self.symbol_table.insert(func_op)
         return func_op
@@ -1445,21 +1445,14 @@ class GraphNodeImporter:
 
     def return_node_values(self, loc, nodes: List[Node]):
         with loc, InsertionPoint(self._b):
-            operands = [self.resolve_node_value(n) for n in nodes]
-            func_dialect.ReturnOp(operands, loc=loc)
-
-    def return_nodes(self, loc, nodes: List[Node], constants: Dict[int, Any]):
-        with loc, InsertionPoint(self._b):
-            operands = []
-            for i, output in enumerate(nodes):
-                if output is not None:
-                    # Regular node output
-                    operands.append(self.resolve_node_value(output))
-                else:
-                    # Create a constant operation for this output
-                    # Use the existing literal import infrastructure
-                    constant_value_op = self._import_literal(constants[i])
-                    operands.append(constant_value_op)
+            operands = [
+                (
+                    self.resolve_node_value(n)
+                    if isinstance(n, Node)
+                    else self._import_literal(n)
+                )
+                for n in nodes
+            ]
             func_dialect.ReturnOp(operands, loc=loc)
 
     def import_nodes(
