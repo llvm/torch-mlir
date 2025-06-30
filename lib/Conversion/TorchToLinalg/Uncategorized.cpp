@@ -2609,10 +2609,10 @@ public:
     Value interMode = adaptor.getInterpolationMode();
 
     int64_t paddingModeInt;
-    if(!matchPattern(op.getPaddingMode(), m_TorchConstantInt(&paddingModeInt))) {
+    if (!matchPattern(op.getPaddingMode(),
+                      m_TorchConstantInt(&paddingModeInt))) {
       return failure();
     }
-
 
     SmallVector<Value> dynamicSizes{};
     if (resultType.isDynamicDim(0))
