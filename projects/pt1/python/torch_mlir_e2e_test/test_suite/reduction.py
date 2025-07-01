@@ -2529,7 +2529,7 @@ class HingeEmbeddingLossReductionNoneModule(torch.nn.Module):
         [
             None,
             ([-1, -1], torch.float32, True),
-            ([-1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
         ]
     )
     def forward(self, input, target):
@@ -2538,7 +2538,7 @@ class HingeEmbeddingLossReductionNoneModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: HingeEmbeddingLossReductionNoneModule())
 def HingeEmbeddingLossReductionNoneModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(8, 5), tu.rand(1))
+    module.forward(tu.rand(8, 5), tu.rand(1, 1))
 
 
 # ==============================================================================
