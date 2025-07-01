@@ -103,7 +103,9 @@ class Config:
     function_expansion_allowlists_by_domain: Optional[Dict[str, set[str]]] = field(
         default_factory=lambda: {
             # Default domain (ONNX built-in ops)
-            "": {}
+            "": {
+                "MeanVarianceNormalization",
+            }
         }
     )
 
