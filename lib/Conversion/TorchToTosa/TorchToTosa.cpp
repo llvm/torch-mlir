@@ -6275,12 +6275,6 @@ void expandPoolParams(AtenOpT op, SmallVectorImpl<int64_t> &params,
   if constexpr (std::is_same<AtenOpT, AtenMaxPool1dOp>() ||
                 std::is_same<AtenOpT, AtenAvgPool1dOp>())
     params.push_back(val);
-
-  if constexpr (std::is_same<AtenOpT, AtenMaxPool2dOp>() ||
-                std::is_same<AtenOpT, AtenAvgPool2dOp>()) {
-    if (params.size() == 1)
-      params.push_back(params[0]);
-  }
 }
 
 // Checks the validity of pooling parameters and stores them in the respective

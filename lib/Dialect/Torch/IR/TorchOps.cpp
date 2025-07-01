@@ -5720,6 +5720,184 @@ void Aten_AdaptiveAvgPool2dOp::getCanonicalizationPatterns(
   });
 }
 
+namespace {
+
+void expand(SmallVectorImpl<int64_t> &params, int numSpatialDims) {
+  if (params.size() == 1) {
+    for (auto _ : llvm::seq<int>(0, numSpatialDims - 1)) {
+      params.push_back(params[0]);
+    }
+  }
+}
+
+template <typename AtenPoolOpT>
+LogicalResult expandPoolParams(AtenPoolOpT op, int numSpatialDims,
+                               mlir::PatternRewriter &rewriter,
+                               Value &kernelSizeList, Value &stridesList,
+                               Value &paddingList, Value &dilationsList) {
+
+  SmallVector<int64_t, 3> kernelSizeInts, strideInts, paddingInts, dilationInts;
+  if (!matchPattern(op.getKernelSize(),
+                    m_TorchListOfConstantInts(kernelSizeInts)))
+    return rewriter.notifyMatchFailure(
+        op, "Non-const kernel_size for pooling op unsupported");
+
+  if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(paddingInts)))
+    return rewriter.notifyMatchFailure(
+        op, "Non-const padding factor for pooling op unsupported");
+
+  if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
+    return rewriter.notifyMatchFailure(
+        op, "Non-const stride for pooling op unsupported");
+
+  if constexpr (std::is_same<AtenPoolOpT, AtenMaxPool2dOp>() ||
+                std::is_same<AtenPoolOpT, AtenMaxPool3dOp>()) {
+    if (!matchPattern(op.getDilation(),
+                      m_TorchListOfConstantInts(dilationInts)))
+      return rewriter.notifyMatchFailure(
+          op, "Non-const dilation for pooling op unsupported");
+
+    if (kernelSizeInts.size() != 1 && paddingInts.size() != 1 &&
+        strideInts.size() != 1 && dilationInts.size() != 1) {
+      return rewriter.notifyMatchFailure(
+          op,
+          "Expected one of kernel/stride/padding/dilation to be singleton.");
+    }
+
+    expand(dilationInts, numSpatialDims);
+
+  } else if (kernelSizeInts.size() != 1 && paddingInts.size() != 1 &&
+             strideInts.size() != 1) {
+    return rewriter.notifyMatchFailure(
+        op, "Expected one of kernel/stride/padding to be singleton.");
+  }
+
+  // expand singleton elements
+  expand(kernelSizeInts, numSpatialDims);
+  expand(paddingInts, numSpatialDims);
+  expand(strideInts, numSpatialDims);
+
+  Location loc = op.getLoc();
+
+  SmallVector<Value> cstKernel, cstPadding, cstStrides, cstDilations;
+  for (auto dim : llvm::seq<int>(0, kernelSizeInts.size())) {
+    cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(kernelSizeInts[dim])));
+    cstPadding.push_back(rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(paddingInts[dim])));
+    cstStrides.push_back(rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(strideInts[dim])));
+  }
+
+  // set dilations separately as for AvgPool op it won't be set
+  for (auto dim : llvm::seq<int>(0, dilationInts.size())) {
+    cstDilations.push_back(rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(dilationInts[dim])));
+  }
+
+  auto targetListType =
+      Torch::ListType::get(Torch::IntType::get(op->getContext()));
+  kernelSizeList = rewriter.create<Torch::PrimListConstructOp>(
+      loc, targetListType, cstKernel);
+  paddingList = rewriter.create<Torch::PrimListConstructOp>(loc, targetListType,
+                                                            cstPadding);
+  stridesList = rewriter.create<Torch::PrimListConstructOp>(loc, targetListType,
+                                                            cstStrides);
+  dilationsList = rewriter.create<Torch::PrimListConstructOp>(
+      loc, targetListType, cstDilations);
+
+  return success();
+}
+
+template <typename AvgPoolOpT>
+struct CanonicalizeAvgPoolWithSingleIntTuple
+    : public mlir::OpRewritePattern<AvgPoolOpT> {
+  CanonicalizeAvgPoolWithSingleIntTuple(mlir::MLIRContext *context)
+      : OpRewritePattern<AvgPoolOpT>(context, /*benefit=*/1) {}
+
+  LogicalResult
+  matchAndRewrite(AvgPoolOpT op,
+                  mlir::PatternRewriter &rewriter) const override {
+    Value kernel, stride, pad, dilations;
+
+    auto numSpatialDims = 2;
+    if constexpr (std::is_same<AvgPoolOpT, AtenAvgPool3dOp>())
+      numSpatialDims = 3;
+
+    // Attempt to expand params if necessary.
+    if (failed(expandPoolParams(op, numSpatialDims, rewriter, kernel, stride,
+                                pad, dilations)))
+      return rewriter.notifyMatchFailure(op,
+                                         "Failed to expand params for pooling");
+
+    rewriter.replaceOpWithNewOp<AvgPoolOpT>(
+        op, op.getResult().getType(), op.getSelf(), kernel, stride, pad,
+        op.getCeilMode(), op.getCountIncludePad(), op.getDivisorOverride());
+    return success();
+  }
+};
+
+template <typename MaxPoolOpT>
+struct CanonicalizeMaxPoolWithSingleIntTuple
+    : public mlir::OpRewritePattern<MaxPoolOpT> {
+  CanonicalizeMaxPoolWithSingleIntTuple(mlir::MLIRContext *context)
+      : OpRewritePattern<MaxPoolOpT>(context, /*benefit=*/1) {}
+
+  LogicalResult
+  matchAndRewrite(MaxPoolOpT op,
+                  mlir::PatternRewriter &rewriter) const override {
+    Value kernel, stride, pad, dilations;
+
+    auto numSpatialDims = 2;
+    if constexpr (std::is_same<MaxPoolOpT, AtenMaxPool3dOp>())
+      numSpatialDims = 3;
+
+    // Attempt to expand params if necessary.
+    if (failed(expandPoolParams(op, numSpatialDims, rewriter, kernel, stride,
+                                pad, dilations)))
+      return rewriter.notifyMatchFailure(op,
+                                         "Failed to expand params for pooling");
+
+    rewriter.replaceOpWithNewOp<MaxPoolOpT>(op, op.getResult().getType(),
+                                            op.getSelf(), kernel, stride, pad,
+                                            dilations, op.getCeilMode());
+    return success();
+  }
+};
+} // namespace
+
+//===----------------------------------------------------------------------===//
+// AtenAvgPool2dOp
+//===----------------------------------------------------------------------===//
+void AtenAvgPool2dOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add<CanonicalizeAvgPoolWithSingleIntTuple<AtenAvgPool2dOp>>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenAvgPool3dOp
+//===----------------------------------------------------------------------===//
+void AtenAvgPool3dOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add<CanonicalizeAvgPoolWithSingleIntTuple<AtenAvgPool3dOp>>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenMaxPool2dOp
+//===----------------------------------------------------------------------===//
+void AtenMaxPool2dOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add<CanonicalizeMaxPoolWithSingleIntTuple<AtenMaxPool2dOp>>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenMaxPool3dOp
+//===----------------------------------------------------------------------===//
+void AtenMaxPool3dOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add<CanonicalizeMaxPoolWithSingleIntTuple<AtenMaxPool3dOp>>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // AtenLinalgCrossOp
 //===----------------------------------------------------------------------===//
