@@ -5724,7 +5724,7 @@ namespace {
 
 void expand(SmallVectorImpl<int64_t> &params, int numSpatialDims) {
   if (params.size() == 1) {
-    for (auto [[maybe_unused]] _ : llvm::seq<int>(0, numSpatialDims - 1)) {
+    for ([[maybe_unused]] int dim : llvm::seq<int>(0, numSpatialDims - 1)) {
       params.push_back(params[0]);
     }
   }
