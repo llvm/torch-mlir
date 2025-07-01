@@ -1775,6 +1775,9 @@ def aten〇where〇ScalarOther〡shape(condition: List[int], self: List[int], ot
 def aten〇where〇ScalarSelf〡shape(condition: List[int], self: float, other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(condition, other)
 
+def aten〇heaviside〡shape(self: List[int], values: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, values)
+
 def aten〇nan_to_num〡shape(self: List[int], nan: Optional[float] = None, posinf: Optional[float] = None, neginf: Optional[float] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -5113,6 +5116,14 @@ def aten〇where〇ScalarSelf〡dtype(condition_rank_dtype: Tuple[int, int], sel
     ranks: List[Optional[int]] = [None, other_rank]
     dtypes = [get_dtype_of_scalar(self), other_dtype]
     return promote_dtypes(ranks, dtypes)
+
+def aten〇heaviside〡dtype(self_rank_dtype: Tuple[int, int], values_rank_dtype: Tuple[int, int]) -> int:
+    self_rank,self_dtype = self_rank_dtype
+    values_rank,values_dtype = values_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, values_rank]
+    dtypes = [self_dtype, values_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    return promoted_dtype    
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1))
