@@ -827,7 +827,7 @@ class FxImporter:
         )
 
         # Call the return function that handles both nodes and constant values
-        node_importer.return_node_values(loc, user_outputs)
+        node_importer.return_node_values(loc, user_outputs, constant_output_values)
 
         self.symbol_table.insert(func_op)
         return func_op
@@ -1443,15 +1443,16 @@ class GraphNodeImporter:
 
             self._on_node_produced[info.store_producer_node] = on_produced
 
-    def return_node_values(self, loc, nodes: List[Node]):
+    def return_node_values(self, loc, nodes: List[Node], constants: Dict[int, Any]):
+        # This function returns both node values and constant values
         with loc, InsertionPoint(self._b):
             operands = [
                 (
                     self.resolve_node_value(n)
                     if isinstance(n, Node)
-                    else self._import_literal(n)
+                    else self._import_literal(constants[index])
                 )
-                for n in nodes
+                for index, n in enumerate(nodes)
             ]
             func_dialect.ReturnOp(operands, loc=loc)
 
