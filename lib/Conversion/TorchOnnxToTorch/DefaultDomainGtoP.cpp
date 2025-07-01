@@ -1619,18 +1619,31 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType)) {
           return failure();
         }
+        if (!resultType.hasSizes() || !resultType.hasDtype()) {
+          return failure();
+        }
+        auto inputTy = cast<Torch::ValueTensorType>(input.getType());
+        if (!inputTy || !inputTy.hasSizes()) {
+          return failure();
+        }
+        int64_t inputRank = inputTy.getSizes().size();
+
         Location loc = binder.getLoc();
         Value keepDim = rewriter.create<Torch::ConstantBoolOp>(loc, true);
         Value unBiased = rewriter.create<Torch::ConstantBoolOp>(loc, false);
         Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
 
-        ArrayRef<int64_t> input_shape = resultType.getSizes();
-        SmallVector<int64_t> reduced_shape(input_shape);
+        ArrayRef<int64_t> output_shape = resultType.getSizes();
+        SmallVector<int64_t> reduced_shape(output_shape);
+
         for (int64_t i : axes) {
+          int64_t dim = Torch::toPositiveDim(i, inputRank);
+          if (!Torch::isValidDim(dim, inputRank)) {
+            return failure();
+          }
           reduced_shape[i] = 1;
         }
-
-        Torch::ValueTensorType meanOutTy = Torch::ValueTensorType::get(
+        Torch::ValueTensorType reducedOutTy = Torch::ValueTensorType::get(
             resultType.getContext(), reduced_shape, resultType.getDtype());
         SmallVector<Value> cstAxes;
         for (int64_t i : axes) {
@@ -1642,29 +1655,23 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstAxes);
         Value mean = rewriter.create<Torch::AtenMeanDimOp>(
-            loc, meanOutTy, input, axes_list, keepDim, none);
-
+            loc, reducedOutTy, input, axes_list, keepDim, none);
         Value variance = rewriter.create<Torch::AtenVarDimOp>(
-            loc, meanOutTy, input, axes_list, unBiased, keepDim);
-
+            loc, reducedOutTy, input, axes_list, unBiased, keepDim);
         Value cstOne = rewriter.create<Torch::ConstantIntOp>(
             loc, rewriter.getI64IntegerAttr(1));
         Value cstEps = rewriter.create<Torch::ConstantFloatOp>(
             loc, rewriter.getF64FloatAttr(1e-9));
         variance = rewriter.create<Torch::AtenAddScalarOp>(
-            loc, meanOutTy, variance, cstEps, cstOne);
-
-        Value sqrt =
-            rewriter.create<Torch::AtenSqrtOp>(loc, meanOutTy, variance);
-
-        Value subValue = rewriter.create<Torch::AtenSubTensorOp>(
+            loc, reducedOutTy, variance, cstEps, cstOne);
+        Value sqrtVar =
+            rewriter.create<Torch::AtenSqrtOp>(loc, reducedOutTy, variance);
+        Value inputMinusMean = rewriter.create<Torch::AtenSubTensorOp>(
             loc, resultType, input, mean, cstOne);
-
         Value meanVarNorm = rewriter.create<Torch::AtenDivTensorOp>(
-            loc, resultType, subValue, sqrt);
+            loc, resultType, inputMinusMean, sqrtVar);
 
         rewriter.replaceOp(binder.op, meanVarNorm);
-
         return success();
       });
   patterns.onOp(
