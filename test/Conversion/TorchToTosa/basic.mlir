@@ -4170,3 +4170,19 @@ func.func @torch.aten.avg_pool2d$full_dim_indivisible_by_stride_with_sliced_inpu
 }
 
 // -----
+// CHECK-LABEL:   func.func @torch.aten.convolution$no_bias(
+// CHECK:         tosa.conv2d
+// CHECK-SAME:    {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<2x6x6x2xf16>, tensor<8x3x3x2xf16>, tensor<8xf16>, tensor<1xf16>, tensor<1xf16>) -> tensor<2x4x4x8xf16>
+// CHECK-NOT:     torch.aten.convolution
+func.func @torch.aten.convolution$no_bias(%arg0: !torch.vtensor<[2,2,6,6],f16>, %arg1: !torch.vtensor<[8,2,3,3],f16>) -> !torch.vtensor<[2,8,4,4],f16> {
+    %false = torch.constant.bool false
+    %int0 = torch.constant.int 0
+    %none = torch.constant.none
+    %int1 = torch.constant.int 1
+    %0 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+    %1 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+    %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+    %3 = torch.prim.ListConstruct  : () -> !torch.list<int>
+    %4 = torch.aten.convolution %arg0, %arg1, %none, %0, %1, %2, %false, %3, %int1 : !torch.vtensor<[2,2,6,6],f16>, !torch.vtensor<[8,2,3,3],f16>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[2,8,4,4],f16>
+    return %4 : !torch.vtensor<[2,8,4,4],f16>
+  }
