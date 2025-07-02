@@ -1914,10 +1914,9 @@ class AvgPool3dSingleIntTupleParamsModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.apd = torch.nn.AvgPool3d(
-            kernel_size=(6, 6),
+            kernel_size=(6, 6, 6),
             stride=(2,),
-            padding=(1, 1),
-            count_include_pad=False,
+            padding=(1, 1, 1),
         )
 
     @export
