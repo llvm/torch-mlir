@@ -895,6 +895,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::expand : (Tensor, int[], bool) -> (Tensor)")
     emit("aten::expand_as : (Tensor, Tensor) -> (Tensor)")
     emit("aten::broadcast_to : (Tensor, int[]) -> (Tensor)", has_folder=True)
+    emit("aten::broadcast_tensors : (Tensor[]) -> (Tensor[])")
     emit("aten::index.Tensor : (Tensor, Tensor?[]) -> (Tensor)")
     emit("aten::index.Tensor_hacked_twin : (Tensor, Tensor[]) -> (Tensor)")
     emit("aten::index_select : (Tensor, int, Tensor) -> (Tensor)", has_folder=True)

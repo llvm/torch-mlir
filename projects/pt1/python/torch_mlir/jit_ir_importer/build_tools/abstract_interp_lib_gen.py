@@ -949,6 +949,10 @@ def aten〇expand_as〡shape(self: List[int], other: List[int]) -> List[int]:
 def aten〇broadcast_to〡shape(self: List[int], size: List[int]) -> List[int]:
     return upstream_shape_functions.expand(self, size)
 
+def aten〇broadcast_tensors〡shape(tensors: List[List[int]]) -> List[List[int]]:
+    out_shape: torch.Size = upstream_shape_functions.broadcast_shapes(tensors)
+    return out_shape
+
 def aten〇view〡shape(self: List[int], size: List[int]) -> List[int]:
     return upstream_shape_functions.view(self, size)
 
@@ -3126,6 +3130,21 @@ def aten〇bitwise_not〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def aten〇broadcast_to〡dtype(self_rank_dtype: Tuple[int, int], size: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+@check_dtype_function(
+    [Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float16), NonZeroDTensorWithDtype(torch.float64)]),
+     Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32),
+                 NonZeroDTensorWithDtype(torch.complex64)])])
+def aten〇broadcast_tensors〡dtype(tensors_rank_dtype: List[Tuple[int, int]]) -> int:
+    ranks: List[Optional[int]] = []
+    dtypes: List[int] = []
+    assert len(tensors_rank_dtype) != 0
+    for tensor_rank_dtype in tensors_rank_dtype:
+        tensor_rank, tensor_dtype = tensor_rank_dtype
+        ranks.append(tensor_rank)
+        dtypes.append(tensor_dtype)
+    return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=2,dim=0, error_types={torch.complex128, torch.complex64, *all_integer_dtypes()}))

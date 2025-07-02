@@ -4205,6 +4205,8 @@ ONNX_TOSA_XFAIL_SET = {
     "BoolIntTrueModule_basic",
     "BroadcastDynamicDimModule_basic",
     "BroadcastToModule_basic",
+    "BroadcastTensorsModule_basic",
+    "BroadcastTensorsModuleList_multiple_ranks",
     "BucketizeTensorFloatModule_basic",
     "BucketizeTensorModule_basic",
     "BucketizeTensorOutInt32RightModule_basic",

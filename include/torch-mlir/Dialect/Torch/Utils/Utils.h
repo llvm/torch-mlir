@@ -60,10 +60,10 @@ Type getBuiltInTypeForTorchScalar(Type type);
 Value getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
                               Type dtype);
 
-// Checks whether the `inputA` and `inputB` are broadcast compatible or not. If
+// Checks whether the inputs are broadcast compatible or not. If
 // yes, then computes the final broadcast shape.
 void computeBroadcastShape(PatternRewriter &rewriter, Location loc,
-                           Value inputA, Value inputB,
+                           SmallVector<Value> inputs,
                            SmallVector<int64_t> &resultShape,
                            SmallVector<Value> &resultShapeValue);
 
