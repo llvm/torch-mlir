@@ -2316,6 +2316,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   // Bias is optional. TOSA mandates a zero tensor here, so construct one if
   // required.
   auto bias = adaptor.getBias();
+  auto biasElemTy =
+      isa<mlir::FloatType>(inputElemTy) ? inputElemTy : rewriter.getI32Type();
   if (isa<Torch::NoneType>(adaptor.getBias().getType())) {
     // TBD: This is only valid for quantized 8-bit. For 16-bit, the bias (and
     // accumulator) are 48-bit and not 32-bit, and requires the use of APInt to
@@ -2328,7 +2330,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     } else {
       SmallVector<float> zeroVec(weightShape[0], 0);
       bias = tosa::getConstTensor<float>(rewriter, op, zeroVec,
-                                         {static_cast<int32_t>(weightShape[0])})
+                                         {static_cast<int32_t>(weightShape[0])},
+                                         biasElemTy)
                  .value();
     }
   } else {
@@ -2336,8 +2339,6 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
       return rewriter.notifyMatchFailure(
           op, "Bias provided but not a ranked tensor");
   }
-  auto biasElemTy =
-      isa<mlir::FloatType>(inputElemTy) ? inputElemTy : rewriter.getI32Type();
 
   int64_t groups;
   if (!matchPattern(op.getGroups(), m_TorchConstantInt(&groups))) {
