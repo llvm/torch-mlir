@@ -8542,7 +8542,7 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
         break;
       default:
         return rewriter.notifyMatchFailure(
-            op, "unsupported number of dims for 'reflect' mode: " +
+            op, "unsupported number of dims for 'replicate' mode: " +
                     std::to_string(numPadDims));
       }
       return success();
