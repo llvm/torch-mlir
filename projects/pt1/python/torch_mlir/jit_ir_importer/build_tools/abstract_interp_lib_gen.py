@@ -950,8 +950,15 @@ def aten〇broadcast_to〡shape(self: List[int], size: List[int]) -> List[int]:
     return upstream_shape_functions.expand(self, size)
 
 def aten〇broadcast_tensors〡shape(tensors: List[List[int]]) -> List[List[int]]:
-    out_shape: torch.Size = upstream_shape_functions.broadcast_shapes(tensors)
-    return out_shape
+    if len(tensors) == 0:
+        return []
+    result = tensors[0]
+    for i in range(1, len(tensors)):
+        result = upstream_shape_functions.broadcast(result, tensors[i])
+    out: List[List[int]] = []
+    for _ in tensors:
+        out.append(result)
+    return out
 
 def aten〇view〡shape(self: List[int], size: List[int]) -> List[int]:
     return upstream_shape_functions.view(self, size)
@@ -3131,20 +3138,16 @@ def aten〇broadcast_to〡dtype(self_rank_dtype: Tuple[int, int], size: List[int
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
-@check_dtype_function(
-    [Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32)]),
-     Invocation([NonZeroDTensorWithDtype(torch.float16), NonZeroDTensorWithDtype(torch.float64)]),
-     Invocation([NonZeroDTensorWithDtype(torch.float32), NonZeroDTensorWithDtype(torch.int32),
-                 NonZeroDTensorWithDtype(torch.complex64)])])
-def aten〇broadcast_tensors〡dtype(tensors_rank_dtype: List[Tuple[int, int]]) -> int:
-    ranks: List[Optional[int]] = []
-    dtypes: List[int] = []
-    assert len(tensors_rank_dtype) != 0
+def aten〇broadcast_tensors〡dtype(tensors_rank_dtype: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    max_rank = 0
+    for rd in tensors_rank_dtype:
+        if rd[0] > max_rank:
+            max_rank = rd[0]
+    out: List[Tuple[int, int]] = []
     for tensor_rank_dtype in tensors_rank_dtype:
         tensor_rank, tensor_dtype = tensor_rank_dtype
-        ranks.append(tensor_rank)
-        dtypes.append(tensor_dtype)
-    return promote_dtypes(ranks, dtypes)
+        out.append((max_rank, tensor_dtype))
+    return out
 
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=2,dim=0, error_types={torch.complex128, torch.complex64, *all_integer_dtypes()}))

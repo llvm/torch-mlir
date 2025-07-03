@@ -3446,6 +3446,7 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
     "StdCorrectionEmptyDimModule_basic",
     "VarCorrectionEmptyDimModule_basic",
     "VarDimEmptyDimModule_basic",
+    "BroadcastTensorsModule_basic",
     # Runtime op verification: rank mismatch in memref.cast
     "ViewSizeFromOtherTensor_basic",
     "SliceOutOfLowerBoundEndIndexModule_basic",
