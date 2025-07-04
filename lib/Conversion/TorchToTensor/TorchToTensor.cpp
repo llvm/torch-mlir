@@ -16,11 +16,13 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+using namespace mlir::torch::TorchConversion;
 
 namespace {
 
@@ -138,6 +140,97 @@ public:
   }
 };
 
+class ConvertAtenAsStridedOp : public OpConversionPattern<AtenAsStridedOp> {
+public:
+  using OpConversionPattern<AtenAsStridedOp>::OpConversionPattern;
+  using OpAdaptor = typename AtenAsStridedOp::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenAsStridedOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    // In some cases AtenAsStridedOp is equivalent to a Tensor ExtractSliceOp.
+    // We will try to match those cases here.
+    auto inputShape =
+        cast<RankedTensorType>(adaptor.getSelf().getType()).getShape();
+    auto outputShape =
+        cast<BaseTensorType>(op.getResult().getType()).getSizes();
+    auto resultTy =
+        cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+
+    // If the output shape is strictly larger than the input shape at any
+    // dimension than this AtenAsStridedOp is not equivalent to a slice.
+    for (uint64_t i = 0; i < outputShape.size(); ++i) {
+      if (outputShape[i] > inputShape[i])
+        return failure();
+    }
+
+    // Calculate what the strides attribute should be if the input tensor is
+    // contiguous.
+    SmallVector<int64_t> contiguousStrides(inputShape.size(), 1);
+    for (int i = inputShape.size() - 2; i >= 0; --i) {
+      contiguousStrides[i] = contiguousStrides[i + 1] * inputShape[i + 1];
+    }
+
+    SmallVector<Value> outSizeValues, opStridesValues;
+    if (!getListConstructElements(adaptor.getStride(), opStridesValues))
+      return op.emitError(
+          "unimplemented: the tensor list is not from list construct");
+
+    if (!getListConstructElements(adaptor.getSize(), outSizeValues))
+      return op.emitError(
+          "unimplemented: the tensor list is not from list construct");
+
+    // Get storage offset
+    int64_t offset;
+    if (!matchPattern(op.getStorageOffset(), m_TorchConstantInt(&offset)))
+      offset = 0;
+
+    APInt size;
+    SmallVector<int64_t> outSize(inputShape.size(), 0);
+    for (uint64_t i = 0; i < outSizeValues.size(); ++i) {
+      if (!matchPattern(outSizeValues[i], m_Op<TorchConversion::FromI64Op>(
+                                              m_ConstantInt(&size))) ||
+          !size.isSignedIntN(64))
+        return failure();
+      outSize[i] = size.getSExtValue();
+    }
+    APInt stride;
+    SmallVector<int64_t> opStrides(inputShape.size(), 0);
+    for (uint64_t i = 0; i < opStridesValues.size(); ++i) {
+      if (!matchPattern(opStridesValues[i], m_Op<TorchConversion::FromI64Op>(
+                                                m_ConstantInt(&stride))) ||
+          !stride.isSignedIntN(64))
+        return failure();
+      opStrides[i] = stride.getSExtValue();
+    }
+
+    // Slice dims are the dims where the input and output shapes are not equal.
+    SmallVector<int64_t> sliceDims;
+    for (uint64_t i = 0; i < inputShape.size(); ++i) {
+      if (outSize[i] != inputShape[i])
+        sliceDims.push_back(i);
+    }
+
+    // If there are no slice dims, then the AtenAsStridedOp is equivalent to the
+    // input tensor.
+    if (sliceDims.empty()) {
+      rewriter.replaceOp(op, adaptor.getSelf());
+      return success();
+    }
+
+    SmallVector<int64_t> sliceOffsets(inputShape.size(), 0);
+    SmallVector<int64_t> sliceStrides(opStrides.size(), 1);
+    for (auto dim : sliceDims) {
+      sliceOffsets[dim] = offset / contiguousStrides[dim];
+      sliceStrides[dim] = opStrides[dim] / contiguousStrides[dim];
+    }
+
+    rewriter.replaceOpWithNewOp<tensor::ExtractSliceOp>(
+        op, resultTy, adaptor.getSelf(), ValueRange(), ValueRange(),
+        ValueRange(), sliceOffsets, outSize, sliceStrides);
+    return success();
+  }
+};
+
 class ConvertTorchToTensor
     : public ConvertTorchToTensorBase<ConvertTorchToTensor> {
 public:
@@ -153,6 +246,7 @@ public:
     target.addIllegalOp<Torch::AtenItemOp>();
     target.addIllegalOp<Torch::AtenTensorOp>();
     target.addIllegalOp<Torch::Aten_ShapeAsTensorOp>();
+    target.addIllegalOp<Torch::AtenAsStridedOp>();
 
     TypeConverter typeConverter;
     typeConverter.addConversion([](Type type) { return type; });
@@ -160,7 +254,8 @@ public:
 
     RewritePatternSet patterns(context);
     patterns.add<ConvertAtenShapeToTensorPatternOp, ConvertAtenItemOp,
-                 ConvertAtenTensorOpPattern>(typeConverter, context);
+                 ConvertAtenTensorOpPattern, ConvertAtenAsStridedOp>(
+        typeConverter, context);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
