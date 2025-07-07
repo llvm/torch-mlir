@@ -9163,20 +9163,20 @@ std::set<StringRef> torch::populateTorchToTosaConversionPatternsAndIllegalOps(
   illegalOps.insert(AtenOp::getOperationName());                               \
   patterns.add<ConvertAtenMatMulOp<AtenOp>>(typeConverter, context);
   INSERT_MATMUL_ATENOP_PATTERN(AtenMatmulOp);
-#undef INSERT_MATMUL_ATEMOP_PATTERN
+#undef INSERT_MATMUL_ATENOP_PATTERN
 
 #define INSERT_MM_ATENOP_PATTERN(AtenOp)                                       \
   illegalOps.insert(AtenOp::getOperationName());                               \
   patterns.add<ConvertAtenMmOp<AtenOp>>(typeConverter, context);
   INSERT_MM_ATENOP_PATTERN(AtenMmOp);
   INSERT_MM_ATENOP_PATTERN(AtenBmmOp);
-#undef INSERT_MM_ATEMOP_PATTERN
+#undef INSERT_MM_ATENOP_PATTERN
 
 #define INSERT_LINEAR_ATENOP_PATTERN(AtenOp)                                   \
   illegalOps.insert(AtenOp::getOperationName());                               \
   patterns.add<ConvertAtenLinearOp<AtenOp>>(typeConverter, context);
   INSERT_LINEAR_ATENOP_PATTERN(AtenLinearOp);
-#undef INSERT_LINEAR_ATEMOP_PATTERN
+#undef INSERT_LINEAR_ATENOP_PATTERN
 
 #define INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN(AtenOp, TosaOpT)                \
   illegalOps.insert(AtenOp::getOperationName());                               \
@@ -9184,7 +9184,7 @@ std::set<StringRef> torch::populateTorchToTosaConversionPatternsAndIllegalOps(
                                                               context);
   INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN(AtenAdaptiveAvgPool2dOp,
                                          tosa::AvgPool2dOp);
-#undef INSERT_ADAPTIVE_POOLING_ATEMOP_PATTERN
+#undef INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN
 
   illegalOps.insert(AtenMaxPool2dOp::getOperationName());
   patterns.add<ConvertAtenMaxPool2dOp>(typeConverter, context);
@@ -9244,7 +9244,7 @@ std::set<StringRef> torch::populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenTanhOp, tosa::TanhOp);
   INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenSigmoidOp, tosa::SigmoidOp);
   INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenErfOp, tosa::ErfOp);
-#undef INSERT_ACTIVATION_FUNCITON_OP_PATTERN
+#undef INSERT_ACTIVATION_FUNCTION_OP_PATTERN
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
   illegalOps.insert(AtenOp::getOperationName());                               \
