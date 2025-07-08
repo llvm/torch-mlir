@@ -8624,6 +8624,11 @@ def Torch_AtenTransposeIntOp : Torch_Op<"aten.transpose.int", [
     ReadOnly
   ]> {
   let summary = "Generated op for `aten::transpose.int : (Tensor, int, int) -> (Tensor)`";
+  let description = [{
+    This operation shuffles channels of a tensor along the channel dimension.
+    It is used in models like ShuffleNet to enable better information flow.
+  }];
+
   let arguments = (ins
     AnyTorchTensorType:$self,
     Torch_IntType:$dim0,
@@ -8663,6 +8668,30 @@ def Torch_AtenPixelShuffleOp : Torch_Op<"aten.pixel_shuffle", [
       return parseDefaultTorchOp(parser, result, 2, 1);
     }
     void AtenPixelShuffleOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
+def Torch_AtenChannelShuffleOp : Torch_Op<"aten.channel_shuffle", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::channel_shuffle : (Tensor, int) -> Tensor`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$groups
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenChannelShuffleOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenChannelShuffleOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
