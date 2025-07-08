@@ -8624,10 +8624,6 @@ def Torch_AtenTransposeIntOp : Torch_Op<"aten.transpose.int", [
     ReadOnly
   ]> {
   let summary = "Generated op for `aten::transpose.int : (Tensor, int, int) -> (Tensor)`";
-  let description = [{
-    This operation shuffles channels of a tensor along the channel dimension.
-    It is used in models like ShuffleNet to enable better information flow.
-  }];
 
   let arguments = (ins
     AnyTorchTensorType:$self,
@@ -8679,6 +8675,10 @@ def Torch_AtenChannelShuffleOp : Torch_Op<"aten.channel_shuffle", [
     ReadOnly
   ]> {
   let summary = "Generated op for `aten::channel_shuffle : (Tensor, int) -> Tensor`";
+  let description = [{
+    This operation shuffles channels of a tensor along the channel dimension.
+    It is used in models like ShuffleNet to enable better information flow.
+  }];
   let arguments = (ins
     AnyTorchTensorType:$self,
     Torch_IntType:$groups
