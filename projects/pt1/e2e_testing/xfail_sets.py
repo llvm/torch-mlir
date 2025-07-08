@@ -680,8 +680,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "CeilFloatModule_basic",
     "ChannelShuffleBasic_basic",
     "ChannelShuffleUnitaryGroup_basic",
-    "ChannelShuffle1D_basic",
-    "ChannelShuffle4D_basic",
     "ChannelShuffleTrailingOnes_basic",
     "ConstantBoolParameterModule_basic",
     "ContainsIntList_False",
