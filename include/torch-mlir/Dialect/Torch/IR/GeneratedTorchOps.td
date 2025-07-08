@@ -8624,7 +8624,6 @@ def Torch_AtenTransposeIntOp : Torch_Op<"aten.transpose.int", [
     ReadOnly
   ]> {
   let summary = "Generated op for `aten::transpose.int : (Tensor, int, int) -> (Tensor)`";
-
   let arguments = (ins
     AnyTorchTensorType:$self,
     Torch_IntType:$dim0,
