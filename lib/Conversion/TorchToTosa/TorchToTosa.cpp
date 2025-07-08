@@ -29,6 +29,8 @@
 #include <optional>
 #include <random>
 
+#include "mlir/Dialect/Tosa/Utils/QuantUtils.h"
+
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -2295,7 +2297,6 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   auto weightTy = cast<RankedTensorType>(weight.getType());
   auto outputTy =
       cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
-
   if (!inputTy || !weightTy || !outputTy)
     return rewriter.notifyMatchFailure(
         op, "Input, weight and output to Convolution must be ranked tensors");
@@ -2304,6 +2305,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   auto weightElemTy = weightTy.getElementType();
   auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
   auto weightShape = makeShapeTorchCompatible(weightTy.getShape());
+  auto outputElemTy = outputTy.getElementType();
 
   if (inputTy.getRank() != 4)
     return rewriter.notifyMatchFailure(
@@ -2316,29 +2318,21 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   // Bias is optional. TOSA mandates a zero tensor here, so construct one if
   // required.
   auto bias = adaptor.getBias();
-  auto biasElemTy =
-      isa<mlir::FloatType>(inputElemTy) ? inputElemTy : rewriter.getI32Type();
-  if (isa<Torch::NoneType>(adaptor.getBias().getType())) {
-    // TBD: This is only valid for quantized 8-bit. For 16-bit, the bias (and
-    // accumulator) are 48-bit and not 32-bit, and requires the use of APInt to
-    // define a 48-bit int.
-    if (isa<quant::QuantizedType>(inputElemTy)) {
-      SmallVector<int32_t> zeroVec(weightShape[0], 0);
-      bias = tosa::getConstTensor<int32_t>(
-                 rewriter, op, zeroVec, {static_cast<int32_t>(weightShape[0])})
-                 .value();
-    } else {
-      SmallVector<float> zeroVec(weightShape[0], 0);
-      bias = tosa::getConstTensor<float>(rewriter, op, zeroVec,
-                                         {static_cast<int32_t>(weightShape[0])},
-                                         biasElemTy)
-                 .value();
-    }
+
+  if (isa<Torch::NoneType>(bias.getType())) {
+    auto bias_result = tosa::getConvBiasForNoneType(op, rewriter, inputElemTy,
+                                                    outputElemTy, weightShape);
+    if (failed(bias_result))
+      return rewriter.notifyMatchFailure(
+          op, "Failed to create bias tensor for none type.");
+    bias = bias_result.value();
   } else {
-    if (!cast<RankedTensorType>(bias.getType()))
+    if (!isa<RankedTensorType>(bias.getType()))
       return rewriter.notifyMatchFailure(
           op, "Bias provided but not a ranked tensor");
   }
+
+  Type biasElemTy = cast<RankedTensorType>(bias.getType()).getElementType();
 
   int64_t groups;
   if (!matchPattern(op.getGroups(), m_TorchConstantInt(&groups))) {
@@ -2529,6 +2523,21 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   auto convOpTy =
       RankedTensorType::get(makeShapeLLVMCompatible(outputShape), biasElemTy);
 
+  // create zero-point tensors for input and weight
+  auto zps = tosa::createZPsAsConst(rewriter, input, weight);
+  // for i8 input/weight, zero-points are returned as un-initialized
+  Value inputZp =
+      zps.first
+          ? zps.first
+          : tosa::createZeroPointTensor(rewriter, op->getLoc(), inputElemTy, 0)
+                .value();
+
+  Value weightZp =
+      zps.second
+          ? zps.second
+          : tosa::createZeroPointTensor(rewriter, op->getLoc(), weightElemTy, 0)
+                .value();
+
   Value convOpResult;
   if (groups == 1) {
     // full convolution
@@ -2536,7 +2545,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
         rewriter
             .create<tosa::Conv2DOp>(
                 op->getLoc(), getTypeConverter()->convertType(convOpTy),
-                transposedInput, transformedWeight, bias,
+                transposedInput, transformedWeight, bias, inputZp, weightZp,
                 rewriter.getDenseI64ArrayAttr(padding),
                 rewriter.getDenseI64ArrayAttr(stride),
                 rewriter.getDenseI64ArrayAttr(dilation), accType)
@@ -2547,7 +2556,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
         rewriter
             .create<tosa::DepthwiseConv2DOp>(
                 op->getLoc(), getTypeConverter()->convertType(convOpTy),
-                transposedInput, transformedWeight, bias,
+                transposedInput, transformedWeight, bias, inputZp, weightZp,
                 rewriter.getDenseI64ArrayAttr(padding),
                 rewriter.getDenseI64ArrayAttr(stride),
                 rewriter.getDenseI64ArrayAttr(dilation), accType)
@@ -2575,8 +2584,12 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
         rewriter, op, transposedOutput, inputTy, weightTy, outputTy);
   }
 
-  rewriter.replaceOpWithNewOp<tensor::CastOp>(
-      op, getTypeConverter()->convertType(op.getType()), rescaledResult);
+  // cast to outputTy is required if convOpTy is not same as outputTy
+  // the difference is not in the shape information, rather the element-type
+  // itself
+  rewriter.replaceOp(
+      op,
+      {tosa::tosaCastTensorToType(rewriter, rescaledResult, outputTy).value()});
 
   return success();
 }

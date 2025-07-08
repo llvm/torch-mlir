@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Tosa/IR/TosaOps.h" // from @llvm-project
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
 #include "mlir/Dialect/Tosa/Utils/QuantUtils.h" // from @llvm-project
+#include "llvm/ADT/ArrayRef.h"
 
 namespace mlir {
 namespace tosa {
@@ -549,6 +550,49 @@ LogicalResult getConvOpsAccType(PatternRewriter &rewriter,
   }
 
   return success();
+}
+
+FailureOr<Value> getConvBiasForNoneType(Operation *op,
+                                        PatternRewriter &rewriter,
+                                        Type inputElemTy, Type outputElemTy,
+                                        ArrayRef<int64_t> weightShape) {
+
+  Type biasElemTy;
+
+  if (isa<quant::QuantizedType>(outputElemTy)) {
+    auto input_qtype = dyn_cast<mlir::quant::QuantizedType>(inputElemTy);
+    if (!input_qtype) {
+      return rewriter.notifyMatchFailure(op,
+                                         "output is qtype but input is not");
+    }
+    int input_bits = input_qtype.getStorageTypeIntegralWidth();
+    if (input_bits != 8) {
+      // TBD: This is only valid for quantized 8-bit. For 16-bit, the bias (and
+      // accumulator) are 48-bit and not 32-bit, and requires the use of APInt
+      // to define a 48-bit int.
+      return rewriter.notifyMatchFailure(
+          op, "Only int8 input tensor to conv2d is supported.");
+    }
+    // For signed int8 input tensor, int32 bias and output
+    // tensor are generated.
+    int bias_bits = 32;
+    biasElemTy = rewriter.getIntegerType(bias_bits);
+  } else {
+    biasElemTy = outputElemTy;
+  }
+
+  if (biasElemTy.isInteger()) {
+    SmallVector<int32_t> zeroVec(weightShape[0], 0);
+    return tosa::getConstTensor<int32_t>(rewriter, op, zeroVec,
+                                         {static_cast<int32_t>(weightShape[0])})
+        .value();
+  } else {
+    SmallVector<float> zeroVec(weightShape[0], 0);
+    return tosa::getConstTensor<float>(rewriter, op, zeroVec,
+                                       {static_cast<int32_t>(weightShape[0])},
+                                       biasElemTy)
+        .value();
+  }
 }
 
 } // namespace tosa
