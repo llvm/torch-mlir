@@ -101,6 +101,11 @@ LogicalResult getConvOpsAccType(PatternRewriter &rewriter,
                                 RankedTensorType weightTy,
                                 RankedTensorType outputTy, TypeAttr &accType);
 
+FailureOr<Value> getConvBiasForNoneType(Operation *op,
+                                        PatternRewriter &rewriter,
+                                        Type inputElemTy, Type outputElemTy,
+                                        ArrayRef<int64_t> weightShape);
+
 } // namespace tosa
 } // namespace mlir
 
