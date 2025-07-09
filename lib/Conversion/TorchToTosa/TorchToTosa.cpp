@@ -1849,25 +1849,19 @@ public:
 
     SmallVector<int64_t> matmulOutputShape(
         {matmulLhsShape[0], matmulLhsShape[1], matmulRhsShape[2]});
-    Type outputElemTy;
 
     bool isInputElemTyQInt8 = false;
-    if (isa<mlir::quant::UniformQuantizedType>(lhsElemTy)) {
-      mlir::quant::UniformQuantizedType inputQTy =
-          dyn_cast<mlir::quant::UniformQuantizedType>(lhsElemTy);
+    Type inputElemTy{lhsElemTy};
+    if (auto inputQTy =
+            dyn_cast<mlir::quant::UniformQuantizedType>(lhsElemTy)) {
       if (inputQTy.getStorageTypeIntegralWidth() == 8)
         isInputElemTyQInt8 = true;
+      inputElemTy = inputQTy.getStorageType();
     }
 
-    if (isInputElemTyQInt8) {
-      // qint8 emits i32 matmul output
-      outputElemTy = rewriter.getIntegerType(32);
-    } else {
-      outputElemTy = lhsElemTy;
-    }
-
+    auto accElemTy = getDefaultAccType(rewriter, inputElemTy);
     auto mmOutputTy = RankedTensorType::get(
-        makeShapeLLVMCompatible(matmulOutputShape), outputElemTy);
+        makeShapeLLVMCompatible(matmulOutputShape), accElemTy);
 
     Value mmOpResult;
     if (!isInputElemTyQInt8) {
@@ -1997,7 +1991,7 @@ public:
 
       // Perform reshape
       auto reshapedOpType = RankedTensorType::get(
-          makeShapeLLVMCompatible(reshapedOpShape), outputElemTy);
+          makeShapeLLVMCompatible(reshapedOpShape), accElemTy);
       auto reshapedOp = rewriter.create<tosa::ReshapeOp>(
           op->getLoc(),
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -2007,7 +2001,7 @@ public:
 
       if (opNeedsTranspose) {
         auto transposedOpType = RankedTensorType::get(
-            makeShapeLLVMCompatible(transposedOpShape), outputElemTy);
+            makeShapeLLVMCompatible(transposedOpShape), accElemTy);
         output = rewriter
                      .create<tosa::TransposeOp>(
                          op->getLoc(),
@@ -2043,12 +2037,14 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Failed to perform matmul operation");
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(
+    rewriter.replaceOp(
         op,
-        cast<RankedTensorType>(
-            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-                op.getType())),
-        output);
+        {tosa::tosaCastTensorToType(
+             rewriter, output,
+             cast<RankedTensorType>(
+                 OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+                     op.getType())))
+             .value()});
 
     return success();
   }
