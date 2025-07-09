@@ -1253,9 +1253,25 @@ func.func @test_pow_i32(%arg0: !torch.vtensor<[3,4,5],si32>, %arg1: !torch.vtens
   // CHECK: %[[NONE:.+]] = torch.constant.none
   // CHECK: %[[POW:.+]] =  torch.aten.pow.Tensor_Tensor %arg0, %arg1 : !torch.vtensor<[3,4,5],si32>, !torch.vtensor<[3,4,5],si32> -> !torch.vtensor<[3,4,5],f64>
   // CHECK: %[[DTY:.+]] = torch.constant.int 3
-  // CHECK: %[[RES:.+]] = torch.aten.to.dtype %[[POW]], %[[DTY]], %[[FALSE]], %[[FALSE]], %[[NONE]]
+  // CHECK: %[[ROUND:.+]] = torch.aten.round %[[POW]] : !torch.vtensor<[3,4,5],f64> -> !torch.vtensor<[3,4,5],f64>
+  // CHECK: %[[RES:.+]] = torch.aten.to.dtype %[[ROUND]], %[[DTY]], %[[FALSE]], %[[FALSE]], %[[NONE]]
   // CHECK: return %[[RES]]
   %0 = torch.operator "onnx.Pow"(%arg0, %arg1) : (!torch.vtensor<[3,4,5],si32>, !torch.vtensor<[3,4,5],si32>) -> !torch.vtensor<[3,4,5],si32>
+  return %0 : !torch.vtensor<[3,4,5],si32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_pow_i32_f32_to_i32
+func.func @test_pow_i32_f32_to_i32(%arg0: !torch.vtensor<[3,4,5],si32>, %arg1: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],si32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 15 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[FALSE:.+]] = torch.constant.bool false
+  // CHECK: %[[NONE:.+]] = torch.constant.none
+  // CHECK: %[[POW:.+]] =  torch.aten.pow.Tensor_Tensor %arg0, %arg1 : !torch.vtensor<[3,4,5],si32>, !torch.vtensor<[3,4,5],f32> -> !torch.vtensor<[3,4,5],f64>
+  // CHECK: %[[DTY:.+]] = torch.constant.int 3
+  // CHECK: %[[ROUND:.+]] = torch.aten.round %[[POW]] : !torch.vtensor<[3,4,5],f64> -> !torch.vtensor<[3,4,5],f64>
+  // CHECK: %[[RES:.+]] = torch.aten.to.dtype %[[ROUND]], %[[DTY]], %[[FALSE]], %[[FALSE]], %[[NONE]]
+  // CHECK: return %[[RES]]
+  %0 = torch.operator "onnx.Pow"(%arg0, %arg1) : (!torch.vtensor<[3,4,5],si32>, !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],si32>
   return %0 : !torch.vtensor<[3,4,5],si32>
 }
 
