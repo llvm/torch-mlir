@@ -965,6 +965,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::where.ScalarSelf : (Tensor, Scalar, Tensor) -> (Tensor)", has_folder=True
     )
+    emit_with_mutating_variants("aten::heaviside : (Tensor, Tensor) -> (Tensor)")
     emit("aten::nan_to_num : (Tensor, float?, float?, float?) -> (Tensor)")
     emit(
         "aten::slice.Tensor : (Tensor, int, int?, int?, int) -> (Tensor)",
