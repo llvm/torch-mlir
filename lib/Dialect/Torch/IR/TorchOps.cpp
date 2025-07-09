@@ -5827,8 +5827,8 @@ struct CanonicalizeAvgPoolWithSingleIntTuple
     // Attempt to expand params if necessary.
     if (failed(expandPoolParams(op, numSpatialDims, rewriter, kernel, stride,
                                 pad, dilations)))
-      return rewriter.notifyMatchFailure(op,
-                                         "Failed to expand params for pooling");
+      return rewriter.notifyMatchFailure(
+          op, "Failed to expand params for AvgPooling");
 
     rewriter.replaceOpWithNewOp<AvgPoolOpT>(
         op, op.getResult().getType(), op.getSelf(), kernel, stride, pad,
@@ -5855,8 +5855,8 @@ struct CanonicalizeMaxPoolWithSingleIntTuple
     // Attempt to expand params if necessary.
     if (failed(expandPoolParams(op, numSpatialDims, rewriter, kernel, stride,
                                 pad, dilations)))
-      return rewriter.notifyMatchFailure(op,
-                                         "Failed to expand params for pooling");
+      return rewriter.notifyMatchFailure(
+          op, "Failed to expand params for MaxPooling");
 
     rewriter.replaceOpWithNewOp<MaxPoolOpT>(op, op.getResult().getType(),
                                             op.getSelf(), kernel, stride, pad,
