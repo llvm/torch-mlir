@@ -23,7 +23,7 @@ case $torch_version in
 
     # TODO: Need to verify in the stable version
     echo "::group::Run FxImporter e2e integration tests"
-    python3 -m e2e_testing.main --config=fx_importer -v
+    python3 -m e2e_testing.main --config=fx_importer -v -s
     echo "::endgroup::"
 
     # TODO: Need to verify in the stable version
