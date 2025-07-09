@@ -31,7 +31,8 @@ RUN apt-get update && \
     apt-get update && \
     apt-get install -y \
     clang \
-    lld
+    lld \
+    libomp-dev
 
 ######## Bazel ########
 WORKDIR /install-bazel
