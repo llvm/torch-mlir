@@ -528,19 +528,6 @@ FX_IMPORTER_XFAIL_SET = {
     "ReflectionPad3dModuleBack_basic",
     # RuntimeError: Unknown function SliceOutOfLowerBoundEndIndexModule
     "NativeGroupNormModule_basic",
-    "ElementwiseDivScalarRoundingModeTruncModule_basic",  # Start of tests failes due to torch dynamo runtime issue reported in #4262
-    "ElementwiseClampMaxModule_basic",
-    "ElementwiseAtenLogicalNotOpPromoteModule_basic",
-    "ElementwiseAtenIsneginfOpModule_basic",
-    "ElementwiseAsinhModule_basic",
-    "BoolTensorHandleSignless_basic",
-    "BatchNorm1DModule_basic",
-    "AvgPool3dCountIncludePadFalse_basic",
-    "AtenMmQuint8_basic",
-    "AtenIntTensorCharDtypeModule_basic",
-    "ArgmaxModule_with_dim",
-    "AddmmModuleFloat_basic",
-    "AdaptiveMaxPool3dDynamicWithIndices_basic",  # End of tests failes due to torch dynamo runtime issue reported in #4262
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
