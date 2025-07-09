@@ -10635,7 +10635,7 @@ class DecomposeHingeEmbeddingLoss
 };
 } // namespace
 
-namespace {    
+namespace {
 class DecomposeAtenPoissonNllLossOp
     : public OpRewritePattern<AtenPoissonNllLossOp> {
 public:
