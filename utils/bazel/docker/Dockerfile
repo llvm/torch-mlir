@@ -10,8 +10,7 @@ RUN apt-get update && \
     python3-pip \
     python3.10 \
     python3.10-dev \
-    unzip \
-    libomp-dev
+    unzip
 
 # Install clang
 ARG REPO_NAME="deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-16 main"
