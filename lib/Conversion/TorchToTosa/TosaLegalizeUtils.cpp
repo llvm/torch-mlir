@@ -433,6 +433,16 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
   // if (failed(checkValidityOfCast(srcElemTy, destElemTy)))
   //   return std::nullopt;
 
+  // Check if the source and destination types are boolean or floating-point
+  if ((srcElemTy.isInteger(1) && llvm::isa<FloatType>(destElemTy)) ||
+      (llvm::isa<FloatType>(srcElemTy) && destElemTy.isInteger(1))) {
+    // TOSA does not support casting between float<->i8.
+    // Instead, we cast to i8 and then to the destination type.
+    TensorType midType = srcType.clone(rewriter.getIntegerType(8));
+    Value mid = rewriter.create<tosa::CastOp>(op->getLoc(), midType, src);
+    return tosaCastTensorToType(rewriter, mid, destType); // recurse once
+  }
+
   if (srcElemTy == destElemTy)
     return src;
 
