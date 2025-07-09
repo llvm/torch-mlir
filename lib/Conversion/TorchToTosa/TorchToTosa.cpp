@@ -2203,22 +2203,24 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Failed to perform matmul operation");
 
-    Value matmulPlusBias = matmulOutput;
+    Value matmulPlusBias =
+        tosa::tosaCastTensorToType(
+            rewriter, matmulOutput,
+            cast<RankedTensorType>(
+                OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+                    op.getType())))
+            .value();
+
     if (!isa<Torch::NoneType>(biasTy)) {
       // Bias addition broadcasts to the matmul output shape.
       matmulPlusBias =
           rewriter
-              .create<tosa::AddOp>(op->getLoc(), matmulOutput.getType(),
-                                   matmulOutput, bias)
+              .create<tosa::AddOp>(op->getLoc(), matmulPlusBias.getType(),
+                                   matmulPlusBias, bias)
               .getResult();
     }
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(
-        op,
-        cast<RankedTensorType>(
-            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-                op.getType())),
-        matmulPlusBias);
+    rewriter.replaceOp(op, {matmulPlusBias});
 
     return success();
   }
