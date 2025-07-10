@@ -2161,10 +2161,6 @@ public:
     auto bias = adaptor.getBias();
     auto biasTy = bias.getType();
 
-    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, bias).failed())
-      return rewriter.notifyMatchFailure(
-          op, "Failed to equalize ranks among operands and result");
-
     // TOSA does not mandate that elementwise op tensors need to be ranked.
     if (!isa<Torch::NoneType>(biasTy) && !isa<TensorType>(biasTy))
       return rewriter.notifyMatchFailure(
@@ -2212,7 +2208,13 @@ public:
             .value();
 
     if (!isa<Torch::NoneType>(biasTy)) {
-      // Bias addition broadcasts to the matmul output shape.
+      // Broadcast bias to the matmul output shape for addition
+      if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), matmulPlusBias,
+                                    bias)
+              .failed())
+        return rewriter.notifyMatchFailure(
+            op, "Failed to equalize ranks among operands and result");
+
       matmulPlusBias =
           rewriter
               .create<tosa::AddOp>(op->getLoc(), matmulPlusBias.getType(),
