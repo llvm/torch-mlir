@@ -11328,7 +11328,7 @@ public:
     auto resultTy = dyn_cast<BaseTensorType>(op.getType());
     SmallVector<int64_t> broadcastShape;
     SmallVector<Value> broadcastShapeValue;
-    computeBroadcastShape(rewriter, loc, input, value, broadcastShape,
+    computeBroadcastShape(rewriter, loc, {input, value}, broadcastShape,
                           broadcastShapeValue);
 
     auto broadcastType = ValueTensorType::get(
