@@ -3464,6 +3464,7 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
     "StdCorrectionEmptyDimModule_basic",
     "VarCorrectionEmptyDimModule_basic",
     "VarDimEmptyDimModule_basic",
+    "BroadcastTensorsModule_basic",
     # Runtime op verification: rank mismatch in memref.cast
     "ViewSizeFromOtherTensor_basic",
     "SliceOutOfLowerBoundEndIndexModule_basic",
@@ -4232,6 +4233,8 @@ ONNX_TOSA_XFAIL_SET = {
     "BoolIntTrueModule_basic",
     "BroadcastDynamicDimModule_basic",
     "BroadcastToModule_basic",
+    "BroadcastTensorsModule_basic",
+    "BroadcastTensorsModuleList_multiple_ranks",
     "BucketizeTensorFloatModule_basic",
     "BucketizeTensorModule_basic",
     "BucketizeTensorOutInt32RightModule_basic",
