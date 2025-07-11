@@ -488,6 +488,7 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
 
   SmallVector<SmallVector<int64_t>> shapes;
   SmallVector<unsigned> ranks;
+  SmallVector<Value> maxShapeValues;
 
   for (auto input : inputs) {
     SmallVector<int64_t> shape{
@@ -496,6 +497,8 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
     ranks.push_back(shape.size());
   }
 
+  Value torchCstOne =
+      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
   unsigned maxRank = *std::max_element(ranks.begin(), ranks.end());
 
   // Check whether the shapes of the tensors are broadcastable or not.
@@ -517,23 +520,34 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
       }
     }
 
-    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(1));
+    // Compute shape value of broadcast result,
+    // which is the maximum of dimension sizes across all inputs
+    Value maxShapeVal = sizeInputs.front();
+    for (auto sizeInput : sizeInputs) {
+      maxShapeVal = rewriter.create<PrimMaxIntOp>(loc, maxShapeVal, sizeInput);
+    }
+    maxShapeValues.push_back(maxShapeVal);
+
     SmallVector<Value> predicates;
     for (auto sizeVal : sizeInputs) {
       Value cmpSizeEquals =
-          rewriter.create<Torch::AtenEqIntOp>(loc, sizeVal, sizeInputs.front());
-      predicates.push_back(cmpSizeEquals);
+          rewriter.create<Torch::AtenEqIntOp>(loc, sizeVal, maxShapeVal);
       Value cmpSizeEqualsOne =
           rewriter.create<Torch::AtenEqIntOp>(loc, sizeVal, torchCstOne);
-      predicates.push_back(cmpSizeEqualsOne);
+      Value anyBoolOpList = rewriter.create<PrimListConstructOp>(
+          loc, Torch::ListType::get(cmpSizeEquals.getType()),
+          SmallVector<Value>{cmpSizeEquals, cmpSizeEqualsOne});
+      Value cmp = rewriter.create<Torch::AtenAnyBoolOp>(loc, anyBoolOpList);
+      predicates.push_back(cmp);
     }
 
-    Value anyBoolOpList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(predicates.front().getType()), predicates);
-    Value cmp = rewriter.create<Torch::AtenAnyBoolOp>(loc, anyBoolOpList);
-    rewriter.create<Torch::RuntimeAssertOp>(
-        loc, cmp, "tensors are not broadcast compatible");
+    if (!predicates.empty()) {
+      Value anyBoolOpList = rewriter.create<PrimListConstructOp>(
+          loc, Torch::ListType::get(predicates.front().getType()), predicates);
+      Value cmp = rewriter.create<Torch::AtenAllBoolOp>(loc, anyBoolOpList);
+      rewriter.create<Torch::RuntimeAssertOp>(
+          loc, cmp, "tensors are not broadcast compatible");
+    }
   }
 
   // If we reach here then it means both the shapes are broadcast compatible.
@@ -551,24 +565,7 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
   unsigned resultRank = resultShape.size();
   for (unsigned i = 0; i < maxRank; i++) {
 
-    SmallVector<Value> sizeInputs;
-    for (auto [idx, input] : llvm::enumerate(inputs)) {
-      int sizeDimIdx = ranks[idx] - i - 1;
-      if (sizeDimIdx >= 0) {
-        auto sizeDim = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(sizeDimIdx));
-        sizeInputs.push_back(
-            rewriter.createOrFold<AtenSizeIntOp>(loc, input, sizeDim));
-      }
-    }
-
-    // Compute shape value of broadcast result,
-    // which is the maximum of dimension sizes across all inputs
-    Value maxShapeVal = sizeInputs.front();
-    for (auto sizeInput : sizeInputs) {
-      maxShapeVal = rewriter.create<PrimMaxIntOp>(loc, maxShapeVal, sizeInput);
-    }
-    resultShapeValue[resultRank - i - 1] = maxShapeVal;
+    resultShapeValue[resultRank - i - 1] = maxShapeValues[i];
 
     // Compute result shape if all input shapes are known
     bool unknownSize = false;

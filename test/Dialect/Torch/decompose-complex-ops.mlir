@@ -849,18 +849,23 @@ func.func @native_layer_norm_mixed_dtypes(%input: !torch.vtensor<[1,56,56,96],bf
 
 // -----
 
-// CHECK-LABEL:   func.func @torch.aten.broadcast_tensors(
-// CHECK-SAME:  %[[ARG0:.*]]: !torch.vtensor<[1,3],f32>, %[[ARG1:.*]]: !torch.vtensor<[2,1],f32>) -> !torch.list<vtensor<[2,3],f32>>
-// CHECK:       %[[VAR1:.*]] = torch.constant.int 2
-// CHECK:       %[[VAR2:.*]] = torch.constant.int 3
-// CHECK:       %[[VAR3:.*]] = torch.constant.bool true
-// CHECK:       torch.runtime.assert %[[VAR3]], "tensors are not broadcast compatible"
-// CHECK:       torch.runtime.assert %[[VAR3]], "tensors are not broadcast compatible"
-// CHECK:       %[[VAR4:.*]] = torch.prim.ListConstruct %[[VAR1]], %[[VAR2]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:       %[[VAR5:.*]] = torch.aten.broadcast_to %[[ARG0:.*]], %[[VAR4]] : !torch.vtensor<[1,3],f32>, !torch.list<int> -> !torch.vtensor<[2,3],f32>
-// CHECK:       %[[VAR6:.*]] = torch.aten.broadcast_to %[[ARG1:.*]], %[[VAR4]] : !torch.vtensor<[2,1],f32>, !torch.list<int> -> !torch.vtensor<[2,3],f32>
-// CHECK:       %[[VAR7:.*]] = torch.prim.ListConstruct %[[VAR5]], %[[VAR6]] : (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>) -> !torch.list<vtensor<[2,3],f32>>
-// CHECK:       return %[[VAR7]] : !torch.list<vtensor<[2,3],f32>>
+// CHECK-LABEL: func.func @torch.aten.broadcast_tensors
+// CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[1,3],f32>
+// CHECK-SAME: %[[ARG1:.*]]: !torch.vtensor<[2,1],f32>
+// CHECK: %[[INT2:.*]] = torch.constant.int 2
+// CHECK: %[[INT3:.*]] = torch.constant.int 3
+// CHECK: %[[TRUE1:.*]] = torch.constant.bool true
+// CHECK: %[[LIST1:.*]] = torch.prim.ListConstruct %[[TRUE1]], %[[TRUE1]] : (!torch.bool, !torch.bool) -> !torch.list<bool>
+// CHECK: %[[ALL1:.*]] = torch.aten.all.bool %[[LIST1]] : !torch.list<bool> -> !torch.bool
+// CHECK: torch.runtime.assert %[[ALL1]], "tensors are not broadcast compatible"
+// CHECK: %[[LIST2:.*]] = torch.prim.ListConstruct %[[TRUE1]], %[[TRUE1]] : (!torch.bool, !torch.bool) -> !torch.list<bool>
+// CHECK: %[[ALL2:.*]] = torch.aten.all.bool %[[LIST2]] : !torch.list<bool> -> !torch.bool
+// CHECK: torch.runtime.assert %[[ALL2]], "tensors are not broadcast compatible"
+// CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[INT2]], %[[INT3]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[B0:.*]] = torch.aten.broadcast_to %[[ARG0]], %[[SHAPE]] : !torch.vtensor<[1,3],f32>, !torch.list<int> -> !torch.vtensor<[2,3],f32>
+// CHECK: %[[B1:.*]] = torch.aten.broadcast_to %[[ARG1]], %[[SHAPE]] : !torch.vtensor<[2,1],f32>, !torch.list<int> -> !torch.vtensor<[2,3],f32>
+// CHECK: %[[OUTLIST:.*]] = torch.prim.ListConstruct %[[B0]], %[[B1]] : (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>) -> !torch.list<vtensor<[2,3],f32>>
+// CHECK: return %[[OUTLIST]] : !torch.list<vtensor<[2,3],f32>>
 func.func @torch.aten.broadcast_tensors(%arg0: !torch.vtensor<[1,3],f32>, %arg1: !torch.vtensor<[2,1],f32>) -> !torch.list<vtensor<[2,3], f32>>  {
   %0 = torch.prim.ListConstruct %arg0, %arg1 : (!torch.vtensor<[1,3],f32>, !torch.vtensor<[2,1],f32>) -> !torch.list<vtensor>
   %1 = torch.aten.broadcast_tensors %0 : !torch.list<vtensor> -> !torch.list<vtensor<[2,3],f32>>
