@@ -994,6 +994,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "NativeGroupNormModule_basic",
     "AvgPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
     "MaxPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
+    "AtenAsStridedModule_basic",
+    "AtenAsStridedNoStorageOffsetModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
@@ -3986,6 +3988,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ReplicationPad1dModule_3DInput_basic",
     "ReplicationPad3dModule_basic",
     "ReplicationPad3dModuleSingleIntPad_basic",
+    "AtenAsStridedModule_basic",
+    "AtenAsStridedNoStorageOffsetModule_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {

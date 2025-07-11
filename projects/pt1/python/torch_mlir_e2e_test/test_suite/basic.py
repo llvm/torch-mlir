@@ -6878,3 +6878,48 @@ class Aten_AssertScalar(torch.nn.Module):
 @register_test_case(module_factory=lambda: Aten_AssertScalar())
 def Aten_AssertScalar_basic(module, tu: TestUtils):
     module.forward(torch.tensor(4))
+
+
+# ==============================================================================
+
+
+class AtenAsStridedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.as_strided(
+            x, size=(2, 2), stride=(3, 3), storage_offset=1
+        )
+
+
+@register_test_case(module_factory=lambda: AtenAsStridedModule())
+def AtenAsStridedModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(4, 5, 6))
+
+
+class AtenAsStridedNoStorageOffsetModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([12, 13], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.as_strided(x, size=(3, 4), stride=(2, 5))
+
+
+@register_test_case(module_factory=lambda: AtenAsStridedNoStorageOffsetModule())
+def AtenAsStridedNoStorageOffsetModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(12, 13))
