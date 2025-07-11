@@ -317,17 +317,17 @@ bool Torch::isViewLikeOp(Operation *op) {
   // correct. We could potentially be more precise and identify the cases
   // that it does not return a view and treat those as having value
   // semantics.
-  return isa<AtenAsStridedOp, AtenBroadcastToOp, AtenContiguousOp, AtenDetachOp,
-             AtenExpandAsOp, AtenExpandOp, AtenFlattenUsingIntsOp,
-             AtenUnflattenIntOp, AtenPermuteOp, AtenReshapeOp,
-             Aten_ReshapeAliasOp, AtenSelectIntOp, AtenSliceTensorOp,
-             AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp, AtenToDtypeOp,
-             AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
-             TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp,
-             AtenNarrowOp, AtenNarrowTensorOp, AtenToDeviceOp, PrimsSqueezeOp,
-             AtenMovedimIntOp, PrimsViewOfOp, AtenRealOp, AtenImagOp,
-             PrimsSplitDimOp, AtenViewAsComplexOp, AtenViewAsRealOp,
-             AtenPixelShuffleOp, AtenDiagonalOp, AtenUnfoldOp>(op);
+  return isa<
+      AtenAsStridedOp, AtenBroadcastToOp, AtenContiguousOp, AtenDetachOp,
+      AtenExpandAsOp, AtenExpandOp, AtenFlattenUsingIntsOp, AtenUnflattenIntOp,
+      AtenPermuteOp, AtenReshapeOp, Aten_ReshapeAliasOp, AtenSelectIntOp,
+      AtenSliceTensorOp, AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp,
+      AtenToDtypeOp, AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
+      TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp, AtenNarrowOp,
+      AtenNarrowTensorOp, AtenToDeviceOp, PrimsSqueezeOp, AtenMovedimIntOp,
+      PrimsViewOfOp, AtenRealOp, AtenImagOp, PrimsSplitDimOp,
+      AtenViewAsComplexOp, AtenViewAsRealOp, AtenPixelShuffleOp,
+      AtenChannelShuffleOp, AtenDiagonalOp, AtenUnfoldOp>(op);
 }
 
 Value Torch::getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter,
