@@ -1786,6 +1786,9 @@ def aten〇where〇ScalarOther〡shape(condition: List[int], self: List[int], ot
 def aten〇where〇ScalarSelf〡shape(condition: List[int], self: float, other: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(condition, other)
 
+def aten〇heaviside〡shape(self: List[int], values: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(self, values)
+
 def aten〇nan_to_num〡shape(self: List[int], nan: Optional[float] = None, posinf: Optional[float] = None, neginf: Optional[float] = None) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -2185,6 +2188,14 @@ def aten〇tril_indices〡shape(row: int, col: int, offset: int = 0, dtype: Opti
 def aten〇deg2rad〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇kl_div〡shape(self: List[int], target: List[int], reduction: int = 1, log_target: bool = False) -> List[int]:
+    if reduction == 0:
+        return upstream_shape_functions.unary(self)
+    elif reduction in [1, 2]:
+        return []
+    else:
+        assert False, "Invalid reduction value."
+
 @check_shape_function([
     Invocation(TensorOfShape(2, 3), LongTensorOfShape(2), None, 1, -100), # Basic case.
     Invocation(TensorOfShape(3), LongTensorOfShape(), None, 1, -100), # No batch dim.
@@ -2218,6 +2229,16 @@ def aten〇binary_cross_entropy_with_logits〡shape(self: List[int], target: Lis
     else:
         result_shape = scalar_shape
     return result_shape
+
+@check_shape_function([
+    Invocation(TensorOfShape(2, 3), TensorOfShape(2, 3), True, False, 1e-8, 0), # No reduction
+    Invocation(TensorOfShape(2, 3), TensorOfShape(2, 3), True, False, 1e-8, 1), # Mean reduction
+    Invocation(TensorOfShape(2, 3), TensorOfShape(2, 3), True, False, 1e-8, 2), # Sum reduction
+])
+def aten〇poisson_nll_loss〡shape(input: List[int], target: List[int], log_input: bool, full: bool, eps: float, reduction: int) -> List[int]:
+    if reduction == 0:
+        return input
+    return []
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 5, 2, 2, 3), [2, 2, 3], None, None, 1e-6), # Basic case.
@@ -4564,6 +4585,14 @@ def aten〇_int_mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tu
     assert mat2_dtype == torch.int8
     return torch.int32
 
+def aten〇kl_div〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], reduction: int = 1, log_target: bool = False) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    target_rank, target_dtype = target_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, target_rank]
+    dtypes = [self_dtype, target_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    return promoted_dtype
+
 @check_dtype_function(_check_two_tensor_op(
     output_error_types={torch.bool, torch.int8, torch.uint8, torch.int16, torch.int32, torch.int64}))
 def aten〇mse_loss〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], reduction: int = 1) -> int:
@@ -5110,6 +5139,14 @@ def aten〇where〇ScalarSelf〡dtype(condition_rank_dtype: Tuple[int, int], sel
     dtypes = [get_dtype_of_scalar(self), other_dtype]
     return promote_dtypes(ranks, dtypes)
 
+def aten〇heaviside〡dtype(self_rank_dtype: Tuple[int, int], values_rank_dtype: Tuple[int, int]) -> int:
+    self_rank,self_dtype = self_rank_dtype
+    values_rank,values_dtype = values_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, values_rank]
+    dtypes = [self_dtype, values_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    return promoted_dtype    
+
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇nan_to_num〡dtype(self_rank_dtype: Tuple[int, int], nan: Optional[float] = None, posinf: Optional[float] = None, neginf: Optional[float] = None) -> int:
@@ -5134,6 +5171,20 @@ def aten〇nll_loss_forward〡dtype(self_rank_dtype: Tuple[int, int], target_ran
     target_rank, target_dtype = target_rank_dtype
     assert target_dtype == torch.int64 or target_dtype == torch.int32
     return self_dtype, self_dtype
+
+@check_dtype_function([
+     Invocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(2, 3, dtype=torch.float32), # No reduction
+                True, False, 1e-8, 0),
+     Invocation(TensorOfShape(4, 5, dtype=torch.float32), TensorOfShape(4, 5, dtype=torch.float32), # Mean reduction
+                True, False, 1e-8, 1),
+     Invocation(TensorOfShape(3, 3, dtype=torch.float64), TensorOfShape(3, 3, dtype=torch.float64), # Sum reduction
+                True, False, 1e-8, 2),
+])
+def aten〇poisson_nll_loss〡dtype(input_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], log_input: bool, full: bool, eps: float, reduction: int) -> int:
+    _, input_dtype = input_rank_dtype
+    if input_dtype in (torch.float16, torch.bfloat16):
+        return torch.float32
+    return input_dtype
 
 @check_dtype_function(
     [Invocation(TensorOfShape(2, 3, dtype=torch.float32), [3], TensorOfShape(3, dtype=torch.float32),
