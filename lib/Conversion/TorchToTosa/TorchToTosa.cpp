@@ -6123,7 +6123,8 @@ static LogicalResult getOutputTypeAndPoolingParameters(
     AtenOpT op, ConversionPatternRewriter &rewriter, Value &inputXchw,
     SmallVectorImpl<int64_t> &dilationArray, Type &outputTy,
     DenseI64ArrayAttr &kernel, DenseI64ArrayAttr &stride,
-    DenseI64ArrayAttr &pad) {
+    DenseI64ArrayAttr &pad,
+    SmallVectorImpl<int64_t> *explicitNHWCPad = nullptr) {
 
   RankedTensorType inputTy = cast<RankedTensorType>(inputXchw.getType());
   if (!inputTy)
@@ -6163,21 +6164,43 @@ static LogicalResult getOutputTypeAndPoolingParameters(
 
   if constexpr (std::is_same<AtenOpT, AtenAvgPool1dOp>() ||
                 std::is_same<AtenOpT, AtenAvgPool2dOp>()) {
-    // Currently, we can not represent `count_include_pad` with the existing
-    // TOSA AvgPool2d specification. Without the below check, we produce silent
-    // wrong answer (SWA) when the `count_include_pad` value is `true.`
-    //
-    // Note: We need to check for `count_include_pad` only when the `padding`
-    // value is non-zero.
+    // When count_include_pad=true with non-zero padding, we will materialize an
+    // explicit pad after transposing to NHWC. Track the padding extents and
+    // zero out the TOSA op padding so the divisor matches the full kernel size.
     bool countIncludePad;
     if ((paddingInts[0] != 0 || paddingInts[1] != 0) &&
         (!matchPattern(op.getCountIncludePad(),
                        m_TorchConstantBool(&countIncludePad)) ||
 
          countIncludePad)) {
-      return rewriter.notifyMatchFailure(
-          op, "Unsupported `count_include_pad` value, for tosa AvgPool "
-              "`count_include_pad` value should be `False`.");
+      if (!explicitNHWCPad)
+        return rewriter.notifyMatchFailure(
+            op, "Unsupported `count_include_pad` value, for tosa AvgPool "
+                "`count_include_pad` value should be `False`.");
+
+      // Remember the spatial padding so we can emit an NHWC tosa.pad right
+      // after the transpose.
+      explicitNHWCPad->assign(
+          {paddingInts[0], paddingInts[0], paddingInts[1], paddingInts[1]});
+
+      auto addPad = [](int64_t dim, int64_t before, int64_t after) -> int64_t {
+        if (ShapedType::isDynamic(dim))
+          return ShapedType::kDynamic;
+        return dim + before + after;
+      };
+
+      // Update the logical input type used for shape computations to include
+      // the extra zeros supplied by the explicit pad.
+      SmallVector<int64_t> paddedShape(inputTy.getShape().begin(),
+                                       inputTy.getShape().end());
+      // Height stored at rank-2, width at rank-1 for NCHW shapes.
+      paddedShape[inputRank - 2] =
+          addPad(paddedShape[inputRank - 2], paddingInts[0], paddingInts[0]);
+      paddedShape[inputRank - 1] =
+          addPad(paddedShape[inputRank - 1], paddingInts[1], paddingInts[1]);
+      inputTy = RankedTensorType::get(paddedShape, inputTy.getElementType());
+
+      paddingInts.assign(/*Count=*/2, /*Value=*/0);
     }
   }
 
@@ -6321,15 +6344,23 @@ public:
     }
 
     SmallVector<int64_t, 2> dilationArray{1, 1};
+    SmallVector<int64_t, 4> explicitNHWCPad;
     if (failed(getOutputTypeAndPoolingParameters<AtenAvgPool2dOp,
                                                  tosa::AvgPool2dOp>(
-            op, rewriter, self, dilationArray, outputTy, kernel, stride, pad)))
+            op, rewriter, self, dilationArray, outputTy, kernel, stride, pad,
+            &explicitNHWCPad)))
       return rewriter.notifyMatchFailure(
           op, "invalid pooling parameters or input type");
 
-    // Transpose to xHWC
-    input = ConvertAtenPoolingBaseOp<AtenAvgPool2dOp, tosa::AvgPool2dOp>::
-        transposePoolingInputToHwc(op, rewriter, self);
+    Value transposed =
+        ConvertAtenPoolingBaseOp<AtenAvgPool2dOp, tosa::AvgPool2dOp>::
+            transposePoolingInputToHwc(op, rewriter, self);
+
+    if (!explicitNHWCPad.empty())
+      transposed = tosa::emitExplicitZeroPadNHWC(op->getLoc(), rewriter, op,
+                                                 transposed, explicitNHWCPad);
+
+    input = transposed;
 
     return success();
   }
@@ -6372,16 +6403,23 @@ public:
             .getResult();
 
     SmallVector<int64_t, 2> dilationArray{1, 1};
+    SmallVector<int64_t, 4> explicitNHWCPad;
     if (failed(getOutputTypeAndPoolingParameters<AtenAvgPool1dOp,
                                                  tosa::AvgPool2dOp>(
             op, rewriter, reshapedSelf, dilationArray, outputTy, kernel, stride,
-            pad)))
+            pad, &explicitNHWCPad)))
       return rewriter.notifyMatchFailure(
           op, "invalid pooling parameters or input type");
 
-    // Transpose to xHWC
-    input = ConvertAtenPoolingBaseOp<AtenAvgPool1dOp, tosa::AvgPool2dOp>::
-        transposePoolingInputToHwc(op, rewriter, reshapedSelf);
+    Value transposed =
+        ConvertAtenPoolingBaseOp<AtenAvgPool1dOp, tosa::AvgPool2dOp>::
+            transposePoolingInputToHwc(op, rewriter, reshapedSelf);
+
+    if (!explicitNHWCPad.empty())
+      transposed = tosa::emitExplicitZeroPadNHWC(op->getLoc(), rewriter, op,
+                                                 transposed, explicitNHWCPad);
+
+    input = transposed;
 
     return success();
   }
