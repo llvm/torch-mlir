@@ -1011,6 +1011,7 @@ def PixelShuffleModuleSpatiallyStatic_basic(module, tu: TestUtils):
 
 
 class ChannelShuffleBasic(torch.nn.Module):
+    # Basic test case for ChannelShuffle operation.
     def __init__(self):
         super().__init__()
         self.shuffle = torch.nn.ChannelShuffle(groups=4)
@@ -1035,6 +1036,7 @@ def ChannelShuffleBasic_basic(module, tu: TestUtils):
 
 
 class ChannelShuffleUnitaryGroup(torch.nn.Module):
+    # Test case where group = 1.
     def __init__(self):
         super().__init__()
         self.shuffle = torch.nn.ChannelShuffle(groups=1)
@@ -1107,6 +1109,7 @@ def ChannelShuffle4D_basic(module, tu: TestUtils):
 
 
 class ChannelShuffleTrailingOnes(torch.nn.Module):
+    # Test case where ChannelShuffle last dimensions are ones.
     def __init__(self):
         super().__init__()
         self.shuffle = torch.nn.ChannelShuffle(groups=2)
