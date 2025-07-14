@@ -8673,17 +8673,13 @@ def Torch_AtenChannelShuffleOp : Torch_Op<"aten.channel_shuffle", [
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::channel_shuffle : (Tensor, int) -> Tensor`";
-  let description = [{
-    This operation shuffles channels of a tensor along the channel dimension.
-    It is used in models like ShuffleNet to enable better information flow.
-  }];
+  let summary = "Generated op for `aten::channel_shuffle : (Tensor, int) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
     Torch_IntType:$groups
   );
   let results = (outs
-    AnyTorchTensorType:$result
+    AnyTorchOptionalTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
