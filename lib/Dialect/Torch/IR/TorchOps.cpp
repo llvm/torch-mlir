@@ -5513,7 +5513,8 @@ public:
       if (!matchPattern(op.getSize(), m_TorchListOfConstantInts(size))) {
         return op.emitOpError("expected dtype to be a constant int");
       }
-      if (!llvm::all_of(llvm::zip(inputType.getSizes(), size),
+      if (inputType.getSizes().size() != size.size() ||
+          !llvm::all_of(llvm::zip(inputType.getSizes(), size),
                         [](const auto &pair) {
                           return std::get<0>(pair) == std::get<1>(pair);
                         }))
