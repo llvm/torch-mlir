@@ -847,6 +847,10 @@ func.func @native_layer_norm_mixed_dtypes(%input: !torch.vtensor<[1,56,56,96],bf
   return %result, %mean, %rstd : !torch.vtensor<[1,56,56,96],bf16>, !torch.vtensor<[1,56,56,1],f32>, !torch.vtensor<[1,56,56,1],f32>
 }
 
+
+// -----
+
+
 // CHECK-LABEL: func @channel_shuffle
 func.func @channel_shuffle(%arg0: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtensor<[1,8,4,4],f32> attributes {torch.assume_strict_symbolic_shapes} {
   %int4 = torch.constant.int 4
