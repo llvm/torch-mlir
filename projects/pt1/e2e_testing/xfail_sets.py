@@ -3940,6 +3940,17 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ReplicationPad1dModule_3DInput_basic",
     "AtenAsStridedModule_basic",
     "AtenAsStridedNoStorageOffsetModule_basic",
+    "ChunkListUnpackDynamic_Module_basic",
+    "ChunkListUnpackUnevenDynamic_Module_basic",
+    "ChunkListUnpackUneven_Module_basic",
+    "ChunkListUnpack_Module_basic",
+    "NativeGroupNormModule_basic",
+    "SplitTensorGetItem_Module_basic",
+    "SplitTensorLastSmallerModule_basic",
+    "SplitTensorListUnpackModule_basic",
+    "SplitTensorNegativeDimModule_basic",
+    "SplitWithSizesListUnpackModule_basic",
+    "SplitWithSizes_Module_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {
