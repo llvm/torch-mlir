@@ -1641,7 +1641,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           if (!Torch::isValidDim(dim, inputRank)) {
             return failure();
           }
-          reduced_shape[i] = 1;
+          reduced_shape[dim] = 1;
         }
         Torch::ValueTensorType reducedOutTy = Torch::ValueTensorType::get(
             resultType.getContext(), reduced_shape, resultType.getDtype());
