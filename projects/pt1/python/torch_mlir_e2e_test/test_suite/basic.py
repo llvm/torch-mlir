@@ -1133,6 +1133,31 @@ def ChannelShuffleTrailingOnes_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ChannelShuffleDynamicDims(torch.nn.Module):
+    # Basic test case for ChannelShuffle operation.
+    def __init__(self):
+        super().__init__()
+        self.shuffle = torch.nn.ChannelShuffle(groups=4)
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.shuffle(x)
+
+
+@register_test_case(module_factory=lambda: ChannelShuffleDynamicDims())
+def ChannelShuffleDynamicDims_basic(module, tu: TestUtils):
+    module.forward(torch.arange(1, 129, dtype=torch.float32).reshape(1, 8, 4, 4))
+
+
+# ==============================================================================
+
+
 class TensorsConcatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

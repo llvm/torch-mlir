@@ -3720,10 +3720,9 @@ public:
 //    X = channel_shuffle(input, groups)
 //
 // gets replaced with
-//    X = input.split_dim(...)  # shape (N, g, C, *)
-//    X = X.permute(0, N+1, N, N+2, N+3)
-//                              # shape (N, C, g, *)
-//    X = X.collapse(...)       # shape (N, C*g, *)
+//    X = input.split_dim(...)      # shape (N, g, C, *)
+//    X = X.permute(0, 2, 1, ...)   # shape (N, C, g, *)
+//    X = X.collapse(...)           # shape (N, C*g, *)
 //
 // 'g' above is referred to as the number of 'groups'. N is the batch
 // dimension, and can't be omitted. In PyTorch's ChannelShuffle operator
