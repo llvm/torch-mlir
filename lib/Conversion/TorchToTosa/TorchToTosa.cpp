@@ -9192,12 +9192,6 @@ std::set<StringRef> torch::populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_LINEAR_ATENOP_PATTERN(AtenLinearOp);
 #undef INSERT_LINEAR_ATENOP_PATTERN
 
-#define INSERT_LINEAR_ATENOP_PATTERN(AtenOp)                                   \
-  illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenLinearOp<AtenOp>>(typeConverter, context);
-  INSERT_LINEAR_ATENOP_PATTERN(AtenLinearOp);
-#undef INSERT_LINEAR_ATEMOP_PATTERN
-
 #define INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN(AtenOp, TosaOpT)                \
   illegalOps.insert(AtenOp::getOperationName());                               \
   patterns.add<ConvertAtenAdaptivePoolingOp<AtenOp, TosaOpT>>(typeConverter,   \

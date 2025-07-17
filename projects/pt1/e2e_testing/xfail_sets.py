@@ -643,6 +643,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenMatmulQint8VM_basic",
     "AtenMatmulQint8VV_basic",
     "AtenMatmulQint8_basic",
+    "AtenMmF16Types_basic",
     "AtenMmQMixedSigni8_basic",
     "AtenMmQint8_basic",
     "AtenMmQuint8_basic",
