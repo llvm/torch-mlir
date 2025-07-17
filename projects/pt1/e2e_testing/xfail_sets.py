@@ -85,6 +85,8 @@ LINALG_CRASHING_SET = {
     "TraceModule_empty",
     # Crashes due to copy to a smaller destination buffer than the source buffer.
     "SliceCopyStartGreaterThanDimSize_Module_basic",
+    # unimplemented: for conversion to byte or char type dstOriginalDtype has to be passed to convertScalarToDtype
+    "AtenMmInt8Types_basic",
 }
 
 TORCHDYNAMO_XFAIL_SET = {
@@ -641,6 +643,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenMatmulQint8VM_basic",
     "AtenMatmulQint8VV_basic",
     "AtenMatmulQint8_basic",
+    "AtenMmF16Types_basic",
     "AtenMmQMixedSigni8_basic",
     "AtenMmQint8_basic",
     "AtenMmQuint8_basic",
@@ -681,6 +684,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ConstantBoolParameterModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
+    "Conv2dFP16NoBiasModule_basic",
     "Conv2dQInt8Module_basic",
     "Conv2dQInt8Module_depthwise",
     "Conv2dQInt8Module_grouped",
@@ -2874,6 +2878,7 @@ ONNX_XFAIL_SET = {
     "Conv2dBiasNoPaddingModule_basic",
     "Conv2dModule_basic",
     "Conv2dNoPaddingModule_basic",
+    "Conv2dFP16NoBiasModule_basic",
     "Conv2dQInt8Module_basic",
     "Conv2dQInt8Module_depthwise",
     "Conv2dQInt8Module_grouped",
