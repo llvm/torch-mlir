@@ -434,14 +434,28 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
   // if (failed(checkValidityOfCast(srcElemTy, destElemTy)))
   //   return std::nullopt;
 
-  // Check if the source and destination types are boolean or floating-point
-  if ((srcElemTy.isInteger(1) && llvm::isa<FloatType>(destElemTy)) ||
-      (llvm::isa<FloatType>(srcElemTy) && destElemTy.isInteger(1))) {
-    // TOSA does not support casting between float<->i8.
-    // Instead, we cast to i8 and then to the destination type.
+  if (llvm::isa<FloatType>(srcElemTy) && destElemTy.isInteger(1)) {
+    // TOSA does not support casting from float->i1.
+    // In PyTorch the bool value will be True if any element is non-zero
+    Value zeroValue = *getConstTensor<float>(rewriter, op, 0.0f, {}, srcElemTy);
+    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), src, zeroValue)
+            .failed())
+      return std::nullopt;
+
+    auto cmpTy = srcType.clone(rewriter.getIntegerType(1));
+    Value isEq =
+        rewriter.create<tosa::EqualOp>(op->getLoc(), cmpTy, src, zeroValue);
+    return rewriter.create<tosa::LogicalNotOp>(op->getLoc(),
+                                               srcType.clone(destElemTy), isEq);
+  }
+
+  if (srcElemTy.isInteger(1) && llvm::isa<FloatType>(destElemTy)) {
+    // TOSA does not support casting from i1->float.
+    // Instead, we cast to i8 and then to the float.
     TensorType midType = srcType.clone(rewriter.getIntegerType(8));
     Value mid = rewriter.create<tosa::CastOp>(op->getLoc(), midType, src);
-    return tosaCastTensorToType(rewriter, mid, destType); // recurse once
+    return rewriter.create<tosa::CastOp>(op->getLoc(),
+                                         srcType.clone(destElemTy), mid);
   }
 
   if (srcElemTy == destElemTy)
