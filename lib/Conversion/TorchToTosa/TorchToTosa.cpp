@@ -1849,25 +1849,19 @@ public:
 
     SmallVector<int64_t> matmulOutputShape(
         {matmulLhsShape[0], matmulLhsShape[1], matmulRhsShape[2]});
-    Type outputElemTy;
 
     bool isInputElemTyQInt8 = false;
-    if (isa<mlir::quant::UniformQuantizedType>(lhsElemTy)) {
-      mlir::quant::UniformQuantizedType inputQTy =
-          dyn_cast<mlir::quant::UniformQuantizedType>(lhsElemTy);
+    Type inputElemTy{lhsElemTy};
+    if (auto inputQTy =
+            dyn_cast<mlir::quant::UniformQuantizedType>(lhsElemTy)) {
       if (inputQTy.getStorageTypeIntegralWidth() == 8)
         isInputElemTyQInt8 = true;
+      inputElemTy = inputQTy.getStorageType();
     }
 
-    if (isInputElemTyQInt8) {
-      // qint8 emits i32 matmul output
-      outputElemTy = rewriter.getIntegerType(32);
-    } else {
-      outputElemTy = lhsElemTy;
-    }
-
+    auto accElemTy = getDefaultAccType(rewriter, inputElemTy);
     auto mmOutputTy = RankedTensorType::get(
-        makeShapeLLVMCompatible(matmulOutputShape), outputElemTy);
+        makeShapeLLVMCompatible(matmulOutputShape), accElemTy);
 
     Value mmOpResult;
     if (!isInputElemTyQInt8) {
@@ -1997,7 +1991,7 @@ public:
 
       // Perform reshape
       auto reshapedOpType = RankedTensorType::get(
-          makeShapeLLVMCompatible(reshapedOpShape), outputElemTy);
+          makeShapeLLVMCompatible(reshapedOpShape), accElemTy);
       auto reshapedOp = rewriter.create<tosa::ReshapeOp>(
           op->getLoc(),
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -2007,7 +2001,7 @@ public:
 
       if (opNeedsTranspose) {
         auto transposedOpType = RankedTensorType::get(
-            makeShapeLLVMCompatible(transposedOpShape), outputElemTy);
+            makeShapeLLVMCompatible(transposedOpShape), accElemTy);
         output = rewriter
                      .create<tosa::TransposeOp>(
                          op->getLoc(),
@@ -2043,12 +2037,14 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Failed to perform matmul operation");
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(
+    rewriter.replaceOp(
         op,
-        cast<RankedTensorType>(
-            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-                op.getType())),
-        output);
+        {tosa::tosaCastTensorToType(
+             rewriter, output,
+             cast<RankedTensorType>(
+                 OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+                     op.getType())))
+             .value()});
 
     return success();
   }
@@ -2165,10 +2161,6 @@ public:
     auto bias = adaptor.getBias();
     auto biasTy = bias.getType();
 
-    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, bias).failed())
-      return rewriter.notifyMatchFailure(
-          op, "Failed to equalize ranks among operands and result");
-
     // TOSA does not mandate that elementwise op tensors need to be ranked.
     if (!isa<Torch::NoneType>(biasTy) && !isa<TensorType>(biasTy))
       return rewriter.notifyMatchFailure(
@@ -2207,22 +2199,30 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Failed to perform matmul operation");
 
-    Value matmulPlusBias = matmulOutput;
+    Value matmulPlusBias =
+        tosa::tosaCastTensorToType(
+            rewriter, matmulOutput,
+            cast<RankedTensorType>(
+                OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+                    op.getType())))
+            .value();
+
     if (!isa<Torch::NoneType>(biasTy)) {
-      // Bias addition broadcasts to the matmul output shape.
+      // Broadcast bias to the matmul output shape for addition
+      if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), matmulPlusBias,
+                                    bias)
+              .failed())
+        return rewriter.notifyMatchFailure(
+            op, "Failed to equalize ranks among operands and result");
+
       matmulPlusBias =
           rewriter
-              .create<tosa::AddOp>(op->getLoc(), matmulOutput.getType(),
-                                   matmulOutput, bias)
+              .create<tosa::AddOp>(op->getLoc(), matmulPlusBias.getType(),
+                                   matmulPlusBias, bias)
               .getResult();
     }
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(
-        op,
-        cast<RankedTensorType>(
-            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-                op.getType())),
-        matmulPlusBias);
+    rewriter.replaceOp(op, {matmulPlusBias});
 
     return success();
   }
