@@ -1259,6 +1259,36 @@ def Conv2dModule_basic(module, tu: TestUtils):
     module.forward(inputVec, weight, bias)
 
 
+class Conv2dFP16NoBiasModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float16, True),
+            ([-1, -1, -1, -1], torch.float16, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.conv2d(
+            inputVec,
+            weight,
+            stride=[1, 1],
+            padding=[0, 0],
+            dilation=[1, 1],
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: Conv2dFP16NoBiasModule())
+def Conv2dFP16NoBiasModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 2, 6, 6).to(torch.float16)
+    weight = torch.randn(8, 2, 3, 3).to(torch.float16)
+    module.forward(inputVec, weight)
+
+
 class Conv3dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

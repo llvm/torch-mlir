@@ -1276,9 +1276,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           if (binder.tensorResultTypeAtIndex(resultTypeIndices, 1))
             return failure();
 
-          if (rank == 3)
-            return rewriter.notifyMatchFailure(
-                binder.op, "Unimplemented: AtenMaxPool1dWithIndicesOp");
+          if (rank == 3) {
+            rewriter.replaceOpWithNewOp<Torch::AtenMaxPool1dWithIndicesOp>(
+                binder.op, resultTypeOut, resultTypeIndices, operand,
+                kernelSizeList, stridesList, paddingList, dilationsList,
+                cstCeilMode);
+            return success();
+          }
 
           if (rank == 4) {
             rewriter.replaceOpWithNewOp<Torch::AtenMaxPool2dWithIndicesOp>(
@@ -3072,6 +3076,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             rewriter.getIntegerAttr(rewriter.getIntegerType(64),
                                     static_cast<int64_t>(outDtype)));
 
+        pow = rewriter.create<Torch::AtenRoundOp>(loc, powType, pow);
         rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
             binder.op, resultType, pow, outTyConst, cstFalse, cstFalse, none);
 
