@@ -85,6 +85,8 @@ LINALG_CRASHING_SET = {
     "TraceModule_empty",
     # Crashes due to copy to a smaller destination buffer than the source buffer.
     "SliceCopyStartGreaterThanDimSize_Module_basic",
+    # unimplemented: for conversion to byte or char type dstOriginalDtype has to be passed to convertScalarToDtype
+    "AtenMmInt8Types_basic",
 }
 
 TORCHDYNAMO_XFAIL_SET = {
@@ -641,6 +643,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenMatmulQint8VM_basic",
     "AtenMatmulQint8VV_basic",
     "AtenMatmulQint8_basic",
+    "AtenMmF16Types_basic",
     "AtenMmQMixedSigni8_basic",
     "AtenMmQint8_basic",
     "AtenMmQuint8_basic",
@@ -681,6 +684,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ConstantBoolParameterModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
+    "Conv2dFP16NoBiasModule_basic",
     "Conv2dQInt8Module_basic",
     "Conv2dQInt8Module_depthwise",
     "Conv2dQInt8Module_grouped",
@@ -1259,6 +1263,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseToDtypeI64ToI8Module_basic",
     "ElementwiseToDtypeIdentityModule_basic",
     "ElementwiseUnaryModule_basic",
+    "ElementwiseHeavisideModule_basic",
     "EmptyLikeMemoryFormatModule_basic",
     "EmptyLikeModule_defaultDtype",
     "EmptyLikeModule_falsePinMemory",
@@ -1863,6 +1868,7 @@ TOSA_PASS_SET = {
     "ElementwiseFracModule_basic",
     "ElementwiseLdexpModule_basic",
     "ElementwiseSignbitIntModule_basic",
+    "ElementwiseHeavisideModule_basic",
     "Exp2StaticIntModule_basic",
     "MaxPool1dEmptyStrideStaticModule_basic",
     "MaxPool1dStaticCeilModeTrueModule_basic",
@@ -2872,6 +2878,7 @@ ONNX_XFAIL_SET = {
     "Conv2dBiasNoPaddingModule_basic",
     "Conv2dModule_basic",
     "Conv2dNoPaddingModule_basic",
+    "Conv2dFP16NoBiasModule_basic",
     "Conv2dQInt8Module_basic",
     "Conv2dQInt8Module_depthwise",
     "Conv2dQInt8Module_grouped",
@@ -2976,6 +2983,9 @@ ONNX_XFAIL_SET = {
     "GtFloatIntModule_basic",
     "GtIntModule_basic",
     "HardtanhBackward_basic",
+    "ElementwiseHeavisideModule_basic",
+    "ElementwiseHeavisideIntModule_basic",
+    "ElementwiseHeavisideNoBroadcastModule_basic",
     "HstackBasicComplexModule_basic",
     "HstackBasicFloatModule_basic",
     "HstackBasicIntFloatModule_basic",
@@ -4002,6 +4012,9 @@ ONNX_TOSA_XFAIL_SET = {
     "ElementwiseRreluWithNoiseEvalStaticModule_basic",
     "ElementwiseRreluWithNoiseTrainModule_basic",
     "ElementwiseRreluWithNoiseTrainStaticModule_basic",
+    "ElementwiseHeavisideModule_basic",
+    "ElementwiseHeavisideIntModule_basic",
+    "ElementwiseHeavisideNoBroadcastModule_basic",
     "RreluWithNoiseBackwardEvalModule_basic",
     "RreluWithNoiseBackwardEvalStaticModule_basic",
     "RreluWithNoiseBackwardTrainModule_basic",
