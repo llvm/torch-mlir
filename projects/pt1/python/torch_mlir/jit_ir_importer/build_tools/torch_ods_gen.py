@@ -847,7 +847,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::isneginf : (Tensor) -> (Tensor)")
     emit("aten::isposinf : (Tensor) -> (Tensor)")
     emit("aten::all : (Tensor) -> (Tensor)")
-    emit("aten::all.bool : (bool[]) -> (bool)")
+    emit("aten::all.bool : (bool[]) -> (bool)", has_folder=True)
     emit("aten::all.dim : (Tensor, int, bool) -> (Tensor)")
     emit("aten::any : (Tensor) -> (Tensor)")
     emit("aten::any.dim : (Tensor, int, bool) -> (Tensor)")

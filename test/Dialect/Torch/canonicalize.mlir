@@ -2685,6 +2685,16 @@ func.func @torch.aten.any.bool$fold() -> !torch.bool {
   return %0 : !torch.bool
 }
 
+// CHECK-LABEL:   func.func @torch.aten.all.bool$fold() -> !torch.bool {
+// CHECK:           %[[CST_TRUE:.*]] = torch.constant.bool true
+// CHECK:           return %[[CST_TRUE]] : !torch.bool
+func.func @torch.aten.all.bool$fold() -> !torch.bool {
+  %true = torch.constant.bool true
+  %input = torch.prim.ListConstruct %true, %true, %true : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
+  %0 = torch.aten.all.bool %input : !torch.list<bool> -> !torch.bool
+  return %0 : !torch.bool
+}
+
 // CHECK-LABEL:   func.func @torch.aten.floor$canonicalize
 // CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[?,?],si64>
 // CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[?,?],si64>

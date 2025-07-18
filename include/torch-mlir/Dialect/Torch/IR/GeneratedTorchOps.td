@@ -11041,6 +11041,7 @@ def Torch_AtenAllBoolOp : Torch_Op<"aten.all.bool", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenAllDimOp : Torch_Op<"aten.all.dim", [
