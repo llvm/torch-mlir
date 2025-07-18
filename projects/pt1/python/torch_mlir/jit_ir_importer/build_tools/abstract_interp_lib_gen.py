@@ -839,6 +839,19 @@ def aten〇pixel_shuffle〡shape(self: List[int], upscale_factor: int) -> List[i
     out.append(self[-1] * upscale_factor)
     return out
 
+def aten〇pixel_unshuffle〡shape(self: List[int], downscale_factor: int) -> List[int]:
+
+    assert len(self) >= 3, "input must be at least rank-3 in pixel_unshuffle"
+    downscale_factor_squared = downscale_factor * downscale_factor
+    assert self[-2] % (downscale_factor) == 0, "height  must be divisible by downscale_factor in pixel_unshuffle"
+    assert self[-1] % (downscale_factor) == 0, "width  must be divisible by downscale_factor in pixel_unshuffle"
+
+    out = self[0:-3]
+    out.append(self[-3] * downscale_factor_squared)
+    out.append(self[-2] // downscale_factor)
+    out.append(self[-1] // downscale_factor)
+    return out
+
 
 
 def aten〇permute〡shape(self: List[int], dims: List[int]) -> List[int]:
@@ -3046,6 +3059,11 @@ def aten〇adaptive_avg_pool1d〡dtype(self_rank_dtype: Tuple[int, int], output_
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(4, 1, 1)], upscale_factor = 2))
 def aten〇pixel_shuffle〡dtype(self_rank_dtype: Tuple[int, int], upscale_factor: int) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(1, 2, 2)], downscale_factor = 2))
+def aten〇pixel_unshuffle〡dtype(self_rank_dtype: Tuple[int, int], downscale_factor: int) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
