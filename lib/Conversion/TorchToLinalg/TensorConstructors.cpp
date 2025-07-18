@@ -465,6 +465,8 @@ private:
   Value createTile(ConversionPatternRewriter &rewriter, Location loc,
                    Value slice, int64_t tileWidth, int64_t dimension) const {
     SmallVector<Value> slices(tileWidth, slice);
+    if (tileWidth == 1)
+      return slice;
     return rewriter.create<tensor::ConcatOp>(loc, dimension, slices);
   }
 
