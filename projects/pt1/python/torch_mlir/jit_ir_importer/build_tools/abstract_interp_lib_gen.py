@@ -839,7 +839,9 @@ def aten〇pixel_shuffle〡shape(self: List[int], upscale_factor: int) -> List[i
     out.append(self[-1] * upscale_factor)
     return out
 
-
+def aten〇channel_shuffle〡shape(self: List[int], groups: int) -> List[int]:
+    assert len(self) >= 3, "input must be at least rank-3 in channel_shuffle"
+    return self
 
 def aten〇permute〡shape(self: List[int], dims: List[int]) -> List[int]:
     return upstream_shape_functions.permute(self, dims)
@@ -3055,6 +3057,11 @@ def aten〇adaptive_avg_pool1d〡dtype(self_rank_dtype: Tuple[int, int], output_
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(4, 1, 1)], upscale_factor = 2))
 def aten〇pixel_shuffle〡dtype(self_rank_dtype: Tuple[int, int], upscale_factor: int) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(1, 4, 4, 5)], groups = 2))
+def aten〇channel_shuffle〡dtype(self_rank_dtype: Tuple[int, int], groups: int) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
