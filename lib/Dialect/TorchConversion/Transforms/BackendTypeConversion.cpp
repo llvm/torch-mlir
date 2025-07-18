@@ -48,7 +48,6 @@ static void setupValueTensorToBuiltinTensorConversion(
     return builder.create<FromBuiltinTensorOp>(loc, type, inputs[0]);
   };
   typeConverter.addSourceMaterialization(sourceMaterialization);
-  typeConverter.addArgumentMaterialization(sourceMaterialization);
 }
 
 static void setupTorchBoolToI1Conversion(ConversionTarget &target,
@@ -74,7 +73,6 @@ static void setupTorchBoolToI1Conversion(ConversionTarget &target,
     return builder.create<FromI1Op>(loc, inputs[0]);
   };
   typeConverter.addSourceMaterialization(sourceMaterialization);
-  typeConverter.addArgumentMaterialization(sourceMaterialization);
 }
 
 static void setupTorchIntToI64Conversion(ConversionTarget &target,
@@ -103,7 +101,6 @@ static void setupTorchIntToI64Conversion(ConversionTarget &target,
     return builder.create<FromI64Op>(loc, inputs[0]);
   };
   typeConverter.addSourceMaterialization(sourceMaterialization);
-  typeConverter.addArgumentMaterialization(sourceMaterialization);
 }
 
 static void setupTorchFloatToF64Conversion(ConversionTarget &target,
@@ -126,7 +123,6 @@ static void setupTorchFloatToF64Conversion(ConversionTarget &target,
     return builder.create<FromF64Op>(loc, inputs[0]);
   };
   typeConverter.addSourceMaterialization(sourceMaterialization);
-  typeConverter.addArgumentMaterialization(sourceMaterialization);
 }
 
 static void setupTorchGeneratorToI64Conversion(ConversionTarget &target,
@@ -157,7 +153,6 @@ static void setupTorchGeneratorToI64Conversion(ConversionTarget &target,
     return builder.create<I64ToGeneratorOp>(loc, inputs[0]);
   };
   typeConverter.addSourceMaterialization(sourceMaterialization);
-  typeConverter.addArgumentMaterialization(sourceMaterialization);
 }
 
 void mlir::torch::TorchConversion::setupBackendTypeConversion(

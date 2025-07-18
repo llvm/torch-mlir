@@ -1374,6 +1374,30 @@ def ElementwiseGeluModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseGeluTosaModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        x = torch.ops.aten.gelu(x)
+        return x
+
+
+@register_test_case(module_factory=lambda: ElementwiseGeluTosaModule())
+def ElementwiseGeluTosaModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(50, 30, low=-2.7, high=2.7))
+
+
+# ==============================================================================
+
+
 class ElementwiseGeluApproximateTanhModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2556,6 +2580,54 @@ def ElementwiseLogitModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseLogAddExpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.logaddexp(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogAddExpModule())
+def ElementwiseLogAddExpModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand(3, 2, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseLogAddExp2Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.logaddexp2(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogAddExp2Module())
+def ElementwiseLogAddExp2Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand(3, 2, 4))
+
+
+# ==============================================================================
+
+
 class ElementwiseLogSigmoidModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2871,6 +2943,49 @@ class ElementwiseTruncIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseTruncIntModule())
 def ElementwiseTruncIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-100, high=100).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseFixModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.fix(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFixModule())
+def ElementwiseFixModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([torch.nan, torch.inf, -torch.inf, 2, 0.5]))
+
+
+class ElementwiseFixIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3], torch.int64, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.fix(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFixIntModule())
+def ElementwiseFixIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3, low=0, high=500))
 
 
 # ==============================================================================
@@ -6501,6 +6616,26 @@ class AtenRoundIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenRoundIntModule())
 def AtenRoundIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(5, 5, low=-10))
+
+
+class AtenRoundFloatDecimalsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.round(x, decimals=2)
+
+
+@register_test_case(module_factory=lambda: AtenRoundFloatDecimalsModule())
+def AtenRoundFloatDecimalsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 5, low=-3.0, high=3.0))
 
 
 # ==============================================================================

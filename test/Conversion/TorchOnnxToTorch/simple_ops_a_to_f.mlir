@@ -996,6 +996,16 @@ func.func @test_averagepool_with_padding(%arg0: !torch.vtensor<[1,20,64,48],f32>
 
 // -----
 
+// CHECK-LABEL: @test_averagepool_with_asymmetric_padding
+// CHECK-SAME:    %[[ARG:.*]]: !torch.vtensor<[1,1024,6,6],f32>
+func.func @test_averagepool_with_asymmetric_padding(%arg1: !torch.vtensor<[1,1024,6,6],f32>) -> !torch.vtensor<[1,1024,1,1],f32>  attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 21 : si64, torch.onnx_meta.opset_versions = {ai.onnx.contrib = 1000 : si64, ai.onnx.ml = 3 : si64, ai.onnx.preview.training = 1 : si64, ai.onnx.training = 1 : si64, com.microsoft = 1 : si64, com.microsoft.experimental = 1 : si64, com.microsoft.nchwc = 1 : si64, com.ms.internal.nhwc = 1 : si64, org.pytorch.aten = 1 : si64}, torch.onnx_meta.producer_name = "onnx.quantize", torch.onnx_meta.producer_version = "0.1.0"} {
+  %1 = torch.operator "onnx.AveragePool"(%arg1) {torch.onnx.auto_pad = "NOTSET", torch.onnx.ceil_mode = 0 : si64, torch.onnx.count_include_pad = 0 : si64, torch.onnx.kernel_shape = [7 : si64, 7 : si64], torch.onnx.pads = [0 : si64, 0 : si64, 1 : si64, 1 : si64], torch.onnx.strides = [1 : si64, 1 : si64]} : (!torch.vtensor<[1,1024,6,6],f32>) -> !torch.vtensor<[1,1024,1,1],f32>
+  // CHECK: torch.aten.avg_pool2d %[[ARG]], {{.*}} : !torch.vtensor<[1,1024,6,6],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1024,1,1],f32>
+  return %1 : !torch.vtensor<[1,1024,1,1],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @test_conv_with_strides_no_padding
 func.func @test_conv_with_strides_no_padding(%arg0: !torch.vtensor<[1,1,7,5],f32>, %arg1: !torch.vtensor<[1,1,3,3],f32>) -> !torch.vtensor<[1,1,3,2],f32> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[C0:.*]] = torch.constant.int 0
@@ -2920,4 +2930,18 @@ func.func @test_dft_inverse_real(%arg0: !torch.vtensor<[10,10,1],f32>, %arg1: !t
   %none = torch.constant.none
   %0 = torch.operator "onnx.DFT"(%arg0, %none, %arg1) {torch.onnx.inverse = 1 : si64} : (!torch.vtensor<[10,10,1],f32>, !torch.none, !torch.vtensor<[],si64>) -> !torch.vtensor<[10,10,2],f32>
   return %0 : !torch.vtensor<[10,10,2],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_fusedMatmul(
+// CHECK-SAME:                   %[[LHS:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[?,12,256,64],f32>,
+// CHECK-SAME:                   %[[RHS:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[?,12,256,64],f32>) -> !torch.vtensor<[?,12,256,256],f32>
+func.func @test_fusedMatmul(%arg0: !torch.vtensor<[?,12,256,64],f32>, %arg1: !torch.vtensor<[?,12,256,64],f32>) -> !torch.vtensor<[?,12,256,256],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 21 : si64, torch.onnx_meta.opset_versions = {com.microsoft = 1 : si64}} {
+    %0 = torch.operator "onnx.FusedMatMul"(%arg0, %arg1) {torch.onnx.alpha = 1.250000e-01 : f32, torch.onnx.transA = 0 : si64, torch.onnx.transB = 1 : si64} : (!torch.vtensor<[?,12,256,64],f32>, !torch.vtensor<[?,12,256,64],f32>) -> !torch.vtensor<[?,12,256,256],f32>
+    // CHECK: %[[DIMA:.*]] = torch.constant.int 2
+    // CHECK: %[[DIMB:.*]] = torch.constant.int 3
+    // CHECK: %[[TRANSPOSED_RHS:.*]] = torch.aten.transpose.int %[[RHS]], %[[DIMA]], %[[DIMB]] : !torch.vtensor<[?,12,256,64],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,12,64,256],f32>
+    // CHECK: torch.aten.matmul %[[LHS]], %[[TRANSPOSED_RHS]] : !torch.vtensor<[?,12,256,64],f32>, !torch.vtensor<[?,12,64,256],f32> -> !torch.vtensor<[?,12,256,256],f32>
+    return %0 : !torch.vtensor<[?,12,256,256],f32>
 }

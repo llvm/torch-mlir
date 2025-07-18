@@ -841,7 +841,6 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    MLIRContext *context = op->getContext();
     Value input = op.getSelf();
     Value values = op.getValues();
     auto inputType = cast<ValueTensorType>(input.getType());
@@ -961,11 +960,6 @@ public:
         valuesShape, valuesType.getOptionalDtype());
     values =
         rewriter.create<AtenViewOp>(loc, valuesType, values, valuesDimsList);
-
-    // `TMTensor::ScatterOp` expects indices of element type i32.
-    indices = convertTensorToDtype(
-        rewriter, loc, indices,
-        mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
 
     input = typeConverter->materializeTargetConversion(
         rewriter, loc, typeConverter->convertType(input.getType()), input);
@@ -1634,14 +1628,35 @@ public:
     auto resultType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op->getResult(0).getType()));
     Type elementType = resultType.getElementType();
-    Type inputElementType =
-        cast<RankedTensorType>(input.getType()).getElementType();
+    auto inputType = cast<RankedTensorType>(input.getType());
+    Type inputElementType = inputType.getElementType();
 
-    // Converting the input element type to the result's element type.
-    // The only possible mismatch would be when the input element type is an
-    // integer but not `si64`. Therefore, we directly convert the input to
-    // `si64`. Rest all cases are handled in the dtype definition for this op.
-    if (elementType != inputElementType) {
+    Value dtype = op.getDtype();
+    if (!isa<Torch::NoneType>(dtype.getType())) {
+      int64_t dtypeInt;
+      if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: only constant int dtype value is supported");
+
+      FailureOr<Type> resDtype = getTypeForScalarType(
+          op->getContext(), (torch_upstream::ScalarType)dtypeInt);
+      if (failed(resDtype))
+        return rewriter.notifyMatchFailure(
+            op, "unsupported: dtype not defined for the given dtype int value");
+
+      Value torchInput =
+          convertTensorToDtype(rewriter, loc, op.getSelf(), resDtype.value());
+      input = typeConverter->materializeTargetConversion(
+          rewriter, loc, typeConverter->convertType(torchInput.getType()),
+          torchInput);
+    } else if (elementType != inputElementType &&
+               isa<mlir::IntegerType>(elementType) &&
+               isa<mlir::IntegerType>(inputElementType)) {
+      // Converting the input element type to the result's element type.
+      // The only possible mismatch would be when the input element type is an
+      // integer but not `si64` and the `dtype` is not specified. Therefore, we
+      // directly convert the input to `si64`. Rest all cases are handled in the
+      // dtype definition for this op.
       Value torchInput = convertTensorToDtype(
           rewriter, loc, op.getSelf(),
           rewriter.getIntegerType(64, IntegerType::Signed));
@@ -1650,12 +1665,7 @@ public:
           torchInput);
     }
 
-    int64_t inputRank = resultType.getRank();
-    Value dtype = op.getDtype();
-    if (!isa<Torch::NoneType>(dtype.getType()))
-      return rewriter.notifyMatchFailure(
-          op, "unsupported: dtype argument not supported");
-
+    int64_t inputRank = inputType.getRank();
     int64_t dim;
     if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
       return rewriter.notifyMatchFailure(

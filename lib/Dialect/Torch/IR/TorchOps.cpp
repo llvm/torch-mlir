@@ -1121,6 +1121,22 @@ OpFoldResult AtenDimOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenAnyDimsOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAnyDimsOp::fold(FoldAdaptor adaptor) {
+  auto resultType = dyn_cast<ValueTensorType>(getResult().getType());
+  auto resultShape = resultType.toBuiltinTensor().getShape();
+  auto inputType = dyn_cast<ValueTensorType>(getOperand(0).getType());
+  auto inputShape = inputType.toBuiltinTensor().getShape();
+  if ((inputType.getDtype() == resultType.getDtype()) &&
+      (inputShape == resultShape)) {
+    return getSelf();
+  }
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
 // AtenLenTOp
 //===----------------------------------------------------------------------===//
 
@@ -1984,6 +2000,19 @@ OpFoldResult AtenFloorOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenCeilOp::fold(FoldAdaptor adaptor) {
+  auto resultType = dyn_cast<ValueTensorType>(getType());
+  if (resultType && resultType.hasDtype() &&
+      isa<mlir::IntegerType>(resultType.getDtype())) {
+    return getSelf();
+  }
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
+// AtenRoundDecimalsOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenRoundDecimalsOp::fold(FoldAdaptor adaptor) {
   auto resultType = dyn_cast<ValueTensorType>(getType());
   if (resultType && resultType.hasDtype() &&
       isa<mlir::IntegerType>(resultType.getDtype())) {
@@ -5963,6 +5992,22 @@ LogicalResult AtenTriuIndicesOp::verify() {
   return success();
 }
 
+OpFoldResult AtenTriuIndicesOp::fold(FoldAdaptor adaptor) {
+  int64_t row, col;
+  if (matchPattern(getRow(), m_TorchConstantInt(&row)) &&
+      matchPattern(getCol(), m_TorchConstantInt(&col)) && row == 0 &&
+      col == 0) {
+    // Get the result type (should be a tensor type)
+    auto resultTy = dyn_cast<ValueTensorType>(getType());
+    if (!resultTy || !resultTy.hasSizes() || !resultTy.hasDtype())
+      return nullptr;
+    auto shapedTy = resultTy.toBuiltinTensor();
+    // Return an empty tensor (0 elements)
+    return DenseElementsAttr::get(shapedTy, ArrayRef<Attribute>{});
+  }
+  return nullptr;
+}
+
 // AtenTrilIndicesOp
 //===----------------------------------------------------------------------===//
 
@@ -6000,6 +6045,22 @@ LogicalResult AtenTrilIndicesOp::verify() {
   return success();
 }
 
+OpFoldResult AtenTrilIndicesOp::fold(FoldAdaptor adaptor) {
+  int64_t row, col;
+  if (matchPattern(getRow(), m_TorchConstantInt(&row)) &&
+      matchPattern(getCol(), m_TorchConstantInt(&col)) && row == 0 &&
+      col == 0) {
+    // Get the result type (should be a tensor type)
+    auto resultTy = dyn_cast<ValueTensorType>(getType());
+    if (!resultTy || !resultTy.hasSizes() || !resultTy.hasDtype())
+      return nullptr;
+    auto shapedTy = resultTy.toBuiltinTensor();
+    // Return an empty tensor (0 elements)
+    return DenseElementsAttr::get(shapedTy, ArrayRef<Attribute>{});
+  }
+  return nullptr;
+}
+
 // AtenRot90Op
 //===----------------------------------------------------------------------===//
 
@@ -6029,6 +6090,59 @@ LogicalResult AtenRot90Op::verify() {
     return emitOpError(
                "expected rotation dims to be different, but got dim0 = ")
            << dims[0] << " and dim1 = " << dims[1];
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// AtenCountNonzero
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenCountNonzeroOp::verify() {
+
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+
+  if (!selfType.hasDtype() || !selfType.hasSizes())
+    return success();
+
+  if (!isa<Torch::IntType>(getDim().getType()) &&
+      !isa<Torch::NoneType>(getDim().getType()))
+    return emitOpError("parameter dim must be none or int type");
+
+  int64_t dim;
+  if (!matchPattern(getDim(), m_TorchConstantInt(&dim)))
+    return success();
+
+  int selfRank = selfType.getSizes().size();
+  if (dim >= selfRank || dim < -selfRank)
+    return emitOpError("expected dim to be in [ ")
+           << -selfRank << ", " << selfRank - 1 << " ], but got dim = " << dim;
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// AtenCountNonzeroDimIntListOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenCountNonzeroDimIntListOp::verify() {
+
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+
+  if (!selfType.hasDtype() || !selfType.hasSizes())
+    return success();
+
+  SmallVector<int64_t> dims;
+  if (!matchPattern(getDim(), m_TorchListOfConstantInts(dims)))
+    return emitOpError("expected dim to be constructed from list construct");
+
+  int64_t selfRank = selfType.getSizes().size();
+
+  for (auto d : dims) {
+    if (d >= selfRank || d < -selfRank)
+      return emitOpError("expected to be in [ ")
+             << -selfRank << " , " << selfRank - 1 << " ], but got dim = " << d;
+  }
 
   return success();
 }

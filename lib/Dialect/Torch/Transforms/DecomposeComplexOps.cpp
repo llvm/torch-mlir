@@ -11,6 +11,7 @@
 
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/BuiltinDialect.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
@@ -1367,6 +1368,84 @@ public:
 
     rewriter.replaceOp(op, result);
 
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenFliplrOp : public OpRewritePattern<AtenFliplrOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFliplrOp op,
+                                PatternRewriter &rewriter) const override {
+    auto inputTy = dyn_cast<ValueTensorType>(op.getSelf().getType());
+    auto maybeSizes = inputTy.getOptionalSizes();
+    if (!maybeSizes) {
+      return rewriter.notifyMatchFailure(
+          op, "Expected input tensor to have known rank.");
+    }
+    auto inShape = maybeSizes.value();
+    auto inRank = inShape.size();
+
+    if (inRank < 2) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Fliplr expects input rank >= 2D.");
+    }
+
+    Location loc = op.getLoc();
+    Value constI = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(1));
+
+    SmallVector<Value> dims;
+    dims.push_back(constI);
+
+    Value flipDimList = rewriter.create<Torch::PrimListConstructOp>(
+        loc,
+        rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
+        dims);
+    Value flip = rewriter.create<AtenFlipOp>(loc, op.getType(), op.getSelf(),
+                                             flipDimList);
+    rewriter.replaceOp(op, flip);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenFlipudOp : public OpRewritePattern<AtenFlipudOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFlipudOp op,
+                                PatternRewriter &rewriter) const override {
+    auto inputTy = dyn_cast<ValueTensorType>(op.getSelf().getType());
+    auto maybeSizes = inputTy.getOptionalSizes();
+    if (!maybeSizes) {
+      return rewriter.notifyMatchFailure(
+          op, "Expected input tensor to have known rank.");
+    }
+    auto inShape = maybeSizes.value();
+    auto inRank = inShape.size();
+
+    if (inRank < 1) {
+      return rewriter.notifyMatchFailure(op,
+                                         "Flipud expects input rank >= 1D.");
+    }
+
+    Location loc = op.getLoc();
+    Value constI = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+
+    SmallVector<Value> dims;
+    dims.push_back(constI);
+
+    Value flipDimList = rewriter.create<Torch::PrimListConstructOp>(
+        loc,
+        rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
+        dims);
+    Value flip = rewriter.create<AtenFlipOp>(loc, op.getType(), op.getSelf(),
+                                             flipDimList);
+    rewriter.replaceOp(op, flip);
     return success();
   }
 };
@@ -2884,6 +2963,56 @@ public:
 };
 } // namespace
 
+// Decompose AtenLogCumsumExpOp into: AtenExpOp,
+// AtenCumsumOp and AtenLogOp
+// logcumsumexp(x)[i][j] = log(sum_{k=0}^{j} exp(x[i][k]))
+namespace {
+class DecomposeAtenLogCumsumExpOp
+    : public OpRewritePattern<AtenLogcumsumexpOp> {
+public:
+  using OpRewritePattern<AtenLogcumsumexpOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLogcumsumexpOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+
+    auto inputType = dyn_cast<BaseTensorType>(input.getType());
+    auto resultType = dyn_cast<BaseTensorType>(op.getType());
+
+    if (!inputType || !inputType.hasDtype())
+      return rewriter.notifyMatchFailure(op, "input should have dtype.");
+
+    if (isa<mlir::IntegerType>(inputType.getDtype()))
+      return rewriter.notifyMatchFailure(op, "integer dtype is not allowed.");
+
+    // TODO: support complex type in future.
+    if (isa<mlir::ComplexType>(inputType.getDtype()))
+      return rewriter.notifyMatchFailure(op,
+                                         "doesn't support complex type now");
+
+    if (!inputType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "input should have known size.");
+
+    int64_t inputRank = inputType.getSizes().size();
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: Only constant dim value is supported.");
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank))
+      return rewriter.notifyMatchFailure(op, "invalid dim.");
+
+    Value dtypeVal =
+        getDtypeIntValueForType(rewriter, loc, inputType.getDtype());
+    Value expInput = rewriter.create<AtenExpOp>(loc, resultType, input);
+    Value cumsum = rewriter.create<AtenCumsumOp>(loc, resultType, expInput,
+                                                 op.getDim(), dtypeVal);
+    rewriter.replaceOpWithNewOp<AtenLogOp>(op, resultType, cumsum);
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeAtenLogSigmoidOp : public OpRewritePattern<AtenLogSigmoidOp> {
 public:
@@ -2893,6 +3022,52 @@ public:
     Value sigmoid =
         rewriter.create<AtenSigmoidOp>(op.getLoc(), op.getType(), op.getSelf());
     rewriter.replaceOpWithNewOp<AtenLogOp>(op, op.getType(), sigmoid);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenLogAddExpOp : public OpRewritePattern<AtenLogaddexpOp> {
+public:
+  using OpRewritePattern<AtenLogaddexpOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLogaddexpOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+    auto outTy = op.getType();
+
+    Value constantOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value expSelf = rewriter.create<AtenExpOp>(loc, outTy, self);
+    Value expOther = rewriter.create<AtenExpOp>(loc, outTy, other);
+    Value addValue = rewriter.create<AtenAddTensorOp>(loc, outTy, expSelf,
+                                                      expOther, constantOne);
+    rewriter.replaceOpWithNewOp<AtenLogOp>(op, outTy, addValue);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenLogAddExp2Op : public OpRewritePattern<AtenLogaddexp2Op> {
+public:
+  using OpRewritePattern<AtenLogaddexp2Op>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLogaddexp2Op op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+    auto outTy = op.getType();
+
+    Value constantOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value expSelf = rewriter.create<AtenExp2Op>(loc, outTy, self);
+    Value expOther = rewriter.create<AtenExp2Op>(loc, outTy, other);
+    Value addValue = rewriter.create<AtenAddTensorOp>(loc, outTy, expSelf,
+                                                      expOther, constantOne);
+    rewriter.replaceOpWithNewOp<AtenLog2Op>(op, outTy, addValue);
     return success();
   }
 };
@@ -6661,6 +6836,83 @@ public:
 };
 } // namespace
 
+// Decompose aten.count_nonzero to aten.ne.Scalar and
+// aten.sum/aten.sum.dim_IntList
+namespace {
+class DecomposeAtenCountNonzeroOp
+    : public OpRewritePattern<AtenCountNonzeroOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCountNonzeroOp op,
+                                PatternRewriter &rewriter) const override {
+    Value dim = op.getDim();
+    if (!isa<Torch::NoneType>(dim.getType()) &&
+        !isa<Torch::IntType>(dim.getType())) {
+      return rewriter.notifyMatchFailure(
+          op, "expected `dim` to be `None` or `int`");
+    }
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    BaseTensorType inputType = cast<BaseTensorType>(self.getType());
+    auto inpBoolTy = inputType.getWithSizesAndDtype(inputType.getSizes(),
+                                                    rewriter.getI1Type());
+    Value cstZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value nonZeroMask =
+        rewriter.create<AtenNeScalarOp>(loc, inpBoolTy, self, cstZero);
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    if (isa<Torch::NoneType>(dim.getType())) {
+      rewriter.replaceOpWithNewOp<AtenSumOp>(op, op.getResult().getType(),
+                                             nonZeroMask, none);
+    } else {
+      Value cstFalse = rewriter.create<ConstantBoolOp>(loc, false);
+      Value dimIntList = rewriter.create<PrimListConstructOp>(
+          loc, ListType::get(IntType::get(op.getContext())),
+          SmallVector<Value>{dim});
+      rewriter.replaceOpWithNewOp<AtenSumDimIntListOp>(
+          op, op.getResult().getType(), nonZeroMask, dimIntList, cstFalse,
+          none);
+    }
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten.count_nonzero to aten.ne.Scalar and aten.sum.dim_IntList
+namespace {
+class DecomposeAtenCountNonzeroDimIntListOp
+    : public OpRewritePattern<AtenCountNonzeroDimIntListOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenCountNonzeroDimIntListOp op,
+                                PatternRewriter &rewriter) const override {
+    Value dimList = op.getDim();
+    if (isa<Torch::NoneType>(dimList.getType()))
+      return rewriter.notifyMatchFailure(
+          op, "expected `dim` to be constructed from list");
+
+    SmallVector<int64_t> dimIntListElem;
+    if (!matchPattern(dimList, m_TorchListOfConstantInts(dimIntListElem)))
+      return rewriter.notifyMatchFailure(
+          op, "expected `dim` to be constructed from list of integers");
+
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    BaseTensorType inputType = cast<BaseTensorType>(self.getType());
+    auto inpBoolTy = inputType.getWithSizesAndDtype(inputType.getSizes(),
+                                                    rewriter.getI1Type());
+    Value cstZero =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value nonZeroMask =
+        rewriter.create<AtenNeScalarOp>(loc, inpBoolTy, self, cstZero);
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    Value cstFalse = rewriter.create<ConstantBoolOp>(loc, false);
+    rewriter.replaceOpWithNewOp<AtenSumDimIntListOp>(
+        op, op.getResult().getType(), nonZeroMask, dimList, cstFalse, none);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.std.correction to sqrt(var.correction(x))
 namespace {
 class DecomposeAtenStdCorrectionOp
@@ -7273,9 +7525,11 @@ class DecomposeAtenNativeLayerNormOp
     Value inputMean = rewriter.create<AtenMeanDimOp>(
         loc, reducedTy, op.getInput(), reduceDimList, cstTrue, none);
 
+    Value inputMeanCasted =
+        convertTensorToDtype(rewriter, loc, inputMean, inputTy.getDtype());
     // x - mean(x)
-    Value inputMeanExpanded =
-        rewriter.create<AtenExpandAsOp>(loc, inputTy, inputMean, op.getInput());
+    Value inputMeanExpanded = rewriter.create<AtenExpandAsOp>(
+        loc, inputTy, inputMeanCasted, op.getInput());
     Value inputZeroMean = rewriter.create<AtenSubTensorOp>(
         loc, inputTy, op.getInput(), inputMeanExpanded, one);
     // var(x) = mean((x - mean(x))^2)
@@ -7290,9 +7544,11 @@ class DecomposeAtenNativeLayerNormOp
     Value inputRsqrtVar =
         rewriter.create<AtenRsqrtOp>(loc, reducedTy, inputVarPlusEps);
 
+    Value inputRsqrtVarCasted =
+        convertTensorToDtype(rewriter, loc, inputRsqrtVar, inputTy.getDtype());
     // (x - mean(x)) * rsqrt(var(x) + eps)
     Value inputRsqrtVarExpanded = rewriter.create<AtenExpandAsOp>(
-        loc, inputTy, inputRsqrtVar, op.getInput());
+        loc, inputTy, inputRsqrtVarCasted, op.getInput());
     Value inputNormalized = rewriter.create<AtenMulTensorOp>(
         loc, inputTy, inputZeroMean, inputRsqrtVarExpanded);
     // Convert resultType if dtype is different
@@ -7321,6 +7577,85 @@ class DecomposeAtenNativeLayerNormOp
     }
     rewriter.replaceOp(op, {out, inputMean, inputRsqrtVar});
 
+    return success();
+  }
+};
+} // namespace
+
+// RMS normalization:
+//     rms(x) = sqrt(eps + mean(x^2))
+//     output = (x / rms(x)) * weight
+namespace {
+class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
+  using OpRewritePattern<AtenRmsNormOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AtenRmsNormOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto context = op.getContext();
+    auto input = op.getInput();
+    auto inputTy = dyn_cast<ValueTensorType>(input.getType());
+    if (!inputTy || !inputTy.hasSizes() || !inputTy.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "Expected input to be a tensor with sizes and a dtype");
+
+    auto outputTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!outputTy.hasDtype())
+      return rewriter.notifyMatchFailure(op, "output should have a dtype.");
+
+    int64_t inputRank = inputTy.getSizes().size();
+    Value normalizedShape = op.getNormalizedShape();
+    SmallVector<Value> normalizedShapeSizesTorchInt;
+    if (!getListConstructElements(normalizedShape,
+                                  normalizedShapeSizesTorchInt))
+      return rewriter.notifyMatchFailure(op,
+                                         "should have constant shape values.");
+
+    int64_t normalize_from_idx =
+        inputRank - normalizedShapeSizesTorchInt.size();
+    auto reduceDimInts =
+        llvm::to_vector<4>(llvm::seq<int64_t>(normalize_from_idx, inputRank));
+    auto sizeListType = ListType::get(IntType::get(context));
+
+    SmallVector<Value> reduceDimVals;
+    for (int64_t dim : reduceDimInts)
+      reduceDimVals.push_back(rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dim)));
+    Value reduceDimList =
+        rewriter.create<PrimListConstructOp>(loc, sizeListType, reduceDimVals);
+
+    auto inputShape = inputTy.getSizes();
+    SmallVector<int64_t> reducedShape(inputShape.begin(), inputShape.end());
+    for (int64_t i : reduceDimInts)
+      reducedShape[i] = 1;
+    auto reducedTy =
+        ValueTensorType::get(context, reducedShape, inputTy.getDtype());
+    // x^2
+    Value inputSquared = rewriter.create<AtenSquareOp>(loc, inputTy, input);
+    Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(loc, true);
+    Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+    // mean(x^2)
+    Value mean = rewriter.create<AtenMeanDimOp>(loc, reducedTy, inputSquared,
+                                                reduceDimList, cstTrue, none);
+    //  mean(x^2) + eps: Add eps if provided
+    if (!isa<Torch::NoneType>(op.getEps().getType())) {
+      Value one = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(1));
+      mean = rewriter.create<AtenAddScalarOp>(loc, reducedTy, mean, op.getEps(),
+                                              one);
+    }
+    // rsqrt(mean(x^2) + eps)
+    Value invRMS = rewriter.create<AtenRsqrtOp>(loc, reducedTy, mean);
+    // rsqrt(mean(x^2) + eps) * x
+    Value normalized =
+        rewriter.create<AtenMulTensorOp>(loc, inputTy, input, invRMS);
+    // Optionally multiply by weight if provided
+    Value weight = op.getWeight();
+    if (!isa<Torch::NoneType>(weight.getType())) {
+      normalized =
+          rewriter.create<AtenMulTensorOp>(loc, outputTy, normalized, weight);
+    }
+    rewriter.replaceOp(op, normalized);
     return success();
   }
 };
@@ -8155,12 +8490,6 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
       }
     }
 
-    // we don't have support for 1-D replicate pad, so pass it as 2d if
-    // possible.
-    // TODO: add support for AtenReplicatePad1dOp and remove this.
-    if (mode == "replicate" && usefulPadIndexEnd == 2 && padValues.size() >= 4)
-      usefulPadIndexEnd = 4;
-
     // make a new list of padding ints if dimensionality reduction can be
     // performed
     if (usefulPadIndexEnd < padValues.size()) {
@@ -8198,11 +8527,20 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
     }
 
     if (mode == "replicate") {
-      // only support for replication pad 2d
-      if (numPadDims != 2)
-        return failure();
-      rewriter.replaceOpWithNewOp<AtenReplicationPad2dOp>(
-          op, op.getType(), op.getSelf(), usefulPads);
+      switch (numPadDims) {
+      case 1:
+        rewriter.replaceOpWithNewOp<AtenReplicationPad1dOp>(
+            op, op.getType(), op.getSelf(), usefulPads);
+        break;
+      case 2:
+        rewriter.replaceOpWithNewOp<AtenReplicationPad2dOp>(
+            op, op.getType(), op.getSelf(), usefulPads);
+        break;
+      default:
+        return rewriter.notifyMatchFailure(
+            op, "unsupported number of dims for 'reflect' mode: " +
+                    std::to_string(numPadDims));
+      }
       return success();
     }
 
@@ -8695,6 +9033,19 @@ class DecomposeAtenTruncOp : public OpRewritePattern<AtenTruncOp> {
       return success();
     }
     return failure();
+  }
+};
+} // namespace
+
+namespace {
+// fix Op is an alias for trunc Op
+class DecomposeAtenFixOp : public OpRewritePattern<AtenFixOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenFixOp op,
+                                PatternRewriter &rewriter) const override {
+    Value self = op.getSelf();
+    rewriter.replaceOpWithNewOp<AtenTruncOp>(op, op.getType(), self);
+    return success();
   }
 };
 } // namespace
@@ -10203,6 +10554,160 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenPoissonNllLossOp
+    : public OpRewritePattern<AtenPoissonNllLossOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenPoissonNllLossOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getInput();
+    Value target = op.getTarget();
+    Value logInput = op.getLogInput();
+    Value full = op.getFull();
+    Value reduction = op.getReduction();
+    Value eps = op.getEps();
+
+    bool logInVal, fullVal;
+    if (!matchPattern(logInput, m_TorchConstantBool(&logInVal)))
+      return rewriter.notifyMatchFailure(
+          op, "expected logInput argument to be constant bool");
+    if (!matchPattern(full, m_TorchConstantBool(&fullVal)))
+      return rewriter.notifyMatchFailure(
+          op, "expected full argument to be constant bool");
+
+    int64_t reductionInt;
+    if (!matchPattern(reduction, m_TorchConstantInt(&reductionInt)))
+      return rewriter.notifyMatchFailure(op, "expected constant reduction");
+
+    double epsFloat;
+    if (!matchPattern(eps, m_TorchConstantFloat(&epsFloat))) {
+      return rewriter.notifyMatchFailure(op, "expected constant eps");
+    }
+    // TODO: add support for full=true (Stirling approximation)
+    if (fullVal)
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: full loss computation is not supported");
+
+    Value one =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1.0));
+    Value epsConst = rewriter.create<ConstantFloatOp>(
+        loc, rewriter.getF64FloatAttr(epsFloat));
+
+    Value safeInput = rewriter.create<AtenAddScalarOp>(loc, input.getType(),
+                                                       input, epsConst, one);
+
+    Value loss;
+    if (logInVal) {
+      Value expIn = rewriter.create<AtenExpOp>(loc, input.getType(), input);
+      Value targetMulInput =
+          rewriter.create<AtenMulTensorOp>(loc, input.getType(), target, input);
+      loss = rewriter.create<AtenSubTensorOp>(loc, input.getType(), expIn,
+                                              targetMulInput, one);
+    } else {
+      Value logSafeInput =
+          rewriter.create<AtenLogOp>(loc, input.getType(), safeInput);
+      Value targetMulLog = rewriter.create<AtenMulTensorOp>(
+          loc, input.getType(), target, logSafeInput);
+      loss = rewriter.create<AtenSubTensorOp>(loc, input.getType(), input,
+                                              targetMulLog, one);
+    }
+
+    Value result = loss;
+    if (reductionInt == 1) {
+      // Case 1: Mean Reduction
+      result = rewriter.create<AtenMeanOp>(
+          loc, op.getType(), loss, rewriter.create<ConstantNoneOp>(loc));
+    } else if (reductionInt == 2) {
+      // Case 2: Sum Reduction
+      result = rewriter.create<AtenSumOp>(loc, op.getType(), loss,
+                                          rewriter.create<ConstantNoneOp>(loc));
+    }
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenKlDivOp : public OpRewritePattern<AtenKlDivOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenKlDivOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value target = op.getTarget();
+    Value reductionValue = op.getReduction();
+    Value logTargetValue = op.getLogTarget();
+
+    auto selfTy = cast<ValueTensorType>(self.getType());
+    auto targetTy = cast<ValueTensorType>(target.getType());
+    auto outTy = cast<ValueTensorType>(op.getType());
+
+    if (!selfTy.hasSizes() || !targetTy.hasSizes() || !outTy.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "require self, target and output having sizes!");
+    }
+
+    if (!selfTy.hasDtype() || !targetTy.hasDtype() || !outTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "require self, target and output having dtype!");
+    }
+
+    // Extract boolean value from logTarget argument
+    bool logTargetBool;
+    if (!matchPattern(logTargetValue, m_TorchConstantBool(&logTargetBool)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected a constant boolean value for logTargetBool");
+
+    // Default: target tensor is not in log space
+    Value logOfTarget;
+    if (!logTargetBool) {
+      logOfTarget = rewriter.create<AtenLogOp>(loc, targetTy, target);
+    } else {
+      logOfTarget = target;
+    }
+
+    Value constOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value subValue = rewriter.create<AtenSubTensorOp>(loc, selfTy, logOfTarget,
+                                                      self, constOne);
+
+    // if target tensor is already in log space
+    if (logTargetBool) {
+      target = rewriter.create<AtenExpOp>(loc, targetTy, target);
+    }
+    Value lossPointwise =
+        rewriter.create<AtenMulTensorOp>(loc, targetTy, target, subValue);
+
+    // Extract reduction int value from reduction argument
+    int64_t reduction;
+    if (!matchPattern(reductionValue, m_TorchConstantInt(&reduction))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "reduction should be a constant int!");
+    }
+
+    Value loss;
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    // reduction: mean
+    if (reduction == 1) {
+      loss = rewriter.create<AtenMeanOp>(loc, outTy, lossPointwise, none);
+    } else if (reduction == 2) {
+      // reduction: sum
+      loss = rewriter.create<AtenSumOp>(loc, outTy, lossPointwise, none);
+    } else {
+      // reduction: none
+      loss = lossPointwise;
+    }
+
+    rewriter.replaceOp(op, loss);
+
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenBinaryCrossEntropyWithLogitsOp
     : public OpRewritePattern<AtenBinaryCrossEntropyWithLogitsOp> {
   using OpRewritePattern<AtenBinaryCrossEntropyWithLogitsOp>::OpRewritePattern;
@@ -10794,6 +11299,76 @@ public:
 
     rewriter.replaceOpWithNewOp<AtenWhereScalarSelfOp>(op, outType, less,
                                                        minusOne, selectGreater);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Decomposed aten.heaviside op into
+// using aten.eq, aten.lt, aten.logical_or, aten.where
+// Heaviside(x, y) returns
+//  0 if x < 0
+//  y if x == 0
+//  1 if x > 0
+class DecomposeAtenHeaviside : public OpRewritePattern<AtenHeavisideOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenHeavisideOp op,
+                                PatternRewriter &rewriter) const override {
+    auto input = op.getSelf();
+    auto value = op.getValues();
+    auto loc = op.getLoc();
+    auto inputTy = dyn_cast<BaseTensorType>(input.getType());
+    if (!inputTy || !inputTy.hasDtype() || !inputTy.hasSizes())
+      return rewriter.notifyMatchFailure(op, "input must have dtype and size.");
+
+    auto valueTy = dyn_cast<BaseTensorType>(value.getType());
+    if (!valueTy || !valueTy.hasDtype() || !valueTy.hasSizes())
+      return rewriter.notifyMatchFailure(op, "value must have dtype and size.");
+    auto resultTy = dyn_cast<BaseTensorType>(op.getType());
+    SmallVector<int64_t> broadcastShape;
+    SmallVector<Value> broadcastShapeValue;
+    computeBroadcastShape(rewriter, loc, input, value, broadcastShape,
+                          broadcastShapeValue);
+
+    auto broadcastType = ValueTensorType::get(
+        op.getContext(), llvm::ArrayRef(broadcastShape), resultTy.getDtype());
+    auto boolBroadcastType = ValueTensorType::get(
+        op.getContext(), llvm::ArrayRef(broadcastShape), rewriter.getI1Type());
+    Value indexBroadcastShapeTorchList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        broadcastShapeValue);
+    auto inputBroadcasted = rewriter.create<AtenBroadcastToOp>(
+        loc, broadcastType, input, indexBroadcastShapeTorchList);
+    auto valueBroadcasted = rewriter.create<AtenBroadcastToOp>(
+        loc, broadcastType, value, indexBroadcastShapeTorchList);
+
+    Value zero = getConstantWithGivenDtypeAndValue(rewriter, loc, 0,
+                                                   resultTy.getDtype());
+    Value one = getConstantWithGivenDtypeAndValue(rewriter, loc, 1,
+                                                  resultTy.getDtype());
+    // Compute mask: input == 0
+    auto inputEqZero = rewriter
+                           .create<AtenEqScalarOp>(loc, boolBroadcastType,
+                                                   inputBroadcasted, zero)
+                           ->getResult(0);
+    // Compute mask: input < 0
+    auto inputLtZero = rewriter.create<AtenLtScalarOp>(loc, boolBroadcastType,
+                                                       inputBroadcasted, zero);
+    // Compute mask: isnan(input)
+    auto isNan =
+        rewriter.create<AtenIsnanOp>(loc, boolBroadcastType, inputBroadcasted);
+    // Combine: input < 0 || isnan(input)
+    auto inputNegativeOrNan = rewriter.create<AtenLogicalOrOp>(
+        loc, boolBroadcastType, inputLtZero, isNan);
+    // Select 0 if input < 0 or input is nan, else 1
+    auto zerosOrOnes = rewriter.create<AtenWhereScalarOp>(
+        loc, resultTy, inputNegativeOrNan, zero, one);
+    // Final result: if input == 0, take from valueBroadcasted, else take from
+    // zerosOrOnes
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resultTy, inputEqZero,
+                                                 valueBroadcasted, zerosOrOnes);
     return success();
   }
 };
@@ -11805,6 +12380,54 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenRoundDecimalsOp
+    : public OpRewritePattern<AtenRoundDecimalsOp> {
+public:
+  using OpRewritePattern<AtenRoundDecimalsOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRoundDecimalsOp op,
+                                PatternRewriter &rewriter) const override {
+    // AtenRoundDecimalsOp is decomposed as follows if the decimals value is
+    // non-zero: scale = 10 ** decimals return round(x * scale) / scale
+    // otherwise:
+    // return round(x)
+
+    auto loc = op.getLoc();
+    auto input = op.getSelf();
+    auto inputType = cast<BaseTensorType>(input.getType());
+
+    if (!inputType.hasDtype() || !isa<mlir::FloatType>(inputType.getDtype())) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: non-floating point dtype");
+    }
+
+    int64_t decimals;
+    if (!matchPattern(op.getDecimals(), m_TorchConstantInt(&decimals))) {
+      return rewriter.notifyMatchFailure(
+          op, "non-constant decimal point is not supported.");
+    }
+
+    Value newOp = op->getOperand(0);
+    Value scale;
+    if (decimals) {
+      auto scaleVal = pow(10, decimals);
+      scale = rewriter.create<ConstantFloatOp>(
+          loc, rewriter.getF64FloatAttr(scaleVal));
+      newOp = rewriter.create<AtenMulScalarOp>(loc, op.getType(), input, scale);
+    }
+
+    newOp = rewriter.create<AtenRoundOp>(loc, op.getType(), newOp);
+
+    if (decimals) {
+      newOp = rewriter.create<AtenDivScalarOp>(loc, op.getType(), newOp, scale);
+    }
+
+    rewriter.replaceOp(op, newOp);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -11848,6 +12471,9 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_LogSoftmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSoftmaxIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLogSigmoidOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLogCumsumExpOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLogAddExpOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLogAddExp2Op>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardshrinkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftshrinkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyLikeOp>(patterns);
@@ -11898,6 +12524,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenInstanceNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLayerNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeLayerNormOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRMSLayerNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenGroupNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeGroupNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeBatchNormOp>(patterns);
@@ -11954,6 +12581,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRreluWithNoiseBackwardOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCeluOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFliplrOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFlipudOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
@@ -11969,6 +12598,7 @@ public:
         DecomposeConstantTensorNewLikeOp<AtenNewOnesOp, AtenOnesOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardtanhOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFullOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenHeaviside>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinearOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFullLikeOp>(patterns);
@@ -12004,6 +12634,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRad2degOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCosineSimilarityOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTruncOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenFixOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSignbitOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFracOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCopysignTensorOp>(patterns);
@@ -12018,6 +12649,9 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRot90Op>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenCountNonzeroOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenCountNonzeroDimIntListOp>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSplitWithSizesOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNarrowOp>(patterns);
@@ -12058,8 +12692,10 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenOneHotOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCrossEntropyLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNllLossForwardOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenPoissonNllLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBinaryCrossEntropyWithLogitsOp>(
         patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenKlDivOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArgsortOp>(patterns);
@@ -12113,10 +12749,11 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenConstrainRangeForSizeOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_AssertScalarOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
 
     GreedyRewriteConfig config;
-    config.useTopDownTraversal = true;
-    config.maxIterations = GreedyRewriteConfig::kNoLimit;
+    config.setUseTopDownTraversal(true);
+    config.setMaxIterations(GreedyRewriteConfig::kNoLimit);
 
     if (failed(applyPatternsGreedily(getOperation(), std::move(patterns),
                                      config))) {

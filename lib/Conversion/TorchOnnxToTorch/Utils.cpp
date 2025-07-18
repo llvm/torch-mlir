@@ -182,3 +182,23 @@ LogicalResult mlir::torch::onnx_c::extractPerTensorQuantizationArguments(
 
   return success();
 }
+
+LogicalResult mlir::torch::onnx_c::createDequantizeTensor(
+    ConversionPatternRewriter &rewriter, Location loc, Value input, Value scale,
+    Value zeroPoint, Value &output) {
+  auto inputTy = dyn_cast<Torch::ValueTensorType>(input.getType());
+  if (!inputTy || !inputTy.hasSizes())
+    return failure();
+
+  Torch::ValueTensorType makeTensorTy = getQTorchTypeFromTorchIntType(inputTy);
+  Value quantizedInput =
+      rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
+          loc, makeTensorTy, input, scale, zeroPoint);
+
+  Torch::ValueTensorType resultTy = rewriter.getType<Torch::ValueTensorType>(
+      inputTy.getSizes(), rewriter.getF32Type());
+  output = rewriter.create<Torch::AtenDequantizeSelfOp>(loc, resultTy,
+                                                        quantizedInput);
+
+  return success();
+}

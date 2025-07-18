@@ -127,6 +127,12 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
     const TorchConversion::TosaBackendPipelineOptions &options) {
   pm.addNestedPass<func::FuncOp>(
       createConvertTorchToTosaPass(options.requireFullTosaConversion));
+  // Fold full-layer operations on TOSA constants
+  pm.addNestedPass<func::FuncOp>(createTosaLayerwiseConstantFoldPass());
+
+  // Perform transpose reductions for avoidable data movements
+  pm.addNestedPass<func::FuncOp>(createTosaReduceTransposes());
+
   // Perform rank broadcasting so TosaToLinalg pass works
   pm.addNestedPass<func::FuncOp>(createTosaMakeBroadcastablePass());
 

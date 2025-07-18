@@ -10,6 +10,7 @@ from torch_mlir_e2e_test.framework import TestUtils
 from torch_mlir_e2e_test.registry import register_test_case
 from torch_mlir_e2e_test.annotations import annotate_args, export
 
+
 # ==============================================================================
 
 
@@ -4267,6 +4268,98 @@ def FlipNegativeIndexModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class FliplrOddRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.fliplr(a)
+
+
+@register_test_case(module_factory=lambda: FliplrOddRankModule())
+def FliplrOddRankModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, 2))
+
+
+# ==============================================================================
+
+
+class FliplrEvenRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.fliplr(a)
+
+
+@register_test_case(module_factory=lambda: FliplrEvenRankModule())
+def FliplrEvenRankModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, 2, 4))
+
+
+# ==============================================================================
+
+
+class FlipudOddRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.flipud(a)
+
+
+@register_test_case(module_factory=lambda: FlipudOddRankModule())
+def FlipudOddRankModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, 2))
+
+
+# ==============================================================================
+
+
+class FlipudEvenRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.flipud(a)
+
+
+@register_test_case(module_factory=lambda: FlipudEvenRankModule())
+def FlipudEvenRankModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, 2, 4))
+
+
+# ==============================================================================
+
+
 class DetachModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -5023,6 +5116,74 @@ class CumsumInputDtypeInt32Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: CumsumInputDtypeInt32Module())
 def CumsumInputDtypeInt32Module_basic(module, tu: TestUtils):
     module.forward(tu.randint(2, 7, 4).to(torch.int32))
+
+
+class CumsumWithDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 7, 4], torch.bool, True),
+        ]
+    )
+    def forward(self, val):
+        return torch.ops.aten.cumsum(val, dim=1, dtype=6)
+
+
+@register_test_case(module_factory=lambda: CumsumWithDtypeModule())
+def CumsumWithDtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 7, 4, low=-1, high=10).to(torch.bool))
+
+
+# ==============================================================================
+
+
+class LogCumsumExpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.logcumsumexp(x, dim=1)
+
+
+@register_test_case(module_factory=lambda: LogCumsumExpModule())
+def LogCumsumExpModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 3))
+
+
+class LogCumsumExpStaticNegativeDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([8, 5, 6], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.logcumsumexp(x, dim=-2)
+
+
+@register_test_case(module_factory=lambda: LogCumsumExpStaticNegativeDimModule())
+def LogCumsumExpStaticNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 5, 6))
+
+
+class LogCumsumExpStaticFloat64DtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([5, 3, 6, 9], torch.float64, True)])
+    def forward(self, x):
+        return torch.ops.aten.logcumsumexp(x, dim=1)
+
+
+@register_test_case(module_factory=lambda: LogCumsumExpStaticFloat64DtypeModule())
+def LogCumsumExpStaticFloat64DtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, 6, 9).to(torch.float64))
 
 
 # ==============================================================================

@@ -125,6 +125,11 @@ LogicalResult extractPerTensorQuantizationArguments(
     ConversionPatternRewriter &rewriter, Location loc, Value inScale,
     Value inZeroPoint, Value &outScale, Value &outZeroPoint);
 
+/// This utility takes as input a quantized tensor and dequantizes it.
+LogicalResult createDequantizeTensor(ConversionPatternRewriter &rewriter,
+                                     Location loc, Value input, Value scale,
+                                     Value zeroPoint, Value &output);
+
 } // namespace mlir::torch::onnx_c
 
 #endif // TORCHMLIR_CONVERSION_TORCHONNXTOTORCH_UTILS_H

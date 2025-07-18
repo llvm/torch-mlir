@@ -279,7 +279,7 @@ bufferizeMLProgramGlobaStoreOp(ml_program::GlobalStoreOp globalStoreOp,
   Value memref = b.create<memref::GetGlobalOp>(
       globalStoreOp.getLoc(), memrefType,
       globalStoreOp.getGlobalAttr().getLeafReference());
-  Value copyValue = b.create<bufferization::ToMemrefOp>(
+  Value copyValue = b.create<bufferization::ToBufferOp>(
       globalStoreOp->getLoc(), memrefType, globalStoreOp.getValue());
   b.create<memref::CopyOp>(globalStoreOp->getLoc(), copyValue, memref);
   return success();

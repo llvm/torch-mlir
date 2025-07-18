@@ -31,7 +31,7 @@ include(CMakeDependentOption)
 # Project options
 #-------------------------------------------------------------------------------
 
-option(TORCH_MLIR_ENABLE_WERROR_FLAG "Enable `-Werror` flag on supported directories, treat error as warning" OFF)
+option(TORCH_MLIR_ENABLE_WERROR_FLAG "Enable `-Werror` flag on supported directories, treat warning as error" OFF)
 option(TORCH_MLIR_USE_INSTALLED_PYTORCH "If depending on PyTorch use it as installed in the current Python environment" ON)
 
 option(TORCH_MLIR_ENABLE_REFBACKEND "Enable reference backend" ON)
@@ -253,6 +253,8 @@ endif()
 if (TORCH_MLIR_ENABLE_STABLEHLO AND NOT TORCH_MLIR_USE_EXTERNAL_STABLEHLO)
   set(STABLEHLO_BUILD_EMBEDDED ON)
   set(STABLEHLO_ENABLE_BINDINGS_PYTHON ON)
+  message(STATUS "Using LLVM_ENABLE_DEBUGLOC_COVERAGE_TRACKING in: ${LLVM_ENABLE_DEBUGLOC_COVERAGE_TRACKING}")
+  set(LLVM_ENABLE_DEBUGLOC_COVERAGE_TRACKING "DISABLED")
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo
     ${CMAKE_CURRENT_BINARY_DIR}/stablehlo
     EXCLUDE_FROM_ALL)

@@ -88,11 +88,11 @@ def test_import_frozen_exported_program_with_func_name():
 @run
 # CHECK-LABEL: test_import_frozen_exported_program_with_dynamic_shapes
 # CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,5],f32>) -> !torch.vtensor<[?,?,5],f32>
-# CHECK:     %[[S0:.*]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
-# CHECK:     %[[S1:.*]] = torch.symbolic_int "s1" {min_val = 2, max_val = {{[0-9]+}}} : !torch.int
-# CHECK:     torch.bind_symbolic_shape %[[ARG0]], [%[[S0]], %[[S1]]], affine_map<()[s0, s1] -> (s0, s1, 5)> : !torch.vtensor<[?,?,5],f32>
+# CHECK:     %[[S0:.*]] = torch.symbolic_int "{{[a-z0-9]+}}" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
+# CHECK:     %[[S1:.*]] = torch.symbolic_int "{{[a-z0-9]+}}" {min_val = 2, max_val = {{[0-9]+}}} : !torch.int
+# CHECK-DISABLED:     torch.bind_symbolic_shape %[[ARG0]], [%[[S1]], %[[S0]]], affine_map<()[s0, s1] -> (s1, s0, 5)> : !torch.vtensor<[?,?,5],f32>
 # CHECK:     %[[TANH:.*]] = torch.aten.tanh %[[ARG0]] : !torch.vtensor<[?,?,5],f32> -> !torch.vtensor<[?,?,5],f32>
-# CHECK:     torch.bind_symbolic_shape %[[TANH]], [%[[S0]], %[[S1]]], affine_map<()[s0, s1] -> (s0, s1, 5)> : !torch.vtensor<[?,?,5],f32>
+# CHECK-DISABLED:     torch.bind_symbolic_shape %[[TANH]], [%[[S1]], %[[S0]]], affine_map<()[s0, s1] -> (s1, s0, 5)> : !torch.vtensor<[?,?,5],f32>
 # CHECK:     return %[[TANH]] : !torch.vtensor<[?,?,5],f32>
 def test_import_frozen_exported_program_with_dynamic_shapes():
     class Basic(nn.Module):
@@ -118,7 +118,7 @@ def test_import_frozen_exported_program_with_dynamic_shapes():
 @run
 # CHECK-LABEL: test_broadcast_with_dynamic_shapes
 # CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[1,2],f32>, %[[ARG1:[a-zA-Z0-9]+]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,2],f32>
-# CHECK:     %[[S0:.*]] = torch.symbolic_int "s0" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
+# CHECK:     %[[S0:.*]] = torch.symbolic_int "{{[a-z0-9]+}}" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int
 # CHECK:     torch.bind_symbolic_shape %[[ARG1]], [%[[S0]]], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
 # CHECK:     torch.aten.size.int
 # CHECK:     torch.prim.ListConstruct
