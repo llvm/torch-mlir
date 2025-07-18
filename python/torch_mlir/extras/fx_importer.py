@@ -220,6 +220,10 @@ TORCH_DTYPE_TO_NPY_TYPE = {
 }
 if ml_dtypes is not None:
     TORCH_DTYPE_TO_NPY_TYPE[torch.bfloat16] = ml_dtypes.bfloat16
+    TORCH_DTYPE_TO_NPY_TYPE[torch.float8_e5m2] = ml_dtypes.float8_e5m2
+    TORCH_DTYPE_TO_NPY_TYPE[torch.float8_e4m3fn] = ml_dtypes.float8_e4m3fn
+    TORCH_DTYPE_TO_NPY_TYPE[torch.float8_e5m2fnuz] = ml_dtypes.float8_e5m2fnuz
+    TORCH_DTYPE_TO_NPY_TYPE[torch.float8_e4m3fnuz] = ml_dtypes.float8_e4m3fnuz
 
 TORCH_DTYPE_TO_INT = {
     torch.uint8: 0,
