@@ -6115,21 +6115,27 @@ static LogicalResult getOutputTypeAndPoolingParameters(
 
   if constexpr (std::is_same<AtenOpT, AtenAvgPool1dOp>() ||
                 std::is_same<AtenOpT, AtenAvgPool2dOp>()) {
-    // Currently, we can not represent `count_include_pad` with the existing
-    // TOSA AvgPool2d specification. Without the below check, we produce silent
-    // wrong answer (SWA) when the `count_include_pad` value is `true.`
-    //
-    // Note: We need to check for `count_include_pad` only when the `padding`
-    // value is non-zero.
+    // When count_include_pad=true with non-zero padding, insert an explicit
+    // zero-filled tosa.pad and then call avg_pool2d with pad=[0,0,0,0] so that
+    // the divisor equals the full kernel size.
     bool countIncludePad;
     if ((paddingInts[0] != 0 || paddingInts[1] != 0) &&
         (!matchPattern(op.getCountIncludePad(),
                        m_TorchConstantBool(&countIncludePad)) ||
 
          countIncludePad)) {
-      return rewriter.notifyMatchFailure(
-          op, "Unsupported `count_include_pad` value, for tosa AvgPool "
-              "`count_include_pad` value should be `False`.");
+
+      auto elemTy = inputTy.getElementType();
+      auto padResult = tosa::emitExplicitZeroPadNCHW(
+          op.getLoc(), rewriter, op, inputXchw,
+          /*{top,left}*/ {paddingInts[0], paddingInts[1]}, elemTy);
+      if (!padResult.first)
+        return failure();
+
+      inputXchw = padResult.first;
+      inputTy = padResult.second;
+
+      paddingInts.assign(/*Count=*/2, /*Value=*/0);
     }
   }
 

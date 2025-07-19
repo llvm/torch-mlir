@@ -595,5 +595,42 @@ FailureOr<Value> getConvBiasForNoneType(Operation *op,
   }
 }
 
+// Emit a TOSA explicit zero padding op for NCHW layout.
+// Emit a `tosa.pad` around `input` (NCHW order) so that a later
+// tosa.avg_pool2d can run with pad = 0 and still reproduce
+// `count_include_pad==true` semantics. `paddingInts` comes in as {pad_top,
+// pad_left}.
+std::pair<Value, RankedTensorType>
+emitExplicitZeroPadNCHW(Location loc, PatternRewriter &rewriter, Operation *op,
+                        Value input, ArrayRef<int64_t> paddingInts,
+                        Type elemTy) {
+  const int64_t padTop = paddingInts[0];
+  const int64_t padLeft = paddingInts[1];
+
+  SmallVector<int64_t> padPairs = {0,      0,      0,       0,
+                                   padTop, padTop, padLeft, padLeft};
+  Value padShape = tosa::getTosaConstShape(rewriter, loc, padPairs);
+
+  Value padConst;
+  if (isa<FloatType>(elemTy)) {
+    padConst = *getConstTensor<float>(rewriter, op, {0.0f}, {1}, elemTy);
+  } else {
+    padConst = *getConstTensor<int32_t>(rewriter, op, {0}, {1}, elemTy);
+  }
+
+  // Create the actual Pad op
+  auto inTy = cast<RankedTensorType>(input.getType());
+  auto outTy = RankedTensorType::get({inTy.getDimSize(0),                // N
+                                      inTy.getDimSize(1),                // C
+                                      inTy.getDimSize(2) + 2 * padTop,   // H
+                                      inTy.getDimSize(3) + 2 * padLeft}, // W
+                                     elemTy);
+
+  Value padded =
+      rewriter.create<tosa::PadOp>(loc, outTy, input, padShape, padConst);
+
+  return {padded, outTy};
+}
+
 } // namespace tosa
 } // namespace mlir
