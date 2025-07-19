@@ -9532,6 +9532,32 @@ def Torch_AtenKlDivOp : Torch_Op<"aten.kl_div", [
   }];
 }
 
+def Torch_AtenHuberLossOp : Torch_Op<"aten.huber_loss", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::huber_loss : (Tensor, Tensor, int, float) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$target,
+    Torch_IntType:$reduction,
+    Torch_FloatType:$delta
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenHuberLossOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenHuberLossOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenBincountOp : Torch_Op<"aten.bincount", [
     AllowsTypeRefinement,
     HasValueSemantics,
