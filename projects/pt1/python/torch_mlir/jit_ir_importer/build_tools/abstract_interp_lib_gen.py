@@ -266,6 +266,16 @@ def aten〇_linalg_det〡shape(A: List[int]) -> Tuple[List[int], List[int], List
 def aten〇_linalg_det〡dtype(A_rank_dtype: Tuple[int, int]) -> Tuple[int, int, int]:
     return (A_rank_dtype[1], A_rank_dtype[1], A_rank_dtype[1])
 
+def aten〇take〡shape(self: List[int], index: List[int]) -> List[int]:
+    return index
+
+def aten〇take〡dtype(self_rank_dtype: Tuple[int, int], index_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    index_rank, index_dtype = index_rank_dtype
+    assert is_integer_dtype(index_dtype), "indexes must be integer types"
+    return self_dtype
+
+
 def aten〇linalg_slogdet〡shape(A: List[int]) -> Tuple[List[int], List[int]]:
     assert len(A) == 2 or len(A) == 3
     assert A[-1] == A[-2]
