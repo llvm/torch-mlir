@@ -812,6 +812,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
     emit("aten::replication_pad1d : (Tensor, int[]) -> (Tensor)")
     emit("aten::replication_pad2d : (Tensor, int[]) -> (Tensor)")
+    emit("aten::replication_pad3d : (Tensor, int[]) -> (Tensor)")
     emit("aten::reflection_pad1d : (Tensor, int[]) -> (Tensor)")
     emit("aten::reflection_pad2d : (Tensor, int[]) -> (Tensor)")
     emit("aten::reflection_pad3d : (Tensor, int[]) -> (Tensor)")

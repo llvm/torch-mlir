@@ -45,85 +45,68 @@ static SmallVector<int64_t> getReduceOutputShape(ArrayRef<int64_t> inputShape,
 static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
                                            PatternRewriter &rewriter) {
   auto constType = RankedTensorType::get({}, elementTy);
+  DenseElementsAttr constAttr = nullptr;
   if (isa<AtenSumOp, AtenSumDimIntListOp, AtenFrobeniusNormDimOp,
           AtenLinalgVectorNormOp>(op)) {
     if (isa<mlir::FloatType>(elementTy)) {
-      auto constAttr = DenseElementsAttr::get(
+      constAttr = DenseElementsAttr::get(
           constType, {APFloat::getZero(
                          cast<mlir::FloatType>(elementTy).getFloatSemantics(),
                          /*negative=*/false)});
-      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
-                                                    constAttr);
     } else if (isa<mlir::IntegerType>(elementTy)) {
-      auto constAttr = DenseElementsAttr::get(
+      constAttr = DenseElementsAttr::get(
           constType, {APInt::getZero(elementTy.getIntOrFloatBitWidth())});
-      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
-                                                    constAttr);
     }
   }
 
   if (isa<AtenAmaxOp, AtenMaxOp, AtenMaxDimOp, AtenArgmaxOp>(op)) {
     if (isa<mlir::FloatType>(elementTy)) {
-      auto constAttr = DenseElementsAttr::get(
+      constAttr = DenseElementsAttr::get(
           constType,
           {APFloat::getInf(cast<mlir::FloatType>(elementTy).getFloatSemantics(),
                            /*negative=*/true)});
-      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
-                                                    constAttr);
     } else if (isa<mlir::IntegerType>(elementTy)) {
-      auto constAttr = DenseElementsAttr::get(
+      constAttr = DenseElementsAttr::get(
           constType,
           {APInt::getSignedMinValue(elementTy.getIntOrFloatBitWidth())});
-      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
-                                                    constAttr);
     }
   }
 
   if (isa<AtenAminOp, AtenMinOp, AtenMinDimOp, AtenArgminOp>(op)) {
     if (isa<mlir::FloatType>(elementTy)) {
-      auto constAttr = DenseElementsAttr::get(
+      constAttr = DenseElementsAttr::get(
           constType,
           {APFloat::getInf(cast<mlir::FloatType>(elementTy).getFloatSemantics(),
                            /*negative=*/false)});
-      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
-                                                    constAttr);
     } else if (isa<mlir::IntegerType>(elementTy)) {
-      auto constAttr = DenseElementsAttr::get(
+      constAttr = DenseElementsAttr::get(
           constType,
           {APInt::getSignedMaxValue(elementTy.getIntOrFloatBitWidth())});
-      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
-                                                    constAttr);
     }
   }
 
   if (isa<AtenProdOp, AtenProdDimIntOp>(op)) {
     if (isa<mlir::FloatType>(elementTy)) {
       APFloat one(cast<mlir::FloatType>(elementTy).getFloatSemantics(), 1);
-      auto constAttr = DenseElementsAttr::get(constType, one);
-      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
-                                                    constAttr);
+      constAttr = DenseElementsAttr::get(constType, one);
     } else if (isa<mlir::IntegerType>(elementTy)) {
       APInt one(elementTy.getIntOrFloatBitWidth(), 1);
-      auto constAttr = DenseElementsAttr::get(constType, one);
-      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
-                                                    constAttr);
+      constAttr = DenseElementsAttr::get(constType, one);
     }
   }
 
   if (isa<AtenAllOp, AtenAllDimOp>(op)) {
-    auto constAttr =
-        DenseElementsAttr::get(constType, {APInt(/*numBits=*/1, 1)});
-    return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
-                                                  constAttr);
+    constAttr = DenseElementsAttr::get(constType, {APInt(/*numBits=*/1, 1)});
   }
 
   if (isa<AtenAnyOp, AtenAnyDimOp, AtenAnyDimsOp>(op)) {
-    auto constAttr =
-        DenseElementsAttr::get(constType, {APInt(/*numBits=*/1, 0)});
+    constAttr = DenseElementsAttr::get(constType, {APInt(/*numBits=*/1, 0)});
+  }
+
+  if (constAttr != nullptr) {
     return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
                                                   constAttr);
   }
-
   op->emitError("unimplemented lowering in "
                 "createInitialValueForReduceOp");
   return nullptr;
@@ -483,7 +466,7 @@ public:
       return rewriter.notifyMatchFailure(
           op, "non-const integer `dim` is not supported");
     }
-    if (inputDims.size() == 0) {
+    if (inputDims.empty()) {
       dims = llvm::to_vector(llvm::seq<int64_t>(0, inputTy.getRank()));
     } else {
       for (auto d : inputDims) {
@@ -570,7 +553,7 @@ public:
       return rewriter.notifyMatchFailure(
           op, "failed to get dimension sizes of the input");
     }
-    auto inputShapeVec = *inputShapeInfo;
+    auto &inputShapeVec = *inputShapeInfo;
 
     if (op.getResult(1).use_empty()) {
       llvm::SmallVector<int64_t> outputShape(inputTy.getShape());
@@ -643,7 +626,7 @@ LogicalResult ConvertAtenReductionOp<AtenAnyDimsOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "non-const integer `dim` is not supported");
   }
-  if (inputDims.size() == 0) {
+  if (inputDims.empty()) {
     rewriter.replaceOp(op, input);
     return success();
   }
@@ -722,7 +705,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
       return rewriter.notifyMatchFailure(
           op, "non-const integer `dim` is not supported");
     }
-    if (inputDims.size() == 0) {
+    if (inputDims.empty()) {
       inputDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, inputTy.getRank()));
     }
   }
