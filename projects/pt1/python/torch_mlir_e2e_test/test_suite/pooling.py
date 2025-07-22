@@ -2489,6 +2489,34 @@ def MaxUnpool2dModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class MaxUnpool2dModule_3dInput(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 2, 4], torch.float32, True),
+            ([2, 2, 4], torch.int64, True),
+        ]
+    )
+    def forward(self, x, indices):
+        return torch.ops.aten.max_unpool2d(x, indices, (4, 8))
+
+
+@register_test_case(module_factory=lambda: MaxUnpool2dModule_3dInput())
+def MaxUnpool2dModule_3dInput_basic(module, tu: TestUtils):
+    input = tu.rand(2, 4, 8)
+    pool = torch.nn.MaxPool2d(kernel_size=(2, 2), return_indices=True)
+    output, indices = pool(input)
+
+    module.forward(output, indices)
+
+
+# ==============================================================================
+
+
 class MaxUnpool3dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

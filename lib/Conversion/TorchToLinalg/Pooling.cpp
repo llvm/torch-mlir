@@ -788,14 +788,14 @@ public:
     Value self = adaptor.getSelf();
     auto selfType = cast<RankedTensorType>(self.getType());
 
-    ArrayRef<int64_t> inputSize = selfType.getShape().take_back(3);
-    if (ShapedType::isDynamicShape(inputSize))
+    ArrayRef<int64_t> spatialInputSize = selfType.getShape().take_back(3);
+    if (ShapedType::isDynamicShape(spatialInputSize))
       return rewriter.notifyMatchFailure(op,
                                          "input type must be of static shape");
 
     Value indices = adaptor.getIndices();
     auto indicesType = cast<RankedTensorType>(indices.getType());
-    if (inputSize != indicesType.getShape().take_back(3))
+    if (spatialInputSize != indicesType.getShape().take_back(3))
       return rewriter.notifyMatchFailure(op, "input/indices shape mismatch");
 
     auto resType = typeConverter->convertType<RankedTensorType>(op.getType());
@@ -834,7 +834,7 @@ public:
           op, "stride and padding must be of size 3");
 
     for (auto &&[inDim, outDim, str, pad] :
-         llvm::zip_equal(inputSize, inferredOutSize, stride, padding)) {
+         llvm::zip_equal(spatialInputSize, inferredOutSize, stride, padding)) {
       // Kernel size computation is ambiguous, this formula will return the
       // biggest possible kernel size. As there is no way to know actual kernel
       // size we have to treat it conservatively and always bail if kernel size
@@ -847,9 +847,9 @@ public:
     }
 
     int64_t poolingDimensionality = 3;
-    Value result = createMaxUnpoolOp(op, poolingDimensionality, rewriter,
-                                     typeConverter, self, indices, inputSize,
-                                     inferredOutSize, stride, padding, resType);
+    Value result = createMaxUnpoolOp(
+        op, poolingDimensionality, rewriter, typeConverter, self, indices,
+        spatialInputSize, inferredOutSize, stride, padding, resType);
 
     rewriter.replaceOp(op, result);
     return success();
@@ -888,8 +888,6 @@ public:
       return rewriter.notifyMatchFailure(op, "input/indices shape mismatch");
 
     auto resType = typeConverter->convertType<RankedTensorType>(op.getType());
-    if (!resType)
-      return rewriter.notifyMatchFailure(op, "invalid result type");
 
     ArrayRef<int64_t> inferredOutSize =
         resType.getShape().take_back(poolingDimensionality);
