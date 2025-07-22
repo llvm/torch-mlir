@@ -106,6 +106,14 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
 // Returns the squeezed tensor or failure.
 FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
                                Value input, int64_t dim);
+
+// Float 16 limits
+constexpr float Float16Max = 65504.0f;
+constexpr float Float16Lowest = -65504.0f;
+
+// BFloat 16 limits
+constexpr float BFloat16Max = 3.38953139e38f;
+constexpr float BFloat16Lowest = -3.38953139e38f;
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
