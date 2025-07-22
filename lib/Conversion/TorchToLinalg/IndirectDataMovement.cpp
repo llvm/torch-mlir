@@ -507,6 +507,14 @@ public:
 static Value makeIndexValuePositive(OpBuilder &b, Location loc, Value index,
                                     Value input, int64_t dim) {
   Value cstZero = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(0));
+  auto indexType = mlir::dyn_cast<IntegerType>(index.getType());
+  unsigned maxBitWidth = 64;
+  assert((indexType && indexType.isSignless()) &&
+         "The index operand must be a signless integer");
+  assert((indexType.getWidth() <= maxBitWidth) &&
+         "Maximum supported bitwidth of the index operand is 64");
+  if (indexType.getWidth() < maxBitWidth)
+    index = b.create<arith::ExtSIOp>(loc, b.getIntegerType(maxBitWidth), index);
   Value isIndexNegative =
       b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, index, cstZero);
   Value inputShape = castIndexToInt64(b, loc, getDimOp(b, loc, input, dim));
