@@ -5,7 +5,7 @@ func.func @torch.aten.assert_tensor_metadata_invalid_dtype() {
   %none = torch.constant.none
   %1 = tensor.empty() : tensor<1x1x128x128xi64>
   %2 = torch_c.from_builtin_tensor %1 : tensor<1x1x128x128xi64> -> !torch.vtensor<[1,1,128,128],si64>
-  // expected-error @+1 {{torch.aten._assert_tensor_metadata' op Failed to fold the _assert_tensor_metadata op since the dtype does not match}}
+  // expected-error @+1 {{torch.aten._assert_tensor_metadata' op Failed to canonicalize the _assert_tensor_metadata op since the dtype does not match}}
   torch.aten._assert_tensor_metadata %2, %none, %none, %int8, %none, %none : !torch.vtensor<[1,1,128,128],si64>, !torch.none, !torch.none, !torch.int, !torch.none, !torch.none
   return
 }
@@ -20,7 +20,7 @@ func.func @torch.aten.assert_tensor_metadata_invalid_size() {
   %none = torch.constant.none
   %1 = tensor.empty() : tensor<1x1x128x128xi64>
   %2 = torch_c.from_builtin_tensor %1 : tensor<1x1x128x128xi64> -> !torch.vtensor<[1,1,128,128],si64>
-  // expected-error @+1 {{'torch.aten._assert_tensor_metadata' op Failed to fold the _assert_tensor_metadata op since the sizes do not match}}
+  // expected-error @+1 {{'torch.aten._assert_tensor_metadata' op Failed to canonicalize the _assert_tensor_metadata op since the sizes do not match}}
   torch.aten._assert_tensor_metadata %2, %sizes, %none, %int4, %none, %none : !torch.vtensor<[1,1,128,128],si64>, !torch.list<int>, !torch.none, !torch.int, !torch.none, !torch.none
   return
 }
@@ -34,7 +34,7 @@ func.func @torch.aten.assert_tensor_metadata_invalid_size_extra_dim() {
   %none = torch.constant.none
   %1 = tensor.empty() : tensor<1x1x128x128xi64>
   %2 = torch_c.from_builtin_tensor %1 : tensor<1x1x128x128xi64> -> !torch.vtensor<[1,1,128,128],si64>
-  // expected-error @+1 {{'torch.aten._assert_tensor_metadata' op Failed to fold the _assert_tensor_metadata op since the sizes do not match}}
+  // expected-error @+1 {{'torch.aten._assert_tensor_metadata' op Failed to canonicalize the _assert_tensor_metadata op since the sizes do not match}}
   torch.aten._assert_tensor_metadata %2, %sizes, %none, %int4, %none, %none : !torch.vtensor<[1,1,128,128],si64>, !torch.list<int>, !torch.none, !torch.int, !torch.none, !torch.none
   return
 }

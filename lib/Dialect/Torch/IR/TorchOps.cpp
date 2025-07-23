@@ -5519,7 +5519,7 @@ public:
                           return std::get<0>(pair) == std::get<1>(pair);
                         }))
         return op.emitOpError(
-            "Failed to fold the _assert_tensor_metadata op since "
+            "Failed to canonicalize the _assert_tensor_metadata op since "
             "the sizes do not match");
     }
 
@@ -5535,7 +5535,7 @@ public:
         return failure();
       if (inputType.getDtype() != inputDtype)
         return op.emitOpError(
-            "Failed to fold the _assert_tensor_metadata op since "
+            "Failed to canonicalize the _assert_tensor_metadata op since "
             "the dtype does not match");
     }
 
