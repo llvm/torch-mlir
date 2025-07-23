@@ -1134,7 +1134,7 @@ def ChannelShuffleTrailingOnes_basic(module, tu: TestUtils):
 
 
 class ChannelShuffleDynamicDims(torch.nn.Module):
-    # Basic test case for ChannelShuffle operation.
+    # Test case for dynamic dimensions in ChannelShuffle operation.
     def __init__(self):
         super().__init__()
         self.shuffle = torch.nn.ChannelShuffle(groups=4)
