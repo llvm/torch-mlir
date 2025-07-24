@@ -459,3 +459,21 @@ func.func @torch.ops.aten.replication_pad3d$basic(%arg0: !torch.vtensor<[4,3,5],
   %0 = torch.aten.replication_pad3d %arg0, %padding : !torch.vtensor<[4,3,5],f32>, !torch.list<int> -> !torch.vtensor<[7,7,6],f32>
   return %0 : !torch.vtensor<[7,7,6],f32>
 }
+
+// -----
+
+// This test verifies that the index argument is properly sign-extended,
+// when torch.aten.index.Tensor_hacked_twin is lowered into a linalg.generic
+// operation.
+//
+// CHECK-LABEL: func.func @torch.aten.index.Tensor_hacked_twin(
+// CHECK:          linalg.generic
+// CHECK-NEXT:      ^bb0(%[[IN:.*]]: i32, %[[OUT:.*]]: f32):
+// CHECK-NEXT:        %[[C0:.*]] = arith.constant 0 : i64
+// CHECK-NEXT:        %[[IN_SIGN_EXT:.*]] = arith.extsi %[[IN]] : i32 to i64
+// CHECK-NEXT:        arith.cmpi slt, %[[IN_SIGN_EXT]], %[[C0]] : i64
+func.func @torch.aten.index.Tensor_hacked_twin(%arg0: !torch.vtensor<[1,1,8],si32>, %arg1: !torch.vtensor<[16], f32>) -> !torch.vtensor<[1,1,8],f32> {
+  %0 = torch.prim.ListConstruct %arg0 : (!torch.vtensor<[1,1,8],si32>) -> !torch.list<vtensor>
+  %1 = torch.aten.index.Tensor_hacked_twin %arg1, %0 : !torch.vtensor<[16],f32>, !torch.list<vtensor> -> !torch.vtensor<[1,1,8],f32>
+  return %1 : !torch.vtensor<[1,1,8],f32>
+}
