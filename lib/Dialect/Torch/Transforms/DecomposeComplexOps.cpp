@@ -3773,6 +3773,9 @@ public:
       return rewriter.createOrFold<AtenSizeIntOp>(loc, inValue, dim);
     };
 
+    // The channel dimension is always the second dimension. PyTorch errors out
+    // if the batch dimension (first dimension) is not present. See comment at
+    // the top of this class for details.
     auto inC = getDimSize(1);
     SmallVector<Value> inSpatialDims;
     inSpatialDims.reserve(numOfSpatialDims);
@@ -3782,7 +3785,7 @@ public:
 
     auto groups = op.getGroups();
 
-    // Temporary channel dimension size = inC / groups
+    // Temporary channel dimension size: tempC = inC / groups
     // Assumes input has been validated: `inC % groups == 0`
     // This is enforced by PyTorch's runtime and is required for correctness.
     Value tempC = rewriter.createOrFold<AtenFloordivIntOp>(loc, inC, groups);
