@@ -9322,13 +9322,6 @@ static LogicalResult calculateVariance(OpTy op, PatternRewriter &rewriter,
         op, "support floating-point type input only");
   }
 
-  // Upcasting the input tensor to `F64` dtype for higher precision during the
-  // computation of the result.
-  if (inputTensorTy.getDtype().getIntOrFloatBitWidth() != 64) {
-    self = convertTensorToDtype(rewriter, loc, self, rewriter.getF64Type());
-    inputTensorTy = cast<BaseTensorType>(self.getType());
-  }
-
   std::optional<unsigned> maybeInputRank = getTensorRank(self);
   if (!maybeInputRank) {
     return rewriter.notifyMatchFailure(op, "expected input to have a rank");
