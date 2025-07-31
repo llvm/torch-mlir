@@ -10561,7 +10561,7 @@ namespace {
 //           | input,                  if target == 1
 // loss(x) = |
 //           | max(0, margin - input), if target == -1
-// target tensor may have values other than 1 and -1
+
 class DecomposeHingeEmbeddingLoss
     : public OpRewritePattern<AtenHingeEmbeddingLossOp> {
   using OpRewritePattern<AtenHingeEmbeddingLossOp>::OpRewritePattern;
@@ -10595,6 +10595,10 @@ class DecomposeHingeEmbeddingLoss
         rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
     auto boolType = targetTy.getWithSizesAndDtype(targetTy.getSizes(),
                                                   rewriter.getI1Type());
+    // Native implementation does not restrict the target tensor to only contain
+    // values 1 and -1, so we do not enforce this restriction here. Ref:
+    // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/Loss.cpp#L182
+
     // input - margin
     auto inputMinusMargin = rewriter.create<AtenSubScalarOp>(
         loc, inputTy, input, op.getMargin(), alpha);
