@@ -174,3 +174,14 @@ func.func @tranConv2dNegativePadding(%arg0: !torch.vtensor<[1, 1, 4, 7],f32>) ->
   %6 = torch.aten.convolution %arg0, %0, %1, %2, %3, %4, %true, %5, %int1 : !torch.vtensor<[1, 1, 4, 7],f32>, !torch.vtensor<[1,2,3,3],f32>, !torch.vtensor<[2],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1, 2, 6, 3],f32>
   return %6 : !torch.vtensor<[1, 2, 6, 3],f32>
 }
+
+// -----
+
+func.func @conv_channels_mismatch(
+    %lhs : !torch.vtensor<[2,3],f32>,   // K = 3
+    %rhs : !torch.vtensor<[4,5],f32>)   // K = 4
+    -> !torch.vtensor<[2,5],f32> {
+  // expected-error @+1 {{inferred input/output operand #1 has shape's dimension #0 to be 3}}
+  %out = torch.aten.mm %lhs, %rhs : !torch.vtensor<[2,3],f32>, !torch.vtensor<[4,5],f32> -> !torch.vtensor<[2,5],f32>
+  return %out : !torch.vtensor<[2,5],f32>
+}

@@ -930,6 +930,7 @@ public:
       inDims.push_back(getDimOp(rewriter, loc, input, i));
     Value weightBatch = getDimOp(rewriter, loc, weight, 0);
     Value weightChannels = getDimOp(rewriter, loc, weight, 1);
+    checkDimEqualHelper(rewriter, loc, inChannels, weightChannels);
     SmallVector<Value> weightDims;
     for (size_t i = 2; i < inRank; i++)
       weightDims.push_back(getDimOp(rewriter, loc, weight, i));
