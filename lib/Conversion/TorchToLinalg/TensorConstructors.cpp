@@ -212,8 +212,9 @@ public:
       return rewriter.notifyMatchFailure(
           op, "pad range must have exactly two values");
 
-    int64_t numDims = 1;
-    Value result = replicationPad(rewriter, loc, input, padInts, numDims);
+    int64_t numSpatialDims = 1;
+    Value result =
+        replicationPad(rewriter, loc, input, padInts, numSpatialDims);
     Type resultType = getTypeConverter()->convertType(op.getType());
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
 
@@ -254,8 +255,9 @@ public:
     if (inputRank < 0 || padRank > (uint64_t)inputRank)
       return rewriter.notifyMatchFailure(op, "padding exceeds tensor rank");
 
-    int64_t numDims = 2;
-    Value resTensor = replicationPad(rewriter, loc, input, padInts, numDims);
+    int64_t numSpatialDims = 2;
+    Value resTensor =
+        replicationPad(rewriter, loc, input, padInts, numSpatialDims);
     Type newResultType = getTypeConverter()->convertType(op.getType());
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, resTensor);
     return success();
@@ -294,8 +296,8 @@ public:
       return rewriter.notifyMatchFailure(
           op, "pad range must have exactly six values");
 
-    int64_t numDims = 3;
-    Value res = replicationPad(rewriter, loc, input, padInts, numDims);
+    int64_t numSpatialDims = 3;
+    Value res = replicationPad(rewriter, loc, input, padInts, numSpatialDims);
     Type resultType = getTypeConverter()->convertType(op.getType());
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, res);
     return success();
