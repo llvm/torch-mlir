@@ -14374,7 +14374,7 @@ def Torch_Aten_AssertTensorMetadataOp : Torch_Op<"aten._assert_tensor_metadata",
       printDefaultTorchOp(printer, *this, 6, 0);
     }
   }];
-  let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenDiagonalOp : Torch_Op<"aten.diagonal", [

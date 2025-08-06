@@ -1044,7 +1044,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::as_strided : (Tensor, int[], int[], int?) -> (Tensor)")
     emit(
         "aten::_assert_tensor_metadata : (Tensor, int[]?, int[]?, int?, Device?, int?) -> ()",
-        has_folder=True,
+        has_canonicalizer=True,
     )
     emit("aten::diagonal : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::diagonal_copy : (Tensor, int, int, int) -> (Tensor)")
