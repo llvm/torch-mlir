@@ -245,10 +245,6 @@ static Value createMaxUnpoolOp(Operation *op, int64_t poolingDimensionality,
         rewriter.create<arith::ConstantIndexOp>(loc, size + pad));
   }
 
-  auto ceilDiv = [](int64_t v1, int64_t v2) -> int64_t {
-    return (v1 + v2 - 1) / v2;
-  };
-
   // In case if input tensor size is not divisible by stride
   // (e.g. pooling_input_size=5, kernel_size=2, stride=2, output_size=2)
   // pad self and indices tensors to avoid out of bounds access.
@@ -256,7 +252,7 @@ static Value createMaxUnpoolOp(Operation *op, int64_t poolingDimensionality,
       llvm::to_vector(resType.getShape().drop_back(poolingDimensionality));
   for (auto &&[str, pad, resSize] :
        llvm::zip_equal(stride, padding, inferredOutSize))
-    expectedInputShape.emplace_back(ceilDiv(resSize, str) + pad * 2);
+    expectedInputShape.emplace_back((resSize + str - 1) / str + pad * 2);
 
   if (expectedInputShape != selfType.getShape()) {
     // TODO: this is probably expensive, and it may be possible to solve by
@@ -788,14 +784,14 @@ public:
     Value self = adaptor.getSelf();
     auto selfType = cast<RankedTensorType>(self.getType());
 
-    ArrayRef<int64_t> spatialInputSize = selfType.getShape().take_back(3);
-    if (ShapedType::isDynamicShape(spatialInputSize))
+    ArrayRef<int64_t> spatialInputShape = selfType.getShape().take_back(3);
+    if (ShapedType::isDynamicShape(spatialInputShape))
       return rewriter.notifyMatchFailure(op,
                                          "input type must be of static shape");
 
     Value indices = adaptor.getIndices();
     auto indicesType = cast<RankedTensorType>(indices.getType());
-    if (spatialInputSize != indicesType.getShape().take_back(3))
+    if (spatialInputShape != indicesType.getShape().take_back(3))
       return rewriter.notifyMatchFailure(op, "input/indices shape mismatch");
 
     auto resType = typeConverter->convertType<RankedTensorType>(op.getType());
@@ -834,7 +830,7 @@ public:
           op, "stride and padding must be of size 3");
 
     for (auto &&[inDim, outDim, str, pad] :
-         llvm::zip_equal(spatialInputSize, inferredOutSize, stride, padding)) {
+         llvm::zip_equal(spatialInputShape, inferredOutSize, stride, padding)) {
       // Kernel size computation is ambiguous, this formula will return the
       // biggest possible kernel size. As there is no way to know actual kernel
       // size we have to treat it conservatively and always bail if kernel size
@@ -849,7 +845,7 @@ public:
     int64_t poolingDimensionality = 3;
     Value result = createMaxUnpoolOp(
         op, poolingDimensionality, rewriter, typeConverter, self, indices,
-        spatialInputSize, inferredOutSize, stride, padding, resType);
+        spatialInputShape, inferredOutSize, stride, padding, resType);
 
     rewriter.replaceOp(op, result);
     return success();
