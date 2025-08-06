@@ -24,9 +24,9 @@ func.func @torch.aten.size.int(%arg0: !torch.vtensor<[4,2],f32>) -> !torch.int {
 // CHECK:           %[[VAL_2:.*]] = arith.constant 1 : index
 // CHECK:           %[[VAL_3:.*]] = arith.constant 0 : index
 // CHECK:           %[[VAL_4:.*]] = memref.alloc() : memref<1x512xi64>
-// CHECK:           %[[VAL_5:.*]] = bufferization.to_tensor %[[VAL_4]] : memref<1x512xi64>
+// CHECK:           %[[VAL_5:.*]] = bufferization.to_tensor %[[VAL_4]] restrict writable : memref<1x512xi64>
 // CHECK:           %[[VAL_6:.*]] = memref.alloc() : memref<1xi64>
-// CHECK:           %[[VAL_7:.*]] = bufferization.to_tensor %[[VAL_6]] : memref<1xi64>
+// CHECK:           %[[VAL_7:.*]] = bufferization.to_tensor %[[VAL_6]] restrict writable : memref<1xi64>
 // CHECK:           scf.for %[[VAL_8:.*]] = %[[VAL_3]] to %[[VAL_1]] step %[[VAL_2]] {
 // CHECK:             %[[VAL_9:.*]] = arith.cmpi eq, %[[VAL_8]], %[[VAL_3]] : index
 // CHECK:             scf.if %[[VAL_9]] {

@@ -24,6 +24,15 @@ BACKEND_LEGAL_OPS = {
     OutputType.LINALG_ON_TENSORS: [
         "aten.adaptive_max_pool2d",
     ],
+    OutputType.TOSA_LINALG: [
+        "aten.flatten.using_ints",
+        "aten.native_layer_norm",
+        "aten.adaptive_avg_pool1d",
+        "aten.adaptive_avg_pool2d",
+        "aten.adaptive_max_pool1d",
+        "aten.adaptive_max_pool2d",
+        "aten.unflatten.int",
+    ],
 }
 
 

@@ -46,9 +46,11 @@ class LinalgOnTensorsTosaBackend(TosaBackend):
     This currently uses the linalg-on-tensors RefBackend for actual execution.
     """
 
-    def __init__(self):
+    def __init__(self, generate_runtime_verification: bool = True):
         super().__init__()
-        self.refbackend = RefBackendLinalgOnTensorsBackend()
+        self.refbackend = RefBackendLinalgOnTensorsBackend(
+            generate_runtime_verification=generate_runtime_verification
+        )
 
     def compile(self, imported_module: Module):
         """Compiles an imported module that satisfied the TOSA backend contract.

@@ -7,8 +7,8 @@
 // CHECK-DAG:       %[[IN_MEMREF:.*]] = bufferization.to_buffer %[[IN_TENSOR]] : tensor<128xi32> to memref<128xi32>
 // CHECK-DAG:       %[[OUT_MEMREF_NEW:.*]] = memref.alloc() : memref<128xi32>
 // CHECK-DAG:       %[[ACC_MEMREF_NEW:.*]] = memref.alloc() : memref<i32>
-// CHECK-DAG:       %[[OUT_TENSOR_NEW:.*]] = bufferization.to_tensor %[[OUT_MEMREF_NEW]] : memref<128xi32> to tensor<128xi32>
-// CHECK-DAG:       %[[ACC_TENSOR_NEW:.*]] = bufferization.to_tensor %[[ACC_MEMREF_NEW]] : memref<i32> to tensor<i32>
+// CHECK-DAG:       %[[OUT_TENSOR_NEW:.*]] = bufferization.to_tensor %[[OUT_MEMREF_NEW]] restrict writable : memref<128xi32> to tensor<128xi32>
+// CHECK-DAG:       %[[ACC_TENSOR_NEW:.*]] = bufferization.to_tensor %[[ACC_MEMREF_NEW]] restrict writable : memref<i32> to tensor<i32>
 // CHECK:           tm_tensor.scan dimension(0) inclusive(true) ins(%[[IN_MEMREF]] : memref<128xi32>)
 // CHECK-SAME:            outs(%[[OUT_MEMREF_NEW]], %[[ACC_MEMREF_NEW]] : memref<128xi32>, memref<i32>) {
 // CHECK:           ^bb0(%[[OUT_PREV_ELEMENT:.*]]: i32, %[[IN_ELEMENT:.*]]: i32):
@@ -34,8 +34,8 @@ func.func @scan_1d_inclusive(%in: tensor<128xi32>, %out: tensor<128xi32>, %acc: 
 // CHECK-DAG:       %[[ACC_MEMREF:.*]] = bufferization.to_buffer %[[ACC_TENSOR]] : tensor<i32> to memref<i32>
 // CHECK-DAG:       %[[OUT_MEMREF_NEW:.*]] = memref.alloc() : memref<128xi32>
 // CHECK-DAG:       %[[ACC_MEMREF_NEW:.*]] = memref.alloc() : memref<i32>
-// CHECK-DAG:       %[[OUT_TENSOR_NEW:.*]] = bufferization.to_tensor %[[OUT_MEMREF_NEW]] : memref<128xi32> to tensor<128xi32>
-// CHECK-DAG:       %[[ACC_TENSOR_NEW:.*]] = bufferization.to_tensor %[[ACC_MEMREF_NEW]] : memref<i32> to tensor<i32>
+// CHECK-DAG:       %[[OUT_TENSOR_NEW:.*]] = bufferization.to_tensor %[[OUT_MEMREF_NEW]] restrict writable : memref<128xi32> to tensor<128xi32>
+// CHECK-DAG:       %[[ACC_TENSOR_NEW:.*]] = bufferization.to_tensor %[[ACC_MEMREF_NEW]] restrict writable : memref<i32> to tensor<i32>
 // CHECK:           memref.copy %[[ACC_MEMREF]], %[[ACC_MEMREF_NEW]] : memref<i32> to memref<i32>
 // CHECK:           tm_tensor.scan dimension(0) inclusive(false) ins(%[[IN_MEMREF]] : memref<128xi32>)
 // CHECK-SAME:            outs(%[[OUT_MEMREF_NEW]], %[[ACC_MEMREF_NEW]] : memref<128xi32>, memref<i32>) {
@@ -63,7 +63,7 @@ func.func @scan_1d_exclusive(%in: tensor<128xi32>, %out: tensor<128xi32>, %acc: 
 // CHECK-DAG:       %[[INDICES_MEMREF:.*]] = bufferization.to_buffer %[[INDICES_TENSOR]] : tensor<3x1xi32> to memref<3x1xi32>
 // CHECK-DAG:       %[[ORIG_MEMREF:.*]] = bufferization.to_buffer %[[ORIG_TENSOR]] : tensor<8xi32> to memref<8xi32>
 // CHECK-DAG:       %[[ORIG_MEMREF_NEW:.*]] = memref.alloc() : memref<8xi32>
-// CHECK-DAG:       %[[OUT_TENSOR:.*]] = bufferization.to_tensor %[[ORIG_MEMREF_NEW]] : memref<8xi32> to tensor<8xi32>
+// CHECK-DAG:       %[[OUT_TENSOR:.*]] = bufferization.to_tensor %[[ORIG_MEMREF_NEW]] restrict writable : memref<8xi32> to tensor<8xi32>
 // CHECK:           memref.copy %[[ORIG_MEMREF]], %[[ORIG_MEMREF_NEW]] : memref<8xi32> to memref<8xi32>
 // CHECK:           tm_tensor.scatter {dimension_map = array<i64: 0>} unique_indices(true) ins(%[[UPDATES_MEMREF]], %[[INDICES_MEMREF]]
 // CHECK-SAME:        : memref<3xi32>, memref<3x1xi32>) outs(%[[ORIG_MEMREF_NEW]] : memref<8xi32>) {
@@ -91,7 +91,7 @@ func.func @scatter_update_scalar_1D(
 // CHECK-DAG:       %[[INDICES_MEMREF:.*]] = bufferization.to_buffer %[[INDICES_TENSOR]] : tensor<3x1xi32> to memref<3x1xi32>
 // CHECK-DAG:       %[[ORIG_MEMREF:.*]] = bufferization.to_buffer %[[ORIG_TENSOR]] : tensor<8xi32> to memref<8xi32>
 // CHECK-DAG:       %[[ORIG_MEMREF_NEW:.*]] = memref.alloc() : memref<8xi32>
-// CHECK-DAG:       %[[OUT_TENSOR:.*]] = bufferization.to_tensor %[[ORIG_MEMREF_NEW]] : memref<8xi32> to tensor<8xi32>
+// CHECK-DAG:       %[[OUT_TENSOR:.*]] = bufferization.to_tensor %[[ORIG_MEMREF_NEW]] restrict writable : memref<8xi32> to tensor<8xi32>
 // CHECK:           memref.copy %[[ORIG_MEMREF]], %[[ORIG_MEMREF_NEW]] : memref<8xi32> to memref<8xi32>
 // CHECK:           tm_tensor.scatter {dimension_map = array<i64: 0>} unique_indices(true) ins(%[[UPDATES_MEMREF]], %[[INDICES_MEMREF]]
 // CHECK-SAME:        : memref<3xi32>, memref<3x1xi32>) outs(%[[ORIG_MEMREF_NEW]] : memref<8xi32>) {

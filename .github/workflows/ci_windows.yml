@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   workflow_call:
   push:
-    branches: [main]
+    branches: [mw_main]
 
 concurrency:
   # A PR number if a pull request and otherwise the commit hash. This cancels

@@ -20,6 +20,8 @@ def import_exported_model(
     prog: torch.export.ExportedProgram,
     output_type: str,
     experimental_support_mutation: bool = True,
+    verbose: bool = False,
+    enable_ir_printing: bool = False,
 ):
 
     decomp_table = get_decompositions(
@@ -31,25 +33,39 @@ def import_exported_model(
         prog,
         output_type=OutputType.RAW,
         experimental_support_mutation=experimental_support_mutation,
+        verbose=verbose,
+        enable_ir_printing=enable_ir_printing,
     )
 
     if output_type != "raw":
-        mlir_module = lower_module(mlir_module, output_type)
+        mlir_module = lower_module(
+            mlir_module, output_type, verbose, enable_ir_printing
+        )
 
     return mlir_module
 
 
-def lower_module_from_file(mlir_file: str, output_type: str):
+def lower_module_from_file(
+    mlir_file: str,
+    output_type: str,
+    verbose: bool = False,
+    enable_ir_printing: bool = False,
+):
     src = open(mlir_file, "r").read()
     with torch_mlir.ir.Context() as ctx:
         torch_mlir.dialects.torch.register_dialect(ctx)
         with torch_mlir.ir.Location.unknown() as loc:
             mlir_module = torch_mlir.ir.Module.parse(src)
 
-    return lower_module(mlir_module, output_type)
+    return lower_module(mlir_module, output_type, verbose, enable_ir_printing)
 
 
-def lower_module(mlir_module, output_type: str):
+def lower_module(
+    mlir_module,
+    output_type: str,
+    verbose: bool = False,
+    enable_ir_printing: bool = False,
+):
 
     backend_legal_ops = None
 
@@ -86,7 +102,6 @@ def lower_module(mlir_module, output_type: str):
                 "aten.adaptive_avg_pool2d",
                 "aten.adaptive_max_pool1d",
                 "aten.adaptive_max_pool2d",
-                "aten.linear",
                 "aten.unflatten.int",
             ]
         case "raw":
@@ -113,8 +128,7 @@ def lower_module(mlir_module, output_type: str):
         mlir_module,
         f"builtin.module(func.func(torch-match-quantized-custom-ops), torchdynamo-export-to-torch-backend-pipeline{option_string})",
         "Lowering TorchFX IR -> Torch Backend IR",
-        enable_ir_printing=False,
+        enable_ir_printing=enable_ir_printing,
     )
 
-    verbose = False
     return lower_mlir_module_mw(verbose, output_type, mlir_module)

@@ -127,7 +127,9 @@ static Value materializeToTensor(OpBuilder &builder, TensorType type,
                                  ValueRange inputs, Location loc) {
   assert(inputs.size() == 1);
   assert(isa<BaseMemRefType>(inputs[0].getType()));
-  return builder.create<bufferization::ToTensorOp>(loc, type, inputs[0]);
+  return builder.create<bufferization::ToTensorOp>(loc, type, inputs[0],
+                                                   /*restrict=*/true,
+                                                   /*writable=*/true);
 }
 
 /// Converts TMTensor operations that work on tensor-type operands or results to

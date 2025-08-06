@@ -579,10 +579,10 @@ def test_sparse_feature_scaling():
 # CHECK:       func.func @main(
 # CHECK-SAME:    %[[A:.*]]: !torch.vtensor<[4,4],f32>,
 # CHECK-SAME:    %[[B:.*]]: !torch.vtensor<[4,4],f32,#[[$COO]]>) -> !torch.vtensor<[4,4],f32> {
-# CHECK:         %[[LIT:.*]] = torch.vtensor.literal(dense_resource<torch_tensor_4_4_torch.float32> : tensor<4x4xf32>) : !torch.vtensor<[4,4],f32>
+# CHECK:         %[[LIT:.*]] = torch.vtensor.literal(dense<{{.*>+}} : tensor<4x4xf32>) : !torch.vtensor<[4,4],f32>
 # CHECK:         %[[MM:.*]] = torch.aten.mm %[[A]], %[[LIT]] : !torch.vtensor<[4,4],f32>, !torch.vtensor<[4,4],f32> -> !torch.vtensor<[4,4],f32>
 # CHECK:         %[[SMM:.*]] = torch.aten.mm %[[B]], %[[MM]] : !torch.vtensor<[4,4],f32,#sparse>, !torch.vtensor<[4,4],f32> -> !torch.vtensor<[4,4],f32>
-# CHECK:         %[[BIAS:.*]] = torch.vtensor.literal(dense_resource<torch_tensor_4_torch.float32> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+# CHECK:         %[[BIAS:.*]] = torch.vtensor.literal(dense<{{.*>+}} : tensor<4xf32>) : !torch.vtensor<[4],f32>
 # CHECK:         %[[ONE:.*]] = torch.constant.int 1
 # CHECK:         %[[R:.*]] = torch.aten.add.Tensor %[[SMM]], %[[BIAS]], %[[ONE]] : !torch.vtensor<[4,4],f32>, !torch.vtensor<[4],f32>, !torch.int -> !torch.vtensor<[4,4],f32>
 # CHECK          return %[[R]] : !torch.vtensor<[4,4],f32>

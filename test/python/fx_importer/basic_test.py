@@ -32,7 +32,7 @@ def run(f):
 # CHECK-LABEL: test_import_frozen_exported_program
 # CHECK:     func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
 # CHECK-DAG: %[[a:.+]] = torch.aten.randn
-# CHECK-DAG: %[[b:.+]] = torch.vtensor.literal(dense_resource<torch_tensor_3_1_torch.float32> : tensor<3x1xf32>) : !torch.vtensor<[3,1],f32>
+# CHECK-DAG: %[[b:.+]] = torch.vtensor.literal(dense<{{.*>+}} : tensor<3x1xf32>) : !torch.vtensor<[3,1],f32>
 # CHECK-DAG: %[[p:.+]] = torch.vtensor.literal(dense<{{.*>+}} : tensor<1x1xf32>) : !torch.vtensor<[1,1],f32>
 # CHECK-DAG: %[[tanh:.+]] = torch.aten.tanh %[[ARG0]]
 # CHECK-DAG: %[[mul_a:.+]] = torch.aten.mul.Tensor %[[tanh]], %[[a]]
@@ -40,9 +40,9 @@ def run(f):
 # CHECK-DAG: %[[mul_p:.+]] = torch.aten.mul.Tensor %[[mul_b]], %[[p]]
 # CHECK:     return %[[mul_p]]
 #
-# Validate dialect resources exist.
-# CHECK: dialect_resources:
-# CHECK-DAG: torch_tensor_3_1_torch.float32
+# Validate dialect resources does not exist.
+# CHECK-NOT: dialect_resources:
+# CHECK-NOT: torch_tensor_3_1_torch.float32
 def test_import_frozen_exported_program():
     # Tests the basic structural premises of import_frozen_exported_program,
     # namely that free tensors (buffers) and parameters are treated as
