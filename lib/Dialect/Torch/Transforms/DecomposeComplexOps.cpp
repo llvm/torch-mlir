@@ -10861,6 +10861,83 @@ class DecomposeAtenKlDivOp : public OpRewritePattern<AtenKlDivOp> {
 } // namespace
 
 namespace {
+class DecomposeAtenHuberLossOp : public OpRewritePattern<AtenHuberLossOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenHuberLossOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value target = op.getTarget();
+    Value reductionValue = op.getReduction();
+    Value deltaValue = op.getDelta();
+
+    auto selfTy = cast<ValueTensorType>(self.getType());
+    auto targetTy = cast<ValueTensorType>(target.getType());
+    auto outTy = cast<ValueTensorType>(op.getType());
+    if (!selfTy.hasSizes() || !targetTy.hasSizes() || !outTy.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "require self, target and output having sizes!");
+    }
+    if (!selfTy.hasDtype() || !targetTy.hasDtype() || !outTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "require self, target and output having dtype!");
+    }
+
+    // Squared term: 0.5 * (input - target)^2
+    Value constOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value constHalf =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(0.5));
+    Value inputMinusTarget =
+        rewriter.create<AtenSubTensorOp>(loc, selfTy, self, target, constOne);
+    Value squaredValue =
+        rewriter.create<AtenSquareOp>(loc, selfTy, inputMinusTarget);
+    Value squaredTerm =
+        rewriter.create<AtenMulScalarOp>(loc, selfTy, squaredValue, constHalf);
+
+    // Delta scaled term: delta * (|input - target| - 0.5 * delta)
+    Value absDiffValue =
+        rewriter.create<AtenAbsOp>(loc, selfTy, inputMinusTarget);
+    Value halfOfDelta = rewriter.create<AtenMulOp>(
+        loc, rewriter.getType<Torch::FloatType>(), constHalf, deltaValue);
+    Value absDiffMinusDeltaHalf = rewriter.create<AtenSubScalarOp>(
+        loc, selfTy, absDiffValue, halfOfDelta, constOne);
+    Value deltaScaledTerm = rewriter.create<AtenMulScalarOp>(
+        loc, selfTy, absDiffMinusDeltaHalf, deltaValue);
+
+    // Loss calculation based on the condition: |input - target| < delta
+    ValueTensorType boolTy = ValueTensorType::get(
+        op.getContext(), selfTy.getSizes(), rewriter.getI1Type());
+    Value cmpValue =
+        rewriter.create<AtenLeScalarOp>(loc, boolTy, absDiffValue, deltaValue);
+    Value lossPointwise = rewriter.create<AtenWhereSelfOp>(
+        loc, selfTy, cmpValue, squaredTerm, deltaScaledTerm);
+
+    // Extract reduction int value from reduction argument
+    int64_t reduction;
+    if (!matchPattern(reductionValue, m_TorchConstantInt(&reduction))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "reduction should be a constant int!");
+    }
+    Value loss;
+    Value none = rewriter.create<ConstantNoneOp>(loc);
+    // reduction: mean
+    if (reduction == 1) {
+      loss = rewriter.create<AtenMeanOp>(loc, outTy, lossPointwise, none);
+    } else if (reduction == 2) {
+      // reduction: sum
+      loss = rewriter.create<AtenSumOp>(loc, outTy, lossPointwise, none);
+    } else {
+      // reduction: none
+      loss = lossPointwise;
+    }
+    rewriter.replaceOp(op, loss);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenBinaryCrossEntropyWithLogitsOp
     : public OpRewritePattern<AtenBinaryCrossEntropyWithLogitsOp> {
   using OpRewritePattern<AtenBinaryCrossEntropyWithLogitsOp>::OpRewritePattern;
@@ -12850,6 +12927,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenBinaryCrossEntropyWithLogitsOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenKlDivOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenHuberLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArgsortOp>(patterns);
