@@ -762,6 +762,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::nll_loss_backward : (Tensor, Tensor, Tensor, Tensor?, int, int, Tensor) -> (Tensor)"
     )
+    emit("aten::hinge_embedding_loss : (Tensor, Tensor, float, int) -> (Tensor)")
     emit(
         "aten::poisson_nll_loss : (Tensor, Tensor, bool, bool, float, int) -> (Tensor)"
     )

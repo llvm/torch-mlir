@@ -9502,6 +9502,32 @@ def Torch_AtenNllLossBackwardOp : Torch_Op<"aten.nll_loss_backward", [
   }];
 }
 
+def Torch_AtenHingeEmbeddingLossOp : Torch_Op<"aten.hinge_embedding_loss", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::hinge_embedding_loss : (Tensor, Tensor, float, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$target,
+    Torch_FloatType:$margin,
+    Torch_IntType:$reduction
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenHingeEmbeddingLossOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenHingeEmbeddingLossOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenPoissonNllLossOp : Torch_Op<"aten.poisson_nll_loss", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -9520,7 +9546,7 @@ def Torch_AtenPoissonNllLossOp : Torch_Op<"aten.poisson_nll_loss", [
     AnyTorchOptionalTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
+  let extraClassDefinition = [{   
     ParseResult AtenPoissonNllLossOp::parse(OpAsmParser &parser, OperationState &result) {
       return parseDefaultTorchOp(parser, result, 6, 1);
     }
