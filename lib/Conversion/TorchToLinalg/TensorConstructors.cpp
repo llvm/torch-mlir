@@ -284,8 +284,8 @@ public:
     Location loc = op->getLoc();
     Value input = adaptor.getSelf();
     auto inputType = llvm::cast<RankedTensorType>(input.getType());
-    int64_t inputRank = inputType.getRank();
-    assert(inputRank >= 2 && "Not enough input dimensions");
+    [[maybe_unused]] int64_t inputRank = inputType.getRank();
+    assert(inputRank >= 3 && "Not enough input dimensions");
 
     SmallVector<int64_t> padInts;
     if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(padInts)))
