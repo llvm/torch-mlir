@@ -236,12 +236,9 @@ static Value createTMTensorScanOp(
     int64_t dim, bool inclusive,
     function_ref<void(OpBuilder &, Location, Value, Value)> bodyBuild) {
   auto inputType = cast<RankedTensorType>(input.getType());
-  auto accType = cast<RankedTensorType>(accumulator.getType());
   Type elementType = inputType.getElementType();
   auto scanOp = b.create<TMTensor::ScanOp>(
-      loc, TypeRange{inputType, accType}, input,
-      ValueRange{output, accumulator}, b.getI64IntegerAttr(dim),
-      b.getBoolAttr(inclusive));
+      loc, ValueRange{input}, ValueRange{output, accumulator}, dim, inclusive);
 
   Region &scanOpRegion = scanOp.getRegion();
   auto &scanOpBlock = scanOpRegion.emplaceBlock();

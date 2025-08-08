@@ -62,7 +62,9 @@ def TMTensor_ScanOp : TMTensor_Op<"scan",
 
   let builders = [
     OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputs,
-      CArg<"int64_t", "0">:$dimension, CArg<"bool", "true">:$inclusive)>
+      CArg<"int64_t", "0">:$dimension, CArg<"bool", "true">:$inclusive), [{
+        build($_builder, $_state, TypeRange(outputs), inputs, outputs, dimension, inclusive);
+      }]>
   ];
 
   let results = (outs Variadic<AnyRankedTensor>:$results);
@@ -267,7 +269,9 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
   );
 
   let builders = [
-    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputs)>
+    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputs), [{
+        build($_builder, $_state, TypeRange(outputs), inputs, outputs);
+    }]>
   ];
 
   let results = (outs Variadic<AnyRankedTensor>:$result);
