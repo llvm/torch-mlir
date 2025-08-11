@@ -6,6 +6,7 @@
 import torch
 import torch_mlir
 from .compiler_utils import OutputType
+from typing import Optional, Dict, Callable
 
 from .compiler_utils_mw import (
     run_pipeline_mw,
@@ -13,21 +14,16 @@ from .compiler_utils_mw import (
 )
 
 from . import fx
-from torch._decomp import get_decompositions
 
 
 def import_exported_model(
     prog: torch.export.ExportedProgram,
     output_type: str,
     experimental_support_mutation: bool = True,
+    decomposition_table: Optional[Dict[torch._ops.OperatorBase, Callable]] = None,
     verbose: bool = False,
     enable_ir_printing: bool = False,
 ):
-
-    decomp_table = get_decompositions(
-        [torch.ops.aten.lstm.input, torch.ops.aten.gru.input]
-    )
-    prog = prog.run_decompositions(decomp_table)
 
     mlir_module = fx.export_and_import(
         prog,
@@ -35,6 +31,7 @@ def import_exported_model(
         experimental_support_mutation=experimental_support_mutation,
         verbose=verbose,
         enable_ir_printing=enable_ir_printing,
+        decomposition_table=decomposition_table,
     )
 
     if output_type != "raw":
