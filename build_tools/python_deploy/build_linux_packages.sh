@@ -337,7 +337,6 @@ function setup_venv() {
   source /main_checkout/torch-mlir/docker_venv/bin/activate
 
   echo ":::: pip installing dependencies"
-  python3 -m pip install --no-cache-dir -r /main_checkout/torch-mlir/externals/llvm-project/mlir/python/requirements.txt
 
   case $torch_version in
     nightly)
