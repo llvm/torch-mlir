@@ -499,7 +499,8 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
 
   Value torchCstOne =
       rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-  unsigned maxRank = *std::max_element(ranks.begin(), ranks.end());
+  auto maxRankItr = std::max_element(ranks.begin(), ranks.end());
+  unsigned maxRank = *maxRankItr;
 
   // Check whether the shapes of the tensors are broadcastable or not.
   // Two tensors are “broadcastable” if the following rules hold:
@@ -550,9 +551,8 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
     }
   }
 
-  // If we reach here then it means both the shapes are broadcast compatible.
-  auto maxRankIdx =
-      std::max_element(ranks.begin(), ranks.end()) - ranks.begin();
+  // If we reach here then it means all shapes are broadcast compatible.
+  auto maxRankIdx = maxRankItr - ranks.begin();
   resultShape = shapes[maxRankIdx];
   Value shapeTensor = inputs[maxRankIdx];
 
@@ -569,23 +569,20 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
 
     // Compute result shape if all input shapes are known
     bool unknownSize = false;
+    int64_t maxShape = 1;
     for (auto [idx, shape] : llvm::enumerate(shapes)) {
-      if (ranks[idx] - i - 1 < shape.size() &&
-          shape[ranks[idx] - i - 1] == kUnknownSize) {
-        unknownSize = true;
+      if (ranks[idx] - i - 1 < shape.size()) {
+        if (shape[ranks[idx] - i - 1] == kUnknownSize) {
+          unknownSize = true;
+        } else {
+          maxShape = std::max(maxShape, shape[ranks[idx] - i - 1]);
+        }
       }
     }
 
     if (unknownSize) {
       resultShape[resultRank - i - 1] = kUnknownSize;
     } else {
-
-      int64_t maxShape = 1;
-      for (auto [idx, shape] : llvm::enumerate(shapes)) {
-        if (ranks[idx] - i - 1 < shape.size()) {
-          maxShape = std::max(maxShape, shape[ranks[idx] - i - 1]);
-        }
-      }
       resultShape[resultRank - i - 1] = maxShape;
     }
   }

@@ -2848,7 +2848,7 @@ OpFoldResult AtenAllBoolOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   // If all operands are a constant true, return true.
   for (auto operand : inputConstruct.getOperands()) {
-    bool b = true;
+    bool b;
     if (!matchPattern(operand, m_TorchConstantBool(&b)) || !b) {
       return nullptr;
     }
