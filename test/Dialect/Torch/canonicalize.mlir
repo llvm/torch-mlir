@@ -29,6 +29,17 @@ func.func @torch.runtime.assert() {
   return
 }
 
+// CHECK-LABEL:   func.func @torch.aten.assert_tensor_metadata
+// CHECK-NEXT:      return
+func.func @torch.aten.assert_tensor_metadata() {
+  %int4 = torch.constant.int 4
+  %none = torch.constant.none
+  %1 = tensor.empty() : tensor<1x1x128x128xi64>
+  %2 = torch_c.from_builtin_tensor %1 : tensor<1x1x128x128xi64> -> !torch.vtensor<[1,1,128,128],si64>
+  torch.aten._assert_tensor_metadata %2, %none, %none, %int4, %none, %none : !torch.vtensor<[1,1,128,128],si64>, !torch.none, !torch.none, !torch.int, !torch.none, !torch.none
+  return
+}
+
 // CHECK-LABEL:   func.func @torch.aten.ones_item
 // CHECK:           %[[CONST:.*]] = torch.constant.int 1
 // CHECK:           return %[[CONST]] : !torch.int

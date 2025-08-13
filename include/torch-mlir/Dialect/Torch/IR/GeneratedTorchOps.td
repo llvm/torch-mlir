@@ -8668,6 +8668,30 @@ def Torch_AtenPixelShuffleOp : Torch_Op<"aten.pixel_shuffle", [
   }];
 }
 
+def Torch_AtenChannelShuffleOp : Torch_Op<"aten.channel_shuffle", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::channel_shuffle : (Tensor, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$groups
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenChannelShuffleOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenChannelShuffleOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenPermuteOp : Torch_Op<"aten.permute", [
     AllowsTypeRefinement,
     ReadOnly
@@ -10311,6 +10335,30 @@ def Torch_AtenReplicationPad2dOp : Torch_Op<"aten.replication_pad2d", [
       return parseDefaultTorchOp(parser, result, 2, 1);
     }
     void AtenReplicationPad2dOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
+def Torch_AtenReplicationPad3dOp : Torch_Op<"aten.replication_pad3d", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::replication_pad3d : (Tensor, int[]) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchListOfTorchIntType:$padding
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenReplicationPad3dOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenReplicationPad3dOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
@@ -14350,7 +14398,7 @@ def Torch_Aten_AssertTensorMetadataOp : Torch_Op<"aten._assert_tensor_metadata",
       printDefaultTorchOp(printer, *this, 6, 0);
     }
   }];
-  let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenDiagonalOp : Torch_Op<"aten.diagonal", [

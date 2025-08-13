@@ -719,6 +719,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::topk : (Tensor, int, int, bool, bool) -> (Tensor, Tensor)")
     emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)", has_folder=True)
     emit("aten::pixel_shuffle : (Tensor, int) -> (Tensor)")
+    emit("aten::channel_shuffle : (Tensor, int) -> (Tensor)")
     emit("aten::permute : (Tensor, int[]) -> (Tensor)", has_verifier=True)
     emit("aten::movedim.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::bmm : (Tensor, Tensor) -> (Tensor)")
@@ -811,6 +812,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::constant_pad_nd : (Tensor, int[], Scalar) -> (Tensor)")
     emit("aten::replication_pad1d : (Tensor, int[]) -> (Tensor)")
     emit("aten::replication_pad2d : (Tensor, int[]) -> (Tensor)")
+    emit("aten::replication_pad3d : (Tensor, int[]) -> (Tensor)")
     emit("aten::reflection_pad1d : (Tensor, int[]) -> (Tensor)")
     emit("aten::reflection_pad2d : (Tensor, int[]) -> (Tensor)")
     emit("aten::reflection_pad3d : (Tensor, int[]) -> (Tensor)")
@@ -1043,7 +1045,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::as_strided : (Tensor, int[], int[], int?) -> (Tensor)")
     emit(
         "aten::_assert_tensor_metadata : (Tensor, int[]?, int[]?, int?, Device?, int?) -> ()",
-        has_folder=True,
+        has_canonicalizer=True,
     )
     emit("aten::diagonal : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::diagonal_copy : (Tensor, int, int, int) -> (Tensor)")
