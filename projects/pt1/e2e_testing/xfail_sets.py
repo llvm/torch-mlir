@@ -3427,12 +3427,6 @@ if torch_version_for_comparison() < version.parse("2.4.0.dev"):
         "ElementwiseBitwiseAndStaticShapeModule_basic",
     }
 
-if torch_version_for_comparison() >= version.parse("2.5.0.dev"):
-    ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
-        # ERROR: value (Tensor with shape=[2, 3, 8, 20], dtype=torch.float32, min=+nan, max=+nan, mean=+nan) is not close to golden value (Tensor with shape=[2, 3, 8, 20], dtype=torch.float32, min=-2.394, max=+2.454, mean=-0.02828)
-        "ScaledDotProductAttentionBoolMaskModule_basic",
-    }
-
 if torch_version_for_comparison() > version.parse("2.5.1"):
     ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
         # error: 'memref.cast' op operand type 'memref<2x6x4x3xf32>' and result type 'memref<2x6x5x3xf32>' are cast incompatible
