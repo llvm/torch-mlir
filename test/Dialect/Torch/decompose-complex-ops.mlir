@@ -849,6 +849,7 @@ func.func @native_layer_norm_mixed_dtypes(%input: !torch.vtensor<[1,56,56,96],bf
 
 // -----
 
+
 // CHECK-LABEL: func.func @torch.aten.broadcast_tensors
 // CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[1,3],f32>
 // CHECK-SAME: %[[ARG1:.*]]: !torch.vtensor<[2,1],f32>
@@ -866,6 +867,7 @@ func.func @torch.aten.broadcast_tensors(%arg0: !torch.vtensor<[1,3],f32>, %arg1:
   %0 = torch.prim.ListConstruct %arg0, %arg1 : (!torch.vtensor<[1,3],f32>, !torch.vtensor<[2,1],f32>) -> !torch.list<vtensor>
   %1 = torch.aten.broadcast_tensors %0 : !torch.list<vtensor> -> !torch.list<vtensor<[2,3],f32>>
   return %1 : !torch.list<vtensor<[2,3],f32>>
+}
 
 // -----
 
