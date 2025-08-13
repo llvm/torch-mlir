@@ -415,7 +415,6 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
-    "AvgPool2dCHWModule_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluInt8_basic",
     "QuantizedReluUint8_basic",
@@ -502,7 +501,6 @@ FX_IMPORTER_XFAIL_SET = {
     "AdaptiveAvgPool1dGeneralDynamic_basic",
     "AdaptiveAvgPool1dStaticEvenMultiple_basic",
     "AdaptiveAvgPool1dStaticLargerOutput_basic",
-    "AdaptiveAvgPool2dDynamicNoBatch_basic",
     "AdaptiveAvgPool2dDynamic_basic",
     "AdaptiveMaxPool1dDynamicNoBatch_basic",
     "AdaptiveMaxPool1dDynamic_basic",
@@ -545,6 +543,8 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "AvgPool2dSingleIntTupleParamsModule_basic",
     "SliceOutOfLowerBoundEndIndexModule_basic",
     "RollModule_basic",
+    "AdaptiveAvgPool2dDynamicNoBatch_basic",
+    "AvgPool2dCHWModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
