@@ -487,17 +487,6 @@ FX_IMPORTER_XFAIL_SET = {
     "ViewSizeFromOtherTensor_basic",
     "ViewDtypeStaticModule_basic",
     "WeightNormInterfaceModule_basic",
-    # Error: `aten.as_strided` op is not supported
-    "ChunkListUnpackDynamic_Module_basic",
-    "ChunkListUnpackUnevenDynamic_Module_basic",
-    "ChunkListUnpackUneven_Module_basic",
-    "ChunkListUnpack_Module_basic",
-    "SplitTensorGetItem_Module_basic",
-    "SplitTensorLastSmallerModule_basic",
-    "SplitTensorListUnpackModule_basic",
-    "SplitTensorNegativeDimModule_basic",
-    "SplitWithSizesListUnpackModule_basic",
-    "SplitWithSizes_Module_basic",
     "AdaptiveAvgPool1dGeneralDynamic_basic",
     "AdaptiveAvgPool1dStaticEvenMultiple_basic",
     "AdaptiveAvgPool1dStaticLargerOutput_basic",
@@ -526,8 +515,6 @@ FX_IMPORTER_XFAIL_SET = {
     "ReflectionPad3dModuleRight_basic",
     "ReflectionPad3dModuleFront_basic",
     "ReflectionPad3dModuleBack_basic",
-    # RuntimeError: Unknown function SliceOutOfLowerBoundEndIndexModule
-    "NativeGroupNormModule_basic",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
@@ -994,6 +981,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "NativeGroupNormModule_basic",
     "AvgPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
     "MaxPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
+    "AtenAsStridedModule_basic",
+    "AtenAsStridedNoStorageOffsetModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
@@ -3986,6 +3975,19 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ReplicationPad1dModule_3DInput_basic",
     "ReplicationPad3dModule_basic",
     "ReplicationPad3dModuleSingleIntPad_basic",
+    "AtenAsStridedModule_basic",
+    "AtenAsStridedNoStorageOffsetModule_basic",
+    "ChunkListUnpackDynamic_Module_basic",
+    "ChunkListUnpackUnevenDynamic_Module_basic",
+    "ChunkListUnpackUneven_Module_basic",
+    "ChunkListUnpack_Module_basic",
+    "NativeGroupNormModule_basic",
+    "SplitTensorGetItem_Module_basic",
+    "SplitTensorLastSmallerModule_basic",
+    "SplitTensorListUnpackModule_basic",
+    "SplitTensorNegativeDimModule_basic",
+    "SplitWithSizesListUnpackModule_basic",
+    "SplitWithSizes_Module_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {
