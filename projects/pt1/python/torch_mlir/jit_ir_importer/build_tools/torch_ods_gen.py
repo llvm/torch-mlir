@@ -766,6 +766,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::poisson_nll_loss : (Tensor, Tensor, bool, bool, float, int) -> (Tensor)"
     )
     emit("aten::kl_div : (Tensor, Tensor, int, bool) -> (Tensor)")
+    emit("aten::huber_loss : (Tensor, Tensor, int, float) -> (Tensor)")
     emit("aten::bincount : (Tensor, Tensor?, int) -> (Tensor)")
     emit("aten::linalg_vector_norm : (Tensor, Scalar, int[]?, bool, int?) -> (Tensor)")
     emit("aten::linalg_norm : (Tensor, Scalar?, int[]?, bool, int?) -> (Tensor)")
