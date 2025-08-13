@@ -12758,7 +12758,7 @@ public:
       // calculate common shape for broadcast
       SmallVector<int64_t> broadcastShape;
       SmallVector<Value> broadcastShapeValue;
-      computeBroadcastShape(rewriter, loc, finalIndices, index, broadcastShape,
+      computeBroadcastShape(rewriter, loc, {finalIndices, index}, broadcastShape,
                             broadcastShapeValue);
       Type broadcastType = ValueTensorType::get(
           context, llvm::ArrayRef(broadcastShape), si64Type);
