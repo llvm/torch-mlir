@@ -12620,6 +12620,7 @@ public:
         loc, Torch::ListType::get(broadcastType), broadcastedValues);
 
     rewriter.replaceOp(op, broadcastedValuesList);
+    return success();
   }
 };
 } // namespace
