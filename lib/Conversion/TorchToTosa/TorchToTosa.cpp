@@ -871,8 +871,11 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   Value self = adaptor.getSelf();
   auto selfTy = cast<TensorType>(self.getType());
+  auto outTy =
+      dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+  auto outElemTy = outTy.getElementType();
 
-  if (!selfTy) {
+  if (!selfTy || !outTy) {
     return rewriter.notifyMatchFailure(op,
                                        "Only Tensor types supported in TOSA");
   }
@@ -883,12 +886,27 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
         op, "Only floating-point datatype legalization currently supported");
   }
 
+  FloatAttr minFloatAttr, maxFloatAttr;
+  if (outElemTy.isF16()) {
+    minFloatAttr = rewriter.getF16FloatAttr(0.0f);
+    maxFloatAttr = rewriter.getF16FloatAttr(Float16Max);
+  } else if (outElemTy.isBF16()) {
+    minFloatAttr = rewriter.getFloatAttr(rewriter.getBF16Type(), 0.0f);
+    maxFloatAttr = rewriter.getFloatAttr(rewriter.getBF16Type(), BFloat16Max);
+  } else if (outElemTy.isF32()) {
+    minFloatAttr = rewriter.getF32FloatAttr(0.0f);
+    maxFloatAttr = rewriter.getF32FloatAttr(std::numeric_limits<float>::max());
+  } else if (outElemTy.isF64()) {
+    minFloatAttr = rewriter.getF64FloatAttr(0.0f);
+    maxFloatAttr = rewriter.getF64FloatAttr(std::numeric_limits<double>::max());
+  } else {
+    return rewriter.notifyMatchFailure(op, "Unsupported floating-point type");
+  }
+
   // Maps to tosa.clamp
   // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   rewriter.replaceOpWithNewOp<tosa::ClampOp>(
-      op, getTypeConverter()->convertType(op.getType()), self,
-      rewriter.getF32FloatAttr(0.0f),
-      rewriter.getF32FloatAttr(std::numeric_limits<float>::max()),
+      op, outTy, self, minFloatAttr, maxFloatAttr,
       /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
   return success();
 }
@@ -5186,10 +5204,30 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
         op, outType, adaptor.getSelf(), minIntAttr, maxIntAttr,
         /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
   } else {
-    FloatAttr minFloatAttr = rewriter.getF32FloatAttr(
-        isMinNotNone ? minFloat : std::numeric_limits<float>::lowest());
-    FloatAttr maxFloatAttr = rewriter.getF32FloatAttr(
-        isMaxNotNone ? maxFloat : std::numeric_limits<float>::max());
+    FloatAttr minFloatAttr, maxFloatAttr;
+    if (outElemTy.isF16()) {
+      minFloatAttr =
+          rewriter.getF16FloatAttr(isMinNotNone ? minFloat : Float16Lowest);
+      maxFloatAttr =
+          rewriter.getF16FloatAttr(isMaxNotNone ? maxFloat : Float16Max);
+    } else if (outElemTy.isBF16()) {
+      minFloatAttr = rewriter.getFloatAttr(
+          rewriter.getBF16Type(), isMinNotNone ? minFloat : BFloat16Lowest);
+      maxFloatAttr = rewriter.getFloatAttr(
+          rewriter.getBF16Type(), isMaxNotNone ? maxFloat : BFloat16Max);
+    } else if (outElemTy.isF32()) {
+      minFloatAttr = rewriter.getF32FloatAttr(
+          isMinNotNone ? minFloat : std::numeric_limits<float>::lowest());
+      maxFloatAttr = rewriter.getF32FloatAttr(
+          isMaxNotNone ? maxFloat : std::numeric_limits<float>::max());
+    } else if (outElemTy.isF64()) {
+      minFloatAttr = rewriter.getF64FloatAttr(
+          isMinNotNone ? minFloat : std::numeric_limits<double>::lowest());
+      maxFloatAttr = rewriter.getF64FloatAttr(
+          isMaxNotNone ? maxFloat : std::numeric_limits<double>::max());
+    } else {
+      return rewriter.notifyMatchFailure(op, "Unsupported floating-point type");
+    }
 
     rewriter.replaceOpWithNewOp<tosa::ClampOp>(
         op, outType, adaptor.getSelf(), minFloatAttr, maxFloatAttr,
@@ -8547,14 +8585,29 @@ LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
 
   auto zi = self;
 
+  FloatAttr minFloatAttr, maxFloatAttr;
+  if (resultElemTy.isF16()) {
+    minFloatAttr = rewriter.getF16FloatAttr(eps);
+    maxFloatAttr = rewriter.getF16FloatAttr(1 - eps);
+  } else if (resultElemTy.isBF16()) {
+    minFloatAttr = rewriter.getFloatAttr(rewriter.getBF16Type(), eps);
+    maxFloatAttr = rewriter.getFloatAttr(rewriter.getBF16Type(), 1 - eps);
+  } else if (resultElemTy.isF32()) {
+    minFloatAttr = rewriter.getF32FloatAttr(eps);
+    maxFloatAttr = rewriter.getF32FloatAttr(1 - eps);
+  } else if (resultElemTy.isF64()) {
+    minFloatAttr = rewriter.getF64FloatAttr(eps);
+    maxFloatAttr = rewriter.getF64FloatAttr(1 - eps);
+  } else {
+    return rewriter.notifyMatchFailure(op, "Unsupported floating-point type");
+  }
+
   // Clamp input to [eps, 1 - eps] when eps is not None
   // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   if (!isEpsNone) {
     zi = rewriter
              .create<tosa::ClampOp>(
-                 op->getLoc(), resultType, self,
-                 rewriter.getF32FloatAttr(static_cast<float>(eps)),
-                 rewriter.getF32FloatAttr(static_cast<float>(1 - eps)),
+                 op->getLoc(), resultType, self, minFloatAttr, maxFloatAttr,
                  /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))
              .getResult();
   }

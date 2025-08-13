@@ -530,6 +530,11 @@ FX_IMPORTER_XFAIL_SET = {
     "ReflectionPad3dModuleBack_basic",
     # RuntimeError: Unknown function SliceOutOfLowerBoundEndIndexModule
     "NativeGroupNormModule_basic",
+    # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
+    "ElementwiseClampMaxModule_bfloat16",
+    "ElementwiseClampMinModule_bfloat16",
+    "ElementwiseClampModule_bfloat16",
+    "ElementwiseReluModule_bfloat16",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
@@ -994,6 +999,11 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "NativeGroupNormModule_basic",
     "AvgPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
     "MaxPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
+    # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
+    "ElementwiseClampMaxModule_bfloat16",
+    "ElementwiseClampMinModule_bfloat16",
+    "ElementwiseClampModule_bfloat16",
+    "ElementwiseReluModule_bfloat16",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
@@ -3418,6 +3428,11 @@ ONNX_XFAIL_SET = {
     # RuntimeError: Given input size: (1x1x1). Calculated output size: (1x0x0). Output size is too small
     "AvgPool2dWithoutPadFullDimIndivisibleByStrideModule_basic",
     "MaxPool2dWithoutPadFullDimIndivisibleByStrideModule_basic",
+    # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<?x?xbf16>'
+    "ElementwiseClampMaxModule_bfloat16",
+    "ElementwiseClampMinModule_bfloat16",
+    "ElementwiseClampModule_bfloat16",
+    "ElementwiseReluModule_bfloat16",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
@@ -3986,6 +4001,11 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ReplicationPad1dModule_3DInput_basic",
     "ReplicationPad3dModule_basic",
     "ReplicationPad3dModuleSingleIntPad_basic",
+    # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
+    "ElementwiseClampMaxModule_bfloat16",
+    "ElementwiseClampMinModule_bfloat16",
+    "ElementwiseClampModule_bfloat16",
+    "ElementwiseReluModule_bfloat16",
 }
 
 ONNX_TOSA_CRASHING_SET = {
