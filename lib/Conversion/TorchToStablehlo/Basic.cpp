@@ -1760,6 +1760,65 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
 }
 
 template <>
+LogicalResult ConvertAtenOp<AtenReflectionPad1dOp>::matchAndRewrite(
+    AtenReflectionPad1dOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Location loc = op.getLoc();
+  Value self = adaptor.getSelf();
+  auto selfTy = cast<RankedTensorType>(self.getType());
+  if (!selfTy.hasStaticShape()) {
+    return rewriter.notifyMatchFailure(op, "only support static shape");
+  }
+  int64_t rank = selfTy.getRank();
+  int64_t dim = rank - 1;
+
+  SmallVector<int64_t> padInts;
+  if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(padInts))) {
+    return rewriter.notifyMatchFailure(op,
+                                       "only support constant int pad ranges");
+  }
+  if (padInts.size() != 2) {
+    return rewriter.notifyMatchFailure(op, "pad size must be 2");
+  }
+  if (padInts[0] >= selfTy.getDimSize(dim) ||
+      padInts[1] >= selfTy.getDimSize(dim)) {
+    return rewriter.notifyMatchFailure(op,
+                                       "pad size must be less than dim size");
+  }
+
+  Value left;
+  {
+    SmallVector<int64_t> startIndices(rank, 0);
+    SmallVector<int64_t> limitIndices(selfTy.getShape().begin(),
+                                      selfTy.getShape().end());
+    SmallVector<int64_t> strides(rank, 1);
+    startIndices[dim] = 1;
+    limitIndices[dim] = padInts[0] + 1;
+    left = rewriter.create<stablehlo::SliceOp>(loc, self, startIndices,
+                                               limitIndices, strides);
+    left = rewriter.create<stablehlo::ReverseOp>(loc, left,
+                                                 ArrayRef<int64_t>({dim}));
+  }
+  Value right;
+  {
+    SmallVector<int64_t> startIndices(rank, 0);
+    SmallVector<int64_t> limitIndices(selfTy.getShape().begin(),
+                                      selfTy.getShape().end());
+    SmallVector<int64_t> strides(rank, 1);
+    startIndices[dim] = selfTy.getDimSize(dim) - 1 - padInts[1];
+    limitIndices[dim] = selfTy.getDimSize(dim) - 1;
+    right = rewriter.create<stablehlo::SliceOp>(loc, self, startIndices,
+                                                limitIndices, strides);
+    right = rewriter.create<stablehlo::ReverseOp>(loc, right,
+                                                  ArrayRef<int64_t>({dim}));
+  }
+  Value result = rewriter.create<stablehlo::ConcatenateOp>(
+      loc, ValueRange{left, self, right}, dim);
+  rewriter.replaceOp(op, result);
+  return success();
+}
+
+template <>
 LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
     AtenGeluBackwardOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
@@ -2286,6 +2345,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenScalarImplicitOp);
   INSERT_ATENOP_PATTERN(AtenContiguousOp);
   INSERT_ATENOP_PATTERN(AtenConstantPadNdOp);
+  INSERT_ATENOP_PATTERN(AtenReflectionPad1dOp);
 
   INSERT_ATENOP_PATTERN(AtenReluOp);
   INSERT_ATENOP_PATTERN(AtenGeluOp);
