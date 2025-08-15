@@ -2294,6 +2294,57 @@ def BroadcastToModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class BroadcastTensorsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        x1, y1 = torch.broadcast_tensors(x, y)
+        return x1, y1
+
+
+@register_test_case(module_factory=lambda: BroadcastTensorsModule())
+def BroadcastTensorsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3), tu.rand(2, 1))
+
+
+# ==============================================================================
+
+
+class BroadcastTensorsModuleList(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3], torch.float32, True),
+            ([2, 1], torch.float32, True),
+            ([2, 1, 1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y, z):
+        x1, y1, z1 = torch.broadcast_tensors(x, y, z)
+        return x1, y1, z1
+
+
+@register_test_case(module_factory=lambda: BroadcastTensorsModuleList())
+def BroadcastTensorsModuleList_multiple_ranks(module, tu: TestUtils):
+    module.forward(tu.rand(3), tu.rand(2, 1), tu.rand(2, 1, 1))
+
+
+# ==============================================================================
+
+
 class BroadcastToSameRankStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

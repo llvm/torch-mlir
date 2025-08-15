@@ -1065,9 +1065,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           } else {
             SmallVector<int64_t> resultBroadcastShapeInt;
             SmallVector<Value> resultBroadcastShapeValue;
-            Torch::computeBroadcastShape(rewriter, binder.getLoc(), curr,
-                                         valList[i], resultBroadcastShapeInt,
-                                         resultBroadcastShapeValue);
+            Torch::computeBroadcastShape(
+                rewriter, binder.getLoc(), {curr, valList[i]},
+                resultBroadcastShapeInt, resultBroadcastShapeValue);
             auto baseType = Torch::ValueTensorType::get(
                 binder.op->getContext(), resultBroadcastShapeInt,
                 resultType.getOptionalDtype());
