@@ -571,7 +571,8 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
     bool unknownSize = false;
     int64_t maxShape = 1;
     for (auto [idx, shape] : llvm::enumerate(shapes)) {
-      if (ranks[idx] - i - 1 < shape.size()) {
+      // Check if dimension is valid for the input shape
+      if ((int)ranks[idx] - (int)i >= 1) {
         if (shape[ranks[idx] - i - 1] == kUnknownSize) {
           unknownSize = true;
         } else {
