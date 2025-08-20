@@ -745,7 +745,7 @@ class ContextCache:
 
         # Remove characters that are invalid in MLIR identifier names.
         # https://mlir.llvm.org/docs/LangRef/#identifiers-and-keywords
-        return re.sub("[^\w\.]", "_", name)
+        return re.sub(r"[^\w\.]", "_", name)
 
     def tensor_proto_to_attr(self, tp: onnx.TensorProto) -> Attribute:
         tensor_type = self.tensor_proto_to_builtin_type(tp)
