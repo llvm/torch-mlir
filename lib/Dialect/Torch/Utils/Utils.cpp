@@ -482,7 +482,7 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
 // Checks whether the inputs are broadcast compatible or not. If
 // yes, then computes the final broadcast shape.
 void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
-                                  SmallVector<Value> inputs,
+                                  ArrayRef<Value> inputs,
                                   SmallVector<int64_t> &resultShape,
                                   SmallVector<Value> &resultShapeValue) {
 
@@ -566,25 +566,22 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
   for (unsigned i = 0; i < maxRank; i++) {
 
     resultShapeValue[resultRank - i - 1] = maxShapeValues[i];
-
+    resultShape[resultRank - i - 1] = 1;
     // Compute result shape if all input shapes are known
-    bool unknownSize = false;
-    int64_t maxShape = 1;
     for (auto [idx, shape] : llvm::enumerate(shapes)) {
+      int shapeIdx = (int)ranks[idx] - (int)i - 1;
       // Check if dimension is valid for the input shape
-      if ((int)ranks[idx] - (int)i >= 1) {
-        if (shape[ranks[idx] - i - 1] == kUnknownSize) {
-          unknownSize = true;
-        } else {
-          maxShape = std::max(maxShape, shape[ranks[idx] - i - 1]);
-        }
+      if (shapeIdx < 0) {
+        continue;
       }
-    }
 
-    if (unknownSize) {
-      resultShape[resultRank - i - 1] = kUnknownSize;
-    } else {
-      resultShape[resultRank - i - 1] = maxShape;
+      if (shape[shapeIdx] == kUnknownSize) {
+        resultShape[resultRank - i - 1] = kUnknownSize;
+        break;
+      }
+
+      resultShape[resultRank - i - 1] =
+          std::max(resultShape[resultRank - i - 1], shape[shapeIdx]);
     }
   }
 }
