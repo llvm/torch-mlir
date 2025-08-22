@@ -2839,6 +2839,28 @@ OpFoldResult AtenAnyBoolOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenAllBoolOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAllBoolOp::fold(FoldAdaptor adaptor) {
+  auto inputConstruct = getSelf().getDefiningOp<Torch::PrimListConstructOp>();
+  if (!inputConstruct || isListPotentiallyMutated(inputConstruct))
+    return nullptr;
+  // If all operands are a constant true, return true.
+  // If any operands are a constant false, return false
+  bool allConstants = true;
+  for (auto operand : inputConstruct.getOperands()) {
+    bool b;
+    if (!matchPattern(operand, m_TorchConstantBool(&b))) {
+      allConstants = false;
+    } else if (!b) {
+      return getI1IntegerAttr(getContext(), false);
+    }
+  }
+  return allConstants ? getI1IntegerAttr(getContext(), true) : nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenFloatScalarOp
 //===----------------------------------------------------------------------===//
 
