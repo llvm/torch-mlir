@@ -2847,13 +2847,17 @@ OpFoldResult AtenAllBoolOp::fold(FoldAdaptor adaptor) {
   if (!inputConstruct || isListPotentiallyMutated(inputConstruct))
     return nullptr;
   // If all operands are a constant true, return true.
+  // If any operands are a constant false, return false
+  bool allConstants = true;
   for (auto operand : inputConstruct.getOperands()) {
     bool b;
-    if (!matchPattern(operand, m_TorchConstantBool(&b)) || !b) {
-      return nullptr;
+    if (!matchPattern(operand, m_TorchConstantBool(&b))) {
+      allConstants = false;
+    } else if (!b) {
+      return getI1IntegerAttr(getContext(), false);
     }
   }
-  return getI1IntegerAttr(getContext(), true);
+  return allConstants ? getI1IntegerAttr(getContext(), true) : nullptr;
 }
 
 //===----------------------------------------------------------------------===//
