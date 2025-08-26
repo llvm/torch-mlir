@@ -853,6 +853,9 @@ def aten〇pixel_unshuffle〡shape(self: List[int], downscale_factor: int) -> Li
     return out
 
 
+def aten〇channel_shuffle〡shape(self: List[int], groups: int) -> List[int]:
+    assert len(self) >= 3, "input must be at least rank-3 in channel_shuffle"
+    return self
 
 def aten〇permute〡shape(self: List[int], dims: List[int]) -> List[int]:
     return upstream_shape_functions.permute(self, dims)
@@ -1113,6 +1116,15 @@ def aten〇max_unpool3d〡shape(self: List[int], indices: List[int], output_size
         return [self[0], self[1], output_size[0], output_size[1], output_size[2]]
     else:
         return [self[0], output_size[0], output_size[1], output_size[2]]
+
+def aten〇max_unpool2d〡shape(self: List[int], indices: List[int], output_size: List[int]) -> List[int]:
+    assert (len(self) == 4 or len(self) == 3), "Input be of rank 3 or 4"
+    assert (len(output_size) == 2), "output_size must have 2 elements"
+    assert (len(self) == len(indices)), "Input and indices must be of the same rank"
+    if len(self) == 4:
+        return [self[0], self[1], output_size[0], output_size[1]]
+    else:
+        return [self[0], output_size[0], output_size[1]]
 
 def aten〇upsample_nearest2d_backward〡shape(grad_output: List[int], output_size: List[int], input_size: List[int], scales_h: Optional[float] = None, scales_w: Optional[float] = None) -> List[int]:
     return input_size
@@ -3076,6 +3088,11 @@ def aten〇pixel_unshuffle〡dtype(self_rank_dtype: Tuple[int, int], downscale_f
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(1, 4, 4, 5)], groups = 2))
+def aten〇channel_shuffle〡dtype(self_rank_dtype: Tuple[int, int], groups: int) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 7)], kernel_size=[2], error_types={torch.uint8}))
 def aten〇avg_pool1d〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: List[int], stride: List[int] = (), padding: List[int] = (0,), ceil_mode: bool = False, count_include_pad: bool = True) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -3618,6 +3635,10 @@ def aten〇max_pool3d_with_indices〡dtype(self_rank_dtype: Tuple[int, int], ker
     return self_dtype, torch.int64
 
 def aten〇max_unpool3d〡dtype(self_rank_dtype: Tuple[int, int], indices_rank_dtype: Tuple[int, int], output_size: List[int], stride: List[int], padding: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+def aten〇max_unpool2d〡dtype(self_rank_dtype: Tuple[int, int], indices_rank_dtype: Tuple[int, int], output_size: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 

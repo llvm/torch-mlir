@@ -8692,6 +8692,30 @@ def Torch_AtenPixelUnshuffleOp : Torch_Op<"aten.pixel_unshuffle", [
   }];
 }
 
+def Torch_AtenChannelShuffleOp : Torch_Op<"aten.channel_shuffle", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::channel_shuffle : (Tensor, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$groups
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenChannelShuffleOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenChannelShuffleOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenPermuteOp : Torch_Op<"aten.permute", [
     AllowsTypeRefinement,
     ReadOnly
@@ -14374,7 +14398,7 @@ def Torch_Aten_AssertTensorMetadataOp : Torch_Op<"aten._assert_tensor_metadata",
       printDefaultTorchOp(printer, *this, 6, 0);
     }
   }];
-  let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenDiagonalOp : Torch_Op<"aten.diagonal", [

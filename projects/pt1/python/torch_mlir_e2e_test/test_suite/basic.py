@@ -1029,6 +1029,31 @@ def PixelUnshuffleModuleStaticRank4Float32_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ChannelShuffleBasic(torch.nn.Module):
+    # Basic test case for ChannelShuffle operation.
+    def __init__(self):
+        super().__init__()
+        self.shuffle = torch.nn.ChannelShuffle(groups=4)
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 8, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.shuffle(x)
+
+
+@register_test_case(module_factory=lambda: ChannelShuffleBasic())
+def ChannelShuffleBasic_basic(module, tu: TestUtils):
+    module.forward(torch.arange(1, 129, dtype=torch.float32).reshape(1, 8, 4, 4))
+
+
+# ==============================================================================
+
+
 class PixelUnshuffleModuleStaticRank5Float32(torch.nn.Module):
     # Basic test case for PixelUnshuffle operation
     def __init__(self):
@@ -1043,6 +1068,31 @@ class PixelUnshuffleModuleStaticRank5Float32(torch.nn.Module):
 @register_test_case(module_factory=lambda: PixelUnshuffleModuleStaticRank5Float32())
 def PixelUnshuffleModuleStaticRank5Float32_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 1, 8, 4, 4))
+
+
+# ==============================================================================
+
+
+class ChannelShuffleUnitaryGroup(torch.nn.Module):
+    # Test case where group = 1.
+    def __init__(self):
+        super().__init__()
+        self.shuffle = torch.nn.ChannelShuffle(groups=1)
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 8, 3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.shuffle(x)
+
+
+@register_test_case(module_factory=lambda: ChannelShuffleUnitaryGroup())
+def ChannelShuffleUnitaryGroup_basic(module, tu: TestUtils):
+    module.forward(torch.arange(1, 289, dtype=torch.float32).reshape(3, 8, 3, 4))
 
 
 # ==============================================================================
@@ -1066,6 +1116,30 @@ def PixelUnshuffleModuleStaticRank3Int64_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ChannelShuffle1D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.shuffle = torch.nn.ChannelShuffle(groups=3)
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 9, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.shuffle(x)
+
+
+@register_test_case(module_factory=lambda: ChannelShuffle1D())
+def ChannelShuffle1D_basic(module, tu: TestUtils):
+    module.forward(torch.arange(1, 55, dtype=torch.float32).reshape(2, 9, 3))
+
+
+# ==============================================================================
+
+
 class PixelUnshuffleModuleFullDynamic(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1079,6 +1153,30 @@ class PixelUnshuffleModuleFullDynamic(torch.nn.Module):
 @register_test_case(module_factory=lambda: PixelUnshuffleModuleFullDynamic())
 def PixelUnshuffleModuleFullDynamic_basic(module, tu: TestUtils):
     module.forward(tu.randint(1, 2, 6, 6, low=0, high=100))
+
+
+# ==============================================================================
+
+
+class ChannelShuffle4D(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.shuffle = torch.nn.ChannelShuffle(groups=2)
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 4, 1, 2, 3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.shuffle(x)
+
+
+@register_test_case(module_factory=lambda: ChannelShuffle4D())
+def ChannelShuffle4D_basic(module, tu: TestUtils):
+    module.forward(torch.arange(1, 97, dtype=torch.float32).reshape(1, 4, 1, 2, 3, 4))
 
 
 # ==============================================================================
@@ -1102,6 +1200,31 @@ def PixelUnshuffleModuleSpatiallyDynamic_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ChannelShuffleTrailingOnes(torch.nn.Module):
+    # Test case where ChannelShuffle last dimensions are ones.
+    def __init__(self):
+        super().__init__()
+        self.shuffle = torch.nn.ChannelShuffle(groups=2)
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 8, 1, 1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.shuffle(x)
+
+
+@register_test_case(module_factory=lambda: ChannelShuffleTrailingOnes())
+def ChannelShuffleTrailingOnes_basic(module, tu: TestUtils):
+    module.forward(torch.arange(1, 9, dtype=torch.float32).reshape(1, 8, 1, 1))
+
+
+# ==============================================================================
+
+
 class PixelUnshuffleModuleSpatiallyStatic(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1115,6 +1238,31 @@ class PixelUnshuffleModuleSpatiallyStatic(torch.nn.Module):
 @register_test_case(module_factory=lambda: PixelUnshuffleModuleSpatiallyStatic())
 def PixelUnshuffleModuleSpatiallyStatic_basic(module, tu: TestUtils):
     module.forward(tu.randint(2, 2, 3, 6, 3, low=0, high=100))
+
+
+# ==============================================================================
+
+
+class ChannelShuffleDynamicDims(torch.nn.Module):
+    # Test case for dynamic dimensions in ChannelShuffle operation.
+    def __init__(self):
+        super().__init__()
+        self.shuffle = torch.nn.ChannelShuffle(groups=4)
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.shuffle(x)
+
+
+@register_test_case(module_factory=lambda: ChannelShuffleDynamicDims())
+def ChannelShuffleDynamicDims_basic(module, tu: TestUtils):
+    module.forward(torch.arange(1, 129, dtype=torch.float32).reshape(1, 8, 4, 4))
 
 
 # ==============================================================================
@@ -6840,3 +6988,48 @@ class Aten_AssertScalar(torch.nn.Module):
 @register_test_case(module_factory=lambda: Aten_AssertScalar())
 def Aten_AssertScalar_basic(module, tu: TestUtils):
     module.forward(torch.tensor(4))
+
+
+# ==============================================================================
+
+
+class AtenAsStridedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.as_strided(
+            x, size=(2, 2), stride=(3, 3), storage_offset=1
+        )
+
+
+@register_test_case(module_factory=lambda: AtenAsStridedModule())
+def AtenAsStridedModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(4, 5, 6))
+
+
+class AtenAsStridedNoStorageOffsetModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([12, 13], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.as_strided(x, size=(3, 4), stride=(2, 5))
+
+
+@register_test_case(module_factory=lambda: AtenAsStridedNoStorageOffsetModule())
+def AtenAsStridedNoStorageOffsetModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(12, 13))

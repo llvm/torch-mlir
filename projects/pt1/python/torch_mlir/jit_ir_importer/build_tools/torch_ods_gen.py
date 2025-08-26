@@ -720,6 +720,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::transpose.int : (Tensor, int, int) -> (Tensor)", has_folder=True)
     emit("aten::pixel_shuffle : (Tensor, int) -> (Tensor)")
     emit("aten::pixel_unshuffle : (Tensor, int) -> (Tensor)")
+    emit("aten::channel_shuffle : (Tensor, int) -> (Tensor)")
     emit("aten::permute : (Tensor, int[]) -> (Tensor)", has_verifier=True)
     emit("aten::movedim.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::bmm : (Tensor, Tensor) -> (Tensor)")
@@ -1044,7 +1045,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::as_strided : (Tensor, int[], int[], int?) -> (Tensor)")
     emit(
         "aten::_assert_tensor_metadata : (Tensor, int[]?, int[]?, int?, Device?, int?) -> ()",
-        has_folder=True,
+        has_canonicalizer=True,
     )
     emit("aten::diagonal : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::diagonal_copy : (Tensor, int, int, int) -> (Tensor)")

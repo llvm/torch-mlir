@@ -27,6 +27,21 @@ def TypeConversionF32ToF64Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
 
 
+class TypeConversionF32ToI1Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.float32, True)])
+    def forward(self, x):
+        return x.to(torch.bool)
+
+
+@register_test_case(module_factory=lambda: TypeConversionF32ToI1Module())
+def TypeConversionF32ToI1Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5))
+
+
 class TypeConversionF64ToF32Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
