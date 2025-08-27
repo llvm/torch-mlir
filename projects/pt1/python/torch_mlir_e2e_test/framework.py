@@ -324,6 +324,7 @@ class timeout:
 
 
 def compile_and_run_test(test: Test, config: TestConfig, verbose=False) -> Any:
+    torch.compiler.reset()  # Reset compiler state before test to avoid timeout with dynamo
     with timeout(seconds=test.timeout_seconds):
         try:
             golden_trace = generate_golden_trace(test)
