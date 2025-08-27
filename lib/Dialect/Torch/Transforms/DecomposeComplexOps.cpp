@@ -23,7 +23,6 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include <cstdint>
-#include <iostream>
 #include <set>
 
 using namespace mlir;
@@ -3538,30 +3537,6 @@ public:
 };
 } // namespace
 
-namespace { // Start of rearrangement ops utility functions
-// Extracts shape as vector of int64_t from vector of Value
-SmallVector<int64_t> getIntShapeFromValues(ArrayRef<Value> vals) {
-  SmallVector<int64_t> shape;
-  shape.reserve(vals.size());
-  for (Value v : vals) {
-    int64_t cst_val;
-    if (matchPattern(v, m_TorchConstantInt(&cst_val))) {
-      shape.push_back(cst_val);
-    } else {
-      shape.push_back(kUnknownSize);
-    }
-  }
-  return shape;
-}
-
-// Converts a vector of Value (shape dimensions) into a ValueTensorType
-ValueTensorType getTypeFromShape(ArrayRef<Value> vals, Type inOptionalDType) {
-  SmallVector<int64_t> intShape = getIntShapeFromValues(vals);
-  return ValueTensorType::get(vals[0].getContext(), llvm::ArrayRef(intShape),
-                              inOptionalDType);
-}
-} // namespace
-
 // Decompose aten.pixel_shuffle into: prims.split_dim, aten.permute, and
 // prims.collapse operations.
 //
@@ -3611,18 +3586,9 @@ public:
 
     auto nLeadingDims = inRank - 3;
 
-    // Get the size of the dimension 'i'. Note the use of 'createOrFold' instead
-    // of 'create': if the dimension size is known, then the AtenSizeIntOp is
-    // folded to a ConstantOp.
-    auto getDimSize = [&](uint64_t i) -> Value {
-      Value dim =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
-      return rewriter.createOrFold<AtenSizeIntOp>(loc, inValue, dim);
-    };
-
-    auto inC = getDimSize(inRank - 3);
-    auto inH = getDimSize(inRank - 2);
-    auto inW = getDimSize(inRank - 1);
+    auto inC = getDimSize(rewriter, loc, inValue, inRank - 3);
+    auto inH = getDimSize(rewriter, loc, inValue, inRank - 2);
+    auto inW = getDimSize(rewriter, loc, inValue, inRank - 1);
 
     auto factor = op.getUpscaleFactor();
 
@@ -3716,6 +3682,8 @@ public:
 //
 // We want to do the exact opposite of aten.pixel_shuffle
 //
+// 'r' is referred to as the 'downscale factor' or just 'factor' below.
+//
 // If input is a tensor of shape
 //     (*leading_dims, C, H*r, W*r),
 //
@@ -3730,7 +3698,6 @@ public:
 //    X = X.collapse(...)       # shape (*leading_dims, C, r*r, H, W)
 //    X = X.collapse(...)       # shape (*leading_dims, C*r*r, H, W)
 //
-// 'r' above is referred to as the 'downscale factor' or just 'factor' below.
 namespace {
 class DecomposeAtenPixelUnshuffleOp
     : public OpRewritePattern<AtenPixelUnshuffleOp> {
@@ -3761,41 +3728,11 @@ public:
 
     const auto inOptionalDType = inType.getOptionalDtype();
 
-    auto getTypeFromShape = [inOptionalDType](auto &&vals) {
-      // Get a vector of integers from a vector of Values.
-      auto getIntShape = [](auto &&vals) {
-        SmallVector<int64_t> shape;
-        shape.reserve(vals.size());
-        for (auto v : vals) {
-          int64_t cst_val;
-          if (matchPattern(v, m_TorchConstantInt(&cst_val))) {
-            shape.push_back(cst_val);
-          } else {
-            shape.push_back(kUnknownSize);
-          }
-        }
-        return shape;
-      };
-
-      const auto intShape = getIntShape(vals);
-      return ValueTensorType::get(vals[0].getContext(),
-                                  llvm::ArrayRef(intShape), inOptionalDType);
-    };
-
     auto nLeadingDims = inRank - 3;
 
-    // Get the size of the dimension 'i'. Note the use of 'createOrFold' instead
-    // of 'create': if the dimension size is known, then the AtenSizeIntOp is
-    // folded to a ConstantOp.
-    auto getDimSize = [&](uint64_t i) -> Value {
-      Value dim =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
-      return rewriter.createOrFold<AtenSizeIntOp>(loc, inValue, dim);
-    };
-
-    auto inC = getDimSize(inRank - 3);
-    auto inH = getDimSize(inRank - 2);
-    auto inW = getDimSize(inRank - 1);
+    auto inC = getDimSize(rewriter, loc, inValue, inRank - 3);
+    auto inH = getDimSize(rewriter, loc, inValue, inRank - 2);
+    auto inW = getDimSize(rewriter, loc, inValue, inRank - 1);
 
     auto factor = op.getDownscaleFactor();
 
@@ -3822,9 +3759,6 @@ public:
       leadingDims.push_back(leadingDimSize);
     }
 
-    SmallVector<Value> partiallyExpandedShape = leadingDims;
-    partiallyExpandedShape.append({inC, outH, factor, inW});
-
     SmallVector<Value> prePermuteShape = leadingDims;
     prePermuteShape.append({inC, outH, factor, outW, factor});
 
@@ -3848,28 +3782,31 @@ public:
         loc, Torch::ListType::get(Torch::IntType::get(op->getContext())),
         permutation);
 
+    SmallVector<Value> heightSplitShape = leadingDims;
+    heightSplitShape.append({inC, outH, factor, inW});
+
     // Split input channel inH -> (outH, factor)
     auto partiallyExpanded =
         rewriter
             .create<PrimsSplitDimOp>(
-                loc, getTypeFromShape(partiallyExpandedShape), inValue,
-                dimensionConstants[nLeadingDims + 1], outH)
+                loc, getTypeFromShape(heightSplitShape, inOptionalDType),
+                inValue, dimensionConstants[nLeadingDims + 1], outH)
             .getResult();
 
     // Split new dimension inW -> (outW, factor)
     auto fullyExpanded = rewriter.create<PrimsSplitDimOp>(
-        loc, getTypeFromShape(prePermuteShape), partiallyExpanded,
-        dimensionConstants[nLeadingDims + 3], outW);
+        loc, getTypeFromShape(prePermuteShape, inOptionalDType),
+        partiallyExpanded, dimensionConstants[nLeadingDims + 3], outW);
 
     // Perform the permutation
-    auto permuted =
-        rewriter.create<AtenPermuteOp>(loc, getTypeFromShape(postPermuteShape),
-                                       fullyExpanded, permuteDimsOrder);
+    auto permuted = rewriter.create<AtenPermuteOp>(
+        loc, getTypeFromShape(postPermuteShape, inOptionalDType), fullyExpanded,
+        permuteDimsOrder);
 
     // Collapse final 2 dimension
     auto partiallyCollapsed = rewriter.create<PrimsCollapseOp>(
-        loc, getTypeFromShape(partiallyCollapsedShape), permuted,
-        dimensionConstants[nLeadingDims + 1],
+        loc, getTypeFromShape(partiallyCollapsedShape, inOptionalDType),
+        permuted, dimensionConstants[nLeadingDims + 1],
         dimensionConstants[nLeadingDims + 2]);
 
     // Collapse back to original rank
@@ -3936,23 +3873,14 @@ public:
 
     auto numOfSpatialDims = inRank - 2;
 
-    // Get the size of the dimension 'i'. Note the use of 'createOrFold'
-    // instead of 'create': if the dimension size is known, then the
-    // AtenSizeIntOp is folded to a ConstantOp.
-    auto getDimSize = [&rewriter, &inValue, loc](uint64_t i) -> Value {
-      Value dim =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(i));
-      return rewriter.createOrFold<AtenSizeIntOp>(loc, inValue, dim);
-    };
-
     // The channel dimension is always the second dimension. PyTorch errors out
     // if the batch dimension (first dimension) is not present. See comment at
     // the top of this class for details.
-    auto inC = getDimSize(1);
+    auto inC = getDimSize(rewriter, loc, inValue, 1);
     SmallVector<Value> inSpatialDims;
     inSpatialDims.reserve(numOfSpatialDims);
     for (unsigned i = 2; i < (2 + numOfSpatialDims); ++i) {
-      inSpatialDims.push_back(getDimSize(i));
+      inSpatialDims.push_back(getDimSize(rewriter, loc, inValue, i));
     }
 
     auto groups = op.getGroups();

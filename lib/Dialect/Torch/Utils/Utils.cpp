@@ -710,3 +710,41 @@ Type Torch::getDefaultAccType(PatternRewriter &rewriter, Type inputType) {
     return rewriter.getI64Type();
   return inputType;
 }
+
+// Extracts shape as vector of int64_t from vector of Value
+// This function attempts to match each `Value` in the input list to a
+// Torch constant integer. If successful, the constant value is used
+// in the output shape vector. Otherwise, a sentinel value (`kUnknownSize`)
+// is inserted to indicate an unknown dimension.
+SmallVector<int64_t> Torch::getIntShapeFromValues(ArrayRef<Value> vals) {
+  SmallVector<int64_t> shape;
+  shape.reserve(vals.size());
+  for (Value v : vals) {
+    int64_t cst_val;
+    if (matchPattern(v, m_TorchConstantInt(&cst_val))) {
+      shape.push_back(cst_val);
+    } else {
+      shape.push_back(kUnknownSize);
+    }
+  }
+  return shape;
+}
+
+// Converts a vector of Value (shape dimensions) into a ValueTensorType
+ValueTensorType Torch::getTypeFromShape(ArrayRef<Value> vals,
+                                        Type inOptionalDType) {
+  SmallVector<int64_t> intShape = getIntShapeFromValues(vals);
+  return ValueTensorType::get(vals[0].getContext(), llvm::ArrayRef(intShape),
+                              inOptionalDType);
+}
+
+// Returns the size of the dimension 'i' of a given tensor `inValue`.
+// Note the use of 'createOrFold'
+// instead of 'create': if the dimension size is statically known, then the
+// AtenSizeIntOp is folded to a ConstantOp.
+Value Torch::getDimSize(PatternRewriter &rewriter, Location loc, Value inValue,
+                        uint64_t dimIndex) {
+  Value dim =
+      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dimIndex));
+  return rewriter.createOrFold<AtenSizeIntOp>(loc, inValue, dim);
+}
