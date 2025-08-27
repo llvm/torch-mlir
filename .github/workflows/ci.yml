@@ -22,7 +22,6 @@ jobs:
       fail-fast: true
       matrix:
         torch-version: [nightly]
-        py_version: [cp311-cp311]
         python-version: ["3.11"]
 
     name: Build and Test (Linux, torch-${{ matrix.torch-version }}, assertions)
@@ -49,16 +48,18 @@ jobs:
           key: ${{ github.job }}-${{ matrix.torch-version }}
           save: ${{ needs.setup.outputs.write-caches == 1 }}
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
+      - name: Setup workspace
+        uses: ./.github/actions/setup-build
+
+      # - name: Set up Python ${{ matrix.python-version }}
+      #   uses: actions/setup-python@v5
+      #   with:
+      #     python-version: ${{ matrix.python-version }}
 
       - name: Display Python version
         run: |
           python -c "import sys; print(sys.version)"
           which python
-
 
       - name: Install python deps (torch-${{ matrix.torch-version }})
         run: |
@@ -67,9 +68,8 @@ jobs:
 
       - name: Build project
         run: |
-          cd $GITHUB_WORKSPACE
-          cache_dir="${{ env.CACHE_DIR }}" \
-          build_dir=build_stable ./build_tools/python_deploy/build_linux_ci.sh
+          export cache_dir="${{ env.CACHE_DIR }}"
+          bash build_tools/ci/build_posix.sh
 
       - name: Save cache
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
