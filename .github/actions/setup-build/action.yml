@@ -29,7 +29,7 @@ runs:
       if: ${{ runner.arch == 'X64' }}
       uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
       with:
-        python-version: '3.11'
+        python-version: '3.10'
 
     - name: Install MLIR Python depends
       if: ${{ runner.os != 'Linux' }}
