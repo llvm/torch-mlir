@@ -21,7 +21,10 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        torch-version: [nightly, stable]
+        torch-version: [nightly]
+        py_version: [cp311-cp311]
+        python-version: ["3.11"]
+
     name: Build and Test (Linux, torch-${{ matrix.torch-version }}, assertions)
     runs-on: torch-mlir-cpubuilder-linux-x86-64-scale
     env:
@@ -40,29 +43,33 @@ jobs:
           restore-keys: |
             build-test-cpp-asserts-manylinux-${{ matrix.torch-version }}-v2-
 
-      - name: "Setting up Python"
-        run: |
-          sudo apt update
-          sudo apt install software-properties-common -y
-          sudo add-apt-repository ppa:deadsnakes/ppa -y
-          sudo apt install python3.10 python3-pip -y
-          sudo apt-get install python3.10-dev python3.10-venv build-essential -y
-
-      - name: Install python deps (torch-${{ matrix.torch-version }})
-        run: |
-          export cache_dir="${{ env.CACHE_DIR }}"
-          bash build_tools/ci/install_python_deps.sh ${{ matrix.torch-version }}
-
       - name: ccache
         uses: hendrikmuhs/ccache-action@63069e3931dedbf3b63792097479563182fe70d1 # v1.2.18
         with:
           key: ${{ github.job }}-${{ matrix.torch-version }}
           save: ${{ needs.setup.outputs.write-caches == 1 }}
 
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Display Python version
+        run: |
+          python -c "import sys; print(sys.version)"
+          which python
+
+
+      - name: Install python deps (torch-${{ matrix.torch-version }})
+        run: |
+          cd $GITHUB_WORKSPACE
+          ./build_tools/ci/install_python_deps.sh ${{ matrix.torch-version }}
+
       - name: Build project
         run: |
-          export cache_dir="${{ env.CACHE_DIR }}"
-          bash build_tools/ci/build_posix.sh
+          cd $GITHUB_WORKSPACE
+          cache_dir="${{ env.CACHE_DIR }}" \
+          build_dir=build_stable ./build_tools/python_deploy/build_linux_ci.sh
 
       - name: Save cache
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
