@@ -21,8 +21,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        torch-version: [nightly]
-        python-version: ["3.11"]
+        torch-version: [nightly, stable]
 
     name: Build and Test (Linux, torch-${{ matrix.torch-version }}, assertions)
     runs-on: torch-mlir-cpubuilder-linux-x86-64-scale
@@ -48,15 +47,10 @@ jobs:
           key: ${{ github.job }}-${{ matrix.torch-version }}
           save: ${{ needs.setup.outputs.write-caches == 1 }}
 
-      - name: Setup workspace
+      - name: Setup workspace and python
         uses: ./.github/actions/setup-build
 
-      # - name: Set up Python ${{ matrix.python-version }}
-      #   uses: actions/setup-python@v5
-      #   with:
-      #     python-version: ${{ matrix.python-version }}
-
-      - name: Display Python version
+      - name: Display Python version and path
         run: |
           python -c "import sys; print(sys.version)"
           which python

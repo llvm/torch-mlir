@@ -3492,6 +3492,13 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
+    "IndexPut1DFloatNonAccumulateModule_basic",
+    "IndexPut1DIntNonAccumulateModule_basic",
+    "IndexPutHackedTwin1DFloatNonAccumulateModule_basic",
+    "IndexPutHackedTwin1DIntNonAccumulateModule_basic",
+    "IndexPutImpl1DFloatNonAccumulateModule_basic",
+    "IndexPutImpl1DIntNonAccumulateModule_basic",
+    "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
     "NumpyTRank0Module_basic",
     "Permute0RankModule_basic",
     "ArgsortTensor_basic",
