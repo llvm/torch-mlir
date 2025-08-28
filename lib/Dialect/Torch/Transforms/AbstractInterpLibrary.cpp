@@ -6172,7 +6172,7 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "    %true = torch.constant.bool true\n"
 "    %none = torch.constant.none\n"
 "    %str_0 = torch.constant.str \"AssertionError: \"\n"
-"    %str_1 = torch.constant.str \"The dims of tensor b ({}) must be less than or equal tothe dims of tensor a ({}) \"\n"
+"    %str_1 = torch.constant.str \"The dims of tensor b ({}) must be less than or equal to the dims of tensor a ({}) \"\n"
 "    %int0 = torch.constant.int 0\n"
 "    %int1 = torch.constant.int 1\n"
 "    %0 = torch.aten.len.t %arg0 : !torch.list<int> -> !torch.int\n"
