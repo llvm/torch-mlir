@@ -2,19 +2,22 @@
 
 set -eu -o errtrace
 
-this_dir="$(cd $(dirname $0) && pwd)"
-repo_root="$(cd $this_dir/../.. && pwd)"
-build_dir="$repo_root/build"
+this_dir="$(cd "$(dirname "$0")" && pwd)"
+repo_root="$(cd "$this_dir"/../.. && pwd)"
 install_dir="$repo_root/install"
+
+# Setup build dir
+build_dir="${build_dir:-${repo_root}/build}"
 mkdir -p "$build_dir"
-build_dir="$(cd $build_dir && pwd)"
-cache_dir="${cache_dir:-}"
+build_dir="$(cd "${build_dir}" && pwd)"
+echo "Building in ${build_dir}"
 
 # Setup cache dir.
+cache_dir="${cache_dir:-}"
 if [ -z "${cache_dir}" ]; then
   cache_dir="${repo_root}/.build-cache"
   mkdir -p "${cache_dir}"
-  cache_dir="$(cd ${cache_dir} && pwd)"
+  cache_dir="$(cd "${cache_dir}" && pwd)"
 fi
 echo "Caching to ${cache_dir}"
 mkdir -p "${cache_dir}/ccache"
@@ -34,7 +37,7 @@ export CMAKE_CXX_COMPILER_LAUNCHER=ccache
 # Clear ccache stats.
 ccache -z
 
-cd $repo_root
+cd "$repo_root"
 
 echo "::group::CMake configure"
 cmake -S "$repo_root/externals/llvm-project/llvm" -B "$build_dir" \
@@ -59,7 +62,7 @@ cmake --build "$build_dir" --target tools/torch-mlir/all -- -k 0
 echo "::endgroup::"
 
 echo "::group::Unit tests"
-cmake --build $repo_root/build --target check-torch-mlir-all
+cmake --build "$build_dir" --target check-torch-mlir-all
 echo "::endgroup::"
 
 # Show ccache stats.
