@@ -599,7 +599,7 @@ def MaxPool2dCeilModeFullDimIndivisibleByStrideModule_basic(module, tu: TestUtil
     module.forward(tu.rand(1, 1, 75, 75, low=-1))
 
 
-class MaxPool2dSingleIntTupleParamsModule(torch.nn.Module):
+class MaxPool2dSingleIntTupleKernelModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.mpd = torch.nn.MaxPool2d(
@@ -619,8 +619,8 @@ class MaxPool2dSingleIntTupleParamsModule(torch.nn.Module):
         return self.mpd(x)
 
 
-@register_test_case(module_factory=lambda: MaxPool2dSingleIntTupleParamsModule())
-def MaxPool2dSingleIntTupleParamsModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: MaxPool2dSingleIntTupleKernelModule())
+def MaxPool2dSingleIntTupleKernelModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 20, 20, low=0.5, high=1.0))
 
 
@@ -796,7 +796,7 @@ def MaxPool3dCeilModeTrueModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20, 20, low=0.5, high=1.0))
 
 
-class MaxPool3dSingleIntTupleParamsModule(torch.nn.Module):
+class MaxPool3dSingleIntTupleDilationModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.mpd = torch.nn.MaxPool3d(
@@ -817,8 +817,8 @@ class MaxPool3dSingleIntTupleParamsModule(torch.nn.Module):
         return self.mpd(x)
 
 
-@register_test_case(module_factory=lambda: MaxPool3dSingleIntTupleParamsModule())
-def MaxPool3dSingleIntTupleParamsModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: MaxPool3dSingleIntTupleDilationModule())
+def MaxPool3dSingleIntTupleDilationModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 20, 20, 20, low=0.5, high=1.0))
 
 
@@ -1910,7 +1910,7 @@ def AvgPool3dCountIncludePadFalseWithoutPadding_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 3, 12, 12, 12, low=-1))
 
 
-class AvgPool3dSingleIntTupleParamsModule(torch.nn.Module):
+class AvgPool3dSingleIntTupleStrideModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.apd = torch.nn.AvgPool3d(
@@ -1930,8 +1930,8 @@ class AvgPool3dSingleIntTupleParamsModule(torch.nn.Module):
         return self.apd(x)
 
 
-@register_test_case(module_factory=lambda: AvgPool3dSingleIntTupleParamsModule())
-def AvgPool3dSingleIntTupleParamsModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: AvgPool3dSingleIntTupleStrideModule())
+def AvgPool3dSingleIntTupleStrideModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 20, 20, 20, low=0.5, high=1.0))
 
 
