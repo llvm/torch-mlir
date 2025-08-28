@@ -2,15 +2,15 @@
 
 set -eu -o errtrace
 
-this_dir="$(cd $(dirname $0) && pwd)"
-repo_root="$(cd $this_dir/../.. && pwd)"
+this_dir="$(cd "$(dirname "$0")" && pwd)"
+repo_root="$(cd "$this_dir"/../.. && pwd)"
 
 function _check_file_not_changed_by() {
   # _check_file_not_changed_by <cmd> <file>
   cmd="$1"
   file="$2"
-  file_backup="$PWD/$(basename $file)"
-  file_new="$PWD/$(basename $file).new"
+  file_backup="$PWD/$(basename "$file")"
+  file_new="$PWD/$(basename "$file").new"
   # Save the original file.
   cp "$file" "$file_backup"
   # Run the command to regenerate it.
@@ -37,9 +37,9 @@ function _check_file_not_changed_by() {
 }
 
 echo "::group:: Check that update_abstract_interp_lib.sh has been run"
-_check_file_not_changed_by $repo_root/build_tools/update_abstract_interp_lib.sh $repo_root/lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp
+_check_file_not_changed_by "$repo_root"/build_tools/update_abstract_interp_lib.sh "$repo_root"/lib/Dialect/Torch/Transforms/AbstractInterpLibrary.cpp
 echo "::endgroup::"
 
 echo "::group:: Check that update_torch_ods.sh has been run"
-_check_file_not_changed_by $repo_root/build_tools/update_torch_ods.sh $repo_root/include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
+_check_file_not_changed_by "$repo_root"/build_tools/update_torch_ods.sh "$repo_root"/include/torch-mlir/Dialect/Torch/IR/GeneratedTorchOps.td
 echo "::endgroup::"
