@@ -847,9 +847,29 @@ func.func @native_layer_norm_mixed_dtypes(%input: !torch.vtensor<[1,56,56,96],bf
   return %result, %mean, %rstd : !torch.vtensor<[1,56,56,96],bf16>, !torch.vtensor<[1,56,56,1],f32>, !torch.vtensor<[1,56,56,1],f32>
 }
 
-
 // -----
 
+
+// CHECK-LABEL: func.func @torch.aten.broadcast_tensors
+// CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[1,3],f32>
+// CHECK-SAME: %[[ARG1:.*]]: !torch.vtensor<[2,1],f32>
+// CHECK-DAG: %[[INT2:.*]] = torch.constant.int 2
+// CHECK-DAG: %[[INT3:.*]] = torch.constant.int 3
+// CHECK-DAG: %[[TRUE:.*]] = torch.constant.bool true
+// CHECK: torch.runtime.assert %[[TRUE]], "tensors are not broadcast compatible"
+// CHECK: torch.runtime.assert %[[TRUE]], "tensors are not broadcast compatible"
+// CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[INT2]], %[[INT3]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[B0:.*]] = torch.aten.broadcast_to %[[ARG0]], %[[SHAPE]] : !torch.vtensor<[1,3],f32>, !torch.list<int> -> !torch.vtensor<[2,3],f32>
+// CHECK: %[[B1:.*]] = torch.aten.broadcast_to %[[ARG1]], %[[SHAPE]] : !torch.vtensor<[2,1],f32>, !torch.list<int> -> !torch.vtensor<[2,3],f32>
+// CHECK: %[[LIST:.*]] = torch.prim.ListConstruct %[[B0]], %[[B1]] : (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>) -> !torch.list<vtensor<[2,3],f32>>
+// CHECK: return %[[LIST]] : !torch.list<vtensor<[2,3],f32>>
+func.func @torch.aten.broadcast_tensors(%arg0: !torch.vtensor<[1,3],f32>, %arg1: !torch.vtensor<[2,1],f32>) -> !torch.list<vtensor<[2,3], f32>>  {
+  %0 = torch.prim.ListConstruct %arg0, %arg1 : (!torch.vtensor<[1,3],f32>, !torch.vtensor<[2,1],f32>) -> !torch.list<vtensor>
+  %1 = torch.aten.broadcast_tensors %0 : !torch.list<vtensor> -> !torch.list<vtensor<[2,3],f32>>
+  return %1 : !torch.list<vtensor<[2,3],f32>>
+}
+
+// -----
 
 // CHECK-LABEL: func @channel_shuffle
 func.func @channel_shuffle(%arg0: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtensor<[1,8,4,4],f32> attributes {torch.assume_strict_symbolic_shapes} {
