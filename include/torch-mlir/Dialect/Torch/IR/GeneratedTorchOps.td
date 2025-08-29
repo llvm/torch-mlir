@@ -11113,6 +11113,7 @@ def Torch_AtenAllBoolOp : Torch_Op<"aten.all.bool", [
       printDefaultTorchOp(printer, *this, 1, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenAllDimOp : Torch_Op<"aten.all.dim", [
@@ -12097,6 +12098,29 @@ def Torch_AtenBroadcastToOp : Torch_Op<"aten.broadcast_to", [
     }
   }];
   let hasFolder = 1;
+}
+
+def Torch_AtenBroadcastTensorsOp : Torch_Op<"aten.broadcast_tensors", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::broadcast_tensors : (Tensor[]) -> (Tensor[])`";
+  let arguments = (ins
+    AnyTorchListOfTensorType:$tensors
+  );
+  let results = (outs
+    AnyTorchListOfTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenBroadcastTensorsOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenBroadcastTensorsOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
 }
 
 def Torch_AtenIndexTensorOp : Torch_Op<"aten.index.Tensor", [

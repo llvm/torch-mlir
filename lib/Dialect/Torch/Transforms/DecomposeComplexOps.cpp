@@ -24,7 +24,6 @@
 #include "llvm/ADT/StringSet.h"
 #include <cstdint>
 #include <set>
-
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -3415,7 +3414,7 @@ public:
     // calculate common shape for broadcast
     SmallVector<int64_t> broadcastShape;
     SmallVector<Value> broadcastShapeValue;
-    computeBroadcastShape(rewriter, loc, self, other, broadcastShape,
+    computeBroadcastShape(rewriter, loc, {self, other}, broadcastShape,
                           broadcastShapeValue);
 
     Type broadcastType = ValueTensorType::get(
@@ -9209,7 +9208,7 @@ class DecomposeAtenCosineSimilarityOp
     // Broadcast x1 and x2 to the same shape
     SmallVector<int64_t> indexBroadcastShapeInt;
     SmallVector<Value> indexBroadcastShapeValue;
-    computeBroadcastShape(rewriter, loc, x1, x2, indexBroadcastShapeInt,
+    computeBroadcastShape(rewriter, loc, {x1, x2}, indexBroadcastShapeInt,
                           indexBroadcastShapeValue);
     Type dtype = cast<BaseTensorType>(x1.getType()).getOptionalDtype();
     Type broadcastType = ValueTensorType::get(
@@ -11582,7 +11581,7 @@ public:
     auto resultTy = dyn_cast<BaseTensorType>(op.getType());
     SmallVector<int64_t> broadcastShape;
     SmallVector<Value> broadcastShapeValue;
-    computeBroadcastShape(rewriter, loc, input, value, broadcastShape,
+    computeBroadcastShape(rewriter, loc, {input, value}, broadcastShape,
                           broadcastShapeValue);
 
     auto broadcastType = ValueTensorType::get(
@@ -12681,6 +12680,52 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenBroadcastTensorsOp
+    : public OpRewritePattern<AtenBroadcastTensorsOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenBroadcastTensorsOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    SmallVector<Value> tensors;
+    if (!getListConstructElements(op.getTensors(), tensors))
+      return rewriter.notifyMatchFailure(op, "Unable to get tensors");
+    int64_t numTensors = tensors.size();
+
+    SmallVector<int64_t> broadcastShape;
+    SmallVector<Value> broadcastShapeValue;
+
+    computeBroadcastShape(rewriter, loc, tensors, broadcastShape,
+                          broadcastShapeValue);
+
+    auto resType = cast<BaseTensorType>(tensors[0].getType());
+    auto dtype = resType.getDtype();
+    Type broadcastType = ValueTensorType::get(
+        op.getContext(), llvm::ArrayRef(broadcastShape), dtype);
+
+    Value broadcastShapeTorchList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        broadcastShapeValue);
+
+    SmallVector<Value> broadcastedValues;
+    for (int64_t i = 0; i < numTensors; i++) {
+      auto inputTensor = tensors[i];
+      auto broadcastedVal = rewriter.create<AtenBroadcastToOp>(
+          loc, broadcastType, inputTensor, broadcastShapeTorchList);
+      broadcastedValues.push_back(broadcastedVal);
+    }
+
+    auto broadcastedValuesList = rewriter.create<Torch::PrimListConstructOp>(
+        loc, Torch::ListType::get(broadcastType), broadcastedValues);
+
+    rewriter.replaceOp(op, broadcastedValuesList);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenAsStridedOp : public OpRewritePattern<AtenAsStridedOp> {
 public:
   using OpRewritePattern<AtenAsStridedOp>::OpRewritePattern;
@@ -12813,8 +12858,8 @@ public:
       // calculate common shape for broadcast
       SmallVector<int64_t> broadcastShape;
       SmallVector<Value> broadcastShapeValue;
-      computeBroadcastShape(rewriter, loc, finalIndices, index, broadcastShape,
-                            broadcastShapeValue);
+      computeBroadcastShape(rewriter, loc, {finalIndices, index},
+                            broadcastShape, broadcastShapeValue);
       Type broadcastType = ValueTensorType::get(
           context, llvm::ArrayRef(broadcastShape), si64Type);
 
@@ -13075,6 +13120,7 @@ public:
         DecomposeAtenAdaptivePool2dOp<AtenAdaptiveMaxPool2dOp>>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenAdaptivePool2dOp<AtenAdaptiveAvgPool2dOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenBroadcastTensorsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);

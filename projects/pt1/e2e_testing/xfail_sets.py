@@ -515,6 +515,11 @@ FX_IMPORTER_XFAIL_SET = {
     "ReflectionPad3dModuleRight_basic",
     "ReflectionPad3dModuleFront_basic",
     "ReflectionPad3dModuleBack_basic",
+    # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
+    "ElementwiseClampMaxModule_bfloat16",
+    "ElementwiseClampMinModule_bfloat16",
+    "ElementwiseClampModule_bfloat16",
+    "ElementwiseReluModule_bfloat16",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
@@ -979,6 +984,11 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "MaxPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
     "AtenAsStridedModule_basic",
     "AtenAsStridedNoStorageOffsetModule_basic",
+    # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
+    "ElementwiseClampMaxModule_bfloat16",
+    "ElementwiseClampMinModule_bfloat16",
+    "ElementwiseClampModule_bfloat16",
+    "ElementwiseReluModule_bfloat16",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
@@ -3408,6 +3418,11 @@ ONNX_XFAIL_SET = {
     # RuntimeError: Given input size: (1x1x1). Calculated output size: (1x0x0). Output size is too small
     "AvgPool2dWithoutPadFullDimIndivisibleByStrideModule_basic",
     "MaxPool2dWithoutPadFullDimIndivisibleByStrideModule_basic",
+    # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<?x?xbf16>'
+    "ElementwiseClampMaxModule_bfloat16",
+    "ElementwiseClampMinModule_bfloat16",
+    "ElementwiseClampModule_bfloat16",
+    "ElementwiseReluModule_bfloat16",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
@@ -3432,7 +3447,9 @@ if torch_version_for_comparison() < version.parse("2.4.0.dev"):
         "ElementwiseBitwiseAndStaticShapeModule_basic",
     }
 
-if torch_version_for_comparison() >= version.parse("2.5.0.dev"):
+if torch_version_for_comparison() >= version.parse(
+    "2.5.0.dev"
+) and torch_version_for_comparison() < version.parse("2.9.0.dev"):
     ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
         # ERROR: value (Tensor with shape=[2, 3, 8, 20], dtype=torch.float32, min=+nan, max=+nan, mean=+nan) is not close to golden value (Tensor with shape=[2, 3, 8, 20], dtype=torch.float32, min=-2.394, max=+2.454, mean=-0.02828)
         "ScaledDotProductAttentionBoolMaskModule_basic",
@@ -3487,6 +3504,7 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
     "StdCorrectionEmptyDimModule_basic",
     "VarCorrectionEmptyDimModule_basic",
     "VarDimEmptyDimModule_basic",
+    "BroadcastTensorsModule_basic",
     # Runtime op verification: rank mismatch in memref.cast
     "ViewSizeFromOtherTensor_basic",
     "SliceOutOfLowerBoundEndIndexModule_basic",
@@ -3989,6 +4007,11 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "SplitTensorNegativeDimModule_basic",
     "SplitWithSizesListUnpackModule_basic",
     "SplitWithSizes_Module_basic",
+    # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
+    "ElementwiseClampMaxModule_bfloat16",
+    "ElementwiseClampMinModule_bfloat16",
+    "ElementwiseClampModule_bfloat16",
+    "ElementwiseReluModule_bfloat16",
 }
 
 ONNX_TOSA_CRASHING_SET = {
@@ -4274,6 +4297,8 @@ ONNX_TOSA_XFAIL_SET = {
     "BoolIntTrueModule_basic",
     "BroadcastDynamicDimModule_basic",
     "BroadcastToModule_basic",
+    "BroadcastTensorsModule_basic",
+    "BroadcastTensorsModuleList_multiple_ranks",
     "BucketizeTensorFloatModule_basic",
     "BucketizeTensorModule_basic",
     "BucketizeTensorOutInt32RightModule_basic",
