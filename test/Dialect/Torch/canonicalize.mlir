@@ -1598,7 +1598,6 @@ func.func @torch.prim.unchecked_cast$derefine(%arg0: !torch.list<int>) -> !torch
 
 // CHECK-LABEL:   func.func @torch.aten.Int.Tensor(
 // CHECK-SAME:            %[[NUM:.*]]: !torch.int) -> !torch.int {
-// CHECK:           %[[T:.*]] = torch.prim.NumToTensor.Scalar %[[NUM]] : !torch.int -> !torch.vtensor<[],si64>
 // CHECK:           return %[[NUM]] : !torch.int
 func.func @torch.aten.Int.Tensor(%arg0: !torch.int) -> !torch.int {
   %tensor = torch.prim.NumToTensor.Scalar %arg0: !torch.int -> !torch.vtensor<[],si64>
@@ -1626,7 +1625,6 @@ func.func @torch.aten.Int.float() -> !torch.int {
 
 // CHECK-LABEL:   func.func @torch.aten.Float.Tensor(
 // CHECK-SAME:            %[[NUM:.*]]: !torch.float) -> !torch.float {
-// CHECK:           %[[T:.*]] = torch.prim.NumToTensor.Scalar %[[NUM]] : !torch.float -> !torch.vtensor<[],f64>
 // CHECK:           return %[[NUM]] : !torch.float
 func.func @torch.aten.Float.Tensor(%arg0: !torch.float) -> !torch.float {
   %tensor = torch.prim.NumToTensor.Scalar %arg0: !torch.float -> !torch.vtensor<[],f64>
