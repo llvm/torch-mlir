@@ -6988,7 +6988,7 @@ class AtenAsStridedUnknownSizeModule(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        return torch.ops.aten.as_strided(x, size=(3, 4), stride=(2, 5))
+        return torch.ops.aten.as_strided(x, size=(3, 4), stride=(2, 2))
 
 
 @register_test_case(module_factory=lambda: AtenAsStridedUnknownSizeModule())
