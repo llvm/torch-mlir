@@ -6974,3 +6974,23 @@ class AtenAsStridedNoStorageOffsetModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenAsStridedNoStorageOffsetModule())
 def AtenAsStridedNoStorageOffsetModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(12, 13))
+
+
+class AtenAsStridedUnknownSizeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, 13], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.as_strided(x, size=(3, 4), stride=(2, 5))
+
+
+@register_test_case(module_factory=lambda: AtenAsStridedUnknownSizeModule())
+def AtenAsStridedUnknownSizeModule_basic(module, tu: TestUtils):
+    module.forward(torch.randn(12, 13))
