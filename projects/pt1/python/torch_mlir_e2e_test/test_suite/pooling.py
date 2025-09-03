@@ -449,6 +449,107 @@ def MaxPool2dStaticCeilModeTrueReduceOutputModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 6, 20, 10, low=0.5, high=1.0))
 
 
+class MaxPool2dWithoutPadFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp2d = torch.nn.MaxPool2d(
+            kernel_size=[3, 3], stride=[2, 2], padding=[0, 0]
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mp2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: MaxPool2dWithoutPadFullDimIndivisibleByStrideModule()
+)
+def MaxPool2dWithoutPadFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 56, 56, low=-1))
+
+
+class MaxPool2dWithPadFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp2d = torch.nn.MaxPool2d(
+            kernel_size=[3, 3], stride=[2, 2], padding=[1, 1]
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mp2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: MaxPool2dWithPadFullDimIndivisibleByStrideModule()
+)
+def MaxPool2dWithPadFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 112, 112, low=-1))
+
+
+class MaxPool2dFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp2d = torch.nn.MaxPool2d(
+            kernel_size=[3, 3], stride=[3, 3], padding=[1, 1]
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mp2d(x)
+
+
+@register_test_case(module_factory=lambda: MaxPool2dFullDimIndivisibleByStrideModule())
+def MaxPool2dFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 75, 75, low=-1))
+
+
+class MaxPool2dCeilModeFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp2d = torch.nn.MaxPool2d(
+            kernel_size=[3, 3],
+            stride=[3, 3],
+            padding=[1, 1],
+            ceil_mode=True,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mp2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: MaxPool2dCeilModeFullDimIndivisibleByStrideModule()
+)
+def MaxPool2dCeilModeFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 75, 75, low=-1))
+
+
 # ==============================================================================
 
 
@@ -1506,6 +1607,117 @@ def AvgPool2dSingleIntTupleParamsIncludePadModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 4, 20, 20, low=0.5, high=1.0))
 
 
+class AvgPool2dWithoutPadFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[2, 2],
+            padding=[0, 0],
+            count_include_pad=False,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dWithoutPadFullDimIndivisibleByStrideModule()
+)
+def AvgPool2dWithoutPadFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 56, 56, low=-1))
+
+
+class AvgPool2dWithPadFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[2, 2],
+            padding=[1, 1],
+            count_include_pad=False,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dWithPadFullDimIndivisibleByStrideModule()
+)
+def AvgPool2dWithPadFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 112, 112, low=-1))
+
+
+class AvgPool2dFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[3, 3],
+            padding=[1, 1],
+            count_include_pad=False,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dFullDimIndivisibleByStrideModule())
+def AvgPool2dFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 75, 75, low=-1))
+
+
+class AvgPool2dCeilModeFullDimIndivisibleByStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[3, 3],
+            padding=[1, 1],
+            ceil_mode=True,
+            count_include_pad=False,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dCeilModeFullDimIndivisibleByStrideModule()
+)
+def AvgPool2dCeilModeFullDimIndivisibleByStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 75, 75, low=-1))
+
+
 # ==============================================================================
 
 
@@ -2249,6 +2461,62 @@ def AdaptiveMaxPool3dStaticWithIndices_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class MaxUnpool2dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 2, 2, 4], torch.float32, True),
+            ([2, 2, 2, 4], torch.int64, True),
+        ]
+    )
+    def forward(self, x, indices):
+        return torch.ops.aten.max_unpool2d(x, indices, (4, 8))
+
+
+@register_test_case(module_factory=lambda: MaxUnpool2dModule())
+def MaxUnpool2dModule_basic(module, tu: TestUtils):
+    input = tu.rand(2, 2, 4, 8)
+    pool = torch.nn.MaxPool2d(kernel_size=(2, 2), return_indices=True)
+    output, indices = pool(input)
+
+    module.forward(output, indices)
+
+
+# ==============================================================================
+
+
+class MaxUnpool2dModule_3dInput(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 2, 4], torch.float32, True),
+            ([2, 2, 4], torch.int64, True),
+        ]
+    )
+    def forward(self, x, indices):
+        return torch.ops.aten.max_unpool2d(x, indices, (4, 8))
+
+
+@register_test_case(module_factory=lambda: MaxUnpool2dModule_3dInput())
+def MaxUnpool2dModule_3dInput_basic(module, tu: TestUtils):
+    input = tu.rand(2, 4, 8)
+    pool = torch.nn.MaxPool2d(kernel_size=(2, 2), return_indices=True)
+    output, indices = pool(input)
+
+    module.forward(output, indices)
+
+
+# ==============================================================================
+
+
 class MaxUnpool3dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2302,3 +2570,469 @@ def MaxUnpool3dModulePad0_basic(module, tu: TestUtils):
     output, indices = pool(input)
 
     module.forward(output, indices)
+
+
+class AvgPool2dCeilNoPadUnitaryStrides(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[1, 1],
+            padding=[0, 0],
+            ceil_mode=True,
+            count_include_pad=False,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dCeilNoPadUnitaryStrides())
+def AvgPool2dCeilNoPadUnitaryStrides_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilPadNonUnitaryStrides(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[2, 2],
+            padding=[1, 1],
+            ceil_mode=True,
+            count_include_pad=False,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dCeilPadNonUnitaryStrides())
+def AvgPool2dCeilPadNonUnitaryStrides_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilNoPadStridedIncludePadding(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[2, 2],
+            padding=[0, 0],
+            ceil_mode=True,
+            count_include_pad=True,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dCeilNoPadStridedIncludePadding())
+def AvgPool2dCeilNoPadStridedIncludePadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilNoPadUnitaryStrideIncludePadding(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[1, 1],
+            padding=[0, 0],
+            ceil_mode=True,
+            count_include_pad=True,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dCeilNoPadUnitaryStrideIncludePadding()
+)
+def AvgPool2dCeilNoPadUnitaryStrideIncludePadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilPaddingUnitaryStrideIncludePaddingFalse(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[1, 1],
+            padding=[1, 1],
+            ceil_mode=True,
+            count_include_pad=False,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dCeilPaddingUnitaryStrideIncludePaddingFalse()
+)
+def AvgPool2dCeilPaddingUnitaryStrideIncludePaddingFalse_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dFloorNoPadUnitaryStrideIncludePadding(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[1, 1],
+            padding=[0, 0],
+            ceil_mode=False,
+            count_include_pad=True,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dFloorNoPadUnitaryStrideIncludePadding()
+)
+def AvgPool2dFloorNoPadUnitaryStrideIncludePadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dFloorPaddingUnitaryStrideIncludePadding(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[1, 1],
+            padding=[1, 1],
+            ceil_mode=False,
+            count_include_pad=True,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dFloorPaddingUnitaryStrideIncludePadding()
+)
+def AvgPool2dFloorPaddingUnitaryStrideIncludePadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilPaddingUnitaryStrideIncludePadding(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[1, 1],
+            padding=[1, 1],
+            ceil_mode=True,
+            count_include_pad=True,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dCeilPaddingUnitaryStrideIncludePadding()
+)
+def AvgPool2dCeilPaddingUnitaryStrideIncludePadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilPaddingStridedIncludePadding(torch.nn.Module):
+    # Note that in this case the kernel window center will go into the padding.
+    # When this happens the padding elements are counted in the divisor, but
+    # the out of bound elements from the ceiling are not counted
+    # (i.e., clamped from the divisor count).
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 3],
+            stride=[2, 2],
+            padding=[1, 1],
+            ceil_mode=True,
+            count_include_pad=True,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dCeilPaddingStridedIncludePadding())
+def AvgPool2dCeilPaddingStridedIncludePadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dDiffKernelsStridesNoPadCeilPadNotIncluded(torch.nn.Module):
+    # This test captures the torch-mlir issue reported here:
+    # https://github.com/llvm/torch-mlir/issues/4079
+    # The issue was caused by having the ceil_mode = true and
+    # count_include_pad = false. Also the kernel and stride sizes are
+    # different in this test to make sure that they are processed in
+    # the right order.
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 2],
+            stride=[2, 3],
+            padding=[0, 0],
+            ceil_mode=True,
+            count_include_pad=False,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dDiffKernelsStridesNoPadCeilPadNotIncluded()
+)
+def AvgPool2dDiffKernelsStridesNoPadCeilPadNotIncluded_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, 4, low=-1))
+
+
+class AvgPool2dDiffKernelsStridesPadCeilPadNotIncluded(torch.nn.Module):
+    # Different sizes used for each kernel, stride, and padding.dimensions.
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=[3, 4],
+            stride=[2, 3],
+            padding=[1, 2],
+            ceil_mode=True,
+            count_include_pad=False,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool2dDiffKernelsStridesPadCeilPadNotIncluded()
+)
+def AvgPool2dDiffKernelsStridesPadCeilPadNotIncluded_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, 4, low=-1))
+
+
+class AvgPool3dDiffKernelsStridesNoPadCeilPadNotIncluded(torch.nn.Module):
+    # 3D version of AvgPool2dDiffKernelsStridesNoPadCeilPadNotIncluded.
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool3d(
+            kernel_size=[3, 2, 4],
+            stride=[3, 2, 5],
+            padding=[0, 0, 0],
+            ceil_mode=True,
+            count_include_pad=False,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 4, 5, 7], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool3dDiffKernelsStridesNoPadCeilPadNotIncluded()
+)
+def AvgPool3dDiffKernelsStridesNoPadCeilPadNotIncluded_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 4, 5, 7, low=-1))
+
+
+class AvgPool3dDiffKernelsStridesPadCeilPadNotIncluded(torch.nn.Module):
+    # 3-D version of AvgPool2dDiffKernelsStridesPadCeilPadNotIncluded.
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool3d(
+            kernel_size=[3, 4, 7],
+            stride=[2, 3, 4],
+            padding=[1, 2, 3],
+            ceil_mode=True,
+            count_include_pad=False,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 3, 4, 7], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(
+    module_factory=lambda: AvgPool3dDiffKernelsStridesPadCeilPadNotIncluded()
+)
+def AvgPool3dDiffKernelsStridesPadCeilPadNotIncluded_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, 4, 7, low=-1))
+
+
+class AvgPool1dNoPadCeilPadNotIncluded(torch.nn.Module):
+    # 1D version of AvgPool2dDiffKernelsStridesNoPadCeilPadNotIncluded.
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool1d(
+            kernel_size=[2],
+            stride=[2],
+            padding=[1],
+            ceil_mode=True,
+            count_include_pad=False,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool1dNoPadCeilPadNotIncluded())
+def AvgPool1dNoPadCeilPadNotIncluded_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 5, low=-1))
+
+
+class AvgPool1dPadCeilPadNotIncluded(torch.nn.Module):
+    # 1-D version of AvgPool2dDiffKernelsStridesPadCeilPadNotIncluded.
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool1d(
+            kernel_size=[2],
+            stride=[2],
+            padding=[1],
+            ceil_mode=True,
+            count_include_pad=False,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool1dPadCeilPadNotIncluded())
+def AvgPool1dPadCeilPadNotIncluded_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 3, low=-1))

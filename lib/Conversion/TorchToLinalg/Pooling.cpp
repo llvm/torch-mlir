@@ -83,8 +83,6 @@ computeOutputTensor(Operation *op, ConversionPatternRewriter &rewriter,
   Value N = getDimOp(rewriter, loc, self, 0);
   Value C = getDimOp(rewriter, loc, self, 1);
 
-  SmallVector<Value> paddingIntValues =
-      getAsConstantIntValues(rewriter, loc, paddingInts);
   SmallVector<Value> dilationIntValues =
       getAsConstantIntValues(rewriter, loc, dilationInts);
   SmallVector<Value> strideIntValues =
@@ -92,9 +90,17 @@ computeOutputTensor(Operation *op, ConversionPatternRewriter &rewriter,
 
   // Get dimension size for each dimension and calculate output size
   for (int64_t i = dimensionality - 1; i > -1; --i) {
+    // In case of asymmetric padding the total padding value would be the sum of
+    // low and high padding. And, in case of symmetric padding it would just be
+    // the double of padding value for the corresponding dimension.
+    int64_t totalPadding = paddingInts[i] * 2;
+    if ((int64_t)paddingInts.size() == 2 * dimensionality)
+      totalPadding = paddingInts[i] + paddingInts[i + dimensionality];
+
     Value dimSize = getDimOp(rewriter, loc, self, i + 2);
-    Value outDim = torch_to_linalg::getOutputDimForConvOps(
-        rewriter, loc, dimSize, paddingIntValues[i], dilationIntValues[i],
+    Value outDim = torch_to_linalg::getOutputDimForPoolOps(
+        rewriter, loc, dimSize, /*totalPadding=*/totalPadding,
+        /*leftPadding=*/paddingInts[i], dilationIntValues[i],
         kernelSizeIntValues[i], strideIntValues[i], ceilMode);
     outTensorShape.insert(outTensorShape.begin(), {outDim});
   }
@@ -207,6 +213,173 @@ static LogicalResult createPoolingOp(
   }
 
   return success();
+}
+
+static Value createMaxUnpoolOp(Operation *op, int64_t poolingDimensionality,
+                               ConversionPatternRewriter &rewriter,
+                               const TypeConverter *typeConverter, Value self,
+                               Value indices, ArrayRef<int64_t> inputSize,
+                               ArrayRef<int64_t> inferredOutSize,
+                               SmallVector<int64_t> &stride,
+                               SmallVector<int64_t> &padding,
+                               RankedTensorType resType) {
+
+  Location loc = op->getLoc();
+  Type indexType = rewriter.getIndexType();
+
+  int64_t outRank = resType.getRank();
+  int64_t NC = outRank - poolingDimensionality;
+
+  auto selfType = cast<RankedTensorType>(self.getType());
+  auto indicesType = cast<RankedTensorType>(indices.getType());
+
+  SmallVector<Value> outSizePadded;
+  for (auto &&[i, size] : llvm::enumerate(resType.getShape())) {
+    if (int64_t(i) < NC) {
+      outSizePadded.emplace_back(rewriter.create<tensor::DimOp>(loc, self, i));
+      continue;
+    }
+    int64_t pad = padding[i - NC];
+
+    outSizePadded.emplace_back(
+        rewriter.create<arith::ConstantIndexOp>(loc, size + pad));
+  }
+
+  // In case if input tensor size is not divisible by stride
+  // (e.g. pooling_input_size=5, kernel_size=2, stride=2, output_size=2)
+  // pad self and indices tensors to avoid out of bounds access.
+  SmallVector<int64_t> expectedInputShape =
+      llvm::to_vector(resType.getShape().drop_back(poolingDimensionality));
+  for (auto &&[str, pad, resSize] :
+       llvm::zip_equal(stride, padding, inferredOutSize))
+    expectedInputShape.emplace_back((resSize + str - 1) / str + pad * 2);
+
+  if (expectedInputShape != selfType.getShape()) {
+    // TODO: this is probably expensive, and it may be possible to solve by
+    // cleverly constructing affine maps for the next linalg.generic op,
+    // but I'm not smart enough to figure this out.
+
+    SmallVector<int64_t> low(outRank, 0);
+    SmallVector<int64_t> high(NC, 0);
+    for (auto &&[inpSize, outSize] : llvm::zip_equal(
+             inputSize,
+             ArrayRef(expectedInputShape).take_back(poolingDimensionality))) {
+      high.emplace_back(outSize - inpSize);
+    }
+
+    // Pad the indices tensor with a value which cannot appear in real data
+    // (-1) so it will never match. In this case we can pad self with any
+    // value, as it will never affect the output.
+    Value zero = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getZeroAttr(selfType.getElementType()));
+    Value invalidIdx = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getIntegerAttr(indicesType.getElementType(), -1));
+    self =
+        torch_to_linalg::getPaddedTensor(op, rewriter, self, low, high, zero);
+    indices = torch_to_linalg::getPaddedTensor(op, rewriter, indices, low, high,
+                                               invalidIdx);
+  }
+
+  Value init = rewriter.create<tensor::EmptyOp>(
+      loc, getAsOpFoldResult(outSizePadded), selfType.getElementType());
+
+  SmallVector<AffineExpr> inputExprs;
+  SmallVector<AffineExpr> outputExprs;
+  for (auto i : llvm::seq<int64_t>(0, outRank)) {
+    AffineExpr dim = rewriter.getAffineDimExpr(i);
+    if (i < NC) {
+      inputExprs.emplace_back(dim);
+    } else {
+      int64_t j = i - NC;
+      inputExprs.emplace_back(dim.floorDiv(stride[j]));
+    }
+    outputExprs.emplace_back(dim);
+  }
+
+  SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
+      {inputExprs, inputExprs, outputExprs}, rewriter.getContext());
+
+  SmallVector<utils::IteratorType> iteratorTypes(outRank,
+                                                 utils::IteratorType::parallel);
+
+  auto computeIndex = [&](OpBuilder &b, Location loc) -> Value {
+    // Next linalg.generic uses identity mapping for the unpooled tensor,
+    // compute linear index for output element, which we will the compare with
+    // values which came from indices tensor.
+    Value ret;
+    for (auto i : llvm::seq<int64_t>(NC, outRank)) {
+      Value idx = b.create<linalg::IndexOp>(loc, i);
+      // If pool input was padded, adjust indices so they start at 0 in the
+      // non-padded area. Indices outside non-padded area will make no sense,
+      // but it doesnt matter as we will cut the padded area later by
+      // extract_slice.
+      int64_t pad = padding[i - NC];
+      if (pad != 0) {
+        Value padVal = b.create<arith::ConstantIndexOp>(loc, pad);
+        idx = b.create<arith::SubIOp>(loc, idx, padVal);
+      }
+
+      if (!ret) {
+        ret = idx;
+      } else {
+        Value size =
+            b.create<arith::ConstantIndexOp>(loc, resType.getShape()[i]);
+        ret = b.create<arith::MulIOp>(loc, ret, size);
+        ret = b.create<arith::AddIOp>(loc, ret, idx);
+      }
+    }
+    return ret;
+  };
+
+  auto builder = [&](OpBuilder &b, Location loc, ValueRange args) {
+    // Compute current output linear index and compare it with the value
+    // from indices arg.
+    Value input = args[0];
+    Value zero =
+        b.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(input.getType()));
+    Value index = b.create<arith::IndexCastOp>(loc, indexType, args[1]);
+    Value currentIndex = computeIndex(b, loc);
+    Value cmp = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, index,
+                                        currentIndex);
+    Value out = b.create<arith::SelectOp>(loc, cmp, input, zero);
+    b.create<linalg::YieldOp>(loc, out);
+  };
+
+  Value result =
+      rewriter
+          .create<linalg::GenericOp>(loc,
+                                     /*resultTensorTypes=*/init.getType(),
+                                     /*inputs=*/ValueRange({self, indices}),
+                                     /*outputs=*/init,
+                                     /*indexingMaps=*/indexingMaps,
+                                     /*iteratorTypes=*/iteratorTypes, builder)
+          .getResult(0);
+
+  if (llvm::any_of(padding, [](int64_t v) { return v != 0; })) {
+    // MaxPool input was padded, unpad it by taking the slice.
+    SmallVector<OpFoldResult> offsetVals(NC, rewriter.getI64IntegerAttr(0));
+    for (int64_t pad : padding)
+      offsetVals.emplace_back(rewriter.getI64IntegerAttr(pad));
+
+    SmallVector<OpFoldResult> sizeVals;
+    for (auto &&[i, dim] : llvm::enumerate(resType.getShape())) {
+      if (!ShapedType::isDynamic(dim)) {
+        sizeVals.emplace_back(rewriter.getI64IntegerAttr(dim));
+        continue;
+      }
+
+      sizeVals.emplace_back(rewriter.create<tensor::DimOp>(loc, self, i));
+    }
+    SmallVector<OpFoldResult> stridesVals(outRank,
+                                          rewriter.getI64IntegerAttr(1));
+    result = rewriter.create<tensor::ExtractSliceOp>(loc, result, offsetVals,
+                                                     sizeVals, stridesVals);
+  }
+
+  if (result.getType() != resType)
+    result = rewriter.create<tensor::CastOp>(loc, resType, result);
+
+  return result;
 }
 
 namespace {
@@ -607,19 +780,18 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
 
-    Location loc = op->getLoc();
     const TypeConverter *typeConverter = getTypeConverter();
     Value self = adaptor.getSelf();
     auto selfType = cast<RankedTensorType>(self.getType());
 
-    ArrayRef<int64_t> inputSize = selfType.getShape().take_back(3);
-    if (ShapedType::isDynamicShape(inputSize))
+    ArrayRef<int64_t> spatialInputShape = selfType.getShape().take_back(3);
+    if (ShapedType::isDynamicShape(spatialInputShape))
       return rewriter.notifyMatchFailure(op,
                                          "input type must be of static shape");
 
     Value indices = adaptor.getIndices();
     auto indicesType = cast<RankedTensorType>(indices.getType());
-    if (inputSize != indicesType.getShape().take_back(3))
+    if (spatialInputShape != indicesType.getShape().take_back(3))
       return rewriter.notifyMatchFailure(op, "input/indices shape mismatch");
 
     auto resType = typeConverter->convertType<RankedTensorType>(op.getType());
@@ -657,11 +829,8 @@ public:
       return rewriter.notifyMatchFailure(
           op, "stride and padding must be of size 3");
 
-    int64_t outRank = resType.getRank();
-    int64_t NC = outRank - 3;
-
     for (auto &&[inDim, outDim, str, pad] :
-         llvm::zip_equal(inputSize, inferredOutSize, stride, padding)) {
+         llvm::zip_equal(spatialInputShape, inferredOutSize, stride, padding)) {
       // Kernel size computation is ambiguous, this formula will return the
       // biggest possible kernel size. As there is no way to know actual kernel
       // size we have to treat it conservatively and always bail if kernel size
@@ -673,156 +842,72 @@ public:
                 "is not supported yet");
     }
 
-    Type indexType = rewriter.getIndexType();
-    SmallVector<Value> outSizePadded;
-    for (auto &&[i, size] : llvm::enumerate(resType.getShape())) {
-      if (int64_t(i) < NC) {
-        outSizePadded.emplace_back(
-            rewriter.create<tensor::DimOp>(loc, self, i));
-        continue;
-      }
-      int64_t pad = padding[i - NC];
+    int64_t poolingDimensionality = 3;
+    Value result = createMaxUnpoolOp(
+        op, poolingDimensionality, rewriter, typeConverter, self, indices,
+        spatialInputShape, inferredOutSize, stride, padding, resType);
 
-      outSizePadded.emplace_back(
-          rewriter.create<arith::ConstantIndexOp>(loc, size + pad));
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Max unpooling operation, takes result of max_pooling op and indices and
+// tries to reconstructs original pooling input by filling out values by either
+// values from self or zero.
+class ConvertAtenMaxUnpool2dOp final
+    : public OpConversionPattern<AtenMaxUnpool2dOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenMaxUnpool2dOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    const TypeConverter *typeConverter = getTypeConverter();
+    Value self = adaptor.getSelf();
+    auto selfType = cast<RankedTensorType>(self.getType());
+    int64_t poolingDimensionality = 2;
+
+    ArrayRef<int64_t> inputSize =
+        selfType.getShape().take_back(poolingDimensionality);
+    if (ShapedType::isDynamicShape(inputSize))
+      return rewriter.notifyMatchFailure(op,
+                                         "input type must be of static shape");
+
+    Value indices = adaptor.getIndices();
+    auto indicesType = cast<RankedTensorType>(indices.getType());
+    if (inputSize != indicesType.getShape().take_back(poolingDimensionality))
+      return rewriter.notifyMatchFailure(op, "input/indices shape mismatch");
+
+    auto resType = typeConverter->convertType<RankedTensorType>(op.getType());
+
+    ArrayRef<int64_t> inferredOutSize =
+        resType.getShape().take_back(poolingDimensionality);
+    if (ShapedType::isDynamicShape(inferredOutSize))
+      return rewriter.notifyMatchFailure(op,
+                                         "output type must be of static shape");
+
+    {
+      SmallVector<int64_t> output;
+      if (!matchPattern(op.getOutputSize(), m_TorchListOfConstantInts(output)))
+        return rewriter.notifyMatchFailure(op,
+                                           "only support constant int output");
+
+      if (inferredOutSize != ArrayRef(output))
+        return rewriter.notifyMatchFailure(op, "Invalid output size");
     }
 
-    auto ceilDiv = [](int64_t v1, int64_t v2) -> int64_t {
-      return (v1 + v2 - 1) / v2;
-    };
+    // MaxUnpool2d currently supports only default stride and padding
+    SmallVector<int64_t> stride(poolingDimensionality, poolingDimensionality);
+    SmallVector<int64_t> padding(poolingDimensionality, 0);
 
-    // In case if input tensor size is not divisible by stride
-    // (e.g. pooling_input_size=5, kernel_size=2, stride=2, output_size=2)
-    // pad self and indices tensors to avoid out of bounds access.
-    SmallVector<int64_t> expectedInputShape =
-        llvm::to_vector(resType.getShape().drop_back(3));
-    for (auto &&[str, pad, resSize] :
-         llvm::zip_equal(stride, padding, inferredOutSize))
-      expectedInputShape.emplace_back(ceilDiv(resSize, str) + pad * 2);
-
-    if (expectedInputShape != selfType.getShape()) {
-      // TODO: this is probably expensive, and it may be possible to solve by
-      // cleverly constructing affine maps for the next linalg.generic op,
-      // but I'm not smart enough to figure this out.
-
-      SmallVector<int64_t> low(outRank, 0);
-      SmallVector<int64_t> high(NC, 0);
-      for (auto &&[inpSize, outSize] : llvm::zip_equal(
-               inputSize, ArrayRef(expectedInputShape).take_back(3))) {
-        high.emplace_back(outSize - inpSize);
-      }
-
-      // Pad the indices tensor with a value which cannot appear in real data
-      // (-1) so it will never match. In this case we can pad self with any
-      // value, as it will never affect the output.
-      Value zero = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getZeroAttr(selfType.getElementType()));
-      Value invalidIdx = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getIntegerAttr(indicesType.getElementType(), -1));
-      self =
-          torch_to_linalg::getPaddedTensor(op, rewriter, self, low, high, zero);
-      indices = torch_to_linalg::getPaddedTensor(op, rewriter, indices, low,
-                                                 high, invalidIdx);
-    }
-
-    Value init = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(outSizePadded), selfType.getElementType());
-
-    SmallVector<AffineExpr> inputExprs;
-    SmallVector<AffineExpr> outputExprs;
-    for (auto i : llvm::seq<int64_t>(0, outRank)) {
-      AffineExpr dim = rewriter.getAffineDimExpr(i);
-      if (i < NC) {
-        inputExprs.emplace_back(dim);
-      } else {
-        int64_t j = i - NC;
-        inputExprs.emplace_back(dim.floorDiv(stride[j]));
-      }
-      outputExprs.emplace_back(dim);
-    }
-
-    SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
-        {inputExprs, inputExprs, outputExprs}, rewriter.getContext());
-
-    SmallVector<utils::IteratorType> iteratorTypes(
-        outRank, utils::IteratorType::parallel);
-
-    auto computeIndex = [&](OpBuilder &b, Location loc) -> Value {
-      // Next linalg.generic uses identity mapping for the unpooled tensor,
-      // compute linear index for output element, which we will the compare with
-      // values which came from indices tensor.
-      Value ret;
-      for (auto i : llvm::seq<int64_t>(NC, outRank)) {
-        Value idx = b.create<linalg::IndexOp>(loc, i);
-        // If pool input was padded, adjust indices so they start at 0 in the
-        // non-padded area. Indices outside non-padded area will make no sense,
-        // but it doesnt matter as we will cut the padded area later by
-        // extract_slice.
-        int64_t pad = padding[i - NC];
-        if (pad != 0) {
-          Value padVal = b.create<arith::ConstantIndexOp>(loc, pad);
-          idx = b.create<arith::SubIOp>(loc, idx, padVal);
-        }
-
-        if (!ret) {
-          ret = idx;
-        } else {
-          Value size =
-              b.create<arith::ConstantIndexOp>(loc, resType.getShape()[i]);
-          ret = b.create<arith::MulIOp>(loc, ret, size);
-          ret = b.create<arith::AddIOp>(loc, ret, idx);
-        }
-      }
-      return ret;
-    };
-
-    auto builder = [&](OpBuilder &b, Location loc, ValueRange args) {
-      // Compute current output linear index and compare it with the value
-      // from indices arg.
-      Value input = args[0];
-      Value zero = b.create<arith::ConstantOp>(
-          loc, rewriter.getZeroAttr(input.getType()));
-      Value index = b.create<arith::IndexCastOp>(loc, indexType, args[1]);
-      Value currentIndex = computeIndex(b, loc);
-      Value cmp = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, index,
-                                          currentIndex);
-      Value out = b.create<arith::SelectOp>(loc, cmp, input, zero);
-      b.create<linalg::YieldOp>(loc, out);
-    };
-
-    Value result =
-        rewriter
-            .create<linalg::GenericOp>(loc,
-                                       /*resultTensorTypes=*/init.getType(),
-                                       /*inputs=*/ValueRange({self, indices}),
-                                       /*outputs=*/init,
-                                       /*indexingMaps=*/indexingMaps,
-                                       /*iteratorTypes=*/iteratorTypes, builder)
-            .getResult(0);
-
-    if (llvm::any_of(padding, [](int64_t v) { return v != 0; })) {
-      // MaxPool input was padded, unpad it by taking the slice.
-      SmallVector<OpFoldResult> offsetVals(NC, rewriter.getI64IntegerAttr(0));
-      for (int64_t pad : padding)
-        offsetVals.emplace_back(rewriter.getI64IntegerAttr(pad));
-
-      SmallVector<OpFoldResult> sizeVals;
-      for (auto &&[i, dim] : llvm::enumerate(resType.getShape())) {
-        if (!ShapedType::isDynamic(dim)) {
-          sizeVals.emplace_back(rewriter.getI64IntegerAttr(dim));
-          continue;
-        }
-
-        sizeVals.emplace_back(rewriter.create<tensor::DimOp>(loc, self, i));
-      }
-      SmallVector<OpFoldResult> stridesVals(outRank,
-                                            rewriter.getI64IntegerAttr(1));
-      result = rewriter.create<tensor::ExtractSliceOp>(loc, result, offsetVals,
-                                                       sizeVals, stridesVals);
-    }
-
-    if (result.getType() != resType)
-      result = rewriter.create<tensor::CastOp>(loc, resType, result);
+    Value result = createMaxUnpoolOp(op, poolingDimensionality, rewriter,
+                                     typeConverter, self, indices, inputSize,
+                                     inferredOutSize, stride, padding, resType);
 
     rewriter.replaceOp(op, result);
     return success();
@@ -856,7 +941,7 @@ namespace {
 // used in the divisor of the average pooling operator.
 template <int NumOfDims> class PoolSizeCalculator {
 public:
-  PoolSizeCalculator(Value self, Value sumPool,
+  PoolSizeCalculator(Value self, Value sumPool, bool countIncludePad,
                      ConversionPatternRewriter &rewriter, Location loc);
 
   // The algorithm for computing the divisor with
@@ -871,36 +956,37 @@ public:
                     SmallVectorImpl<int64_t> &paddingInts);
 
 private:
-  int64_t DimSizeFromSumPoolType[NumOfDims];
-  Value InputSpatialDimValues[NumOfDims];
+  int64_t SumPoolTypeDimIndex[NumOfDims];
+  Value InputSpatialDimSizes[NumOfDims];
   Location location;
+  bool isCountIncludePad;
 };
 
 } // namespace
 
 template <int NumOfDims>
 PoolSizeCalculator<NumOfDims>::PoolSizeCalculator(
-    Value self, Value sumPool, ConversionPatternRewriter &rewriter,
-    Location loc)
-    : location(loc) {
+    Value self, Value sumPool, bool countIncludePad,
+    ConversionPatternRewriter &rewriter, Location loc)
+    : location(loc), isCountIncludePad(countIncludePad) {
   auto selfType = cast<RankedTensorType>(self.getType());
   const int64_t selfRank = selfType.getRank();
   RankedTensorType sumPoolType = cast<RankedTensorType>(sumPool.getType());
   const int64_t rank = sumPoolType.getRank();
 
   // Store dimensions in this order:
-  // 0 => width, 1 => height, 2 => depth
+  // 0 => depth, 1 => height, 2 => width
   for (int i = 0; i < NumOfDims; ++i) {
-    int64_t DimSizeFromSelfType = toPositiveDim(-(i + 1), selfRank);
-    InputSpatialDimValues[i] =
-        getDimOp(rewriter, location, self, DimSizeFromSelfType);
-    DimSizeFromSumPoolType[i] = toPositiveDim(-(i + 1), rank);
+    int64_t inputSpatialDimIndex = toPositiveDim(-(i + 1), selfRank);
+    InputSpatialDimSizes[NumOfDims - i - 1] =
+        getDimOp(rewriter, location, self, inputSpatialDimIndex);
+    SumPoolTypeDimIndex[NumOfDims - i - 1] = toPositiveDim(-(i + 1), rank);
   }
 }
 
 template <int NumOfDims>
 Value PoolSizeCalculator<NumOfDims>::getPoolSize(
-    OpBuilder &b, SmallVectorImpl<Value> &kernelSizeIntValues,
+    OpBuilder &b, SmallVectorImpl<Value> &kernelDimSizes,
     SmallVectorImpl<int64_t> &strideInts,
     SmallVectorImpl<int64_t> &paddingInts) {
   Value poolSize;
@@ -915,9 +1001,10 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     // Dim below stands for spatial dimension. Prior to the February 2025
     // change, these variables used "height" and "width" (or "h" and "w")
     // in these intermediate variables instead of "Dim".
+
     Value IndexODim =
-        b.createOrFold<linalg::IndexOp>(location,
-                                        /*value=*/DimSizeFromSumPoolType[i]);
+        b.create<linalg::IndexOp>(location,
+                                  /*value=*/SumPoolTypeDimIndex[i]);
     Value ODim = castIndexToInt64(b, location, IndexODim);
     Value DDim = b.createOrFold<arith::ConstantOp>(
         location, b.getI64IntegerAttr(strideInts[i]));
@@ -925,9 +1012,9 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
         location, b.getI64IntegerAttr(paddingInts[i]));
     Value ODimDDim = b.createOrFold<arith::MulIOp>(location, ODim, DDim);
     Value IDim0 = b.createOrFold<arith::SubIOp>(location, ODimDDim, PadDim);
-    Value IDim = castIndexToInt64(b, location, InputSpatialDimValues[i]);
+    Value IDim = castIndexToInt64(b, location, InputSpatialDimSizes[i]);
     Value IDim0KDim =
-        b.createOrFold<arith::AddIOp>(location, IDim0, kernelSizeIntValues[i]);
+        b.createOrFold<arith::AddIOp>(location, IDim0, kernelDimSizes[i]);
     Value IDimPadDim = b.createOrFold<arith::AddIOp>(location, IDim, PadDim);
     Value IDim1 =
         b.createOrFold<arith::MinSIOp>(location, IDim0KDim, IDimPadDim);
@@ -937,11 +1024,15 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     Value IDim1Clamped = b.createOrFold<arith::MinSIOp>(location, IDim1, IDim);
     Value IDim1_IDim0_Clamped =
         b.createOrFold<arith::SubIOp>(location, IDim1Clamped, IDim0Clamped);
+
+    Value poolSizeDim =
+        !isCountIncludePad
+            ? IDim1_IDim0_Clamped
+            : b.createOrFold<arith::SubIOp>(location, IDim1, IDim0);
     if (i == 0) {
-      poolSize = IDim1_IDim0_Clamped;
+      poolSize = poolSizeDim;
     } else {
-      poolSize = b.createOrFold<arith::MulIOp>(location, poolSize,
-                                               IDim1_IDim0_Clamped);
+      poolSize = b.createOrFold<arith::MulIOp>(location, poolSize, poolSizeDim);
     }
   }
   return poolSize;
@@ -957,26 +1048,35 @@ public:
   matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override;
 
-  // Creates the average pooling operation value when the
-  // count_include_pad parameter is equal to false.
-  static std::optional<LogicalResult>
-  createAvgPoolValueCountIncludePadFalseCase(
-      bool countIncludePad, OpTy op, typename OpTy::Adaptor adaptor,
-      ConversionPatternRewriter &rewriter, Value self, Value sumPool,
-      Value outputTensor, Type resultType,
-      SmallVectorImpl<Value> &kernelSizeIntValues,
+  // If the condition below is true, the divisor total must subtract the
+  // elements not counted (clamped divisor count). If false, the divisor
+  // is just the product of kernel dimensions.
+  static bool
+  doesAvgPoolDivisorNeedsClamping(bool ceilMode, bool countIncludePad,
+                                  SmallVectorImpl<int64_t> &strideInts,
+                                  SmallVectorImpl<int64_t> &paddingInts);
+
+  // Creates the average pooling operation value with a clamped
+  // divisor. The clamped divisor is the product of kernel
+  // dimensions minus the elements not counted; e.g., padding
+  // and ceiling mode implicit padding.
+  static LogicalResult createAveragePoolValueWithClampedDivisor(
+      bool ceilMode, bool countIncludePad, OpTy op,
+      typename OpTy::Adaptor adaptor, ConversionPatternRewriter &rewriter,
+      Value self, Value sumPool, Value outputTensor, Type resultType,
+      SmallVectorImpl<Value> &kernelDimSizes,
       SmallVectorImpl<int64_t> &strideInts,
       SmallVectorImpl<int64_t> &paddingInts,
       SmallVector<AffineMap> &indexingMapsAvg,
       SmallVector<utils::IteratorType> &iteratorTypesAvg);
 
-  // Creates the average pooling operation value when the
-  // count_include_pad parameter is equal to true.
-  static LogicalResult createAvgPoolValueCountIncludePadTrueCase(
+  // Creates the average pooling operation value with a
+  // regular divisor; i.e., the product of kernel dimensions.
+  static LogicalResult createAveragePoolValueWithRegularDivisor(
       OpTy op, typename OpTy::Adaptor &adaptor,
       ConversionPatternRewriter &rewriter, Value self, Value sumPool,
       Value outputTensor, Type resultType,
-      SmallVectorImpl<Value> &kernelSizeIntValues,
+      SmallVectorImpl<Value> &kernelDimSizes,
       SmallVector<AffineMap> &indexingMapsAvg,
       SmallVector<utils::IteratorType> &iteratorTypesAvg);
 };
@@ -1040,27 +1140,64 @@ LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::matchAndRewrite(
   SmallVector<utils::IteratorType> iteratorTypesAvg(
       Dim + 2, utils::IteratorType::parallel);
 
-  auto divisorOpResult = createAvgPoolValueCountIncludePadFalseCase(
-      countIncludePad, op, adaptor, rewriter, self, sumPool, outputTensor,
-      resultType, kernelSizeIntValues, strideInts, paddingInts, indexingMapsAvg,
-      iteratorTypesAvg);
-  if (divisorOpResult)
-    return *divisorOpResult;
+  if (doesAvgPoolDivisorNeedsClamping(ceilMode, countIncludePad, strideInts,
+                                      paddingInts)) {
+    return createAveragePoolValueWithClampedDivisor(
+        ceilMode, countIncludePad, op, adaptor, rewriter, self, sumPool,
+        outputTensor, resultType, kernelSizeIntValues, strideInts, paddingInts,
+        indexingMapsAvg, iteratorTypesAvg);
+  }
 
-  return createAvgPoolValueCountIncludePadTrueCase(
+  return createAveragePoolValueWithRegularDivisor(
       op, adaptor, rewriter, self, sumPool, outputTensor, resultType,
       kernelSizeIntValues, indexingMapsAvg, iteratorTypesAvg);
-
-  return success();
 }
 
 template <typename OpTy, typename PoolingOpTy, int Dim>
-std::optional<LogicalResult> ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
-    createAvgPoolValueCountIncludePadFalseCase(
-        bool countIncludePad, OpTy op, typename OpTy::Adaptor adaptor,
-        ConversionPatternRewriter &rewriter, Value self, Value sumPool,
-        Value outputTensor, Type resultType,
-        SmallVectorImpl<Value> &kernelSizeIntValues,
+bool ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
+    doesAvgPoolDivisorNeedsClamping(bool ceilMode, bool countIncludePad,
+                                    SmallVectorImpl<int64_t> &strideInts,
+                                    SmallVectorImpl<int64_t> &paddingInts) {
+  // Determines whether the average pooling divisor needs to be clamped
+  // (i.e., adjusted to exclude padded or out-of-bounds elements).
+  //
+  // There are two primary cases where clamping is needed:
+  // 1. Padding with count_include_pad == false:
+  //    - If padding is applied (padding != 0) and count_include_pad is false,
+  //      then padding elements are *excluded* from the divisor, effectively
+  //      clamping the divisor to the number of valid input elements.
+  //
+  // 2. Ceil mode with non-unit stride:
+  //    - When ceil_mode is enabled, output dimensions are rounded up,
+  //    potentially
+  //      creating pooling windows that extend beyond the input tensor bounds.
+  //      PyTorch handles this by implicitly adding zero-padding outside the
+  //      tensor, but these extra (implicit) padded elements are *not* included
+  //      in the divisor. This behavior is independent of the count_include_pad
+  //      flag.
+  //    - If all strides are 1, ceil_mode will not produce fractional divisions,
+  //      so the windows will not extend beyond bounds, and no clamping occurs.
+  //
+  // Reference: PyTorch AvgPool2d documentation and formula for H_out/W_out:
+  // https://pytorch.org/docs/stable/generated/torch.nn.AvgPool2d.html
+  //
+  // See torch.nn.AvgPool2d E2E tests for comprehensive coverage.
+
+  bool hasPadding =
+      !llvm::all_of(paddingInts, [](int64_t p) { return p == 0; });
+  bool allStridesUnitary =
+      llvm::all_of(strideInts, [](int64_t s) { return s == 1; });
+
+  return (!countIncludePad && hasPadding) || (ceilMode && !allStridesUnitary);
+}
+
+template <typename OpTy, typename PoolingOpTy, int Dim>
+LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
+    createAveragePoolValueWithClampedDivisor(
+        bool ceilMode, bool countIncludePad, OpTy op,
+        typename OpTy::Adaptor adaptor, ConversionPatternRewriter &rewriter,
+        Value self, Value sumPool, Value outputTensor, Type resultType,
+        SmallVectorImpl<Value> &kernelDimSizes,
         SmallVectorImpl<int64_t> &strideInts,
         SmallVectorImpl<int64_t> &paddingInts,
         SmallVector<AffineMap> &indexingMapsAvg,
@@ -1069,11 +1206,6 @@ std::optional<LogicalResult> ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
 
   constexpr int avgPoolDims = getAvgPoolNumOfDims<OpTy>();
 
-  bool noPadding = llvm::all_of(paddingInts, [](int64_t p) { return p == 0; });
-  if (countIncludePad || noPadding) {
-    // These cases are not handled here.
-    return std::nullopt;
-  }
   if (avgPoolDims < 1) {
     return rewriter.notifyMatchFailure(
         op, "Unexpected type. Only expected AtenAvgPool1dOp, AtenAvgPool2dOp, "
@@ -1082,8 +1214,8 @@ std::optional<LogicalResult> ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
 
   Type resultElementType = cast<RankedTensorType>(resultType).getElementType();
 
-  PoolSizeCalculator<avgPoolDims> poolSizeCalculator(self, sumPool, rewriter,
-                                                     loc);
+  PoolSizeCalculator<avgPoolDims> poolSizeCalculator(
+      self, sumPool, countIncludePad, rewriter, loc);
 
   // AtenAvgPool2/3dOp has an optional divisor_override
   // attribute while AtenAvgPool1dOp does not.
@@ -1104,7 +1236,7 @@ std::optional<LogicalResult> ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
               [&](OpBuilder &b, Location loc, ValueRange args) {
                 if (!poolSize) {
                   poolSize = poolSizeCalculator.getPoolSize(
-                      b, kernelSizeIntValues, strideInts, paddingInts);
+                      b, kernelDimSizes, strideInts, paddingInts);
                 }
                 Value divisor =
                     convertScalarToDtype(b, loc, poolSize, resultElementType);
@@ -1122,21 +1254,21 @@ std::optional<LogicalResult> ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
 
 template <typename OpTy, typename PoolingOpTy, int Dim>
 LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
-    createAvgPoolValueCountIncludePadTrueCase(
+    createAveragePoolValueWithRegularDivisor(
         OpTy op, typename OpTy::Adaptor &adaptor,
         ConversionPatternRewriter &rewriter, Value self, Value sumPool,
         Value outputTensor, Type resultType,
-        SmallVectorImpl<Value> &kernelSizeIntValues,
+        SmallVectorImpl<Value> &kernelDimSizes,
         SmallVector<AffineMap> &indexingMapsAvg,
         SmallVector<utils::IteratorType> &iteratorTypesAvg) {
   Location loc = op->getLoc();
 
   Type resultElementType = cast<RankedTensorType>(resultType).getElementType();
 
-  Value divisor = kernelSizeIntValues[0];
-  for (uint32_t i = 1; i < kernelSizeIntValues.size(); ++i) {
-    divisor = rewriter.createOrFold<arith::MulIOp>(loc, divisor,
-                                                   kernelSizeIntValues[i]);
+  Value divisor = kernelDimSizes[0];
+  for (uint32_t i = 1; i < kernelDimSizes.size(); ++i) {
+    divisor =
+        rewriter.createOrFold<arith::MulIOp>(loc, divisor, kernelDimSizes[i]);
   }
   // Only average pooling 2D/3D have optional divisor override.
   if constexpr (!std::is_same<OpTy, AtenAvgPool1dOp>()) {
@@ -1643,6 +1775,9 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
 
   target.addIllegalOp<AtenMaxUnpool3dOp>();
   patterns.add<ConvertAtenMaxUnpool3dOp>(typeConverter, context);
+
+  target.addIllegalOp<AtenMaxUnpool2dOp>();
+  patterns.add<ConvertAtenMaxUnpool2dOp>(typeConverter, context);
 
   target.addIllegalOp<AtenAvgPool1dOp, AtenAvgPool2dOp, AtenAvgPool3dOp>();
   patterns

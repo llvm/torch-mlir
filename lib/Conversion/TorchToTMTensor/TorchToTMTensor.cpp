@@ -89,6 +89,7 @@ convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(PatternRewriter &rewriter,
   // Store location for insertions
   Location loc = src.getLoc();
 
+  Type indicesElemType = getElementTypeOrSelf(indices);
   Value indexSize = getTensorSize(rewriter, loc, indices);
   indexSize = castIntToIndex(rewriter, loc, indexSize);
   SmallVector<Value> indexShape = getTensorSizes(rewriter, loc, indices);
@@ -97,7 +98,7 @@ convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(PatternRewriter &rewriter,
   // We flatten the `src` values from (i, j, k, ...) -> (i * j * k * ...)
   SmallVector<Value> indSliceShape({indexSize, cstOne});
   Value indSlice =
-      createZeroInitTensor(rewriter, loc, indSliceShape, rewriter.getI32Type());
+      createZeroInitTensor(rewriter, loc, indSliceShape, indicesElemType);
 
   // New output shape will be equal to the product of the dimensions of the
   // updates
@@ -142,13 +143,13 @@ convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(PatternRewriter &rewriter,
                 SmallVector<Value> yieldVals;
                 for (Value v : indexValues) {
                   Value scalar = castIndexToInt64(b, loc, v);
-                  yieldVals.push_back(b.create<arith::TruncIOp>(
-                      loc, rewriter.getI32Type(), scalar));
+                  yieldVals.push_back(convertScalarToDtype(
+                      rewriter, loc, scalar, indicesElemType));
                 }
                 // Replace the original index with the index specified
                 // by the scatter.
                 yieldVals[dim] = convertScalarToDtype(
-                    rewriter, loc, extractIndexValue, rewriter.getI32Type());
+                    rewriter, loc, extractIndexValue, indicesElemType);
                 yieldVals.push_back(extractSrcValue);
                 b.create<linalg::YieldOp>(loc, yieldVals);
               })
@@ -177,7 +178,7 @@ convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(PatternRewriter &rewriter,
       rewriter.create<arith::ConstantIndexOp>(loc, indexType.getRank());
   Value flattenedIndices = createZeroInitTensor(
       rewriter, loc, SmallVector<Value>({indexSize, indicesRank}),
-      rewriter.getI32Type());
+      indexType.getElementType());
   SmallVector<Value> scatterInputsVector(flattenedUpdates);
   for (auto const slice : ArrayRef(scatterInputsVector).drop_back()) {
     SmallVector<Value> sizes = getTensorSizes(rewriter, loc, slice);
@@ -236,12 +237,9 @@ static Value createTMTensorScanOp(
     int64_t dim, bool inclusive,
     function_ref<void(OpBuilder &, Location, Value, Value)> bodyBuild) {
   auto inputType = cast<RankedTensorType>(input.getType());
-  auto accType = cast<RankedTensorType>(accumulator.getType());
   Type elementType = inputType.getElementType();
   auto scanOp = b.create<TMTensor::ScanOp>(
-      loc, TypeRange{inputType, accType}, input,
-      ValueRange{output, accumulator}, b.getI64IntegerAttr(dim),
-      b.getBoolAttr(inclusive));
+      loc, ValueRange{input}, ValueRange{output, accumulator}, dim, inclusive);
 
   Region &scanOpRegion = scanOp.getRegion();
   auto &scanOpBlock = scanOpRegion.emplaceBlock();
@@ -543,8 +541,7 @@ public:
 
     // Creating a tm_tensor.scatter op with the following mapping:
     // 1.) `input` tensor maps to the indices in scatter op. `input` is
-    // expanded from 1-d to 2-d, and its element type is set to i32 as required
-    // for the scatter op.
+    // expanded from 1-d to 2-d.
     // 2.) `updates` is a 1-d dummy tensor with the size equivalent to the
     // `input`.
     // 3.) `bincount` a 1-d tensor maps to the original in scatter op
@@ -559,12 +556,10 @@ public:
     Value expandedInputTensor = rewriter.create<AtenUnsqueezeOp>(
         loc, expandInputType, torchTypeInput, torchCstOne);
 
-    // Converting the input element type to i32.
-    Value indices = convertTensorToDtype(
-        rewriter, loc, expandedInputTensor,
-        mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
-    indices = typeConverter->materializeTargetConversion(
-        rewriter, loc, typeConverter->convertType(indices.getType()), indices);
+    Value indices = typeConverter->materializeTargetConversion(
+        rewriter, loc,
+        typeConverter->convertType(expandedInputTensor.getType()),
+        expandedInputTensor);
 
     auto resultType = cast<RankedTensorType>(
         typeConverter->convertType(op->getResult(0).getType()));
@@ -841,7 +836,6 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
     Location loc = op.getLoc();
-    MLIRContext *context = op->getContext();
     Value input = op.getSelf();
     Value values = op.getValues();
     auto inputType = cast<ValueTensorType>(input.getType());
@@ -962,11 +956,6 @@ public:
     values =
         rewriter.create<AtenViewOp>(loc, valuesType, values, valuesDimsList);
 
-    // `TMTensor::ScatterOp` expects indices of element type i32.
-    indices = convertTensorToDtype(
-        rewriter, loc, indices,
-        mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
-
     input = typeConverter->materializeTargetConversion(
         rewriter, loc, typeConverter->convertType(input.getType()), input);
     values = typeConverter->materializeTargetConversion(
@@ -1048,7 +1037,6 @@ public:
       return failure();
 
     Location loc = op.getLoc();
-    MLIRContext *context = op->getContext();
     Value gradOutput = adaptor.getGradOutput();
     Value input = adaptor.getSelf();
     RankedTensorType gradOutputType =
@@ -1058,12 +1046,7 @@ public:
     Type inputElemType = inputType.getElementType();
     int64_t tensorOperandRank = inputType.getRank();
 
-    // `TMTensor::ScatterOp` expects indices of element type i32.
-    Value indices = convertTensorToDtype(
-        rewriter, loc, op.getIndices(),
-        mlir::IntegerType::get(context, 32, mlir::IntegerType::Signed));
-    indices = typeConverter->materializeTargetConversion(
-        rewriter, loc, typeConverter->convertType(indices.getType()), indices);
+    Value indices = adaptor.getIndices();
     RankedTensorType indicesType = cast<RankedTensorType>(indices.getType());
     Type indicesElemType = indicesType.getElementType();
 
@@ -1634,14 +1617,35 @@ public:
     auto resultType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op->getResult(0).getType()));
     Type elementType = resultType.getElementType();
-    Type inputElementType =
-        cast<RankedTensorType>(input.getType()).getElementType();
+    auto inputType = cast<RankedTensorType>(input.getType());
+    Type inputElementType = inputType.getElementType();
 
-    // Converting the input element type to the result's element type.
-    // The only possible mismatch would be when the input element type is an
-    // integer but not `si64`. Therefore, we directly convert the input to
-    // `si64`. Rest all cases are handled in the dtype definition for this op.
-    if (elementType != inputElementType) {
+    Value dtype = op.getDtype();
+    if (!isa<Torch::NoneType>(dtype.getType())) {
+      int64_t dtypeInt;
+      if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: only constant int dtype value is supported");
+
+      FailureOr<Type> resDtype = getTypeForScalarType(
+          op->getContext(), (torch_upstream::ScalarType)dtypeInt);
+      if (failed(resDtype))
+        return rewriter.notifyMatchFailure(
+            op, "unsupported: dtype not defined for the given dtype int value");
+
+      Value torchInput =
+          convertTensorToDtype(rewriter, loc, op.getSelf(), resDtype.value());
+      input = typeConverter->materializeTargetConversion(
+          rewriter, loc, typeConverter->convertType(torchInput.getType()),
+          torchInput);
+    } else if (elementType != inputElementType &&
+               isa<mlir::IntegerType>(elementType) &&
+               isa<mlir::IntegerType>(inputElementType)) {
+      // Converting the input element type to the result's element type.
+      // The only possible mismatch would be when the input element type is an
+      // integer but not `si64` and the `dtype` is not specified. Therefore, we
+      // directly convert the input to `si64`. Rest all cases are handled in the
+      // dtype definition for this op.
       Value torchInput = convertTensorToDtype(
           rewriter, loc, op.getSelf(),
           rewriter.getIntegerType(64, IntegerType::Signed));
@@ -1650,12 +1654,7 @@ public:
           torchInput);
     }
 
-    int64_t inputRank = resultType.getRank();
-    Value dtype = op.getDtype();
-    if (!isa<Torch::NoneType>(dtype.getType()))
-      return rewriter.notifyMatchFailure(
-          op, "unsupported: dtype argument not supported");
-
+    int64_t inputRank = inputType.getRank();
     int64_t dim;
     if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
       return rewriter.notifyMatchFailure(

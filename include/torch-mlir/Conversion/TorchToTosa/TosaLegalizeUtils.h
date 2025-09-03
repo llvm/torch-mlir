@@ -26,7 +26,7 @@ namespace tosa {
 // rounding mode
 Value buildRescale(PatternRewriter &rewriter, Operation *op,
                    ShapedType output_type, Value input_val, double scale,
-                   int64_t input_zp, int64_t output_zp, bool double_round,
+                   int64_t input_zp, int64_t output_zp, StringRef rounding_mode,
                    bool scale32);
 
 // Creates TOSA rescale op with int32 output
@@ -100,6 +100,11 @@ LogicalResult getConvOpsAccType(PatternRewriter &rewriter,
                                 RankedTensorType inputTy,
                                 RankedTensorType weightTy,
                                 RankedTensorType outputTy, TypeAttr &accType);
+
+FailureOr<Value> getConvBiasForNoneType(Operation *op,
+                                        PatternRewriter &rewriter,
+                                        Type inputElemTy, Type outputElemTy,
+                                        ArrayRef<int64_t> weightShape);
 
 } // namespace tosa
 } // namespace mlir

@@ -38,7 +38,7 @@ jobs:
         uses: ./.github/actions/setup-build
 
       - name: Enable cache
-        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ${{ env.CACHE_DIR }}
           # Use as cache key a PR number if a pull request and otherwise the commit hash. This reuses the cache for a PR irrespective of the commit hash. Otherwise, it uses commit hash for merges into the main branch
@@ -54,7 +54,7 @@ jobs:
           ./build_tools/ci/install_python_deps.sh ${{ matrix.torch-version }}
 
       - name: ccache
-        uses: hendrikmuhs/ccache-action@53911442209d5c18de8a31615e0923161e435875 # v1.2.16
+        uses: hendrikmuhs/ccache-action@63069e3931dedbf3b63792097479563182fe70d1 # v1.2.18
         with:
           key: ${{ github.job }}-${{ matrix.torch-version }}
           save: ${{ needs.setup.outputs.write-caches == 1 }}
@@ -65,7 +65,7 @@ jobs:
           ./build_tools/python_deploy/build_windows_ci.sh
 
       - name: Save cache
-        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         if: ${{ !cancelled() }}
         with:
           path: ${{ env.CACHE_DIR }}

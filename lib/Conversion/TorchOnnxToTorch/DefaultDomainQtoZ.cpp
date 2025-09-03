@@ -1065,9 +1065,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           } else {
             SmallVector<int64_t> resultBroadcastShapeInt;
             SmallVector<Value> resultBroadcastShapeValue;
-            Torch::computeBroadcastShape(rewriter, binder.getLoc(), curr,
-                                         valList[i], resultBroadcastShapeInt,
-                                         resultBroadcastShapeValue);
+            Torch::computeBroadcastShape(
+                rewriter, binder.getLoc(), {curr, valList[i]},
+                resultBroadcastShapeInt, resultBroadcastShapeValue);
             auto baseType = Torch::ValueTensorType::get(
                 binder.op->getContext(), resultBroadcastShapeInt,
                 resultType.getOptionalDtype());
@@ -3874,6 +3874,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
         Value trueVal =
             rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+        Value padMode =
+            rewriter.create<Torch::ConstantStrOp>(binder.getLoc(), "reflect");
         auto stftTy = complexSignalTy.getWithSizesAndDtype(
             ArrayRef<int64_t>({resultShape[0], resultShape[2], resultShape[1]}),
             complexSignalTy.getDtype());
@@ -3886,10 +3888,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // shape of stft to match the shape of resultType. Also, it is
         // immaterial whether torch.view_as_real is called after or before the
         // permutation; both outputs will be equivalent.
-        Value stft = rewriter.create<Torch::AtenStftOp>(
+        Value stft = rewriter.create<Torch::AtenStftCenterOp>(
             binder.getLoc(), stftTy, signal, frameLengthItem, frameStepItem,
-            windowLen, window, falseVal, onesided ? trueVal : falseVal, trueVal,
-            falseVal);
+            windowLen, window, falseVal, padMode, falseVal,
+            onesided ? trueVal : falseVal, trueVal, falseVal);
 
         auto permuteStftTy = complexSignalTy.getWithSizesAndDtype(
             ArrayRef<int64_t>({resultShape[0], resultShape[1], resultShape[2]}),

@@ -337,6 +337,51 @@ def AtenMmIntTypes_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
+
+
+class AtenMmInt8Types(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int8, True),
+            ([-1, -1], torch.int8, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.ops.aten.mm(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenMmInt8Types())
+def AtenMmInt8Types_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(16, 4, high=100).to(torch.int8),
+        tu.randint(4, 16, high=100).to(torch.int8),
+    )
+
+
+# ==============================================================================
+
+
+class AtenMmF16Types(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float16, True),
+            ([-1, -1], torch.float16, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.ops.aten.mm(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenMmF16Types())
+def AtenMmF16Types_basic(module, tu: TestUtils):
+    module.forward(tu.rand(16, 4).to(torch.float16), tu.rand(4, 16).to(torch.float16))
+
+
+# ==============================================================================
 # For DQ-Q fake quantization ops
 import torch.ao.quantization.fx._decomposed
 

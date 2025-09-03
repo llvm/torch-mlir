@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Utils/Utils.h"
+#include "mlir/Dialect/Bufferization/IR/BufferizableOpInterface.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/Passes.h"
@@ -20,6 +20,7 @@
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/Transforms/PassDetail.h"
@@ -154,7 +155,6 @@ struct TMTensorBufferizePass
     typeConverter.addConversion([](UnrankedTensorType type) -> Type {
       return UnrankedMemRefType::get(type.getElementType(), 0);
     });
-    typeConverter.addArgumentMaterialization(materializeToTensor);
     typeConverter.addSourceMaterialization(materializeToTensor);
     typeConverter.addTargetMaterialization([](OpBuilder &builder,
                                               BaseMemRefType type,
@@ -178,7 +178,7 @@ struct TMTensorBufferizePass
       }
       if (isa<TensorType>(inputs[0].getType())) {
         // Tensor to MemRef cast.
-        return builder.create<bufferization::ToMemrefOp>(loc, type, inputs[0]);
+        return builder.create<bufferization::ToBufferOp>(loc, type, inputs[0]);
       }
       llvm_unreachable("only tensor/memref input types supported");
     });

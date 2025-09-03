@@ -636,6 +636,112 @@ def AtenInstanceNormModule_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
+class RMSNormModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([8, 9, 1, 2, 4], torch.float32, True),
+            ([1, 2, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, weight):
+        list = [1, 2, 4]
+        return torch.ops.aten.rms_norm(x, list, weight, eps=0.5)
+
+
+@register_test_case(module_factory=lambda: RMSNormModule())
+def RMSNormModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 9, 1, 2, 4), tu.rand(1, 2, 4))
+
+
+class RMSNormWithoutEpsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 5, 2, 2, 3], torch.float32, True),
+            ([2, 2, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, x, weight):
+        list = [2, 2, 3]
+        return torch.ops.aten.rms_norm(x, list, weight)
+
+
+@register_test_case(module_factory=lambda: RMSNormWithoutEpsModule())
+def RMSNormWithoutEpsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5, 2, 2, 3), tu.rand(2, 2, 3))
+
+
+class RMSNormWithoutWeightModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 2, 3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        list = [4]
+        return torch.ops.aten.rms_norm(x, list, eps=0.5)
+
+
+@register_test_case(module_factory=lambda: RMSNormWithoutWeightModule())
+def RMSNormWithoutWeightModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 3, 4))
+
+
+class RMSNormAllNormalizeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [None, ([5, 6, 3], torch.float32, True), ([5, 6, 3], torch.float32, True)]
+    )
+    def forward(self, x, weight):
+        list = [5, 6, 3]
+        return torch.ops.aten.rms_norm(x, list, weight, eps=0.7)
+
+
+@register_test_case(module_factory=lambda: RMSNormAllNormalizeModule())
+def RMSNormAllNormalizeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 6, 3), tu.rand(5, 6, 3))
+
+
+class RMSNormDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, weight):
+        list = [2, 3, 4]
+        return torch.ops.aten.rms_norm(x, list, weight, eps=0.8)
+
+
+@register_test_case(module_factory=lambda: RMSNormDynamicModule())
+def RMSNormDynamicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 3, 4), tu.rand(2, 3, 4))
+
+
+# ==============================================================================
 class RenormModuleFloat32(torch.nn.Module):
     def __init__(self):
         super().__init__()
