@@ -984,6 +984,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "MaxPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
     "AtenAsStridedModule_basic",
     "AtenAsStridedNoStorageOffsetModule_basic",
+    "AtenAsStridedUnknownSizeModule_basic",
     # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
     "ElementwiseClampMaxModule_bfloat16",
     "ElementwiseClampMinModule_bfloat16",
@@ -3991,6 +3992,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ReplicationPad3dModuleSingleIntPad_basic",
     "AtenAsStridedModule_basic",
     "AtenAsStridedNoStorageOffsetModule_basic",
+    "AtenAsStridedUnknownSizeModule_basic",
     "ChunkListUnpackDynamic_Module_basic",
     "ChunkListUnpackUnevenDynamic_Module_basic",
     "ChunkListUnpackUneven_Module_basic",
