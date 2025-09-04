@@ -372,7 +372,11 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
         auto equalToRunning =
             b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
                                     resultShape[resultDim], currentDimSize);
-        b.create<cf::AssertOp>(loc, equalToRunning,
+        auto equalToOne = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                                  c1, currentDimSize);
+        auto isValidBroadcast =
+            b.create<arith::OrIOp>(loc, equalToRunning, equalToOne);
+        b.create<cf::AssertOp>(loc, isValidBroadcast,
                                "mismatched size for broadcast");
       }
     }
