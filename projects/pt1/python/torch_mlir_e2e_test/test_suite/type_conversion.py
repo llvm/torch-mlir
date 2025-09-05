@@ -370,3 +370,179 @@ class PrimsConvertElementTypeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: PrimsConvertElementTypeModule())
 def PrimsConvertElementTypeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5))
+
+
+# ==============================================================================
+
+
+class ToDtypeConstIntFromDoubleModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.const = torch.tensor([1.1], dtype=torch.float64)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.to(
+            self.const,
+            dtype=torch.int64,
+        )
+
+
+@register_test_case(module_factory=lambda: ToDtypeConstIntFromDoubleModule())
+def ToDtypeConstIntFromDoubleModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class ToDtypeConstInt32FromInt64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.const = torch.tensor([2147483648], dtype=torch.int64)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.to(
+            self.const,
+            dtype=torch.int32,
+        )
+
+
+@register_test_case(module_factory=lambda: ToDtypeConstInt32FromInt64Module())
+def ToDtypeConstInt32FromInt64Module_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class ToDtypeConstFloat16FromFloat64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.const = torch.tensor([1.2345], dtype=torch.float64)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.to(
+            self.const,
+            dtype=torch.float16,
+        )
+
+
+@register_test_case(module_factory=lambda: ToDtypeConstFloat16FromFloat64Module())
+def ToDtypeConstFloat16FromFloat64Module_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class ToDtypeConstBFloat16FromFloat32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.const = torch.tensor([-0.5101], dtype=torch.float32)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.to(
+            self.const,
+            dtype=torch.float16,
+        )
+
+
+@register_test_case(module_factory=lambda: ToDtypeConstBFloat16FromFloat32Module())
+def ToDtypeConstBFloat16FromFloat32Module_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class ToDtypeConstBoolFromInt32ZeroModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.const = torch.tensor([0], dtype=torch.int32)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.to(
+            self.const,
+            dtype=torch.bool,
+        )
+
+
+@register_test_case(module_factory=lambda: ToDtypeConstBoolFromInt32ZeroModule())
+def ToDtypeConstBoolFromInt32ZeroModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class ToDtypeConstBoolFromInt32NonZeroIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.const = torch.tensor([32], dtype=torch.int32)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.to(
+            self.const,
+            dtype=torch.bool,
+        )
+
+
+@register_test_case(module_factory=lambda: ToDtypeConstBoolFromInt32NonZeroIntModule())
+def ToDtypeConstBoolFromInt32NonZeroIntModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class ToDtypeConstBoolFromFloat32NonZeroNanModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.const = torch.tensor([float("nan")], dtype=torch.float32)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.to(
+            self.const,
+            dtype=torch.bool,
+        )
+
+
+@register_test_case(
+    module_factory=lambda: ToDtypeConstBoolFromFloat32NonZeroNanModule()
+)
+def ToDtypeConstBoolFromFloat32NonZeroNanModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class ToDtypeConstFloat32FromBoolModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.const = torch.tensor([True], dtype=torch.bool)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.to(
+            self.const,
+            dtype=torch.float32,
+        )
+
+
+@register_test_case(module_factory=lambda: ToDtypeConstFloat32FromBoolModule())
+def ToDtypeConstFloat32FromBoolModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class ToDtypeConstInt32FromBoolModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.const = torch.tensor([True], dtype=torch.bool)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.to(
+            self.const,
+            dtype=torch.int32,
+        )
+
+
+@register_test_case(module_factory=lambda: ToDtypeConstInt32FromBoolModule())
+def ToDtypeConstInt32FromBoolModule_basic(module, tu: TestUtils):
+    module.forward()

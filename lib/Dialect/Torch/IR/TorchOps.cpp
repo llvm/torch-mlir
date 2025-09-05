@@ -19,6 +19,7 @@
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Support/LLVM.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Casting.h"
@@ -892,26 +893,101 @@ OpFoldResult AtenToDtypeOp::fold(FoldAdaptor adaptor) {
   // The non_blocking arg must be `False`.
   if (!matchPattern(getNonBlocking(), m_TorchConstantBool(&nonBlocking)) ||
       nonBlocking)
-    return nullptr;
+    return {};
   // The copy arg must be `False`.
   if (!matchPattern(getCopy(), m_TorchConstantBool(&copyArg)) || copyArg)
-    return nullptr;
+    return {};
   // The memory_format arg must be `none`.
   if (!isa<Torch::NoneType>(getMemoryFormat().getType()))
-    return nullptr;
+    return {};
 
   auto inputType = cast<BaseTensorType>(getSelf().getType());
   auto resType = cast<BaseTensorType>(getType());
-  // If the types aren't equal, then we can't fold.
-  if (inputType != resType)
-    return nullptr;
+
+  // Fold when both the input tensor and result are of the same type.
   // If the type does not have a statically known dtype, then we cannot fold.
   // For example, folding `tensor<*,unk>` to `tensor<*,unk>` would be wrong,
   // since the `unk` could be dynamically different for the operand and result.
-  if (!inputType.hasDtype())
-    return nullptr;
-  // Fold when both the input tensor and result are of the same type.
-  return getOperand(0);
+  if (inputType == resType && inputType.hasDtype())
+    return getOperand(0);
+
+  // Fold conversion of splat values.
+  auto elems = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  if (!elems || !elems.isSplat())
+    return {};
+
+  auto outVTy = dyn_cast<ValueTensorType>(getType());
+  if (!outVTy)
+    return {};
+
+  auto outShaped = outVTy.toBuiltinTensor();
+  if (!outShaped.hasStaticShape())
+    return {};
+
+  Type srcEltTy = inputType.getDtype();
+  Type dstEltTy = outVTy.getDtype();
+
+  // Handle integer destination.
+  if (auto dstI = dyn_cast<IntegerType>(dstEltTy)) {
+    // any -> bool(i1).
+    if (dstI.isSignlessInteger(1)) {
+      bool truthy = false;
+      if (isa<mlir::FloatType>(srcEltTy)) {
+        const APFloat &floatVal = elems.getSplatValue<APFloat>();
+        truthy = !floatVal.isZero();
+      } else {
+        const APInt &intVal = elems.getSplatValue<APInt>();
+        truthy = !intVal.isZero();
+      }
+      return DenseElementsAttr::get(outShaped, APInt(/*numBits=*/1, truthy));
+    }
+    // float -> intN
+    if (auto srcF = dyn_cast<mlir::FloatType>(srcEltTy)) {
+      APSInt result(dstI.getWidth(), /*isUnsigned=*/dstI.isUnsignedInteger());
+      bool isExact = false;
+      APFloat f = elems.getSplatValue<APFloat>();
+      APFloat::opStatus st =
+          f.convertToInteger(result, APFloat::rmTowardZero, &isExact);
+      if (st == APFloat::opOK || st == APFloat::opInexact)
+        return DenseElementsAttr::get(outShaped, APInt(result));
+      return {}; // NaN/Inf/out-of-range: preserve runtime semantics.
+    }
+    // intM -> intN
+    const APInt &v = elems.getSplatValue<APInt>();
+    auto isUnsigned = cast<IntegerType>(srcEltTy).isUnsignedInteger();
+    auto isSignless = cast<IntegerType>(srcEltTy).isSignlessInteger();
+    APInt casted = isUnsigned || isSignless ? v.zextOrTrunc(dstI.getWidth())
+                                            : v.sextOrTrunc(dstI.getWidth());
+    return DenseElementsAttr::get(outShaped, casted);
+  }
+
+  // Handle float destination.
+  if (auto dstF = dyn_cast<mlir::FloatType>(dstEltTy)) {
+    const llvm::fltSemantics &dstSem = dstF.getFloatSemantics();
+
+    // int -> float
+    if (auto srcI = dyn_cast<IntegerType>(srcEltTy)) {
+      APFloat f(dstSem);
+      APFloat::opStatus st = f.convertFromAPInt(
+          elems.getSplatValue<APInt>(),
+          /*isSigned=*/!srcI.isUnsignedInteger() && !srcI.isSignlessInteger(),
+          APFloat::rmNearestTiesToEven);
+      if (st == APFloat::opOK || st == APFloat::opInexact)
+        return DenseElementsAttr::get(outShaped, f);
+      return {};
+    }
+
+    // floatX -> floatY
+    APFloat f = elems.getSplatValue<APFloat>();
+    bool losesInfo = false;
+    APFloat::opStatus st =
+        f.convert(dstSem, APFloat::rmNearestTiesToEven, &losesInfo);
+    if (st == APFloat::opOK || st == APFloat::opInexact)
+      return DenseElementsAttr::get(outShaped, f);
+    return {};
+  }
+
+  return {};
 }
 
 //===----------------------------------------------------------------------===//
