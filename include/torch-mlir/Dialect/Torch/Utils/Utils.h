@@ -158,18 +158,6 @@ LogicalResult getPermutedType(BaseTensorType inType,
                               SmallVector<int64_t> permuteDims,
                               Type &permutedType);
 
-// Extracts shape as vector of int64_t from vector of Value
-SmallVector<int64_t> getIntShapeFromValues(ArrayRef<Value> vals);
-
-// Converts a vector of Value (shape dimensions) into a ValueTensorType
-// Each `Value` is expected to be a constant integer, and
-// non-constant values are treated as unknown dimensions (using `kUnknownSize`).
-ValueTensorType getTypeFromShape(ArrayRef<Value> vals, Type inOptionalDType);
-
-// Get the size of the dimension 'i' of a given tensor `inValue`.
-Value getDimSize(PatternRewriter &rewriter, Location loc, Value inValue,
-                 uint64_t dimIndex);
-
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

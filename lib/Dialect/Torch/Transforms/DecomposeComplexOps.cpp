@@ -3585,9 +3585,9 @@ public:
 
     auto nLeadingDims = inRank - 3;
 
-    auto inC = getDimSize(rewriter, loc, inValue, inRank - 3);
-    auto inH = getDimSize(rewriter, loc, inValue, inRank - 2);
-    auto inW = getDimSize(rewriter, loc, inValue, inRank - 1);
+    auto inC = getTensorDimSize(rewriter, inValue, inRank - 3);
+    auto inH = getTensorDimSize(rewriter, inValue, inRank - 2);
+    auto inW = getTensorDimSize(rewriter, inValue, inRank - 1);
 
     auto factor = op.getUpscaleFactor();
 
@@ -3645,23 +3645,26 @@ public:
     auto partiallyExpanded =
         rewriter
             .create<PrimsSplitDimOp>(
-                loc, getTypeFromShape(partiallyExpandedShape, inOptionalDType),
+                loc,
+                getTensorTypeFromShapeValues(partiallyExpandedShape,
+                                             inOptionalDType),
                 inValue, dimensionConstants[nLeadingDims], outC)
             .getResult();
 
     // Split new dimension factorSquared -> (factor, factor)
     auto fullyExpanded = rewriter.create<PrimsSplitDimOp>(
-        loc, getTypeFromShape(prePermuteShape, inOptionalDType),
+        loc, getTensorTypeFromShapeValues(prePermuteShape, inOptionalDType),
         partiallyExpanded, dimensionConstants[nLeadingDims + 1], factor);
 
     // Perform the permutation
     auto permuted = rewriter.create<AtenPermuteOp>(
-        loc, getTypeFromShape(postPermuteShape, inOptionalDType), fullyExpanded,
-        permuteDimsOrder);
+        loc, getTensorTypeFromShapeValues(postPermuteShape, inOptionalDType),
+        fullyExpanded, permuteDimsOrder);
 
     // Collapse final 2 dimension
     auto partiallyCollapsed = rewriter.create<PrimsCollapseOp>(
-        loc, getTypeFromShape(partiallyCollapsedShape, inOptionalDType),
+        loc,
+        getTensorTypeFromShapeValues(partiallyCollapsedShape, inOptionalDType),
         permuted, dimensionConstants[nLeadingDims + 3],
         dimensionConstants[nLeadingDims + 4]);
 
@@ -3729,9 +3732,9 @@ public:
 
     auto nLeadingDims = inRank - 3;
 
-    auto inC = getDimSize(rewriter, loc, inValue, inRank - 3);
-    auto inH = getDimSize(rewriter, loc, inValue, inRank - 2);
-    auto inW = getDimSize(rewriter, loc, inValue, inRank - 1);
+    auto inC = getTensorDimSize(rewriter, inValue, inRank - 3);
+    auto inH = getTensorDimSize(rewriter, inValue, inRank - 2);
+    auto inW = getTensorDimSize(rewriter, inValue, inRank - 1);
 
     auto factor = op.getDownscaleFactor();
 
@@ -3788,23 +3791,25 @@ public:
     auto partiallyExpanded =
         rewriter
             .create<PrimsSplitDimOp>(
-                loc, getTypeFromShape(heightSplitShape, inOptionalDType),
+                loc,
+                getTensorTypeFromShapeValues(heightSplitShape, inOptionalDType),
                 inValue, dimensionConstants[nLeadingDims + 1], outH)
             .getResult();
 
     // Split new dimension inW -> (outW, factor)
     auto fullyExpanded = rewriter.create<PrimsSplitDimOp>(
-        loc, getTypeFromShape(prePermuteShape, inOptionalDType),
+        loc, getTensorTypeFromShapeValues(prePermuteShape, inOptionalDType),
         partiallyExpanded, dimensionConstants[nLeadingDims + 3], outW);
 
     // Perform the permutation
     auto permuted = rewriter.create<AtenPermuteOp>(
-        loc, getTypeFromShape(postPermuteShape, inOptionalDType), fullyExpanded,
-        permuteDimsOrder);
+        loc, getTensorTypeFromShapeValues(postPermuteShape, inOptionalDType),
+        fullyExpanded, permuteDimsOrder);
 
     // Collapse final 2 dimension
     auto partiallyCollapsed = rewriter.create<PrimsCollapseOp>(
-        loc, getTypeFromShape(partiallyCollapsedShape, inOptionalDType),
+        loc,
+        getTensorTypeFromShapeValues(partiallyCollapsedShape, inOptionalDType),
         permuted, dimensionConstants[nLeadingDims + 1],
         dimensionConstants[nLeadingDims + 2]);
 
@@ -3875,11 +3880,11 @@ public:
     // The channel dimension is always the second dimension. PyTorch errors out
     // if the batch dimension (first dimension) is not present. See comment at
     // the top of this class for details.
-    auto inC = getDimSize(rewriter, loc, inValue, 1);
+    auto inC = getTensorDimSize(rewriter, inValue, 1);
     SmallVector<Value> inSpatialDims;
     inSpatialDims.reserve(numOfSpatialDims);
     for (unsigned i = 2; i < (2 + numOfSpatialDims); ++i) {
-      inSpatialDims.push_back(getDimSize(rewriter, loc, inValue, i));
+      inSpatialDims.push_back(getTensorDimSize(rewriter, inValue, i));
     }
 
     auto groups = op.getGroups();
@@ -3932,14 +3937,14 @@ public:
     auto expandedTensor =
         rewriter
             .create<PrimsSplitDimOp>(
-                loc, getTypeFromShape(splitShape, inOptionalDType), inValue,
-                dimC, tempC)
+                loc, getTensorTypeFromShapeValues(splitShape, inOptionalDType),
+                inValue, dimC, tempC)
             .getResult();
 
     // Perform the permutation
     auto permuted = rewriter.create<AtenPermuteOp>(
-        loc, getTypeFromShape(permuteShape, inOptionalDType), expandedTensor,
-        permuteDimsOrder);
+        loc, getTensorTypeFromShapeValues(permuteShape, inOptionalDType),
+        expandedTensor, permuteDimsOrder);
 
     // Collapse (C, groups) back into a single channel dimension
     rewriter.replaceOpWithNewOp<PrimsCollapseOp>(op, op.getType(), permuted,
