@@ -106,6 +106,12 @@ FailureOr<Value> getConvBiasForNoneType(Operation *op,
                                         Type inputElemTy, Type outputElemTy,
                                         ArrayRef<int64_t> weightShape);
 
+// Emit a TOSA explicit zero padding op for NCHW layout.
+std::pair<Value, RankedTensorType>
+emitExplicitZeroPadNCHW(Location loc, PatternRewriter &rewriter, Operation *op,
+                        Value input, ArrayRef<int64_t> paddingInts,
+                        Type elemTy);
+
 } // namespace tosa
 } // namespace mlir
 
