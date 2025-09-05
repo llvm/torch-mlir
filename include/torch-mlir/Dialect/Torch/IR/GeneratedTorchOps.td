@@ -8668,6 +8668,30 @@ def Torch_AtenPixelShuffleOp : Torch_Op<"aten.pixel_shuffle", [
   }];
 }
 
+def Torch_AtenPixelUnshuffleOp : Torch_Op<"aten.pixel_unshuffle", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::pixel_unshuffle : (Tensor, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$downscale_factor
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenPixelUnshuffleOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenPixelUnshuffleOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_AtenChannelShuffleOp : Torch_Op<"aten.channel_shuffle", [
     AllowsTypeRefinement,
     HasValueSemantics,
