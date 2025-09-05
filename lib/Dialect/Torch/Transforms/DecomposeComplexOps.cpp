@@ -3697,7 +3697,6 @@ public:
 //    X = X.split_dim(...)      # shape (*leading_dims, C, H, r, W, r)
 //    X = X.permute(0, ..., N, N+2, N+4, N+1, N+3)
 //                              # shape (*leading_dims, C, r, r, H, W)
-//    X = X.collapse(...)       # shape (*leading_dims, C, r*r, H, W)
 //    X = X.collapse(...)       # shape (*leading_dims, C*r*r, H, W)
 //
 namespace {
@@ -3806,17 +3805,10 @@ public:
         loc, getTensorTypeFromShapeValues(postPermuteShape, inOptionalDType),
         fullyExpanded, permuteDimsOrder);
 
-    // Collapse final 2 dimension
-    auto partiallyCollapsed = rewriter.create<PrimsCollapseOp>(
-        loc,
-        getTensorTypeFromShapeValues(partiallyCollapsedShape, inOptionalDType),
-        permuted, dimensionConstants[nLeadingDims + 1],
-        dimensionConstants[nLeadingDims + 2]);
-
-    // Collapse back to original rank
+    // Collapse final 2 dimensions back to original rank
     rewriter.replaceOpWithNewOp<PrimsCollapseOp>(
-        op, op.getType(), partiallyCollapsed, dimensionConstants[nLeadingDims],
-        dimensionConstants[nLeadingDims + 1]);
+        op, op.getType(), permuted, dimensionConstants[nLeadingDims],
+        dimensionConstants[nLeadingDims + 2]);
 
     return success();
   }
