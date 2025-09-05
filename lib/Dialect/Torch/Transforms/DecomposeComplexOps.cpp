@@ -12764,8 +12764,8 @@ public:
     Value input = op.getSelf();
     auto inputType = dyn_cast<BaseTensorType>(input.getType());
 
-    if (!inputType || !inputType.hasSizes() || !inputType.areAllSizesKnown())
-      return rewriter.notifyMatchFailure(op, "input must have known sizes");
+    if (!inputType || !inputType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "input must have sizes");
 
     SmallVector<int64_t> sizesInts;
     if (!matchPattern(op.getSize(), m_TorchListOfConstantInts(sizesInts)))
@@ -12795,8 +12795,13 @@ public:
       // If the input is not a 1-d tensor, we need to flatten it
       // to a 1D tensor before applying the strided indexing.
       int64_t flattenedInputSize = 1;
-      for (int64_t size : inputSizes)
+      for (int64_t size : inputSizes) {
+        if (size == kUnknownSize) {
+          flattenedInputSize = kUnknownSize;
+          break;
+        }
         flattenedInputSize *= size;
+      }
 
       auto flattenedInputTy =
           cast<BaseTensorType>(inputType.getWithSizesAndDtype(
