@@ -421,6 +421,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<Aten_LinalgDetOp>();
   target.addIllegalOp<AtenLinalgSlogdetOp>();
   target.addIllegalOp<AtenPixelShuffleOp>();
+  target.addIllegalOp<AtenPixelUnshuffleOp>();
   target.addIllegalOp<AtenChannelShuffleOp>();
   target.addIllegalOp<AtenTOp>();
   target.addIllegalOp<Aten_LogSoftmaxBackwardDataOp>();
