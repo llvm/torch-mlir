@@ -253,8 +253,7 @@ void TorchMatchSpecializedBackendOp::populateSpecializedConversions(
           auto newOp = rewriter.create<Torch::AtenScaledDotProductAttentionOp>(
               op.getLoc(), op->getResultTypes()[0], newOperands,
               op->getAttrs());
-          rewriter.replaceAllUsesWith(op.getResult(0), newOp.getResult());
-          rewriter.eraseOp(op);
+          rewriter.replaceOp(op, {newOp.getResult(), nullptr});
           return success();
         }
         return failure();
