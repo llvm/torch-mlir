@@ -2199,7 +2199,7 @@ public:
 
       SmallVector<int64_t> resultShape;
       SmallVector<Value> resultShapeValue;
-      computeBroadcastShape(rewriter, loc, input1, input2, resultShape,
+      computeBroadcastShape(rewriter, loc, {input1, input2}, resultShape,
                             resultShapeValue);
       BaseTensorType inputType1 = cast<BaseTensorType>(input1.getType());
       return inputType1.getWithSizesAndDtype(resultShape,
