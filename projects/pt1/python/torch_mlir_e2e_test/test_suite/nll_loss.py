@@ -670,3 +670,119 @@ def NllLossModuleBackward1DSumWeight_basic(module, tu: TestUtils):
     module.forward(
         tu.rand(1), tu.rand(3), torch.tensor([2, 3, 0]), tu.rand(3), torch.tensor(3.0)
     )
+
+
+class PoissonNLLLossNoReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [None, ([-1, -1], torch.float32, True), ([-1, -1], torch.float32, True)]
+    )
+    def forward(self, input, target):
+        return torch.ops.aten.poisson_nll_loss(
+            input=input,
+            target=target,
+            log_input=False,
+            full=False,
+            eps=1e-8,
+            reduction=0,
+        )
+
+
+@register_test_case(module_factory=lambda: PoissonNLLLossNoReductionModule())
+def PoissonNLLLossNoReductionModule_basic(
+    module: PoissonNLLLossNoReductionModule, tu: TestUtils
+):
+    input = tu.rand(4, 3).abs()
+    target = torch.poisson(input)
+    module.forward(input, target)
+
+
+class PoissonNLLLossMeanReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, target):
+        return torch.ops.aten.poisson_nll_loss(
+            input=input,
+            target=target,
+            log_input=True,
+            full=False,
+            eps=1e-8,
+            reduction=1,
+        )
+
+
+@register_test_case(module_factory=lambda: PoissonNLLLossMeanReductionModule())
+def PoissonNLLLossMeanReductionModule_basic(
+    module: PoissonNLLLossMeanReductionModule, tu: TestUtils
+):
+    input = tu.rand(5, 7).abs()
+    target = torch.poisson(input)
+    module.forward(input, target)
+
+
+class PoissonNLLLossSumReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [None, ([-1, -1], torch.float32, True), ([-1, -1], torch.float32, True)]
+    )
+    def forward(self, input, target):
+        return torch.ops.aten.poisson_nll_loss(
+            input=input,
+            target=target,
+            log_input=True,
+            full=False,
+            eps=1e-8,
+            reduction=2,
+        )
+
+
+@register_test_case(module_factory=lambda: PoissonNLLLossSumReductionModule())
+def PoissonNLLLossSumReductionModule_basic(
+    module: PoissonNLLLossSumReductionModule, tu: TestUtils
+):
+    input = tu.rand(3, 3)
+    target = torch.poisson(input.abs())
+    module.forward(input, target)
+
+
+class PoissonNLLLossNonDefaultEpsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [None, ([-1, -1], torch.float32, True), ([-1, -1], torch.float32, True)]
+    )
+    def forward(self, input, target):
+        return torch.ops.aten.poisson_nll_loss(
+            input=input,
+            target=target,
+            log_input=False,
+            full=False,
+            eps=0.5,
+            reduction=1,
+        )
+
+
+@register_test_case(module_factory=lambda: PoissonNLLLossNonDefaultEpsModule())
+def PoissonNLLLossNonDefaultEpsModule_basic(
+    module: PoissonNLLLossNonDefaultEpsModule, tu: TestUtils
+):
+    input = tu.rand(5, 4)
+    target = torch.poisson(input.abs())
+    module.forward(input, target)

@@ -9,7 +9,7 @@
 // CHECK:           %[[NEXT_SEED:.*]] = arith.muli %[[SEED]], %[[CST127]] : i64
 // CHECK:           %[[INSERTED:.*]] = tensor.insert %[[NEXT_SEED]] into %[[TENSOR]][] : tensor<i64>
 // CHECK:           %[[GLOBAL_SEED_1:.*]] = memref.get_global @global_seed : memref<i64>
-// CHECK:           %[[MEMREF:.*]] = bufferization.to_memref %[[INSERTED]] : tensor<i64> to memref<i64>
+// CHECK:           %[[MEMREF:.*]] = bufferization.to_buffer %[[INSERTED]] : tensor<i64> to memref<i64>
 // CHECK:           memref.copy %[[MEMREF]], %[[GLOBAL_SEED_1]] : memref<i64> to memref<i64>
 // CHECK:           return %[[NEXT_SEED]] : i64
 module {

@@ -317,17 +317,18 @@ bool Torch::isViewLikeOp(Operation *op) {
   // correct. We could potentially be more precise and identify the cases
   // that it does not return a view and treat those as having value
   // semantics.
-  return isa<AtenAsStridedOp, AtenBroadcastToOp, AtenContiguousOp, AtenDetachOp,
-             AtenExpandAsOp, AtenExpandOp, AtenFlattenUsingIntsOp,
-             AtenUnflattenIntOp, AtenPermuteOp, AtenReshapeOp,
-             Aten_ReshapeAliasOp, AtenSelectIntOp, AtenSliceTensorOp,
-             AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp, AtenToDtypeOp,
-             AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
-             TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp,
-             AtenNarrowOp, AtenNarrowTensorOp, AtenToDeviceOp, PrimsSqueezeOp,
-             AtenMovedimIntOp, PrimsViewOfOp, AtenRealOp, AtenImagOp,
-             PrimsSplitDimOp, AtenViewAsComplexOp, AtenViewAsRealOp,
-             AtenPixelShuffleOp, AtenDiagonalOp, AtenUnfoldOp>(op);
+  return isa<
+      AtenAsStridedOp, AtenBroadcastToOp, AtenContiguousOp, AtenDetachOp,
+      AtenExpandAsOp, AtenExpandOp, AtenFlattenUsingIntsOp, AtenUnflattenIntOp,
+      AtenPermuteOp, AtenReshapeOp, Aten_ReshapeAliasOp, AtenSelectIntOp,
+      AtenSliceTensorOp, AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp,
+      AtenToDtypeOp, AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
+      TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp, AtenNarrowOp,
+      AtenNarrowTensorOp, AtenToDeviceOp, PrimsSqueezeOp, AtenMovedimIntOp,
+      PrimsViewOfOp, AtenRealOp, AtenImagOp, PrimsSplitDimOp,
+      AtenViewAsComplexOp, AtenViewAsRealOp, AtenPixelShuffleOp,
+      AtenPixelUnshuffleOp, AtenChannelShuffleOp, AtenDiagonalOp, AtenUnfoldOp>(
+      op);
 }
 
 Value Torch::getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter,
@@ -479,78 +480,109 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
   return unsqueezed;
 }
 
-// Checks whether the `shapeA` and `shapeB` are broadcast compatible or not. If
+// Checks whether the inputs are broadcast compatible or not. If
 // yes, then computes the final broadcast shape.
 void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
-                                  Value inputA, Value inputB,
+                                  ArrayRef<Value> inputs,
                                   SmallVector<int64_t> &resultShape,
                                   SmallVector<Value> &resultShapeValue) {
-  SmallVector<int64_t> shapeA{
-      cast<BaseTensorType>(inputA.getType()).getSizes()};
-  SmallVector<int64_t> shapeB{
-      cast<BaseTensorType>(inputB.getType()).getSizes()};
-  unsigned rankA = shapeA.size();
-  unsigned rankB = shapeB.size();
-  unsigned minRank = rankA > rankB ? rankB : rankA;
+
+  SmallVector<SmallVector<int64_t>> shapes;
+  SmallVector<unsigned> ranks;
+  SmallVector<Value> maxShapeValues;
+
+  for (auto input : inputs) {
+    SmallVector<int64_t> shape{
+        cast<BaseTensorType>(input.getType()).getSizes()};
+    shapes.push_back(shape);
+    ranks.push_back(shape.size());
+  }
+
+  Value torchCstOne =
+      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+  auto maxRankItr = std::max_element(ranks.begin(), ranks.end());
+  unsigned maxRank = *maxRankItr;
+
   // Check whether the shapes of the tensors are broadcastable or not.
   // Two tensors are “broadcastable” if the following rules hold:
   // 1.) Each tensor has at least one dimension.
   // 2.) When iterating over the dimension sizes, starting at the trailing
   // dimension, the dimension sizes must either be equal, one of them is 1, or
   // one of them does not exist.
-  for (unsigned i = 0; i < minRank; i++) {
-    Value sizeDimA = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(rankA - i - 1));
-    Value sizeDimB = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(rankB - i - 1));
-    Value sizeInputA =
-        rewriter.createOrFold<AtenSizeIntOp>(loc, inputA, sizeDimA);
-    Value sizeInputB =
-        rewriter.createOrFold<AtenSizeIntOp>(loc, inputB, sizeDimB);
-    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(1));
-    Value cmpSizeAEqualsSizeB =
-        rewriter.create<Torch::AtenEqIntOp>(loc, sizeInputA, sizeInputB);
-    Value cmpSizeAEqualsOne =
-        rewriter.create<Torch::AtenEqIntOp>(loc, sizeInputA, torchCstOne);
-    Value cmpSizeBEqualsOne =
-        rewriter.create<Torch::AtenEqIntOp>(loc, sizeInputB, torchCstOne);
-    Value anyBoolOpList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(cmpSizeAEqualsOne.getType()),
-        SmallVector<Value>{cmpSizeAEqualsSizeB, cmpSizeAEqualsOne,
-                           cmpSizeBEqualsOne});
-    Value cmp = rewriter.create<Torch::AtenAnyBoolOp>(loc, anyBoolOpList);
-    rewriter.create<Torch::RuntimeAssertOp>(
-        loc, cmp, "tensors are not broadcast compatible");
+  for (unsigned i = 0; i < maxRank; i++) {
+
+    SmallVector<Value> sizeInputs;
+    for (auto [idx, input] : llvm::enumerate(inputs)) {
+      int sizeDimIdx = ranks[idx] - i - 1;
+      if (sizeDimIdx >= 0) {
+        auto sizeDim = rewriter.create<Torch::ConstantIntOp>(
+            loc, rewriter.getI64IntegerAttr(sizeDimIdx));
+        sizeInputs.push_back(
+            rewriter.createOrFold<AtenSizeIntOp>(loc, input, sizeDim));
+      }
+    }
+
+    // Compute shape value of broadcast result,
+    // which is the maximum of dimension sizes across all inputs
+    Value maxShapeVal = sizeInputs.front();
+    for (auto sizeInput : sizeInputs) {
+      maxShapeVal = rewriter.create<PrimMaxIntOp>(loc, maxShapeVal, sizeInput);
+    }
+    maxShapeValues.push_back(maxShapeVal);
+
+    SmallVector<Value> predicates;
+    for (auto sizeVal : sizeInputs) {
+      Value cmpSizeEquals =
+          rewriter.create<Torch::AtenEqIntOp>(loc, sizeVal, maxShapeVal);
+      Value cmpSizeEqualsOne =
+          rewriter.create<Torch::AtenEqIntOp>(loc, sizeVal, torchCstOne);
+      Value anyBoolOpList = rewriter.create<PrimListConstructOp>(
+          loc, Torch::ListType::get(cmpSizeEquals.getType()),
+          SmallVector<Value>{cmpSizeEquals, cmpSizeEqualsOne});
+      Value cmp = rewriter.create<Torch::AtenAnyBoolOp>(loc, anyBoolOpList);
+      predicates.push_back(cmp);
+    }
+
+    if (!predicates.empty()) {
+      Value anyBoolOpList = rewriter.create<PrimListConstructOp>(
+          loc, Torch::ListType::get(predicates.front().getType()), predicates);
+      Value cmp = rewriter.create<Torch::AtenAllBoolOp>(loc, anyBoolOpList);
+      rewriter.create<Torch::RuntimeAssertOp>(
+          loc, cmp, "tensors are not broadcast compatible");
+    }
   }
-  // If we reach here then it means both the shapes are broadcast compatible.
-  resultShape = rankA >= rankB ? shapeA : shapeB;
-  Value shapeTensor = rankA >= rankB ? inputA : inputB;
+
+  // If we reach here then it means all shapes are broadcast compatible.
+  auto maxRankIdx = maxRankItr - ranks.begin();
+  resultShape = shapes[maxRankIdx];
+  Value shapeTensor = inputs[maxRankIdx];
+
   for (unsigned i = 0; i < resultShape.size(); i++) {
     Value sizeDim = rewriter.create<Torch::ConstantIntOp>(
         loc, rewriter.getI64IntegerAttr(i));
     resultShapeValue.push_back(
         rewriter.createOrFold<AtenSizeIntOp>(loc, shapeTensor, sizeDim));
   }
-
   unsigned resultRank = resultShape.size();
-  for (unsigned i = 0; i < minRank; i++) {
-    Value sizeDimA = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(rankA - i - 1));
-    Value sizeDimB = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(rankB - i - 1));
-    Value sizeInputA =
-        rewriter.createOrFold<AtenSizeIntOp>(loc, inputA, sizeDimA);
-    Value sizeInputB =
-        rewriter.createOrFold<AtenSizeIntOp>(loc, inputB, sizeDimB);
-    resultShapeValue[resultRank - i - 1] =
-        rewriter.create<PrimMaxIntOp>(loc, sizeInputA, sizeInputB);
-    if (shapeA[rankA - i - 1] == kUnknownSize ||
-        shapeB[rankB - i - 1] == kUnknownSize) {
-      resultShape[resultRank - i - 1] = kUnknownSize;
-    } else {
+  for (unsigned i = 0; i < maxRank; i++) {
+
+    resultShapeValue[resultRank - i - 1] = maxShapeValues[i];
+    resultShape[resultRank - i - 1] = 1;
+    // Compute result shape if all input shapes are known
+    for (auto [idx, shape] : llvm::enumerate(shapes)) {
+      int shapeIdx = (int)ranks[idx] - (int)i - 1;
+      // Check if dimension is valid for the input shape
+      if (shapeIdx < 0) {
+        continue;
+      }
+
+      if (shape[shapeIdx] == kUnknownSize) {
+        resultShape[resultRank - i - 1] = kUnknownSize;
+        break;
+      }
+
       resultShape[resultRank - i - 1] =
-          std::max(shapeA[rankA - i - 1], shapeB[rankB - i - 1]);
+          std::max(resultShape[resultRank - i - 1], shape[shapeIdx]);
     }
   }
 }

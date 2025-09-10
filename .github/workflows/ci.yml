@@ -22,6 +22,7 @@ jobs:
       fail-fast: true
       matrix:
         torch-version: [nightly, stable]
+
     name: Build and Test (Linux, torch-${{ matrix.torch-version }}, assertions)
     runs-on: torch-mlir-cpubuilder-linux-x86-64-scale
     env:
@@ -40,24 +41,24 @@ jobs:
           restore-keys: |
             build-test-cpp-asserts-manylinux-${{ matrix.torch-version }}-v2-
 
-      - name: "Setting up Python"
-        run: |
-          sudo apt update
-          sudo apt install software-properties-common -y
-          sudo add-apt-repository ppa:deadsnakes/ppa -y
-          sudo apt install python3.11 python3-pip -y
-          sudo apt-get install python3.11-dev python3.11-venv build-essential -y
-
-      - name: Install python deps (torch-${{ matrix.torch-version }})
-        run: |
-          export cache_dir="${{ env.CACHE_DIR }}"
-          bash build_tools/ci/install_python_deps.sh ${{ matrix.torch-version }}
-
       - name: ccache
         uses: hendrikmuhs/ccache-action@63069e3931dedbf3b63792097479563182fe70d1 # v1.2.18
         with:
           key: ${{ github.job }}-${{ matrix.torch-version }}
           save: ${{ needs.setup.outputs.write-caches == 1 }}
+
+      - name: Setup workspace and python
+        uses: ./.github/actions/setup-build
+
+      - name: Display Python version and path
+        run: |
+          python -c "import sys; print(sys.version)"
+          which python
+
+      - name: Install python deps (torch-${{ matrix.torch-version }})
+        run: |
+          cd $GITHUB_WORKSPACE
+          ./build_tools/ci/install_python_deps.sh ${{ matrix.torch-version }}
 
       - name: Build project
         run: |

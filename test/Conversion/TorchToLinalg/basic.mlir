@@ -425,3 +425,98 @@ func.func @test_rotary_embedding(%arg0: !torch.vtensor<[1,3,2,6],f32>, %arg1: !t
   %4 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0_0, %int0_1, %int0_2, %float1.000000e00 : !torch.vtensor<[1,3,2,6],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,3,2,6],f32>
   return %4 : !torch.vtensor<[1,3,2,6],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.ops.aten.replication_pad3d$basic(
+// CHECK-SAME: %[[ARG_0:.*]]: !torch.vtensor<[4,3,5],f32>) -> !torch.vtensor<[7,7,6],f32>
+// CHECK: %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4,3,5],f32> -> tensor<4x3x5xf32>
+// CHECK-DAG: %[[INT0:.*]] = torch.constant.int 0
+// CHECK-DAG: %[[INT1:.*]] = torch.constant.int 1
+// CHECK-DAG: %[[INT3:.*]] = torch.constant.int 3
+// CHECK: %[[IDX5:.*]] = arith.constant 5 : index
+// CHECK: %[[IDX1:.*]] = arith.constant 1 : index
+// CHECK: %[[SUB2:.*]] = arith.subi %[[IDX5]], %[[IDX1]] : index
+// CHECK: %[[SLICE1:.*]] = tensor.extract_slice %[[T0]][0, 0, %[[SUB2]]] [4, 3, 1] [1, 1, 1] : tensor<4x3x5xf32> to tensor<4x3x1xf32>
+// CHECK: %[[CONCAT1:.*]] = tensor.concat dim(2) %[[T0]], %[[SLICE1]] : (tensor<4x3x5xf32>, tensor<4x3x1xf32>) -> tensor<4x3x6xf32>
+// CHECK: %[[SLICE2:.*]] = tensor.extract_slice %[[CONCAT1]][0, 0, 0] [4, 1, 6] [1, 1, 1] : tensor<4x3x6xf32> to tensor<4x1x6xf32>
+// CHECK: %[[CONCAT2:.*]] = tensor.concat dim(1) %[[SLICE2]], %[[SLICE2]], %[[SLICE2]] : (tensor<4x1x6xf32>, tensor<4x1x6xf32>, tensor<4x1x6xf32>) -> tensor<4x3x6xf32>
+// CHECK: %[[SUB3:.*]] = arith.subi {{.*}}, {{.*}} : index
+// CHECK: %[[SLICE3:.*]] = tensor.extract_slice %[[CONCAT1]][0, %[[SUB3]], 0] [4, 1, 6] [1, 1, 1] : tensor<4x3x6xf32> to tensor<4x1x6xf32>
+// CHECK: %[[CONCAT3:.*]] = tensor.concat dim(1) %[[CONCAT2]], %[[CONCAT1]], %[[SLICE3]] : (tensor<4x3x6xf32>, tensor<4x3x6xf32>, tensor<4x1x6xf32>) -> tensor<4x7x6xf32>
+// CHECK: %[[SUB4:.*]] = arith.subi {{.*}}, {{.*}} : index
+// CHECK: %[[SLICE4:.*]] = tensor.extract_slice %[[CONCAT3]][%[[SUB4]], 0, 0] [1, 7, 6] [1, 1, 1] : tensor<4x7x6xf32> to tensor<1x7x6xf32>
+// CHECK: %[[CONCAT4:.*]] = tensor.concat dim(0) %[[SLICE4]], %[[SLICE4]], %[[SLICE4]] : (tensor<1x7x6xf32>, tensor<1x7x6xf32>, tensor<1x7x6xf32>) -> tensor<3x7x6xf32>
+// CHECK: %[[CONCAT5:.*]] = tensor.concat dim(0) %[[CONCAT3]], %[[CONCAT4]] : (tensor<4x7x6xf32>, tensor<3x7x6xf32>) -> tensor<7x7x6xf32>
+// CHECK: %[[CAST:.*]] = tensor.cast %[[CONCAT5]] : tensor<7x7x6xf32> to tensor<7x7x6xf32>
+// CHECK: %[[OUT:.*]] = torch_c.from_builtin_tensor %[[CAST]] : tensor<7x7x6xf32> -> !torch.vtensor<[7,7,6],f32>
+// CHECK: return %[[OUT]] : !torch.vtensor<[7,7,6],f32>
+func.func @torch.ops.aten.replication_pad3d$basic(%arg0: !torch.vtensor<[4,3,5],f32>) -> !torch.vtensor<[7,7,6],f32> {
+  %c0 = torch.constant.int 0
+  %c1 = torch.constant.int 1
+  %c3 = torch.constant.int 3
+  %padding = torch.prim.ListConstruct %c0, %c1, %c3, %c1, %c0, %c3 : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.replication_pad3d %arg0, %padding : !torch.vtensor<[4,3,5],f32>, !torch.list<int> -> !torch.vtensor<[7,7,6],f32>
+  return %0 : !torch.vtensor<[7,7,6],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.ops.aten.replication_pad2d$basic
+// CHECK: [[TENSOR:%.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[4,3,5],f32> -> tensor<4x3x5xf32>
+// CHECK: [[INT1:%.*]] = torch.constant.int 1
+// CHECK: [[INT3:%.*]] = torch.constant.int 3
+// CHECK: [[PAD_LIST:%.*]] = torch.prim.ListConstruct [[INT1]], [[INT3]], [[INT1]], [[INT3]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK: [[SLICE_LEFT:%.*]] = tensor.extract_slice [[TENSOR]][0, 0, 0] [4, 3, 1] [1, 1, 1] : tensor<4x3x5xf32> to tensor<4x3x1xf32>
+// CHECK: [[IDX_RIGHT:%.*]] = arith.subi %c5_5, %c1_6 : index
+// CHECK: [[SLICE_RIGHT:%.*]] = tensor.extract_slice [[TENSOR]][0, 0, [[IDX_RIGHT]]] [4, 3, 1] [1, 1, 1] : tensor<4x3x5xf32> to tensor<4x3x1xf32>
+// CHECK: [[RIGHT_PAD:%.*]] = tensor.concat dim(2) [[SLICE_RIGHT]], [[SLICE_RIGHT]], [[SLICE_RIGHT]] : (tensor<4x3x1xf32>, tensor<4x3x1xf32>, tensor<4x3x1xf32>) -> tensor<4x3x3xf32>
+// CHECK: [[PADDED_W:%.*]] = tensor.concat dim(2) [[SLICE_LEFT]], [[TENSOR]], [[RIGHT_PAD]] : (tensor<4x3x1xf32>, tensor<4x3x5xf32>, tensor<4x3x3xf32>) -> tensor<4x3x9xf32>
+// CHECK: [[SLICE_TOP:%.*]] = tensor.extract_slice [[PADDED_W]][0, 0, 0] [4, 1, 9] [1, 1, 1] : tensor<4x3x9xf32> to tensor<4x1x9xf32>
+// CHECK: [[IDX_BOTTOM:%.*]] = arith.subi %c3_18, %c1_21 : index
+// CHECK: [[SLICE_BOTTOM:%.*]] = tensor.extract_slice [[PADDED_W]][0, [[IDX_BOTTOM]], 0] [4, 1, 9] [1, 1, 1] : tensor<4x3x9xf32> to tensor<4x1x9xf32>
+// CHECK: [[BOTTOM_PAD:%.*]] = tensor.concat dim(1) [[SLICE_BOTTOM]], [[SLICE_BOTTOM]], [[SLICE_BOTTOM]] : (tensor<4x1x9xf32>, tensor<4x1x9xf32>, tensor<4x1x9xf32>) -> tensor<4x3x9xf32>
+// CHECK: [[PADDED_HW:%.*]] = tensor.concat dim(1) [[SLICE_TOP]], [[PADDED_W]], [[BOTTOM_PAD]] : (tensor<4x1x9xf32>, tensor<4x3x9xf32>, tensor<4x3x9xf32>) -> tensor<4x7x9xf32>
+// CHECK: [[CAST:%.*]] = tensor.cast [[PADDED_HW]] : tensor<4x7x9xf32> to tensor<4x7x9xf32>
+// CHECK: [[TORCH_TENSOR:%.*]] = torch_c.from_builtin_tensor [[CAST]] : tensor<4x7x9xf32> -> !torch.vtensor<[4,7,9],f32>
+// CHECK: return [[TORCH_TENSOR]] : !torch.vtensor<[4,7,9],f32>
+func.func @torch.ops.aten.replication_pad2d$basic(%arg0: !torch.vtensor<[4,3,5],f32>) -> !torch.vtensor<[4,7,9],f32> {
+  %c1 = torch.constant.int 1
+  %c3 = torch.constant.int 3
+  %padding = torch.prim.ListConstruct %c1, %c3, %c1, %c3 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.replication_pad2d %arg0, %padding : !torch.vtensor<[4,3,5],f32>, !torch.list<int> -> !torch.vtensor<[4,7,9],f32>
+  return %0 : !torch.vtensor<[4,7,9],f32>
+}
+
+// -----
+
+
+// CHECK-LABEL: func.func @torch.ops.aten.replication_pad1d$basic
+// CHECK: [[TENSOR:%.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[3,5],f32> -> tensor<3x5xf32>
+// CHECK: [[INT1:%.*]] = torch.constant.int 1
+// CHECK: [[INT2:%.*]] = torch.constant.int 2
+// CHECK: [[PAD_LIST:%.*]] = torch.prim.ListConstruct [[INT1]], [[INT2]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK: [[C0:%.*]] = arith.constant 0 : index
+// CHECK: [[C3:%.*]] = arith.constant 3 : index
+// CHECK: [[C1:%.*]] = arith.constant 1 : index
+// CHECK: [[C5:%.*]] = arith.constant 5 : index
+// CHECK: [[SLICE_LEFT:%.*]] = tensor.extract_slice [[TENSOR]][0, 0] [3, 1] [1, 1] : tensor<3x5xf32> to tensor<3x1xf32>
+// CHECK: [[C0_0:%.*]] = arith.constant 0 : index
+// CHECK: [[C3_1:%.*]] = arith.constant 3 : index
+// CHECK: [[C1_2:%.*]] = arith.constant 1 : index
+// CHECK: [[C5_3:%.*]] = arith.constant 5 : index
+// CHECK: [[C1_4:%.*]] = arith.constant 1 : index
+// CHECK: [[IDX_RIGHT:%.*]] = arith.subi [[C5_3]], [[C1_4]] : index
+// CHECK: [[SLICE_RIGHT:%.*]] = tensor.extract_slice [[TENSOR]][0, [[IDX_RIGHT]]] [3, 1] [1, 1] : tensor<3x5xf32> to tensor<3x1xf32>
+// CHECK: [[RIGHT_PAD:%.*]] = tensor.concat dim(1) [[SLICE_RIGHT]], [[SLICE_RIGHT]] : (tensor<3x1xf32>, tensor<3x1xf32>) -> tensor<3x2xf32>
+// CHECK: [[PADDED:%.*]] = tensor.concat dim(1) [[SLICE_LEFT]], [[TENSOR]], [[RIGHT_PAD]] : (tensor<3x1xf32>, tensor<3x5xf32>, tensor<3x2xf32>) -> tensor<3x8xf32>
+// CHECK: [[CAST:%.*]] = tensor.cast [[PADDED]] : tensor<3x8xf32> to tensor<3x8xf32>
+// CHECK: [[TORCH_TENSOR:%.*]] = torch_c.from_builtin_tensor [[CAST]] : tensor<3x8xf32> -> !torch.vtensor<[3,8],f32>
+// CHECK: return [[TORCH_TENSOR]] : !torch.vtensor<[3,8],f32>
+func.func @torch.ops.aten.replication_pad1d$basic(%arg0: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,8],f32> {
+  %c1 = torch.constant.int 1
+  %c2 = torch.constant.int 2
+  %padding = torch.prim.ListConstruct %c1, %c2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.replication_pad1d %arg0, %padding : !torch.vtensor<[3,5],f32>, !torch.list<int> -> !torch.vtensor<[3,8],f32>
+  return %0 : !torch.vtensor<[3,8],f32>
+}

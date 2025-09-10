@@ -29,6 +29,8 @@
 #include <optional>
 #include <random>
 
+#include "mlir/Dialect/Tosa/Utils/QuantUtils.h"
+
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
@@ -869,8 +871,11 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
   Value self = adaptor.getSelf();
   auto selfTy = cast<TensorType>(self.getType());
+  auto outTy =
+      dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+  auto outElemTy = outTy.getElementType();
 
-  if (!selfTy) {
+  if (!selfTy || !outTy) {
     return rewriter.notifyMatchFailure(op,
                                        "Only Tensor types supported in TOSA");
   }
@@ -881,12 +886,27 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
         op, "Only floating-point datatype legalization currently supported");
   }
 
+  FloatAttr minFloatAttr, maxFloatAttr;
+  if (outElemTy.isF16()) {
+    minFloatAttr = rewriter.getF16FloatAttr(0.0f);
+    maxFloatAttr = rewriter.getF16FloatAttr(Float16Max);
+  } else if (outElemTy.isBF16()) {
+    minFloatAttr = rewriter.getFloatAttr(rewriter.getBF16Type(), 0.0f);
+    maxFloatAttr = rewriter.getFloatAttr(rewriter.getBF16Type(), BFloat16Max);
+  } else if (outElemTy.isF32()) {
+    minFloatAttr = rewriter.getF32FloatAttr(0.0f);
+    maxFloatAttr = rewriter.getF32FloatAttr(std::numeric_limits<float>::max());
+  } else if (outElemTy.isF64()) {
+    minFloatAttr = rewriter.getF64FloatAttr(0.0f);
+    maxFloatAttr = rewriter.getF64FloatAttr(std::numeric_limits<double>::max());
+  } else {
+    return rewriter.notifyMatchFailure(op, "Unsupported floating-point type");
+  }
+
   // Maps to tosa.clamp
   // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   rewriter.replaceOpWithNewOp<tosa::ClampOp>(
-      op, getTypeConverter()->convertType(op.getType()), self,
-      rewriter.getF32FloatAttr(0.0f),
-      rewriter.getF32FloatAttr(std::numeric_limits<float>::max()),
+      op, outTy, self, minFloatAttr, maxFloatAttr,
       /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
   return success();
 }
@@ -1847,25 +1867,19 @@ public:
 
     SmallVector<int64_t> matmulOutputShape(
         {matmulLhsShape[0], matmulLhsShape[1], matmulRhsShape[2]});
-    Type outputElemTy;
 
     bool isInputElemTyQInt8 = false;
-    if (isa<mlir::quant::UniformQuantizedType>(lhsElemTy)) {
-      mlir::quant::UniformQuantizedType inputQTy =
-          dyn_cast<mlir::quant::UniformQuantizedType>(lhsElemTy);
+    Type inputElemTy{lhsElemTy};
+    if (auto inputQTy =
+            dyn_cast<mlir::quant::UniformQuantizedType>(lhsElemTy)) {
       if (inputQTy.getStorageTypeIntegralWidth() == 8)
         isInputElemTyQInt8 = true;
+      inputElemTy = inputQTy.getStorageType();
     }
 
-    if (isInputElemTyQInt8) {
-      // qint8 emits i32 matmul output
-      outputElemTy = rewriter.getIntegerType(32);
-    } else {
-      outputElemTy = lhsElemTy;
-    }
-
+    auto accElemTy = getDefaultAccType(rewriter, inputElemTy);
     auto mmOutputTy = RankedTensorType::get(
-        makeShapeLLVMCompatible(matmulOutputShape), outputElemTy);
+        makeShapeLLVMCompatible(matmulOutputShape), accElemTy);
 
     Value mmOpResult;
     if (!isInputElemTyQInt8) {
@@ -1995,7 +2009,7 @@ public:
 
       // Perform reshape
       auto reshapedOpType = RankedTensorType::get(
-          makeShapeLLVMCompatible(reshapedOpShape), outputElemTy);
+          makeShapeLLVMCompatible(reshapedOpShape), accElemTy);
       auto reshapedOp = rewriter.create<tosa::ReshapeOp>(
           op->getLoc(),
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -2005,7 +2019,7 @@ public:
 
       if (opNeedsTranspose) {
         auto transposedOpType = RankedTensorType::get(
-            makeShapeLLVMCompatible(transposedOpShape), outputElemTy);
+            makeShapeLLVMCompatible(transposedOpShape), accElemTy);
         output = rewriter
                      .create<tosa::TransposeOp>(
                          op->getLoc(),
@@ -2041,12 +2055,14 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Failed to perform matmul operation");
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(
+    rewriter.replaceOp(
         op,
-        cast<RankedTensorType>(
-            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-                op.getType())),
-        output);
+        {tosa::tosaCastTensorToType(
+             rewriter, output,
+             cast<RankedTensorType>(
+                 OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+                     op.getType())))
+             .value()});
 
     return success();
   }
@@ -2163,10 +2179,6 @@ public:
     auto bias = adaptor.getBias();
     auto biasTy = bias.getType();
 
-    if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, bias).failed())
-      return rewriter.notifyMatchFailure(
-          op, "Failed to equalize ranks among operands and result");
-
     // TOSA does not mandate that elementwise op tensors need to be ranked.
     if (!isa<Torch::NoneType>(biasTy) && !isa<TensorType>(biasTy))
       return rewriter.notifyMatchFailure(
@@ -2205,22 +2217,30 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Failed to perform matmul operation");
 
-    Value matmulPlusBias = matmulOutput;
+    Value matmulPlusBias =
+        tosa::tosaCastTensorToType(
+            rewriter, matmulOutput,
+            cast<RankedTensorType>(
+                OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+                    op.getType())))
+            .value();
+
     if (!isa<Torch::NoneType>(biasTy)) {
-      // Bias addition broadcasts to the matmul output shape.
+      // Broadcast bias to the matmul output shape for addition
+      if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), matmulPlusBias,
+                                    bias)
+              .failed())
+        return rewriter.notifyMatchFailure(
+            op, "Failed to equalize ranks among operands and result");
+
       matmulPlusBias =
           rewriter
-              .create<tosa::AddOp>(op->getLoc(), matmulOutput.getType(),
-                                   matmulOutput, bias)
+              .create<tosa::AddOp>(op->getLoc(), matmulPlusBias.getType(),
+                                   matmulPlusBias, bias)
               .getResult();
     }
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(
-        op,
-        cast<RankedTensorType>(
-            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-                op.getType())),
-        matmulPlusBias);
+    rewriter.replaceOp(op, {matmulPlusBias});
 
     return success();
   }
@@ -2295,7 +2315,6 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   auto weightTy = cast<RankedTensorType>(weight.getType());
   auto outputTy =
       cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
-
   if (!inputTy || !weightTy || !outputTy)
     return rewriter.notifyMatchFailure(
         op, "Input, weight and output to Convolution must be ranked tensors");
@@ -2304,6 +2323,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   auto weightElemTy = weightTy.getElementType();
   auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
   auto weightShape = makeShapeTorchCompatible(weightTy.getShape());
+  auto outputElemTy = outputTy.getElementType();
 
   if (inputTy.getRank() != 4)
     return rewriter.notifyMatchFailure(
@@ -2316,28 +2336,21 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   // Bias is optional. TOSA mandates a zero tensor here, so construct one if
   // required.
   auto bias = adaptor.getBias();
-  if (isa<Torch::NoneType>(adaptor.getBias().getType())) {
-    // TBD: This is only valid for quantized 8-bit. For 16-bit, the bias (and
-    // accumulator) are 48-bit and not 32-bit, and requires the use of APInt to
-    // define a 48-bit int.
-    if (isa<quant::QuantizedType>(inputElemTy)) {
-      SmallVector<int32_t> zeroVec(weightShape[0], 0);
-      bias = tosa::getConstTensor<int32_t>(
-                 rewriter, op, zeroVec, {static_cast<int32_t>(weightShape[0])})
-                 .value();
-    } else {
-      SmallVector<float> zeroVec(weightShape[0], 0);
-      bias = tosa::getConstTensor<float>(rewriter, op, zeroVec,
-                                         {static_cast<int32_t>(weightShape[0])})
-                 .value();
-    }
+
+  if (isa<Torch::NoneType>(bias.getType())) {
+    auto bias_result = tosa::getConvBiasForNoneType(op, rewriter, inputElemTy,
+                                                    outputElemTy, weightShape);
+    if (failed(bias_result))
+      return rewriter.notifyMatchFailure(
+          op, "Failed to create bias tensor for none type.");
+    bias = bias_result.value();
   } else {
-    if (!cast<RankedTensorType>(bias.getType()))
+    if (!isa<RankedTensorType>(bias.getType()))
       return rewriter.notifyMatchFailure(
           op, "Bias provided but not a ranked tensor");
   }
-  auto biasElemTy =
-      isa<mlir::FloatType>(inputElemTy) ? inputElemTy : rewriter.getI32Type();
+
+  Type biasElemTy = cast<RankedTensorType>(bias.getType()).getElementType();
 
   int64_t groups;
   if (!matchPattern(op.getGroups(), m_TorchConstantInt(&groups))) {
@@ -2528,6 +2541,21 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   auto convOpTy =
       RankedTensorType::get(makeShapeLLVMCompatible(outputShape), biasElemTy);
 
+  // create zero-point tensors for input and weight
+  auto zps = tosa::createZPsAsConst(rewriter, input, weight);
+  // for i8 input/weight, zero-points are returned as un-initialized
+  Value inputZp =
+      zps.first
+          ? zps.first
+          : tosa::createZeroPointTensor(rewriter, op->getLoc(), inputElemTy, 0)
+                .value();
+
+  Value weightZp =
+      zps.second
+          ? zps.second
+          : tosa::createZeroPointTensor(rewriter, op->getLoc(), weightElemTy, 0)
+                .value();
+
   Value convOpResult;
   if (groups == 1) {
     // full convolution
@@ -2535,7 +2563,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
         rewriter
             .create<tosa::Conv2DOp>(
                 op->getLoc(), getTypeConverter()->convertType(convOpTy),
-                transposedInput, transformedWeight, bias,
+                transposedInput, transformedWeight, bias, inputZp, weightZp,
                 rewriter.getDenseI64ArrayAttr(padding),
                 rewriter.getDenseI64ArrayAttr(stride),
                 rewriter.getDenseI64ArrayAttr(dilation), accType)
@@ -2546,7 +2574,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
         rewriter
             .create<tosa::DepthwiseConv2DOp>(
                 op->getLoc(), getTypeConverter()->convertType(convOpTy),
-                transposedInput, transformedWeight, bias,
+                transposedInput, transformedWeight, bias, inputZp, weightZp,
                 rewriter.getDenseI64ArrayAttr(padding),
                 rewriter.getDenseI64ArrayAttr(stride),
                 rewriter.getDenseI64ArrayAttr(dilation), accType)
@@ -2574,8 +2602,12 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
         rewriter, op, transposedOutput, inputTy, weightTy, outputTy);
   }
 
-  rewriter.replaceOpWithNewOp<tensor::CastOp>(
-      op, getTypeConverter()->convertType(op.getType()), rescaledResult);
+  // cast to outputTy is required if convOpTy is not same as outputTy
+  // the difference is not in the shape information, rather the element-type
+  // itself
+  rewriter.replaceOp(
+      op,
+      {tosa::tosaCastTensorToType(rewriter, rescaledResult, outputTy).value()});
 
   return success();
 }
@@ -4219,7 +4251,7 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
 
   auto index = adaptor.getIndex();
   auto indexType = dyn_cast<RankedTensorType>(index.getType());
-  auto indexShape = indexType.getShape();
+  ArrayRef<int64_t> indexShape = indexType.getShape();
 
   if (!indexType)
     return rewriter.notifyMatchFailure(
@@ -4228,8 +4260,12 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
   auto inputShape = inputType.getShape();
   int inputRank = inputType.getRank();
 
+  // indexShape is reference. storing actual data in SmallVector to avoid
+  // use-after-free
+  SmallVector<int64_t> indexShapeTorchCompatible{};
   if (indexType.getRank() == 0) {
-    indexShape = makeShapeTorchCompatible({1});
+    indexShapeTorchCompatible = makeShapeTorchCompatible({1});
+    indexShape = indexShapeTorchCompatible;
     index = rewriter.create<tosa::ReshapeOp>(
         op->getLoc(),
         RankedTensorType::get(indexShape, indexType.getElementType()), index,
@@ -5168,10 +5204,30 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
         op, outType, adaptor.getSelf(), minIntAttr, maxIntAttr,
         /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
   } else {
-    FloatAttr minFloatAttr = rewriter.getF32FloatAttr(
-        isMinNotNone ? minFloat : std::numeric_limits<float>::lowest());
-    FloatAttr maxFloatAttr = rewriter.getF32FloatAttr(
-        isMaxNotNone ? maxFloat : std::numeric_limits<float>::max());
+    FloatAttr minFloatAttr, maxFloatAttr;
+    if (outElemTy.isF16()) {
+      minFloatAttr =
+          rewriter.getF16FloatAttr(isMinNotNone ? minFloat : Float16Lowest);
+      maxFloatAttr =
+          rewriter.getF16FloatAttr(isMaxNotNone ? maxFloat : Float16Max);
+    } else if (outElemTy.isBF16()) {
+      minFloatAttr = rewriter.getFloatAttr(
+          rewriter.getBF16Type(), isMinNotNone ? minFloat : BFloat16Lowest);
+      maxFloatAttr = rewriter.getFloatAttr(
+          rewriter.getBF16Type(), isMaxNotNone ? maxFloat : BFloat16Max);
+    } else if (outElemTy.isF32()) {
+      minFloatAttr = rewriter.getF32FloatAttr(
+          isMinNotNone ? minFloat : std::numeric_limits<float>::lowest());
+      maxFloatAttr = rewriter.getF32FloatAttr(
+          isMaxNotNone ? maxFloat : std::numeric_limits<float>::max());
+    } else if (outElemTy.isF64()) {
+      minFloatAttr = rewriter.getF64FloatAttr(
+          isMinNotNone ? minFloat : std::numeric_limits<double>::lowest());
+      maxFloatAttr = rewriter.getF64FloatAttr(
+          isMaxNotNone ? maxFloat : std::numeric_limits<double>::max());
+    } else {
+      return rewriter.notifyMatchFailure(op, "Unsupported floating-point type");
+    }
 
     rewriter.replaceOpWithNewOp<tosa::ClampOp>(
         op, outType, adaptor.getSelf(), minFloatAttr, maxFloatAttr,
@@ -8529,14 +8585,29 @@ LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
 
   auto zi = self;
 
+  FloatAttr minFloatAttr, maxFloatAttr;
+  if (resultElemTy.isF16()) {
+    minFloatAttr = rewriter.getF16FloatAttr(eps);
+    maxFloatAttr = rewriter.getF16FloatAttr(1 - eps);
+  } else if (resultElemTy.isBF16()) {
+    minFloatAttr = rewriter.getFloatAttr(rewriter.getBF16Type(), eps);
+    maxFloatAttr = rewriter.getFloatAttr(rewriter.getBF16Type(), 1 - eps);
+  } else if (resultElemTy.isF32()) {
+    minFloatAttr = rewriter.getF32FloatAttr(eps);
+    maxFloatAttr = rewriter.getF32FloatAttr(1 - eps);
+  } else if (resultElemTy.isF64()) {
+    minFloatAttr = rewriter.getF64FloatAttr(eps);
+    maxFloatAttr = rewriter.getF64FloatAttr(1 - eps);
+  } else {
+    return rewriter.notifyMatchFailure(op, "Unsupported floating-point type");
+  }
+
   // Clamp input to [eps, 1 - eps] when eps is not None
   // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   if (!isEpsNone) {
     zi = rewriter
              .create<tosa::ClampOp>(
-                 op->getLoc(), resultType, self,
-                 rewriter.getF32FloatAttr(static_cast<float>(eps)),
-                 rewriter.getF32FloatAttr(static_cast<float>(1 - eps)),
+                 op->getLoc(), resultType, self, minFloatAttr, maxFloatAttr,
                  /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))
              .getResult();
   }
@@ -9159,20 +9230,20 @@ std::set<StringRef> torch::populateTorchToTosaConversionPatternsAndIllegalOps(
   illegalOps.insert(AtenOp::getOperationName());                               \
   patterns.add<ConvertAtenMatMulOp<AtenOp>>(typeConverter, context);
   INSERT_MATMUL_ATENOP_PATTERN(AtenMatmulOp);
-#undef INSERT_MATMUL_ATEMOP_PATTERN
+#undef INSERT_MATMUL_ATENOP_PATTERN
 
 #define INSERT_MM_ATENOP_PATTERN(AtenOp)                                       \
   illegalOps.insert(AtenOp::getOperationName());                               \
   patterns.add<ConvertAtenMmOp<AtenOp>>(typeConverter, context);
   INSERT_MM_ATENOP_PATTERN(AtenMmOp);
   INSERT_MM_ATENOP_PATTERN(AtenBmmOp);
-#undef INSERT_MM_ATEMOP_PATTERN
+#undef INSERT_MM_ATENOP_PATTERN
 
 #define INSERT_LINEAR_ATENOP_PATTERN(AtenOp)                                   \
   illegalOps.insert(AtenOp::getOperationName());                               \
   patterns.add<ConvertAtenLinearOp<AtenOp>>(typeConverter, context);
   INSERT_LINEAR_ATENOP_PATTERN(AtenLinearOp);
-#undef INSERT_LINEAR_ATEMOP_PATTERN
+#undef INSERT_LINEAR_ATENOP_PATTERN
 
 #define INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN(AtenOp, TosaOpT)                \
   illegalOps.insert(AtenOp::getOperationName());                               \
@@ -9180,7 +9251,7 @@ std::set<StringRef> torch::populateTorchToTosaConversionPatternsAndIllegalOps(
                                                               context);
   INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN(AtenAdaptiveAvgPool2dOp,
                                          tosa::AvgPool2dOp);
-#undef INSERT_ADAPTIVE_POOLING_ATEMOP_PATTERN
+#undef INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN
 
   illegalOps.insert(AtenMaxPool2dOp::getOperationName());
   patterns.add<ConvertAtenMaxPool2dOp>(typeConverter, context);
@@ -9240,7 +9311,7 @@ std::set<StringRef> torch::populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenTanhOp, tosa::TanhOp);
   INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenSigmoidOp, tosa::SigmoidOp);
   INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenErfOp, tosa::ErfOp);
-#undef INSERT_ACTIVATION_FUNCITON_OP_PATTERN
+#undef INSERT_ACTIVATION_FUNCTION_OP_PATTERN
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
   illegalOps.insert(AtenOp::getOperationName());                               \

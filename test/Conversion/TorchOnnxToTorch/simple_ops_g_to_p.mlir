@@ -659,6 +659,48 @@ func.func @test_multinomial_dtype_double_samplenum_4(%arg0: !torch.vtensor<[3,5]
 
 // -----
 
+// CHECK-LABEL:   func.func @test_maxpool_1d_indices_default
+func.func @test_maxpool_1d_indices_default(%arg0: !torch.vtensor<[1,3,32],f32>) -> !torch.vtensor<[1,3,31],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 12 : si64} {
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[1,3,32],f32>) -> !torch.vtensor<[1,3,31],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 12 : si64} {
+// CHECK:           %[[VAL_0:.*]] = torch.constant.int 2
+// CHECK:           %[[VAL_1:.*]] = torch.prim.ListConstruct %[[VAL_0]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_3:.*]] = torch.prim.ListConstruct %[[VAL_2]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_4:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_5:.*]] = torch.prim.ListConstruct %[[VAL_4]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_6:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_7:.*]] = torch.prim.ListConstruct %[[VAL_6]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_8:.*]] = torch.constant.bool false
+// CHECK:           %[[VAL_9:.*]], %[[VAL_10:.*]] = torch.aten.max_pool1d_with_indices %[[ARG0]], %[[VAL_1]], %[[VAL_5]], %[[VAL_3]], %[[VAL_7]], %[[VAL_8]] : !torch.vtensor<[1,3,32],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,31],f32>, !torch.vtensor<[93],ui64>
+// CHECK:           return %[[VAL_9]] : !torch.vtensor<[1,3,31],f32>
+// CHECK:         }
+  %0:2 = torch.operator "onnx.MaxPool"(%arg0) {torch.onnx.kernel_shape = [2 : si64]} : (!torch.vtensor<[1,3,32],f32>) -> (!torch.vtensor<[1,3,31],f32>, !torch.vtensor<[93], ui64>)
+  return %0#0 : !torch.vtensor<[1,3,31],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @test_maxpool_1d_indices_ceil_pad_stride(
+func.func @test_maxpool_1d_indices_ceil_pad_stride(%arg0: !torch.vtensor<[1,3,32],f32>) -> !torch.vtensor<[1,3,16],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 12 : si64} {
+  // CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[1,3,32],f32>) -> !torch.vtensor<[1,3,16],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 12 : si64} {
+  // CHECK:           %[[VAL_0:.*]] = torch.constant.int 5
+  // CHECK:           %[[VAL_1:.*]] = torch.prim.ListConstruct %[[VAL_0]] : (!torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_2:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_3:.*]] = torch.prim.ListConstruct %[[VAL_2]] : (!torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_4:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_5:.*]] = torch.prim.ListConstruct %[[VAL_4]] : (!torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_6:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_7:.*]] = torch.prim.ListConstruct %[[VAL_6]] : (!torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_8:.*]] = torch.constant.bool true
+  // CHECK:           %[[VAL_9:.*]], %[[VAL_10:.*]] = torch.aten.max_pool1d_with_indices %[[ARG0]], %[[VAL_1]], %[[VAL_5]], %[[VAL_3]], %[[VAL_7]], %[[VAL_8]] : !torch.vtensor<[1,3,32],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,16],f32>, !torch.vtensor<[48],ui64>
+  // CHECK:           return %[[VAL_9]] : !torch.vtensor<[1,3,16],f32>
+  // CHECK:         }
+  %0:2 = torch.operator "onnx.MaxPool"(%arg0) {torch.onnx.ceil_mode = 1 : si64, torch.onnx.kernel_shape = [5 : si64], torch.onnx.pads = [2 : si64, 2: si64], torch.onnx.strides = [2 : si64]} : (!torch.vtensor<[1,3,32],f32>) -> (!torch.vtensor<[1,3,16],f32>, !torch.vtensor<[48], ui64>)
+  return %0#0 : !torch.vtensor<[1,3,16],f32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_maxpool_2d_default
 func.func @test_maxpool_2d_default(%arg0: !torch.vtensor<[1,3,32,32],f32>) -> !torch.vtensor<[1,3,31,31],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 12 : si64} {
   // CHECK: %[[I2:.*]] = torch.constant.int 2
@@ -1211,9 +1253,25 @@ func.func @test_pow_i32(%arg0: !torch.vtensor<[3,4,5],si32>, %arg1: !torch.vtens
   // CHECK: %[[NONE:.+]] = torch.constant.none
   // CHECK: %[[POW:.+]] =  torch.aten.pow.Tensor_Tensor %arg0, %arg1 : !torch.vtensor<[3,4,5],si32>, !torch.vtensor<[3,4,5],si32> -> !torch.vtensor<[3,4,5],f64>
   // CHECK: %[[DTY:.+]] = torch.constant.int 3
-  // CHECK: %[[RES:.+]] = torch.aten.to.dtype %[[POW]], %[[DTY]], %[[FALSE]], %[[FALSE]], %[[NONE]]
+  // CHECK: %[[ROUND:.+]] = torch.aten.round %[[POW]] : !torch.vtensor<[3,4,5],f64> -> !torch.vtensor<[3,4,5],f64>
+  // CHECK: %[[RES:.+]] = torch.aten.to.dtype %[[ROUND]], %[[DTY]], %[[FALSE]], %[[FALSE]], %[[NONE]]
   // CHECK: return %[[RES]]
   %0 = torch.operator "onnx.Pow"(%arg0, %arg1) : (!torch.vtensor<[3,4,5],si32>, !torch.vtensor<[3,4,5],si32>) -> !torch.vtensor<[3,4,5],si32>
+  return %0 : !torch.vtensor<[3,4,5],si32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_pow_i32_f32_to_i32
+func.func @test_pow_i32_f32_to_i32(%arg0: !torch.vtensor<[3,4,5],si32>, %arg1: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],si32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 15 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[FALSE:.+]] = torch.constant.bool false
+  // CHECK: %[[NONE:.+]] = torch.constant.none
+  // CHECK: %[[POW:.+]] =  torch.aten.pow.Tensor_Tensor %arg0, %arg1 : !torch.vtensor<[3,4,5],si32>, !torch.vtensor<[3,4,5],f32> -> !torch.vtensor<[3,4,5],f64>
+  // CHECK: %[[DTY:.+]] = torch.constant.int 3
+  // CHECK: %[[ROUND:.+]] = torch.aten.round %[[POW]] : !torch.vtensor<[3,4,5],f64> -> !torch.vtensor<[3,4,5],f64>
+  // CHECK: %[[RES:.+]] = torch.aten.to.dtype %[[ROUND]], %[[DTY]], %[[FALSE]], %[[FALSE]], %[[NONE]]
+  // CHECK: return %[[RES]]
+  %0 = torch.operator "onnx.Pow"(%arg0, %arg1) : (!torch.vtensor<[3,4,5],si32>, !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],si32>
   return %0 : !torch.vtensor<[3,4,5],si32>
 }
 
@@ -1550,6 +1608,82 @@ func.func @test_mod_int64_no_fmod(%arg0: !torch.vtensor<[6],si64>, %arg1: !torch
     %0 = torch.operator "onnx.InstanceNormalization"(%arg0, %arg1, %arg2) : (!torch.vtensor<[1,2,1,3],f32>, !torch.vtensor<[2],f32>, !torch.vtensor<[2],f32>) -> !torch.vtensor<[1,2,1,3],f32>
     return %0 : !torch.vtensor<[1,2,1,3],f32>
   }
+
+// -----
+
+// CHECK-LABEL:   func.func @test_meanvarnorm(
+func.func @test_meanvarnorm(%arg0: !torch.vtensor<[3,5,2,2],f32>) -> !torch.vtensor<[3,5,2,2],f32> attributes {torch.onnx_meta.ir_version = 3 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[3,5,2,2],f32>) -> !torch.vtensor<[3,5,2,2],f32> attributes {torch.onnx_meta.ir_version = 3 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[VAL_0:.*]] = torch.constant.bool true
+  // CHECK:           %[[VAL_1:.*]] = torch.constant.bool false
+  // CHECK:           %[[VAL_2:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_3:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_4:.*]] = torch.constant.int 2
+  // CHECK:           %[[VAL_5:.*]] = torch.constant.int 3
+  // CHECK:           %[[VAL_6:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]], %[[VAL_5]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_7:.*]] = torch.aten.mean.dim %[[ARG0]], %[[VAL_6]], %[[VAL_0]], %[[VAL_2]] : !torch.vtensor<[3,5,2,2],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[1,5,1,1],f32>
+  // CHECK:           %[[VAL_8:.*]] = torch.aten.var.dim %[[ARG0]], %[[VAL_6]], %[[VAL_1]], %[[VAL_0]] : !torch.vtensor<[3,5,2,2],f32>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[1,5,1,1],f32>
+  // CHECK:           %[[VAL_9:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_10:.*]] = torch.constant.float 1.000000e-09
+  // CHECK:           %[[VAL_11:.*]] = torch.aten.add.Scalar %[[VAL_8]], %[[VAL_10]], %[[VAL_9]] : !torch.vtensor<[1,5,1,1],f32>, !torch.float, !torch.int -> !torch.vtensor<[1,5,1,1],f32>
+  // CHECK:           %[[VAL_12:.*]] = torch.aten.sqrt %[[VAL_11]] : !torch.vtensor<[1,5,1,1],f32> -> !torch.vtensor<[1,5,1,1],f32>
+  // CHECK:           %[[VAL_13:.*]] = torch.aten.sub.Tensor %[[ARG0]], %[[VAL_7]], %[[VAL_9]] : !torch.vtensor<[3,5,2,2],f32>, !torch.vtensor<[1,5,1,1],f32>, !torch.int -> !torch.vtensor<[3,5,2,2],f32>
+  // CHECK:           %[[VAL_14:.*]] = torch.aten.div.Tensor %[[VAL_13]], %[[VAL_12]] : !torch.vtensor<[3,5,2,2],f32>, !torch.vtensor<[1,5,1,1],f32> -> !torch.vtensor<[3,5,2,2],f32>
+  // CHECK:           return %[[VAL_14]] : !torch.vtensor<[3,5,2,2],f32>
+  // CHECK:         }
+  %0 = torch.operator "onnx.MeanVarianceNormalization"(%arg0) : (!torch.vtensor<[3,5,2,2],f32>) -> !torch.vtensor<[3,5,2,2],f32>
+  return %0 : !torch.vtensor<[3,5,2,2],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @test_meanvarnorm_axes(
+func.func @test_meanvarnorm_axes(%arg0: !torch.vtensor<[3,5,2,2],f32>) -> !torch.vtensor<[3,5,2,2],f32> attributes {torch.onnx_meta.ir_version = 3 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[3,5,2,2],f32>) -> !torch.vtensor<[3,5,2,2],f32> attributes {torch.onnx_meta.ir_version = 3 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[VAL_0:.*]] = torch.constant.bool true
+  // CHECK:           %[[VAL_1:.*]] = torch.constant.bool false
+  // CHECK:           %[[VAL_2:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_3:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_4:.*]] = torch.constant.int 3
+  // CHECK:           %[[VAL_5:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[VAL_6:.*]] = torch.aten.mean.dim %[[ARG0]], %[[VAL_5]], %[[VAL_0]], %[[VAL_2]] : !torch.vtensor<[3,5,2,2],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,1,2,1],f32>
+  // CHECK:           %[[VAL_7:.*]] = torch.aten.var.dim %[[ARG0]], %[[VAL_5]], %[[VAL_1]], %[[VAL_0]] : !torch.vtensor<[3,5,2,2],f32>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[3,1,2,1],f32>
+  // CHECK:           %[[VAL_8:.*]] = torch.constant.int 1
+  // CHECK:           %[[VAL_9:.*]] = torch.constant.float 1.000000e-09
+  // CHECK:           %[[VAL_10:.*]] = torch.aten.add.Scalar %[[VAL_7]], %[[VAL_9]], %[[VAL_8]] : !torch.vtensor<[3,1,2,1],f32>, !torch.float, !torch.int -> !torch.vtensor<[3,1,2,1],f32>
+  // CHECK:           %[[VAL_11:.*]] = torch.aten.sqrt %[[VAL_10]] : !torch.vtensor<[3,1,2,1],f32> -> !torch.vtensor<[3,1,2,1],f32>
+  // CHECK:           %[[VAL_12:.*]] = torch.aten.sub.Tensor %[[ARG0]], %[[VAL_6]], %[[VAL_8]] : !torch.vtensor<[3,5,2,2],f32>, !torch.vtensor<[3,1,2,1],f32>, !torch.int -> !torch.vtensor<[3,5,2,2],f32>
+  // CHECK:           %[[VAL_13:.*]] = torch.aten.div.Tensor %[[VAL_12]], %[[VAL_11]] : !torch.vtensor<[3,5,2,2],f32>, !torch.vtensor<[3,1,2,1],f32> -> !torch.vtensor<[3,5,2,2],f32>
+  // CHECK:           return %[[VAL_13]] : !torch.vtensor<[3,5,2,2],f32>
+  // CHECK:         }
+  %0 = torch.operator "onnx.MeanVarianceNormalization"(%arg0) {torch.onnx.axes = [1 : si64, 3 : si64]} : (!torch.vtensor<[3,5,2,2],f32>) -> !torch.vtensor<[3,5,2,2],f32>
+  return %0 : !torch.vtensor<[3,5,2,2],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @test_meanvarnorm_neg_axes(
+func.func @test_meanvarnorm_neg_axes(%arg0: !torch.vtensor<[3,5,2,2],f32>) -> !torch.vtensor<[3,5,2,2],f32> attributes {torch.onnx_meta.ir_version = 3 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+    // CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[3,5,2,2],f32>) -> !torch.vtensor<[3,5,2,2],f32> attributes {torch.onnx_meta.ir_version = 3 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+    // CHECK:           %[[VAL_0:.*]] = torch.constant.bool true
+    // CHECK:           %[[VAL_1:.*]] = torch.constant.bool false
+    // CHECK:           %[[VAL_2:.*]] = torch.constant.none
+    // CHECK:           %[[VAL_3:.*]] = torch.constant.int -1
+    // CHECK:           %[[VAL_4:.*]] = torch.constant.int -3
+    // CHECK:           %[[VAL_5:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]] : (!torch.int, !torch.int) -> !torch.list<int>
+    // CHECK:           %[[VAL_6:.*]] = torch.aten.mean.dim %[[ARG0]], %[[VAL_5]], %[[VAL_0]], %[[VAL_2]] : !torch.vtensor<[3,5,2,2],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,1,2,1],f32>
+    // CHECK:           %[[VAL_7:.*]] = torch.aten.var.dim %[[ARG0]], %[[VAL_5]], %[[VAL_1]], %[[VAL_0]] : !torch.vtensor<[3,5,2,2],f32>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[3,1,2,1],f32>
+    // CHECK:           %[[VAL_8:.*]] = torch.constant.int 1
+    // CHECK:           %[[VAL_9:.*]] = torch.constant.float 1.000000e-09
+    // CHECK:           %[[VAL_10:.*]] = torch.aten.add.Scalar %[[VAL_7]], %[[VAL_9]], %[[VAL_8]] : !torch.vtensor<[3,1,2,1],f32>, !torch.float, !torch.int -> !torch.vtensor<[3,1,2,1],f32>
+    // CHECK:           %[[VAL_11:.*]] = torch.aten.sqrt %[[VAL_10]] : !torch.vtensor<[3,1,2,1],f32> -> !torch.vtensor<[3,1,2,1],f32>
+    // CHECK:           %[[VAL_12:.*]] = torch.aten.sub.Tensor %[[ARG0]], %[[VAL_6]], %[[VAL_8]] : !torch.vtensor<[3,5,2,2],f32>, !torch.vtensor<[3,1,2,1],f32>, !torch.int -> !torch.vtensor<[3,5,2,2],f32>
+    // CHECK:           %[[VAL_13:.*]] = torch.aten.div.Tensor %[[VAL_12]], %[[VAL_11]] : !torch.vtensor<[3,5,2,2],f32>, !torch.vtensor<[3,1,2,1],f32> -> !torch.vtensor<[3,5,2,2],f32>
+    // CHECK:           return %[[VAL_13]] : !torch.vtensor<[3,5,2,2],f32>
+    // CHECK:         }
+  %0 = torch.operator "onnx.MeanVarianceNormalization"(%arg0) {torch.onnx.axes = [-1 : si64, -3 : si64]} : (!torch.vtensor<[3,5,2,2],f32>) -> !torch.vtensor<[3,5,2,2],f32>
+  return %0 : !torch.vtensor<[3,5,2,2],f32>
+}
 
 // -----
 

@@ -834,6 +834,52 @@ def ElementwiseReluModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseReluBFloat16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bfloat16, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.relu(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseReluBFloat16Module())
+def ElementwiseReluModule_bfloat16(module, tu: TestUtils):
+    module.forward(tu.rand(4, 2, low=-1).to(torch.bfloat16))
+
+
+# ==============================================================================
+
+
+class ElementwiseReluFloat16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float16, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.relu(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseReluFloat16Module())
+def ElementwiseReluModule_float16(module, tu: TestUtils):
+    module.forward(tu.rand(4, 2, low=-1).to(torch.float16))
+
+
+# ==============================================================================
+
+
 class QuantizedReluInt8(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1769,6 +1815,62 @@ def ElementwiseClampModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseClampBFloat16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bfloat16, True),
+        ]
+    )
+    def forward(self, x):
+        float_min = torch.clamp(x, min=-2.0)
+        int_min = torch.clamp(x, min=-3)
+        float_max = torch.clamp(x, max=2.0)
+        int_max = torch.clamp(x, max=3)
+        both = torch.clamp(x, min=-5, max=5)
+        return float_min, int_min, float_max, int_max, both
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampBFloat16Module())
+def ElementwiseClampModule_bfloat16(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10).to(torch.bfloat16))
+
+
+# ==============================================================================
+
+
+class ElementwiseClampFloat16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float16, True),
+        ]
+    )
+    def forward(self, x):
+        float_min = torch.clamp(x, min=-2.0)
+        int_min = torch.clamp(x, min=-3)
+        float_max = torch.clamp(x, max=2.0)
+        int_max = torch.clamp(x, max=3)
+        both = torch.clamp(x, min=-5, max=5)
+        return float_min, int_min, float_max, int_max, both
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampFloat16Module())
+def ElementwiseClampModule_float16(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10).to(torch.float16))
+
+
+# ==============================================================================
+
+
 class ElementwiseClampMinModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1795,6 +1897,58 @@ def ElementwiseClampMinModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseClampMinBFloat16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bfloat16, True),
+        ]
+    )
+    def forward(self, x):
+        float_min = torch.ops.aten.clamp_min(x, min=-2.0)
+        int_min = torch.ops.aten.clamp_min(x, min=2)
+        min = torch.ops.aten.clamp_min(x, min=11.0)
+        return float_min, int_min, min
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampMinBFloat16Module())
+def ElementwiseClampMinModule_bfloat16(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10).to(torch.bfloat16))
+
+
+# ==============================================================================
+
+
+class ElementwiseClampMinFloat16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float16, True),
+        ]
+    )
+    def forward(self, x):
+        float_min = torch.ops.aten.clamp_min(x, min=-2.0)
+        int_min = torch.ops.aten.clamp_min(x, min=2)
+        min = torch.ops.aten.clamp_min(x, min=11.0)
+        return float_min, int_min, min
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampMinFloat16Module())
+def ElementwiseClampMinModule_float16(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10).to(torch.float16))
+
+
+# ==============================================================================
+
+
 class ElementwiseClampMaxModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1816,6 +1970,58 @@ class ElementwiseClampMaxModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseClampMaxModule())
 def ElementwiseClampMaxModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 5, low=-10, high=10))
+
+
+# ==============================================================================
+
+
+class ElementwiseClampMaxBFloat16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bfloat16, True),
+        ]
+    )
+    def forward(self, x):
+        float_max = torch.ops.aten.clamp_max(x, max=2.0)
+        int_max = torch.ops.aten.clamp_max(x, max=3)
+        max = torch.ops.aten.clamp_max(x, max=-11.0)
+        return float_max, int_max, max
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampMaxBFloat16Module())
+def ElementwiseClampMaxModule_bfloat16(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10).to(torch.bfloat16))
+
+
+# ==============================================================================
+
+
+class ElementwiseClampMaxFloat16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float16, True),
+        ]
+    )
+    def forward(self, x):
+        float_max = torch.ops.aten.clamp_max(x, max=2.0)
+        int_max = torch.ops.aten.clamp_max(x, max=3)
+        max = torch.ops.aten.clamp_max(x, max=-11.0)
+        return float_max, int_max, max
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampMaxFloat16Module())
+def ElementwiseClampMaxModule_float16(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10).to(torch.float16))
 
 
 # ==============================================================================
@@ -2580,6 +2786,54 @@ def ElementwiseLogitModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseLogAddExpModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.logaddexp(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogAddExpModule())
+def ElementwiseLogAddExpModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand(3, 2, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseLogAddExp2Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.logaddexp2(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogAddExp2Module())
+def ElementwiseLogAddExp2Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand(3, 2, 4))
+
+
+# ==============================================================================
+
+
 class ElementwiseLogSigmoidModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2895,6 +3149,49 @@ class ElementwiseTruncIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseTruncIntModule())
 def ElementwiseTruncIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-100, high=100).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseFixModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.fix(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFixModule())
+def ElementwiseFixModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([torch.nan, torch.inf, -torch.inf, 2, 0.5]))
+
+
+class ElementwiseFixIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3], torch.int64, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.fix(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseFixIntModule())
+def ElementwiseFixIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3, low=0, high=500))
 
 
 # ==============================================================================
@@ -6525,6 +6822,26 @@ class AtenRoundIntModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenRoundIntModule())
 def AtenRoundIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(5, 5, low=-10))
+
+
+class AtenRoundFloatDecimalsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.round(x, decimals=2)
+
+
+@register_test_case(module_factory=lambda: AtenRoundFloatDecimalsModule())
+def AtenRoundFloatDecimalsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 5, low=-3.0, high=3.0))
 
 
 # ==============================================================================
