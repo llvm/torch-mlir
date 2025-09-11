@@ -1771,6 +1771,8 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
     #     raise TimeoutError(self.error_message)
     # TimeoutError: Timeout
     "BertModule_basic",
+    "UInt8Tensor_basic",
+    "BoolTensor_basic",
 }
 
 # Write the TOSA set as a "passing" set as it is very early in development

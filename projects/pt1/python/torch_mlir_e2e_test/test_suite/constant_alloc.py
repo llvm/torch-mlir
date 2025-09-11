@@ -2102,3 +2102,46 @@ class AtenDiagEmbedNonDefault4DDiag(torch.nn.Module):
     @register_test_case(module_factory=lambda: AtenDiagEmbedNonDefault4DDiag())
     def AtenDiagEmbedNonDefault4DDiag_basic(module, tu: TestUtils):
         module.forward(tu.rand(2, 3, 4, 5))
+
+
+# ==============================================================================
+
+
+class UInt8Tensor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+        ]
+    )
+    def forward(self):
+        x = torch.tensor([128], dtype=torch.uint8)
+        return torch.ops.aten.to(x, dtype=torch.float32)
+
+
+@register_test_case(module_factory=lambda: UInt8Tensor())
+def UInt8Tensor_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class BoolTensor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+        ]
+    )
+    def forward(self):
+        x = torch.tensor([True], dtype=torch.bool)
+        return torch.ops.aten.to(x, dtype=torch.float32)
+
+
+@register_test_case(module_factory=lambda: BoolTensor())
+def BoolTensor_basic(module, tu: TestUtils):
+    module.forward()
