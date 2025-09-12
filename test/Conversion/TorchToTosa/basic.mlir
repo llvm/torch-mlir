@@ -1557,7 +1557,7 @@ func.func @torch.aten.isclose$basic(%arg0: !torch.vtensor<[5,5],f32>, %arg1: !to
 // CHECK-DAG:           %[[VAL_8:.*]] = tosa.const_shape  {values = dense<[4, 2, 4, 2]> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK-DAG:           %[[VAL_9:.*]] = tosa.const_shape  {values = dense<0> : tensor<2xindex>} : () -> !tosa.shape<2>
 // CHECK-DAG:           %[[VAL_10:.*]] = tosa.const_shape  {values = dense<2> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK:           %[[VAL_11:.*]] = tosa.resize %[[VAL_7]], %[[VAL_8]], %[[VAL_9]], %[[VAL_10]] {mode = "BILINEAR"} : (tensor<1x135x240x16xf32>, !tosa.shape<4>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<1x270x480x16xf32>
+// CHECK:           %[[VAL_11:.*]] = tosa.resize %[[VAL_7]], %[[VAL_8]], %[[VAL_9]], %[[VAL_10]] {mode = BILINEAR} : (tensor<1x135x240x16xf32>, !tosa.shape<4>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<1x270x480x16xf32>
 // CHECK:           %[[VAL_12:.*]] = tosa.transpose %[[VAL_11]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x270x480x16xf32>) -> tensor<1x16x270x480xf32>
 // CHECK:           %[[VAL_13:.*]] = torch_c.from_builtin_tensor %[[VAL_12]] : tensor<1x16x270x480xf32> -> !torch.vtensor<[1,16,270,480],f32>
 // CHECK:           return %[[VAL_13]] : !torch.vtensor<[1,16,270,480],f32>
@@ -1586,7 +1586,7 @@ func.func @torch.aten.__interpolate.size_list_scale_list.bilinear(%arg0: !torch.
 // CHECK-DAG:           %[[VAL_8:.*]] = tosa.const_shape  {values = dense<[4, 2, 4, 2]> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK-DAG:           %[[VAL_9:.*]] = tosa.const_shape  {values = dense<0> : tensor<2xindex>} : () -> !tosa.shape<2>
 // CHECK-DAG:           %[[VAL_10:.*]] = tosa.const_shape  {values = dense<2> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK:           %[[VAL_11:.*]] = tosa.resize %[[VAL_7]], %[[VAL_8]], %[[VAL_9]], %[[VAL_10]] {mode = "NEAREST_NEIGHBOR"} : (tensor<1x135x240x16xf32>, !tosa.shape<4>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<1x270x480x16xf32>
+// CHECK:           %[[VAL_11:.*]] = tosa.resize %[[VAL_7]], %[[VAL_8]], %[[VAL_9]], %[[VAL_10]] {mode = NEAREST_NEIGHBOR} : (tensor<1x135x240x16xf32>, !tosa.shape<4>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<1x270x480x16xf32>
 // CHECK:           %[[VAL_12:.*]] = tosa.transpose %[[VAL_11]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x270x480x16xf32>) -> tensor<1x16x270x480xf32>
 // CHECK:           %[[VAL_13:.*]] = torch_c.from_builtin_tensor %[[VAL_12]] : tensor<1x16x270x480xf32> -> !torch.vtensor<[1,16,270,480],f32>
 // CHECK:           return %[[VAL_13]] : !torch.vtensor<[1,16,270,480],f32>
