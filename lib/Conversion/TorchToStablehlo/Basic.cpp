@@ -876,14 +876,17 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
   // Tensors with integer types need to be converted to signless integer
   // element type. All tensors with element types other than integer can reuse
   // existing elements attribute.
-  // TODO: what about unsigned integer?
   if (auto elements = dyn_cast<DenseIntElementsAttr>(op.getValueAttr())) {
     Type builtinTensorElemTy = resultType.getElementType();
     unsigned bitWidth = builtinTensorElemTy.getIntOrFloatBitWidth();
+    bool isUnsigned =
+        cast<IntegerType>(builtinTensorElemTy).isUnsignedInteger();
 
     DenseElementsAttr valueAttr =
         elements.mapValues(builtinTensorElemTy, [&](const APInt &v) {
-          return APInt(bitWidth, v.getSExtValue());
+          APInt intValue =
+              isUnsigned ? v.zextOrTrunc(bitWidth) : v.sextOrTrunc(bitWidth);
+          return intValue;
         });
     rewriter.replaceOpWithNewOp<stablehlo::ConstantOp>(op, resultType,
                                                        valueAttr);
