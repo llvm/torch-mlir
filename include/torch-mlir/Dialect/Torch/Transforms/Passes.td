@@ -451,4 +451,17 @@ def RestructureNonConstantAxes
   }];
 }
 
+def EvaluateRandnOps : Pass<"evaluate-randn-ops", "func::FuncOp"> {
+  let summary = "Replace aten.randn ops with constant arguments";
+  let constructor = "mlir::torch::Torch::createEvaluateRandnOpsPass(/*randomValues=*/{})";
+  let description = [{
+    This pass replaces `aten.randn` ops that have all constant arguments with a constant tensor.
+  }];
+  let options = [
+    ListOption<"randomValues", "random-values", "float",
+               "List of random values to use for generating the constant",
+               "llvm::cl::ZeroOrMore">,
+  ];
+}
+
 #endif // TORCHMLIR_TORCH_PASSES

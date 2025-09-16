@@ -3,6 +3,7 @@ add_mlir_library(TorchMLIRTorchPasses
   DecomposeComplexOps.cpp
   DropAbstractInterpCalculations.cpp
   EraseModuleInitializer.cpp
+  EvaluateRandnOps.cpp
   FuseQuantizedOps.cpp
   Passes.cpp
   GlobalizeObjectGraph.cpp
