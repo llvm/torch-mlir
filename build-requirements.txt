@@ -1,11 +1,9 @@
-numpy
-pybind11
+-r ./externals/llvm-project/mlir/python/requirements.txt
 wheel
 setuptools
 cmake
 ninja
 packaging
-nanobind>=2.4, <3.0
 
 # Workaround for what should be a torch dep
 # See discussion in #1174
