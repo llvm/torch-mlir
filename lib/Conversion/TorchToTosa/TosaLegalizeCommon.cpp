@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
+#include "mlir/Dialect/Tosa/IR/TosaOps.h" // from @llvm-project
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -764,7 +765,9 @@ std::optional<Value> convertReduceOpCommon(
         // and tosa.reduce_max
         reduce_op = CreateOpAndInfer<T>(
             rewriter, op->getLoc(), reduce_type, val, axis_attr,
-            /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+            /*nan_mode=*/
+            tosa::NanPropagationModeAttr::get(
+                rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE));
       } else {
         reduce_op = CreateOpAndInfer<T>(rewriter, op->getLoc(), reduce_type,
                                         val, axis_attr);
@@ -777,7 +780,7 @@ std::optional<Value> convertReduceOpCommon(
       RankedTensorType output_rescale_type =
           RankedTensorType::get(shape_vec, output_type.getElementType());
       val = buildRescale(rewriter, op, output_rescale_type, val, output_scale,
-                         0, output_zp, "SINGLE_ROUND", true);
+                         0, output_zp, tosa::RoundingMode::SINGLE_ROUND, true);
     }
 
     // Optionally squeeze out the reduced axes.

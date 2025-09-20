@@ -35,8 +35,8 @@ Value buildRescaleMultiplier(bool scale32, PatternRewriter &rewriter,
 // rounding mode
 Value buildRescale(PatternRewriter &rewriter, Operation *op,
                    ShapedType output_type, Value input_val, double scale,
-                   int64_t input_zp, int64_t output_zp, StringRef rounding_mode,
-                   bool scale32) {
+                   int64_t input_zp, int64_t output_zp,
+                   tosa::RoundingMode rounding_mode, bool scale32) {
   int32_t multiplier;
   int32_t shift;
 
@@ -70,7 +70,8 @@ Value buildRescale(PatternRewriter &rewriter, Operation *op,
   auto rescale_op = CreateOpAndInfer<tosa::RescaleOp>(
       rewriter, op->getLoc(), output_type, input_val, multiplier_val, shift_val,
       input_zp_val.value(), output_zp_val.value(),
-      rewriter.getBoolAttr(scale32), rewriter.getStringAttr(rounding_mode),
+      rewriter.getBoolAttr(scale32),
+      tosa::RoundingModeAttr::get(rewriter.getContext(), rounding_mode),
       rewriter.getBoolAttr(false), rewriter.getBoolAttr(input_unsigned),
       rewriter.getBoolAttr(output_unsigned));
 
@@ -87,7 +88,7 @@ Value buildRescaleToInt32(PatternRewriter &rewriter, Operation *op,
   auto output_type = input_type.clone(rewriter.getI32Type());
 
   return buildRescale(rewriter, op, output_type, input_val, input_scale,
-                      input_zp, 0, "SINGLE_ROUND", true);
+                      input_zp, 0, tosa::RoundingMode::SINGLE_ROUND, true);
 }
 
 // Creates a TOSA rescale op based on conv2d parameters.
@@ -146,7 +147,9 @@ Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
     auto rescale_op = CreateOpAndInfer<tosa::RescaleOp>(
         rewriter, op->getLoc(), output_type, conv_val, multiplier_val,
         shift_val, input_zp_val.value(), output_zp_val.value(),
-        rewriter.getBoolAttr(scale32), rewriter.getStringAttr("DOUBLE_ROUND"),
+        rewriter.getBoolAttr(scale32),
+        tosa::RoundingModeAttr::get(rewriter.getContext(),
+                                    tosa::RoundingMode::DOUBLE_ROUND),
         rewriter.getBoolAttr(false), rewriter.getBoolAttr(input_unsigned),
         rewriter.getBoolAttr(output_unsigned));
 
@@ -188,7 +191,9 @@ Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
     auto rescale_op = CreateOpAndInfer<tosa::RescaleOp>(
         rewriter, op->getLoc(), output_type, conv_val, multiplier_val,
         shift_val, input_zp_val.value(), output_zp_val.value(),
-        rewriter.getBoolAttr(scale32), rewriter.getStringAttr("DOUBLE_ROUND"),
+        rewriter.getBoolAttr(scale32),
+        tosa::RoundingModeAttr::get(rewriter.getContext(),
+                                    tosa::RoundingMode::DOUBLE_ROUND),
         rewriter.getBoolAttr(true), rewriter.getBoolAttr(input_unsigned),
         rewriter.getBoolAttr(output_unsigned));
 
