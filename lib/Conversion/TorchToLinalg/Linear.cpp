@@ -76,6 +76,15 @@ static Value transposeValue(Location loc, Value value, ArrayRef<int64_t> perms,
   return transpose;
 }
 
+static int64_t getDimFromValue(Value dimValue) {
+  if (auto constOp = dimValue.getDefiningOp<arith::ConstantOp>()) {
+    if (auto intAttr = dyn_cast<IntegerAttr>(constOp.getValue())) {
+      return intAttr.getInt();
+    }
+  }
+  return ShapedType::kDynamic;
+}
+
 class ConvertAtenMmOp : public OpConversionPattern<AtenMmOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -505,9 +514,9 @@ public:
 
       // Broadcast the batch dimensions of both the matrices.
       Value broadcastedLhs, broadcastedRhs;
-      // TODO: Improve usage of static shape information.
-      SmallVector<int64_t> lhsTargetShape(lhsBroadcastToShape.size(),
-                                          ShapedType::kDynamic);
+      SmallVector<int64_t> lhsTargetShape = llvm::to_vector(
+          llvm::map_range(lhsBroadcastToShape, getDimFromValue));
+
       auto lhsBroadcastType = RankedTensorType::get(
           lhsTargetShape, lhsType.getElementType(), lhsType.getEncoding());
       if (failed(torch_to_linalg::broadcastToGivenShape(
@@ -516,8 +525,8 @@ public:
         return rewriter.notifyMatchFailure(
             op, "unable to perform broadcast operation");
       }
-      SmallVector<int64_t> rhsTargetShape(rhsBroadcastToShape.size(),
-                                          ShapedType::kDynamic);
+      SmallVector<int64_t> rhsTargetShape = llvm::to_vector(
+          llvm::map_range(rhsBroadcastToShape, getDimFromValue));
       auto rhsBroadcastType = RankedTensorType::get(
           rhsTargetShape, rhsType.getElementType(), rhsType.getEncoding());
       if (failed(torch_to_linalg::broadcastToGivenShape(
