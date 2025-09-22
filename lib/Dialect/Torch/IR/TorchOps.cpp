@@ -4888,11 +4888,11 @@ OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
     return nullptr;
   }
   auto elementType = shapedty.getElementType();
-  if (isa<IntegerType>(elementType)) {
+  if (isa<mlir::IntegerType>(elementType)) {
     Attribute attribute = IntegerAttr::get(elementType, 1);
     return DenseElementsAttr::get(shapedty, attribute);
   }
-  if (isa<FloatType>(elementType)) {
+  if (isa<mlir::FloatType>(elementType)) {
     Attribute attribute = FloatAttr::get(elementType, 1.0);
     return DenseElementsAttr::get(shapedty, attribute);
   }
@@ -4928,11 +4928,11 @@ OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
   }
 
   auto elementType = shapedty.getElementType();
-  if (isa<IntegerType>(elementType)) {
+   if (isa<IntegerType>(elementType)) {
     Attribute attribute = IntegerAttr::get(elementType, 0);
     return DenseElementsAttr::get(shapedty, attribute);
   }
-  if (isa<FloatType>(elementType)) {
+  if (isa<mlir::FloatType>(elementType)) {
     Attribute attribute = FloatAttr::get(elementType, 0.0);
     return DenseElementsAttr::get(shapedty, attribute);
   }
@@ -4965,14 +4965,14 @@ OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
       resultTensorType.getSizes(), resultTensorType.getDtype());
 
   auto elementType = shapedty.getElementType();
-  if (isa<IntegerType>(elementType)) {
+   if (isa<IntegerType>(elementType)) {
     int64_t value = 0;
     if (matchPattern(getFillValue(), m_TorchConstantInt(&value))) {
       Attribute attribute = IntegerAttr::get(elementType, value);
       return DenseElementsAttr::get(shapedty, attribute);
     }
   }
-  if (isa<FloatType>(elementType)) {
+  if (isa<mlir::FloatType>(elementType)) {
     double value = 0.0;
     if (matchPattern(getFillValue(), m_TorchConstantFloat(&value))) {
       Attribute attribute = FloatAttr::get(elementType, value);

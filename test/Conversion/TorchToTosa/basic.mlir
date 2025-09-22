@@ -857,10 +857,9 @@ func.func @torch.aten.log2$basic(%arg0: !torch.vtensor<[?,?],f32> ) -> !torch.vt
 // CHECK:           %[[VAL_1:.*]] = torch.constant.int 3
 // CHECK:           %[[VAL_2:.*]] = torch.constant.none
 // CHECK:           %[[VAL_3:.*]] = torch.prim.ListConstruct %[[VAL_1]], %[[VAL_0]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0> : tensor<3x4xi32>}> : () -> tensor<3x4xi32>
-// CHECK:           %[[VAL_5:.*]] = tosa.cast %[[VAL_4]] : (tensor<3x4xi32>) -> tensor<3x4xf32>
-// CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
-// CHECK:           return %[[VAL_6]] : !torch.vtensor<[3,4],f32>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<3x4xf32>}> : () -> tensor<3x4xf32>
+// CHECK:           %[[VAL_5:.*]] = torch_c.from_builtin_tensor %[[VAL_4]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
+// CHECK:           return %[[VAL_5]] : !torch.vtensor<[3,4],f32>
 // CHECK:         }
 func.func @torch.aten.zeros$basic() -> !torch.vtensor<[3,4],f32> {
   %int4 = torch.constant.int 4
@@ -925,10 +924,9 @@ func.func @torch.aten.contiguous$basic(%arg0: !torch.vtensor<[?,?],f32> ) -> !to
 // CHECK:           %[[VAL_1:.*]] = torch.constant.int 3
 // CHECK:           %[[VAL_2:.*]] = torch.constant.none
 // CHECK:           %[[VAL_3:.*]] = torch.prim.ListConstruct %[[VAL_1]], %[[VAL_0]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<1> : tensor<3x4xi32>}> : () -> tensor<3x4xi32>
-// CHECK:           %[[VAL_5:.*]] = tosa.cast %[[VAL_4]] : (tensor<3x4xi32>) -> tensor<3x4xf32>
-// CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
-// CHECK:           return %[[VAL_6]] : !torch.vtensor<[3,4],f32>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<1.000000e+00> : tensor<3x4xf32>}> : () -> tensor<3x4xf32>
+// CHECK:           %[[VAL_5:.*]] = torch_c.from_builtin_tensor %[[VAL_4]] : tensor<3x4xf32> -> !torch.vtensor<[3,4],f32>
+// CHECK:           return %[[VAL_5]] : !torch.vtensor<[3,4],f32>
 // CHECK:         }
 func.func @torch.aten.ones$basic() -> !torch.vtensor<[3,4],f32> {
   %int4 = torch.constant.int 4
