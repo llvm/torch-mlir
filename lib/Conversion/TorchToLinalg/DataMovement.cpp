@@ -692,7 +692,6 @@ public:
       if (outputSizes[i] == Torch::kUnknownSize)
         numDynamicReassocDims++;
     }
-
     SmallVector<Value> reassocSizes;
     if (!getListConstructElements(op.getSizes(), reassocSizes) &&
         numDynamicReassocDims > 1)
@@ -700,7 +699,7 @@ public:
           op, "Must be able to either infer expansion dims, or retrieve them "
               "from list construct");
 
-    auto expandTy = getTypeConverter()->convertType(outputTensorType);
+    RankedTensorType expandTy = cast<RankedTensorType>(getTypeConverter()->convertType(outputTensorType));
     Value expand;
     // When there are less than two dynamic reassociation dims, this will lower
     // to tensor.expand_shape. Otherwise, this lowers to tensor.reshape.
@@ -717,10 +716,61 @@ public:
         for (int i = dimInt + numSizes; i < outputRank; ++i)
           reassociations[i - numSizes + 1].push_back(i);
       }
-      expand = rewriter
-                   .create<tensor::ExpandShapeOp>(
-                       loc, expandTy, adaptor.getSelf(), reassociations)
-                   .getResult();
+
+      // When we have -1 in our sizes, we need to infer the output shape.
+      // Instead, we calculate this inferred dimensions directly.
+      SmallVector<int64_t> sizesInts;
+      bool haveConstSizes = matchPattern(op.getSizes(), m_TorchListOfConstantInts(sizesInts));
+      int64_t minusOneIdx = -1;
+      int64_t knownProduct = 1;
+      if (haveConstSizes) {
+        for (int64_t j = 0, e = sizesInts.size(); j < e; ++j) {
+          if (sizesInts[j] == -1) {
+            if (minusOneIdx != -1)
+              minusOneIdx = -2; // more than one -1 -> invalid sizes list
+            else
+              minusOneIdx = j;
+          } else {
+            knownProduct *= sizesInts[j];
+          }
+        }
+      }
+
+      bool folded = false;
+      if (haveConstSizes && minusOneIdx >= 0) {
+        OpFoldResult numerator;
+        ArrayRef<int64_t> inShape = inputTensorType.getSizes();
+        if (inShape[dimInt] != Torch::kUnknownSize) {
+          numerator = rewriter.getIndexAttr(inShape[dimInt]);
+        } else {
+          SmallVector<Value> inputShapeIdx = getTensorSizes(rewriter, loc, adaptor.getSelf());
+          numerator = OpFoldResult(inputShapeIdx[dimInt]);
+        }
+
+        AffineExpr s0 = getAffineSymbolExpr(0, rewriter.getContext());
+        auto map = AffineMap::get(0, 1, s0.floorDiv(knownProduct), rewriter.getContext());
+        OpFoldResult inferred = affine::makeComposedFoldedAffineApply(rewriter, loc, map, ArrayRef<OpFoldResult>{numerator});
+
+        if (auto attr = inferred.dyn_cast<Attribute>()) {
+          int64_t inferredAttr = cast<IntegerAttr>(attr).getInt(); // index attr
+          SmallVector<int64_t> inferShape(expandTy.getShape().begin(), expandTy.getShape().end());
+          int64_t pos = dimInt + minusOneIdx;
+          inferShape[pos] = inferredAttr;
+
+          auto inferTy = RankedTensorType::get(inferShape, expandTy.getElementType());
+          Value inferExpand = rewriter.create<tensor::ExpandShapeOp>(loc, inferTy, adaptor.getSelf(), reassociations);
+
+          if (inferTy != expandTy) {
+            expand = rewriter.create<tensor::CastOp>(loc, expandTy, inferExpand).getResult();
+          } else {
+            expand = inferExpand;
+          }
+          folded = true;
+        }
+      }
+      if (!folded) {
+        expand = rewriter.create<tensor::ExpandShapeOp>(loc, expandTy, adaptor.getSelf(), reassociations).getResult();
+      }
     } else {
       reassocSizes = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
                                             reassocSizes);
@@ -745,6 +795,7 @@ public:
                                               shapeValue)
                    .getResult();
     }
+
     rewriter.replaceOp(op, expand);
     return success();
   }
