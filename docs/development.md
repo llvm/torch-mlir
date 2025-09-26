@@ -197,7 +197,7 @@ TIP: add multiple target options to stack build phases
 #### Linux and macOS
 
 ```shell
-export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/test/python/fx_importer
+export PYTHONPATH=`pwd`/build/python_packages/torch_mlir:`pwd`/test/python/fx_importer
 ```
 
 #### Windows PowerShell
