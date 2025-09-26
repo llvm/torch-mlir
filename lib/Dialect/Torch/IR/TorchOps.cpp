@@ -4928,7 +4928,7 @@ OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
   }
 
   auto elementType = shapedty.getElementType();
-   if (isa<IntegerType>(elementType)) {
+  if (isa<IntegerType>(elementType)) {
     Attribute attribute = IntegerAttr::get(elementType, 0);
     return DenseElementsAttr::get(shapedty, attribute);
   }
@@ -4965,7 +4965,7 @@ OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
       resultTensorType.getSizes(), resultTensorType.getDtype());
 
   auto elementType = shapedty.getElementType();
-   if (isa<IntegerType>(elementType)) {
+  if (isa<IntegerType>(elementType)) {
     int64_t value = 0;
     if (matchPattern(getFillValue(), m_TorchConstantInt(&value))) {
       Attribute attribute = IntegerAttr::get(elementType, value);
