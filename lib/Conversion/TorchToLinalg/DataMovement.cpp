@@ -717,59 +717,75 @@ public:
           reassociations[i - numSizes + 1].push_back(i);
       }
 
-      // When we have -1 in our sizes, we need to infer the output shape.
-      // Instead, we calculate this inferred dimensions directly.
-      SmallVector<int64_t> sizesInts;
-      bool haveConstSizes = matchPattern(op.getSizes(), m_TorchListOfConstantInts(sizesInts));
+      SmallVector<Value> reassocSizeValues;
+      // Is there a function that already does this somewhere?
+      auto sizeToOFR = [&](Value sizeVal) -> OpFoldResult {
+        int64_t constantSize;
+        if (matchPattern(sizeVal, m_TorchConstantInt(&constantSize))) {
+          return rewriter.getIndexAttr(constantSize);
+        }
+        SmallVector<Value> singleSizeVec = {sizeVal};
+        Value converted = castIntToIndex(rewriter, loc, getTypeConvertedValues(rewriter, loc, getTypeConverter(), singleSizeVec)[0]);
+        return OpFoldResult(converted);
+      };
+
       int64_t minusOneIdx = -1;
-      int64_t knownProduct = 1;
-      if (haveConstSizes) {
-        for (int64_t j = 0, e = sizesInts.size(); j < e; ++j) {
-          if (sizesInts[j] == -1) {
-            if (minusOneIdx != -1)
-              minusOneIdx = -2; // more than one -1 -> invalid sizes list
-            else
-              minusOneIdx = j;
-          } else {
-            knownProduct *= sizesInts[j];
-          }
-        }
-      }
-
-      bool folded = false;
-      if (haveConstSizes && minusOneIdx >= 0) {
-        OpFoldResult numerator;
-        ArrayRef<int64_t> inShape = inputTensorType.getSizes();
-        if (inShape[dimInt] != Torch::kUnknownSize) {
-          numerator = rewriter.getIndexAttr(inShape[dimInt]);
+      OpFoldResult knownProduct = rewriter.getIndexAttr(1);
+      AffineExpr s0 = getAffineSymbolExpr(0, rewriter.getContext());
+      AffineExpr s1 = getAffineSymbolExpr(1, rewriter.getContext());
+      auto mulMap = AffineMap::get(0, 2, s0 * s1, rewriter.getContext());
+      
+      for (int64_t j = 0, e = reassocSizeValues.size(); j < e; ++j) {
+        int64_t constantSize;
+        // mlir::Value to int comparison...
+        if (matchPattern(reassocSizeValues[j], m_TorchConstantInt(&constantSize)) && constantSize == -1) {
+          minusOneIdx = j;
         } else {
-          SmallVector<Value> inputShapeIdx = getTensorSizes(rewriter, loc, adaptor.getSelf());
-          numerator = OpFoldResult(inputShapeIdx[dimInt]);
-        }
-
-        AffineExpr s0 = getAffineSymbolExpr(0, rewriter.getContext());
-        auto map = AffineMap::get(0, 1, s0.floorDiv(knownProduct), rewriter.getContext());
-        OpFoldResult inferred = affine::makeComposedFoldedAffineApply(rewriter, loc, map, ArrayRef<OpFoldResult>{numerator});
-
-        if (auto attr = inferred.dyn_cast<Attribute>()) {
-          int64_t inferredAttr = cast<IntegerAttr>(attr).getInt(); // index attr
-          SmallVector<int64_t> inferShape(expandTy.getShape().begin(), expandTy.getShape().end());
-          int64_t pos = dimInt + minusOneIdx;
-          inferShape[pos] = inferredAttr;
-
-          auto inferTy = RankedTensorType::get(inferShape, expandTy.getElementType());
-          Value inferExpand = rewriter.create<tensor::ExpandShapeOp>(loc, inferTy, adaptor.getSelf(), reassociations);
-
-          if (inferTy != expandTy) {
-            expand = rewriter.create<tensor::CastOp>(loc, expandTy, inferExpand).getResult();
-          } else {
-            expand = inferExpand;
-          }
-          folded = true;
+          knownProduct = affine::makeComposedFoldedAffineApply(rewriter, loc, mulMap, {knownProduct, sizeToOFR(reassocSizeValues[j])});
         }
       }
-      if (!folded) {
-        expand = rewriter.create<tensor::ExpandShapeOp>(loc, expandTy, adaptor.getSelf(), reassociations).getResult();
+
+      SmallVector<OpFoldResult> outputShape;
+      SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, adaptor.getSelf());      
+      for (int64_t i = 0; i < inputRank; ++i) {
+        if (i == dimInt) {
+          OpFoldResult inputDimSize = (inputTensorType.getSizes()[dimInt] != Torch::kUnknownSize) ?
+            rewriter.getIndexAttr(inputTensorType.getSizes()[dimInt]) : OpFoldResult(inputSizes[dimInt]);          
+          for (int64_t j = 0; j < numSizes; ++j) {
+            if (j == minusOneIdx) {
+              auto divMap = AffineMap::get(0, 2, s0.floorDiv(s1), rewriter.getContext());
+              outputShape.push_back(affine::makeComposedFoldedAffineApply(rewriter, loc, divMap, {inputDimSize, knownProduct}));
+            } else {
+              outputShape.push_back(sizeToOFR(reassocSizeValues[j]));
+            }
+          }
+        } else {
+          OpFoldResult inputDimSize = (inputTensorType.getSizes()[i] != Torch::kUnknownSize) ?
+            rewriter.getIndexAttr(inputTensorType.getSizes()[i]) : OpFoldResult(inputSizes[i]);
+          outputShape.push_back(inputDimSize);
+        }
+      }
+
+      // Originally I was doing:
+      // expand = tensor::ExpandShapeOp::create(rewriter, loc, expandTy, adaptor.getSelf(), reassociations, outputShape).getResult();
+      // But with that I was running into:
+      // error: 'tensor.expand_shape' op expected dimension 0 of collapsed type to be dynamic since one or more of the corresponding dimensions in the expanded type is dynamic
+      // %4491 = torch.aten.as_strided %4488, %4489, %4490, %int0_462 : !torch.vtensor<[2,4096,5120],f16>, !torch.list<int>, !torch.list<int>, !torch.int -> !torch.vtensor<[2,4096,2560],f16>
+      // /home/rdhar/expand-shape-bug/iree/iree-model-benchmark/sdxl/int8-model/base_ir/stable_diffusion_xl_base_1_0_scheduled_unet_bs1_64_1024x1024_i8.mlir:13071:13: note: see current operation: %17734 = "tensor.expand_shape"(%17730) <{reassociation = [[0, 1, 2]], static_output_shape = array<i64: 2, 1, 1>}> : (tensor<2xi64>) -> tensor<?x1x1xi64>
+      // So there is this really ugly code to handle the types... but it kind of defeats all the code above.
+      SmallVector<int64_t> resultShape;
+      for (OpFoldResult ofr : outputShape) {
+        if (auto attr = ofr.dyn_cast<Attribute>()) {
+          resultShape.push_back(cast<IntegerAttr>(attr).getInt());
+        } else {
+          resultShape.push_back(ShapedType::kDynamic);
+        }
+      }
+      auto resultType = RankedTensorType::get(resultShape, expandTy.getElementType());
+      expand = tensor::ExpandShapeOp::create(rewriter, loc, resultType, adaptor.getSelf(), reassociations, outputShape).getResult();
+      
+      if (resultType != expandTy) {
+        expand = rewriter.create<tensor::CastOp>(loc, expandTy, expand).getResult();
       }
     } else {
       reassocSizes = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
