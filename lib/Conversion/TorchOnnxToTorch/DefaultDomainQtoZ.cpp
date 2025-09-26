@@ -3165,6 +3165,44 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           supportedScaleFactors = noneVal;
           supportedSizes = createScalarSublist(
               loc, proposedSizes, assumedForemostSpatialDim, rewriter);
+
+          // supportedSizes is the spatial list. For resize/interpolate op [0,0]
+          // is not valid. Replace 0s with the dynamic sentinel
+          auto supportedSizesTensorType =
+              cast<Torch::BaseTensorType>(supportedSizes.getType());
+
+          auto sizesOfsupportedSizesTensor =
+              supportedSizesTensorType.getSizes();
+          auto lengthOfFullList = sizesOfsupportedSizesTensor[0];
+          SmallVector<Value> newSupportedSizes;
+
+          for (int indexOfEachScalar = 0; indexOfEachScalar < lengthOfFullList;
+               indexOfEachScalar++) {
+
+            Value proposedDim = extractTorchScalar(loc, indexOfEachScalar,
+                                                   supportedSizes, rewriter);
+
+            Value zero = rewriter.create<Torch::ConstantIntOp>(loc, 0);
+            Value dynamic =
+                rewriter.create<Torch::ConstantIntOp>(loc, unknownSize);
+
+            // Check if the proposed size is 0
+            Value isZero = rewriter.create<Torch::AtenEqIntOp>(
+                loc, boolType, proposedDim, zero);
+
+            // If proposed spatial dim is 0, change it to use torch dynamic dim
+            auto corrected = rewriter.create<Torch::AtenWhereSelfOp>(
+                loc, proposedDim.getType(), isZero, dynamic, proposedDim);
+
+            newSupportedSizes.push_back(corrected);
+          }
+
+          auto someTorchScalarType = newSupportedSizes.front().getType();
+          Type someTorchScalarListType =
+              Torch::ListType::get(someTorchScalarType);
+
+          supportedSizes = rewriter.create<Torch::PrimListConstructOp>(
+              loc, someTorchScalarListType, newSupportedSizes);
         } else
           return rewriter.notifyMatchFailure(binder.op, "unknown scaling mode");
 
