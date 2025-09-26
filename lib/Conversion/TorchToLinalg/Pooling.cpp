@@ -216,170 +216,88 @@ static LogicalResult createPoolingOp(
 }
 
 static Value createMaxUnpoolOp(Operation *op, int64_t poolingDimensionality,
-                               ConversionPatternRewriter &rewriter,
-                               const TypeConverter *typeConverter, Value self,
-                               Value indices, ArrayRef<int64_t> inputSize,
-                               ArrayRef<int64_t> inferredOutSize,
-                               SmallVector<int64_t> &stride,
-                               SmallVector<int64_t> &padding,
+                               OpBuilder &b, Value self, Value indices,
+                               ArrayRef<int64_t> stride,
                                RankedTensorType resType) {
-
   Location loc = op->getLoc();
-  Type indexType = rewriter.getIndexType();
-
-  int64_t outRank = resType.getRank();
-  int64_t NC = outRank - poolingDimensionality;
+  Type indexType = b.getIndexType();
+  const int64_t outRank = resType.getRank();
+  const int64_t NC = outRank - poolingDimensionality;
 
   auto selfType = cast<RankedTensorType>(self.getType());
-  auto indicesType = cast<RankedTensorType>(indices.getType());
+  Type elementType = selfType.getElementType();
 
-  SmallVector<Value> outSizePadded;
-  for (auto &&[i, size] : llvm::enumerate(resType.getShape())) {
-    if (int64_t(i) < NC) {
-      outSizePadded.emplace_back(rewriter.create<tensor::DimOp>(loc, self, i));
-      continue;
+  // Initialize output tensor with zeros
+  Value zero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(elementType));
+  Value init = b.create<tensor::EmptyOp>(loc, resType.getShape(), elementType);
+  init = b.create<linalg::FillOp>(loc, zero, init)->getResult(0);
+
+  // Build affine expressions for input and output mappings
+  // For 2D: input maps (d0,d1,d2,d3,d4,d5) -> (d0,d1,d2,d3), output ->
+  // (d0,d1,d4,d5)
+  SmallVector<AffineExpr> inputExprs, outputExprs;
+  inputExprs.reserve(outRank);
+  outputExprs.reserve(outRank);
+  const int64_t totalDims = outRank + poolingDimensionality;
+
+  for (int64_t i = 0; i < totalDims; ++i) {
+    AffineExpr dim = b.getAffineDimExpr(i);
+    if (i < outRank) {
+      outputExprs.push_back(dim);
     }
-    int64_t pad = padding[i - NC];
-
-    outSizePadded.emplace_back(
-        rewriter.create<arith::ConstantIndexOp>(loc, size + pad));
-  }
-
-  // In case if input tensor size is not divisible by stride
-  // (e.g. pooling_input_size=5, kernel_size=2, stride=2, output_size=2)
-  // pad self and indices tensors to avoid out of bounds access.
-  SmallVector<int64_t> expectedInputShape =
-      llvm::to_vector(resType.getShape().drop_back(poolingDimensionality));
-  for (auto &&[str, pad, resSize] :
-       llvm::zip_equal(stride, padding, inferredOutSize))
-    expectedInputShape.emplace_back((resSize + str - 1) / str + pad * 2);
-
-  if (expectedInputShape != selfType.getShape()) {
-    // TODO: this is probably expensive, and it may be possible to solve by
-    // cleverly constructing affine maps for the next linalg.generic op,
-    // but I'm not smart enough to figure this out.
-
-    SmallVector<int64_t> low(outRank, 0);
-    SmallVector<int64_t> high(NC, 0);
-    for (auto &&[inpSize, outSize] : llvm::zip_equal(
-             inputSize,
-             ArrayRef(expectedInputShape).take_back(poolingDimensionality))) {
-      high.emplace_back(outSize - inpSize);
+    if (i < NC || i >= outRank) {
+      inputExprs.push_back(dim);
     }
-
-    // Pad the indices tensor with a value which cannot appear in real data
-    // (-1) so it will never match. In this case we can pad self with any
-    // value, as it will never affect the output.
-    Value zero = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getZeroAttr(selfType.getElementType()));
-    Value invalidIdx = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(indicesType.getElementType(), -1));
-    self =
-        torch_to_linalg::getPaddedTensor(op, rewriter, self, low, high, zero);
-    indices = torch_to_linalg::getPaddedTensor(op, rewriter, indices, low, high,
-                                               invalidIdx);
-  }
-
-  Value init = rewriter.create<tensor::EmptyOp>(
-      loc, getAsOpFoldResult(outSizePadded), selfType.getElementType());
-
-  SmallVector<AffineExpr> inputExprs;
-  SmallVector<AffineExpr> outputExprs;
-  for (auto i : llvm::seq<int64_t>(0, outRank)) {
-    AffineExpr dim = rewriter.getAffineDimExpr(i);
-    if (i < NC) {
-      inputExprs.emplace_back(dim);
-    } else {
-      int64_t j = i - NC;
-      inputExprs.emplace_back(dim.floorDiv(stride[j]));
-    }
-    outputExprs.emplace_back(dim);
   }
 
   SmallVector<AffineMap> indexingMaps = AffineMap::inferFromExprList(
-      {inputExprs, inputExprs, outputExprs}, rewriter.getContext());
+      {inputExprs, inputExprs, outputExprs}, b.getContext());
 
-  SmallVector<utils::IteratorType> iteratorTypes(outRank,
-                                                 utils::IteratorType::parallel);
+  // Iterator types: parallel for output dims, reduction for pooling dims
+  SmallVector<utils::IteratorType> iteratorTypes;
+  iteratorTypes.reserve(totalDims);
+  iteratorTypes.append(outRank, utils::IteratorType::parallel);
+  iteratorTypes.append(poolingDimensionality, utils::IteratorType::reduction);
 
-  auto computeIndex = [&](OpBuilder &b, Location loc) -> Value {
-    // Next linalg.generic uses identity mapping for the unpooled tensor,
-    // compute linear index for output element, which we will the compare with
-    // values which came from indices tensor.
-    Value ret;
-    for (auto i : llvm::seq<int64_t>(NC, outRank)) {
-      Value idx = b.create<linalg::IndexOp>(loc, i);
-      // If pool input was padded, adjust indices so they start at 0 in the
-      // non-padded area. Indices outside non-padded area will make no sense,
-      // but it doesnt matter as we will cut the padded area later by
-      // extract_slice.
-      int64_t pad = padding[i - NC];
-      if (pad != 0) {
-        Value padVal = b.create<arith::ConstantIndexOp>(loc, pad);
-        idx = b.create<arith::SubIOp>(loc, idx, padVal);
-      }
-
-      if (!ret) {
-        ret = idx;
+  // Compute linear index from multi-dimensional coordinates (e.g., h*width + w)
+  auto computeLinearIndex = [&](OpBuilder &b, Location loc) -> Value {
+    Value linearIndex;
+    ArrayRef<int64_t> shape = resType.getShape();
+    for (int64_t i = NC; i < outRank; ++i) {
+      Value currentIdx = b.create<linalg::IndexOp>(loc, i);
+      if (!linearIndex) {
+        linearIndex = currentIdx;
       } else {
-        Value size =
-            b.create<arith::ConstantIndexOp>(loc, resType.getShape()[i]);
-        ret = b.create<arith::MulIOp>(loc, ret, size);
-        ret = b.create<arith::AddIOp>(loc, ret, idx);
+        Value dimSize = b.create<arith::ConstantIndexOp>(loc, shape[i]);
+        linearIndex = b.create<arith::MulIOp>(loc, linearIndex, dimSize);
+        linearIndex = b.create<arith::AddIOp>(loc, linearIndex, currentIdx);
       }
     }
-    return ret;
+    return linearIndex;
   };
 
-  auto builder = [&](OpBuilder &b, Location loc, ValueRange args) {
-    // Compute current output linear index and compare it with the value
-    // from indices arg.
-    Value input = args[0];
-    Value zero =
-        b.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(input.getType()));
-    Value index = b.create<arith::IndexCastOp>(loc, indexType, args[1]);
-    Value currentIndex = computeIndex(b, loc);
-    Value cmp = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, index,
-                                        currentIndex);
-    Value out = b.create<arith::SelectOp>(loc, cmp, input, zero);
-    b.create<linalg::YieldOp>(loc, out);
+  auto bodyBuilder = [&](OpBuilder &b, Location loc, ValueRange args) {
+    Value inputValue = args[0];
+    Value storedIndex = args[1];
+    Value currentOutput = args[2];
+
+    // Convert stored index to index type and compare with current position
+    Value indexAsIndex =
+        b.create<arith::IndexCastOp>(loc, indexType, storedIndex);
+    Value currentLinearIndex = computeLinearIndex(b, loc);
+    Value isMatch = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                            indexAsIndex, currentLinearIndex);
+
+    // Select input value if indices match, otherwise keep current output
+    Value result =
+        b.create<arith::SelectOp>(loc, isMatch, inputValue, currentOutput);
+    b.create<linalg::YieldOp>(loc, result);
   };
 
-  Value result =
-      rewriter
-          .create<linalg::GenericOp>(loc,
-                                     /*resultTensorTypes=*/init.getType(),
-                                     /*inputs=*/ValueRange({self, indices}),
-                                     /*outputs=*/init,
-                                     /*indexingMaps=*/indexingMaps,
-                                     /*iteratorTypes=*/iteratorTypes, builder)
-          .getResult(0);
-
-  if (llvm::any_of(padding, [](int64_t v) { return v != 0; })) {
-    // MaxPool input was padded, unpad it by taking the slice.
-    SmallVector<OpFoldResult> offsetVals(NC, rewriter.getI64IntegerAttr(0));
-    for (int64_t pad : padding)
-      offsetVals.emplace_back(rewriter.getI64IntegerAttr(pad));
-
-    SmallVector<OpFoldResult> sizeVals;
-    for (auto &&[i, dim] : llvm::enumerate(resType.getShape())) {
-      if (!ShapedType::isDynamic(dim)) {
-        sizeVals.emplace_back(rewriter.getI64IntegerAttr(dim));
-        continue;
-      }
-
-      sizeVals.emplace_back(rewriter.create<tensor::DimOp>(loc, self, i));
-    }
-    SmallVector<OpFoldResult> stridesVals(outRank,
-                                          rewriter.getI64IntegerAttr(1));
-    result = rewriter.create<tensor::ExtractSliceOp>(loc, result, offsetVals,
-                                                     sizeVals, stridesVals);
-  }
-
-  if (result.getType() != resType)
-    result = rewriter.create<tensor::CastOp>(loc, resType, result);
-
-  return result;
+  return b
+      .create<linalg::GenericOp>(loc, init.getType(), ValueRange{self, indices},
+                                 init, indexingMaps, iteratorTypes, bodyBuilder)
+      .getResult(0);
 }
 
 namespace {
@@ -843,9 +761,8 @@ public:
     }
 
     int64_t poolingDimensionality = 3;
-    Value result = createMaxUnpoolOp(
-        op, poolingDimensionality, rewriter, typeConverter, self, indices,
-        spatialInputShape, inferredOutSize, stride, padding, resType);
+    Value result = createMaxUnpoolOp(op, poolingDimensionality, rewriter, self,
+                                     indices, stride, resType);
 
     rewriter.replaceOp(op, result);
     return success();
@@ -905,9 +822,8 @@ public:
     SmallVector<int64_t> stride(poolingDimensionality, poolingDimensionality);
     SmallVector<int64_t> padding(poolingDimensionality, 0);
 
-    Value result = createMaxUnpoolOp(op, poolingDimensionality, rewriter,
-                                     typeConverter, self, indices, inputSize,
-                                     inferredOutSize, stride, padding, resType);
+    Value result = createMaxUnpoolOp(op, poolingDimensionality, rewriter, self,
+                                     indices, stride, resType);
 
     rewriter.replaceOp(op, result);
     return success();
