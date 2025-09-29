@@ -1281,6 +1281,46 @@ def UnflattenIntNegativeOneSizeStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 12, 3))
 
 
+class UnflattenIntDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, 12], torch.float32, True),
+        ]
+    )
+    def forward(self, inputs):
+        return torch.ops.aten.unflatten(inputs, 1, [3, 4])
+
+
+@register_test_case(module_factory=lambda: UnflattenIntDynamicModule())
+def UnflattenIntDynamicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 12))
+
+
+class UnflattenIntDynamicWithInferredSizeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, 20], torch.float32, True),
+        ]
+    )
+    def forward(self, inputs):
+        return torch.ops.aten.unflatten(inputs, 1, [4, -1])
+
+
+@register_test_case(module_factory=lambda: UnflattenIntDynamicWithInferredSizeModule())
+def UnflattenIntDynamicWithInferredSizeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 20))
+
+
 # ==============================================================================
 
 
