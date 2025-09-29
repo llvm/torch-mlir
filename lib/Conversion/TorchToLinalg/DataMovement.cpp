@@ -720,7 +720,6 @@ public:
           reassociations[i - numSizes + 1].push_back(i);
       }
 
-      // Is there a function that already does this somewhere?
       auto sizeToOFR = [&](Value sizeVal) -> OpFoldResult {
         int64_t constantSize;
         if (matchPattern(sizeVal, m_TorchConstantInt(&constantSize))) {
@@ -742,7 +741,6 @@ public:
 
       for (int64_t j = 0, e = reassocSizes.size(); j < e; ++j) {
         int64_t constantSize;
-        // mlir::Value to int comparison...
         if (matchPattern(reassocSizes[j], m_TorchConstantInt(&constantSize)) &&
             constantSize == -1) {
           minusOneIdx = j;
@@ -782,21 +780,6 @@ public:
         }
       }
 
-      // Originally I was doing:
-      // expand = tensor::ExpandShapeOp::create(rewriter, loc, expandTy,
-      // adaptor.getSelf(), reassociations, outputShape).getResult(); But with
-      // that I was running into: error: 'tensor.expand_shape' op expected
-      // dimension 0 of collapsed type to be dynamic since one or more of the
-      // corresponding dimensions in the expanded type is dynamic %4491 =
-      // torch.aten.as_strided %4488, %4489, %4490, %int0_462 :
-      // !torch.vtensor<[2,4096,5120],f16>, !torch.list<int>, !torch.list<int>,
-      // !torch.int -> !torch.vtensor<[2,4096,2560],f16>
-      // /home/rdhar/expand-shape-bug/iree/iree-model-benchmark/sdxl/int8-model/base_ir/stable_diffusion_xl_base_1_0_scheduled_unet_bs1_64_1024x1024_i8.mlir:13071:13:
-      // note: see current operation: %17734 = "tensor.expand_shape"(%17730)
-      // <{reassociation = [[0, 1, 2]], static_output_shape = array<i64: 2, 1,
-      // 1>}> : (tensor<2xi64>) -> tensor<?x1x1xi64> So there is this really
-      // ugly code to handle the types... but it kind of defeats all the code
-      // above.
       SmallVector<int64_t> resultShape =
           decomposeMixedValues(outputShape).first;
       auto resultType =
