@@ -187,7 +187,7 @@ sudo apt install clang ccache lld
     - **...run Python regression tests**, run:
 
       ```shell
-      cmake --build build --target check-torch-mlir-python
+      cmake --build build --target check-torch_mlir-python
       ```
 
 TIP: add multiple target options to stack build phases

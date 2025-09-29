@@ -672,7 +672,8 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Expected input type having sizes");
     }
-    int inputRank = inputTensorType.getSizes().size();
+    auto inputTensorSizes = inputTensorType.getSizes();
+    int inputRank = inputTensorSizes.size();
     auto outputSizes = outputTensorType.getSizes();
     int outputRank = outputSizes.size();
 
@@ -756,27 +757,28 @@ public:
       SmallVector<Value> inputSizes =
           getTensorSizes(rewriter, loc, adaptor.getSelf());
       for (int64_t i = 0; i < inputRank; ++i) {
-        if (i == dimInt) {
+        if (i != dimInt) {
           OpFoldResult inputDimSize =
-              (inputTensorType.getSizes()[dimInt] != Torch::kUnknownSize)
-                  ? rewriter.getIndexAttr(inputTensorType.getSizes()[dimInt])
-                  : OpFoldResult(inputSizes[dimInt]);
-          for (int64_t j = 0; j < numSizes; ++j) {
-            if (j == minusOneIdx) {
-              auto divMap =
-                  AffineMap::get(0, 2, s0.floorDiv(s1), rewriter.getContext());
-              outputShape.push_back(affine::makeComposedFoldedAffineApply(
-                  rewriter, loc, divMap, {inputDimSize, knownProduct}));
-            } else {
-              outputShape.push_back(sizeToOFR(reassocSizes[j]));
-            }
-          }
-        } else {
-          OpFoldResult inputDimSize =
-              (inputTensorType.getSizes()[i] != Torch::kUnknownSize)
-                  ? rewriter.getIndexAttr(inputTensorType.getSizes()[i])
+              (inputTensorSizes[i] != Torch::kUnknownSize)
+                  ? rewriter.getIndexAttr(inputTensorSizes[i])
                   : OpFoldResult(inputSizes[i]);
           outputShape.push_back(inputDimSize);
+          continue;
+        }
+
+        OpFoldResult inputDimSize =
+            (inputTensorSizes[dimInt] != Torch::kUnknownSize)
+                ? rewriter.getIndexAttr(inputTensorSizes[dimInt])
+                : OpFoldResult(inputSizes[dimInt]);
+        for (int64_t j = 0; j < numSizes; ++j) {
+          if (j == minusOneIdx) {
+            auto divMap =
+                AffineMap::get(0, 2, s0.floorDiv(s1), rewriter.getContext());
+            outputShape.push_back(affine::makeComposedFoldedAffineApply(
+                rewriter, loc, divMap, {inputDimSize, knownProduct}));
+          } else {
+            outputShape.push_back(sizeToOFR(reassocSizes[j]));
+          }
         }
       }
 
@@ -795,14 +797,8 @@ public:
       // 1>}> : (tensor<2xi64>) -> tensor<?x1x1xi64> So there is this really
       // ugly code to handle the types... but it kind of defeats all the code
       // above.
-      SmallVector<int64_t> resultShape;
-      for (OpFoldResult ofr : outputShape) {
-        if (auto attr = ofr.dyn_cast<Attribute>()) {
-          resultShape.push_back(cast<IntegerAttr>(attr).getInt());
-        } else {
-          resultShape.push_back(ShapedType::kDynamic);
-        }
-      }
+      SmallVector<int64_t> resultShape =
+          decomposeMixedValues(outputShape).first;
       auto resultType =
           RankedTensorType::get(resultShape, expandTy.getElementType());
       expand = tensor::ExpandShapeOp::create(rewriter, loc, resultType,
