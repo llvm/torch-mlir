@@ -57,3 +57,18 @@ func.func @torch.aten.unflatten.int$dynamic_input(%arg0: !torch.vtensor<[?,6],f3
   %1 = torch.aten.unflatten.int %arg0, %int1, %0 : !torch.vtensor<[?,6],f32>, !torch.int, !torch.list<int> -> !torch.vtensor<[?,2,3],f32>
   return %1 : !torch.vtensor<[?,2,3],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.unflatten.int$two_dynamic_dims
+// CHECK:           torch_c.to_builtin_tensor
+// CHECK:           tensor.from_elements
+// CHECK:           tensor.reshape
+// CHECK:           torch_c.from_builtin_tensor
+func.func @torch.aten.unflatten.int$two_dynamic_dims(%arg0: !torch.vtensor<[?,12],f32>) -> !torch.vtensor<[?,?,?],f32> {
+  %int1 = torch.constant.int 1
+  %2 = torch.aten.size.int %arg0, %int1 : !torch.vtensor<[?,12],f32>, !torch.int -> !torch.int
+  %0 = torch.prim.ListConstruct %2, %2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.unflatten.int %arg0, %int1, %0 : !torch.vtensor<[?,12],f32>, !torch.int, !torch.list<int> -> !torch.vtensor<[?,?,?],f32>
+  return %1 : !torch.vtensor<[?,?,?],f32>
+}
