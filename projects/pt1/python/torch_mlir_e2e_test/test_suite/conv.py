@@ -1104,6 +1104,7 @@ class UpSampleNearest2dVecNoneShape(torch.nn.Module):
             input, output_size=None, scale_factors=[3.66, 4.2]
         )
 
+
 @register_test_case(module_factory=lambda: UpSampleNearest2dVecNoneShape())
 def UpSampleNearest2dVecNoneShape_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 6, 12).to(torch.float64))
@@ -1122,8 +1123,11 @@ class UpSampleNearest2dVecNoneScales(torch.nn.Module):
     )
     def forward(self, input):
         return torch.ops.aten.upsample_nearest2d.vec(
-            input, output_size=[18, 48], scale_factors=None,
+            input,
+            output_size=[18, 48],
+            scale_factors=None,
         )
+
 
 @register_test_case(module_factory=lambda: UpSampleNearest2dVecNoneScales())
 def UpSampleNearest2dVecNoneScales_basic(module, tu: TestUtils):
@@ -1146,9 +1150,11 @@ class UpSampleNearest1dVecNoneShape(torch.nn.Module):
             input, output_size=None, scale_factors=[3.0]
         )
 
+
 @register_test_case(module_factory=lambda: UpSampleNearest1dVecNoneShape())
 def UpSampleNearest1dVecNoneShape_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 6).to(torch.float64))
+
 
 class UpSampleNearest1dVecNoneScales(torch.nn.Module):
     def __init__(self):
@@ -1162,9 +1168,8 @@ class UpSampleNearest1dVecNoneScales(torch.nn.Module):
         ]
     )
     def forward(self, input):
-        return torch.ops.aten.upsample_nearest1d.vec(
-            input, [18], None
-        )
+        return torch.ops.aten.upsample_nearest1d.vec(input, [18], None)
+
 
 @register_test_case(module_factory=lambda: UpSampleNearest1dVecNoneScales())
 def UpSampleNearest1dVecNoneScales_basic(module, tu: TestUtils):
