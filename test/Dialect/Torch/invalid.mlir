@@ -406,10 +406,10 @@ func.func @torch.symbolic_int$no_shape_symbols(%arg0: !torch.vtensor<[?],f32>) -
 
 // -----
 
-func.func @torch.matmul$1d_1d_result_not_scalar(%arg0: !torch.vtensor<[4],f32>, %arg1: !torch.vtensor<[4],f32>) 
+func.func @torch.matmul$1d_1d_result_not_scalar(%arg0: !torch.vtensor<[4],f32>, %arg1: !torch.vtensor<[4],f32>)
     -> !torch.vtensor<[1],f32> {
   // expected-error @+1 {{1D x 1D matmul should produce a scalar (rank 0)}}
-  %0 = torch.aten.matmul %arg0, %arg1 
+  %0 = torch.aten.matmul %arg0, %arg1
       : !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32> -> !torch.vtensor<[1],f32>
   return %0 : !torch.vtensor<[1],f32>
 }

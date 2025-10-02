@@ -5307,10 +5307,10 @@ LogicalResult AtenMatmulOp::verify() {
     // Get the rank
     auto lhsRank = lhsType.getSizes().size();
     auto rhsRank = rhsType.getSizes().size();
-    auto resultRank = resultType.getSizes().size(); 
+    auto resultRank = resultType.getSizes().size();
 
     if (lhsRank == 1 && rhsRank == 1 && resultRank != 0) {
-      return emitOpError("1D x 1D matmul should produce a scalar (rank 0)");   
+      return emitOpError("1D x 1D matmul should produce a scalar (rank 0)");
     }
   }
   return success();
