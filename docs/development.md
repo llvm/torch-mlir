@@ -203,7 +203,7 @@ source $PWD/.env && export PYTHONPATH="${PYTHONPATH}:${PWD}/test/python/fx_impor
 #### Windows PowerShell
 
 ```shell
-$env:PYTHONPATH = ... # Get from .env file in torch-mlir repo root. 
+$env:PYTHONPATH = ... # Get from .env file in torch-mlir repo root.
 $env:PYTHONPATH += ";${PWD}/test/python/fx_importer"
 ```
 
