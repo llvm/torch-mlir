@@ -39,7 +39,6 @@ set +u
 #   -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=ON
 #   -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON
 # TODO: move this package out of JIT_IR_IMPORTER.
-echo $PYTHONPATH
 python3 \
   -m torch_mlir.jit_ir_importer.build_tools.torch_ods_gen \
   --torch_ir_include_dir="${torch_ir_include_dir}" \
