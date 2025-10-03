@@ -34,6 +34,8 @@ if [ ! -z ${TORCH_MLIR_EXT_MODULES} ]; then
   ext_module="${TORCH_MLIR_EXT_MODULES}"
 fi
 
+echo "Running python tool with PYTHONPATH=${PYTHONPATH}"
+
 set +u
 # To enable this python package, manually build torch_mlir with:
 #   -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=ON
