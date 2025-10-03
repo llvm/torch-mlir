@@ -34,14 +34,11 @@ if [ ! -z ${TORCH_MLIR_EXT_MODULES} ]; then
   ext_module="${TORCH_MLIR_EXT_MODULES}"
 fi
 
-echo "Running python tool with PYTHONPATH=${PYTHONPATH}"
-
-set +u
 # To enable this python package, manually build torch_mlir with:
 #   -DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS=ON
 #   -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON
 # TODO: move this package out of JIT_IR_IMPORTER.
-python3 \
+PYTHONPATH=${PYTHONPATH} python3 \
   -m torch_mlir.jit_ir_importer.build_tools.torch_ods_gen \
   --torch_ir_include_dir="${torch_ir_include_dir}" \
   --pytorch_op_extensions="${ext_module}" \
