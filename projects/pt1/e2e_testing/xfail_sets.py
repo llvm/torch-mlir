@@ -914,8 +914,12 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "TraceUnsignedIntModule_empty",
     "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
+    "UpSampleNearest1dVecNoneScales_basic",
+    "UpSampleNearest1dVecNoneShape_basic",
     "UpSampleNearest2dBackwardScalesNone_basic",
     "UpSampleNearest2dBackward_basic",
+    "UpSampleNearest2dVecNoneScales_basic",
+    "UpSampleNearest2dVecNoneShape_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewSizeFromOtherTensor_basic",
     # Error: `aten.as_strided` op is not supported
