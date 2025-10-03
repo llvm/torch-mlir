@@ -497,7 +497,6 @@ FX_IMPORTER_XFAIL_SET = {
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
     "IsInfiniteModule_basic",
-    "InterpolateDynamicModule_sizes_nearest",
     "IouOfModule_basic",
     "MeshgridIndexingIJ_basic",
     "MeshgridIndexingXY_basic",
