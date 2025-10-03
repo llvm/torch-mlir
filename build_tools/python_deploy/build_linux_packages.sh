@@ -244,6 +244,7 @@ function build_in_tree() {
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DTM_PYTORCH_INSTALL_WITHOUT_REBUILD=${TM_PYTORCH_INSTALL_WITHOUT_REBUILD} \
       -DPython3_EXECUTABLE="$(which python3)" \
+      -DPython_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir/externals/llvm-project/llvm
   cmake --build /main_checkout/torch-mlir/build --target tools/torch-mlir/all
   ccache -s
@@ -387,6 +388,7 @@ function build_out_of_tree() {
         -DLLVM_TARGETS_TO_BUILD=host \
         -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
         -DPython3_EXECUTABLE="$(which python3)" \
+        -DPython_EXECUTABLE="$(which python3)" \
         /main_checkout/torch-mlir/externals/llvm-project/llvm
     cmake --build /main_checkout/torch-mlir/llvm-build
   fi
@@ -409,6 +411,7 @@ function build_out_of_tree() {
       -DTORCH_MLIR_SRC_PYTORCH_BRANCH=${TORCH_MLIR_SRC_PYTORCH_BRANCH} \
       -DTM_PYTORCH_INSTALL_WITHOUT_REBUILD=${TM_PYTORCH_INSTALL_WITHOUT_REBUILD} \
       -DPython3_EXECUTABLE="$(which python3)" \
+      -DPython_EXECUTABLE="$(which python3)" \
       /main_checkout/torch-mlir
   cmake --build /main_checkout/torch-mlir/build_oot
   ccache -s

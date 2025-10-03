@@ -206,6 +206,8 @@ if(MLIR_ENABLE_BINDINGS_PYTHON)
   if(NOT TORCH_MLIR_PYTHON_PACKAGES_DIR)
     set(TORCH_MLIR_PYTHON_PACKAGES_DIR "${CMAKE_CURRENT_BINARY_DIR}/python_packages")
   endif()
+  file(WRITE "${TORCH_MLIR_SOURCE_DIR}/.env" "PYTHONPATH=${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir")
+  message(STATUS "PYTHONPATH to torch-mlir python_packages dir written to '${TORCH_MLIR_SOURCE_DIR}/.env'.")
 endif()
 
 add_subdirectory(test)
