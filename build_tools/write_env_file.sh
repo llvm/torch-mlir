@@ -13,7 +13,21 @@ portable_realpath() {
 
 td="$(portable_realpath "$(dirname "$0")"/..)"
 build_dir="$(portable_realpath "${TORCH_MLIR_BUILD_DIR:-$td/build}")"
-python_packages_dir="$build_dir/python_packages"
+
+in_tree_pkg_dir="${build_dir}/tools/torch-mlir/python_packages"
+out_of_tree_pkg_dir="${build_dir}/python_packages"
+
+if [[ ! -d "${in_tree_pkg_dir}" && ! -d "${out_of_tree_pkg_dir}" ]]; then
+  echo "Couldn't find in-tree or out-of-tree build, exiting."
+  exit 1
+fi
+
+# The `-nt` check works even if one of the two directories is missing.
+if [[ "${in_tree_pkg_dir}" -nt "${out_of_tree_pkg_dir}" ]]; then
+  python_packages_dir="${in_tree_pkg_dir}"
+else
+  python_packages_dir="${out_of_tree_pkg_dir}"
+fi
 
 write_env_file() {
   echo "Updating $build_dir/.env file"

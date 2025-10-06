@@ -194,16 +194,40 @@ TIP: add multiple target options to stack build phases
 
 ### Setup Python Environment to export the built Python packages
 
+When CMake is configured with `-DMLIR_ENABLE_BINDINGS_PYTHON=ON`, the python packages will typically be located in either:
+
+1. `./build/tools/torch-mlir/python_packages/`  if doing an in-tree build.
+2. `./build/python_packages/` if doing an out-of-tree build.
+
+For the following sections, let `python_pkg_dir` represent whichever of the above is relevant for your build setup. On Linux and macOS, you can run `./build_tools/write_env_file.sh` to generate a file `./.env` in your root source directory with the correct `PYTHONPATH`.
+
 #### Linux and macOS
 
+To get the base `PYTHONPATH`, run:
+
 ```shell
-export PYTHONPATH=`pwd`/build/python_packages/torch_mlir:`pwd`/test/python/fx_importer
+./build_tools/write_env_file.sh
+source ./.env && export PYTHONPATH
+```
+
+To run fx_importer tests, you can append the following:
+
+```
+export PYTHONPATH="${PYTHONPATH}":/test/python/fx_importer"
 ```
 
 #### Windows PowerShell
 
+To get the base `PYTHONPATH`, identify your `python_pkg_dir` from above and set this variable in your environment:
+
 ```shell
-$env:PYTHONPATH = "$PWD/build/tools/torch-mlir/python_packages/torch_mlir;$PWD/test/python/fx_importer"
+$env:PYTHONPATH = "<python_pkg_dir>/torch-mlir"
+```
+
+To run fx_importer tests, you can append the following:
+
+```shell
+$env:PYTHONPATH += ";$PWD/test/python/fx_importer"
 ```
 
 ### Testing MLIR output in various dialects
@@ -211,13 +235,7 @@ $env:PYTHONPATH = "$PWD/build/tools/torch-mlir/python_packages/torch_mlir;$PWD/t
 To test the MLIR output to torch dialect, you can use `test/python/fx_importer/basic_test.py`.
 
 Make sure you have activated the virtualenv and set the `PYTHONPATH` above
-(if running on Windows, modify the environment variable as shown above):
-
-```shell
-source mlir_venv/bin/activate
-export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/test/python/fx_importer
-python test/python/fx_importer/basic_test.py
-```
+(if running on Windows, modify the environment variable as shown above).
 
 This will display the basic example in TORCH dialect.
 
@@ -226,10 +244,10 @@ using torchscript with the example `projects/pt1/examples/torchscript_resnet18_a
 This path doesn't give access to the current generation work that is being driven via the fx_importer
 and may lead to errors.
 
-Same as above, but with different python path and example:
+The base `PYTHONPATH` should be set as above, then the example can be run with the following command (similar on Windows):
 
 ```shell
-export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/projects/pt1/examples
+export PYTHONPATH="${PYTHONPATH}:$PWD/projects/pt1/examples"
 python projects/pt1/examples/torchscript_resnet18_all_output_types.py
 ```
 
