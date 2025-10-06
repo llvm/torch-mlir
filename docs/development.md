@@ -469,6 +469,10 @@ Torch-MLIR has two types of tests:
 
 ### Running execution (end-to-end) tests:
 
+> **Note**
+> An `.env` file must be generated via `build_tools/write_env_file.sh` before these commands can be run.
+
+
 The following assumes you are in the `projects/pt1`  directory:
 
 ```shell
