@@ -13,32 +13,38 @@
 set -euo pipefail
 
 src_dir="$(realpath "$(dirname "$0")"/..)"
+build_dir="$(realpath "${TORCH_MLIR_BUILD_DIR:-$src_dir/build}")"
 torch_transforms_cpp_dir="${src_dir}/lib/Dialect/Torch/Transforms"
 
-env_file_path="${src_dir}/.env"
+in_tree_pkg_dir="${build_dir}/tools/torch-mlir/python_packages"
+out_of_tree_pkg_dir="${build_dir}/python_packages"
 
-if [[ ! -f "${env_file_path}" ]]; then
-  echo "Couldn't find an env file at ${env_file_path}!"
+if [[ ! -d "${in_tree_pkg_dir}" && ! -d "${out_of_tree_pkg_dir}" ]]; then
+  echo "Couldn't find in-tree or out-of-tree build, exiting."
   exit 1
 fi
 
-# Get PYTHONPATH from env file.
-source $env_file_path
-# Update PYTHONPATH with externals if specified.
+# The `-nt` check works even if one of the two directories is missing.
+if [[ "${in_tree_pkg_dir}" -nt "${out_of_tree_pkg_dir}" ]]; then
+  python_packages_dir="${in_tree_pkg_dir}"
+else
+  python_packages_dir="${out_of_tree_pkg_dir}"
+fi
+
 TORCH_MLIR_EXT_PYTHONPATH="${TORCH_MLIR_EXT_PYTHONPATH:-""}"
+pypath="${python_packages_dir}/torch_mlir"
 if [ ! -z ${TORCH_MLIR_EXT_PYTHONPATH} ]; then
-  PYTHONPATH="${PYTHONPATH}:${TORCH_MLIR_EXT_PYTHONPATH}"
+  pypath="${pypath}:${TORCH_MLIR_EXT_PYTHONPATH}"
 fi
 TORCH_MLIR_EXT_MODULES="${TORCH_MLIR_EXT_MODULES:-""}"
-ext_module="${ext_module:-""}"
 if [ ! -z ${TORCH_MLIR_EXT_MODULES} ]; then
-  ext_module="${TORCH_MLIR_EXT_MODULES}"
+  ext_module="${TORCH_MLIR_EXT_MODULES} "
 fi
 
 # To enable this python package, manually build torch_mlir with:
 #   -DTORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON
 # TODO: move this package out of JIT_IR_IMPORTER.
-python3 \
+PYTHONPATH="${pypath}" python3 \
   -m torch_mlir.jit_ir_importer.build_tools.abstract_interp_lib_gen \
   --pytorch_op_extensions=${ext_module:-""} \
   --torch_transforms_cpp_dir="${torch_transforms_cpp_dir}"

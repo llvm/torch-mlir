@@ -197,14 +197,13 @@ TIP: add multiple target options to stack build phases
 #### Linux and macOS
 
 ```shell
-source $PWD/.env && export PYTHONPATH="${PYTHONPATH}:${PWD}/test/python/fx_importer"
+export PYTHONPATH=`pwd`/build/python_packages/torch_mlir:`pwd`/test/python/fx_importer
 ```
 
 #### Windows PowerShell
 
 ```shell
-$env:PYTHONPATH = ... # Get from .env file in torch-mlir repo root. 
-$env:PYTHONPATH += ";${PWD}/test/python/fx_importer"
+$env:PYTHONPATH = "$PWD/build/tools/torch-mlir/python_packages/torch_mlir;$PWD/test/python/fx_importer"
 ```
 
 ### Testing MLIR output in various dialects
@@ -215,6 +214,8 @@ Make sure you have activated the virtualenv and set the `PYTHONPATH` above
 (if running on Windows, modify the environment variable as shown above):
 
 ```shell
+source mlir_venv/bin/activate
+export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/test/python/fx_importer
 python test/python/fx_importer/basic_test.py
 ```
 
@@ -225,10 +226,10 @@ using torchscript with the example `projects/pt1/examples/torchscript_resnet18_a
 This path doesn't give access to the current generation work that is being driven via the fx_importer
 and may lead to errors.
 
-Same as above, but you need to append to the PYTHONPATH:
+Same as above, but with different python path and example:
 
 ```shell
-export PYTHONPATH="${PYTHONPATH}:/projects/pt1/examples"
+export PYTHONPATH=`pwd`/build/tools/torch-mlir/python_packages/torch_mlir:`pwd`/projects/pt1/examples
 python projects/pt1/examples/torchscript_resnet18_all_output_types.py
 ```
 
@@ -256,6 +257,14 @@ jupyter notebook
 ```
 
 [Example IR](https://gist.github.com/silvasean/e74780f8a8a449339aac05c51e8b0caa) for a simple 1 layer MLP to show the compilation steps from TorchScript.
+
+
+### Interactive Use
+
+The `build_tools/write_env_file.sh` script will output a `.env`
+file in the workspace folder with the correct PYTHONPATH set. This allows
+tools like VSCode to work by default for debugging. This file can also be
+manually `source`'d in a shell.
 
 
 ### Bazel Build
