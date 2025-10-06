@@ -5185,6 +5185,30 @@ public:
 };
 } // namespace
 
+namespace {
+template <typename UpsampleVecOp>
+class DecomposeAtenUpsampleNearestVecOp
+    : public OpRewritePattern<UpsampleVecOp> {
+public:
+  using OpRewritePattern<UpsampleVecOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(UpsampleVecOp op,
+                                PatternRewriter &rewriter) const override {
+    Value scales = op.getScaleFactors();
+    static_assert(std::is_same_v<UpsampleVecOp, AtenUpsampleNearest1dVecOp> ||
+                  std::is_same_v<UpsampleVecOp, AtenUpsampleNearest2dVecOp>);
+    Value cstMode = rewriter.create<Torch::ConstantStrOp>(
+        op.getLoc(), rewriter.getStringAttr("nearest"));
+    Value cstNone = rewriter.create<Torch::ConstantNoneOp>(op.getLoc());
+    Value cstAntialias =
+        rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    rewriter.replaceOpWithNewOp<Aten__InterpolateSizeListScaleListOp>(
+        op, op.getType(), op.getInput(), op.getOutputSize(),
+        op.getScaleFactors(), cstMode, cstNone, cstNone, cstAntialias);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.expand into aten.broadcast_to op.
 namespace {
 class DecomposeAtenExpandOp : public OpRewritePattern<AtenExpandOp> {
@@ -12983,6 +13007,12 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFlattenUsingIntsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenUnflattenIntOp>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenUpsampleNearestVecOp<AtenUpsampleNearest1dVecOp>>(
+        patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenUpsampleNearestVecOp<AtenUpsampleNearest2dVecOp>>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarOtherOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarSelfOp>(patterns);
