@@ -12855,8 +12855,7 @@ public:
       Value index = rewriter.create<Torch::AtenArangeOp>(
           loc, arangeType, end, cstNone, cstNone, cstNone, cstNone);
 
-      // Set the current dimension to -1 for broadcasting
-      viewShapeInts[dim] = -1;
+      viewShapeInts[dim] = size;
       viewShapeListElems[dim] = cstMinusOne;
 
       Value viewShapeList = rewriter.create<Torch::PrimListConstructOp>(
