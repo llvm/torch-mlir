@@ -505,9 +505,11 @@ public:
 
       // Broadcast the batch dimensions of both the matrices.
       Value broadcastedLhs, broadcastedRhs;
-      // TODO: Improve usage of static shape information.
-      SmallVector<int64_t> lhsTargetShape(lhsBroadcastToShape.size(),
-                                          ShapedType::kDynamic);
+      SmallVector<int64_t> lhsTargetShape =
+          llvm::to_vector(llvm::map_range(lhsBroadcastToShape, [](Value v) {
+            return getConstantIntValue(v).value_or(ShapedType::kDynamic);
+          }));
+
       auto lhsBroadcastType = RankedTensorType::get(
           lhsTargetShape, lhsType.getElementType(), lhsType.getEncoding());
       if (failed(torch_to_linalg::broadcastToGivenShape(
@@ -516,8 +518,10 @@ public:
         return rewriter.notifyMatchFailure(
             op, "unable to perform broadcast operation");
       }
-      SmallVector<int64_t> rhsTargetShape(rhsBroadcastToShape.size(),
-                                          ShapedType::kDynamic);
+      SmallVector<int64_t> rhsTargetShape =
+          llvm::to_vector(llvm::map_range(rhsBroadcastToShape, [](Value v) {
+            return getConstantIntValue(v).value_or(ShapedType::kDynamic);
+          }));
       auto rhsBroadcastType = RankedTensorType::get(
           rhsTargetShape, rhsType.getElementType(), rhsType.getEncoding());
       if (failed(torch_to_linalg::broadcastToGivenShape(
