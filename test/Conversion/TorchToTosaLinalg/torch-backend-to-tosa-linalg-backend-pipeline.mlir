@@ -53,3 +53,20 @@ func.func @tm_scan(%arg0: tensor<1x512xi64>) -> (tensor<1x512xi64>, tensor<1xi64
     } -> tensor<1x512xi64>, tensor<1xi64>
     return %2#0, %2#1 : tensor<1x512xi64>, tensor<1xi64>
 }
+
+//-----
+// CHECK-LABEL:   func.func @torch.aten.empty.memory_format() -> tensor<1x0x256xf32> {
+// CHECK:           %[[EMPTY_TENSOR:.*]] = tensor.empty() : tensor<1x0x256xf32>
+// CHECK:           return %[[EMPTY_TENSOR]] : tensor<1x0x256xf32>
+// CHECK:         }
+func.func @torch.aten.empty.memory_format() -> !torch.vtensor<[1,0,256],f32>{
+    %c1 = torch.constant.int 1
+    %c0 = torch.constant.int 0
+    %c256 = torch.constant.int 256
+    %2452 = torch.prim.ListConstruct %c1, %c0, %c256 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %none = torch.constant.none
+    %cpu = torch.constant.device "cpu"
+    %false = torch.constant.bool false
+    %out = torch.aten.empty.memory_format %2452, %none, %none, %cpu, %false, %none : !torch.list<int>, !torch.none, !torch.none, !torch.Device, !torch.bool, !torch.none -> !torch.vtensor<[1,0,256],f32>
+    return %out : !torch.vtensor<[1,0,256],f32>
+}

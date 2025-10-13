@@ -146,3 +146,17 @@ func.func @torch.aten.size.int(%arg0: !torch.vtensor<[4,2],f32>) -> !torch.int {
     %0 = torch.aten.size.int %arg0, %c2 : !torch.vtensor<[4,2],f32>, !torch.int -> !torch.int
     return %0 : !torch.int
 }
+
+// -----
+func.func @torch.aten.empty.memory_format() -> !torch.vtensor<[1,0,256],f32>{
+    %c1 = torch.constant.int 1
+    %c0 = torch.constant.int 0
+    %c256 = torch.constant.int 256
+    %2452 = torch.prim.ListConstruct %c1, %c0, %c256 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %none = torch.constant.none
+    %cpu = torch.constant.device "cpu"
+    %false = torch.constant.bool false
+    // expected-error @below {{failed to legalize operation 'torch.aten.empty.memory_format' that was explicitly marked illegal}}
+    %out = torch.aten.empty.memory_format %2452, %none, %none, %cpu, %false, %none : !torch.list<int>, !torch.none, !torch.none, !torch.Device, !torch.bool, !torch.none -> !torch.vtensor<[1,0,256],f32>
+    return %out : !torch.vtensor<[1,0,256],f32>
+}
