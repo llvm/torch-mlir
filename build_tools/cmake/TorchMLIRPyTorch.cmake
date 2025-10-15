@@ -70,10 +70,15 @@ function(TorchMLIRConfigurePyTorch)
     # Check ABI compatibility version
     execute_process(
       COMMAND ${Python3_EXECUTABLE}
-      -c "import torch; import sys; abi=torch._C._PYBIND11_BUILD_ABI; abi.startswith('_cxxabi10') or sys.exit(1); sys.stdout.write(str(abi[-2:]))"
+      -c "import torch; import os; print(os.path.join(os.path.dirname(torch.__file__), 'lib', 'libtorch_python.so'), end='')"
       RESULT_VARIABLE _result
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-      OUTPUT_VARIABLE _cxx_abi_version)
+      OUTPUT_VARIABLE _libtorch_python_path)
+    execute_process(
+      COMMAND bash "-c" "strings ${_libtorch_python_path} | grep -E '^_cxxabi[0-9]{4}' | head -1 | grep -oE '..$'"
+      RESULT_VARIABLE _result
+      OUTPUT_VARIABLE _cxx_abi_version
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
     if(_result)
       message(FATAL_ERROR "Failed to determine C++ ABI version")
     endif()
