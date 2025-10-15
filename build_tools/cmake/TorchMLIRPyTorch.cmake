@@ -74,13 +74,16 @@ function(TorchMLIRConfigurePyTorch)
       RESULT_VARIABLE _result
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       OUTPUT_VARIABLE _libtorch_python_path)
+    if(_result OR NOT EXISTS "${_libtorch_python_path}")
+      message(FATAL_ERROR "Failed to locate libtorch_python.so at ${_libtorch_python_path}")
+    endif()
     execute_process(
-      COMMAND bash "-c" "strings ${_libtorch_python_path} | grep -E '^_cxxabi[0-9]{4}' | head -1 | grep -oE '..$'"
+      COMMAND bash "-c" "strings '${_libtorch_python_path}' | grep -E '^CXXABI_1\\.3\\.[0-9]+$' | sort -V | tail -1 | grep -oE '[0-9]+$'"
       RESULT_VARIABLE _result
       OUTPUT_VARIABLE _cxx_abi_version
       OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(_result)
-      message(FATAL_ERROR "Failed to determine C++ ABI version")
+    if(_result OR NOT _cxx_abi_version)
+      message(FATAL_ERROR "Failed to determine C++ ABI version from ${_libtorch_python_path}")
     endif()
     message(STATUS "PyTorch C++ ABI version: \"${_cxx_abi_version}\"")
 
