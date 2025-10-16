@@ -17,15 +17,7 @@ from torch_mlir_e2e_test.registry import GLOBAL_TEST_REGISTRY
 
 
 # Available test configs.
-from torch_mlir_e2e_test.configs import (
-    LazyTensorCoreTestConfig,
-    NativeTorchTestConfig,
-    OnnxBackendTestConfig,
-    TorchScriptTestConfig,
-    TorchDynamoTestConfig,
-    JITImporterTestConfig,
-    FxImporterTestConfig,
-)
+from torch_mlir_e2e_test.configs import load_config
 
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import (
     RefBackendLinalgOnTensorsBackend,
@@ -150,54 +142,54 @@ def main():
 
     # Find the selected config.
     if args.config == "linalg":
-        config = JITImporterTestConfig(RefBackendLinalgOnTensorsBackend())
+        config = load_config("JITImporterTestConfig")(RefBackendLinalgOnTensorsBackend())
         xfail_set = LINALG_XFAIL_SET
         crashing_set = LINALG_CRASHING_SET
     elif args.config == "stablehlo":
-        config = JITImporterTestConfig(LinalgOnTensorsStablehloBackend(), "stablehlo")
+        config = load_config("JITImporterTestConfig")(LinalgOnTensorsStablehloBackend(), "stablehlo")
         xfail_set = all_test_unique_names - STABLEHLO_PASS_SET
         crashing_set = STABLEHLO_CRASHING_SET
     elif args.config == "tosa":
-        config = JITImporterTestConfig(LinalgOnTensorsTosaBackend(), "tosa")
+        config = load_config("JITImporterTestConfig")(LinalgOnTensorsTosaBackend(), "tosa")
         xfail_set = all_test_unique_names - TOSA_PASS_SET
         crashing_set = TOSA_CRASHING_SET
     elif args.config == "native_torch":
-        config = NativeTorchTestConfig()
+        config = load_config("NativeTorchTestConfig")()
         xfail_set = set()
         crashing_set = set()
     elif args.config == "torchscript":
-        config = TorchScriptTestConfig()
+        config = load_config("TorchScriptTestConfig")()
         xfail_set = set()
         crashing_set = set()
     elif args.config == "lazy_tensor_core":
-        config = LazyTensorCoreTestConfig()
+        config = load_config("LazyTensorCoreTestConfig")()
         xfail_set = LTC_XFAIL_SET
         crashing_set = LTC_CRASHING_SET
     elif args.config == "fx_importer":
-        config = FxImporterTestConfig(RefBackendLinalgOnTensorsBackend())
+        config = load_config("FxImporterTestConfig")(RefBackendLinalgOnTensorsBackend())
         xfail_set = FX_IMPORTER_XFAIL_SET
         crashing_set = FX_IMPORTER_CRASHING_SET
     elif args.config == "fx_importer_stablehlo":
-        config = FxImporterTestConfig(LinalgOnTensorsStablehloBackend(), "stablehlo")
+        config = load_config("FxImporterTestConfig")(LinalgOnTensorsStablehloBackend(), "stablehlo")
         xfail_set = FX_IMPORTER_STABLEHLO_XFAIL_SET
         crashing_set = FX_IMPORTER_STABLEHLO_CRASHING_SET
     elif args.config == "fx_importer_tosa":
-        config = FxImporterTestConfig(LinalgOnTensorsTosaBackend(), "tosa")
+        config = load_config("FxImporterTestConfig")(LinalgOnTensorsTosaBackend(), "tosa")
         xfail_set = FX_IMPORTER_TOSA_XFAIL_SET
         crashing_set = FX_IMPORTER_TOSA_CRASHING_SET
     elif args.config == "torchdynamo":
         # TODO: Enanble runtime verification and extend crashing set.
-        config = TorchDynamoTestConfig(
+        config = load_config("TorchDynamoTestConfig")(
             RefBackendLinalgOnTensorsBackend(generate_runtime_verification=False)
         )
         xfail_set = TORCHDYNAMO_XFAIL_SET
         crashing_set = TORCHDYNAMO_CRASHING_SET
     elif args.config == "onnx":
-        config = OnnxBackendTestConfig(RefBackendLinalgOnTensorsBackend())
+        config = load_config("OnnxBackendTestConfig")(RefBackendLinalgOnTensorsBackend())
         xfail_set = ONNX_XFAIL_SET
         crashing_set = ONNX_CRASHING_SET
     elif args.config == "onnx_tosa":
-        config = OnnxBackendTestConfig(LinalgOnTensorsTosaBackend(), output_type="tosa")
+        config = load_config("OnnxBackendTestConfig")(LinalgOnTensorsTosaBackend(), output_type="tosa")
         xfail_set = ONNX_TOSA_XFAIL_SET
         crashing_set = ONNX_TOSA_CRASHING_SET
 

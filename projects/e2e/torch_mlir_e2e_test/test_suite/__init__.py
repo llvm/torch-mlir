@@ -7,8 +7,6 @@
 # These represent further work needed in torch-mlir to lower them properly
 # to the backend contract.
 
-from torch_mlir._version import torch_version_for_comparison, version
-
 COMMON_TORCH_MLIR_LOWERING_XFAILS = {
     "NativeGroupNormBackwardModule_basic",
     "QuantizedMLP_basic",
