@@ -5,6 +5,7 @@
 
 from typing import Optional, Sequence, Union, List, Dict, Tuple, Callable, Iterable
 from enum import Enum
+from warnings import warn
 
 import sys
 from io import StringIO
@@ -21,9 +22,11 @@ from torch_mlir.compiler_utils import (
     lower_mlir_module,
     TensorPlaceholder,
 )
-from torch_mlir.jit_ir_importer import ClassAnnotator, ImportOptions, ModuleBuilder
-from torch_mlir.jit_ir_importer.build_tools.library_generator import generate_library
-
+try:
+    from torch_mlir.jit_ir_importer import ClassAnnotator, ImportOptions, ModuleBuilder
+    from torch_mlir.jit_ir_importer.build_tools.library_generator import generate_library
+except ModuleNotFoundError as e:
+    warn("torch_mlir.torchscript.compile relies on jit_ir_importer. Please build with `TORCH_MLIR_ENABLE_JIT_IR_IMPORTER=ON`.")
 
 _example_arg = Union[TensorPlaceholder, torch.Tensor]
 _example_args_for_one_method = Union[_example_arg, Sequence[_example_arg]]

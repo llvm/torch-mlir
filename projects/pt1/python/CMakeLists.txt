@@ -41,7 +41,6 @@ endif()
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
   add_subdirectory(torch_mlir/jit_ir_importer)
   add_subdirectory(torch_mlir/csrc/jit_ir_importer)
-  add_subdirectory(torch_mlir_e2e_test)
 endif()
 
 ################################################################################

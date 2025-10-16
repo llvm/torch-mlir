@@ -64,6 +64,11 @@ if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OR TORCH_MLIR_ENABLE_LTC)
   message(STATUS "TORCH_LIBRARIES = ${TORCH_LIBRARIES}")
 endif()
 
+# Include e2e testing infra.
+if(NOT TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS)
+  add_subdirectory(torch_mlir_e2e_test)
+endif()
+
 # Include jit_ir_common if the jit_ir importer or LTC is enabled,
 # since they both require it.
 if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER OR TORCH_MLIR_ENABLE_LTC)
