@@ -66,7 +66,7 @@ endif()
 
 # Include e2e testing infra.
 if(NOT TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS)
-  add_subdirectory(torch_mlir_e2e_test)
+  add_subdirectory(e2e)
 endif()
 
 # Include jit_ir_common if the jit_ir importer or LTC is enabled,
