@@ -8,17 +8,17 @@ __all__ = ["load_config"]
 from importlib import import_module
 
 CONFIG_LOCATIONS = {
-    "LazyTensorCoreTestConfig" : "lazy_tensor_core",
-    "NativeTorchTestConfig" : "native_torch",
-    "OnnxBackendTestConfig" : "onnx_backend",
-    "TorchScriptTestConfig" : "torchscript",
-    "TorchDynamoTestConfig" : "torchdynamo",
-    "JITImporterTestConfig" : "jit_importer_backend",
-    "FxImporterTestConfig" : "fx_importer_backend",
+    "LazyTensorCoreTestConfig": "lazy_tensor_core",
+    "NativeTorchTestConfig": "native_torch",
+    "OnnxBackendTestConfig": "onnx_backend",
+    "TorchScriptTestConfig": "torchscript",
+    "TorchDynamoTestConfig": "torchdynamo",
+    "JITImporterTestConfig": "jit_importer_backend",
+    "FxImporterTestConfig": "fx_importer_backend",
 }
 
 def load_config(name: str) -> type:
     source = CONFIG_LOCATIONS.get(name)
     assert source is not None, f"Could not find TestConfig named {name}."
-    module = import_module(f'.{source}', __package__)
+    module = import_module(f".{source}", __package__)
     return getattr(module, name)
