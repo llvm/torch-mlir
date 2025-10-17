@@ -17,6 +17,7 @@ CONFIG_LOCATIONS = {
     "FxImporterTestConfig": "fx_importer_backend",
 }
 
+
 def load_config(name: str) -> type:
     source = CONFIG_LOCATIONS.get(name)
     assert source is not None, f"Could not find TestConfig named {name}."

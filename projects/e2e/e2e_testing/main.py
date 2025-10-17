@@ -142,15 +142,21 @@ def main():
 
     # Find the selected config.
     if args.config == "linalg":
-        config = load_config("JITImporterTestConfig")(RefBackendLinalgOnTensorsBackend())
+        config = load_config("JITImporterTestConfig")(
+            RefBackendLinalgOnTensorsBackend()
+        )
         xfail_set = LINALG_XFAIL_SET
         crashing_set = LINALG_CRASHING_SET
     elif args.config == "stablehlo":
-        config = load_config("JITImporterTestConfig")(LinalgOnTensorsStablehloBackend(), "stablehlo")
+        config = load_config("JITImporterTestConfig")(
+            LinalgOnTensorsStablehloBackend(), "stablehlo"
+        )
         xfail_set = all_test_unique_names - STABLEHLO_PASS_SET
         crashing_set = STABLEHLO_CRASHING_SET
     elif args.config == "tosa":
-        config = load_config("JITImporterTestConfig")(LinalgOnTensorsTosaBackend(), "tosa")
+        config = load_config("JITImporterTestConfig")(
+            LinalgOnTensorsTosaBackend(), "tosa"
+        )
         xfail_set = all_test_unique_names - TOSA_PASS_SET
         crashing_set = TOSA_CRASHING_SET
     elif args.config == "native_torch":
@@ -170,11 +176,15 @@ def main():
         xfail_set = FX_IMPORTER_XFAIL_SET
         crashing_set = FX_IMPORTER_CRASHING_SET
     elif args.config == "fx_importer_stablehlo":
-        config = load_config("FxImporterTestConfig")(LinalgOnTensorsStablehloBackend(), "stablehlo")
+        config = load_config("FxImporterTestConfig")(
+            LinalgOnTensorsStablehloBackend(), "stablehlo"
+        )
         xfail_set = FX_IMPORTER_STABLEHLO_XFAIL_SET
         crashing_set = FX_IMPORTER_STABLEHLO_CRASHING_SET
     elif args.config == "fx_importer_tosa":
-        config = load_config("FxImporterTestConfig")(LinalgOnTensorsTosaBackend(), "tosa")
+        config = load_config("FxImporterTestConfig")(
+            LinalgOnTensorsTosaBackend(), "tosa"
+        )
         xfail_set = FX_IMPORTER_TOSA_XFAIL_SET
         crashing_set = FX_IMPORTER_TOSA_CRASHING_SET
     elif args.config == "torchdynamo":
@@ -185,11 +195,15 @@ def main():
         xfail_set = TORCHDYNAMO_XFAIL_SET
         crashing_set = TORCHDYNAMO_CRASHING_SET
     elif args.config == "onnx":
-        config = load_config("OnnxBackendTestConfig")(RefBackendLinalgOnTensorsBackend())
+        config = load_config("OnnxBackendTestConfig")(
+            RefBackendLinalgOnTensorsBackend()
+        )
         xfail_set = ONNX_XFAIL_SET
         crashing_set = ONNX_CRASHING_SET
     elif args.config == "onnx_tosa":
-        config = load_config("OnnxBackendTestConfig")(LinalgOnTensorsTosaBackend(), output_type="tosa")
+        config = load_config("OnnxBackendTestConfig")(
+            LinalgOnTensorsTosaBackend(), output_type="tosa"
+        )
         xfail_set = ONNX_TOSA_XFAIL_SET
         crashing_set = ONNX_TOSA_CRASHING_SET
 
