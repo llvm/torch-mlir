@@ -81,6 +81,7 @@ def convert_onnx(model, inputs):
         model,
         examples,
         buffer,
+        dynamo=False,
         input_names=input_names,
         dynamic_axes=dynamic_tensors,
         opset_version=max_opset_ver,
