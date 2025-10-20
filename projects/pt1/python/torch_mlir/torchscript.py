@@ -5,7 +5,6 @@
 
 from typing import Optional, Sequence, Union, List, Dict, Tuple, Callable, Iterable
 from enum import Enum
-from warnings import warn
 
 import sys
 from io import StringIO
@@ -24,6 +23,7 @@ from torch_mlir.compiler_utils import (
 )
 from torch_mlir.jit_ir_importer import ClassAnnotator, ImportOptions, ModuleBuilder
 from torch_mlir.jit_ir_importer.build_tools.library_generator import generate_library
+
 
 _example_arg = Union[TensorPlaceholder, torch.Tensor]
 _example_args_for_one_method = Union[_example_arg, Sequence[_example_arg]]

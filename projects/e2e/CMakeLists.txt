@@ -1,4 +1,4 @@
-message(STATUS "Building PyTorch1 compatibility project")
+message(STATUS "Building end-to-end testing package.")
 
 ################################################################################
 # Setup python.
