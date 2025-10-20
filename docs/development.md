@@ -463,10 +463,10 @@ Torch-MLIR has two types of tests:
 1. End-to-end execution tests. These compile and run a program and check the
    result against the expected output from execution on native Torch. These use
    a homegrown testing framework (see
-   `projects/pt1/python/torch_mlir_e2e_test/framework.py`) and the test suite
-   lives at `projects/pt1/python/torch_mlir_e2e_test/test_suite/__init__.py`.
-   The tests require to build with `TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS` (and
-   the dependent option `TORCH_MLIR_ENABLE_JIT_IR_IMPORTER`) set to `ON`.
+   `projects/e2e/torch_mlir_e2e_test/framework.py`) and the test suite
+   lives at `projects/e2e/torch_mlir_e2e_test/test_suite/__init__.py`.
+   Some old configs require building with `TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS`
+   (and the dependent option `TORCH_MLIR_ENABLE_JIT_IR_IMPORTER`) set to `ON`.
 
 2. Compiler and Python API unit tests. These use LLVM's `lit` testing framework.
    For example, these might involve using `torch-mlir-opt` to run a pass and
@@ -482,7 +482,7 @@ Torch-MLIR has two types of tests:
 > An `.env` file must be generated via `build_tools/write_env_file.sh` before these commands can be run.
 
 
-The following assumes you are in the `projects/pt1`  directory:
+The following assumes you are in the `projects/e2e`  directory:
 
 ```shell
 # Run all tests on the reference backend
@@ -496,7 +496,7 @@ The following assumes you are in the `projects/pt1`  directory:
 Alternatively, you can run the tests via Python directly:
 
 ```shell
-cd projects/pt1
+cd projects/e2e
 python -m e2e_testing.main -f 'AtenEmbeddingBag'
 ```
 
@@ -621,10 +621,10 @@ Here are some examples of PRs updating the LLVM and MLIR-HLO submodules:
 
 To enable ASAN, pass `-DLLVM_USE_SANITIZER=Address` to CMake. This should "just
 work" with all C++ tools like `torch-mlir-opt`. When running a Python script
-such as through `./projects/pt1/tools/e2e_test.sh`, you will need to do:
+such as through `./projects/e2e/tools/e2e_test.sh`, you will need to do:
 
 ```
-LD_PRELOAD="$(clang -print-file-name=libclang_rt.asan-x86_64.so)" ./projects/pt1/tools/e2e_test.sh -s
+LD_PRELOAD="$(clang -print-file-name=libclang_rt.asan-x86_64.so)" ./projects/e2e/tools/e2e_test.sh -s
 # See instructions here for how to get the libasan path for GCC:
 # https://stackoverflow.com/questions/48833176/get-location-of-libasan-from-gcc-clang
 ```
