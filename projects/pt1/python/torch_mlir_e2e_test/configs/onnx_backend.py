@@ -85,6 +85,7 @@ def convert_onnx(model, inputs):
         input_names=input_names,
         dynamic_axes=dynamic_tensors,
         opset_version=max_opset_ver,
+        dynamo=False,
     )
     buffer = buffer.getvalue()
     return import_onnx(buffer)
