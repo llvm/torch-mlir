@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-from .fx_importer_backend import FxImporterTestConfig
-from .native_torch import NativeTorchTestConfig
-from .onnx_backend import OnnxBackendTestConfig
+from .jit_importer_backend import JITImporterTestConfig
+from .lazy_tensor_core import LazyTensorCoreTestConfig
+from .torchdynamo import TorchDynamoTestConfig
+from .torchscript import TorchScriptTestConfig
