@@ -75,8 +75,3 @@ jobs:
       - name: Integration tests (torch-${{ matrix.torch-version }})
         run: |
           bash build_tools/ci/test_posix.sh ${{ matrix.torch-version }}
-
-      - name: Check generated sources (torch-nightly only)
-        if: ${{ matrix.torch-version == 'nightly' }}
-        run: |
-          bash build_tools/ci/check_generated_sources.sh

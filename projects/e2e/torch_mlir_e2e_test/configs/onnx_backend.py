@@ -10,7 +10,6 @@ import io
 import onnx
 import torch
 from torch.onnx._constants import ONNX_TORCHSCRIPT_EXPORTER_MAX_OPSET as max_opset_ver
-import torch_mlir
 
 from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
 from torch_mlir_e2e_test.utils import convert_annotations_to_placeholders
@@ -82,6 +81,7 @@ def convert_onnx(model, inputs):
         model,
         examples,
         buffer,
+        dynamo=False,
         input_names=input_names,
         dynamic_axes=dynamic_tensors,
         opset_version=max_opset_ver,

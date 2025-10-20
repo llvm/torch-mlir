@@ -74,7 +74,7 @@ endif()
 # Turning this off disables the old TorchScript path, leaving FX based import as the current supported option.
 # The option will be retained for a time, and if a maintainer is interested in setting up testing for it,
 # please reach out on the list and speak up for it. It will only be enabled in CI for test usage.
-cmake_dependent_option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" ON TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS OFF)
+cmake_dependent_option(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER "Enables JIT IR Importer" OFF TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS OFF)
 cmake_dependent_option(TORCH_MLIR_ENABLE_LTC "Enables LTC backend" OFF TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS OFF)
 
 option(TORCH_MLIR_ENABLE_ONNX_C_IMPORTER "Enables the ONNX C importer" OFF)

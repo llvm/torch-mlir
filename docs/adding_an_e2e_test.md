@@ -5,7 +5,7 @@
 Adding support for a Torch operator in Torch-MLIR should always be accompanied
 by at least one end-to-end test to make sure the implementation of the op
 matches the behavior of PyTorch. The tests live in the
-`torch-mlir/projects/pt1/python/torch_mlir_e2e_test/test_suite` directory. When adding a new
+`torch-mlir/projects/e2e/torch_mlir_e2e_test/test_suite` directory. When adding a new
 test, choose a file that best matches the op you're testing, and if there is no
 file that best matches add a new file for your op.
 
