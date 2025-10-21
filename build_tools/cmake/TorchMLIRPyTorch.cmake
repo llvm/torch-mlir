@@ -40,7 +40,7 @@ endfunction()
 # (PYBIND11_INTERNALS_ID in include/pybind11/detail/internals.h). Differences
 # in this variable between torch-mlir and PyTorch will cause type errors.
 # Note: as of version 2.9.0.dev20250826, torch has updated to pybind11 ver 3.0.
-# This simplifies compatibility considerably. For reference, see 
+# This simplifies compatibility considerably. For reference, see
 # https://github.com/pybind/pybind11/pull/5439
 # For pre-version 3.0 pybind11, our best option is to:
 #   a) Identify which ABI version PyTorch was compiled with
