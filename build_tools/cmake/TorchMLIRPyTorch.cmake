@@ -39,7 +39,10 @@ endfunction()
 # Separately, pybind11 keeps an internal variable which records its ABI info
 # (PYBIND11_INTERNALS_ID in include/pybind11/detail/internals.h). Differences
 # in this variable between torch-mlir and PyTorch will cause type errors.
-# Thus, our best option is to:
+# Note: as of version 2.9.0.dev20250826, torch has updated to pybind11 ver 3.0.
+# This simplifies compatibility considerably. For reference, see 
+# https://github.com/pybind/pybind11/pull/5439
+# For pre-version 3.0 pybind11, our best option is to:
 #   a) Identify which ABI version PyTorch was compiled with
 #   b) Tell gcc to use that version
 #     or
@@ -70,15 +73,18 @@ function(TorchMLIRConfigurePyTorch)
     # Check ABI compatibility version
     execute_process(
       COMMAND ${Python3_EXECUTABLE}
-      -c "import torch; import sys; abi=torch._C._PYBIND11_BUILD_ABI; abi.startswith('_cxxabi10') or sys.exit(1); sys.stdout.write(str(abi[-2:]))"
+      -c "import torch; import sys; abi=getattr(torch._C, '_PYBIND11_BUILD_ABI', '-1'); abi=='-1' or abi.startswith('_cxxabi10') or sys.exit(1); sys.stdout.write(str(abi[-2:]))"
       RESULT_VARIABLE _result
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       OUTPUT_VARIABLE _cxx_abi_version)
     if(_result)
-      message(WARNING "Could not infer torch._C._PYBIND_BUILD_ABI. This was removed after pytorch updated to pybind11 version 3.0.1, and the TORCH_CXX_FLAGS manipulation is no longer required.")
+      message(FATAL_ERROR "Failed to determine C++ ABI version")
+    elseif(${_cxx_abi_version} STREQUAL "-1")
+      message(STATUS "Could not find `torch._C._PYBIND_BUILD_ABI`. This was removed in torch 2.9.0 (as of nightly release: dev20250826), and the TORCH_CXX_FLAGS manipulation is no longer required.")
+      # Everyone involved should be using cxx11 abi by default, but specify this just in case.
+      set(TORCH_CXXFLAGS "-D_GLIBCXX_USE_CXX11_ABI=${_use_cxx11_abi}")
     else()
       message(STATUS "PyTorch C++ ABI version: \"${_cxx_abi_version}\"")
-
       # Specialize compile flags for compiler
       if(${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
         set(TORCH_CXXFLAGS "-D_GLIBCXX_USE_CXX11_ABI=${_use_cxx11_abi} -fabi-version=${_cxx_abi_version}")
@@ -88,8 +94,8 @@ function(TorchMLIRConfigurePyTorch)
         message(WARNING "Unrecognized compiler. Cannot determine ABI flags.")
         return()
       endif()
-      set(TORCH_CXXFLAGS "${TORCH_CXXFLAGS}" PARENT_SCOPE)
     endif()
+    set(TORCH_CXXFLAGS "${TORCH_CXXFLAGS}" PARENT_SCOPE)
   endif()
 endfunction()
 
