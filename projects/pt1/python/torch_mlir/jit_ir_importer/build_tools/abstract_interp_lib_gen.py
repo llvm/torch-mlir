@@ -5544,8 +5544,6 @@ def aten〇linalg_vector_norm〡dtype(self_rank_dtype: Tuple[int, int], ord: Uni
             return aten〇std〡dtype((self_rank, dtype))
         assert not is_complex_dtype(dtype)
         return dtype
-    if self_dtype in [torch.float16, torch.bfloat16]:
-        return torch.float32
     return aten〇std〡dtype(self_rank_dtype)
 
 @check_dtype_function(
@@ -5569,8 +5567,6 @@ def aten〇linalg_norm〡dtype(self_rank_dtype: Tuple[int, int], ord: Optional[U
             return aten〇std〡dtype((self_rank, dtype))
         assert not is_complex_dtype(dtype)
         return dtype
-    if self_dtype in [torch.float16, torch.bfloat16]:
-        return torch.float32
     return aten〇std〡dtype(self_rank_dtype)
 
 def aten〇binary_cross_entropy_with_logits〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], weight_rank_dtype: Optional[Tuple[int, int]] = None, pos_weight_rank_dtype: Optional[Tuple[int, int]] = None, reduction: int = 1) -> int:
@@ -5604,8 +5600,6 @@ def aten〇norm〇Scalar〡dtype(self_rank_dtype: Tuple[int, int], p: Union[int,
     # Should possibly be added to aten〇std〡dtype.
     if self_dtype == torch.complex32:
         return torch.half
-    if self_dtype in [torch.float16, torch.bfloat16]:
-        return torch.float32
     return aten〇std〡dtype(self_rank_dtype)
 
 @check_dtype_function([Invocation(0.0),
