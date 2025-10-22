@@ -661,6 +661,8 @@ LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
     return op->emitError(
         "unimplemented: not support dynamic dimSize when end smaller than 0.");
   }
+  // Python allows users to set the range end to be larger than dimsize.
+  end = end > dimSize ? dimSize : end;
   end = end >= 0 ? end : dimSize + end;
 
   int64_t size = 0;
