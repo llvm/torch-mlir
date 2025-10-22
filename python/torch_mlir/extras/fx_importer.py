@@ -106,6 +106,7 @@ from ..ir import (
     Context,
     DenseElementsAttr,
     DenseResourceElementsAttr,
+    FlatSymbolRefAttr,
     FloatAttr,
     BF16Type,
     ComplexType,
@@ -834,7 +835,49 @@ class FxImporter:
         node_importer.return_node_values(loc, user_outputs, constant_output_values)
 
         self.symbol_table.insert(func_op)
+
+        # Import all child graph modules recursively for HOPs
+        # Even though import_stateless_graph is deprecated as an entrypoint mechanism,
+        # HOP operator graphs are stateless graphs with no mutation, and it is correct
+        # to import them as stateless graphs.
+        self._import_all_child_modules(
+            prog,
+            func_name,
+            import_symbolic_shape_expressions
+        )
+
         return func_op
+
+    def _import_all_child_modules(
+        self,
+        prog: torch.export.ExportedProgram,
+        parent_name: str,
+        import_symbolic_shape_expressions: bool = False
+    ):
+        """Recursively import all child modules that have graphs.
+
+        This simple approach imports all submodules recursively, which is sufficient
+        for HOP operations since they only reference existing submodules.
+        """
+        for child_name, child_module in prog.graph.owning_module.named_children():
+            if isinstance(child_module, GraphModule) and hasattr(child_module, 'graph'):
+                # Generate function name: parent_childname
+                child_func_name = f"{parent_name}_{child_name}_{id(child_module)}"
+
+                # Import the child as a stateless graph (private function)
+                self.import_stateless_graph(
+                    child_module.graph,
+                    func_name=child_func_name,
+                    func_visibility="private",
+                    import_symbolic_shape_expressions=import_symbolic_shape_expressions,
+                )
+
+                # Recursively import its children
+                self._import_all_child_modules(
+                    child_module,
+                    child_func_name,
+                    import_symbolic_shape_expressions
+                )
 
     def import_frozen_program(
         self,
@@ -996,9 +1039,17 @@ class FxImporter:
             if node.op == "placeholder":
                 input_types.append(self._cc.node_val_to_type(node))
             elif node.op == "output":
-                # An output node's args[0] is the return value. This seems to
-                # always be "boxed" as a tuple, which we emit as multi-results.
-                for result_node in node.args[0]:
+                # An output node's args[0] is the return value. This is usually
+                # "boxed" as a tuple, which we emit as multi-results. However,
+                # for single returns it might be a single Node.
+                output_arg = node.args[0]
+                # Handle both single Node and tuple/list of Nodes
+                if isinstance(output_arg, (list, tuple)):
+                    result_nodes = output_arg
+                else:
+                    result_nodes = [output_arg]
+
+                for result_node in result_nodes:
                     if result_node is None:
                         result_types.append(
                             IrType.parse("!torch.none", context=self._c)
@@ -1509,7 +1560,14 @@ class GraphNodeImporter:
                 elif op == "output" and not skip_placeholders_outputs:
                     # args[0] is a singleton tuple that we flatten into multiple
                     # results.
-                    operands = [self._import_argument(loc, arg) for arg in node.args[0]]
+                    output_arg = node.args[0]
+                    # Handle both single Node and tuple/list of Nodes
+                    if isinstance(output_arg, (list, tuple)):
+                        result_nodes = output_arg
+                    else:
+                        result_nodes = [output_arg]
+
+                    operands = [self._import_argument(loc, arg) for arg in result_nodes]
                     func_dialect.ReturnOp(operands, loc=loc)
 
                 if import_symbolic_shape_expressions:
@@ -1611,6 +1669,139 @@ class GraphNodeImporter:
                 f"(tried '{handler_name}')"
             )
         handler(loc, node, hop)
+
+    def _import_hop_while_loop(
+        self, loc: Location, node: torch_fx.Node, hop: HigherOrderOperator
+    ):
+        """Imports the torch._higher_order_ops.while_loop HOP.
+
+        Args format: (cond_fn, body_fn, carries)
+        The cond_fn and body_fn are get_attr nodes pointing to submodule graphs
+        that have already been imported by import_program().
+
+        Emits torch.prim.Loop with proper control flow structure.
+        """
+        # while_loop HOP args: (cond_fn, body_fn, carries...)
+        # Unpack the first two args and the rest as carries
+        cond_fn_node, body_fn_node, *carries = node.args
+
+        # Extract function names from get_attr nodes
+        # The subgraphs were imported with names like "main_{target}"
+        assert cond_fn_node.op == "get_attr", f"Expected get_attr for cond_fn, got {cond_fn_node.op}"
+        assert body_fn_node.op == "get_attr", f"Expected get_attr for body_fn, got {body_fn_node.op}"
+
+        root_module = node.graph.owning_module
+        cond_fn_module = getattr(root_module, cond_fn_node.target, None)
+        body_fn_module = getattr(root_module, body_fn_node.target, None)
+
+        # Generate function names with module IDs for uniqueness
+        cond_fn_name = f"main_{cond_fn_node.target}_{id(cond_fn_module)}"
+        body_fn_name = f"main_{body_fn_node.target}_{id(body_fn_module)}"
+
+        # Import the carries (loop state variables)
+        carry_values = []
+        for carry in carries:
+            if isinstance(carry, tuple):
+                # Handle tuple carries by importing each element
+                carry_values.extend(self._import_tuple_argument(loc, carry, None))
+            else:
+                carry_values.append(self._import_argument(loc, carry))
+
+        # Determine result types from node metadata
+        node_val = node.meta.get("val")
+        if isinstance(node_val, (list, tuple)) and len(node_val) > 1:
+            result_types = [self._cc.value_info_to_type(v) for v in node_val]
+            self._multi_result_nodes.add(node)
+        else:
+            result_types = [self._cc.node_val_to_type(node)]
+
+        # Call the condition function with initial carries to get initial condition
+        cond_result_type = self._cc.get_vtensor_type(torch.Size([]), torch.bool)
+
+        initial_cond_call = Operation.create(
+            "func.call",
+            attributes={"callee": FlatSymbolRefAttr.get(cond_fn_name)},
+            results=[cond_result_type],
+            operands=carry_values,
+            loc=loc,
+        )
+
+        # Convert vtensor<bool> to torch.bool
+        bool_conv = Operation.create(
+            name="torch.aten.Bool.Tensor",
+            results=[self._cc.torch_bool_type],
+            operands=[initial_cond_call.results[0]],
+            loc=loc,
+        )
+
+        # Create max iterations constant (INT64_MAX)
+        with loc:
+            max_iter = _make_constant_op(
+                "torch.constant.int",
+                self._cc.integer_attr(9223372036854775807, 64),
+                self._cc.torch_int_type,
+            )
+
+        # Create torch.prim.Loop operation with region
+        loop_op = Operation.create(
+            name="torch.prim.Loop",
+            results=result_types,
+            operands=[max_iter.results[0], bool_conv.results[0]] + carry_values,
+            regions=1,
+            loc=loc,
+        )
+
+        # Create loop body region with block arguments
+        # Block args: iteration counter (!torch.int) + all carry values
+        loop_region = loop_op.regions[0]
+        block_arg_types = [self._cc.torch_int_type] + result_types
+        with loc:
+            loop_block = Block.create_at_start(loop_region, block_arg_types)
+
+        # Inside the loop body, call body function and condition function
+        with InsertionPoint(loop_block):
+            # Call body function with current carry values (skip iteration counter)
+            body_results_op = Operation.create(
+                name="func.call",
+                attributes={"callee": FlatSymbolRefAttr.get(body_fn_name)},
+                results=result_types,
+                operands=list(loop_block.arguments[1:]),  # Skip iteration counter
+                loc=loc,
+            )
+            body_results = list(body_results_op.results)
+
+            # Call condition function with updated carries
+            cond_result_loop = Operation.create(
+                name="func.call",
+                attributes={"callee": FlatSymbolRefAttr.get(cond_fn_name)},
+                results=[IrType.parse("!torch.vtensor<[],i1>", context=self._c)],
+                operands=body_results,
+                loc=loc,
+            ).result
+
+            # Convert to bool
+            cond_bool = Operation.create(
+                name="torch.aten.Bool.Tensor",
+                results=[self._cc.torch_bool_type],
+                operands=[cond_result_loop],
+                loc=loc,
+            ).result
+
+            # Emit loop condition with updated carries
+            Operation.create(
+                name="torch.prim.Loop.condition",
+                results=[],
+                operands=[cond_bool] + body_results,
+                loc=loc,
+            )
+
+        # Bind the loop results to the node
+        if len(result_types) > 1:
+            self._multi_result_nodes.add(node)
+            for i, value in enumerate(loop_op.results):
+                self.bind_node_value(node, value, i)
+        else:
+            self.bind_node_value(node, loop_op.results[0])
 
     def _import_hop_auto_functionalized(
         self, loc: Location, node: torch_fx.Node, hop: HigherOrderOperator
@@ -1823,6 +2014,9 @@ class GraphNodeImporter:
             argument_value = self.resolve_node_value(arg)
         elif isinstance(arg, torch_fx.immutable_collections.immutable_list):
             argument_value = self._import_list_argument(loc, arg, expected_jit_type)
+        elif isinstance(arg, tuple):
+            # Handle tuples of tensors (common in while_loop carries)
+            argument_value = self._import_tuple_argument(loc, arg, expected_jit_type)
         elif isinstance(expected_jit_type, torch.TensorType) and not isinstance(
             arg, torch.Tensor
         ):
@@ -1929,6 +2123,13 @@ class GraphNodeImporter:
             operands=[constant_arg],
             loc=loc,
         ).result
+
+    def _import_tuple_argument(
+        self, loc: Location, arg: tuple, expected_jit_type
+    ) -> List[Value]:
+        """Import a tuple argument by importing each element separately."""
+        # For tuples in while_loop carries, treat each element as a separate argument
+        return [self._import_argument(loc, elem, expected_jit_type) for elem in arg]
 
     def _import_list_argument(
         self, loc: Location, arg: Sequence[NodeArgument], expected_jit_type
@@ -2040,6 +2241,8 @@ class GraphNodeImporter:
             # NOTE: the length of the list must be knowable at compile time.
             if ref_node not in self._unpack_list_values:
                 node_result = self.resolve_node_value(ref_node, 0)
+                node_val = ref_node.meta.get("val")
+
                 if str(node_result.type) in TORCH_LIST_TYPES:
                     result_types = [
                         self._cc.value_info_to_type(v) for v in ref_node.meta["val"]

@@ -205,6 +205,44 @@ def test_full():
     )
     print(m)
 
+@run
+# CHECK-LABEL: test_while_loop_two_returns
+# CHECK: func.func @test_while_loop_two_returns
+# CHECK-SAME: -> (!torch.vtensor<[],si64>, !torch.vtensor<[4,4],f32>)
+
+# Validate literal/init plumbing:
+# CHECK: %[[ZERO:.*]] = torch.vtensor.literal(dense<0> : tensor<si64>) : !torch.vtensor<[],si64>
+# CHECK: %[[NONE:.*]] = torch.constant.none
+# CHECK: %[[CLONE:.*]] = torch.aten.clone %[[ZERO]], %[[NONE]] : !torch.vtensor<[],si64>, !torch.none -> !torch.vtensor<[],si64>
+
+# CHECK: %[[COND:.*]] = call @while_loop_cond_graph_{{[0-9]+}}(%[[CLONE]]
+# CHECK: torch.aten.Bool.Tensor %[[COND]]
+# CHECK: %[[MAX_ITER:.*]] = torch.constant.int 9223372036854775807
+# CHECK: torch.prim.Loop %[[MAX_ITER]]
+
+# CHECK: func.func private @while_loop_cond_graph_{{[0-9]+}}
+# CHECK: torch.aten.lt.Scalar
+
+# CHECK: func.func private @while_loop_body_graph_{{[0-9]+}}
+# CHECK: torch.aten.add.Scalar
+# CHECK: torch.aten.mul.Tensor
+def test_while_loop_two_returns():
+    class M(nn.Module):
+        def forward(self, x):
+            # Simple while_loop that carries a scalar and a tensor.
+            def body(i, x):
+                return i + 1, x * x
+            i0 = torch.tensor(0)
+            from torch._higher_order_ops.while_loop import while_loop
+
+            out_i, out_x = while_loop(
+                lambda i, x: i < 3, body, (i0, x)
+            )
+            return out_i, out_x
+
+    # Export -> import to Torch-MLIR
+    m = fx.export_and_import(M(), torch.randn(4, 4), func_name="test_while_loop_two_returns")
+    print(m)
 
 @run
 # CHECK-LABEL: test_stack_trace
