@@ -1549,8 +1549,26 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "input should comes from a PrimListConstructOp");
   }
+  /**
+   *  PyTorch ATen supports concatenation with an empty tensor (shape == [0])
+   * which results in a no-op. However, stablehlo does not support empty tensors
+   * as input, so we need to filter out empty tensors here.
+   */
+  SmallVector<Value> newTensors;
+  for (auto &tensor : torchTensors) {
+    BaseTensorType tensorType = cast<BaseTensorType>(tensor.getType());
+    unsigned int tensordim = tensorType.getSizes().size();
+    if (tensordim == 1) {
+      auto mysize = tensorType.getSizes()[0];
+      if (mysize == 0) {
+        continue; // skip if the shape is [0]
+      }
+    }
+    newTensors.push_back(tensor); // skip if the shape is [0]
+  }
+
   SmallVector<Value> builtinTensors = getTypeConvertedValues(
-      rewriter, op->getLoc(), getTypeConverter(), torchTensors);
+      rewriter, op->getLoc(), getTypeConverter(), newTensors);
 
   // Promote type
   for (auto &v : builtinTensors) {
