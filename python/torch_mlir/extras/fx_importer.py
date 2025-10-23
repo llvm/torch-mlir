@@ -537,6 +537,8 @@ class FxImporter:
         "_py_attr_tracker",
         "_hooks",
         "symbol_table",
+        "_graph_module_to_func_name",
+        "_func_name_counter",
     ]
 
     def __init__(
@@ -564,6 +566,8 @@ class FxImporter:
         self._hooks = hooks or FxImporterHooks()
         self.symbol_table = SymbolTable(self._m.operation)
         self._hooks.prepare_module(self._m.operation)
+        self._graph_module_to_func_name: Dict[int, str] = {}
+        self._func_name_counter: int = 0
 
     def _config_check(self):
         for dname in REQUIRED_DIALCTS:
@@ -824,6 +828,15 @@ class FxImporter:
         for node, (buffer_value, info) in buffer_bindings.items():
             node_importer.lazy_import_buffer(loc, node, buffer_value, info)
 
+        # Import all child graph modules recursively for HOPs BEFORE importing nodes
+        # This is necessary because HOP nodes need to reference these functions.
+        # Even though import_stateless_graph is deprecated as an entrypoint mechanism,
+        # HOP operator graphs are stateless graphs with no mutation, and it is correct
+        # to import them as stateless graphs.
+        self._import_all_child_modules(
+            prog, func_name, import_symbolic_shape_expressions
+        )
+
         # Import all nodes and return.
         node_importer.import_nodes(
             all_producer_nodes.values(),
@@ -836,34 +849,40 @@ class FxImporter:
 
         self.symbol_table.insert(func_op)
 
-        # Import all child graph modules recursively for HOPs
-        # Even though import_stateless_graph is deprecated as an entrypoint mechanism,
-        # HOP operator graphs are stateless graphs with no mutation, and it is correct
-        # to import them as stateless graphs.
-        self._import_all_child_modules(
-            prog,
-            func_name,
-            import_symbolic_shape_expressions
-        )
-
         return func_op
 
     def _import_all_child_modules(
         self,
-        prog: torch.export.ExportedProgram,
+        prog_or_module: Union[torch.export.ExportedProgram, GraphModule],
         parent_name: str,
-        import_symbolic_shape_expressions: bool = False
+        import_symbolic_shape_expressions: bool = False,
     ):
         """Recursively import all child modules that have graphs.
 
         This simple approach imports all submodules recursively, which is sufficient
         for HOP operations since they only reference existing submodules.
         """
-        for child_name, child_module in prog.graph.owning_module.named_children():
-            if isinstance(child_module, GraphModule) and hasattr(child_module, 'graph'):
-                # Generate function name: parent_childname
-                child_func_name = f"{parent_name}_{child_name}_{id(child_module)}"
+        # Get the owning module from either ExportedProgram or GraphModule
+        if isinstance(prog_or_module, GraphModule):
+            owning_module = prog_or_module
+        else:
+            owning_module = prog_or_module.graph.owning_module
 
+        for child_name, child_module in owning_module.named_children():
+            if isinstance(child_module, GraphModule) and hasattr(child_module, "graph"):
+                # Check if we've already assigned a name to this module
+                module_id = id(child_module)
+                # Module already imported, skip it
+                if module_id in self._graph_module_to_func_name:
+                    continue
+                # Use the child_name directly - PyTorch already provides unique names
+                child_func_name = child_name
+                # Handle collision by adding counter suffix if name already exists
+                if child_func_name in self._graph_module_to_func_name.values():
+                    child_func_name = f"{child_name}_{self._func_name_counter}"
+                    self._func_name_counter += 1
+                # Store the mapping for future lookups
+                self._graph_module_to_func_name[module_id] = child_func_name
                 # Import the child as a stateless graph (private function)
                 self.import_stateless_graph(
                     child_module.graph,
@@ -874,9 +893,7 @@ class FxImporter:
 
                 # Recursively import its children
                 self._import_all_child_modules(
-                    child_module,
-                    child_func_name,
-                    import_symbolic_shape_expressions
+                    child_module, child_func_name, import_symbolic_shape_expressions
                 )
 
     def import_frozen_program(
@@ -1015,6 +1032,13 @@ class FxImporter:
             self._cc,
             entry_block,
         )
+
+        # Import child modules (for HOPs) before importing nodes
+        if hasattr(g, 'owning_module') and g.owning_module is not None:
+            self._import_all_child_modules(
+                g.owning_module, func_name, import_symbolic_shape_expressions
+            )
+
         node_importer.import_nodes(
             g.nodes, import_symbolic_shape_expressions=import_symbolic_shape_expressions
         )
@@ -1686,17 +1710,20 @@ class GraphNodeImporter:
         cond_fn_node, body_fn_node, *carries = node.args
 
         # Extract function names from get_attr nodes
-        # The subgraphs were imported with names like "main_{target}"
-        assert cond_fn_node.op == "get_attr", f"Expected get_attr for cond_fn, got {cond_fn_node.op}"
-        assert body_fn_node.op == "get_attr", f"Expected get_attr for body_fn, got {body_fn_node.op}"
+        assert (
+            cond_fn_node.op == "get_attr"
+        ), f"Expected get_attr for cond_fn, got {cond_fn_node.op}"
+        assert (
+            body_fn_node.op == "get_attr"
+        ), f"Expected get_attr for body_fn, got {body_fn_node.op}"
 
         root_module = node.graph.owning_module
         cond_fn_module = getattr(root_module, cond_fn_node.target, None)
         body_fn_module = getattr(root_module, body_fn_node.target, None)
 
         # Generate function names with module IDs for uniqueness
-        cond_fn_name = f"main_{cond_fn_node.target}_{id(cond_fn_module)}"
-        body_fn_name = f"main_{body_fn_node.target}_{id(body_fn_module)}"
+        cond_fn_name = self.fx_importer._graph_module_to_func_name.get(id(cond_fn_module))
+        body_fn_name = self.fx_importer._graph_module_to_func_name.get(id(body_fn_module))
 
         # Import the carries (loop state variables)
         carry_values = []

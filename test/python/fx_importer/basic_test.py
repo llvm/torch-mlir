@@ -235,13 +235,13 @@ def test_while_loop_two_returns():
             i0 = torch.tensor(0)
             from torch._higher_order_ops.while_loop import while_loop
 
-            out_i, out_x = while_loop(
-                lambda i, x: i < 3, body, (i0, x)
-            )
+            out_i, out_x = while_loop(lambda i, x: i < 3, body, (i0, x))
             return out_i, out_x
 
     # Export -> import to Torch-MLIR
-    m = fx.export_and_import(M(), torch.randn(4, 4), func_name="test_while_loop_two_returns")
+    m = fx.export_and_import(
+        M(), torch.randn(4, 4), func_name="test_while_loop_two_returns"
+    )
     print(m)
 
 @run
