@@ -48,29 +48,38 @@ func.func @forward_max_pool2d(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vt
 
 // -----
 
-// CHECK: #map = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2 floordiv 2, d3 floordiv 2)>
-// CHECK: #map1 = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
-// CHECK-LABEL: func @forward_max_unpool2d
+// CHECK: #[[$INPUT_MAP:.+]] = affine_map<(d0, d1, d2, d3, d4, d5) -> (d0, d1, d4, d5)>
+// CHECK: #[[$OUTPUT_MAP:.+]] = affine_map<(d0, d1, d2, d3, d4, d5) -> (d0, d1, d2, d3)>
+// CHECK-LABEL:   func.func @forward_max_unpool2d(
+// CHECK-SAME:      %[[INPUT:.*]]: !torch.vtensor<[2,2,2,4],f32>,
+// CHECK-SAME:      %[[INDICES:.*]]: !torch.vtensor<[2,2,2,4],si64>) -> !torch.vtensor<[2,2,4,8],f32> {
+// CHECK:           %[[INDICES_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INDICES]] : !torch.vtensor<[2,2,2,4],si64> -> tensor<2x2x2x4xi64>
+// CHECK:           %[[INPUT_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[2,2,2,4],f32> -> tensor<2x2x2x4xf32>
+// CHECK:           %[[C8:.*]] = torch.constant.int 8
+// CHECK:           %[[C4:.*]] = torch.constant.int 4
+// CHECK:           %[[OUTPUT_SIZE:.*]] = torch.prim.ListConstruct %[[C4]], %[[C8]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[ZERO:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:           %[[EMPTY_OUTPUT:.*]] = tensor.empty() : tensor<2x2x4x8xf32>
+// CHECK:           %[[FILLED_OUTPUT:.*]] = linalg.fill ins(%[[ZERO]] : f32) outs(%[[EMPTY_OUTPUT]] : tensor<2x2x4x8xf32>) -> tensor<2x2x4x8xf32>
+// CHECK:           %[[RESULT:.*]] = linalg.generic {indexing_maps = [#[[$INPUT_MAP]], #[[$INPUT_MAP]], #[[$OUTPUT_MAP]]], iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction", "reduction"]} ins(%[[INPUT_TENSOR]], %[[INDICES_TENSOR]] : tensor<2x2x2x4xf32>, tensor<2x2x2x4xi64>) outs(%[[FILLED_OUTPUT]] : tensor<2x2x4x8xf32>) {
+// CHECK:           ^bb0(%[[INPUT_VAL:.*]]: f32, %[[INDEX_VAL:.*]]: i64, %[[OUTPUT_VAL:.*]]: f32):
+// CHECK:             %[[INDEX_CAST:.*]] = arith.index_cast %[[INDEX_VAL]] : i64 to index
+// CHECK:             %[[ROW_IDX:.*]] = linalg.index 2 : index
+// CHECK:             %[[COL_IDX:.*]] = linalg.index 3 : index
+// CHECK:             %[[WIDTH:.*]] = arith.constant 8 : index
+// CHECK:             %[[LINEAR_IDX:.*]] = arith.muli %[[ROW_IDX]], %[[WIDTH]] : index
+// CHECK:             %[[FLAT_IDX:.*]] = arith.addi %[[LINEAR_IDX]], %[[COL_IDX]] : index
+// CHECK:             %[[IS_MATCH:.*]] = arith.cmpi eq, %[[INDEX_CAST]], %[[FLAT_IDX]] : index
+// CHECK:             %[[SELECTED:.*]] = arith.select %[[IS_MATCH]], %[[INPUT_VAL]], %[[OUTPUT_VAL]] : f32
+// CHECK:             linalg.yield %[[SELECTED]] : f32
+// CHECK:           } -> tensor<2x2x4x8xf32>
+// CHECK:           %[[OUTPUT_TENSOR:.*]] = torch_c.from_builtin_tensor %[[RESULT]] : tensor<2x2x4x8xf32> -> !torch.vtensor<[2,2,4,8],f32>
+// CHECK:           return %[[OUTPUT_TENSOR]] : !torch.vtensor<[2,2,4,8],f32>
+// CHECK:         }
 func.func @forward_max_unpool2d(%arg0: !torch.vtensor<[2,2,2,4],f32>, %arg1: !torch.vtensor<[2,2,2,4],si64>) -> !torch.vtensor<[2,2,4,8],f32> {
   %int8 = torch.constant.int 8
   %int4 = torch.constant.int 4
   %0 = torch.prim.ListConstruct %int4, %int8 : (!torch.int, !torch.int) -> !torch.list<int>
-  // CHECK: = linalg.generic
-  // CHECK-SAME: indexing_maps = [#map, #map, #map1]
-  // CHECK-SAME: iterator_types = ["parallel", "parallel", "parallel", "parallel"]
-  // CHECK: ins(
-  // CHECK: outs(
-  // CHECK: ^bb0(
-  // CHECK:   %[[CST:.*]] = arith.constant 0.000000e+00 : f32
-  // CHECK:   %[[CAST:.*]] = arith.index_cast %{{.*}} : i64 to index
-  // CHECK:   %[[IDX2:.*]] = linalg.index 2 : index
-  // CHECK:   %[[IDX3:.*]] = linalg.index 3 : index
-  // CHECK:   %[[C8_2:.*]] = arith.constant 8 : index
-  // CHECK:   %[[MUL:.*]] = arith.muli %[[IDX2]], %[[C8_2]] : index
-  // CHECK:   %[[ADD:.*]] = arith.addi %[[MUL]], %[[IDX3]] : index
-  // CHECK:   %[[CMP:.*]] = arith.cmpi eq, %[[CAST]], %[[ADD]] : index
-  // CHECK:   %[[SEL:.*]] = arith.select %[[CMP]], %{{.*}}, %[[CST]] : f32
-  // CHECK:   linalg.yield %[[SEL]] : f32
   %1 = torch.aten.max_unpool2d %arg0, %arg1, %0 : !torch.vtensor<[2,2,2,4],f32>, !torch.vtensor<[2,2,2,4],si64>, !torch.list<int> -> !torch.vtensor<[2,2,4,8],f32>
   return %1 : !torch.vtensor<[2,2,4,8],f32>
 }
