@@ -11,6 +11,7 @@
 #define TORCHMLIR_CONVERSION_TORCHTOTOSA_TOSALEGALIZEUTILS_H
 
 #include "mlir/Dialect/Quant/IR/QuantTypes.h"        // from @llvm-project
+#include "mlir/Dialect/Tosa/IR/TosaOps.h"            // from @llvm-project
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h" // from @llvm-project
 #include "mlir/Dialect/Tosa/Utils/ShapeUtils.h"      // from @llvm-project
 #include "mlir/IR/BuiltinAttributes.h"               // from @llvm-project
@@ -26,8 +27,8 @@ namespace tosa {
 // rounding mode
 Value buildRescale(PatternRewriter &rewriter, Operation *op,
                    ShapedType output_type, Value input_val, double scale,
-                   int64_t input_zp, int64_t output_zp, StringRef rounding_mode,
-                   bool scale32);
+                   int64_t input_zp, int64_t output_zp,
+                   tosa::RoundingMode rounding_mode, bool scale32);
 
 // Creates TOSA rescale op with int32 output
 Value buildRescaleToInt32(PatternRewriter &rewriter, Operation *op,
