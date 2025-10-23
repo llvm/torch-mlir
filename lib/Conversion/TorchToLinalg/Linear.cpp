@@ -1391,9 +1391,9 @@ public:
       return success();
     }
 
-    if (numSpatialDims != 2)
+    if (numSpatialDims != 2 && numSpatialDims != 3)
       return rewriter.notifyMatchFailure(
-          op, "unimplemented: only 1D and 2D grouped convolution supported");
+          op, "unimplemented: only 2D and 3D grouped convolution supported");
 
     // Grouped case, use the grouped conv linalg op
     auto expandGroups = [&](Value tensor, size_t dim) {
@@ -1435,21 +1435,107 @@ public:
     weight = transposed ? weight : expandWeight(weight);
     auto expandOutputTensor = expandGroups(outputTensor, 1);
 
-    // TODO: add 1D and 3D case
-    if (!inputZp) {
-      conv = rewriter
-                 .create<linalg::Conv2DNgchwGfchwOp>(
-                     loc, expandOutputTensor.getResultType(),
-                     ValueRange{paddedInputExpanded, weight},
-                     expandOutputTensor.getResult(), stridesAttr, dilationAttr)
-                 .getResult(0);
-    } else {
-      conv = rewriter
-                 .create<linalg::Conv2DNgchwGfchwQOp>(
-                     loc, expandOutputTensor.getResultType(),
-                     ValueRange{paddedInputExpanded, weight, inputZp, weightZp},
-                     expandOutputTensor.getResult(), stridesAttr, dilationAttr)
-                 .getResult(0);
+    if (numSpatialDims == 2) {
+      // 2D grouped convolution
+      if (!inputZp) {
+        conv =
+            rewriter
+                .create<linalg::Conv2DNgchwGfchwOp>(
+                    loc, expandOutputTensor.getResultType(),
+                    ValueRange{paddedInputExpanded, weight},
+                    expandOutputTensor.getResult(), stridesAttr, dilationAttr)
+                .getResult(0);
+      } else {
+        conv =
+            rewriter
+                .create<linalg::Conv2DNgchwGfchwQOp>(
+                    loc, expandOutputTensor.getResultType(),
+                    ValueRange{paddedInputExpanded, weight, inputZp, weightZp},
+                    expandOutputTensor.getResult(), stridesAttr, dilationAttr)
+                .getResult(0);
+      }
+    } else if (numSpatialDims == 3) {
+      if (inputZp) {
+        return rewriter.notifyMatchFailure(
+            op,
+            "unimplemented: quantized 3D grouped convolution not supported");
+      }
+
+      // MLIR does not have a named 3D grouped convolution op, so we use
+      // linalg.generic instead.
+      AffineExpr d0, d1, d2, d3, d4, d5, d6, d7, d8, d9;
+      bindDims(context, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9);
+
+      SmallVector<AffineExpr> inputExprs = {
+          d0,                                        // N
+          d1,                                        // G
+          d6,                                        // C/G
+          d3 * strideInts[0] + d7 * dilationInts[0], // D
+          d4 * strideInts[1] + d8 * dilationInts[1], // H
+          d5 * strideInts[2] + d9 * dilationInts[2]  // W
+      };
+
+      SmallVector<AffineExpr> weightExprs = {
+          d1, // G
+          d2, // F/G
+          d6, // C/G
+          d7, // KD
+          d8, // KH
+          d9  // KW
+      };
+
+      SmallVector<AffineExpr> outputExprs = {
+          d0, // N
+          d1, // G
+          d2, // F/G
+          d3, // OD
+          d4, // OH
+          d5, // OW
+      };
+
+      SmallVector<AffineMap> indexingMaps = {
+          AffineMap::get(10, 0, inputExprs, rewriter.getContext()),
+          AffineMap::get(10, 0, weightExprs, rewriter.getContext()),
+          AffineMap::get(10, 0, outputExprs, rewriter.getContext())};
+
+      SmallVector<utils::IteratorType> iteratorTypes = {
+          utils::IteratorType::parallel,  // N
+          utils::IteratorType::parallel,  // G
+          utils::IteratorType::parallel,  // F/G
+          utils::IteratorType::parallel,  // OD
+          utils::IteratorType::parallel,  // OH
+          utils::IteratorType::parallel,  // OW
+          utils::IteratorType::reduction, // C/G
+          utils::IteratorType::reduction, // KD
+          utils::IteratorType::reduction, // KH
+          utils::IteratorType::reduction  // KW
+      };
+
+      conv =
+          rewriter
+              .create<linalg::GenericOp>(
+                  loc, expandOutputTensor.getResultType(),
+                  ValueRange{paddedInputExpanded, weight},
+                  expandOutputTensor.getResult(), indexingMaps, iteratorTypes,
+                  [&](OpBuilder &b, Location loc, ValueRange args) {
+                    Value input = args[0];
+                    Value weight = args[1];
+                    Value output = args[2];
+
+                    // Convert input and weight to accumulator type if needed
+                    Type accType = output.getType();
+                    if (input.getType() != accType) {
+                      input = b.create<arith::ExtFOp>(loc, accType, input);
+                    }
+                    if (weight.getType() != accType) {
+                      weight = b.create<arith::ExtFOp>(loc, accType, weight);
+                    }
+
+                    Value mul = b.create<arith::MulFOp>(loc, input, weight);
+                    Value add = b.create<arith::AddFOp>(loc, mul, output);
+                    b.create<linalg::YieldOp>(loc, add);
+                  })
+              .getResult(0);
     }
     conv = rewriter.create<tensor::CollapseShapeOp>(
         loc, outputTensor.getType(), conv,
