@@ -76,6 +76,7 @@ void mlir::torch::Torch::createTorchDynamoExportToTorchBackendPipeline(
   if (options.decompose) {
     pm.addNestedPass<func::FuncOp>(
         Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
+    pm.addNestedPass<func::FuncOp>(Torch::createRecomposeComplexOpsPass());
     pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   }
 }

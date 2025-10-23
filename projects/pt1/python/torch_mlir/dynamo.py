@@ -52,8 +52,6 @@ def _get_decomposition_table():
         # support for aten.native_batch_norm_backward.
         aten._native_batch_norm_legit_functional,
         aten.native_group_norm,
-        aten.split.Tensor,
-        aten.split_with_sizes,
         aten.norm.ScalarOpt_dim,
         aten.embedding_dense_backward,
         aten.native_layer_norm_backward,
