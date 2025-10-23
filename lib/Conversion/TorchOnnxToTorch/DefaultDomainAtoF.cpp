@@ -2102,26 +2102,27 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.getLoc(), c, cstBlockSizeSquare);
         cDivBlockSizeSquare = rewriter.create<Torch::AtenIntFloatOp>(
             binder.getLoc(), cDivBlockSizeSquare);
-        Value reshapeSizesList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(input.getContext())),
-            llvm::SmallVector<Value>{b, cstBlockSize, cstBlockSize,
-                                     cDivBlockSizeSquare, h, w});
         int64_t cDivBlockSizeSquareInt =
             inputSizes[1] == Torch::kUnknownSize
                 ? Torch::kUnknownSize
                 : inputSizes[1] / (blockSize * blockSize);
-        SmallVector<int64_t, 6> reshapeSizesInt{
-            inputSizes[0],          blockSize,     blockSize,
-            cDivBlockSizeSquareInt, inputSizes[2], inputSizes[3]};
-        Value reshapedInput = rewriter.create<Torch::AtenReshapeOp>(
-            binder.getLoc(),
-            inputTy.getWithSizesAndDtype(reshapeSizesInt,
-                                         inputTy.getOptionalDtype()),
-            input, reshapeSizesList);
 
         Value transposedInput;
+        Value reshapeSizesList;
         if (mode == "DCR") {
+          reshapeSizesList = rewriter.create<Torch::PrimListConstructOp>(
+              binder.getLoc(),
+              Torch::ListType::get(Torch::IntType::get(input.getContext())),
+              llvm::SmallVector<Value>{b, cstBlockSize, cstBlockSize,
+                                       cDivBlockSizeSquare, h, w});
+          SmallVector<int64_t, 6> reshapeSizesInt{
+              inputSizes[0],          blockSize,     blockSize,
+              cDivBlockSizeSquareInt, inputSizes[2], inputSizes[3]};
+          Value reshapedInput = rewriter.create<Torch::AtenReshapeOp>(
+              binder.getLoc(),
+              inputTy.getWithSizesAndDtype(reshapeSizesInt,
+                                           inputTy.getOptionalDtype()),
+              input, reshapeSizesList);
           if (failed(createTorchTransposeOp(
                   rewriter, binder.getLoc(), reshapedInput,
                   /*dimA=*/1, /*dimB=*/3, transposedInput)))
@@ -2134,6 +2135,19 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                 binder.op, "Failed to create TorchTranspose op");
         } else {
           // mode == "CRD"
+          reshapeSizesList = rewriter.create<Torch::PrimListConstructOp>(
+              binder.getLoc(),
+              Torch::ListType::get(Torch::IntType::get(input.getContext())),
+              llvm::SmallVector<Value>{b, cDivBlockSizeSquare, cstBlockSize,
+                                       cstBlockSize, h, w});
+          SmallVector<int64_t, 6> reshapeSizesInt{
+              inputSizes[0], cDivBlockSizeSquareInt, blockSize,
+              blockSize,     inputSizes[2],          inputSizes[3]};
+          Value reshapedInput = rewriter.create<Torch::AtenReshapeOp>(
+              binder.getLoc(),
+              inputTy.getWithSizesAndDtype(reshapeSizesInt,
+                                           inputTy.getOptionalDtype()),
+              input, reshapeSizesList);
           if (failed(createTorchTransposeOp(
                   rewriter, binder.getLoc(), reshapedInput,
                   /*dimA=*/2, /*dimB=*/4, transposedInput)))
