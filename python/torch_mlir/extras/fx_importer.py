@@ -1735,7 +1735,7 @@ class GraphNodeImporter:
 
         Emits torch.prim.Loop with proper control flow structure.
         """
-        # while_loop HOP args: (cond_fn, body_fn, carries...)
+        # while_loop HOP args: (cond_fn, body_fn, car`ries...)
         # Unpack the first two args and the rest as carries
         cond_fn_node, body_fn_node, *carries = node.args
 
@@ -1795,7 +1795,7 @@ class GraphNodeImporter:
         with loc:
             max_iter = _make_constant_op(
                 "torch.constant.int",
-                torch.iinfo(torch.int64).max,
+                self._cc.integer_attr(torch.iinfo(torch.int64).max, 64),
                 self._cc.torch_int_type,
             )
 

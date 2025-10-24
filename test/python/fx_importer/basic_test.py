@@ -208,26 +208,23 @@ def test_full():
 
 @run
 # CHECK-LABEL: test_while_loop_two_returns
+# Check that helper functions are emitted first
+# CHECK: func.func private @while_loop_cond_graph_{{[0-9]+}}
+# CHECK: torch.aten.lt.Scalar
+# CHECK: func.func private @while_loop_body_graph_{{[0-9]+}}
+# CHECK: torch.aten.add.Scalar
+# CHECK: torch.aten.mul.Tensor
+# Then check the main function
 # CHECK: func.func @test_while_loop_two_returns
 # CHECK-SAME: -> (!torch.vtensor<[],si64>, !torch.vtensor<[4,4],f32>)
-
 # Validate literal/init plumbing:
 # CHECK: %[[ZERO:.*]] = torch.vtensor.literal(dense<0> : tensor<si64>) : !torch.vtensor<[],si64>
 # CHECK: %[[NONE:.*]] = torch.constant.none
 # CHECK: %[[CLONE:.*]] = torch.aten.clone %[[ZERO]], %[[NONE]] : !torch.vtensor<[],si64>, !torch.none -> !torch.vtensor<[],si64>
-
 # CHECK: %[[COND:.*]] = call @while_loop_cond_graph_{{[0-9]+}}(%[[CLONE]]
 # CHECK: torch.aten.Bool.Tensor %[[COND]]
 # CHECK: %[[MAX_ITER:.*]] = torch.constant.int 9223372036854775807
 # CHECK: torch.prim.Loop %[[MAX_ITER]]
-
-# CHECK: func.func private @while_loop_cond_graph_{{[0-9]+}}
-# CHECK: torch.aten.lt.Scalar
-
-
-# CHECK: func.func private @while_loop_body_graph_{{[0-9]+}}
-# CHECK: torch.aten.add.Scalar
-# CHECK: torch.aten.mul.Tensor
 def test_while_loop_two_returns():
     class M(nn.Module):
         def forward(self, x):
