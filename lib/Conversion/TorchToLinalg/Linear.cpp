@@ -1394,6 +1394,10 @@ public:
     if (numSpatialDims != 2 && numSpatialDims != 3)
       return rewriter.notifyMatchFailure(
           op, "unimplemented: only 2D and 3D grouped convolution supported");
+    if (numSpatialDims == 3 && inputZp) {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: quantized 3D grouped convolution not supported");
+    }
 
     // Grouped case, use the grouped conv linalg op
     auto expandGroups = [&](Value tensor, size_t dim) {
@@ -1455,12 +1459,6 @@ public:
                 .getResult(0);
       }
     } else if (numSpatialDims == 3) {
-      if (inputZp) {
-        return rewriter.notifyMatchFailure(
-            op,
-            "unimplemented: quantized 3D grouped convolution not supported");
-      }
-
       // MLIR does not have a named 3D grouped convolution op, so we use
       // linalg.generic instead.
       AffineExpr d0, d1, d2, d3, d4, d5, d6, d7, d8, d9;
