@@ -209,22 +209,28 @@ def test_full():
 @run
 # CHECK-LABEL: test_while_loop_two_returns
 # Check that helper functions are emitted first
-# CHECK: func.func private @while_loop_cond_graph_{{[0-9]+}}
+# CHECK: func.func private @while_loop_cond_graph_{{[0-9]+}}(%arg0: !torch.vtensor<[],si64>, %arg1: !torch.vtensor<[4,4],f32>) -> !torch.vtensor<[],i1>
 # CHECK: torch.aten.lt.Scalar
-# CHECK: func.func private @while_loop_body_graph_{{[0-9]+}}
+# CHECK: func.func private @while_loop_body_graph_{{[0-9]+}}(%arg0: !torch.vtensor<[],si64>, %arg1: !torch.vtensor<[4,4],f32>) -> (!torch.vtensor<[],si64>, !torch.vtensor<[4,4],f32>)
 # CHECK: torch.aten.add.Scalar
 # CHECK: torch.aten.mul.Tensor
 # Then check the main function
-# CHECK: func.func @test_while_loop_two_returns
+# CHECK: func.func @test_while_loop_two_returns(%arg0: !torch.vtensor<[4,4],f32>)
 # CHECK-SAME: -> (!torch.vtensor<[],si64>, !torch.vtensor<[4,4],f32>)
 # Validate literal/init plumbing:
 # CHECK: %[[ZERO:.*]] = torch.vtensor.literal(dense<0> : tensor<si64>) : !torch.vtensor<[],si64>
 # CHECK: %[[NONE:.*]] = torch.constant.none
 # CHECK: %[[CLONE:.*]] = torch.aten.clone %[[ZERO]], %[[NONE]] : !torch.vtensor<[],si64>, !torch.none -> !torch.vtensor<[],si64>
-# CHECK: %[[COND:.*]] = call @while_loop_cond_graph_{{[0-9]+}}(%[[CLONE]]
-# CHECK: torch.aten.Bool.Tensor %[[COND]]
+# CHECK: %[[COND:.*]] = call @while_loop_cond_graph_{{[0-9]+}}(%[[CLONE]], %arg0)
+# CHECK: %[[BOOL:.*]] = torch.aten.Bool.Tensor %[[COND]]
 # CHECK: %[[MAX_ITER:.*]] = torch.constant.int 9223372036854775807
-# CHECK: torch.prim.Loop %[[MAX_ITER]]
+# CHECK: %[[RESULT:.*]]:2 = torch.prim.Loop %[[MAX_ITER]], %[[BOOL]], init(%[[CLONE]], %arg0)
+# CHECK: ^bb0(%arg1: !torch.int, %arg2: !torch.vtensor<[],si64>, %arg3: !torch.vtensor<[4,4],f32>):
+# CHECK: %[[BODY_RESULT:.*]]:2 = func.call @while_loop_body_graph_{{[0-9]+}}(%arg2, %arg3)
+# CHECK: %[[COND_RESULT:.*]] = func.call @while_loop_cond_graph_{{[0-9]+}}(%[[BODY_RESULT]]#0, %[[BODY_RESULT]]#1)
+# CHECK: %[[BOOL_RESULT:.*]] = torch.aten.Bool.Tensor %[[COND_RESULT]]
+# CHECK: torch.prim.Loop.condition %[[BOOL_RESULT]], iter(%[[BODY_RESULT]]#0, %[[BODY_RESULT]]#1 : !torch.vtensor<[],si64>, !torch.vtensor<[4,4],f32>)
+# CHECK: return %[[RESULT]]#0, %[[RESULT]]#1
 def test_while_loop_two_returns():
     class M(nn.Module):
         def forward(self, x):
