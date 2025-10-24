@@ -966,6 +966,14 @@ class FxImporter:
                 node.replace_all_uses_with(replacement)
                 g.erase_node(node)
 
+        # Import child modules for HOPs before importing the main graph
+        # This ensures that any higher-order operations (like while_loop) can
+        # reference the already-imported child module functions
+        if hasattr(g, "owning_module") and g.owning_module is not None:
+            self._import_all_child_modules(
+                g.owning_module, func_name, import_symbolic_shape_expressions
+            )
+
         return self.import_stateless_graph(
             g,
             func_name=func_name,
