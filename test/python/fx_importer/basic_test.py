@@ -205,6 +205,7 @@ def test_full():
     )
     print(m)
 
+
 @run
 # CHECK-LABEL: test_while_loop_two_returns
 # CHECK: func.func @test_while_loop_two_returns
@@ -223,6 +224,7 @@ def test_full():
 # CHECK: func.func private @while_loop_cond_graph_{{[0-9]+}}
 # CHECK: torch.aten.lt.Scalar
 
+
 # CHECK: func.func private @while_loop_body_graph_{{[0-9]+}}
 # CHECK: torch.aten.add.Scalar
 # CHECK: torch.aten.mul.Tensor
@@ -232,6 +234,7 @@ def test_while_loop_two_returns():
             # Simple while_loop that carries a scalar and a tensor.
             def body(i, x):
                 return i + 1, x * x
+
             i0 = torch.tensor(0)
             from torch._higher_order_ops.while_loop import while_loop
 
@@ -243,6 +246,7 @@ def test_while_loop_two_returns():
         M(), torch.randn(4, 4), func_name="test_while_loop_two_returns"
     )
     print(m)
+
 
 @run
 # CHECK-LABEL: test_stack_trace
