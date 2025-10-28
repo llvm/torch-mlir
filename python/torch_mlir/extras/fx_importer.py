@@ -1771,6 +1771,7 @@ class GraphNodeImporter:
             self._multi_result_nodes.add(node)
         else:
             result_types = [self._cc.node_val_to_type(node)]
+
         # Call the condition function with initial carries to get initial condition
         cond_result_type = self._cc.get_vtensor_type(torch.Size([]), torch.bool)
 
@@ -1781,6 +1782,7 @@ class GraphNodeImporter:
             operands=carry_values,
             loc=loc,
         )
+
         # Convert vtensor<bool> to torch.bool
         bool_conv = Operation.create(
             name="torch.aten.Bool.Tensor",
@@ -1788,6 +1790,7 @@ class GraphNodeImporter:
             operands=[initial_cond_call.results[0]],
             loc=loc,
         )
+
         # Create max iterations constant (INT64_MAX)
         with loc:
             max_iter = _make_constant_op(
@@ -1811,6 +1814,7 @@ class GraphNodeImporter:
         block_arg_types = [self._cc.torch_int_type] + result_types
         with loc:
             loop_block = Block.create_at_start(loop_region, block_arg_types)
+
         # Inside the loop body, call body function and condition function
         with InsertionPoint(loop_block):
             # Call body function with current carry values (skip iteration counter)
@@ -1822,6 +1826,7 @@ class GraphNodeImporter:
                 loc=loc,
             )
             body_results = list(body_results_op.results)
+
             # Call condition function with updated carries
             cond_result_loop = Operation.create(
                 name="func.call",
@@ -1830,6 +1835,7 @@ class GraphNodeImporter:
                 operands=body_results,
                 loc=loc,
             ).result
+
             # Convert to bool
             cond_bool = Operation.create(
                 name="torch.aten.Bool.Tensor",
@@ -1837,6 +1843,7 @@ class GraphNodeImporter:
                 operands=[cond_result_loop],
                 loc=loc,
             ).result
+
             # Emit loop condition with updated carries
             Operation.create(
                 name="torch.prim.Loop.condition",
@@ -1844,6 +1851,7 @@ class GraphNodeImporter:
                 operands=[cond_bool] + body_results,
                 loc=loc,
             )
+
         # Bind the loop results to the node
         if len(result_types) > 1:
             self._multi_result_nodes.add(node)
