@@ -1913,58 +1913,66 @@ class GraphNodeImporter:
         self, loc: Location, node: torch_fx.Node, hop: HigherOrderOperator
     ):
         """Imports the torch._higher_order_ops.flex_attention HOP.
-        
+
         Args format: (query, key, value, score_mod, block_mask, scale, kernel_options, ...)
         The score_mod is a submodule/callable that has been imported as a private function.
         The block_mask is a tuple: (kv_num_blocks, kv_indices, ..., mask_mod)
-        
+
         This creates a call to aten.flex_attention with function symbol references.
         """
         # flex_attention HOP args from PyTorch:
         # (query, key, value, score_mod, block_mask, scale, kernel_options, return_lse_tuple, ...)
         if len(node.args) < 6:
-            raise ValueError(f"flex_attention expects at least 6 arguments, got {len(node.args)}")
-        
-        query_arg, key_arg, value_arg, score_mod_arg, block_mask_arg, scale_arg = node.args[:6]
+            raise ValueError(
+                f"flex_attention expects at least 6 arguments, got {len(node.args)}"
+            )
+
+        query_arg, key_arg, value_arg, score_mod_arg, block_mask_arg, scale_arg = (
+            node.args[:6]
+        )
         kernel_options = node.args[6] if len(node.args) > 6 else {}
-        
+
         # Import Q, K, V tensors
         query = self._import_argument(loc, query_arg, None)
         key = self._import_argument(loc, key_arg, None)
         value = self._import_argument(loc, value_arg, None)
-        
+
         # Handle score_mod: extract function reference from submodule
         score_mod_ref = None
         if score_mod_arg is not None and isinstance(score_mod_arg, torch_fx.Node):
             # score_mod is a GraphModule reference from get_attr
             root_module = node.graph.owning_module
-            if hasattr(score_mod_arg, 'target'):
+            if hasattr(score_mod_arg, "target"):
                 score_mod_name = score_mod_arg.target
                 score_mod_module = getattr(root_module, score_mod_name, None)
                 if score_mod_module is not None:
                     # The function was imported by _import_all_child_modules with this naming convention
-                    score_mod_func_name = f"main_{score_mod_name}_{id(score_mod_module)}"
+                    score_mod_func_name = (
+                        f"main_{score_mod_name}_{id(score_mod_module)}"
+                    )
                     score_mod_ref = FlatSymbolRefAttr.get(score_mod_func_name)
-        
+
         # Handle block_mask: extract mask_mod function and tensor components
-        # block_mask tuple format: (kv_num_blocks, kv_indices, q_num_blocks, q_indices, 
+        # block_mask tuple format: (kv_num_blocks, kv_indices, q_num_blocks, q_indices,
         #                           kv_block_size, q_block_size, ..., mask_mod)
         mask_mod_ref = None
         block_mask_tensors = []
         kv_block_size = None
         q_block_size = None
-        
+
         if block_mask_arg is not None and isinstance(block_mask_arg, tuple):
             # Parse the block_mask tuple structure
             # First two entries: kv_num_blocks (int), kv_indices (tensor)
-            # Next two: q_num_blocks (tensor), q_indices (tensor)  
+            # Next two: q_num_blocks (tensor), q_indices (tensor)
             # Then: scalar dimensions and the mask_mod function at the end
             root_module = node.graph.owning_module
-            
+
             for i, component in enumerate(block_mask_arg):
                 if isinstance(component, torch_fx.Node):
                     # Check if it's a tensor or a submodule reference
-                    if component.op == "get_attr" and hasattr(root_module, component.target):
+                    if component.op == "get_attr" and hasattr(
+                        root_module, component.target
+                    ):
                         obj = getattr(root_module, component.target)
                         # Check if it's a GraphModule (mask_mod) or a tensor
                         if isinstance(obj, GraphModule):
@@ -1973,17 +1981,21 @@ class GraphNodeImporter:
                             mask_mod_ref = FlatSymbolRefAttr.get(mask_mod_func_name)
                         else:
                             # It's a tensor (block indices)
-                            block_mask_tensors.append(self._import_argument(loc, component, None))
+                            block_mask_tensors.append(
+                                self._import_argument(loc, component, None)
+                            )
                     else:
                         # Regular tensor argument
-                        block_mask_tensors.append(self._import_argument(loc, component, None))
+                        block_mask_tensors.append(
+                            self._import_argument(loc, component, None)
+                        )
                 elif isinstance(component, int):
                     # Scalar dimensions (KV_BLOCK_SIZE, Q_BLOCK_SIZE)
                     if kv_block_size is None:
                         kv_block_size = component
                     elif q_block_size is None:
                         q_block_size = component
-        
+
         # Import scale (float or None)
         if scale_arg is None:
             scale = Operation.create(
@@ -2000,7 +2012,7 @@ class GraphNodeImporter:
                 ).result
         else:
             scale = self._import_argument(loc, scale_arg, None)
-        
+
         # Get enable_gqa from kernel_options if present
         enable_gqa = False
         if isinstance(kernel_options, dict) and "enable_gqa" in kernel_options:
@@ -2011,7 +2023,7 @@ class GraphNodeImporter:
                 self._cc.integer_attr(1 if enable_gqa else 0, 1),
                 self._cc.torch_bool_type,
             ).result
-        
+
         # Determine result types from node metadata
         node_val = node.meta.get("val")
         if isinstance(node_val, (list, tuple)) and len(node_val) >= 2:
@@ -2021,33 +2033,42 @@ class GraphNodeImporter:
         else:
             # Single output
             result_types = [self._cc.node_val_to_type(node)]
-        
+
         # Build operands list for aten.flex_attention
         # We'll pass tensors as operands and functions as attributes
         operands = [query, key, value]
-        
+
         # Add block_mask tensors if present
         operands.extend(block_mask_tensors)
-        
+
         # Add scale and enable_gqa
         operands.append(scale)
         operands.append(enable_gqa_value)
-        
+
         # Create aten.flex_attention op directly.
         with loc:
             return_lse = _make_constant_op(
                 "torch.constant.bool",
                 self._cc.integer_attr(
-                    1 if (getattr(node_val, "return_lse", False) or (
-                        isinstance(node_val, (list, tuple)) and len(node_val) >= 2
-                    )) else 0, 1
+                    (
+                        1
+                        if (
+                            getattr(node_val, "return_lse", False)
+                            or (
+                                isinstance(node_val, (list, tuple))
+                                and len(node_val) >= 2
+                            )
+                        )
+                        else 0
+                    ),
+                    1,
                 ),
                 self._cc.torch_bool_type,
             ).result
 
         # Build operands for aten.flex_attention
         # Note: score_mod and block_mask function references go as ATTRIBUTES, not operands
-        
+
         # Handle block_mask: wrap tensors in a list construct if present
         if block_mask_tensors:
             # Wrap block_mask tensors in torch.prim.ListConstruct
@@ -2064,7 +2085,7 @@ class GraphNodeImporter:
                 results=[self._cc.torch_none_type],
                 loc=loc,
             ).result
-        
+
         flat_operands = [
             query,
             key,
@@ -2086,9 +2107,9 @@ class GraphNodeImporter:
                 loc=loc,
             ).result,
             # return_lse
-            return_lse
+            return_lse,
         ]
-        
+
         # Build attributes with function references
         attributes = {}
         if score_mod_ref is not None:
@@ -2099,7 +2120,7 @@ class GraphNodeImporter:
             attributes["kv_block_size"] = self._cc.integer_attr(kv_block_size, 64)
         if q_block_size is not None:
             attributes["q_block_size"] = self._cc.integer_attr(q_block_size, 64)
-        
+
         operation = Operation.create(
             "torch.aten.flex_attention",
             results=result_types,
@@ -2107,7 +2128,7 @@ class GraphNodeImporter:
             attributes=attributes if attributes else None,
             loc=loc,
         )
-        
+
         # Bind results
         if len(result_types) > 1:
             self._multi_result_nodes.add(node)
