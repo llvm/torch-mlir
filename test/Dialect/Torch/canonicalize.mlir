@@ -3596,3 +3596,61 @@ func.func @torch.aten.full$int_fold() -> !torch.vtensor<[2,1,4],si64> {
   %1 = torch.aten.full %0, %int-Inf, %none, %none, %none, %none : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,1,4],si64>
   return %1 : !torch.vtensor<[2,1,4],si64>
 }
+
+// -----
+
+// CHECK-LABEL: @torch.aten.ceil$fold
+// CHECK: %[[C:.*]] = torch.vtensor.literal(dense<-1.000000e+00> : tensor<2x2xf32>)
+// CHECK: return %[[C]]
+func.func @torch.aten.ceil$fold() -> !torch.vtensor<[2,2],f32> {
+  %cst = torch.vtensor.literal(dense<-1.100000e+00> : tensor<2x2xf32>)
+           : !torch.vtensor<[2,2],f32>
+  %r = torch.aten.ceil %cst : !torch.vtensor<[2,2],f32> -> !torch.vtensor<[2,2],f32>
+  return %r : !torch.vtensor<[2,2],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.floor$fold
+// CHECK: %[[C:.*]] = torch.vtensor.literal(dense<1.000000e+00> : tensor<3x4xf32>)
+// CHECK: return %[[C]]
+func.func @torch.aten.floor$fold() -> !torch.vtensor<[3,4],f32> {
+  %cst = torch.vtensor.literal(dense<1.900000e+00> : tensor<3x4xf32>)
+           : !torch.vtensor<[3,4],f32>
+  %r = torch.aten.floor %cst : !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %r : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.trunc$fold
+// CHECK: %[[C:.*]] = torch.vtensor.literal(dense<-3.000000e+00> : tensor<1x3xf32>)
+// CHECK: return %[[C]]
+func.func @torch.aten.trunc$fold() -> !torch.vtensor<[1,3],f32> {
+  %cst = torch.vtensor.literal(dense<-3.700000e+00> : tensor<1x3xf32>)
+           : !torch.vtensor<[1,3],f32>
+  %r = torch.aten.trunc %cst : !torch.vtensor<[1,3],f32> -> !torch.vtensor<[1,3],f32>
+  return %r : !torch.vtensor<[1,3],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.round$fold
+// CHECK-DAG: %[[POS:.*]] = torch.vtensor.literal(dense<2.000000e+00> : tensor<4x5xf32>)
+// CHECK-DAG: %[[NEG:.*]] = torch.vtensor.literal(dense<-2.000000e+00> : tensor<2x3xf32>)
+// CHECK: return %[[POS]], %[[NEG]]
+func.func @torch.aten.round$fold()
+    -> (!torch.vtensor<[4,5],f32>, !torch.vtensor<[2,3],f32>) {
+  %cpos = torch.vtensor.literal(dense<2.500000e+00> : tensor<4x5xf32>)
+           : !torch.vtensor<[4,5],f32>
+  %rpos = torch.aten.round %cpos
+           : !torch.vtensor<[4,5],f32> -> !torch.vtensor<[4,5],f32>
+
+  %cneg = torch.vtensor.literal(dense<-2.500000e+00> : tensor<2x3xf32>)
+           : !torch.vtensor<[2,3],f32>
+  %rneg = torch.aten.round %cneg
+           : !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
+
+  return %rpos, %rneg
+    : !torch.vtensor<[4,5],f32>, !torch.vtensor<[2,3],f32>
+}
