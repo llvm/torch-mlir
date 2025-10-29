@@ -89,6 +89,11 @@ LINALG_CRASHING_SET = {
     "AtenMmInt8Types_basic",
 }
 
+TORCHSCRIPT_XFAIL_SET = {
+    # Compilation Error: torch.jit.frontend.UnsupportedNodeError: import statements aren't supported:
+    "TorchPrimLoopWhileLikeHOPModule_basic",
+}
+
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
     # torch._dynamo.exc.Unsupported: Tensor.item
@@ -246,6 +251,8 @@ TORCHDYNAMO_XFAIL_SET = {
     "IsFloatingPointInt_False",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
+    # torch._dynamo.exc.BackendCompilerFailed: Unsupported op: get_attr
+    "TorchPrimLoopWhileLikeHOPModule_basic",
     "ScalarConstantTupleModule_basic",
     # END tests failing due to: empty graph in dynamo
     # ERROR due to: backend never runs because of empty frame
@@ -481,6 +488,7 @@ FX_IMPORTER_XFAIL_SET = {
     "TensorToBoolZeroRank_basic",
     "TensorToBool_basic",
     "ThresholdBackward2dMixedModule_basic",
+    "TorchPrimLoopWhileLikeHOPModule_basic",  # Compilation error: failed to legalize operation 'func.call'
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
@@ -993,6 +1001,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
+    # Runtime error: failed to legalize operation 'torch.constant.int'
+    "TorchPrimLoopWhileLikeHOPModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
@@ -2575,6 +2585,7 @@ LTC_CRASHING_SET = {
 
 LTC_XFAIL_SET = {
     "TorchPrimLoopForLikeTensorArgModule_basic" "CollapseAllDimensionsModule_basic",
+    "TorchPrimLoopWhileLikeHOPModule_basic",
     "CollapseRank1DynamicModule_basic",
     "CollapseStaticModule_basic",
     "CollapsePartialDynamicModule_basic",
@@ -3261,6 +3272,8 @@ ONNX_XFAIL_SET = {
     "ToCopyWithDTypeModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
+    # RuntimeError: Detected that you are using FX to torch.jit.trace a dynamo-optimized function
+    "TorchPrimLoopWhileLikeHOPModule_basic",
     "TraceModule_basic",
     "TraceModule_empty",
     "TraceModule_nonsquare",
@@ -3957,6 +3970,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ThresholdBackward2dMixedModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
+    # Runtime error: failed to legalize operation 'torch.aten.Bool.Tensor'
+    "TorchPrimLoopWhileLikeHOPModule_basic",
     "TraceModule_empty",
     "TraceUnsignedIntModule_empty",
     "TransposedConv1dNegativePadding_basic",
@@ -5036,6 +5051,8 @@ ONNX_TOSA_XFAIL_SET = {
     "ToDtypeFloatFromIntModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
+    # RuntimeError: Detected that you are using FX to torch.jit.trace a dynamo-optimized function
+    "TorchPrimLoopWhileLikeHOPModule_basic",
     "TraceModule_basic",
     "TraceModule_empty",
     "TraceModule_nonsquare",
