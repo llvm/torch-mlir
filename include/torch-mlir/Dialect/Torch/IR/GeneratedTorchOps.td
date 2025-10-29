@@ -16194,6 +16194,62 @@ def Torch_AtenFloatScalarOp : Torch_Op<"aten.Float.Scalar", [
   let hasFolder = 1;
 }
 
+
+def Torch_AtenFlexAttentionOp : Torch_Op<"aten.flex_attention", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::flex_attention : (Tensor, Tensor, Tensor, Any?, Any?, float?, bool, Any?, bool) -> (Tensor, Tensor)`";
+  let description = [{
+    Flexible attention operator that supports custom score modification and masking.
+
+    Args:
+      query: Query tensor [B, H, M, E]
+      key: Key tensor [B, H, N, E]
+      value: Value tensor [B, H, N, Ev]
+      score_mod: Optional callable to modify attention scores (represented as None or opaque type)
+      block_mask: Optional BlockMask tuple for sparse attention patterns
+      scale: Optional float for scaling attention scores (None means 1/sqrt(head_dim))
+      enable_gqa: bool for grouped query attention support
+      kernel_options: Optional dict of kernel configuration options
+      return_lse: bool to return log-sum-exp values
+
+    Returns:
+      - If return_lse=False: Just the output tensor [B, H, M, Ev]
+      - If return_lse=True: Tuple of (output [B, H, M, Ev], logsumexp [B, H, M])
+
+    Note: score_mod and block_mask are higher-order/complex types in PyTorch.
+    For MLIR representation, score_mod is represented as None (identity) or an opaque type,
+    and block_mask is represented as None or a tuple/list of tensors containing the block indices.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$query,
+    AnyTorchTensorType:$key,
+    AnyTorchTensorType:$value,
+    AnyType:$score_mod,
+    AnyType:$block_mask,
+    AnyTorchOptionalFloatType:$scale,
+    Torch_BoolType:$enable_gqa,
+    AnyType:$kernel_options,
+    Torch_BoolType:$return_lse
+  );
+  let results = (outs
+    AnyTorchTensorType:$output,
+    AnyTorchOptionalTensorType:$logsumexp
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenFlexAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 9, 2);
+    }
+    void AtenFlexAttentionOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 9, 2);
+    }
+  }];
+}
+
+
 def Torch_AtenFloatStrOp : Torch_Op<"aten.Float.str", [
     AllowsTypeRefinement,
     HasValueSemantics,
