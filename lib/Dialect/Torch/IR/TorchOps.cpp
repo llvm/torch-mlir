@@ -373,21 +373,21 @@ LogicalResult ClassTypeOp::verify() {
 // PrimLoopOp
 //===----------------------------------------------------------------------===//
 
-OperandRange PrimLoopOp::getEntrySuccessorOperands(RegionBranchPoint point) {
-  assert(point == getRegion());
+OperandRange PrimLoopOp::getEntrySuccessorOperands(RegionSuccessor successor) {
+  assert(successor.getSuccessor() == &getRegion());
   return getIterArgsInit();
 }
 
 void PrimLoopOp::getSuccessorRegions(
     RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &regions) {
   Region &region = getRegion();
-  if (!point.getRegionOrNull()) {
+  if (!point.getTerminatorPredecessorOrNull()) {
     regions.emplace_back(&region, region.getArguments().slice(1));
     return;
   }
-  assert(point == region);
+  assert(point.getTerminatorPredecessorOrNull()->getParentRegion() == &region);
   regions.emplace_back(&region, region.getArguments().slice(1));
-  regions.emplace_back(getResults());
+  regions.emplace_back(getOperation(), getResults());
 }
 
 bool PrimLoopOp::isForLike() {
@@ -400,7 +400,7 @@ bool PrimLoopOp::isForLike() {
 //===----------------------------------------------------------------------===//
 
 MutableOperandRange
-PrimLoopConditionOp::getMutableSuccessorOperands(RegionBranchPoint point) {
+PrimLoopConditionOp::getMutableSuccessorOperands(RegionSuccessor successor) {
   // Pass all operands except the condition to the successor which is the
   // parent loop op.
   return getIterArgsMutable();
@@ -452,8 +452,8 @@ void PrimIfOp::print(OpAsmPrinter &p) {
 void PrimIfOp::getSuccessorRegions(RegionBranchPoint point,
                                    SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
-  if (point.getRegionOrNull()) {
-    regions.push_back(RegionSuccessor(getResults()));
+  if (point.getTerminatorPredecessorOrNull()) {
+    regions.push_back(RegionSuccessor(getOperation(), getResults()));
     return;
   }
 
@@ -5321,17 +5321,18 @@ template <typename CalculateOp>
 static void
 getSuccessorRegionsForCalculateOp(CalculateOp op, RegionBranchPoint point,
                                   SmallVectorImpl<RegionSuccessor> &regions) {
-  if (!point.getRegionOrNull()) {
+  if (!point.getTerminatorPredecessorOrNull()) {
     // First thing the op does is branch into the calculation.
     regions.emplace_back(&op.getCalculation());
     return;
   }
-  if (point == op.getBody()) {
+  Region *region = point.getTerminatorPredecessorOrNull()->getParentRegion();
+  if (region == &op.getBody()) {
     // Body returns control to the outer op, passing through results.
-    regions.emplace_back(op.getResults());
+    regions.emplace_back(op.getOperation(), op.getResults());
     return;
   }
-  assert(point == op.getCalculation());
+  assert(region == &op.getCalculation());
   // Calculation branches to the body.
   regions.emplace_back(&op.getBody());
 }
@@ -5355,7 +5356,7 @@ void DtypeCalculateOp::getSuccessorRegions(
 //===----------------------------------------------------------------------===//
 
 MutableOperandRange ShapeCalculateYieldShapesOp::getMutableSuccessorOperands(
-    RegionBranchPoint point) {
+    RegionSuccessor successor) {
   // The shape operands don't get forwarded to the body.
   // MutableOperandRange always has an owning operation, even if empty, so
   // create a 0-length range.
@@ -5846,7 +5847,7 @@ LogicalResult AtenKthvalueOp::verify() {
 //===----------------------------------------------------------------------===//
 
 MutableOperandRange DtypeCalculateYieldDtypesOp::getMutableSuccessorOperands(
-    RegionBranchPoint point) {
+    RegionSuccessor successor) {
   // The dtype operands don't get forwarded to the body.
   // MutableOperandRange always has an owning operation, even if empty, so
   // create a 0-length range.
