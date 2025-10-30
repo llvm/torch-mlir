@@ -1954,10 +1954,7 @@ class GraphNodeImporter:
                 score_mod_name = score_mod_arg.target
                 score_mod_module = getattr(root_module, score_mod_name, None)
                 if score_mod_module is not None:
-                    # The function was imported by _import_all_child_modules with this naming convention
-                    score_mod_func_name = (
-                        f"main_{score_mod_name}_{id(score_mod_module)}"
-                    )
+                    score_mod_func_name = score_mod_name
                     score_mod_ref = FlatSymbolRefAttr.get(score_mod_func_name)
 
         # Handle block_mask: extract mask_mod function and tensor components
@@ -1985,7 +1982,7 @@ class GraphNodeImporter:
                         # Check if it's a GraphModule (mask_mod) or a tensor
                         if isinstance(obj, GraphModule):
                             # This is the mask_mod function
-                            mask_mod_func_name = f"main_{component.target}_{id(obj)}"
+                            mask_mod_func_name = component.target
                             mask_mod_ref = FlatSymbolRefAttr.get(mask_mod_func_name)
                         else:
                             # It's a tensor (block indices)
@@ -2042,18 +2039,6 @@ class GraphNodeImporter:
             # Single output
             result_types = [self._cc.node_val_to_type(node)]
 
-        # Build operands list for aten.flex_attention
-        # We'll pass tensors as operands and functions as attributes
-        operands = [query, key, value]
-
-        # Add block_mask tensors if present
-        operands.extend(block_mask_tensors)
-
-        # Add scale and enable_gqa
-        operands.append(scale)
-        operands.append(enable_gqa_value)
-
-        # Create aten.flex_attention op directly.
         with loc:
             return_lse = _make_constant_op(
                 "torch.constant.bool",
@@ -2119,15 +2104,13 @@ class GraphNodeImporter:
         ]
 
         # Build attributes with function references
-        attributes = {}
-        if score_mod_ref is not None:
-            attributes["score_mod_fn"] = score_mod_ref
-        if mask_mod_ref is not None:
-            attributes["mask_mod_fn"] = mask_mod_ref
-        if kv_block_size is not None:
-            attributes["kv_block_size"] = self._cc.integer_attr(kv_block_size, 64)
-        if q_block_size is not None:
-            attributes["q_block_size"] = self._cc.integer_attr(q_block_size, 64)
+        attributes = {
+            "score_mod_fn": score_mod_ref,
+            "mask_mod_fn": mask_mod_ref,
+            "kv_block_size": self._cc.integer_attr(kv_block_size, 64),
+            "q_block_size": self._cc.integer_attr(q_block_size, 64),
+        }
+        attributes = {k: v for k, v in attributes.items() if v is not None}
 
         operation = Operation.create(
             "torch.aten.flex_attention",
