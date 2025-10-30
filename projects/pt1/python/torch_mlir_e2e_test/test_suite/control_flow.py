@@ -10,6 +10,7 @@ import random
 from torch_mlir_e2e_test.framework import TestUtils
 from torch_mlir_e2e_test.registry import register_test_case
 from torch_mlir_e2e_test.annotations import annotate_args, export
+from torch._higher_order_ops.while_loop import while_loop
 
 # ==============================================================================
 
@@ -87,6 +88,12 @@ class TorchPrimLoopWhileLikeHOPModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
+    def body_fn(self, i, x):
+        return i + 1, x + 1
+
+    def cond_fn(self, i, x):
+        return i < 3
+
     @export
     @annotate_args(
         [
@@ -95,14 +102,8 @@ class TorchPrimLoopWhileLikeHOPModule(torch.nn.Module):
         ]
     )
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        from torch._higher_order_ops.while_loop import while_loop
-
-        def body_fn(i, x):
-            return i + 1, x + 1
-
         i0 = torch.tensor(0)
-
-        out_i, out_x = while_loop(lambda i, x: i < 3, body_fn, (i0, x))
+        out_i, out_x = while_loop(self.cond_fn, self.body_fn, (i0, x))
         return out_i, out_x
 
 
