@@ -150,6 +150,10 @@ public:
           targetType = Torch::IntType::get(op->getContext());
         torchArg = typeConverter->materializeSourceConversion(
             rewriter, scfWhileOp.getLoc(), targetType, {to});
+      } else if (auto tty = dyn_cast<RankedTensorType>(targetType)) {
+        targetType = op.getIterArgsInit()[barg.index()].getType();
+        torchArg = typeConverter->materializeSourceConversion(
+            rewriter, scfWhileOp.getLoc(), targetType, {to});
       }
       if (!torchArg)
         return rewriter.notifyMatchFailure(op,
@@ -173,14 +177,6 @@ public:
                                              "unsupported type of the operand");
         loopConditionIterArgs.push_back(shouldContinue);
         for (auto torchArg : primLoopConditionOp.getIterArgs()) {
-          Type torchType = torchArg.getType();
-
-          // If the argument is a torch tensor, directly add it in the list of
-          // iter args.
-          if (isa<Torch::BaseTensorType>(torchType)) {
-            loopConditionIterArgs.push_back(torchArg);
-            continue;
-          }
           Value arg = typeConverter->materializeTargetConversion(
               rewriter, scfWhileOp->getLoc(),
               typeConverter->convertType(torchArg.getType()), {torchArg});

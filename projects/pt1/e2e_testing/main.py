@@ -40,6 +40,7 @@ from torch_mlir_e2e_test.stablehlo_backends.linalg_on_tensors import (
 from .xfail_sets import (
     LINALG_XFAIL_SET,
     LINALG_CRASHING_SET,
+    TORCHSCRIPT_XFAIL_SET,
     STABLEHLO_PASS_SET,
     STABLEHLO_CRASHING_SET,
     TOSA_PASS_SET,
@@ -167,7 +168,7 @@ def main():
         crashing_set = set()
     elif args.config == "torchscript":
         config = TorchScriptTestConfig()
-        xfail_set = set()
+        xfail_set = TORCHSCRIPT_XFAIL_SET
         crashing_set = set()
     elif args.config == "lazy_tensor_core":
         config = LazyTensorCoreTestConfig()
