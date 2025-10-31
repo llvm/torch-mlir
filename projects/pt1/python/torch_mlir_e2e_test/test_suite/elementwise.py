@@ -6844,6 +6844,70 @@ def AtenRoundFloatDecimalsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 5, low=-3.0, high=3.0))
 
 
+class AtenRoundNegFloatHalfToEvenSplatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.const = torch.tensor([-1.5, -1.5], dtype=torch.float32)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.round(self.const)
+
+
+@register_test_case(module_factory=lambda: AtenRoundNegFloatHalfToEvenSplatModule())
+def AtenRoundNegFloatHalfToEvenSplatModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenRoundPosFloatHalfToEvenSplatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.const = torch.tensor([1.5, 1.5], dtype=torch.float32)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.round(self.const)
+
+
+@register_test_case(module_factory=lambda: AtenRoundPosFloatHalfToEvenSplatModule())
+def AtenRoundPosFloatHalfToEvenSplatModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenRoundInfSplatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.const = torch.tensor([float("+inf")], dtype=torch.float32)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.round(self.const)
+
+
+@register_test_case(module_factory=lambda: AtenRoundInfSplatModule())
+def AtenRoundInfSplatModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenRoundNanSplatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.const = torch.tensor([float("nan")], dtype=torch.float32)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.round(self.const)
+
+
+@register_test_case(module_factory=lambda: AtenRoundNanSplatModule())
+def AtenRoundNanSplatModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
 # ==============================================================================
 
 
