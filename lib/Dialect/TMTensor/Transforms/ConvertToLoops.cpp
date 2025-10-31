@@ -47,13 +47,13 @@ static LogicalResult lowerToLoopsImpl(OpBuilder &builder,
       getValueOrCreateConstantIndexOp(builder, loc, loopRanges[loopDepth].size);
   Value stride = getValueOrCreateConstantIndexOp(builder, loc,
                                                  loopRanges[loopDepth].stride);
-  builder.create<scf::ForOp>(
-      loc, offset, size, stride, ValueRange{},
+  scf::ForOp::create(
+      builder, loc, offset, size, stride, ValueRange{},
       [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
         ivs.push_back(iv);
         status =
             lowerToLoopsImpl(b, scalarLoopOp, loopRanges, loopDepth + 1, ivs);
-        b.create<scf::YieldOp>(loc);
+        scf::YieldOp::create(b, loc);
       });
   return status;
 }

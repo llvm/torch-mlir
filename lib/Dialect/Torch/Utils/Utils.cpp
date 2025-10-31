@@ -41,11 +41,11 @@ Value Torch::toIntListConstruct(PatternRewriter &rewriter, Location loc,
                                 ArrayRef<int64_t> cstInput) {
   SmallVector<Value> cstValues;
   for (int64_t i : cstInput) {
-    cstValues.push_back(rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(i)));
+    cstValues.push_back(Torch::ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(i)));
   }
-  return rewriter.create<Torch::PrimListConstructOp>(
-      loc, Torch::ListType::get(IntType::get(rewriter.getContext())),
+  return Torch::PrimListConstructOp::create(
+      rewriter, loc, Torch::ListType::get(IntType::get(rewriter.getContext())),
       cstValues);
 }
 
@@ -233,8 +233,8 @@ Type Torch::getBuiltInTypeForTorchScalar(Type type) {
 Value Torch::getDtypeIntValueForType(PatternRewriter &rewriter, Location loc,
                                      Type dtype) {
   int intType = (int)getScalarTypeForType(dtype);
-  return rewriter.create<ConstantIntOp>(loc,
-                                        rewriter.getI64IntegerAttr(intType));
+  return ConstantIntOp::create(rewriter, loc,
+                               rewriter.getI64IntegerAttr(intType));
 }
 
 template <typename OpTy>
@@ -281,10 +281,11 @@ Value Torch::convertTensorToDtype(PatternRewriter &rewriter, Location loc,
   // `convertIntVal` contains the corresponding integer for the dtype which is
   // used by the aten.to.dtype op.
   Value convertIntVal = getDtypeIntValueForType(rewriter, loc, dtype);
-  Value falseVal = rewriter.create<ConstantBoolOp>(loc, false);
-  Value noneVal = rewriter.create<ConstantNoneOp>(loc);
-  Value converted = rewriter.create<AtenToDtypeOp>(
-      loc, newType, input, convertIntVal, falseVal, falseVal, noneVal);
+  Value falseVal = ConstantBoolOp::create(rewriter, loc, false);
+  Value noneVal = ConstantNoneOp::create(rewriter, loc);
+  Value converted =
+      AtenToDtypeOp::create(rewriter, loc, newType, input, convertIntVal,
+                            falseVal, falseVal, noneVal);
   return converted;
 }
 
@@ -337,13 +338,13 @@ Value Torch::getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter,
   // Creating constants satisfying backend contract.
   if (dtype.isInteger(64) || dtype.isInteger(32) || dtype.isInteger(16) ||
       dtype.isInteger(8) || dtype.isInteger(1))
-    return rewriter.create<ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr((int64_t)value));
+    return ConstantIntOp::create(rewriter, loc,
+                                 rewriter.getI64IntegerAttr((int64_t)value));
   if (dtype.isF64() || dtype.isF32() || dtype.isF16() || dtype.isBF16() ||
       isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
           Float8E4M3FNUZType>(dtype))
-    return rewriter.create<ConstantFloatOp>(loc,
-                                            rewriter.getF64FloatAttr(value));
+    return ConstantFloatOp::create(rewriter, loc,
+                                   rewriter.getF64FloatAttr(value));
   llvm::report_fatal_error(
       "unhandled type for getConstantWithGivenDtypeAndValue");
 }
@@ -402,7 +403,7 @@ Value Torch::getTensorDimSize(PatternRewriter &rewriter, Value tensor,
                               int64_t dim) {
   auto loc = tensor.getLoc();
   auto dimVal =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
+      ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(dim));
   // Use 'createOrFold' instead of 'create':
   // If the dimension is a constant, then the AtenSizeIntOp is folded to a
   // ContantIntOp.
@@ -428,19 +429,19 @@ FailureOr<Value> Torch::squeezeTensor(PatternRewriter &rewriter, Operation *op,
   Type squeezedType =
       inputType.getWithSizesAndDtype(inputShape, inputType.getOptionalDtype());
 
-  Value cstDim = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getI64IntegerAttr(dim));
+  Value cstDim = Torch::ConstantIntOp::create(rewriter, loc,
+                                              rewriter.getI64IntegerAttr(dim));
   // Adding a check to verify if the dimension to be squeezed has size 1 or not.
-  Value cstOne =
-      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-  Value dimSize = rewriter.create<AtenSizeIntOp>(loc, input, cstDim);
-  Value cmp = rewriter.create<Torch::AtenEqIntOp>(loc, dimSize, cstOne);
-  rewriter.create<Torch::RuntimeAssertOp>(
-      loc, cmp,
+  Value cstOne = Torch::ConstantIntOp::create(rewriter, loc,
+                                              rewriter.getI64IntegerAttr(1));
+  Value dimSize = AtenSizeIntOp::create(rewriter, loc, input, cstDim);
+  Value cmp = Torch::AtenEqIntOp::create(rewriter, loc, dimSize, cstOne);
+  Torch::RuntimeAssertOp::create(
+      rewriter, loc, cmp,
       "squeeze operation possible for dim only when input_shape[dim] == 1.");
 
   Value result =
-      rewriter.create<AtenSqueezeDimOp>(loc, squeezedType, input, cstDim);
+      AtenSqueezeDimOp::create(rewriter, loc, squeezedType, input, cstDim);
   return result;
 }
 
@@ -475,8 +476,8 @@ FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
   }
   Type unsqueezedType = inputType.getWithSizesAndDtypeAndSparsity(
       unsqueezedShape, inputType.getOptionalDtype(), enc.value());
-  Value unsqueezed = rewriter.create<AtenUnsqueezeOp>(
-      op->getLoc(), unsqueezedType, input, dim);
+  Value unsqueezed = AtenUnsqueezeOp::create(rewriter, op->getLoc(),
+                                             unsqueezedType, input, dim);
   return unsqueezed;
 }
 
@@ -498,8 +499,8 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
     ranks.push_back(shape.size());
   }
 
-  Value torchCstOne =
-      rewriter.create<Torch::ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+  Value torchCstOne = Torch::ConstantIntOp::create(
+      rewriter, loc, rewriter.getI64IntegerAttr(1));
   auto maxRankItr = std::max_element(ranks.begin(), ranks.end());
   unsigned maxRank = *maxRankItr;
 
@@ -515,8 +516,8 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
     for (auto [idx, input] : llvm::enumerate(inputs)) {
       int sizeDimIdx = ranks[idx] - i - 1;
       if (sizeDimIdx >= 0) {
-        auto sizeDim = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(sizeDimIdx));
+        auto sizeDim = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(sizeDimIdx));
         sizeInputs.push_back(
             rewriter.createOrFold<AtenSizeIntOp>(loc, input, sizeDim));
       }
@@ -526,29 +527,30 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
     // which is the maximum of dimension sizes across all inputs
     Value maxShapeVal = sizeInputs.front();
     for (auto sizeInput : sizeInputs) {
-      maxShapeVal = rewriter.create<PrimMaxIntOp>(loc, maxShapeVal, sizeInput);
+      maxShapeVal = PrimMaxIntOp::create(rewriter, loc, maxShapeVal, sizeInput);
     }
     maxShapeValues.push_back(maxShapeVal);
 
     SmallVector<Value> predicates;
     for (auto sizeVal : sizeInputs) {
       Value cmpSizeEquals =
-          rewriter.create<Torch::AtenEqIntOp>(loc, sizeVal, maxShapeVal);
+          Torch::AtenEqIntOp::create(rewriter, loc, sizeVal, maxShapeVal);
       Value cmpSizeEqualsOne =
-          rewriter.create<Torch::AtenEqIntOp>(loc, sizeVal, torchCstOne);
-      Value anyBoolOpList = rewriter.create<PrimListConstructOp>(
-          loc, Torch::ListType::get(cmpSizeEquals.getType()),
+          Torch::AtenEqIntOp::create(rewriter, loc, sizeVal, torchCstOne);
+      Value anyBoolOpList = PrimListConstructOp::create(
+          rewriter, loc, Torch::ListType::get(cmpSizeEquals.getType()),
           SmallVector<Value>{cmpSizeEquals, cmpSizeEqualsOne});
-      Value cmp = rewriter.create<Torch::AtenAnyBoolOp>(loc, anyBoolOpList);
+      Value cmp = Torch::AtenAnyBoolOp::create(rewriter, loc, anyBoolOpList);
       predicates.push_back(cmp);
     }
 
     if (!predicates.empty()) {
-      Value anyBoolOpList = rewriter.create<PrimListConstructOp>(
-          loc, Torch::ListType::get(predicates.front().getType()), predicates);
-      Value cmp = rewriter.create<Torch::AtenAllBoolOp>(loc, anyBoolOpList);
-      rewriter.create<Torch::RuntimeAssertOp>(
-          loc, cmp, "tensors are not broadcast compatible");
+      Value anyBoolOpList = PrimListConstructOp::create(
+          rewriter, loc, Torch::ListType::get(predicates.front().getType()),
+          predicates);
+      Value cmp = Torch::AtenAllBoolOp::create(rewriter, loc, anyBoolOpList);
+      Torch::RuntimeAssertOp::create(rewriter, loc, cmp,
+                                     "tensors are not broadcast compatible");
     }
   }
 
@@ -558,8 +560,8 @@ void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,
   Value shapeTensor = inputs[maxRankIdx];
 
   for (unsigned i = 0; i < resultShape.size(); i++) {
-    Value sizeDim = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(i));
+    Value sizeDim = Torch::ConstantIntOp::create(rewriter, loc,
+                                                 rewriter.getI64IntegerAttr(i));
     resultShapeValue.push_back(
         rewriter.createOrFold<AtenSizeIntOp>(loc, shapeTensor, sizeDim));
   }
@@ -660,12 +662,12 @@ Value Torch::createInitTensor(PatternRewriter &rewriter, Location loc,
                               BaseTensorType resultType, Value scalar,
                               Value sizeList) {
   assert(resultType.hasDtype() && "result must have dtype");
-  Value noneVal = rewriter.create<ConstantNoneOp>(loc);
+  Value noneVal = ConstantNoneOp::create(rewriter, loc);
   Value dtype = getDtypeIntValueForType(rewriter, loc, resultType.getDtype());
-  return rewriter.create<AtenFullOp>(loc, resultType, sizeList, scalar, dtype,
-                                     /*layout=*/noneVal,
-                                     /*device=*/noneVal,
-                                     /*memory_format=*/noneVal);
+  return AtenFullOp::create(rewriter, loc, resultType, sizeList, scalar, dtype,
+                            /*layout=*/noneVal,
+                            /*device=*/noneVal,
+                            /*memory_format=*/noneVal);
 }
 
 // Helper to create a rank 0 tensor filled with the given `scalar`. `scalar`
@@ -676,8 +678,9 @@ Value Torch::createRank0Tensor(PatternRewriter &rewriter, Location loc,
   SmallVector<int64_t> sizes;
   BaseTensorType rank0TensorTy = cast<BaseTensorType>(
       inputType.getWithSizesAndDtype(ArrayRef(sizes), inputType.getDtype()));
-  Value dimList = rewriter.create<PrimListConstructOp>(
-      loc, Torch::ListType::get(Torch::IntType::get(inputType.getContext())),
+  Value dimList = PrimListConstructOp::create(
+      rewriter, loc,
+      Torch::ListType::get(Torch::IntType::get(inputType.getContext())),
       ValueRange{});
   return createInitTensor(rewriter, loc, rank0TensorTy, scalar, dimList);
 }

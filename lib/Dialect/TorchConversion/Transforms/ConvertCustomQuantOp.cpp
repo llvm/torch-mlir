@@ -106,8 +106,8 @@ public:
     RankedTensorType lhsExpandedType =
         RankedTensorType::get(lhsExpandedShape, elementType);
     SmallVector<ReassociationIndices, 4> lhsReassociation = {{0}, {1}, {2, 3}};
-    Value lhsExpanded = rewriter.create<tensor::ExpandShapeOp>(
-        loc, lhsExpandedType, lhs, lhsReassociation);
+    Value lhsExpanded = tensor::ExpandShapeOp::create(
+        rewriter, loc, lhsExpandedType, lhs, lhsReassociation);
 
     // expand rhs
     std::vector<int64_t> rhsExpandedShape = {rhsShape[0], rhsReductDimSize / gs,
@@ -115,23 +115,23 @@ public:
     RankedTensorType rhsExpandedType =
         RankedTensorType::get(rhsExpandedShape, rhsElementType);
     SmallVector<ReassociationIndices, 4> rhsReassociation = {{0}, {1, 2}};
-    Value rhsExpanded = rewriter.create<tensor::ExpandShapeOp>(
-        loc, rhsExpandedType, rhsQuant, rhsReassociation);
-    Value cst0 = rewriter.create<arith::ConstantOp>(
-        loc, FloatAttr::get(elementType, 0.0));
+    Value rhsExpanded = tensor::ExpandShapeOp::create(
+        rewriter, loc, rhsExpandedType, rhsQuant, rhsReassociation);
+    Value cst0 = arith::ConstantOp::create(rewriter, loc,
+                                           FloatAttr::get(elementType, 0.0));
 
     Value emptyDequant =
-        rewriter.create<tensor::EmptyOp>(loc, rhsExpandedShape, elementType);
+        tensor::EmptyOp::create(rewriter, loc, rhsExpandedShape, elementType);
     SmallVector<Value> dynDims;
     for (int i = 0; i < lhsType.getRank(); i++) {
       if (lhsType.isDynamicDim(i)) {
-        dynDims.push_back(rewriter.create<tensor::DimOp>(loc, lhs, i));
+        dynDims.push_back(tensor::DimOp::create(rewriter, loc, lhs, i));
       }
     }
-    Value empty = rewriter.create<tensor::EmptyOp>(loc, resultShape,
-                                                   elementType, dynDims);
+    Value empty = tensor::EmptyOp::create(rewriter, loc, resultShape,
+                                          elementType, dynDims);
     Value output =
-        rewriter.create<linalg::FillOp>(loc, cst0, empty).getResult(0);
+        linalg::FillOp::create(rewriter, loc, cst0, empty).getResult(0);
 
     AffineExpr d0, d1, d2, d3, d4;
     bindDims(getContext(), d0, d1, d2, d3, d4);
@@ -152,39 +152,36 @@ public:
         utils::IteratorType::reduction};
 
     Value rhsDequant =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, emptyDequant.getType(),
-                ValueRange{rhsExpanded, scales, zps}, emptyDequant,
-                /*indexingMaps=*/dqIndexingMaps,
-                /*iteratorTypes=*/dequantIteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value w = args[0], scale = args[1], zeroPoint = args[2];
-                  Value extw =
-                      b.create<arith::ExtUIOp>(loc, rewriter.getI32Type(), w);
-                  Value fp_extw = b.create<arith::UIToFPOp>(
-                      loc, rewriter.getF16Type(), extw);
-                  Value shifted =
-                      b.create<arith::SubFOp>(loc, fp_extw, zeroPoint);
-                  Value dqw = b.create<arith::MulFOp>(loc, shifted, scale);
-                  b.create<linalg::YieldOp>(loc, dqw);
-                })
+        linalg::GenericOp::create(
+            rewriter, loc, emptyDequant.getType(),
+            ValueRange{rhsExpanded, scales, zps}, emptyDequant,
+            /*indexingMaps=*/dqIndexingMaps,
+            /*iteratorTypes=*/dequantIteratorTypes,
+            [&](OpBuilder &b, Location loc, ValueRange args) {
+              Value w = args[0], scale = args[1], zeroPoint = args[2];
+              Value extw =
+                  arith::ExtUIOp::create(b, loc, rewriter.getI32Type(), w);
+              Value fp_extw =
+                  arith::UIToFPOp::create(b, loc, rewriter.getF16Type(), extw);
+              Value shifted = arith::SubFOp::create(b, loc, fp_extw, zeroPoint);
+              Value dqw = arith::MulFOp::create(b, loc, shifted, scale);
+              linalg::YieldOp::create(b, loc, dqw);
+            })
             .getResult(0);
 
-    Value matmulDequant =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, output.getType(), ValueRange{lhsExpanded, rhsDequant},
-                output,
-                /*indexingMaps=*/matIndexingMaps,
-                /*iteratorTypes=*/matmulIteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value l = args[0], r = args[1], out = args[2];
-                  Value pd = b.create<arith::MulFOp>(loc, l, r);
-                  Value ac = b.create<arith::AddFOp>(loc, pd, out);
-                  b.create<linalg::YieldOp>(loc, ac);
-                })
-            .getResult(0);
+    Value matmulDequant = linalg::GenericOp::create(
+                              rewriter, loc, output.getType(),
+                              ValueRange{lhsExpanded, rhsDequant}, output,
+                              /*indexingMaps=*/matIndexingMaps,
+                              /*iteratorTypes=*/matmulIteratorTypes,
+                              [&](OpBuilder &b, Location loc, ValueRange args) {
+                                Value l = args[0], r = args[1], out = args[2];
+                                Value pd = arith::MulFOp::create(b, loc, l, r);
+                                Value ac =
+                                    arith::AddFOp::create(b, loc, pd, out);
+                                linalg::YieldOp::create(b, loc, ac);
+                              })
+                              .getResult(0);
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, matmulDequant);
     return success();

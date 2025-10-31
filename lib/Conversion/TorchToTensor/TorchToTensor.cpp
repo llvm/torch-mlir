@@ -38,26 +38,26 @@ public:
     if (operandTy.getNumElements() != 1)
       return rewriter.notifyMatchFailure(op, "expected only one item");
 
-    auto zeroIdx = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 0);
+    auto zeroIdx = arith::ConstantIndexOp::create(rewriter, op.getLoc(), 0);
     auto rank = operandTy.getRank();
     llvm::SmallVector<Value> indices(rank, zeroIdx);
 
-    Value extract = rewriter.create<tensor::ExtractOp>(
-        op.getLoc(), operandTy.getElementType(), operand, indices);
+    Value extract = tensor::ExtractOp::create(
+        rewriter, op.getLoc(), operandTy.getElementType(), operand, indices);
     auto extractTy = extract.getType();
     if (isa<mlir::IntegerType>(extractTy) && !extractTy.isInteger(64)) {
       if (torchDTy.isUnsignedInteger()) {
-        extract = rewriter.create<arith::ExtUIOp>(
-            op.getLoc(), rewriter.getIntegerType(64), extract);
+        extract = arith::ExtUIOp::create(rewriter, op.getLoc(),
+                                         rewriter.getIntegerType(64), extract);
       } else {
-        extract = rewriter.create<arith::ExtSIOp>(
-            op.getLoc(), rewriter.getIntegerType(64), extract);
+        extract = arith::ExtSIOp::create(rewriter, op.getLoc(),
+                                         rewriter.getIntegerType(64), extract);
       }
     }
 
     if (isa<mlir::FloatType>(extractTy) && !extractTy.isF64()) {
-      extract = rewriter.create<arith::ExtFOp>(op.getLoc(),
-                                               rewriter.getF64Type(), extract);
+      extract = arith::ExtFOp::create(rewriter, op.getLoc(),
+                                      rewriter.getF64Type(), extract);
     }
 
     rewriter.replaceOp(op, extract);
@@ -124,10 +124,10 @@ public:
           operand);
 
       if (isa<mlir::IntegerType>(resultETy) && value.getType() != resultETy)
-        value = rewriter.create<arith::TruncIOp>(loc, resultETy, value);
+        value = arith::TruncIOp::create(rewriter, loc, resultETy, value);
 
       if (isa<mlir::FloatType>(resultETy) && value.getType() != resultETy)
-        value = rewriter.create<arith::TruncFOp>(loc, resultETy, value);
+        value = arith::TruncFOp::create(rewriter, loc, resultETy, value);
 
       values.push_back(value);
     }

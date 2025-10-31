@@ -33,13 +33,14 @@ public:
     int64_t rank = tensorType.getSizes().size();
     SmallVector<Value> sizes;
     for (int i = 0; i < rank; i++) {
-      Value dim = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(i));
-      sizes.push_back(rewriter.create<AtenSizeIntOp>(loc, self, dim));
+      Value dim = Torch::ConstantIntOp::create(rewriter, loc,
+                                               rewriter.getI64IntegerAttr(i));
+      sizes.push_back(AtenSizeIntOp::create(rewriter, loc, self, dim));
     }
 
-    Value sizeList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)), sizes);
+    Value sizeList = PrimListConstructOp::create(
+        rewriter, loc, Torch::ListType::get(Torch::IntType::get(context)),
+        sizes);
     rewriter.replaceOp(op, sizeList);
     return success();
   }
@@ -90,7 +91,7 @@ public:
       if (!originalTypedValue) {
         rewriter.setInsertionPointAfter(op);
         originalTypedValue =
-            rewriter.create<TensorStaticInfoCastOp>(loc, resultType, result);
+            TensorStaticInfoCastOp::create(rewriter, loc, resultType, result);
       }
       use.set(originalTypedValue);
     }

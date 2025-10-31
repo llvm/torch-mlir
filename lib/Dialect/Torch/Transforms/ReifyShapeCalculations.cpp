@@ -43,7 +43,7 @@ shapeFunctionArgsBuilder(OpBuilder &b, Location loc,
             return operand;
           if (isa<Torch::BaseTensorType>(operand.getType()) &&
               isa<Torch::IntType>(desiredListType.getContainedType())) {
-            return b.create<AtenSizeOp>(loc, desiredType, operand);
+            return AtenSizeOp::create(b, loc, desiredType, operand);
           }
           return operand;
         });
