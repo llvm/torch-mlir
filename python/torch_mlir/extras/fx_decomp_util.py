@@ -10,8 +10,6 @@ DEFAULT_DECOMPOSITIONS = [
     torch.ops.aten.norm.ScalarOpt_dim,
     torch.ops.aten.native_group_norm,
     torch.ops.aten.upsample_bilinear2d.vec,
-    torch.ops.aten.split.Tensor,
-    torch.ops.aten.split_with_sizes,
     torch.ops.aten.native_layer_norm,
     torch.ops.aten.masked_fill.Tensor,
     torch.ops.aten.masked_fill.Scalar,
