@@ -89,11 +89,6 @@ LINALG_CRASHING_SET = {
     "AtenMmInt8Types_basic",
 }
 
-TORCHSCRIPT_XFAIL_SET = {
-    # Compilation Error: torch.jit.frontend.UnsupportedNodeError: import statements aren't supported:
-    "TorchPrimLoopWhileLikeHOPModule_basic",
-}
-
 TORCHDYNAMO_XFAIL_SET = {
     #### General TorchDynamo/PyTorch errors
     # torch._dynamo.exc.Unsupported: Tensor.item
