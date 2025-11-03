@@ -66,6 +66,12 @@ struct TorchLoweringPipelineOptions
       *this, "extra-library",
       llvm::cl::desc("Filename of MLIR module for splicing into the abstract "
                      "interpretation library.")};
+
+  Option<bool> supportsNonFinites{
+      *this, "supports-non-finites",
+      llvm::cl::desc("When enabled the lowering will produce non-finites, such "
+                     "as, inf/nan"),
+      llvm::cl::init(true)};
 };
 
 /// Creates a pipeline that lowers the object graph IR that is produced by

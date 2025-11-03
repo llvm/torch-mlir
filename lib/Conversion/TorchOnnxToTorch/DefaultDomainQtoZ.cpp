@@ -9,6 +9,7 @@
 
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -246,7 +247,9 @@ Value createScalarSublist(
 } // namespace
 
 void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
-    OnnxCustomOpConversionPattern &patterns) {
+    OnnxCustomOpConversionPattern &patterns,
+    const OnnxTorchToTorchOptions &options) {
+
   patterns.onOp(
       "QuantizeLinear", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
@@ -1537,7 +1540,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 });
   patterns.onOp(
       "ReduceMax", 13,
-      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      [](OpBinder binder, ConversionPatternRewriter &rewriter,
+         const OnnxTorchToTorchOptions &options) {
         // AtenAmaxOp allows us to pass a list of dims
         Torch::ValueTensorType resultType;
         Value data;
@@ -1561,8 +1565,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           auto dty = dataTy.getDtype();
           Value scalar;
           if (FloatType fpTy = dyn_cast<FloatType>(dty)) {
-            auto inf =
-                APFloat::getInf(fpTy.getFloatSemantics(), /*Negative=*/true);
+            auto inf = Torch::getFloatInf(fpTy,
+                                          /*Negative=*/true,
+                                          options.supportsNonFinites);
             scalar = Torch::ConstantFloatOp::create(
                 rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
                 rewriter.getFloatAttr(rewriter.getF64Type(),
@@ -1614,7 +1619,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
   patterns.onOp(
       "ReduceMin", 13,
-      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+      [](OpBinder binder, ConversionPatternRewriter &rewriter,
+         const OnnxTorchToTorchOptions &options) {
         // AtenAminOp allows us to pass a list of dims
         Torch::ValueTensorType resultType;
         Value data;
@@ -1638,7 +1644,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           auto dty = dataTy.getDtype();
           Value scalar;
           if (FloatType fpTy = dyn_cast<FloatType>(dty)) {
-            auto inf = APFloat::getInf(fpTy.getFloatSemantics());
+            auto inf = Torch::getFloatInf(fpTy, /*negative = */ false,
+                                          options.supportsNonFinites);
             scalar = Torch::ConstantFloatOp::create(
                 rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
                 rewriter.getFloatAttr(rewriter.getF64Type(),

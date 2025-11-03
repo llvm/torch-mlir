@@ -41,11 +41,20 @@ namespace {
 // if the current value exceeds the running max (min).
 template <typename OpTy>
 class ConvertAtenMinMaxDimOp : public OpConversionPattern<OpTy> {
+
+private:
+  bool supportsNonFinites;
+
 public:
   using OpConversionPattern<OpTy>::OpConversionPattern;
   using OpConversionPattern<OpTy>::getTypeConverter;
 
   using OpAdaptor = typename OpTy::Adaptor;
+
+  ConvertAtenMinMaxDimOp(TypeConverter &typeConverter, MLIRContext *context,
+                         bool supportsNonFinites)
+      : OpConversionPattern<OpTy>(typeConverter, context),
+        supportsNonFinites(supportsNonFinites) {}
 
   LogicalResult
   matchAndRewrite(OpTy op, OpAdaptor adaptor,
@@ -118,9 +127,8 @@ public:
           rewriter, loc,
           rewriter.getFloatAttr(
               inElementType,
-              APFloat::getInf(
-                  cast<mlir::FloatType>(inElementType).getFloatSemantics(),
-                  /*Negative=*/isMax)));
+              getFloatInf(cast<mlir::FloatType>(inElementType),
+                          /*Negative=*/isMax, this->supportsNonFinites)));
     } else if (!isUnsigned) {
       auto width = cast<mlir::IntegerType>(inElementType).getWidth();
       auto init = isMax ? APSInt::getSignedMinValue(width)
@@ -288,7 +296,8 @@ static Value createAbsOpForNormOps(OpBuilder &b, Location loc, Value elem,
 }
 
 static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
-                                          Operation *op, Type elementType) {
+                                          Operation *op, Type elementType,
+                                          bool supportsNonFinites) {
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op))
     return arith::ConstantOp::create(b, loc, b.getZeroAttr(elementType));
 
@@ -305,11 +314,9 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
     if (isa<mlir::FloatType>(elementType))
       return arith::ConstantOp::create(
           b, loc,
-          b.getFloatAttr(
-              elementType,
-              APFloat::getInf(
-                  cast<mlir::FloatType>(elementType).getFloatSemantics(),
-                  /*Negative=*/true)));
+          b.getFloatAttr(elementType,
+                         getFloatInf(cast<mlir::FloatType>(elementType),
+                                     /*Negative=*/true, supportsNonFinites)));
     else if (isa<mlir::IntegerType>(elementType) &&
              elementType.getIntOrFloatBitWidth() != 8)
       return arith::ConstantOp::create(
@@ -323,11 +330,9 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
     if (isa<mlir::FloatType>(elementType))
       return arith::ConstantOp::create(
           b, loc,
-          b.getFloatAttr(
-              elementType,
-              APFloat::getInf(
-                  cast<mlir::FloatType>(elementType).getFloatSemantics(),
-                  /*Negative=*/false)));
+          b.getFloatAttr(elementType,
+                         getFloatInf(cast<mlir::FloatType>(elementType),
+                                     /*Negative=*/false, supportsNonFinites)));
     else if (isa<mlir::IntegerType>(elementType) &&
              elementType.getIntOrFloatBitWidth() != 8)
       return arith::ConstantOp::create(
@@ -455,6 +460,8 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
 namespace {
 class ConvertReductionOp : public ConversionPattern {
 private:
+  bool supportsNonFinites;
+
   /// Given a reduction operation that has the `keepdim` attribute and the
   /// (optional) `dim` attribute, return the source tensor operand and the
   /// literal values of the attributes or failure otherwise.
@@ -619,7 +626,8 @@ private:
       err = !result;
     };
 
-    Value initElem = createInitElementForReduceOp(rewriter, loc, op, elemType);
+    Value initElem = createInitElementForReduceOp(rewriter, loc, op, elemType,
+                                                  this->supportsNonFinites);
     Value reduceOp = torch_to_linalg::createReductionLinalgGeneric(
         rewriter, loc, opInfo, initElem, reductionBodyBuilder);
     return err ? Value{} : reduceOp;
@@ -643,9 +651,12 @@ private:
   }
 
 public:
-  ConvertReductionOp(TypeConverter &typeConverter, MLIRContext *context)
+  ConvertReductionOp(TypeConverter &typeConverter, MLIRContext *context,
+                     bool supportsNonFinites)
       : ConversionPattern(typeConverter, MatchAnyOpTypeTag(), /*benefit=*/1,
-                          context) {}
+                          context),
+        supportsNonFinites(supportsNonFinites) {}
+
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
@@ -712,12 +723,14 @@ public:
 
 void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target) {
+    ConversionTarget &target, bool supportsNonFinites) {
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<AtenMaxDimOp>();
-  patterns.add<ConvertAtenMinMaxDimOp<AtenMaxDimOp>>(typeConverter, context);
+  patterns.add<ConvertAtenMinMaxDimOp<AtenMaxDimOp>>(typeConverter, context,
+                                                     supportsNonFinites);
   target.addIllegalOp<AtenMinDimOp>();
-  patterns.add<ConvertAtenMinMaxDimOp<AtenMinDimOp>>(typeConverter, context);
+  patterns.add<ConvertAtenMinMaxDimOp<AtenMinDimOp>>(typeConverter, context,
+                                                     supportsNonFinites);
   target.addIllegalOp<AtenSumOp>();
   target.addIllegalOp<AtenAnyOp>();
   target.addIllegalOp<AtenAnyDimsOp>();
@@ -731,5 +744,5 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenNormScalarOp>();
   target.addIllegalOp<AtenLinalgVectorNormOp>();
   target.addIllegalOp<AtenFrobeniusNormDimOp>();
-  patterns.add<ConvertReductionOp>(typeConverter, context);
+  patterns.add<ConvertReductionOp>(typeConverter, context, supportsNonFinites);
 }

@@ -419,13 +419,20 @@ template <typename OpTy>
 class ConvertAtenMaxPoolOp : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
 
+public:
+  ConvertAtenMaxPoolOp(TypeConverter &typeConverter, MLIRContext *context,
+                       bool supportsNonFinites)
+      : OpConversionPattern<OpTy>(typeConverter, context),
+        supportsNonFinites(supportsNonFinites) {}
+
+private:
   static const bool withIndices =
       llvm::is_one_of<OpTy, AtenMaxPool1dWithIndicesOp,
                       AtenMaxPool2dWithIndicesOp,
                       AtenMaxPool3dWithIndicesOp>::value;
 
-private:
   static const int64_t Dim = DimensionTraits<OpTy>::Dim;
+  bool supportsNonFinites;
 
   LogicalResult createPoolingMax3D(OpTy &op, typename OpTy::Adaptor adaptor,
                                    ConversionPatternRewriter &rewriter,
@@ -439,10 +446,11 @@ private:
     static_assert(Dim == 3, "op must be MaxPool3d or MaxPool3dWithIndices");
     Value self = adaptor.getSelf();
     Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
+
     TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
         elementType,
-        APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
-                        /*Negative=*/true));
+        getFloatInf(cast<mlir::FloatType>(elementType), /*negative = */ true,
+                    this->supportsNonFinites));
     Value initValue =
         arith::ConstantOp::create(rewriter, op->getLoc(), smallestFPValueAttr);
 
@@ -688,7 +696,7 @@ public:
     if (auto fpty = dyn_cast<mlir::FloatType>(elementType)) {
       smallestValueAttr = rewriter.getFloatAttr(
           elementType,
-          APFloat::getInf(fpty.getFloatSemantics(), /*Negative=*/true));
+          getFloatInf(fpty, /*Negative=*/true, this->supportsNonFinites));
     } else if (auto intTy = dyn_cast<mlir::IntegerType>(elementType)) {
       int64_t bw = intTy.getIntOrFloatBitWidth();
       smallestValueAttr = rewriter.getIntegerAttr(
@@ -1361,7 +1369,8 @@ public:
                                RankedTensorType &outputType,
                                RankedTensorType &auxTensorType, Value &buffVal,
                                Value &auxTensor,
-                               SmallVector<AffineExpr> &auxTensorExprs) {
+                               SmallVector<AffineExpr> &auxTensorExprs,
+                               bool supportsNonFinites) {
 
     Location loc = op->getLoc();
     const TypeConverter *typeConverter = opConversionPattern.getTypeConverter();
@@ -1371,9 +1380,8 @@ public:
         typeConverter->convertType(op.getResult1().getType()));
     Type auxTensorElementType = auxTensorType.getElementType();
     auto smallestFPValueAttr = rewriter.getFloatAttr(
-        elementType,
-        APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
-                        /*Negative=*/true));
+        elementType, getFloatInf(cast<mlir::FloatType>(elementType),
+                                 /*Negative=*/true, supportsNonFinites));
     buffVal = arith::ConstantOp::create(rewriter, loc, elementType,
                                         smallestFPValueAttr);
     auxTensor = tensor::EmptyOp::create(
@@ -1443,7 +1451,8 @@ public:
                                RankedTensorType &outputType,
                                RankedTensorType &auxTensorType, Value &buffVal,
                                Value &auxTensor,
-                               SmallVector<AffineExpr> &auxTensorExprs) {
+                               SmallVector<AffineExpr> &auxTensorExprs,
+                               bool supportsNonFinites) {
 
     Location loc = op->getLoc();
     const TypeConverter *typeConverter = opConversionPattern.getTypeConverter();
@@ -1555,8 +1564,15 @@ template <typename OpTy>
 class ConvertAtenAdaptivePoolOp : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
 
+public:
+  ConvertAtenAdaptivePoolOp(TypeConverter &typeConverter, MLIRContext *context,
+                            bool supportsNonFinites)
+      : OpConversionPattern<OpTy>(typeConverter, context),
+        supportsNonFinites(supportsNonFinites) {}
+
 private:
   static const int64_t Dim = AdaptivePoolingOpTraits<OpTy>::Dim;
+  bool supportsNonFinites;
 
 public:
   LogicalResult
@@ -1631,7 +1647,7 @@ public:
     SmallVector<AffineExpr> auxTensorExprs;
     if (failed(adaptivePoolingHelper.auxTensorSetup(
             op, outputSizes, outShapeIndexVector, outputType, auxTensorType,
-            buffVal, auxTensor, auxTensorExprs))) {
+            buffVal, auxTensor, auxTensorExprs, this->supportsNonFinites))) {
       return rewriter.notifyMatchFailure(op, "failed auxTensor setup");
     }
 
@@ -1754,24 +1770,27 @@ public:
 
 void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target) {
+    ConversionTarget &target, bool supportsNonFinites) {
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<AtenMaxPool1dOp>();
   target.addIllegalOp<AtenMaxPool2dOp>();
   target.addIllegalOp<AtenMaxPool3dOp>();
-  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool1dOp>>(typeConverter, context);
-  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dOp>>(typeConverter, context);
-  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dOp>>(typeConverter, context);
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool1dOp>>(typeConverter, context,
+                                                      supportsNonFinites);
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dOp>>(typeConverter, context,
+                                                      supportsNonFinites);
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dOp>>(typeConverter, context,
+                                                      supportsNonFinites);
 
   target.addIllegalOp<AtenMaxPool1dWithIndicesOp>();
   target.addIllegalOp<AtenMaxPool2dWithIndicesOp>();
   target.addIllegalOp<AtenMaxPool3dWithIndicesOp>();
-  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool1dWithIndicesOp>>(typeConverter,
-                                                                 context);
-  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dWithIndicesOp>>(typeConverter,
-                                                                 context);
-  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dWithIndicesOp>>(typeConverter,
-                                                                 context);
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool1dWithIndicesOp>>(
+      typeConverter, context, supportsNonFinites);
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool2dWithIndicesOp>>(
+      typeConverter, context, supportsNonFinites);
+  patterns.add<ConvertAtenMaxPoolOp<AtenMaxPool3dWithIndicesOp>>(
+      typeConverter, context, supportsNonFinites);
 
   target.addIllegalOp<AtenMaxUnpool3dOp>();
   patterns.add<ConvertAtenMaxUnpool3dOp>(typeConverter, context);

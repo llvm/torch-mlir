@@ -17,8 +17,16 @@
 
 namespace mlir {
 namespace torch {
+
+#define GEN_PASS_DECL_CONVERTTORCHTOLINALG
+#include "torch-mlir/Conversion/Passes.h.inc"
+
 std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToLinalgPass();
-}
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createConvertTorchToLinalgPass(bool supportsNonFinites);
+
+} // namespace torch
 } // namespace mlir
 
 #endif // TORCHMLIR_CONVERSION_ATENTOLINALG_ATENTOLINALG_H

@@ -122,6 +122,9 @@ void getZeroPoint(Value value, Value &zeropoint);
 LogicalResult getQuantizationParams(Value value, Value &zeropoint, Value &scale,
                                     int64_t &axis);
 
+APFloat getFloatInf(mlir::FloatType fpType, bool negative,
+                    bool supportsNonFinites);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

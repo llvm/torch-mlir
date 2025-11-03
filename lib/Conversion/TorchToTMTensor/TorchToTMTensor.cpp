@@ -60,7 +60,7 @@ namespace mlir::torch {
 // "aten.foo -> linalg.foo".
 
 static TypedAttr getNumericLimit(PatternRewriter &rewriter, Type elementType,
-                                 bool getMin = true) {
+                                 bool supportsNonFinites, bool getMin = true) {
   auto bitWidth = elementType.getIntOrFloatBitWidth();
   if (llvm::isa<mlir::IntegerType>(elementType)) {
     if (getMin) {
@@ -73,8 +73,7 @@ static TypedAttr getNumericLimit(PatternRewriter &rewriter, Type elementType,
   } else if (mlir::FloatType floatType =
                  llvm::dyn_cast<mlir::FloatType>(elementType)) {
     return rewriter.getFloatAttr(
-        elementType,
-        APFloat::getLargest(floatType.getFloatSemantics(), getMin));
+        elementType, getFloatInf(floatType, getMin, supportsNonFinites));
   } else {
     llvm_unreachable("Only float/integer types are supported!");
   }
@@ -1230,8 +1229,18 @@ public:
 namespace {
 class ConvertAtenScatterReduceTwoOp
     : public OpConversionPattern<AtenScatterReduceTwoOp> {
+
+private:
+  bool supportsNonFinites;
+
 public:
   using OpConversionPattern::OpConversionPattern;
+
+  ConvertAtenScatterReduceTwoOp(TypeConverter &typeConverter,
+                                MLIRContext *context, bool supportsNonFinites)
+      : OpConversionPattern<AtenScatterReduceTwoOp>(typeConverter, context),
+        supportsNonFinites(supportsNonFinites) {}
+
   LogicalResult
   matchAndRewrite(AtenScatterReduceTwoOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
@@ -1322,12 +1331,14 @@ public:
         // Set the values in the input tensor to the smallest element of that
         // type
         TypedAttr minAttr = getNumericLimit(rewriter, srcType.getElementType(),
+                                            this->supportsNonFinites,
                                             /*getMin=*/true);
         normalizationValue = arith::ConstantOp::create(rewriter, loc, minAttr);
       } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
         // Set the values in the input tensor to the largest element of that
         // type
         TypedAttr maxAttr = getNumericLimit(rewriter, srcType.getElementType(),
+                                            this->supportsNonFinites,
                                             /*getMin=*/false);
         normalizationValue = arith::ConstantOp::create(rewriter, loc, maxAttr);
       }
@@ -2031,8 +2042,19 @@ public:
 
 namespace {
 class ConvertAtenKthvalueOp : public OpConversionPattern<AtenKthvalueOp> {
+
+private:
+  bool supportsNonFinites;
+
 public:
   using OpConversionPattern::OpConversionPattern;
+
+public:
+  ConvertAtenKthvalueOp(TypeConverter &typeConverter, MLIRContext *context,
+                        bool supportsNonFinites)
+      : OpConversionPattern<AtenKthvalueOp>(typeConverter, context),
+        supportsNonFinites(supportsNonFinites) {}
+
   LogicalResult
   matchAndRewrite(AtenKthvalueOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
@@ -2104,17 +2126,15 @@ public:
           rewriter, loc,
           rewriter.getFloatAttr(
               inputElementType,
-              APFloat::getInf(
-                  cast<mlir::FloatType>(inputElementType).getFloatSemantics(),
-                  /*Negative=*/false)));
+              getFloatInf(cast<mlir::FloatType>(inputElementType),
+                          /*Negative=*/false, this->supportsNonFinites)));
       // min float for linalg generic op tensor
       fillValLinalgFindMax = arith::ConstantOp::create(
           rewriter, loc,
           rewriter.getFloatAttr(
               inputElementType,
-              APFloat::getInf(
-                  cast<mlir::FloatType>(inputElementType).getFloatSemantics(),
-                  /*Negative=*/true)));
+              getFloatInf(cast<mlir::FloatType>(inputElementType),
+                          /*Negative=*/true, this->supportsNonFinites)));
     } else if (!isUnsigned) {
       auto width = cast<mlir::IntegerType>(inputElementType).getWidth();
       // max signed int for topk op tensor
@@ -2163,7 +2183,8 @@ public:
     // It is equal to the max 32-bit signless integer.
     auto signlessType = mlir::IntegerType::get(op.getContext(), 32,
                                                mlir::IntegerType::Signless);
-    auto initIdx = getNumericLimit(rewriter, signlessType, /*getMin=*/false);
+    auto initIdx = getNumericLimit(rewriter, signlessType,
+                                   this->supportsNonFinites, /*getMin=*/false);
     auto fillValTopkIdx = arith::ConstantOp::create(rewriter, loc, initIdx);
     // Fill the initial topk op output indices tensor.
     Value topkOutputIdx =
@@ -2247,7 +2268,8 @@ public:
         {findMaxMapExprs, findMaxMapResultExprs, findMaxMapResultExprs},
         rewriter.getContext());
 
-    // Create linalg op for finding the max value in the extracted topk values.
+    // Create linalg op for finding the max value in the extracted topk
+    // values.
     auto findMaxLinalg = linalg::GenericOp::create(
         rewriter, loc,
         ArrayRef<Type>(
@@ -2384,8 +2406,8 @@ public:
     auto castedIdxMaps = AffineMap::inferFromExprList(
         {castedIdxMapExprs, castedIdxMapExprs}, rewriter.getContext());
 
-    // Linalg generic op for casting topk idx output tensor elements from i32 to
-    // result idx tensor element type.
+    // Linalg generic op for casting topk idx output tensor elements from i32
+    // to result idx tensor element type.
     auto castedIdxLinalg = linalg::GenericOp::create(
         rewriter, loc, ArrayRef<Type>({filledTensorCastedIdx.getType()}),
         extractedIdx, filledTensorCastedIdx, castedIdxMaps,
@@ -2421,7 +2443,8 @@ public:
         resultShapeInt, findMaxIdxType.getElementType());
 
     if (!keepDim) {
-      // If keepdim=false, cast the the outputs to appropriate type and return.
+      // If keepdim=false, cast the the outputs to appropriate type and
+      // return.
       Value retVal =
           tensor::CastOp::create(rewriter, loc, squeezedValType, findMaxVal);
       Value retIdx =
@@ -2491,6 +2514,9 @@ namespace {
 class ConvertTorchToTMTensor
     : public impl::ConvertTorchToTMTensorBase<ConvertTorchToTMTensor> {
 public:
+  using impl::ConvertTorchToTMTensorBase<
+      ConvertTorchToTMTensor>::ConvertTorchToTMTensorBase;
+
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<linalg::LinalgDialect>();
     registry.insert<func::FuncDialect>();
@@ -2521,7 +2547,8 @@ public:
     patterns.add<ConvertAtenMaxPool2dWithIndicesBackwardOp>(typeConverter,
                                                             context);
     target.addIllegalOp<AtenScatterReduceTwoOp>();
-    patterns.add<ConvertAtenScatterReduceTwoOp>(typeConverter, context);
+    patterns.add<ConvertAtenScatterReduceTwoOp>(typeConverter, context,
+                                                this->supportsNonFinites);
     target.addIllegalOp<AtenSortOp>();
     patterns.add<ConvertAtenSortOp>(typeConverter, context);
     target.addIllegalOp<AtenCumsumOp>();
@@ -2539,7 +2566,8 @@ public:
     patterns.add<ConvertAtenScatterOp<AtenScatterAddOp>>(typeConverter,
                                                          context);
     target.addIllegalOp<AtenKthvalueOp>();
-    patterns.add<ConvertAtenKthvalueOp>(typeConverter, context);
+    patterns.add<ConvertAtenKthvalueOp>(typeConverter, context,
+                                        this->supportsNonFinites);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
@@ -2551,6 +2579,13 @@ public:
 std::unique_ptr<OperationPass<func::FuncOp>>
 createConvertTorchToTMTensorPass() {
   return std::make_unique<ConvertTorchToTMTensor>();
+}
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createConvertTorchToTMTensorPass(bool supportsNonFinites) {
+  ConvertTorchToTMTensorOptions options;
+  options.supportsNonFinites = supportsNonFinites;
+  return std::make_unique<ConvertTorchToTMTensor>(options);
 }
 
 } // namespace mlir::torch

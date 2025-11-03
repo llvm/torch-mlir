@@ -7,7 +7,8 @@ from io import StringIO
 import os
 import sys
 import tempfile
-from typing import Union, List
+from typing import Union, List, Optional
+from dataclasses import dataclass, field
 
 import torch
 from .passmanager import PassManager
@@ -74,6 +75,14 @@ def get_module_name_for_debug_dump(module):
 
 class TorchMlirCompilerError(Exception):
     pass
+
+
+@dataclass
+class BackendLoweringOptions:
+    """Options for lowering Torch IR to TOSA/Linalg/StableHLO Backend IR."""
+
+    """Whether to support non-finite floating point values (inf, nan)."""
+    supports_non_finites: bool = True
 
 
 def run_pipeline_with_repro_report(
@@ -179,7 +188,11 @@ class OutputType(Enum):
         return OutputType[spec]
 
 
-def lower_mlir_module(verbose, output_type, module):
+def lower_mlir_module(verbose, output_type, module, backend_options=None):
+
+    if backend_options is None:
+        backend_options = BackendLoweringOptions()
+
     if verbose:
         print("\n====================")
         print("Torch Backend IR")
@@ -201,9 +214,10 @@ def lower_mlir_module(verbose, output_type, module):
         return module
 
     if output_type == OutputType.LINALG_ON_TENSORS:
+        pipeline = f"builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline{{supports-non-finites={backend_options.supports_non_finites}}})"
         run_pipeline_with_repro_report(
             module,
-            "builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline)",
+            pipeline,
             "Lowering Torch Backend IR -> Linalg-on-Tensors Backend IR",
         )
         if verbose:
@@ -213,9 +227,10 @@ def lower_mlir_module(verbose, output_type, module):
         return module
 
     elif output_type == OutputType.STABLEHLO:
+        pipeline = f"builtin.module(torch-backend-to-stablehlo-backend-pipeline{{supports-non-finites={backend_options.supports_non_finites}}})"
         run_pipeline_with_repro_report(
             module,
-            "builtin.module(torch-backend-to-stablehlo-backend-pipeline)",
+            pipeline,
             "Lowering Torch Backend IR -> StableHLO Backend IR",
         )
         if verbose:

@@ -15,8 +15,16 @@
 
 namespace mlir {
 namespace torch {
+
+#define GEN_PASS_DECL_CONVERTTORCHTOTMTENSOR
+#include "torch-mlir/Conversion/Passes.h.inc"
+
 std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToTMTensorPass();
-}
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createConvertTorchToTMTensorPass(bool supportsNonFinites);
+
+} // namespace torch
 } // namespace mlir
 
 #endif // TORCHMLIR_CONVERSION_TORCHTOTMTENSOR_TORCHTOTMTENSOR_H
