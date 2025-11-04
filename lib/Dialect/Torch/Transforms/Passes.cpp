@@ -70,12 +70,16 @@ void mlir::torch::Torch::createTorchScriptModuleToTorchBackendPipeline(
 
 void mlir::torch::Torch::createTorchDynamoExportToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
+  // Inline func.call operations created by higher-order ops like while_loop
+  // to conform to the linalg-on-tensors backend contract.
+  pm.addPass(createInlinerPass());
   pm.addNestedPass<func::FuncOp>(
       createReduceOpVariantsPass(options.extraLibrary));
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   if (options.decompose) {
     pm.addNestedPass<func::FuncOp>(
         Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
+    pm.addNestedPass<func::FuncOp>(Torch::createRecomposeComplexOpsPass());
     pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   }
 }

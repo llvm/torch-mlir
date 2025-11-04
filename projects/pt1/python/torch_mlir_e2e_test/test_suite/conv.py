@@ -679,6 +679,99 @@ def ConvolutionModule2DGroups_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 32, 4, 4), tu.rand(32, 8, 3, 3))
 
 
+class ConvolutionModule3DGroups(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.convolution(
+            inputVec,
+            weight,
+            bias=None,
+            stride=[1, 1, 1],
+            padding=[0, 0, 0],
+            dilation=[1, 1, 1],
+            transposed=False,
+            output_padding=[0, 0, 0],
+            groups=2,
+        )
+
+
+@register_test_case(module_factory=lambda: ConvolutionModule3DGroups())
+def ConvolutionModule3DGroups_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 6, 6, 6), tu.rand(8, 2, 3, 3, 3))
+
+
+class ConvolutionModule3DGroupsStrided(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.convolution(
+            inputVec,
+            weight,
+            bias=None,
+            stride=[2, 2, 2],
+            padding=[1, 1, 1],
+            dilation=[1, 1, 1],
+            transposed=False,
+            output_padding=[0, 0, 0],
+            groups=4,
+        )
+
+
+@register_test_case(module_factory=lambda: ConvolutionModule3DGroupsStrided())
+def ConvolutionModule3DGroupsStrided_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 8, 8, 8, 8), tu.rand(16, 2, 3, 3, 3))
+
+
+class ConvolutionModule3DGroupsDilated(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.convolution(
+            inputVec,
+            weight,
+            bias=None,
+            stride=[1, 1, 1],
+            padding=[2, 2, 2],
+            dilation=[2, 2, 2],
+            transposed=False,
+            output_padding=[0, 0, 0],
+            groups=2,
+        )
+
+
+@register_test_case(module_factory=lambda: ConvolutionModule3DGroupsDilated())
+def ConvolutionModule3DGroupsDilated_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 8, 8, 8), tu.rand(8, 2, 3, 3, 3))
+
+
 # ==============================================================================
 
 

@@ -246,6 +246,8 @@ TORCHDYNAMO_XFAIL_SET = {
     "IsFloatingPointInt_False",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
+    # torch._dynamo.exc.BackendCompilerFailed: Unsupported op: get_attr
+    "TorchPrimLoopWhileLikeHOPModule_basic",
     "ScalarConstantTupleModule_basic",
     # END tests failing due to: empty graph in dynamo
     # ERROR due to: backend never runs because of empty frame
@@ -481,6 +483,7 @@ FX_IMPORTER_XFAIL_SET = {
     "TensorToBoolZeroRank_basic",
     "TensorToBool_basic",
     "ThresholdBackward2dMixedModule_basic",
+    "TorchPrimLoopWhileLikeHOPModule_basic",  # Compilation error: failed to legalize operation 'func.call'
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
@@ -922,17 +925,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "UpSampleNearest2dVecNoneShape_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewSizeFromOtherTensor_basic",
-    # Error: `aten.as_strided` op is not supported
-    "ChunkListUnpackDynamic_Module_basic",
-    "ChunkListUnpackUnevenDynamic_Module_basic",
-    "ChunkListUnpackUneven_Module_basic",
-    "ChunkListUnpack_Module_basic",
-    "SplitTensorGetItem_Module_basic",
-    "SplitTensorLastSmallerModule_basic",
-    "SplitTensorListUnpackModule_basic",
-    "SplitTensorNegativeDimModule_basic",
-    "SplitWithSizesListUnpackModule_basic",
-    "SplitWithSizes_Module_basic",
     "Unfold_Module_basic",
     "Unfold_Module_Rank_4",
     "Unfold_Module_Rank_Zero_basic",
@@ -993,6 +985,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
+    # Runtime error: failed to legalize operation 'torch.constant.int'
+    "TorchPrimLoopWhileLikeHOPModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_CRASHING_SET = {
@@ -2575,6 +2569,7 @@ LTC_CRASHING_SET = {
 
 LTC_XFAIL_SET = {
     "TorchPrimLoopForLikeTensorArgModule_basic" "CollapseAllDimensionsModule_basic",
+    "TorchPrimLoopWhileLikeHOPModule_basic",
     "CollapseRank1DynamicModule_basic",
     "CollapseStaticModule_basic",
     "CollapsePartialDynamicModule_basic",
@@ -2914,6 +2909,9 @@ ONNX_XFAIL_SET = {
     "Conv3dModule_basic",
     "Conv3dWithSamePaddingModule_basic",
     "Conv3dWithValidPaddingModule_basic",
+    "ConvolutionModule3DGroups_basic",
+    "ConvolutionModule3DGroupsStrided_basic",
+    "ConvolutionModule3DGroupsDilated_basic",
     "ConvTbcModule_basic",
     "ConvTranspose2DQInt8_basic",
     "Conv_Transpose2dModule_basic",
@@ -3261,6 +3259,8 @@ ONNX_XFAIL_SET = {
     "ToCopyWithDTypeModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
+    # RuntimeError: Detected that you are using FX to torch.jit.trace a dynamo-optimized function
+    "TorchPrimLoopWhileLikeHOPModule_basic",
     "TraceModule_basic",
     "TraceModule_empty",
     "TraceModule_nonsquare",
@@ -3721,6 +3721,9 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ConvolutionModule2DTransposeStrided_basic",
     "ConvolutionModule2DTranspose_basic",
     "ConvolutionModule2DGroupedTranspose_basic",
+    "ConvolutionModule3DGroups_basic",
+    "ConvolutionModule3DGroupsStrided_basic",
+    "ConvolutionModule3DGroupsDilated_basic",
     "CumsumInputDtypeInt32Module_basic",
     "CumsumWithDtypeModule_basic",
     "CumsumModule_basic",
@@ -3957,6 +3960,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ThresholdBackward2dMixedModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
+    # Runtime error: failed to legalize operation 'torch.aten.Bool.Tensor'
+    "TorchPrimLoopWhileLikeHOPModule_basic",
     "TraceModule_empty",
     "TraceUnsignedIntModule_empty",
     "TransposedConv1dNegativePadding_basic",
@@ -4012,17 +4017,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenAsStridedModule_basic",
     "AtenAsStridedNoStorageOffsetModule_basic",
     "AtenAsStridedUnknownSizeModule_basic",
-    "ChunkListUnpackDynamic_Module_basic",
-    "ChunkListUnpackUnevenDynamic_Module_basic",
-    "ChunkListUnpackUneven_Module_basic",
-    "ChunkListUnpack_Module_basic",
     "NativeGroupNormModule_basic",
-    "SplitTensorGetItem_Module_basic",
-    "SplitTensorLastSmallerModule_basic",
-    "SplitTensorListUnpackModule_basic",
-    "SplitTensorNegativeDimModule_basic",
-    "SplitWithSizesListUnpackModule_basic",
-    "SplitWithSizes_Module_basic",
     # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
     "ElementwiseClampMaxModule_bfloat16",
     "ElementwiseClampMinModule_bfloat16",
@@ -4369,6 +4364,9 @@ ONNX_TOSA_XFAIL_SET = {
     "ConvolutionModule2DTransposeStrided_basic",
     "ConvolutionModule2DTranspose_basic",
     "ConvolutionModule2DGroupedTranspose_basic",
+    "ConvolutionModule3DGroups_basic",
+    "ConvolutionModule3DGroupsStrided_basic",
+    "ConvolutionModule3DGroupsDilated_basic",
     "CopyModule_basic",
     "CopyWithDifferentDTypesAndSizesModule_basic",
     "CopyWithDifferentDTypesModule_basic",
@@ -5036,6 +5034,8 @@ ONNX_TOSA_XFAIL_SET = {
     "ToDtypeFloatFromIntModule_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
+    # RuntimeError: Detected that you are using FX to torch.jit.trace a dynamo-optimized function
+    "TorchPrimLoopWhileLikeHOPModule_basic",
     "TraceModule_basic",
     "TraceModule_empty",
     "TraceModule_nonsquare",

@@ -909,6 +909,7 @@ cc_library(
         "@llvm-project//mlir:AllExtensions",
         "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:DialectUtils",
+        "@llvm-project//mlir:FuncExtensions",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:TensorInferTypeOpInterfaceImpl",
         "@stablehlo//:linalg_passes",
