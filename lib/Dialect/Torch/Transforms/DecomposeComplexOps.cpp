@@ -8298,6 +8298,7 @@ class DecomposeAtenNativeBatchNormOp
     // to make it broadcast-compatible with (N, C, D?, H?, W?).
     // 1. runningMean = runningMean.view(1, C, 1?, 1?, 1?)
     // 2. runningVar = runningVar.view(1, C, 1?, 1?, 1?)
+
     SmallVector<Value> runningStatsShape(inputRank, one);
     runningStatsShape[1] = numFeatures;
     Value runningStatsSizeList = rewriter.create<PrimListConstructOp>(
@@ -8310,11 +8311,29 @@ class DecomposeAtenNativeBatchNormOp
     Type reshapeType = ValueTensorType::get(
         context, llvm::ArrayRef(runningStatsShapeInt), dtype);
 
-    runningMean = rewriter.create<AtenViewOp>(loc, reshapeType, runningMean,
-                                              runningStatsSizeList);
-    runningVar = rewriter.create<AtenViewOp>(loc, reshapeType, runningVar,
-                                             runningStatsSizeList);
+    auto convertRuningStat = [&](Value runningStat) -> Value {
+      Type runningStatDtype =
+          runningStat.getType().cast<ValueTensorType>().getDtype();
+      runningStat = rewriter.create<AtenViewOp>(
+          loc,
+          ValueTensorType::get(context,
+                               llvm::makeArrayRef(runningStatsShapeInt),
+                               runningStatDtype),
+          runningStat, runningStatsSizeList);
 
+      if (dtype != runningStatDtype) {
+        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
+        Value none = rewriter.create<ConstantNoneOp>(loc);
+        return rewriter.create<AtenToDtypeOp>(
+            loc, reshapeType, runningStat,
+            getDtypeIntValueForType(rewriter, loc, dtype),
+            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+            /*memory_format=*/none);
+      }
+      return runningStat;
+    };
+    runningMean = convertRuningStat(runningMean);
+    runningVar = convertRuningStat(runningVar);
     // normalizedInput = (input - runningMean) / (sqrt(runningVar + eps)).
     Value inputSubMean = rewriter.create<AtenSubTensorOp>(
         loc, input.getType(), input, runningMean, /*alpha=*/one);
@@ -8335,8 +8354,7 @@ class DecomposeAtenNativeBatchNormOp
       std::optional<unsigned> weightRank = getTensorRank(weight);
       if (!weightRank || *weightRank != 1)
         return rewriter.notifyMatchFailure(op, "expected weight to be rank 1");
-      weight = rewriter.create<AtenViewOp>(loc, reshapeType, weight,
-                                           runningStatsSizeList);
+      weight = convertRuningStat(weight);
       batchNormOutput = rewriter.create<AtenMulTensorOp>(
           loc, batchNormOutput.getType(), batchNormOutput, weight);
     }
@@ -8345,8 +8363,7 @@ class DecomposeAtenNativeBatchNormOp
       std::optional<unsigned> biasRank = getTensorRank(bias);
       if (!biasRank || *biasRank != 1)
         return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
-      bias = rewriter.create<AtenViewOp>(loc, reshapeType, bias,
-                                         runningStatsSizeList);
+      bias = convertRuningStat(bias);
       batchNormOutput = rewriter.create<AtenAddTensorOp>(
           loc, batchNormOutput.getType(), batchNormOutput, bias, /*alpha=*/one);
     }
