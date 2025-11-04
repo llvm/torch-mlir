@@ -2072,7 +2072,7 @@ public:
           loc,
           rewriter.getFloatAttr(
               inputElementType,
-              APFloat::getInf(
+              APFloat::getLargest(
                   cast<mlir::FloatType>(inputElementType).getFloatSemantics(),
                   /*Negative=*/false)));
       // min float for linalg generic op tensor
@@ -2080,7 +2080,7 @@ public:
           loc,
           rewriter.getFloatAttr(
               inputElementType,
-              APFloat::getInf(
+              APFloat::getLargest(
                   cast<mlir::FloatType>(inputElementType).getFloatSemantics(),
                   /*Negative=*/true)));
     } else if (!isUnsigned) {

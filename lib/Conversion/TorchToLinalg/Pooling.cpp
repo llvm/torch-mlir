@@ -441,9 +441,9 @@ private:
     Value self = adaptor.getSelf();
     Type elementType = cast<RankedTensorType>(self.getType()).getElementType();
     TypedAttr smallestFPValueAttr = rewriter.getFloatAttr(
-        elementType,
-        APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
-                        /*Negative=*/true));
+        elementType, APFloat::getLargest(
+                         cast<mlir::FloatType>(elementType).getFloatSemantics(),
+                         /*Negative=*/true));
     Value initValue =
         rewriter.create<arith::ConstantOp>(op->getLoc(), smallestFPValueAttr);
 
@@ -693,7 +693,7 @@ public:
     if (auto fpty = dyn_cast<mlir::FloatType>(elementType)) {
       smallestValueAttr = rewriter.getFloatAttr(
           elementType,
-          APFloat::getInf(fpty.getFloatSemantics(), /*Negative=*/true));
+          APFloat::getLargest(fpty.getFloatSemantics(), /*Negative=*/true));
     } else if (auto intTy = dyn_cast<mlir::IntegerType>(elementType)) {
       int64_t bw = intTy.getIntOrFloatBitWidth();
       smallestValueAttr = rewriter.getIntegerAttr(
@@ -1379,9 +1379,9 @@ public:
         typeConverter->convertType(op.getResult1().getType()));
     Type auxTensorElementType = auxTensorType.getElementType();
     auto smallestFPValueAttr = rewriter.getFloatAttr(
-        elementType,
-        APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
-                        /*Negative=*/true));
+        elementType, APFloat::getLargest(
+                         cast<mlir::FloatType>(elementType).getFloatSemantics(),
+                         /*Negative=*/true));
     buffVal = rewriter.create<arith::ConstantOp>(loc, elementType,
                                                  smallestFPValueAttr);
     auxTensor = rewriter.create<tensor::EmptyOp>(

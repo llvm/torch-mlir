@@ -1548,8 +1548,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           auto dty = dataTy.getDtype();
           Value scalar;
           if (FloatType fpTy = dyn_cast<FloatType>(dty)) {
-            auto inf =
-                APFloat::getInf(fpTy.getFloatSemantics(), /*Negative=*/true);
+            auto inf = APFloat::getLargest(fpTy.getFloatSemantics(),
+                                           /*Negative=*/true);
             scalar = rewriter.create<Torch::ConstantFloatOp>(
                 binder.getLoc(), rewriter.getType<Torch::FloatType>(),
                 rewriter.getFloatAttr(rewriter.getF64Type(),

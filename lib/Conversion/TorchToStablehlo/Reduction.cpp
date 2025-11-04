@@ -62,9 +62,9 @@ static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
   if (isa<AtenAmaxOp, AtenMaxOp, AtenMaxDimOp, AtenArgmaxOp>(op)) {
     if (isa<mlir::FloatType>(elementTy)) {
       constAttr = DenseElementsAttr::get(
-          constType,
-          {APFloat::getInf(cast<mlir::FloatType>(elementTy).getFloatSemantics(),
-                           /*negative=*/true)});
+          constType, {APFloat::getLargest(
+                         cast<mlir::FloatType>(elementTy).getFloatSemantics(),
+                         /*negative=*/true)});
     } else if (isa<mlir::IntegerType>(elementTy)) {
       constAttr = DenseElementsAttr::get(
           constType,
@@ -75,9 +75,9 @@ static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
   if (isa<AtenAminOp, AtenMinOp, AtenMinDimOp, AtenArgminOp>(op)) {
     if (isa<mlir::FloatType>(elementTy)) {
       constAttr = DenseElementsAttr::get(
-          constType,
-          {APFloat::getInf(cast<mlir::FloatType>(elementTy).getFloatSemantics(),
-                           /*negative=*/false)});
+          constType, {APFloat::getLargest(
+                         cast<mlir::FloatType>(elementTy).getFloatSemantics(),
+                         /*negative=*/false)});
     } else if (isa<mlir::IntegerType>(elementTy)) {
       constAttr = DenseElementsAttr::get(
           constType,
