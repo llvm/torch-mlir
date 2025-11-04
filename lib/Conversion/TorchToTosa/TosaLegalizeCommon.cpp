@@ -782,11 +782,21 @@ std::optional<Value> convertReduceOpCommon(
 
     // Optionally squeeze out the reduced axes.
     if (!keep_dims) {
+      auto squeezedType =
+          RankedTensorType::get(output_shape, reduce_element_type);
       auto reshape_op = CreateOpAndInfer<tosa::ReshapeOp>(
-          rewriter, op->getLoc(), output_type, val,
+          rewriter, op->getLoc(), squeezedType, val,
           tosa::getTosaConstShape(rewriter, op->getLoc(), output_shape));
       val = reshape_op.getResult();
     }
+  }
+
+  // Ensure the result element type matches the expected output type.
+  if (val.getType() != output_type) {
+    auto casted = tosa::tosaCastTensorToType(rewriter, val, output_type);
+    if (!casted)
+      return std::nullopt;
+    val = casted.value();
   }
 
   return val;

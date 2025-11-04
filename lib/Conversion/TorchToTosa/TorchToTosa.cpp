@@ -1089,6 +1089,11 @@ class ConvertAtenMultipleDimsReductionOp
       for (int64_t i = 0; i < inputRank; i++)
         reduceDims.push_back(i);
     }
+    // PyTorch treats an explicit empty list the same as "reduce all dims".
+    if (reduceDims.empty()) {
+      for (int64_t i = 0; i < inputRank; i++)
+        reduceDims.push_back(i);
+    }
 
     int64_t N = reduceDims.size();
     for (unsigned i = 0; i < N; i++) {
