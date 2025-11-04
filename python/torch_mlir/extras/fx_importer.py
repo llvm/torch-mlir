@@ -997,8 +997,6 @@ class FxImporter:
 
         TODO: This mechanism is deprecated by the `import_program` entry-point and
         it should be removed when no longer required for backwards compatibility.
-
-        Note: This method should only be used for HOPs.
         """
         # Store the mapping for this module itself (HOPs will need to look this up)
         module_id = id(gm)
