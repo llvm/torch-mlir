@@ -138,7 +138,9 @@ public:
       // tosa.minimum
       binaryOp = rewriter.create<TosaOpT>(
           op->getLoc(), outTy, lhs, rhs,
-          /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+          /*nan_mode=*/
+          tosa::NanPropagationModeAttr::get(
+              rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE));
     } else {
       binaryOp =
           tosa::createBinaryOpAndCast<TosaOpT>(rewriter, op, outTy, lhs, rhs);
@@ -907,7 +909,9 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
   // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   rewriter.replaceOpWithNewOp<tosa::ClampOp>(
       op, outTy, self, minFloatAttr, maxFloatAttr,
-      /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+      /*nan_mode=*/
+      tosa::NanPropagationModeAttr::get(rewriter.getContext(),
+                                        tosa::NanPropagationMode::PROPAGATE));
   return success();
 }
 
@@ -1237,7 +1241,9 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
         .create<tosa::ArgMaxOp>(
             op->getLoc(), getTypeConverter()->convertType(outputReduceTy),
             input, reduceDimAttr,
-            /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))
+            /*nan_mode=*/
+            tosa::NanPropagationModeAttr::get(
+                rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE))
         .getResult();
   };
 
@@ -3925,7 +3931,9 @@ public:
           op->getLoc(),
           RankedTensorType::get(makeShapeLLVMCompatible(reducedShape),
                                 selfElemType),
-          self, dimAttr, /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+          self, dimAttr, /*nan_mode=*/
+          tosa::NanPropagationModeAttr::get(
+              rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE));
     } else {
       reduceOp = rewriter.create<TosaOpT>(
           op->getLoc(),
@@ -3946,14 +3954,18 @@ public:
           op->getLoc(),
           RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
                                 indicesElemType),
-          negateOp, dimAttr, /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+          negateOp, dimAttr, /*nan_mode=*/
+          tosa::NanPropagationModeAttr::get(
+              rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE));
     } else {
       // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
       argMaxOp = rewriter.create<tosa::ArgMaxOp>(
           op->getLoc(),
           RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
                                 indicesElemType),
-          self, dimAttr, /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+          self, dimAttr, /*nan_mode=*/
+          tosa::NanPropagationModeAttr::get(
+              rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE));
     }
 
     if (argMaxOp.getType() != indicesType) {
@@ -5202,7 +5214,9 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
 
     rewriter.replaceOpWithNewOp<tosa::ClampOp>(
         op, outType, adaptor.getSelf(), minIntAttr, maxIntAttr,
-        /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+        /*nan_mode=*/
+        tosa::NanPropagationModeAttr::get(rewriter.getContext(),
+                                          tosa::NanPropagationMode::PROPAGATE));
   } else {
     FloatAttr minFloatAttr, maxFloatAttr;
     if (outElemTy.isF16()) {
@@ -5231,7 +5245,9 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
 
     rewriter.replaceOpWithNewOp<tosa::ClampOp>(
         op, outType, adaptor.getSelf(), minFloatAttr, maxFloatAttr,
-        /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+        /*nan_mode=*/
+        tosa::NanPropagationModeAttr::get(rewriter.getContext(),
+                                          tosa::NanPropagationMode::PROPAGATE));
   }
 
   return success();
@@ -5340,13 +5356,17 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
   // Use default NaN Propagation mode "PROPAGATE" for tosa.maximum
   auto minThresholdCheck = rewriter.create<tosa::MaximumOp>(
       op->getLoc(), resultType, self, min,
-      /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+      /*nan_mode=*/
+      tosa::NanPropagationModeAttr::get(rewriter.getContext(),
+                                        tosa::NanPropagationMode::PROPAGATE));
 
   // yi = min(max(xi, min_valuei), max_valuei)
   // Use default NaN Propagation mode "PROPAGATE" for tosa.minimum
   auto result = rewriter.create<tosa::MinimumOp>(
       op->getLoc(), resultType, minThresholdCheck, max,
-      /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"));
+      /*nan_mode=*/
+      tosa::NanPropagationModeAttr::get(rewriter.getContext(),
+                                        tosa::NanPropagationMode::PROPAGATE));
 
   rewriter.replaceOp(op, result);
   return success();
@@ -5934,7 +5954,10 @@ public:
       pooledOutput = rewriter
                          .create<TosaOpT>(
                              op->getLoc(), outputTy, input, kernel, stride, pad,
-                             /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))
+                             /*nan_mode=*/
+                             tosa::NanPropagationModeAttr::get(
+                                 rewriter.getContext(),
+                                 tosa::NanPropagationMode::PROPAGATE))
                          .getResult();
     } else if constexpr (std::is_same<TosaOpT, tosa::AvgPool2dOp>::value) {
       TypeAttr accType;
@@ -6830,11 +6853,11 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Only nearest and bilinear interpolation modes supported");
 
-  std::string mode;
+  tosa::ResizeMode mode;
   if (pyMode == "bilinear") {
-    mode = "BILINEAR";
+    mode = tosa::ResizeMode::BILINEAR;
   } else {
-    mode = "NEAREST_NEIGHBOR";
+    mode = tosa::ResizeMode::NEAREST_NEIGHBOR;
   }
 
   bool alignCorners;
@@ -6896,7 +6919,7 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewrite(
     offset = 0;
 
     // If nearest neighbours we need to guarantee we round up.
-    if (mode == "NEAREST_NEIGHBOR" && alignCorners) {
+    if (mode == tosa::ResizeMode::NEAREST_NEIGHBOR && alignCorners) {
       offset += n / 2;
     }
 
@@ -6916,7 +6939,8 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewrite(
       tosa::getTosaConstShape(rewriter, op->getLoc(), {offset_y, offset_x});
   auto border =
       tosa::getTosaConstShape(rewriter, op->getLoc(), {border_y, border_x});
-  StringAttr modeAttr = rewriter.getStringAttr(mode);
+
+  auto modeAttr = tosa::ResizeModeAttr::get(rewriter.getContext(), mode);
 
   auto resizeOpResult =
       rewriter
@@ -8610,11 +8634,14 @@ LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
   // Clamp input to [eps, 1 - eps] when eps is not None
   // Use default NaN Propagation mode "PROPAGATE" for tosa.clamp
   if (!isEpsNone) {
-    zi = rewriter
-             .create<tosa::ClampOp>(
-                 op->getLoc(), resultType, self, minFloatAttr, maxFloatAttr,
-                 /*nan_mode=*/rewriter.getStringAttr("PROPAGATE"))
-             .getResult();
+    zi =
+        rewriter
+            .create<tosa::ClampOp>(
+                op->getLoc(), resultType, self, minFloatAttr, maxFloatAttr,
+                /*nan_mode=*/
+                tosa::NanPropagationModeAttr::get(
+                    rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE))
+            .getResult();
   }
 
   auto one =
