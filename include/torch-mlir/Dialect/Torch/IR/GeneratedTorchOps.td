@@ -16194,61 +16194,59 @@ def Torch_AtenFloatScalarOp : Torch_Op<"aten.Float.Scalar", [
   let hasFolder = 1;
 }
 
-
 def Torch_AtenFlexAttentionOp : Torch_Op<"aten.flex_attention", [
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::flex_attention : (Tensor, Tensor, Tensor, Any?, Any?, float?, bool, Any?, bool) -> (Tensor, Tensor)`";
+  let summary = "Generated op for `aten::flex_attention`";
   let description = [{
-    Flexible attention operator that supports custom score modification and masking.
-
+    FlexAttention operation with flexible block-sparse attention patterns.
+    
     Args:
-      query: Query tensor [B, H, M, E]
-      key: Key tensor [B, H, N, E]
+      query: Query tensor [B, H, M, K]
+      key: Key tensor [B, H, N, K]  
       value: Value tensor [B, H, N, Ev]
-      score_mod: Optional callable to modify attention scores (represented as None or opaque type)
-      block_mask: Optional BlockMask tuple for sparse attention patterns
       scale: Optional float for scaling attention scores (None means 1/sqrt(head_dim))
-      enable_gqa: bool for grouped query attention support
-      kernel_options: Optional dict of kernel configuration options
-      return_lse: bool to return log-sum-exp values
+      return_lse: Bool to return log-sum-exp values
+
+    Attributes:
+      score_mod_fn: Optional function symbol reference for score modification
+      mask_mod_fn: Optional function symbol reference for mask modification
+      
+    # TODO: kernel_options: Dict attributes for performance tuning (block_size, num_warps, etc.)
 
     Returns:
-      - If return_lse=False: Just the output tensor [B, H, M, Ev]
-      - If return_lse=True: Tuple of (output [B, H, M, Ev], logsumexp [B, H, M])
-
-    Note: score_mod and block_mask are higher-order/complex types in PyTorch.
-    For MLIR representation, score_mod is represented as None (identity) or an opaque type,
-    and block_mask is represented as None or a tuple/list of tensors containing the block indices.
+      output: Result tensor [B, H, M, Ev]
+      logsumexp: Optional log-sum-exp tensor [B, H, M] (if return_lse=True)
   }];
+  
   let arguments = (ins
     AnyTorchTensorType:$query,
     AnyTorchTensorType:$key,
     AnyTorchTensorType:$value,
-    AnyType:$score_mod,
-    AnyType:$block_mask,
     AnyTorchOptionalFloatType:$scale,
-    Torch_BoolType:$enable_gqa,
-    AnyType:$kernel_options,
-    Torch_BoolType:$return_lse
+    Torch_BoolType:$enable_gqa
+    Torch_BoolType:$return_lse,
+    OptionalAttr<FlatSymbolRefAttr>:$score_mod_fn,
+    OptionalAttr<FlatSymbolRefAttr>:$mask_mod_fn
   );
+  
   let results = (outs
     AnyTorchTensorType:$output,
     AnyTorchOptionalTensorType:$logsumexp
   );
+  
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
     ParseResult AtenFlexAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 9, 2);
+      return parseDefaultTorchOp(parser, result, 5, 2);
     }
     void AtenFlexAttentionOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 9, 2);
+      printDefaultTorchOp(printer, *this, 5, 2);
     }
   }];
 }
-
 
 def Torch_AtenFloatStrOp : Torch_Op<"aten.Float.str", [
     AllowsTypeRefinement,

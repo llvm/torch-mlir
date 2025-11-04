@@ -1922,14 +1922,19 @@ class GraphNodeImporter:
     ):
         """Imports the torch._higher_order_ops.flex_attention HOP.
 
-        Args format: (query, key, value, score_mod, block_mask, scale, kernel_options, ...)
-        The score_mod is a submodule/callable that has been imported as a private function.
-        The block_mask is a tuple: (kv_num_blocks, kv_indices, ..., mask_mod)
+        Args format: (query, key, value, score_mod, block_mask, scale, enable_gqa, kernel_options, ...)
+        - query, key, value: Attention input tensors
+        - score_mod: Optional submodule/callable for score modification (imported as function)
+        - block_mask: Optional BlockMask tuple containing mask_mod function and runtime tensors
+        - scale: Optional float for attention score scaling
+        - enable_gqa: Boolean for grouped query attention support (TODO: NYI)
+        - kernel_options: Dict of performance tuning options (TODO: NYI)
 
-        This creates a call to aten.flex_attention with function symbol references.
+        This creates a call to aten.flex_attention with function symbol references for
+        score_mod and mask_mod.
         """
         # flex_attention HOP args from PyTorch:
-        # (query, key, value, score_mod, block_mask, scale, kernel_options, return_lse_tuple, ...)
+        # (query, key, value, score_mod, block_mask, scale, enable_gqa, kernel_options, return_lse_tuple, ...)
         if len(node.args) < 6:
             raise ValueError(
                 f"flex_attention expects at least 6 arguments, got {len(node.args)}"
@@ -1938,68 +1943,51 @@ class GraphNodeImporter:
         query_arg, key_arg, value_arg, score_mod_arg, block_mask_arg, scale_arg = (
             node.args[:6]
         )
-        kernel_options = node.args[6] if len(node.args) > 6 else {}
+
+        # TODO: Add support for enable_gqa (grouped query attention)
+        # This is a boolean flag that enables GQA optimization
+        enable_gqa = node.args[6] if len(node.args) > 6 else False
+
+        # TODO: Add support for kernel_options (performance tuning parameters)
+        # This is a dict containing options like block sizes, num_warps, etc.
+        kernel_options = node.args[7] if len(node.args) > 7 else {}
 
         # Import Q, K, V tensors
         query = self._import_argument(loc, query_arg, None)
         key = self._import_argument(loc, key_arg, None)
         value = self._import_argument(loc, value_arg, None)
 
-        # Handle score_mod: extract function reference from submodule
         score_mod_ref = None
         if score_mod_arg is not None and isinstance(score_mod_arg, torch_fx.Node):
-            # score_mod is a GraphModule reference from get_attr
+            assert (
+                score_mod_arg.op == "get_attr"
+            ), f"Expected get_attr for score_mod, got {score_mod_arg.op}"
             root_module = node.graph.owning_module
-            if hasattr(score_mod_arg, "target"):
-                score_mod_name = score_mod_arg.target
-                score_mod_module = getattr(root_module, score_mod_name, None)
-                if score_mod_module is not None:
-                    score_mod_func_name = score_mod_name
-                    score_mod_ref = FlatSymbolRefAttr.get(score_mod_func_name)
+            score_mod_module = getattr(root_module, score_mod_arg.target, None)
+            if score_mod_module is not None:
+                score_mod_func_name = self.fx_importer._graph_module_to_func_name[
+                    id(score_mod_module)
+                ]
+                score_mod_ref = FlatSymbolRefAttr.get(score_mod_func_name)
 
-        # Handle block_mask: extract mask_mod function and tensor components
-        # block_mask tuple format: (kv_num_blocks, kv_indices, q_num_blocks, q_indices,
-        #                           kv_block_size, q_block_size, ..., mask_mod)
+        # Handle block_mask: extract only mask_mod function reference
+        # Note: BlockMask contains runtime tensors (kv_num_blocks, kv_indices, etc.)
+        # that are materialized by evaluating mask_mod(b, h, q_idx, kv_idx).
         mask_mod_ref = None
-        block_mask_tensors = []
-        kv_block_size = None
-        q_block_size = None
-
         if block_mask_arg is not None and isinstance(block_mask_arg, tuple):
-            # Parse the block_mask tuple structure
-            # First two entries: kv_num_blocks (int), kv_indices (tensor)
-            # Next two: q_num_blocks (tensor), q_indices (tensor)
-            # Then: scalar dimensions and the mask_mod function at the end
             root_module = node.graph.owning_module
-
-            for i, component in enumerate(block_mask_arg):
-                if isinstance(component, torch_fx.Node):
-                    # Check if it's a tensor or a submodule reference
-                    if component.op == "get_attr" and hasattr(
-                        root_module, component.target
-                    ):
-                        obj = getattr(root_module, component.target)
-                        # Check if it's a GraphModule (mask_mod) or a tensor
-                        if isinstance(obj, GraphModule):
-                            # This is the mask_mod function
-                            mask_mod_func_name = component.target
-                            mask_mod_ref = FlatSymbolRefAttr.get(mask_mod_func_name)
-                        else:
-                            # It's a tensor (block indices)
-                            block_mask_tensors.append(
-                                self._import_argument(loc, component, None)
-                            )
-                    else:
-                        # Regular tensor argument
-                        block_mask_tensors.append(
-                            self._import_argument(loc, component, None)
-                        )
-                elif isinstance(component, int):
-                    # Scalar dimensions (KV_BLOCK_SIZE, Q_BLOCK_SIZE)
-                    if kv_block_size is None:
-                        kv_block_size = component
-                    elif q_block_size is None:
-                        q_block_size = component
+            # The mask_mod function is the last element in the BlockMask tuple
+            mask_mod_arg = block_mask_arg[-1]
+            if mask_mod_arg is not None and isinstance(mask_mod_arg, torch_fx.Node):
+                assert (
+                    mask_mod_arg.op == "get_attr"
+                ), f"Expected get_attr for mask_mod, got {mask_mod_arg.op}"
+                mask_mod_module = getattr(root_module, mask_mod_arg.target, None)
+                if mask_mod_module is not None:
+                    mask_mod_func_name = self.fx_importer._graph_module_to_func_name[
+                        id(mask_mod_module)
+                    ]
+                    mask_mod_ref = FlatSymbolRefAttr.get(mask_mod_func_name)
 
         # Import scale (float or None)
         if scale_arg is None:
@@ -2018,17 +2006,6 @@ class GraphNodeImporter:
         else:
             scale = self._import_argument(loc, scale_arg, None)
 
-        # Get enable_gqa from kernel_options if present
-        enable_gqa = False
-        if isinstance(kernel_options, dict) and "enable_gqa" in kernel_options:
-            enable_gqa = kernel_options["enable_gqa"]
-        with loc:
-            enable_gqa_value = _make_constant_op(
-                "torch.constant.bool",
-                self._cc.integer_attr(1 if enable_gqa else 0, 1),
-                self._cc.torch_bool_type,
-            ).result
-
         # Determine result types from node metadata
         node_val = node.meta.get("val")
         if isinstance(node_val, (list, tuple)) and len(node_val) >= 2:
@@ -2038,6 +2015,13 @@ class GraphNodeImporter:
         else:
             # Single output
             result_types = [self._cc.node_val_to_type(node)]
+
+        with loc:
+            enable_gqa_value = _make_constant_op(
+                "torch.constant.bool",
+                self._cc.integer_attr(1 if enable_gqa else 0, 1),
+                self._cc.torch_bool_type,
+            ).result
 
         with loc:
             return_lse = _make_constant_op(
@@ -2059,58 +2043,27 @@ class GraphNodeImporter:
                 self._cc.torch_bool_type,
             ).result
 
-        # Build operands for aten.flex_attention
-        # Note: score_mod and block_mask function references go as ATTRIBUTES, not operands
-
-        # Handle block_mask: wrap tensors in a list construct if present
-        if block_mask_tensors:
-            # Wrap block_mask tensors in torch.prim.ListConstruct
-            block_mask_list = Operation.create(
-                "torch.prim.ListConstruct",
-                results=[IrType.parse("!torch.list<vtensor>", context=self._c)],
-                operands=block_mask_tensors,
-                loc=loc,
-            ).result
-        else:
-            # No block mask, use None
-            block_mask_list = Operation.create(
-                "torch.constant.none",
-                results=[self._cc.torch_none_type],
-                loc=loc,
-            ).result
+        # Build operands for aten.flex_attention.
+        # Op expects exactly 5 operands: query, key, value, scale, return_lse.
+        # Note: score_mod_fn and mask_mod_fn go as ATTRIBUTES, not operands.
+        # Note: block_mask tensors are handled by mask_mod_fn, not passed as operands.
 
         flat_operands = [
             query,
             key,
             value,
-            # score_mod placeholder (None)
-            Operation.create(
-                "torch.constant.none",
-                results=[self._cc.torch_none_type],
-                loc=loc,
-            ).result,
-            # block_mask as single list operand
-            block_mask_list,
             scale,
             enable_gqa_value,
-            # Kernel options as None
-            Operation.create(
-                "torch.constant.none",
-                results=[self._cc.torch_none_type],
-                loc=loc,
-            ).result,
-            # return_lse
             return_lse,
         ]
 
         # Build attributes with function references
-        attributes = {
-            "score_mod_fn": score_mod_ref,
-            "mask_mod_fn": mask_mod_ref,
-            "kv_block_size": self._cc.integer_attr(kv_block_size, 64),
-            "q_block_size": self._cc.integer_attr(q_block_size, 64),
-        }
-        attributes = {k: v for k, v in attributes.items() if v is not None}
+        # Only include attributes if they're not None (OptionalAttr in TableGen)
+        attributes = {}
+        if score_mod_ref is not None:
+            attributes["score_mod_fn"] = score_mod_ref
+        if mask_mod_ref is not None:
+            attributes["mask_mod_fn"] = mask_mod_ref
 
         operation = Operation.create(
             "torch.aten.flex_attention",
