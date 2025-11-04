@@ -6435,6 +6435,11 @@ public:
     for (auto s : shape)
       size *= s;
 
+    if (size == 0) {
+      return rewriter.notifyMatchFailure(
+          op, "Shape must not have a dimension of size zero");
+    }
+
     SmallVector<int32_t> values(size, fillVal);
     auto constOp =
         tosa::getConstTensor<int32_t>(rewriter, op, values, shape).value();
