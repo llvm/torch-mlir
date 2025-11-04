@@ -96,6 +96,18 @@ func.func @grid_sampler3(%arg0: !torch.vtensor<[?,?,?,?],f32>, %arg1: !torch.vte
 // -----
 
 // CHECK-LABEL: func @grid_sampler4
+// CHECK: #map
+// CHECK-DAG: %[[Y49:.*]] = arith.maximumf %[[Y47:.*]], %[[CST0:.*]] : f32
+// CHECK-DAG: %[[Y50:.*]] = arith.minimumf %[[Y49:.*]], %[[Y22:.*]] : f32
+// CHECK-DAG: %[[Y51:.*]] = arith.constant 0 : i64
+// CHECK-DAG: %[[Y52:.*]] = arith.cmpi eq, %[[Y9:.*]], %[[Y51:.*]] : i64
+// CHECK-DAG: %[[Y53:.*]] = arith.select %[[Y52:.*]], %[[Y47:.*]], %[[Y50:.*]] : f32
+// CHECK-DAG: %[[Y54:.*]] = arith.maximumf %[[Y48:.*]], %[[CST0:.*]] : f32
+// CHECK-DAG: %[[Y55:.*]] = arith.minimumf %[[Y54:.*]], %[[Y23:.*]] : f32
+// CHECK-DAG: %[[Y56:.*]] = arith.constant 0 : i64
+// CHECK-DAG: %[[Y52:.*]] = arith.cmpi eq, %[[Y9:.*]], %[[Y51:.*]] : i64
+// CHECK-DAG: linalg.yield %[[Y60:.*]] : f32
+// CHECK: return %[[X12:.*]] : !torch.vtensor<[?,?,?,?],f32>
 func.func @grid_sampler4(%arg0: !torch.vtensor<[?,?,?,?],f32>, %arg1: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?,?],f32> {
   %false = torch.constant.bool 1
   %int0 = torch.constant.int 0
