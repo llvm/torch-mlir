@@ -1915,7 +1915,7 @@ class GraphNodeImporter:
         - score_mod: Optional submodule/callable for score modification (imported as function)
         - block_mask: Optional BlockMask tuple containing mask_mod function and runtime tensors
         - scale: Optional float for attention score scaling
-        - enable_gqa: Boolean for grouped query attention support (TODO: NYI)
+        - enable_gqa: Boolean for grouped query attention support
         - kernel_options: Dict of performance tuning options (TODO: NYI)
 
         This creates a call to aten.flex_attention with function symbol references for
@@ -1932,7 +1932,6 @@ class GraphNodeImporter:
             node.args[:6]
         )
 
-        # TODO: Add support for enable_gqa (grouped query attention)
         # This is a boolean flag that enables GQA optimization
         enable_gqa = node.args[6] if len(node.args) > 6 else False
 
