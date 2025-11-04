@@ -16226,7 +16226,7 @@ def Torch_AtenFlexAttentionOp : Torch_Op<"aten.flex_attention", [
     AnyTorchTensorType:$key,
     AnyTorchTensorType:$value,
     AnyTorchOptionalFloatType:$scale,
-    Torch_BoolType:$enable_gqa
+    Torch_BoolType:$enable_gqa,
     Torch_BoolType:$return_lse,
     OptionalAttr<FlatSymbolRefAttr>:$score_mod_fn,
     OptionalAttr<FlatSymbolRefAttr>:$mask_mod_fn
