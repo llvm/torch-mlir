@@ -997,8 +997,6 @@ class FxImporter:
 
         TODO: This mechanism is deprecated by the `import_program` entry-point and
         it should be removed when no longer required for backwards compatibility.
-
-        Note: This method should only be used for HOPs.
         """
         # Store the mapping for this module itself (HOPs will need to look this up)
         module_id = id(gm)
@@ -1013,17 +1011,7 @@ class FxImporter:
             # Module already imported, use existing name
             final_func_name = self._graph_module_to_func_name[module_id]
 
-        # First, recursively import all child modules
-        for child_name, child_module in gm.named_children():
-            if isinstance(child_module, GraphModule) and hasattr(child_module, "graph"):
-                # Recursively import this child (which will handle its own mapping)
-                self.import_graph_module(
-                    child_module,
-                    func_name=child_name,
-                    func_visibility="private",
-                    import_symbolic_shape_expressions=import_symbolic_shape_expressions,
-                )
-
+        self._import_all_child_modules(gm, func_name, import_symbolic_shape_expressions)
         # Then import this module's own graph
         return self.import_stateless_graph(
             gm.graph,
