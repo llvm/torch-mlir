@@ -10547,6 +10547,12 @@ public:
                                          "reduction should be a constant int!");
     }
 
+    Value reduction = op.getReduction();
+    int64_t reductionInt;
+    if (!matchPattern(reduction, m_TorchConstantInt(&reductionInt))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "reduction should be a constant int!");
+    }
     // When the input is 2-d i.e. of the form [minibatch, C] and target is 1-d
     // of the form [minibatch] the cross entropy loss decomposes to the
     // combination of softmax and nll loss as follows:
