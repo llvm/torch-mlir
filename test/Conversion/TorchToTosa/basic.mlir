@@ -1037,6 +1037,44 @@ func.func @torch.vtensor.literal_si32$basic() -> !torch.vtensor<[1,512],si32> {
 
 // -----
 
+// CHECK-LABEL: @torch.vtensor.literal_resource_si32$basic(
+// CHECK: %[[CST:.*]] = "tosa.const"() <{values = dense_resource<torch_resource_i32> : tensor<4xi32>}>
+// CHECK: %[[RET:.*]] = torch_c.from_builtin_tensor %[[CST]] : tensor<4xi32> -> !torch.vtensor<[4],si32>
+// CHECK: return %[[RET]] : !torch.vtensor<[4],si32>
+func.func @torch.vtensor.literal_resource_si32$basic() -> !torch.vtensor<[4],si32> {
+  %0 = torch.vtensor.literal(dense_resource<torch_resource_i32> : tensor<4xsi32>) : !torch.vtensor<[4],si32>
+  return %0 : !torch.vtensor<[4],si32>
+}
+
+{-#
+  dialect_resources: {
+    builtin: {
+      torch_resource_i32: "0x08000000000000000a0000008000000068420000"
+    }
+  }
+#-}
+
+// -----
+
+// CHECK-LABEL: @torch.vtensor.literal_resource_si64$basic(
+// CHECK: %[[CST:.*]] = "tosa.const"() <{values = dense_resource<torch_resource_i64> : tensor<3xi64>}>
+// CHECK: %[[RET:.*]] = torch_c.from_builtin_tensor %[[CST]] : tensor<3xi64> -> !torch.vtensor<[3],si64>
+// CHECK: return %[[RET]] : !torch.vtensor<[3],si64>
+func.func @torch.vtensor.literal_resource_si64$basic() -> !torch.vtensor<[3],si64> {
+  %0 = torch.vtensor.literal(dense_resource<torch_resource_i64> : tensor<3xsi64>) : !torch.vtensor<[3],si64>
+  return %0 : !torch.vtensor<[3],si64>
+}
+
+{-#
+  dialect_resources: {
+    builtin: {
+      torch_resource_i64: "0x08000000010000000000000002000000000000000300000000000000"
+    }
+  }
+#-}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.arange.start_step() -> !torch.vtensor<[5],si64> {
 // CHECK:           %[[VAL_0:.*]] = torch.constant.none
 // CHECK:           %[[VAL_1:.*]] = torch.constant.int 0

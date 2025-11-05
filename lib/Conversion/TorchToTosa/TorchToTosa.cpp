@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
+#include "mlir/IR/DialectResourceBlobManager.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
@@ -3000,7 +3001,23 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
       return success();
     }
   }
-  rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputTy, adaptor.getValue());
+  ElementsAttr attr = cast<ElementsAttr>(adaptor.getValue());
+  if (auto res = dyn_cast<DenseResourceElementsAttr>(attr)) {
+    // Resource blobs preserve the producer's signedness, so retag them here to
+    // keep TOSA constants signless and avoid downstream type mismatches.
+    auto shapedAttrTy = cast<ShapedType>(res.getType());
+    if (auto intTy = dyn_cast<IntegerType>(shapedAttrTy.getElementType())) {
+      auto signlessTy =
+          IntegerType::get(rewriter.getContext(), intTy.getWidth());
+      if (intTy != signlessTy) {
+        auto newTy = RankedTensorType::get(shapedAttrTy.getShape(), signlessTy);
+        attr = DenseResourceElementsAttr::get(newTy, res.getRawHandle());
+      }
+    }
+    rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputTy, attr);
+    return success();
+  }
+  rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputTy, attr);
   return success();
 }
 
