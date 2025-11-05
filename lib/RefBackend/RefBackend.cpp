@@ -361,7 +361,8 @@ class ExpandOpsForLLVM : public ExpandOpsForLLVMBase<ExpandOpsForLLVM> {
     auto func = getOperation();
     auto *context = &getContext();
     RewritePatternSet patterns(context);
-    populateExpandTanhPattern(patterns);
+    math::populateExpansionPatterns(patterns,
+                                    {math::TanhOp::getOperationName()});
     patterns.add<math::ErfPolynomialApproximation>(patterns.getContext());
     ConversionTarget target(*context);
     target.addLegalDialect<func::FuncDialect>();
