@@ -1916,10 +1916,11 @@ class GraphNodeImporter:
         - block_mask: Optional BlockMask tuple containing mask_mod function and runtime tensors
         - scale: Optional float for attention score scaling
         - enable_gqa: Boolean for grouped query attention support
-        - kernel_options: Dict of performance tuning options (TODO: NYI)
+        - kernel_options: Dict of performance tuning options:
+            - return_lse: Boolean for whether to return the log-sum-exp tensor
 
         This creates a call to aten.flex_attention with function symbol references for
-        score_mod and mask_mod.
+        score_mod and mask_mod. The return_lse flag is extracted from kernel_options.
         """
         # flex_attention HOP args from PyTorch:
         # (query, key, value, score_mod, block_mask, scale, enable_gqa, kernel_options, return_lse_tuple, ...)
@@ -2010,23 +2011,15 @@ class GraphNodeImporter:
                 self._cc.torch_bool_type,
             ).result
 
+        # Extract return_lse from kernel_options
+        return_lse_value = False
+        if isinstance(kernel_options, dict):
+            return_lse_value = kernel_options.get("return_lse", False)
+
         with loc:
             return_lse = _make_constant_op(
                 "torch.constant.bool",
-                self._cc.integer_attr(
-                    (
-                        1
-                        if (
-                            getattr(node_val, "return_lse", False)
-                            or (
-                                isinstance(node_val, (list, tuple))
-                                and len(node_val) >= 2
-                            )
-                        )
-                        else 0
-                    ),
-                    1,
-                ),
+                self._cc.integer_attr(1 if return_lse_value else 0, 1),
                 self._cc.torch_bool_type,
             ).result
 
