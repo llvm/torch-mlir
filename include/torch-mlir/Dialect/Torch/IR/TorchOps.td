@@ -1442,7 +1442,16 @@ def Torch_OnnxVariantRotaryEmbeddingOp: Torch_Op<"onnx.rotary_embedding", [
   let hasCustomAssemblyFormat = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// FlexAttention operation 
 
+// NOTE: This op is manually defined because `aten::flex_attention` exists in
+// PyTorch's Python API (torch.nn.attention.flex_attention) but is not yet
+// registered in PyTorch's JIT operator registry. The update_torch_ods.sh script
+// validates against the JIT registry, so it cannot auto-generate this op.
+// Once PyTorch adds flex_attention to the JIT registry, this can be moved to
+// the auto-generated section.
+//===----------------------------------------------------------------------===//
 def Torch_AtenFlexAttentionOp : Torch_Op<"aten.flex_attention", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -1489,10 +1498,10 @@ def Torch_AtenFlexAttentionOp : Torch_Op<"aten.flex_attention", [
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
     ParseResult AtenFlexAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 5, 2);
+      return parseDefaultTorchOp(parser, result, 6, 2);
     }
     void AtenFlexAttentionOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 5, 2);
+      printDefaultTorchOp(printer, *this, 6, 2);
     }
   }];
 }
