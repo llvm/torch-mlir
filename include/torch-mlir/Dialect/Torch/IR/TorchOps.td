@@ -1443,7 +1443,7 @@ def Torch_OnnxVariantRotaryEmbeddingOp: Torch_Op<"onnx.rotary_embedding", [
 }
 
 //===----------------------------------------------------------------------===//
-// FlexAttention operation 
+// FlexAttention operation
 
 // NOTE: This op is manually defined because `aten::flex_attention` exists in
 // PyTorch's Python API (torch.nn.attention.flex_attention) but is not yet
