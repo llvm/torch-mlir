@@ -2337,6 +2337,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   auto bias = adaptor.getBias();
 
   if (isa<Torch::NoneType>(bias.getType())) {
+    // ConvTranspose weights use IOHW; the helper expects OIHW, so swap
+    // dims 0/1 before we synthesize the bias.
     SmallVector<int64_t, 4> biasWeightShape =
         transposed ? SmallVector<int64_t, 4>{weightShape[1], weightShape[0],
                                              weightShape[2], weightShape[3]}
@@ -2407,12 +2409,13 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     transposedInputShape.push_back(inputShape[dim]);
   auto transposedInputType = RankedTensorType::get(
       makeShapeLLVMCompatible(transposedInputShape), inputElemTy);
-  auto transposedInput =
-      tosa::TransposeOp::create(
-          rewriter, op->getLoc(),
-          getTypeConverter()->convertType(transposedInputType), input,
-          rewriter.getDenseI32ArrayAttr(nchwToNhwcDims))
-          .getResult();
+  auto createTransposedInput = [&]() {
+    return rewriter
+        .create<tosa::TransposeOp>(
+            op->getLoc(), getTypeConverter()->convertType(transposedInputType),
+            input, rewriter.getDenseI32ArrayAttr(nchwToNhwcDims))
+        .getResult();
+  };
 
   if (transposed) {
     if (groups != 1)
@@ -2425,17 +2428,6 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
               "TOSA");
 
     SmallVector<int32_t> iohwToOhwi({1, 2, 3, 0});
-    SmallVector<int64_t, 4> ohwiWeightShape;
-    for (int32_t dim : iohwToOhwi)
-      ohwiWeightShape.push_back(weightShape[dim]);
-    auto ohwiWeightType = RankedTensorType::get(
-        makeShapeLLVMCompatible(ohwiWeightShape), weightElemTy);
-    Value transformedWeight =
-        rewriter
-            .create<tosa::TransposeOp>(
-                op->getLoc(), getTypeConverter()->convertType(ohwiWeightType),
-                weight, rewriter.getDenseI32ArrayAttr(iohwToOhwi))
-            .getResult();
 
     // TOSA 'out_pad' is a 4D array {top,bottom,left,right}.
     // Map from PyTorch's (padding, output_padding):
@@ -2456,6 +2448,19 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     int64_t outPadRight = outPadW - outPadLeft;
     SmallVector<int64_t, 4> outPad(
         {outPadTop, outPadBottom, outPadLeft, outPadRight});
+
+    Value nhwcInput = createTransposedInput();
+    SmallVector<int64_t, 4> ohwiWeightShape;
+    for (int32_t dim : iohwToOhwi)
+      ohwiWeightShape.push_back(weightShape[dim]);
+    auto ohwiWeightType = RankedTensorType::get(
+        makeShapeLLVMCompatible(ohwiWeightShape), weightElemTy);
+    Value transformedWeight =
+        rewriter
+            .create<tosa::TransposeOp>(
+                op->getLoc(), getTypeConverter()->convertType(ohwiWeightType),
+                weight, rewriter.getDenseI32ArrayAttr(iohwToOhwi))
+            .getResult();
 
     // Result type is NHWC (we'll transpose back).
     auto outNCHW = makeShapeTorchCompatible(outputTy.getShape());
@@ -2480,7 +2485,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
         rewriter
             .create<tosa::TransposeConv2DOp>(
                 op->getLoc(), getTypeConverter()->convertType(transConvOpTy),
-                transposedInput, transformedWeight, bias, inputZp, weightZp,
+                nhwcInput, transformedWeight, bias, inputZp, weightZp,
                 rewriter.getDenseI64ArrayAttr(outPad),
                 rewriter.getDenseI64ArrayAttr(stride), accType)
             .getResult();
@@ -2535,6 +2540,15 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     SmallVector<int32_t> transposedDims({2, 3, 0, 1});
     SmallVector<int64_t> transposedWeightShape = {
         weightShape[2], weightShape[3], weightShape[0], weightShape[1]};
+
+    // reshape: HWO(I/G) -> HWIM
+    outputCDim = makeShapeTorchCompatible(outputTy.getShape())[1];
+    if (outputCDim == kUnknownSize) {
+      return rewriter.notifyMatchFailure(
+          op, "number of output channels must be statically known for "
+              "depthwise convolutions");
+    }
+
     auto transposedWeightType = RankedTensorType::get(
         makeShapeLLVMCompatible(transposedWeightShape), weightElemTy);
     auto transposedWeight =
@@ -2544,13 +2558,6 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
             rewriter.getDenseI32ArrayAttr(transposedDims))
             .getResult();
 
-    // reshape: HWO(I/G) -> HWIM
-    outputCDim = makeShapeTorchCompatible(outputTy.getShape())[1];
-    if (outputCDim == kUnknownSize) {
-      return rewriter.notifyMatchFailure(
-          op, "number of output channels must be statically known for "
-              "depthwise convolutions");
-    }
     transformedWeightShape = {
         transposedWeightShape[0],
         transposedWeightShape[1],
@@ -2570,6 +2577,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   } else {
     llvm_unreachable("Unhandled convolution type");
   }
+
+  Value transposedInput = createTransposedInput();
 
   int64_t outputHDim, outputWDim;
   int64_t inputHDim = inputShape[2];
