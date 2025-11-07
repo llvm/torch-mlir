@@ -1454,7 +1454,7 @@ def Torch_AtenFlexAttentionOp : Torch_Op<"aten.flex_attention", [
 
     Args:
       query: Query tensor [B, H, M, K]
-      key: Key tensor [B, H, N, K]  
+      key: Key tensor [B, H, N, K]
       value: Value tensor [B, H, N, Ev]
       scale: Optional float for scaling attention scores (None means 1/sqrt(head_dim))
       return_lse: Bool to return log-sum-exp values
@@ -1462,7 +1462,7 @@ def Torch_AtenFlexAttentionOp : Torch_Op<"aten.flex_attention", [
     Attributes:
       score_mod_fn: Optional function symbol reference for score modification
       mask_mod_fn: Optional function symbol reference for mask modification
-      
+
     # TODO: kernel_options: Dict attributes for performance tuning (block_size, num_warps, etc.)
 
     Returns:
