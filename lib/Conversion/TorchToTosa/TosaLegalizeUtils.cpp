@@ -217,7 +217,7 @@ Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
   auto const_attr = DenseElementsAttr::get(const_type, val);
 
   auto const_op =
-      rewriter.create<tosa::ConstOp>(op->getLoc(), const_type, const_attr);
+      tosa::ConstOp::create(rewriter, op->getLoc(), const_type, const_attr);
   return const_op.getResult();
 }
 
@@ -229,7 +229,7 @@ Value getTosaMulShiftConstTensor(PatternRewriter &rewriter, Operation *op,
       shiftType, rewriter.getIntegerAttr(rewriter.getIntegerType(8), shift));
 
   auto constShift =
-      rewriter.create<tosa::ConstOp>(op->getLoc(), shiftType, shiftAttr);
+      tosa::ConstOp::create(rewriter, op->getLoc(), shiftType, shiftAttr);
 
   return constShift.getResult();
 }
@@ -280,7 +280,7 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
   auto const_attr = DenseElementsAttr::get(const_type, vec);
 
   auto const_op =
-      rewriter.create<tosa::ConstOp>(op->getLoc(), const_type, const_attr);
+      tosa::ConstOp::create(rewriter, op->getLoc(), const_type, const_attr);
 
   if (dtype) {
     return tosa::tosaCastTensorToType(rewriter, const_op,
@@ -311,7 +311,7 @@ std::optional<Value> getConstTensor<APInt>(PatternRewriter &rewriter,
   auto const_attr = DenseElementsAttr::get(const_type, vec);
 
   auto const_op =
-      rewriter.create<tosa::ConstOp>(op->getLoc(), const_type, const_attr);
+      tosa::ConstOp::create(rewriter, op->getLoc(), const_type, const_attr);
 
   if (dtype) {
     return tosa::tosaCastTensorToType(rewriter, const_op,
@@ -341,7 +341,7 @@ std::optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
   auto const_attr = DenseElementsAttr::get(const_type, vec);
 
   auto const_op =
-      rewriter.create<tosa::ConstOp>(op->getLoc(), const_type, const_attr);
+      tosa::ConstOp::create(rewriter, op->getLoc(), const_type, const_attr);
 
   if (dtype) {
     return tosa::tosaCastTensorToType(rewriter, const_op,
@@ -449,18 +449,18 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
 
     auto cmpTy = srcType.clone(rewriter.getIntegerType(1));
     Value isEq =
-        rewriter.create<tosa::EqualOp>(op->getLoc(), cmpTy, src, zeroValue);
-    return rewriter.create<tosa::LogicalNotOp>(op->getLoc(),
-                                               srcType.clone(destElemTy), isEq);
+        tosa::EqualOp::create(rewriter, op->getLoc(), cmpTy, src, zeroValue);
+    return tosa::LogicalNotOp::create(rewriter, op->getLoc(),
+                                      srcType.clone(destElemTy), isEq);
   }
 
   if (srcElemTy.isInteger(1) && llvm::isa<FloatType>(destElemTy)) {
     // TOSA does not support casting from i1->float.
     // Instead, we cast to i8 and then to the float.
     TensorType midType = srcType.clone(rewriter.getIntegerType(8));
-    Value mid = rewriter.create<tosa::CastOp>(op->getLoc(), midType, src);
-    return rewriter.create<tosa::CastOp>(op->getLoc(),
-                                         srcType.clone(destElemTy), mid);
+    Value mid = tosa::CastOp::create(rewriter, op->getLoc(), midType, src);
+    return tosa::CastOp::create(rewriter, op->getLoc(),
+                                srcType.clone(destElemTy), mid);
   }
 
   if (srcElemTy == destElemTy)
@@ -472,8 +472,8 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
     // PyTorch performs round-to-zero instead.
     // Generate round-to-zero conversion prior to tosa.cast to match with
     // expected torch behavior.
-    auto floor = rewriter.create<tosa::FloorOp>(op->getLoc(), srcType, src);
-    auto ceil = rewriter.create<tosa::CeilOp>(op->getLoc(), srcType, src);
+    auto floor = tosa::FloorOp::create(rewriter, op->getLoc(), srcType, src);
+    auto ceil = tosa::CeilOp::create(rewriter, op->getLoc(), srcType, src);
 
     auto zeroValue =
         tosa::getConstTensor<float>(rewriter, op, 0, {}, srcElemTy).value();
@@ -490,7 +490,7 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
   }
 
   TensorType castedSrcType = srcType.clone(destElemTy);
-  return rewriter.create<tosa::CastOp>(op->getLoc(), castedSrcType, src);
+  return tosa::CastOp::create(rewriter, op->getLoc(), castedSrcType, src);
 }
 
 // Template instantiation

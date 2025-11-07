@@ -43,32 +43,33 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // HardSigmoid computes the following expression:
         //   max(0, min(1, alpha * x + beta))
-        Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+        Value constAlpha = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(alpha));
-        Value constBeta = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+        Value constBeta = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(beta));
 
         // Expression: alpha * x + beta
-        Value alphaMulX = rewriter.create<Torch::AtenMulScalarOp>(
-            binder.getLoc(), resultType, tensorOperand, constAlpha);
-        Value constOne = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+        Value alphaMulX = Torch::AtenMulScalarOp::create(
+            rewriter, binder.getLoc(), resultType, tensorOperand, constAlpha);
+        Value constOne = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(1.0));
-        Value alphaMulXPlusBeta = rewriter.create<Torch::AtenAddScalarOp>(
-            binder.getLoc(), resultType, alphaMulX, constBeta,
+        Value alphaMulXPlusBeta = Torch::AtenAddScalarOp::create(
+            rewriter, binder.getLoc(), resultType, alphaMulX, constBeta,
             /*alpha=*/constOne);
 
         // Expression: min(1, alpha * x + beta)
         Value oneTensor =
             createRank0Tensor(rewriter, binder.getLoc(), resultType, constOne);
-        Value minExpression = rewriter.create<Torch::AtenMinimumOp>(
-            binder.getLoc(), resultType, oneTensor, alphaMulXPlusBeta);
+        Value minExpression =
+            Torch::AtenMinimumOp::create(rewriter, binder.getLoc(), resultType,
+                                         oneTensor, alphaMulXPlusBeta);
 
         // Expression: max(0, min(1, alpha * x + beta))
-        Value constZero = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getF64FloatAttr(0.0));
+        Value constZero = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getF64FloatAttr(0.0));
         Value zeroTensor =
             createRank0Tensor(rewriter, binder.getLoc(), resultType, constZero);
         rewriter.replaceOpWithNewOp<Torch::AtenMaximumOp>(
@@ -86,8 +87,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.customOpNameStringAttr(approximate, "approximate", "none"))
           return failure();
 
-        Value vApproximate = rewriter.create<Torch::ConstantStrOp>(
-            binder.getLoc(), rewriter.getType<Torch::StringType>(),
+        Value vApproximate = Torch::ConstantStrOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::StringType>(),
             rewriter.getStringAttr(approximate));
 
         rewriter.replaceOpWithNewOp<Torch::AtenGeluOp>(binder.op, resultType,
@@ -151,17 +152,17 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(binder.op,
                                              "align_corners bind failure");
 
-        Value interpolationMode = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        Value interpolationMode = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), iModeInt));
 
-        Value paddingMode = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        Value paddingMode = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
 
         bool alignMode = align;
-        Value alignCorners = rewriter.create<Torch::ConstantBoolOp>(
-            binder.getLoc(), rewriter.getType<Torch::BoolType>(),
+        Value alignCorners = Torch::ConstantBoolOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(alignMode));
 
         rewriter.replaceOpWithNewOp<Torch::AtenGridSamplerOp>(
@@ -184,11 +185,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(
               binder.op, "condition must have one single element per "
                          "https://onnx.ai/onnx/operators/onnx__If.html");
-        auto conditionInt = rewriter.create<Torch::AtenItemOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        auto conditionInt = Torch::AtenItemOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             conditionTensor);
-        auto conditionBool = rewriter.create<Torch::AtenBoolIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::BoolType>(), conditionInt);
+        auto conditionBool = Torch::AtenBoolIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::BoolType>(),
+            conditionInt);
 
         llvm::SmallVector<mlir::Type> resultTypes;
         if (binder.tensorResultTypes(resultTypes)) {
@@ -202,8 +204,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(binder.op, "region bind failure");
         }
 
-        auto primIfOp = rewriter.create<Torch::PrimIfOp>(
-            binder.getLoc(), TypeRange(resultTypes), conditionBool);
+        auto primIfOp = Torch::PrimIfOp::create(
+            rewriter, binder.getLoc(), TypeRange(resultTypes), conditionBool);
 
         auto inlineIfCase = [&](Region &srcRegion, Region &dstRegion) {
           rewriter.inlineRegionBefore(srcRegion, dstRegion, dstRegion.begin());
@@ -230,8 +232,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             if (terOpRank != resRank)
               return failure();
             if (terType != resultTypes[i]) {
-              Value cast = rewriter.create<Torch::TensorStaticInfoCastOp>(
-                  binder.getLoc(), resultTypes[i], terOperands[i]);
+              Value cast = Torch::TensorStaticInfoCastOp::create(
+                  rewriter, binder.getLoc(), resultTypes[i], terOperands[i]);
               terOperands[i] = cast;
             }
           }
@@ -309,20 +311,21 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // MaxTripCount - tensor int64 scalar (or empty)
         Value maxTripCountTensor = operands[0];
-        auto maxTripCountInt = rewriter.create<Torch::AtenItemOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        auto maxTripCountInt = Torch::AtenItemOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             maxTripCountTensor);
 
         // Condition - tensor bool scalar (or empty)
         Value conditionTensor = operands[1];
-        auto conditionInt = rewriter.create<Torch::AtenItemOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        auto conditionInt = Torch::AtenItemOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             conditionTensor);
-        auto conditionBool = rewriter.create<Torch::AtenBoolIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::BoolType>(), conditionInt);
+        auto conditionBool = Torch::AtenBoolIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::BoolType>(),
+            conditionInt);
         // To be used for "for like" loop case
-        auto constBoolTrue = rewriter.create<Torch::ConstantBoolOp>(
-            binder.getLoc(), rewriter.getBoolAttr(true));
+        auto constBoolTrue = Torch::ConstantBoolOp::create(
+            rewriter, binder.getLoc(), rewriter.getBoolAttr(true));
 
         // Others (if present) - variadic (can be tensors and scalar values)
         if (binder.getNumOperands() > 2) {
@@ -366,8 +369,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             loopIsForLike ? constBoolTrue : conditionBool.getResult();
         auto loc = binder.getLoc();
         mlir::ImplicitLocOpBuilder b(loc, rewriter);
-        auto loop = b.create<Torch::PrimLoopOp>(
-            TypeRange(operandTypeVec), maxTripCountInt, loopInitCondition,
+        auto loop = Torch::PrimLoopOp::create(
+            b, TypeRange(operandTypeVec), maxTripCountInt, loopInitCondition,
             ValueRange(operands));
 
         rewriter.cloneRegionBefore(*loopBodyIn, loop.getRegion(),
@@ -427,11 +430,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         } else {
           // Only use when loop is not forlike
           Value terminatorCondTensor = terminatorOperands[0];
-          auto terminatorCondInt = rewriter.create<Torch::AtenItemOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+          auto terminatorCondInt = Torch::AtenItemOp::create(
+              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
               terminatorCondTensor);
-          auto terminatorCondBool = rewriter.create<Torch::AtenBoolIntOp>(
-              binder.getLoc(), rewriter.getType<Torch::BoolType>(),
+          auto terminatorCondBool = Torch::AtenBoolIntOp::create(
+              rewriter, binder.getLoc(), rewriter.getType<Torch::BoolType>(),
               terminatorCondInt);
           terminatorCond = terminatorCondBool.getResult();
         }
@@ -453,9 +456,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         int64_t axis;
         if (binder.s64IntegerAttr(axis, "axis", -1))
           return rewriter.notifyMatchFailure(binder.op, "axis bind failure");
-        Value axisConst = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(axis));
-        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value axisConst = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(axis));
+        Value none = Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
         rewriter.replaceOpWithNewOp<Torch::AtenLogSoftmaxIntOp>(
             binder.op, resultType, input, axisConst, none);
         return success();
@@ -486,11 +489,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(
               binder.op, "failed to get input type or sizes");
 
-        Value axisConst = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(axis));
-        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-        Value cstEnd = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(rank - 1));
+        Value axisConst = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(axis));
+        Value none = Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
+        Value cstEnd = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(rank - 1));
 
         // The old version of LogSoftmax flattens post-axis dims, performs
         // LogSoftmax on the flattened dim, then unflattens back to the original
@@ -508,8 +511,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         int64_t prodRightSizes = 1;
         llvm::SmallVector<Value> rightDimConsts;
         for (int64_t n : rightDims) {
-          rightDimConsts.push_back(rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(n)));
+          rightDimConsts.push_back(Torch::ConstantIntOp::create(
+              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(n)));
           if (n == Torch::kUnknownSize) {
             prodRightSizes = -1;
             break;
@@ -518,19 +521,20 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
         leftDims.push_back(prodRightSizes);
         // the following list will be used to unflatten the right side
-        Value rightDimsPrimList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value rightDimsPrimList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             rewriter.getType<Torch::ListType>(
                 rewriter.getType<Torch::IntType>()),
             rightDimConsts);
         auto flatRightTy = rewriter.getType<Torch::ValueTensorType>(
             leftDims, inputTy.getOptionalDtype());
         // flatten input
-        Value inputFlatRight = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
-            binder.getLoc(), flatRightTy, input, axisConst, cstEnd);
+        Value inputFlatRight = Torch::AtenFlattenUsingIntsOp::create(
+            rewriter, binder.getLoc(), flatRightTy, input, axisConst, cstEnd);
         // compute lsm over flattened index
-        Value outputFlatRight = rewriter.create<Torch::AtenLogSoftmaxIntOp>(
-            binder.getLoc(), flatRightTy, inputFlatRight, axisConst, none);
+        Value outputFlatRight = Torch::AtenLogSoftmaxIntOp::create(
+            rewriter, binder.getLoc(), flatRightTy, inputFlatRight, axisConst,
+            none);
         // unflatten
         rewriter.replaceOpWithNewOp<Torch::AtenUnflattenIntOp>(
             binder.op, resultType, outputFlatRight, axisConst,
@@ -560,14 +564,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return failure();
 
         if (binder.tensorOperandAtIndex(lhsZp, 2)) {
-          lhsZp = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+          lhsZp = Torch::ConstantIntOp::create(
+              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
         }
 
         if (binder.tensorOperandAtIndex(rhsZp, 3)) {
-          rhsZp = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+          rhsZp = Torch::ConstantIntOp::create(
+              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
         }
 
@@ -589,21 +593,21 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                                    mlir::IntegerType::Signed));
 
         // Subtracting the zero_point values from lhs and rhs.
-        Value alpha = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(1));
+        Value alpha = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(1));
         if (auto lhsZpTy = dyn_cast<Torch::ValueTensorType>(lhsZp.getType()))
-          lhs = rewriter.create<Torch::AtenSubTensorOp>(loc, lhs.getType(), lhs,
-                                                        lhsZp, alpha);
+          lhs = Torch::AtenSubTensorOp::create(rewriter, loc, lhs.getType(),
+                                               lhs, lhsZp, alpha);
         else
-          lhs = rewriter.create<Torch::AtenSubScalarOp>(loc, lhs.getType(), lhs,
-                                                        lhsZp, alpha);
+          lhs = Torch::AtenSubScalarOp::create(rewriter, loc, lhs.getType(),
+                                               lhs, lhsZp, alpha);
 
         if (auto rhsZpTy = dyn_cast<Torch::ValueTensorType>(rhsZp.getType()))
-          rhs = rewriter.create<Torch::AtenSubTensorOp>(loc, rhs.getType(), rhs,
-                                                        rhsZp, alpha);
+          rhs = Torch::AtenSubTensorOp::create(rewriter, loc, rhs.getType(),
+                                               rhs, rhsZp, alpha);
         else
-          rhs = rewriter.create<Torch::AtenSubScalarOp>(loc, rhs.getType(), rhs,
-                                                        rhsZp, alpha);
+          rhs = Torch::AtenSubScalarOp::create(rewriter, loc, rhs.getType(),
+                                               rhs, rhsZp, alpha);
 
         rewriter.replaceOpWithNewOp<Torch::AtenMatmulOp>(binder.op, resultType,
                                                          lhs, rhs);
@@ -698,17 +702,17 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Type i1Ty = rewriter.getI1Type();
 
         // Value constants
-        Value noneConst = b.create<Torch::ConstantNoneOp>();
+        Value noneConst = Torch::ConstantNoneOp::create(b);
         Value zeroConst =
-            b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(0));
+            Torch::ConstantIntOp::create(b, rewriter.getI64IntegerAttr(0));
         Value oneConst =
-            b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(1));
+            Torch::ConstantIntOp::create(b, rewriter.getI64IntegerAttr(1));
         Value twoConst =
-            b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(2));
+            Torch::ConstantIntOp::create(b, rewriter.getI64IntegerAttr(2));
         Value int32DTypeConst =
-            b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(3));
+            Torch::ConstantIntOp::create(b, rewriter.getI64IntegerAttr(3));
         Value float32DTypeConst =
-            b.create<Torch::ConstantIntOp>(rewriter.getI64IntegerAttr(6));
+            Torch::ConstantIntOp::create(b, rewriter.getI64IntegerAttr(6));
 
         Torch::ValueTensorType dftLenType =
             Torch::ValueTensorType::get(ctx, unranked, inpIntDType);
@@ -717,10 +721,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Type freqBinsFltType =
             Torch::ValueTensorType::get(ctx, shapeNMB, f32Ty);
 
-        Value dftLengthDivTwoTensor = b.create<Torch::AtenFloorDivideScalarOp>(
-            dftLenType, operands[1], twoConst);
-        Value numSpectrogramBinsTensor = b.create<Torch::AtenAddScalarOp>(
-            dftLenType, dftLengthDivTwoTensor, oneConst, /*alpha =*/oneConst);
+        Value dftLengthDivTwoTensor = Torch::AtenFloorDivideScalarOp::create(
+            b, dftLenType, operands[1], twoConst);
+        Value numSpectrogramBinsTensor =
+            Torch::AtenAddScalarOp::create(b, dftLenType, dftLengthDivTwoTensor,
+                                           oneConst, /*alpha =*/oneConst);
         Value numSpectrogramBinsItem = getItemOp<Torch::IntType>(
             binder, rewriter, numSpectrogramBinsTensor);
 
@@ -728,201 +733,204 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // https://github.com/onnx/onnx/blob/main/onnx/reference/ops/op_mel_weight_matrix.py#L25-L32
         // convert input Freq Hz to Mel
         Value twoFiveNineFiveConst =
-            b.create<Torch::ConstantFloatOp>(rewriter.getF64FloatAttr(2595));
+            Torch::ConstantFloatOp::create(b, rewriter.getF64FloatAttr(2595));
         Value sevenHConst =
-            b.create<Torch::ConstantFloatOp>(rewriter.getF64FloatAttr(700));
+            Torch::ConstantFloatOp::create(b, rewriter.getF64FloatAttr(700));
         Value tenConst =
-            b.create<Torch::ConstantFloatOp>(rewriter.getF64FloatAttr(10));
+            Torch::ConstantFloatOp::create(b, rewriter.getF64FloatAttr(10));
         Value oneFltConst =
-            b.create<Torch::ConstantFloatOp>(rewriter.getF64FloatAttr(1));
-        Value LnToLog10Const = b.create<Torch::ConstantFloatOp>(
-            rewriter.getF64FloatAttr(M_LOG10E));
+            Torch::ConstantFloatOp::create(b, rewriter.getF64FloatAttr(1));
+        Value LnToLog10Const = Torch::ConstantFloatOp::create(
+            b, rewriter.getF64FloatAttr(M_LOG10E));
 
         Value lfDiv7Hfloat =
-            b.create<Torch::AtenDivFloatOp>(lowerEdgeHzItem, sevenHConst);
+            Torch::AtenDivFloatOp::create(b, lowerEdgeHzItem, sevenHConst);
         Type freqType = Torch::ValueTensorType::get(ctx, unranked, inpFpDType);
         Value lfDiv7H =
-            b.create<Torch::PrimNumToTensorScalarOp>(freqType, lfDiv7Hfloat);
-        Value lfDiv7HAdd1 = b.create<Torch::AtenAddScalarOp>(
-            freqType, lfDiv7H, oneConst, /*alpha =*/oneConst);
-        Value lfDiv7HAdd1Ln = b.create<Torch::AtenLogOp>(freqType, lfDiv7HAdd1);
-        Value lfDiv7HAdd1Log10 = b.create<Torch::AtenMulScalarOp>(
-            freqType, lfDiv7HAdd1Ln, LnToLog10Const);
+            Torch::PrimNumToTensorScalarOp::create(b, freqType, lfDiv7Hfloat);
+        Value lfDiv7HAdd1 = Torch::AtenAddScalarOp::create(
+            b, freqType, lfDiv7H, oneConst, /*alpha =*/oneConst);
+        Value lfDiv7HAdd1Ln =
+            Torch::AtenLogOp::create(b, freqType, lfDiv7HAdd1);
+        Value lfDiv7HAdd1Log10 = Torch::AtenMulScalarOp::create(
+            b, freqType, lfDiv7HAdd1Ln, LnToLog10Const);
 
-        Value lfMel = b.create<Torch::AtenMulScalarOp>(
-            freqType, lfDiv7HAdd1Log10, twoFiveNineFiveConst);
+        Value lfMel = Torch::AtenMulScalarOp::create(
+            b, freqType, lfDiv7HAdd1Log10, twoFiveNineFiveConst);
 
         Value hfDiv7Hfloat =
-            b.create<Torch::AtenDivFloatOp>(upperEdgeHzItem, sevenHConst);
+            Torch::AtenDivFloatOp::create(b, upperEdgeHzItem, sevenHConst);
         Value hfDiv7H =
-            b.create<Torch::PrimNumToTensorScalarOp>(freqType, hfDiv7Hfloat);
-        Value hfDiv7HAdd1 = b.create<Torch::AtenAddScalarOp>(
-            freqType, hfDiv7H, oneConst, /*alpha =*/oneConst);
-        Value hfDiv7HAdd1Ln = b.create<Torch::AtenLogOp>(freqType, hfDiv7HAdd1);
-        Value hfDiv7HAdd1Log10 = b.create<Torch::AtenMulScalarOp>(
-            freqType, hfDiv7HAdd1Ln, LnToLog10Const);
+            Torch::PrimNumToTensorScalarOp::create(b, freqType, hfDiv7Hfloat);
+        Value hfDiv7HAdd1 = Torch::AtenAddScalarOp::create(
+            b, freqType, hfDiv7H, oneConst, /*alpha =*/oneConst);
+        Value hfDiv7HAdd1Ln =
+            Torch::AtenLogOp::create(b, freqType, hfDiv7HAdd1);
+        Value hfDiv7HAdd1Log10 = Torch::AtenMulScalarOp::create(
+            b, freqType, hfDiv7HAdd1Ln, LnToLog10Const);
 
-        Value hfMel = b.create<Torch::AtenMulScalarOp>(
-            freqType, hfDiv7HAdd1Log10, twoFiveNineFiveConst);
+        Value hfMel = Torch::AtenMulScalarOp::create(
+            b, freqType, hfDiv7HAdd1Log10, twoFiveNineFiveConst);
 
-        Value hfSubLf = b.create<Torch::AtenSubTensorOp>(
-            hfMel.getType(), hfMel, lfMel, /*alpha=*/oneConst);
+        Value hfSubLf = Torch::AtenSubTensorOp::create(
+            b, hfMel.getType(), hfMel, lfMel, /*alpha=*/oneConst);
         Value numMelBinsPlus2 =
-            b.create<Torch::AtenAddIntOp>(numMelBinsItem, twoConst);
-        Value melStep = b.create<Torch::AtenDivScalarOp>(
-            hfSubLf.getType(), hfSubLf, numMelBinsPlus2);
+            Torch::AtenAddIntOp::create(b, numMelBinsItem, twoConst);
+        Value melStep = Torch::AtenDivScalarOp::create(
+            b, hfSubLf.getType(), hfSubLf, numMelBinsPlus2);
 
-        Value lowBinsInit = b.create<Torch::AtenArangeOp>(
-            freqBinsIntType, numMelBinsItem, /*dtype=*/int32DTypeConst,
+        Value lowBinsInit = Torch::AtenArangeOp::create(
+            b, freqBinsIntType, numMelBinsItem, /*dtype=*/int32DTypeConst,
             /*layout=*/noneConst, /*device=*/noneConst,
             /*pin_memory=*/noneConst);
 
-        Value centerBinsInit = b.create<Torch::AtenArangeOp>(
-            freqBinsIntType, numMelBinsItem, /*dtype=*/int32DTypeConst,
+        Value centerBinsInit = Torch::AtenArangeOp::create(
+            b, freqBinsIntType, numMelBinsItem, /*dtype=*/int32DTypeConst,
             /*layout=*/noneConst, /*device=*/noneConst,
             /*pin_memory=*/noneConst);
 
-        Value highBinsInit = b.create<Torch::AtenArangeOp>(
-            freqBinsIntType, numMelBinsItem, /*dtype=*/int32DTypeConst,
+        Value highBinsInit = Torch::AtenArangeOp::create(
+            b, freqBinsIntType, numMelBinsItem, /*dtype=*/int32DTypeConst,
             /*layout=*/noneConst, /*device=*/noneConst,
             /*pin_memory=*/noneConst);
 
         // Common values used in conversion
-        Value dftLenPlusOne = b.create<Torch::AtenAddScalarOp>(
-            dftLenType, operands[1], oneConst, /*alpha=*/oneConst);
+        Value dftLenPlusOne = Torch::AtenAddScalarOp::create(
+            b, dftLenType, operands[1], oneConst, /*alpha=*/oneConst);
         Value dftLenPlusOneItem =
             getItemOp<Torch::IntType>(binder, rewriter, dftLenPlusOne);
-        Value falseConst = b.create<Torch::ConstantBoolOp>(false);
+        Value falseConst = Torch::ConstantBoolOp::create(b, false);
         Torch::ValueTensorType unsqueezeBinsResType =
             Torch::ValueTensorType::get(ctx, shape1xNMB, si32Ty);
 
         // Low bins Mel to hz
-        Value lowBinsMulMelStep = b.create<Torch::AtenMulTensorOp>(
-            freqBinsFltType, lowBinsInit, melStep);
-        Value lowBinsScaled = b.create<Torch::AtenAddTensorOp>(
-            freqBinsFltType, lowBinsMulMelStep, lfMel, /*alpha=*/oneConst);
-        Value lbDiv = b.create<Torch::AtenDivScalarOp>(
-            freqBinsFltType, lowBinsScaled, twoFiveNineFiveConst);
-        Value lbClone = b.create<Torch::AtenCloneOp>(
-            freqBinsFltType, lowBinsScaled, /*memory_format=*/noneConst);
-        Value lbTenTensor = b.create<Torch::AtenFillScalarOp>(
-            freqBinsFltType, lbClone, tenConst);
-        Value lbPow = b.create<Torch::AtenPowTensorTensorOp>(
-            freqBinsFltType, lbTenTensor, lbDiv);
-        Value lbPowSubOne = b.create<Torch::AtenSubScalarOp>(
-            freqBinsFltType, lbPow, oneConst, /*alpha=*/oneConst);
-        Value lowBinsHz = b.create<Torch::AtenMulScalarOp>(
-            freqBinsFltType, lbPowSubOne, sevenHConst);
+        Value lowBinsMulMelStep = Torch::AtenMulTensorOp::create(
+            b, freqBinsFltType, lowBinsInit, melStep);
+        Value lowBinsScaled = Torch::AtenAddTensorOp::create(
+            b, freqBinsFltType, lowBinsMulMelStep, lfMel, /*alpha=*/oneConst);
+        Value lbDiv = Torch::AtenDivScalarOp::create(
+            b, freqBinsFltType, lowBinsScaled, twoFiveNineFiveConst);
+        Value lbClone = Torch::AtenCloneOp::create(
+            b, freqBinsFltType, lowBinsScaled, /*memory_format=*/noneConst);
+        Value lbTenTensor = Torch::AtenFillScalarOp::create(b, freqBinsFltType,
+                                                            lbClone, tenConst);
+        Value lbPow = Torch::AtenPowTensorTensorOp::create(b, freqBinsFltType,
+                                                           lbTenTensor, lbDiv);
+        Value lbPowSubOne = Torch::AtenSubScalarOp::create(
+            b, freqBinsFltType, lbPow, oneConst, /*alpha=*/oneConst);
+        Value lowBinsHz = Torch::AtenMulScalarOp::create(
+            b, freqBinsFltType, lbPowSubOne, sevenHConst);
         // Normalize freqBinsHz
-        Value lbMulDft = b.create<Torch::AtenMulScalarOp>(
-            freqBinsFltType, lowBinsHz, dftLenPlusOneItem);
-        Value lowBinsNormalized = b.create<Torch::AtenDivScalarOp>(
-            freqBinsFltType, lbMulDft, sampleRateItem);
+        Value lbMulDft = Torch::AtenMulScalarOp::create(
+            b, freqBinsFltType, lowBinsHz, dftLenPlusOneItem);
+        Value lowBinsNormalized = Torch::AtenDivScalarOp::create(
+            b, freqBinsFltType, lbMulDft, sampleRateItem);
         // cast to int32
-        Value lowBinsInt = b.create<Torch::AtenToDtypeOp>(
-            freqBinsIntType, lowBinsNormalized, /*dtype=*/int32DTypeConst,
+        Value lowBinsInt = Torch::AtenToDtypeOp::create(
+            b, freqBinsIntType, lowBinsNormalized, /*dtype=*/int32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
-        Value lowBins = b.create<Torch::AtenUnsqueezeOp>(
-            unsqueezeBinsResType, lowBinsInt, /*dim=*/zeroConst);
+        Value lowBins = Torch::AtenUnsqueezeOp::create(
+            b, unsqueezeBinsResType, lowBinsInt, /*dim=*/zeroConst);
 
         // Center bins mel to hz
-        Value centerBinsInitInc = b.create<Torch::AtenAddScalarOp>(
-            freqBinsIntType, centerBinsInit, oneConst, /*alpha=*/oneConst);
-        Value centerBinsMulMelStep = b.create<Torch::AtenMulTensorOp>(
-            freqBinsFltType, centerBinsInitInc, melStep);
-        Value centerBinsScaled = b.create<Torch::AtenAddTensorOp>(
-            freqBinsFltType, centerBinsMulMelStep, lfMel, /*alpha=*/oneConst);
-        Value cbDiv = b.create<Torch::AtenDivScalarOp>(
-            freqBinsFltType, centerBinsScaled, twoFiveNineFiveConst);
-        Value cbClone = b.create<Torch::AtenCloneOp>(
-            freqBinsFltType, centerBinsScaled, /*memory_format=*/noneConst);
-        Value cbTenTensor = b.create<Torch::AtenFillScalarOp>(
-            freqBinsFltType, cbClone, tenConst);
-        Value cbPow = b.create<Torch::AtenPowTensorTensorOp>(
-            freqBinsFltType, cbTenTensor, cbDiv);
-        Value cbPowSubOne = b.create<Torch::AtenSubScalarOp>(
-            freqBinsFltType, cbPow, oneConst, /*alpha=*/oneConst);
-        Value centerBinsHz = b.create<Torch::AtenMulScalarOp>(
-            freqBinsFltType, cbPowSubOne, sevenHConst);
+        Value centerBinsInitInc = Torch::AtenAddScalarOp::create(
+            b, freqBinsIntType, centerBinsInit, oneConst, /*alpha=*/oneConst);
+        Value centerBinsMulMelStep = Torch::AtenMulTensorOp::create(
+            b, freqBinsFltType, centerBinsInitInc, melStep);
+        Value centerBinsScaled = Torch::AtenAddTensorOp::create(
+            b, freqBinsFltType, centerBinsMulMelStep, lfMel,
+            /*alpha=*/oneConst);
+        Value cbDiv = Torch::AtenDivScalarOp::create(
+            b, freqBinsFltType, centerBinsScaled, twoFiveNineFiveConst);
+        Value cbClone = Torch::AtenCloneOp::create(
+            b, freqBinsFltType, centerBinsScaled, /*memory_format=*/noneConst);
+        Value cbTenTensor = Torch::AtenFillScalarOp::create(b, freqBinsFltType,
+                                                            cbClone, tenConst);
+        Value cbPow = Torch::AtenPowTensorTensorOp::create(b, freqBinsFltType,
+                                                           cbTenTensor, cbDiv);
+        Value cbPowSubOne = Torch::AtenSubScalarOp::create(
+            b, freqBinsFltType, cbPow, oneConst, /*alpha=*/oneConst);
+        Value centerBinsHz = Torch::AtenMulScalarOp::create(
+            b, freqBinsFltType, cbPowSubOne, sevenHConst);
         // Normalize freqBinsHz
-        Value cbMulDft = b.create<Torch::AtenMulScalarOp>(
-            freqBinsFltType, centerBinsHz, dftLenPlusOneItem);
-        Value centerBinsNormalized = b.create<Torch::AtenDivScalarOp>(
-            freqBinsFltType, cbMulDft, sampleRateItem);
+        Value cbMulDft = Torch::AtenMulScalarOp::create(
+            b, freqBinsFltType, centerBinsHz, dftLenPlusOneItem);
+        Value centerBinsNormalized = Torch::AtenDivScalarOp::create(
+            b, freqBinsFltType, cbMulDft, sampleRateItem);
         // cast to int32
-        Value centerBinsInt = b.create<Torch::AtenToDtypeOp>(
-            freqBinsIntType, centerBinsNormalized, /*dtype=*/int32DTypeConst,
+        Value centerBinsInt = Torch::AtenToDtypeOp::create(
+            b, freqBinsIntType, centerBinsNormalized, /*dtype=*/int32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
-        Value centerBins = b.create<Torch::AtenUnsqueezeOp>(
-            unsqueezeBinsResType, centerBinsInt, /*dim=*/zeroConst);
+        Value centerBins = Torch::AtenUnsqueezeOp::create(
+            b, unsqueezeBinsResType, centerBinsInt, /*dim=*/zeroConst);
 
         // High bins mel to hz
-        Value highBinsInitInc = b.create<Torch::AtenAddScalarOp>(
-            freqBinsIntType, highBinsInit, twoConst, /*alpha=*/oneConst);
-        Value highBinsMulMelStep = b.create<Torch::AtenMulTensorOp>(
-            freqBinsFltType, highBinsInitInc, melStep);
-        Value highBinsScaled = b.create<Torch::AtenAddTensorOp>(
-            freqBinsFltType, highBinsMulMelStep, lfMel, /*alpha=*/oneConst);
-        Value hbDiv = b.create<Torch::AtenDivScalarOp>(
-            freqBinsFltType, highBinsScaled, twoFiveNineFiveConst);
-        Value hbClone = b.create<Torch::AtenCloneOp>(
-            freqBinsFltType, highBinsScaled, /*memory_format=*/noneConst);
-        Value hbTenTensor = b.create<Torch::AtenFillScalarOp>(
-            freqBinsFltType, hbClone, tenConst);
-        Value hbPow = b.create<Torch::AtenPowTensorTensorOp>(
-            freqBinsFltType, hbTenTensor, hbDiv);
-        Value hbPowSubOne = b.create<Torch::AtenSubScalarOp>(
-            freqBinsFltType, hbPow, oneConst, /*alpha=*/oneConst);
-        Value highBinsHz = b.create<Torch::AtenMulScalarOp>(
-            freqBinsFltType, hbPowSubOne, sevenHConst);
+        Value highBinsInitInc = Torch::AtenAddScalarOp::create(
+            b, freqBinsIntType, highBinsInit, twoConst, /*alpha=*/oneConst);
+        Value highBinsMulMelStep = Torch::AtenMulTensorOp::create(
+            b, freqBinsFltType, highBinsInitInc, melStep);
+        Value highBinsScaled = Torch::AtenAddTensorOp::create(
+            b, freqBinsFltType, highBinsMulMelStep, lfMel, /*alpha=*/oneConst);
+        Value hbDiv = Torch::AtenDivScalarOp::create(
+            b, freqBinsFltType, highBinsScaled, twoFiveNineFiveConst);
+        Value hbClone = Torch::AtenCloneOp::create(
+            b, freqBinsFltType, highBinsScaled, /*memory_format=*/noneConst);
+        Value hbTenTensor = Torch::AtenFillScalarOp::create(b, freqBinsFltType,
+                                                            hbClone, tenConst);
+        Value hbPow = Torch::AtenPowTensorTensorOp::create(b, freqBinsFltType,
+                                                           hbTenTensor, hbDiv);
+        Value hbPowSubOne = Torch::AtenSubScalarOp::create(
+            b, freqBinsFltType, hbPow, oneConst, /*alpha=*/oneConst);
+        Value highBinsHz = Torch::AtenMulScalarOp::create(
+            b, freqBinsFltType, hbPowSubOne, sevenHConst);
         // Normalize freqBinsHz
-        Value hbMulDft = b.create<Torch::AtenMulScalarOp>(
-            freqBinsFltType, highBinsHz, dftLenPlusOneItem);
-        Value highBinsNormalized = b.create<Torch::AtenDivScalarOp>(
-            freqBinsFltType, hbMulDft, sampleRateItem);
+        Value hbMulDft = Torch::AtenMulScalarOp::create(
+            b, freqBinsFltType, highBinsHz, dftLenPlusOneItem);
+        Value highBinsNormalized = Torch::AtenDivScalarOp::create(
+            b, freqBinsFltType, hbMulDft, sampleRateItem);
         // cast to int32
-        Value highBinsInt = b.create<Torch::AtenToDtypeOp>(
-            freqBinsIntType, highBinsNormalized, /*dtype=*/int32DTypeConst,
+        Value highBinsInt = Torch::AtenToDtypeOp::create(
+            b, freqBinsIntType, highBinsNormalized, /*dtype=*/int32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
-        Value highBins = b.create<Torch::AtenUnsqueezeOp>(
-            unsqueezeBinsResType, highBinsInt, /*dim=*/zeroConst);
+        Value highBins = Torch::AtenUnsqueezeOp::create(
+            b, unsqueezeBinsResType, highBinsInt, /*dim=*/zeroConst);
 
         Type iotaInitType = inputIntType.getWithSizesAndDtype(shapeNSB, si32Ty);
-        Value iotaInit = b.create<Torch::AtenArangeOp>(
-            iotaInitType, numSpectrogramBinsItem,
+        Value iotaInit = Torch::AtenArangeOp::create(
+            b, iotaInitType, numSpectrogramBinsItem,
             /*dtype=*/int32DTypeConst,
             /*layout=*/noneConst, /*device=*/noneConst,
             /*pin_memory=*/noneConst);
 
         Torch::ValueTensorType unsqueezeIotaResType =
             Torch::ValueTensorType::get(ctx, shapeNSBx1, si32Ty);
-        Value iota = b.create<Torch::AtenUnsqueezeOp>(
-            unsqueezeIotaResType, iotaInit, /*dim=*/oneConst);
+        Value iota = Torch::AtenUnsqueezeOp::create(b, unsqueezeIotaResType,
+                                                    iotaInit, /*dim=*/oneConst);
 
-        Value lowToCenter = b.create<Torch::AtenSubTensorOp>(
-            unsqueezeBinsResType, centerBins, lowBins, /*alpha=*/oneConst);
-        Value centerToHigh = b.create<Torch::AtenSubTensorOp>(
-            unsqueezeBinsResType, highBins, centerBins, /*alpha=*/oneConst);
+        Value lowToCenter = Torch::AtenSubTensorOp::create(
+            b, unsqueezeBinsResType, centerBins, lowBins, /*alpha=*/oneConst);
+        Value centerToHigh = Torch::AtenSubTensorOp::create(
+            b, unsqueezeBinsResType, highBins, centerBins, /*alpha=*/oneConst);
 
         Value oneConstTensor = Torch::createRank0Tensor(
             rewriter, binder.getLoc(),
             Torch::ValueTensorType::get(ctx, std::nullopt, f32Ty), oneConst);
 
         Type scaledType = inputIntType.getWithSizesAndDtype(shape1xNMB, f32Ty);
-        Value upscaleInit = b.create<Torch::AtenMaximumOp>(
-            unsqueezeBinsResType, oneConstTensor, lowToCenter);
-        Value upscale = b.create<Torch::AtenToDtypeOp>(
-            scaledType, upscaleInit, /*dtype=*/float32DTypeConst,
+        Value upscaleInit = Torch::AtenMaximumOp::create(
+            b, unsqueezeBinsResType, oneConstTensor, lowToCenter);
+        Value upscale = Torch::AtenToDtypeOp::create(
+            b, scaledType, upscaleInit, /*dtype=*/float32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
 
-        Value downscaleInit = b.create<Torch::AtenMaximumOp>(
-            unsqueezeBinsResType, oneConstTensor, centerToHigh);
-        Value downscale = b.create<Torch::AtenToDtypeOp>(
-            scaledType, downscaleInit, /*dtype=*/float32DTypeConst,
+        Value downscaleInit = Torch::AtenMaximumOp::create(
+            b, unsqueezeBinsResType, oneConstTensor, centerToHigh);
+        Value downscale = Torch::AtenToDtypeOp::create(
+            b, scaledType, downscaleInit, /*dtype=*/float32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
 
@@ -931,23 +939,23 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Torch::ValueTensorType diffFloatType =
             Torch::ValueTensorType::get(ctx, shapeNSBxNMB, f32Ty);
 
-        Value iotaSubLBInt = b.create<Torch::AtenSubTensorOp>(
-            binsDiffType, iota, lowBins, /*alpha=*/oneConst);
-        Value iotaSubLB = b.create<Torch::AtenToDtypeOp>(
-            diffFloatType, iotaSubLBInt, /*dtype=*/float32DTypeConst,
+        Value iotaSubLBInt = Torch::AtenSubTensorOp::create(
+            b, binsDiffType, iota, lowBins, /*alpha=*/oneConst);
+        Value iotaSubLB = Torch::AtenToDtypeOp::create(
+            b, diffFloatType, iotaSubLBInt, /*dtype=*/float32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
-        Value rampUp =
-            b.create<Torch::AtenDivTensorOp>(diffFloatType, iotaSubLB, upscale);
+        Value rampUp = Torch::AtenDivTensorOp::create(b, diffFloatType,
+                                                      iotaSubLB, upscale);
 
-        Value hbSubIotaInt = b.create<Torch::AtenSubTensorOp>(
-            binsDiffType, highBins, iota, /*alpha=*/oneConst);
-        Value hbSubIota = b.create<Torch::AtenToDtypeOp>(
-            diffFloatType, hbSubIotaInt, /*dtype=*/float32DTypeConst,
+        Value hbSubIotaInt = Torch::AtenSubTensorOp::create(
+            b, binsDiffType, highBins, iota, /*alpha=*/oneConst);
+        Value hbSubIota = Torch::AtenToDtypeOp::create(
+            b, diffFloatType, hbSubIotaInt, /*dtype=*/float32DTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
-        Value rampDown = b.create<Torch::AtenDivTensorOp>(diffFloatType,
-                                                          hbSubIota, downscale);
+        Value rampDown = Torch::AtenDivTensorOp::create(b, diffFloatType,
+                                                        hbSubIota, downscale);
 
         // ramp values
         Type iotaCmpBinsType =
@@ -955,38 +963,38 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // Iota Cmp Bins
         Value iotaGtEqCBins =
-            b.create<Torch::AtenGeTensorOp>(iotaCmpBinsType, iota, centerBins);
+            Torch::AtenGeTensorOp::create(b, iotaCmpBinsType, iota, centerBins);
         Value iotaEqCBins =
-            b.create<Torch::AtenEqTensorOp>(iotaCmpBinsType, iota, centerBins);
+            Torch::AtenEqTensorOp::create(b, iotaCmpBinsType, iota, centerBins);
         Value iotaLtLBins =
-            b.create<Torch::AtenLtTensorOp>(iotaCmpBinsType, iota, lowBins);
+            Torch::AtenLtTensorOp::create(b, iotaCmpBinsType, iota, lowBins);
         Value iotaGtLBins =
-            b.create<Torch::AtenGtTensorOp>(iotaCmpBinsType, iota, highBins);
+            Torch::AtenGtTensorOp::create(b, iotaCmpBinsType, iota, highBins);
 
         // Create output freq ramps Low-Center-High
         Type rampInitType =
             inputIntType.getWithSizesAndDtype(shapeNSBxNMB, f32Ty);
-        Value rampInit = b.create<Torch::AtenWhereSelfOp>(
-            rampInitType, iotaGtEqCBins, rampDown, rampUp);
-        Value rampInitLt = b.create<Torch::AtenWhereScalarSelfOp>(
-            rampInitType, iotaLtLBins, zeroConst, rampInit);
-        Value rampInitLtGt = b.create<Torch::AtenWhereScalarSelfOp>(
-            rampInitType, iotaGtLBins, zeroConst, rampInitLt);
+        Value rampInit = Torch::AtenWhereSelfOp::create(
+            b, rampInitType, iotaGtEqCBins, rampDown, rampUp);
+        Value rampInitLt = Torch::AtenWhereScalarSelfOp::create(
+            b, rampInitType, iotaLtLBins, zeroConst, rampInit);
+        Value rampInitLtGt = Torch::AtenWhereScalarSelfOp::create(
+            b, rampInitType, iotaGtLBins, zeroConst, rampInitLt);
 
         Type C2HCmpBinsType =
             inputIntType.getWithSizesAndDtype(shape1xNMB, i1Ty);
-        Value C2HEqZero = b.create<Torch::AtenEqScalarOp>(
-            C2HCmpBinsType, centerToHigh, zeroConst);
-        Value cornerCases = b.create<Torch::AtenLogicalAndOp>(
-            iotaCmpBinsType, iotaEqCBins, C2HEqZero);
-        Value rampOutput = b.create<Torch::AtenWhereScalarSelfOp>(
-            rampInitType, cornerCases, oneFltConst, rampInitLtGt);
+        Value C2HEqZero = Torch::AtenEqScalarOp::create(
+            b, C2HCmpBinsType, centerToHigh, zeroConst);
+        Value cornerCases = Torch::AtenLogicalAndOp::create(
+            b, iotaCmpBinsType, iotaEqCBins, C2HEqZero);
+        Value rampOutput = Torch::AtenWhereScalarSelfOp::create(
+            b, rampInitType, cornerCases, oneFltConst, rampInitLtGt);
 
-        Value outputDTypeConst = b.create<Torch::ConstantIntOp>(
-            rewriter.getType<Torch::IntType>(),
+        Value outputDTypeConst = Torch::ConstantIntOp::create(
+            b, rewriter.getType<Torch::IntType>(),
             rewriter.getI64IntegerAttr(torchDTypeInt.value()));
-        Value finalOutput = b.create<Torch::AtenToDtypeOp>(
-            resultType, rampOutput, /*dtype=*/outputDTypeConst,
+        Value finalOutput = Torch::AtenToDtypeOp::create(
+            b, resultType, rampOutput, /*dtype=*/outputDTypeConst,
             /*non_blocking=*/falseConst, /*copy=*/falseConst,
             /*memory_format=*/noneConst);
 
@@ -1027,16 +1035,17 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               "unimplemented support for the given dtype conversion");
         }
 
-        Value torchDtypeIntValue = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(torchDtype.value()));
-        Value numSamples = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(sampleSize));
+        Value torchDtypeIntValue = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(),
+            rewriter.getI64IntegerAttr(torchDtype.value()));
+        Value numSamples = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(sampleSize));
 
         // PRG is seeded globally by default
-        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value none = Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
         // Sample with replacement by default (no onnx equivalent in arguments)
-        Value cstTrue = rewriter.create<Torch::ConstantBoolOp>(
-            binder.getLoc(), rewriter.getBoolAttr(true));
+        Value cstTrue = Torch::ConstantBoolOp::create(
+            rewriter, binder.getLoc(), rewriter.getBoolAttr(true));
 
         // Torch Multinomial always produces a LongTensor
         Torch::ValueTensorType selfType =
@@ -1048,12 +1057,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Torch::ValueTensorType multinomialOutputType =
             Torch::ValueTensorType::get(selfType.getContext(), outShapes,
                                         int64Dtype);
-        Value multinomialTensor = rewriter.create<Torch::AtenMultinomialOp>(
-            binder.getLoc(), multinomialOutputType, self, numSamples, cstTrue,
-            none);
+        Value multinomialTensor = Torch::AtenMultinomialOp::create(
+            rewriter, binder.getLoc(), multinomialOutputType, self, numSamples,
+            cstTrue, none);
 
-        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
-            binder.getLoc(), rewriter.getBoolAttr(false));
+        Value cstFalse = Torch::ConstantBoolOp::create(
+            rewriter, binder.getLoc(), rewriter.getBoolAttr(false));
         rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
             binder.op, resultType, multinomialTensor, torchDtypeIntValue,
             cstFalse, cstFalse, none);
@@ -1078,22 +1087,23 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // optional third tensor argument
         if (binder.tensorOperandAtIndex(weight, 2)) {
-          weight = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+          weight = Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
         }
 
-        ignore_index = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(ignore_index_int));
+        ignore_index = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(),
+            rewriter.getI64IntegerAttr(ignore_index_int));
 
         // convert string reduction attr to standardized integer enum value
         int reduction_value =
             torch_upstream::get_loss_reduction_enum(reduction_str);
-        reduction = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(reduction_value));
+        reduction = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(),
+            rewriter.getI64IntegerAttr(reduction_value));
 
-        Value nllLoss = rewriter
-                            .create<Torch::AtenNllLossForwardOp>(
-                                binder.getLoc(), resultType, resultType, self,
-                                target, weight, reduction, ignore_index)
+        Value nllLoss = Torch::AtenNllLossForwardOp::create(
+                            rewriter, binder.getLoc(), resultType, resultType,
+                            self, target, weight, reduction, ignore_index)
                             ->getResult(0);
 
         rewriter.replaceOp(binder.op, nllLoss);
@@ -1107,18 +1117,18 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType)) {
           return failure();
         }
-        Value zero = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        Value zero = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
-        Value one = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        Value one = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
         auto rawSize = resultType.getSizes();
         SmallVector<int64_t> torchResultSize(rawSize.rbegin(), rawSize.rend());
         auto torchResultType = rewriter.getType<Torch::ValueTensorType>(
             torchResultSize, resultType.getDtype());
-        auto nonZero = rewriter.create<Torch::AtenNonzeroOp>(
-            binder.getLoc(), torchResultType, operand);
+        auto nonZero = Torch::AtenNonzeroOp::create(rewriter, binder.getLoc(),
+                                                    torchResultType, operand);
         // The output tensor has a shape of ((n, z)), where (n) is the
         // number of dimensions in the input tensor and (z) is the
         // number of non-zero elements2. This is different from
@@ -1244,21 +1254,22 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               createConstantIntList(binder, rewriter, shuffledPadding);
           Value zero;
           if (isa<FloatType>(resultTypeOut.getDtype())) {
-            zero = rewriter.create<Torch::ConstantFloatOp>(
-                binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            zero = Torch::ConstantFloatOp::create(
+                rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
                 rewriter.getF64FloatAttr(
                     std::numeric_limits<double>::lowest()));
           } else if (isa<IntegerType>(resultTypeOut.getDtype())) {
-            zero = rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getI64IntegerAttr(
-                                     std::numeric_limits<int64_t>::lowest()));
+            zero = Torch::ConstantIntOp::create(
+                rewriter, binder.getLoc(),
+                rewriter.getI64IntegerAttr(
+                    std::numeric_limits<int64_t>::lowest()));
           }
 
           auto paddedInputTy = rewriter.getType<Torch::ValueTensorType>(
               paddedShape, operandTy.getDtype());
-          operand = rewriter.create<Torch::AtenConstantPadNdOp>(
-              binder.getLoc(), paddedInputTy, operand, shuffledPaddingList,
-              zero);
+          operand = Torch::AtenConstantPadNdOp::create(
+              rewriter, binder.getLoc(), paddedInputTy, operand,
+              shuffledPaddingList, zero);
           padding.clear();
           padding.resize(spatial, 0);
         }
@@ -1269,7 +1280,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value dilationsList =
             createConstantIntList(binder, rewriter, dilations);
         Value cstCeilMode =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), ceilMode);
+            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), ceilMode);
 
         if (binder.op->getNumResults() == 2) {
           Torch::ValueTensorType resultTypeIndices;
@@ -1353,11 +1364,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         auto floatTy = roisTy.getDtype();
         auto torchIntTy = rewriter.getType<Torch::IntType>();
 
-        Value spatialScaleValue = rewriter.create<Torch::ConstantFloatOp>(
-            loc, rewriter.getF64FloatAttr(spatialScale));
+        Value spatialScaleValue = Torch::ConstantFloatOp::create(
+            rewriter, loc, rewriter.getF64FloatAttr(spatialScale));
 
-        Value boolTrue = rewriter.create<Torch::ConstantBoolOp>(
-            loc, rewriter.getBoolAttr(true));
+        Value boolTrue = Torch::ConstantBoolOp::create(
+            rewriter, loc, rewriter.getBoolAttr(true));
 
         ArrayRef<int64_t> inputShape = inputTy.getSizes();
         int64_t inputRank = inputShape.size();
@@ -1431,53 +1442,53 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         SmallVector<Value> constInts(6);
         for (int i = 0; i <= 5; i++) {
-          constInts[i] = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(i));
+          constInts[i] = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(i));
         }
 
         int64_t widthDim = inputRank - 2;
-        Value widthDimValue = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(widthDim));
+        Value widthDimValue = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(widthDim));
 
         int64_t heightDim = inputRank - 3;
-        Value heightDimValue = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(heightDim));
+        Value heightDimValue = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(heightDim));
 
         // extract indices of images within batch
         auto batchIdxsShape = SmallVector<int64_t>{Torch::kUnknownSize};
         auto batchIdxsFloatTy =
             rewriter.getType<Torch::ValueTensorType>(batchIdxsShape, floatTy);
-        Value batchIdxsFloat = rewriter.create<Torch::AtenSelectIntOp>(
-            loc, batchIdxsFloatTy, rois, constInts[1], constInts[0]);
+        Value batchIdxsFloat = Torch::AtenSelectIntOp::create(
+            rewriter, loc, batchIdxsFloatTy, rois, constInts[1], constInts[0]);
         auto batchIdxsIntTy =
             rewriter.getType<Torch::ValueTensorType>(batchIdxsShape, intTy);
-        Value batchIdxs = rewriter.create<Torch::Aten_CastLongOp>(
-            loc, batchIdxsIntTy, batchIdxsFloat, boolTrue);
+        Value batchIdxs = Torch::Aten_CastLongOp::create(
+            rewriter, loc, batchIdxsIntTy, batchIdxsFloat, boolTrue);
 
         // extract scaled ranges for regions of interest
         auto roiBBsShape = SmallVector<int64_t>{Torch::kUnknownSize, 4};
         auto roiBBsFloatTy =
             rewriter.getType<Torch::ValueTensorType>(roiBBsShape, floatTy);
-        Value roiBBs = rewriter.create<Torch::AtenSliceTensorOp>(
-            loc, roiBBsFloatTy, rois, constInts[1], constInts[1], constInts[5],
-            constInts[1]);
-        Value roiBBsScaledFloat = rewriter.create<Torch::AtenMulScalarOp>(
-            loc, roiBBsFloatTy, roiBBs, spatialScaleValue);
+        Value roiBBs = Torch::AtenSliceTensorOp::create(
+            rewriter, loc, roiBBsFloatTy, rois, constInts[1], constInts[1],
+            constInts[5], constInts[1]);
+        Value roiBBsScaledFloat = Torch::AtenMulScalarOp::create(
+            rewriter, loc, roiBBsFloatTy, roiBBs, spatialScaleValue);
         auto roiBBsTy =
             rewriter.getType<Torch::ValueTensorType>(roiBBsShape, intTy);
-        Value roiBBsScaled = rewriter.create<Torch::Aten_CastLongOp>(
-            loc, roiBBsTy, roiBBsScaledFloat, boolTrue);
+        Value roiBBsScaled = Torch::Aten_CastLongOp::create(
+            rewriter, loc, roiBBsTy, roiBBsScaledFloat, boolTrue);
 
         SmallVector<Value> pooledRois;
 
         for (int64_t i = 0; i < numRois; i++) {
-          Value roiIdx = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(i));
+          Value roiIdx = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(i));
 
           auto roiSpecTy = rewriter.getType<Torch::ValueTensorType>(
               roiBBsTy.getSizes().slice(1), intTy);
-          Value roiSpec = rewriter.create<Torch::AtenSelectIntOp>(
-              loc, roiSpecTy, roiBBsScaled, constInts[0], roiIdx);
+          Value roiSpec = Torch::AtenSelectIntOp::create(
+              rewriter, loc, roiSpecTy, roiBBsScaled, constInts[0], roiIdx);
 
           // Load individual ROI specification values
           SmallVector<Value> roiValues(5);
@@ -1486,15 +1497,16 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                 SmallVector<int64_t>{}, intTy);
             Value specTensor;
             if (specIdx == 0) { // batch index
-              specTensor = rewriter.create<Torch::AtenSelectIntOp>(
-                  loc, intEmptyTensorTy, batchIdxs, constInts[0], roiIdx);
+              specTensor = Torch::AtenSelectIntOp::create(
+                  rewriter, loc, intEmptyTensorTy, batchIdxs, constInts[0],
+                  roiIdx);
             } else { // roi dimension
-              specTensor = rewriter.create<Torch::AtenSelectIntOp>(
-                  loc, intEmptyTensorTy, roiSpec, constInts[0],
+              specTensor = Torch::AtenSelectIntOp::create(
+                  rewriter, loc, intEmptyTensorTy, roiSpec, constInts[0],
                   constInts[specIdx - 1]);
             }
-            Value specValue =
-                rewriter.create<Torch::AtenItemOp>(loc, torchIntTy, specTensor);
+            Value specValue = Torch::AtenItemOp::create(rewriter, loc,
+                                                        torchIntTy, specTensor);
             roiValues[specIdx] = specValue;
           }
           Value batchIdx = roiValues[0], roiX1 = roiValues[1],
@@ -1502,15 +1514,16 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                 roiY2 = roiValues[4];
 
           // add 1 to make range ends inclusive as per ONNX implementation
-          roiX2 = rewriter.create<Torch::AtenAddOp>(loc, torchIntTy, roiX2,
-                                                    constInts[1]);
-          roiY2 = rewriter.create<Torch::AtenAddOp>(loc, torchIntTy, roiY2,
-                                                    constInts[1]);
+          roiX2 = Torch::AtenAddOp::create(rewriter, loc, torchIntTy, roiX2,
+                                           constInts[1]);
+          roiY2 = Torch::AtenAddOp::create(rewriter, loc, torchIntTy, roiY2,
+                                           constInts[1]);
 
           auto imageTy = rewriter.getType<Torch::ValueTensorType>(
               inputShape.slice(1), inputTy.getDtype());
-          Value image = rewriter.create<Torch::AtenSelectIntOp>(
-              loc, imageTy, input, constInts[0], batchIdx); // (NC x H x W)
+          Value image = Torch::AtenSelectIntOp::create(
+              rewriter, loc, imageTy, input, constInts[0],
+              batchIdx); // (NC x H x W)
 
           SmallVector<int64_t> imageUnknownShape(imageTy.getSizes());
           imageUnknownShape[heightDim] = Torch::kUnknownSize;
@@ -1519,12 +1532,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               imageUnknownShape, imageTy.getDtype());
 
           // extract ROI from image
-          Value imageExtractedY = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, imageUnknownTy, image, heightDimValue, roiY1, roiY2,
-              constInts[1]);
-          Value region = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, imageUnknownTy, imageExtractedY, widthDimValue, roiX1, roiX2,
-              constInts[1]);
+          Value imageExtractedY = Torch::AtenSliceTensorOp::create(
+              rewriter, loc, imageUnknownTy, image, heightDimValue, roiY1,
+              roiY2, constInts[1]);
+          Value region = Torch::AtenSliceTensorOp::create(
+              rewriter, loc, imageUnknownTy, imageExtractedY, widthDimValue,
+              roiX1, roiX2, constInts[1]);
 
           SmallVector<int64_t> pooledRegionShape(imageTy.getSizes());
           pooledRegionShape[heightDim] = pooledShape[0];
@@ -1536,16 +1549,16 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
           // apply pooling on ROI
           Value pooledRegion =
-              rewriter
-                  .create<Torch::AtenAdaptiveMaxPool2dOp>(
-                      loc, pooledRegionTy, pooledRegionIndicesTy, region,
-                      outputShapeList)
+              Torch::AtenAdaptiveMaxPool2dOp::create(
+                  rewriter, loc, pooledRegionTy, pooledRegionIndicesTy, region,
+                  outputShapeList)
                   .getResult0();
           pooledRois.push_back(pooledRegion);
         }
 
-        Value pooledRoisList = rewriter.create<Torch::PrimListConstructOp>(
-            loc, Torch::ListType::get(pooledRois[0].getType()), pooledRois);
+        Value pooledRoisList = Torch::PrimListConstructOp::create(
+            rewriter, loc, Torch::ListType::get(pooledRois[0].getType()),
+            pooledRois);
         rewriter.replaceOpWithNewOp<Torch::AtenStackOp>(
             binder.op, resultTy, pooledRoisList, constInts[0]);
 
@@ -1587,16 +1600,16 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.f32FloatAttr(eps, "epsilon", 1e-05f)) {
           return failure();
         }
-        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value none = Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
         Value boolTrue =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
+            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), true);
         Value boolFalse =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
-        auto epsValue = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getF64FloatAttr(eps));
+            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), false);
+        auto epsValue = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getF64FloatAttr(eps));
 
-        auto momentum = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getF64FloatAttr(0.0f));
+        auto momentum = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getF64FloatAttr(0.0f));
         rewriter.replaceOpWithNewOp<Torch::AtenInstanceNormOp>(
             binder.op, resultType, /* input */ operands[0],
             /* weight */ operands[1],
@@ -1629,9 +1642,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         int64_t inputRank = inputTy.getSizes().size();
 
         Location loc = binder.getLoc();
-        Value keepDim = rewriter.create<Torch::ConstantBoolOp>(loc, true);
-        Value unBiased = rewriter.create<Torch::ConstantBoolOp>(loc, false);
-        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        Value keepDim = Torch::ConstantBoolOp::create(rewriter, loc, true);
+        Value unBiased = Torch::ConstantBoolOp::create(rewriter, loc, false);
+        Value none = Torch::ConstantNoneOp::create(rewriter, loc);
 
         ArrayRef<int64_t> output_shape = resultType.getSizes();
         SmallVector<int64_t> reduced_shape(output_shape);
@@ -1647,29 +1660,29 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             resultType.getContext(), reduced_shape, resultType.getDtype());
         SmallVector<Value> cstAxes;
         for (int64_t i : axes) {
-          cstAxes.push_back(rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(i)));
+          cstAxes.push_back(Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(i)));
         }
-        Value axes_list = rewriter.create<Torch::PrimListConstructOp>(
-            loc,
+        Value axes_list = Torch::PrimListConstructOp::create(
+            rewriter, loc,
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstAxes);
-        Value mean = rewriter.create<Torch::AtenMeanDimOp>(
-            loc, reducedOutTy, input, axes_list, keepDim, none);
-        Value variance = rewriter.create<Torch::AtenVarDimOp>(
-            loc, reducedOutTy, input, axes_list, unBiased, keepDim);
-        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(1));
-        Value cstEps = rewriter.create<Torch::ConstantFloatOp>(
-            loc, rewriter.getF64FloatAttr(1e-9));
-        variance = rewriter.create<Torch::AtenAddScalarOp>(
-            loc, reducedOutTy, variance, cstEps, cstOne);
+        Value mean = Torch::AtenMeanDimOp::create(
+            rewriter, loc, reducedOutTy, input, axes_list, keepDim, none);
+        Value variance = Torch::AtenVarDimOp::create(
+            rewriter, loc, reducedOutTy, input, axes_list, unBiased, keepDim);
+        Value cstOne = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(1));
+        Value cstEps = Torch::ConstantFloatOp::create(
+            rewriter, loc, rewriter.getF64FloatAttr(1e-9));
+        variance = Torch::AtenAddScalarOp::create(rewriter, loc, reducedOutTy,
+                                                  variance, cstEps, cstOne);
         Value sqrtVar =
-            rewriter.create<Torch::AtenSqrtOp>(loc, reducedOutTy, variance);
-        Value inputMinusMean = rewriter.create<Torch::AtenSubTensorOp>(
-            loc, resultType, input, mean, cstOne);
-        Value meanVarNorm = rewriter.create<Torch::AtenDivTensorOp>(
-            loc, resultType, inputMinusMean, sqrtVar);
+            Torch::AtenSqrtOp::create(rewriter, loc, reducedOutTy, variance);
+        Value inputMinusMean = Torch::AtenSubTensorOp::create(
+            rewriter, loc, resultType, input, mean, cstOne);
+        Value meanVarNorm = Torch::AtenDivTensorOp::create(
+            rewriter, loc, resultType, inputMinusMean, sqrtVar);
 
         rewriter.replaceOp(binder.op, meanVarNorm);
         return success();
@@ -1684,8 +1697,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
         Value result = operands[0];
         for (uint64_t i = 1; i < operands.size(); i++) {
-          result = rewriter.create<Torch::AtenMaximumOp>(
-              binder.getLoc(), resultType, result, operands[i]);
+          result = Torch::AtenMaximumOp::create(
+              rewriter, binder.getLoc(), resultType, result, operands[i]);
         }
         rewriter.replaceOp(binder.op, result);
         return success();
@@ -1700,8 +1713,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
         Value result = operands[0];
         for (uint64_t i = 1; i < operands.size(); i++) {
-          result = rewriter.create<Torch::AtenMinimumOp>(
-              binder.getLoc(), resultType, result, operands[i]);
+          result = Torch::AtenMinimumOp::create(
+              rewriter, binder.getLoc(), resultType, result, operands[i]);
         }
         rewriter.replaceOp(binder.op, result);
         return success();
@@ -1736,14 +1749,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           auto ty = rewriter.getType<Torch::ValueTensorType>(
               operandTy.getSizes(), i1ty);
           auto torchqTy = Torch::getScalarTypeForType(i1ty);
-          Value tyConst = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+          Value tyConst = Torch::ConstantIntOp::create(
+              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
               rewriter.getIntegerAttr(rewriter.getIntegerType(64),
                                       static_cast<int64_t>(torchqTy)));
-          Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-          Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
-          operand = rewriter.create<Torch::AtenToDtypeOp>(
-              loc, ty, operand, tyConst,
+          Value none = Torch::ConstantNoneOp::create(rewriter, loc);
+          Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
+          operand = Torch::AtenToDtypeOp::create(
+              rewriter, loc, ty, operand, tyConst,
               /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
               /*memory_format=*/none);
         }
@@ -1809,8 +1822,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         SmallVector<Value> batchDims;
         SmallVector<Value> dataDims;
         for (int64_t i = 0; i < dataRank; ++i) {
-          Value k = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), i);
-          Value dataDim = rewriter.create<Torch::AtenSizeIntOp>(loc, data, k);
+          Value k = Torch::ConstantIntOp::create(rewriter, binder.getLoc(), i);
+          Value dataDim = Torch::AtenSizeIntOp::create(rewriter, loc, data, k);
           dataDims.push_back(dataDim);
           if (i < batchDimCount) {
             batchShape.push_back(dataShape[i]);
@@ -1819,22 +1832,22 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         // step 3. Get dimension list of indices.
-        Value constZero = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(0));
-        Value constOne = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(1));
+        Value constZero = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(0));
+        Value constOne = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(1));
         SmallVector<Value> indicesDimsMinusOne;
         SmallVector<Value> unflattenIndicesDims;
         Value indicesFlattenDim = constOne;
         for (int64_t i = 0; i < indicesRank - 1; ++i) {
-          Value k = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), i);
+          Value k = Torch::ConstantIntOp::create(rewriter, binder.getLoc(), i);
           Value indicesDim =
-              rewriter.create<Torch::AtenSizeIntOp>(loc, indices, k);
+              Torch::AtenSizeIntOp::create(rewriter, loc, indices, k);
           indicesDimsMinusOne.push_back(indicesDim);
           if (i >= batchDimCount) {
             unflattenIndicesDims.push_back(indicesDim);
-            indicesFlattenDim = rewriter.create<Torch::AtenMulIntOp>(
-                loc, indicesFlattenDim, indicesDim);
+            indicesFlattenDim = Torch::AtenMulIntOp::create(
+                rewriter, loc, indicesFlattenDim, indicesDim);
           }
         }
         ArrayRef<int64_t> indicesShapeMinusOne = indicesShape.drop_back();
@@ -1860,8 +1873,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // step 4. Convert indices_shape[-1] dimensional indexing to 1D
         // indexing.
-        Value sliceDim = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(indicesRank - 1));
+        Value sliceDim = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(indicesRank - 1));
         SmallVector<int64_t> indicesSliceShape(indicesShapeMinusOne);
         indicesSliceShape.push_back(1);
         auto indicesSliceTy = rewriter.getType<Torch::ValueTensorType>(
@@ -1870,28 +1883,29 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value start = constZero;
         Value updatedIndices;
         for (int64_t i = 0; i < indicesLastDim; ++i) {
-          Value end = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(i + 1));
-          Value indicesSlice = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, indicesSliceTy, indices, sliceDim, start, end,
+          Value end = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(i + 1));
+          Value indicesSlice = Torch::AtenSliceTensorOp::create(
+              rewriter, loc, indicesSliceTy, indices, sliceDim, start, end,
               /*step=*/constOne);
           start = end;
           // Apply bounds checking on the indices slice.
           auto boolTy = rewriter.getType<Torch::ValueTensorType>(
               indicesSliceShape, rewriter.getI1Type());
-          Value lt = rewriter.create<Torch::AtenLtScalarOp>(
-              loc, boolTy, indicesSlice, constZero);
-          Value add = rewriter.create<Torch::AtenAddScalarOp>(
-              loc, indicesSliceTy, indicesSlice, dataDims[batchDimCount + i],
+          Value lt = Torch::AtenLtScalarOp::create(rewriter, loc, boolTy,
+                                                   indicesSlice, constZero);
+          Value add = Torch::AtenAddScalarOp::create(
+              rewriter, loc, indicesSliceTy, indicesSlice,
+              dataDims[batchDimCount + i],
               /*alpha=*/constOne);
-          indicesSlice = rewriter.create<Torch::AtenWhereSelfOp>(
-              loc, indicesSliceTy, lt, add, indicesSlice);
+          indicesSlice = Torch::AtenWhereSelfOp::create(
+              rewriter, loc, indicesSliceTy, lt, add, indicesSlice);
           if (i == 0) {
             updatedIndices = indicesSlice;
             continue;
           }
-          updatedIndices = rewriter.create<Torch::AtenAddTensorOp>(
-              loc, indicesSliceTy, indicesSlice, updatedIndices,
+          updatedIndices = Torch::AtenAddTensorOp::create(
+              rewriter, loc, indicesSliceTy, indicesSlice, updatedIndices,
               dataDims[batchDimCount + i]);
         }
 
@@ -1942,69 +1956,71 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // data by inserting unit dimensions.
         auto intListTy = rewriter.getType<Torch::ListType>(
             rewriter.getType<Torch::IntType>());
-        Value reshapeIndicesSizeList =
-            rewriter.create<Torch::PrimListConstructOp>(loc, intListTy,
-                                                        reshapeIndicesDims);
+        Value reshapeIndicesSizeList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListTy, reshapeIndicesDims);
         auto reshapeIndicesTy = rewriter.getType<Torch::ValueTensorType>(
             reshapeIndicesShape, indicesTy.getOptionalDtype());
-        Value reshapedIndices = rewriter.create<Torch::AtenViewOp>(
-            loc, reshapeIndicesTy, updatedIndices, reshapeIndicesSizeList);
+        Value reshapedIndices =
+            Torch::AtenViewOp::create(rewriter, loc, reshapeIndicesTy,
+                                      updatedIndices, reshapeIndicesSizeList);
 
         // step 7. Flatten `q-b-1` dimensions of the indices.
         auto flattenIndicesTy = rewriter.getType<Torch::ValueTensorType>(
             flattenIndicesShape, indicesTy.getOptionalDtype());
-        Value batchDimCountVal = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(batchDimCount));
+        Value batchDimCountVal = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(batchDimCount));
         Value flattenedIndices = reshapedIndices;
         if (indicesRank == 1) {
-          flattenedIndices = rewriter.create<Torch::AtenUnsqueezeOp>(
-              loc, flattenIndicesTy, reshapedIndices, constZero);
+          flattenedIndices = Torch::AtenUnsqueezeOp::create(
+              rewriter, loc, flattenIndicesTy, reshapedIndices, constZero);
         } else if (indicesRank > 1) {
           if (batchDimCount > indicesRank - 2) {
-            flattenedIndices = rewriter.create<Torch::AtenUnsqueezeOp>(
-                loc, flattenIndicesTy, reshapedIndices, batchDimCountVal);
+            flattenedIndices = Torch::AtenUnsqueezeOp::create(
+                rewriter, loc, flattenIndicesTy, reshapedIndices,
+                batchDimCountVal);
           } else {
-            Value endDim = rewriter.create<Torch::ConstantIntOp>(
-                loc, rewriter.getI64IntegerAttr(indicesRank - 2));
-            flattenedIndices = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
-                loc, flattenIndicesTy, reshapedIndices, batchDimCountVal,
-                endDim);
+            Value endDim = Torch::ConstantIntOp::create(
+                rewriter, loc, rewriter.getI64IntegerAttr(indicesRank - 2));
+            flattenedIndices = Torch::AtenFlattenUsingIntsOp::create(
+                rewriter, loc, flattenIndicesTy, reshapedIndices,
+                batchDimCountVal, endDim);
           }
         }
 
         // step 8. Expand `r-b-indices_shape[-1]` dims of flattened indices.
         auto expandIndicesTy = rewriter.getType<Torch::ValueTensorType>(
             expandIndicesShape, indicesTy.getOptionalDtype());
-        Value expandIndicesSizeList =
-            rewriter.create<Torch::PrimListConstructOp>(loc, intListTy,
-                                                        expandIndicesDims);
-        Value constFalse = rewriter.create<Torch::ConstantBoolOp>(
-            loc, rewriter.getType<Torch::BoolType>(),
+        Value expandIndicesSizeList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListTy, expandIndicesDims);
+        Value constFalse = Torch::ConstantBoolOp::create(
+            rewriter, loc, rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(false));
-        Value expandedIndices = rewriter.create<Torch::AtenExpandOp>(
-            loc, expandIndicesTy, flattenedIndices, expandIndicesSizeList,
-            /*implicit=*/constFalse);
+        Value expandedIndices =
+            Torch::AtenExpandOp::create(rewriter, loc, expandIndicesTy,
+                                        flattenedIndices, expandIndicesSizeList,
+                                        /*implicit=*/constFalse);
 
         // step 9. Flatten indices_shape[-1] dimensions of data.
         auto flattenDataTy = rewriter.getType<Torch::ValueTensorType>(
             flattenDataShape, dataTy.getOptionalDtype());
-        Value endDim = rewriter.create<Torch::ConstantIntOp>(
-            loc,
+        Value endDim = Torch::ConstantIntOp::create(
+            rewriter, loc,
             rewriter.getI64IntegerAttr(batchDimCount + indicesLastDim - 1));
         Value flattenedData = data;
 
         if (indicesLastDim != 1) {
-          flattenedData = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
-              loc, flattenDataTy, data, batchDimCountVal, endDim);
+          flattenedData = Torch::AtenFlattenUsingIntsOp::create(
+              rewriter, loc, flattenDataTy, data, batchDimCountVal, endDim);
         }
 
         // step 10. Now we have flattenedData and expandedIndices of same rank
         // to perform gather operation.
         auto gatherTy = rewriter.getType<Torch::ValueTensorType>(
             expandIndicesShape, dataTy.getOptionalDtype());
-        Value gather = rewriter.create<Torch::AtenGatherOp>(
-            loc, gatherTy, flattenedData, batchDimCountVal, expandedIndices,
-            /*sparseGrad=*/constFalse);
+        Value gather =
+            Torch::AtenGatherOp::create(rewriter, loc, gatherTy, flattenedData,
+                                        batchDimCountVal, expandedIndices,
+                                        /*sparseGrad=*/constFalse);
 
         // step 11. Unflatten the collapsed indices dims of gather result.
         if (indicesRank == 1) {
@@ -2019,8 +2035,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return success();
         }
 
-        Value unflattenSizeList = rewriter.create<Torch::PrimListConstructOp>(
-            loc, intListTy, unflattenIndicesDims);
+        Value unflattenSizeList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListTy, unflattenIndicesDims);
         rewriter.replaceOpWithNewOp<Torch::AtenUnflattenIntOp>(
             binder.op, resultType, gather, batchDimCountVal, unflattenSizeList);
         return success();
@@ -2046,38 +2062,39 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         int64_t indicesRank = indicesTy.getSizes().size();
         axis = axis < 0 ? axis + dataRank : axis;
 
-        Value index = rewriter.create<Torch::ConstantIntOp>(
-            loc, Torch::IntType::get(ctx), rewriter.getI64IntegerAttr(axis));
+        Value index = Torch::ConstantIntOp::create(
+            rewriter, loc, Torch::IntType::get(ctx),
+            rewriter.getI64IntegerAttr(axis));
 
         // Apply bounds checking on the input:
         auto intTy = rewriter.getType<Torch::IntType>();
         auto boolTy = rewriter.getType<Torch::ValueTensorType>(
             indicesTy.getSizes(), rewriter.getI1Type());
-        Value zero = rewriter.create<Torch::ConstantIntOp>(
-            loc, intTy, rewriter.getI64IntegerAttr(0));
-        Value one = rewriter.create<Torch::ConstantIntOp>(
-            loc, intTy, rewriter.getI64IntegerAttr(1));
+        Value zero = Torch::ConstantIntOp::create(
+            rewriter, loc, intTy, rewriter.getI64IntegerAttr(0));
+        Value one = Torch::ConstantIntOp::create(rewriter, loc, intTy,
+                                                 rewriter.getI64IntegerAttr(1));
         Value lt =
-            rewriter.create<Torch::AtenLtScalarOp>(loc, boolTy, indices, zero);
+            Torch::AtenLtScalarOp::create(rewriter, loc, boolTy, indices, zero);
         Value dim =
-            rewriter.create<Torch::AtenSizeIntOp>(loc, intTy, data, index);
-        Value add = rewriter.create<Torch::AtenAddScalarOp>(loc, indicesTy,
-                                                            indices, dim, one);
-        indices = rewriter.create<Torch::AtenWhereSelfOp>(loc, indicesTy, lt,
-                                                          add, indices);
+            Torch::AtenSizeIntOp::create(rewriter, loc, intTy, data, index);
+        Value add = Torch::AtenAddScalarOp::create(rewriter, loc, indicesTy,
+                                                   indices, dim, one);
+        indices = Torch::AtenWhereSelfOp::create(rewriter, loc, indicesTy, lt,
+                                                 add, indices);
 
         auto intListTy = rewriter.getType<Torch::ListType>(
             rewriter.getType<Torch::IntType>());
 
         llvm::SmallVector<Value> indicesDims;
         for (int i = 0, s = indicesTy.getSizes().size(); i < s; ++i) {
-          Value k = rewriter.create<Torch::ConstantIntOp>(binder.getLoc(), i);
-          indicesDims.push_back(rewriter.create<Torch::AtenSizeIntOp>(
-              binder.getLoc(), indices, k));
+          Value k = Torch::ConstantIntOp::create(rewriter, binder.getLoc(), i);
+          indicesDims.push_back(Torch::AtenSizeIntOp::create(
+              rewriter, binder.getLoc(), indices, k));
         }
 
-        Value indicesSizeList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(), intListTy, indicesDims);
+        Value indicesSizeList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(), intListTy, indicesDims);
 
         // Determine the collapsed dim size:
         auto indicesCt = 1;
@@ -2093,21 +2110,21 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             SmallVector<int64_t>{indicesCt}, indicesTy.getOptionalDtype());
 
         if (indicesRank == 0) {
-          indices = rewriter.create<Torch::AtenUnsqueezeOp>(
-              binder.getLoc(), flattenTy, indices, zero);
+          indices = Torch::AtenUnsqueezeOp::create(rewriter, binder.getLoc(),
+                                                   flattenTy, indices, zero);
         } else if (indicesRank > 1) {
-          Value rank = rewriter.create<Torch::AtenDimOp>(loc, intTy, indices);
-          Value end = rewriter.create<Torch::AtenSubIntOp>(loc, rank, one);
-          indices = rewriter.create<Torch::AtenFlattenUsingIntsOp>(
-              loc, flattenTy, indices, zero, end);
+          Value rank = Torch::AtenDimOp::create(rewriter, loc, intTy, indices);
+          Value end = Torch::AtenSubIntOp::create(rewriter, loc, rank, one);
+          indices = Torch::AtenFlattenUsingIntsOp::create(
+              rewriter, loc, flattenTy, indices, zero, end);
         }
 
         llvm::SmallVector<int64_t> gatherShape(dataTy.getSizes());
         gatherShape[axis] = indicesCt;
         auto gatherTy = rewriter.getType<Torch::ValueTensorType>(
             gatherShape, dataTy.getOptionalDtype());
-        Value gather = rewriter.create<Torch::AtenIndexSelectOp>(
-            loc, gatherTy, data, index, indices);
+        Value gather = Torch::AtenIndexSelectOp::create(rewriter, loc, gatherTy,
+                                                        data, index, indices);
 
         if (indicesRank == 1) {
           rewriter.replaceOp(binder.op, gather);
@@ -2137,29 +2154,29 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType) ||
             binder.s64IntegerAttr(axis, "axis", 0))
           return failure();
-        Value constAxis = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        Value constAxis = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), axis));
 
         auto indicesTy = cast<Torch::ValueTensorType>(indices.getType());
-        Value constZero = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(0));
-        Value constOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
-        Value axisSize = rewriter.create<Torch::AtenSizeIntOp>(binder.getLoc(),
-                                                               data, constAxis);
-        Value indicesAdd = rewriter.create<Torch::AtenAddScalarOp>(
-            binder.getLoc(), indicesTy, indices, axisSize, constOne);
+        Value constZero = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value constOne = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value axisSize = Torch::AtenSizeIntOp::create(rewriter, binder.getLoc(),
+                                                      data, constAxis);
+        Value indicesAdd = Torch::AtenAddScalarOp::create(
+            rewriter, binder.getLoc(), indicesTy, indices, axisSize, constOne);
 
         auto boolTy = rewriter.getType<Torch::ValueTensorType>(
             indicesTy.getSizes(), rewriter.getI1Type());
-        Value lt = rewriter.create<Torch::AtenLtScalarOp>(
-            binder.getLoc(), boolTy, indices, constZero);
-        indices = rewriter.create<Torch::AtenWhereSelfOp>(
-            binder.getLoc(), indicesTy, lt, indicesAdd, indices);
+        Value lt = Torch::AtenLtScalarOp::create(rewriter, binder.getLoc(),
+                                                 boolTy, indices, constZero);
+        indices = Torch::AtenWhereSelfOp::create(
+            rewriter, binder.getLoc(), indicesTy, lt, indicesAdd, indices);
 
-        Value sparseGrad = rewriter.create<Torch::ConstantBoolOp>(
-            binder.getLoc(), rewriter.getType<Torch::BoolType>(),
+        Value sparseGrad = Torch::ConstantBoolOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(false));
         rewriter.replaceOpWithNewOp<Torch::AtenGatherOp>(
             binder.op, resultType, data, constAxis, indices, sparseGrad);
@@ -2180,11 +2197,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType))
           return failure();
 
-        Value zero = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        Value zero = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
-        Value one = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        Value one = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
 
         auto transpose = [&](Value m) -> Value {
@@ -2198,8 +2215,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           }
           auto oty = Torch::ValueTensorType::get(tty.getContext(), shape,
                                                  tty.getOptionalDtype());
-          return rewriter.create<Torch::AtenTransposeIntOp>(binder.getLoc(),
-                                                            oty, m, zero, one);
+          return Torch::AtenTransposeIntOp::create(rewriter, binder.getLoc(),
+                                                   oty, m, zero, one);
         };
 
         if (transA) {
@@ -2220,8 +2237,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(binder.op,
                                              "Expected either 2 or 3 inputs");
 
-        Value mm =
-            rewriter.create<Torch::AtenMmOp>(binder.getLoc(), resultType, a, b);
+        Value mm = Torch::AtenMmOp::create(rewriter, binder.getLoc(),
+                                           resultType, a, b);
         if (alpha == 1.0 && beta == 1.0) {
           rewriter.replaceOpWithNewOp<Torch::AtenAddTensorOp>(
               binder.op, resultType, mm, c, one);
@@ -2229,11 +2246,11 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         if (alpha != 1.0 && beta != 1.0) {
-          Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
-              binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+          Value constAlpha = Torch::ConstantFloatOp::create(
+              rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
               rewriter.getF64FloatAttr(alpha));
-          mm = rewriter.create<Torch::AtenMulScalarOp>(
-              binder.getLoc(), resultType, mm, constAlpha);
+          mm = Torch::AtenMulScalarOp::create(rewriter, binder.getLoc(),
+                                              resultType, mm, constAlpha);
           alpha = 1.0;
         }
 
@@ -2242,8 +2259,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           std::swap(mm, c);
         }
 
-        Value constBeta = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+        Value constBeta = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(beta));
         rewriter.replaceOpWithNewOp<Torch::AtenAddTensorOp>(
             binder.op, resultType, mm, c, constBeta);
@@ -2272,42 +2289,44 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         ArrayRef<int64_t> resultShape = resultType.getSizes();
 
         SmallVector<Value> cstKernel, cstPadding, cstStrides;
-        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(0));
-        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value cstZero = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value cstOne = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(1));
         for (unsigned i = 2; i < inputRank; i++) {
           if (inputShape[i] == Torch::kUnknownSize) {
-            Value dim = rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getI64IntegerAttr(i));
-            Value inputDimSize = rewriter.create<Torch::AtenSizeIntOp>(
-                binder.getLoc(), operand, dim);
+            Value dim = Torch::ConstantIntOp::create(
+                rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(i));
+            Value inputDimSize = Torch::AtenSizeIntOp::create(
+                rewriter, binder.getLoc(), operand, dim);
             cstKernel.push_back(inputDimSize);
           } else {
             int64_t kernelSize = inputShape[i] - resultShape[i] + 1;
-            cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getI64IntegerAttr(kernelSize)));
+            cstKernel.push_back(Torch::ConstantIntOp::create(
+                rewriter, binder.getLoc(),
+                rewriter.getI64IntegerAttr(kernelSize)));
           }
           cstPadding.push_back(cstZero);
           cstStrides.push_back(cstOne);
         }
-        Value kernelSizeList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value kernelSizeList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstKernel);
-        Value paddingList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value paddingList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstPadding);
-        Value stridesList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value stridesList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstStrides);
         Value cstFalse =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), false);
         Value cstCeilMode = cstFalse;
         Value cstCountIncludePad = cstFalse;
-        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstNone =
+            Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
 
         if (inputRank == 3) {
           rewriter.replaceOpWithNewOp<Torch::AtenAvgPool1dOp>(
@@ -2350,43 +2369,44 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.op, "Expected result type having sizes");
         }
         SmallVector<Value> cstKernel, cstPadding, cstStrides, cstDilations;
-        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(0));
-        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value cstZero = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value cstOne = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(1));
         for (unsigned i = 2; i < inputRank; i++) {
           if (inputShape[i] == Torch::kUnknownSize) {
-            Value dim = rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getI64IntegerAttr(i));
-            Value inputDimSize = rewriter.create<Torch::AtenSizeIntOp>(
-                binder.getLoc(), operand, dim);
+            Value dim = Torch::ConstantIntOp::create(
+                rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(i));
+            Value inputDimSize = Torch::AtenSizeIntOp::create(
+                rewriter, binder.getLoc(), operand, dim);
             cstKernel.push_back(inputDimSize);
           } else {
-            cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getI64IntegerAttr(inputShape[i])));
+            cstKernel.push_back(Torch::ConstantIntOp::create(
+                rewriter, binder.getLoc(),
+                rewriter.getI64IntegerAttr(inputShape[i])));
           }
           cstPadding.push_back(cstZero);
           cstDilations.push_back(cstOne);
           cstStrides.push_back(cstOne);
         }
-        Value kernelSizeList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value kernelSizeList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstKernel);
-        Value paddingList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value paddingList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstPadding);
-        Value dilationsList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value dilationsList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstDilations);
-        Value stridesList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value stridesList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstStrides);
         Value cstCeilMode =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), false);
 
         if (inputRank == 3) {
           rewriter.replaceOpWithNewOp<Torch::AtenMaxPool1dOp>(
@@ -2434,72 +2454,73 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         ArrayRef<int64_t> resultShape = resultType.getSizes();
 
         SmallVector<Value> cstKernel, cstPadding, cstStrides;
-        Value cstZero = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(0));
-        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value cstZero = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(0));
+        Value cstOne = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(1));
         Value numElements = cstOne;
         for (unsigned i = 2; i < inputRank; i++) {
           if (inputShape[i] == Torch::kUnknownSize) {
-            Value dim = rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getI64IntegerAttr(i));
-            Value inputDimSize = rewriter.create<Torch::AtenSizeIntOp>(
-                binder.getLoc(), operand, dim);
+            Value dim = Torch::ConstantIntOp::create(
+                rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(i));
+            Value inputDimSize = Torch::AtenSizeIntOp::create(
+                rewriter, binder.getLoc(), operand, dim);
             cstKernel.push_back(inputDimSize);
           } else {
             int64_t kernelSize = inputShape[i] - resultShape[i] + 1;
-            cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
-                binder.getLoc(), rewriter.getI64IntegerAttr(kernelSize)));
+            cstKernel.push_back(Torch::ConstantIntOp::create(
+                rewriter, binder.getLoc(),
+                rewriter.getI64IntegerAttr(kernelSize)));
           }
-          numElements = rewriter.create<Torch::AtenMulOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+          numElements = Torch::AtenMulOp::create(
+              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
               cstKernel.back(), numElements);
           cstPadding.push_back(cstZero);
           cstStrides.push_back(cstOne);
         }
-        Value kernelSizeList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value kernelSizeList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstKernel);
-        Value paddingList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value paddingList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstPadding);
-        Value stridesList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value stridesList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstStrides);
         Value cstFalse =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), false);
         Value cstCeilMode = cstFalse;
         Value cstCountIncludePad = cstFalse;
-        Value abs = rewriter.create<Torch::AtenAbsOp>(binder.getLoc(),
-                                                      inputTensorType, operand);
-        Value pv = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        Value abs = Torch::AtenAbsOp::create(rewriter, binder.getLoc(),
+                                             inputTensorType, operand);
+        Value pv = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), p));
-        Value pow = rewriter.create<Torch::AtenPowTensorScalarOp>(
-            binder.getLoc(), inputTensorType, abs, pv);
+        Value pow = Torch::AtenPowTensorScalarOp::create(
+            rewriter, binder.getLoc(), inputTensorType, abs, pv);
         Value avgPool;
         if (inputRank == 3) {
-          avgPool = rewriter.create<Torch::AtenAvgPool1dOp>(
-              binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
-              paddingList, cstCeilMode, cstCountIncludePad);
-          avgPool = rewriter.create<Torch::AtenMulScalarOp>(
-              binder.getLoc(), resultType, avgPool, numElements);
+          avgPool = Torch::AtenAvgPool1dOp::create(
+              rewriter, binder.getLoc(), resultType, pow, kernelSizeList,
+              stridesList, paddingList, cstCeilMode, cstCountIncludePad);
+          avgPool = Torch::AtenMulScalarOp::create(
+              rewriter, binder.getLoc(), resultType, avgPool, numElements);
         } else if (inputRank == 4) {
-          avgPool = rewriter.create<Torch::AtenAvgPool2dOp>(
-              binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
-              paddingList, cstCeilMode, cstCountIncludePad,
+          avgPool = Torch::AtenAvgPool2dOp::create(
+              rewriter, binder.getLoc(), resultType, pow, kernelSizeList,
+              stridesList, paddingList, cstCeilMode, cstCountIncludePad,
               /*divisor_override=*/cstOne);
         } else { // inputRank == 5
-          avgPool = rewriter.create<Torch::AtenAvgPool3dOp>(
-              binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
-              paddingList, cstCeilMode, cstCountIncludePad,
+          avgPool = Torch::AtenAvgPool3dOp::create(
+              rewriter, binder.getLoc(), resultType, pow, kernelSizeList,
+              stridesList, paddingList, cstCeilMode, cstCountIncludePad,
               /*divisor_override=*/cstOne);
         }
-        Value invP = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+        Value invP = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(double{1.0 / p}));
         rewriter.replaceOpWithNewOp<Torch::AtenPowTensorScalarOp>(
             binder.op, resultType, avgPool, invP);
@@ -2565,57 +2586,57 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         SmallVector<Value> cstKernel, cstPadding, cstStrides;
-        Value cstOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(1));
+        Value cstOne = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(1));
         Value numElements = cstOne;
         for (int64_t i : kernel) {
-          cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(i)));
-          numElements = rewriter.create<Torch::AtenMulOp>(
-              binder.getLoc(), rewriter.getType<Torch::IntType>(),
+          cstKernel.push_back(Torch::ConstantIntOp::create(
+              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(i)));
+          numElements = Torch::AtenMulOp::create(
+              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
               cstKernel.back(), numElements);
         }
-        Value kernelSizeList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value kernelSizeList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             cstKernel);
         Value paddingList = createConstantIntList(binder, rewriter, padding);
         Value stridesList = createConstantIntList(binder, rewriter, strides);
         Value cstCeilMode =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), ceilMode);
+            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), ceilMode);
         // onnx lp pool doesn't have countIncludePad attribute but set it to
         // true so that in 1D case numElements is correctly undoes divison. For
         // 2D/3D case, division is avoided by divison_override.
         Value cstCountIncludePad =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
-        Value pv = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), true);
+        Value pv = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), p));
         auto inputTensorType = cast<Torch::ValueTensorType>(operand.getType());
-        Value abs = rewriter.create<Torch::AtenAbsOp>(binder.getLoc(),
-                                                      inputTensorType, operand);
-        Value pow = rewriter.create<Torch::AtenPowTensorScalarOp>(
-            binder.getLoc(), inputTensorType, abs, pv);
+        Value abs = Torch::AtenAbsOp::create(rewriter, binder.getLoc(),
+                                             inputTensorType, operand);
+        Value pow = Torch::AtenPowTensorScalarOp::create(
+            rewriter, binder.getLoc(), inputTensorType, abs, pv);
         Value avgPool;
         if (rank == 3) {
-          avgPool = rewriter.create<Torch::AtenAvgPool1dOp>(
-              binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
-              paddingList, cstCeilMode, cstCountIncludePad);
-          avgPool = rewriter.create<Torch::AtenMulScalarOp>(
-              binder.getLoc(), resultType, avgPool, numElements);
+          avgPool = Torch::AtenAvgPool1dOp::create(
+              rewriter, binder.getLoc(), resultType, pow, kernelSizeList,
+              stridesList, paddingList, cstCeilMode, cstCountIncludePad);
+          avgPool = Torch::AtenMulScalarOp::create(
+              rewriter, binder.getLoc(), resultType, avgPool, numElements);
         } else if (rank == 4) {
-          avgPool = rewriter.create<Torch::AtenAvgPool2dOp>(
-              binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
-              paddingList, cstCeilMode, cstCountIncludePad,
+          avgPool = Torch::AtenAvgPool2dOp::create(
+              rewriter, binder.getLoc(), resultType, pow, kernelSizeList,
+              stridesList, paddingList, cstCeilMode, cstCountIncludePad,
               /*divisor_override=*/cstOne);
         } else { // rank == 5
-          avgPool = rewriter.create<Torch::AtenAvgPool3dOp>(
-              binder.getLoc(), resultType, pow, kernelSizeList, stridesList,
-              paddingList, cstCeilMode, cstCountIncludePad,
+          avgPool = Torch::AtenAvgPool3dOp::create(
+              rewriter, binder.getLoc(), resultType, pow, kernelSizeList,
+              stridesList, paddingList, cstCeilMode, cstCountIncludePad,
               /*divisor_override=*/cstOne);
         }
-        Value invP = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+        Value invP = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(double{1.0 / p}));
         rewriter.replaceOpWithNewOp<Torch::AtenPowTensorScalarOp>(
             binder.op, resultType, avgPool, invP);
@@ -2652,22 +2673,22 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // Convert dtype if stash_type is different from input dtype
         auto xType = cast<Torch::ValueTensorType>(x.getType());
         Value cstFalse =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
-        Value none = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), false);
+        Value none = Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
         if (*stashDtype != xType.getOptionalDtype()) {
           auto newXType =
               xType.getWithSizesAndDtype(xType.getOptionalSizes(), *stashDtype);
-          Value dtypeValue = rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(),
+          Value dtypeValue = Torch::ConstantIntOp::create(
+              rewriter, binder.getLoc(),
               rewriter.getI64IntegerAttr(stashTypeIntTorch.value()));
-          x = rewriter.create<Torch::AtenToDtypeOp>(
-              binder.getLoc(), newXType, x, /*dtype=*/dtypeValue,
+          x = Torch::AtenToDtypeOp::create(
+              rewriter, binder.getLoc(), newXType, x, /*dtype=*/dtypeValue,
               /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
               /*memory_format=*/none);
         }
 
-        Value constEpsilon = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+        Value constEpsilon = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(epsilon));
         unsigned rank = 1;
         if (std::optional<unsigned> maybeRank = Torch::getTensorRank(x))
@@ -2680,11 +2701,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
         ArrayRef<int64_t> xShape = xType.getSizes();
         for (int64_t n = axis; n < rank; n++) {
-          normalized.push_back(rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(xShape[n])));
+          normalized.push_back(Torch::ConstantIntOp::create(
+              rewriter, binder.getLoc(),
+              rewriter.getI64IntegerAttr(xShape[n])));
         }
-        Value normalized_shape = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value normalized_shape = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             normalized);
 
@@ -2693,8 +2715,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           reducedShape[i] = xShape[i];
         auto reducedType =
             xType.getWithSizesAndDtype(reducedShape, *stashDtype);
-        auto y = rewriter.create<Torch::AtenNativeLayerNormOp>(
-            binder.getLoc(), yType, /*meanType=*/reducedType,
+        auto y = Torch::AtenNativeLayerNormOp::create(
+            rewriter, binder.getLoc(), yType, /*meanType=*/reducedType,
             /*invStdDevType=*/reducedType, x, normalized_shape, scale, b,
             constEpsilon);
 
@@ -2713,12 +2735,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (*stashDtype != meanType.getOptionalDtype()) {
           Value constDtype = Torch::getDtypeIntValueForType(
               rewriter, binder.getLoc(), meanType.getDtype());
-          meanOutput = rewriter.create<Torch::AtenToDtypeOp>(
-              binder.getLoc(), meanType, meanOutput, /*dtype=*/constDtype,
+          meanOutput = Torch::AtenToDtypeOp::create(
+              rewriter, binder.getLoc(), meanType, meanOutput,
+              /*dtype=*/constDtype,
               /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
               /*memory_format=*/none);
-          varOutput = rewriter.create<Torch::AtenToDtypeOp>(
-              binder.getLoc(), invStdDevType, varOutput, /*dtype=*/constDtype,
+          varOutput = Torch::AtenToDtypeOp::create(
+              rewriter, binder.getLoc(), invStdDevType, varOutput,
+              /*dtype=*/constDtype,
               /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
               /*memory_format=*/none);
         }
@@ -2726,22 +2750,22 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         return success();
       });
-  patterns.onOp("LeakyRelu", 1,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value operand;
-                  float alpha;
-                  if (binder.tensorOperand(operand) ||
-                      binder.tensorResultType(resultType) ||
-                      binder.f32FloatAttr(alpha, "alpha", 0.01f))
-                    return failure();
-                  Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
-                      binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-                      rewriter.getF64FloatAttr(alpha));
-                  rewriter.replaceOpWithNewOp<Torch::AtenLeakyReluOp>(
-                      binder.op, resultType, operand, constAlpha);
-                  return success();
-                });
+  patterns.onOp(
+      "LeakyRelu", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value operand;
+        float alpha;
+        if (binder.tensorOperand(operand) ||
+            binder.tensorResultType(resultType) ||
+            binder.f32FloatAttr(alpha, "alpha", 0.01f))
+          return failure();
+        Value constAlpha = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(alpha));
+        rewriter.replaceOpWithNewOp<Torch::AtenLeakyReluOp>(
+            binder.op, resultType, operand, constAlpha);
+        return success();
+      });
   patterns.onOp(
       "LRN", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
@@ -2756,14 +2780,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.f32FloatAttr(bias, "bias", 1.0f))
           return failure();
         Type dtype = resultType.getOptionalDtype();
-        Value constAlpha = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+        Value constAlpha = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(alpha));
-        Value constBeta = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+        Value constBeta = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(beta));
-        Value constBias = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+        Value constBias = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(bias));
         // Please refer to the operator description
         // for more info on the lowering
@@ -2773,8 +2797,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Location loc = binder.getLoc();
         Torch::ValueTensorType inTy =
             cast<Torch::ValueTensorType>(operand.getType());
-        Value sqOperand = rewriter.create<Torch::AtenMulTensorOp>(
-            loc, inTy, operand, operand);
+        Value sqOperand = Torch::AtenMulTensorOp::create(rewriter, loc, inTy,
+                                                         operand, operand);
         // view it as n x 1 x c x d0 x d..
         if (!inTy.hasSizes()) {
           return rewriter.notifyMatchFailure(binder.op,
@@ -2796,14 +2820,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             rewriter.getType<Torch::ValueTensorType>(viewShapeInt, dtype);
         Value viewShapeListVal =
             createConstantIntList(binder, rewriter, viewShapeInt);
-        auto view = rewriter.create<Torch::AtenViewOp>(
-            loc, reshapeType, sqOperand, viewShapeListVal);
+        auto view = Torch::AtenViewOp::create(rewriter, loc, reshapeType,
+                                              sqOperand, viewShapeListVal);
         // padding
         int64_t highPad = (size - 1) / 2;
         int64_t lowPad = (size - 1) - highPad;
         SmallVector<int64_t> paddingInt{0, 0, 0, 0, lowPad, highPad};
-        auto constPadVal = rewriter.create<Torch::ConstantFloatOp>(
-            loc, rewriter.getType<Torch::FloatType>(),
+        auto constPadVal = Torch::ConstantFloatOp::create(
+            rewriter, loc, rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(0.0));
         Value paddingListVal =
             createConstantIntList(binder, rewriter, paddingInt);
@@ -2811,8 +2835,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         paddedShapeInt[2] += size - 1;
         Torch::ValueTensorType paddedType =
             rewriter.getType<Torch::ValueTensorType>(paddedShapeInt, dtype);
-        auto padded = rewriter.create<Torch::AtenConstantPadNdOp>(
-            loc, paddedType, view, paddingListVal, constPadVal);
+        auto padded = Torch::AtenConstantPadNdOp::create(
+            rewriter, loc, paddedType, view, paddingListVal, constPadVal);
         // avg_pool3d
         SmallVector<int64_t, 3> kernelSize{size, 1, 1};
         Value kernelSizeList =
@@ -2822,36 +2846,38 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         SmallVector<int64_t, 3> padding{0, 0, 0};
         Value paddingList = createConstantIntList(binder, rewriter, padding);
         auto cstCeilMode =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), false);
+            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), false);
         auto cstCountIncludeMode =
-            rewriter.create<Torch::ConstantBoolOp>(binder.getLoc(), true);
-        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), true);
+        Value cstNone =
+            Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
         // Output of pooling is same reshape(view) type because
         // of the padding done on the dimensions being pooled.
-        auto pool = rewriter.create<Torch::AtenAvgPool3dOp>(
-            loc, reshapeType, padded, kernelSizeList, stridesList, paddingList,
-            cstCeilMode, cstCountIncludeMode, /*divisor_override=*/cstNone);
+        auto pool = Torch::AtenAvgPool3dOp::create(
+            rewriter, loc, reshapeType, padded, kernelSizeList, stridesList,
+            paddingList, cstCeilMode, cstCountIncludeMode,
+            /*divisor_override=*/cstNone);
         // squeeze
-        auto one = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(1));
+        auto one = Torch::ConstantIntOp::create(rewriter, loc,
+                                                rewriter.getI64IntegerAttr(1));
         SmallVector<int64_t, 5> squeezeShapeInt{
             viewShapeInt[0], viewShapeInt[2], viewShapeInt[3], viewShapeInt[4]};
         Torch::ValueTensorType squeezeType =
             rewriter.getType<Torch::ValueTensorType>(squeezeShapeInt, dtype);
-        auto squeeze = rewriter.create<Torch::AtenSqueezeDimOp>(
-            loc, squeezeType, pool, one);
+        auto squeeze = Torch::AtenSqueezeDimOp::create(rewriter, loc,
+                                                       squeezeType, pool, one);
         // view as input Type
         Value intTyShapeList =
             createConstantIntList(binder, rewriter, inTyShape);
-        auto viewAsInput = rewriter.create<Torch::AtenViewOp>(
-            loc, inTy, squeeze, intTyShapeList);
+        auto viewAsInput = Torch::AtenViewOp::create(rewriter, loc, inTy,
+                                                     squeeze, intTyShapeList);
         // mul + add + pow + div
-        auto mul = rewriter.create<Torch::AtenMulScalarOp>(
-            loc, resultType, viewAsInput, constAlpha);
-        auto add = rewriter.create<Torch::AtenAddScalarOp>(loc, resultType, mul,
-                                                           constBias, one);
-        auto pow = rewriter.create<Torch::AtenPowTensorScalarOp>(
-            loc, resultType, add, constBeta);
+        auto mul = Torch::AtenMulScalarOp::create(rewriter, loc, resultType,
+                                                  viewAsInput, constAlpha);
+        auto add = Torch::AtenAddScalarOp::create(rewriter, loc, resultType,
+                                                  mul, constBias, one);
+        auto pow = Torch::AtenPowTensorScalarOp::create(
+            rewriter, loc, resultType, add, constBeta);
 
         rewriter.replaceOpWithNewOp<Torch::AtenDivTensorOp>(
             binder.op, resultType, operand, pow);
@@ -2902,8 +2928,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             padInts = paddingsInts;
           }
           for (auto p : padInts)
-            padsTensorValue.push_back(rewriter.create<Torch::ConstantIntOp>(
-                loc, rewriter.getI64IntegerAttr(p)));
+            padsTensorValue.push_back(Torch::ConstantIntOp::create(
+                rewriter, loc, rewriter.getI64IntegerAttr(p)));
         } else {
           // Get pads shape and rank. The pads tensor is expected to be 1-D
           // tensor.
@@ -2926,19 +2952,19 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
           // Extract all the values of 1-D pad tensor and create a list of all
           // these values as torch.pad op expects pad list.
-          Value constZero = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(0));
+          Value constZero = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(0));
           SmallVector<int64_t> emptyShape;
           Type padsElemType = Torch::ValueTensorType::get(
               padsTensorType.getContext(), emptyShape,
               padsTensorType.getOptionalDtype());
           for (uint32_t i = 0; i < padsSize; ++i) {
-            Value index = rewriter.create<Torch::ConstantIntOp>(
-                loc, rewriter.getI64IntegerAttr(i));
-            auto select = rewriter.create<Torch::AtenSelectIntOp>(
-                loc, padsElemType, pads, constZero, index);
-            Value selectInt = rewriter.create<Torch::AtenItemOp>(
-                loc, rewriter.getType<Torch::IntType>(), select);
+            Value index = Torch::ConstantIntOp::create(
+                rewriter, loc, rewriter.getI64IntegerAttr(i));
+            auto select = Torch::AtenSelectIntOp::create(
+                rewriter, loc, padsElemType, pads, constZero, index);
+            Value selectInt = Torch::AtenItemOp::create(
+                rewriter, loc, rewriter.getType<Torch::IntType>(), select);
             padsTensorValue.push_back(selectInt);
           }
         }
@@ -2955,24 +2981,24 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             Type scalarTy = rewriter.getType<Torch::IntType>();
             if (isa<FloatType>(constTy.getDtype()))
               scalarTy = rewriter.getType<Torch::FloatType>();
-            constantValue = rewriter.create<Torch::AtenItemOp>(loc, scalarTy,
-                                                               constantValue);
+            constantValue = Torch::AtenItemOp::create(rewriter, loc, scalarTy,
+                                                      constantValue);
           }
         }
 
         if (!constantValue && cstMode) {
           auto dataTensorType = cast<Torch::ValueTensorType>(data.getType());
           if (isa<IntegerType>(dataTensorType.getDtype()))
-            constantValue = rewriter.create<Torch::ConstantIntOp>(
-                loc, rewriter.getI64IntegerAttr(0));
+            constantValue = Torch::ConstantIntOp::create(
+                rewriter, loc, rewriter.getI64IntegerAttr(0));
           // Earlier versions used a FLOAT attribute to store the constant
           // value. The following will pick up on any non-default value attr if
           // provided.
           float constantFloat;
           if (isa<FloatType>(dataTensorType.getDtype()) &&
               !binder.f32FloatAttr(constantFloat, "value", 0.0f))
-            constantValue = rewriter.create<Torch::ConstantFloatOp>(
-                loc, rewriter.getF64FloatAttr(constantFloat));
+            constantValue = Torch::ConstantFloatOp::create(
+                rewriter, loc, rewriter.getF64FloatAttr(constantFloat));
 
           if (!constantValue)
             return rewriter.notifyMatchFailure(
@@ -2981,7 +3007,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         // for modes other than "constant" a value is not required
         if (!cstMode)
-          constantValue = rewriter.create<Torch::ConstantNoneOp>(loc);
+          constantValue = Torch::ConstantNoneOp::create(rewriter, loc);
 
         llvm::SmallVector<Value> begins;
         llvm::SmallVector<Value> ends;
@@ -3000,8 +3026,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           int64_t rank = dataTensorType.getSizes().size();
           auto boolTy = rewriter.getType<Torch::BoolType>();
           auto intTy = rewriter.getType<Torch::IntType>();
-          Value constZero = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(0));
+          Value constZero = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(0));
 
           // Extract the values:
           int64_t numAxes = axesTy.getSizes()[0];
@@ -3009,24 +3035,24 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               axesTy.getContext(), ArrayRef<int64_t>{},
               axesTy.getOptionalDtype());
           llvm::SmallVector<Value> axesExtracted;
-          Value rankV = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(rank));
+          Value rankV = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(rank));
           for (uint32_t i = 0; i < numAxes; ++i) {
-            Value index = rewriter.create<Torch::ConstantIntOp>(
-                loc, rewriter.getI64IntegerAttr(i));
-            auto select = rewriter.create<Torch::AtenSelectIntOp>(
-                loc, axesElemType, axes, constZero, index);
-            Value selectInt = rewriter.create<Torch::AtenItemOp>(
-                loc, rewriter.getType<Torch::IntType>(), select);
+            Value index = Torch::ConstantIntOp::create(
+                rewriter, loc, rewriter.getI64IntegerAttr(i));
+            auto select = Torch::AtenSelectIntOp::create(
+                rewriter, loc, axesElemType, axes, constZero, index);
+            Value selectInt = Torch::AtenItemOp::create(
+                rewriter, loc, rewriter.getType<Torch::IntType>(), select);
 
-            Value negAxis = rewriter.create<Torch::AtenLtIntOp>(
-                loc, boolTy, selectInt, constZero);
+            Value negAxis = Torch::AtenLtIntOp::create(rewriter, loc, boolTy,
+                                                       selectInt, constZero);
             negAxis =
-                rewriter.create<Torch::AtenIntBoolOp>(loc, intTy, negAxis);
-            Value axis = rewriter.create<Torch::AtenMulIntOp>(loc, intTy,
-                                                              negAxis, rankV);
-            axis = rewriter.create<Torch::AtenAddIntOp>(loc, intTy, axis,
-                                                        selectInt);
+                Torch::AtenIntBoolOp::create(rewriter, loc, intTy, negAxis);
+            Value axis = Torch::AtenMulIntOp::create(rewriter, loc, intTy,
+                                                     negAxis, rankV);
+            axis = Torch::AtenAddIntOp::create(rewriter, loc, intTy, axis,
+                                               selectInt);
             axesExtracted.push_back(axis);
           }
 
@@ -3036,27 +3062,27 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           for (int j = 0; j < rank; ++j) {
             Value newBegin = constZero;
             Value newEnd = constZero;
-            Value iv = rewriter.create<Torch::ConstantIntOp>(
-                loc, rewriter.getI64IntegerAttr(j));
+            Value iv = Torch::ConstantIntOp::create(
+                rewriter, loc, rewriter.getI64IntegerAttr(j));
 
             for (size_t i = 0; i < axesExtracted.size(); ++i) {
               Value begin = begins[i];
               Value end = ends[i];
 
-              Value sameAxis = rewriter.create<Torch::AtenEqIntOp>(
-                  loc, boolTy, axesExtracted[i], iv);
+              Value sameAxis = Torch::AtenEqIntOp::create(rewriter, loc, boolTy,
+                                                          axesExtracted[i], iv);
               sameAxis =
-                  rewriter.create<Torch::AtenIntBoolOp>(loc, intTy, sameAxis);
+                  Torch::AtenIntBoolOp::create(rewriter, loc, intTy, sameAxis);
 
-              begin = rewriter.create<Torch::AtenMulIntOp>(loc, intTy, sameAxis,
-                                                           begin);
-              end = rewriter.create<Torch::AtenMulIntOp>(loc, intTy, sameAxis,
-                                                         end);
+              begin = Torch::AtenMulIntOp::create(rewriter, loc, intTy,
+                                                  sameAxis, begin);
+              end = Torch::AtenMulIntOp::create(rewriter, loc, intTy, sameAxis,
+                                                end);
 
-              newBegin = rewriter.create<Torch::AtenAddIntOp>(loc, intTy,
-                                                              newBegin, begin);
-              newEnd =
-                  rewriter.create<Torch::AtenAddIntOp>(loc, intTy, newEnd, end);
+              newBegin = Torch::AtenAddIntOp::create(rewriter, loc, intTy,
+                                                     newBegin, begin);
+              newEnd = Torch::AtenAddIntOp::create(rewriter, loc, intTy, newEnd,
+                                                   end);
             }
 
             newBegins.push_back(newBegin);
@@ -3080,11 +3106,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         Value padsSizeList =
-            rewriter
-                .create<Torch::PrimListConstructOp>(
-                    loc,
-                    Torch::ListType::get(rewriter.getType<Torch::IntType>()),
-                    padsRearrange)
+            Torch::PrimListConstructOp::create(
+                rewriter, loc,
+                Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+                padsRearrange)
                 .getResult();
 
         // lowering to AtenConstantPadNdOp directly allows passing any torch
@@ -3100,8 +3125,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         mode = (mode == "edge") ? "replicate" : mode;
         mode = (mode == "wrap") ? "circular" : mode;
 
-        Value modeVal = rewriter.create<Torch::ConstantStrOp>(
-            loc, rewriter.getStringAttr(mode));
+        Value modeVal = Torch::ConstantStrOp::create(
+            rewriter, loc, rewriter.getStringAttr(mode));
 
         rewriter.replaceOpWithNewOp<Torch::AtenPadOp>(
             binder.op, resultType, data, padsSizeList, modeVal, constantValue);
@@ -3120,9 +3145,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         auto loc = binder.getLoc();
-        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
-            loc, rewriter.getBoolAttr(false));
-        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
+        Value cstFalse = Torch::ConstantBoolOp::create(
+            rewriter, loc, rewriter.getBoolAttr(false));
+        Value none = Torch::ConstantNoneOp::create(rewriter, loc);
 
         auto powType = resultType;
         if (isa<IntegerType>(resultType.getDtype())) {
@@ -3130,8 +3155,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               resultType.getSizes(), rewriter.getF64Type());
         }
 
-        Value pow = rewriter.create<Torch::AtenPowTensorTensorOp>(loc, powType,
-                                                                  lhs, rhs);
+        Value pow = Torch::AtenPowTensorTensorOp::create(rewriter, loc, powType,
+                                                         lhs, rhs);
 
         if (!isa<IntegerType>(resultType.getDtype())) {
           rewriter.replaceOp(binder.op, pow);
@@ -3139,30 +3164,31 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
 
         auto outDtype = Torch::getScalarTypeForType(resultType.getDtype());
-        auto outTyConst = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        auto outTyConst = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64),
                                     static_cast<int64_t>(outDtype)));
 
-        pow = rewriter.create<Torch::AtenRoundOp>(loc, powType, pow);
+        pow = Torch::AtenRoundOp::create(rewriter, loc, powType, pow);
         rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
             binder.op, resultType, pow, outTyConst, cstFalse, cstFalse, none);
 
         return success();
       });
-  patterns.onOp(
-      "Identity", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value tensor;
-        if (binder.tensorOperand(tensor) ||
-            binder.tensorResultType(resultType)) {
-          return failure();
-        }
-        Value noneVal = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
-        rewriter.replaceOpWithNewOp<Torch::AtenCloneOp>(
-            binder.op, resultType, tensor, /*memory_format=*/noneVal);
-        return success();
-      });
+  patterns.onOp("Identity", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value tensor;
+                  if (binder.tensorOperand(tensor) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  Value noneVal =
+                      Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
+                  rewriter.replaceOpWithNewOp<Torch::AtenCloneOp>(
+                      binder.op, resultType, tensor, /*memory_format=*/noneVal);
+                  return success();
+                });
   patterns.onOp(
       "Mean", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         if (binder.op->getNumOperands() == 1) {
@@ -3176,18 +3202,19 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Torch::ValueTensorType resultType;
         SmallVector<Value> valList;
         int64_t numOperands = binder.op->getNumOperands();
-        Value numOperandsConstant = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        Value numOperandsConstant = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), numOperands));
         if (binder.tensorOperands(valList, numOperands) ||
             binder.tensorResultType(resultType))
           return failure();
-        Value constOne = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        Value constOne = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
         // Short circuit to binary add
-        Value curr = rewriter.create<Torch::AtenAddTensorOp>(
-            binder.getLoc(), resultType, valList[0], valList[1], constOne);
+        Value curr = Torch::AtenAddTensorOp::create(rewriter, binder.getLoc(),
+                                                    resultType, valList[0],
+                                                    valList[1], constOne);
         if (numOperands == 2) {
           rewriter.replaceOpWithNewOp<Torch::AtenDivScalarOp>(
               binder.op, resultType, curr, numOperandsConstant);
@@ -3198,11 +3225,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.op->getContext());
         for (int i = 2; i < numOperands; i++) {
           if (i == numOperands - 1) {
-            curr = rewriter.create<Torch::AtenAddTensorOp>(
-                binder.getLoc(), resultType, curr, valList[i], constOne);
+            curr = Torch::AtenAddTensorOp::create(rewriter, binder.getLoc(),
+                                                  resultType, curr, valList[i],
+                                                  constOne);
           } else {
-            curr = rewriter.create<Torch::AtenAddTensorOp>(
-                binder.getLoc(), baseType, curr, valList[i], constOne);
+            curr = Torch::AtenAddTensorOp::create(rewriter, binder.getLoc(),
+                                                  baseType, curr, valList[i],
+                                                  constOne);
           }
         }
         rewriter.replaceOpWithNewOp<Torch::AtenDivScalarOp>(
@@ -3223,19 +3252,19 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         }
         if (neg == 0) {
           // replace all negative infs with 0
-          tensor = rewriter.create<Torch::AtenReluOp>(
-              binder.getLoc(),
+          tensor = Torch::AtenReluOp::create(
+              rewriter, binder.getLoc(),
               dyn_cast<Torch::ValueTensorType>(tensor.getType()), tensor);
         }
         if (pos == 0) {
           // first use neg op to flip positive inf to negative inf. Then relu to
           // replace all positive infs with 0.
-          Value flip = rewriter.create<Torch::AtenNegOp>(
-              binder.getLoc(),
+          Value flip = Torch::AtenNegOp::create(
+              rewriter, binder.getLoc(),
               dyn_cast<Torch::ValueTensorType>(tensor.getType()), tensor);
-          tensor = rewriter.create<Torch::AtenReluOp>(
-              binder.getLoc(), dyn_cast<Torch::ValueTensorType>(flip.getType()),
-              flip);
+          tensor = Torch::AtenReluOp::create(
+              rewriter, binder.getLoc(),
+              dyn_cast<Torch::ValueTensorType>(flip.getType()), flip);
         }
         rewriter.replaceOpWithNewOp<Torch::AtenIsinfOp>(binder.op, resultType,
                                                         tensor);
@@ -3330,24 +3359,24 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Type intTy = rewriter.getType<Torch::IntType>();
         Type floatTy = rewriter.getType<Torch::FloatType>();
         Type depthETy = depthIsInt ? intTy : floatTy;
-        depth = rewriter.create<Torch::AtenItemOp>(loc, depthETy, depth);
+        depth = Torch::AtenItemOp::create(rewriter, loc, depthETy, depth);
 
         if (!depthIsInt)
-          depth = rewriter.create<Torch::AtenIntScalarOp>(
-              loc, rewriter.getType<Torch::IntType>(), depth);
+          depth = Torch::AtenIntScalarOp::create(
+              rewriter, loc, rewriter.getType<Torch::IntType>(), depth);
 
         Type boolTy = rewriter.getType<Torch::ValueTensorType>(
             indicesTy.getSizes(), rewriter.getI1Type());
-        Value zero = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(0));
-        Value one = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(1));
+        Value zero = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(0));
+        Value one = Torch::ConstantIntOp::create(rewriter, loc,
+                                                 rewriter.getI64IntegerAttr(1));
         Value lt =
-            rewriter.create<Torch::AtenLtScalarOp>(loc, boolTy, indices, zero);
-        Value add = rewriter.create<Torch::AtenAddScalarOp>(
-            loc, indicesTy, indices, depth, one);
-        indices = rewriter.create<Torch::AtenWhereSelfOp>(loc, indicesTy, lt,
-                                                          add, indices);
+            Torch::AtenLtScalarOp::create(rewriter, loc, boolTy, indices, zero);
+        Value add = Torch::AtenAddScalarOp::create(rewriter, loc, indicesTy,
+                                                   indices, depth, one);
+        indices = Torch::AtenWhereSelfOp::create(rewriter, loc, indicesTy, lt,
+                                                 add, indices);
 
         auto selectTy = rewriter.getType<Torch::ValueTensorType>(
             llvm::SmallVector<int64_t>{1}, valuesTy.getDtype());
@@ -3355,13 +3384,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         bool valuesAreInt = isa<IntegerType>(valuesTy.getDtype());
         Type valuesETy = valuesAreInt ? intTy : floatTy;
 
-        Value off = rewriter.create<Torch::AtenSelectIntOp>(loc, selectTy,
-                                                            values, zero, zero);
-        off = rewriter.create<Torch::AtenItemOp>(loc, valuesETy, off);
+        Value off = Torch::AtenSelectIntOp::create(rewriter, loc, selectTy,
+                                                   values, zero, zero);
+        off = Torch::AtenItemOp::create(rewriter, loc, valuesETy, off);
 
-        Value on = rewriter.create<Torch::AtenSelectIntOp>(loc, selectTy,
-                                                           values, zero, one);
-        on = rewriter.create<Torch::AtenItemOp>(loc, valuesETy, on);
+        Value on = Torch::AtenSelectIntOp::create(rewriter, loc, selectTy,
+                                                  values, zero, one);
+        on = Torch::AtenItemOp::create(rewriter, loc, valuesETy, on);
 
         auto i32Ty = rewriter.getIntegerType(32, true);
         llvm::SmallVector<int64_t> onehotShape(indicesTy.getSizes());
@@ -3369,40 +3398,40 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         auto onehotTy =
             rewriter.getType<Torch::ValueTensorType>(onehotShape, i32Ty);
 
-        Value onehot = rewriter.create<Torch::AtenOneHotOp>(
-            binder.getLoc(), onehotTy, indices, depth);
+        Value onehot = Torch::AtenOneHotOp::create(rewriter, binder.getLoc(),
+                                                   onehotTy, indices, depth);
 
         for (int i = indicesTy.getSizes().size(); i > axis; --i) {
           std::swap(onehotShape[i - 1], onehotShape[i]);
-          Value iv0 = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(i));
-          Value iv1 = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(i - 1));
+          Value iv0 = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(i));
+          Value iv1 = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(i - 1));
 
           onehotTy =
               rewriter.getType<Torch::ValueTensorType>(onehotShape, i32Ty);
-          onehot = rewriter.create<Torch::AtenTransposeIntOp>(loc, onehotTy,
-                                                              onehot, iv1, iv0);
+          onehot = Torch::AtenTransposeIntOp::create(rewriter, loc, onehotTy,
+                                                     onehot, iv1, iv0);
         }
 
         // Change one hot to an array of booleans to select value:
         auto i1Ty = rewriter.getI1Type();
         auto torchqTy = Torch::getScalarTypeForType(i1Ty);
-        Value tyConst = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getType<Torch::IntType>(),
+        Value tyConst = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
             rewriter.getIntegerAttr(rewriter.getIntegerType(64),
                                     static_cast<int64_t>(torchqTy)));
 
         onehotTy = rewriter.getType<Torch::ValueTensorType>(onehotShape, i1Ty);
-        Value none = rewriter.create<Torch::ConstantNoneOp>(loc);
-        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(loc, false);
-        onehot = rewriter.create<Torch::AtenToDtypeOp>(
-            loc, onehotTy, onehot, tyConst,
+        Value none = Torch::ConstantNoneOp::create(rewriter, loc);
+        Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
+        onehot = Torch::AtenToDtypeOp::create(
+            rewriter, loc, onehotTy, onehot, tyConst,
             /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
             /*memory_format=*/none);
 
-        onehot = rewriter.create<Torch::AtenWhereScalarOp>(loc, resultType,
-                                                           onehot, on, off);
+        onehot = Torch::AtenWhereScalarOp::create(rewriter, loc, resultType,
+                                                  onehot, on, off);
 
         rewriter.replaceOp(binder.op, onehot);
         return success();
@@ -3452,12 +3481,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         if (axisValue < 0)
           axisValue += inputTy.getSizes().size();
 
-        axis = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(axisValue));
+        axis = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(axisValue));
 
         // torch.argmax
-        Value constKeepDims = rewriter.create<Torch::ConstantBoolOp>(
-            loc, rewriter.getType<Torch::BoolType>(),
+        Value constKeepDims = Torch::ConstantBoolOp::create(
+            rewriter, loc, rewriter.getType<Torch::BoolType>(),
             rewriter.getBoolAttr(false));
 
         SmallVector<int64_t> argmaxShape;
@@ -3469,18 +3498,18 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         auto argmaxTy = rewriter.getType<Torch::ValueTensorType>(
             argmaxShape, rewriter.getIntegerType(32, IntegerType::Signed));
-        Value argmax = rewriter.create<Torch::AtenArgmaxOp>(
-            loc, argmaxTy, input, axis, constKeepDims);
+        Value argmax = Torch::AtenArgmaxOp::create(rewriter, loc, argmaxTy,
+                                                   input, axis, constKeepDims);
 
         // one_hot
         SmallVector<int64_t> onehotShape(argmaxShape);
         onehotShape.push_back(inputTy.getSizes()[axisValue]);
         auto onehotTy = rewriter.getType<Torch::ValueTensorType>(
             onehotShape, resultType.getDtype());
-        Value numClasses =
-            rewriter.create<Torch::AtenSizeIntOp>(binder.getLoc(), input, axis);
-        Value onehot = rewriter.create<Torch::AtenOneHotOp>(
-            binder.getLoc(), onehotTy, argmax, numClasses);
+        Value numClasses = Torch::AtenSizeIntOp::create(
+            rewriter, binder.getLoc(), input, axis);
+        Value onehot = Torch::AtenOneHotOp::create(
+            rewriter, binder.getLoc(), onehotTy, argmax, numClasses);
 
         SmallVector<int64_t> permutation;
         for (int i = 0; i < axisValue; ++i)
@@ -3491,12 +3520,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         SmallVector<Value> permValues;
         for (auto d : permutation) {
-          permValues.push_back(rewriter.create<Torch::ConstantIntOp>(
-              binder.getLoc(), rewriter.getI64IntegerAttr(d)));
+          permValues.push_back(Torch::ConstantIntOp::create(
+              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(d)));
         }
 
-        Value permuteDims = rewriter.create<Torch::PrimListConstructOp>(
-            loc, Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+        Value permuteDims = Torch::PrimListConstructOp::create(
+            rewriter, loc,
+            Torch::ListType::get(rewriter.getType<Torch::IntType>()),
             permValues);
         rewriter.replaceOpWithNewOp<Torch::AtenPermuteOp>(binder.op, resultType,
                                                           onehot, permuteDims);
@@ -3514,18 +3544,17 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                     return failure();
 
                   auto loc = binder.getLoc();
-                  Value cstAxis = rewriter.create<Torch::ConstantIntOp>(
-                      loc, rewriter.getI64IntegerAttr(axis));
-                  Value cstP = rewriter.create<Torch::ConstantIntOp>(
-                      loc, rewriter.getI64IntegerAttr(p));
-                  Value cstKeepDim = rewriter.create<Torch::ConstantBoolOp>(
-                      loc, rewriter.getBoolAttr(true));
-                  Value axisPrimList =
-                      rewriter.create<Torch::PrimListConstructOp>(
-                          binder.getLoc(),
-                          rewriter.getType<Torch::ListType>(
-                              rewriter.getType<Torch::IntType>()),
-                          llvm::ArrayRef<Value>{cstAxis});
+                  Value cstAxis = Torch::ConstantIntOp::create(
+                      rewriter, loc, rewriter.getI64IntegerAttr(axis));
+                  Value cstP = Torch::ConstantIntOp::create(
+                      rewriter, loc, rewriter.getI64IntegerAttr(p));
+                  Value cstKeepDim = Torch::ConstantBoolOp::create(
+                      rewriter, loc, rewriter.getBoolAttr(true));
+                  Value axisPrimList = Torch::PrimListConstructOp::create(
+                      rewriter, binder.getLoc(),
+                      rewriter.getType<Torch::ListType>(
+                          rewriter.getType<Torch::IntType>()),
+                      llvm::ArrayRef<Value>{cstAxis});
 
                   SmallVector<int64_t> normSizes(resultType.getSizes());
                   int64_t rank = normSizes.size();
@@ -3534,8 +3563,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   normSizes[axis] = 1;
                   auto normType = rewriter.getType<Torch::ValueTensorType>(
                       normSizes, resultType.getDtype());
-                  Value norm = rewriter.create<Torch::AtenNormScalarOptDimOp>(
-                      loc, normType, input, cstP, axisPrimList, cstKeepDim);
+                  Value norm = Torch::AtenNormScalarOptDimOp::create(
+                      rewriter, loc, normType, input, cstP, axisPrimList,
+                      cstKeepDim);
 
                   rewriter.replaceOpWithNewOp<Torch::AtenDivTensorOp>(
                       binder.op, resultType, input, norm);
@@ -3656,13 +3686,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: stash_type != input dtype");
 
-        Value cstEpsilon = rewriter.create<Torch::ConstantFloatOp>(
-            binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+        Value cstEpsilon = Torch::ConstantFloatOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr((double)epsilon));
-        Value cstNumGroups = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr(numGroups));
-        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
-            binder.getLoc(), rewriter.getBoolAttr(false));
+        Value cstNumGroups = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(numGroups));
+        Value cstFalse = Torch::ConstantBoolOp::create(
+            rewriter, binder.getLoc(), rewriter.getBoolAttr(false));
         rewriter.replaceOpWithNewOp<Torch::AtenGroupNormOp>(
             binder.op, resultType, input, cstNumGroups, scale, bias, cstEpsilon,
             /*cudnn_enabled=*/cstFalse);
@@ -3744,17 +3774,19 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         else
           output = false;
 
-        Value cstOutput = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(), rewriter.getI64IntegerAttr((int64_t)output));
-        Value cstDtype = rewriter.create<Torch::ConstantIntOp>(
-            binder.getLoc(),
+        Value cstOutput = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(),
+            rewriter.getI64IntegerAttr((int64_t)output));
+        Value cstDtype = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(),
             rewriter.getI64IntegerAttr((int)torch_upstream::ScalarType::Bool));
-        Value cstFalse = rewriter.create<Torch::ConstantBoolOp>(
-            binder.getLoc(), rewriter.getBoolAttr(false));
-        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+        Value cstFalse = Torch::ConstantBoolOp::create(
+            rewriter, binder.getLoc(), rewriter.getBoolAttr(false));
+        Value cstNone =
+            Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
 
-        Value dataList = rewriter.create<Torch::PrimListConstructOp>(
-            binder.getLoc(),
+        Value dataList = Torch::PrimListConstructOp::create(
+            rewriter, binder.getLoc(),
             rewriter.getType<Torch::ListType>(
                 rewriter.getType<Torch::IntType>()),
             SmallVector<Value>{cstOutput});
@@ -3812,119 +3844,121 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           // to [[x1, y1, x2, y2], ...]
           auto boxesTensorType =
               dyn_cast<Torch::ValueTensorType>(boxes.getType());
-          Value const0 = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(0));
-          Value const1 = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(1));
-          Value const2 = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(2));
-          Value const4 = rewriter.create<Torch::ConstantIntOp>(
-              loc, rewriter.getI64IntegerAttr(4));
-          Value const2F = rewriter.create<Torch::ConstantFloatOp>(
-              loc, rewriter.getF64FloatAttr(2.0));
+          Value const0 = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(0));
+          Value const1 = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(1));
+          Value const2 = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(2));
+          Value const4 = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(4));
+          Value const2F = Torch::ConstantFloatOp::create(
+              rewriter, loc, rewriter.getF64FloatAttr(2.0));
 
           // extract scaled ranges for regions of interest
           auto sliceShape = SmallVector<int64_t>{Torch::kUnknownSize, 2};
           auto sliceTensorType = rewriter.getType<Torch::ValueTensorType>(
               sliceShape, boxesTensorType.getDtype());
-          Value centers = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, sliceTensorType, boxes, const1, const0, const2, const1);
-          Value sizes = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, sliceTensorType, boxes, const1, const2, const4, const1);
-          Value halfSizes = rewriter.create<Torch::AtenDivScalarOp>(
-              loc, sizes.getType(), sizes, const2F);
-          Value x1y1s = rewriter.create<Torch::AtenSubTensorOp>(
-              loc, centers.getType(), centers, halfSizes, const1);
-          Value x2y2s = rewriter.create<Torch::AtenAddTensorOp>(
-              loc, centers.getType(), centers, halfSizes, const1);
+          Value centers = Torch::AtenSliceTensorOp::create(
+              rewriter, loc, sliceTensorType, boxes, const1, const0, const2,
+              const1);
+          Value sizes = Torch::AtenSliceTensorOp::create(
+              rewriter, loc, sliceTensorType, boxes, const1, const2, const4,
+              const1);
+          Value halfSizes = Torch::AtenDivScalarOp::create(
+              rewriter, loc, sizes.getType(), sizes, const2F);
+          Value x1y1s = Torch::AtenSubTensorOp::create(
+              rewriter, loc, centers.getType(), centers, halfSizes, const1);
+          Value x2y2s = Torch::AtenAddTensorOp::create(
+              rewriter, loc, centers.getType(), centers, halfSizes, const1);
 
           Type listElemType = boxesTensorType.getWithSizesAndDtype(
               /*optionalSizes=*/std::nullopt,
               /*optionalDtype=*/nullptr);
           Type listType = Torch::ListType::get(listElemType);
-          Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
-              loc, listType, SmallVector<Value>{x1y1s, x2y2s});
-          boxes = rewriter.create<Torch::AtenCatOp>(loc, boxesTensorType,
-                                                    tensorList, const1);
+          Value tensorList = Torch::PrimListConstructOp::create(
+              rewriter, loc, listType, SmallVector<Value>{x1y1s, x2y2s});
+          boxes = Torch::AtenCatOp::create(rewriter, loc, boxesTensorType,
+                                           tensorList, const1);
         }
 
         // TODO: Support score_threshold input
         // Filter out the boxes if the score < score_threshold
         if (operands.size() == 5) {
-          Value scoreThreshold = rewriter.create<Torch::AtenItemOp>(
-              loc, rewriter.getType<Torch::FloatType>(), operands[4]);
-          Value minScores = rewriter.create<Torch::AtenMinOp>(
-              loc,
+          Value scoreThreshold = Torch::AtenItemOp::create(
+              rewriter, loc, rewriter.getType<Torch::FloatType>(), operands[4]);
+          Value minScores = Torch::AtenMinOp::create(
+              rewriter, loc,
               Torch::ValueTensorType::get(binder.op->getContext(),
                                           SmallVector<int64_t>{},
                                           rewriter.getF32Type()),
               scores);
-          minScores = rewriter.create<Torch::AtenItemOp>(
-              loc, rewriter.getType<Torch::FloatType>(), minScores);
+          minScores = Torch::AtenItemOp::create(
+              rewriter, loc, rewriter.getType<Torch::FloatType>(), minScores);
 
-          Value scoresCond = rewriter.create<Torch::AtenGeFloatOp>(
-              loc, minScores, scoreThreshold);
-          rewriter.create<Torch::RuntimeAssertOp>(
-              loc, scoresCond,
+          Value scoresCond = Torch::AtenGeFloatOp::create(
+              rewriter, loc, minScores, scoreThreshold);
+          Torch::RuntimeAssertOp::create(
+              rewriter, loc, scoresCond,
               rewriter.getStringAttr(
                   "unimplemented: score_threshold should be <= min(scores)"));
         }
 
         // Get max_output_boxes_per_class and iou_threshold
-        Value cst0 = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(0));
-        Value cst1 = rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(1));
+        Value cst0 = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(0));
+        Value cst1 = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(1));
         Value maxOutputBoxesPerClass = cst0;
-        Value iouThreshold = rewriter.create<Torch::ConstantFloatOp>(
-            loc, rewriter.getF64FloatAttr(0.0));
+        Value iouThreshold = Torch::ConstantFloatOp::create(
+            rewriter, loc, rewriter.getF64FloatAttr(0.0));
         if (operands.size() > 3 &&
             !isa<Torch::NoneType>(operands[3].getType())) {
-          iouThreshold = rewriter.create<Torch::AtenItemOp>(
-              loc, rewriter.getType<Torch::FloatType>(), operands[3]);
+          iouThreshold = Torch::AtenItemOp::create(
+              rewriter, loc, rewriter.getType<Torch::FloatType>(), operands[3]);
         }
         if (operands.size() > 2 &&
             !isa<Torch::NoneType>(operands[2].getType())) {
-          maxOutputBoxesPerClass = rewriter.create<Torch::AtenItemOp>(
-              loc, rewriter.getType<Torch::IntType>(), operands[2]);
+          maxOutputBoxesPerClass = Torch::AtenItemOp::create(
+              rewriter, loc, rewriter.getType<Torch::IntType>(), operands[2]);
         }
 
         auto nmsTy = Torch::ValueTensorType::get(
             binder.op->getContext(), SmallVector<int64_t>{-1},
             rewriter.getIntegerType(64, /*signed=*/true));
-        Value result = rewriter.create<Torch::TorchvisionNmsOp>(
-            loc, nmsTy, boxes, scores, iouThreshold);
+        Value result = Torch::TorchvisionNmsOp::create(
+            rewriter, loc, nmsTy, boxes, scores, iouThreshold);
 
         // Slice the result if numOutputBoxes (N) > max_output_boxes_per_class
         Value numOutputBoxes =
-            rewriter.create<Torch::AtenSizeIntOp>(loc, result, cst0);
-        Value boxesCond = rewriter.create<Torch::AtenGtIntOp>(
-            loc, numOutputBoxes, maxOutputBoxesPerClass);
+            Torch::AtenSizeIntOp::create(rewriter, loc, result, cst0);
+        Value boxesCond = Torch::AtenGtIntOp::create(
+            rewriter, loc, numOutputBoxes, maxOutputBoxesPerClass);
 
         auto nmsResultTy = Torch::ValueTensorType::get(
             binder.op->getContext(),
             SmallVector<int64_t>{resultType.getSizes()[0]},
             rewriter.getIntegerType(64, /*signed=*/true));
-        auto ifSlice = rewriter.create<Torch::PrimIfOp>(
-            loc, TypeRange({nmsResultTy}), boxesCond);
+        auto ifSlice = Torch::PrimIfOp::create(
+            rewriter, loc, TypeRange({nmsResultTy}), boxesCond);
         {
           PatternRewriter::InsertionGuard guard(rewriter);
           rewriter.createBlock(&ifSlice.getThenRegion(),
                                ifSlice.getThenRegion().begin());
 
-          Value curResult = rewriter.create<Torch::AtenSliceTensorOp>(
-              loc, nmsResultTy, result, /*dim=*/cst0, /*start=*/cst0,
+          Value curResult = Torch::AtenSliceTensorOp::create(
+              rewriter, loc, nmsResultTy, result, /*dim=*/cst0, /*start=*/cst0,
               /*end=*/maxOutputBoxesPerClass, /*step=*/cst1);
-          rewriter.create<Torch::PrimIfYieldOp>(loc, curResult);
+          Torch::PrimIfYieldOp::create(rewriter, loc, curResult);
         }
         {
           PatternRewriter::InsertionGuard guard(rewriter);
           rewriter.createBlock(&ifSlice.getElseRegion(),
                                ifSlice.getElseRegion().begin());
 
-          Value curResult = rewriter.create<Torch::TensorStaticInfoCastOp>(
-              loc, nmsResultTy, result);
-          rewriter.create<Torch::PrimIfYieldOp>(loc, curResult);
+          Value curResult = Torch::TensorStaticInfoCastOp::create(
+              rewriter, loc, nmsResultTy, result);
+          Torch::PrimIfYieldOp::create(rewriter, loc, curResult);
         }
         result = ifSlice.getResult(0);
 
@@ -3940,12 +3974,12 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         result = unsqueezedResult.value();
 
         numOutputBoxes =
-            rewriter.create<Torch::AtenSizeIntOp>(loc, result, cst0);
+            Torch::AtenSizeIntOp::create(rewriter, loc, result, cst0);
         SmallVector<Value> zerosShapeValues{numOutputBoxes};
-        zerosShapeValues.push_back(rewriter.create<Torch::ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(2)));
-        Value zerosShapeList = rewriter.create<Torch::PrimListConstructOp>(
-            loc,
+        zerosShapeValues.push_back(Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(2)));
+        Value zerosShapeList = Torch::PrimListConstructOp::create(
+            rewriter, loc,
             rewriter.getType<Torch::ListType>(
                 rewriter.getType<Torch::IntType>()),
             zerosShapeValues);
@@ -3957,17 +3991,18 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         llvm::SmallVector<int64_t> zerosShape = {resultShape->front(), 2};
         auto zerosTy = Torch::ValueTensorType::get(
             resultType.getContext(), zerosShape, resultType.getOptionalDtype());
-        Value cstNone = rewriter.create<Torch::ConstantNoneOp>(loc);
-        Value zeros = rewriter.create<Torch::AtenZerosOp>(
-            loc, zerosTy, zerosShapeList, cstNone, cstNone, cstNone, cstNone);
+        Value cstNone = Torch::ConstantNoneOp::create(rewriter, loc);
+        Value zeros =
+            Torch::AtenZerosOp::create(rewriter, loc, zerosTy, zerosShapeList,
+                                       cstNone, cstNone, cstNone, cstNone);
 
         Type listElemType =
             cast<Torch::BaseTensorType>(resultType)
                 .getWithSizesAndDtype(/*optionalSizes=*/std::nullopt,
                                       /*optionalDtype=*/nullptr);
         Type listType = Torch::ListType::get(listElemType);
-        Value tensorList = rewriter.create<Torch::PrimListConstructOp>(
-            loc, listType, SmallVector<Value>{zeros, result});
+        Value tensorList = Torch::PrimListConstructOp::create(
+            rewriter, loc, listType, SmallVector<Value>{zeros, result});
         rewriter.replaceOpWithNewOp<Torch::AtenCatOp>(binder.op, resultType,
                                                       tensorList, cst1);
         return success();

@@ -147,34 +147,35 @@ Operation *TorchDialect::materializeConstant(OpBuilder &builder,
                                              Attribute value, Type type,
                                              Location loc) {
   if (auto integerType = dyn_cast<Torch::IntType>(type))
-    return builder.create<Torch::ConstantIntOp>(loc, cast<IntegerAttr>(value));
+    return Torch::ConstantIntOp::create(builder, loc, cast<IntegerAttr>(value));
 
   if (auto floatType = dyn_cast<Torch::FloatType>(type))
-    return builder.create<Torch::ConstantFloatOp>(loc, cast<FloatAttr>(value));
+    return Torch::ConstantFloatOp::create(builder, loc, cast<FloatAttr>(value));
 
   if (auto numberType = dyn_cast<Torch::NumberType>(type)) {
     if (auto floatValue = dyn_cast<mlir::FloatAttr>(value)) {
-      return builder.create<Torch::ConstantNumberOp>(loc, floatValue);
+      return Torch::ConstantNumberOp::create(builder, loc, floatValue);
     } else if (auto intValue = dyn_cast<mlir::IntegerAttr>(value)) {
-      return builder.create<Torch::ConstantNumberOp>(loc, intValue);
+      return Torch::ConstantNumberOp::create(builder, loc, intValue);
     }
   }
 
   if (isa<Torch::BoolType>(type)) {
-    return builder.create<Torch::ConstantBoolOp>(loc, cast<IntegerAttr>(value));
+    return Torch::ConstantBoolOp::create(builder, loc,
+                                         cast<IntegerAttr>(value));
   }
 
   if (isa<Torch::NoneType>(type))
-    return builder.create<ConstantNoneOp>(loc);
+    return ConstantNoneOp::create(builder, loc);
 
   if (auto stringAttr = dyn_cast<StringAttr>(value))
-    return builder.create<ConstantStrOp>(loc, stringAttr);
+    return ConstantStrOp::create(builder, loc, stringAttr);
 
   if (auto elementsAttr = dyn_cast<ElementsAttr>(value)) {
     // Only !torch.vtensor can be constant folded. !torch.tensor has
     // non-trivial aliasing semantics which prevent deduplicating it.
     assert(isa<ValueTensorType>(type) && "should be a vtensor type!");
-    return builder.create<ValueTensorLiteralOp>(loc, elementsAttr);
+    return ValueTensorLiteralOp::create(builder, loc, elementsAttr);
   }
 
   return nullptr;

@@ -41,7 +41,7 @@ public:
   matchAndRewrite(AtenDimOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto rank =
-        rewriter.create<tensor::RankOp>(op->getLoc(), adaptor.getSelf());
+        tensor::RankOp::create(rewriter, op->getLoc(), adaptor.getSelf());
     rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
         op, getTypeConverter()->convertType(op.getType()), rank);
     return success();
@@ -96,8 +96,8 @@ public:
     Value a = adaptor.getA();
     rewriter.replaceOpWithNewOp<arith::SubIOp>(
         op,
-        rewriter.create<arith::ConstantIntOp>(op.getLoc(), /*value=*/0,
-                                              /*bitwidth=*/64),
+        arith::ConstantIntOp::create(rewriter, op.getLoc(), /*value=*/0,
+                                     /*bitwidth=*/64),
         a);
     return success();
   }
@@ -119,7 +119,7 @@ public:
         this->getTypeConverter()->convertType(op->getResult(0).getType());
     if (!isa<mlir::FloatType>(input.getType()))
       input = convertScalarToDtype(rewriter, loc, input, rewriter.getF64Type());
-    Value result = rewriter.create<UnaryOp>(loc, input);
+    Value result = UnaryOp::create(rewriter, loc, input);
     rewriter.replaceOp(op,
                        convertScalarToDtype(rewriter, loc, result, resultType));
     return success();
@@ -347,7 +347,7 @@ public:
         rewriter, loc, this->getTypeConverter(), inputListTorchBool);
     result = inputList[0];
     for (unsigned i = 1; i < inputList.size(); i++)
-      result = rewriter.create<BinOp>(loc, result, inputList[i]);
+      result = BinOp::create(rewriter, loc, result, inputList[i]);
     rewriter.replaceOp(op, result);
     return success();
   }
@@ -385,15 +385,15 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Type inputType = adaptor.getA().getType();
-    Value cstZero = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getZeroAttr(inputType));
+    Value cstZero = arith::ConstantOp::create(rewriter, loc,
+                                              rewriter.getZeroAttr(inputType));
     Value cstTrue =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getBoolAttr(true));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getBoolAttr(true));
     Value cstFalse =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getBoolAttr(false));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getBoolAttr(false));
 
     Value cmpPred;
-    cmpPred = rewriter.create<CmpOpTy>(loc, Pred, adaptor.getA(), cstZero);
+    cmpPred = CmpOpTy::create(rewriter, loc, Pred, adaptor.getA(), cstZero);
     rewriter.replaceOpWithNewOp<arith::SelectOp>(op, cmpPred, cstTrue,
                                                  cstFalse);
     return success();

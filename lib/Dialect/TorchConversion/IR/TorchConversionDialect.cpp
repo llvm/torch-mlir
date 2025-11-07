@@ -62,13 +62,14 @@ Operation *TorchConversionDialect::materializeConstant(OpBuilder &builder,
                                                        Type type,
                                                        Location loc) {
   if (auto integerType = dyn_cast<Torch::IntType>(type))
-    return builder.create<Torch::ConstantIntOp>(loc, cast<IntegerAttr>(value));
+    return Torch::ConstantIntOp::create(builder, loc, cast<IntegerAttr>(value));
 
   if (auto floatType = dyn_cast<Torch::FloatType>(type))
-    return builder.create<Torch::ConstantFloatOp>(loc, cast<FloatAttr>(value));
+    return Torch::ConstantFloatOp::create(builder, loc, cast<FloatAttr>(value));
 
   if (isa<Torch::BoolType>(type)) {
-    return builder.create<Torch::ConstantBoolOp>(loc, cast<IntegerAttr>(value));
+    return Torch::ConstantBoolOp::create(builder, loc,
+                                         cast<IntegerAttr>(value));
   }
 
   return arith::ConstantOp::materialize(builder, value, type, loc);

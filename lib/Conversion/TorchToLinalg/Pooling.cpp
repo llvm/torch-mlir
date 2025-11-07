@@ -161,7 +161,7 @@ static LogicalResult createPoolingOp(
     return op->emitError("unimplemented: non-floating point type");
 
   Value initValue =
-      rewriter.create<arith::ConstantOp>(loc, cast<TypedAttr>(initValueAttr));
+      arith::ConstantOp::create(rewriter, loc, cast<TypedAttr>(initValueAttr));
 
   paddedInput = padInputTensor(op, rewriter, self, ceilMode, dimensionality,
                                strideInts, paddingInts, initValue);
@@ -173,8 +173,8 @@ static LogicalResult createPoolingOp(
   auto stridesAttr = rewriter.getI64VectorAttr(strideInts);
   auto dilationAttr = rewriter.getI64VectorAttr(dilationInts);
   auto shape = castIntVectorToIndexVector(rewriter, loc, kernelSizeIntValues);
-  Value windowTensor = rewriter.create<tensor::EmptyOp>(
-      loc, getAsOpFoldResult(shape), elementType);
+  Value windowTensor = tensor::EmptyOp::create(
+      rewriter, loc, getAsOpFoldResult(shape), elementType);
 
   Value permutedInput = paddedInput, permutedOutput = outTensorInitialized;
   if (dimensionality == 3) {
@@ -194,12 +194,10 @@ static LogicalResult createPoolingOp(
           op, "failed to perform permutation of tensor");
   }
 
-  Value poolingResult =
-      rewriter
-          .create<OpTy>(loc, permutedOutput.getType(),
-                        ValueRange{permutedInput, windowTensor}, permutedOutput,
-                        stridesAttr, dilationAttr)
-          .getResult(0);
+  Value poolingResult = OpTy::create(rewriter, loc, permutedOutput.getType(),
+                                     ValueRange{permutedInput, windowTensor},
+                                     permutedOutput, stridesAttr, dilationAttr)
+                            .getResult(0);
 
   result = poolingResult;
   if (dimensionality == 3) {
@@ -236,13 +234,13 @@ static Value createMaxUnpoolOp(Operation *op, int64_t poolingDimensionality,
   SmallVector<Value> outSizePadded;
   for (auto &&[i, size] : llvm::enumerate(resType.getShape())) {
     if (int64_t(i) < NC) {
-      outSizePadded.emplace_back(rewriter.create<tensor::DimOp>(loc, self, i));
+      outSizePadded.emplace_back(tensor::DimOp::create(rewriter, loc, self, i));
       continue;
     }
     int64_t pad = padding[i - NC];
 
     outSizePadded.emplace_back(
-        rewriter.create<arith::ConstantIndexOp>(loc, size + pad));
+        arith::ConstantIndexOp::create(rewriter, loc, size + pad));
   }
 
   // In case if input tensor size is not divisible by stride
@@ -270,18 +268,20 @@ static Value createMaxUnpoolOp(Operation *op, int64_t poolingDimensionality,
     // Pad the indices tensor with a value which cannot appear in real data
     // (-1) so it will never match. In this case we can pad self with any
     // value, as it will never affect the output.
-    Value zero = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getZeroAttr(selfType.getElementType()));
-    Value invalidIdx = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(indicesType.getElementType(), -1));
+    Value zero = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getZeroAttr(selfType.getElementType()));
+    Value invalidIdx = arith::ConstantOp::create(
+        rewriter, loc,
+        rewriter.getIntegerAttr(indicesType.getElementType(), -1));
     self =
         torch_to_linalg::getPaddedTensor(op, rewriter, self, low, high, zero);
     indices = torch_to_linalg::getPaddedTensor(op, rewriter, indices, low, high,
                                                invalidIdx);
   }
 
-  Value init = rewriter.create<tensor::EmptyOp>(
-      loc, getAsOpFoldResult(outSizePadded), selfType.getElementType());
+  Value init =
+      tensor::EmptyOp::create(rewriter, loc, getAsOpFoldResult(outSizePadded),
+                              selfType.getElementType());
 
   SmallVector<AffineExpr> inputExprs;
   SmallVector<AffineExpr> outputExprs;
@@ -308,24 +308,24 @@ static Value createMaxUnpoolOp(Operation *op, int64_t poolingDimensionality,
     // values which came from indices tensor.
     Value ret;
     for (auto i : llvm::seq<int64_t>(NC, outRank)) {
-      Value idx = b.create<linalg::IndexOp>(loc, i);
+      Value idx = linalg::IndexOp::create(b, loc, i);
       // If pool input was padded, adjust indices so they start at 0 in the
       // non-padded area. Indices outside non-padded area will make no sense,
       // but it doesnt matter as we will cut the padded area later by
       // extract_slice.
       int64_t pad = padding[i - NC];
       if (pad != 0) {
-        Value padVal = b.create<arith::ConstantIndexOp>(loc, pad);
-        idx = b.create<arith::SubIOp>(loc, idx, padVal);
+        Value padVal = arith::ConstantIndexOp::create(b, loc, pad);
+        idx = arith::SubIOp::create(b, loc, idx, padVal);
       }
 
       if (!ret) {
         ret = idx;
       } else {
         Value size =
-            b.create<arith::ConstantIndexOp>(loc, resType.getShape()[i]);
-        ret = b.create<arith::MulIOp>(loc, ret, size);
-        ret = b.create<arith::AddIOp>(loc, ret, idx);
+            arith::ConstantIndexOp::create(b, loc, resType.getShape()[i]);
+        ret = arith::MulIOp::create(b, loc, ret, size);
+        ret = arith::AddIOp::create(b, loc, ret, idx);
       }
     }
     return ret;
@@ -335,24 +335,23 @@ static Value createMaxUnpoolOp(Operation *op, int64_t poolingDimensionality,
     // Compute current output linear index and compare it with the value
     // from indices arg.
     Value input = args[0];
-    Value zero =
-        b.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(input.getType()));
-    Value index = b.create<arith::IndexCastOp>(loc, indexType, args[1]);
+    Value zero = arith::ConstantOp::create(
+        b, loc, rewriter.getZeroAttr(input.getType()));
+    Value index = arith::IndexCastOp::create(b, loc, indexType, args[1]);
     Value currentIndex = computeIndex(b, loc);
-    Value cmp = b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq, index,
-                                        currentIndex);
-    Value out = b.create<arith::SelectOp>(loc, cmp, input, zero);
-    b.create<linalg::YieldOp>(loc, out);
+    Value cmp = arith::CmpIOp::create(b, loc, arith::CmpIPredicate::eq, index,
+                                      currentIndex);
+    Value out = arith::SelectOp::create(b, loc, cmp, input, zero);
+    linalg::YieldOp::create(b, loc, out);
   };
 
   Value result =
-      rewriter
-          .create<linalg::GenericOp>(loc,
-                                     /*resultTensorTypes=*/init.getType(),
-                                     /*inputs=*/ValueRange({self, indices}),
-                                     /*outputs=*/init,
-                                     /*indexingMaps=*/indexingMaps,
-                                     /*iteratorTypes=*/iteratorTypes, builder)
+      linalg::GenericOp::create(rewriter, loc,
+                                /*resultTensorTypes=*/init.getType(),
+                                /*inputs=*/ValueRange({self, indices}),
+                                /*outputs=*/init,
+                                /*indexingMaps=*/indexingMaps,
+                                /*iteratorTypes=*/iteratorTypes, builder)
           .getResult(0);
 
   if (llvm::any_of(padding, [](int64_t v) { return v != 0; })) {
@@ -368,16 +367,16 @@ static Value createMaxUnpoolOp(Operation *op, int64_t poolingDimensionality,
         continue;
       }
 
-      sizeVals.emplace_back(rewriter.create<tensor::DimOp>(loc, self, i));
+      sizeVals.emplace_back(tensor::DimOp::create(rewriter, loc, self, i));
     }
     SmallVector<OpFoldResult> stridesVals(outRank,
                                           rewriter.getI64IntegerAttr(1));
-    result = rewriter.create<tensor::ExtractSliceOp>(loc, result, offsetVals,
-                                                     sizeVals, stridesVals);
+    result = tensor::ExtractSliceOp::create(rewriter, loc, result, offsetVals,
+                                            sizeVals, stridesVals);
   }
 
   if (result.getType() != resType)
-    result = rewriter.create<tensor::CastOp>(loc, resType, result);
+    result = tensor::CastOp::create(rewriter, loc, resType, result);
 
   return result;
 }
@@ -445,7 +444,7 @@ private:
         APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
                         /*Negative=*/true));
     Value initValue =
-        rewriter.create<arith::ConstantOp>(op->getLoc(), smallestFPValueAttr);
+        arith::ConstantOp::create(rewriter, op->getLoc(), smallestFPValueAttr);
 
     paddedInput = padInputTensor(op, rewriter, self, ceilMode, 3, strideInts,
                                  paddingInts, initValue);
@@ -456,8 +455,8 @@ private:
 
     auto shape =
         castIntVectorToIndexVector(rewriter, op->getLoc(), kernelSizeIntValues);
-    Value windowTensor = rewriter.create<tensor::EmptyOp>(
-        op->getLoc(), getAsOpFoldResult(shape), elementType);
+    Value windowTensor = tensor::EmptyOp::create(
+        rewriter, op->getLoc(), getAsOpFoldResult(shape), elementType);
 
     MLIRContext *context = rewriter.getContext();
 
@@ -501,20 +500,19 @@ private:
         SmallVector<utils::IteratorType>(5, utils::IteratorType::parallel);
     iteratorTypes.append(3, utils::IteratorType::reduction);
     SmallVector<AffineMap> indexingMaps = {mapInput, mapKernel, mapOutput};
-    poolingOp = rewriter
-                    .create<linalg::GenericOp>(
-                        op->getLoc(),
-                        /* result types */ outTensorInitialized.getType(),
-                        /* operands */ ValueRange({paddedInput, windowTensor}),
-                        /* outputs */ outTensorInitialized,
-                        /*indexingMaps=*/indexingMaps,
-                        /*iteratorTypes=*/iteratorTypes,
-                        [&](OpBuilder &b, Location loc, ValueRange args) {
-                          Value currentVal = args[0], accMaxValue = args[2];
-                          Value max_result = b.create<arith::MaximumFOp>(
-                              loc, currentVal, accMaxValue);
-                          b.create<linalg::YieldOp>(loc, max_result);
-                        })
+    poolingOp = linalg::GenericOp::create(
+                    rewriter, op->getLoc(),
+                    /* result types */ outTensorInitialized.getType(),
+                    /* operands */ ValueRange({paddedInput, windowTensor}),
+                    /* outputs */ outTensorInitialized,
+                    /*indexingMaps=*/indexingMaps,
+                    /*iteratorTypes=*/iteratorTypes,
+                    [&](OpBuilder &b, Location loc, ValueRange args) {
+                      Value currentVal = args[0], accMaxValue = args[2];
+                      Value max_result = arith::MaximumFOp::create(
+                          b, loc, currentVal, accMaxValue);
+                      linalg::YieldOp::create(b, loc, max_result);
+                    })
                     .getResult(0);
 
     return success();
@@ -554,8 +552,8 @@ private:
     Location loc = op->getLoc();
     RankedTensorType indicesRankedTensorType = cast<RankedTensorType>(
         this->getTypeConverter()->convertType(op->getResult(1).getType()));
-    Value cstMinusOne =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(-1));
+    Value cstMinusOne = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(-1));
     Value indicesTensor =
         createInitTensor(rewriter, loc, outTensorShape,
                          indicesRankedTensorType.getElementType(), cstMinusOne);
@@ -569,9 +567,9 @@ private:
     SmallVector<Value> kernelStride =
         getAsConstantIndexValues(rewriter, loc, strideInts);
 
-    Value windowTensor = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(kernelSize),
-        indicesRankedTensorType.getElementType());
+    Value windowTensor =
+        tensor::EmptyOp::create(rewriter, loc, getAsOpFoldResult(kernelSize),
+                                indicesRankedTensorType.getElementType());
 
     SmallVector<AffineExpr> inputExprs, outputExprs, kernelExprs;
     for (unsigned i = 0; i < rank; i++) {
@@ -599,60 +597,57 @@ private:
     }
 
     indicesResult =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, /*resultTensorTypes=*/indicesTensor.getType(),
-                /*inputs=*/ValueRange({maxPool, windowTensor}),
-                /*outputs=*/indicesTensor,
-                /*indexingMaps=*/indexingMaps,
-                /*iteratorTypes=*/iteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value maxVal = args[0], res = args[2];
+        linalg::GenericOp::create(
+            rewriter, loc, /*resultTensorTypes=*/indicesTensor.getType(),
+            /*inputs=*/ValueRange({maxPool, windowTensor}),
+            /*outputs=*/indicesTensor,
+            /*indexingMaps=*/indexingMaps,
+            /*iteratorTypes=*/iteratorTypes,
+            [&](OpBuilder &b, Location loc, ValueRange args) {
+              Value maxVal = args[0], res = args[2];
 
-                  SmallVector<Value> inputDims;
-                  inputDims.append({b.create<linalg::IndexOp>(loc, 0),
-                                    b.create<linalg::IndexOp>(loc, 1)});
-                  for (unsigned i = 2; i < rank; i++) {
-                    Value mainIndex = b.create<linalg::IndexOp>(loc, i);
-                    Value subIndex =
-                        b.create<linalg::IndexOp>(loc, i + rank - 2);
-                    Value origin = b.create<arith::MulIOp>(loc, mainIndex,
-                                                           kernelStride[i - 2]);
-                    Value offset =
-                        b.create<arith::MulIOp>(loc, subIndex, dilation[i - 2]);
-                    inputDims.push_back(
-                        b.create<arith::AddIOp>(loc, origin, offset));
-                  }
+              SmallVector<Value> inputDims;
+              inputDims.append({linalg::IndexOp::create(b, loc, 0),
+                                linalg::IndexOp::create(b, loc, 1)});
+              for (unsigned i = 2; i < rank; i++) {
+                Value mainIndex = linalg::IndexOp::create(b, loc, i);
+                Value subIndex = linalg::IndexOp::create(b, loc, i + rank - 2);
+                Value origin = arith::MulIOp::create(b, loc, mainIndex,
+                                                     kernelStride[i - 2]);
+                Value offset =
+                    arith::MulIOp::create(b, loc, subIndex, dilation[i - 2]);
+                inputDims.push_back(
+                    arith::AddIOp::create(b, loc, origin, offset));
+              }
 
-                  Value input =
-                      b.create<tensor::ExtractOp>(loc, paddedInput, inputDims);
-                  Value pred = b.create<arith::CmpFOp>(
-                      loc, arith::CmpFPredicate::OEQ, input, maxVal);
+              Value input =
+                  tensor::ExtractOp::create(b, loc, paddedInput, inputDims);
+              Value pred = arith::CmpFOp::create(
+                  b, loc, arith::CmpFPredicate::OEQ, input, maxVal);
 
-                  Value outIndex =
-                      b.create<arith::ConstantOp>(loc, b.getIndexAttr(0));
-                  Value curInputStride =
-                      b.create<arith::ConstantOp>(loc, b.getIndexAttr(1));
-                  for (unsigned i = 0; i < rank - 2; i++) {
-                    Value minusPadding = b.create<arith::SubIOp>(
-                        loc, inputDims[rank - 1 - i], padding[rank - 3 - i]);
-                    Value timesStride = b.create<arith::MulIOp>(
-                        loc, minusPadding, curInputStride);
-                    outIndex =
-                        b.create<arith::AddIOp>(loc, outIndex, timesStride);
-                    curInputStride = b.create<arith::MulIOp>(
-                        loc, curInputStride, inputSubShape[rank - 3 - i]);
-                  }
-                  Value result = b.create<arith::SelectOp>(
-                      loc, pred, castIndexToInt64(b, loc, outIndex), res);
+              Value outIndex =
+                  arith::ConstantOp::create(b, loc, b.getIndexAttr(0));
+              Value curInputStride =
+                  arith::ConstantOp::create(b, loc, b.getIndexAttr(1));
+              for (unsigned i = 0; i < rank - 2; i++) {
+                Value minusPadding = arith::SubIOp::create(
+                    b, loc, inputDims[rank - 1 - i], padding[rank - 3 - i]);
+                Value timesStride =
+                    arith::MulIOp::create(b, loc, minusPadding, curInputStride);
+                outIndex = arith::AddIOp::create(b, loc, outIndex, timesStride);
+                curInputStride = arith::MulIOp::create(
+                    b, loc, curInputStride, inputSubShape[rank - 3 - i]);
+              }
+              Value result = arith::SelectOp::create(
+                  b, loc, pred, castIndexToInt64(b, loc, outIndex), res);
 
-                  Value predInvalidIndex = b.create<arith::CmpIOp>(
-                      loc, arith::CmpIPredicate::eq, res, cstMinusOne);
-                  Value out = b.create<arith::SelectOp>(loc, predInvalidIndex,
-                                                        result, res);
+              Value predInvalidIndex = arith::CmpIOp::create(
+                  b, loc, arith::CmpIPredicate::eq, res, cstMinusOne);
+              Value out = arith::SelectOp::create(b, loc, predInvalidIndex,
+                                                  result, res);
 
-                  b.create<linalg::YieldOp>(loc, out);
-                })
+              linalg::YieldOp::create(b, loc, out);
+            })
             .getResult(0);
 
     return success();
@@ -732,8 +727,8 @@ public:
         return rewriter.notifyMatchFailure(op, "unable to compute maxpool3d");
     }
 
-    Value outMaxPool = rewriter.create<tensor::CastOp>(
-        op->getLoc(), maxPoolResultType, maxPool);
+    Value outMaxPool = tensor::CastOp::create(rewriter, op->getLoc(),
+                                              maxPoolResultType, maxPool);
     SmallVector<Value> outResult({outMaxPool});
     if (withIndices) {
       Value indicesResult;
@@ -745,8 +740,8 @@ public:
                                            "unable to compute maxpool indices");
       Type indicesResultType =
           typeConverter->convertType(op->getResult(1).getType());
-      Value outIndices = rewriter.create<tensor::CastOp>(
-          op->getLoc(), indicesResultType, indicesResult);
+      Value outIndices = tensor::CastOp::create(
+          rewriter, op->getLoc(), indicesResultType, indicesResult);
       outResult.push_back(outIndices);
     }
     rewriter.replaceOp(op, outResult);
@@ -1007,9 +1002,8 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     // change, these variables used "height" and "width" (or "h" and "w")
     // in these intermediate variables instead of "Dim".
 
-    Value IndexODim =
-        b.create<linalg::IndexOp>(location,
-                                  /*value=*/SumPoolTypeDimIndex[i]);
+    Value IndexODim = linalg::IndexOp::create(b, location,
+                                              /*value=*/SumPoolTypeDimIndex[i]);
     Value ODim = castIndexToInt64(b, location, IndexODim);
     Value DDim = b.createOrFold<arith::ConstantOp>(
         location, b.getI64IntegerAttr(strideInts[i]));
@@ -1138,8 +1132,8 @@ LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "unable to compute sumpool");
 
   // Compute the average of sumPool.
-  Value outputTensor = rewriter.create<tensor::EmptyOp>(
-      loc, getAsOpFoldResult(outTensorShape), resultElementType);
+  Value outputTensor = tensor::EmptyOp::create(
+      rewriter, loc, getAsOpFoldResult(outTensorShape), resultElementType);
   SmallVector<AffineMap> indexingMapsAvg(
       2, rewriter.getMultiDimIdentityMap(Dim + 2));
   SmallVector<utils::IteratorType> iteratorTypesAvg(
@@ -1233,25 +1227,24 @@ LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
   }
 
   Value avgPool =
-      rewriter
-          .create<linalg::GenericOp>(
-              loc, outputTensor.getType(), sumPool, outputTensor,
-              /*indexingMaps=*/indexingMapsAvg,
-              /*iteratorTypes=*/iteratorTypesAvg,
-              [&](OpBuilder &b, Location loc, ValueRange args) {
-                if (!poolSize) {
-                  poolSize = poolSizeCalculator.getPoolSize(
-                      b, kernelDimSizes, strideInts, paddingInts);
-                }
-                Value divisor =
-                    convertScalarToDtype(b, loc, poolSize, resultElementType);
-                Value avg;
-                if (isa<mlir::IntegerType>(resultElementType))
-                  avg = b.createOrFold<arith::DivSIOp>(loc, args[0], divisor);
-                else if (isa<mlir::FloatType>(resultElementType))
-                  avg = b.createOrFold<arith::DivFOp>(loc, args[0], divisor);
-                b.createOrFold<linalg::YieldOp>(loc, avg);
-              })
+      linalg::GenericOp::create(
+          rewriter, loc, outputTensor.getType(), sumPool, outputTensor,
+          /*indexingMaps=*/indexingMapsAvg,
+          /*iteratorTypes=*/iteratorTypesAvg,
+          [&](OpBuilder &b, Location loc, ValueRange args) {
+            if (!poolSize) {
+              poolSize = poolSizeCalculator.getPoolSize(
+                  b, kernelDimSizes, strideInts, paddingInts);
+            }
+            Value divisor =
+                convertScalarToDtype(b, loc, poolSize, resultElementType);
+            Value avg;
+            if (isa<mlir::IntegerType>(resultElementType))
+              avg = b.createOrFold<arith::DivSIOp>(loc, args[0], divisor);
+            else if (isa<mlir::FloatType>(resultElementType))
+              avg = b.createOrFold<arith::DivFOp>(loc, args[0], divisor);
+            b.createOrFold<linalg::YieldOp>(loc, avg);
+          })
           .getResult(0);
   rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, avgPool);
   return success();
@@ -1284,19 +1277,18 @@ LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
   divisor = convertScalarToDtype(rewriter, loc, divisor, resultElementType);
 
   Value avgPool =
-      rewriter
-          .create<linalg::GenericOp>(
-              loc, outputTensor.getType(), sumPool, outputTensor,
-              /*indexingMaps=*/indexingMapsAvg,
-              /*iteratorTypes=*/iteratorTypesAvg,
-              [&](OpBuilder &b, Location loc, ValueRange args) {
-                Value avg;
-                if (isa<mlir::IntegerType>(resultElementType))
-                  avg = b.create<arith::DivSIOp>(loc, args[0], divisor);
-                else if (isa<mlir::FloatType>(resultElementType))
-                  avg = b.create<arith::DivFOp>(loc, args[0], divisor);
-                b.create<linalg::YieldOp>(loc, avg);
-              })
+      linalg::GenericOp::create(
+          rewriter, loc, outputTensor.getType(), sumPool, outputTensor,
+          /*indexingMaps=*/indexingMapsAvg,
+          /*iteratorTypes=*/iteratorTypesAvg,
+          [&](OpBuilder &b, Location loc, ValueRange args) {
+            Value avg;
+            if (isa<mlir::IntegerType>(resultElementType))
+              avg = arith::DivSIOp::create(b, loc, args[0], divisor);
+            else if (isa<mlir::FloatType>(resultElementType))
+              avg = arith::DivFOp::create(b, loc, args[0], divisor);
+            linalg::YieldOp::create(b, loc, avg);
+          })
           .getResult(0);
   rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, avgPool);
   return success();
@@ -1382,10 +1374,10 @@ public:
         elementType,
         APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
                         /*Negative=*/true));
-    buffVal = rewriter.create<arith::ConstantOp>(loc, elementType,
-                                                 smallestFPValueAttr);
-    auxTensor = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(outputSizes), auxTensorElementType);
+    buffVal = arith::ConstantOp::create(rewriter, loc, elementType,
+                                        smallestFPValueAttr);
+    auxTensor = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(outputSizes), auxTensorElementType);
     for (unsigned i = 0; i < rank; i++) {
       auxTensorExprs.push_back(rewriter.getAffineDimExpr(i));
     }
@@ -1400,8 +1392,8 @@ public:
       Value &out2, Value &auxOut) {
     // compute max using select, since cond1 will be used for indices
     Value cond1 =
-        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OGT, inElt, res);
-    out2 = b.create<arith::SelectOp>(loc, cond1, inElt, res);
+        arith::CmpFOp::create(b, loc, arith::CmpFPredicate::OGT, inElt, res);
+    out2 = arith::SelectOp::create(b, loc, cond1, inElt, res);
     // index in different dims (n x c x d x h x w)
     // 1d: (iw)
     // 2d: (ih*W + iw)
@@ -1409,12 +1401,12 @@ public:
     Value currIndex = inputElementIndices[nonSpatial];
     for (unsigned i = 0; i < rank - nonSpatial - 1; i++) {
       Value prevTimesNewSize =
-          b.create<arith::MulIOp>(loc, currIndex, inputSpatialSizes[i + 1]);
-      currIndex = b.create<arith::AddIOp>(
-          loc, prevTimesNewSize, inputElementIndices[nonSpatial + i + 1]);
+          arith::MulIOp::create(b, loc, currIndex, inputSpatialSizes[i + 1]);
+      currIndex = arith::AddIOp::create(
+          b, loc, prevTimesNewSize, inputElementIndices[nonSpatial + i + 1]);
     }
     Value indexOut1Int = castIndexToInt64(b, loc, currIndex);
-    auxOut = b.create<arith::SelectOp>(loc, cond1, indexOut1Int, maxIndex);
+    auxOut = arith::SelectOp::create(b, loc, cond1, indexOut1Int, maxIndex);
     return success();
   }
 
@@ -1427,9 +1419,9 @@ public:
                           const SmallVector<AffineExpr> &outputExprs) {
     Location loc = op->getLoc();
     Value maxValues =
-        rewriter.create<tensor::CastOp>(loc, outputType, adaptivePoolOutput);
+        tensor::CastOp::create(rewriter, loc, outputType, adaptivePoolOutput);
     Value outputIndices =
-        rewriter.create<tensor::CastOp>(loc, auxTensorType, auxTensorReturn);
+        tensor::CastOp::create(rewriter, loc, auxTensorType, auxTensorReturn);
     rewriter.replaceOp(op, {maxValues, outputIndices});
     return success();
   }
@@ -1457,10 +1449,10 @@ public:
     const TypeConverter *typeConverter = opConversionPattern.getTypeConverter();
     outputType = cast<RankedTensorType>(
         typeConverter->convertType(op.getResult().getType()));
-    buffVal = rewriter.create<arith::ConstantOp>(
-        loc, elementType, rewriter.getFloatAttr(elementType, 0));
-    auxTensor = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(outShapeIndexVector), elementType);
+    buffVal = arith::ConstantOp::create(rewriter, loc, elementType,
+                                        rewriter.getFloatAttr(elementType, 0));
+    auxTensor = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(outShapeIndexVector), elementType);
     for (unsigned i = nonSpatial; i < rank; i++) {
       auxTensorExprs.push_back(rewriter.getAffineDimExpr(i));
     }
@@ -1473,14 +1465,14 @@ public:
       const SmallVector<Value> &inputSpatialSizes, const Value &indexOne,
       const SmallVector<Value> &starts, const SmallVector<Value> &ends,
       Value &out2, Value &auxOut) {
-    out2 = b.create<arith::AddFOp>(loc, inElt, res);
+    out2 = arith::AddFOp::create(b, loc, inElt, res);
     Value kernelVolume = indexOne;
     for (unsigned i = 0; i < rank - nonSpatial; i++) {
-      Value currSize = b.create<arith::SubIOp>(loc, ends[i], starts[i]);
-      kernelVolume = b.create<arith::MulIOp>(loc, kernelVolume, currSize);
+      Value currSize = arith::SubIOp::create(b, loc, ends[i], starts[i]);
+      kernelVolume = arith::MulIOp::create(b, loc, kernelVolume, currSize);
     }
     Value auxOutSI = castIndexToInt64(b, loc, kernelVolume);
-    auxOut = b.create<arith::SIToFPOp>(loc, elementType, auxOutSI);
+    auxOut = arith::SIToFPOp::create(b, loc, elementType, auxOutSI);
     return success();
   }
 
@@ -1497,15 +1489,15 @@ public:
         {auxTensorExprs, outputExprs}, op.getContext());
     SmallVector<utils::IteratorType> iteratorTypes1(
         rank, utils::IteratorType::parallel);
-    auto output = rewriter.create<linalg::GenericOp>(
-        loc, /*resultTensorTypes=*/adaptivePoolOutput.getType(),
+    auto output = linalg::GenericOp::create(
+        rewriter, loc, /*resultTensorTypes=*/adaptivePoolOutput.getType(),
         /*inputs=*/auxTensorReturn,
         /*outputs=*/adaptivePoolOutput,
         /*indexingMaps=*/indexingMaps1,
         /*iteratorTypes=*/iteratorTypes1,
         [&](OpBuilder &b, Location loc, ValueRange args) {
-          Value q = b.create<arith::DivFOp>(loc, args[1], args[0]);
-          b.create<linalg::YieldOp>(loc, q);
+          Value q = arith::DivFOp::create(b, loc, args[1], args[0]);
+          linalg::YieldOp::create(b, loc, q);
         });
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outputType,
@@ -1608,18 +1600,18 @@ public:
     Type boolType = rewriter.getI1Type();
     SmallVector<Value> kIterSizeVector;
     Value constantOne =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(1));
     for (int i = 0; i < rank - nonSpatial; i++) {
-      Value hInPlusOne = rewriter.create<arith::SubIOp>(
-          loc, inputSpatialSizes[i], constantOne);
-      Value kMaxMinusOne = rewriter.create<arith::CeilDivSIOp>(
-          loc, hInPlusOne, outShapeIndexVector[i]);
+      Value hInPlusOne = arith::SubIOp::create(
+          rewriter, loc, inputSpatialSizes[i], constantOne);
+      Value kMaxMinusOne = arith::CeilDivSIOp::create(rewriter, loc, hInPlusOne,
+                                                      outShapeIndexVector[i]);
       Value kMax =
-          rewriter.create<arith::AddIOp>(loc, constantOne, kMaxMinusOne);
+          arith::AddIOp::create(rewriter, loc, constantOne, kMaxMinusOne);
       kIterSizeVector.push_back(kMax);
     }
-    Value kIter = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(kIterSizeVector), boolType);
+    Value kIter = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(kIterSizeVector), boolType);
 
     // get output sizes used for initializing some tensors
     SmallVector<Value> outputSizes;
@@ -1676,12 +1668,12 @@ public:
     for (unsigned i = 0; i < rank - nonSpatial; i++) {
       iteratorTypes.push_back(utils::IteratorType::reduction);
     }
-    Value indexOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value indexOne = arith::ConstantIndexOp::create(rewriter, loc, 1);
 
     bool failedCustomization = false;
     // adaptive pooling generic op
-    auto adaptivePool = rewriter.create<linalg::GenericOp>(
-        loc, /*resultTensorTypes=*/
+    auto adaptivePool = linalg::GenericOp::create(
+        rewriter, loc, /*resultTensorTypes=*/
         TypeRange({initOutput.getType(), auxTensor.getType()}),
         /*inputs=*/ValueRange({kIter}),
         /*outputs=*/ValueRange({initOutput, auxTensor}),
@@ -1692,26 +1684,26 @@ public:
           Value maxIndex = args[2];
           SmallVector<Value> ind;
           for (unsigned i = 0; i < 2 * rank - nonSpatial; i++) {
-            ind.push_back(b.create<linalg::IndexOp>(loc, i));
+            ind.push_back(linalg::IndexOp::create(b, loc, i));
           }
           // compute start and end indices
           // st = s1( s0(ind2 * Hin) // Hout )
           SmallVector<Value> starts;
           SmallVector<Value> ends;
           for (unsigned i = nonSpatial; i < rank; i++) {
-            Value s0 = b.create<arith::MulIOp>(
-                loc, ind[i], inputSpatialSizes[i - nonSpatial]);
-            Value s1 = b.create<arith::FloorDivSIOp>(
-                loc, s0, outShapeIndexVector[i - nonSpatial]);
+            Value s0 = arith::MulIOp::create(b, loc, ind[i],
+                                             inputSpatialSizes[i - nonSpatial]);
+            Value s1 = arith::FloorDivSIOp::create(
+                b, loc, s0, outShapeIndexVector[i - nonSpatial]);
             starts.push_back(s1);
             // en = e4( 1 + e3( e2( e1( e0(ind2 + 1) * hIn ) - 1 ) // hOut ) )
-            Value e0 = b.create<arith::AddIOp>(loc, ind[i], indexOne);
-            Value e1 = b.create<arith::MulIOp>(
-                loc, e0, inputSpatialSizes[i - nonSpatial]);
-            Value e2 = b.create<arith::SubIOp>(loc, e1, indexOne);
-            Value e3 = b.create<arith::FloorDivSIOp>(
-                loc, e2, outShapeIndexVector[i - nonSpatial]);
-            Value e4 = b.create<arith::AddIOp>(loc, indexOne, e3);
+            Value e0 = arith::AddIOp::create(b, loc, ind[i], indexOne);
+            Value e1 = arith::MulIOp::create(b, loc, e0,
+                                             inputSpatialSizes[i - nonSpatial]);
+            Value e2 = arith::SubIOp::create(b, loc, e1, indexOne);
+            Value e3 = arith::FloorDivSIOp::create(
+                b, loc, e2, outShapeIndexVector[i - nonSpatial]);
+            Value e4 = arith::AddIOp::create(b, loc, indexOne, e3);
             ends.push_back(e4);
           }
           // extract input element
@@ -1720,18 +1712,18 @@ public:
             inputElementIndices.push_back(ind[i]);
           }
           for (unsigned i = nonSpatial; i < rank; i++) {
-            inputElementIndices.push_back(b.create<arith::AddIOp>(
-                loc, starts[i - nonSpatial], ind[rank - nonSpatial + i]));
+            inputElementIndices.push_back(arith::AddIOp::create(
+                b, loc, starts[i - nonSpatial], ind[rank - nonSpatial + i]));
           }
-          Value inElt = b.create<tensor::ExtractOp>(loc, elementType, buffInput,
-                                                    inputElementIndices);
+          Value inElt = tensor::ExtractOp::create(
+              b, loc, elementType, buffInput, inputElementIndices);
           // check if we extracted at windex < end index
           for (unsigned i = 0; i < rank - nonSpatial; i++) {
-            Value cond = b.create<arith::CmpIOp>(
-                loc, arith::CmpIPredicate(6),
+            Value cond = arith::CmpIOp::create(
+                b, loc, arith::CmpIPredicate(6),
                 inputElementIndices[i + nonSpatial], ends[i]);
             // if out-of-bounds, replace the extracted element with buffVal
-            inElt = b.create<arith::SelectOp>(loc, cond, inElt, buffVal);
+            inElt = arith::SelectOp::create(b, loc, cond, inElt, buffVal);
           }
           Value out2, auxOut;
           // customize for max vs. avg:
@@ -1740,7 +1732,7 @@ public:
                   inputSpatialSizes, indexOne, starts, ends, out2, auxOut))) {
             failedCustomization = true;
           }
-          b.create<linalg::YieldOp>(loc, ValueRange({out2, auxOut}));
+          linalg::YieldOp::create(b, loc, ValueRange({out2, auxOut}));
         });
 
     if (failedCustomization) {

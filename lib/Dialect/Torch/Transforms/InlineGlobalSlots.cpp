@@ -407,8 +407,8 @@ class InlineGlobalSlotsPass
     }
     {
       OpBuilder builder(initialize);
-      builder.create<Torch::InitializeGlobalSlotsOp>(
-          initialize.getLoc(),
+      Torch::InitializeGlobalSlotsOp::create(
+          builder, initialize.getLoc(),
           ArrayAttr::get(module.getContext(), newSlotSymNames),
           newInitialValues);
     }
