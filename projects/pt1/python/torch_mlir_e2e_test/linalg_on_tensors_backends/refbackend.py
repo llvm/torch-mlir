@@ -193,6 +193,7 @@ def lowering_pipeline(generate_runtime_verification: bool):
         "expand-strided-metadata",
         "finalize-memref-to-llvm",
         "lower-affine",
+        "convert-scf-to-cf",
         "convert-bufferization-to-memref",
         "finalize-memref-to-llvm",
         "func.func(convert-arith-to-llvm)",
