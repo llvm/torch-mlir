@@ -1583,7 +1583,6 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
   SmallVector<Value> insertSliceOffsets{c0, c0};
 
   SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
-  SmallVector<Value> sliceSizes{inputSizes[0], inputSizes[1]};
 
   // For the case in which the padding dimension value is negative,
   // we will need to shrink the dimension. Note in the PyTorch
@@ -1597,10 +1596,12 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
   Value c2 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(2));
 
   for (size_t i = 0; i < numSpatialDims; i++) {
+    // Calculate inner size: (input_size - 1) * stride + 1
     Value innerSize = rewriter.createOrFold<arith::SubIOp>(loc, inDims[i], c1);
     innerSize = rewriter.createOrFold<arith::MulIOp>(
         loc, innerSize, castIntToIndex(rewriter, loc, strideIntValues[i]));
     innerSize = rewriter.createOrFold<arith::AddIOp>(loc, innerSize, c1);
+    innerSizes.push_back(innerSize);
 
     Value offset = rewriter.createOrFold<arith::SubIOp>(loc, weightDims[i], c1);
     offset = rewriter.createOrFold<arith::MulIOp>(
@@ -1608,8 +1609,14 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
     offset = rewriter.createOrFold<arith::SubIOp>(
         loc, offset, castIntToIndex(rewriter, loc, paddingIntValues[i]));
 
+    // We need to crop or pad from two sides - top&bottom or left&right.
+    // Therefore multiply by 2.
     Value outerSize = rewriter.createOrFold<arith::MulIOp>(loc, offset, c2);
+
+    // Crop or pad based on the sign of offset
     outerSize = rewriter.createOrFold<arith::AddIOp>(loc, outerSize, innerSize);
+
+    // Add optional padding values
     outerSize = rewriter.createOrFold<arith::AddIOp>(
         loc, outerSize,
         castIntToIndex(rewriter, loc, outputPaddingIntValues[i]));
@@ -1624,39 +1631,69 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
       auto posOffset =
           rewriter.createOrFold<arith::MulIOp>(loc, offset, negOneConst);
 
-      // Compute the reduced dimension size due to negative padding.
-      auto sizeReduction =
-          rewriter.createOrFold<arith::MulIOp>(loc, posOffset, c2);
-      sliceSizes.push_back(rewriter.createOrFold<arith::SubIOp>(
-          loc, inputSizes[i + 2], sizeReduction));
-
       extractSliceOffsets.push_back(posOffset);
       insertSliceOffsets.push_back(c0);
     } else {
-      sliceSizes.push_back(inputSizes[i + 2]);
       extractSliceOffsets.push_back(c0);
       insertSliceOffsets.push_back(offset);
     }
   }
-  Value initTensor = createInitTensor(rewriter, loc, outerSizes, inputDTy, pad);
 
   // Insert input into allocated tensor
   SmallVector<Value> strideIndexValues{c1, c1};
   for (auto stride : strideIntValues)
     strideIndexValues.push_back(castIntToIndex(rewriter, loc, stride));
 
-  auto insertSliceOpInput = input;
   if (anyDimensionPaddingIsNegative) {
-    insertSliceOpInput = rewriter.create<tensor::ExtractSliceOp>(
-        loc, torch_to_linalg::removeSizeInformation(rewriter, loc, input),
-        extractSliceOffsets, sliceSizes, strideIndexValues);
-  }
 
-  auto paddedInput = rewriter.create<tensor::InsertSliceOp>(
-      loc,
-      torch_to_linalg::removeSizeInformation(rewriter, loc, insertSliceOpInput),
-      initTensor, insertSliceOffsets, sliceSizes, strideIndexValues);
-  return paddedInput;
+    // Some dimensions may need padding and some dimensions need cropping
+
+    // 1. Allocate a maxSizes buffer (max of inner and outer for each dim)
+    // 2. Insert the input into maxSizes buffer at appropriate offsets (if
+    // insertSliceOffsets is positive, pad; 0 no padding) and stride
+    // 3. Extract the final outerSizes from maxSizes buffer
+
+    // Create the "max size" tensor to accommodate both padding and cropping
+    SmallVector<Value> maxSizes{inBatch, inChannels};
+    for (size_t i = 0; i < numSpatialDims; ++i) {
+      Value innerDim = innerSizes[i + 2];
+      Value outerDim = outerSizes[i + 2];
+      Value isPadding = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::ugt, outerDim, innerDim);
+      Value maxDim =
+          rewriter.create<arith::SelectOp>(loc, isPadding, outerDim, innerDim);
+      maxSizes.push_back(maxDim);
+    }
+
+    Value initMaxTensor =
+        createInitTensor(rewriter, loc, maxSizes, inputDTy, pad);
+
+    // Insert input
+    auto paddedTensor = rewriter.create<tensor::InsertSliceOp>(
+        loc, torch_to_linalg::removeSizeInformation(rewriter, loc, input),
+        initMaxTensor, insertSliceOffsets, inputSizes, strideIndexValues);
+
+    SmallVector<Value> allOnesStrides(inputSizes.size(), c1);
+
+    // Crop. Extract the final tensor from the "max" tensor
+    auto finalTensor = rewriter.create<tensor::ExtractSliceOp>(
+        loc,
+        torch_to_linalg::removeSizeInformation(rewriter, loc, paddedTensor),
+        extractSliceOffsets, outerSizes, allOnesStrides);
+
+    return finalTensor;
+
+  } else {
+
+    Value initPaddedTensor =
+        createInitTensor(rewriter, loc, outerSizes, inputDTy, pad);
+
+    // Insert the original input into the outer tensor with calculated offsets
+    auto paddedInput = rewriter.create<tensor::InsertSliceOp>(
+        loc, torch_to_linalg::removeSizeInformation(rewriter, loc, input),
+        initPaddedTensor, insertSliceOffsets, inputSizes, strideIndexValues);
+    return paddedInput;
+  }
 }
 
 namespace {
