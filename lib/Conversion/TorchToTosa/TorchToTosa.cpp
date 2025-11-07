@@ -2410,10 +2410,10 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   auto transposedInputType = RankedTensorType::get(
       makeShapeLLVMCompatible(transposedInputShape), inputElemTy);
   auto createTransposedInput = [&]() {
-    return rewriter
-        .create<tosa::TransposeOp>(
-            op->getLoc(), getTypeConverter()->convertType(transposedInputType),
-            input, rewriter.getDenseI32ArrayAttr(nchwToNhwcDims))
+    return tosa::TransposeOp::create(
+               rewriter, op->getLoc(),
+               getTypeConverter()->convertType(transposedInputType), input,
+               rewriter.getDenseI32ArrayAttr(nchwToNhwcDims))
         .getResult();
   };
 
@@ -2456,10 +2456,10 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     auto ohwiWeightType = RankedTensorType::get(
         makeShapeLLVMCompatible(ohwiWeightShape), weightElemTy);
     Value transformedWeight =
-        rewriter
-            .create<tosa::TransposeOp>(
-                op->getLoc(), getTypeConverter()->convertType(ohwiWeightType),
-                weight, rewriter.getDenseI32ArrayAttr(iohwToOhwi))
+        tosa::TransposeOp::create(
+            rewriter, op->getLoc(),
+            getTypeConverter()->convertType(ohwiWeightType), weight,
+            rewriter.getDenseI32ArrayAttr(iohwToOhwi))
             .getResult();
 
     // Result type is NHWC (we'll transpose back).
@@ -2481,14 +2481,13 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
                                       rewriter, op->getLoc(), weightElemTy, 0)
                                       .value();
 
-    Value convTOut =
-        rewriter
-            .create<tosa::TransposeConv2DOp>(
-                op->getLoc(), getTypeConverter()->convertType(transConvOpTy),
-                nhwcInput, transformedWeight, bias, inputZp, weightZp,
-                rewriter.getDenseI64ArrayAttr(outPad),
-                rewriter.getDenseI64ArrayAttr(stride), accType)
-            .getResult();
+    Value convTOut = tosa::TransposeConv2DOp::create(
+                         rewriter, op->getLoc(),
+                         getTypeConverter()->convertType(transConvOpTy),
+                         nhwcInput, transformedWeight, bias, inputZp, weightZp,
+                         rewriter.getDenseI64ArrayAttr(outPad),
+                         rewriter.getDenseI64ArrayAttr(stride), accType)
+                         .getResult();
 
     SmallVector<int64_t, 4> transposedOutputShape;
     for (int32_t dim : nhwcToNchwDims)
@@ -2496,11 +2495,10 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     auto transposedOutputType = RankedTensorType::get(
         makeShapeLLVMCompatible(transposedOutputShape), biasElemTy);
     Value transposedOutput =
-        rewriter
-            .create<tosa::TransposeOp>(
-                op->getLoc(),
-                getTypeConverter()->convertType(transposedOutputType), convTOut,
-                rewriter.getDenseI32ArrayAttr(nhwcToNchwDims))
+        tosa::TransposeOp::create(
+            rewriter, op->getLoc(),
+            getTypeConverter()->convertType(transposedOutputType), convTOut,
+            rewriter.getDenseI32ArrayAttr(nhwcToNchwDims))
             .getResult();
 
     // Quantized rescale.
