@@ -16194,60 +16194,6 @@ def Torch_AtenFloatScalarOp : Torch_Op<"aten.Float.Scalar", [
   let hasFolder = 1;
 }
 
-def Torch_AtenFlexAttentionOp : Torch_Op<"aten.flex_attention", [
-    AllowsTypeRefinement,
-    HasValueSemantics,
-    ReadOnly
-  ]> {
-  let summary = "Generated op for `aten::flex_attention`";
-  let description = [{
-    FlexAttention operation with flexible block-sparse attention patterns.
-    
-    Args:
-      query: Query tensor [B, H, M, K]
-      key: Key tensor [B, H, N, K]  
-      value: Value tensor [B, H, N, Ev]
-      scale: Optional float for scaling attention scores (None means 1/sqrt(head_dim))
-      return_lse: Bool to return log-sum-exp values
-
-    Attributes:
-      score_mod_fn: Optional function symbol reference for score modification
-      mask_mod_fn: Optional function symbol reference for mask modification
-      
-    # TODO: kernel_options: Dict attributes for performance tuning (block_size, num_warps, etc.)
-
-    Returns:
-      output: Result tensor [B, H, M, Ev]
-      logsumexp: Optional log-sum-exp tensor [B, H, M] (if return_lse=True)
-  }];
-  
-  let arguments = (ins
-    AnyTorchTensorType:$query,
-    AnyTorchTensorType:$key,
-    AnyTorchTensorType:$value,
-    AnyTorchOptionalFloatType:$scale,
-    Torch_BoolType:$enable_gqa,
-    Torch_BoolType:$return_lse,
-    OptionalAttr<FlatSymbolRefAttr>:$score_mod_fn,
-    OptionalAttr<FlatSymbolRefAttr>:$mask_mod_fn
-  );
-  
-  let results = (outs
-    AnyTorchTensorType:$output,
-    AnyTorchOptionalTensorType:$logsumexp
-  );
-  
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult AtenFlexAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 5, 2);
-    }
-    void AtenFlexAttentionOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 5, 2);
-    }
-  }];
-}
-
 def Torch_AtenFloatStrOp : Torch_Op<"aten.Float.str", [
     AllowsTypeRefinement,
     HasValueSemantics,
