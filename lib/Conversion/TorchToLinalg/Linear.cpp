@@ -1594,8 +1594,8 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
       // Make the negative value positive by multiplying by -1.
       anyDimensionPaddingIsNegative = true;
       auto offsetType = offset.getType();
-      auto negOneConst = rewriter.createOrFold<arith::ConstantOp>(
-          loc, offsetType, rewriter.getIntegerAttr(offsetType, -1));
+      auto negOneConst = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getIntegerAttr(offsetType, -1));
       auto posOffset =
           rewriter.createOrFold<arith::MulIOp>(loc, offset, negOneConst);
 
@@ -1626,10 +1626,10 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
     for (size_t i = 0; i < numSpatialDims; ++i) {
       Value innerDim = innerSizes[i + 2];
       Value outerDim = outerSizes[i + 2];
-      Value isPadding = rewriter.create<arith::CmpIOp>(
+      Value isPadding = rewriter.createOrFold<arith::CmpIOp>(
           loc, arith::CmpIPredicate::ugt, outerDim, innerDim);
-      Value maxDim =
-          rewriter.create<arith::SelectOp>(loc, isPadding, outerDim, innerDim);
+      Value maxDim = rewriter.createOrFold<arith::SelectOp>(loc, isPadding,
+                                                            outerDim, innerDim);
       maxSizes.push_back(maxDim);
     }
 

@@ -2002,7 +2002,7 @@ def TransposedConv1dNegativePadding_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 7), tu.rand(1, 2, 3), tu.rand(2))
 
 
-class ConvTranspose1dNegativePaddingLarge(torch.nn.Module):
+class TransposedConv1dNegativePaddingLarge(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -2029,8 +2029,8 @@ class ConvTranspose1dNegativePaddingLarge(torch.nn.Module):
         )
 
 
-@register_test_case(module_factory=lambda: ConvTranspose1dNegativePaddingLarge())
-def ConvTranspose1dNegativePaddingLarge_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: TransposedConv1dNegativePaddingLarge())
+def TransposedConv1dNegativePaddingLarge_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 17, 5), tu.rand(17, 6, 3), tu.rand(6))
 
 
