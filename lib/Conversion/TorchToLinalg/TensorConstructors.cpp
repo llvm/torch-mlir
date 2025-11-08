@@ -37,8 +37,8 @@ static Value extractSlice(ConversionPatternRewriter &rewriter, Location loc,
   SmallVector<OpFoldResult> offsets(inputRank, rewriter.getIndexAttr(0));
   if (sliceLoc == END) {
     Value dimSize = inputShape[dimension];
-    Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value endIdx = rewriter.create<arith::SubIOp>(loc, dimSize, one);
+    Value one = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    Value endIdx = arith::SubIOp::create(rewriter, loc, dimSize, one);
     offsets[dimension] = getAsOpFoldResult(endIdx);
   }
 
@@ -48,8 +48,8 @@ static Value extractSlice(ConversionPatternRewriter &rewriter, Location loc,
     sizes[i] = (i == dimension) ? rewriter.getIndexAttr(1)
                                 : getAsOpFoldResult(inputShape[i]);
 
-  Value extractedSlice = rewriter.create<tensor::ExtractSliceOp>(
-      loc, input, offsets, sizes, allOneStrides);
+  Value extractedSlice = tensor::ExtractSliceOp::create(
+      rewriter, loc, input, offsets, sizes, allOneStrides);
   return extractedSlice;
 }
 
@@ -58,7 +58,7 @@ static Value createTile(ConversionPatternRewriter &rewriter, Location loc,
   SmallVector<Value> slices(tileWidth, slice);
   if (tileWidth == 1)
     return slice;
-  return rewriter.create<tensor::ConcatOp>(loc, dimension, slices);
+  return tensor::ConcatOp::create(rewriter, loc, dimension, slices);
 }
 
 static Value replicationPad(ConversionPatternRewriter &rewriter, Location loc,
@@ -89,7 +89,7 @@ static Value replicationPad(ConversionPatternRewriter &rewriter, Location loc,
     }
 
     if (resultParts.size() > 1)
-      res = rewriter.create<tensor::ConcatOp>(loc, dim, resultParts);
+      res = tensor::ConcatOp::create(rewriter, loc, dim, resultParts);
   }
   return res;
 }
@@ -141,8 +141,8 @@ public:
       if (!matchPattern(lowv, m_TorchConstantInt(&lowi))) {
         Type cty = tc->convertType(lowv.getType());
         lowv = tc->materializeTargetConversion(rewriter, loc, cty, lowv);
-        lowv = rewriter.create<arith::IndexCastOp>(loc, rewriter.getIndexType(),
-                                                   lowv);
+        lowv = arith::IndexCastOp::create(rewriter, loc,
+                                          rewriter.getIndexType(), lowv);
         lowPad.push_back(lowv);
         staticLow.push_back(ShapedType::kDynamic);
       } else {
@@ -153,8 +153,8 @@ public:
       if (!matchPattern(highv, m_TorchConstantInt(&highi))) {
         Type cty = tc->convertType(highv.getType());
         highv = tc->materializeTargetConversion(rewriter, loc, cty, highv);
-        highv = rewriter.create<arith::IndexCastOp>(
-            loc, rewriter.getIndexType(), highv);
+        highv = arith::IndexCastOp::create(rewriter, loc,
+                                           rewriter.getIndexType(), highv);
         highPad.push_back(highv);
         staticHigh.push_back(ShapedType::kDynamic);
       } else {
@@ -174,8 +174,8 @@ public:
 
     Type padType = tensor::PadOp::inferResultType(
         cast<RankedTensorType>(self.getType()), staticLow, staticHigh);
-    Value paddedInput = rewriter.create<tensor::PadOp>(
-        loc, padType, self, lowPad, highPad, castedValue);
+    Value paddedInput = tensor::PadOp::create(rewriter, loc, padType, self,
+                                              lowPad, highPad, castedValue);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, paddedInput);
     return success();
   }
@@ -471,8 +471,8 @@ public:
     }
 
     // Create an uninitialized tensor of `resultSize` shape.
-    Value initTensor = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(resultSizeIndex), resultElementType);
+    Value initTensor = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(resultSizeIndex), resultElementType);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, initTensor);
     return success();
   }
@@ -523,46 +523,45 @@ public:
     //          ceil((end - start)/step)
     Value resultShape;
     if (isa<mlir::IntegerType>(dtype)) {
-      Value subOut = rewriter.create<arith::SubIOp>(loc, end, start);
-      resultShape = rewriter.create<arith::CeilDivSIOp>(loc, subOut, step);
+      Value subOut = arith::SubIOp::create(rewriter, loc, end, start);
+      resultShape = arith::CeilDivSIOp::create(rewriter, loc, subOut, step);
     } else {
-      Value subOut = rewriter.create<arith::SubFOp>(loc, end, start);
-      Value divOut = rewriter.create<arith::DivFOp>(loc, subOut, step);
-      Value ceilOut = rewriter.create<math::CeilOp>(loc, divOut);
-      resultShape =
-          rewriter.create<arith::FPToUIOp>(loc, rewriter.getI64Type(), ceilOut);
+      Value subOut = arith::SubFOp::create(rewriter, loc, end, start);
+      Value divOut = arith::DivFOp::create(rewriter, loc, subOut, step);
+      Value ceilOut = math::CeilOp::create(rewriter, loc, divOut);
+      resultShape = arith::FPToUIOp::create(rewriter, loc,
+                                            rewriter.getI64Type(), ceilOut);
     }
     resultShape = castIntToIndex(rewriter, loc, resultShape);
 
-    Value resultTensor = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(resultShape), dtype);
+    Value resultTensor = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(resultShape), dtype);
 
     auto iteratorType = utils::IteratorType::parallel;
     AffineMap indexingMap =
         AffineMap::getMultiDimIdentityMap(1, op->getContext());
 
     Value finalRes =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, /*resultTensorTypes=*/resultTensor.getType(),
-                /*inputs=*/ValueRange({}),
-                /*outputs=*/resultTensor,
-                /*indexingMaps=*/indexingMap,
-                /*iteratorTypes=*/iteratorType,
-                [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
-                  Value index = b.create<linalg::IndexOp>(loc, 0);
-                  index = castIndexToInt64(b, loc, index);
-                  index = convertScalarToDtype(b, loc, index, dtype);
-                  Value mulOut, result;
-                  if (isa<mlir::FloatType>(dtype)) {
-                    mulOut = b.create<arith::MulFOp>(loc, step, index);
-                    result = b.create<arith::AddFOp>(loc, start, mulOut);
-                  } else {
-                    mulOut = b.create<arith::MulIOp>(loc, step, index);
-                    result = b.create<arith::AddIOp>(loc, start, mulOut);
-                  }
-                  b.create<linalg::YieldOp>(loc, result);
-                })
+        linalg::GenericOp::create(
+            rewriter, loc, /*resultTensorTypes=*/resultTensor.getType(),
+            /*inputs=*/ValueRange({}),
+            /*outputs=*/resultTensor,
+            /*indexingMaps=*/indexingMap,
+            /*iteratorTypes=*/iteratorType,
+            [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
+              Value index = linalg::IndexOp::create(b, loc, 0);
+              index = castIndexToInt64(b, loc, index);
+              index = convertScalarToDtype(b, loc, index, dtype);
+              Value mulOut, result;
+              if (isa<mlir::FloatType>(dtype)) {
+                mulOut = arith::MulFOp::create(b, loc, step, index);
+                result = arith::AddFOp::create(b, loc, start, mulOut);
+              } else {
+                mulOut = arith::MulIOp::create(b, loc, step, index);
+                result = arith::AddIOp::create(b, loc, start, mulOut);
+              }
+              linalg::YieldOp::create(b, loc, result);
+            })
             .getResult(0);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, finalRes);
     return success();

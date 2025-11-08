@@ -33,15 +33,16 @@ Value getBroadcastTensor(PatternRewriter &rewriter, Operation *op, Value tensor,
                          ArrayRef<int64_t> broadcastDims) {
   auto tensorTy = dyn_cast<RankedTensorType>(tensor.getType());
   auto loc = op->getLoc();
-  Value stablehloShape = rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
+  Value stablehloShape =
+      tensor::FromElementsOp::create(rewriter, loc, dimSizes);
 
   RankedTensorType outTy =
       RankedTensorType::get(shape, tensorTy.getElementType());
 
   auto broadcastAttr = rewriter.getDenseI64ArrayAttr(broadcastDims);
 
-  auto broadcast = rewriter.create<stablehlo::DynamicBroadcastInDimOp>(
-      loc, outTy, tensor, stablehloShape, broadcastAttr);
+  auto broadcast = stablehlo::DynamicBroadcastInDimOp::create(
+      rewriter, loc, outTy, tensor, stablehloShape, broadcastAttr);
   return broadcast;
 }
 
@@ -59,8 +60,8 @@ Value getPermutedTensor(PatternRewriter &rewriter, Operation *op, Value input,
   }
 
   auto outTy = RankedTensorType::get(newShape, inputTy.getElementType());
-  auto result = rewriter.create<stablehlo::TransposeOp>(op->getLoc(), outTy,
-                                                        input, transDims);
+  auto result = stablehlo::TransposeOp::create(rewriter, op->getLoc(), outTy,
+                                               input, transDims);
   return result.getResult();
 }
 
@@ -85,12 +86,12 @@ RankedTensorType castContractingDim(PatternRewriter &rewriter, Operation *op,
         rhsContractingDimSize >= 0) {
       lhsShape[lhsContractingDim] = rhsContractingDimSize;
       auto newRankTy = RankedTensorType::get(lhsShape, lhsTy.getElementType());
-      lhs = rewriter.create<tensor::CastOp>(op->getLoc(), newRankTy, lhs);
+      lhs = tensor::CastOp::create(rewriter, op->getLoc(), newRankTy, lhs);
     } else if (rhsContractingDimSize == ShapedType::kDynamic &&
                lhsContractingDimSize >= 0) {
       rhsShape[rhsContractingDim] = lhsContractingDimSize;
       auto newRankTy = RankedTensorType::get(rhsShape, rhsTy.getElementType());
-      rhs = rewriter.create<tensor::CastOp>(op->getLoc(), newRankTy, rhs);
+      rhs = tensor::CastOp::create(rewriter, op->getLoc(), newRankTy, rhs);
     }
   }
   SmallVector<int64_t> outShape;
@@ -278,8 +279,8 @@ public:
     if (lhsRank <= 2 && rhsRank <= 2) {
       auto tensorType =
           ConvertAtenOp<AtenOpT>::getTypeConverter()->convertType(op.getType());
-      output = rewriter.create<stablehlo::DotOp>(op->getLoc(), tensorType, lhs,
-                                                 rhs, nullptr);
+      output = stablehlo::DotOp::create(rewriter, op->getLoc(), tensorType, lhs,
+                                        rhs, nullptr);
       return success();
     }
 
@@ -323,11 +324,10 @@ public:
     auto outTy =
         castContractingDim(rewriter, op, lhs, rhs, lhsResultDim, rhsResultDim,
                            lhsContractingDim, rhsContractingDim);
-    output = rewriter
-                 .create<stablehlo::DotGeneralOp>(op->getLoc(), outTy, lhs, rhs,
-                                                  dotDimensionNumbers, nullptr,
-                                                  nullptr)
-                 .getResult();
+    output =
+        stablehlo::DotGeneralOp::create(rewriter, op->getLoc(), outTy, lhs, rhs,
+                                        dotDimensionNumbers, nullptr, nullptr)
+            .getResult();
     return success();
   }
 
@@ -494,16 +494,17 @@ public:
             /*rhsBatchingDimensions=*/batchDims,
             /*lhsContractingDimensions=*/{lhsContractingDim},
             /*rhsContractingDimensions=*/{rhsContractingDim});
-    Value matmulOutput = rewriter.create<stablehlo::DotGeneralOp>(
-        op->getLoc(), outTy, lhs, rhs, dotDimensionNumbers, nullptr, nullptr);
+    Value matmulOutput =
+        stablehlo::DotGeneralOp::create(rewriter, op->getLoc(), outTy, lhs, rhs,
+                                        dotDimensionNumbers, nullptr, nullptr);
 
     Value matmulPlusBias = matmulOutput;
     if (!isa<Torch::NoneType>(biasTy)) {
       // Bias addition broadcasts to the matmul output shape.
-      matmulPlusBias = rewriter
-                           .create<chlo::BroadcastAddOp>(
-                               op->getLoc(), outTy, matmulOutput, bias, nullptr)
-                           .getResult();
+      matmulPlusBias =
+          chlo::BroadcastAddOp::create(rewriter, op->getLoc(), outTy,
+                                       matmulOutput, bias, nullptr)
+              .getResult();
     }
 
     auto resultTy =
@@ -530,12 +531,13 @@ public:
     std::copy(weightShape.begin(), weightShape.end(), weightShapeInt.begin());
 
     // 1. [H, W, ..., OC, IC] => [H, W, ..., OC, G, IC//G]
-    Value GValue = rewriter.create<mlir::arith::ConstantOp>(
-        op->getLoc(), rewriter.getIntegerAttr(rewriter.getIndexType(), groups));
-    Value ICDivGValue = rewriter.create<mlir::arith::DivSIOp>(
-        op->getLoc(), weightShapeVec[rank - 1], GValue);
-    Value OCMulGValue = rewriter.create<mlir::arith::MulIOp>(
-        op->getLoc(), weightShapeVec[rank - 2], GValue);
+    Value GValue = mlir::arith::ConstantOp::create(
+        rewriter, op->getLoc(),
+        rewriter.getIntegerAttr(rewriter.getIndexType(), groups));
+    Value ICDivGValue = mlir::arith::DivSIOp::create(
+        rewriter, op->getLoc(), weightShapeVec[rank - 1], GValue);
+    Value OCMulGValue = mlir::arith::MulIOp::create(
+        rewriter, op->getLoc(), weightShapeVec[rank - 2], GValue);
     weightShapeVec[rank - 1] = ICDivGValue;
     weightShapeVec.insert(weightShapeVec.end() - 1, GValue);
 
@@ -545,19 +547,20 @@ public:
       weightShapeInt[rank - 1] /= groups;
       weightShapeInt.insert(weightShapeInt.end() - 1, groups);
     }
-    Value weightShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
-        op->getLoc(), weightShapeVec);
-    weight = rewriter.create<stablehlo::DynamicReshapeOp>(
-        op->getLoc(), RankedTensorType::get(weightShapeInt, weightElemTy),
-        weight, weightShapeTensor);
+    Value weightShapeTensor = mlir::tensor::FromElementsOp::create(
+        rewriter, op->getLoc(), weightShapeVec);
+    weight = stablehlo::DynamicReshapeOp::create(
+        rewriter, op->getLoc(),
+        RankedTensorType::get(weightShapeInt, weightElemTy), weight,
+        weightShapeTensor);
 
     // 2. [H, W, ..., OC, G, IC//G] => [H, W, ..., G, OC, IC//G]
     std::vector<int64_t> transposeDims(rank + 1);
     for (int64_t i = 0; i <= rank; i++)
       transposeDims[i] = i;
     std::swap(transposeDims[rank - 1], transposeDims[rank - 2]);
-    weight = rewriter.create<stablehlo::TransposeOp>(op->getLoc(), weight,
-                                                     transposeDims);
+    weight = stablehlo::TransposeOp::create(rewriter, op->getLoc(), weight,
+                                            transposeDims);
 
     // 3. [H, W, ..., G, OC, IC//G] => [H, W, ..., G*OC, IC//G]
     weightShapeInt.erase(weightShapeInt.end() - 2);
@@ -566,11 +569,12 @@ public:
     }
     weightShapeVec.erase(weightShapeVec.end() - 2);
     weightShapeVec[weightShapeVec.size() - 2] = OCMulGValue;
-    weightShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
-        op->getLoc(), weightShapeVec);
-    weight = rewriter.create<stablehlo::DynamicReshapeOp>(
-        op->getLoc(), RankedTensorType::get(weightShapeInt, weightElemTy),
-        weight, weightShapeTensor);
+    weightShapeTensor = mlir::tensor::FromElementsOp::create(
+        rewriter, op->getLoc(), weightShapeVec);
+    weight = stablehlo::DynamicReshapeOp::create(
+        rewriter, op->getLoc(),
+        RankedTensorType::get(weightShapeInt, weightElemTy), weight,
+        weightShapeTensor);
     return weight;
   }
 
@@ -609,10 +613,10 @@ public:
     auto reverseDim = llvm::to_vector<4>(llvm::seq<int64_t>(0, kernelDims));
     auto transposeTy =
         RankedTensorType::get(transposeShape, weightTy.getElementType());
-    auto transposeOp = rewriter.create<stablehlo::TransposeOp>(
-        op->getLoc(), transposeTy, weight, perm);
-    auto reverseOp = rewriter.create<stablehlo::ReverseOp>(
-        op->getLoc(), transposeOp, reverseDim);
+    auto transposeOp = stablehlo::TransposeOp::create(
+        rewriter, op->getLoc(), transposeTy, weight, perm);
+    auto reverseOp = stablehlo::ReverseOp::create(rewriter, op->getLoc(),
+                                                  transposeOp, reverseDim);
 
     // Prepare for transposed convolution
     SmallVector<int64_t> stablehloStrideVec(nSpatialDims, 1);
@@ -664,8 +668,8 @@ public:
     }
 
     // Create transposed convolution
-    auto transposedConvOp = rewriter.create<stablehlo::ConvolutionOp>(
-        op->getLoc(), convOutTy, input, weightInput, stablehloStride,
+    auto transposedConvOp = stablehlo::ConvolutionOp::create(
+        rewriter, op->getLoc(), convOutTy, input, weightInput, stablehloStride,
         stablehloPadding, stablehloLhsDilation, stablehloRhsDilation,
         windowReversal, dimensionNumbers, static_cast<uint64_t>(groups), 1,
         precisionConfig);
@@ -712,8 +716,8 @@ public:
     DenseBoolArrayAttr windowReversal;
     ArrayAttr precisionConfig;
 
-    auto stablehloConvOp = rewriter.create<stablehlo::ConvolutionOp>(
-        op->getLoc(), outType, input, weight, stablehloWindowStride,
+    auto stablehloConvOp = stablehlo::ConvolutionOp::create(
+        rewriter, op->getLoc(), outType, input, weight, stablehloWindowStride,
         stablehloPadding, stablehloLhsDilation, stablehloRhsDilation,
         windowReversal, dimensionNumbers, static_cast<uint64_t>(groups), 1,
         precisionConfig);

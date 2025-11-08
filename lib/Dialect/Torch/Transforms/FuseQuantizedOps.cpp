@@ -148,14 +148,14 @@ public:
           Value quantPadValue;
           if (isa<Torch::NoneType>(floatPadValue.getType()))
             quantPadValue =
-                rewriter.create<AtenFloatScalarOp>(loc, chain.zeroPoint);
+                AtenFloatScalarOp::create(rewriter, loc, chain.zeroPoint);
           else {
             floatPadValue =
-                rewriter.create<AtenFloatScalarOp>(loc, floatPadValue);
-            quantPadValue = rewriter.create<Torch::AtenDivFloatOp>(
-                loc, floatPadValue, chain.scale);
-            quantPadValue = rewriter.create<Torch::AtenAddFloatIntOp>(
-                loc, quantPadValue, chain.zeroPoint);
+                AtenFloatScalarOp::create(rewriter, loc, floatPadValue);
+            quantPadValue = Torch::AtenDivFloatOp::create(
+                rewriter, loc, floatPadValue, chain.scale);
+            quantPadValue = Torch::AtenAddFloatIntOp::create(
+                rewriter, loc, quantPadValue, chain.zeroPoint);
           }
           // clamp pad value to qint range
           if (auto intType = dyn_cast<mlir::IntegerType>(intDType)) {
@@ -165,20 +165,21 @@ public:
                    "quantized int bitwidth should be less than 64");
             int64_t minInt = isSigned ? -(1 << (width - 1)) : 0;
             int64_t maxInt = isSigned ? -minInt - 1 : ((1 << width) - 1);
-            Value minQValueFloat = rewriter.create<ConstantFloatOp>(
-                loc, rewriter.getF64FloatAttr(minInt));
-            Value maxQValueFloat = rewriter.create<ConstantFloatOp>(
-                loc, rewriter.getF64FloatAttr(maxInt));
+            Value minQValueFloat = ConstantFloatOp::create(
+                rewriter, loc, rewriter.getF64FloatAttr(minInt));
+            Value maxQValueFloat = ConstantFloatOp::create(
+                rewriter, loc, rewriter.getF64FloatAttr(maxInt));
             SmallVector<int64_t> emptyShape;
             auto floatTensorType = rewriter.getType<Torch::ValueTensorType>(
                 emptyShape, rewriter.getF64Type());
             Value quantPadValueTensor = createRank0Tensor(
                 rewriter, loc, floatTensorType, quantPadValue);
-            Value clampedTensor = rewriter.create<Torch::AtenClampOp>(
-                loc, floatTensorType, quantPadValueTensor, minQValueFloat,
-                maxQValueFloat);
-            quantPadValue = rewriter.create<Torch::AtenItemOp>(
-                loc, rewriter.getType<Torch::FloatType>(), clampedTensor);
+            Value clampedTensor = Torch::AtenClampOp::create(
+                rewriter, loc, floatTensorType, quantPadValueTensor,
+                minQValueFloat, maxQValueFloat);
+            quantPadValue = Torch::AtenItemOp::create(
+                rewriter, loc, rewriter.getType<Torch::FloatType>(),
+                clampedTensor);
           }
           // quantPadValue is a float, but will get converted/truncated
           currOperands.back() = quantPadValue;
@@ -203,8 +204,9 @@ public:
           cast<ValueTensorType>(chain.dequantOpd.getType()).getOptionalDtype();
       auto newMPTQTType = rewriter.getType<ValueTensorType>(
           cast<ValueTensorType>(operands[i].getType()).getSizes(), qTorchType);
-      operands[i] = rewriter.create<Aten_MakePerTensorQuantizedTensorOp>(
-          loc, newMPTQTType, oldOpd, MPTQTOperands[1], MPTQTOperands[2]);
+      operands[i] = Aten_MakePerTensorQuantizedTensorOp::create(
+          rewriter, loc, newMPTQTType, oldOpd, MPTQTOperands[1],
+          MPTQTOperands[2]);
     }
 
     rewriter.replaceOpWithNewOp<SrcOp>(op, op.getType(), operands);
@@ -248,11 +250,11 @@ public:
         return failure();
     }
 
-    Value biasScale = rewriter.create<AtenMulFloatOp>(
-        op.getLoc(), lhsScale.getType(), lhsScale, rhsScale);
+    Value biasScale = AtenMulFloatOp::create(
+        rewriter, op.getLoc(), lhsScale.getType(), lhsScale, rhsScale);
 
-    Value zero = rewriter.create<Torch::ConstantIntOp>(
-        op.getLoc(), rewriter.getType<Torch::IntType>(),
+    Value zero = Torch::ConstantIntOp::create(
+        rewriter, op.getLoc(), rewriter.getType<Torch::IntType>(),
         rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
 
     auto qi32Ty = rewriter.getType<QInt32Type>();
@@ -261,10 +263,10 @@ public:
       auto newBiasTy =
           rewriter.getType<ValueTensorType>(biasTy.getOptionalSizes(), qi32Ty);
       Value dtype = getDtypeIntValueForType(rewriter, op.getLoc(), qi32Ty);
-      bias = rewriter.create<AtenQuantizePerTensorOp>(
-          op.getLoc(), newBiasTy, bias, biasScale, zero, dtype);
-      bias = rewriter.create<AtenIntReprOp>(
-          op.getLoc(),
+      bias = AtenQuantizePerTensorOp::create(rewriter, op.getLoc(), newBiasTy,
+                                             bias, biasScale, zero, dtype);
+      bias = AtenIntReprOp::create(
+          rewriter, op.getLoc(),
           rewriter.getType<ValueTensorType>(
               biasTy.getOptionalSizes(),
               rewriter.getIntegerType(32, IntegerType::Signed)),
@@ -275,12 +277,12 @@ public:
     auto convTy = rewriter.getType<ValueTensorType>(
         resultTy.getOptionalSizes(),
         rewriter.getIntegerType(32, IntegerType::Signed));
-    auto conv = rewriter.create<SrcOp>(op.getLoc(), convTy, operands);
+    auto conv = SrcOp::create(rewriter, op.getLoc(), convTy, operands);
 
     auto convQTy =
         rewriter.getType<ValueTensorType>(resultTy.getOptionalSizes(), qi32Ty);
-    auto makeOut = rewriter.create<Aten_MakePerTensorQuantizedTensorOp>(
-        op.getLoc(), convQTy, conv, biasScale, zero);
+    auto makeOut = Aten_MakePerTensorQuantizedTensorOp::create(
+        rewriter, op.getLoc(), convQTy, conv, biasScale, zero);
     rewriter.replaceOpWithNewOp<AtenDequantizeTensorOp>(op, op.getType(),
                                                         makeOut);
 
@@ -322,33 +324,34 @@ public:
       return failure();
 
     // Quantize the bias input to the expected result:
-    Value zero = rewriter.create<Torch::ConstantIntOp>(
-        op.getLoc(), rewriter.getType<Torch::IntType>(),
+    Value zero = Torch::ConstantIntOp::create(
+        rewriter, op.getLoc(), rewriter.getType<Torch::IntType>(),
         rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
 
     auto qi32Ty = rewriter.getType<QInt32Type>();
-    Value biasScale = rewriter.create<AtenMulFloatOp>(
-        op.getLoc(), lhsScale.getType(), lhsScale, rhsScale);
+    Value biasScale = AtenMulFloatOp::create(
+        rewriter, op.getLoc(), lhsScale.getType(), lhsScale, rhsScale);
 
     // Update the quantied type:
     llvm::SmallVector<Value> operands(op.getOperands());
 
     auto newResultTy =
         rewriter.getType<ValueTensorType>(resultTy.getOptionalSizes(), qi32Ty);
-    auto conv = rewriter.create<SrcOp>(op.getLoc(), newResultTy, operands);
+    auto conv = SrcOp::create(rewriter, op.getLoc(), newResultTy, operands);
 
     // Attach the quantize information to the resulting qint32:
     auto intReprTy = rewriter.getType<ValueTensorType>(
         resultTy.getOptionalSizes(),
         rewriter.getIntegerType(32, IntegerType::Signed));
-    auto intRepr = rewriter.create<AtenIntReprOp>(op.getLoc(), intReprTy, conv);
+    auto intRepr =
+        AtenIntReprOp::create(rewriter, op.getLoc(), intReprTy, conv);
 
     auto quantTy =
         rewriter.getType<ValueTensorType>(resultTy.getOptionalSizes(), qi32Ty);
-    auto quant = rewriter.create<Aten_MakePerTensorQuantizedTensorOp>(
-        op.getLoc(), quantTy, intRepr, biasScale, zero);
+    auto quant = Aten_MakePerTensorQuantizedTensorOp::create(
+        rewriter, op.getLoc(), quantTy, intRepr, biasScale, zero);
     auto dequant =
-        rewriter.create<AtenDequantizeTensorOp>(op.getLoc(), resultTy, quant);
+        AtenDequantizeTensorOp::create(rewriter, op.getLoc(), resultTy, quant);
     rewriter.replaceOp(op, dequant);
 
     return success();
@@ -397,23 +400,24 @@ public:
     // set SrcOp type to use quantized dtype from input
     auto newResultTy =
         rewriter.getType<ValueTensorType>(resultTy.getOptionalSizes(), qDtype);
-    auto newResult = rewriter.create<SrcOp>(op.getLoc(), newResultTy, operands);
+    auto newResult =
+        SrcOp::create(rewriter, op.getLoc(), newResultTy, operands);
 
     // int repr to get non quantized int type result
     auto intReprTy = rewriter.getType<ValueTensorType>(
         resultTy.getOptionalSizes(), intReprDtype);
     auto intRepr =
-        rewriter.create<AtenIntReprOp>(op.getLoc(), intReprTy, newResult);
+        AtenIntReprOp::create(rewriter, op.getLoc(), intReprTy, newResult);
 
     // requantize so the scale and zero-point info can be attached
     auto quantTy =
         rewriter.getType<ValueTensorType>(resultTy.getOptionalSizes(), qDtype);
-    auto quant = rewriter.create<Aten_MakePerTensorQuantizedTensorOp>(
-        op.getLoc(), quantTy, intRepr, inputScale, inputZeroPoint);
+    auto quant = Aten_MakePerTensorQuantizedTensorOp::create(
+        rewriter, op.getLoc(), quantTy, intRepr, inputScale, inputZeroPoint);
 
     // dequant back to original dtype
     auto dequant =
-        rewriter.create<AtenDequantizeTensorOp>(op.getLoc(), resultTy, quant);
+        AtenDequantizeTensorOp::create(rewriter, op.getLoc(), resultTy, quant);
     rewriter.replaceOp(op, dequant);
     return success();
   }

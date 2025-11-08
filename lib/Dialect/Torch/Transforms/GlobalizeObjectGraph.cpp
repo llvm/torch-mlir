@@ -172,9 +172,9 @@ private:
       } else if (usedSlots.find(slot) != usedSlots.end()) {
         // Only create the GlobalSlotOp if the slot is used at all.
         std::string linkageName = llvm::join(nameStack, ".");
-        auto globalSlot = globalSlotBuilder.create<GlobalSlotOp>(
-            slot.getLoc(), linkageName,
-            /*sym_visibility=*/nullptr, attr.getType());
+        auto globalSlot =
+            GlobalSlotOp::create(globalSlotBuilder, slot.getLoc(), linkageName,
+                                 /*sym_visibility=*/nullptr, attr.getType());
         if (attr.getIsPrivate())
           globalSlot.setVisibility(SymbolTable::Visibility::Private);
         assert(slotToGlobalSlot.find(slot) == slotToGlobalSlot.end());
@@ -230,7 +230,7 @@ createGlobalSlotModuleInitializer(ModuleOp module, SymbolTable &symbolTable,
                                   ObjectGraphInfo &objectGraphInfo) {
   auto builder = OpBuilder::atBlockBegin(module.getBody());
   auto moduleInitializer =
-      builder.create<GlobalSlotModuleInitializerOp>(module.getLoc());
+      GlobalSlotModuleInitializerOp::create(builder, module.getLoc());
   Block *body = builder.createBlock(&moduleInitializer.getInitializer());
   builder.setInsertionPointToEnd(body);
   SmallVector<Operation *> opsToMove;
@@ -254,8 +254,8 @@ createGlobalSlotModuleInitializer(ModuleOp module, SymbolTable &symbolTable,
     slotSymNames.push_back(FlatSymbolRefAttr::get(symName));
     initialValues.push_back(mapping.lookup(initializer));
   }
-  builder.create<InitializeGlobalSlotsOp>(
-      moduleInitializer.getLoc(),
+  InitializeGlobalSlotsOp::create(
+      builder, moduleInitializer.getLoc(),
       ArrayAttr::get(module.getContext(), slotSymNames), initialValues);
   return success();
 }
@@ -504,8 +504,9 @@ static LogicalResult rewriteMonomorphizedFuncClone(
       if (slot.getName() == op.getName())
         affectedSlot = slot;
     }
-    OpBuilder(op).create<GlobalSlotSetOp>(
-        op.getLoc(),
+    OpBuilder builder(op);
+    GlobalSlotSetOp::create(
+        builder, op.getLoc(),
         objectGraphInfo.getGlobalSlotFor(affectedSlot).getSymName(),
         op.getValue());
     toErase.push_back(op);
@@ -520,8 +521,9 @@ static LogicalResult rewriteMonomorphizedFuncClone(
         if (slot.getName() == op.getName())
           affectedSlot = slot;
       }
-      auto newOp = OpBuilder(op).create<GlobalSlotGetOp>(
-          op.getLoc(), op.getType(),
+      OpBuilder builder(op);
+      auto newOp = GlobalSlotGetOp::create(
+          builder, op.getLoc(), op.getType(),
           objectGraphInfo.getGlobalSlotFor(affectedSlot).getSymName());
       op.replaceAllUsesWith(&*newOp);
     }
@@ -539,8 +541,9 @@ static LogicalResult rewriteMonomorphizedFuncClone(
           return !isa<NnModuleType>(v.getType());
         }));
     assert(newFuncs.find(monomorphization) != newFuncs.end());
-    auto newOp = OpBuilder(op).create<func::CallOp>(
-        op.getLoc(), newFuncs[monomorphization], newArguments);
+    OpBuilder builder(op);
+    auto newOp = func::CallOp::create(builder, op.getLoc(),
+                                      newFuncs[monomorphization], newArguments);
     op.replaceAllUsesWith(newOp);
     toErase.push_back(op);
     return WalkResult::advance();

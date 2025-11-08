@@ -38,14 +38,14 @@ static void setupValueTensorToBuiltinTensorConversion(
     assert(inputs.size() == 1);
     if (!isa<Torch::BaseTensorType>(inputs[0].getType()))
       return {};
-    return builder.create<ToBuiltinTensorOp>(loc, type, inputs[0]);
+    return ToBuiltinTensorOp::create(builder, loc, type, inputs[0]);
   });
   auto sourceMaterialization = [](OpBuilder &builder,
                                   Torch::ValueTensorType type,
                                   ValueRange inputs, Location loc) -> Value {
     assert(inputs.size() == 1);
     assert(isa<TensorType>(inputs[0].getType()));
-    return builder.create<FromBuiltinTensorOp>(loc, type, inputs[0]);
+    return FromBuiltinTensorOp::create(builder, loc, type, inputs[0]);
   };
   typeConverter.addSourceMaterialization(sourceMaterialization);
 }
@@ -64,13 +64,13 @@ static void setupTorchBoolToI1Conversion(ConversionTarget &target,
       return Value();
     assert(inputs.size() == 1);
     assert(isa<Torch::BoolType>(inputs[0].getType()));
-    return builder.create<ToI1Op>(loc, inputs[0]).getResult();
+    return ToI1Op::create(builder, loc, inputs[0]).getResult();
   });
   auto sourceMaterialization = [](OpBuilder &builder, Torch::BoolType type,
                                   ValueRange inputs, Location loc) -> Value {
     assert(inputs.size() == 1);
     assert(isa<IntegerType>(inputs[0].getType()));
-    return builder.create<FromI1Op>(loc, inputs[0]);
+    return FromI1Op::create(builder, loc, inputs[0]);
   };
   typeConverter.addSourceMaterialization(sourceMaterialization);
 }
@@ -98,7 +98,7 @@ static void setupTorchIntToI64Conversion(ConversionTarget &target,
                                   ValueRange inputs, Location loc) -> Value {
     assert(inputs.size() == 1);
     assert(isa<IntegerType>(inputs[0].getType()));
-    return builder.create<FromI64Op>(loc, inputs[0]);
+    return FromI64Op::create(builder, loc, inputs[0]);
   };
   typeConverter.addSourceMaterialization(sourceMaterialization);
 }
@@ -114,13 +114,13 @@ static void setupTorchFloatToF64Conversion(ConversionTarget &target,
                                             Location loc) -> Value {
     assert(inputs.size() == 1);
     assert(isa<Torch::FloatType>(inputs[0].getType()));
-    return builder.create<ToF64Op>(loc, inputs[0]).getResult();
+    return ToF64Op::create(builder, loc, inputs[0]).getResult();
   });
   auto sourceMaterialization = [](OpBuilder &builder, Torch::FloatType type,
                                   ValueRange inputs, Location loc) -> Value {
     assert(inputs.size() == 1);
     assert(isa<Float64Type>(inputs[0].getType()));
-    return builder.create<FromF64Op>(loc, inputs[0]);
+    return FromF64Op::create(builder, loc, inputs[0]);
   };
   typeConverter.addSourceMaterialization(sourceMaterialization);
 }
@@ -144,13 +144,13 @@ static void setupTorchGeneratorToI64Conversion(ConversionTarget &target,
     if (!isa<Torch::GeneratorType>(inputs[0].getType()))
       return Value();
     assert(inputs.size() == 1);
-    return builder.create<GeneratorToI64Op>(loc, inputs[0]).getResult();
+    return GeneratorToI64Op::create(builder, loc, inputs[0]).getResult();
   });
   auto sourceMaterialization = [](OpBuilder &builder, Torch::GeneratorType type,
                                   ValueRange inputs, Location loc) -> Value {
     assert(inputs.size() == 1);
     assert(isa<IntegerType>(inputs[0].getType()));
-    return builder.create<I64ToGeneratorOp>(loc, inputs[0]);
+    return I64ToGeneratorOp::create(builder, loc, inputs[0]);
   };
   typeConverter.addSourceMaterialization(sourceMaterialization);
 }

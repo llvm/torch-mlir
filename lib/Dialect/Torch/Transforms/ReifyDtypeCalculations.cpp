@@ -33,11 +33,11 @@ dtypeFunctionArgsBuilder(OpBuilder &b, Location loc,
         isa<Torch::BaseTensorType>(operand.getType())) {
       Type intType = Torch::IntType::get(b.getContext());
       Type sizeListType = Torch::ListType::get(intType);
-      Value size = b.create<AtenSizeOp>(loc, sizeListType, operand);
-      Value rank = b.create<AtenLenTOp>(loc, intType, size);
-      Value dtype = b.create<PrimDtypeOp>(loc, intType, operand);
-      return b.create<PrimTupleConstructOp>(loc, desiredType,
-                                            ArrayRef{rank, dtype});
+      Value size = AtenSizeOp::create(b, loc, sizeListType, operand);
+      Value rank = AtenLenTOp::create(b, loc, intType, size);
+      Value dtype = PrimDtypeOp::create(b, loc, intType, operand);
+      return PrimTupleConstructOp::create(b, loc, desiredType,
+                                          ArrayRef{rank, dtype});
     }
     return operand;
   };
