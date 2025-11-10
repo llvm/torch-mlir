@@ -1628,8 +1628,8 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
       Value outerDim = outerSizes[i + 2];
       Value isPadding = rewriter.createOrFold<arith::CmpIOp>(
           loc, arith::CmpIPredicate::ugt, outerDim, innerDim);
-      Value maxDim =
-          rewriter.createOrFold<arith::SelectOp>(loc, isPadding, outerDim, innerDim);
+      Value maxDim = rewriter.createOrFold<arith::SelectOp>(loc, isPadding,
+                                                            outerDim, innerDim);
       maxSizes.push_back(maxDim);
     }
 
@@ -1637,15 +1637,16 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
         createInitTensor(rewriter, loc, maxSizes, inputDTy, pad);
 
     // Insert input
-    auto paddedTensor = tensor::InsertSliceOp::create(rewriter,
-        loc, torch_to_linalg::removeSizeInformation(rewriter, loc, input),
+    auto paddedTensor = tensor::InsertSliceOp::create(
+        rewriter, loc,
+        torch_to_linalg::removeSizeInformation(rewriter, loc, input),
         initMaxTensor, insertSliceOffsets, inputSizes, strideIndexValues);
 
     SmallVector<Value> allOnesStrides(inputSizes.size(), c1);
 
     // Crop. Extract the final tensor from the "max" tensor
-    auto finalTensor = tensor::ExtractSliceOp::create(rewriter,
-        loc,
+    auto finalTensor = tensor::ExtractSliceOp::create(
+        rewriter, loc,
         torch_to_linalg::removeSizeInformation(rewriter, loc, paddedTensor),
         extractSliceOffsets, outerSizes, allOnesStrides);
 
@@ -1657,8 +1658,9 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
         createInitTensor(rewriter, loc, outerSizes, inputDTy, pad);
 
     // Insert the original input into the outer tensor with calculated offsets
-    auto paddedInput = tensor::InsertSliceOp::create(rewriter,
-        loc, torch_to_linalg::removeSizeInformation(rewriter, loc, input),
+    auto paddedInput = tensor::InsertSliceOp::create(
+        rewriter, loc,
+        torch_to_linalg::removeSizeInformation(rewriter, loc, input),
         initPaddedTensor, insertSliceOffsets, inputSizes, strideIndexValues);
     return paddedInput;
   }
