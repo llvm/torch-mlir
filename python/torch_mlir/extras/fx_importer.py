@@ -1910,35 +1910,50 @@ class GraphNodeImporter:
     ):
         """Imports the torch._higher_order_ops.flex_attention HOP.
 
-        Args format: (query, key, value, score_mod, block_mask, scale, enable_gqa, kernel_options, ...)
+        Args format: (query, key, value, score_mod, block_mask, scale, kernel_options, ...)
         - query, key, value: Attention input tensors
         - score_mod: Optional submodule/callable for score modification (imported as function)
         - block_mask: Optional BlockMask tuple containing mask_mod function and runtime tensors
         - scale: Optional float for attention score scaling
-        - enable_gqa: Boolean for grouped query attention support
-        - kernel_options: Dict of performance tuning options:
+        - kernel_options: Optional Dict of performance tuning options:
             - return_lse: Boolean for whether to return the log-sum-exp tensor
 
         This creates a call to aten.flex_attention with function symbol references for
-        score_mod and mask_mod. The return_lse flag is extracted from kernel_options.
+        score_mod and mask_mod.
         """
         # flex_attention HOP args from PyTorch:
-        # (query, key, value, score_mod, block_mask, scale, enable_gqa, kernel_options, return_lse_tuple, ...)
-        if len(node.args) < 6:
+        # (query, key, value, score_mod, block_mask, scale, kernel_options, ...)
+        if len(node.args) < 3:
             raise ValueError(
-                f"flex_attention expects at least 6 arguments, got {len(node.args)}"
+                f"flex_attention expects at least 3 arguments, got {len(node.args)}"
             )
 
-        query_arg, key_arg, value_arg, score_mod_arg, block_mask_arg, scale_arg = (
-            node.args[:6]
-        )
+        # Required args
+        query_arg, key_arg, value_arg = node.args[:3]
 
-        # This is a boolean flag that enables GQA optimization
-        enable_gqa = node.args[6] if len(node.args) > 6 else False
+        # Optional args (parse from remaining positionals;
+        score_mod_arg = None
+        block_mask_arg = None
+        scale_arg = None
+        kernel_options = {}
+        remaining = list(node.args[3:])
 
-        # TODO: Add support for kernel_options (performance tuning parameters)
-        # This is a dict containing options like block sizes, num_warps, etc.
-        kernel_options = node.args[7] if len(node.args) > 7 else {}
+        # score_mod (get_attr) if present
+        if remaining and isinstance(remaining[0], torch_fx.Node):
+            score_mod_arg = remaining.pop(0)
+
+        # block_mask (tuple ending with mask_mod get_attr) if present
+        if remaining and isinstance(remaining[0], tuple):
+            block_mask_arg = remaining.pop(0)
+
+        if remaining and not isinstance(remaining[0], dict):
+            scale_arg = remaining.pop(0)
+
+        if remaining and isinstance(remaining[0], dict):
+            kernel_options = remaining.pop(0)
+
+        # We don't support GQA yet.
+        enable_gqa = False
 
         # Import Q, K, V tensors
         query = self._import_argument(loc, query_arg, None)
@@ -2015,7 +2030,6 @@ class GraphNodeImporter:
         return_lse_value = False
         if isinstance(kernel_options, dict):
             return_lse_value = kernel_options.get("return_lse", False)
-
         with loc:
             return_lse = _make_constant_op(
                 "torch.constant.bool",
@@ -2052,7 +2066,6 @@ class GraphNodeImporter:
             attributes=attributes if attributes else None,
             loc=loc,
         )
-
         # Bind results
         if len(result_types) > 1:
             self._multi_result_nodes.add(node)
@@ -2088,7 +2101,7 @@ class GraphNodeImporter:
             # torch dynamo where it emits the Tensor variant of ops even when processing
             # scalar arguments, therefore we retrieve the schema as well so that we
             # consume the correct typing information when subsequently importing the
-            # function arguments and result types
+            # function arguments and result types.
             # i.e. the code below is basically doing `schema = torch.ops.aten.my_op.Scalar._schema`
             op_attrs = mlir_op_name.split(".")
             op_overload = getattr(torch, "ops")
