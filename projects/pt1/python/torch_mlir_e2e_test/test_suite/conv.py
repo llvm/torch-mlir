@@ -2002,7 +2002,7 @@ def TransposedConv1dNegativePadding_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 7), tu.rand(1, 2, 3), tu.rand(2))
 
 
-class TransposedConv1dNegativePaddingUnitStride(torch.nn.Module):
+class TransposedConv1dNegativePaddingUnitStrideDyn(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -2010,7 +2010,7 @@ class TransposedConv1dNegativePaddingUnitStride(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([1, 1, 7], torch.float32, True),
+            ([1, 1, -1], torch.float32, True),
             ([1, 2, 3], torch.float32, True),
             ([2], torch.float32, True),
         ]
@@ -2029,8 +2029,10 @@ class TransposedConv1dNegativePaddingUnitStride(torch.nn.Module):
         )
 
 
-@register_test_case(module_factory=lambda: TransposedConv1dNegativePaddingUnitStride())
-def TransposedConv1dNegativePaddingUnitStride_basic(module, tu: TestUtils):
+@register_test_case(
+    module_factory=lambda: TransposedConv1dNegativePaddingUnitStrideDyn()
+)
+def TransposedConv1dNegativePaddingUnitStrideDyn_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 7), tu.rand(1, 2, 3), tu.rand(2))
 
 
