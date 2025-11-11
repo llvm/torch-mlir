@@ -3267,6 +3267,7 @@ ONNX_XFAIL_SET = {
     "TraceSignedIntModule_basic",
     "TraceUnsignedIntModule_basic",
     "TraceUnsignedIntModule_empty",
+    "TransposedConv1dNegativePaddingUnitStrideDyn_basic",
     "UniformModule_basic",
     "UniformNoCorrelationModule_basic",
     "UniformStaticShapeModule_basic",

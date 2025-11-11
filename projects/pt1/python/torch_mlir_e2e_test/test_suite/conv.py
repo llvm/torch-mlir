@@ -2010,7 +2010,7 @@ class TransposedConv1dNegativePaddingUnitStrideDyn(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([1, 1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
             ([1, 2, 3], torch.float32, True),
             ([2], torch.float32, True),
         ]
