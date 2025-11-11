@@ -8,8 +8,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Pass/Pass.h"
+#include "torch-mlir/Conversion/Passes.h"
 
-#include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MLProgram/IR/MLProgram.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -20,6 +22,10 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 using namespace mlir::torch::TorchConversion;
+namespace mlir::torch {
+
+#define GEN_PASS_DEF_CONVERTTORCHCONVERSIONTOMLPROGRAM
+#include "torch-mlir/Conversion/Passes.h.inc"
 
 static constexpr StringRef getSeedGobalVarName() { return "global_seed"; }
 
@@ -102,7 +108,7 @@ public:
 
 namespace {
 class ConvertTorchConversionToMLProgram
-    : public ConvertTorchConversionToMLProgramBase<
+    : public impl::ConvertTorchConversionToMLProgramBase<
           ConvertTorchConversionToMLProgram> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -138,6 +144,8 @@ public:
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::createConvertTorchConversionToMLProgramPass() {
+createConvertTorchConversionToMLProgramPass() {
   return std::make_unique<ConvertTorchConversionToMLProgram>();
 }
+
+} // namespace mlir::torch

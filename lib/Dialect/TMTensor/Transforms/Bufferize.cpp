@@ -23,11 +23,14 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h"
-#include "torch-mlir-dialects/Dialect/TMTensor/Transforms/PassDetail.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h"
 
 using namespace ::mlir;
 using namespace ::mlir::torch::TMTensor;
+namespace mlir::torch::TMTensor {
+
+#define GEN_PASS_DEF_TMTENSORBUFFERIZE
+#include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h.inc"
 
 static Value cloneMemref(Location loc, Value memref, OpBuilder &b) {
   auto memrefType = cast<MemRefType>(memref.getType());
@@ -134,7 +137,7 @@ static Value materializeToTensor(OpBuilder &builder, TensorType type,
 /// Converts TMTensor operations that work on tensor-type operands or results to
 /// work on buffers.
 struct TMTensorBufferizePass
-    : public TMTensorBufferizeBase<TMTensorBufferizePass> {
+    : public impl::TMTensorBufferizeBase<TMTensorBufferizePass> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<bufferization::BufferizationDialect, memref::MemRefDialect,
                     torch::TMTensor::TMTensorDialect>();
@@ -202,7 +205,8 @@ struct TMTensorBufferizePass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-torch::TMTensor::createTMTensorBufferizePass() {
+std::unique_ptr<OperationPass<func::FuncOp>> createTMTensorBufferizePass() {
   return std::make_unique<TMTensorBufferizePass>();
 }
+
+} // namespace mlir::torch::TMTensor

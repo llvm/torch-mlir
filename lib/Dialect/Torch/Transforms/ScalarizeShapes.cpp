@@ -7,12 +7,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/Iterators.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
@@ -23,6 +24,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DEF_SCALARIZESHAPES
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 namespace {
 
@@ -1534,7 +1539,8 @@ void populateScalarizationRemovePatterns(RewritePatternSet &patterns) {
 
 } // namespace
 namespace {
-class ScalarizeShapesPass : public ScalarizeShapesBase<ScalarizeShapesPass> {
+class ScalarizeShapesPass
+    : public impl::ScalarizeShapesBase<ScalarizeShapesPass> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<arith::ArithDialect>();
@@ -1615,7 +1621,8 @@ public:
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createScalarizeShapesPass() {
+std::unique_ptr<OperationPass<func::FuncOp>> createScalarizeShapesPass() {
   return std::make_unique<ScalarizeShapesPass>();
 }
+
+} // namespace mlir::torch::Torch

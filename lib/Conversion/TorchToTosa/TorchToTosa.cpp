@@ -8,13 +8,15 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
-#include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Conversion/Passes.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -34,6 +36,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch {
+
+#define GEN_PASS_DEF_CONVERTTORCHTOTOSA
+#include "torch-mlir/Conversion/Passes.h.inc"
 
 namespace {
 
@@ -9033,12 +9039,11 @@ LogicalResult ConvertAtenOp<AtenUnfoldOp>::matchAndRewrite(
 // -----------------------------------------------------------------------------
 
 namespace {
-class ConvertTorchToTosa : public ConvertTorchToTosaBase<ConvertTorchToTosa> {
+class ConvertTorchToTosa
+    : public impl::ConvertTorchToTosaBase<ConvertTorchToTosa> {
 public:
-  ConvertTorchToTosa() = default;
-  ConvertTorchToTosa(bool requireFullTosaConversion) {
-    this->requireFullTosaConversion = requireFullTosaConversion;
-  }
+  using impl::ConvertTorchToTosaBase<
+      ConvertTorchToTosa>::ConvertTorchToTosaBase;
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<tosa::TosaDialect>();
@@ -9081,7 +9086,7 @@ public:
 };
 } // namespace
 
-void torch::populateTorchToTosaConversionLegalOps(ConversionTarget &target) {
+void populateTorchToTosaConversionLegalOps(ConversionTarget &target) {
   // The following ops are never the primary reason why lowering fails.
   // The backend contract only allows functions to return tensors thus there
   // is always another op using them.
@@ -9098,7 +9103,7 @@ void torch::populateTorchToTosaConversionLegalOps(ConversionTarget &target) {
   target.addLegalOp<PrimTupleConstructOp>();
 }
 
-std::set<StringRef> torch::populateTorchToTosaConversionPatternsAndIllegalOps(
+std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
     TypeConverter &typeConverter, RewritePatternSet &patterns) {
 
   MLIRContext *context = patterns.getContext();
@@ -9411,12 +9416,18 @@ std::set<StringRef> torch::populateTorchToTosaConversionPatternsAndIllegalOps(
   return illegalOps;
 }
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToTosaPass() {
-  return std::make_unique<ConvertTorchToTosa>(true);
+// Default pass creation function (required by tablegen)
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToTosaPass() {
+  return std::make_unique<ConvertTorchToTosa>();
 }
 
+// Convenience wrapper for users who want to pass options as individual
+// parameters
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToTosaPass(bool requireFullTosaConversion) {
-  return std::make_unique<ConvertTorchToTosa>(requireFullTosaConversion);
+createConvertTorchToTosaPass(bool requireFullTosaConversion) {
+  ConvertTorchToTosaOptions options;
+  options.requireFullTosaConversion = requireFullTosaConversion;
+  return std::make_unique<ConvertTorchToTosa>(options);
 }
+
+} // namespace mlir::torch

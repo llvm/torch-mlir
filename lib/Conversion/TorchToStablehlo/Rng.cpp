@@ -9,7 +9,6 @@
 
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
-#include "../PassDetail.h"
 #include "./PopulatePatterns.h"
 
 #include "stablehlo/dialect/StablehloOps.h"

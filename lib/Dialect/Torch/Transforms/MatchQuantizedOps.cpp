@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -17,6 +17,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DEF_MATCHQUANTIZEDCUSTOMOPS
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 namespace {
 
@@ -115,7 +119,7 @@ public:
 };
 
 class MatchQuantizedCustomOpsPass
-    : public MatchQuantizedCustomOpsBase<MatchQuantizedCustomOpsPass> {
+    : public impl::MatchQuantizedCustomOpsBase<MatchQuantizedCustomOpsPass> {
 public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
@@ -132,6 +136,8 @@ public:
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createMatchQuantizedCustomOpsPass() {
+createMatchQuantizedCustomOpsPass() {
   return std::make_unique<MatchQuantizedCustomOpsPass>();
 }
+
+} // namespace mlir::torch::Torch

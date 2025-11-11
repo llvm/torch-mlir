@@ -8,8 +8,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Pass/Pass.h"
+#include "torch-mlir/Conversion/Passes.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -23,17 +25,18 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch {
+
+#define GEN_PASS_DEF_CONVERTTORCHTOSTABLEHLO
+#include "torch-mlir/Conversion/Passes.h.inc"
 
 namespace {
 
 class ConvertTorchToStablehlo
-    : public ConvertTorchToStablehloBase<ConvertTorchToStablehlo> {
+    : public impl::ConvertTorchToStablehloBase<ConvertTorchToStablehlo> {
 public:
-  ConvertTorchToStablehlo() = default;
-  ConvertTorchToStablehlo(bool enableStaticShape, bool enableI32Index) {
-    this->enableStaticShape = enableStaticShape;
-    this->enableI32Index = enableI32Index;
-  }
+  using impl::ConvertTorchToStablehloBase<
+      ConvertTorchToStablehlo>::ConvertTorchToStablehloBase;
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<chlo::ChloDialect>();
@@ -86,14 +89,20 @@ public:
 
 } // namespace
 
+// Default pass creation function (required by tablegen)
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToStablehloPass() {
-  return std::make_unique<ConvertTorchToStablehlo>(false, false);
+createConvertTorchToStablehloPass() {
+  return std::make_unique<ConvertTorchToStablehlo>();
 }
 
+// Convenience wrapper for users who want to pass options as individual
+// parameters
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToStablehloPass(bool enableStaticShape,
-                                               bool enableI32Index) {
-  return std::make_unique<ConvertTorchToStablehlo>(enableStaticShape,
-                                                   enableI32Index);
+createConvertTorchToStablehloPass(bool enableStaticShape, bool enableI32Index) {
+  ConvertTorchToStablehloOptions options;
+  options.enableStaticShape = enableStaticShape;
+  options.enableI32Index = enableI32Index;
+  return std::make_unique<ConvertTorchToStablehlo>(options);
 }
+
+} // namespace mlir::torch

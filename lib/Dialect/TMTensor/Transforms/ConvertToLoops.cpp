@@ -20,7 +20,6 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h"
-#include "torch-mlir-dialects/Dialect/TMTensor/Transforms/PassDetail.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
@@ -28,6 +27,10 @@
 
 using namespace mlir;
 using namespace mlir::torch::TMTensor;
+namespace mlir::torch::TMTensor {
+
+#define GEN_PASS_DEF_TMTENSORTOLOOPS
+#include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h.inc"
 
 /// Recursive method that lowers one dimension of the `ScalarLoopOpInterface` to
 /// scalar loops at a time.
@@ -98,7 +101,8 @@ struct ScalarLoopOpInterfaceLowerToLoopsPattern : public RewritePattern {
 //===----------------------------------------------------------------------===//
 
 namespace {
-struct TMTensorToLoopsPass : public TMTensorToLoopsBase<TMTensorToLoopsPass> {
+struct TMTensorToLoopsPass
+    : public impl::TMTensorToLoopsBase<TMTensorToLoopsPass> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<linalg::LinalgDialect, func::FuncDialect,
                     mlir::arith::ArithDialect, math::MathDialect,
@@ -117,7 +121,8 @@ struct TMTensorToLoopsPass : public TMTensorToLoopsBase<TMTensorToLoopsPass> {
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-torch::TMTensor::createTMTensorToLoopsPass() {
+std::unique_ptr<OperationPass<func::FuncOp>> createTMTensorToLoopsPass() {
   return std::make_unique<TMTensorToLoopsPass>();
 }
+
+} // namespace mlir::torch::TMTensor
