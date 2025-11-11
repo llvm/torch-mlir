@@ -3930,8 +3930,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "SliceCopyStartGreaterThanDimSize_Module_basic",
     "SliceEndSleStartModule_basic",
     "SliceOutOfLowerBoundEndIndexModule_basic",
-    "SliceOutOfLowerBoundStartIndexModule_basic",
-    "SliceSizeTwoStepModule_basic",
     "SortIntListReverse_basic",
     "SortIntList_basic",
     "SortTensorDescending_basic",
