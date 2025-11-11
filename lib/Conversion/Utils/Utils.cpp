@@ -565,6 +565,12 @@ FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
   return squeezed;
 }
 
+void getZeroPoint(Value value, Value &zeropoint) {
+  if (auto make = value.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
+    zeropoint = make.getZeroPoint();
+  }
+}
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
