@@ -1538,6 +1538,25 @@ public:
 };
 } // namespace
 
+/*
+ * Calculates the dimensions and offsets needed to emulate a Transposed
+ * Convolution (like PyTorch's ConvTranspose2d) using a standard
+ * Forward Convolution.
+ *
+ * This involves creating a new tensor by:
+ * 1. Calculating `innerSizes`: The input size after dilation by `stride`.
+ * innerSize[i] = (inDim[i] - 1) * stride[i] + 1
+ *
+ * 2. Calculating `outerSizes`: The final padded tensor size.
+ * offset[i]    = (weightDim[i] - 1) * dilation[i] - padding[i]
+ * outerSize[i] = innerSize[i] + (2 * offset[i]) + outputPadding[i]
+ *
+ * If `offset[i]` is negative, this is treated as *cropping* the
+ * `innerSizes` tensor. This function calculates the
+ * `insertSliceOffsets` (padding) and `extractSliceOffsets` (cropping)
+ * to correctly place the (potentially cropped) inner tensor within the
+ * new outer tensor.
+ */
 Value ConvertAtenConvolutionOp::createTransposedInputPadding(
     Value inBatch, Value inChannels, SmallVector<Value> &inDims,
     SmallVector<Value> &weightDims, SmallVector<Value> &paddingIntValues,
@@ -1552,12 +1571,6 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
 
   SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
 
-  // For the case in which the padding dimension value is negative,
-  // we will need to shrink the dimension. Note in the PyTorch
-  // ConvTranspose2d operator documentation that the padding is
-  // defined by dilation * (kernel_size - 1) - padding. If the
-  // resulting padding is negative, PyTorch will extract elements
-  // from both sides of the dimension.
   SmallVector<Value> extractSliceOffsets{c0, c0};
   bool anyDimensionPaddingIsNegative = false;
 
