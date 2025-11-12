@@ -123,29 +123,24 @@ if(WIN32)
   get_target_property(_link_libs TorchMLIRAggregateCAPI LINK_LIBRARIES)
   if(_link_libs)
     set(_new_link_libs "")
-    set(_wholearchive_flags "")
     set(_next_is_lib FALSE)
 
     foreach(_item ${_link_libs})
       if("${_item}" STREQUAL "-force_load")
+        # Skip the -force_load flag itself, next item is the library
         set(_next_is_lib TRUE)
       elseif(_next_is_lib)
-        # This is the library after -force_load, convert to /WHOLEARCHIVE
-        list(APPEND _wholearchive_flags "/WHOLEARCHIVE:${_item}")
+        # This is the library after -force_load, add it with /WHOLEARCHIVE prefix
+        list(APPEND _new_link_libs "/WHOLEARCHIVE:${_item}")
         set(_next_is_lib FALSE)
       else()
-        # Regular link library, keep it
+        # Regular link library, keep it as-is
         list(APPEND _new_link_libs "${_item}")
       endif()
     endforeach()
 
-    # Update link libraries (remove -force_load entries)
+    # Update link libraries with /WHOLEARCHIVE instead of -force_load
     set_target_properties(TorchMLIRAggregateCAPI PROPERTIES LINK_LIBRARIES "${_new_link_libs}")
-
-    # Add /WHOLEARCHIVE as linker options
-    if(_wholearchive_flags)
-      target_link_options(TorchMLIRAggregateCAPI PRIVATE ${_wholearchive_flags})
-    endif()
   endif()
 endif()
 
