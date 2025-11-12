@@ -53,7 +53,7 @@ namespace mlir::torch::RefBackend {
 
 } // namespace mlir::torch::RefBackend
 
-// Bring Base classes into scope for anonymous namespace passes
+// Bring Base classes into scope for anonymous namespace passes.
 using mlir::torch::RefBackend::impl::ExpandOpsForLLVMBase;
 using mlir::torch::RefBackend::impl::GeneralizeTensorConcatBase;
 using mlir::torch::RefBackend::impl::GeneralizeTensorPadBase;
