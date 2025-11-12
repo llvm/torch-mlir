@@ -1484,7 +1484,6 @@ def Torch_AtenFlexAttentionOp : Torch_Op<"aten.flex_attention", [
     AnyTorchTensorType:$key,
     AnyTorchTensorType:$value,
     AnyTorchOptionalFloatType:$scale,
-    Torch_BoolType:$enable_gqa,
     Torch_BoolType:$return_lse,
     OptionalAttr<FlatSymbolRefAttr>:$score_mod_fn,
     OptionalAttr<FlatSymbolRefAttr>:$mask_mod_fn
@@ -1498,10 +1497,10 @@ def Torch_AtenFlexAttentionOp : Torch_Op<"aten.flex_attention", [
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
     ParseResult AtenFlexAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 6, 2);
+      return parseDefaultTorchOp(parser, result, 5, 2);
     }
     void AtenFlexAttentionOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 6, 2);
+      printDefaultTorchOp(printer, *this, 5, 2);
     }
   }];
 }

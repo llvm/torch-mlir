@@ -1952,9 +1952,6 @@ class GraphNodeImporter:
         if remaining and isinstance(remaining[0], dict):
             kernel_options = remaining.pop(0)
 
-        # We don't support GQA yet.
-        enable_gqa = False
-
         # Import Q, K, V tensors
         query = self._import_argument(loc, query_arg, None)
         key = self._import_argument(loc, key_arg, None)
@@ -2019,21 +2016,11 @@ class GraphNodeImporter:
             # Single output
             result_types = [self._cc.node_val_to_type(node)]
 
-        with loc:
-            enable_gqa_value = _make_constant_op(
-                "torch.constant.bool",
-                self._cc.integer_attr(1 if enable_gqa else 0, 1),
-                self._cc.torch_bool_type,
-            ).result
-
         # Extract return_lse from kernel_options
-        return_lse_value = False
-        if isinstance(kernel_options, dict):
-            return_lse_value = kernel_options.get("return_lse", False)
         with loc:
             return_lse = _make_constant_op(
                 "torch.constant.bool",
-                self._cc.integer_attr(1 if return_lse_value else 0, 1),
+                self._cc.integer_attr(kernel_options.get("return_lse", False)),
                 self._cc.torch_bool_type,
             ).result
 
@@ -2047,7 +2034,6 @@ class GraphNodeImporter:
             key,
             value,
             scale,
-            enable_gqa_value,
             return_lse,
         ]
 
