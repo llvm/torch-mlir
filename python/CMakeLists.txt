@@ -109,6 +109,15 @@ if(TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS)
   list(APPEND _source_components TorchMLIRPythonTorchExtensionsSources)
 endif()
 
+# On Windows, aggregate libraries using object files cause CMake to generate corrupted
+# paths in the linker response file. Work around this by temporarily setting XCODE to TRUE,
+# which makes add_mlir_library use -force_load instead of object libraries. We'll convert
+# -force_load to /WHOLEARCHIVE after the target is created.
+if(WIN32)
+  set(_original_xcode_value ${XCODE})
+  set(XCODE TRUE)
+endif()
+
 add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
   INSTALL_COMPONENT TorchMLIRPythonModules
   INSTALL_DESTINATION python_packages/torch_mlir/torch_mlir/_mlir_libs
@@ -117,32 +126,36 @@ add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
   DECLARED_SOURCES ${_source_components}
 )
 
-# On Windows with MSVC, object libraries used in aggregate libraries can cause linker
-# path corruption issues. Work around this by converting object file references to
-# static library references with /WHOLEARCHIVE, similar to how XCode uses -force_load.
-if(MSVC AND WIN32)
-  get_target_property(_sources TorchMLIRAggregateCAPI SOURCES)
-  if(_sources)
-    set(_new_sources "")
-    set(_new_libs "")
-    foreach(_source ${_sources})
-      # Check if this is a generator expression for object files
-      if("${_source}" MATCHES "^\\$<TARGET_OBJECTS:obj\\.(.+)>$")
-        # Extract the library name and link against the static library instead
-        set(_lib_name "${CMAKE_MATCH_1}")
-        list(APPEND _new_libs "/WHOLEARCHIVE:${_lib_name}")
+# Restore XCODE variable and convert -force_load flags to /WHOLEARCHIVE
+if(WIN32)
+  set(XCODE ${_original_xcode_value})
+
+  # Get the link libraries which now contain -force_load flags
+  get_target_property(_link_libs TorchMLIRAggregateCAPI LINK_LIBRARIES)
+  if(_link_libs)
+    set(_new_link_libs "")
+    set(_wholearchive_flags "")
+    set(_next_is_lib FALSE)
+
+    foreach(_item ${_link_libs})
+      if("${_item}" STREQUAL "-force_load")
+        set(_next_is_lib TRUE)
+      elseif(_next_is_lib)
+        # This is the library after -force_load, convert to /WHOLEARCHIVE
+        list(APPEND _wholearchive_flags "/WHOLEARCHIVE:${_item}")
+        set(_next_is_lib FALSE)
       else()
-        # Keep non-object sources (but filter out resource files that cause issues)
-        if(NOT "${_source}" MATCHES "\\.rc$")
-          list(APPEND _new_sources "${_source}")
-        endif()
+        # Regular link library, keep it
+        list(APPEND _new_link_libs "${_item}")
       endif()
     endforeach()
-    # Replace sources
-    set_target_properties(TorchMLIRAggregateCAPI PROPERTIES SOURCES "${_new_sources}")
-    # Add libraries with WHOLEARCHIVE
-    if(_new_libs)
-      target_link_options(TorchMLIRAggregateCAPI PRIVATE ${_new_libs})
+
+    # Update link libraries (remove -force_load entries)
+    set_target_properties(TorchMLIRAggregateCAPI PROPERTIES LINK_LIBRARIES "${_new_link_libs}")
+
+    # Add /WHOLEARCHIVE as linker options
+    if(_wholearchive_flags)
+      target_link_options(TorchMLIRAggregateCAPI PRIVATE ${_wholearchive_flags})
     endif()
   endif()
 endif()
