@@ -119,13 +119,17 @@ add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
 
 # On Windows with MSVC, llvm_add_library automatically adds a windows_version_resource.rc
 # file to shared libraries. However, when building an aggregate library from object files,
-# this resource file can cause linker errors due to path handling issues in CMake.
-# Remove the resource file source from this target to work around the issue.
+# this resource file can cause linker errors. Mark the resource file as HEADER_FILE_ONLY
+# to exclude it from compilation and linking.
 if(MSVC AND WIN32)
-  get_target_property(_sources TorchMLIRAggregateCAPI SOURCES)
-  if(_sources)
-    list(FILTER _sources EXCLUDE REGEX "windows_version_resource\\.rc")
-    set_target_properties(TorchMLIRAggregateCAPI PROPERTIES SOURCES "${_sources}")
+  get_target_property(_all_sources TorchMLIRAggregateCAPI SOURCES)
+  if(_all_sources)
+    foreach(_source ${_all_sources})
+      if("${_source}" MATCHES "windows_version_resource\\.rc$")
+        set_source_files_properties("${_source}" TARGET_DIRECTORY TorchMLIRAggregateCAPI
+          PROPERTIES HEADER_FILE_ONLY ON)
+      endif()
+    endforeach()
   endif()
 endif()
 
