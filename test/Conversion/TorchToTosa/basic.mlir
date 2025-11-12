@@ -311,6 +311,29 @@ func.func @test_reduce_sum_dims$basic(%arg0: !torch.vtensor<[3,4,5,6],f32>) -> !
 
 // -----
 
+// CHECK-LABEL:   func.func @test_reduce_sum_empty_dims$basic(
+// CHECK-SAME:                                               %[[VAL_0:.*]]: !torch.vtensor<[2,3,4],f32>) -> !torch.vtensor<[],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[2,3,4],f32> -> tensor<2x3x4xf32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.none
+// CHECK:           %[[VAL_3:.*]] = torch.prim.ListConstruct  : () -> !torch.list<int>
+// CHECK:           %[[VAL_4:.*]] = tosa.reduce_sum %[[VAL_1]] {axis = 0 : i32} : (tensor<2x3x4xf32>) -> tensor<1x3x4xf32>
+// CHECK:           %[[VAL_5:.*]] = tosa.reduce_sum %[[VAL_4]] {axis = 1 : i32} : (tensor<1x3x4xf32>) -> tensor<1x1x4xf32>
+// CHECK:           %[[VAL_6:.*]] = tosa.reduce_sum %[[VAL_5]] {axis = 2 : i32} : (tensor<1x1x4xf32>) -> tensor<1x1x1xf32>
+// CHECK:           %[[VAL_7:.*]] = tosa.const_shape
+// CHECK:           %[[VAL_8:.*]] = tosa.reshape %[[VAL_6]], %[[VAL_7]] : (tensor<1x1x1xf32>, !tosa.shape<0>) -> tensor<f32>
+// CHECK:           %[[VAL_9:.*]] = torch_c.from_builtin_tensor %[[VAL_8]] : tensor<f32> -> !torch.vtensor<[],f32>
+// CHECK:           return %[[VAL_9]] : !torch.vtensor<[],f32>
+// CHECK:         }
+func.func @test_reduce_sum_empty_dims$basic(%arg0: !torch.vtensor<[2,3,4],f32>) -> !torch.vtensor<[],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %empty = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %0 = torch.aten.sum.dim_IntList %arg0, %empty, %false, %none : !torch.vtensor<[2,3,4],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @test_linalg_vector_norm$basic(
 // CHECK-SAME:                                             %[[VAL_0:.*]]: !torch.vtensor<[3,151,64],f32>) -> !torch.vtensor<[3,151,1],f32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,151,64],f32> -> tensor<3x151x64xf32>
