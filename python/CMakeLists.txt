@@ -117,19 +117,33 @@ add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
   DECLARED_SOURCES ${_source_components}
 )
 
-# On Windows with MSVC, llvm_add_library automatically adds a windows_version_resource.rc
-# file to shared libraries. However, when building an aggregate library from object files,
-# this resource file can cause linker errors. Mark the resource file as HEADER_FILE_ONLY
-# to exclude it from compilation and linking.
+# On Windows with MSVC, object libraries used in aggregate libraries can cause linker
+# path corruption issues. Work around this by converting object file references to
+# static library references with /WHOLEARCHIVE, similar to how XCode uses -force_load.
 if(MSVC AND WIN32)
-  get_target_property(_all_sources TorchMLIRAggregateCAPI SOURCES)
-  if(_all_sources)
-    foreach(_source ${_all_sources})
-      if("${_source}" MATCHES "windows_version_resource\\.rc$")
-        set_source_files_properties("${_source}" TARGET_DIRECTORY TorchMLIRAggregateCAPI
-          PROPERTIES HEADER_FILE_ONLY ON)
+  get_target_property(_sources TorchMLIRAggregateCAPI SOURCES)
+  if(_sources)
+    set(_new_sources "")
+    set(_new_libs "")
+    foreach(_source ${_sources})
+      # Check if this is a generator expression for object files
+      if("${_source}" MATCHES "^\\$<TARGET_OBJECTS:obj\\.(.+)>$")
+        # Extract the library name and link against the static library instead
+        set(_lib_name "${CMAKE_MATCH_1}")
+        list(APPEND _new_libs "/WHOLEARCHIVE:${_lib_name}")
+      else()
+        # Keep non-object sources (but filter out resource files that cause issues)
+        if(NOT "${_source}" MATCHES "\\.rc$")
+          list(APPEND _new_sources "${_source}")
+        endif()
       endif()
     endforeach()
+    # Replace sources
+    set_target_properties(TorchMLIRAggregateCAPI PROPERTIES SOURCES "${_new_sources}")
+    # Add libraries with WHOLEARCHIVE
+    if(_new_libs)
+      target_link_options(TorchMLIRAggregateCAPI PRIVATE ${_new_libs})
+    endif()
   endif()
 endif()
 
