@@ -2020,7 +2020,7 @@ class GraphNodeImporter:
         with loc:
             return_lse = _make_constant_op(
                 "torch.constant.bool",
-                self._cc.integer_attr(kernel_options.get("return_lse", False)),
+                self._cc.integer_attr(kernel_options.get("return_lse", 0), 1),
                 self._cc.torch_bool_type,
             ).result
 
