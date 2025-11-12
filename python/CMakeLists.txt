@@ -109,15 +109,6 @@ if(TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS)
   list(APPEND _source_components TorchMLIRPythonTorchExtensionsSources)
 endif()
 
-# On Windows, aggregate libraries using object files cause CMake to generate corrupted
-# paths in the linker response file. Work around this by temporarily setting XCODE to TRUE,
-# which makes add_mlir_library use -force_load instead of object libraries. We'll convert
-# -force_load to /WHOLEARCHIVE after the target is created.
-if(WIN32)
-  set(_original_xcode_value ${XCODE})
-  set(XCODE TRUE)
-endif()
-
 add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
   INSTALL_COMPONENT TorchMLIRPythonModules
   INSTALL_DESTINATION python_packages/torch_mlir/torch_mlir/_mlir_libs
@@ -126,11 +117,9 @@ add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
   DECLARED_SOURCES ${_source_components}
 )
 
-# Restore XCODE variable and convert -force_load flags to /WHOLEARCHIVE
+# On Windows, MLIR's add_mlir_library (patched above) uses -force_load flags instead of
+# object libraries to avoid linker path corruption. Convert these to MSVC's /WHOLEARCHIVE.
 if(WIN32)
-  set(XCODE ${_original_xcode_value})
-
-  # Get the link libraries which now contain -force_load flags
   get_target_property(_link_libs TorchMLIRAggregateCAPI LINK_LIBRARIES)
   if(_link_libs)
     set(_new_link_libs "")
