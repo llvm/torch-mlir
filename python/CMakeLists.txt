@@ -109,12 +109,6 @@ if(TORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS)
   list(APPEND _source_components TorchMLIRPythonTorchExtensionsSources)
 endif()
 
-# On Windows, we need a dummy source file for the aggregate DLL since we're not using object files
-if(WIN32)
-  set(_dummy_source "${CMAKE_CURRENT_BINARY_DIR}/TorchMLIRAggregateCAPI_dummy.c")
-  file(WRITE "${_dummy_source}" "// Dummy file for Windows DLL entry point\n")
-endif()
-
 add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
   INSTALL_COMPONENT TorchMLIRPythonModules
   INSTALL_DESTINATION python_packages/torch_mlir/torch_mlir/_mlir_libs
@@ -123,58 +117,37 @@ add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
   DECLARED_SOURCES ${_source_components}
 )
 
-# Add the dummy source file on Windows to provide DLL entry point
-if(WIN32 AND _dummy_source)
-  target_sources(TorchMLIRAggregateCAPI PRIVATE "${_dummy_source}")
-endif()
-
-# On Windows, MLIR's add_mlir_library (patched above) uses -force_load flags instead of
-# object libraries to avoid linker path corruption. Convert these to MSVC's /WHOLEARCHIVE.
+# On Windows, we disabled object libraries for aggregate targets (see AddMLIR.cmake patch).
+# Instead, MLIR uses -force_load flags like XCode. We need to convert these to /WHOLEARCHIVE
+# for MSVC. We also need a source file for the DLL entry point since we have no object files.
 if(WIN32)
-  # Get both regular and interface link libraries
-  get_target_property(_link_libs TorchMLIRAggregateCAPI LINK_LIBRARIES)
-  get_target_property(_interface_link_libs TorchMLIRAggregateCAPI INTERFACE_LINK_LIBRARIES)
+  # Create and add a minimal source file for the DLL
+  set(_dummy_source "${CMAKE_CURRENT_BINARY_DIR}/TorchMLIRAggregateCAPI_windows.c")
+  file(WRITE "${_dummy_source}"
+    "/* Minimal source file to provide DLL entry point on Windows */\n"
+    "#ifdef _WIN32\n"
+    "__declspec(dllexport) int __cdecl _DllMainCRTStartup(void* h, unsigned long r, void* p) { return 1; }\n"
+    "#endif\n")
+  target_sources(TorchMLIRAggregateCAPI PRIVATE "${_dummy_source}")
 
-  # Process LINK_LIBRARIES
-  if(_link_libs AND NOT _link_libs STREQUAL "_link_libs-NOTFOUND")
+  # Convert -force_load flags to /WHOLEARCHIVE
+  get_target_property(_link_libs TorchMLIRAggregateCAPI LINK_LIBRARIES)
+  if(_link_libs)
     set(_new_link_libs "")
     set(_next_is_lib FALSE)
 
     foreach(_item ${_link_libs})
       if("${_item}" STREQUAL "-force_load")
-        # Skip the -force_load flag itself, next item is the library
         set(_next_is_lib TRUE)
       elseif(_next_is_lib)
-        # This is the library after -force_load, add it with /WHOLEARCHIVE prefix
         list(APPEND _new_link_libs "/WHOLEARCHIVE:${_item}")
         set(_next_is_lib FALSE)
       else()
-        # Regular link library, keep it as-is
         list(APPEND _new_link_libs "${_item}")
       endif()
     endforeach()
 
-    # Update link libraries with /WHOLEARCHIVE instead of -force_load
     set_target_properties(TorchMLIRAggregateCAPI PROPERTIES LINK_LIBRARIES "${_new_link_libs}")
-  endif()
-
-  # Process INTERFACE_LINK_LIBRARIES
-  if(_interface_link_libs AND NOT _interface_link_libs STREQUAL "_interface_link_libs-NOTFOUND")
-    set(_new_interface_libs "")
-    set(_next_is_lib FALSE)
-
-    foreach(_item ${_interface_link_libs})
-      if("${_item}" STREQUAL "-force_load")
-        set(_next_is_lib TRUE)
-      elseif(_next_is_lib)
-        list(APPEND _new_interface_libs "/WHOLEARCHIVE:${_item}")
-        set(_next_is_lib FALSE)
-      else()
-        list(APPEND _new_interface_libs "${_item}")
-      endif()
-    endforeach()
-
-    set_target_properties(TorchMLIRAggregateCAPI PROPERTIES INTERFACE_LINK_LIBRARIES "${_new_interface_libs}")
   endif()
 endif()
 
