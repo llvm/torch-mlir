@@ -1923,34 +1923,15 @@ class GraphNodeImporter:
         """
         # flex_attention HOP args from PyTorch:
         # (query, key, value, score_mod, block_mask, scale, kernel_options, ...)
-        if len(node.args) < 3:
-            raise ValueError(
-                f"flex_attention expects at least 3 arguments, got {len(node.args)}"
-            )
-
-        # Required args
-        query_arg, key_arg, value_arg = node.args[:3]
-
-        # Optional args (parse from remaining positionals;
-        score_mod_arg = None
-        block_mask_arg = None
-        scale_arg = None
-        kernel_options = {}
-        remaining = list(node.args[3:])
-
-        # score_mod (get_attr) if present
-        if remaining and isinstance(remaining[0], torch_fx.Node):
-            score_mod_arg = remaining.pop(0)
-
-        # block_mask (tuple ending with mask_mod get_attr) if present
-        if remaining and isinstance(remaining[0], tuple):
-            block_mask_arg = remaining.pop(0)
-
-        if remaining and not isinstance(remaining[0], dict):
-            scale_arg = remaining.pop(0)
-
-        if remaining and isinstance(remaining[0], dict):
-            kernel_options = remaining.pop(0)
+        (
+            query_arg,
+            key_arg,
+            value_arg,
+            score_mod_arg,
+            block_mask_arg,
+            scale_arg,
+            kernel_options,
+        ) = node.args[:7]
 
         # Import Q, K, V tensors
         query = self._import_argument(loc, query_arg, None)
