@@ -119,17 +119,8 @@ add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
 
 # On Windows, we disabled object libraries for aggregate targets (see AddMLIR.cmake patch).
 # Instead, MLIR uses -force_load flags like XCode. We need to convert these to /WHOLEARCHIVE
-# for MSVC. We also need a source file for the DLL entry point since we have no object files.
+# for MSVC. We use /NOENTRY since we have no object files and DllMain will come from static libs.
 if(WIN32)
-  # Create and add a minimal source file for the DLL
-  set(_dummy_source "${CMAKE_CURRENT_BINARY_DIR}/TorchMLIRAggregateCAPI_windows.c")
-  file(WRITE "${_dummy_source}"
-    "/* Minimal source file to provide DLL entry point on Windows */\n"
-    "#ifdef _WIN32\n"
-    "__declspec(dllexport) int __cdecl _DllMainCRTStartup(void* h, unsigned long r, void* p) { return 1; }\n"
-    "#endif\n")
-  target_sources(TorchMLIRAggregateCAPI PRIVATE "${_dummy_source}")
-
   # Convert -force_load flags to /WHOLEARCHIVE
   get_target_property(_link_libs TorchMLIRAggregateCAPI LINK_LIBRARIES)
   if(_link_libs)
@@ -149,6 +140,10 @@ if(WIN32)
 
     set_target_properties(TorchMLIRAggregateCAPI PROPERTIES LINK_LIBRARIES "${_new_link_libs}")
   endif()
+  
+  # Use /NOENTRY to avoid requiring DllMain/CRTStartup.
+  # The static libraries linked with /WHOLEARCHIVE will provide any necessary entry points.
+  target_link_options(TorchMLIRAggregateCAPI PRIVATE "/NOENTRY")
 endif()
 
 add_mlir_python_modules(TorchMLIRPythonModules
