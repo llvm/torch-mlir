@@ -119,8 +119,16 @@ add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
 
 # On Windows, we disabled object libraries for aggregate targets (see AddMLIR.cmake patch).
 # Instead, MLIR uses -force_load flags like XCode. We need to convert these to /WHOLEARCHIVE
-# for MSVC. We use /NOENTRY since we have no object files and DllMain will come from static libs.
+# for MSVC. We also need a minimal assembly stub to avoid CMake path corruption bugs.
 if(WIN32)
+  # Create a minimal assembly stub that provides nothing but exists as a source file.
+  # This avoids CMake/Ninja path corruption while keeping the DLL size minimal.
+  # We use assembly because it's less likely to trigger path mangling than C files.
+  set(_asm_stub "${CMAKE_CURRENT_BINARY_DIR}/stub.asm")
+  file(WRITE "${_asm_stub}" "; Minimal stub for Windows DLL\n.CODE\nEND\n")
+  enable_language(ASM_MASM)
+  target_sources(TorchMLIRAggregateCAPI PRIVATE "${_asm_stub}")
+
   # Convert -force_load flags to /WHOLEARCHIVE
   get_target_property(_link_libs TorchMLIRAggregateCAPI LINK_LIBRARIES)
   if(_link_libs)
@@ -140,10 +148,6 @@ if(WIN32)
 
     set_target_properties(TorchMLIRAggregateCAPI PROPERTIES LINK_LIBRARIES "${_new_link_libs}")
   endif()
-  
-  # Use /NOENTRY to avoid requiring DllMain/CRTStartup.
-  # The static libraries linked with /WHOLEARCHIVE will provide any necessary entry points.
-  target_link_options(TorchMLIRAggregateCAPI PRIVATE "/NOENTRY")
 endif()
 
 add_mlir_python_modules(TorchMLIRPythonModules
