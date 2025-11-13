@@ -118,36 +118,12 @@ add_mlir_python_common_capi_library(TorchMLIRAggregateCAPI
 )
 
 # On Windows, we disabled object libraries for aggregate targets (see AddMLIR.cmake patch).
-# Instead, MLIR uses -force_load flags like XCode. We need to convert these to /WHOLEARCHIVE
-# for MSVC. We also need a minimal assembly stub to avoid CMake path corruption bugs.
+# The patch makes AddMLIR.cmake use /WHOLEARCHIVE instead of object libraries on Windows.
 if(WIN32)
-  # Create a minimal assembly stub that provides nothing but exists as a source file.
-  # This avoids CMake/Ninja path corruption while keeping the DLL size minimal.
-  # We use assembly because it's less likely to trigger path mangling than C files.
-  set(_asm_stub "${CMAKE_CURRENT_BINARY_DIR}/stub.asm")
-  file(WRITE "${_asm_stub}" "; Minimal stub for Windows DLL\n.CODE\nEND\n")
-  enable_language(ASM_MASM)
-  target_sources(TorchMLIRAggregateCAPI PRIVATE "${_asm_stub}")
-
-  # Convert -force_load flags to /WHOLEARCHIVE
-  get_target_property(_link_libs TorchMLIRAggregateCAPI LINK_LIBRARIES)
-  if(_link_libs)
-    set(_new_link_libs "")
-    set(_next_is_lib FALSE)
-
-    foreach(_item ${_link_libs})
-      if("${_item}" STREQUAL "-force_load")
-        set(_next_is_lib TRUE)
-      elseif(_next_is_lib)
-        list(APPEND _new_link_libs "/WHOLEARCHIVE:${_item}")
-        set(_next_is_lib FALSE)
-      else()
-        list(APPEND _new_link_libs "${_item}")
-      endif()
-    endforeach()
-
-    set_target_properties(TorchMLIRAggregateCAPI PROPERTIES LINK_LIBRARIES "${_new_link_libs}")
-  endif()
+  # WINDOWS_EXPORT_ALL_SYMBOLS doesn't work without source files.
+  # We keep it OFF and let the empty exports.def be used.
+  # The /WHOLEARCHIVE linked libraries should export their symbols if they're built as SHARED.
+  set_target_properties(TorchMLIRAggregateCAPI PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS OFF)
 endif()
 
 add_mlir_python_modules(TorchMLIRPythonModules
