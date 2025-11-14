@@ -5175,6 +5175,29 @@ def ElementwiseBitwiseNotInt32Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseBitwiseNotBoolModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bool, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.bitwise_not(x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseNotBoolModule())
+def ElementwiseBitwiseNotBoolModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=0, high=2).to(torch.bool))
+
+
+# ==============================================================================
+
+
 class ElementwiseSubTensorInt8Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
