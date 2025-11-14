@@ -624,5 +624,43 @@ FailureOr<Value> getConvBiasForNoneType(Operation *op,
   }
 }
 
+Value emitExplicitZeroPadNHWC(Location loc, PatternRewriter &rewriter,
+                              Operation *op, Value inputNHWC,
+                              ArrayRef<int64_t> padExtents) {
+  assert(padExtents.size() == 4 && "expected [top, bottom, left, right]");
+
+  if (llvm::all_of(padExtents, [](int64_t v) { return v == 0; }))
+    return inputNHWC;
+
+  SmallVector<int64_t, 8> nhwcPadding = {
+      0, 0, padExtents[0], padExtents[1], padExtents[2], padExtents[3], 0, 0};
+  Value nhwcPadShape = tosa::getTosaConstShape(rewriter, loc, nhwcPadding);
+
+  auto inputTy = cast<RankedTensorType>(inputNHWC.getType());
+  SmallVector<int64_t, 4> resultShape(inputTy.getShape().begin(),
+                                      inputTy.getShape().end());
+  auto addPad = [](int64_t dim, int64_t before, int64_t after) -> int64_t {
+    if (ShapedType::isDynamic(dim))
+      return ShapedType::kDynamic;
+    return dim + before + after;
+  };
+  resultShape[1] = addPad(resultShape[1], padExtents[0], padExtents[1]);
+  resultShape[2] = addPad(resultShape[2], padExtents[2], padExtents[3]);
+
+  auto resultTy = RankedTensorType::get(resultShape, inputTy.getElementType());
+
+  Type elemTy = inputTy.getElementType();
+  Value padConst;
+  if (isa<mlir::FloatType>(elemTy)) {
+    padConst = *getConstTensor<float>(rewriter, op, {0.0f}, {1}, elemTy);
+  } else {
+    padConst = *getConstTensor<int32_t>(rewriter, op, {0}, {1}, elemTy);
+  }
+
+  return tosa::PadOp::create(rewriter, loc, resultTy, inputNHWC, nhwcPadShape,
+                             padConst)
+      .getResult();
+}
+
 } // namespace tosa
 } // namespace mlir

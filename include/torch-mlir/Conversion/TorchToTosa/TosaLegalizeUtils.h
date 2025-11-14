@@ -107,6 +107,13 @@ FailureOr<Value> getConvBiasForNoneType(Operation *op,
                                         Type inputElemTy, Type outputElemTy,
                                         ArrayRef<int64_t> weightShape);
 
+// Emit an explicit zero-valued `tosa.pad` around an NHWC tensor so that later
+// avg_pool lowering can run with `pad = 0`. `padExtents` is ordered as
+// {top, bottom, left, right}. Returns the padded tensor value.
+Value emitExplicitZeroPadNHWC(Location loc, PatternRewriter &rewriter,
+                              Operation *op, Value inputNHWC,
+                              ArrayRef<int64_t> padExtents);
+
 } // namespace tosa
 } // namespace mlir
 
