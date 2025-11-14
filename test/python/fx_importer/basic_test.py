@@ -252,6 +252,59 @@ def test_while_loop_two_returns():
 
 
 @run
+# CHECK-LABEL: test_flex_attention
+# CHECK: func.func @test_flex_attention
+def test_flex_attention():
+    from torch._higher_order_ops.flex_attention import flex_attention as flex_attention_hop
+    from torch.nn.attention.flex_attention import BlockMask, _LARGE_SPARSE_BLOCK_SIZE, create_block_mask, flex_attention
+    from torch import Tensor
+    def _create_empty_block_mask(query: Tensor, key: Tensor):
+        # Default block mask for flex attention.
+        device = query.device
+        return BlockMask.from_kv_blocks(
+            kv_num_blocks=torch.ones([1, 1, 1], dtype=torch.int32, device=device),
+            kv_indices=torch.zeros([1, 1, 1, 1], dtype=torch.int32, device=device),
+            BLOCK_SIZE=_LARGE_SPARSE_BLOCK_SIZE,
+            seq_lengths=(1, 1),
+        ).as_tuple()
+
+    def relative_position_bias(
+        score: Tensor,
+        batch: Tensor,
+        head: Tensor,
+        token_q: Tensor,
+        token_kv: Tensor,
+    ) -> Tensor:
+        # Simple score mod function.
+        return torch.tanh(score)
+
+    class FlexAttention(torch.nn.Module):
+        def __init__(self, block_mask):
+            super().__init__()
+            self.block_mask=block_mask
+            
+        def forward(self, q, k, v):
+            output, logsumexp = flex_attention_hop(
+                q, k, v,
+                score_mod=relative_position_bias,
+                block_mask=self.block_mask,
+                scale=1.0,
+                kernel_options={"return_lse": 0},
+            )
+            return output, logsumexp
+
+    # Export -> import to Torch-MLIR
+    B, Hq, Hkv, L, S, E, Ev = 4, 8, 8, 1024, 1024, 64, 64
+    q = torch.ones(B, Hq, L, E)
+    k = torch.ones(B, Hkv, S, E)
+    v = torch.ones(B, Hkv, S, Ev)
+    m = fx.export_and_import(
+        FlexAttention(_create_empty_block_mask(q,k)), q,k,v, func_name="test_flex_attention"
+    )
+    print(m)
+
+
+@run
 # CHECK-LABEL: test_stack_trace
 # CHECK: #loc[[LOC1:.+]] = loc(
 # CHECK: %{{.+}} = torch.aten.add.Tensor {{.+}} loc(#loc[[LOC1]])
