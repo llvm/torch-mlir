@@ -7,12 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
@@ -22,6 +21,13 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::TorchConversion;
+namespace mlir::torch::TorchConversion {
+
+#define GEN_PASS_DEF_FUNCBACKENDTYPECONVERSION
+#define GEN_PASS_DEF_FUNCBACKENDTYPECONVERSIONFORSTABLEHLO
+#define GEN_PASS_DEF_FINALIZINGBACKENDTYPECONVERSION
+#define GEN_PASS_DEF_FINALIZINGBACKENDTYPECONVERSIONFORSTABLEHLO
+#include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h.inc"
 
 //===----------------------------------------------------------------------===//
 // FuncBackendTypeConversionPass
@@ -74,7 +80,8 @@ void populateFuncBackendTypeConversionPatterns(TypeConverter &typeConverter,
 }
 
 struct FuncBackendTypeConversionPass
-    : public FuncBackendTypeConversionBase<FuncBackendTypeConversionPass> {
+    : public impl::FuncBackendTypeConversionBase<
+          FuncBackendTypeConversionPass> {
   using FuncBackendTypeConversionBase<
       FuncBackendTypeConversionPass>::FuncBackendTypeConversionBase;
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -99,7 +106,7 @@ struct FuncBackendTypeConversionPass
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 struct FuncBackendTypeConversionForStablehloPass
-    : public FuncBackendTypeConversionForStablehloBase<
+    : public impl::FuncBackendTypeConversionForStablehloBase<
           FuncBackendTypeConversionForStablehloPass> {
   using FuncBackendTypeConversionForStablehloBase<
       FuncBackendTypeConversionForStablehloPass>::
@@ -127,14 +134,14 @@ struct FuncBackendTypeConversionForStablehloPass
 #endif // TORCH_MLIR_ENABLE_STABLEHLO
 } // namespace
 
-std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::TorchConversion::createFuncBackendTypeConversionPass() {
+// Create functions for passes
+std::unique_ptr<OperationPass<ModuleOp>> createFuncBackendTypeConversionPass() {
   return std::make_unique<FuncBackendTypeConversionPass>();
 }
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
-std::unique_ptr<OperationPass<ModuleOp>> mlir::torch::TorchConversion::
-    createFuncBackendTypeConversionForStablehloPass() {
+std::unique_ptr<OperationPass<ModuleOp>>
+createFuncBackendTypeConversionForStablehloPass() {
   return std::make_unique<FuncBackendTypeConversionForStablehloPass>();
 }
 #endif // TORCH_MLIR_ENABLE_STABLEHLO
@@ -195,7 +202,7 @@ static void stripTorchAttrs(FunctionOpInterface func) {
 
 namespace {
 struct FinalizingBackendTypeConversionPass
-    : public FinalizingBackendTypeConversionBase<
+    : public impl::FinalizingBackendTypeConversionBase<
           FinalizingBackendTypeConversionPass> {
   using FinalizingBackendTypeConversionBase<
       FinalizingBackendTypeConversionPass>::FinalizingBackendTypeConversionBase;
@@ -242,7 +249,7 @@ struct FinalizingBackendTypeConversionPass
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
 struct FinalizingBackendTypeConversionForStablehloPass
-    : public FinalizingBackendTypeConversionForStablehloBase<
+    : public impl::FinalizingBackendTypeConversionForStablehloBase<
           FinalizingBackendTypeConversionForStablehloPass> {
   using FinalizingBackendTypeConversionForStablehloBase<
       FinalizingBackendTypeConversionForStablehloPass>::
@@ -287,13 +294,15 @@ struct FinalizingBackendTypeConversionForStablehloPass
 } // namespace
 
 std::unique_ptr<InterfacePass<FunctionOpInterface>>
-mlir::torch::TorchConversion::createFinalizingBackendTypeConversionPass() {
+createFinalizingBackendTypeConversionPass() {
   return std::make_unique<FinalizingBackendTypeConversionPass>();
 }
 
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
-std::unique_ptr<InterfacePass<FunctionOpInterface>> mlir::torch::
-    TorchConversion::createFinalizingBackendTypeConversionForStablehloPass() {
+std::unique_ptr<InterfacePass<FunctionOpInterface>>
+createFinalizingBackendTypeConversionForStablehloPass() {
   return std::make_unique<FinalizingBackendTypeConversionForStablehloPass>();
 }
 #endif // TORCH_MLIR_ENABLE_STABLEHLO
+
+} // namespace mlir::torch::TorchConversion

@@ -9,21 +9,27 @@
 
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
+#include "mlir/Pass/Pass.h"
+#include "torch-mlir/Conversion/Passes.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch {
+
+#define GEN_PASS_DEF_CONVERTTORCHTOLINALG
+#include "torch-mlir/Conversion/Passes.h.inc"
 
 // -----------------------------------------------------------------------------
 // The pass
@@ -34,7 +40,7 @@ using namespace mlir::torch::Torch;
 
 namespace {
 class ConvertTorchToLinalg
-    : public ConvertTorchToLinalgBase<ConvertTorchToLinalg> {
+    : public impl::ConvertTorchToLinalgBase<ConvertTorchToLinalg> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<linalg::LinalgDialect>();
@@ -89,7 +95,8 @@ public:
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToLinalgPass() {
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToLinalgPass() {
   return std::make_unique<ConvertTorchToLinalg>();
 }
+
+} // namespace mlir::torch

@@ -9,14 +9,16 @@
 
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 
-#include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/Pass/Pass.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h"
+#include "torch-mlir/Conversion/Passes.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -33,6 +35,10 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 using namespace mlir::torch::TorchConversion;
 using namespace mlir::torch::TMTensor;
+namespace mlir::torch {
+
+#define GEN_PASS_DEF_CONVERTTORCHTOTMTENSOR
+#include "torch-mlir/Conversion/Passes.h.inc"
 
 // -----------------------------------------------------------------------------
 // Patterns (as this grows, it should be organized into multiple files)
@@ -2459,7 +2465,7 @@ public:
 
 namespace {
 class ConvertTorchToTMTensor
-    : public ConvertTorchToTMTensorBase<ConvertTorchToTMTensor> {
+    : public impl::ConvertTorchToTMTensorBase<ConvertTorchToTMTensor> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<linalg::LinalgDialect>();
@@ -2519,6 +2525,8 @@ public:
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToTMTensorPass() {
+createConvertTorchToTMTensorPass() {
   return std::make_unique<ConvertTorchToTMTensor>();
 }
+
+} // namespace mlir::torch

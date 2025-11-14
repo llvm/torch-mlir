@@ -7,22 +7,26 @@
 //
 //===----------------------------------------------------------------------===//
 #ifdef TORCH_MLIR_ENABLE_TOSA
-#include "PassDetail.h"
-
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::TorchConversion;
+namespace mlir::torch::TorchConversion {
+
+#define GEN_PASS_DEF_VERIFYTOSABACKENDCONTRACT
+#include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h.inc"
 
 namespace {
 class VerifyTosaBackendContractPass
-    : public VerifyTosaBackendContractBase<VerifyTosaBackendContractPass> {
+    : public impl::VerifyTosaBackendContractBase<
+          VerifyTosaBackendContractPass> {
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     auto module = getOperation();
@@ -59,8 +63,10 @@ class VerifyTosaBackendContractPass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::TorchConversion::createVerifyTosaBackendContractPass() {
+std::unique_ptr<OperationPass<ModuleOp>> createVerifyTosaBackendContractPass() {
   return std::make_unique<VerifyTosaBackendContractPass>();
 }
+
+} // namespace mlir::torch::TorchConversion
+
 #endif // TORCH_MLIR_ENABLE_TOSA

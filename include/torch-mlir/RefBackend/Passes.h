@@ -15,25 +15,12 @@
 #include "mlir/Pass/PassManager.h"
 
 namespace mlir {
-class ModuleOp;
-
 namespace torch {
 namespace RefBackend {
 
 /// Registers all RefBackend passes.
 void registerRefBackendPasses();
 
-std::unique_ptr<OperationPass<ModuleOp>> createMungeCallingConventionsPass();
-
-std::unique_ptr<OperationPass<func::FuncOp>> createExpandOpsForLLVMPass();
-
-std::unique_ptr<OperationPass<ModuleOp>> createMLProgramBufferizePass();
-
-std::unique_ptr<OperationPass<func::FuncOp>> createMungeMemrefCopyPass();
-
-std::unique_ptr<OperationPass<func::FuncOp>> createGeneralizeTensorConcatPass();
-
-std::unique_ptr<OperationPass<func::FuncOp>> createGeneralizeTensorPadPass();
 } // namespace RefBackend
 } // namespace torch
 } // namespace mlir

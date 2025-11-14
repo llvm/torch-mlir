@@ -7,11 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
@@ -27,6 +27,11 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DECL_DECOMPOSECOMPLEXOPS
+#define GEN_PASS_DEF_DECOMPOSECOMPLEXOPS
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 // Helper function to check whether the `dtype` is None or Float type.
 static bool isNoneOrFloatDtype(MLIRContext *context, Value dtype) {
@@ -13047,7 +13052,7 @@ public:
 
 namespace {
 class DecomposeComplexOpsPass
-    : public DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
+    : public impl::DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
   llvm::StringSet<> legalOpsSet;
 
@@ -13068,10 +13073,8 @@ private:
   }
 
 public:
-  DecomposeComplexOpsPass() = default;
-  DecomposeComplexOpsPass(ArrayRef<std::string> legalOps) {
-    this->legalOps = legalOps;
-  }
+  using impl::DecomposeComplexOpsBase<
+      DecomposeComplexOpsPass>::DecomposeComplexOpsBase;
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
@@ -13392,7 +13395,10 @@ public:
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createDecomposeComplexOpsPass(
-    ArrayRef<std::string> legalOps) {
-  return std::make_unique<DecomposeComplexOpsPass>(legalOps);
+createDecomposeComplexOpsPass(ArrayRef<std::string> legalOps) {
+  DecomposeComplexOpsOptions options;
+  options.legalOps.append(legalOps.begin(), legalOps.end());
+  return std::make_unique<DecomposeComplexOpsPass>(options);
 }
+
+} // namespace mlir::torch::Torch

@@ -7,13 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 #ifdef TORCH_MLIR_ENABLE_STABLEHLO
-#include "PassDetail.h"
-
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
@@ -22,10 +21,14 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::TorchConversion;
+namespace mlir::torch::TorchConversion {
+
+#define GEN_PASS_DEF_VERIFYSTABLEHLOBACKENDCONTRACT
+#include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h.inc"
 
 namespace {
 class VerifyStablehloBackendContractPass
-    : public VerifyStablehloBackendContractBase<
+    : public impl::VerifyStablehloBackendContractBase<
           VerifyStablehloBackendContractPass> {
   void runOnOperation() override {
     TypeConverter converter;
@@ -66,7 +69,10 @@ class VerifyStablehloBackendContractPass
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::TorchConversion::createVerifyStablehloBackendContractPass() {
+createVerifyStablehloBackendContractPass() {
   return std::make_unique<VerifyStablehloBackendContractPass>();
 }
+
+} // namespace mlir::torch::TorchConversion
+
 #endif // TORCH_MLIR_ENABLE_STABLEHLO

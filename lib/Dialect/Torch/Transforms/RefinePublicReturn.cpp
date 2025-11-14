@@ -7,20 +7,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Pass/Pass.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DEF_REFINEPUBLICRETURN
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 namespace {
 
 class RefinePublicReturnPass
-    : public RefinePublicReturnBase<RefinePublicReturnPass> {
+    : public impl::RefinePublicReturnBase<RefinePublicReturnPass> {
   void runOnOperation() override {
     auto module = getOperation();
     module.walk([&](func::FuncOp func) {
@@ -101,7 +105,8 @@ class RefinePublicReturnPass
 
 } // namespace
 
-std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::Torch::createRefinePublicReturnPass() {
+std::unique_ptr<OperationPass<ModuleOp>> createRefinePublicReturnPass() {
   return std::make_unique<RefinePublicReturnPass>();
 }
+
+} // namespace mlir::torch::Torch

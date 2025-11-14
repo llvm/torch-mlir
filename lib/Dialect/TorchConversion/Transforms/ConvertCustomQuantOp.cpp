@@ -7,11 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
@@ -22,6 +22,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::TorchConversion {
+
+#define GEN_PASS_DEF_CONVERTCUSTOMQUANTOP
+#include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h.inc"
 
 namespace {
 class ConvertCustomQuantizedMatmulOp : public OpConversionPattern<OperatorOp> {
@@ -191,8 +195,7 @@ public:
 
 namespace {
 class ConvertCustomQuantOpPass
-    : public TorchConversion::ConvertCustomQuantOpBase<
-          ConvertCustomQuantOpPass> {
+    : public impl::ConvertCustomQuantOpBase<ConvertCustomQuantOpPass> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<arith::ArithDialect>();
     registry.insert<func::FuncDialect>();
@@ -225,6 +228,8 @@ class ConvertCustomQuantOpPass
 } // namespace
 
 std::unique_ptr<InterfacePass<FunctionOpInterface>>
-mlir::torch::TorchConversion::createConvertCustomQuantOpPass() {
+createConvertCustomQuantOpPass() {
   return std::make_unique<ConvertCustomQuantOpPass>();
 }
+
+} // namespace mlir::torch::TorchConversion

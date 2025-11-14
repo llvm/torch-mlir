@@ -7,9 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
 #include "ReifyAbstractInterpCalculationsUtils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -18,6 +18,11 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DECL_REDUCEOPVARIANTS
+#define GEN_PASS_DEF_REDUCEOPVARIANTS
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 // Create an overwrite in a manner that preserves the
 // `OverwriteTensorContentsOp` invariant that both arguments
@@ -403,11 +408,8 @@ reduceNonValueTensorLiteralOpToValueTensorLiteralOp(NonValueTensorLiteralOp op,
 
 namespace {
 struct ReduceOpVariantsPass
-    : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
-  ReduceOpVariantsPass() = default;
-  ReduceOpVariantsPass(StringRef extraLibrary) {
-    this->extraLibrary = extraLibrary.str();
-  }
+    : public impl::ReduceOpVariantsBase<ReduceOpVariantsPass> {
+  using impl::ReduceOpVariantsBase<ReduceOpVariantsPass>::ReduceOpVariantsBase;
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
@@ -481,6 +483,10 @@ struct ReduceOpVariantsPass
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createReduceOpVariantsPass(StringRef extraLibrary) {
-  return std::make_unique<ReduceOpVariantsPass>(extraLibrary);
+createReduceOpVariantsPass(StringRef extraLibrary) {
+  ReduceOpVariantsOptions options;
+  options.extraLibrary = extraLibrary.str();
+  return std::make_unique<ReduceOpVariantsPass>(options);
 }
+
+} // namespace mlir::torch::Torch

@@ -7,10 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
 #include "ReifyAbstractInterpCalculationsUtils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Parser/Parser.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -18,6 +18,11 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DECL_REIFYDTYPECALCULATIONS
+#define GEN_PASS_DEF_REIFYDTYPECALCULATIONS
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 // Massage the op operands to match the dtype function signature.
 // The dtype function generally takes the same operands as the op, with a few
@@ -62,11 +67,10 @@ dtypeFunctionArgsBuilder(OpBuilder &b, Location loc,
 
 namespace {
 struct ReifyDtypeCalculationsPass
-    : public ReifyDtypeCalculationsBase<ReifyDtypeCalculationsPass> {
-  ReifyDtypeCalculationsPass() = default;
-  ReifyDtypeCalculationsPass(StringRef extraLibrary) {
-    this->extraLibrary = extraLibrary.str();
-  }
+    : public impl::ReifyDtypeCalculationsBase<ReifyDtypeCalculationsPass> {
+  using impl::ReifyDtypeCalculationsBase<
+      ReifyDtypeCalculationsPass>::ReifyDtypeCalculationsBase;
+
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ModuleOp module = getOperation();
@@ -96,6 +100,10 @@ struct ReifyDtypeCalculationsPass
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-Torch::createReifyDtypeCalculationsPass(StringRef extraLibrary) {
-  return std::make_unique<ReifyDtypeCalculationsPass>(extraLibrary);
+createReifyDtypeCalculationsPass(StringRef extraLibrary) {
+  ReifyDtypeCalculationsOptions options;
+  options.extraLibrary = extraLibrary.str();
+  return std::make_unique<ReifyDtypeCalculationsPass>(options);
 }
+
+} // namespace mlir::torch::Torch

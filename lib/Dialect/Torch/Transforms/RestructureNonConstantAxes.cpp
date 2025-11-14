@@ -8,9 +8,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -26,6 +26,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DEF_RESTRUCTURENONCONSTANTAXES
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 namespace {
 
@@ -251,7 +255,8 @@ void populateRestructureNonConstantAxesPattern(RewritePatternSet &patterns,
 }
 
 class RestructureNonConstantAxesPass
-    : public RestructureNonConstantAxesBase<RestructureNonConstantAxesPass> {
+    : public impl::RestructureNonConstantAxesBase<
+          RestructureNonConstantAxesPass> {
 public:
   RestructureNonConstantAxesPass() = default;
 
@@ -276,6 +281,8 @@ public:
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createRestructureNonConstantAxesPass() {
+createRestructureNonConstantAxesPass() {
   return std::make_unique<RestructureNonConstantAxesPass>();
 }
+
+} // namespace mlir::torch::Torch

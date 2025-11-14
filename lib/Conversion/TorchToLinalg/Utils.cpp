@@ -8,7 +8,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
