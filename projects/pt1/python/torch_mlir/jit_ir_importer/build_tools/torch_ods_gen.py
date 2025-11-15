@@ -242,6 +242,7 @@ def emit_op(
     has_folder: bool = False,
     has_canonicalizer: bool = False,
     has_verifier: bool = False,
+    has_memory_effects: bool = False,
 ):
     """Main entry point for op emission.
 
@@ -257,6 +258,12 @@ def emit_op(
         traits += ["HasValueSemantics"]
     if operator.is_readonly():
         traits += ["ReadOnly"]
+    # If a ReadOnly op has no returns, it is likely to have side effects.
+    # E.g. `prim.RaiseException` and `prim.Print`
+    # Besides ops with no returned values, there may be other ReadOnly ops with memory effects.
+    # In such cases, these ops can be emitted with `has_memory_effects=True` to avoid this trait.
+    if operator.is_readonly() and len(operator.returns) != 0 and not has_memory_effects:
+        traits += ["NoMemoryEffect"]
 
     raw_emit_op(
         operator,
@@ -1289,7 +1296,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("prim::max.self_int : (int[]) -> (int)")
     emit("prim::max.int : (int, int) -> (int)", has_folder=True)
     emit("prim::RaiseException : (str, str?) -> ()")
-    emit("prim::Uninitialized : () -> (Any)", has_canonicalizer=True, traits=["Pure"])
+    emit("prim::Uninitialized : () -> (Any)", traits=["Pure"])
     emit(
         "prim::unchecked_cast : (t) -> (t)",
         has_folder=True,
