@@ -255,9 +255,17 @@ def test_while_loop_two_returns():
 # CHECK-LABEL: test_flex_attention
 # CHECK: func.func @test_flex_attention
 def test_flex_attention():
-    from torch._higher_order_ops.flex_attention import flex_attention as flex_attention_hop
-    from torch.nn.attention.flex_attention import BlockMask, _LARGE_SPARSE_BLOCK_SIZE, create_block_mask, flex_attention
+    from torch._higher_order_ops.flex_attention import (
+        flex_attention as flex_attention_hop,
+    )
+    from torch.nn.attention.flex_attention import (
+        BlockMask,
+        _LARGE_SPARSE_BLOCK_SIZE,
+        create_block_mask,
+        flex_attention,
+    )
     from torch import Tensor
+
     def _create_empty_block_mask(query: Tensor, key: Tensor):
         # Default block mask for flex attention.
         device = query.device
@@ -281,11 +289,13 @@ def test_flex_attention():
     class FlexAttention(torch.nn.Module):
         def __init__(self, block_mask):
             super().__init__()
-            self.block_mask=block_mask
-            
+            self.block_mask = block_mask
+
         def forward(self, q, k, v):
-            output, logsumexp = flex_attention_hop(
-                q, k, v,
+            output, logsumexp, *_ = flex_attention_hop(
+                q,
+                k,
+                v,
                 score_mod=relative_position_bias,
                 block_mask=self.block_mask,
                 scale=1.0,
@@ -299,7 +309,11 @@ def test_flex_attention():
     k = torch.ones(B, Hkv, S, E)
     v = torch.ones(B, Hkv, S, Ev)
     m = fx.export_and_import(
-        FlexAttention(_create_empty_block_mask(q,k)), q,k,v, func_name="test_flex_attention"
+        FlexAttention(_create_empty_block_mask(q, k)),
+        q,
+        k,
+        v,
+        func_name="test_flex_attention",
     )
     print(m)
 
