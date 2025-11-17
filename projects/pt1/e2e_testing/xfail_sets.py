@@ -1788,6 +1788,7 @@ TOSA_PASS_SET = {
     "TrilIndicesModule_basic",
     "TrilIndicesOfssetGreaterThanRowModule_basic",
     "TriuIndicesNegativeOffsetModule_basic",
+    "TransformerEncoderModule_basic",
     "BmmFloat16Module_basic",
     "ElementwiseRreluWithNoiseTrainStaticModule_basic",
     "LinspaceDtypeModule_basic",

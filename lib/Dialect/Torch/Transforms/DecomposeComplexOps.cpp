@@ -13084,6 +13084,8 @@ public:
     legalOpsSet.clear();
     legalOpsSet.insert(legalOps.begin(), legalOps.end());
 
+    populateTransformerEncoderPatterns(patterns, legalOpsSet);
+
     addPatternIfTargetOpIsIllegal<DecomposeAten_WeightNormInterfaceOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftmaxIntOp>(patterns);
