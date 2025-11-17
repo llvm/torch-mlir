@@ -6123,8 +6123,7 @@ static LogicalResult getOutputTypeAndPoolingParameters(
     AtenOpT op, ConversionPatternRewriter &rewriter, Value &inputXchw,
     SmallVectorImpl<int64_t> &dilationArray, Type &outputTy,
     DenseI64ArrayAttr &kernel, DenseI64ArrayAttr &stride,
-    DenseI64ArrayAttr &pad,
-    SmallVectorImpl<int64_t> *explicitNHWCPad = nullptr) {
+    DenseI64ArrayAttr &pad, SmallVectorImpl<int64_t> &explicitNHWCPad) {
 
   RankedTensorType inputTy = cast<RankedTensorType>(inputXchw.getType());
   if (!inputTy)
@@ -6173,14 +6172,9 @@ static LogicalResult getOutputTypeAndPoolingParameters(
                        m_TorchConstantBool(&countIncludePad)) ||
 
          countIncludePad)) {
-      if (!explicitNHWCPad)
-        return rewriter.notifyMatchFailure(
-            op, "Unsupported `count_include_pad` value, for tosa AvgPool "
-                "`count_include_pad` value should be `False`.");
-
       // Remember the spatial padding so we can emit an NHWC tosa.pad right
       // after the transpose.
-      explicitNHWCPad->assign(
+      explicitNHWCPad.assign(
           {paddingInts[0], paddingInts[0], paddingInts[1], paddingInts[1]});
 
       auto addPad = [](int64_t dim, int64_t before, int64_t after) -> int64_t {
@@ -6193,7 +6187,8 @@ static LogicalResult getOutputTypeAndPoolingParameters(
       // the extra zeros supplied by the explicit pad.
       SmallVector<int64_t> paddedShape(inputTy.getShape().begin(),
                                        inputTy.getShape().end());
-      // Height stored at rank-2, width at rank-1 for NCHW shapes.
+      // Height stored at rank-2 and width at rank-1 while the tensor is still
+      // in NCHW order; the NHWC transpose happens later.
       paddedShape[inputRank - 2] =
           addPad(paddedShape[inputRank - 2], paddingInts[0], paddingInts[0]);
       paddedShape[inputRank - 1] =
@@ -6221,6 +6216,18 @@ static LogicalResult getOutputTypeAndPoolingParameters(
   pad = rewriter.getDenseI64ArrayAttr(
       {padArr[0], padArr[1], padArr[2], padArr[3]});
   return success();
+}
+
+template <typename AtenOpT, typename tosaOp>
+static LogicalResult getOutputTypeAndPoolingParameters(
+    AtenOpT op, ConversionPatternRewriter &rewriter, Value &inputXchw,
+    SmallVectorImpl<int64_t> &dilationArray, Type &outputTy,
+    DenseI64ArrayAttr &kernel, DenseI64ArrayAttr &stride,
+    DenseI64ArrayAttr &pad) {
+  SmallVector<int64_t, 4> ignoredExplicitPad;
+  return getOutputTypeAndPoolingParameters<AtenOpT, tosaOp>(
+      op, rewriter, inputXchw, dilationArray, outputTy, kernel, stride, pad,
+      ignoredExplicitPad);
 }
 
 class ConvertAtenMaxPool2dOp
@@ -6348,7 +6355,7 @@ public:
     if (failed(getOutputTypeAndPoolingParameters<AtenAvgPool2dOp,
                                                  tosa::AvgPool2dOp>(
             op, rewriter, self, dilationArray, outputTy, kernel, stride, pad,
-            &explicitNHWCPad)))
+            explicitNHWCPad)))
       return rewriter.notifyMatchFailure(
           op, "invalid pooling parameters or input type");
 
@@ -6407,7 +6414,7 @@ public:
     if (failed(getOutputTypeAndPoolingParameters<AtenAvgPool1dOp,
                                                  tosa::AvgPool2dOp>(
             op, rewriter, reshapedSelf, dilationArray, outputTy, kernel, stride,
-            pad, &explicitNHWCPad)))
+            pad, explicitNHWCPad)))
       return rewriter.notifyMatchFailure(
           op, "invalid pooling parameters or input type");
 

@@ -636,7 +636,9 @@ Value emitExplicitZeroPadNHWC(Location loc, PatternRewriter &rewriter,
       0, 0, padExtents[0], padExtents[1], padExtents[2], padExtents[3], 0, 0};
   Value nhwcPadShape = tosa::getTosaConstShape(rewriter, loc, nhwcPadding);
 
-  auto inputTy = cast<RankedTensorType>(inputNHWC.getType());
+  auto inputTy = dyn_cast<RankedTensorType>(inputNHWC.getType());
+  if (!inputTy)
+    return inputNHWC;
   SmallVector<int64_t, 4> resultShape(inputTy.getShape().begin(),
                                       inputTy.getShape().end());
   auto addPad = [](int64_t dim, int64_t before, int64_t after) -> int64_t {
