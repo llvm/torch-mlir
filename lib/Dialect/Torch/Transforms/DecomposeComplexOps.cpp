@@ -33,6 +33,11 @@ namespace mlir::torch::Torch {
 #define GEN_PASS_DEF_DECOMPOSECOMPLEXOPS
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
+// Forward declare the transformer encoder pattern population helper so it can
+// stay out of the public Passes.h surface.
+void populateTransformerEncoderPatterns(RewritePatternSet &patterns,
+                                        const llvm::StringSet<> &legalOpsSet);
+
 // Helper function to check whether the `dtype` is None or Float type.
 static bool isNoneOrFloatDtype(MLIRContext *context, Value dtype) {
   if (isa<Torch::NoneType>(dtype.getType()))
@@ -13304,9 +13309,9 @@ public:
     legalOpsSet.clear();
     legalOpsSet.insert(legalOps.begin(), legalOps.end());
 
+    populateTransformerEncoderPatterns(patterns, legalOpsSet);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScaledDotProductAttentionOp>(
         patterns);
-
     addPatternIfTargetOpIsIllegal<DecomposeAten_WeightNormInterfaceOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftmaxIntOp>(patterns);

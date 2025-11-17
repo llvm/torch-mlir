@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "ReifyAbstractInterpCalculationsUtils.h"
+#include "TransformerEncoderUtils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -265,7 +266,19 @@ void TorchMatchSpecializedBackendOp::populateSpecializedConversions(
       });
 }
 
-bool isSpecializedOperation(Torch::OperatorOp op) { return true; }
+bool isSpecializedOperation(Torch::OperatorOp op) {
+  auto nameAttr = op.getNameAttr();
+  if (!nameAttr)
+    return false;
+
+  StringRef opName = nameAttr.getValue();
+  if (isTransformerEncoderOperatorName(opName))
+    return false;
+
+  // Default to treating torch.operator calls as specialized (i.e., illegal)
+  (void)opName; // suppress unused warning when asserts are off.
+  return true;
+}
 } // namespace
 
 // Reduce Ops without value semantics but the corresponding without trailing

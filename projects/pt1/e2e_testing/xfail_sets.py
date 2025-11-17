@@ -591,6 +591,9 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "SliceScatterStaticModule_basic",
     "SliceScatterStepVariationModule_basic",
     "SliceScatterZeroDimModule_basic",
+    # FX importer -> StableHLO path never runs DecomposeComplexOps, so the
+    # torch.operator "aten._transformer_encoder_layer_fwd" crashes the pipeline.
+    "TransformerEncoderModule_basic",
     "TimeOutModule_basic",
     "WeightNormInterfaceModule_basic",
     "AdaptiveAvgPool3dDynamicNoBatch_basic",
@@ -1797,6 +1800,7 @@ TOSA_PASS_SET = {
     "TrilIndicesModule_basic",
     "TrilIndicesOfssetGreaterThanRowModule_basic",
     "TriuIndicesNegativeOffsetModule_basic",
+    "TransformerEncoderModule_basic",
     "BmmFloat16Module_basic",
     "ElementwiseRreluWithNoiseTrainStaticModule_basic",
     "LinspaceDtypeModule_basic",
@@ -2772,6 +2776,9 @@ ONNX_XFAIL_SET = {
     "StdCorrectionLargeInputModule_basic",
     "TupleModule_basic",
     "ThresholdStaticModule_basic",
+    # torch.onnx.export cannot lower torch.aten._transformer_encoder_layer_fwd;
+    # once the op is decomposed this test should move out of the ONNX XFAIL list.
+    "TransformerEncoderModule_basic",
     "VarCorrectionLargeInputModule_basic",
     "Conv3dModule_basic",
     "Conv3dWithSamePaddingModule_basic",
@@ -3636,6 +3643,9 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "TrilIndicesNegativeOffsetModule_basic",
     "TriuIndicesAllZerosModule_basic",
     "TriuIndicesModule_basic",
+    # FX importer -> TOSA path also requires the transformer encoder decomposition
+    # to eliminate the torch.operator "aten._transformer_encoder_layer_fwd".
+    "TransformerEncoderModule_basic",
     "TypeConversionUint8ToF32Module_basic",
     "WeightNormInterfaceModule_basic",
     "AdaptiveAvgPool3dDynamicNoBatch_basic",

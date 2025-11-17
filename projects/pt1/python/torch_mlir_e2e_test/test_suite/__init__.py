@@ -63,3 +63,4 @@ def register_all_tests():
     from . import meshgrid
     from . import timeout
     from . import kl_div_loss
+    from . import transformer
