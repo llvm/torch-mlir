@@ -16,10 +16,18 @@
 
 namespace mlir {
 namespace torch {
+
+#define GEN_PASS_DECL_CONVERTTORCHTOSTABLEHLO
+#include "torch-mlir/Conversion/Passes.h.inc"
+
 std::unique_ptr<OperationPass<func::FuncOp>>
 createConvertTorchToStablehloPass();
+
+// Convenience wrapper for users who want to pass options as individual
+// parameters
 std::unique_ptr<OperationPass<func::FuncOp>>
 createConvertTorchToStablehloPass(bool enableStaticShape, bool enableI32Index);
+
 } // namespace torch
 } // namespace mlir
 

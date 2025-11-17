@@ -7,10 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
 #include "ReifyAbstractInterpCalculationsUtils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Parser/Parser.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -19,6 +19,11 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DECL_REIFYSHAPECALCULATIONS
+#define GEN_PASS_DEF_REIFYSHAPECALCULATIONS
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 static FailureOr<SmallVector<Value>>
 shapeFunctionArgsBuilder(OpBuilder &b, Location loc,
@@ -57,11 +62,9 @@ shapeFunctionArgsBuilder(OpBuilder &b, Location loc,
 
 namespace {
 struct ReifyShapeCalculationsPass
-    : public ReifyShapeCalculationsBase<ReifyShapeCalculationsPass> {
-  ReifyShapeCalculationsPass() = default;
-  ReifyShapeCalculationsPass(StringRef extraLibrary) {
-    this->extraLibrary = extraLibrary.str();
-  }
+    : public impl::ReifyShapeCalculationsBase<ReifyShapeCalculationsPass> {
+  using impl::ReifyShapeCalculationsBase<
+      ReifyShapeCalculationsPass>::ReifyShapeCalculationsBase;
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     ModuleOp module = getOperation();
@@ -95,6 +98,10 @@ struct ReifyShapeCalculationsPass
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::Torch::createReifyShapeCalculationsPass(StringRef extraLibrary) {
-  return std::make_unique<ReifyShapeCalculationsPass>(extraLibrary);
+createReifyShapeCalculationsPass(StringRef extraLibrary) {
+  ReifyShapeCalculationsOptions options;
+  options.extraLibrary = extraLibrary.str();
+  return std::make_unique<ReifyShapeCalculationsPass>(options);
 }
+
+} // namespace mlir::torch::Torch

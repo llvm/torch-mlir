@@ -9,11 +9,12 @@
 
 #include "torch-mlir/Conversion/TorchToTensor/TorchToTensor.h"
 
-#include "../PassDetail.h"
-
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Conversion/Passes.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
@@ -21,6 +22,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch {
+
+#define GEN_PASS_DEF_CONVERTTORCHTOTENSOR
+#include "torch-mlir/Conversion/Passes.h.inc"
 
 namespace {
 
@@ -139,7 +144,7 @@ public:
 };
 
 class ConvertTorchToTensor
-    : public ConvertTorchToTensorBase<ConvertTorchToTensor> {
+    : public impl::ConvertTorchToTensorBase<ConvertTorchToTensor> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<tensor::TensorDialect>();
@@ -170,7 +175,8 @@ public:
 
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToTensorPass() {
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToTensorPass() {
   return std::make_unique<ConvertTorchToTensor>();
 }
+
+} // namespace mlir::torch

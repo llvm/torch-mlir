@@ -9,10 +9,12 @@
 
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 
-#include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Conversion/Passes.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
@@ -21,6 +23,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch {
+
+#define GEN_PASS_DEF_CONVERTTORCHTOSCF
+#include "torch-mlir/Conversion/Passes.h.inc"
 
 namespace {
 class ConvertTorchPrimIfYieldOp : public OpConversionPattern<PrimIfYieldOp> {
@@ -312,7 +318,8 @@ public:
 } // namespace
 
 namespace {
-class ConvertTorchToSCF : public ConvertTorchToSCFBase<ConvertTorchToSCF> {
+class ConvertTorchToSCF
+    : public impl::ConvertTorchToSCFBase<ConvertTorchToSCF> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<scf::SCFDialect, arith::ArithDialect>();
@@ -345,7 +352,8 @@ public:
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToSCFPass() {
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToSCFPass() {
   return std::make_unique<ConvertTorchToSCF>();
 }
+
+} // namespace mlir::torch

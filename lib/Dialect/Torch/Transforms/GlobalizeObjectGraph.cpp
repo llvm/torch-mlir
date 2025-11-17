@@ -7,10 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IRMapping.h"
+#include "mlir/Pass/Pass.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "llvm/ADT/STLExtras.h"
@@ -21,6 +21,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DEF_GLOBALIZEOBJECTGRAPH
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 static FailureOr<NnModuleOp> findRootNnModule(ModuleOp module) {
   NnModuleOp rootNnModule;
@@ -299,6 +303,8 @@ struct Monomorphization {
 };
 } // namespace
 
+} // namespace mlir::torch::Torch
+
 template <> struct llvm::DenseMapInfo<Monomorphization> {
   static Monomorphization getEmptyKey() {
     return Monomorphization{nullptr, {ArgInstance{-1, nullptr}}};
@@ -317,6 +323,8 @@ template <> struct llvm::DenseMapInfo<Monomorphization> {
                       rhs.argInstances.begin(), rhs.argInstances.end());
   }
 };
+
+namespace mlir::torch::Torch {
 
 // Populate `mapping` such that values of NnModuleType in the function are
 // mapped to appropriate global objects of NnModuleType.
@@ -696,7 +704,7 @@ static LogicalResult globalizeObjectGraph(ModuleOp module) {
 
 namespace {
 class GlobalizeObjectGraphPass
-    : public GlobalizeObjectGraphBase<GlobalizeObjectGraphPass> {
+    : public impl::GlobalizeObjectGraphBase<GlobalizeObjectGraphPass> {
   void runOnOperation() override {
     if (failed(globalizeObjectGraph(getOperation())))
       return signalPassFailure();
@@ -704,7 +712,7 @@ class GlobalizeObjectGraphPass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::Torch::createGlobalizeObjectGraphPass() {
+std::unique_ptr<OperationPass<ModuleOp>> createGlobalizeObjectGraphPass() {
   return std::make_unique<GlobalizeObjectGraphPass>();
 }
+} // namespace mlir::torch::Torch

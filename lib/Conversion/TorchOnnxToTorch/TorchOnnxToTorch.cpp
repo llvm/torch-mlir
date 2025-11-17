@@ -7,7 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "./PassDetail.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Support/LLVM.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Passes.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
@@ -19,6 +20,10 @@ using llvm::dbgs;
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
+namespace mlir::torch::onnx_c {
+
+#define GEN_PASS_DEF_CONVERTTORCHONNXTOTORCH
+#include "torch-mlir/Conversion/TorchOnnxToTorch/Passes.h.inc"
 
 #define DEBUG_TYPE "torch-onnx"
 
@@ -37,7 +42,7 @@ int64_t getDefaultOpsetVersion(Operation *containerOp) {
 }
 
 class ConvertTorchOnnxToTorch
-    : public ConvertTorchOnnxToTorchBase<ConvertTorchOnnxToTorch> {
+    : public impl::ConvertTorchOnnxToTorchBase<ConvertTorchOnnxToTorch> {
 public:
   ConvertTorchOnnxToTorch() = default;
   void runOnOperation() override {
@@ -82,7 +87,8 @@ public:
 
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::onnx_c::createTorchOnnxToTorchPass() {
+std::unique_ptr<OperationPass<func::FuncOp>> createTorchOnnxToTorchPass() {
   return std::make_unique<ConvertTorchOnnxToTorch>();
 }
+
+} // namespace mlir::torch::onnx_c

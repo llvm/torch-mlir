@@ -14,7 +14,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -41,6 +40,26 @@ using namespace mlir::torch::RefBackend;
 //===----------------------------------------------------------------------===//
 // Pass registration
 //===----------------------------------------------------------------------===//
+
+namespace mlir::torch::RefBackend {
+
+#define GEN_PASS_DEF_MUNGECALLINGCONVENTIONS
+#define GEN_PASS_DEF_MLPROGRAMBUFFERIZE
+#define GEN_PASS_DEF_EXPANDOPSFORLLVM
+#define GEN_PASS_DEF_MUNGEMEMREFCOPY
+#define GEN_PASS_DEF_GENERALIZETENSORCONCAT
+#define GEN_PASS_DEF_GENERALIZETENSORPAD
+#include "torch-mlir/RefBackend/Passes.h.inc"
+
+} // namespace mlir::torch::RefBackend
+
+// Bring Base classes into scope for anonymous namespace passes.
+using mlir::torch::RefBackend::impl::ExpandOpsForLLVMBase;
+using mlir::torch::RefBackend::impl::GeneralizeTensorConcatBase;
+using mlir::torch::RefBackend::impl::GeneralizeTensorPadBase;
+using mlir::torch::RefBackend::impl::MLProgramBufferizeBase;
+using mlir::torch::RefBackend::impl::MungeCallingConventionsBase;
+using mlir::torch::RefBackend::impl::MungeMemrefCopyBase;
 
 namespace {
 #define GEN_PASS_REGISTRATION
@@ -220,11 +239,6 @@ class MungeCallingConventions
 };
 } // namespace
 
-std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::RefBackend::createMungeCallingConventionsPass() {
-  return std::make_unique<MungeCallingConventions>();
-}
-
 //===----------------------------------------------------------------------===//
 // MLProgramBufferize
 //===----------------------------------------------------------------------===//
@@ -346,11 +360,6 @@ class MLProgramBufferize : public MLProgramBufferizeBase<MLProgramBufferize> {
 };
 } // namespace
 
-std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::RefBackend::createMLProgramBufferizePass() {
-  return std::make_unique<MLProgramBufferize>();
-}
-
 //===----------------------------------------------------------------------===//
 // ExpandOpsForLLVM
 //===----------------------------------------------------------------------===//
@@ -375,11 +384,6 @@ class ExpandOpsForLLVM : public ExpandOpsForLLVMBase<ExpandOpsForLLVM> {
   }
 };
 } // namespace
-
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::RefBackend::createExpandOpsForLLVMPass() {
-  return std::make_unique<ExpandOpsForLLVM>();
-}
 
 //===----------------------------------------------------------------------===//
 // MungeMemrefCopy
@@ -432,11 +436,6 @@ class MungeMemrefCopy : public MungeMemrefCopyBase<MungeMemrefCopy> {
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::RefBackend::createMungeMemrefCopyPass() {
-  return std::make_unique<MungeMemrefCopy>();
-}
-
 namespace {
 class GeneralizeTensorConcat
     : public GeneralizeTensorConcatBase<GeneralizeTensorConcat> {
@@ -453,11 +452,6 @@ class GeneralizeTensorConcat
   }
 };
 } // namespace
-
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::RefBackend::createGeneralizeTensorConcatPass() {
-  return std::make_unique<GeneralizeTensorConcat>();
-}
 
 namespace {
 class GeneralizeTensorPad
@@ -476,8 +470,3 @@ class GeneralizeTensorPad
   }
 };
 } // namespace
-
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::RefBackend::createGeneralizeTensorPadPass() {
-  return std::make_unique<GeneralizeTensorPad>();
-}

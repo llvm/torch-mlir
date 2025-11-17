@@ -7,9 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -17,6 +17,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DEF_ADJUSTCALLINGCONVENTIONS
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 // Map from func name and arg index to the type bound for that arg.
 // This is needed because to rewrite calls, we need the non-local information
@@ -285,7 +289,7 @@ static LogicalResult adjustCallingConventions(func::FuncOp func,
 
 namespace {
 class AdjustCallingConventionsPass
-    : public AdjustCallingConventionsBase<AdjustCallingConventionsPass> {
+    : public impl::AdjustCallingConventionsBase<AdjustCallingConventionsPass> {
   void runOnOperation() override {
     auto module = getOperation();
     TypeBoundMap typeBoundMap;
@@ -306,7 +310,8 @@ class AdjustCallingConventionsPass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::Torch::createAdjustCallingConventionsPass() {
+std::unique_ptr<OperationPass<ModuleOp>> createAdjustCallingConventionsPass() {
   return std::make_unique<AdjustCallingConventionsPass>();
 }
+
+} // namespace mlir::torch::Torch
