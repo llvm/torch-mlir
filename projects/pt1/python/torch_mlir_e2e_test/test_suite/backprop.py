@@ -228,6 +228,75 @@ def ConvolutionBackwardModule2DStrided_basic(module, tu: TestUtils):
         module.forward(tu.rand(1, 2, 4, 4), tu.rand(1, 2, 8, 8), tu.rand(2, 2, 3, 3))
 
 
+class ConvolutionBackwardModule2DDilated(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 2, 6, 6], torch.float32, True),
+            ([1, 4, 8, 8], torch.float32, True),
+            ([2, 4, 3, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, grad_out, input_vec, weight):
+        return torch.ops.aten.convolution_backward(
+            grad_out,
+            input_vec,
+            weight,
+            bias_sizes=[4],
+            stride=[1, 1],
+            padding=[1, 1],
+            dilation=[2, 2],
+            transposed=False,
+            output_padding=[0, 0],
+            groups=1,
+            output_mask=[True, True, True],
+        )
+
+
+@register_test_case(module_factory=lambda: ConvolutionBackwardModule2DDilated())
+def ConvolutionBackwardModule2DDilated_basic(module, tu: TestUtils):
+    with torch.backends.mkldnn.flags(enabled=False):
+        module.forward(tu.rand(1, 2, 6, 6), tu.rand(1, 4, 8, 8), tu.rand(2, 4, 3, 3))
+
+
+class ConvolutionBackwardModule2DStridedPaddedDilatedGrouped(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 16, 32, 32], torch.float32, True),
+            ([2, 128, 64, 64], torch.float32, True),
+            ([16, 32, 2, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, grad_out, input_vec, weight):
+        return torch.ops.aten.convolution_backward(
+            grad_out,
+            input_vec,
+            weight,
+            bias_sizes=[4],
+            stride=[2, 2],
+            padding=[2, 2],
+            dilation=[4, 4],
+            transposed=False,
+            output_padding=[0, 0],
+            groups=4,
+            output_mask=[True, True, True],
+        )
+
+
+@register_test_case(module_factory=lambda: ConvolutionBackwardModule2DStridedPaddedDilatedGrouped())
+def ConvolutionBackwardModule2DStridedPaddedDilatedGrouped_basic(module, tu: TestUtils):
+    with torch.backends.mkldnn.flags(enabled=False):
+        module.forward(tu.rand(2, 16, 32, 32), tu.rand(2, 128, 64, 64), tu.rand(16, 32, 2, 2))
+
 # ==============================================================================
 
 
