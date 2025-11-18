@@ -584,7 +584,7 @@ LogicalResult getConvOpsAccType(PatternRewriter &rewriter,
 FailureOr<Value> getConvBiasForNoneType(Operation *op,
                                         PatternRewriter &rewriter,
                                         Type inputElemTy, Type outputElemTy,
-                                        ArrayRef<int64_t> weightShape) {
+                                        int64_t numOutputChannels) {
 
   Type biasElemTy;
 
@@ -610,16 +610,18 @@ FailureOr<Value> getConvBiasForNoneType(Operation *op,
     biasElemTy = outputElemTy;
   }
 
+  if (ShapedType::isDynamic(numOutputChannels))
+    return rewriter.notifyMatchFailure(
+        op, "cannot synthesize conv bias with dynamic output channels");
+
+  int32_t oc = static_cast<int32_t>(numOutputChannels);
+
   if (biasElemTy.isInteger()) {
-    SmallVector<int32_t> zeroVec(weightShape[0], 0);
-    return tosa::getConstTensor<int32_t>(rewriter, op, zeroVec,
-                                         {static_cast<int32_t>(weightShape[0])})
-        .value();
+    SmallVector<int32_t> zeroVec(oc, 0);
+    return tosa::getConstTensor<int32_t>(rewriter, op, zeroVec, {oc}).value();
   } else {
-    SmallVector<float> zeroVec(weightShape[0], 0);
-    return tosa::getConstTensor<float>(rewriter, op, zeroVec,
-                                       {static_cast<int32_t>(weightShape[0])},
-                                       biasElemTy)
+    SmallVector<float> zeroVec(oc, 0);
+    return tosa::getConstTensor<float>(rewriter, op, zeroVec, {oc}, biasElemTy)
         .value();
   }
 }

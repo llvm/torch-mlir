@@ -105,7 +105,7 @@ LogicalResult getConvOpsAccType(PatternRewriter &rewriter,
 FailureOr<Value> getConvBiasForNoneType(Operation *op,
                                         PatternRewriter &rewriter,
                                         Type inputElemTy, Type outputElemTy,
-                                        ArrayRef<int64_t> weightShape);
+                                        int64_t numOutputChannels);
 
 // Emit an explicit zero-valued `tosa.pad` around an NHWC tensor so that later
 // avg_pool lowering can run with `pad = 0`. `padExtents` is ordered as
