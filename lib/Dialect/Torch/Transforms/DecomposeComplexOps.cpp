@@ -2295,6 +2295,220 @@ public:
 };
 } // namespace
 
+namespace {
+// Decompose scaled dot product attention into matmul/softmax pipeline when
+// there is no masking, dropout, causal, or GQA behaviour.
+class DecomposeAtenScaledDotProductAttentionOp
+    : public OpRewritePattern<AtenScaledDotProductAttentionOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenScaledDotProductAttentionOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+
+    if (!isa<Torch::NoneType>(op.getAttnMask().getType()))
+      return rewriter.notifyMatchFailure(
+          op, "attention mask decomposition not implemented");
+
+    double dropoutP;
+    if (!matchPattern(op.getDropoutP(), m_TorchConstantFloat(&dropoutP)) ||
+        dropoutP != 0.0)
+      return rewriter.notifyMatchFailure(
+          op, "expected dropout_p to be the constant 0.0");
+
+    bool isCausal;
+    if (!matchPattern(op.getIsCausal(), m_TorchConstantBool(&isCausal)) ||
+        isCausal)
+      return rewriter.notifyMatchFailure(op,
+                                         "causal attention not supported yet");
+
+    bool enableGqa;
+    if (!matchPattern(op.getEnableGqa(), m_TorchConstantBool(&enableGqa)) ||
+        enableGqa)
+      return rewriter.notifyMatchFailure(op,
+                                         "grouped-query attention unsupported");
+
+    Value query = op.getQuery();
+    Value key = op.getKey();
+    Value value = op.getValue();
+
+    auto queryTensorType = dyn_cast<BaseTensorType>(query.getType());
+    auto keyTensorType = dyn_cast<BaseTensorType>(key.getType());
+    auto valueTensorType = dyn_cast<BaseTensorType>(value.getType());
+    if (!queryTensorType || !keyTensorType || !valueTensorType)
+      return rewriter.notifyMatchFailure(op, "expected tensor inputs");
+    if (!queryTensorType.hasSizes() || !keyTensorType.hasSizes() ||
+        !valueTensorType.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "expected tensor inputs to have known shapes");
+    auto queryValueTensorType = dyn_cast<ValueTensorType>(queryTensorType);
+    auto keyValueTensorType = dyn_cast<ValueTensorType>(keyTensorType);
+    auto valueValueTensorType = dyn_cast<ValueTensorType>(valueTensorType);
+    if (!queryValueTensorType || !keyValueTensorType || !valueValueTensorType)
+      return rewriter.notifyMatchFailure(op,
+                                         "expected value tensor semantics");
+
+    Value oneInt =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value zeroInt =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(0));
+    Value rank = rewriter.create<AtenDimOp>(loc, query);
+    Value lastDim = rewriter.create<AtenSubIntOp>(loc, rank, oneInt);
+    Value headDim = rewriter.create<AtenSizeIntOp>(loc, query, lastDim);
+    Value seqDimIndex = rewriter.create<AtenSubIntOp>(loc, lastDim, oneInt);
+    Value seqLen = rewriter.create<AtenSizeIntOp>(loc, query, seqDimIndex);
+    Value keySeqLen = rewriter.create<AtenSizeIntOp>(loc, key, seqDimIndex);
+    ArrayRef<int64_t> querySizes = queryValueTensorType.getSizes();
+    bool hasExplicitHeadDim = querySizes.size() >= 4;
+    Value numHeadsSize = hasExplicitHeadDim
+                             ? (Value)rewriter.create<AtenSizeIntOp>(loc, query,
+                                                                      oneInt)
+                             : oneInt;
+    Value batchSize = rewriter.create<AtenSizeIntOp>(loc, query, zeroInt);
+    auto listIntType =
+        Torch::ListType::get(Torch::IntType::get(rewriter.getContext()));
+
+    auto getDimValue = [&](int64_t staticDim, Value fallback) -> Value {
+      if (staticDim != Torch::kUnknownSize)
+        return ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(staticDim));
+      return fallback;
+    };
+
+    Value scaleFloat;
+    if (isa<Torch::NoneType>(op.getScale().getType())) {
+      Value sqrtHeadDim = rewriter.create<AtenSqrtIntOp>(loc, headDim);
+      Value oneFloat = rewriter.create<ConstantFloatOp>(
+          loc, rewriter.getF64FloatAttr(1.0));
+      scaleFloat = rewriter.create<AtenDivFloatOp>(loc, oneFloat, sqrtHeadDim);
+    } else {
+      scaleFloat = op.getScale();
+    }
+
+    Value negTwo =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-2));
+    Value negOne =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+
+    ArrayRef<int64_t> keySizes = keyValueTensorType.getSizes();
+    SmallVector<int64_t> keyTransposedSizes(keySizes.begin(), keySizes.end());
+    if (keyTransposedSizes.size() < 2)
+      return rewriter.notifyMatchFailure(
+          op, "expected key tensor rank >= 2 for transpose");
+    std::swap(keyTransposedSizes[keyTransposedSizes.size() - 1],
+              keyTransposedSizes[keyTransposedSizes.size() - 2]);
+    ArrayRef<int64_t> keyTransposedRef(keyTransposedSizes);
+    std::optional<ArrayRef<int64_t>> keyTransposedOpt(keyTransposedRef);
+    Type keyTransposedType = keyValueTensorType.getWithSizesAndDtypeAndSparsity(
+        keyTransposedSizes, keyValueTensorType.getOptionalDtype(),
+        keyValueTensorType.getOptionalSparsity());
+    Value keyTransposed = rewriter.create<AtenTransposeIntOp>(
+        loc, keyTransposedType, key, negTwo, negOne);
+    SmallVector<Value> keyDims;
+    auto getOrFallback = [&](ArrayRef<int64_t> staticDims, unsigned idx,
+                             Value fallback) -> Value {
+      return getDimValue(idx < staticDims.size() ? staticDims[idx]
+                                                 : Torch::kUnknownSize,
+                         fallback);
+    };
+    keyDims.push_back(getOrFallback(keyTransposedSizes, 0, batchSize));
+    if (keyTransposedSizes.size() == 4) {
+      keyDims.push_back(getOrFallback(keyTransposedSizes, 1, numHeadsSize));
+      keyDims.push_back(getOrFallback(keyTransposedSizes, 2, seqLen));
+      keyDims.push_back(getOrFallback(keyTransposedSizes, 3, keySeqLen));
+    } else {
+      keyDims.push_back(getOrFallback(keyTransposedSizes, 1, headDim));
+      keyDims.push_back(getOrFallback(keyTransposedSizes, 2, keySeqLen));
+    }
+    Value keyTransposeShapeList = rewriter.create<PrimListConstructOp>(
+        loc, listIntType, ValueRange(keyDims));
+    keyTransposed = rewriter.create<AtenViewOp>(loc, keyTransposedType,
+                                                keyTransposed,
+                                                keyTransposeShapeList);
+
+    auto getStaticDim = [](ArrayRef<int64_t> sizes, int64_t index) {
+      if (index < 0)
+        index += sizes.size();
+      if (index < 0 || index >= static_cast<int64_t>(sizes.size()))
+        return Torch::kUnknownSize;
+      return sizes[index];
+    };
+    int64_t queryBatchStatic = getStaticDim(querySizes, 0);
+    int64_t querySeqStatic = getStaticDim(querySizes, -2);
+    int64_t keySeqStatic = getStaticDim(keySizes, -2);
+    int64_t queryHeadsStatic =
+        hasExplicitHeadDim ? getStaticDim(querySizes, 1) : 1;
+    SmallVector<int64_t, 4> scoresSizes;
+    if (hasExplicitHeadDim)
+      scoresSizes.assign(
+          {queryBatchStatic, queryHeadsStatic, querySeqStatic, keySeqStatic});
+    else
+      scoresSizes.assign({queryBatchStatic, querySeqStatic, keySeqStatic});
+    Type scoresType = ValueTensorType::get(
+        op->getContext(),
+        ArrayRef<int64_t>(scoresSizes.begin(), scoresSizes.end()),
+        queryValueTensorType.getOptionalDtype(),
+        queryValueTensorType.getOptionalSparsity());
+    Value scores = rewriter.create<AtenMatmulOp>(loc, scoresType, query,
+                                                 keyTransposed);
+    SmallVector<Value> scoresDims;
+    scoresDims.push_back(getDimValue(scoresSizes[0], batchSize));
+    unsigned seqIndex = 1;
+    if (hasExplicitHeadDim) {
+      scoresDims.push_back(getDimValue(scoresSizes[1], numHeadsSize));
+      seqIndex = 2;
+    }
+    scoresDims.push_back(getDimValue(scoresSizes[seqIndex], seqLen));
+    scoresDims.push_back(getDimValue(scoresSizes.back(), keySeqLen));
+    Value scoresShapeList = rewriter.create<PrimListConstructOp>(
+        loc, listIntType, ValueRange(scoresDims));
+    scores = rewriter.create<AtenViewOp>(loc, scoresType, scores,
+                                         scoresShapeList);
+    Value scaledScores = rewriter.create<AtenMulScalarOp>(
+        loc, scoresType, scores, scaleFloat);
+
+    SmallVector<int64_t> reducedSizes(scoresSizes.begin(), scoresSizes.end());
+    reducedSizes.back() = 1;
+    ArrayRef<int64_t> reducedSizesRef(reducedSizes);
+    std::optional<ArrayRef<int64_t>> reducedSizesOpt(reducedSizesRef);
+    Type reducedValueType =
+        ValueTensorType::get(op->getContext(), reducedSizesOpt,
+                             queryValueTensorType.getOptionalDtype());
+    Type reducedIndexType =
+        ValueTensorType::get(op->getContext(), reducedSizesOpt,
+                             IntegerType::get(op->getContext(), 64,
+                                              IntegerType::Signed));
+    Value keepDimTrue =
+        rewriter.create<ConstantBoolOp>(loc, rewriter.getBoolAttr(true));
+    auto maxOp = rewriter.create<AtenMaxDimOp>(
+        loc, reducedValueType, reducedIndexType, scaledScores, negOne,
+        keepDimTrue);
+    Value softmaxMax = rewriter.create<TensorStaticInfoCastOp>(
+        loc, reducedValueType, maxOp.getValues());
+    Value centered = createTensorSub(rewriter, loc, scoresType, scaledScores,
+                                     softmaxMax);
+    Value unNormalizedExp =
+        rewriter.create<AtenExpOp>(loc, scoresType, centered);
+    Value dimList = rewriter.create<PrimListConstructOp>(
+        loc, listIntType, ValueRange(negOne));
+    Value noneValue = rewriter.create<ConstantNoneOp>(loc);
+    Value softmaxDenominator = rewriter.create<AtenSumDimIntListOp>(
+        loc, reducedValueType, unNormalizedExp, dimList, keepDimTrue,
+        noneValue);
+    softmaxDenominator = rewriter.create<TensorStaticInfoCastOp>(
+        loc, reducedValueType, softmaxDenominator);
+    Value softmax = rewriter.create<AtenDivTensorOp>(
+        loc, scoresType, unNormalizedExp, softmaxDenominator);
+
+    Value output = rewriter.create<AtenMatmulOp>(
+        loc, op.getType(), softmax, value);
+
+    rewriter.replaceOp(op, output);
+    return success();
+  }
+};
+} // namespace
+
 // Calculates the softmax function on the given `input` tensor. Softmax(x) =
 // exp(x)/sum(exp(x)).
 // To avoid overflow we use the following decomposition rule:
@@ -13083,6 +13297,8 @@ public:
     // `legalOpsSet` must be delayed to when `runOnOperation` gets called.
     legalOpsSet.clear();
     legalOpsSet.insert(legalOps.begin(), legalOps.end());
+
+    patterns.add<DecomposeAtenScaledDotProductAttentionOp>(context);
 
     addPatternIfTargetOpIsIllegal<DecomposeAten_WeightNormInterfaceOp>(
         patterns);
