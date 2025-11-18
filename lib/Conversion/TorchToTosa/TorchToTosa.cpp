@@ -30,6 +30,7 @@
 #include <numeric>
 #include <optional>
 #include <random>
+#include <type_traits>
 
 #include "mlir/Dialect/Tosa/Utils/QuantUtils.h"
 
@@ -96,6 +97,16 @@ public:
             op.getType()));
 
     self = tosa::tosaCastTensorToType(rewriter, self, outType).value();
+
+    if constexpr (std::is_same_v<AtenOpT, AtenBitwiseNotOp>) {
+      if (auto intTy = dyn_cast<IntegerType>(outType.getElementType())) {
+        if (intTy.getWidth() == 1) {
+          rewriter.replaceOpWithNewOp<tosa::LogicalNotOp>(op, outType, self);
+          return success();
+        }
+      }
+      // otherwise fall through to standard emission
+    }
 
     rewriter.replaceOpWithNewOp<TosaOpT>(op, outType, self);
 
