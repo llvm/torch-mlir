@@ -4016,8 +4016,28 @@ LogicalResult ConvertAtenOp<AtenTransposeIntOp>::matchAndRewrite(
   transposedDims[dim0] = dim1;
   transposedDims[dim1] = dim0;
 
+  Type resultType = getTypeConverter()->convertType(op.getType());
+  if (auto rankedSelf = dyn_cast<RankedTensorType>(selfType)) {
+    SmallVector<int64_t> transposedShape(rankedSelf.getRank(),
+                                         ShapedType::kDynamic);
+    if (rankedSelf.hasStaticShape()) {
+      auto staticShape =
+          llvm::to_vector(makeShapeTorchCompatible(rankedSelf.getShape()));
+      auto dim0Index = static_cast<size_t>(dim0);
+      auto dim1Index = static_cast<size_t>(dim1);
+      if (dim0Index < staticShape.size() && dim1Index < staticShape.size())
+        std::swap(staticShape[dim0Index], staticShape[dim1Index]);
+      for (size_t i = 0; i < staticShape.size(); ++i)
+        transposedShape[i] = staticShape[i];
+    }
+    auto rankedResult = RankedTensorType::get(
+        makeShapeLLVMCompatible(transposedShape), rankedSelf.getElementType());
+    if (auto converted = getTypeConverter()->convertType(rankedResult))
+      resultType = converted;
+  }
+
   rewriter.replaceOpWithNewOp<tosa::TransposeOp>(
-      op, getTypeConverter()->convertType(op.getType()), adaptor.getSelf(),
+      op, resultType, adaptor.getSelf(),
       rewriter.getDenseI32ArrayAttr(transposedDims));
 
   return success();
@@ -9402,6 +9422,21 @@ void populateTorchToTosaConversionLegalOps(ConversionTarget &target) {
   target.addLegalOp<ConstantDeviceOp>();
   target.addLegalOp<PrimListConstructOp>();
   target.addLegalOp<PrimTupleConstructOp>();
+  target.addDynamicallyLegalOp<tensor::CastOp>([](tensor::CastOp op) -> bool {
+    auto sourceType = dyn_cast<RankedTensorType>(op.getSource().getType());
+    auto resultType = dyn_cast<RankedTensorType>(op.getType());
+    if (!sourceType || !resultType)
+      return true;
+    if (sourceType.getElementType() != resultType.getElementType())
+      return true;
+    if (!sourceType.hasStaticShape())
+      return true;
+    if (!resultType.hasStaticShape())
+      return true;
+    if (sourceType == resultType)
+      return true;
+    return false;
+  });
 }
 
 std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(

@@ -50,11 +50,8 @@ if torch_version_for_comparison() < version.parse("2.5.0.dev"):
         "ScaledDotProductAttentionBoolMaskModule_basic",
         "ScaledDotProductAttentionDifferentCausalModule_basic",
         "ScaledDotProductAttentionDifferentDynamicCausalModule_basic",
-        "ScaledDotProductAttentionDifferentModule_basic",
         "ScaledDotProductAttentionMaskModule_basic",
         "ScaledDotProductAttentionSameCausalModule_basic",
-        "ScaledDotProductAttentionSameDynamicModule_basic",
-        "ScaledDotProductAttentionSameModule_basic",
     }
 
 LINALG_CRASHING_SET = {
@@ -953,11 +950,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
     "ScaledDotProductAttentionDifferentDynamicCausalModule_basic",
-    "ScaledDotProductAttentionDifferentModule_basic",
     "ScaledDotProductAttentionMaskModule_basic",
     "ScaledDotProductAttentionSameCausalModule_basic",
-    "ScaledDotProductAttentionSameDynamicModule_basic",
-    "ScaledDotProductAttentionSameModule_basic",
     "SubIntModule_basic",
     "TensorToIntZeroRank_basic",
     "UpSampleNearest2dDynamicFactor_basic",
@@ -3978,11 +3972,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionDifferentCausalModule_basic",
     "ScaledDotProductAttentionDifferentDynamicCausalModule_basic",
-    "ScaledDotProductAttentionDifferentModule_basic",
     "ScaledDotProductAttentionMaskModule_basic",
     "ScaledDotProductAttentionSameCausalModule_basic",
-    "ScaledDotProductAttentionSameDynamicModule_basic",
-    "ScaledDotProductAttentionSameModule_basic",
     "ScaledDotProductAttentionGQAModule_basic",
     # error: 'tosa.scatter' op requires dimensions K >= W
     "IndexPut1DFloatNonAccumulateModule_basic",
@@ -4887,7 +4878,6 @@ ONNX_TOSA_XFAIL_SET = {
     # REMOVE WHEN ENABLE_GQA IS ADDED
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionSameCausalModule_basic",
-    "ScaledDotProductAttentionSameDynamicModule_basic",
     "ScatterAddDynamicModule_basic",
     "ScatterReduceFloatMaxModule",
     "ScatterReduceFloatMaxModuleIncludeSelf",
