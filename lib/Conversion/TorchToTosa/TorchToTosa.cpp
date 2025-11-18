@@ -2380,8 +2380,12 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
   // padding {height, width}. The PyTorch OFM computation uses 2*pad in each
   // spatial direction, implying the same top=bottom=height and left=right=width
   // values for TOSA.
-  SmallVector<int64_t> padding(
-      {padding_2d[0], padding_2d[0], padding_2d[1], padding_2d[1]});
+
+  int64_t padH = padding_2d[0];
+  // When padding is 'Valid', Torch produces 1D padding with only one value.
+  int64_t padW = (padding_2d.size() > 1) ? padding_2d[1] : padding_2d[0];
+
+  SmallVector<int64_t> padding({padH, padH, padW, padW});
 
   SmallVector<int64_t, 2> dilation;
   if (!matchPattern(adaptor.getDilation(), m_TorchListOfConstantInts(dilation)))
