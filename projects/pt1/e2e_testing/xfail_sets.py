@@ -3432,6 +3432,8 @@ ONNX_XFAIL_SET = {
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
+    # torch.onnx.errors.SymbolicValueError: Cannot determine scalar type for this '<class 'torch.TensorType'>'
+    "ReduceSumEmptyDimListInt8ToInt32Module_basic",
 }
 
 if torch_version_for_comparison() < version.parse("2.3.0.dev"):
@@ -3821,7 +3823,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "MaxPool3dWithIndicesNonDefaultParamsModule_basic",
     "MaxPool3dWithIndicesNonDefaultStrideModule_basic",
     "MaxPool3dWithIndicesStaticModule_basic",
-    "MeanDimEmptyDimModule_basic",
     "MlGroupNormManualModule_basic",
     "MlGroupNormModule_basic",
     "MlLayerNormManualModule_basic",
@@ -3876,7 +3877,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ReduceL3NormKeepDimComplexModule_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
-    "ReduceSumDimIntListEmptyDimModule_basic",
     "RollModule_basic",
     "ScalarConstantTupleModule_basic",
     "ScalarImplicitFloatModule_basic",
