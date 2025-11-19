@@ -5781,30 +5781,30 @@ LogicalResult expandPoolParams(AtenPoolOpT op, int numSpatialDims,
 
   SmallVector<Value> cstKernel, cstPadding, cstStrides, cstDilations;
   for (auto dim : llvm::seq<int>(0, kernelSizeInts.size())) {
-    cstKernel.push_back(rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(kernelSizeInts[dim])));
-    cstPadding.push_back(rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(paddingInts[dim])));
-    cstStrides.push_back(rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(strideInts[dim])));
+    cstKernel.push_back(Torch::ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(kernelSizeInts[dim])));
+    cstPadding.push_back(Torch::ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(paddingInts[dim])));
+    cstStrides.push_back(Torch::ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(strideInts[dim])));
   }
 
   // set dilations separately as for AvgPool op it won't be set
   for (auto dim : llvm::seq<int>(0, dilationInts.size())) {
-    cstDilations.push_back(rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(dilationInts[dim])));
+    cstDilations.push_back(Torch::ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(dilationInts[dim])));
   }
 
   auto targetListType =
       Torch::ListType::get(Torch::IntType::get(op->getContext()));
-  kernelSizeList = rewriter.create<Torch::PrimListConstructOp>(
-      loc, targetListType, cstKernel);
-  paddingList = rewriter.create<Torch::PrimListConstructOp>(loc, targetListType,
-                                                            cstPadding);
-  stridesList = rewriter.create<Torch::PrimListConstructOp>(loc, targetListType,
-                                                            cstStrides);
-  dilationsList = rewriter.create<Torch::PrimListConstructOp>(
-      loc, targetListType, cstDilations);
+  kernelSizeList = Torch::PrimListConstructOp::create(
+      rewriter, loc, targetListType, cstKernel);
+  paddingList = Torch::PrimListConstructOp::create(rewriter, loc,
+                                                   targetListType, cstPadding);
+  stridesList = Torch::PrimListConstructOp::create(rewriter, loc,
+                                                   targetListType, cstStrides);
+  dilationsList = Torch::PrimListConstructOp::create(
+      rewriter, loc, targetListType, cstDilations);
 
   return success();
 }
