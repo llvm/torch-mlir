@@ -599,6 +599,31 @@ def MaxPool2dCeilModeFullDimIndivisibleByStrideModule_basic(module, tu: TestUtil
     module.forward(tu.rand(1, 1, 75, 75, low=-1))
 
 
+class MaxPool2dSingleIntTupleKernelModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mpd = torch.nn.MaxPool2d(
+            kernel_size=(6,),
+            stride=(2, 2),
+            padding=(1, 1),
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mpd(x)
+
+
+@register_test_case(module_factory=lambda: MaxPool2dSingleIntTupleKernelModule())
+def MaxPool2dSingleIntTupleKernelModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 20, 20, low=0.5, high=1.0))
+
+
 # ==============================================================================
 
 
@@ -769,6 +794,32 @@ class MaxPool3dCeilModeTrueModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: MaxPool3dCeilModeTrueModule())
 def MaxPool3dCeilModeTrueModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20, 20, low=0.5, high=1.0))
+
+
+class MaxPool3dSingleIntTupleDilationModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mpd = torch.nn.MaxPool3d(
+            kernel_size=(6, 6, 6),
+            stride=(2, 2, 2),
+            padding=(1, 1, 1),
+            dilation=(2,),
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mpd(x)
+
+
+@register_test_case(module_factory=lambda: MaxPool3dSingleIntTupleDilationModule())
+def MaxPool3dSingleIntTupleDilationModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 20, 20, 20, low=0.5, high=1.0))
 
 
 # ==============================================================================
@@ -1857,6 +1908,31 @@ class AvgPool3dCountIncludePadFalseWithoutPadding(torch.nn.Module):
 )
 def AvgPool3dCountIncludePadFalseWithoutPadding_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 3, 12, 12, 12, low=-1))
+
+
+class AvgPool3dSingleIntTupleStrideModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.apd = torch.nn.AvgPool3d(
+            kernel_size=(6, 6, 6),
+            stride=(2,),
+            padding=(1, 1, 1),
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.apd(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool3dSingleIntTupleStrideModule())
+def AvgPool3dSingleIntTupleStrideModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 20, 20, 20, low=0.5, high=1.0))
 
 
 # ==============================================================================
