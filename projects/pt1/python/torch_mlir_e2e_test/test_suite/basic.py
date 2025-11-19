@@ -2976,6 +2976,49 @@ def TensorIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ConstantInt32ParameterModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.tensor = torch.tensor([0, 10, 128, 17000], dtype=torch.int32)
+
+    @export
+    @annotate_args(
+        [
+            None,
+        ]
+    )
+    def forward(self):
+        return self.tensor
+
+
+@register_test_case(module_factory=lambda: ConstantInt32ParameterModule())
+def ConstantInt32ParameterModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class ConstantInt64ParameterModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.tensor = torch.tensor([1, -2, 3, -4], dtype=torch.int64)
+
+    @export
+    @annotate_args(
+        [
+            None,
+        ]
+    )
+    def forward(self):
+        return self.tensor
+
+
+@register_test_case(module_factory=lambda: ConstantInt64ParameterModule())
+def ConstantInt64ParameterModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
 class tensorFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
