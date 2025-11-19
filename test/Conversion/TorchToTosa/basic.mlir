@@ -4241,21 +4241,23 @@ func.func @torch.aten.convolution$si8(%arg0: !torch.vtensor<[2,2,6,6],si8>, %arg
     %4 = torch.aten.convolution %arg0, %arg1, %arg2, %0, %1, %2, %false, %3, %int1 : !torch.vtensor<[2,2,6,6],si8>, !torch.vtensor<[8,2,3,3],si8>, !torch.vtensor<[8],si32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[2,8,4,4],si32>
     return %4 : !torch.vtensor<[2,8,4,4],si32>
   }
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.mm$f32(
-// CHECK-SAME:                    %[[INP:.*]]: !torch.vtensor<[1,22],f32>,
-// CHECK-SAME:                    %[[WTS:.*]]: !torch.vtensor<[22,10],f32>) -> !torch.vtensor<[1,10],f32> {
+// CHECK-SAME:      %[[INP:.*]]: !torch.vtensor<[1,22],f32>,
+// CHECK-SAME:      %[[WTS:.*]]: !torch.vtensor<[22,10],f32>) -> !torch.vtensor<[1,10],f32> {
 // CHECK:           %[[WTS_TENSOR:.*]] = torch_c.to_builtin_tensor %[[WTS]] : !torch.vtensor<[22,10],f32> -> tensor<22x10xf32>
 // CHECK:           %[[INP_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INP]] : !torch.vtensor<[1,22],f32> -> tensor<1x22xf32>
-// CHECK:           %[[INP_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 1, 22]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[INP_RESHAPE:.*]] = tosa.reshape %[[INP_TENSOR]], %[[INP_SHAPE]] : (tensor<1x22xf32>, !tosa.shape<3>) -> tensor<1x1x22xf32>
-// CHECK:           %[[WTS_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 22, 10]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[WTS_RESHAPE:.*]] = tosa.reshape %[[WTS_TENSOR]], %[[WTS_SHAPE]] : (tensor<22x10xf32>, !tosa.shape<3>) -> tensor<1x22x10xf32>
 // CHECK:           %[[INP_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[WTS_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK:           %[[MATMUL:.*]] = tosa.matmul %[[INP_RESHAPE]], %[[WTS_RESHAPE]], %[[INP_ZP]], %[[WTS_ZP]] : (tensor<1x1x22xf32>, tensor<1x22x10xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x1x10xf32>
+// CHECK:           %[[INP_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 1, 22]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[INP_RESHAPED:.*]] = tosa.reshape %[[INP_TENSOR]], %[[INP_SHAPE]] : (tensor<1x22xf32>, !tosa.shape<3>) -> tensor<1x1x22xf32>
+// CHECK:           %[[WTS_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 22, 10]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[WTS_RESHAPED:.*]] = tosa.reshape %[[WTS_TENSOR]], %[[WTS_SHAPE]] : (tensor<22x10xf32>, !tosa.shape<3>) -> tensor<1x22x10xf32>
+// CHECK:           %[[MATMUL:.*]] = tosa.matmul %[[INP_RESHAPED]], %[[WTS_RESHAPED]], %[[INP_ZP]], %[[WTS_ZP]] : (tensor<1x1x22xf32>, tensor<1x22x10xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x1x10xf32>
 // CHECK:           %[[RES_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 10]> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK:           %[[RES_RESHAPE:.*]] = tosa.reshape %[[MATMUL]], %[[RES_SHAPE]] : (tensor<1x1x10xf32>, !tosa.shape<2>) -> tensor<1x10xf32>
-// CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %[[RES_RESHAPE]] : tensor<1x10xf32> -> !torch.vtensor<[1,10],f32>
+// CHECK:           %[[RES_RESHAPED:.*]] = tosa.reshape %[[MATMUL]], %[[RES_SHAPE]] : (tensor<1x1x10xf32>, !tosa.shape<2>) -> tensor<1x10xf32>
+// CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %[[RES_RESHAPED]] : tensor<1x10xf32> -> !torch.vtensor<[1,10],f32>
 // CHECK:           return %[[RES]]
 func.func @torch.aten.mm$f32(%arg0: !torch.vtensor<[1,22],f32>, %arg1: !torch.vtensor<[22,10],f32>) -> !torch.vtensor<[1,10],f32> {
   %0 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[1,22],f32>, !torch.vtensor<[22,10],f32> -> !torch.vtensor<[1,10],f32>
@@ -4300,23 +4302,23 @@ func.func @torch.aten.mm$bf16(%arg0: !torch.vtensor<[1,22],bf16>, %arg1: !torch.
 
 // -----
 // CHECK-LABEL:   func.func @torch.aten.matmul$broadcast(
-// CHECK-SAME:                    %[[INP:.*]]: !torch.vtensor<[10,3,4],f32>,
-// CHECK-SAME:                    %[[WTS:.*]]: !torch.vtensor<[4],f32>) -> !torch.vtensor<[10,3],f32> {
+// CHECK-SAME:      %[[INP:.*]]: !torch.vtensor<[10,3,4],f32>,
+// CHECK-SAME:      %[[WTS:.*]]: !torch.vtensor<[4],f32>) -> !torch.vtensor<[10,3],f32> {
 // CHECK:           %[[WTS_TENSOR:.*]] = torch_c.to_builtin_tensor %[[WTS]] : !torch.vtensor<[4],f32> -> tensor<4xf32>
 // CHECK:           %[[INP_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INP]] : !torch.vtensor<[10,3,4],f32> -> tensor<10x3x4xf32>
-// CHECK:           %[[WTS_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 4, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[WTS_RESHAPE:.*]] = tosa.reshape %[[WTS_TENSOR]], %[[WTS_SHAPE]] : (tensor<4xf32>, !tosa.shape<3>) -> tensor<1x4x1xf32>
-// CHECK:           %[[INP_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 30, 4]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[INP_RESHAPE:.*]] = tosa.reshape %[[INP_TENSOR]], %[[INP_SHAPE]] : (tensor<10x3x4xf32>, !tosa.shape<3>) -> tensor<1x30x4xf32>
-// CHECK:           %[[WTS_TRANSPOSE:.*]] = tosa.transpose %[[WTS_RESHAPE]] {perms = array<i32: 1, 0, 2>} : (tensor<1x4x1xf32>) -> tensor<4x1x1xf32>
-// CHECK:           %[[WTS_SHAPE_2:.*]] = tosa.const_shape  {values = dense<[1, 4, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[WTS_RESHAPE_2:.*]] = tosa.reshape %[[WTS_TRANSPOSE]], %[[WTS_SHAPE_2]] : (tensor<4x1x1xf32>, !tosa.shape<3>) -> tensor<1x4x1xf32>
 // CHECK:           %[[INP_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[WTS_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK:           %[[MATMUL:.*]] = tosa.matmul %[[INP_RESHAPE]], %[[WTS_RESHAPE_2]], %[[INP_ZP]], %[[WTS_ZP]] : (tensor<1x30x4xf32>, tensor<1x4x1xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x30x1xf32>
+// CHECK:           %[[INP_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 4, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[INP_RESHAPED:.*]] = tosa.reshape %[[WTS_TENSOR]], %[[INP_SHAPE]] : (tensor<4xf32>, !tosa.shape<3>) -> tensor<1x4x1xf32>
+// CHECK:           %[[WTS_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 30, 4]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[WTS_RESHAPED:.*]] = tosa.reshape %[[INP_TENSOR]], %[[WTS_SHAPE]] : (tensor<10x3x4xf32>, !tosa.shape<3>) -> tensor<1x30x4xf32>
+// CHECK:           %[[WTS_TRANSPOSE:.*]] = tosa.transpose %[[INP_RESHAPED]] {perms = array<i32: 1, 0, 2>} : (tensor<1x4x1xf32>) -> tensor<4x1x1xf32>
+// CHECK:           %[[WTS_SHAPE_2:.*]] = tosa.const_shape  {values = dense<[1, 4, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[WTS_RESHAPED_2:.*]] = tosa.reshape %[[WTS_TRANSPOSE]], %[[WTS_SHAPE_2]] : (tensor<4x1x1xf32>, !tosa.shape<3>) -> tensor<1x4x1xf32>
+// CHECK:           %[[MATMUL:.*]] = tosa.matmul %[[WTS_RESHAPED]], %[[WTS_RESHAPED_2]], %[[INP_ZP]], %[[WTS_ZP]] : (tensor<1x30x4xf32>, tensor<1x4x1xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x30x1xf32>
 // CHECK:           %[[RES_SHAPE:.*]] = tosa.const_shape  {values = dense<[10, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK:           %[[RES_RESHAPE:.*]] = tosa.reshape %[[MATMUL]], %[[RES_SHAPE]] : (tensor<1x30x1xf32>, !tosa.shape<2>) -> tensor<10x3xf32>
-// CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %[[RES_RESHAPE]] : tensor<10x3xf32> -> !torch.vtensor<[10,3],f32>
+// CHECK:           %[[RES_RESHAPED:.*]] = tosa.reshape %[[MATMUL]], %[[RES_SHAPE]] : (tensor<1x30x1xf32>, !tosa.shape<2>) -> tensor<10x3xf32>
+// CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %[[RES_RESHAPED]] : tensor<10x3xf32> -> !torch.vtensor<[10,3],f32>
 // CHECK:           return %[[RES]]
 func.func @torch.aten.matmul$broadcast(%arg0: !torch.vtensor<[10,3,4],f32>, %arg1: !torch.vtensor<[4],f32>) -> !torch.vtensor<[10,3],f32> {
   %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[10,3,4],f32>, !torch.vtensor<[4],f32> -> !torch.vtensor<[10,3],f32>
@@ -4332,19 +4334,19 @@ func.func @torch.aten.matmul$broadcast(%arg0: !torch.vtensor<[10,3,4],f32>, %arg
 // CHECK:           %[[WTS_TENSOR:.*]] = torch_c.to_builtin_tensor %[[WTS]] : !torch.vtensor<[3,4],f16> -> tensor<3x4xf16>
 // CHECK:           %[[INP_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INP]] : !torch.vtensor<[2,4],f16> -> tensor<2x4xf16>
 // CHECK:           %[[WTS_TRANSPOSE:.*]] = tosa.transpose %[[WTS_TENSOR]] {perms = array<i32: 1, 0>} : (tensor<3x4xf16>) -> tensor<4x3xf16>
-// CHECK:           %[[INP_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 2, 4]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[INP_RESHAPE:.*]] = tosa.reshape %[[INP_TENSOR]], %[[INP_SHAPE]] : (tensor<2x4xf16>, !tosa.shape<3>) -> tensor<1x2x4xf16>
-// CHECK:           %[[WTS_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 4, 3]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[WTS_RESHAPE:.*]] = tosa.reshape %[[WTS_TRANSPOSE]], %[[WTS_SHAPE]] : (tensor<4x3xf16>, !tosa.shape<3>) -> tensor<1x4x3xf16>
 // CHECK:           %[[INP_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf16>}> : () -> tensor<1xf16>
 // CHECK:           %[[WTS_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf16>}> : () -> tensor<1xf16>
-// CHECK:           %[[MATMUL:.*]] = tosa.matmul %[[INP_RESHAPE]], %[[WTS_RESHAPE]], %[[INP_ZP]], %[[WTS_ZP]] : (tensor<1x2x4xf16>, tensor<1x4x3xf16>, tensor<1xf16>, tensor<1xf16>) -> tensor<1x2x3xf32>
+// CHECK:           %[[INP_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 2, 4]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[INP_RESHAPED:.*]] = tosa.reshape %[[INP_TENSOR]], %[[INP_SHAPE]] : (tensor<2x4xf16>, !tosa.shape<3>) -> tensor<1x2x4xf16>
+// CHECK:           %[[WTS_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 4, 3]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[WTS_RESHAPED:.*]] = tosa.reshape %[[WTS_TRANSPOSE]], %[[WTS_SHAPE]] : (tensor<4x3xf16>, !tosa.shape<3>) -> tensor<1x4x3xf16>
+// CHECK:           %[[MATMUL:.*]] = tosa.matmul %[[INP_RESHAPED]], %[[WTS_RESHAPED]], %[[INP_ZP]], %[[WTS_ZP]] : (tensor<1x2x4xf16>, tensor<1x4x3xf16>, tensor<1xf16>, tensor<1xf16>) -> tensor<1x2x3xf32>
 // CHECK:           %[[RES_SHAPE:.*]] = tosa.const_shape  {values = dense<[2, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK:           %[[RES_RESHAPE:.*]] = tosa.reshape %[[MATMUL]], %[[RES_SHAPE]] : (tensor<1x2x3xf32>, !tosa.shape<2>) -> tensor<2x3xf32>
-// CHECK:           %[[CAST:.*]] = tosa.cast %[[RES_RESHAPE]] : (tensor<2x3xf32>) -> tensor<2x3xf16>
+// CHECK:           %[[RES_RESHAPED:.*]] = tosa.reshape %[[MATMUL]], %[[RES_SHAPE]] : (tensor<1x2x3xf32>, !tosa.shape<2>) -> tensor<2x3xf32>
+// CHECK:           %[[CAST:.*]] = tosa.cast %[[RES_RESHAPED]] : (tensor<2x3xf32>) -> tensor<2x3xf16>
 // CHECK:           %[[BIAS_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK:           %[[BIAS_RESHAPE:.*]] = tosa.reshape %[[BIAS_TENSOR]], %[[BIAS_SHAPE]] : (tensor<3xf16>, !tosa.shape<2>) -> tensor<1x3xf16>
-// CHECK:           %[[ADD:.*]] = tosa.add %[[CAST]], %[[BIAS_RESHAPE]] : (tensor<2x3xf16>, tensor<1x3xf16>) -> tensor<2x3xf16>
+// CHECK:           %[[BIAS_RESHAPED:.*]] = tosa.reshape %[[BIAS_TENSOR]], %[[BIAS_SHAPE]] : (tensor<3xf16>, !tosa.shape<2>) -> tensor<1x3xf16>
+// CHECK:           %[[ADD:.*]] = tosa.add %[[CAST]], %[[BIAS_RESHAPED]] : (tensor<2x3xf16>, tensor<1x3xf16>) -> tensor<2x3xf16>
 // CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %[[ADD]] : tensor<2x3xf16> -> !torch.vtensor<[2,3],f16>
 // CHECK:           return %[[RES]]
 func.func @torch.aten.linear$f16(%arg0: !torch.vtensor<[2,4],f16>, %arg1: !torch.vtensor<[3,4],f16>, %arg2: !torch.vtensor<[3],f16>) -> !torch.vtensor<[2,3],f16> {

@@ -1498,14 +1498,16 @@ public:
   // and rhs.
   virtual LogicalResult readMatMulInputs(AtenOpT op, OpAdaptor adaptor,
                                          ConversionPatternRewriter &rewriter,
-                                         Value &lhs, Value &rhs) const {
+                                         Value &lhs, Value &rhs, Value &lhsZp,
+                                         Value &rhsZp) const {
     return rewriter.notifyMatchFailure(
         op,
         "Unimplemented matrix multiplication variant input parsing function");
   }
   LogicalResult performMatmul(AtenOpT op, OpAdaptor adaptor,
                               ConversionPatternRewriter &rewriter, Value &lhs,
-                              Value &rhs, Value &output) const {
+                              Value &rhs, Value &lhsZp, Value &rhsZp,
+                              Value &output) const {
 
     auto lhsTy = cast<RankedTensorType>(lhs.getType());
     auto rhsTy = cast<RankedTensorType>(rhs.getType());
@@ -1522,6 +1524,33 @@ public:
     if (lhsElemTy != rhsElemTy)
       return rewriter.notifyMatchFailure(op,
                                          "Matmul: input datatypes mismatched");
+
+    if (!lhsZp) {
+      // Initialize zero constant values as zero-points, if the op operands
+      // aren't quantized types
+      lhsZp = tosa::createZeroPointTensor(rewriter, op->getLoc(), lhsElemTy, 0)
+                  .value();
+      rhsZp = tosa::createZeroPointTensor(rewriter, op->getLoc(), rhsElemTy, 0)
+                  .value();
+    } else {
+
+      int64_t lhsZpConst, rhsZpConst;
+      if (!matchPattern(lhsZp, m_TorchConstantInt(&lhsZpConst)))
+        return rewriter.notifyMatchFailure(
+            op, "Lhs zero point must be a Scalar constant");
+
+      lhsZp = tosa::createZeroPointTensor(rewriter, op->getLoc(), lhsElemTy,
+                                          lhsZpConst)
+                  .value();
+
+      if (!matchPattern(rhsZp, m_TorchConstantInt(&rhsZpConst)))
+        return rewriter.notifyMatchFailure(
+            op, "Rhs zero point must be a Scalar constant");
+
+      rhsZp = tosa::createZeroPointTensor(rewriter, op->getLoc(), rhsElemTy,
+                                          rhsZpConst)
+                  .value();
+    }
 
     // Legalization constructs may offer input shapes but expect output shapes
     // to be inferred, e.g.
@@ -1890,44 +1919,18 @@ public:
     SmallVector<int64_t> matmulOutputShape(
         {matmulLhsShape[0], matmulLhsShape[1], matmulRhsShape[2]});
 
-    bool isInputElemTyQInt8 = false;
     Type inputElemTy{lhsElemTy};
-    if (auto inputQTy =
-            dyn_cast<mlir::quant::UniformQuantizedType>(lhsElemTy)) {
-      if (inputQTy.getStorageTypeIntegralWidth() == 8)
-        isInputElemTyQInt8 = true;
-      inputElemTy = inputQTy.getStorageType();
-    }
-
     auto accElemTy = getDefaultAccType(rewriter, inputElemTy);
     auto mmOutputTy = RankedTensorType::get(
         makeShapeLLVMCompatible(matmulOutputShape), accElemTy);
 
-    Value mmOpResult;
-    if (!isInputElemTyQInt8) {
-      // LHS and RHS tensors' zero points must be zero for non-int8 types
-      Value lhsZp =
-          tosa::createZeroPointTensor(rewriter, op->getLoc(), lhsElemTy, 0)
-              .value();
-      Value rhsZp =
-          tosa::createZeroPointTensor(rewriter, op->getLoc(), rhsElemTy, 0)
-              .value();
-      mmOpResult =
-          tosa::MatMulOp::create(
-              rewriter, op->getLoc(),
-              OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-                  mmOutputTy),
-              matmulLhs, matmulRhs, lhsZp, rhsZp)
-              .getResult();
-    } else {
-      mmOpResult =
-          tosa::MatMulOp::create(
-              rewriter, op->getLoc(),
-              OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-                  mmOutputTy),
-              matmulLhs, matmulRhs)
-              .getResult();
-    }
+    Value mmOpResult =
+        tosa::MatMulOp::create(
+            rewriter, op->getLoc(),
+            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+                mmOutputTy),
+            matmulLhs, matmulRhs, lhsZp, rhsZp)
+            .getResult();
 
     // Perform the reshape to output shape. This is always required unless max
     // input rank=3 and there was no broadcasting, in which case the tosa.matmul
@@ -2064,14 +2067,15 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
-    Value lhs, rhs;
+    Value lhs, rhs, lhsZp, rhsZp;
 
-    if (failed(readMatMulInputs(op, adaptor, rewriter, lhs, rhs)))
+    if (failed(readMatMulInputs(op, adaptor, rewriter, lhs, rhs, lhsZp, rhsZp)))
       return rewriter.notifyMatchFailure(op, "Failed to read matmul inputs");
 
     Value output;
 
-    if (failed(performMatmul(op, adaptor, rewriter, lhs, rhs, output)))
+    if (failed(performMatmul(op, adaptor, rewriter, lhs, rhs, lhsZp, rhsZp,
+                             output)))
       return rewriter.notifyMatchFailure(op,
                                          "Failed to perform matmul operation");
 
@@ -2096,7 +2100,8 @@ public:
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult readMatMulInputs(AtenOpT op, OpAdaptor adaptor,
                                  ConversionPatternRewriter &rewriter,
-                                 Value &lhs, Value &rhs) const override {
+                                 Value &lhs, Value &rhs, Value &lhsZp,
+                                 Value &rhsZp) const override {
     lhs = adaptor.getSelf();
     auto lhsTy = cast<RankedTensorType>(lhs.getType());
 
@@ -2106,6 +2111,19 @@ public:
     if (!lhsTy || !rhsTy)
       return rewriter.notifyMatchFailure(
           op, "Only ranked tensor types supported in TOSA matmul");
+
+    // Get values from the op itself instead of the adaptor (that returns
+    // converted values in 'tensor' type instead of 'vtensor') so that the
+    // connection with source torch ops carrying the quantization information
+    // is preserved and use-def analysis can be performed to extract such
+    // information.
+    getZeroPoint(op.getSelf(), lhsZp);
+    getZeroPoint(op.getOther(), rhsZp);
+
+    if (static_cast<bool>(lhsZp) != static_cast<bool>(rhsZp)) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.matmul with mixed quantization");
+    }
 
     return success();
   }
@@ -2119,7 +2137,8 @@ public:
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult readMatMulInputs(AtenOpT op, OpAdaptor adaptor,
                                  ConversionPatternRewriter &rewriter,
-                                 Value &lhs, Value &rhs) const override {
+                                 Value &lhs, Value &rhs, Value &lhsZp,
+                                 Value &rhsZp) const override {
 
     lhs = adaptor.getSelf();
     auto lhsTy = cast<RankedTensorType>(lhs.getType());
@@ -2144,6 +2163,14 @@ public:
         return op.emitError("aten.bmm called but matrix rank != 3");
     }
 
+    getZeroPoint(op.getSelf(), lhsZp);
+    getZeroPoint(op.getMat2(), rhsZp);
+
+    if (static_cast<bool>(lhsZp) != static_cast<bool>(rhsZp)) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.mm/aten.bmm with mixed quantization");
+    }
+
     return success();
   }
 };
@@ -2156,7 +2183,8 @@ public:
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult readMatMulInputs(AtenOpT op, OpAdaptor adaptor,
                                  ConversionPatternRewriter &rewriter,
-                                 Value &lhs, Value &rhs) const override {
+                                 Value &lhs, Value &rhs, Value &lhsZp,
+                                 Value &rhsZp) const override {
 
     lhs = adaptor.getInput();
     auto lhsTy = cast<RankedTensorType>(lhs.getType());
@@ -2182,6 +2210,14 @@ public:
       return rewriter.notifyMatchFailure(
           op, "aten.Linear needs statically shaped input");
 
+    getZeroPoint(op.getInput(), lhsZp);
+    getZeroPoint(op.getWeight(), rhsZp);
+
+    if (static_cast<bool>(lhsZp) != static_cast<bool>(rhsZp)) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.Linear with mixed quantization");
+    }
+
     return success();
   }
   // Override the default rewriter to perform RHS transpose and bias addition as
@@ -2190,9 +2226,9 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
 
-    Value lhs, rhs;
+    Value lhs, rhs, lhsZp, rhsZp;
 
-    if (failed(readMatMulInputs(op, adaptor, rewriter, lhs, rhs)))
+    if (failed(readMatMulInputs(op, adaptor, rewriter, lhs, rhs, lhsZp, rhsZp)))
       return rewriter.notifyMatchFailure(op, "Failed to read matmul inputs");
 
     // The aten.Linear op has a bias tensor that is added to the matmul output.
@@ -2232,8 +2268,8 @@ public:
         rhs, rewriter.getDenseI32ArrayAttr(transposedRhsDims));
 
     Value matmulOutput;
-    if (failed(
-            this->performMatmul(op, adaptor, rewriter, lhs, rhs, matmulOutput)))
+    if (failed(this->performMatmul(op, adaptor, rewriter, lhs, rhs, lhsZp,
+                                   rhsZp, matmulOutput)))
       return rewriter.notifyMatchFailure(op,
                                          "Failed to perform matmul operation");
 
@@ -9202,6 +9238,107 @@ LogicalResult ConvertAtenOp<AtenUnfoldOp>::matchAndRewrite(
   return success();
 }
 
+template <typename OpTy>
+class ConvertCastEquivalentOp : public OpConversionPattern<OpTy> {
+  using OpConversionPattern<OpTy>::OpConversionPattern;
+  using OpAdaptor = typename OpTy::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(OpTy op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto converter = this->getTypeConverter();
+    RankedTensorType resultType = cast<RankedTensorType>(
+        converter->convertType(op->getResult(0).getType()));
+    rewriter.replaceOpWithNewOp<tosa::CastOp>(op, resultType,
+                                              adaptor.getSelf());
+    return success();
+  }
+};
+
+// Legalization for aten.dequantize.tensor
+template <>
+LogicalResult ConvertAtenOp<AtenDequantizeTensorOp>::matchAndRewrite(
+    AtenDequantizeTensorOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+
+  auto loc = op->getLoc();
+  auto qtensor = adaptor.getQtensor();
+
+  // Find the zero_point and scale values from the op itself instead of the
+  // adaptor (that returns converted values in 'tensor' type instead of
+  // 'vtensor') so that the connection with source torch ops carrying the
+  // quantization information is preserved and use-def analysis can be performed
+  // to extract such information.
+  Value zp, scale;
+  auto value = op.getQtensor();
+  if (auto makeQTensor =
+          value.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
+    zp = makeQTensor.getZeroPoint();
+    scale = makeQTensor.getScale();
+  } else if (auto quant = value.getDefiningOp<AtenQuantizePerTensorOp>()) {
+    zp = quant.getZeroPoint();
+    scale = quant.getScale();
+  }
+
+  if (!zp || !scale) {
+    return rewriter.notifyMatchFailure(op,
+                                       "could not find quantization params");
+  }
+
+  int64_t zpConst;
+  double scaleConst;
+  if (!matchPattern(zp, m_TorchConstantInt(&zpConst)))
+    return rewriter.notifyMatchFailure(op,
+                                       "zero point must be a Scalar constant");
+
+  if (!matchPattern(scale, m_TorchConstantFloat(&scaleConst)))
+    return rewriter.notifyMatchFailure(op, "scale must be a Scalar constant");
+
+  // Get result types
+  auto resultTensorTy = cast<RankedTensorType>(
+      getTypeConverter()->convertType(op->getResult(0).getType()));
+  auto elemFpTy = resultTensorTy.getElementType();
+  auto shape = resultTensorTy.getShape();
+
+  // Define intermediate integer calculation type using the same bitwidth as the
+  // output float
+  auto elemIntTy = rewriter.getIntegerType(elemFpTy.getIntOrFloatBitWidth());
+  auto intTensorTy = RankedTensorType::get(shape, elemIntTy);
+
+  // Cast quantized input to intermediate integer type
+  // tosa.cast handles i8 -> i32 extension (as needed)
+  Value intValue = tosa::CastOp::create(rewriter, loc, intTensorTy, qtensor);
+
+  // Subtract: (value - zero_point)
+  Value intZp =
+      tosa::createZeroPointTensor(rewriter, op->getLoc(), elemIntTy, zpConst)
+          .value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), intValue, intZp)
+          .failed())
+    return failure();
+
+  Value subResult =
+      tosa::SubOp::create(rewriter, loc, intTensorTy, intValue, intZp);
+
+  // Multiply: (value - zero_point) * scale
+  // Both operands is cast to result type
+  Value floatResult =
+      tosa::CastOp::create(rewriter, loc, resultTensorTy, subResult);
+
+  auto scaleType = resultTensorTy.clone(elemFpTy);
+  auto scaleAttr = DenseElementsAttr::get(
+      scaleType, rewriter.getFloatAttr(elemFpTy, scaleConst));
+  auto floatScale =
+      tosa::ConstOp::create(rewriter, op->getLoc(), scaleType, scaleAttr);
+
+  auto mulResult = tosa::createMulOpAndCast(
+      rewriter, op, resultTensorTy, floatResult, floatScale, /*shift=*/0);
+
+  rewriter.replaceOp(op, mulResult);
+  return success();
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------------
@@ -9575,6 +9712,7 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ATENOP_PATTERN(AtenExpm1Op);
   INSERT_ATENOP_PATTERN(AtenTanOp);
   INSERT_ATENOP_PATTERN(AtenUnfoldOp);
+  INSERT_ATENOP_PATTERN(AtenDequantizeTensorOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
@@ -9582,6 +9720,14 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   patterns.add<ConvertAtenCloneOp<AtenOp>>(typeConverter, context);
   INSERT_CLONE_ATENOP_PATTERN(AtenCloneOp);
 #undef INSERT_CLONE_ATENOP_PATTERN
+
+#define INSERT_CAST_ATENOP_PATTERN(AtenOp)                                     \
+  illegalOps.insert(AtenOp::getOperationName());                               \
+  patterns.add<ConvertCastEquivalentOp<AtenOp>>(typeConverter, context);
+  INSERT_CAST_ATENOP_PATTERN(Aten_MakePerChannelQuantizedTensorOp);
+  INSERT_CAST_ATENOP_PATTERN(Aten_MakePerTensorQuantizedTensorOp);
+  INSERT_CAST_ATENOP_PATTERN(AtenIntReprOp);
+#undef INSERT_CAST_ATENOP_PATTERN
 
   return illegalOps;
 }

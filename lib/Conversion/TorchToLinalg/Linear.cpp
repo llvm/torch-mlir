@@ -28,12 +28,6 @@ using namespace mlir::torch::Torch;
 
 namespace {
 
-static void getZeroPoint(Value value, Value &zeropoint) {
-  if (auto make = value.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
-    zeropoint = make.getZeroPoint();
-  }
-}
-
 // for uint8 types, we shift down by 128 so that we can faithfully
 // represent the quantization with signed i8 types.
 static void signShift(PatternRewriter &rewriter, Location loc, Value &arg,
