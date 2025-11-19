@@ -1997,16 +1997,23 @@ class GraphNodeImporter:
             # Single output
             result_types = [self._cc.node_val_to_type(node)]
 
-        # Extract return_lse from kernel_options
+        # Extract OUTPUT_LOGSUMEXP and OUTPUT_MAX from kernel_options
         with loc:
             return_lse = _make_constant_op(
                 "torch.constant.bool",
-                self._cc.integer_attr(bool(kernel_options.get("return_lse", 0)), 1),
+                self._cc.integer_attr(
+                    bool(kernel_options.get("OUTPUT_LOGSUMEXP", 0)), 1
+                ),
+                self._cc.torch_bool_type,
+            ).result
+            return_max_scores = _make_constant_op(
+                "torch.constant.bool",
+                self._cc.integer_attr(bool(kernel_options.get("OUTPUT_MAX", 0)), 1),
                 self._cc.torch_bool_type,
             ).result
 
         # Build operands for aten.flex_attention.
-        # Op expects exactly 5 operands: query, key, value, scale, return_lse.
+        # Op expects exactly 6 operands: query, key, value, scale, return_lse, return_max_scores.
         # Note: score_mod_fn and mask_mod_fn go as ATTRIBUTES, not operands.
         # Note: block_mask tensors are handled by mask_mod_fn, not passed as operands.
 
@@ -2016,6 +2023,7 @@ class GraphNodeImporter:
             value,
             scale,
             return_lse,
+            return_max_scores,
         ]
 
         # Build attributes with function references

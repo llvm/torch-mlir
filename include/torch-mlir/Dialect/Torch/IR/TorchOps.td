@@ -1477,6 +1477,7 @@ def Torch_AtenFlexAttentionOp : Torch_Op<"aten.flex_attention", [
     Returns:
       output: Result tensor [B, H, M, Ev]
       logsumexp: Optional log-sum-exp tensor [B, H, M] (if return_lse=True)
+      max_scores: Optional max-scores tensor [B, H, M] (if return_max_scores=True)
   }];
 
   let arguments = (ins
@@ -1485,22 +1486,24 @@ def Torch_AtenFlexAttentionOp : Torch_Op<"aten.flex_attention", [
     AnyTorchTensorType:$value,
     AnyTorchOptionalFloatType:$scale,
     Torch_BoolType:$return_lse,
+    Torch_BoolType:$return_max_scores,
     OptionalAttr<FlatSymbolRefAttr>:$score_mod_fn,
     OptionalAttr<FlatSymbolRefAttr>:$mask_mod_fn
   );
 
   let results = (outs
     AnyTorchTensorType:$output,
-    AnyTorchOptionalTensorType:$logsumexp
+    AnyTorchOptionalTensorType:$logsumexp,
+    AnyTorchOptionalTensorType:$max_scores
   );
 
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
     ParseResult AtenFlexAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 5, 2);
+      return parseDefaultTorchOp(parser, result, 6, 3);
     }
     void AtenFlexAttentionOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 5, 2);
+      printDefaultTorchOp(printer, *this, 6, 3);
     }
   }];
 }

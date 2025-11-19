@@ -253,7 +253,22 @@ def test_while_loop_two_returns():
 
 @run
 # CHECK-LABEL: test_flex_attention
-# CHECK: func.func @test_flex_attention
+# Check that helper functions are emitted first
+# CHECK: func.func private @sdpa_score0(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>, %arg4: !torch.vtensor<[],si32>) -> !torch.vtensor<[],f32>
+# CHECK: torch.aten.tanh
+# CHECK: func.func private @sdpa_mask0(%arg0: !torch.vtensor<[],si32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>) -> !torch.vtensor<[],i1>
+# CHECK: torch.aten.new_ones
+# Then check the main function
+# CHECK: func.func @test_flex_attention(%arg0: !torch.vtensor<[4,8,1024,64],f32>, %arg1: !torch.vtensor<[4,8,1024,64],f32>, %arg2: !torch.vtensor<[4,8,1024,64],f32>)
+# CHECK-SAME: -> !torch.vtensor<[4,8,1024,64],f32>
+# Validate flex_attention op with 3 results and 6 operands:
+# CHECK: %[[SCALE:.*]] = torch.constant.float 1.000000e+00
+# CHECK: %[[RETURN_LSE:.*]] = torch.constant.bool false
+# CHECK: %[[RETURN_MAX:.*]] = torch.constant.bool false
+# CHECK: %[[OUTPUT:.*]], %[[LOGSUMEXP:.*]], %[[MAX_SCORES:.*]] = torch.aten.flex_attention %arg0, %arg1, %arg2, %[[SCALE]], %[[RETURN_LSE]], %[[RETURN_MAX]] {mask_mod_fn = @sdpa_mask0, score_mod_fn = @sdpa_score0}
+# CHECK-SAME: : !torch.vtensor<[4,8,1024,64],f32>, !torch.vtensor<[4,8,1024,64],f32>, !torch.vtensor<[4,8,1024,64],f32>, !torch.float, !torch.bool, !torch.bool
+# CHECK-SAME: -> !torch.vtensor<[4,8,1024,64],f32>, !torch.vtensor<[4,8,1024],f32>, !torch.vtensor<[4,8,1024],f32>
+# CHECK: return %[[OUTPUT]]
 def test_flex_attention():
     from torch._higher_order_ops.flex_attention import (
         flex_attention as flex_attention_hop,
@@ -292,16 +307,16 @@ def test_flex_attention():
             self.block_mask = block_mask
 
         def forward(self, q, k, v):
-            output, logsumexp, *_ = flex_attention_hop(
+            output, lse, max_scores = flex_attention_hop(
                 q,
                 k,
                 v,
                 score_mod=relative_position_bias,
                 block_mask=self.block_mask,
                 scale=1.0,
-                kernel_options={"return_lse": 0},
+                kernel_options={},
             )
-            return output, logsumexp
+            return output
 
     # Export -> import to Torch-MLIR
     B, Hq, Hkv, L, S, E, Ev = 4, 8, 8, 1024, 1024, 64, 64
