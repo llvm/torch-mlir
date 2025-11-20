@@ -1918,7 +1918,7 @@ class GraphNodeImporter:
         - kernel_options: Optional Dict of performance tuning options:
             - return_lse: Boolean for whether to return the log-sum-exp tensor
 
-        This creates a call to aten.flex_attention with function symbol references for
+        This creates a call to hop_flex_attention with function symbol references for
         score_mod and mask_mod.
         """
         # flex_attention HOP args from PyTorch:
@@ -2035,7 +2035,7 @@ class GraphNodeImporter:
             attributes["mask_mod_fn"] = mask_mod_ref
 
         operation = Operation.create(
-            "torch.aten.flex_attention",
+            "torch.hop_flex_attention",
             results=result_types,
             operands=flat_operands,
             attributes=attributes if attributes else None,
