@@ -976,10 +976,10 @@ public:
       auto inType = cast<RankedTensorType>(tensor.getType());
       auto inShape = makeShapeTorchCompatible(inType.getShape());
 
-      SmallVector<int64_t> outShape{numGroups,
+      SmallVector<int64_t> outShape{groupSize,
                                     (inShape[0] == kUnknownSize
                                          ? kUnknownSize
-                                         : (inShape[0] / numGroups)),
+                                         : (inShape[0] / groupSize)),
                                     inShape[1]};
       outShape.append(inShape.begin() + 2, inShape.end());
 
@@ -996,7 +996,8 @@ public:
     };
 
     if (transposed) {
-      bool isGroupedConv = numGroups > 1;
+
+      bool isGroupedConv = groupSize > 1;
       weight = isGroupedConv ? expandWeight(weight) : weight;
 
       Value c0 =
@@ -1013,7 +1014,7 @@ public:
         // output dimension needs to consider the number of groups.
         std::iter_swap(weightInitDims.begin() + 1, weightInitDims.begin() + 2);
         auto numGroupsVal =
-            rewriter.create<mlir::arith::ConstantIndexOp>(loc, numGroups);
+            rewriter.create<mlir::arith::ConstantIndexOp>(loc, groupSize);
         outDims[1] = rewriter.createOrFold<mlir::arith::MulIOp>(
             loc, weightInitDims[1], numGroupsVal);
       } else {
@@ -1301,11 +1302,28 @@ public:
     if (weightShape[0] != kUnknownSize && inShape[1] == groupSize &&
         weightShape[0] % inShape[1] == 0 && weightShape[1] == 1 && !inputZp) {
       // Collapse weight shape
-      SmallVector<ReassociationIndices, 4> collapsedDims = {{0, 1}, {2}, {3}};
-      SmallVector<int64_t> collapsedShape{
-          (weightShape[0] == kUnknownSize ? kUnknownSize
-                                          : weightShape[0] * weightShape[1]),
-          weightShape[2], weightShape[3]};
+      // For transposed conv, weight is already expanded to [G, C/G, F, H, W] (5D)
+      // For normal conv, weight is [F, C, H, W] (4D)
+      bool weightExpanded = (cast<RankedTensorType>(weight.getType()).getRank() == 5);
+      
+      SmallVector<ReassociationIndices, 4> collapsedDims;
+      SmallVector<int64_t> collapsedShape;
+      if (weightExpanded) {
+        // Weight is [G, C/G, F, H, W] -> collapse to [G*C/G*F, H, W]
+        collapsedDims = {{0, 1, 2}, {3}, {4}};
+        collapsedShape = {
+            (weightShape[0] == kUnknownSize ? kUnknownSize
+                                            : weightShape[0] * weightShape[1] * weightShape[2]),
+            weightShape[3], weightShape[4]};
+      }
+      else {
+        // Weight is [F, C, H, W] -> collapse to [F*C, H, W]
+        collapsedDims = {{0, 1}, {2}, {3}};
+        collapsedShape = {
+            (weightShape[0] == kUnknownSize ? kUnknownSize
+                                            : weightShape[0] * weightShape[1]),
+            weightShape[2], weightShape[3]};
+      }
       Type collapsedType = RankedTensorType::get(
           makeShapeLLVMCompatible(collapsedShape), weightDTy);
       Value collapsedWeight = rewriter.create<tensor::CollapseShapeOp>(
