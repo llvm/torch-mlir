@@ -12,6 +12,7 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/ADT/StringSet.h"
 
 #include <memory>
 
@@ -156,6 +157,10 @@ static const char kTorchOpPrefix[] = R"(torch.)";
 
 void populateRestructureNonConstantAxesPattern(RewritePatternSet &patterns,
                                                MLIRContext *context);
+
+void populateTransformerEncoderPatterns(
+    RewritePatternSet &patterns, const llvm::StringSet<> &legalOpsSet);
+
 
 std::unique_ptr<OperationPass<func::FuncOp>>
 createRestructureNonConstantAxesPass();

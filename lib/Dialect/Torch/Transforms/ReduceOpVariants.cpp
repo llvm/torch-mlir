@@ -7,6 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Utils.h"
 #include "ReifyAbstractInterpCalculationsUtils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
@@ -265,7 +266,17 @@ void TorchMatchSpecializedBackendOp::populateSpecializedConversions(
       });
 }
 
-bool isSpecializedOperation(Torch::OperatorOp op) { return true; }
+bool isSpecializedOperation(Torch::OperatorOp op) {
+  auto nameAttr = op.getNameAttr();
+  if (!nameAttr)
+    return false;
+
+  StringRef opName = nameAttr.getValue();
+  if (isTransformerEncoderOperatorName(opName))
+    return false;
+
+  return opName == "torch.aten._scaled_dot_product_flash_attention_for_cpu";
+}
 } // namespace
 
 // Reduce Ops without value semantics but the corresponding without trailing
