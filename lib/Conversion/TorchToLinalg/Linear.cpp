@@ -1674,6 +1674,631 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
 }
 
 namespace {
+class ConvertAtenConvolutionBackwardOp
+    : public OpConversionPattern<AtenConvolutionBackwardOp> {
+  using IT = utils::IteratorType;
+
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenConvolutionBackwardOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    MLIRContext *context = op->getContext();
+    Value gradOutput = adaptor.getGradOutput();
+    Value input = adaptor.getInput();
+    Value weight = adaptor.getWeight();
+
+    auto gradOutputDTy =
+        cast<RankedTensorType>(gradOutput.getType()).getElementType();
+    auto inputDTy = cast<RankedTensorType>(input.getType()).getElementType();
+    auto weightDTy = cast<RankedTensorType>(weight.getType()).getElementType();
+    if (!isa<mlir::FloatType>(gradOutputDTy) ||
+        !isa<mlir::FloatType>(inputDTy) || !isa<mlir::FloatType>(weightDTy))
+      return op.emitError("unimplemented: only fp convolution bwd supported");
+
+    size_t gradRank = cast<RankedTensorType>(gradOutput.getType()).getRank();
+    size_t numSpatialDims = gradRank - 2;
+    if (numSpatialDims < 1 || numSpatialDims > 3)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only 1d-3d convolution bwd currently supported");
+
+    // Transposed convolution backward is not handled here yet.
+    bool transposed = false;
+    if (!matchPattern(op.getTransposed(), m_TorchConstantBool(&transposed)))
+      return rewriter.notifyMatchFailure(
+          op, "only support constant bool for transposed");
+    if (transposed)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: transposed convolution backward");
+
+    // The `outMask` contains 3 boolean values for the results `grad_input`,
+    // `grad_weight`, and `grad_bias` respectively. The value being `false`
+    // means that the corresponding result will be none.
+    SmallVector<bool> outMask;
+    if (!matchPattern(op.getOutputMask(),
+                      m_TorchListOfConstantBools(outMask)) ||
+        outMask.size() != 3)
+      return rewriter.notifyMatchFailure(
+          op, "only constant bool output_mask list of size 3 is supported.");
+    for (unsigned i = 0; i < outMask.size(); i++) {
+      if (outMask[i] == false) {
+        Value result = op->getResults()[i];
+        if (!result.getUsers().empty())
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: false value supported for output_mask only "
+                  "when the result tensor corresponding to that has no users.");
+      }
+    }
+
+    // Checks for valid group size
+    int64_t numGroups;
+    if (!matchPattern(op.getGroups(), m_TorchConstantInt(&numGroups)))
+      return rewriter.notifyMatchFailure(op,
+                                         "only constant group size supported.");
+    bool isGroupedConvBwd = numGroups > 1;
+    int64_t spatialStartDimIdx = isGroupedConvBwd ? 3 : 2;
+
+    // Stride, padding, dilation for the backward conv. We only support constant
+    // lists here, consistent with forward convolution lowering.
+    SmallVector<Value> paddingIntValues;
+    SmallVector<int64_t> strideInts, dilationInts, outputPaddingInts;
+
+    if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
+      return rewriter.notifyMatchFailure(op,
+                                         "only support constant int strides");
+    if (!matchPattern(op.getDilation(),
+                      m_TorchListOfConstantInts(dilationInts)))
+      return rewriter.notifyMatchFailure(op,
+                                         "only support constant int dilations");
+    if (!matchPattern(op.getOutputPadding(),
+                      m_TorchListOfConstantInts(outputPaddingInts)))
+      return rewriter.notifyMatchFailure(
+          op, "only support constant int output paddings");
+    if (!llvm::all_of(outputPaddingInts,
+                      [](int64_t outPad) { return outPad == 0; }))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only output padding of 0 supported.");
+
+    if (!getListConstructElements(op.getPadding(), paddingIntValues))
+      return rewriter.notifyMatchFailure(
+          op, "only support padding from a list construct");
+    paddingIntValues = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
+                                              paddingIntValues);
+
+    // The expandGroups lambda function below is used to expand the group
+    // dimension for weights and input, output tensors.
+    // For input tensor (dim = 1)      : N,C,H,W -> N,G,C/G,H,W
+    // For grad_output tensor (dim = 1): N,F,H,W -> N,G,F/G,H,W
+    // For weight tensor (dim = 0)     : F,C,H,W -> G,F/G,C,H,W
+    auto expandGroups = [&](Value tensor, int64_t dim) {
+      auto inType = cast<RankedTensorType>(tensor.getType());
+      auto inShape = makeShapeTorchCompatible(inType.getShape());
+
+      SmallVector<int64_t> outShape;
+      for (auto i = 0; i < static_cast<int64_t>(inShape.size()); i++) {
+        if (i == dim) {
+          outShape.push_back(numGroups);
+          outShape.push_back(inShape[i] == kUnknownSize
+                                 ? kUnknownSize
+                                 : inShape[i] / numGroups);
+        } else {
+          outShape.push_back(inShape[i]);
+        }
+      }
+
+      SmallVector<ReassociationIndices> indices;
+      for (auto i = 0; i <= static_cast<int64_t>(inShape.size()); i++) {
+        if (i == dim) {
+          indices.push_back({i, ++i});
+          continue;
+        }
+        indices.push_back({i});
+      }
+
+      auto retType = inType.clone(makeShapeLLVMCompatible(outShape));
+      return tensor::ExpandShapeOp::create(rewriter, loc, retType, tensor,
+                                           indices);
+    };
+
+    SmallVector<Value> newResults(op->getNumResults());
+
+    // Computing Backward-Input Convolution.
+    if (outMask[0]) {
+      // If convolution bwd is grouped, `grad_output` should be expanded.
+      auto gradOutputExpanded =
+          isGroupedConvBwd ? expandGroups(gradOutput, 1) : gradOutput;
+      // If convolution bwd is grouped, `weight` should be expanded
+      auto weightExpanded = isGroupedConvBwd ? expandGroups(weight, 0) : weight;
+
+      // Flip weight along spatial dims only if number of spatial dims > 1.
+      SmallVector<int64_t> weightFlipDims;
+      weightFlipDims.reserve(numSpatialDims);
+      for (int64_t i = 0; i < static_cast<int64_t>(numSpatialDims); ++i)
+        weightFlipDims.push_back(spatialStartDimIdx + i);
+      weightExpanded = torch_to_linalg::flipTensor(
+          rewriter, loc, weightExpanded, weightFlipDims);
+
+      // For backward-input, padding must be adjusted to:
+      //   p'[i] = d[i] * (K[i] - 1) - p[i]
+      Value c1 = arith::ConstantOp::create(rewriter, loc,
+                                           rewriter.getI64IntegerAttr(1));
+      SmallVector<Value> dilationIntValues =
+          getAsConstantIntValues(rewriter, loc, dilationInts);
+      SmallVector<Value> weiSizes =
+          getTensorSizes(rewriter, loc, weightExpanded);
+      SmallVector<Value> paddingValues(numSpatialDims);
+      for (size_t i = 0; i < numSpatialDims; ++i) {
+        Value kSize =
+            castIndexToInt64(rewriter, loc, weiSizes[spatialStartDimIdx + i]);
+        Value kMinusOne = rewriter.createOrFold<arith::SubIOp>(loc, kSize, c1);
+        Value mul = rewriter.createOrFold<arith::MulIOp>(loc, kMinusOne,
+                                                         dilationIntValues[i]);
+        paddingValues[i] =
+            arith::SubIOp::create(rewriter, loc, mul, paddingIntValues[i]);
+
+        if (isValueNegative(paddingValues[i]))
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: negative padding values are not supported.");
+      }
+
+      // If there are not unit strides, we have to scatter `grad_output` into a
+      // zero-initialized tensor.
+      SmallVector<Value> gradInputSizes = getTensorSizes(rewriter, loc, input);
+      Value gradOutputSliced;
+      if (llvm::any_of(strideInts, [](int64_t stride) { return stride > 1; })) {
+        // Destination spatial sizes are computed as:
+        //   size[i] = (D[i] - 1) + d[i] * (K[i] - 1) + 1
+        // Offsets on spatial dims are paddings
+        // Strides on spatial dims are the original stride[i].
+        Value zero =
+            arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(0));
+        Value one =
+            arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(1));
+
+        // Initialize slice strides, sizes and offsets
+        SmallVector<Value> goSizes =
+            getTensorSizes(rewriter, loc, gradOutputExpanded);
+        SmallVector<Value> sizes(goSizes.begin(),
+                                 goSizes.begin() + spatialStartDimIdx);
+        SmallVector<Value> offsets(spatialStartDimIdx, zero);
+        SmallVector<Value> strides(spatialStartDimIdx, one);
+        for (size_t i = 0; i < numSpatialDims; ++i) {
+          // Shapes of `grad_input` has not been expanded yet
+          // if it's needed for group conv even
+          Value h = gradInputSizes[2 + i];
+          Value k = weiSizes[spatialStartDimIdx + i];
+          Value hMinusOne = rewriter.createOrFold<arith::SubIOp>(loc, h, one);
+          Value kMinusOne = rewriter.createOrFold<arith::SubIOp>(loc, k, one);
+          Value mul = rewriter.createOrFold<arith::MulIOp>(
+              loc, castIntToIndex(rewriter, loc, dilationIntValues[i]),
+              kMinusOne);
+          Value sum = rewriter.createOrFold<arith::AddIOp>(loc, hMinusOne, mul);
+          sizes.push_back(rewriter.createOrFold<arith::AddIOp>(loc, sum, one));
+          offsets.push_back(castIntToIndex(rewriter, loc, paddingValues[i]));
+
+          Value strideIntValue = arith::ConstantOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(strideInts[i]));
+          strides.push_back(castIntToIndex(rewriter, loc, strideIntValue));
+        }
+
+        Value zeroInit =
+            createZeroInitTensor(rewriter, loc, sizes, gradOutputDTy);
+        gradOutputSliced = tensor::InsertSliceOp::create(
+            rewriter, loc,
+            torch_to_linalg::removeSizeInformation(rewriter, loc,
+                                                   gradOutputExpanded),
+            zeroInit, offsets, goSizes, strides);
+      } else {
+        // If there unit strides, pad `grad_output` spatial dims with zeros.
+        // If conv is grouped, output has shape:
+        //  N x G x F/G x <spatial>. Otherwise: N x F x <spatial>.
+        Value padVal = arith::ConstantOp::create(
+            rewriter, loc, rewriter.getFloatAttr(gradOutputDTy, 0.0));
+        gradOutputSliced = torch_to_linalg::getDynamicZeroPaddedTensor(
+            op, rewriter, gradOutputExpanded, paddingValues, spatialStartDimIdx,
+            padVal);
+      }
+
+      // Initialize output buffer. For grouped, compute into an expanded
+      // [N, G, C/G, D*] tensor and collapse back to the original input shape.
+      Value gradInputInit =
+          createZeroInitTensor(rewriter, loc, gradInputSizes, inputDTy);
+      SmallVector<ReassociationIndices> gradInputCollapseIndices;
+      if (isGroupedConvBwd) {
+        auto gradInputInitExpanded = expandGroups(gradInputInit, 1);
+        gradInputInit = gradInputInitExpanded.getResult();
+        gradInputCollapseIndices =
+            gradInputInitExpanded.getReassociationIndices();
+      }
+
+      // Generate GenericOp.
+      SmallVector<AffineMap> indexingMaps;
+      SmallVector<IT> iteratorTypes;
+      initIndexingMapsAndIteratorTypesForDataBwd(
+          rewriter, context, isGroupedConvBwd, numSpatialDims, dilationInts,
+          indexingMaps, iteratorTypes);
+      auto genericRes =
+          createGenericOp(rewriter, loc, gradOutputSliced, weightExpanded,
+                          gradInputInit, indexingMaps, iteratorTypes)
+              .getResult(0);
+
+      // Collapse [G, F/G, C/G, D] to [F, C/G, D] the result of the generic op
+      // if it is grouped.
+      if (isGroupedConvBwd) {
+        genericRes = tensor::CollapseShapeOp::create(
+            rewriter, loc, input.getType(), genericRes,
+            gradInputCollapseIndices);
+      }
+
+      // Cast to the final result type expected by the type converter.
+      newResults[0] = tensor::CastOp::create(rewriter, loc,
+                                             getTypeConverter()->convertType(
+                                                 op->getResult(0).getType()),
+                                             genericRes)
+                          .getResult();
+    }
+
+    // Computing Backward-Weight Convolution.
+    if (outMask[1]) {
+      // If convolution bwd is grouped, `grad_output` should be expanded.
+      auto gradOutputExpanded =
+          isGroupedConvBwd ? expandGroups(gradOutput, 1) : gradOutput;
+      // If convolution bwd is grouped, `input` should be expanded
+      auto inputExpanded = isGroupedConvBwd ? expandGroups(input, 1) : input;
+
+      // Pad input spatial dims with zeros. If grouped, input has shape:
+      // N x G x C/G x <spatial>. Otherwise: N x C x <spatial>.
+      // We should only pad the spatial dims, so set unpaddedDims accordingly.
+      Value padVal = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getFloatAttr(inputDTy, 0.0));
+      Value paddedInput = torch_to_linalg::getDynamicZeroPaddedTensor(
+          op, rewriter, inputExpanded, paddingIntValues, spatialStartDimIdx,
+          padVal);
+
+      // Initialize output buffer. For grouped, compute into an expanded
+      // [G, F/G, C/G, K*] tensor and collapse back to the original weight
+      // shape.
+      SmallVector<Value> gradWeightSizes =
+          getTensorSizes(rewriter, loc, weight);
+      Value gradWeightInit =
+          createZeroInitTensor(rewriter, loc, gradWeightSizes, weightDTy);
+      SmallVector<ReassociationIndices> gradWeightCollapseIndices;
+      if (isGroupedConvBwd) {
+        auto gradWeightInitExpanded = expandGroups(gradWeightInit, 0);
+        gradWeightInit = gradWeightInitExpanded.getResult();
+        gradWeightCollapseIndices =
+            gradWeightInitExpanded.getReassociationIndices();
+      }
+
+      // Generate GenericOp.
+      SmallVector<AffineMap> indexingMaps;
+      SmallVector<IT> iteratorTypes;
+      initIndexingMapsAndIteratorTypesForWeightBwd(
+          rewriter, context, isGroupedConvBwd, numSpatialDims, strideInts,
+          dilationInts, indexingMaps, iteratorTypes);
+      auto genericRes =
+          createGenericOp(rewriter, loc, paddedInput, gradOutputExpanded,
+                          gradWeightInit, indexingMaps, iteratorTypes)
+              .getResult(0);
+
+      // Collapse [G, F/G, C/G, D] to [F, C/G, D] the result of the generic op
+      // if it is grouped.
+      if (isGroupedConvBwd) {
+        genericRes = tensor::CollapseShapeOp::create(
+            rewriter, loc, weight.getType(), genericRes,
+            gradWeightCollapseIndices);
+      }
+
+      // Cast to the final result type expected by the type converter.
+      newResults[1] = tensor::CastOp::create(rewriter, loc,
+                                             getTypeConverter()->convertType(
+                                                 op->getResult(1).getType()),
+                                             genericRes)
+                          .getResult();
+    }
+
+    // Computing Backward-Bias Convolution.
+    if (outMask[2]) {
+      // Sum grad_output along all dims except F using linalg.
+      DenseSet<int64_t> reduceDims;
+      reduceDims.insert(0);
+      for (int64_t i = 2; i < static_cast<int64_t>(gradRank); ++i)
+        reduceDims.insert(i);
+
+      torch_to_linalg::ReductionOpInfo opInfo{false, gradOutput, reduceDims};
+
+      // Zero init for the element type (arith.constant expects a scalar attr).
+      Value initSum = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getZeroAttr(gradOutputDTy));
+
+      auto reductionBody = [&](OpBuilder &b, Location loc, ValueRange args) {
+        Value x = args[0];
+        Value acc = args[1];
+        Value sum = arith::AddFOp::create(b, loc, x, acc);
+        linalg::YieldOp::create(b, loc, sum);
+      };
+
+      Value gradBias = torch_to_linalg::createReductionLinalgGeneric(
+          rewriter, loc, opInfo, initSum, reductionBody);
+
+      newResults[2] = tensor::CastOp::create(rewriter, loc,
+                                             getTypeConverter()->convertType(
+                                                 op->getResult(2).getType()),
+                                             gradBias)
+                          .getResult();
+    }
+
+    rewriter.replaceOp(op, newResults);
+
+    return success();
+  }
+
+private:
+  static void initIndexingMapsAndIteratorTypesForDataBwd(
+      OpBuilder &rewriter, MLIRContext *context, bool isGrouped,
+      int numSpatialDims, const SmallVector<int64_t> &dilationInts,
+      SmallVector<AffineMap> &indexingMaps, SmallVector<IT> &iteratorTypes) {
+    // To calculate convolution backward-data, we use generic operation.
+    // The generic operation is a generalization of the convolution operation
+    // that can handle any number of spatial dimensions.
+    // The generic operation is defined as follows:
+    // ```
+    //   dLdx[n, g, c, o] = sum(dLdy[n, g, f, d0 * k + o] * w[g, f, c, k]
+    //    for n in range(batch_size) for o in range(in_spatial_dims))
+    // ```
+    // where `n` is the batch dimension, `g` is the group dimension,
+    // `c` is the input channel dimension, `f` is the output channel
+    // dimension, `o` is the input spatial dimension, `k` is the kernel
+    // dimension, `d0` is dilation. `x` is the input tensor, `dLdy` is the
+    // gradient of the output tensor. `dLdx` is the data-gradient tensor.
+    if (!isGrouped) {
+      if (numSpatialDims == 1) {
+        AffineExpr n, c, o, f, k;
+        bindDims(context, n, c, o, f, k);
+        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
+        SmallVector<AffineExpr> goExprs = {n, f, d0 * k + o};
+        SmallVector<AffineExpr> weiExprs = {f, c, k};
+        SmallVector<AffineExpr> outExprs = {n, c, o};
+        indexingMaps = {AffineMap::get(5, 0, goExprs, context),
+                        AffineMap::get(5, 0, weiExprs, context),
+                        AffineMap::get(5, 0, outExprs, context)};
+        iteratorTypes = {IT::parallel, IT::parallel, IT::parallel,
+                         IT::reduction, IT::reduction};
+      } else if (numSpatialDims == 2) {
+        AffineExpr n, c, oh, ow, f, kh, kw;
+        bindDims(context, n, c, oh, ow, f, kh, kw);
+        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
+        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
+        SmallVector<AffineExpr> goExprs = {n, f, d0 * kh + oh, d1 * kw + ow};
+        SmallVector<AffineExpr> weiExprs = {f, c, kh, kw};
+        SmallVector<AffineExpr> outExprs = {n, c, oh, ow};
+        indexingMaps = {AffineMap::get(7, 0, goExprs, context),
+                        AffineMap::get(7, 0, weiExprs, context),
+                        AffineMap::get(7, 0, outExprs, context)};
+        iteratorTypes = {IT::parallel, IT::parallel,  IT::parallel,
+                         IT::parallel, IT::reduction, IT::reduction,
+                         IT::reduction};
+      } else {
+        AffineExpr n, c, od, oh, ow, f, kd, kh, kw;
+        bindDims(context, n, c, od, oh, ow, f, kd, kh, kw);
+        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
+        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
+        AffineExpr d2 = rewriter.getAffineConstantExpr(dilationInts[2]);
+        SmallVector<AffineExpr> goExprs = {n, f, d0 * kd + od, d1 * kh + oh,
+                                           d2 * kw + ow};
+        SmallVector<AffineExpr> weiExprs = {f, c, kd, kh, kw};
+        SmallVector<AffineExpr> outExprs = {n, c, od, oh, ow};
+        indexingMaps = {AffineMap::get(9, 0, goExprs, context),
+                        AffineMap::get(9, 0, weiExprs, context),
+                        AffineMap::get(9, 0, outExprs, context)};
+        iteratorTypes = {IT::parallel,  IT::parallel,  IT::parallel,
+                         IT::parallel,  IT::parallel,  IT::reduction,
+                         IT::reduction, IT::reduction, IT::reduction};
+      }
+    } else {
+      if (numSpatialDims == 1) {
+        AffineExpr n, g, cg, o, fg, k;
+        bindDims(context, n, g, cg, o, fg, k);
+        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
+        SmallVector<AffineExpr> goExprs = {n, g, fg, d0 * k + o};
+        SmallVector<AffineExpr> weiExprs = {g, fg, cg, k};
+        SmallVector<AffineExpr> outExprs = {n, g, cg, o};
+        indexingMaps = {AffineMap::get(6, 0, goExprs, context),
+                        AffineMap::get(6, 0, weiExprs, context),
+                        AffineMap::get(6, 0, outExprs, context)};
+        iteratorTypes = {IT::parallel, IT::parallel,  IT::parallel,
+                         IT::parallel, IT::reduction, IT::reduction};
+      } else if (numSpatialDims == 2) {
+        AffineExpr n, g, cg, oh, ow, fg, kh, kw;
+        bindDims(context, n, g, cg, oh, ow, fg, kh, kw);
+        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
+        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
+        SmallVector<AffineExpr> goExprs = {n, g, fg, d0 * kh + oh,
+                                           d1 * kw + ow};
+        SmallVector<AffineExpr> weiExprs = {g, fg, cg, kh, kw};
+        SmallVector<AffineExpr> outExprs = {n, g, cg, oh, ow};
+        indexingMaps = {AffineMap::get(8, 0, goExprs, context),
+                        AffineMap::get(8, 0, weiExprs, context),
+                        AffineMap::get(8, 0, outExprs, context)};
+        iteratorTypes = {IT::parallel,  IT::parallel, IT::parallel,
+                         IT::parallel,  IT::parallel, IT::reduction,
+                         IT::reduction, IT::reduction};
+      } else {
+        AffineExpr n, g, cg, od, oh, ow, fg, kd, kh, kw;
+        bindDims(context, n, g, cg, od, oh, ow, fg, kd, kh, kw);
+        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
+        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
+        AffineExpr d2 = rewriter.getAffineConstantExpr(dilationInts[2]);
+        SmallVector<AffineExpr> goExprs = {
+            n, g, fg, d0 * kd + od, d1 * kh + oh, d2 * kw + ow};
+        SmallVector<AffineExpr> weiExprs = {g, fg, cg, kd, kh, kw};
+        SmallVector<AffineExpr> outExprs = {n, g, cg, od, oh, ow};
+        indexingMaps = {AffineMap::get(10, 0, goExprs, context),
+                        AffineMap::get(10, 0, weiExprs, context),
+                        AffineMap::get(10, 0, outExprs, context)};
+        iteratorTypes = {IT::parallel,  IT::parallel,  IT::parallel,
+                         IT::parallel,  IT::parallel,  IT::parallel,
+                         IT::reduction, IT::reduction, IT::reduction,
+                         IT::reduction};
+      }
+    }
+  }
+
+  static void initIndexingMapsAndIteratorTypesForWeightBwd(
+      OpBuilder &rewriter, MLIRContext *context, bool isGrouped,
+      int numSpatialDims, const SmallVector<int64_t> &strideInts,
+      const SmallVector<int64_t> &dilationInts,
+      SmallVector<AffineMap> &indexingMaps, SmallVector<IT> &iteratorTypes) {
+    // To calculate convolution backward-weight, we use generic operation.
+    // The generic operation is a generalization of the convolution operation
+    // that can handle any number of spatial dimensions.
+    // The generic operation is defined as follows:
+    // ```
+    //   dLdw[f, g, c, k] = sum(x[n, g, c, d0 * k + s0 * o] * dLdy[n, g, f, o]
+    //   for n in range(batch_size) for o in range(output_spatial_dims))
+    // ```
+    // where `n` is the batch dimension, `g` is the group dimension,
+    // `c` is the input channel dimension, `f` is the output channel
+    // dimension, `o` is the output spatial dimension, `k` is the kernel
+    // dimension, `d0` is dilation and `s0` is stride. `x` is the input
+    // tensor, `dLdy` is the gradient of the output tensor. `dLdw` is the
+    // weight-gradient tensor.
+    if (!isGrouped) {
+      if (numSpatialDims == 1) {
+        AffineExpr f, c, k, n, o;
+        bindDims(context, f, c, k, n, o);
+        AffineExpr s0 = rewriter.getAffineConstantExpr(strideInts[0]);
+        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
+        SmallVector<AffineExpr> inExprs = {n, c, d0 * k + s0 * o};
+        SmallVector<AffineExpr> goExprs = {n, f, o};
+        SmallVector<AffineExpr> outExprs = {f, c, k};
+        indexingMaps = {AffineMap::get(5, 0, inExprs, context),
+                        AffineMap::get(5, 0, goExprs, context),
+                        AffineMap::get(5, 0, outExprs, context)};
+        iteratorTypes = {IT::parallel, IT::parallel, IT::parallel,
+                         IT::reduction, IT::reduction};
+      } else if (numSpatialDims == 2) {
+        AffineExpr f, c, kh, kw, n, oh, ow;
+        bindDims(context, f, c, kh, kw, n, oh, ow);
+        AffineExpr s0 = rewriter.getAffineConstantExpr(strideInts[0]);
+        AffineExpr s1 = rewriter.getAffineConstantExpr(strideInts[1]);
+        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
+        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
+        SmallVector<AffineExpr> inExprs = {n, c, d0 * kh + s0 * oh,
+                                           d1 * kw + s1 * ow};
+        SmallVector<AffineExpr> goExprs = {n, f, oh, ow};
+        SmallVector<AffineExpr> outExprs = {f, c, kh, kw};
+        indexingMaps = {AffineMap::get(7, 0, inExprs, context),
+                        AffineMap::get(7, 0, goExprs, context),
+                        AffineMap::get(7, 0, outExprs, context)};
+        iteratorTypes = {IT::parallel, IT::parallel,  IT::parallel,
+                         IT::parallel, IT::reduction, IT::reduction,
+                         IT::reduction};
+      } else {
+        AffineExpr f, c, kd, kh, kw, n, od, oh, ow;
+        bindDims(context, f, c, kd, kh, kw, n, od, oh, ow);
+        AffineExpr s0 = rewriter.getAffineConstantExpr(strideInts[0]);
+        AffineExpr s1 = rewriter.getAffineConstantExpr(strideInts[1]);
+        AffineExpr s2 = rewriter.getAffineConstantExpr(strideInts[2]);
+        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
+        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
+        AffineExpr d2 = rewriter.getAffineConstantExpr(dilationInts[2]);
+        SmallVector<AffineExpr> inExprs = {
+            n, c, d0 * kd + s0 * od, d1 * kh + s1 * oh, d2 * kw + s2 * ow};
+        SmallVector<AffineExpr> goExprs = {n, f, od, oh, ow};
+        SmallVector<AffineExpr> outExprs = {f, c, kd, kh, kw};
+        indexingMaps = {AffineMap::get(9, 0, inExprs, context),
+                        AffineMap::get(9, 0, goExprs, context),
+                        AffineMap::get(9, 0, outExprs, context)};
+        iteratorTypes = {IT::parallel,  IT::parallel,  IT::parallel,
+                         IT::parallel,  IT::parallel,  IT::reduction,
+                         IT::reduction, IT::reduction, IT::reduction};
+      }
+    } else {
+      if (numSpatialDims == 1) {
+        AffineExpr g, fg, cg, k, n, o;
+        bindDims(context, g, fg, cg, k, n, o);
+        AffineExpr s0 = rewriter.getAffineConstantExpr(strideInts[0]);
+        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
+        SmallVector<AffineExpr> inExprs = {n, g, cg, d0 * k + s0 * o};
+        SmallVector<AffineExpr> goExprs = {n, g, fg, o};
+        SmallVector<AffineExpr> outExprs = {g, fg, cg, k};
+        indexingMaps = {AffineMap::get(6, 0, inExprs, context),
+                        AffineMap::get(6, 0, goExprs, context),
+                        AffineMap::get(6, 0, outExprs, context)};
+        iteratorTypes = {IT::parallel, IT::parallel,  IT::parallel,
+                         IT::parallel, IT::reduction, IT::reduction};
+      } else if (numSpatialDims == 2) {
+        AffineExpr g, fg, cg, kh, kw, n, oh, ow;
+        bindDims(context, g, fg, cg, kh, kw, n, oh, ow);
+        AffineExpr s0 = rewriter.getAffineConstantExpr(strideInts[0]);
+        AffineExpr s1 = rewriter.getAffineConstantExpr(strideInts[1]);
+        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
+        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
+        SmallVector<AffineExpr> inExprs = {n, g, cg, d0 * kh + s0 * oh,
+                                           d1 * kw + s1 * ow};
+        SmallVector<AffineExpr> goExprs = {n, g, fg, oh, ow};
+        SmallVector<AffineExpr> outExprs = {g, fg, cg, kh, kw};
+        indexingMaps = {AffineMap::get(8, 0, inExprs, context),
+                        AffineMap::get(8, 0, goExprs, context),
+                        AffineMap::get(8, 0, outExprs, context)};
+        iteratorTypes = {IT::parallel,  IT::parallel, IT::parallel,
+                         IT::parallel,  IT::parallel, IT::reduction,
+                         IT::reduction, IT::reduction};
+      } else {
+        AffineExpr g, fg, cg, kd, kh, kw, n, od, oh, ow;
+        bindDims(context, g, fg, cg, kd, kh, kw, n, od, oh, ow);
+        AffineExpr s0 = rewriter.getAffineConstantExpr(strideInts[0]);
+        AffineExpr s1 = rewriter.getAffineConstantExpr(strideInts[1]);
+        AffineExpr s2 = rewriter.getAffineConstantExpr(strideInts[2]);
+        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
+        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
+        AffineExpr d2 = rewriter.getAffineConstantExpr(dilationInts[2]);
+        SmallVector<AffineExpr> inExprs = {
+            n, g, cg, d0 * kd + s0 * od, d1 * kh + s1 * oh, d2 * kw + s2 * ow};
+        SmallVector<AffineExpr> goExprs = {n, g, fg, od, oh, ow};
+        SmallVector<AffineExpr> outExprs = {g, fg, cg, kd, kh, kw};
+        indexingMaps = {AffineMap::get(10, 0, inExprs, context),
+                        AffineMap::get(10, 0, goExprs, context),
+                        AffineMap::get(10, 0, outExprs, context)};
+        iteratorTypes = {IT::parallel,  IT::parallel,  IT::parallel,
+                         IT::parallel,  IT::parallel,  IT::parallel,
+                         IT::reduction, IT::reduction, IT::reduction,
+                         IT::reduction};
+      }
+    }
+  }
+
+  static linalg::GenericOp
+  createGenericOp(OpBuilder &b, Location loc, Value in0, Value in1, Value out,
+                  const SmallVector<AffineMap> &indexingMaps,
+                  const SmallVector<IT> &iteratorTypes) {
+    return linalg::GenericOp::create(
+        b, loc, out.getType(), ValueRange{in0, in1}, out, indexingMaps,
+        iteratorTypes, [&](OpBuilder &b, Location loc, ValueRange args) {
+          Value input = args[0];
+          Value grad = args[1];
+          Value output = args[2];
+
+          // Convert input and grad to accumulator type if needed
+          Type accType = output.getType();
+          if (input.getType() != accType) {
+            input = arith::ExtFOp::create(b, loc, accType, input);
+          }
+          if (grad.getType() != accType) {
+            grad = arith::ExtFOp::create(b, loc, accType, grad);
+          }
+
+          Value mul = arith::MulFOp::create(b, loc, input, grad);
+          Value sum = arith::AddFOp::create(b, loc, mul, output);
+          linalg::YieldOp::create(b, loc, sum);
+        });
+  }
+};
+} // namespace
+
+namespace {
 
 /// Creates coefficients based on DFT definition, see
 /// https://en.wikipedia.org/wiki/Discrete_Fourier_transform.
@@ -1874,6 +2499,8 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   patterns.add<ConvertAtenBmmOp>(typeConverter, context);
   target.addIllegalOp<AtenConvolutionOp>();
   patterns.add<ConvertAtenConvolutionOp>(typeConverter, context);
+  target.addIllegalOp<AtenConvolutionBackwardOp>();
+  patterns.add<ConvertAtenConvolutionBackwardOp>(typeConverter, context);
   target.addIllegalOp<AtenFftRfftOp>();
   patterns.add<ConvertAtenFftRfftOp>(typeConverter, context);
 }
