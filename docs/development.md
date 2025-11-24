@@ -507,8 +507,8 @@ The following assumes you are in the `projects/pt1`  directory:
 ./tools/e2e_test.sh
 # Run tests that match the regex `Conv2d`, with verbose errors.
 ./tools/e2e_test.sh --filter Conv2d --verbose
-# Run tests on the TOSA backend.
-./tools/e2e_test.sh --config tosa
+# Run tests on the TOSA backend via fx_importer path
+./tools/e2e_test.sh --config fx_importer_tosa
 ```
 
 Alternatively, you can run the tests via Python directly:
