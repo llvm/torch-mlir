@@ -2472,6 +2472,18 @@ func.func @torch.aten.cat$fold_zero_dim_operand() -> !torch.vtensor<[4],si32> {
 
 // -----
 
+//  CHECK-LABEL:    @torch.aten.cat$handle_zero_size_3d_tensor
+//   CHECK-SAME:      %[[ARG0:.+]]: !torch.vtensor<[2,0,3],f32>
+//        CHECK:        return %[[ARG0]] : !torch.vtensor<[2,0,3],f32>
+func.func @torch.aten.cat$handle_zero_size_3d_tensor(%arg0: !torch.vtensor<[2,0,3],f32>) -> !torch.vtensor<[2,0,3],f32> {
+  %int1 = torch.constant.int 1
+  %0 = torch.prim.ListConstruct %arg0 : (!torch.vtensor<[2,0,3],f32>) -> !torch.list<vtensor>
+  %1 = torch.aten.cat %0, %int1 : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[2,0,3],f32>
+  return %1 : !torch.vtensor<[2,0,3],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.broadcast_to$fold(
 // CHECK-SAME:            %[[ARG:.*]]: !torch.vtensor<[3,4,2],f32>) -> !torch.vtensor<[3,4,2],f32> {
 // CHECK-NEXT:      return %[[ARG]] : !torch.vtensor<[3,4,2],f32>
