@@ -270,13 +270,10 @@ def test_while_loop_two_returns():
 # CHECK-SAME: -> !torch.vtensor<[4,8,1024,64],f32>, !torch.vtensor<[4,8,1024],f32>, !torch.vtensor<[4,8,1024],f32>
 # CHECK: return %[[OUTPUT]]
 def test_flex_attention():
-    from torch._higher_order_ops.flex_attention import (
-        flex_attention as flex_attention_hop,
-    )
+    from torch._subclasses.fake_tensor import FakeTensor
     from torch.nn.attention.flex_attention import (
         BlockMask,
         _LARGE_SPARSE_BLOCK_SIZE,
-        create_block_mask,
         flex_attention,
     )
     from torch import Tensor
@@ -289,7 +286,7 @@ def test_flex_attention():
             kv_indices=torch.zeros([1, 1, 1, 1], dtype=torch.int32, device=device),
             BLOCK_SIZE=_LARGE_SPARSE_BLOCK_SIZE,
             seq_lengths=(1, 1),
-        ).as_tuple()
+        )
 
     def relative_position_bias(
         score: Tensor,
@@ -307,7 +304,7 @@ def test_flex_attention():
             self.block_mask = block_mask
 
         def forward(self, q, k, v):
-            output, lse, max_scores = flex_attention_hop(
+            output = flex_attention(
                 q,
                 k,
                 v,
@@ -316,6 +313,8 @@ def test_flex_attention():
                 scale=1.0,
                 kernel_options={},
             )
+            # flex_attention returns a single output tensor.
+            assert isinstance(output, FakeTensor)
             return output
 
     # Export -> import to Torch-MLIR
@@ -330,6 +329,79 @@ def test_flex_attention():
         v,
         func_name="test_flex_attention",
     )
+    m.operation.verify()
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_flex_attention_noblock_return_lse
+# Check that helper functions are emitted first
+# CHECK: func.func private @sdpa_score0(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>, %arg4: !torch.vtensor<[],si32>) -> !torch.vtensor<[],f32>
+# CHECK: torch.aten.tanh
+# Note how the mask function is automaticalluy generated and not provided.
+# CHECK: func.func private @sdpa_mask0(%arg0: !torch.vtensor<[],si32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>) -> !torch.vtensor<[],i1>
+# CHECK: torch.aten.new_ones
+# Then check the main function
+# CHECK: func.func @test_flex_attention(%arg0: !torch.vtensor<[4,8,1024,64],f32>, %arg1: !torch.vtensor<[4,8,1024,64],f32>, %arg2: !torch.vtensor<[4,8,1024,64],f32>)
+# CHECK-SAME: -> !torch.vtensor<[4,8,1024,64],f32>
+# Validate flex_attention op with 3 results and 6 operands:
+# CHECK: %[[SCALE:.*]] = torch.constant.float 1.000000e+00
+# CHECK: %[[RETURN_LSE:.*]] = torch.constant.bool true
+# CHECK: %[[RETURN_MAX:.*]] = torch.constant.bool false
+# CHECK: %[[OUTPUT:.*]], %[[LOGSUMEXP:.*]], %[[MAX_SCORES:.*]] = torch.hop_flex_attention %arg0, %arg1, %arg2, %[[SCALE]], %[[RETURN_LSE]], %[[RETURN_MAX]] {mask_mod_fn = @sdpa_mask0, score_mod_fn = @sdpa_score0}
+# CHECK-SAME: : !torch.vtensor<[4,8,1024,64],f32>, !torch.vtensor<[4,8,1024,64],f32>, !torch.vtensor<[4,8,1024,64],f32>, !torch.float, !torch.bool, !torch.bool
+# CHECK-SAME: -> !torch.vtensor<[4,8,1024,64],f32>, !torch.vtensor<[4,8,1024],f32>, !torch.vtensor<[4,8,1024],f32>
+# CHECK: return %[[OUTPUT]]
+def test_flex_attention_noblock_return_lse():
+    # from torch._higher_order_ops.flex_attention import (
+    #     flex_attention as flex_attention_hop,
+    # )
+    from torch.nn.attention.flex_attention import flex_attention, AuxRequest, AuxOutput
+    from torch import Tensor
+
+    def relative_position_bias(
+        score: Tensor,
+        batch: Tensor,
+        head: Tensor,
+        token_q: Tensor,
+        token_kv: Tensor,
+    ) -> Tensor:
+        # Simple score mod function.
+        return torch.tanh(score)
+
+    class FlexAttention(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, q, k, v):
+            outputs = flex_attention(
+                q,
+                k,
+                v,
+                score_mod=relative_position_bias,
+                block_mask=None,
+                scale=1.0,
+                return_aux=AuxRequest(lse=True),
+                kernel_options={},
+            )
+            # Note: Returning max scores is not supported on CPU, and will raise a 
+            # NotImplementedError if max_scores is specified in the AuxRequest input.
+            assert isinstance(outputs[1], AuxOutput) and outputs[1].max_scores == None
+            return outputs[0]
+
+    # Export -> import to Torch-MLIR
+    B, Hq, Hkv, L, S, E, Ev = 4, 8, 8, 1024, 1024, 64, 64
+    q = torch.ones(B, Hq, L, E)
+    k = torch.ones(B, Hkv, S, E)
+    v = torch.ones(B, Hkv, S, Ev)
+    m = fx.export_and_import(
+        FlexAttention(),
+        q,
+        k,
+        v,
+        func_name="test_flex_attention",
+    )
+
     print(m)
 
 
