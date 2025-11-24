@@ -1800,6 +1800,38 @@ public:
       return tensor::ExpandShapeOp::create(rewriter, loc, retType, tensor,
                                            indices);
     };
+    // The createZeroInitExpandedGroupsTensor lambda function below is used to
+    // create empty tensor with already expanded group dimension.
+    auto createZeroInitExpandedGroupsTensor =
+        [&](OpBuilder &rewriter, Location loc, const SmallVector<Value> &sizes,
+            Type type, int64_t dim,
+            SmallVector<ReassociationIndices> &indices) {
+          Value groups =
+              mlir::arith::ConstantIndexOp::create(rewriter, loc, numGroups);
+
+          SmallVector<Value> expandedSizes;
+          for (auto i = 0; i < static_cast<int64_t>(sizes.size()); i++) {
+            if (i == dim) {
+              expandedSizes.push_back(groups);
+              expandedSizes.push_back(
+                  rewriter.createOrFold<arith::FloorDivSIOp>(loc, sizes[i],
+                                                             groups));
+            } else {
+              expandedSizes.push_back(sizes[i]);
+            }
+          }
+
+          indices.clear();
+          for (auto i = 0; i <= static_cast<int64_t>(sizes.size()); i++) {
+            if (i == dim) {
+              indices.push_back({i, ++i});
+              continue;
+            }
+            indices.push_back({i});
+          }
+
+          return createZeroInitTensor(rewriter, loc, expandedSizes, type);
+        };
 
     SmallVector<Value> newResults(op->getNumResults());
 
@@ -1811,13 +1843,22 @@ public:
       // If convolution bwd is grouped, `weight` should be expanded
       auto weightExpanded = isGroupedConvBwd ? expandGroups(weight, 0) : weight;
 
-      // Flip weight along spatial dims only if number of spatial dims > 1.
-      SmallVector<int64_t> weightFlipDims;
-      weightFlipDims.reserve(numSpatialDims);
-      for (int64_t i = 0; i < static_cast<int64_t>(numSpatialDims); ++i)
-        weightFlipDims.push_back(spatialStartDimIdx + i);
-      weightExpanded = torch_to_linalg::flipTensor(
-          rewriter, loc, weightExpanded, weightFlipDims);
+      // Flip weight along spatial dims only if
+      // - kernel size is greater than 1,
+      // - the kernel is not a 1x1 or 1x1x1 kernel.
+      SmallVector<int64_t> weightDimsInt = makeShapeTorchCompatible(
+          cast<RankedTensorType>(weightExpanded.getType()).getShape());
+      bool is1x1Kernel = std::all_of(weightDimsInt.rbegin(),
+                                     weightDimsInt.rbegin() + numSpatialDims,
+                                     [](int64_t dim) { return dim == 1; });
+      if (numSpatialDims > 1 && !is1x1Kernel) {
+        SmallVector<int64_t> weightFlipDims;
+        weightFlipDims.reserve(numSpatialDims);
+        for (int64_t i = 0; i < static_cast<int64_t>(numSpatialDims); ++i)
+          weightFlipDims.push_back(spatialStartDimIdx + i);
+        weightExpanded = torch_to_linalg::flipTensor(
+            rewriter, loc, weightExpanded, weightFlipDims);
+      }
 
       // For backward-input, padding must be adjusted to:
       //   p'[i] = d[i] * (K[i] - 1) - p[i]
@@ -1845,7 +1886,7 @@ public:
       // If there are not unit strides, we have to scatter `grad_output` into a
       // zero-initialized tensor.
       SmallVector<Value> gradInputSizes = getTensorSizes(rewriter, loc, input);
-      Value gradOutputSliced;
+      Value gradOutputModified;
       if (llvm::any_of(strideInts, [](int64_t stride) { return stride > 1; })) {
         // Destination spatial sizes are computed as:
         //   size[i] = (D[i] - 1) + d[i] * (K[i] - 1) + 1
@@ -1884,7 +1925,7 @@ public:
 
         Value zeroInit =
             createZeroInitTensor(rewriter, loc, sizes, gradOutputDTy);
-        gradOutputSliced = tensor::InsertSliceOp::create(
+        gradOutputModified = tensor::InsertSliceOp::create(
             rewriter, loc,
             torch_to_linalg::removeSizeInformation(rewriter, loc,
                                                    gradOutputExpanded),
@@ -1895,47 +1936,40 @@ public:
         //  N x G x F/G x <spatial>. Otherwise: N x F x <spatial>.
         Value padVal = arith::ConstantOp::create(
             rewriter, loc, rewriter.getFloatAttr(gradOutputDTy, 0.0));
-        gradOutputSliced = torch_to_linalg::getDynamicZeroPaddedTensor(
+        gradOutputModified = torch_to_linalg::getDynamicZeroPaddedTensor(
             op, rewriter, gradOutputExpanded, paddingValues, spatialStartDimIdx,
             padVal);
       }
 
       // Initialize output buffer. For grouped, compute into an expanded
       // [N, G, C/G, D*] tensor and collapse back to the original input shape.
-      Value gradInputInit =
-          createZeroInitTensor(rewriter, loc, gradInputSizes, inputDTy);
       SmallVector<ReassociationIndices> gradInputCollapseIndices;
-      if (isGroupedConvBwd) {
-        auto gradInputInitExpanded = expandGroups(gradInputInit, 1);
-        gradInputInit = gradInputInitExpanded.getResult();
-        gradInputCollapseIndices =
-            gradInputInitExpanded.getReassociationIndices();
-      }
+      Value gradInputInit =
+          isGroupedConvBwd
+              ? createZeroInitExpandedGroupsTensor(rewriter, loc,
+                                                   gradInputSizes, inputDTy, 1,
+                                                   gradInputCollapseIndices)
+              : createZeroInitTensor(rewriter, loc, gradInputSizes, inputDTy);
 
-      // Generate GenericOp.
-      SmallVector<AffineMap> indexingMaps;
-      SmallVector<IT> iteratorTypes;
-      initIndexingMapsAndIteratorTypesForDataBwd(
-          rewriter, context, isGroupedConvBwd, numSpatialDims, dilationInts,
-          indexingMaps, iteratorTypes);
-      auto genericRes =
-          createGenericOp(rewriter, loc, gradOutputSliced, weightExpanded,
-                          gradInputInit, indexingMaps, iteratorTypes)
-              .getResult(0);
+      // Create convolution for data gradient
+      auto convRes = createConvInputGradient(rewriter, loc, context,
+                                             isGroupedConvBwd, numSpatialDims,
+                                             dilationInts, gradOutputModified,
+                                             weightExpanded, gradInputInit)
+                         .getResult(0);
 
-      // Collapse [G, F/G, C/G, D] to [F, C/G, D] the result of the generic op
+      // Collapse [N, G, C/G, D] to [N, C, D] the result of the conv
       // if it is grouped.
       if (isGroupedConvBwd) {
-        genericRes = tensor::CollapseShapeOp::create(
-            rewriter, loc, input.getType(), genericRes,
-            gradInputCollapseIndices);
+        convRes = tensor::CollapseShapeOp::create(
+            rewriter, loc, input.getType(), convRes, gradInputCollapseIndices);
       }
 
       // Cast to the final result type expected by the type converter.
       newResults[0] = tensor::CastOp::create(rewriter, loc,
                                              getTypeConverter()->convertType(
                                                  op->getResult(0).getType()),
-                                             genericRes)
+                                             convRes)
                           .getResult();
     }
 
@@ -1961,32 +1995,26 @@ public:
       // shape.
       SmallVector<Value> gradWeightSizes =
           getTensorSizes(rewriter, loc, weight);
-      Value gradWeightInit =
-          createZeroInitTensor(rewriter, loc, gradWeightSizes, weightDTy);
       SmallVector<ReassociationIndices> gradWeightCollapseIndices;
-      if (isGroupedConvBwd) {
-        auto gradWeightInitExpanded = expandGroups(gradWeightInit, 0);
-        gradWeightInit = gradWeightInitExpanded.getResult();
-        gradWeightCollapseIndices =
-            gradWeightInitExpanded.getReassociationIndices();
-      }
+      Value gradWeightInit =
+          isGroupedConvBwd
+              ? createZeroInitExpandedGroupsTensor(rewriter, loc,
+                                                   gradWeightSizes, weightDTy,
+                                                   0, gradWeightCollapseIndices)
+              : createZeroInitTensor(rewriter, loc, gradWeightSizes, weightDTy);
 
-      // Generate GenericOp.
-      SmallVector<AffineMap> indexingMaps;
-      SmallVector<IT> iteratorTypes;
-      initIndexingMapsAndIteratorTypesForWeightBwd(
-          rewriter, context, isGroupedConvBwd, numSpatialDims, strideInts,
-          dilationInts, indexingMaps, iteratorTypes);
-      auto genericRes =
-          createGenericOp(rewriter, loc, paddedInput, gradOutputExpanded,
-                          gradWeightInit, indexingMaps, iteratorTypes)
-              .getResult(0);
+      // Create convolution for weight gradient
+      auto convResult = createConvWeightGradient(
+                            rewriter, loc, context, isGroupedConvBwd,
+                            numSpatialDims, strideInts, dilationInts,
+                            paddedInput, gradOutputExpanded, gradWeightInit)
+                            .getResult(0);
 
-      // Collapse [G, F/G, C/G, D] to [F, C/G, D] the result of the generic op
+      // Collapse [G, F/G, C/G, D] to [F, C/G, D] the result of the conv
       // if it is grouped.
       if (isGroupedConvBwd) {
-        genericRes = tensor::CollapseShapeOp::create(
-            rewriter, loc, weight.getType(), genericRes,
+        convResult = tensor::CollapseShapeOp::create(
+            rewriter, loc, weight.getType(), convResult,
             gradWeightCollapseIndices);
       }
 
@@ -1994,7 +2022,7 @@ public:
       newResults[1] = tensor::CastOp::create(rewriter, loc,
                                              getTypeConverter()->convertType(
                                                  op->getResult(1).getType()),
-                                             genericRes)
+                                             convResult)
                           .getResult();
     }
 
@@ -2035,121 +2063,90 @@ public:
   }
 
 private:
-  static void initIndexingMapsAndIteratorTypesForDataBwd(
-      OpBuilder &rewriter, MLIRContext *context, bool isGrouped,
-      int numSpatialDims, const SmallVector<int64_t> &dilationInts,
-      SmallVector<AffineMap> &indexingMaps, SmallVector<IT> &iteratorTypes) {
+  static linalg::GenericOp createConvInputGradient(
+      OpBuilder &rewriter, Location loc, MLIRContext *context, bool isGrouped,
+      size_t numSpatialDims, const SmallVector<int64_t> &dilationInts,
+      Value gradOutput, Value weight, Value gradInputInit) {
     // To calculate convolution backward-data, we use generic operation.
     // The generic operation is a generalization of the convolution operation
     // that can handle any number of spatial dimensions.
     // The generic operation is defined as follows:
     // ```
-    //   dLdx[n, g, c, o] = sum(dLdy[n, g, f, d0 * k + o] * w[g, f, c, k]
+    //   dLdx[n, g, c, o] = sum(dLdy[n, g, f, d * k + o] * w[g, f, c, k]
     //    for n in range(batch_size) for o in range(in_spatial_dims))
     // ```
-    // where `n` is the batch dimension, `g` is the group dimension,
-    // `c` is the input channel dimension, `f` is the output channel
-    // dimension, `o` is the input spatial dimension, `k` is the kernel
-    // dimension, `d0` is dilation. `x` is the input tensor, `dLdy` is the
-    // gradient of the output tensor. `dLdx` is the data-gradient tensor.
-    if (!isGrouped) {
-      if (numSpatialDims == 1) {
-        AffineExpr n, c, o, f, k;
-        bindDims(context, n, c, o, f, k);
-        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
-        SmallVector<AffineExpr> goExprs = {n, f, d0 * k + o};
-        SmallVector<AffineExpr> weiExprs = {f, c, k};
-        SmallVector<AffineExpr> outExprs = {n, c, o};
-        indexingMaps = {AffineMap::get(5, 0, goExprs, context),
-                        AffineMap::get(5, 0, weiExprs, context),
-                        AffineMap::get(5, 0, outExprs, context)};
-        iteratorTypes = {IT::parallel, IT::parallel, IT::parallel,
-                         IT::reduction, IT::reduction};
-      } else if (numSpatialDims == 2) {
-        AffineExpr n, c, oh, ow, f, kh, kw;
-        bindDims(context, n, c, oh, ow, f, kh, kw);
-        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
-        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
-        SmallVector<AffineExpr> goExprs = {n, f, d0 * kh + oh, d1 * kw + ow};
-        SmallVector<AffineExpr> weiExprs = {f, c, kh, kw};
-        SmallVector<AffineExpr> outExprs = {n, c, oh, ow};
-        indexingMaps = {AffineMap::get(7, 0, goExprs, context),
-                        AffineMap::get(7, 0, weiExprs, context),
-                        AffineMap::get(7, 0, outExprs, context)};
-        iteratorTypes = {IT::parallel, IT::parallel,  IT::parallel,
-                         IT::parallel, IT::reduction, IT::reduction,
-                         IT::reduction};
-      } else {
-        AffineExpr n, c, od, oh, ow, f, kd, kh, kw;
-        bindDims(context, n, c, od, oh, ow, f, kd, kh, kw);
-        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
-        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
-        AffineExpr d2 = rewriter.getAffineConstantExpr(dilationInts[2]);
-        SmallVector<AffineExpr> goExprs = {n, f, d0 * kd + od, d1 * kh + oh,
-                                           d2 * kw + ow};
-        SmallVector<AffineExpr> weiExprs = {f, c, kd, kh, kw};
-        SmallVector<AffineExpr> outExprs = {n, c, od, oh, ow};
-        indexingMaps = {AffineMap::get(9, 0, goExprs, context),
-                        AffineMap::get(9, 0, weiExprs, context),
-                        AffineMap::get(9, 0, outExprs, context)};
-        iteratorTypes = {IT::parallel,  IT::parallel,  IT::parallel,
-                         IT::parallel,  IT::parallel,  IT::reduction,
-                         IT::reduction, IT::reduction, IT::reduction};
-      }
-    } else {
-      if (numSpatialDims == 1) {
-        AffineExpr n, g, cg, o, fg, k;
-        bindDims(context, n, g, cg, o, fg, k);
-        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
-        SmallVector<AffineExpr> goExprs = {n, g, fg, d0 * k + o};
-        SmallVector<AffineExpr> weiExprs = {g, fg, cg, k};
-        SmallVector<AffineExpr> outExprs = {n, g, cg, o};
-        indexingMaps = {AffineMap::get(6, 0, goExprs, context),
-                        AffineMap::get(6, 0, weiExprs, context),
-                        AffineMap::get(6, 0, outExprs, context)};
-        iteratorTypes = {IT::parallel, IT::parallel,  IT::parallel,
-                         IT::parallel, IT::reduction, IT::reduction};
-      } else if (numSpatialDims == 2) {
-        AffineExpr n, g, cg, oh, ow, fg, kh, kw;
-        bindDims(context, n, g, cg, oh, ow, fg, kh, kw);
-        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
-        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
-        SmallVector<AffineExpr> goExprs = {n, g, fg, d0 * kh + oh,
-                                           d1 * kw + ow};
-        SmallVector<AffineExpr> weiExprs = {g, fg, cg, kh, kw};
-        SmallVector<AffineExpr> outExprs = {n, g, cg, oh, ow};
-        indexingMaps = {AffineMap::get(8, 0, goExprs, context),
-                        AffineMap::get(8, 0, weiExprs, context),
-                        AffineMap::get(8, 0, outExprs, context)};
-        iteratorTypes = {IT::parallel,  IT::parallel, IT::parallel,
-                         IT::parallel,  IT::parallel, IT::reduction,
-                         IT::reduction, IT::reduction};
-      } else {
-        AffineExpr n, g, cg, od, oh, ow, fg, kd, kh, kw;
-        bindDims(context, n, g, cg, od, oh, ow, fg, kd, kh, kw);
-        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
-        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
-        AffineExpr d2 = rewriter.getAffineConstantExpr(dilationInts[2]);
-        SmallVector<AffineExpr> goExprs = {
-            n, g, fg, d0 * kd + od, d1 * kh + oh, d2 * kw + ow};
-        SmallVector<AffineExpr> weiExprs = {g, fg, cg, kd, kh, kw};
-        SmallVector<AffineExpr> outExprs = {n, g, cg, od, oh, ow};
-        indexingMaps = {AffineMap::get(10, 0, goExprs, context),
-                        AffineMap::get(10, 0, weiExprs, context),
-                        AffineMap::get(10, 0, outExprs, context)};
-        iteratorTypes = {IT::parallel,  IT::parallel,  IT::parallel,
-                         IT::parallel,  IT::parallel,  IT::parallel,
-                         IT::reduction, IT::reduction, IT::reduction,
-                         IT::reduction};
-      }
+    // where:
+    // - `dLdx` is the data-gradient tensor.
+    // - `dLdy` is the output-gradient tensor which is padded if
+    //    there are unit strides, or scattered otherwise.
+    // - `w` is the weight tensor flipped along spatial dims.
+    // - `n` is the batch dimension.
+    // - `g` is the group dimension.
+    // - `c` is the input channel dimension.
+    // - `f` is the output channel dimension.
+    // - `o` is the input spatial dimension.
+    // - `k` is the kernel dimension.
+    // - `d` is dilations.
+
+    // Iterators: n, c, f, g, o, k
+    int64_t numIterators =
+        3 + static_cast<int64_t>(isGrouped) + numSpatialDims * 2;
+
+    // Bind dimensions in the following order: n, g, c, o, f, k
+    SmallVector<AffineExpr> dims(numIterators);
+    bindDimsList(context, MutableArrayRef{dims});
+
+    auto n = [&]() { return dims[0]; };
+    auto g = [&]() {
+      if (!isGrouped)
+        llvm_unreachable("g() called for non-grouped convolution.");
+      return dims[1];
+    };
+    auto c = [&]() { return dims[1 + static_cast<int64_t>(isGrouped)]; };
+    auto o = [&](size_t i) {
+      return dims[1 + static_cast<int64_t>(isGrouped) + 1 + i];
+    };
+    auto f = [&]() {
+      return dims[1 + static_cast<int64_t>(isGrouped) + 1 + numSpatialDims];
+    };
+    auto k = [&](size_t i) {
+      return dims[1 + static_cast<int64_t>(isGrouped) + 1 + numSpatialDims + 1 +
+                  i];
+    };
+
+    SmallVector<AffineExpr> lhsExprs =
+        isGrouped ? SmallVector<AffineExpr>{n(), g(), f()}
+                  : SmallVector<AffineExpr>{n(), f()};
+    SmallVector<AffineExpr> rhsExprs =
+        isGrouped ? SmallVector<AffineExpr>{g(), f(), c()}
+                  : SmallVector<AffineExpr>{f(), c()};
+    SmallVector<AffineExpr> outExprs =
+        isGrouped ? SmallVector<AffineExpr>{n(), g(), c()}
+                  : SmallVector<AffineExpr>{n(), c()};
+    for (size_t i = 0; i < numSpatialDims; i++) {
+      AffineExpr d = rewriter.getAffineConstantExpr(dilationInts[i]);
+      lhsExprs.push_back(d * k(i) + o(i));
+      rhsExprs.push_back(k(i));
+      outExprs.push_back(o(i));
     }
+
+    SmallVector<AffineMap> indexingMaps = {
+        AffineMap::get(numIterators, 0, lhsExprs, context),
+        AffineMap::get(numIterators, 0, rhsExprs, context),
+        AffineMap::get(numIterators, 0, outExprs, context)};
+    SmallVector<IT> iteratorTypes = SmallVector<IT>(numIterators, IT::parallel);
+    std::fill(iteratorTypes.rbegin(),
+              iteratorTypes.rbegin() + (numSpatialDims + 1), IT::reduction);
+
+    return createConvAsGenericOp(rewriter, loc, gradOutput, weight,
+                                 gradInputInit, indexingMaps, iteratorTypes);
   }
 
-  static void initIndexingMapsAndIteratorTypesForWeightBwd(
-      OpBuilder &rewriter, MLIRContext *context, bool isGrouped,
-      int numSpatialDims, const SmallVector<int64_t> &strideInts,
-      const SmallVector<int64_t> &dilationInts,
-      SmallVector<AffineMap> &indexingMaps, SmallVector<IT> &iteratorTypes) {
+  static linalg::GenericOp createConvWeightGradient(
+      OpBuilder &rewriter, Location loc, MLIRContext *context, bool isGrouped,
+      size_t numSpatialDims, const SmallVector<int64_t> &strideInts,
+      const SmallVector<int64_t> &dilationInts, Value input, Value gradOutput,
+      Value gradWeightInit) {
     // To calculate convolution backward-weight, we use generic operation.
     // The generic operation is a generalization of the convolution operation
     // that can handle any number of spatial dimensions.
@@ -2158,122 +2155,75 @@ private:
     //   dLdw[f, g, c, k] = sum(x[n, g, c, d0 * k + s0 * o] * dLdy[n, g, f, o]
     //   for n in range(batch_size) for o in range(output_spatial_dims))
     // ```
-    // where `n` is the batch dimension, `g` is the group dimension,
-    // `c` is the input channel dimension, `f` is the output channel
-    // dimension, `o` is the output spatial dimension, `k` is the kernel
-    // dimension, `d0` is dilation and `s0` is stride. `x` is the input
-    // tensor, `dLdy` is the gradient of the output tensor. `dLdw` is the
-    // weight-gradient tensor.
-    if (!isGrouped) {
-      if (numSpatialDims == 1) {
-        AffineExpr f, c, k, n, o;
-        bindDims(context, f, c, k, n, o);
-        AffineExpr s0 = rewriter.getAffineConstantExpr(strideInts[0]);
-        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
-        SmallVector<AffineExpr> inExprs = {n, c, d0 * k + s0 * o};
-        SmallVector<AffineExpr> goExprs = {n, f, o};
-        SmallVector<AffineExpr> outExprs = {f, c, k};
-        indexingMaps = {AffineMap::get(5, 0, inExprs, context),
-                        AffineMap::get(5, 0, goExprs, context),
-                        AffineMap::get(5, 0, outExprs, context)};
-        iteratorTypes = {IT::parallel, IT::parallel, IT::parallel,
-                         IT::reduction, IT::reduction};
-      } else if (numSpatialDims == 2) {
-        AffineExpr f, c, kh, kw, n, oh, ow;
-        bindDims(context, f, c, kh, kw, n, oh, ow);
-        AffineExpr s0 = rewriter.getAffineConstantExpr(strideInts[0]);
-        AffineExpr s1 = rewriter.getAffineConstantExpr(strideInts[1]);
-        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
-        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
-        SmallVector<AffineExpr> inExprs = {n, c, d0 * kh + s0 * oh,
-                                           d1 * kw + s1 * ow};
-        SmallVector<AffineExpr> goExprs = {n, f, oh, ow};
-        SmallVector<AffineExpr> outExprs = {f, c, kh, kw};
-        indexingMaps = {AffineMap::get(7, 0, inExprs, context),
-                        AffineMap::get(7, 0, goExprs, context),
-                        AffineMap::get(7, 0, outExprs, context)};
-        iteratorTypes = {IT::parallel, IT::parallel,  IT::parallel,
-                         IT::parallel, IT::reduction, IT::reduction,
-                         IT::reduction};
-      } else {
-        AffineExpr f, c, kd, kh, kw, n, od, oh, ow;
-        bindDims(context, f, c, kd, kh, kw, n, od, oh, ow);
-        AffineExpr s0 = rewriter.getAffineConstantExpr(strideInts[0]);
-        AffineExpr s1 = rewriter.getAffineConstantExpr(strideInts[1]);
-        AffineExpr s2 = rewriter.getAffineConstantExpr(strideInts[2]);
-        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
-        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
-        AffineExpr d2 = rewriter.getAffineConstantExpr(dilationInts[2]);
-        SmallVector<AffineExpr> inExprs = {
-            n, c, d0 * kd + s0 * od, d1 * kh + s1 * oh, d2 * kw + s2 * ow};
-        SmallVector<AffineExpr> goExprs = {n, f, od, oh, ow};
-        SmallVector<AffineExpr> outExprs = {f, c, kd, kh, kw};
-        indexingMaps = {AffineMap::get(9, 0, inExprs, context),
-                        AffineMap::get(9, 0, goExprs, context),
-                        AffineMap::get(9, 0, outExprs, context)};
-        iteratorTypes = {IT::parallel,  IT::parallel,  IT::parallel,
-                         IT::parallel,  IT::parallel,  IT::reduction,
-                         IT::reduction, IT::reduction, IT::reduction};
-      }
-    } else {
-      if (numSpatialDims == 1) {
-        AffineExpr g, fg, cg, k, n, o;
-        bindDims(context, g, fg, cg, k, n, o);
-        AffineExpr s0 = rewriter.getAffineConstantExpr(strideInts[0]);
-        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
-        SmallVector<AffineExpr> inExprs = {n, g, cg, d0 * k + s0 * o};
-        SmallVector<AffineExpr> goExprs = {n, g, fg, o};
-        SmallVector<AffineExpr> outExprs = {g, fg, cg, k};
-        indexingMaps = {AffineMap::get(6, 0, inExprs, context),
-                        AffineMap::get(6, 0, goExprs, context),
-                        AffineMap::get(6, 0, outExprs, context)};
-        iteratorTypes = {IT::parallel, IT::parallel,  IT::parallel,
-                         IT::parallel, IT::reduction, IT::reduction};
-      } else if (numSpatialDims == 2) {
-        AffineExpr g, fg, cg, kh, kw, n, oh, ow;
-        bindDims(context, g, fg, cg, kh, kw, n, oh, ow);
-        AffineExpr s0 = rewriter.getAffineConstantExpr(strideInts[0]);
-        AffineExpr s1 = rewriter.getAffineConstantExpr(strideInts[1]);
-        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
-        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
-        SmallVector<AffineExpr> inExprs = {n, g, cg, d0 * kh + s0 * oh,
-                                           d1 * kw + s1 * ow};
-        SmallVector<AffineExpr> goExprs = {n, g, fg, oh, ow};
-        SmallVector<AffineExpr> outExprs = {g, fg, cg, kh, kw};
-        indexingMaps = {AffineMap::get(8, 0, inExprs, context),
-                        AffineMap::get(8, 0, goExprs, context),
-                        AffineMap::get(8, 0, outExprs, context)};
-        iteratorTypes = {IT::parallel,  IT::parallel, IT::parallel,
-                         IT::parallel,  IT::parallel, IT::reduction,
-                         IT::reduction, IT::reduction};
-      } else {
-        AffineExpr g, fg, cg, kd, kh, kw, n, od, oh, ow;
-        bindDims(context, g, fg, cg, kd, kh, kw, n, od, oh, ow);
-        AffineExpr s0 = rewriter.getAffineConstantExpr(strideInts[0]);
-        AffineExpr s1 = rewriter.getAffineConstantExpr(strideInts[1]);
-        AffineExpr s2 = rewriter.getAffineConstantExpr(strideInts[2]);
-        AffineExpr d0 = rewriter.getAffineConstantExpr(dilationInts[0]);
-        AffineExpr d1 = rewriter.getAffineConstantExpr(dilationInts[1]);
-        AffineExpr d2 = rewriter.getAffineConstantExpr(dilationInts[2]);
-        SmallVector<AffineExpr> inExprs = {
-            n, g, cg, d0 * kd + s0 * od, d1 * kh + s1 * oh, d2 * kw + s2 * ow};
-        SmallVector<AffineExpr> goExprs = {n, g, fg, od, oh, ow};
-        SmallVector<AffineExpr> outExprs = {g, fg, cg, kd, kh, kw};
-        indexingMaps = {AffineMap::get(10, 0, inExprs, context),
-                        AffineMap::get(10, 0, goExprs, context),
-                        AffineMap::get(10, 0, outExprs, context)};
-        iteratorTypes = {IT::parallel,  IT::parallel,  IT::parallel,
-                         IT::parallel,  IT::parallel,  IT::parallel,
-                         IT::reduction, IT::reduction, IT::reduction,
-                         IT::reduction};
-      }
+    // - `dLdw` is the weight-gradient tensor.
+    // - `x` is the padded input tensor.
+    // - `dLdy` is the output-gradient tensor.
+    // - `n` is the batch dimension.
+    // - `g` is the group dimension.
+    // - `c` is the input channel dimension.
+    // - `f` is the output channel dimension.
+    // - `o` is the input spatial dimension.
+    // - `k` is the kernel dimension.
+    // - `d` and `s` are dilations and strides accordingly.
+
+    // Iterators: n, c, f, g, o, k
+    int64_t numIterators =
+        3 + static_cast<int64_t>(isGrouped) + numSpatialDims * 2;
+
+    // Bind dimensions in the following order: g, f, c, k, n, o
+    SmallVector<AffineExpr> dims(numIterators);
+    bindDimsList(context, MutableArrayRef{dims});
+
+    auto g = [&]() {
+      if (!isGrouped)
+        llvm_unreachable("g() called for non-grouped convolution.");
+      return dims[0];
+    };
+    auto f = [&]() { return dims[static_cast<int64_t>(isGrouped)]; };
+    auto c = [&]() { return dims[static_cast<int64_t>(isGrouped) + 1]; };
+    auto k = [&](size_t i) {
+      return dims[static_cast<int64_t>(isGrouped) + 2 + i];
+    };
+    auto n = [&]() {
+      return dims[static_cast<int64_t>(isGrouped) + 2 + numSpatialDims];
+    };
+    auto o = [&](size_t i) {
+      return dims[static_cast<int64_t>(isGrouped) + 2 + numSpatialDims + 1 + i];
+    };
+
+    SmallVector<AffineExpr> lhsExprs =
+        isGrouped ? SmallVector<AffineExpr>{n(), g(), c()}
+                  : SmallVector<AffineExpr>{n(), c()};
+    SmallVector<AffineExpr> rhsExprs =
+        isGrouped ? SmallVector<AffineExpr>{n(), g(), f()}
+                  : SmallVector<AffineExpr>{n(), f()};
+    SmallVector<AffineExpr> outExprs =
+        isGrouped ? SmallVector<AffineExpr>{g(), f(), c()}
+                  : SmallVector<AffineExpr>{f(), c()};
+    for (size_t i = 0; i < numSpatialDims; i++) {
+      AffineExpr d = rewriter.getAffineConstantExpr(dilationInts[i]);
+      AffineExpr s = rewriter.getAffineConstantExpr(strideInts[i]);
+      lhsExprs.push_back(d * k(i) + s * o(i));
+      rhsExprs.push_back(o(i));
+      outExprs.push_back(k(i));
     }
+
+    SmallVector<AffineMap> indexingMaps = {
+        AffineMap::get(numIterators, 0, lhsExprs, context),
+        AffineMap::get(numIterators, 0, rhsExprs, context),
+        AffineMap::get(numIterators, 0, outExprs, context)};
+    SmallVector<IT> iteratorTypes = SmallVector<IT>(numIterators, IT::parallel);
+    std::fill(iteratorTypes.rbegin(),
+              iteratorTypes.rbegin() + (numSpatialDims + 1), IT::reduction);
+
+    return createConvAsGenericOp(rewriter, loc, input, gradOutput,
+                                 gradWeightInit, indexingMaps, iteratorTypes);
   }
 
   static linalg::GenericOp
-  createGenericOp(OpBuilder &b, Location loc, Value in0, Value in1, Value out,
-                  const SmallVector<AffineMap> &indexingMaps,
-                  const SmallVector<IT> &iteratorTypes) {
+  createConvAsGenericOp(OpBuilder &b, Location loc, Value in0, Value in1,
+                        Value out, const SmallVector<AffineMap> &indexingMaps,
+                        const SmallVector<IT> &iteratorTypes) {
     return linalg::GenericOp::create(
         b, loc, out.getType(), ValueRange{in0, in1}, out, indexingMaps,
         iteratorTypes, [&](OpBuilder &b, Location loc, ValueRange args) {
