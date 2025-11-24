@@ -4722,122 +4722,6 @@ OpFoldResult Aten_ShapeAsTensorOp::fold(FoldAdaptor adaptor) {
   return DenseElementsAttr::get(attrty, attrs);
 }
 
-namespace {
-class CanonicalizeConvolutionWithSingleIntTuple
-    : public OpRewritePattern<AtenConvolutionOp> {
-public:
-  using OpRewritePattern<AtenConvolutionOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(AtenConvolutionOp op,
-                                PatternRewriter &rewriter) const override {
-
-    auto weight = op.getWeight();
-    auto weightType = dyn_cast<ValueTensorType>(weight.getType());
-
-    if (!weightType) {
-      return rewriter.notifyMatchFailure(op, "weight is not a vtensor");
-    }
-    auto optionalSizes = weightType.getOptionalSizes();
-    if (!optionalSizes.has_value()) {
-      return rewriter.notifyMatchFailure(op,
-                                         "unranked weight tensor unsupported!");
-    }
-
-    // The rank is the size of the dimensions array
-    int64_t weightRank = optionalSizes.value().size();
-
-    // We canonicalize Rank 4 (2D Conv) or Rank 5 (3D Conv).
-    if (weightRank < 4 || weightRank > 5) {
-      return rewriter.notifyMatchFailure(
-          op, "unsupported weight rank (must be 4 or 5)");
-    }
-    int64_t requiredSpatialDims = weightRank - 2;
-
-    // Validate stride, padding, output_padding, and dilation are constant
-    // lists.
-    SmallVector<int64_t> strideInts;
-    if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts))) {
-      return rewriter.notifyMatchFailure(op,
-                                         "non-const int stride unsupported!");
-    }
-    SmallVector<int64_t> paddingInts;
-    if (!matchPattern(op.getPadding(),
-                      m_TorchListOfConstantInts(paddingInts))) {
-      return rewriter.notifyMatchFailure(op,
-                                         "non-const int padding unsupported!");
-    }
-    SmallVector<int64_t> outputPaddingInts;
-    if (!matchPattern(op.getOutputPadding(),
-                      m_TorchListOfConstantInts(outputPaddingInts))) {
-      return rewriter.notifyMatchFailure(
-          op, "non-const int output_padding unsupported!");
-    }
-    SmallVector<int64_t> dilationInts;
-    if (!matchPattern(op.getDilation(),
-                      m_TorchListOfConstantInts(dilationInts))) {
-      return rewriter.notifyMatchFailure(op,
-                                         "non-const int dilation unsupported!");
-    }
-
-    // Canonicalization Logic: Only rewrite if padding provided is 1 element
-    // but the convolution requires 2 or 3 elements.
-    if (strideInts.size() == static_cast<size_t>(requiredSpatialDims)) {
-      return rewriter.notifyMatchFailure(op,
-                                         "stride is already fully specified");
-    }
-    if (paddingInts.size() == static_cast<size_t>(requiredSpatialDims)) {
-      return rewriter.notifyMatchFailure(op,
-                                         "padding is already fully specified");
-    }
-    if (outputPaddingInts.size() == static_cast<size_t>(requiredSpatialDims)) {
-      return rewriter.notifyMatchFailure(
-          op, "output_padding is already fully specified");
-    }
-    if (dilationInts.size() == static_cast<size_t>(requiredSpatialDims)) {
-      return rewriter.notifyMatchFailure(op,
-                                         "dialtion is already fully specified");
-    }
-
-    // Construct the new Padding List
-    // If user provided padding=[1], and we need 2 or 3 dims, we create
-    // padding=[1, 1] or padding = [1,1,1]
-    int64_t padVal = paddingInts[0];
-    Location loc = op.getLoc();
-
-    SmallVector<Value> newPaddingValues;
-    Value paddingConst = ConstantIntOp::create(
-        rewriter, loc, rewriter.getI64IntegerAttr(padVal));
-
-    for (int i = 0; i < requiredSpatialDims; ++i) {
-      newPaddingValues.push_back(paddingConst);
-    }
-
-    // Create the list construct op
-    auto newListOp = PrimListConstructOp::create(
-        rewriter, loc, Torch::ListType::get(rewriter.getType<Torch::IntType>()),
-        newPaddingValues);
-
-    // Replace the Op
-    // We create a new convolution op, keeping all operands the same except
-    // padding
-    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
-        op, op.getType(), op.getInput(), op.getWeight(), op.getBias(),
-        op.getStride(), newListOp.getResult(), op.getDilation(),
-        op.getTransposed(), op.getOutputPadding(), op.getGroups());
-
-    return success();
-  }
-};
-} // namespace
-
-//===----------------------------------------------------------------------===//
-// AtenConvolutionOp Registration
-//===----------------------------------------------------------------------===//
-void AtenConvolutionOp::getCanonicalizationPatterns(RewritePatternSet &results,
-                                                    MLIRContext *context) {
-  results.add<CanonicalizeConvolutionWithSingleIntTuple>(context);
-}
-
 //===----------------------------------------------------------------------===//
 // AtenIntTensorOp
 //===----------------------------------------------------------------------===//
@@ -6013,6 +5897,138 @@ void AtenMaxPool2dOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 void AtenMaxPool3dOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                   MLIRContext *context) {
   patterns.add<CanonicalizeMaxPoolWithSingleIntTuple<AtenMaxPool3dOp>>(context);
+}
+
+namespace {
+class CanonicalizeConvolutionWithSingleIntTuple
+    : public OpRewritePattern<AtenConvolutionOp> {
+public:
+  using OpRewritePattern<AtenConvolutionOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AtenConvolutionOp op,
+                                PatternRewriter &rewriter) const override {
+
+    auto weight = op.getWeight();
+    auto weightType = dyn_cast<ValueTensorType>(weight.getType());
+
+    if (!weightType) {
+      return rewriter.notifyMatchFailure(op, "weight is not a vtensor");
+    }
+    auto optionalSizes = weightType.getOptionalSizes();
+    if (!optionalSizes.has_value()) {
+      return rewriter.notifyMatchFailure(op,
+                                         "unranked weight tensor unsupported!");
+    }
+
+    // The rank is the size of the dimensions array
+    int64_t weightRank = optionalSizes.value().size();
+
+    // We canonicalize Rank 4 (2D Conv) or Rank 5 (3D Conv).
+    if (weightRank < 4 || weightRank > 5) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported weight rank (must be 4 or 5)");
+    }
+    int requiredSpatialDims = weightRank - 2;
+
+    // Validate stride, padding, output_padding, and dilation are constant
+    // lists.
+    SmallVector<int64_t, 3> strideInts;
+    if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const int stride unsupported!");
+    }
+    SmallVector<int64_t, 3> paddingInts;
+    if (!matchPattern(op.getPadding(),
+                      m_TorchListOfConstantInts(paddingInts))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const int padding unsupported!");
+    }
+    SmallVector<int64_t, 3> outputPaddingInts;
+    if (!matchPattern(op.getOutputPadding(),
+                      m_TorchListOfConstantInts(outputPaddingInts))) {
+      return rewriter.notifyMatchFailure(
+          op, "non-const int output_padding unsupported!");
+    }
+    SmallVector<int64_t, 3> dilationInts;
+    if (!matchPattern(op.getDilation(),
+                      m_TorchListOfConstantInts(dilationInts))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const int dilation unsupported!");
+    }
+
+    // Canonicalization Logic: Only rewrite if padding provided is 1 element
+    // but the convolution requires 2 or 3 elements.
+    auto isCanonical = [requiredSpatialDims](ArrayRef<int64_t> param) {
+      return param.size() == static_cast<size_t>(requiredSpatialDims);
+    };
+
+    if (isCanonical(strideInts) && isCanonical(paddingInts) &&
+        isCanonical(dilationInts) && isCanonical(outputPaddingInts)) {
+      return rewriter.notifyMatchFailure(
+          op, "stride, padding, dialtion and outputPadding is already fully "
+              "specified");
+    }
+
+    expand(strideInts, requiredSpatialDims);
+    expand(paddingInts, requiredSpatialDims);
+    expand(dilationInts, requiredSpatialDims);
+    expand(outputPaddingInts, requiredSpatialDims);
+
+    // Construct the new List
+    // For example: If user provided padding=[1], and we need 2 or 3 dims, we
+    // create padding=[1, 1] or padding = [1,1,1]
+    Location loc = op.getLoc();
+    SmallVector<Value> cstPadding, cstStrides, cstDilation, cstOutputPadding;
+
+    for (auto dim : llvm::seq<int>(0, requiredSpatialDims)) {
+
+      cstStrides.push_back(Torch::ConstantIntOp::create(
+          rewriter, loc, rewriter.getI64IntegerAttr(strideInts[dim])));
+
+      cstPadding.push_back(Torch::ConstantIntOp::create(
+          rewriter, loc, rewriter.getI64IntegerAttr(paddingInts[dim])));
+
+      cstDilation.push_back(Torch::ConstantIntOp::create(
+          rewriter, loc, rewriter.getI64IntegerAttr(dilationInts[dim])));
+
+      cstOutputPadding.push_back(Torch::ConstantIntOp::create(
+          rewriter, loc, rewriter.getI64IntegerAttr(outputPaddingInts[dim])));
+    }
+
+    auto targetListType =
+        Torch::ListType::get(Torch::IntType::get(op->getContext()));
+
+    // Create the list construct op
+    auto stridesList = Torch::PrimListConstructOp::create(
+        rewriter, loc, targetListType, cstStrides);
+    auto paddingList = Torch::PrimListConstructOp::create(
+        rewriter, loc, targetListType, cstPadding);
+    auto dilationsList = Torch::PrimListConstructOp::create(
+        rewriter, loc, targetListType, cstDilation);
+    auto outputPaddingList = Torch::PrimListConstructOp::create(
+        rewriter, loc, targetListType, cstOutputPadding);
+
+    // Replace the Op
+    // We create a new convolution op, keeping all operands the same except
+    // stride, padding,dilation, and output_padding which are now fully
+    // specified
+    rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
+        op, op.getType(), op.getInput(), op.getWeight(), op.getBias(),
+        stridesList.getResult(), paddingList.getResult(),
+        dilationsList.getResult(), op.getTransposed(),
+        outputPaddingList.getResult(), op.getGroups());
+
+    return success();
+  }
+};
+} // namespace
+
+//===----------------------------------------------------------------------===//
+// AtenConvolutionOp Registration
+//===----------------------------------------------------------------------===//
+void AtenConvolutionOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                    MLIRContext *context) {
+  results.add<CanonicalizeConvolutionWithSingleIntTuple>(context);
 }
 
 //===----------------------------------------------------------------------===//
