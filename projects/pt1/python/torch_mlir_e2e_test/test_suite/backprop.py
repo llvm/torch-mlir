@@ -292,10 +292,15 @@ class ConvolutionBackwardModule2DStridedPaddedDilatedGrouped(torch.nn.Module):
         )
 
 
-@register_test_case(module_factory=lambda: ConvolutionBackwardModule2DStridedPaddedDilatedGrouped())
+@register_test_case(
+    module_factory=lambda: ConvolutionBackwardModule2DStridedPaddedDilatedGrouped()
+)
 def ConvolutionBackwardModule2DStridedPaddedDilatedGrouped_basic(module, tu: TestUtils):
     with torch.backends.mkldnn.flags(enabled=False):
-        module.forward(tu.rand(2, 16, 32, 32), tu.rand(2, 128, 64, 64), tu.rand(16, 32, 2, 2))
+        module.forward(
+            tu.rand(2, 16, 32, 32), tu.rand(2, 128, 64, 64), tu.rand(16, 32, 2, 2)
+        )
+
 
 # ==============================================================================
 
