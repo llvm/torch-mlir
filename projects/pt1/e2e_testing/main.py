@@ -89,9 +89,9 @@ def _get_argparse():
         default="fx_importer",
         help=f"""
 Meaning of options:
-"linalg": run through torch-mlir"s default Linalg-on-Tensors backend.
-"tosa": run through torch-mlir"s default TOSA backend.
-"stablehlo": run through torch-mlir"s default Stablehlo backend.
+"linalg": run the model through JIT importer frontend with torchscript (deprecated) and execute the graph using Linalg-on-Tensors backend.
+"tosa": run the model through JIT importer frontend with torchscript (deprecated) and execute the graph using TOSA backend.
+"stablehlo": run the model through JIT importer frontend with torchscript (deprecated) and execute the graph using Stablehlo backend.
 "native_torch": run the torch.nn.Module as-is without compiling (useful for verifying model is deterministic; ALL tests should pass in this configuration).
 "torchscript": compile the model to a torch.jit.ScriptModule, and then run that as-is (useful for verifying TorchScript is modeling the program correctly).
 "lazy_tensor_core": run the model through the Lazy Tensor Core frontend and execute the traced graph.
