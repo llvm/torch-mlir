@@ -384,7 +384,7 @@ def test_flex_attention_noblock_return_lse():
                 return_aux=AuxRequest(lse=True),
                 kernel_options={},
             )
-            # Note: Returning max scores is not supported on CPU, and will raise a 
+            # Note: Returning max scores is not supported on CPU, and will raise a
             # NotImplementedError if max_scores is specified in the AuxRequest input.
             assert isinstance(outputs[1], AuxOutput) and outputs[1].max_scores == None
             return outputs[0]
