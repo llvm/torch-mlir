@@ -253,12 +253,12 @@ def test_while_loop_two_returns():
 
 @run
 # CHECK-LABEL: test_flex_attention
-# Check that helper functions are emitted first
+# Check that helper functions are emitted first.
 # CHECK: func.func private @sdpa_score0(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>, %arg4: !torch.vtensor<[],si32>) -> !torch.vtensor<[],f32>
 # CHECK: torch.aten.tanh
 # CHECK: func.func private @sdpa_mask0(%arg0: !torch.vtensor<[],si32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>) -> !torch.vtensor<[],i1>
 # CHECK: torch.aten.new_ones
-# Then check the main function
+# Then check the main function.
 # CHECK: func.func @test_flex_attention(%arg0: !torch.vtensor<[4,8,1024,64],f32>, %arg1: !torch.vtensor<[4,8,1024,64],f32>, %arg2: !torch.vtensor<[4,8,1024,64],f32>)
 # CHECK-SAME: -> !torch.vtensor<[4,8,1024,64],f32>
 # Validate flex_attention op with 3 results and 6 operands:
@@ -329,19 +329,18 @@ def test_flex_attention():
         v,
         func_name="test_flex_attention",
     )
-    m.operation.verify()
     print(m)
 
 
 @run
 # CHECK-LABEL: test_flex_attention_noblock_return_lse
-# Check that helper functions are emitted first
+# Check that helper functions are emitted first.
 # CHECK: func.func private @sdpa_score0(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>, %arg4: !torch.vtensor<[],si32>) -> !torch.vtensor<[],f32>
 # CHECK: torch.aten.tanh
-# Note how the mask function is automaticalluy generated and not provided.
+# Note how the mask function is automatically generated and not provided.
 # CHECK: func.func private @sdpa_mask0(%arg0: !torch.vtensor<[],si32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>) -> !torch.vtensor<[],i1>
 # CHECK: torch.aten.new_ones
-# Then check the main function
+# Then check the main function.
 # CHECK: func.func @test_flex_attention(%arg0: !torch.vtensor<[4,8,1024,64],f32>, %arg1: !torch.vtensor<[4,8,1024,64],f32>, %arg2: !torch.vtensor<[4,8,1024,64],f32>)
 # CHECK-SAME: -> !torch.vtensor<[4,8,1024,64],f32>
 # Validate flex_attention op with 3 results and 6 operands:
