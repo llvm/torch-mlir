@@ -29,6 +29,7 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "int[]": "AnyTorchListOfTorchIntType",
     "int?": "AnyTorchOptionalIntType",
     "int[]?": "AnyTorchOptionalListOfTorchIntType",
+    "SymInt": "Torch_IntType",
     "bool": "Torch_BoolType",
     "bool[]": "AnyTorchListOfTorchBoolType",
     "bool?": "AnyTorchOptionalBoolType",
@@ -1087,8 +1088,13 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::upsample_bilinear2d : (Tensor, int[], bool, float?, float?) -> (Tensor)"
     )
     emit("aten::upsample_bilinear2d.vec : (Tensor, int[]?, bool, float[]?) -> (Tensor)")
+
+    # Attention ops.
     emit(
         "aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?, bool) -> (Tensor)"
+    )
+    emit(
+        "aten::_scaled_dot_product_flash_attention(Tensor, Tensor, Tensor, float, bool, bool, float?) -> (Tensor, Tensor, Tensor, Tensor, SymInt, SymInt, Tensor, Tensor, Tensor)"
     )
     emit("aten::grid_sampler : (Tensor, Tensor, int, int, bool) -> (Tensor)")
     emit(
