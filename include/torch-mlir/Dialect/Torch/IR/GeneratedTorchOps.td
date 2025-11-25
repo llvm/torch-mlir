@@ -7119,6 +7119,7 @@ def Torch_AtenConvolutionOp : Torch_Op<"aten.convolution", [
       printDefaultTorchOp(printer, *this, 9, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_Aten_ConvolutionOp : Torch_Op<"aten._convolution", [
