@@ -1506,6 +1506,7 @@ def Torch_HigherOrderFlexAttentionOp : Torch_Op<"hop_flex_attention", [
       printDefaultTorchOp(printer, *this, 6, 3);
     }
   }];
+  let hasVerifier = 1;
 }
 
 #endif // TORCH_OPS
