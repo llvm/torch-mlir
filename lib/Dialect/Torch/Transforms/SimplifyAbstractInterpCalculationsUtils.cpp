@@ -55,8 +55,9 @@ public:
     SmallVector<Value> indices;
     for (int64_t i = 0; i < maxTripCount; i++) {
       // TODO: Add convenience builder.
-      indices.push_back(rewriter.create<ConstantIntOp>(
-          loc, rewriter.getIntegerAttr(IntegerType::get(context, 64), i)));
+      indices.push_back(ConstantIntOp::create(
+          rewriter, loc,
+          rewriter.getIntegerAttr(IntegerType::get(context, 64), i)));
     }
     Block *beforeBlock = op->getBlock();
     Block *afterBlock = rewriter.splitBlock(op->getBlock(), op->getIterator());
@@ -211,30 +212,33 @@ public:
       return rewriter.notifyMatchFailure(op, "No new literal created");
 
     // Rewrite all users to use the appropriate list literals.
-    Value latestLiteral = rewriter.create<PrimListConstructOp>(
-        op->getLoc(), op.getType(), op->getOperands());
+    Value latestLiteral = PrimListConstructOp::create(
+        rewriter, op->getLoc(), op.getType(), op->getOperands());
     int nextLiteral = 0;
     for (Operation *user : usersToInterpret) {
       if (auto append = dyn_cast<AtenAppendTOp>(user)) {
         rewriter.setInsertionPoint(append);
-        latestLiteral = rewriter.create<PrimListConstructOp>(
-            append->getLoc(), op.getType(), listLiterals[nextLiteral++]);
+        latestLiteral = PrimListConstructOp::create(
+            rewriter, append->getLoc(), op.getType(),
+            listLiterals[nextLiteral++]);
         if (append.getSelf() == op)
           rewriter.eraseOp(append);
         continue;
       }
       if (auto insert = dyn_cast<AtenInsertTOp>(user)) {
         rewriter.setInsertionPoint(insert);
-        latestLiteral = rewriter.create<PrimListConstructOp>(
-            insert->getLoc(), op.getType(), listLiterals[nextLiteral++]);
+        latestLiteral = PrimListConstructOp::create(
+            rewriter, insert->getLoc(), op.getType(),
+            listLiterals[nextLiteral++]);
         if (insert.getSelf() == op)
           rewriter.eraseOp(insert);
         continue;
       }
       if (auto setItem = dyn_cast<Aten_SetItemTOp>(user)) {
         rewriter.setInsertionPoint(setItem);
-        latestLiteral = rewriter.create<PrimListConstructOp>(
-            setItem->getLoc(), op.getType(), listLiterals[nextLiteral++]);
+        latestLiteral = PrimListConstructOp::create(
+            rewriter, setItem->getLoc(), op.getType(),
+            listLiterals[nextLiteral++]);
         if (setItem.getL() == op)
           rewriter.eraseOp(setItem);
         continue;
@@ -295,11 +299,11 @@ LogicalResult Torch::updateCalculateOpResultTypes(Operation *calculateOp,
     if (!originalTypedValue) {
       rewriter.setInsertionPointAfter(calculateOp);
       if (isa<BaseTensorType>(originalResultType)) {
-        originalTypedValue = rewriter.create<TensorStaticInfoCastOp>(
-            loc, originalResultType, result);
+        originalTypedValue = TensorStaticInfoCastOp::create(
+            rewriter, loc, originalResultType, result);
       } else if (isa<Torch::NumberType>(originalResultType)) {
         originalTypedValue =
-            rewriter.create<DerefineOp>(loc, originalResultType, result);
+            DerefineOp::create(rewriter, loc, originalResultType, result);
       } else {
         return rewriter.notifyMatchFailure(
             calculateOp, "Unimplemented: Expected result type to "
@@ -326,10 +330,10 @@ LogicalResult Torch::updateCalculateOpResultTypes(Operation *calculateOp,
     rewriter.setInsertionPoint(yieldValues);
     if (isa<BaseTensorType>(updatedType)) {
       newYieldedValue =
-          rewriter.create<TensorStaticInfoCastOp>(loc, updatedType, def);
+          TensorStaticInfoCastOp::create(rewriter, loc, updatedType, def);
     } else {
       newYieldedValue =
-          rewriter.create<PrimUncheckedCastOp>(loc, updatedType, def);
+          PrimUncheckedCastOp::create(rewriter, loc, updatedType, def);
     }
   }
   use.set(newYieldedValue);

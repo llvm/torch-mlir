@@ -7,9 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
 #include "ReifyAbstractInterpCalculationsUtils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -18,6 +18,11 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DECL_REDUCEOPVARIANTS
+#define GEN_PASS_DEF_REDUCEOPVARIANTS
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 // Create an overwrite in a manner that preserves the
 // `OverwriteTensorContentsOp` invariant that both arguments
@@ -30,11 +35,11 @@ static void createOverwriteTensorContents(PatternRewriter &rewriter,
       dyn_cast<NonValueTensorType>(overwrittenTensor.getType())
           .getWithValueSemantics();
   if (overwriterTensorType != overwrittenTensorType) {
-    overwriterTensor = rewriter.create<TensorStaticInfoCastOp>(
-        loc, overwrittenTensorType, overwriterTensor);
+    overwriterTensor = TensorStaticInfoCastOp::create(
+        rewriter, loc, overwrittenTensorType, overwriterTensor);
   }
-  rewriter.create<OverwriteTensorContentsOp>(loc, overwriterTensor,
-                                             overwrittenTensor);
+  OverwriteTensorContentsOp::create(rewriter, loc, overwriterTensor,
+                                    overwrittenTensor);
 }
 
 static Type getContainerOrTensorTypeWithValueSemantics(Type type) {
@@ -93,8 +98,8 @@ public:
     for (OpOperand &opOperand : op->getOpOperands()) {
       Type operandType = opOperand.get().getType();
       if (isa<NonValueTensorType>(operandType)) {
-        opOperand.set(rewriter.create<CopyToValueTensorOp>(op->getLoc(),
-                                                           opOperand.get()));
+        opOperand.set(CopyToValueTensorOp::create(rewriter, op->getLoc(),
+                                                  opOperand.get()));
       } else if (auto listType = dyn_cast<ListType>(operandType)) {
         if (!(isa<NonValueTensorType>(listType.getContainedType()) ||
               isa<OptionalType>(listType.getContainedType())))
@@ -130,8 +135,8 @@ public:
         auto newListElements = llvm::to_vector(llvm::map_range(
             listConstruct.getElements(), [&](Value tensor) -> Value {
               if (isa<NonValueTensorType>(tensor.getType())) {
-                return rewriter.create<CopyToValueTensorOp>(op->getLoc(),
-                                                            tensor);
+                return CopyToValueTensorOp::create(rewriter, op->getLoc(),
+                                                   tensor);
               }
               return tensor;
             }));
@@ -142,8 +147,8 @@ public:
           return rewriter.notifyMatchFailure(
               op, "Unable to convert list type to value semantics.");
         }
-        opOperand.set(rewriter.create<PrimListConstructOp>(
-            op->getLoc(), newListType, newListElements));
+        opOperand.set(PrimListConstructOp::create(
+            rewriter, op->getLoc(), newListType, newListElements));
       } else if (auto optionalType = dyn_cast<OptionalType>(operandType)) {
         // TODO: A more general way to handle the optional type is to
         // introduce a `copy.to_optional_vtensor` op.
@@ -162,11 +167,11 @@ public:
 
         if (!isa<NonValueTensorType>(derefine.getOperand().getType()))
           continue;
-        auto newOperand = rewriter.create<CopyToValueTensorOp>(
-            op->getLoc(), derefine.getOperand());
-        opOperand.set(rewriter.create<DerefineOp>(
-            op->getLoc(), Torch::OptionalType::get(newOperand.getType()),
-            newOperand));
+        auto newOperand = CopyToValueTensorOp::create(rewriter, op->getLoc(),
+                                                      derefine.getOperand());
+        opOperand.set(DerefineOp::create(
+            rewriter, op->getLoc(),
+            Torch::OptionalType::get(newOperand.getType()), newOperand));
       }
     }
     // Convert all results.
@@ -177,7 +182,7 @@ public:
         continue;
       result.setType(tensorType.getWithValueSemantics());
       auto nonValueTensor =
-          rewriter.create<CopyToNonValueTensorOp>(op->getLoc(), result);
+          CopyToNonValueTensorOp::create(rewriter, op->getLoc(), result);
       result.replaceAllUsesExcept(nonValueTensor, nonValueTensor);
     }
     rewriter.finalizeOpModification(op);
@@ -247,11 +252,11 @@ void TorchMatchSpecializedBackendOp::populateSpecializedConversions(
               oldOperands[0], oldOperands[1], oldOperands[2], oldOperands[5],
               oldOperands[3], oldOperands[4], oldOperands[6]};
           Value enableGQA =
-              rewriter.create<ConstantBoolOp>(op->getLoc(), false);
+              ConstantBoolOp::create(rewriter, op->getLoc(), false);
           newOperands.push_back(enableGQA);
 
-          auto newOp = rewriter.create<Torch::AtenScaledDotProductAttentionOp>(
-              op.getLoc(), op->getResultTypes()[0], newOperands,
+          auto newOp = Torch::AtenScaledDotProductAttentionOp::create(
+              rewriter, op.getLoc(), op->getResultTypes()[0], newOperands,
               op->getAttrs());
           rewriter.replaceOp(op, {newOp.getResult(), nullptr});
           return success();
@@ -270,10 +275,10 @@ namespace {
 // int(ceil((end - start) / step))
 Value calculateArangeResultNumElements(PatternRewriter &rewriter, Location loc,
                                        Value start, Value end, Value step) {
-  Value sub = rewriter.create<AtenSubOp>(
-      loc, Torch::NumberType::get(rewriter.getContext()), end, start);
-  Value div = rewriter.create<AtenDivOp>(loc, sub, step);
-  return rewriter.create<AtenCeilFloatOp>(loc, div);
+  Value sub = AtenSubOp::create(
+      rewriter, loc, Torch::NumberType::get(rewriter.getContext()), end, start);
+  Value div = AtenDivOp::create(rewriter, loc, sub, step);
+  return AtenCeilFloatOp::create(rewriter, loc, div);
 }
 
 class ReduceNonValueSemanticOps : public RewritePattern {
@@ -285,10 +290,10 @@ public:
     Location loc = op->getLoc();
     MLIRContext *ctx = op->getContext();
     if (isa<AtenBernoulli_FloatOp>(op)) {
-      Operation *newOp = rewriter.create<ValsemVariantAtenBernoulliFloatOp>(
-          loc, op->getResultTypes(), op->getOperands());
+      Operation *newOp = ValsemVariantAtenBernoulliFloatOp::create(
+          rewriter, loc, op->getResultTypes(), op->getOperands());
       auto tensor =
-          rewriter.create<CopyToValueTensorOp>(loc, newOp->getResult(0));
+          CopyToValueTensorOp::create(rewriter, loc, newOp->getResult(0));
       createOverwriteTensorContents(rewriter, loc, tensor, op->getOperand(0));
       rewriter.replaceOp(op, op->getOperand(0));
       return success();
@@ -305,26 +310,27 @@ public:
       //   `y = torch.arange(13, out=x)`
       Value resultNumElements =
           calculateArangeResultNumElements(rewriter, loc, start, end, step);
-      Value outNumElements = rewriter.create<AtenNumelOp>(loc, out);
+      Value outNumElements = AtenNumelOp::create(rewriter, loc, out);
       Value eqOrNot =
-          rewriter.create<AtenEqIntOp>(loc, resultNumElements, outNumElements);
-      rewriter.create<RuntimeAssertOp>(
-          loc, eqOrNot,
+          AtenEqIntOp::create(rewriter, loc, resultNumElements, outNumElements);
+      RuntimeAssertOp::create(
+          rewriter, loc, eqOrNot,
           rewriter.getStringAttr("`out` tensor should have the same "
                                  "num_elements with result tenosr"));
 
-      auto dtype = rewriter.create<PrimDtypeOp>(loc, out);
-      auto device = rewriter.create<PrimDeviceOp>(loc, out);
-      auto shape = rewriter.create<AtenSizeOp>(
-          loc, Torch::ListType::get(Torch::IntType::get(ctx)), out);
-      auto none = rewriter.create<ConstantNoneOp>(loc);
-      Value newArange = rewriter.create<AtenArangeStartStepOp>(
-          loc, arangeOutOp.getResult().getType(), start, end, step, dtype,
+      auto dtype = PrimDtypeOp::create(rewriter, loc, out);
+      auto device = PrimDeviceOp::create(rewriter, loc, out);
+      auto shape = AtenSizeOp::create(
+          rewriter, loc, Torch::ListType::get(Torch::IntType::get(ctx)), out);
+      auto none = ConstantNoneOp::create(rewriter, loc);
+      Value newArange = AtenArangeStartStepOp::create(
+          rewriter, loc, arangeOutOp.getResult().getType(), start, end, step,
+          dtype,
           /*layout=*/none, device, /*pin_memory=*/none);
-      Value reshape = rewriter.create<AtenReshapeOp>(
-          loc, arangeOutOp.getResult().getType(), newArange, shape);
+      Value reshape = AtenReshapeOp::create(
+          rewriter, loc, arangeOutOp.getResult().getType(), newArange, shape);
 
-      auto vtensor = rewriter.create<CopyToValueTensorOp>(loc, reshape);
+      auto vtensor = CopyToValueTensorOp::create(rewriter, loc, reshape);
       createOverwriteTensorContents(rewriter, loc, vtensor, out);
       rewriter.replaceOp(arangeOutOp, out);
       return success();
@@ -370,14 +376,16 @@ public:
     // b = torch.randn(3, 3) # float32
     // a += b # i.e. torch.ops.aten.add_(a, b), result is float16
     // c = a + b # i.e. torch.ops.aten.add(a, b), result is float32
-    Value none = rewriter.create<ConstantNoneOp>(op->getLoc());
-    Value cstFalse = rewriter.create<ConstantBoolOp>(op->getLoc(), false);
-    auto aDtype = rewriter.create<PrimDtypeOp>(op->getLoc(), op->getOperand(0));
-    auto toDtype = rewriter.create<AtenToDtypeOp>(
-        op->getLoc(), newOp->getResult(0).getType(), newOp->getResult(0),
-        aDtype, /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+    Value none = ConstantNoneOp::create(rewriter, op->getLoc());
+    Value cstFalse = ConstantBoolOp::create(rewriter, op->getLoc(), false);
+    auto aDtype =
+        PrimDtypeOp::create(rewriter, op->getLoc(), op->getOperand(0));
+    auto toDtype = AtenToDtypeOp::create(
+        rewriter, op->getLoc(), newOp->getResult(0).getType(),
+        newOp->getResult(0), aDtype, /*non_blocking=*/cstFalse,
+        /*copy=*/cstFalse,
         /*memory_format=*/none);
-    auto tensor = rewriter.create<CopyToValueTensorOp>(op->getLoc(), toDtype);
+    auto tensor = CopyToValueTensorOp::create(rewriter, op->getLoc(), toDtype);
     createOverwriteTensorContents(rewriter, op->getLoc(), tensor,
                                   op->getOperand(0));
     rewriter.replaceOp(op, op->getOperand(0));
@@ -391,7 +399,7 @@ static LogicalResult
 reduceNonValueTensorLiteralOpToValueTensorLiteralOp(NonValueTensorLiteralOp op,
                                                     PatternRewriter &rewriter) {
   Value valueTensor =
-      rewriter.create<ValueTensorLiteralOp>(op->getLoc(), op.getValue());
+      ValueTensorLiteralOp::create(rewriter, op->getLoc(), op.getValue());
   Value tensor =
       copyTensorToType(rewriter, op->getLoc(), op.getType(), valueTensor);
   rewriter.replaceOp(op, {tensor});
@@ -400,11 +408,8 @@ reduceNonValueTensorLiteralOpToValueTensorLiteralOp(NonValueTensorLiteralOp op,
 
 namespace {
 struct ReduceOpVariantsPass
-    : public ReduceOpVariantsBase<ReduceOpVariantsPass> {
-  ReduceOpVariantsPass() = default;
-  ReduceOpVariantsPass(StringRef extraLibrary) {
-    this->extraLibrary = extraLibrary.str();
-  }
+    : public impl::ReduceOpVariantsBase<ReduceOpVariantsPass> {
+  using impl::ReduceOpVariantsBase<ReduceOpVariantsPass>::ReduceOpVariantsBase;
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
@@ -478,6 +483,10 @@ struct ReduceOpVariantsPass
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createReduceOpVariantsPass(StringRef extraLibrary) {
-  return std::make_unique<ReduceOpVariantsPass>(extraLibrary);
+createReduceOpVariantsPass(StringRef extraLibrary) {
+  ReduceOpVariantsOptions options;
+  options.extraLibrary = extraLibrary.str();
+  return std::make_unique<ReduceOpVariantsPass>(options);
 }
+
+} // namespace mlir::torch::Torch

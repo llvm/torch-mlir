@@ -9,14 +9,16 @@
 
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 
-#include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/Pass/Pass.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h"
+#include "torch-mlir/Conversion/Passes.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -33,6 +35,10 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 using namespace mlir::torch::TorchConversion;
 using namespace mlir::torch::TMTensor;
+namespace mlir::torch {
+
+#define GEN_PASS_DEF_CONVERTTORCHTOTMTENSOR
+#include "torch-mlir/Conversion/Passes.h.inc"
 
 // -----------------------------------------------------------------------------
 // Patterns (as this grows, it should be organized into multiple files)
@@ -93,7 +99,7 @@ convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(PatternRewriter &rewriter,
   Value indexSize = getTensorSize(rewriter, loc, indices);
   indexSize = castIntToIndex(rewriter, loc, indexSize);
   SmallVector<Value> indexShape = getTensorSizes(rewriter, loc, indices);
-  Value cstOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+  Value cstOne = arith::ConstantIndexOp::create(rewriter, loc, 1);
 
   // We flatten the `src` values from (i, j, k, ...) -> (i * j * k * ...)
   SmallVector<Value> indSliceShape({indexSize, cstOne});
@@ -124,35 +130,35 @@ convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(PatternRewriter &rewriter,
   // on the current flattened index. The flattened iteration space is required
   // because TMTensorScatterOp expects a list of single element updates.
   auto flattenedUpdates =
-      rewriter
-          .create<linalg::GenericOp>(
-              loc, outputsType, ValueRange(), outputs, mapping, iteratorTypes,
-              [&](OpBuilder &b, Location loc, ValueRange args) {
-                SmallVector<Value> indexValues(indexType.getRank());
-                Value ind = b.create<linalg::IndexOp>(loc, 0);
-                for (int i = indexType.getRank() - 1; i >= 0; i--) {
-                  indexValues[i] =
-                      b.create<arith::RemSIOp>(loc, ind, indexShape[i]);
-                  ind = b.create<arith::DivSIOp>(loc, ind, indexShape[i]);
-                }
-                // Extract the scatter index and update value
-                Value extractIndexValue =
-                    b.create<tensor::ExtractOp>(loc, indices, indexValues);
-                Value extractSrcValue =
-                    b.create<tensor::ExtractOp>(loc, src, indexValues);
-                SmallVector<Value> yieldVals;
-                for (Value v : indexValues) {
-                  Value scalar = castIndexToInt64(b, loc, v);
-                  yieldVals.push_back(convertScalarToDtype(
-                      rewriter, loc, scalar, indicesElemType));
-                }
-                // Replace the original index with the index specified
-                // by the scatter.
-                yieldVals[dim] = convertScalarToDtype(
-                    rewriter, loc, extractIndexValue, indicesElemType);
-                yieldVals.push_back(extractSrcValue);
-                b.create<linalg::YieldOp>(loc, yieldVals);
-              })
+      linalg::GenericOp::create(
+          rewriter, loc, outputsType, ValueRange(), outputs, mapping,
+          iteratorTypes,
+          [&](OpBuilder &b, Location loc, ValueRange args) {
+            SmallVector<Value> indexValues(indexType.getRank());
+            Value ind = linalg::IndexOp::create(b, loc, 0);
+            for (int i = indexType.getRank() - 1; i >= 0; i--) {
+              indexValues[i] =
+                  arith::RemSIOp::create(b, loc, ind, indexShape[i]);
+              ind = arith::DivSIOp::create(b, loc, ind, indexShape[i]);
+            }
+            // Extract the scatter index and update value
+            Value extractIndexValue =
+                tensor::ExtractOp::create(b, loc, indices, indexValues);
+            Value extractSrcValue =
+                tensor::ExtractOp::create(b, loc, src, indexValues);
+            SmallVector<Value> yieldVals;
+            for (Value v : indexValues) {
+              Value scalar = castIndexToInt64(b, loc, v);
+              yieldVals.push_back(
+                  convertScalarToDtype(rewriter, loc, scalar, indicesElemType));
+            }
+            // Replace the original index with the index specified
+            // by the scatter.
+            yieldVals[dim] = convertScalarToDtype(
+                rewriter, loc, extractIndexValue, indicesElemType);
+            yieldVals.push_back(extractSrcValue);
+            linalg::YieldOp::create(b, loc, yieldVals);
+          })
           .getResultTensors();
 
   auto toOpFoldResult = [](Value v) -> OpFoldResult {
@@ -169,13 +175,13 @@ convertTorchScatterIndexAndSrcToTMScatterIndexAndSrc(PatternRewriter &rewriter,
   // new `src` tensor is the last tensor returned from the linalg::Generic
   // operation.
   SmallVector<Value> offsets = {
-      rewriter.create<arith::ConstantIndexOp>(loc, 0),
-      rewriter.create<arith::ConstantIndexOp>(loc, 0)};
+      arith::ConstantIndexOp::create(rewriter, loc, 0),
+      arith::ConstantIndexOp::create(rewriter, loc, 0)};
   SmallVector<Value> strides = {
-      rewriter.create<arith::ConstantIndexOp>(loc, 1),
-      rewriter.create<arith::ConstantIndexOp>(loc, 1)};
+      arith::ConstantIndexOp::create(rewriter, loc, 1),
+      arith::ConstantIndexOp::create(rewriter, loc, 1)};
   Value indicesRank =
-      rewriter.create<arith::ConstantIndexOp>(loc, indexType.getRank());
+      arith::ConstantIndexOp::create(rewriter, loc, indexType.getRank());
   Value flattenedIndices = createZeroInitTensor(
       rewriter, loc, SmallVector<Value>({indexSize, indicesRank}),
       indexType.getElementType());
@@ -216,8 +222,8 @@ static Value createTMTensorScatterOp(
   auto dimensionsMapAttr = b.getDenseI64ArrayAttr(dimensionsMap);
   auto originalTensorType = cast<RankedTensorType>(original.getType());
   Type originalElementType = originalTensorType.getElementType();
-  auto scatterOp = b.create<TMTensor::ScatterOp>(
-      loc, originalTensorType, ValueRange{updates, indices},
+  auto scatterOp = TMTensor::ScatterOp::create(
+      b, loc, originalTensorType, ValueRange{updates, indices},
       ValueRange{original}, dimensionsMapAttr, uniqueIndices);
 
   Region &scatterOpRegion = scatterOp.getRegion();
@@ -238,8 +244,9 @@ static Value createTMTensorScanOp(
     function_ref<void(OpBuilder &, Location, Value, Value)> bodyBuild) {
   auto inputType = cast<RankedTensorType>(input.getType());
   Type elementType = inputType.getElementType();
-  auto scanOp = b.create<TMTensor::ScanOp>(
-      loc, ValueRange{input}, ValueRange{output, accumulator}, dim, inclusive);
+  auto scanOp =
+      TMTensor::ScanOp::create(b, loc, ValueRange{input},
+                               ValueRange{output, accumulator}, dim, inclusive);
 
   Region &scanOpRegion = scanOp.getRegion();
   auto &scanOpBlock = scanOpRegion.emplaceBlock();
@@ -270,7 +277,7 @@ static FailureOr<Value> createIntOrFloatCompareOp(PatternRewriter &rewriter,
       l = isEqual ? arith::CmpIPredicate::ule : arith::CmpIPredicate::ult;
     }
     arith::CmpIPredicate predicate = isDescending ? g : l;
-    compareOp = rewriter.create<arith::CmpIOp>(loc, predicate, lhs, rhs);
+    compareOp = arith::CmpIOp::create(rewriter, loc, predicate, lhs, rhs);
     return compareOp;
   }
 
@@ -282,7 +289,7 @@ static FailureOr<Value> createIntOrFloatCompareOp(PatternRewriter &rewriter,
         isEqual ? arith::CmpFPredicate::OLE : arith::CmpFPredicate::OLT;
 
     arith::CmpFPredicate predicate = isDescending ? g : l;
-    compareOp = rewriter.create<arith::CmpFOp>(loc, predicate, lhs, rhs);
+    compareOp = arith::CmpFOp::create(rewriter, loc, predicate, lhs, rhs);
     return compareOp;
   }
 
@@ -302,9 +309,9 @@ createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
     sortResultTypes.push_back(val.getType());
   }
   ValueRange inputs;
-  auto sortOp = rewriter.create<TMTensor::SortOp>(
-      sortOpLoc, sortResultTypes, inputs, operands,
-      rewriter.getI64IntegerAttr(dimension));
+  auto sortOp =
+      TMTensor::SortOp::create(rewriter, sortOpLoc, sortResultTypes, inputs,
+                               operands, rewriter.getI64IntegerAttr(dimension));
 
   // Step 2. Add two arguments for each element type in the SortOp's block.
   Region *body = &sortOp.getRegion();
@@ -325,7 +332,7 @@ createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
         loc, "Only Integer and Floating element type expected.");
 
   // Step 4. Create yield op for yielding the sorting predicate.
-  rewriter.create<TMTensor::YieldOp>(loc, compareOpRetVal.value());
+  TMTensor::YieldOp::create(rewriter, loc, compareOpRetVal.value());
   return SmallVector<Value>(sortOp.getResults());
 }
 
@@ -341,9 +348,9 @@ static FailureOr<SmallVector<Value>> createTMTensorTopkOp(
   }
 
   // Create empty TopkOp, add body later.
-  auto topkOp = rewriter.create<TMTensor::TopkOp>(
-      topkOpLoc, topkResultTypes, inputs, outputs,
-      rewriter.getI64IntegerAttr(dimension));
+  auto topkOp =
+      TMTensor::TopkOp::create(rewriter, topkOpLoc, topkResultTypes, inputs,
+                               outputs, rewriter.getI64IntegerAttr(dimension));
 
   Region *body = &topkOp.getRegion();
   Block *block = rewriter.createBlock(body);
@@ -366,7 +373,7 @@ static FailureOr<SmallVector<Value>> createTMTensorTopkOp(
         loc, "Only Integer and Floating element type expected.");
 
   // Yield the comparison result.
-  rewriter.create<TMTensor::YieldOp>(loc, compareOpRetVal.value());
+  TMTensor::YieldOp::create(rewriter, loc, compareOpRetVal.value());
   return SmallVector<Value>(topkOp.getResults());
 }
 
@@ -381,9 +388,9 @@ repeatTensorElementsForDim(Operation *op, ConversionPatternRewriter &rewriter,
   int64_t inputRank = selfTy.getSizes().size();
   dim = toPositiveDim(dim, inputRank);
   Value dimValue =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim));
+      ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(dim));
   Value dimValuePlusOne =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(dim + 1));
+      ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(dim + 1));
 
   auto unsqueezedInfo = unsqueezeTensor(rewriter, op, self, dimValuePlusOne);
   if (failed(unsqueezedInfo))
@@ -392,12 +399,13 @@ repeatTensorElementsForDim(Operation *op, ConversionPatternRewriter &rewriter,
   self = *unsqueezedInfo;
 
   Value constMinusOne =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(-1));
+      ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(-1));
   SmallVector<Value> expandShapeValueList(inputRank + 1, constMinusOne);
   expandShapeValueList[dim + 1] =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(repeats));
-  Value expandShapeList = rewriter.create<PrimListConstructOp>(
-      loc, ListType::get(IntType::get(context)), expandShapeValueList);
+      ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(repeats));
+  Value expandShapeList = PrimListConstructOp::create(
+      rewriter, loc, ListType::get(IntType::get(context)),
+      expandShapeValueList);
 
   SmallVector<int64_t> expandShape(inputRank + 1);
   for (int64_t i = 0; i <= dim; i++) {
@@ -411,10 +419,10 @@ repeatTensorElementsForDim(Operation *op, ConversionPatternRewriter &rewriter,
   BaseTensorType expandTy =
       rewriter.getType<ValueTensorType>(expandShape, selfTy.getOptionalDtype());
   Value expandSelf =
-      rewriter.create<AtenBroadcastToOp>(loc, expandTy, self, expandShapeList);
+      AtenBroadcastToOp::create(rewriter, loc, expandTy, self, expandShapeList);
 
-  Value result = rewriter.create<PrimsCollapseOp>(loc, resType, expandSelf,
-                                                  dimValue, dimValuePlusOne);
+  Value result = PrimsCollapseOp::create(rewriter, loc, resType, expandSelf,
+                                         dimValue, dimValuePlusOne);
   return result;
 }
 
@@ -460,16 +468,16 @@ public:
         [&](OpBuilder &b, Location loc, Value updatesElement,
             Value inputElement) {
           if (isa<AtenScatterSrcOp>(op)) {
-            b.create<TMTensor::YieldOp>(loc, updatesElement);
+            TMTensor::YieldOp::create(b, loc, updatesElement);
           } else if (isa<AtenScatterAddOp>(op)) {
             if (isa<mlir::IntegerType>(selfType.getElementType())) {
               Value add =
-                  b.create<arith::AddIOp>(loc, inputElement, updatesElement);
-              b.create<TMTensor::YieldOp>(loc, add);
+                  arith::AddIOp::create(b, loc, inputElement, updatesElement);
+              TMTensor::YieldOp::create(b, loc, add);
             } else if (isa<mlir::FloatType>(selfType.getElementType())) {
               Value add =
-                  b.create<arith::AddFOp>(loc, inputElement, updatesElement);
-              b.create<TMTensor::YieldOp>(loc, add);
+                  arith::AddFOp::create(b, loc, inputElement, updatesElement);
+              TMTensor::YieldOp::create(b, loc, add);
             }
           }
         });
@@ -530,14 +538,14 @@ public:
         context, llvm::ArrayRef(maxTensorSizes),
         cast<ValueTensorType>(torchTypeInput.getType()).getDtype());
     Value maxTensor =
-        rewriter.create<AtenMaxOp>(loc, maxTensorType, torchTypeInput);
+        AtenMaxOp::create(rewriter, loc, maxTensorType, torchTypeInput);
     maxTensor = typeConverter->materializeTargetConversion(
         rewriter, loc, typeConverter->convertType(maxTensor.getType()),
         maxTensor);
 
     // `maxTensor` is a 0-d tensor, extracting its only element and
     // storing it in `maxInput`.
-    Value maxInput = rewriter.create<tensor::ExtractOp>(loc, maxTensor);
+    Value maxInput = tensor::ExtractOp::create(rewriter, loc, maxTensor);
 
     // Creating a tm_tensor.scatter op with the following mapping:
     // 1.) `input` tensor maps to the indices in scatter op. `input` is
@@ -551,10 +559,10 @@ public:
     ValueTensorType expandInputType = ValueTensorType::get(
         context, llvm::ArrayRef(expandedInputSizes),
         cast<ValueTensorType>(torchTypeInput.getType()).getDtype());
-    Value torchCstOne = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(1));
-    Value expandedInputTensor = rewriter.create<AtenUnsqueezeOp>(
-        loc, expandInputType, torchTypeInput, torchCstOne);
+    Value torchCstOne = Torch::ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value expandedInputTensor = AtenUnsqueezeOp::create(
+        rewriter, loc, expandInputType, torchTypeInput, torchCstOne);
 
     Value indices = typeConverter->materializeTargetConversion(
         rewriter, loc,
@@ -567,19 +575,19 @@ public:
 
     SmallVector<Value, 1> inputSizeDynamic =
         getTensorSizesUntilDim(rewriter, loc, input, 0);
-    Value updatesTensor = rewriter.create<tensor::EmptyOp>(
-        loc, getAsOpFoldResult(inputSizeDynamic), resultElemType);
+    Value updatesTensor = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(inputSizeDynamic), resultElemType);
 
-    Value constantZero = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getZeroAttr(resultElemType));
-    Value constantOne = rewriter.create<arith::ConstantIntOp>(
-        loc, 1, resultElemType.getIntOrFloatBitWidth());
+    Value constantZero = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getZeroAttr(resultElemType));
+    Value constantOne = arith::ConstantIntOp::create(
+        rewriter, loc, 1, resultElemType.getIntOrFloatBitWidth());
 
     // Bincount size = max(max(input) + 1, minlength)
     Value maxInputPlusOne =
-        rewriter.create<arith::AddIOp>(loc, maxInput, constantOne);
+        arith::AddIOp::create(rewriter, loc, maxInput, constantOne);
     Value bincountSize =
-        rewriter.create<arith::MaxSIOp>(loc, maxInputPlusOne, minlength);
+        arith::MaxSIOp::create(rewriter, loc, maxInputPlusOne, minlength);
     bincountSize = castIntToIndex(rewriter, loc, bincountSize);
     Value bincountTensor = createInitTensor(rewriter, loc, {bincountSize},
                                             resultElemType, constantZero);
@@ -588,8 +596,8 @@ public:
         rewriter, loc, updatesTensor, indices, bincountTensor,
         /*dimensionsMap=*/createDefaultDimMap(indices), /*uniqueIndices=*/false,
         [&](OpBuilder &b, Location loc, Value _, Value bincountElem) {
-          Value add = b.create<arith::AddIOp>(loc, bincountElem, constantOne);
-          b.create<TMTensor::YieldOp>(loc, add);
+          Value add = arith::AddIOp::create(b, loc, bincountElem, constantOne);
+          TMTensor::YieldOp::create(b, loc, add);
         });
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, scatterOp);
     return success();
@@ -616,7 +624,7 @@ getBroadcastShape(Location loc, llvm::ArrayRef<Value> indices, OpBuilder b) {
   };
 
   Value torchCstOne =
-      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(1));
+      Torch::ConstantIntOp::create(b, loc, b.getI64IntegerAttr(1));
   llvm::SmallVector<Value> broadcastSizes(indicesRank, torchCstOne);
   llvm::SmallVector<int64_t> broadcastShape(indicesRank, 0);
   for (auto index : indices) {
@@ -625,13 +633,13 @@ getBroadcastShape(Location loc, llvm::ArrayRef<Value> indices, OpBuilder b) {
     int32_t rank = shape.size();
 
     for (int32_t j = 0; j < rank; ++j) {
-      Value dim = b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(j));
-      auto sizeOp = b.create<Torch::AtenSizeIntOp>(loc, index, dim);
+      Value dim = Torch::ConstantIntOp::create(b, loc, b.getI64IntegerAttr(j));
+      auto sizeOp = Torch::AtenSizeIntOp::create(b, loc, index, dim);
       auto size = shape[j];
 
       int32_t idx = broadcastShape.size() - rank + j;
       broadcastSizes[idx] =
-          b.create<Torch::PrimMaxIntOp>(loc, sizeOp, broadcastSizes[idx]);
+          Torch::PrimMaxIntOp::create(b, loc, sizeOp, broadcastSizes[idx]);
       broadcastShape[idx] = maxDim(size, broadcastShape[idx]);
     }
   }
@@ -643,11 +651,11 @@ Value combinePutIndices(Location loc, llvm::ArrayRef<Value> indicesRef,
   llvm::SmallVector<Value> indices(indicesRef);
   // Declare commonly used constants up front:
   Value torchCstZero =
-      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(0));
+      Torch::ConstantIntOp::create(b, loc, b.getI64IntegerAttr(0));
   Value torchCstOne =
-      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(1));
+      Torch::ConstantIntOp::create(b, loc, b.getI64IntegerAttr(1));
   Value torchCstNegOne =
-      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(-1));
+      Torch::ConstantIntOp::create(b, loc, b.getI64IntegerAttr(-1));
 
   auto [broadcastSizes, broadcastShape] = getBroadcastShape(loc, indicesRef, b);
 
@@ -663,19 +671,20 @@ Value combinePutIndices(Location loc, llvm::ArrayRef<Value> indicesRef,
   }
 
   // Broadcast together and flatten to batch values:
-  Value broadcastSizeList = b.create<PrimListConstructOp>(
-      loc, Torch::ListType::get(b.getType<Torch::IntType>()), broadcastSizes);
+  Value broadcastSizeList = PrimListConstructOp::create(
+      b, loc, Torch::ListType::get(b.getType<Torch::IntType>()),
+      broadcastSizes);
   for (Value &index : indices) {
     auto indexTy = cast<Torch::ValueTensorType>(index.getType());
     auto expandTy = b.getType<Torch::ValueTensorType>(
         broadcastShape, indexTy.getOptionalDtype());
-    index = b.create<Torch::AtenBroadcastToOp>(loc, expandTy, index,
-                                               broadcastSizeList);
+    index = Torch::AtenBroadcastToOp::create(b, loc, expandTy, index,
+                                             broadcastSizeList);
 
     auto flattenTy = b.getType<Torch::ValueTensorType>(
         scatterBatchCount, indexTy.getOptionalDtype());
-    index = b.create<Torch::AtenFlattenUsingIntsOp>(
-        loc, flattenTy, index, torchCstZero, torchCstNegOne);
+    index = Torch::AtenFlattenUsingIntsOp::create(b, loc, flattenTy, index,
+                                                  torchCstZero, torchCstNegOne);
   }
 
   // Unsqueeze so we have a 1 dim to concat along:
@@ -689,20 +698,20 @@ Value combinePutIndices(Location loc, llvm::ArrayRef<Value> indicesRef,
 
     auto unsqueezeTy = b.getType<Torch::ValueTensorType>(shape, btt.getDtype());
     Value unsqueezed =
-        b.create<AtenUnsqueezeOp>(loc, unsqueezeTy, tensor, torchCstOne);
+        AtenUnsqueezeOp::create(b, loc, unsqueezeTy, tensor, torchCstOne);
     tensor = unsqueezed;
   }
 
   BaseTensorType unsqueezedTensorType =
       cast<BaseTensorType>(indices[0].getType());
-  Value indicesTorchList = b.create<PrimListConstructOp>(
-      loc, Torch::ListType::get(unsqueezedTensorType), indices);
+  Value indicesTorchList = PrimListConstructOp::create(
+      b, loc, Torch::ListType::get(unsqueezedTensorType), indices);
   llvm::SmallVector<int64_t, 2> concatShape{
       unsqueezedTensorType.getSizes()[0], static_cast<int64_t>(indices.size())};
   ValueTensorType concatIndicesType = b.getType<ValueTensorType>(
       llvm::ArrayRef(concatShape), unsqueezedTensorType.getDtype());
-  return b.create<AtenCatOp>(loc, concatIndicesType, indicesTorchList,
-                             torchCstOne);
+  return AtenCatOp::create(b, loc, concatIndicesType, indicesTorchList,
+                           torchCstOne);
 }
 
 // Helper that collapses the batch dimensions together and moves it to the front
@@ -720,14 +729,14 @@ static Value collapseAndMoveBatchDims(Location loc, Value values, int64_t batch,
 
   // We need a length-1 dim at the start to transpose the batch to:
   if (batch != 0) {
-    outDims.push_back(b.create<Torch::ConstantIntOp>(loc, 1));
+    outDims.push_back(Torch::ConstantIntOp::create(b, loc, 1));
     outShape.push_back(1);
   }
 
   // Dimensions before the batch stay the same:
   for (int i = 0; i <= batch; i++) {
-    auto k = b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(i));
-    auto dim = b.create<Torch::AtenSizeIntOp>(loc, values, k);
+    auto k = Torch::ConstantIntOp::create(b, loc, b.getI64IntegerAttr(i));
+    auto dim = Torch::AtenSizeIntOp::create(b, loc, values, k);
     outDims.push_back(dim);
     outShape.push_back(inShape[i]);
   }
@@ -743,25 +752,25 @@ static Value collapseAndMoveBatchDims(Location loc, Value values, int64_t batch,
     outShape.back() = mulI(outShape.back(), inShape[batch + i]);
 
     auto k =
-        b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(batch + i));
-    auto dim = b.create<Torch::AtenSizeIntOp>(loc, values, k);
-    outDims.back() = b.create<Torch::AtenMulIntOp>(loc, dim, outDims.back());
+        Torch::ConstantIntOp::create(b, loc, b.getI64IntegerAttr(batch + i));
+    auto dim = Torch::AtenSizeIntOp::create(b, loc, values, k);
+    outDims.back() = Torch::AtenMulIntOp::create(b, loc, dim, outDims.back());
   }
 
   // Add the dimensions after the batch dims:
   for (int i = batch + count, s = inShape.size(); i < s; ++i) {
-    auto k = b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(i));
-    auto dim = b.create<Torch::AtenSizeIntOp>(loc, values, k);
+    auto k = Torch::ConstantIntOp::create(b, loc, b.getI64IntegerAttr(i));
+    auto dim = Torch::AtenSizeIntOp::create(b, loc, values, k);
     outDims.push_back(dim);
     outShape.push_back(inShape[i]);
   }
 
-  Value outDimsList = b.create<PrimListConstructOp>(
-      loc, Torch::ListType::get(b.getType<Torch::IntType>()), outDims);
+  Value outDimsList = PrimListConstructOp::create(
+      b, loc, Torch::ListType::get(b.getType<Torch::IntType>()), outDims);
 
   valuesTy =
       b.getType<Torch::ValueTensorType>(outShape, valuesTy.getOptionalDtype());
-  values = b.create<AtenViewOp>(loc, valuesTy, values, outDimsList);
+  values = AtenViewOp::create(b, loc, valuesTy, values, outDimsList);
 
   if (batch == 0)
     return values;
@@ -770,14 +779,14 @@ static Value collapseAndMoveBatchDims(Location loc, Value values, int64_t batch,
   std::swap(outDims[0], outDims[batch + 1]);
   std::swap(outShape[0], outShape[batch + 1]);
 
-  Value dim0 = b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(0));
+  Value dim0 = Torch::ConstantIntOp::create(b, loc, b.getI64IntegerAttr(0));
   Value dimB =
-      b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(batch + 1));
+      Torch::ConstantIntOp::create(b, loc, b.getI64IntegerAttr(batch + 1));
 
   valuesTy =
       b.getType<Torch::ValueTensorType>(outShape, valuesTy.getOptionalDtype());
   values =
-      b.create<Torch::AtenTransposeIntOp>(loc, valuesTy, values, dim0, dimB);
+      Torch::AtenTransposeIntOp::create(b, loc, valuesTy, values, dim0, dimB);
 
   outDims.clear();
   outShape.clear();
@@ -786,16 +795,16 @@ static Value collapseAndMoveBatchDims(Location loc, Value values, int64_t batch,
   for (int i = 0; i < transposeRank; ++i) {
     if (i == batch + 1)
       continue;
-    Value k = b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(i));
-    outDims.push_back(b.create<AtenSizeIntOp>(loc, values, k));
+    Value k = Torch::ConstantIntOp::create(b, loc, b.getI64IntegerAttr(i));
+    outDims.push_back(AtenSizeIntOp::create(b, loc, values, k));
     outShape.push_back(transposeShape[i]);
   }
 
   valuesTy =
       b.getType<Torch::ValueTensorType>(outShape, valuesTy.getOptionalDtype());
-  outDimsList = b.create<PrimListConstructOp>(
-      loc, Torch::ListType::get(b.getType<Torch::IntType>()), outDims);
-  return b.create<AtenViewOp>(loc, valuesTy, values, outDimsList);
+  outDimsList = PrimListConstructOp::create(
+      b, loc, Torch::ListType::get(b.getType<Torch::IntType>()), outDims);
+  return AtenViewOp::create(b, loc, valuesTy, values, outDimsList);
 }
 
 // Broadcast the `values` tensor to the slice size created by the list of index
@@ -813,17 +822,17 @@ static Value broadcastValuesToSliceSize(Location loc, Value input, Value values,
   // of the indexed slice.
   auto [resultShape, resultStaticShape] = getBroadcastShape(loc, indices, b);
   for (size_t i = indices.size(); i < inputStaticShape.size(); i++) {
-    Value dim = b.create<Torch::ConstantIntOp>(loc, b.getI64IntegerAttr(i));
-    resultShape.push_back(b.create<AtenSizeIntOp>(loc, input, dim));
+    Value dim = Torch::ConstantIntOp::create(b, loc, b.getI64IntegerAttr(i));
+    resultShape.push_back(AtenSizeIntOp::create(b, loc, input, dim));
     resultStaticShape.push_back(inputStaticShape[i]);
   }
 
   auto resultType = b.getType<Torch::ValueTensorType>(
       resultStaticShape, valuesType.getOptionalDtype());
-  Value broadcastShapeList = b.create<PrimListConstructOp>(
-      loc, Torch::ListType::get(b.getType<Torch::IntType>()), resultShape);
-  return b.create<AtenBroadcastToOp>(loc, resultType, values,
-                                     broadcastShapeList);
+  Value broadcastShapeList = PrimListConstructOp::create(
+      b, loc, Torch::ListType::get(b.getType<Torch::IntType>()), resultShape);
+  return AtenBroadcastToOp::create(b, loc, resultType, values,
+                                   broadcastShapeList);
 }
 
 class ConvertAtenIndexPutHackedTwinOp
@@ -915,10 +924,10 @@ public:
     valuesType = cast<Torch::ValueTensorType>(values.getType());
 
     // Materialize out the length-1 dimensions:
-    Value zero = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(0));
-    Value one = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(1));
+    Value zero = Torch::ConstantIntOp::create(rewriter, loc,
+                                              rewriter.getI64IntegerAttr(0));
+    Value one = Torch::ConstantIntOp::create(rewriter, loc,
+                                             rewriter.getI64IntegerAttr(1));
     llvm::SmallVector<int64_t> valuesShape;
     llvm::SmallVector<Value> valuesDims;
     int vDim = 0;
@@ -927,7 +936,7 @@ public:
         inputType.getSizes().size()) {
       valuesShape.push_back(valuesType.getSizes().front());
       valuesDims.push_back(
-          rewriter.create<Torch::AtenSizeIntOp>(loc, values, zero));
+          Torch::AtenSizeIntOp::create(rewriter, loc, values, zero));
       vDim++;
     }
 
@@ -939,22 +948,22 @@ public:
         continue;
       }
 
-      Value k = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(vDim));
+      Value k = Torch::ConstantIntOp::create(rewriter, loc,
+                                             rewriter.getI64IntegerAttr(vDim));
       valuesDims.push_back(
-          rewriter.create<Torch::AtenSizeIntOp>(loc, values, k));
+          Torch::AtenSizeIntOp::create(rewriter, loc, values, k));
       valuesShape.push_back(inputType.getSizes()[i]);
       vDim++;
     }
 
-    Value valuesDimsList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+    Value valuesDimsList = PrimListConstructOp::create(
+        rewriter, loc, Torch::ListType::get(rewriter.getType<Torch::IntType>()),
         valuesDims);
 
     valuesType = rewriter.getType<Torch::ValueTensorType>(
         valuesShape, valuesType.getOptionalDtype());
     values =
-        rewriter.create<AtenViewOp>(loc, valuesType, values, valuesDimsList);
+        AtenViewOp::create(rewriter, loc, valuesType, values, valuesDimsList);
 
     input = typeConverter->materializeTargetConversion(
         rewriter, loc, typeConverter->convertType(input.getType()), input);
@@ -981,16 +990,16 @@ public:
           if (accumulate) {
             if (isa<mlir::IntegerType>(inputElement.getType())) {
               yieldValue =
-                  b.create<arith::AddIOp>(loc, inputElement, valuesElement);
+                  arith::AddIOp::create(b, loc, inputElement, valuesElement);
             } else if (isa<mlir::FloatType>(inputElement.getType())) {
               yieldValue =
-                  b.create<arith::AddFOp>(loc, inputElement, valuesElement);
+                  arith::AddFOp::create(b, loc, inputElement, valuesElement);
             } else {
               invalidInputTypeFound = true;
               return;
             }
           }
-          b.create<TMTensor::YieldOp>(loc, yieldValue);
+          TMTensor::YieldOp::create(b, loc, yieldValue);
         });
 
     if (invalidInputTypeFound) {
@@ -1110,48 +1119,46 @@ public:
         getAsOpFoldResult(getTensorSizes(rewriter, loc, indices));
     updatedIndicesShape.push_back(rewriter.getIndexAttr(tensorOperandRank));
 
-    Value initTensor = rewriter.create<tensor::EmptyOp>(
-        loc, updatedIndicesShape, indicesElemType);
+    Value initTensor = tensor::EmptyOp::create(
+        rewriter, loc, updatedIndicesShape, indicesElemType);
 
     Value wIn = inputShape[tensorOperandRank - 1];
     SmallVector<Value> cstValues;
     for (int64_t i = 0; i < tensorOperandRank; i++)
-      cstValues.push_back(rewriter.create<arith::ConstantIndexOp>(loc, i));
+      cstValues.push_back(arith::ConstantIndexOp::create(rewriter, loc, i));
 
     Value updatedIndices =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, initTensor.getType(), indices, initTensor, indexingMaps,
-                iteratorTypes,
-                [tensorOperandRank, wIn, cstValues,
-                 indicesElemType](OpBuilder &b, Location loc, ValueRange args) {
-                  Value index = castIntToIndex(b, loc, args[0]);
-                  Value updatedIndex = cstValues[0];
-                  Value lastDim =
-                      b.create<linalg::IndexOp>(loc, tensorOperandRank);
+        linalg::GenericOp::create(
+            rewriter, loc, initTensor.getType(), indices, initTensor,
+            indexingMaps, iteratorTypes,
+            [tensorOperandRank, wIn, cstValues,
+             indicesElemType](OpBuilder &b, Location loc, ValueRange args) {
+              Value index = castIntToIndex(b, loc, args[0]);
+              Value updatedIndex = cstValues[0];
+              Value lastDim =
+                  linalg::IndexOp::create(b, loc, tensorOperandRank);
 
-                  for (int64_t i = tensorOperandRank - 1; i >= 0; i--) {
-                    Value result;
-                    if (i == tensorOperandRank - 1)
-                      result = b.create<arith::RemSIOp>(loc, index, wIn);
-                    if (i == tensorOperandRank - 2)
-                      result = b.create<arith::FloorDivSIOp>(loc, index, wIn);
-                    if (i == tensorOperandRank - 3 ||
-                        i == tensorOperandRank - 4)
-                      result = b.create<linalg::IndexOp>(loc, i);
+              for (int64_t i = tensorOperandRank - 1; i >= 0; i--) {
+                Value result;
+                if (i == tensorOperandRank - 1)
+                  result = arith::RemSIOp::create(b, loc, index, wIn);
+                if (i == tensorOperandRank - 2)
+                  result = arith::FloorDivSIOp::create(b, loc, index, wIn);
+                if (i == tensorOperandRank - 3 || i == tensorOperandRank - 4)
+                  result = linalg::IndexOp::create(b, loc, i);
 
-                    Value pred = b.create<arith::CmpIOp>(
-                        loc, arith::CmpIPredicate::eq, lastDim, cstValues[i]);
-                    Value addAmount = b.create<arith::SelectOp>(
-                        loc, pred, result, cstValues[0]);
-                    updatedIndex =
-                        b.create<arith::AddIOp>(loc, updatedIndex, addAmount);
-                  }
+                Value pred = arith::CmpIOp::create(
+                    b, loc, arith::CmpIPredicate::eq, lastDim, cstValues[i]);
+                Value addAmount =
+                    arith::SelectOp::create(b, loc, pred, result, cstValues[0]);
+                updatedIndex =
+                    arith::AddIOp::create(b, loc, updatedIndex, addAmount);
+              }
 
-                  updatedIndex = b.create<arith::IndexCastOp>(
-                      loc, indicesElemType, updatedIndex);
-                  b.create<linalg::YieldOp>(loc, updatedIndex);
-                })
+              updatedIndex = arith::IndexCastOp::create(b, loc, indicesElemType,
+                                                        updatedIndex);
+              linalg::YieldOp::create(b, loc, updatedIndex);
+            })
             .getResult(0);
 
     // Creating a new tensor initialized with zeros and size same as the input
@@ -1167,8 +1174,9 @@ public:
     int64_t numelGradOutput = getNumberOfElements(gradOutputType);
     gradOutputFlattenedType = RankedTensorType::get(
         makeShapeLLVMCompatible({numelGradOutput}), gradOutputElemType);
-    Value gradOutputFlattened = rewriter.create<tensor::CollapseShapeOp>(
-        loc, gradOutputFlattenedType, gradOutput, reassociationCollapse);
+    Value gradOutputFlattened =
+        tensor::CollapseShapeOp::create(rewriter, loc, gradOutputFlattenedType,
+                                        gradOutput, reassociationCollapse);
 
     // Collapsing updated indices into a 2-d tensor.
     SmallVector<ReassociationIndices> reassociationCollapseIndices(2);
@@ -1176,8 +1184,8 @@ public:
       reassociationCollapseIndices[0].push_back(i);
     reassociationCollapseIndices[1].push_back(tensorOperandRank);
     int64_t numelIndices = getNumberOfElements(indicesType);
-    Value indicesCollapsed = rewriter.create<tensor::CollapseShapeOp>(
-        loc,
+    Value indicesCollapsed = tensor::CollapseShapeOp::create(
+        rewriter, loc,
         RankedTensorType::get(
             makeShapeLLVMCompatible({numelIndices, tensorOperandRank}),
             indicesElemType),
@@ -1194,15 +1202,15 @@ public:
           Value yieldValue = valuesElement;
           if (isa<mlir::IntegerType>(inputElement.getType())) {
             yieldValue =
-                b.create<arith::AddIOp>(loc, inputElement, valuesElement);
+                arith::AddIOp::create(b, loc, inputElement, valuesElement);
           } else if (isa<mlir::FloatType>(inputElement.getType())) {
             yieldValue =
-                b.create<arith::AddFOp>(loc, inputElement, valuesElement);
+                arith::AddFOp::create(b, loc, inputElement, valuesElement);
           } else {
             invalidInputTypeFound = true;
             return;
           }
-          b.create<TMTensor::YieldOp>(loc, yieldValue);
+          TMTensor::YieldOp::create(b, loc, yieldValue);
         });
 
     if (invalidInputTypeFound) {
@@ -1283,7 +1291,7 @@ public:
       } else {
         llvm_unreachable("Only integer/float types supported!");
       }
-      Value initElement = rewriter.create<arith::ConstantOp>(loc, initAttr);
+      Value initElement = arith::ConstantOp::create(rewriter, loc, initAttr);
       counts = createInitTensor(rewriter, loc, selfShape,
                                 selfType.getElementType(), initElement);
     }
@@ -1295,16 +1303,18 @@ public:
       if (reduceEnum == torch_upstream::ReductionType::SUM ||
           reduceEnum == torch_upstream::ReductionType::MEAN) {
         // Set the values in the input tensor to '0' so they are not included
-        normalizationValue = rewriter.create<arith::ConstantOp>(
-            loc, rewriter.getZeroAttr(srcType.getElementType()));
+        normalizationValue = arith::ConstantOp::create(
+            rewriter, loc, rewriter.getZeroAttr(srcType.getElementType()));
       } else if (reduceEnum == torch_upstream::ReductionType::PROD) {
         // Set the values in the input tensor to '1' (multiplication identity)
         if (llvm::isa<mlir::FloatType>(srcType.getElementType())) {
-          normalizationValue = rewriter.create<arith::ConstantOp>(
-              loc, rewriter.getFloatAttr(srcType.getElementType(), 1.0));
+          normalizationValue = arith::ConstantOp::create(
+              rewriter, loc,
+              rewriter.getFloatAttr(srcType.getElementType(), 1.0));
         } else if (llvm::isa<mlir::IntegerType>(srcType.getElementType())) {
-          normalizationValue = rewriter.create<arith::ConstantOp>(
-              loc, rewriter.getIntegerAttr(srcType.getElementType(), 1));
+          normalizationValue = arith::ConstantOp::create(
+              rewriter, loc,
+              rewriter.getIntegerAttr(srcType.getElementType(), 1));
         } else {
           llvm_unreachable("Only integer/float types supported!");
         }
@@ -1313,13 +1323,13 @@ public:
         // type
         TypedAttr minAttr = getNumericLimit(rewriter, srcType.getElementType(),
                                             /*getMin=*/true);
-        normalizationValue = rewriter.create<arith::ConstantOp>(loc, minAttr);
+        normalizationValue = arith::ConstantOp::create(rewriter, loc, minAttr);
       } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
         // Set the values in the input tensor to the largest element of that
         // type
         TypedAttr maxAttr = getNumericLimit(rewriter, srcType.getElementType(),
                                             /*getMin=*/false);
-        normalizationValue = rewriter.create<arith::ConstantOp>(loc, maxAttr);
+        normalizationValue = arith::ConstantOp::create(rewriter, loc, maxAttr);
       }
 
       // Scatter the normalizations into the input tensor
@@ -1333,7 +1343,7 @@ public:
           /*dimensionsMap=*/createDefaultDimMap(indices),
           /*uniqueIndices=*/false,
           [&](OpBuilder &b, Location loc, Value update, Value current) {
-            b.create<TMTensor::YieldOp>(loc, update);
+            TMTensor::YieldOp::create(b, loc, update);
           });
       if (reduceEnum == torch_upstream::ReductionType::MEAN) {
         counts = createTMTensorScatterOp(
@@ -1341,7 +1351,7 @@ public:
             /*dimensionsMap=*/createDefaultDimMap(indices),
             /*uniqueIndices=*/false,
             [&](OpBuilder &b, Location loc, Value update, Value current) {
-              b.create<TMTensor::YieldOp>(loc, update);
+              TMTensor::YieldOp::create(b, loc, update);
             });
       }
     }
@@ -1355,38 +1365,38 @@ public:
           if (reduceEnum == torch_upstream::ReductionType::SUM ||
               reduceEnum == torch_upstream::ReductionType::MEAN) {
             if (isa<mlir::IntegerType>(update.getType())) {
-              result = b.create<arith::AddIOp>(loc, update, current);
+              result = arith::AddIOp::create(b, loc, update, current);
             } else if (isa<mlir::FloatType>(update.getType())) {
-              result = b.create<arith::AddFOp>(loc, update, current);
+              result = arith::AddFOp::create(b, loc, update, current);
             } else {
               llvm_unreachable("Only integer/float types supported!");
             }
           } else if (reduceEnum == torch_upstream::ReductionType::PROD) {
             if (isa<mlir::IntegerType>(update.getType())) {
-              result = b.create<arith::MulIOp>(loc, update, current);
+              result = arith::MulIOp::create(b, loc, update, current);
             } else if (isa<mlir::FloatType>(update.getType())) {
-              result = b.create<arith::MulFOp>(loc, update, current);
+              result = arith::MulFOp::create(b, loc, update, current);
             } else {
               llvm_unreachable("Only integer/float types supported!");
             }
           } else if (reduceEnum == torch_upstream::ReductionType::MAX) {
             if (isa<mlir::IntegerType>(update.getType())) {
-              result = b.create<arith::MaxSIOp>(loc, update, current);
+              result = arith::MaxSIOp::create(b, loc, update, current);
             } else if (isa<mlir::FloatType>(update.getType())) {
-              result = b.create<arith::MaximumFOp>(loc, update, current);
+              result = arith::MaximumFOp::create(b, loc, update, current);
             } else {
               llvm_unreachable("Only integer/float types supported!");
             }
           } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
             if (isa<mlir::IntegerType>(update.getType())) {
-              result = b.create<arith::MinSIOp>(loc, update, current);
+              result = arith::MinSIOp::create(b, loc, update, current);
             } else if (isa<mlir::FloatType>(update.getType())) {
-              result = b.create<arith::MinimumFOp>(loc, update, current);
+              result = arith::MinimumFOp::create(b, loc, update, current);
             } else {
               llvm_unreachable("Only integer/float types supported!");
             }
           }
-          b.create<TMTensor::YieldOp>(loc, result);
+          TMTensor::YieldOp::create(b, loc, result);
         });
 
     // Special case for the mean
@@ -1399,40 +1409,39 @@ public:
             Value result;
             if (mlir::IntegerType intType =
                     llvm::dyn_cast<mlir::IntegerType>(current.getType())) {
-              Value constantUpdate = b.create<arith::ConstantOp>(
-                  loc, b.getIntegerAttr(intType, 1));
-              result = b.create<arith::AddIOp>(loc, constantUpdate, current);
+              Value constantUpdate = arith::ConstantOp::create(
+                  b, loc, b.getIntegerAttr(intType, 1));
+              result = arith::AddIOp::create(b, loc, constantUpdate, current);
             } else if (mlir::FloatType floatType =
                            llvm::dyn_cast<mlir::FloatType>(current.getType())) {
-              Value constantUpdate = b.create<arith::ConstantOp>(
-                  loc, b.getFloatAttr(floatType, 1.0));
-              result = b.create<arith::AddFOp>(loc, constantUpdate, current);
+              Value constantUpdate = arith::ConstantOp::create(
+                  b, loc, b.getFloatAttr(floatType, 1.0));
+              result = arith::AddFOp::create(b, loc, constantUpdate, current);
             } else {
               llvm_unreachable("Only integer/float types supported!");
             }
-            b.create<TMTensor::YieldOp>(loc, result);
+            TMTensor::YieldOp::create(b, loc, result);
           });
 
-      Value output = rewriter.create<tensor::EmptyOp>(
-          loc, tensor::getMixedSizes(rewriter, loc, self),
+      Value output = tensor::EmptyOp::create(
+          rewriter, loc, tensor::getMixedSizes(rewriter, loc, self),
           selfType.getElementType());
 
       // Finally divide the result
       scatterOp =
-          rewriter
-              .create<linalg::MapOp>(
-                  loc, ValueRange{scatterOp, counts}, output,
-                  [&](OpBuilder &b, Location loc, ValueRange args) {
-                    Value result;
-                    if (llvm::isa<mlir::IntegerType>(args[0].getType())) {
-                      result = b.create<arith::DivSIOp>(loc, args[0], args[1]);
-                    } else if (llvm::isa<mlir::FloatType>(args[0].getType())) {
-                      result = b.create<arith::DivFOp>(loc, args[0], args[1]);
-                    } else {
-                      llvm_unreachable("Only integer/float types supported!");
-                    }
-                    b.create<linalg::YieldOp>(loc, result);
-                  })
+          linalg::MapOp::create(
+              rewriter, loc, ValueRange{scatterOp, counts}, output,
+              [&](OpBuilder &b, Location loc, ValueRange args) {
+                Value result;
+                if (llvm::isa<mlir::IntegerType>(args[0].getType())) {
+                  result = arith::DivSIOp::create(b, loc, args[0], args[1]);
+                } else if (llvm::isa<mlir::FloatType>(args[0].getType())) {
+                  result = arith::DivFOp::create(b, loc, args[0], args[1]);
+                } else {
+                  llvm_unreachable("Only integer/float types supported!");
+                }
+                linalg::YieldOp::create(b, loc, result);
+              })
               .getResult()[0];
     }
     auto resultType = cast<RankedTensorType>(
@@ -1484,26 +1493,25 @@ public:
     SmallVector<Value> dynDims;
     for (unsigned i = 0; i < inputType.getRank(); i++) {
       if (inputType.isDynamicDim(i)) {
-        dynDims.push_back(rewriter.create<tensor::DimOp>(loc, inputTensor, i));
+        dynDims.push_back(tensor::DimOp::create(rewriter, loc, inputTensor, i));
       }
     }
-    Value initEmptyTensor = rewriter.create<tensor::EmptyOp>(
-        loc, inputType.getShape(), rewriter.getI64Type(), dynDims);
+    Value initEmptyTensor = tensor::EmptyOp::create(
+        rewriter, loc, inputType.getShape(), rewriter.getI64Type(), dynDims);
 
     SmallVector<AffineMap> indexingMaps = {
         AffineMap::getMultiDimIdentityMap(inputRank, op.getContext())};
     SmallVector<utils::IteratorType> iteratorTypes(
         inputRank, utils::IteratorType::parallel);
     Value indicesTensor =
-        rewriter
-            .create<linalg::GenericOp>(
-                loc, initEmptyTensor.getType(), ValueRange{}, initEmptyTensor,
-                indexingMaps, iteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  Value index = b.create<linalg::IndexOp>(loc, dim);
-                  index = castIndexToInt64(b, loc, index);
-                  b.create<linalg::YieldOp>(loc, index);
-                })
+        linalg::GenericOp::create(
+            rewriter, loc, initEmptyTensor.getType(), ValueRange{},
+            initEmptyTensor, indexingMaps, iteratorTypes,
+            [&](OpBuilder &b, Location loc, ValueRange args) {
+              Value index = linalg::IndexOp::create(b, loc, dim);
+              index = castIndexToInt64(b, loc, index);
+              linalg::YieldOp::create(b, loc, index);
+            })
             .getResult(0);
 
     // Step 6. Create TMTensor::SortOp.
@@ -1576,7 +1584,7 @@ public:
 
     SmallVector<Value> sizes = getTensorSizes(rewriter, loc, input);
     Value output = createOneInitTensor(rewriter, loc, sizes, elementType);
-    output = rewriter.create<tensor::CastOp>(loc, resultType, output);
+    output = tensor::CastOp::create(rewriter, loc, resultType, output);
 
     SmallVector<Value> accSizes(sizes);
     accSizes.erase(accSizes.begin() + dim);
@@ -1586,16 +1594,16 @@ public:
     Value acc = createOneInitTensor(rewriter, loc, accSizes, elementType);
     Type accType =
         RankedTensorType::get(makeShapeLLVMCompatible(accStatic), elementType);
-    acc = rewriter.create<tensor::CastOp>(loc, accType, acc);
+    acc = tensor::CastOp::create(rewriter, loc, accType, acc);
 
     Value result = createTMTensorScanOp(
         rewriter, loc, input, output, acc, dim, /*inclusive=*/true,
         [](OpBuilder &b, Location loc, Value input, Value acc) {
           Value prod =
               (isa<mlir::FloatType>(input.getType())
-                   ? b.create<arith::MulFOp>(loc, input, acc)->getResult(0)
-                   : b.create<arith::MulIOp>(loc, input, acc)->getResult(0));
-          b.create<TMTensor::YieldOp>(loc, prod);
+                   ? arith::MulFOp::create(b, loc, input, acc)->getResult(0)
+                   : arith::MulIOp::create(b, loc, input, acc)->getResult(0));
+          TMTensor::YieldOp::create(b, loc, prod);
         });
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
@@ -1665,7 +1673,7 @@ public:
 
     SmallVector<Value> sizes = getTensorSizes(rewriter, loc, input);
     Value output = createZeroInitTensor(rewriter, loc, sizes, elementType);
-    output = rewriter.create<tensor::CastOp>(loc, resultType, output);
+    output = tensor::CastOp::create(rewriter, loc, resultType, output);
 
     SmallVector<Value> accSizes(sizes);
     accSizes.erase(accSizes.begin() + dim);
@@ -1675,16 +1683,16 @@ public:
     Value acc = createZeroInitTensor(rewriter, loc, accSizes, elementType);
     Type accType =
         RankedTensorType::get(makeShapeLLVMCompatible(accStatic), elementType);
-    acc = rewriter.create<tensor::CastOp>(loc, accType, acc);
+    acc = tensor::CastOp::create(rewriter, loc, accType, acc);
 
     Value result = createTMTensorScanOp(
         rewriter, loc, input, output, acc, dim, /*inclusive=*/true,
         [](OpBuilder &b, Location loc, Value input, Value acc) {
           Value sum =
               (isa<mlir::FloatType>(input.getType())
-                   ? b.create<arith::AddFOp>(loc, input, acc)->getResult(0)
-                   : b.create<arith::AddIOp>(loc, input, acc)->getResult(0));
-          b.create<TMTensor::YieldOp>(loc, sum);
+                   ? arith::AddFOp::create(b, loc, input, acc)->getResult(0)
+                   : arith::AddIOp::create(b, loc, input, acc)->getResult(0));
+          TMTensor::YieldOp::create(b, loc, sum);
         });
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
@@ -1795,41 +1803,43 @@ public:
       for (int i = 0, s = queryTy.getRank() - 1; i < s; ++i) {
         maskStatic.push_back(queryTy.getDimSize(i));
         if (maskStatic.back() == ShapedType::kDynamic)
-          maskDyn.push_back(rewriter.create<tensor::DimOp>(loc, query, i));
+          maskDyn.push_back(tensor::DimOp::create(rewriter, loc, query, i));
       }
 
       maskStatic.push_back(keyTy.getDimSize(keyTy.getRank() - 2));
       if (maskStatic.back() == ShapedType::kDynamic)
         maskDyn.push_back(
-            rewriter.create<tensor::DimOp>(loc, key, keyTy.getRank() - 2));
+            tensor::DimOp::create(rewriter, loc, key, keyTy.getRank() - 2));
 
       Type maskType = getElementTypeOrSelf(queryTy);
       Value emptyMask =
-          rewriter.create<tensor::EmptyOp>(loc, maskStatic, maskType, maskDyn);
+          tensor::EmptyOp::create(rewriter, loc, maskStatic, maskType, maskDyn);
 
-      Value zero = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getFloatAttr(getElementTypeOrSelf(maskType), 0.0));
-      Value negInf = rewriter.create<arith::ConstantOp>(
-          loc,
+      Value zero = arith::ConstantOp::create(
+          rewriter, loc,
+          rewriter.getFloatAttr(getElementTypeOrSelf(maskType), 0.0));
+      Value negInf = arith::ConstantOp::create(
+          rewriter, loc,
           rewriter.getFloatAttr(getElementTypeOrSelf(maskType), -INFINITY));
 
-      mask = rewriter.create<linalg::FillOp>(loc, zero, emptyMask).getResult(0);
+      mask =
+          linalg::FillOp::create(rewriter, loc, zero, emptyMask).getResult(0);
 
       int64_t rank = cast<ShapedType>(queryTy).getRank();
       AffineMap maskMap = rewriter.getMultiDimIdentityMap(rank);
       SmallVector<utils::IteratorType> iteratorTypes(
           rank, utils::IteratorType::parallel);
-      auto genericOp = rewriter.create<linalg::GenericOp>(
-          loc, mask.getType(), ValueRange{}, mask,
+      auto genericOp = linalg::GenericOp::create(
+          rewriter, loc, mask.getType(), ValueRange{}, mask,
           SmallVector<AffineMap>{maskMap}, iteratorTypes,
           [&](OpBuilder &b, Location loc, ValueRange args) {
-            Value i = b.create<linalg::IndexOp>(loc, queryTy.getRank() - 2);
-            Value j = b.create<linalg::IndexOp>(loc, queryTy.getRank() - 1);
+            Value i = linalg::IndexOp::create(b, loc, queryTy.getRank() - 2);
+            Value j = linalg::IndexOp::create(b, loc, queryTy.getRank() - 1);
 
             Value cond =
-                b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, i, j);
-            Value select = b.create<arith::SelectOp>(loc, cond, zero, negInf);
-            b.create<linalg::YieldOp>(loc, select);
+                arith::CmpIOp::create(b, loc, arith::CmpIPredicate::sge, i, j);
+            Value select = arith::SelectOp::create(b, loc, cond, zero, negInf);
+            linalg::YieldOp::create(b, loc, select);
           });
       mask = genericOp.getResult(0);
     }
@@ -1859,7 +1869,7 @@ public:
 
           if (queryTy.isDynamicDim(i)) {
             maskDynDims.push_back(
-                rewriter.create<tensor::DimOp>(loc, query, i));
+                tensor::DimOp::create(rewriter, loc, query, i));
           }
         }
 
@@ -1869,10 +1879,10 @@ public:
         maskShape.push_back(maskTy.getDimSize(rank - 1));
         if (maskTy.isDynamicDim(rank - 2))
           maskDynDims.push_back(
-              rewriter.create<tensor::DimOp>(loc, mask, rank - 2));
+              tensor::DimOp::create(rewriter, loc, mask, rank - 2));
         if (maskTy.isDynamicDim(rank - 1))
           maskDynDims.push_back(
-              rewriter.create<tensor::DimOp>(loc, mask, rank - 1));
+              tensor::DimOp::create(rewriter, loc, mask, rank - 1));
 
         SmallVector<AffineMap> affineMaps = {
             AffineMap::get(/*dimCount=*/rank, /*symbolCount=*/0, maskExprs,
@@ -1881,16 +1891,15 @@ public:
         SmallVector<utils::IteratorType> findMaxIteratorTypes(
             rank, utils::IteratorType::parallel);
 
-        Value emptyMask = rewriter.create<tensor::EmptyOp>(
-            loc, maskShape, maskTy.getElementType(), maskDynDims);
+        Value emptyMask = tensor::EmptyOp::create(
+            rewriter, loc, maskShape, maskTy.getElementType(), maskDynDims);
         Value newMask =
-            rewriter
-                .create<linalg::GenericOp>(
-                    loc, emptyMask.getType(), mask, ValueRange({emptyMask}),
-                    affineMaps, findMaxIteratorTypes,
-                    [&](OpBuilder &b, Location loc, ValueRange args) {
-                      b.create<linalg::YieldOp>(loc, args[0]);
-                    })
+            linalg::GenericOp::create(
+                rewriter, loc, emptyMask.getType(), mask,
+                ValueRange({emptyMask}), affineMaps, findMaxIteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  linalg::YieldOp::create(b, loc, args[0]);
+                })
                 .getResult(0);
         mask = newMask;
       }
@@ -1951,8 +1960,8 @@ public:
       }
 
       auto collapseTy = valueTy.clone(newShape);
-      return rewriter.create<tensor::CollapseShapeOp>(loc, collapseTy, value,
-                                                      reassociation);
+      return tensor::CollapseShapeOp::create(rewriter, loc, collapseTy, value,
+                                             reassociation);
     };
 
     query = collapseBatch(query);
@@ -1980,14 +1989,13 @@ public:
     }
 
     // Overwrite with tm_tensor::attention
-    Value attention = rewriter
-                          .create<AttentionOp>(loc, outType, inputs,
-                                               SmallVector<Value>{output})
+    Value attention = AttentionOp::create(rewriter, loc, outType, inputs,
+                                          SmallVector<Value>{output})
                           .getResult()[0];
 
     if (opTy != outType) {
-      attention = rewriter.create<tensor::ExpandShapeOp>(loc, opTy, attention,
-                                                         reassociation);
+      attention = tensor::ExpandShapeOp::create(rewriter, loc, opTy, attention,
+                                                reassociation);
     }
 
     rewriter.replaceOp(op, attention);
@@ -2068,16 +2076,16 @@ public:
     Value fillValTopK;
     if (isa<mlir::FloatType>(inputElementType)) {
       // max float for topk tensor
-      fillValTopK = rewriter.create<arith::ConstantOp>(
-          loc,
+      fillValTopK = arith::ConstantOp::create(
+          rewriter, loc,
           rewriter.getFloatAttr(
               inputElementType,
               APFloat::getInf(
                   cast<mlir::FloatType>(inputElementType).getFloatSemantics(),
                   /*Negative=*/false)));
       // min float for linalg generic op tensor
-      fillValLinalgFindMax = rewriter.create<arith::ConstantOp>(
-          loc,
+      fillValLinalgFindMax = arith::ConstantOp::create(
+          rewriter, loc,
           rewriter.getFloatAttr(
               inputElementType,
               APFloat::getInf(
@@ -2087,22 +2095,22 @@ public:
       auto width = cast<mlir::IntegerType>(inputElementType).getWidth();
       // max signed int for topk op tensor
       auto init = APSInt::getSignedMaxValue(width);
-      fillValTopK = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getIntegerAttr(inputElementType, init));
+      fillValTopK = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getIntegerAttr(inputElementType, init));
       // min signed int for linalg generic op tensor
       init = APSInt::getSignedMinValue(width);
-      fillValLinalgFindMax = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getIntegerAttr(inputElementType, init));
+      fillValLinalgFindMax = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getIntegerAttr(inputElementType, init));
     } else if (isUnsigned) {
       auto width = cast<mlir::IntegerType>(inputElementType).getWidth();
       // max unsigned int for topk op tensor
       auto init = APInt::getMaxValue(width);
-      fillValTopK = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getIntegerAttr(inputElementType, init));
+      fillValTopK = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getIntegerAttr(inputElementType, init));
       // min unsigned int for linalg generic op tensor
       init = APInt::getMinValue(width);
-      fillValLinalgFindMax = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getIntegerAttr(inputElementType, init));
+      fillValLinalgFindMax = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getIntegerAttr(inputElementType, init));
     }
 
     auto i32Type = rewriter.getI32Type();
@@ -2116,11 +2124,11 @@ public:
     // except topkShape[dim] = k.
     SmallVector<Value> topkShape;
     for (unsigned i = 0; i < inputRank; i++) {
-      auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
+      auto currentDimSize = tensor::DimOp::create(rewriter, loc, input, i);
       topkShape.push_back(currentDimSize);
     }
-    auto dimSize = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(rewriter.getI64Type(), k));
+    auto dimSize = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getIntegerAttr(rewriter.getI64Type(), k));
     topkShape[dim] = dimSize;
 
     // Fill the initial topk op output tensor.
@@ -2132,7 +2140,7 @@ public:
     auto signlessType = mlir::IntegerType::get(op.getContext(), 32,
                                                mlir::IntegerType::Signless);
     auto initIdx = getNumericLimit(rewriter, signlessType, /*getMin=*/false);
-    auto fillValTopkIdx = rewriter.create<arith::ConstantOp>(loc, initIdx);
+    auto fillValTopkIdx = arith::ConstantOp::create(rewriter, loc, initIdx);
     // Fill the initial topk op output indices tensor.
     Value topkOutputIdx =
         createInitTensor(rewriter, loc, topkShape, i32Type, fillValTopkIdx);
@@ -2181,7 +2189,7 @@ public:
     SmallVector<int64_t> resultShapeInt;
     for (int64_t i = 0; i < inputType.getRank(); i++) {
       if (dim != i) {
-        auto currentDimSize = rewriter.create<tensor::DimOp>(loc, input, i);
+        auto currentDimSize = tensor::DimOp::create(rewriter, loc, input, i);
         resultShape.push_back(currentDimSize);
         resultShapeInt.push_back(inputType.getShape()[i]);
       }
@@ -2216,8 +2224,8 @@ public:
         rewriter.getContext());
 
     // Create linalg op for finding the max value in the extracted topk values.
-    auto findMaxLinalg = rewriter.create<linalg::GenericOp>(
-        loc,
+    auto findMaxLinalg = linalg::GenericOp::create(
+        rewriter, loc,
         ArrayRef<Type>(
             {findMaxOutputVal.getType(), findMaxOutputIdx.getType()}),
         topkOpVal.front(), ValueRange({findMaxOutputVal, findMaxOutputIdx}),
@@ -2231,34 +2239,35 @@ public:
           Value oldValue = blockArgs[1];
           Value oldIndex = blockArgs[2];
 
-          Value newIndex = rewriter.create<arith::IndexCastOp>(
-              nestedLoc, oldIndex.getType(),
-              rewriter.create<linalg::IndexOp>(nestedLoc, dim));
+          Value newIndex = arith::IndexCastOp::create(
+              rewriter, nestedLoc, oldIndex.getType(),
+              linalg::IndexOp::create(rewriter, nestedLoc, dim));
 
           Value resultVal, predicate;
           if (isa<mlir::FloatType>(inputElementType)) {
-            resultVal = rewriter.create<arith::MaximumFOp>(nestedLoc, newValue,
-                                                           oldValue);
-            predicate = rewriter.create<arith::CmpFOp>(
-                nestedLoc, arith::CmpFPredicate::OGT, newValue, oldValue);
+            resultVal = arith::MaximumFOp::create(rewriter, nestedLoc, newValue,
+                                                  oldValue);
+            predicate = arith::CmpFOp::create(rewriter, nestedLoc,
+                                              arith::CmpFPredicate::OGT,
+                                              newValue, oldValue);
           } else {
             arith::CmpIPredicate predType;
             predType = isUnsigned ? arith::CmpIPredicate::ugt
                                   : arith::CmpIPredicate::sgt;
             if (isUnsigned) {
-              resultVal = rewriter.create<arith::MaxUIOp>(nestedLoc, newValue,
-                                                          oldValue);
+              resultVal = arith::MaxUIOp::create(rewriter, nestedLoc, newValue,
+                                                 oldValue);
             } else {
-              resultVal = rewriter.create<arith::MaxSIOp>(nestedLoc, newValue,
-                                                          oldValue);
+              resultVal = arith::MaxSIOp::create(rewriter, nestedLoc, newValue,
+                                                 oldValue);
             }
-            predicate = rewriter.create<arith::CmpIOp>(nestedLoc, predType,
-                                                       newValue, oldValue);
+            predicate = arith::CmpIOp::create(rewriter, nestedLoc, predType,
+                                              newValue, oldValue);
           }
-          auto resultIndex = rewriter.create<arith::SelectOp>(
-              nestedLoc, predicate, newIndex, oldIndex);
-          nestedBuilder.create<linalg::YieldOp>(
-              nestedLoc, ValueRange{resultVal, resultIndex});
+          auto resultIndex = arith::SelectOp::create(
+              rewriter, nestedLoc, predicate, newIndex, oldIndex);
+          linalg::YieldOp::create(nestedBuilder, nestedLoc,
+                                  ValueRange{resultVal, resultIndex});
         });
 
     auto findMaxVal = findMaxLinalg.getResult(0);
@@ -2301,28 +2310,29 @@ public:
     // Linalg generic op for indexing the topk output idx tensor using
     // the idx tensor returned by the linalg generic op for finding max.
     // Only the idx tensor from the linalg generic op is sent as input.
-    auto extractedIdxLinalg = rewriter.create<linalg::GenericOp>(
-        loc, ArrayRef<Type>({filledTensorExtractedIdx.getType()}), findMaxIdx,
-        filledTensorExtractedIdx, extractedIdxMaps, extractedIdxIteratorTypes,
+    auto extractedIdxLinalg = linalg::GenericOp::create(
+        rewriter, loc, ArrayRef<Type>({filledTensorExtractedIdx.getType()}),
+        findMaxIdx, filledTensorExtractedIdx, extractedIdxMaps,
+        extractedIdxIteratorTypes,
         [&](OpBuilder &nestedBuilder, Location nestedLoc,
             ValueRange blockArgs) {
           // Get the current input idx.
-          Value index = rewriter.create<arith::IndexCastOp>(
-              loc, rewriter.getIndexType(), blockArgs[0]);
+          Value index = arith::IndexCastOp::create(
+              rewriter, loc, rewriter.getIndexType(), blockArgs[0]);
 
           // Create idx to index the topk idx tensor.
           // Index the dim dimension using the current input idx.
           SmallVector<Value> indexTarget;
           for (unsigned i = 0; i < dim; i++)
-            indexTarget.push_back(rewriter.create<linalg::IndexOp>(loc, i));
+            indexTarget.push_back(linalg::IndexOp::create(rewriter, loc, i));
           indexTarget.push_back(index);
           for (unsigned i = dim; i < findMaxIdxType.getRank(); i++)
-            indexTarget.push_back(rewriter.create<linalg::IndexOp>(loc, i));
+            indexTarget.push_back(linalg::IndexOp::create(rewriter, loc, i));
 
           // Extract the element from the topk idx tensor.
-          Value extractedElement = rewriter.create<tensor::ExtractOp>(
-              loc, topkOpVal.back(), indexTarget);
-          rewriter.create<linalg::YieldOp>(loc, extractedElement);
+          Value extractedElement = tensor::ExtractOp::create(
+              rewriter, loc, topkOpVal.back(), indexTarget);
+          linalg::YieldOp::create(rewriter, loc, extractedElement);
         });
 
     auto extractedIdx = extractedIdxLinalg.getResult(0);
@@ -2352,21 +2362,22 @@ public:
 
     // Linalg generic op for casting topk idx output tensor elements from i32 to
     // result idx tensor element type.
-    auto castedIdxLinalg = rewriter.create<linalg::GenericOp>(
-        loc, ArrayRef<Type>({filledTensorCastedIdx.getType()}), extractedIdx,
-        filledTensorCastedIdx, castedIdxMaps, castedIdxIteratorTypes,
+    auto castedIdxLinalg = linalg::GenericOp::create(
+        rewriter, loc, ArrayRef<Type>({filledTensorCastedIdx.getType()}),
+        extractedIdx, filledTensorCastedIdx, castedIdxMaps,
+        castedIdxIteratorTypes,
         [&](OpBuilder &nestedBuilder, Location nestedLoc,
             ValueRange blockArgs) {
           Value oldIdx = blockArgs[0];
 
           // Cast from i32 to index.
-          Value oldIdxToIndexType = rewriter.create<arith::IndexCastOp>(
-              nestedLoc, rewriter.getIndexType(), oldIdx);
+          Value oldIdxToIndexType = arith::IndexCastOp::create(
+              rewriter, nestedLoc, rewriter.getIndexType(), oldIdx);
           // Cast from index to result idx element type.
-          Value resultIdx = rewriter.create<arith::IndexCastOp>(
-              nestedLoc, idxResultElementType, oldIdxToIndexType);
+          Value resultIdx = arith::IndexCastOp::create(
+              rewriter, nestedLoc, idxResultElementType, oldIdxToIndexType);
 
-          nestedBuilder.create<linalg::YieldOp>(nestedLoc, resultIdx);
+          linalg::YieldOp::create(nestedBuilder, nestedLoc, resultIdx);
         });
 
     auto castedIdx = castedIdxLinalg.getResult(0);
@@ -2388,9 +2399,9 @@ public:
     if (!keepDim) {
       // If keepdim=false, cast the the outputs to appropriate type and return.
       Value retVal =
-          rewriter.create<tensor::CastOp>(loc, squeezedValType, findMaxVal);
+          tensor::CastOp::create(rewriter, loc, squeezedValType, findMaxVal);
       Value retIdx =
-          rewriter.create<tensor::CastOp>(loc, squeezedIdxType, castedIdx);
+          tensor::CastOp::create(rewriter, loc, squeezedIdxType, castedIdx);
       llvm::SmallVector<Value> res{retVal, retIdx};
       rewriter.replaceOp(op, res);
       return success();
@@ -2409,10 +2420,11 @@ public:
     valShape.resize(valShape.size() - 1);
     idxShape.resize(idxShape.size() - 1);
 
-    Value retVal = rewriter.create<tensor::CastOp>(
-        loc, squeezedValType.clone(valShape), findMaxLinalg.getResult(0));
-    Value retIdx = rewriter.create<tensor::CastOp>(
-        loc, squeezedIdxType.clone(idxShape), castedIdx);
+    Value retVal =
+        tensor::CastOp::create(rewriter, loc, squeezedValType.clone(valShape),
+                               findMaxLinalg.getResult(0));
+    Value retIdx = tensor::CastOp::create(
+        rewriter, loc, squeezedIdxType.clone(idxShape), castedIdx);
 
     SmallVector<ReassociationIndices> reassociation(valShape.size());
     if (reassociation.size() > 0) {
@@ -2433,11 +2445,11 @@ public:
     valShape[dim] = 1;
     idxShape[dim] = 1;
 
-    Value unsqueezeVal = rewriter.create<tensor::ExpandShapeOp>(
-        loc, valResultType, retVal, reassociation);
+    Value unsqueezeVal = tensor::ExpandShapeOp::create(
+        rewriter, loc, valResultType, retVal, reassociation);
 
-    Value unsqueezeIdx = rewriter.create<tensor::ExpandShapeOp>(
-        loc, idxResultType, retIdx, reassociation);
+    Value unsqueezeIdx = tensor::ExpandShapeOp::create(
+        rewriter, loc, idxResultType, retIdx, reassociation);
 
     // Return unsqueezed.
     llvm::SmallVector<Value> unsqueezes = {unsqueezeVal, unsqueezeIdx};
@@ -2453,7 +2465,7 @@ public:
 
 namespace {
 class ConvertTorchToTMTensor
-    : public ConvertTorchToTMTensorBase<ConvertTorchToTMTensor> {
+    : public impl::ConvertTorchToTMTensorBase<ConvertTorchToTMTensor> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<linalg::LinalgDialect>();
@@ -2513,6 +2525,8 @@ public:
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToTMTensorPass() {
+createConvertTorchToTMTensorPass() {
   return std::make_unique<ConvertTorchToTMTensor>();
 }
+
+} // namespace mlir::torch

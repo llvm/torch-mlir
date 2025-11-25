@@ -8,7 +8,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Tensor/Utils/Utils.h"
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
@@ -40,9 +39,9 @@ Value torch_to_linalg::getPaddedTensor(
       getIndexIntsAsOpFoldResult(b, lowPaddingInts);
   SmallVector<OpFoldResult> highPaddings =
       getIndexIntsAsOpFoldResult(b, highPaddingInts);
-  Value paddedInput =
-      b.create<tensor::PadOp>(loc, rankedTensorType, input, /*low=*/lowPaddings,
-                              /*high=*/highPaddings, pad);
+  Value paddedInput = tensor::PadOp::create(b, loc, rankedTensorType, input,
+                                            /*low=*/lowPaddings,
+                                            /*high=*/highPaddings, pad);
   return paddedInput;
 }
 
@@ -55,8 +54,8 @@ Value torch_to_linalg::getZeroPaddedTensor(
   assert(isa<RankedTensorType>(input.getType()) &&
          "input must be RankedTensorType");
   Location loc = op->getLoc();
-  Value c0 = b.create<arith::ConstantOp>(
-      loc,
+  Value c0 = arith::ConstantOp::create(
+      b, loc,
       b.getZeroAttr(cast<RankedTensorType>(input.getType()).getElementType()));
   return getPaddedTensor(op, b, input, paddingInts, paddingInts, c0);
 }
@@ -72,7 +71,7 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
   Location loc = op->getLoc();
 
   SmallVector<Value> inputDims = getTensorSizes(b, loc, input);
-  Value c0 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(0));
+  Value c0 = arith::ConstantOp::create(b, loc, b.getI64IntegerAttr(0));
   SmallVector<Value> paddingIncludingUnchanged(unpaddedDims, c0);
   paddingIncludingUnchanged.append(padding);
   assert(static_cast<int64_t>(unpaddedDims + padding.size()) ==
@@ -85,8 +84,8 @@ Value torch_to_linalg::getDynamicZeroPaddedTensor(
   SmallVector<OpFoldResult> paddingValues =
       getAsOpFoldResult(paddingIncludingUnchanged);
 
-  return b.create<tensor::PadOp>(loc, Type{}, input, /*low=*/paddingValues,
-                                 /*high=*/paddingValues, pad);
+  return tensor::PadOp::create(b, loc, Type{}, input, /*low=*/paddingValues,
+                               /*high=*/paddingValues, pad);
 }
 
 Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
@@ -94,8 +93,8 @@ Value torch_to_linalg::getOutputDimForConvOps(OpBuilder &b, Location loc,
                                               Value dilationInt,
                                               Value kernelSizeInt,
                                               Value strideInt, bool ceilMode) {
-  Value c1 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(1));
-  Value c2 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(2));
+  Value c1 = arith::ConstantOp::create(b, loc, b.getI64IntegerAttr(1));
+  Value c2 = arith::ConstantOp::create(b, loc, b.getI64IntegerAttr(2));
 
   Value doublePadding = b.createOrFold<arith::MulIOp>(loc, paddingInt, c2);
   // in + 2 * padding
@@ -141,9 +140,9 @@ Value torch_to_linalg::getOutputDimForPoolOps(OpBuilder &b, Location loc,
                                               Value dilationInt,
                                               Value kernelSizeInt,
                                               Value strideInt, bool ceilMode) {
-  Value c1 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(1));
+  Value c1 = arith::ConstantOp::create(b, loc, b.getI64IntegerAttr(1));
   Value totalPaddingIntCst =
-      b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(totalPadding));
+      arith::ConstantOp::create(b, loc, b.getI64IntegerAttr(totalPadding));
 
   // in + totalPadding
   Value inAddTotalPadding = b.createOrFold<arith::AddIOp>(
@@ -170,7 +169,7 @@ Value torch_to_linalg::getOutputDimForPoolOps(OpBuilder &b, Location loc,
   Value outMinusOneTimesStride =
       b.createOrFold<arith::MulIOp>(loc, division, strideInt);
   Value leftPaddingIntCst =
-      b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(leftPadding));
+      arith::ConstantOp::create(b, loc, b.getI64IntegerAttr(leftPadding));
   Value inAddLeftPadding = b.createOrFold<arith::AddIOp>(
       loc, castIndexToInt64(b, loc, in), leftPaddingIntCst);
 
@@ -185,25 +184,25 @@ Value torch_to_linalg::getOutputDimForPoolOps(OpBuilder &b, Location loc,
 Value torch_to_linalg::getOutputDimForConvTransposeOps(
     OpBuilder &b, Location loc, Value in, Value paddingInt, Value dilationInt,
     Value kernelSizeInt, Value strideInt, Value outputPaddingInt) {
-  Value c1 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(1));
-  Value c2 = b.create<arith::ConstantOp>(loc, b.getI64IntegerAttr(2));
+  Value c1 = arith::ConstantOp::create(b, loc, b.getI64IntegerAttr(1));
+  Value c2 = arith::ConstantOp::create(b, loc, b.getI64IntegerAttr(2));
 
   // (in - 1) * stride
   Value inStrided =
-      b.create<arith::SubIOp>(loc, castIndexToInt64(b, loc, in), c1);
-  inStrided = b.create<arith::MulIOp>(loc, inStrided, strideInt);
+      arith::SubIOp::create(b, loc, castIndexToInt64(b, loc, in), c1);
+  inStrided = arith::MulIOp::create(b, loc, inStrided, strideInt);
 
   // 2 * padding
-  Value doublePadding = b.create<arith::MulIOp>(loc, paddingInt, c2);
+  Value doublePadding = arith::MulIOp::create(b, loc, paddingInt, c2);
 
   // (kernelSize - 1) * dilation
-  Value kernelDilated = b.create<arith::SubIOp>(loc, kernelSizeInt, c1);
-  kernelDilated = b.create<arith::MulIOp>(loc, kernelDilated, dilationInt);
+  Value kernelDilated = arith::SubIOp::create(b, loc, kernelSizeInt, c1);
+  kernelDilated = arith::MulIOp::create(b, loc, kernelDilated, dilationInt);
 
-  Value out = b.create<arith::SubIOp>(loc, inStrided, doublePadding);
-  out = b.create<arith::AddIOp>(loc, out, kernelDilated);
-  out = b.create<arith::AddIOp>(loc, out, outputPaddingInt);
-  out = b.create<arith::AddIOp>(loc, out, c1);
+  Value out = arith::SubIOp::create(b, loc, inStrided, doublePadding);
+  out = arith::AddIOp::create(b, loc, out, kernelDilated);
+  out = arith::AddIOp::create(b, loc, out, outputPaddingInt);
+  out = arith::AddIOp::create(b, loc, out, c1);
 
   return castIntToIndex(b, loc, out);
 }
@@ -218,10 +217,11 @@ Value torch_to_linalg::createReductionLinalgGeneric(
   // If `opInfo.keepDim` is true, the rank of the output tensor
   // is kept the same as the rank of the input tensor, and the
   // reduced dimensions are set to have size 1.
-  auto c1 = b.create<arith::ConstantIndexOp>(loc, /*value=*/1);
+  auto c1 = arith::ConstantIndexOp::create(b, loc, /*value=*/1);
   SmallVector<Value> resultShape;
   for (int64_t i = 0; i < inputType.getRank(); i++) {
-    auto currentDimSize = b.create<tensor::DimOp>(loc, opInfo.tensorOperand, i);
+    auto currentDimSize =
+        tensor::DimOp::create(b, loc, opInfo.tensorOperand, i);
     if (!opInfo.dimSet.contains(i))
       resultShape.push_back(currentDimSize);
     else if (opInfo.keepDim)
@@ -255,11 +255,10 @@ Value torch_to_linalg::createReductionLinalgGeneric(
   Value accumulator =
       createInitTensor(b, loc, resultShape, initElem.getType(), initElem);
 
-  return b
-      .create<linalg::GenericOp>(
-          loc, /*resultTensorTypes=*/accumulator.getType(),
-          /*inputs=*/opInfo.tensorOperand,
-          /*outputs=*/accumulator, indexingMaps, iteratorTypes, bodyBuild)
+  return linalg::GenericOp::create(
+             b, loc, /*resultTensorTypes=*/accumulator.getType(),
+             /*inputs=*/opInfo.tensorOperand,
+             /*outputs=*/accumulator, indexingMaps, iteratorTypes, bodyBuild)
       .getResult(0);
 }
 
@@ -300,7 +299,7 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
 
   // Initialize the resultShape to all 1's, as a fallback in case
   // all sizes along that result dimension are statically 1.
-  auto c1 = b.create<arith::ConstantIndexOp>(loc, /*value=*/1);
+  auto c1 = arith::ConstantIndexOp::create(b, loc, /*value=*/1);
   SmallVector<Value> resultShape(resultRank, c1);
 
   // Record whether or not all corresponding input dims are statically 1.
@@ -370,10 +369,10 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
       // dimensions sizes that are expected to match.
       if (!elideDynamicBroadcastCheck) {
         auto equalToRunning =
-            b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-                                    resultShape[resultDim], currentDimSize);
-        b.create<cf::AssertOp>(loc, equalToRunning,
-                               "mismatched size for broadcast");
+            arith::CmpIOp::create(b, loc, arith::CmpIPredicate::eq,
+                                  resultShape[resultDim], currentDimSize);
+        cf::AssertOp::create(b, loc, equalToRunning,
+                             "mismatched size for broadcast");
       }
     }
     indexingMaps.push_back(AffineMap::get(
@@ -385,14 +384,13 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
   // Add the indexing map for the outs init tensor.
   indexingMaps.push_back(b.getMultiDimIdentityMap(resultRank));
 
-  Value initTensor = b.create<tensor::EmptyOp>(
-      loc, getAsOpFoldResult(resultShape), resultElementType);
-  return b
-      .create<linalg::GenericOp>(loc,
-                                 /*resultTensorTypes=*/initTensor.getType(),
-                                 /*inputs=*/tensorOperands,
-                                 /*outputs=*/initTensor, indexingMaps,
-                                 iteratorTypes, bodyBuild)
+  Value initTensor = tensor::EmptyOp::create(
+      b, loc, getAsOpFoldResult(resultShape), resultElementType);
+  return linalg::GenericOp::create(b, loc,
+                                   /*resultTensorTypes=*/initTensor.getType(),
+                                   /*inputs=*/tensorOperands,
+                                   /*outputs=*/initTensor, indexingMaps,
+                                   iteratorTypes, bodyBuild)
       .getResult(0);
 }
 
@@ -424,11 +422,11 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
   // Create affine map and shapes for tensor initialization.
   SmallVector<AffineExpr> outExpr;
   Value zero =
-      rewriter.create<arith::ConstantOp>(loc, rewriter.getI64IntegerAttr(0));
+      arith::ConstantOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
   Value zeroIndex =
-      rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+      arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(0));
   Value oneIndex =
-      rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+      arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(1));
   size_t diff = outputRank - inputRank;
   bool hasDynamicNumpyBroadcast = false;
   for (size_t i = 0, e = outputRank; i < e; i++) {
@@ -464,10 +462,10 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
 
     if (i < diff) {
       if (!elideDynamicBroadcastCheck) {
-        Value isValid = rewriter.create<arith::CmpIOp>(
-            loc, arith::CmpIPredicate::sge, shapeValue, zero);
-        rewriter.create<cf::AssertOp>(
-            loc, isValid,
+        Value isValid = arith::CmpIOp::create(
+            rewriter, loc, arith::CmpIPredicate::sge, shapeValue, zero);
+        cf::AssertOp::create(
+            rewriter, loc, isValid,
             rewriter.getStringAttr(
                 "negative values not allowed in new dimensions"));
       }
@@ -476,10 +474,11 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
     }
     if (inputShape[j] == 1) {
       // Broadcast singleton dimension
-      Value isNegative = rewriter.create<arith::CmpIOp>(
-          loc, arith::CmpIPredicate::slt, shapeValue, zero);
-      Value select = rewriter.create<arith::SelectOp>(
-          loc, isNegative, oneIndex, castIntToIndex(rewriter, loc, shapeValue));
+      Value isNegative = arith::CmpIOp::create(
+          rewriter, loc, arith::CmpIPredicate::slt, shapeValue, zero);
+      Value select =
+          arith::SelectOp::create(rewriter, loc, isNegative, oneIndex,
+                                  castIntToIndex(rewriter, loc, shapeValue));
       outShape.push_back(select);
       broadcastedStatus.push_back(true);
       continue;
@@ -494,10 +493,10 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
         hasDynamicNumpyBroadcast = true;
       }
       if (!elideDynamicBroadcastCheck) {
-        Value isValid = rewriter.create<arith::CmpIOp>(
-            loc, arith::CmpIPredicate::sge, shapeValue, zero);
-        rewriter.create<cf::AssertOp>(
-            loc, isValid,
+        Value isValid = arith::CmpIOp::create(
+            rewriter, loc, arith::CmpIPredicate::sge, shapeValue, zero);
+        cf::AssertOp::create(
+            rewriter, loc, isValid,
             rewriter.getStringAttr(
                 "unimplemented: dynamic negative broadcast sizes"));
       }
@@ -511,7 +510,7 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
   }
 
   Value outTensor =
-      rewriter.create<tensor::EmptyOp>(loc, outShape, elementType);
+      tensor::EmptyOp::create(rewriter, loc, outShape, elementType);
 
   // If we know there are no ? -> ? broadcasted dims, or we are assuming
   // strict symbols, we can safely use standard linalg style broadcasting
@@ -521,7 +520,8 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
     // the op away entirely.
     if (!llvm::any_of(broadcastedStatus, [](bool b) { return b; }) &&
         inputRank == outputRank) {
-      result = rewriter.create<tensor::CastOp>(loc, outTensor.getType(), input);
+      result =
+          tensor::CastOp::create(rewriter, loc, outTensor.getType(), input);
       return success();
     }
 
@@ -554,8 +554,8 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
     }
 
     if (collapse) {
-      input = rewriter.create<tensor::CollapseShapeOp>(op->getLoc(), input,
-                                                       collapseExprs);
+      input = tensor::CollapseShapeOp::create(rewriter, op->getLoc(), input,
+                                              collapseExprs);
     }
 
     SmallVector<AffineMap> indexingMaps = {
@@ -563,13 +563,12 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
         rewriter.getMultiDimIdentityMap(outputRank)};
     SmallVector<utils::IteratorType> iteratorTypes(
         outputRank, utils::IteratorType::parallel);
-    result = rewriter
-                 .create<linalg::GenericOp>(
-                     loc, outTensor.getType(), input, outTensor, indexingMaps,
-                     iteratorTypes,
-                     [&](OpBuilder &b, Location loc, ValueRange args) {
-                       b.create<linalg::YieldOp>(loc, args[0]);
-                     })
+    result = linalg::GenericOp::create(
+                 rewriter, loc, outTensor.getType(), input, outTensor,
+                 indexingMaps, iteratorTypes,
+                 [&](OpBuilder &b, Location loc, ValueRange args) {
+                   linalg::YieldOp::create(b, loc, args[0]);
+                 })
                  .getResult(0);
     return success();
   }
@@ -580,42 +579,41 @@ LogicalResult torch_to_linalg::broadcastToGivenShape(
       rewriter.getMultiDimIdentityMap(outputRank)};
   SmallVector<utils::IteratorType> iteratorTypes(outputRank,
                                                  utils::IteratorType::parallel);
-  result = rewriter
-               .create<linalg::GenericOp>(
-                   loc, outTensor.getType(), ValueRange(), outTensor,
-                   indexingMaps, iteratorTypes,
-                   [&](OpBuilder &b, Location loc, ValueRange args) {
-                     // `loopIndices` contains IV of the linalg loops which
-                     // would be used to extract values from the input tensor
-                     // later on.
-                     SmallVector<Value> loopIndices;
-                     for (size_t i = 0, e = outputRank; i < e; ++i) {
-                       if (i < diff)
-                         continue;
-                       loopIndices.push_back(b.create<linalg::IndexOp>(loc, i));
-                     }
-                     // `inputIndicesToExtract` contains i-th linalg loop IV if
-                     // the i-th input dimension is not 1, else it contains a
-                     // zero index.
-                     SmallVector<Value> inputIndicesToExtract;
-                     for (size_t i = 0, n = inputRank; i < n; i++) {
-                       if (inputShape[i] == 1) {
-                         inputIndicesToExtract.push_back(zeroIndex);
-                       } else {
-                         Value inputDim = getDimOp(b, loc, input, i);
-                         Value isEqual = b.create<arith::CmpIOp>(
-                             loc, arith::CmpIPredicate::eq, inputDim, oneIndex);
-                         Value select = rewriter.create<arith::SelectOp>(
-                             loc, isEqual, zeroIndex, loopIndices[i]);
-                         inputIndicesToExtract.push_back(select);
-                       }
-                     }
-                     // Extract and yield the value from input tensor at
-                     // `inputIndicesToExtract` indices.
-                     Value result = b.create<tensor::ExtractOp>(
-                         loc, input, inputIndicesToExtract);
-                     b.create<linalg::YieldOp>(loc, result);
-                   })
+  result = linalg::GenericOp::create(
+               rewriter, loc, outTensor.getType(), ValueRange(), outTensor,
+               indexingMaps, iteratorTypes,
+               [&](OpBuilder &b, Location loc, ValueRange args) {
+                 // `loopIndices` contains IV of the linalg loops which
+                 // would be used to extract values from the input tensor
+                 // later on.
+                 SmallVector<Value> loopIndices;
+                 for (size_t i = 0, e = outputRank; i < e; ++i) {
+                   if (i < diff)
+                     continue;
+                   loopIndices.push_back(linalg::IndexOp::create(b, loc, i));
+                 }
+                 // `inputIndicesToExtract` contains i-th linalg loop IV if
+                 // the i-th input dimension is not 1, else it contains a
+                 // zero index.
+                 SmallVector<Value> inputIndicesToExtract;
+                 for (size_t i = 0, n = inputRank; i < n; i++) {
+                   if (inputShape[i] == 1) {
+                     inputIndicesToExtract.push_back(zeroIndex);
+                   } else {
+                     Value inputDim = getDimOp(b, loc, input, i);
+                     Value isEqual = arith::CmpIOp::create(
+                         b, loc, arith::CmpIPredicate::eq, inputDim, oneIndex);
+                     Value select = arith::SelectOp::create(
+                         rewriter, loc, isEqual, zeroIndex, loopIndices[i]);
+                     inputIndicesToExtract.push_back(select);
+                   }
+                 }
+                 // Extract and yield the value from input tensor at
+                 // `inputIndicesToExtract` indices.
+                 Value result = tensor::ExtractOp::create(
+                     b, loc, input, inputIndicesToExtract);
+                 linalg::YieldOp::create(b, loc, result);
+               })
                .getResult(0);
 
   return success();
@@ -626,8 +624,8 @@ Value torch_to_linalg::removeSizeInformation(OpBuilder &b, Location loc,
   auto tensorType = cast<RankedTensorType>(tensor.getType());
   auto rank = tensorType.getRank();
   SmallVector<int64_t> unknownSizes(rank, kUnknownSize);
-  return b.create<tensor::CastOp>(
-      loc, tensorType.clone(makeShapeLLVMCompatible(unknownSizes)), tensor);
+  return tensor::CastOp::create(
+      b, loc, tensorType.clone(makeShapeLLVMCompatible(unknownSizes)), tensor);
 }
 
 Value torch_to_linalg::convertTensorToElementType(OpBuilder &b, Location loc,
@@ -637,7 +635,7 @@ Value torch_to_linalg::convertTensorToElementType(OpBuilder &b, Location loc,
                               ValueRange payloadArgs) {
     Value elem =
         convertScalarToDtype(builder, loc, payloadArgs[0], elementType);
-    builder.create<linalg::YieldOp>(loc, elem);
+    linalg::YieldOp::create(builder, loc, elem);
   };
   return torch_to_linalg::createElementwiseLinalgGeneric(
       b, loc, {tensor}, elementType, dtypePromoteBody);
@@ -708,11 +706,11 @@ LogicalResult torch_to_linalg::permuteTensor(Operation *op,
   for (uint32_t i = 0; i < inputRank; i++)
     outputDims.push_back(getDimOp(rewriter, loc, input, dimensions[i]));
 
-  Value outVector = rewriter.create<tensor::EmptyOp>(
-      loc, getAsOpFoldResult(outputDims), elementType);
+  Value outVector = tensor::EmptyOp::create(
+      rewriter, loc, getAsOpFoldResult(outputDims), elementType);
 
   result =
-      rewriter.create<linalg::TransposeOp>(loc, input, outVector, dimensions)
+      linalg::TransposeOp::create(rewriter, loc, input, outVector, dimensions)
           ->getResult(0);
   return success();
 }
@@ -720,7 +718,7 @@ LogicalResult torch_to_linalg::permuteTensor(Operation *op,
 // Flips an input tensor based on the values of axis list.
 Value torch_to_linalg::flipTensor(PatternRewriter &rewriter, Location loc,
                                   Value input, SmallVector<int64_t> axis) {
-  Value c1 = rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+  Value c1 = arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(1));
   Type elementType = cast<RankedTensorType>(input.getType()).getElementType();
   auto selfRank = cast<RankedTensorType>(input.getType()).getRank();
 
@@ -728,7 +726,7 @@ Value torch_to_linalg::flipTensor(PatternRewriter &rewriter, Location loc,
   // dims won't be used.
   SmallVector<Value> dims = getTensorSizes(rewriter, loc, input);
   for (auto flipDim : axis)
-    dims[flipDim] = rewriter.create<arith::SubIOp>(loc, dims[flipDim], c1);
+    dims[flipDim] = arith::SubIOp::create(rewriter, loc, dims[flipDim], c1);
 
   Value initTensor = createZeroInitTensor(
       rewriter, loc, getTensorSizes(rewriter, loc, input), elementType);
@@ -738,22 +736,21 @@ Value torch_to_linalg::flipTensor(PatternRewriter &rewriter, Location loc,
   SmallVector<AffineMap> indexingMaps(
       2, AffineMap::getMultiDimIdentityMap(selfRank, rewriter.getContext()));
   Value flipped =
-      rewriter
-          .create<linalg::GenericOp>(
-              loc, input.getType(), input, initTensor, indexingMaps,
-              iteratorTypes,
-              [&](OpBuilder &b, Location loc, ValueRange args) {
-                SmallVector<Value> indices;
-                for (auto i = 0; i < selfRank; i++)
-                  indices.push_back(b.create<linalg::IndexOp>(loc, i));
-                for (auto flipDim : axis) {
-                  indices[flipDim] = b.create<arith::SubIOp>(loc, dims[flipDim],
-                                                             indices[flipDim]);
-                }
-                Value res = b.create<tensor::ExtractOp>(loc, input, indices)
-                                .getResult();
-                b.create<linalg::YieldOp>(loc, res);
-              })
+      linalg::GenericOp::create(
+          rewriter, loc, input.getType(), input, initTensor, indexingMaps,
+          iteratorTypes,
+          [&](OpBuilder &b, Location loc, ValueRange args) {
+            SmallVector<Value> indices;
+            for (auto i = 0; i < selfRank; i++)
+              indices.push_back(linalg::IndexOp::create(b, loc, i));
+            for (auto flipDim : axis) {
+              indices[flipDim] = arith::SubIOp::create(b, loc, dims[flipDim],
+                                                       indices[flipDim]);
+            }
+            Value res =
+                tensor::ExtractOp::create(b, loc, input, indices).getResult();
+            linalg::YieldOp::create(b, loc, res);
+          })
           .getResult(0);
   return flipped;
 }

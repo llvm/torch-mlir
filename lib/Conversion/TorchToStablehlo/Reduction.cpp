@@ -9,7 +9,6 @@
 
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -104,8 +103,8 @@ static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
   }
 
   if (constAttr != nullptr) {
-    return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
-                                                  constAttr);
+    return stablehlo::ConstantOp::create(rewriter, op->getLoc(), constType,
+                                         constAttr);
   }
   op->emitError("unimplemented lowering in "
                 "createInitialValueForReduceOp");
@@ -124,8 +123,8 @@ static Value createReduceOpWithSingleRegionOp(Operation *op, Value input,
   if (!initValue)
     return nullptr;
 
-  stablehlo::ReduceOp reduce = rewriter.create<stablehlo::ReduceOp>(
-      op->getLoc(), outTy, input, initValue,
+  stablehlo::ReduceOp reduce = stablehlo::ReduceOp::create(
+      rewriter, op->getLoc(), outTy, input, initValue,
       rewriter.getDenseI64ArrayAttr(dims));
 
   Block &block = reduce.getBody().emplaceBlock();
@@ -140,30 +139,30 @@ static Value createReduceOpWithSingleRegionOp(Operation *op, Value input,
     rewriter.setInsertionPointToStart(&block);
     Value result;
     if (isa<AtenAmaxOp, AtenMaxOp, AtenMaxDimOp>(op)) {
-      result = rewriter.create<stablehlo::MaxOp>(
-          op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
+      result = stablehlo::MaxOp::create(rewriter, op->getLoc(), blockArgumentTy,
+                                        *firstArgument, *secondArgument);
     } else if (isa<AtenAminOp, AtenMinOp, AtenMinDimOp>(op)) {
-      result = rewriter.create<stablehlo::MinOp>(
-          op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
+      result = stablehlo::MinOp::create(rewriter, op->getLoc(), blockArgumentTy,
+                                        *firstArgument, *secondArgument);
     } else if (isa<AtenSumOp, AtenSumDimIntListOp, AtenFrobeniusNormDimOp,
                    AtenLinalgVectorNormOp>(op)) {
-      result = rewriter.create<stablehlo::AddOp>(
-          op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
+      result = stablehlo::AddOp::create(rewriter, op->getLoc(), blockArgumentTy,
+                                        *firstArgument, *secondArgument);
     } else if (isa<AtenAllOp, AtenAllDimOp>(op)) {
-      result = rewriter.create<stablehlo::AndOp>(
-          op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
+      result = stablehlo::AndOp::create(rewriter, op->getLoc(), blockArgumentTy,
+                                        *firstArgument, *secondArgument);
     } else if (isa<AtenAnyOp, AtenAnyDimOp, AtenAnyDimsOp>(op)) {
-      result = rewriter.create<stablehlo::OrOp>(
-          op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
+      result = stablehlo::OrOp::create(rewriter, op->getLoc(), blockArgumentTy,
+                                       *firstArgument, *secondArgument);
     } else if (isa<AtenProdOp, AtenProdDimIntOp>(op)) {
-      result = rewriter.create<stablehlo::MulOp>(
-          op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
+      result = stablehlo::MulOp::create(rewriter, op->getLoc(), blockArgumentTy,
+                                        *firstArgument, *secondArgument);
     } else {
       op->emitError("unimplemented lowering in "
                     "createReduceOpWithSingleRegionOp");
       return nullptr;
     }
-    rewriter.create<stablehlo::ReturnOp>(op->getLoc(), result);
+    stablehlo::ReturnOp::create(rewriter, op->getLoc(), result);
   }
   return reduce.getResults()[0];
 }
@@ -198,16 +197,16 @@ createReduceOpReturnIndices(ConversionPatternRewriter &rewriter, Operation *op,
   auto outputIndexTy =
       RankedTensorType::get(outputShape, rewriter.getIntegerType(64));
 
-  auto inputShapeTensor = rewriter.create<mlir::tensor::FromElementsOp>(
-      op->getLoc(), inputShapeVec);
-  auto indexTensor = rewriter.create<stablehlo::DynamicIotaOp>(
-      op->getLoc(),
+  auto inputShapeTensor = mlir::tensor::FromElementsOp::create(
+      rewriter, op->getLoc(), inputShapeVec);
+  auto indexTensor = stablehlo::DynamicIotaOp::create(
+      rewriter, op->getLoc(),
       RankedTensorType::get(inputShape,
                             rewriter.getIntegerType(dimSizeIndexBits)),
       inputShapeTensor, static_cast<uint64_t>(dim));
 
-  auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op->getLoc(), TypeRange{outputTy, outputIndexTy},
+  auto stablehloReduceOp = stablehlo::ReduceOp::create(
+      rewriter, op->getLoc(), TypeRange{outputTy, outputIndexTy},
       ValueRange{input, indexTensor},
       ValueRange{
           initValue,
@@ -258,33 +257,33 @@ createReduceOpReturnIndices(ConversionPatternRewriter &rewriter, Operation *op,
 
     Value compareResult;
     if (isa<AtenMaxDimOp>(op)) {
-      compareResult = rewriter.create<stablehlo::CompareOp>(
-          op->getLoc(), compareResultType, *firstValArg, *secondValArg,
-          compareGeDirectionAttr, compareTypeAttr);
+      compareResult = stablehlo::CompareOp::create(
+          rewriter, op->getLoc(), compareResultType, *firstValArg,
+          *secondValArg, compareGeDirectionAttr, compareTypeAttr);
     } else if (isa<AtenMinDimOp>(op)) {
-      compareResult = rewriter.create<stablehlo::CompareOp>(
-          op->getLoc(), compareResultType, *firstValArg, *secondValArg,
-          compareLeDirectionAttr, compareTypeAttr);
+      compareResult = stablehlo::CompareOp::create(
+          rewriter, op->getLoc(), compareResultType, *firstValArg,
+          *secondValArg, compareLeDirectionAttr, compareTypeAttr);
     } else {
       op->emitError("unimplement lowering of createReduceOpReturnIndices");
       return std::nullopt;
     }
-    Value retValResult = rewriter.create<stablehlo::SelectOp>(
-        op->getLoc(), compareResult, *firstValArg, *secondValArg);
+    Value retValResult = stablehlo::SelectOp::create(
+        rewriter, op->getLoc(), compareResult, *firstValArg, *secondValArg);
 
     // get smaller index value if compared nums are equal.
-    Value compareEqResult = rewriter.create<stablehlo::CompareOp>(
-        op->getLoc(), compareResultType, *firstValArg, *secondValArg,
+    Value compareEqResult = stablehlo::CompareOp::create(
+        rewriter, op->getLoc(), compareResultType, *firstValArg, *secondValArg,
         compareEqDirectionAttr, compareTypeAttr);
-    Value minIdx = rewriter.create<stablehlo::MinOp>(op->getLoc(), *firstIdxArg,
-                                                     *secondIdxArg);
-    Value idxWithGeVal = rewriter.create<stablehlo::SelectOp>(
-        op->getLoc(), compareResult, *firstIdxArg, *secondIdxArg);
-    Value retIdxResult = rewriter.create<stablehlo::SelectOp>(
-        op->getLoc(), compareEqResult, minIdx, idxWithGeVal);
+    Value minIdx = stablehlo::MinOp::create(rewriter, op->getLoc(),
+                                            *firstIdxArg, *secondIdxArg);
+    Value idxWithGeVal = stablehlo::SelectOp::create(
+        rewriter, op->getLoc(), compareResult, *firstIdxArg, *secondIdxArg);
+    Value retIdxResult = stablehlo::SelectOp::create(
+        rewriter, op->getLoc(), compareEqResult, minIdx, idxWithGeVal);
 
-    rewriter.create<stablehlo::ReturnOp>(
-        op->getLoc(), ValueRange{retValResult, retIdxResult});
+    stablehlo::ReturnOp::create(rewriter, op->getLoc(),
+                                ValueRange{retValResult, retIdxResult});
   }
   return stablehloReduceOp.getResults();
 }
@@ -295,15 +294,15 @@ static Value reshapeReduceResultWhenKeepDim(ConversionPatternRewriter &rewriter,
                                             Type outType,
                                             ArrayRef<int64_t> dims) {
   SmallVector<Value> outShapeVec(inputShapeVec);
-  Value one = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
+  Value one = arith::ConstantOp::create(
+      rewriter, loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
   for (auto dim : dims) {
     outShapeVec[dim] = one;
   }
   auto outShapeTensor =
-      rewriter.create<tensor::FromElementsOp>(loc, outShapeVec);
-  return rewriter.create<stablehlo::DynamicReshapeOp>(
-      loc, outType, reduceResult, outShapeTensor);
+      tensor::FromElementsOp::create(rewriter, loc, outShapeVec);
+  return stablehlo::DynamicReshapeOp::create(rewriter, loc, outType,
+                                             reduceResult, outShapeTensor);
 }
 
 namespace {
@@ -345,8 +344,8 @@ public:
     }
     if (inputElemTy != outTy.getElementType()) {
       // use output type as computation type
-      input = rewriter.create<stablehlo::ConvertOp>(op->getLoc(), input,
-                                                    outTy.getElementType());
+      input = stablehlo::ConvertOp::create(rewriter, op->getLoc(), input,
+                                           outTy.getElementType());
     }
 
     SmallVector<int64_t> dims =
@@ -386,8 +385,8 @@ public:
     }
     if (inputElemTy != outTy.getElementType()) {
       // use output type as computation type
-      input = rewriter.create<stablehlo::ConvertOp>(op->getLoc(), input,
-                                                    outTy.getElementType());
+      input = stablehlo::ConvertOp::create(rewriter, op->getLoc(), input,
+                                           outTy.getElementType());
     }
 
     bool keepDim = false;
@@ -451,8 +450,8 @@ public:
     }
     if (inputElemTy != outTy.getElementType()) {
       // use output type as computation type
-      input = rewriter.create<stablehlo::ConvertOp>(op->getLoc(), input,
-                                                    outTy.getElementType());
+      input = stablehlo::ConvertOp::create(rewriter, op->getLoc(), input,
+                                           outTy.getElementType());
     }
 
     bool keepDim = false;
@@ -611,7 +610,7 @@ LogicalResult ConvertAtenReductionOp<AtenAnyDimsOp>::matchAndRewrite(
     // Use output element type as computation type.
     auto dstElemTy = outTy.getElementType();
     input =
-        rewriter.create<stablehlo::ConvertOp>(op->getLoc(), input, dstElemTy);
+        stablehlo::ConvertOp::create(rewriter, op->getLoc(), input, dstElemTy);
     inputTy = dyn_cast<RankedTensorType>(input.getType());
   }
   auto inputElemTy = inputTy.getElementType();
@@ -687,7 +686,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
     // Use output element type as computation type.
     auto dstElemTy = outTy.getElementType();
     input =
-        rewriter.create<stablehlo::ConvertOp>(op->getLoc(), input, dstElemTy);
+        stablehlo::ConvertOp::create(rewriter, op->getLoc(), input, dstElemTy);
     inputTy = dyn_cast<RankedTensorType>(input.getType());
   }
   auto inputElemTy = inputTy.getElementType();
@@ -766,7 +765,7 @@ LogicalResult ConvertAtenReductionOp<AtenProdDimIntOp>::matchAndRewrite(
     // Use output element type as computation type.
     auto dstElemTy = outTy.getElementType();
     input =
-        rewriter.create<stablehlo::ConvertOp>(op->getLoc(), input, dstElemTy);
+        stablehlo::ConvertOp::create(rewriter, op->getLoc(), input, dstElemTy);
     inputTy = dyn_cast<RankedTensorType>(input.getType());
   }
   auto inputElemTy = inputTy.getElementType();
@@ -858,7 +857,8 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
         op, "non-const bool `keepdim` is not supported");
   }
 
-  auto squareOp = rewriter.create<stablehlo::MulOp>(op->getLoc(), input, input);
+  auto squareOp =
+      stablehlo::MulOp::create(rewriter, op->getLoc(), input, input);
 
   Value reduceResult = createReduceOpWithSingleRegionOp(
       op, squareOp.getResult(),
@@ -867,7 +867,8 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
     return op->emitError("createReduceOpWithSingleRegionOp return nullptr");
   }
 
-  Value output = rewriter.create<stablehlo::SqrtOp>(op->getLoc(), reduceResult);
+  Value output =
+      stablehlo::SqrtOp::create(rewriter, op->getLoc(), reduceResult);
 
   if (keepDim) {
     auto outShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, input);
@@ -907,8 +908,8 @@ LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
   }
 
   if (inputType.getElementType() != outType.getElementType()) {
-    input =
-        rewriter.create<stablehlo::ConvertOp>(op->getLoc(), input, outElemType);
+    input = stablehlo::ConvertOp::create(rewriter, op->getLoc(), input,
+                                         outElemType);
   }
 
   Value ord =
@@ -944,9 +945,9 @@ LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
         op, "non-const bool `keepdim` is not supported");
   }
 
-  Value absValue = rewriter.create<stablehlo::AbsOp>(op->getLoc(), input);
-  Value powValue = rewriter.create<chlo::BroadcastPowOp>(op->getLoc(), absValue,
-                                                         ord, nullptr);
+  Value absValue = stablehlo::AbsOp::create(rewriter, op->getLoc(), input);
+  Value powValue = chlo::BroadcastPowOp::create(rewriter, op->getLoc(),
+                                                absValue, ord, nullptr);
 
   Value reduceResult = createReduceOpWithSingleRegionOp(
       op, powValue, RankedTensorType::get(reduceResultShape, outElemType), dims,
@@ -956,15 +957,15 @@ LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
   }
 
   auto scalarType = RankedTensorType::get({}, outElemType);
-  auto constantOne = rewriter.create<stablehlo::ConstantOp>(
-      op->getLoc(), scalarType,
+  auto constantOne = stablehlo::ConstantOp::create(
+      rewriter, op->getLoc(), scalarType,
       DenseElementsAttr::get(
           scalarType,
           APFloat(cast<mlir::FloatType>(outElemType).getFloatSemantics(), 1)));
-  auto reciprocalOrd = rewriter.create<stablehlo::DivOp>(
-      op->getLoc(), scalarType, constantOne, ord);
-  Value output = rewriter.create<chlo::BroadcastPowOp>(
-      op->getLoc(), reduceResult, reciprocalOrd, nullptr);
+  auto reciprocalOrd = stablehlo::DivOp::create(rewriter, op->getLoc(),
+                                                scalarType, constantOne, ord);
+  Value output = chlo::BroadcastPowOp::create(
+      rewriter, op->getLoc(), reduceResult, reciprocalOrd, nullptr);
 
   if (keepDim) {
     auto outShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, input);

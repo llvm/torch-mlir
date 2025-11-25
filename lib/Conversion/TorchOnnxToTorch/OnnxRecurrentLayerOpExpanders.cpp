@@ -26,10 +26,10 @@ Value getDirection(ImplicitLocOpBuilder b, int64_t direction, Value input) {
       llvm::SmallVector<int64_t>{inputType.getSizes().drop_front()},
       inputType.getDtype()));
   auto intType = b.getType<IntType>();
-  Value selectDim = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
+  Value selectDim = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(0));
   Value cstDirection =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(direction));
-  return b.create<AtenSelectIntOp>(outputType, input, selectDim, cstDirection);
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(direction));
+  return AtenSelectIntOp::create(b, outputType, input, selectDim, cstDirection);
 }
 
 struct RnnWeights {
@@ -48,11 +48,11 @@ Value rnn_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
   auto hTy = cast<ValueTensorType>(H_prev.getType());
 
   auto intType = b.getType<IntType>();
-  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+  Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
 
-  Value i_x = b.create<AtenLinearOp>(hTy, Xt, weights.Wi, weights.Wbi);
-  Value i_h = b.create<AtenLinearOp>(hTy, H_prev, weights.Ri, weights.Rbi);
-  Value i = b.create<AtenAddTensorOp>(hTy, i_x, i_h, cstOne);
+  Value i_x = AtenLinearOp::create(b, hTy, Xt, weights.Wi, weights.Wbi);
+  Value i_h = AtenLinearOp::create(b, hTy, H_prev, weights.Ri, weights.Rbi);
+  Value i = AtenAddTensorOp::create(b, hTy, i_x, i_h, cstOne);
 
   Value H_new = createActivationByName(b, activations.f, i);
   return H_new;
@@ -76,39 +76,39 @@ RnnLayerOutput rnn_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
 
   auto intType = b.getType<IntType>();
 
-  Value cstNone = b.create<ConstantNoneOp>();
-  Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
-  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+  Value cstNone = ConstantNoneOp::create(b);
+  Value cstZero = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(0));
+  Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
   Value cstSeqLen =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(seq_len));
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(seq_len));
   Value cstBatchSize =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(batch_size));
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(batch_size));
   Value cstHiddenSize =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size));
 
   auto yTy = b.getType<ValueTensorType>(
       SmallVector<int64_t>{seq_len, batch_size, hidden_size}, hTy.getDtype());
 
-  auto YShapeList = b.create<PrimListConstructOp>(
-      b.getType<ListType>(intType),
+  auto YShapeList = PrimListConstructOp::create(
+      b, b.getType<ListType>(intType),
       ValueRange({cstSeqLen, cstBatchSize, cstHiddenSize}));
 
   int64_t hDtypeInt =
       static_cast<int64_t>(getScalarTypeForType(hTy.getDtype()));
   Value hDtypeIntVal =
-      b.create<ConstantIntOp>(loc, b.getI64IntegerAttr(hDtypeInt));
+      ConstantIntOp::create(b, loc, b.getI64IntegerAttr(hDtypeInt));
 
-  Value Y_initial = b.create<AtenZerosOp>(yTy, YShapeList, hDtypeIntVal,
-                                          cstNone, cstNone, cstNone);
+  Value Y_initial = AtenZerosOp::create(b, yTy, YShapeList, hDtypeIntVal,
+                                        cstNone, cstNone, cstNone);
 
   Value maxTripCount =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(seq_len));
-  Value loopConditionTrue = b.create<ConstantBoolOp>(true);
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(seq_len));
+  Value loopConditionTrue = ConstantBoolOp::create(b, true);
 
   Type loopIndexType = intType;
-  auto loop = b.create<PrimLoopOp>(TypeRange({yTy, hTy}), maxTripCount,
-                                   loopConditionTrue,
-                                   ValueRange({Y_initial, initial_h}));
+  auto loop =
+      PrimLoopOp::create(b, TypeRange({yTy, hTy}), maxTripCount,
+                         loopConditionTrue, ValueRange({Y_initial, initial_h}));
   {
     OpBuilder::InsertionGuard guard(b);
     Block *loopBody =
@@ -129,22 +129,22 @@ RnnLayerOutput rnn_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
     auto XtType = b.getType<ValueTensorType>(
         llvm::SmallVector<int64_t>{batch_size, input_size}, xTy.getDtype());
 
-    Value Xt = b.create<AtenSelectIntOp>(XtType, X, cstZero, loopIndex);
+    Value Xt = AtenSelectIntOp::create(b, XtType, X, cstZero, loopIndex);
 
     Value H_new = rnn_cell(b, Xt, H_prev, weights, activations);
 
     Type hTyUnsqueezed = b.getType<ValueTensorType>(
         llvm::SmallVector<int64_t>{1, batch_size, hidden_size}, hTy.getDtype());
     Value H_new_unsqueezed =
-        b.create<AtenUnsqueezeOp>(hTyUnsqueezed, H_new, cstZero);
+        AtenUnsqueezeOp::create(b, hTyUnsqueezed, H_new, cstZero);
 
-    auto loopIndexPlusOne = b.create<AtenAddIntOp>(intType, loopIndex, cstOne);
+    auto loopIndexPlusOne = AtenAddIntOp::create(b, intType, loopIndex, cstOne);
     Value Y_new =
-        b.create<AtenSliceScatterOp>(yTy, Y_prev, H_new_unsqueezed, cstZero,
-                                     loopIndex, loopIndexPlusOne, cstOne);
+        AtenSliceScatterOp::create(b, yTy, Y_prev, H_new_unsqueezed, cstZero,
+                                   loopIndex, loopIndexPlusOne, cstOne);
 
-    b.create<PrimLoopConditionOp>(loopConditionTrue,
-                                  ValueRange({Y_new, H_new}));
+    PrimLoopConditionOp::create(b, loopConditionTrue,
+                                ValueRange({Y_new, H_new}));
   }
   RnnLayerOutput output;
   output.Y = loop.getResult(0);
@@ -161,10 +161,10 @@ static Value StaticTranspose(ImplicitLocOpBuilder b, Value value, int64_t dim0,
   valueTy = b.getType<ValueTensorType>(valueShape, valueTy.getDtype());
 
   auto intType = b.getType<IntType>();
-  Value dim0v = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(dim0));
-  Value dim1v = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(dim1));
+  Value dim0v = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(dim0));
+  Value dim1v = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(dim1));
 
-  return b.create<AtenTransposeIntOp>(valueTy, value, dim0v, dim1v);
+  return AtenTransposeIntOp::create(b, valueTy, value, dim0v, dim1v);
 }
 
 LogicalResult OnnxRnnExpander(OpBinder binder,
@@ -173,9 +173,9 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
   mlir::ImplicitLocOpBuilder b(loc, rewriter);
 
   auto intType = b.getType<IntType>();
-  Value cstNone = b.create<ConstantNoneOp>();
-  Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
-  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+  Value cstNone = ConstantNoneOp::create(b);
+  Value cstZero = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(0));
+  Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
 
   int64_t num_directions = Torch::kUnknownSize;
   int64_t hidden_size = Torch::kUnknownSize;
@@ -346,28 +346,29 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
   if (B == nullptr) {
     SmallVector<int64_t> BShape = {num_directions, 2 * hidden_size};
     SmallVector<Value> BShapeListContents = {
-        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(num_directions)),
-        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(2 * hidden_size))};
-    Value BShapeList = b.create<PrimListConstructOp>(
-        b.getType<ListType>(intType), BShapeListContents);
+        ConstantIntOp::create(b, intType, b.getI64IntegerAttr(num_directions)),
+        ConstantIntOp::create(b, intType,
+                              b.getI64IntegerAttr(2 * hidden_size))};
+    Value BShapeList = PrimListConstructOp::create(
+        b, b.getType<ListType>(intType), BShapeListContents);
     auto BType = b.getType<ValueTensorType>(BShape, wTy.getDtype());
-    B = b.create<Torch::AtenZerosOp>(BType, BShapeList, cstXDtype, cstNone,
-                                     cstNone, cstNone);
+    B = Torch::AtenZerosOp::create(b, BType, BShapeList, cstXDtype, cstNone,
+                                   cstNone, cstNone);
   }
   if (initial_h == nullptr) {
     SmallVector<int64_t> initial_h_shape = {num_directions, batch_size,
                                             hidden_size};
     SmallVector<Value> initial_h_shape_list_contents = {
-        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(num_directions)),
-        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(batch_size)),
-        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size))};
-    Value initial_h_shape_list = b.create<PrimListConstructOp>(
-        b.getType<ListType>(intType), initial_h_shape_list_contents);
+        ConstantIntOp::create(b, intType, b.getI64IntegerAttr(num_directions)),
+        ConstantIntOp::create(b, intType, b.getI64IntegerAttr(batch_size)),
+        ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size))};
+    Value initial_h_shape_list = PrimListConstructOp::create(
+        b, b.getType<ListType>(intType), initial_h_shape_list_contents);
     auto initial_h_type =
         b.getType<ValueTensorType>(initial_h_shape, wTy.getDtype());
     initial_h =
-        b.create<Torch::AtenZerosOp>(initial_h_type, initial_h_shape_list,
-                                     cstXDtype, cstNone, cstNone, cstNone);
+        Torch::AtenZerosOp::create(b, initial_h_type, initial_h_shape_list,
+                                   cstXDtype, cstNone, cstNone, cstNone);
   }
 
   Value W_forward = getDirection(b, 0, W);
@@ -376,22 +377,24 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
   Value initial_h_forward = getDirection(b, 0, initial_h);
 
   Value cstHiddenSize =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size));
 
   RnnWeights weights;
   weights.Wi = W_forward;
   weights.Ri = R_forward;
-  weights.Wbi = b.create<AtenSliceTensorOp>(
+  weights.Wbi = AtenSliceTensorOp::create(
+      b,
       b.getType<ValueTensorType>(llvm::SmallVector<int64_t>{hidden_size},
                                  wTy.getDtype()),
       B_forward, cstZero, cstZero, cstHiddenSize, cstOne);
-  weights.Rbi = b.create<AtenSliceTensorOp>(
+  weights.Rbi = AtenSliceTensorOp::create(
+      b,
       b.getType<ValueTensorType>(llvm::SmallVector<int64_t>{hidden_size},
                                  wTy.getDtype()),
       B_forward, cstZero, cstHiddenSize,
-      b.create<AtenMulIntOp>(
-          cstHiddenSize,
-          b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(2))),
+      AtenMulIntOp::create(
+          b, cstHiddenSize,
+          ConstantIntOp::create(b, intType, b.getI64IntegerAttr(2))),
       cstOne);
 
   RnnLayerOutput rnnLayerOutput =
@@ -400,15 +403,15 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
   auto Y_h_unsqueezed_type = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{num_directions, batch_size, hidden_size},
       cast<ValueTensorType>(rnnLayerOutput.Y_h.getType()).getDtype());
-  Value Y_h_unsqueezed = b.create<AtenUnsqueezeOp>(Y_h_unsqueezed_type,
-                                                   rnnLayerOutput.Y_h, cstZero);
+  Value Y_h_unsqueezed = AtenUnsqueezeOp::create(b, Y_h_unsqueezed_type,
+                                                 rnnLayerOutput.Y_h, cstZero);
 
   auto Y_unsqueezed_type = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{seq_len, num_directions, batch_size,
                                  hidden_size},
       cast<ValueTensorType>(rnnLayerOutput.Y_h.getType()).getDtype());
   Value Y_unsqueezed =
-      b.create<AtenUnsqueezeOp>(Y_unsqueezed_type, rnnLayerOutput.Y, cstOne);
+      AtenUnsqueezeOp::create(b, Y_unsqueezed_type, rnnLayerOutput.Y, cstOne);
 
   if (layout == 1) {
     Y_h_unsqueezed = StaticTranspose(b, Y_h_unsqueezed, 0, 1);
@@ -466,37 +469,37 @@ LstmCellState lstm_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
   auto intType = b.getType<IntType>();
   auto hTy = cast<ValueTensorType>(H_prev.getType());
 
-  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+  Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
 
   // Apply linear/matmul for each gate separately
   // names are consistent with ONNX LSTM documentation
-  Value i_x = b.create<AtenLinearOp>(hTy, Xt, weights.W_i, weights.Wb_i);
-  Value i_h = b.create<AtenLinearOp>(hTy, H_prev, weights.R_i, weights.Rb_i);
-  Value i = b.create<AtenAddTensorOp>(hTy, i_x, i_h, cstOne);
+  Value i_x = AtenLinearOp::create(b, hTy, Xt, weights.W_i, weights.Wb_i);
+  Value i_h = AtenLinearOp::create(b, hTy, H_prev, weights.R_i, weights.Rb_i);
+  Value i = AtenAddTensorOp::create(b, hTy, i_x, i_h, cstOne);
   Value i_act = createActivationByName(b, activations.f, i);
 
-  Value o_x = b.create<AtenLinearOp>(hTy, Xt, weights.W_o, weights.Wb_o);
-  Value o_h = b.create<AtenLinearOp>(hTy, H_prev, weights.R_o, weights.Rb_o);
-  Value o = b.create<AtenAddTensorOp>(hTy, o_x, o_h, cstOne);
+  Value o_x = AtenLinearOp::create(b, hTy, Xt, weights.W_o, weights.Wb_o);
+  Value o_h = AtenLinearOp::create(b, hTy, H_prev, weights.R_o, weights.Rb_o);
+  Value o = AtenAddTensorOp::create(b, hTy, o_x, o_h, cstOne);
   Value o_act = createActivationByName(b, activations.f, o);
 
-  Value f_x = b.create<AtenLinearOp>(hTy, Xt, weights.W_f, weights.Wb_f);
-  Value f_h = b.create<AtenLinearOp>(hTy, H_prev, weights.R_f, weights.Rb_f);
-  Value f = b.create<AtenAddTensorOp>(hTy, f_x, f_h, cstOne);
+  Value f_x = AtenLinearOp::create(b, hTy, Xt, weights.W_f, weights.Wb_f);
+  Value f_h = AtenLinearOp::create(b, hTy, H_prev, weights.R_f, weights.Rb_f);
+  Value f = AtenAddTensorOp::create(b, hTy, f_x, f_h, cstOne);
   Value f_act = createActivationByName(b, activations.f, f);
 
-  Value ct_x = b.create<AtenLinearOp>(hTy, Xt, weights.W_c, weights.Wb_c);
-  Value ct_h = b.create<AtenLinearOp>(hTy, H_prev, weights.R_c, weights.Rb_c);
-  Value ct = b.create<AtenAddTensorOp>(hTy, ct_x, ct_h, cstOne);
+  Value ct_x = AtenLinearOp::create(b, hTy, Xt, weights.W_c, weights.Wb_c);
+  Value ct_h = AtenLinearOp::create(b, hTy, H_prev, weights.R_c, weights.Rb_c);
+  Value ct = AtenAddTensorOp::create(b, hTy, ct_x, ct_h, cstOne);
   Value ct_act = createActivationByName(b, activations.g, ct);
 
-  Value C_forget = b.create<AtenMulTensorOp>(hTy, f_act, C_prev);
-  Value C_input = b.create<AtenMulTensorOp>(hTy, i_act, ct_act);
+  Value C_forget = AtenMulTensorOp::create(b, hTy, f_act, C_prev);
+  Value C_input = AtenMulTensorOp::create(b, hTy, i_act, ct_act);
 
   LstmCellState newCellState;
-  newCellState.C = b.create<AtenAddTensorOp>(hTy, C_forget, C_input, cstOne);
+  newCellState.C = AtenAddTensorOp::create(b, hTy, C_forget, C_input, cstOne);
   Value C_new_act = createActivationByName(b, activations.h, newCellState.C);
-  newCellState.H = b.create<AtenMulTensorOp>(hTy, o_act, C_new_act);
+  newCellState.H = AtenMulTensorOp::create(b, hTy, o_act, C_new_act);
   return newCellState;
 }
 
@@ -533,34 +536,34 @@ LstmLayerOutput lstm_layer(ConversionPatternRewriter &rewriter, Location &loc,
 
   auto intType = b.getType<IntType>();
 
-  Value cstNone = b.create<ConstantNoneOp>();
-  Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
-  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+  Value cstNone = ConstantNoneOp::create(b);
+  Value cstZero = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(0));
+  Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
   Value cstHiddenSize =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size));
 
   auto yTy = getTensorTypeFromShapeValues({seq_len, batch_size, cstHiddenSize},
                                           hTy.getDtype());
-  auto YShapeList = b.create<PrimListConstructOp>(
-      b.getType<ListType>(intType),
+  auto YShapeList = PrimListConstructOp::create(
+      b, b.getType<ListType>(intType),
       ValueRange({seq_len, batch_size, cstHiddenSize}));
 
   int64_t hDtypeInt =
       static_cast<int64_t>(getScalarTypeForType(hTy.getDtype()));
   Value hDtypeIntVal =
-      b.create<ConstantIntOp>(loc, b.getI64IntegerAttr(hDtypeInt));
+      ConstantIntOp::create(b, loc, b.getI64IntegerAttr(hDtypeInt));
 
-  Value Y_initial = b.create<AtenZerosOp>(yTy, YShapeList, hDtypeIntVal,
-                                          cstNone, cstNone, cstNone);
+  Value Y_initial = AtenZerosOp::create(b, yTy, YShapeList, hDtypeIntVal,
+                                        cstNone, cstNone, cstNone);
 
   // Create a for-like PrimLoopOp.
   Value maxTripCount = seq_len;
-  Value loopConditionTrue = b.create<ConstantBoolOp>(true);
+  Value loopConditionTrue = ConstantBoolOp::create(b, true);
 
   Type loopIndexType = intType;
-  auto loop = b.create<PrimLoopOp>(
-      TypeRange({yTy, hTy, cTy}), maxTripCount, loopConditionTrue,
-      ValueRange({Y_initial, initial_h, initial_c}));
+  auto loop = PrimLoopOp::create(b, TypeRange({yTy, hTy, cTy}), maxTripCount,
+                                 loopConditionTrue,
+                                 ValueRange({Y_initial, initial_h, initial_c}));
   {
     OpBuilder::InsertionGuard guard(b);
     Block *loopBody =
@@ -583,7 +586,7 @@ LstmLayerOutput lstm_layer(ConversionPatternRewriter &rewriter, Location &loc,
     auto XtType =
         getTensorTypeFromShapeValues({batch_size, input_size}, xTy.getDtype());
 
-    Value Xt = b.create<AtenSelectIntOp>(XtType, X, cstZero, loopIndex);
+    Value Xt = AtenSelectIntOp::create(b, XtType, X, cstZero, loopIndex);
 
     auto [H_new, C_new] =
         lstm_cell(b, Xt, H_prev, C_prev, weights, activations);
@@ -591,15 +594,15 @@ LstmLayerOutput lstm_layer(ConversionPatternRewriter &rewriter, Location &loc,
     auto hTyUnsqueezed = getTensorTypeFromShapeValues(
         {cstOne, batch_size, cstHiddenSize}, hTy.getDtype());
     Value H_new_unsqueezed =
-        b.create<AtenUnsqueezeOp>(hTyUnsqueezed, H_new, cstZero);
+        AtenUnsqueezeOp::create(b, hTyUnsqueezed, H_new, cstZero);
 
-    auto loopIndexPlusOne = b.create<AtenAddIntOp>(intType, loopIndex, cstOne);
+    auto loopIndexPlusOne = AtenAddIntOp::create(b, intType, loopIndex, cstOne);
     Value Y_new =
-        b.create<AtenSliceScatterOp>(yTy, Y_prev, H_new_unsqueezed, cstZero,
-                                     loopIndex, loopIndexPlusOne, cstOne);
+        AtenSliceScatterOp::create(b, yTy, Y_prev, H_new_unsqueezed, cstZero,
+                                   loopIndex, loopIndexPlusOne, cstOne);
 
-    b.create<PrimLoopConditionOp>(loopConditionTrue,
-                                  ValueRange({Y_new, H_new, C_new}));
+    PrimLoopConditionOp::create(b, loopConditionTrue,
+                                ValueRange({Y_new, H_new, C_new}));
   }
   LstmLayerOutput output;
   output.Y = loop.getResult(0);
@@ -711,18 +714,18 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
 
   Value B;
   if (binder.tensorOperandAtIndex(B, 3)) {
-    Value none = b.create<ConstantNoneOp>();
-    Value cstHiddenx8 = b.create<ConstantIntOp>(
-        b.getType<IntType>(), b.getI64IntegerAttr(8 * hidden_size));
-    Value cstNumDir = b.create<ConstantIntOp>(
-        b.getType<IntType>(), b.getI64IntegerAttr(num_directions));
+    Value none = ConstantNoneOp::create(b);
+    Value cstHiddenx8 = ConstantIntOp::create(
+        b, b.getType<IntType>(), b.getI64IntegerAttr(8 * hidden_size));
+    Value cstNumDir = ConstantIntOp::create(
+        b, b.getType<IntType>(), b.getI64IntegerAttr(num_directions));
     auto BType = b.getType<ValueTensorType>(
         llvm::SmallVector<int64_t>{num_directions, 8 * hidden_size},
         cast<ValueTensorType>(W.getType()).getDtype());
-    Value zerosShapeList = b.create<PrimListConstructOp>(
-        b.getType<ListType>(b.getType<IntType>()),
+    Value zerosShapeList = PrimListConstructOp::create(
+        b, b.getType<ListType>(b.getType<IntType>()),
         SmallVector<Value>{cstNumDir, cstHiddenx8});
-    B = b.create<AtenZerosOp>(BType, zerosShapeList, none, none, none, none);
+    B = AtenZerosOp::create(b, BType, zerosShapeList, none, none, none, none);
   }
 
   LstmActivations activations, activationsRev;
@@ -793,11 +796,12 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   } else {
     Value x_input_size = Torch::getTensorDimSize(rewriter, X, 2);
     Value w_input_size =
-        b.create<ConstantIntOp>(loc, b.getI64IntegerAttr(wTy.getSizes()[2]));
+        ConstantIntOp::create(b, loc, b.getI64IntegerAttr(wTy.getSizes()[2]));
 
-    auto eq = b.create<AtenEqIntOp>(loc, x_input_size, w_input_size);
-    rewriter.create<RuntimeAssertOp>(
-        loc, eq, rewriter.getStringAttr("The input_size of W must equal X."));
+    auto eq = AtenEqIntOp::create(b, loc, x_input_size, w_input_size);
+    RuntimeAssertOp::create(
+        rewriter, loc, eq,
+        rewriter.getStringAttr("The input_size of W must equal X."));
   }
 
   Value W_forward = getDirection(b, 0, W);
@@ -814,17 +818,17 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   auto intType = b.getType<IntType>();
 
   Value cstNumDirections =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(num_directions));
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(num_directions));
   Value cstHiddenSize =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
-  Value cstNone = b.create<ConstantNoneOp>();
-  Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
-  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size));
+  Value cstNone = ConstantNoneOp::create(b);
+  Value cstZero = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(0));
+  Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
 
   auto hTy = getTensorTypeFromShapeValues(
       {cstNumDirections, batchSize, cstHiddenSize}, xTy.getDtype());
-  Value hShape = b.create<PrimListConstructOp>(
-      b.getType<ListType>(intType),
+  Value hShape = PrimListConstructOp::create(
+      b, b.getType<ListType>(intType),
       ValueRange({cstNumDirections, batchSize, cstHiddenSize}));
 
   Value cstDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
@@ -832,8 +836,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   Value initial_h;
   if (binder.tensorOperandAtIndex(initial_h, 5)) {
     // default created for layout 0
-    initial_h =
-        b.create<AtenZerosOp>(hTy, hShape, cstDtype, cstNone, cstNone, cstNone);
+    initial_h = AtenZerosOp::create(b, hTy, hShape, cstDtype, cstNone, cstNone,
+                                    cstNone);
   } else {
     if (layout == 1)
       initial_h = StaticTranspose(b, initial_h, 0, 1);
@@ -842,8 +846,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   Value initial_c;
   if (binder.tensorOperandAtIndex(initial_c, 6)) {
     // default created for layout 0
-    initial_c =
-        b.create<AtenZerosOp>(hTy, hShape, cstDtype, cstNone, cstNone, cstNone);
+    initial_c = AtenZerosOp::create(b, hTy, hShape, cstDtype, cstNone, cstNone,
+                                    cstNone);
   } else {
     if (layout == 1)
       initial_c = StaticTranspose(b, initial_c, 0, 1);
@@ -871,7 +875,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   LstmWeights weights, weightsRev; // weights and biases
 
   auto intConst = [&](int64_t val) {
-    return b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(val));
+    return ConstantIntOp::create(b, intType, b.getI64IntegerAttr(val));
   };
 
   // split B into Wb and Rb
@@ -881,33 +885,33 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   auto biasType = b.getType<ValueTensorType>(
       llvm::SmallVector<int64_t>{hidden_size * 4}, wTy.getDtype());
   // forward
-  Value Wb = b.create<AtenSliceTensorOp>(biasType,
-                                         /*input=*/B_forward,
-                                         /*dim=*/cstZero,
-                                         /*start=*/cstZero,
-                                         /*end=*/inputWeightsEndIdx,
-                                         /*step=*/cstOne);
-  Value Rb = b.create<AtenSliceTensorOp>(biasType,
-                                         /*input=*/B_forward,
-                                         /*dim=*/cstZero,
-                                         /*start=*/recurrentWeightsStartIdx,
-                                         /*end=*/recurrentWeightsEndIdx,
-                                         /*step=*/cstOne);
+  Value Wb = AtenSliceTensorOp::create(b, biasType,
+                                       /*input=*/B_forward,
+                                       /*dim=*/cstZero,
+                                       /*start=*/cstZero,
+                                       /*end=*/inputWeightsEndIdx,
+                                       /*step=*/cstOne);
+  Value Rb = AtenSliceTensorOp::create(b, biasType,
+                                       /*input=*/B_forward,
+                                       /*dim=*/cstZero,
+                                       /*start=*/recurrentWeightsStartIdx,
+                                       /*end=*/recurrentWeightsEndIdx,
+                                       /*step=*/cstOne);
   Value Wb_reverse, Rb_reverse;
   if (isBidirectional) {
     // reverse
-    Wb_reverse = b.create<AtenSliceTensorOp>(biasType,
-                                             /*input=*/B_reverse,
-                                             /*dim=*/cstZero,
-                                             /*start=*/cstZero,
-                                             /*end=*/inputWeightsEndIdx,
-                                             /*step=*/cstOne);
-    Rb_reverse = b.create<AtenSliceTensorOp>(biasType,
-                                             /*input=*/B_reverse,
-                                             /*dim=*/cstZero,
-                                             /*start=*/recurrentWeightsStartIdx,
-                                             /*end=*/recurrentWeightsEndIdx,
-                                             /*step=*/cstOne);
+    Wb_reverse = AtenSliceTensorOp::create(b, biasType,
+                                           /*input=*/B_reverse,
+                                           /*dim=*/cstZero,
+                                           /*start=*/cstZero,
+                                           /*end=*/inputWeightsEndIdx,
+                                           /*step=*/cstOne);
+    Rb_reverse = AtenSliceTensorOp::create(b, biasType,
+                                           /*input=*/B_reverse,
+                                           /*dim=*/cstZero,
+                                           /*start=*/recurrentWeightsStartIdx,
+                                           /*end=*/recurrentWeightsEndIdx,
+                                           /*step=*/cstOne);
   }
 
   // gate splitting
@@ -937,8 +941,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   };
 
   auto sliceGateBias = [&](Value startIdx, Value endIdx, Value WoB) {
-    return b.create<AtenSliceTensorOp>(gateBiasType, WoB, cstZero, startIdx,
-                                       endIdx, cstOne);
+    return AtenSliceTensorOp::create(b, gateBiasType, WoB, cstZero, startIdx,
+                                     endIdx, cstOne);
   };
   std::tie(weights.Wb_i, weights.Wb_o, weights.Wb_f, weights.Wb_c) =
       sliceIOFC(sliceGateBias, Wb);
@@ -948,8 +952,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
              weightsRev.Wb_c) = sliceIOFC(sliceGateBias, Wb_reverse);
 
   auto sliceGateBiasR = [&](Value startIdx, Value endIdx, Value WoB) {
-    return b.create<AtenSliceTensorOp>(gateBiasType, WoB, cstZero, startIdx,
-                                       endIdx, cstOne);
+    return AtenSliceTensorOp::create(b, gateBiasType, WoB, cstZero, startIdx,
+                                     endIdx, cstOne);
   };
   std::tie(weights.Rb_i, weights.Rb_o, weights.Rb_f, weights.Rb_c) =
       sliceIOFC(sliceGateBiasR, Rb);
@@ -959,8 +963,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
              weightsRev.Rb_c) = sliceIOFC(sliceGateBiasR, Rb_reverse);
 
   auto sliceGateWeightsIH = [&](Value startIdx, Value endIdx, Value WoB) {
-    return b.create<AtenSliceTensorOp>(gateWeightsTypeIH, WoB, cstZero,
-                                       startIdx, endIdx, cstOne);
+    return AtenSliceTensorOp::create(b, gateWeightsTypeIH, WoB, cstZero,
+                                     startIdx, endIdx, cstOne);
   };
   std::tie(weights.W_i, weights.W_o, weights.W_f, weights.W_c) =
       sliceIOFC(sliceGateWeightsIH, W_forward);
@@ -970,8 +974,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
         sliceIOFC(sliceGateWeightsIH, W_reverse);
 
   auto sliceGateWeightsHH = [&](Value startIdx, Value endIdx, Value WoB) {
-    return b.create<AtenSliceTensorOp>(gateWeightsTypeHH, WoB, cstZero,
-                                       startIdx, endIdx, cstOne);
+    return AtenSliceTensorOp::create(b, gateWeightsTypeHH, WoB, cstZero,
+                                     startIdx, endIdx, cstOne);
   };
 
   std::tie(weights.R_i, weights.R_o, weights.R_f, weights.R_c) =
@@ -1002,17 +1006,17 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   auto Y_res_type = getTensorTypeFromShapeValues(
       {seqLen, cstNumDirections, batchSize, cstHiddenSize}, YallDtype);
 
-  Value Y_h_forward =
-      b.create<AtenUnsqueezeOp>(Y_h_Y_c_uni_type, lstmLayerOutput.Y_h, cstZero);
+  Value Y_h_forward = AtenUnsqueezeOp::create(b, Y_h_Y_c_uni_type,
+                                              lstmLayerOutput.Y_h, cstZero);
 
-  Value Y_c_forward =
-      b.create<AtenUnsqueezeOp>(Y_h_Y_c_uni_type, lstmLayerOutput.Y_c, cstZero);
+  Value Y_c_forward = AtenUnsqueezeOp::create(b, Y_h_Y_c_uni_type,
+                                              lstmLayerOutput.Y_c, cstZero);
 
   // unsqueeze num_directions dim1 of Y
   // to create the onnx.LSTM output shape [seq_length, num_directions,
   // batch_size, hidden_size]
   Value Y_forward =
-      b.create<AtenUnsqueezeOp>(Y_uni_type, lstmLayerOutput.Y, cstOne);
+      AtenUnsqueezeOp::create(b, Y_uni_type, lstmLayerOutput.Y, cstOne);
 
   Y_result = Y_forward;
   Y_h_result = Y_h_forward;
@@ -1025,42 +1029,42 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
       Y_reverse, Y_output_list, Y_h_output_list, Y_c_output_list;
   LstmLayerOutput revLstmLayerOutput;
   if (isBidirectional) {
-    dim0 = b.create<PrimListConstructOp>(b.getType<ListType>(intType),
-                                         SmallVector<Value>{cstZero});
-    X_reverse = b.create<AtenFlipOp>(xTy, X, dim0); // flip along seq_len dim
+    dim0 = PrimListConstructOp::create(b, b.getType<ListType>(intType),
+                                       SmallVector<Value>{cstZero});
+    X_reverse = AtenFlipOp::create(b, xTy, X, dim0); // flip along seq_len dim
     revLstmLayerOutput =
         lstm_layer(rewriter, loc, X_reverse, initial_h_reverse,
                    initial_c_reverse, weightsRev, activationsRev);
 
     // unsqueeze  Y_rev, Y_h_rev, Y_c_rev
-    Y_h_reverse = b.create<AtenUnsqueezeOp>(Y_h_Y_c_uni_type,
-                                            revLstmLayerOutput.Y_h, cstZero);
-    Y_c_reverse = b.create<AtenUnsqueezeOp>(Y_h_Y_c_uni_type,
-                                            revLstmLayerOutput.Y_c, cstZero);
+    Y_h_reverse = AtenUnsqueezeOp::create(b, Y_h_Y_c_uni_type,
+                                          revLstmLayerOutput.Y_h, cstZero);
+    Y_c_reverse = AtenUnsqueezeOp::create(b, Y_h_Y_c_uni_type,
+                                          revLstmLayerOutput.Y_c, cstZero);
     Y_reverse_unflipped =
-        b.create<AtenUnsqueezeOp>(Y_uni_type, revLstmLayerOutput.Y, cstOne);
+        AtenUnsqueezeOp::create(b, Y_uni_type, revLstmLayerOutput.Y, cstOne);
 
     // flip Y_rev on dim 0 [seq_len]
-    Y_reverse = b.create<AtenFlipOp>(Y_uni_type, Y_reverse_unflipped, dim0);
+    Y_reverse = AtenFlipOp::create(b, Y_uni_type, Y_reverse_unflipped, dim0);
 
     // Concat forward and reverse results on dim 1
     Y_output_list =
-        b.create<PrimListConstructOp>(b.getType<ListType>(Y_uni_type),
-                                      SmallVector<Value>{Y_forward, Y_reverse});
-    Y_result = b.create<AtenCatOp>(Y_res_type, Y_output_list, cstOne);
+        PrimListConstructOp::create(b, b.getType<ListType>(Y_uni_type),
+                                    SmallVector<Value>{Y_forward, Y_reverse});
+    Y_result = AtenCatOp::create(b, Y_res_type, Y_output_list, cstOne);
 
     // Concat forward and reverse results on dim 0
-    Y_h_output_list = b.create<PrimListConstructOp>(
-        b.getType<ListType>(Y_h_Y_c_uni_type),
+    Y_h_output_list = PrimListConstructOp::create(
+        b, b.getType<ListType>(Y_h_Y_c_uni_type),
         SmallVector<Value>{Y_h_forward, Y_h_reverse});
     Y_h_result =
-        b.create<AtenCatOp>(Y_h_Y_c_res_type, Y_h_output_list, cstZero);
+        AtenCatOp::create(b, Y_h_Y_c_res_type, Y_h_output_list, cstZero);
 
-    Y_c_output_list = b.create<PrimListConstructOp>(
-        b.getType<ListType>(Y_h_Y_c_uni_type),
+    Y_c_output_list = PrimListConstructOp::create(
+        b, b.getType<ListType>(Y_h_Y_c_uni_type),
         SmallVector<Value>{Y_c_forward, Y_c_reverse});
     Y_c_result =
-        b.create<AtenCatOp>(Y_h_Y_c_res_type, Y_c_output_list, cstZero);
+        AtenCatOp::create(b, Y_h_Y_c_res_type, Y_c_output_list, cstZero);
   }
 
   if (layout == 1) {
@@ -1124,46 +1128,46 @@ Value gru_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
   auto hTy = cast<ValueTensorType>(H_prev.getType());
 
   auto intType = b.getType<IntType>();
-  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+  Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
 
-  Value z_w = b.create<AtenLinearOp>(hTy, Xt, weights.Wz, weights.Wbz);
-  Value z_r = b.create<AtenLinearOp>(hTy, H_prev, weights.Rz, weights.Rbz);
-  Value z_pre = b.create<AtenAddTensorOp>(hTy, z_w, z_r, cstOne);
+  Value z_w = AtenLinearOp::create(b, hTy, Xt, weights.Wz, weights.Wbz);
+  Value z_r = AtenLinearOp::create(b, hTy, H_prev, weights.Rz, weights.Rbz);
+  Value z_pre = AtenAddTensorOp::create(b, hTy, z_w, z_r, cstOne);
   Value zt = createActivationByName(b, activations.f, z_pre);
 
-  Value r_w = b.create<AtenLinearOp>(hTy, Xt, weights.Wr, weights.Wbr);
-  Value r_r = b.create<AtenLinearOp>(hTy, H_prev, weights.Rr, weights.Rbr);
-  Value r_pre = b.create<AtenAddTensorOp>(hTy, r_w, r_r, cstOne);
+  Value r_w = AtenLinearOp::create(b, hTy, Xt, weights.Wr, weights.Wbr);
+  Value r_r = AtenLinearOp::create(b, hTy, H_prev, weights.Rr, weights.Rbr);
+  Value r_pre = AtenAddTensorOp::create(b, hTy, r_w, r_r, cstOne);
   Value rt = createActivationByName(b, activations.f, r_pre);
 
-  Value h_w = b.create<AtenLinearOp>(hTy, Xt, weights.Wh, weights.Wbh);
+  Value h_w = AtenLinearOp::create(b, hTy, Xt, weights.Wh, weights.Wbh);
   Value h_r;
   if (linear_before_reset) {
     // when linear_before_reset = 1, multiply r with H_prev to reset
     // before applying linear layer
     Value h_linear =
-        b.create<AtenLinearOp>(hTy, H_prev, weights.Rh, weights.Rbh);
-    h_r = b.create<AtenMulTensorOp>(hTy, h_linear, rt);
+        AtenLinearOp::create(b, hTy, H_prev, weights.Rh, weights.Rbh);
+    h_r = AtenMulTensorOp::create(b, hTy, h_linear, rt);
   } else {
     // otherwise, multiply first and then apply linear layer
-    Value h_reset = b.create<AtenMulTensorOp>(hTy, H_prev, rt);
-    h_r = b.create<AtenLinearOp>(hTy, h_reset, weights.Rh, weights.Rbh);
+    Value h_reset = AtenMulTensorOp::create(b, hTy, H_prev, rt);
+    h_r = AtenLinearOp::create(b, hTy, h_reset, weights.Rh, weights.Rbh);
   }
-  Value h_pre = b.create<AtenAddTensorOp>(hTy, h_w, h_r, cstOne);
+  Value h_pre = AtenAddTensorOp::create(b, hTy, h_w, h_r, cstOne);
   Value ht = createActivationByName(b, activations.g, h_pre);
 
   // Create a constant tensor filled with ones, matching the shape of zt
-  Value cstNone = b.create<ConstantNoneOp>();
+  Value cstNone = ConstantNoneOp::create(b);
   int64_t typeInt = (int64_t)getScalarTypeForType(hTy.getDtype());
-  Value dtype = b.create<ConstantIntOp>(b.getI64IntegerAttr(typeInt));
-  Value ones = b.create<Torch::AtenOnesLikeOp>(
-      hTy, zt, dtype, /*layout=*/cstNone,
+  Value dtype = ConstantIntOp::create(b, b.getI64IntegerAttr(typeInt));
+  Value ones = Torch::AtenOnesLikeOp::create(
+      b, hTy, zt, dtype, /*layout=*/cstNone,
       /*device=*/cstNone, /*pin_memory=*/cstNone, /*memory_format=*/cstNone);
 
-  Value one_minus_zt = b.create<AtenSubTensorOp>(hTy, ones, zt, cstOne);
-  Value ht_scaled = b.create<AtenMulTensorOp>(hTy, one_minus_zt, ht);
-  Value H_prev_zt = b.create<AtenMulTensorOp>(hTy, H_prev, zt);
-  Value H_new = b.create<AtenAddTensorOp>(hTy, ht_scaled, H_prev_zt, cstOne);
+  Value one_minus_zt = AtenSubTensorOp::create(b, hTy, ones, zt, cstOne);
+  Value ht_scaled = AtenMulTensorOp::create(b, hTy, one_minus_zt, ht);
+  Value H_prev_zt = AtenMulTensorOp::create(b, hTy, H_prev, zt);
+  Value H_new = AtenAddTensorOp::create(b, hTy, ht_scaled, H_prev_zt, cstOne);
 
   return H_new;
 }
@@ -1187,38 +1191,38 @@ GruLayerOutput gru_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
 
   auto intType = b.getType<IntType>();
 
-  Value cstNone = b.create<ConstantNoneOp>();
-  Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
-  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+  Value cstNone = ConstantNoneOp::create(b);
+  Value cstZero = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(0));
+  Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
   Value cstSeqLen =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(seq_len));
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(seq_len));
   Value cstBatchSize =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(batch_size));
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(batch_size));
   Value cstHiddenSize =
-      b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size));
 
   auto yTy = b.getType<ValueTensorType>(
       SmallVector<int64_t>{seq_len, batch_size, hidden_size}, hTy.getDtype());
 
-  auto YShapeList = b.create<PrimListConstructOp>(
-      b.getType<ListType>(intType),
+  auto YShapeList = PrimListConstructOp::create(
+      b, b.getType<ListType>(intType),
       ValueRange({cstSeqLen, cstBatchSize, cstHiddenSize}));
 
   int64_t hDtypeInt =
       static_cast<int64_t>(getScalarTypeForType(hTy.getDtype()));
-  Value hDtypeIntVal = b.create<ConstantIntOp>(b.getI64IntegerAttr(hDtypeInt));
+  Value hDtypeIntVal = ConstantIntOp::create(b, b.getI64IntegerAttr(hDtypeInt));
 
-  Value Y_initial = b.create<AtenZerosOp>(yTy, YShapeList, hDtypeIntVal,
-                                          cstNone, cstNone, cstNone);
+  Value Y_initial = AtenZerosOp::create(b, yTy, YShapeList, hDtypeIntVal,
+                                        cstNone, cstNone, cstNone);
 
   Value maxTripCount = cstSeqLen;
-  Value loopConditionTrue = b.create<ConstantBoolOp>(true);
+  Value loopConditionTrue = ConstantBoolOp::create(b, true);
 
   Type loopIndexType = intType;
 
-  auto loop = b.create<PrimLoopOp>(TypeRange({yTy, hTy}), maxTripCount,
-                                   loopConditionTrue,
-                                   ValueRange({Y_initial, initial_h}));
+  auto loop =
+      PrimLoopOp::create(b, TypeRange({yTy, hTy}), maxTripCount,
+                         loopConditionTrue, ValueRange({Y_initial, initial_h}));
 
   {
     OpBuilder::InsertionGuard guard(b);
@@ -1233,7 +1237,7 @@ GruLayerOutput gru_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
     auto XtType = b.getType<ValueTensorType>(
         llvm::SmallVector<int64_t>{batch_size, input_size}, xTy.getDtype());
 
-    Value Xt = b.create<AtenSelectIntOp>(XtType, X, cstZero, loopIndex);
+    Value Xt = AtenSelectIntOp::create(b, XtType, X, cstZero, loopIndex);
 
     Value H_new =
         gru_cell(b, Xt, H_prev, weights, activations, linear_before_reset);
@@ -1241,15 +1245,15 @@ GruLayerOutput gru_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
     Type hTyUnsqueezed = b.getType<ValueTensorType>(
         llvm::SmallVector<int64_t>{1, batch_size, hidden_size}, hTy.getDtype());
     Value H_new_unsqueezed =
-        b.create<AtenUnsqueezeOp>(hTyUnsqueezed, H_new, cstZero);
+        AtenUnsqueezeOp::create(b, hTyUnsqueezed, H_new, cstZero);
 
-    auto loopIndexPlusOne = b.create<AtenAddIntOp>(intType, loopIndex, cstOne);
+    auto loopIndexPlusOne = AtenAddIntOp::create(b, intType, loopIndex, cstOne);
     Value Y_new =
-        b.create<AtenSliceScatterOp>(yTy, Y_prev, H_new_unsqueezed, cstZero,
-                                     loopIndex, loopIndexPlusOne, cstOne);
+        AtenSliceScatterOp::create(b, yTy, Y_prev, H_new_unsqueezed, cstZero,
+                                   loopIndex, loopIndexPlusOne, cstOne);
 
-    b.create<PrimLoopConditionOp>(loopConditionTrue,
-                                  ValueRange({Y_new, H_new}));
+    PrimLoopConditionOp::create(b, loopConditionTrue,
+                                ValueRange({Y_new, H_new}));
   }
 
   GruLayerOutput output;
@@ -1265,9 +1269,9 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   mlir::ImplicitLocOpBuilder b(loc, rewriter);
 
   auto intType = b.getType<IntType>();
-  Value cstNone = b.create<ConstantNoneOp>();
-  Value cstZero = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(0));
-  Value cstOne = b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(1));
+  Value cstNone = ConstantNoneOp::create(b);
+  Value cstZero = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(0));
+  Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
 
   // Binding arguments
   ValueTensorType yTy, Y_hType;
@@ -1358,17 +1362,17 @@ LogicalResult OnnxGruExpander(OpBinder binder,
 
   if (binder.tensorOperandAtIndex(initial_h, 5)) {
     Value cstNumDirections =
-        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(num_directions));
+        ConstantIntOp::create(b, intType, b.getI64IntegerAttr(num_directions));
     Value cstBatchSize =
-        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(batch_size));
+        ConstantIntOp::create(b, intType, b.getI64IntegerAttr(batch_size));
     Value cstHiddenSize =
-        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(hidden_size));
-    Value hShape = b.create<PrimListConstructOp>(
-        b.getType<ListType>(intType),
+        ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size));
+    Value hShape = PrimListConstructOp::create(
+        b, b.getType<ListType>(intType),
         ValueRange({cstNumDirections, cstBatchSize, cstHiddenSize}));
     Value cstDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
-    initial_h =
-        b.create<AtenZerosOp>(hTy, hShape, cstDtype, cstNone, cstNone, cstNone);
+    initial_h = AtenZerosOp::create(b, hTy, hShape, cstDtype, cstNone, cstNone,
+                                    cstNone);
   } else {
     if (layout == 1) {
       initial_h = StaticTranspose(b, initial_h, 0, 1);
@@ -1376,7 +1380,7 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   }
 
   if (binder.tensorOperandAtIndex(sequence_lens, 4))
-    sequence_lens = b.create<ConstantNoneOp>();
+    sequence_lens = ConstantNoneOp::create(b);
 
   float clip;
   if (!binder.f32FloatAttr(clip, "clip") && clip != 0.0f)
@@ -1394,13 +1398,14 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   if (B == nullptr) {
     SmallVector<int64_t> BShape = {num_directions, 6 * hidden_size};
     SmallVector<Value> BShapeListContents = {
-        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(num_directions)),
-        b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(6 * hidden_size))};
-    Value BShapeList = b.create<PrimListConstructOp>(
-        b.getType<ListType>(intType), BShapeListContents);
+        ConstantIntOp::create(b, intType, b.getI64IntegerAttr(num_directions)),
+        ConstantIntOp::create(b, intType,
+                              b.getI64IntegerAttr(6 * hidden_size))};
+    Value BShapeList = PrimListConstructOp::create(
+        b, b.getType<ListType>(intType), BShapeListContents);
     auto BType = b.getType<ValueTensorType>(BShape, wTy.getDtype());
-    B = b.create<Torch::AtenZerosOp>(BType, BShapeList, cstXDtype, cstNone,
-                                     cstNone, cstNone);
+    B = Torch::AtenZerosOp::create(b, BType, BShapeList, cstXDtype, cstNone,
+                                   cstNone, cstNone);
   }
 
   Value W_forward = getDirection(b, 0, W);
@@ -1417,14 +1422,14 @@ LogicalResult OnnxGruExpander(OpBinder binder,
     SmallVector<Value> slices;
     for (int64_t i = 0; i < numSlices; ++i) {
       Value start =
-          b.create<ConstantIntOp>(intType, b.getI64IntegerAttr(i * sliceSize));
-      Value end = b.create<ConstantIntOp>(
-          intType, b.getI64IntegerAttr((i + 1) * sliceSize));
+          ConstantIntOp::create(b, intType, b.getI64IntegerAttr(i * sliceSize));
+      Value end = ConstantIntOp::create(
+          b, intType, b.getI64IntegerAttr((i + 1) * sliceSize));
 
-      Value slice = b.create<AtenSliceTensorOp>(sliceType, tensor,
-                                                cstZero, // dim to slice on
-                                                start, end,
-                                                cstOne // step
+      Value slice = AtenSliceTensorOp::create(b, sliceType, tensor,
+                                              cstZero, // dim to slice on
+                                              start, end,
+                                              cstOne // step
       );
 
       slices.push_back(slice);
@@ -1470,13 +1475,13 @@ LogicalResult OnnxGruExpander(OpBinder binder,
     Y_final = cstNone;
   } else {
     if (layout == 0) {
-      Y_final = b.create<AtenUnsqueezeOp>(yTy, gruLayerOutput.Y, cstOne);
+      Y_final = AtenUnsqueezeOp::create(b, yTy, gruLayerOutput.Y, cstOne);
     } else {
       Type yTy_original = b.getType<ValueTensorType>(
           llvm::SmallVector<int64_t>{seq_len, 1, batch_size, hidden_size},
           yTy.getDtype());
       Y_final =
-          b.create<AtenUnsqueezeOp>(yTy_original, gruLayerOutput.Y, cstOne);
+          AtenUnsqueezeOp::create(b, yTy_original, gruLayerOutput.Y, cstOne);
       Y_final = StaticTranspose(b, Y_final, 1, 2);
       Y_final = StaticTranspose(b, Y_final, 0, 1);
     }
@@ -1488,13 +1493,13 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   } else {
     if (layout == 0) {
       Y_h_final =
-          b.create<AtenUnsqueezeOp>(Y_hType, gruLayerOutput.Y_h, cstZero);
+          AtenUnsqueezeOp::create(b, Y_hType, gruLayerOutput.Y_h, cstZero);
     } else {
       Type y_hTy_original = b.getType<ValueTensorType>(
           llvm::SmallVector<int64_t>{1, batch_size, hidden_size},
           Y_hType.getDtype());
-      Y_h_final = b.create<AtenUnsqueezeOp>(y_hTy_original, gruLayerOutput.Y_h,
-                                            cstZero);
+      Y_h_final = AtenUnsqueezeOp::create(b, y_hTy_original, gruLayerOutput.Y_h,
+                                          cstZero);
       Y_h_final = StaticTranspose(b, Y_h_final, 0, 1);
     }
   }

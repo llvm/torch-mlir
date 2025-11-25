@@ -23,17 +23,21 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorOps.h"
-#include "torch-mlir-dialects/Dialect/TMTensor/Transforms/PassDetail.h"
 #include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h"
 
 using namespace ::mlir;
 using namespace ::mlir::torch::TMTensor;
+namespace mlir::torch::TMTensor {
+
+#define GEN_PASS_DEF_TMTENSORBUFFERIZE
+#include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h.inc"
 
 static Value cloneMemref(Location loc, Value memref, OpBuilder &b) {
   auto memrefType = cast<MemRefType>(memref.getType());
-  auto alloc = b.create<memref::AllocOp>(
-      loc, memref::getMixedSizes(b, loc, memref), memrefType.getElementType());
-  b.create<memref::CopyOp>(loc, memref, alloc);
+  auto alloc =
+      memref::AllocOp::create(b, loc, memref::getMixedSizes(b, loc, memref),
+                              memrefType.getElementType());
+  memref::CopyOp::create(b, loc, memref, alloc);
   return alloc;
 }
 
@@ -69,12 +73,12 @@ allocateBuffersForResults(Location loc, TMTensorOp tmtensorOp,
 
     // Allocate buffers for statically-shaped results.
     if (memrefType.hasStaticShape()) {
-      resultBuffers.push_back(b.create<memref::AllocOp>(loc, memrefType));
+      resultBuffers.push_back(memref::AllocOp::create(b, loc, memrefType));
       continue;
     }
 
-    resultBuffers.push_back(b.create<memref::AllocOp>(
-        loc, memref::getMixedSizes(b, loc, resultTensor),
+    resultBuffers.push_back(memref::AllocOp::create(
+        b, loc, memref::getMixedSizes(b, loc, resultTensor),
         memrefType.getElementType()));
   }
   return success();
@@ -127,13 +131,13 @@ static Value materializeToTensor(OpBuilder &builder, TensorType type,
                                  ValueRange inputs, Location loc) {
   assert(inputs.size() == 1);
   assert(isa<BaseMemRefType>(inputs[0].getType()));
-  return builder.create<bufferization::ToTensorOp>(loc, type, inputs[0]);
+  return bufferization::ToTensorOp::create(builder, loc, type, inputs[0]);
 }
 
 /// Converts TMTensor operations that work on tensor-type operands or results to
 /// work on buffers.
 struct TMTensorBufferizePass
-    : public TMTensorBufferizeBase<TMTensorBufferizePass> {
+    : public impl::TMTensorBufferizeBase<TMTensorBufferizePass> {
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<bufferization::BufferizationDialect, memref::MemRefDialect,
                     torch::TMTensor::TMTensorDialect>();
@@ -178,7 +182,7 @@ struct TMTensorBufferizePass
       }
       if (isa<TensorType>(inputs[0].getType())) {
         // Tensor to MemRef cast.
-        return builder.create<bufferization::ToBufferOp>(loc, type, inputs[0]);
+        return bufferization::ToBufferOp::create(builder, loc, type, inputs[0]);
       }
       llvm_unreachable("only tensor/memref input types supported");
     });
@@ -201,7 +205,8 @@ struct TMTensorBufferizePass
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-torch::TMTensor::createTMTensorBufferizePass() {
+std::unique_ptr<OperationPass<func::FuncOp>> createTMTensorBufferizePass() {
   return std::make_unique<TMTensorBufferizePass>();
 }
+
+} // namespace mlir::torch::TMTensor

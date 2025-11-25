@@ -20,11 +20,11 @@ Value mlir::torch::onnx_c::createConstantIntList(
     ArrayRef<int64_t> cstInput) {
   SmallVector<Value> cstValue;
   for (int64_t i : cstInput) {
-    cstValue.push_back(rewriter.create<Torch::ConstantIntOp>(
-        binder.getLoc(), rewriter.getI64IntegerAttr(i)));
+    cstValue.push_back(Torch::ConstantIntOp::create(
+        rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(i)));
   }
-  return rewriter.create<Torch::PrimListConstructOp>(
-      binder.getLoc(),
+  return Torch::PrimListConstructOp::create(
+      rewriter, binder.getLoc(),
       Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
       cstValue);
 }
@@ -109,12 +109,12 @@ LogicalResult mlir::torch::onnx_c::createTorchTransposeOp(
   if (failed(getTransposedType(cast<Torch::BaseTensorType>(input.getType()),
                                dimA, dimB, transposedType)))
     return failure();
-  Value cstDimA = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getI64IntegerAttr(dimA));
-  Value cstDimB = rewriter.create<Torch::ConstantIntOp>(
-      loc, rewriter.getI64IntegerAttr(dimB));
-  transposed = rewriter.create<Torch::AtenTransposeIntOp>(
-      loc, transposedType, input, cstDimA, cstDimB);
+  Value cstDimA = Torch::ConstantIntOp::create(
+      rewriter, loc, rewriter.getI64IntegerAttr(dimA));
+  Value cstDimB = Torch::ConstantIntOp::create(
+      rewriter, loc, rewriter.getI64IntegerAttr(dimB));
+  transposed = Torch::AtenTransposeIntOp::create(rewriter, loc, transposedType,
+                                                 input, cstDimA, cstDimB);
   return success();
 }
 
@@ -127,19 +127,19 @@ LogicalResult mlir::torch::onnx_c::createTorchPermuteOp(
                                  permuteDims, permutedType)))
     return failure();
   Value permuteDimsList = createConstantIntList(binder, rewriter, permuteDims);
-  permuted = rewriter.create<Torch::AtenPermuteOp>(loc, permutedType, input,
-                                                   permuteDimsList);
+  permuted = Torch::AtenPermuteOp::create(rewriter, loc, permutedType, input,
+                                          permuteDimsList);
   return success();
 }
 
 Value mlir::torch::onnx_c::createActivationByName(ImplicitLocOpBuilder &b,
                                                   StringRef name, Value input) {
   if (name == "Sigmoid")
-    return b.create<Torch::AtenSigmoidOp>(input.getType(), input);
+    return Torch::AtenSigmoidOp::create(b, input.getType(), input);
   if (name == "Tanh")
-    return b.create<Torch::AtenTanhOp>(input.getType(), input);
+    return Torch::AtenTanhOp::create(b, input.getType(), input);
   if (name == "Relu")
-    return b.create<Torch::AtenReluOp>(input.getType(), input);
+    return Torch::AtenReluOp::create(b, input.getType(), input);
   llvm_unreachable("Unsupported activation function");
 }
 
@@ -158,8 +158,8 @@ LogicalResult mlir::torch::onnx_c::extractPerTensorQuantizationArguments(
   if (!check(inScale) || !check(inZeroPoint))
     return failure();
 
-  Value emptyList = rewriter.create<Torch::PrimListConstructOp>(
-      loc,
+  Value emptyList = Torch::PrimListConstructOp::create(
+      rewriter, loc,
       rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
       ValueRange{});
   auto extract = [&rewriter, &loc, &emptyList](Value v) {
@@ -167,14 +167,14 @@ LogicalResult mlir::torch::onnx_c::extractPerTensorQuantizationArguments(
     if (!vTy.getSizes().empty()) {
       vTy = rewriter.getType<Torch::ValueTensorType>(ArrayRef<int64_t>({}),
                                                      vTy.getOptionalDtype());
-      v = rewriter.create<Torch::AtenReshapeOp>(loc, vTy, v, emptyList);
+      v = Torch::AtenReshapeOp::create(rewriter, loc, vTy, v, emptyList);
     }
 
     Type extractTy = rewriter.getType<Torch::FloatType>();
     if (isa<IntegerType>(vTy.getDtype()))
       extractTy = rewriter.getType<Torch::IntType>();
 
-    return rewriter.create<Torch::AtenItemOp>(loc, extractTy, v);
+    return Torch::AtenItemOp::create(rewriter, loc, extractTy, v);
   };
 
   outScale = extract(inScale);
@@ -191,14 +191,13 @@ LogicalResult mlir::torch::onnx_c::createDequantizeTensor(
     return failure();
 
   Torch::ValueTensorType makeTensorTy = getQTorchTypeFromTorchIntType(inputTy);
-  Value quantizedInput =
-      rewriter.create<Torch::Aten_MakePerTensorQuantizedTensorOp>(
-          loc, makeTensorTy, input, scale, zeroPoint);
+  Value quantizedInput = Torch::Aten_MakePerTensorQuantizedTensorOp::create(
+      rewriter, loc, makeTensorTy, input, scale, zeroPoint);
 
   Torch::ValueTensorType resultTy = rewriter.getType<Torch::ValueTensorType>(
       inputTy.getSizes(), rewriter.getF32Type());
-  output = rewriter.create<Torch::AtenDequantizeSelfOp>(loc, resultTy,
-                                                        quantizedInput);
+  output = Torch::AtenDequantizeSelfOp::create(rewriter, loc, resultTy,
+                                               quantizedInput);
 
   return success();
 }

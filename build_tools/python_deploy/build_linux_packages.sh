@@ -41,7 +41,7 @@ repo_root="$(cd "$this_dir"/../../ && pwd)"
 arch="$(uname -m)"
 echo "Running on Arch: ${arch}"
 # This needs to be a manylinux image so we can ship pip packages
-TM_RELEASE_DOCKER_IMAGE="${TM_RELEASE_DOCKER_IMAGE:-quay.io/pypa/manylinux2014_${arch}}"
+TM_RELEASE_DOCKER_IMAGE="${TM_RELEASE_DOCKER_IMAGE:-quay.io/pypa/manylinux_2_28_${arch}}"
 # This assumes an Ubuntu LTS like image. You can build your own with
 # ./build_tools/docker/Dockerfile
 TM_CI_DOCKER_IMAGE="${TM_CI_DOCKER_IMAGE:-powderluv/torch-mlir-ci:latest}"

@@ -7,9 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
 #include "SimplifyAbstractInterpCalculationsUtils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -17,6 +17,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DEF_SIMPLIFYSHAPECALCULATIONS
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 namespace {
 class DecomposeAtenSizeOp : public OpRewritePattern<AtenSizeOp> {
@@ -33,13 +37,14 @@ public:
     int64_t rank = tensorType.getSizes().size();
     SmallVector<Value> sizes;
     for (int i = 0; i < rank; i++) {
-      Value dim = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(i));
-      sizes.push_back(rewriter.create<AtenSizeIntOp>(loc, self, dim));
+      Value dim = Torch::ConstantIntOp::create(rewriter, loc,
+                                               rewriter.getI64IntegerAttr(i));
+      sizes.push_back(AtenSizeIntOp::create(rewriter, loc, self, dim));
     }
 
-    Value sizeList = rewriter.create<PrimListConstructOp>(
-        loc, Torch::ListType::get(Torch::IntType::get(context)), sizes);
+    Value sizeList = PrimListConstructOp::create(
+        rewriter, loc, Torch::ListType::get(Torch::IntType::get(context)),
+        sizes);
     rewriter.replaceOp(op, sizeList);
     return success();
   }
@@ -90,7 +95,7 @@ public:
       if (!originalTypedValue) {
         rewriter.setInsertionPointAfter(op);
         originalTypedValue =
-            rewriter.create<TensorStaticInfoCastOp>(loc, resultType, result);
+            TensorStaticInfoCastOp::create(rewriter, loc, resultType, result);
       }
       use.set(originalTypedValue);
     }
@@ -185,7 +190,8 @@ public:
 
 namespace {
 class SimplifyShapeCalculationsPass
-    : public SimplifyShapeCalculationsBase<SimplifyShapeCalculationsPass> {
+    : public impl::SimplifyShapeCalculationsBase<
+          SimplifyShapeCalculationsPass> {
   void runOnOperation() override {
     MLIRContext *context = &getContext();
 
@@ -218,6 +224,8 @@ class SimplifyShapeCalculationsPass
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createSimplifyShapeCalculationsPass() {
+createSimplifyShapeCalculationsPass() {
   return std::make_unique<SimplifyShapeCalculationsPass>();
 }
+
+} // namespace mlir::torch::Torch

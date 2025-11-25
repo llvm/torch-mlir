@@ -9,7 +9,6 @@
 
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -42,14 +41,14 @@ static Value createInitialValueForGatherScatterOp(Operation *op,
           constType, {APFloat::getZero(
                          cast<mlir::FloatType>(elementTy).getFloatSemantics(),
                          /*negative=*/false)});
-      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
-                                                    constAttr);
+      return stablehlo::ConstantOp::create(rewriter, op->getLoc(), constType,
+                                           constAttr);
     } else if (isa<mlir::IntegerType>(elementTy) &&
                elementTy.getIntOrFloatBitWidth() != 8) {
       auto constAttr = DenseElementsAttr::get(
           constType, {APInt::getZero(elementTy.getIntOrFloatBitWidth())});
-      return rewriter.create<stablehlo::ConstantOp>(op->getLoc(), constType,
-                                                    constAttr);
+      return stablehlo::ConstantOp::create(rewriter, op->getLoc(), constType,
+                                           constAttr);
     }
   }
 
@@ -63,8 +62,8 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
                                   size_t dimSizeIndexBits) {
   auto loc = op->getLoc();
   Type intType = rewriter.getIntegerType(dimSizeIndexBits);
-  Value one = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIntegerAttr(intType, 1));
+  Value one = arith::ConstantOp::create(rewriter, loc,
+                                        rewriter.getIntegerAttr(intType, 1));
 
   // sliceSizes
   auto inputRankTy = dyn_cast<RankedTensorType>(input.getType());
@@ -75,12 +74,13 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
     if (r == axis) {
       sliceSizes.push_back(one);
     } else {
-      sliceSizes.push_back(rewriter.create<arith::IndexCastOp>(
-          loc, intType, rewriter.create<tensor::DimOp>(loc, input, r)));
+      sliceSizes.push_back(arith::IndexCastOp::create(
+          rewriter, loc, intType,
+          tensor::DimOp::create(rewriter, loc, input, r)));
     }
   }
   auto sliceSizesTensor =
-      rewriter.create<tensor::FromElementsOp>(loc, sliceSizes);
+      tensor::FromElementsOp::create(rewriter, loc, sliceSizes);
 
   // offsetDims
   SmallVector<int64_t, 4> offsetDims;
@@ -123,9 +123,8 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
   // create output tensor type
   auto outputTy =
       RankedTensorType::get(outputShape, inputRankTy.getElementType());
-  return rewriter
-      .create<stablehlo::DynamicGatherOp>(loc, outputTy, input, indices,
-                                          sliceSizesTensor, dimsAttr)
+  return stablehlo::DynamicGatherOp::create(rewriter, loc, outputTy, input,
+                                            indices, sliceSizesTensor, dimsAttr)
       .getResult();
 }
 
@@ -139,8 +138,8 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   auto input = adaptor.getSelf();
   RankedTensorType inputType = cast<RankedTensorType>(input.getType());
 
-  Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-  Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+  Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value one = arith::ConstantIndexOp::create(rewriter, loc, 1);
 
   int64_t dim;
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
@@ -176,24 +175,25 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
                                  dimSize, dimSize);
 
   // end >= start ? end : start
-  Value endSgeStart = rewriter.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::sge, end, start);
-  end = rewriter.create<arith::SelectOp>(loc, endSgeStart, end, start);
-  Value stepIndex = rewriter.create<arith::ConstantIndexOp>(loc, step);
+  Value endSgeStart = arith::CmpIOp::create(
+      rewriter, loc, arith::CmpIPredicate::sge, end, start);
+  end = arith::SelectOp::create(rewriter, loc, endSgeStart, end, start);
+  Value stepIndex = arith::ConstantIndexOp::create(rewriter, loc, step);
 
   // Slice logic: resultSize = floordiv(end - start + step - 1,  step)
   resultShape = getTensorSizes(rewriter, loc, input);
-  Value len = rewriter.create<arith::SubIOp>(loc, end, start);
-  Value resultSize = rewriter.create<arith::AddIOp>(loc, len, stepIndex);
-  resultSize = rewriter.create<arith::SubIOp>(loc, resultSize, one);
-  resultSize = rewriter.create<arith::FloorDivSIOp>(loc, resultSize, stepIndex);
+  Value len = arith::SubIOp::create(rewriter, loc, end, start);
+  Value resultSize = arith::AddIOp::create(rewriter, loc, len, stepIndex);
+  resultSize = arith::SubIOp::create(rewriter, loc, resultSize, one);
+  resultSize =
+      arith::FloorDivSIOp::create(rewriter, loc, resultSize, stepIndex);
   resultShape[dim] = resultSize;
 
   strides.resize(inputType.getRank(), one);
   offsets.resize(inputType.getRank(), zero);
 
   offsets[dim] = start;
-  strides[dim] = rewriter.create<arith::MulIOp>(loc, strides[dim], stepIndex);
+  strides[dim] = arith::MulIOp::create(rewriter, loc, strides[dim], stepIndex);
   return success();
 }
 } // namespace
@@ -259,22 +259,23 @@ FailureOr<Value> broadcastAndConcatIndices(Operation *op,
     if (allIndexStaticShape) {
       bcastVal = hlo::promoteAndBroadcast(rewriter, indexTensor, bcastIndexType,
                                           std::nullopt);
-      bcastVal = rewriter.create<stablehlo::ReshapeOp>(op->getLoc(),
-                                                       reshapeType, bcastVal);
+      bcastVal = stablehlo::ReshapeOp::create(rewriter, op->getLoc(),
+                                              reshapeType, bcastVal);
     } else {
       bcastVal = hlo::promoteAndBroadcast(rewriter, indexTensor, bcastIndexType,
                                           bcastSizeTensor);
       auto bcastValShapeTensorVec =
           *hlo::getDimSizesOfTensor(rewriter, op, bcastVal, dimSizeIndexBits);
-      bcastValShapeTensorVec.push_back(rewriter.create<mlir::arith::ConstantOp>(
-          op->getLoc(), rewriter.getIntegerAttr(
-                            rewriter.getIntegerType(dimSizeIndexBits), 1)));
-      Value bcastValShapeTensor = rewriter
-                                      .create<tensor::FromElementsOp>(
-                                          op->getLoc(), bcastValShapeTensorVec)
-                                      .getResult();
-      bcastVal = rewriter.create<stablehlo::DynamicReshapeOp>(
-          op->getLoc(), reshapeType, bcastVal, bcastValShapeTensor);
+      bcastValShapeTensorVec.push_back(mlir::arith::ConstantOp::create(
+          rewriter, op->getLoc(),
+          rewriter.getIntegerAttr(rewriter.getIntegerType(dimSizeIndexBits),
+                                  1)));
+      Value bcastValShapeTensor =
+          tensor::FromElementsOp::create(rewriter, op->getLoc(),
+                                         bcastValShapeTensorVec)
+              .getResult();
+      bcastVal = stablehlo::DynamicReshapeOp::create(
+          rewriter, op->getLoc(), reshapeType, bcastVal, bcastValShapeTensor);
     }
     broadcastedIndices.push_back(bcastVal);
   }
@@ -283,8 +284,8 @@ FailureOr<Value> broadcastAndConcatIndices(Operation *op,
   Value finalIndexTensor = broadcastedIndices[0];
   if (broadcastedIndices.size() > 1) {
     RankedTensorType concatTy = RankedTensorType::get(concatShape, indexElemTy);
-    finalIndexTensor = rewriter.create<stablehlo::ConcatenateOp>(
-        op->getLoc(), concatTy, ValueRange(broadcastedIndices),
+    finalIndexTensor = stablehlo::ConcatenateOp::create(
+        rewriter, op->getLoc(), concatTy, ValueRange(broadcastedIndices),
         concatShape.size() - 1);
   }
   return finalIndexTensor;
@@ -430,9 +431,9 @@ LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
   if (!initValue)
     return failure();
 
-  auto stablehloReduceOp = rewriter.create<stablehlo::ReduceOp>(
-      op.getLoc(), gatherOutput, initValue, rewriter.getDenseI64ArrayAttr({0}),
-      elementTy);
+  auto stablehloReduceOp = stablehlo::ReduceOp::create(
+      rewriter, op.getLoc(), gatherOutput, initValue,
+      rewriter.getDenseI64ArrayAttr({0}), elementTy);
 
   Region &region = stablehloReduceOp.getBody();
   Block &block = region.emplaceBlock();
@@ -447,9 +448,10 @@ LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
   {
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPointToStart(&block);
-    Value addResult = rewriter.create<stablehlo::AddOp>(
-        op->getLoc(), blockArgumentTy, *firstArgument, *secondArgument);
-    rewriter.create<stablehlo::ReturnOp>(op->getLoc(), addResult);
+    Value addResult =
+        stablehlo::AddOp::create(rewriter, op->getLoc(), blockArgumentTy,
+                                 *firstArgument, *secondArgument);
+    stablehlo::ReturnOp::create(rewriter, op->getLoc(), addResult);
   }
 
   auto outShapeInfo = hlo::getDimIndexOfTensor(rewriter, op, weight);
@@ -458,13 +460,14 @@ LogicalResult ConvertAtenOp<AtenEmbeddingBagPaddingIdxOp>::matchAndRewrite(
         op, "failed to get dimension sizes of the input");
   }
   auto outShapeVec = *outShapeInfo;
-  auto one = rewriter.create<mlir::arith::ConstantOp>(
-      op->getLoc(), rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
+  auto one = mlir::arith::ConstantOp::create(
+      rewriter, op->getLoc(),
+      rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
   outShapeVec[0] = one;
   auto outShapeTensor =
-      rewriter.create<mlir::tensor::FromElementsOp>(op->getLoc(), outShapeVec);
-  auto resultA = rewriter.create<stablehlo::DynamicReshapeOp>(
-      loc, getTypeConverter()->convertType(op.getType(0)),
+      mlir::tensor::FromElementsOp::create(rewriter, op->getLoc(), outShapeVec);
+  auto resultA = stablehlo::DynamicReshapeOp::create(
+      rewriter, loc, getTypeConverter()->convertType(op.getType(0)),
       stablehloReduceOp.getResult(0), outShapeTensor);
 
   RankedTensorType resultType = cast<RankedTensorType>(
@@ -554,12 +557,12 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "failed to get dim sizes of `index` param");
   }
-  auto one = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
+  auto one = arith::ConstantOp::create(
+      rewriter, loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
   auto toConcatIndexShapeValueVec = *indexShapeInfo;
   toConcatIndexShapeValueVec.push_back(one);
   auto toConcatIndexShape =
-      rewriter.create<tensor::FromElementsOp>(loc, toConcatIndexShapeValueVec);
+      tensor::FromElementsOp::create(rewriter, loc, toConcatIndexShapeValueVec);
 
   auto indexShape = indexType.getShape();
   SmallVector<int64_t> toConcatIndexShapeVec(indexShape.begin(),
@@ -571,16 +574,16 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
   SmallVector<Value> toConcat;
   for (int64_t i = 0; i < inputType.getRank(); ++i) {
     if (i == dim) {
-      toConcat.push_back(rewriter.create<stablehlo::DynamicReshapeOp>(
-          loc, toConcatIndexType, index, toConcatIndexShape));
+      toConcat.push_back(stablehlo::DynamicReshapeOp::create(
+          rewriter, loc, toConcatIndexType, index, toConcatIndexShape));
     } else {
-      toConcat.push_back(rewriter.create<stablehlo::DynamicIotaOp>(
-          loc, toConcatIndexType, toConcatIndexShape,
+      toConcat.push_back(stablehlo::DynamicIotaOp::create(
+          rewriter, loc, toConcatIndexType, toConcatIndexShape,
           rewriter.getI64IntegerAttr(i)));
     }
   }
-  auto gatherIndicies = rewriter.create<stablehlo::ConcatenateOp>(
-      loc, toConcat, static_cast<uint64_t>(inputType.getRank()));
+  auto gatherIndicies = stablehlo::ConcatenateOp::create(
+      rewriter, loc, toConcat, static_cast<uint64_t>(inputType.getRank()));
   SmallVector<int64_t> sliceSizes(inputType.getRank(), 1);
 
   int64_t indexVecDim = inputType.getRank();
@@ -674,7 +677,7 @@ LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
   auto constAttr = DenseElementsAttr::get(
       RankedTensorType::get(shape, rewriter.getIntegerType(64)), indices);
   auto const_op =
-      rewriter.create<stablehlo::ConstantOp>(loc, constType, constAttr);
+      stablehlo::ConstantOp::create(rewriter, loc, constType, constAttr);
   Value scatterIndices = const_op.getResult();
 
   SmallVector<int64_t> updateWindowDims;
@@ -695,8 +698,9 @@ LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
       /*indexVectorDim=*/1);
 
   Value src = adaptor.getSrc();
-  auto scatterOp = rewriter.create<stablehlo::ScatterOp>(
-      loc, resultType, input, scatterIndices, src, scatterArgs, false, false);
+  auto scatterOp = stablehlo::ScatterOp::create(rewriter, loc, resultType,
+                                                input, scatterIndices, src,
+                                                scatterArgs, false, false);
 
   Block &block = scatterOp.getUpdateComputation().emplaceBlock();
   auto blockArgumentType =
@@ -709,7 +713,7 @@ LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
   {
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPointToStart(&block);
-    rewriter.create<stablehlo::ReturnOp>(loc, *rhs);
+    stablehlo::ReturnOp::create(rewriter, loc, *rhs);
   }
 
   rewriter.replaceOp(op, scatterOp.getResults());
@@ -759,31 +763,31 @@ public:
     // leading dimensions. PyTorch has guaranteed that src tensor size will not
     // be smaller than that of index tensor. REF:
     // https://pytorch.org/docs/stable/generated/torch.Tensor.scatter_.html#torch.Tensor.scatter_
-    auto zero = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 0));
-    auto one = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
+    auto zero = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 0));
+    auto one = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getIntegerAttr(rewriter.getIndexType(), 1));
     SmallVector<Value> sliceIndicies(srcType.getRank(), zero);
     SmallVector<Value> sliceStrides(srcType.getRank(), one);
 
     auto sliceIndiciesValue =
-        rewriter.create<tensor::FromElementsOp>(loc, sliceIndicies);
+        tensor::FromElementsOp::create(rewriter, loc, sliceIndicies);
     auto sliceStridesValue =
-        rewriter.create<tensor::FromElementsOp>(loc, sliceStrides);
+        tensor::FromElementsOp::create(rewriter, loc, sliceStrides);
     auto sliceLimitIndiciesValue =
-        rewriter.create<tensor::FromElementsOp>(loc, *indexShapeInfo);
+        tensor::FromElementsOp::create(rewriter, loc, *indexShapeInfo);
 
     auto newSrcType =
         RankedTensorType::get(indexType.getShape(), srcType.getElementType());
-    src = rewriter.create<stablehlo::RealDynamicSliceOp>(
-        loc, newSrcType, src, sliceIndiciesValue, sliceLimitIndiciesValue,
-        sliceStridesValue);
+    src = stablehlo::RealDynamicSliceOp::create(
+        rewriter, loc, newSrcType, src, sliceIndiciesValue,
+        sliceLimitIndiciesValue, sliceStridesValue);
 
     // generate scatter indicies for stablehlo::Scatter op.
     auto toConcatIndexShapeValueVec = *indexShapeInfo;
     toConcatIndexShapeValueVec.push_back(one);
-    auto toConcatIndexShape = rewriter.create<tensor::FromElementsOp>(
-        loc, toConcatIndexShapeValueVec);
+    auto toConcatIndexShape = tensor::FromElementsOp::create(
+        rewriter, loc, toConcatIndexShapeValueVec);
 
     auto indexShape = indexType.getShape();
     SmallVector<int64_t> toConcatIndexShapeVec(indexShape.begin(),
@@ -795,17 +799,17 @@ public:
     SmallVector<Value> toConcat;
     for (int64_t i = 0; i < inputType.getRank(); ++i) {
       if (i == dim) {
-        toConcat.push_back(rewriter.create<stablehlo::DynamicReshapeOp>(
-            loc, toConcatIndexType, index, toConcatIndexShape));
+        toConcat.push_back(stablehlo::DynamicReshapeOp::create(
+            rewriter, loc, toConcatIndexType, index, toConcatIndexShape));
       } else {
-        toConcat.push_back(rewriter.create<stablehlo::DynamicIotaOp>(
-            loc, toConcatIndexType, toConcatIndexShape,
+        toConcat.push_back(stablehlo::DynamicIotaOp::create(
+            rewriter, loc, toConcatIndexType, toConcatIndexShape,
             rewriter.getI64IntegerAttr(i)));
       }
     }
 
-    auto scatterIndicies = rewriter.create<stablehlo::ConcatenateOp>(
-        loc, toConcat, static_cast<uint64_t>(inputType.getRank()));
+    auto scatterIndicies = stablehlo::ConcatenateOp::create(
+        rewriter, loc, toConcat, static_cast<uint64_t>(inputType.getRank()));
     SmallVector<int64_t> sliceSizes(inputType.getRank(), 1);
 
     // generate ScatterDimensionNumbers for stablehlo::Scatter op.
@@ -825,9 +829,9 @@ public:
         /*scatterDimsToOperandDim=*/scatterDimOperandDimMap,
         /*indexVectorDim=*/indexVecDim);
 
-    auto stablehloScatterOp = rewriter.create<stablehlo::ScatterOp>(
-        loc, inputType, input, scatterIndicies, src, scatterDimensionNumbers,
-        false, false);
+    auto stablehloScatterOp = stablehlo::ScatterOp::create(
+        rewriter, loc, inputType, input, scatterIndicies, src,
+        scatterDimensionNumbers, false, false);
 
     // config update computation function: just return the element from src.
     Block &block = stablehloScatterOp.getUpdateComputation().emplaceBlock();
@@ -844,11 +848,11 @@ public:
       OpBuilder::InsertionGuard guard(rewriter);
       rewriter.setInsertionPointToStart(&block);
       if (reduceType == 0) {
-        rewriter.create<stablehlo::ReturnOp>(loc, *rhsArg);
+        stablehlo::ReturnOp::create(rewriter, loc, *rhsArg);
       } else if (reduceType == 1) {
-        Value res = rewriter.create<stablehlo::AddOp>(loc, blockArgumentType,
-                                                      *lhsArg, *rhsArg);
-        rewriter.create<stablehlo::ReturnOp>(loc, res);
+        Value res = stablehlo::AddOp::create(rewriter, loc, blockArgumentType,
+                                             *lhsArg, *rhsArg);
+        stablehlo::ReturnOp::create(rewriter, loc, res);
       }
     }
 
@@ -1000,12 +1004,11 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
 
   valuesType =
       RankedTensorType::get(expectedValuesShape, valuesType.getElementType());
-  values =
-      hlo::promoteAndBroadcast(rewriter, values, valuesType,
-                               rewriter
-                                   .create<tensor::FromElementsOp>(
-                                       op->getLoc(), expectedValuesShapeTensors)
-                                   .getResult());
+  values = hlo::promoteAndBroadcast(
+      rewriter, values, valuesType,
+      tensor::FromElementsOp::create(rewriter, op->getLoc(),
+                                     expectedValuesShapeTensors)
+          .getResult());
   valueRank = valuesType.getRank();
   valuesShape = valuesType.getShape();
 
@@ -1030,9 +1033,9 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
       /*scatterDimsToOperandDim=*/scatterDimOperandDimMap,
       /*indexVectorDim=*/indexVecDim);
 
-  auto stablehloScatterOp = rewriter.create<stablehlo::ScatterOp>(
-      loc, outType, input, scatterIndices, values, scatterDimensionNumbers,
-      false, false);
+  auto stablehloScatterOp = stablehlo::ScatterOp::create(
+      rewriter, loc, outType, input, scatterIndices, values,
+      scatterDimensionNumbers, false, false);
 
   // configure update computation function.
   Block &block = stablehloScatterOp.getUpdateComputation().emplaceBlock();
@@ -1049,11 +1052,11 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPointToStart(&block);
     if (!accumulate) {
-      rewriter.create<stablehlo::ReturnOp>(loc, *rhsArg);
+      stablehlo::ReturnOp::create(rewriter, loc, *rhsArg);
     } else {
-      Value out = rewriter.create<stablehlo::AddOp>(loc, blockArgumentType,
-                                                    *lhsArg, *rhsArg);
-      rewriter.create<stablehlo::ReturnOp>(loc, out);
+      Value out = stablehlo::AddOp::create(rewriter, loc, blockArgumentType,
+                                           *lhsArg, *rhsArg);
+      stablehlo::ReturnOp::create(rewriter, loc, out);
     }
   }
 
@@ -1078,8 +1081,8 @@ static Value getConstantLike(OpBuilder &b, Location loc, T constant,
       return complex::NumberAttr::get(complexTy, constant, 0);
     llvm_unreachable("unhandled element type");
   };
-  return b.create<mlir::chlo::ConstantLikeOp>(loc, cast<TypedAttr>(getAttr()),
-                                              val);
+  return mlir::chlo::ConstantLikeOp::create(b, loc, cast<TypedAttr>(getAttr()),
+                                            val);
 }
 
 template <typename T>
@@ -1089,7 +1092,7 @@ static Value getConstTensor(ConversionPatternRewriter &rewriter, Operation *op,
   Location loc = op->getLoc();
   RankedTensorType valueType = RankedTensorType::get(shape, ty);
   auto valueAttr = DenseElementsAttr::get(valueType, values);
-  return rewriter.create<stablehlo::ConstantOp>(loc, valueType, valueAttr);
+  return stablehlo::ConstantOp::create(rewriter, loc, valueType, valueAttr);
 }
 
 template <typename T>
@@ -1119,11 +1122,11 @@ static Value unnormalize(ConversionPatternRewriter &rewriter, Operation *op,
 
   // use chlo::BroadcastMulOp to multiply constMul with coords.
   DenseI64ArrayAttr bcastDimensions;
-  Value mulResult = rewriter.create<chlo::BroadcastMulOp>(loc, coords, constMul,
-                                                          bcastDimensions);
+  Value mulResult = chlo::BroadcastMulOp::create(rewriter, loc, coords,
+                                                 constMul, bcastDimensions);
   // use chlo::BroadcastAddOp to add constOfs to mulResult.
-  Value result = rewriter.create<chlo::BroadcastAddOp>(loc, mulResult, constOfs,
-                                                       bcastDimensions);
+  Value result = chlo::BroadcastAddOp::create(rewriter, loc, mulResult,
+                                              constOfs, bcastDimensions);
   return result;
 }
 
@@ -1172,20 +1175,22 @@ static Value inBoundsCond(ConversionPatternRewriter &rewriter, Operation *op,
       chlo::ComparisonDirectionAttr::get(rewriter.getContext(),
                                          chlo::ComparisonDirection::GE);
   DenseI64ArrayAttr bcastDimensions;
-  Value cond1 = rewriter.create<chlo::BroadcastCompareOp>(
-      loc, xs, zero, bcastDimensions, compareGEAttr, compareTypeAttr);
-  Value cond2 = rewriter.create<chlo::BroadcastCompareOp>(
-      loc, xs, iwFloatValue, bcastDimensions, compareLTAttr, compareTypeAttr);
-  Value cond3 = rewriter.create<chlo::BroadcastCompareOp>(
-      loc, ys, zero, bcastDimensions, compareGEAttr, compareTypeAttr);
-  Value cond4 = rewriter.create<chlo::BroadcastCompareOp>(
-      loc, ys, ihFloatValue, bcastDimensions, compareLTAttr, compareTypeAttr);
-  Value cond5 =
-      rewriter.create<chlo::BroadcastAndOp>(loc, cond1, cond2, bcastDimensions);
-  Value cond6 =
-      rewriter.create<chlo::BroadcastAndOp>(loc, cond3, cond4, bcastDimensions);
-  return rewriter.create<chlo::BroadcastAndOp>(loc, cond5, cond6,
-                                               bcastDimensions);
+  Value cond1 = chlo::BroadcastCompareOp::create(
+      rewriter, loc, xs, zero, bcastDimensions, compareGEAttr, compareTypeAttr);
+  Value cond2 = chlo::BroadcastCompareOp::create(
+      rewriter, loc, xs, iwFloatValue, bcastDimensions, compareLTAttr,
+      compareTypeAttr);
+  Value cond3 = chlo::BroadcastCompareOp::create(
+      rewriter, loc, ys, zero, bcastDimensions, compareGEAttr, compareTypeAttr);
+  Value cond4 = chlo::BroadcastCompareOp::create(
+      rewriter, loc, ys, ihFloatValue, bcastDimensions, compareLTAttr,
+      compareTypeAttr);
+  Value cond5 = chlo::BroadcastAndOp::create(rewriter, loc, cond1, cond2,
+                                             bcastDimensions);
+  Value cond6 = chlo::BroadcastAndOp::create(rewriter, loc, cond3, cond4,
+                                             bcastDimensions);
+  return chlo::BroadcastAndOp::create(rewriter, loc, cond5, cond6,
+                                      bcastDimensions);
 }
 // def clip(xs: Tensor, ys: Tensor, ws: Tensor) -> TensorSequenceType:
 //     cond = in_bounds_cond(xs, ys)
@@ -1205,31 +1210,32 @@ SmallVector<Value> clip(ConversionPatternRewriter &rewriter, Operation *op,
   auto indexElemTy = rewriter.getI64Type();
   auto indexTy = RankedTensorType::get(mlir::ArrayRef<int64_t>{1}, indexElemTy);
 
-  Value zeroIntValue = rewriter.create<stablehlo::ConstantOp>(
-      loc, indexTy, DenseIntElementsAttr::get(indexTy, ArrayRef<int64_t>{0}));
+  Value zeroIntValue = stablehlo::ConstantOp::create(
+      rewriter, loc, indexTy,
+      DenseIntElementsAttr::get(indexTy, ArrayRef<int64_t>{0}));
 
   APFloat zeroAPFloat =
       APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), 0);
   Value zeroFloatValue =
       getConstScalarTensor(rewriter, op, zeroAPFloat, elemTy);
   Value cond = inBoundsCond(rewriter, op, xs, ys, iH, iW, elemTy);
-  Value xsInt = rewriter.create<stablehlo::ConvertOp>(loc, xs, indexElemTy);
-  Value ysInt = rewriter.create<stablehlo::ConvertOp>(loc, ys, indexElemTy);
+  Value xsInt = stablehlo::ConvertOp::create(rewriter, loc, xs, indexElemTy);
+  Value ysInt = stablehlo::ConvertOp::create(rewriter, loc, ys, indexElemTy);
 
-  Value selectXs = rewriter.create<chlo::BroadcastSelectOp>(
-      loc, ArrayRef<Value>{cond, xsInt, zeroIntValue});
-  Value selectYs = rewriter.create<chlo::BroadcastSelectOp>(
-      loc, ArrayRef<Value>{cond, ysInt, zeroIntValue});
-  Value selectWs = rewriter.create<chlo::BroadcastSelectOp>(
-      loc, ArrayRef<Value>{cond, ws, zeroFloatValue});
+  Value selectXs = chlo::BroadcastSelectOp::create(
+      rewriter, loc, ArrayRef<Value>{cond, xsInt, zeroIntValue});
+  Value selectYs = chlo::BroadcastSelectOp::create(
+      rewriter, loc, ArrayRef<Value>{cond, ysInt, zeroIntValue});
+  Value selectWs = chlo::BroadcastSelectOp::create(
+      rewriter, loc, ArrayRef<Value>{cond, ws, zeroFloatValue});
 
   SmallVector<int64_t> sizes = {N, 1, oH, oW};
-  Value reshapedXs = rewriter.create<stablehlo::ReshapeOp>(
-      loc, RankedTensorType::get(sizes, indexElemTy), selectXs);
-  Value reshapedYs = rewriter.create<stablehlo::ReshapeOp>(
-      loc, RankedTensorType::get(sizes, indexElemTy), selectYs);
-  Value reshapedWs = rewriter.create<stablehlo::ReshapeOp>(
-      loc, RankedTensorType::get(sizes, elemTy), selectWs);
+  Value reshapedXs = stablehlo::ReshapeOp::create(
+      rewriter, loc, RankedTensorType::get(sizes, indexElemTy), selectXs);
+  Value reshapedYs = stablehlo::ReshapeOp::create(
+      rewriter, loc, RankedTensorType::get(sizes, indexElemTy), selectYs);
+  Value reshapedWs = stablehlo::ReshapeOp::create(
+      rewriter, loc, RankedTensorType::get(sizes, elemTy), selectWs);
   return SmallVector<Value>{reshapedXs, reshapedYs, reshapedWs};
 }
 
@@ -1284,13 +1290,13 @@ Value getSummand(ConversionPatternRewriter &rewriter, Operation *op,
     }
   }
 
-  Value gather = rewriter.create<stablehlo::GatherOp>(
-      loc, input, gatherIndices, dimsAttr,
-      rewriter.getDenseI64ArrayAttr(sliceSizes));
+  Value gather =
+      stablehlo::GatherOp::create(rewriter, loc, input, gatherIndices, dimsAttr,
+                                  rewriter.getDenseI64ArrayAttr(sliceSizes));
   // use chlo::BroadcastMulOp to multiply idxW with gather.
   DenseI64ArrayAttr bcastDimensions;
-  return rewriter.create<chlo::BroadcastMulOp>(loc, gather, idxW,
-                                               bcastDimensions);
+  return chlo::BroadcastMulOp::create(rewriter, loc, gather, idxW,
+                                      bcastDimensions);
 }
 
 } // namespace
@@ -1348,41 +1354,45 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
   Type indexElemTy = rewriter.getI64Type();
   RankedTensorType indexTy =
       RankedTensorType::get(mlir::ArrayRef<int64_t>{1}, indexElemTy);
-  Value constN = rewriter.create<stablehlo::ConstantOp>(
-      loc, indexTy, DenseIntElementsAttr::get(indexTy, {N}));
-  Value constC = rewriter.create<stablehlo::ConstantOp>(
-      loc, indexTy, DenseIntElementsAttr::get(indexTy, {C}));
+  Value constN = stablehlo::ConstantOp::create(
+      rewriter, loc, indexTy, DenseIntElementsAttr::get(indexTy, {N}));
+  Value constC = stablehlo::ConstantOp::create(
+      rewriter, loc, indexTy, DenseIntElementsAttr::get(indexTy, {C}));
   APFloat one = APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), 1);
   APFloat zero = APFloat(cast<mlir::FloatType>(elemTy).getFloatSemantics(), 0);
 
   Value constOneFloat = getConstScalarTensor(rewriter, op, one, elemTy);
 
-  auto NidxFlatten = rewriter.create<stablehlo::DynamicIotaOp>(
-      loc, RankedTensorType::get(mlir::ArrayRef<int64_t>{N}, indexElemTy),
-      constN, 0);
-  auto CidxFlatten = rewriter.create<stablehlo::DynamicIotaOp>(
-      loc, RankedTensorType::get(mlir::ArrayRef<int64_t>{C}, indexElemTy),
-      constC, 0);
+  auto NidxFlatten = stablehlo::DynamicIotaOp::create(
+      rewriter, loc,
+      RankedTensorType::get(mlir::ArrayRef<int64_t>{N}, indexElemTy), constN,
+      0);
+  auto CidxFlatten = stablehlo::DynamicIotaOp::create(
+      rewriter, loc,
+      RankedTensorType::get(mlir::ArrayRef<int64_t>{C}, indexElemTy), constC,
+      0);
 
   // Reshape NidxFlatten to 4D tensor (N, 1, 1, 1)
   auto NidxSizes = mlir::SmallVector<int64_t>{N, 1, 1, 1};
-  auto Nidx = rewriter.create<stablehlo::ReshapeOp>(
-      loc, RankedTensorType::get(NidxSizes, indexElemTy), NidxFlatten);
+  auto Nidx = stablehlo::ReshapeOp::create(
+      rewriter, loc, RankedTensorType::get(NidxSizes, indexElemTy),
+      NidxFlatten);
 
   // Reshape CidxFlatten to 4D tensor (1, C, 1, 1)
   auto CidxSizes = mlir::SmallVector<int64_t>{1, C, 1, 1};
-  auto Cidx = rewriter.create<stablehlo::ReshapeOp>(
-      loc, RankedTensorType::get(CidxSizes, indexElemTy), CidxFlatten);
+  auto Cidx = stablehlo::ReshapeOp::create(
+      rewriter, loc, RankedTensorType::get(CidxSizes, indexElemTy),
+      CidxFlatten);
 
   llvm::SmallVector<int64_t> stride(4, 1);
-  auto gridX = rewriter.create<stablehlo::SliceOp>(
-      loc,
+  auto gridX = stablehlo::SliceOp::create(
+      rewriter, loc,
       RankedTensorType::get(mlir::SmallVector<int64_t>{N, oH, oW, 1},
                             gridTy.getElementType()),
       grid, mlir::SmallVector<int64_t>{0, 0, 0, 0},
       mlir::SmallVector<int64_t>{N, oH, oW, 1}, stride);
-  auto gridY = rewriter.create<stablehlo::SliceOp>(
-      loc,
+  auto gridY = stablehlo::SliceOp::create(
+      rewriter, loc,
       RankedTensorType::get(mlir::SmallVector<int64_t>{N, oH, oW, 1},
                             gridTy.getElementType()),
       grid, mlir::SmallVector<int64_t>{0, 0, 0, 1},
@@ -1390,26 +1400,28 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
   // squeeze last dimension
   auto gridXshape = mlir::SmallVector<int64_t>{N, oH, oW};
 
-  auto gridXReshape = rewriter.create<stablehlo::ReshapeOp>(
-      loc, RankedTensorType::get(gridXshape, gridTy.getElementType()), gridX);
-  auto gridYReshape = rewriter.create<stablehlo::ReshapeOp>(
-      loc, RankedTensorType::get(gridXshape, gridTy.getElementType()), gridY);
+  auto gridXReshape = stablehlo::ReshapeOp::create(
+      rewriter, loc, RankedTensorType::get(gridXshape, gridTy.getElementType()),
+      gridX);
+  auto gridYReshape = stablehlo::ReshapeOp::create(
+      rewriter, loc, RankedTensorType::get(gridXshape, gridTy.getElementType()),
+      gridY);
 
   if (interpolationMode == 0) {
     Value ix = computeSourceIndex(rewriter, op, gridXReshape, iW, elemTy,
                                   paddingMode, alignCorners);
     Value iy = computeSourceIndex(rewriter, op, gridYReshape, iH, elemTy,
                                   paddingMode, alignCorners);
-    Value ix_nw = rewriter.create<stablehlo::FloorOp>(loc, ix);
-    Value iy_nw = rewriter.create<stablehlo::FloorOp>(loc, iy);
+    Value ix_nw = stablehlo::FloorOp::create(rewriter, loc, ix);
+    Value iy_nw = stablehlo::FloorOp::create(rewriter, loc, iy);
 
     DenseI64ArrayAttr bcastDimensions;
-    Value ix_ne = rewriter.create<chlo::BroadcastAddOp>(
-        loc, ix_nw, constOneFloat, bcastDimensions);
+    Value ix_ne = chlo::BroadcastAddOp::create(rewriter, loc, ix_nw,
+                                               constOneFloat, bcastDimensions);
     Value iy_ne = iy_nw;
     Value ix_sw = ix_nw;
-    Value iy_sw = rewriter.create<chlo::BroadcastAddOp>(
-        loc, iy_nw, constOneFloat, bcastDimensions);
+    Value iy_sw = chlo::BroadcastAddOp::create(rewriter, loc, iy_nw,
+                                               constOneFloat, bcastDimensions);
     Value ix_se = ix_ne;
     Value iy_se = iy_sw;
 
@@ -1417,25 +1429,25 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
     // w_ne = (ix - ix_sw) * (iy_sw - iy)
     // w_sw = (ix_ne - ix) * (iy - iy_ne)
     // w_se = (ix - ix_nw) * (iy - iy_nw)
-    Value w_nw = rewriter.create<chlo::BroadcastMulOp>(
-        loc,
-        rewriter.create<chlo::BroadcastSubOp>(loc, ix_se, ix, bcastDimensions),
-        rewriter.create<chlo::BroadcastSubOp>(loc, iy_se, iy, bcastDimensions),
+    Value w_nw = chlo::BroadcastMulOp::create(
+        rewriter, loc,
+        chlo::BroadcastSubOp::create(rewriter, loc, ix_se, ix, bcastDimensions),
+        chlo::BroadcastSubOp::create(rewriter, loc, iy_se, iy, bcastDimensions),
         bcastDimensions);
-    Value w_ne = rewriter.create<chlo::BroadcastMulOp>(
-        loc,
-        rewriter.create<chlo::BroadcastSubOp>(loc, ix, ix_sw, bcastDimensions),
-        rewriter.create<chlo::BroadcastSubOp>(loc, iy_sw, iy, bcastDimensions),
+    Value w_ne = chlo::BroadcastMulOp::create(
+        rewriter, loc,
+        chlo::BroadcastSubOp::create(rewriter, loc, ix, ix_sw, bcastDimensions),
+        chlo::BroadcastSubOp::create(rewriter, loc, iy_sw, iy, bcastDimensions),
         bcastDimensions);
-    Value w_sw = rewriter.create<chlo::BroadcastMulOp>(
-        loc,
-        rewriter.create<chlo::BroadcastSubOp>(loc, ix_ne, ix, bcastDimensions),
-        rewriter.create<chlo::BroadcastSubOp>(loc, iy, iy_ne, bcastDimensions),
+    Value w_sw = chlo::BroadcastMulOp::create(
+        rewriter, loc,
+        chlo::BroadcastSubOp::create(rewriter, loc, ix_ne, ix, bcastDimensions),
+        chlo::BroadcastSubOp::create(rewriter, loc, iy, iy_ne, bcastDimensions),
         bcastDimensions);
-    Value w_se = rewriter.create<chlo::BroadcastMulOp>(
-        loc,
-        rewriter.create<chlo::BroadcastSubOp>(loc, ix, ix_nw, bcastDimensions),
-        rewriter.create<chlo::BroadcastSubOp>(loc, iy, iy_nw, bcastDimensions),
+    Value w_se = chlo::BroadcastMulOp::create(
+        rewriter, loc,
+        chlo::BroadcastSubOp::create(rewriter, loc, ix, ix_nw, bcastDimensions),
+        chlo::BroadcastSubOp::create(rewriter, loc, iy, iy_nw, bcastDimensions),
         bcastDimensions);
 
     Value summand_nw =
@@ -1452,17 +1464,17 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
                    Nidx, Cidx, outTy, elemTy, options.dimSizeIndexBits);
 
     // summand_nw + summand_ne + summand_sw + summand_se
-    Value sum = rewriter.create<stablehlo::AddOp>(loc, summand_nw, summand_ne);
-    sum = rewriter.create<stablehlo::AddOp>(loc, sum, summand_sw);
-    sum = rewriter.create<stablehlo::AddOp>(loc, sum, summand_se);
+    Value sum = stablehlo::AddOp::create(rewriter, loc, summand_nw, summand_ne);
+    sum = stablehlo::AddOp::create(rewriter, loc, sum, summand_sw);
+    sum = stablehlo::AddOp::create(rewriter, loc, sum, summand_se);
     rewriter.replaceOp(op, sum);
   } else if (interpolationMode == 1) {
     Value ix = computeSourceIndex(rewriter, op, gridXReshape, iW, elemTy,
                                   paddingMode, alignCorners);
     Value iy = computeSourceIndex(rewriter, op, gridYReshape, iH, elemTy,
                                   paddingMode, alignCorners);
-    Value ix_round = rewriter.create<stablehlo::RoundOp>(loc, ix);
-    Value iy_round = rewriter.create<stablehlo::RoundOp>(loc, iy);
+    Value ix_round = stablehlo::RoundOp::create(rewriter, loc, ix);
+    Value iy_round = stablehlo::RoundOp::create(rewriter, loc, iy);
     Value oneTensor = getConstantLike(rewriter, loc, 1.0, ix_round);
     Value summand = getSummand(rewriter, op, input, ix_round, iy_round,
                                oneTensor, N, oH, oW, iH, iW, Nidx, Cidx, outTy,

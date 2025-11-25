@@ -7,9 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -18,6 +18,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DEF_PREPAREFORGLOBALIZEOBJECTGRAPH
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 namespace {
 class ConvertPrimCallMethodToCall : public OpRewritePattern<PrimCallMethodOp> {
@@ -63,7 +67,7 @@ public:
 
 namespace {
 class PrepareForGlobalizeObjectGraphPass
-    : public PrepareForGlobalizeObjectGraphBase<
+    : public impl::PrepareForGlobalizeObjectGraphBase<
           PrepareForGlobalizeObjectGraphPass> {
   void runOnOperation() override {
 
@@ -105,6 +109,8 @@ class PrepareForGlobalizeObjectGraphPass
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::Torch::createPrepareForGlobalizeObjectGraphPass() {
+createPrepareForGlobalizeObjectGraphPass() {
   return std::make_unique<PrepareForGlobalizeObjectGraphPass>();
 }
+
+} // namespace mlir::torch::Torch

@@ -63,8 +63,8 @@ Value mlir::torch::Torch::adjustStaticInformation(OpBuilder &builder,
   // If the type is a tensor, then adjust the static information.
   if ((isa<ValueTensorType>(type) && isa<ValueTensorType>(desiredType)) ||
       (isa<NonValueTensorType>(type) && isa<NonValueTensorType>(desiredType))) {
-    Value adjusted = builder.create<TensorStaticInfoCastOp>(value.getLoc(),
-                                                            desiredType, value);
+    Value adjusted = TensorStaticInfoCastOp::create(builder, value.getLoc(),
+                                                    desiredType, value);
     return adjusted;
   }
 
@@ -73,7 +73,7 @@ Value mlir::torch::Torch::adjustStaticInformation(OpBuilder &builder,
   if (isValidSubtype(type, desiredType)) {
     if (!userAllowsRefinement) {
       Value adjusted =
-          builder.create<DerefineOp>(value.getLoc(), desiredType, value);
+          DerefineOp::create(builder, value.getLoc(), desiredType, value);
       return adjusted;
     } else {
       return value;
@@ -83,8 +83,8 @@ Value mlir::torch::Torch::adjustStaticInformation(OpBuilder &builder,
   // If the desiredType is subtype of type, then we assume that the desiredType
   // is dynamically valid, so we do an unchecked cast.
   if (isValidSubtype(desiredType, type)) {
-    Value adjusted =
-        builder.create<PrimUncheckedCastOp>(value.getLoc(), desiredType, value);
+    Value adjusted = PrimUncheckedCastOp::create(builder, value.getLoc(),
+                                                 desiredType, value);
     return adjusted;
   }
 
@@ -99,8 +99,8 @@ Value mlir::torch::Torch::copyTensorToType(OpBuilder &builder, Location loc,
   // Adjust the static information in the type to match between the original and
   // new types.
   if (!originalType.hasSameSizesAndDtype(newType)) {
-    tensor = builder.create<TensorStaticInfoCastOp>(
-        loc, originalType.getWithSizesAndDtypeFrom(newType), tensor);
+    tensor = TensorStaticInfoCastOp::create(
+        builder, loc, originalType.getWithSizesAndDtypeFrom(newType), tensor);
   }
 
   // Unless both the original and new types are both value tensors, we end
@@ -108,9 +108,9 @@ Value mlir::torch::Torch::copyTensorToType(OpBuilder &builder, Location loc,
   // domains. If both the original and new types are both non-value tensors,
   // then we do the copy by going to a value tensor and back.
   if (isa<NonValueTensorType>(tensor.getType()))
-    tensor = builder.create<CopyToValueTensorOp>(loc, tensor);
+    tensor = CopyToValueTensorOp::create(builder, loc, tensor);
   if (isa<NonValueTensorType>(newType))
-    tensor = builder.create<CopyToNonValueTensorOp>(loc, tensor);
+    tensor = CopyToNonValueTensorOp::create(builder, loc, tensor);
 
   return tensor;
 }
@@ -182,13 +182,13 @@ static Value getScalarIntValue(Value input, Location loc,
     if (inputDtype.isInteger(64)) {
       auto val = cast<DenseIntElementsAttr>(valueTensorLiteralOp.getValue())
                      .getSplatValue<int64_t>();
-      return rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(val));
+      return Torch::ConstantIntOp::create(rewriter, loc,
+                                          rewriter.getI64IntegerAttr(val));
     } else {
       auto val = cast<DenseIntElementsAttr>(valueTensorLiteralOp.getValue())
                      .getSplatValue<bool>();
-      return rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(val));
+      return Torch::ConstantIntOp::create(rewriter, loc,
+                                          rewriter.getI64IntegerAttr(val));
     }
   } else if (auto primNumToTensorScalarOp =
                  input.getDefiningOp<PrimNumToTensorScalarOp>()) {
@@ -223,8 +223,8 @@ static Value getScalarFloatValue(Value input, Location loc,
     auto val = cast<DenseFPElementsAttr>(valueTensorLiteralOp.getValue())
                    .getSplatValue<FloatAttr>()
                    .getValueAsDouble();
-    return rewriter.create<Torch::ConstantFloatOp>(
-        loc, rewriter.getF64FloatAttr(val));
+    return Torch::ConstantFloatOp::create(rewriter, loc,
+                                          rewriter.getF64FloatAttr(val));
   } else if (auto primNumToTensorScalarOp =
                  input.getDefiningOp<PrimNumToTensorScalarOp>()) {
     return primNumToTensorScalarOp.getA();
@@ -373,21 +373,21 @@ LogicalResult ClassTypeOp::verify() {
 // PrimLoopOp
 //===----------------------------------------------------------------------===//
 
-OperandRange PrimLoopOp::getEntrySuccessorOperands(RegionBranchPoint point) {
-  assert(point == getRegion());
+OperandRange PrimLoopOp::getEntrySuccessorOperands(RegionSuccessor successor) {
+  assert(successor.getSuccessor() == &getRegion());
   return getIterArgsInit();
 }
 
 void PrimLoopOp::getSuccessorRegions(
     RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &regions) {
   Region &region = getRegion();
-  if (!point.getRegionOrNull()) {
+  if (!point.getTerminatorPredecessorOrNull()) {
     regions.emplace_back(&region, region.getArguments().slice(1));
     return;
   }
-  assert(point == region);
+  assert(point.getTerminatorPredecessorOrNull()->getParentRegion() == &region);
   regions.emplace_back(&region, region.getArguments().slice(1));
-  regions.emplace_back(getResults());
+  regions.emplace_back(getOperation(), getResults());
 }
 
 bool PrimLoopOp::isForLike() {
@@ -400,7 +400,7 @@ bool PrimLoopOp::isForLike() {
 //===----------------------------------------------------------------------===//
 
 MutableOperandRange
-PrimLoopConditionOp::getMutableSuccessorOperands(RegionBranchPoint point) {
+PrimLoopConditionOp::getMutableSuccessorOperands(RegionSuccessor successor) {
   // Pass all operands except the condition to the successor which is the
   // parent loop op.
   return getIterArgsMutable();
@@ -452,8 +452,8 @@ void PrimIfOp::print(OpAsmPrinter &p) {
 void PrimIfOp::getSuccessorRegions(RegionBranchPoint point,
                                    SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
-  if (point.getRegionOrNull()) {
-    regions.push_back(RegionSuccessor(getResults()));
+  if (point.getTerminatorPredecessorOrNull()) {
+    regions.push_back(RegionSuccessor(getOperation(), getResults()));
     return;
   }
 
@@ -553,8 +553,8 @@ void PrimIfOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
         continue;
       newResultTypes.push_back(op->getResult(i).getType());
     }
-    auto newIf = rewriter.create<PrimIfOp>(op->getLoc(), newResultTypes,
-                                           op.getCondition());
+    auto newIf = PrimIfOp::create(rewriter, op->getLoc(), newResultTypes,
+                                  op.getCondition());
     rewriter.inlineRegionBefore(op.getThenRegion(), newIf.getThenRegion(),
                                 newIf.getThenRegion().end());
     rewriter.inlineRegionBefore(op.getElseRegion(), newIf.getElseRegion(),
@@ -1076,14 +1076,14 @@ void AtenToDtypeLayoutOp::getCanonicalizationPatterns(
 
     if (isa<Torch::NoneType>(op.getDevice().getType())) {
       // The device arg is `none`. Rewrite to to.dtype.
-      AtenToDtypeOp toDtype = rewriter.create<AtenToDtypeOp>(
-          op.getLoc(), op.getType(), op.getSelf(), op.getDtype(),
+      AtenToDtypeOp toDtype = AtenToDtypeOp::create(
+          rewriter, op.getLoc(), op.getType(), op.getSelf(), op.getDtype(),
           op.getNonBlocking(), op.getCopy(), op.getMemoryFormat());
       rewriter.replaceOp(op, toDtype->getResults());
     } else {
       // The device arg is not `none`. Rewrite to to.device.
-      AtenToDeviceOp toDevice = rewriter.create<AtenToDeviceOp>(
-          op.getLoc(), op.getType(), op.getSelf(), op.getDevice(),
+      AtenToDeviceOp toDevice = AtenToDeviceOp::create(
+          rewriter, op.getLoc(), op.getType(), op.getSelf(), op.getDevice(),
           op.getDtype(), op.getNonBlocking(), op.getCopy(),
           op.getMemoryFormat());
       rewriter.replaceOp(op, toDevice->getResults());
@@ -1103,8 +1103,8 @@ void AtenToOtherOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   patterns.add(+[](AtenToOtherOp op, PatternRewriter &rewriter) {
     auto lhs = op.getSelf();
     auto rhs = op.getOther();
-    auto getRhsDevice = rewriter.create<PrimDeviceOp>(op.getLoc(), rhs);
-    auto getRhsDtype = rewriter.create<PrimDtypeOp>(op.getLoc(), rhs);
+    auto getRhsDevice = PrimDeviceOp::create(rewriter, op.getLoc(), rhs);
+    auto getRhsDtype = PrimDtypeOp::create(rewriter, op.getLoc(), rhs);
     rewriter.replaceOpWithNewOp<AtenToDeviceOp>(
         op, op.getType(), lhs, getRhsDevice.getResult(),
         getRhsDtype.getResult(), op.getNonBlocking(), op.getCopy(),
@@ -1123,10 +1123,10 @@ void Aten_CastFloatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   patterns.add(+[](Aten_CastFloatOp op, PatternRewriter &rewriter) {
     auto self = op.getSelf();
     auto loc = op.getLoc();
-    Value constNone = rewriter.create<ConstantNoneOp>(loc);
-    Value f32Type = rewriter.create<ConstantIntOp>(
-        loc, (int)torch_upstream::ScalarType::Float);
-    Value constFalse = rewriter.create<ConstantBoolOp>(loc, false);
+    Value constNone = ConstantNoneOp::create(rewriter, loc);
+    Value f32Type = ConstantIntOp::create(
+        rewriter, loc, (int)torch_upstream::ScalarType::Float);
+    Value constFalse = ConstantBoolOp::create(rewriter, loc, false);
     rewriter.replaceOpWithNewOp<AtenToDtypeOp>(op, op.getType(), self, f32Type,
                                                op.getNonBlocking(), constFalse,
                                                constNone);
@@ -1144,10 +1144,10 @@ void Aten_CastLongOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
   patterns.add(+[](Aten_CastLongOp op, PatternRewriter &rewriter) {
     auto self = op.getSelf();
     auto loc = op.getLoc();
-    Value constNone = rewriter.create<ConstantNoneOp>(loc);
-    Value longType = rewriter.create<ConstantIntOp>(
-        loc, (int)torch_upstream::ScalarType::Long);
-    Value constFalse = rewriter.create<ConstantBoolOp>(loc, false);
+    Value constNone = ConstantNoneOp::create(rewriter, loc);
+    Value longType = ConstantIntOp::create(
+        rewriter, loc, (int)torch_upstream::ScalarType::Long);
+    Value constFalse = ConstantBoolOp::create(rewriter, loc, false);
     rewriter.replaceOpWithNewOp<AtenToDtypeOp>(op, op.getType(), self, longType,
                                                op.getNonBlocking(), constFalse,
                                                constNone);
@@ -1333,15 +1333,15 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
                                          "only int scalar alpha is supported");
     }
     if (isa<AtenRsubScalarOp>(op))
-      lhs = rewriter.create<AtenMulIntOp>(loc, lhs, alpha);
+      lhs = AtenMulIntOp::create(rewriter, loc, lhs, alpha);
     else
-      rhs = rewriter.create<AtenMulIntOp>(loc, rhs, alpha);
+      rhs = AtenMulIntOp::create(rewriter, loc, rhs, alpha);
   }
 
   if (isa<AtenDivTensorModeOp, AtenDivScalarModeOp>(op)) {
     if (isa<Torch::NoneType>(op->getOperand(2).getType())) {
       // None rounding mode
-      Value quotient = rewriter.create<AtenDivOp>(loc, lhs, rhs);
+      Value quotient = AtenDivOp::create(rewriter, loc, lhs, rhs);
       rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, outType,
                                                            quotient);
       return success();
@@ -1352,7 +1352,7 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
           op, "only None, 'floor' or 'trunc' rounding mode is supported");
     }
     if (roundingMode == "floor") {
-      Value quotient = rewriter.create<AtenFloordivIntOp>(loc, lhs, rhs);
+      Value quotient = AtenFloordivIntOp::create(rewriter, loc, lhs, rhs);
       rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, outType,
                                                            quotient);
       return success();
@@ -1372,8 +1372,8 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
       }
 
       int64_t result = (int64_t)std::trunc((double)lhsInt / rhsInt);
-      Value resultScalar = rewriter.create<ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(result));
+      Value resultScalar = ConstantIntOp::create(
+          rewriter, loc, rewriter.getI64IntegerAttr(result));
       rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, outType,
                                                            resultScalar);
       return success();
@@ -1385,13 +1385,13 @@ LogicalResult rewrite0DBinaryTensorOp(Operation *op,
   Value result;
   // Other Add/Sub/Mul ops
   if (isa<AtenAddTensorOp, AtenAddScalarOp>(op)) {
-    result = rewriter.create<AtenAddIntOp>(loc, lhs, rhs);
+    result = AtenAddIntOp::create(rewriter, loc, lhs, rhs);
   } else if (isa<AtenSubScalarOp, AtenSubTensorOp>(op)) {
-    result = rewriter.create<AtenSubIntOp>(loc, lhs, rhs);
+    result = AtenSubIntOp::create(rewriter, loc, lhs, rhs);
   } else if (isa<AtenRsubScalarOp>(op)) {
-    result = rewriter.create<AtenSubIntOp>(loc, rhs, lhs);
+    result = AtenSubIntOp::create(rewriter, loc, rhs, lhs);
   } else if (isa<AtenMulScalarOp, AtenMulTensorOp>(op)) {
-    result = rewriter.create<AtenMulIntOp>(loc, lhs, rhs);
+    result = AtenMulIntOp::create(rewriter, loc, lhs, rhs);
   }
   rewriter.replaceOpWithNewOp<PrimNumToTensorScalarOp>(op, outType, result);
   return success();
@@ -2386,8 +2386,8 @@ void AtenSizeOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       return rewriter.notifyMatchFailure(op, "all sizes not known");
     SmallVector<Value> listElements;
     for (int64_t size : type->getSizes()) {
-      listElements.push_back(rewriter.create<Torch::ConstantIntOp>(
-          op->getLoc(), rewriter.getI64IntegerAttr(size)));
+      listElements.push_back(Torch::ConstantIntOp::create(
+          rewriter, op->getLoc(), rewriter.getI64IntegerAttr(size)));
     }
     rewriter.replaceOpWithNewOp<Torch::PrimListConstructOp>(
         op, Torch::ListType::get(rewriter.getType<Torch::IntType>()),
@@ -2446,7 +2446,7 @@ void AtenUnflattenIntOp::getCanonicalizationPatterns(
     bool dimWasConstant =
         matchPattern(unflattenDim, m_TorchConstantInt(&dimAsInt));
     Value self = op.getSelf();
-    Value cstMOne = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), -1);
+    Value cstMOne = Torch::ConstantIntOp::create(rewriter, op.getLoc(), -1);
     // the runtime asserts below are introduced to catch malformed unflatten ops
     // possibly generated from onnx IR.
     Value unsqueeze;
@@ -2460,24 +2460,24 @@ void AtenUnflattenIntOp::getCanonicalizationPatterns(
       // check if the remaining size value is either -1 or equal to original
       // size at dim
       Value selfSizeAtDim =
-          rewriter.create<AtenSizeIntOp>(op.getLoc(), self, unflattenDim);
-      Value isSameSize = rewriter.create<AtenEqIntOp>(
-          op.getLoc(), selfSizeAtDim, sizeValues[1]);
+          AtenSizeIntOp::create(rewriter, op.getLoc(), self, unflattenDim);
+      Value isSameSize = AtenEqIntOp::create(rewriter, op.getLoc(),
+                                             selfSizeAtDim, sizeValues[1]);
       Value isMinusOne =
-          rewriter.create<AtenEqIntOp>(op.getLoc(), cstMOne, sizeValues[1]);
-      Value isMOneOrSameSize = rewriter.create<Aten__Or__BoolOp>(
-          op.getLoc(), isMinusOne, isSameSize);
-      rewriter.create<Torch::RuntimeAssertOp>(
-          op.getLoc(), isMOneOrSameSize,
+          AtenEqIntOp::create(rewriter, op.getLoc(), cstMOne, sizeValues[1]);
+      Value isMOneOrSameSize = Aten__Or__BoolOp::create(rewriter, op.getLoc(),
+                                                        isMinusOne, isSameSize);
+      Torch::RuntimeAssertOp::create(
+          rewriter, op.getLoc(), isMOneOrSameSize,
           rewriter.getStringAttr("unflatten sizes must be compatible"));
     }
     if (dim1 == 1) {
       // unsqueeze at dim + 1
       Value dimPlusOne;
       if (!dimWasConstant) {
-        Value cstOne = rewriter.create<Torch::ConstantIntOp>(op.getLoc(), 1);
+        Value cstOne = Torch::ConstantIntOp::create(rewriter, op.getLoc(), 1);
         dimPlusOne =
-            rewriter.create<AtenAddIntOp>(op.getLoc(), unflattenDim, cstOne);
+            AtenAddIntOp::create(rewriter, op.getLoc(), unflattenDim, cstOne);
       } else {
         // If dim was constant, creating an AtenAddIntOp will make
         // Torch::unsqueezeTensor() interpret it as still not being a constant,
@@ -2486,8 +2486,8 @@ void AtenUnflattenIntOp::getCanonicalizationPatterns(
         // failure, when AtenUnsqueezeOp is in a later pass converted to
         // ExpandShapeOp, which is bound to fail shape inference in MLIR if
         // output dims are dynamic.
-        dimPlusOne = rewriter.create<Torch::ConstantIntOp>(
-            op.getLoc(), rewriter.getI64IntegerAttr(dimAsInt + 1));
+        dimPlusOne = Torch::ConstantIntOp::create(
+            rewriter, op.getLoc(), rewriter.getI64IntegerAttr(dimAsInt + 1));
       }
       FailureOr<Value> maybeUnsqueeze =
           Torch::unsqueezeTensor(rewriter, op, self, dimPlusOne);
@@ -2497,15 +2497,15 @@ void AtenUnflattenIntOp::getCanonicalizationPatterns(
       // check if the remaining size value is either -1 or equal to original
       // size at dim
       Value selfSizeAtDim =
-          rewriter.create<AtenSizeIntOp>(op.getLoc(), self, unflattenDim);
-      Value isSameSize = rewriter.create<AtenEqIntOp>(
-          op.getLoc(), selfSizeAtDim, sizeValues[0]);
+          AtenSizeIntOp::create(rewriter, op.getLoc(), self, unflattenDim);
+      Value isSameSize = AtenEqIntOp::create(rewriter, op.getLoc(),
+                                             selfSizeAtDim, sizeValues[0]);
       Value isMinusOne =
-          rewriter.create<AtenEqIntOp>(op.getLoc(), cstMOne, sizeValues[0]);
-      Value isMOneOrSameSize = rewriter.create<Aten__Or__BoolOp>(
-          op.getLoc(), isMinusOne, isSameSize);
-      rewriter.create<Torch::RuntimeAssertOp>(
-          op.getLoc(), isMOneOrSameSize,
+          AtenEqIntOp::create(rewriter, op.getLoc(), cstMOne, sizeValues[0]);
+      Value isMOneOrSameSize = Aten__Or__BoolOp::create(rewriter, op.getLoc(),
+                                                        isMinusOne, isSameSize);
+      Torch::RuntimeAssertOp::create(
+          rewriter, op.getLoc(), isMOneOrSameSize,
           rewriter.getStringAttr("unflatten sizes must be compatible"));
     }
     rewriter.replaceOpWithNewOp<Torch::TensorStaticInfoCastOp>(op, op.getType(),
@@ -2546,7 +2546,7 @@ void AtenPowTensorScalarOp::getCanonicalizationPatterns(
     if (expValue != static_cast<double>(truncValue))
       return failure();
     Value IRScalar =
-        rewriter.create<Torch::ConstantIntOp>(op.getLoc(), truncValue);
+        Torch::ConstantIntOp::create(rewriter, op.getLoc(), truncValue);
     op->setOperand(1, IRScalar);
     return success();
   });
@@ -2573,12 +2573,12 @@ void AtenPowTensorTensorOp::getCanonicalizationPatterns(
       return failure();
     Value IRScalar;
     if (intAttr)
-      IRScalar = rewriter.create<Torch::ConstantIntOp>(
-          op.getLoc(), getIntAttrAsSigned(intAttr));
+      IRScalar = Torch::ConstantIntOp::create(rewriter, op.getLoc(),
+                                              getIntAttrAsSigned(intAttr));
     if (floatAttr) {
       double expValue = floatAttr.getValueAsDouble();
-      IRScalar = rewriter.create<Torch::ConstantFloatOp>(op.getLoc(),
-                                                         APFloat(expValue));
+      IRScalar = Torch::ConstantFloatOp::create(rewriter, op.getLoc(),
+                                                APFloat(expValue));
     }
     rewriter.replaceOpWithNewOp<AtenPowTensorScalarOp>(op, op.getType(),
                                                        op.getSelf(), IRScalar);
@@ -3053,10 +3053,11 @@ void AtenSortIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 
     SmallVector<Value> sortedListElements;
     for (int64_t elem : listElements)
-      sortedListElements.push_back(rewriter.create<Torch::ConstantIntOp>(
-          op->getLoc(), rewriter.getI64IntegerAttr(elem)));
-    Value result = rewriter.create<Torch::PrimListConstructOp>(
-        op->getLoc(), Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+      sortedListElements.push_back(Torch::ConstantIntOp::create(
+          rewriter, op->getLoc(), rewriter.getI64IntegerAttr(elem)));
+    Value result = Torch::PrimListConstructOp::create(
+        rewriter, op->getLoc(),
+        Torch::ListType::get(rewriter.getType<Torch::IntType>()),
         sortedListElements);
 
     op.getSelf().replaceAllUsesWith(result);
@@ -3387,9 +3388,9 @@ void Torch::ConstantNumberOp::getCanonicalizationPatterns(
     Value constValue;
     Attribute value = op.getValueAttr();
     if (auto floatValue = dyn_cast<mlir::FloatAttr>(value)) {
-      constValue = rewriter.create<Torch::ConstantFloatOp>(loc, floatValue);
+      constValue = Torch::ConstantFloatOp::create(rewriter, loc, floatValue);
     } else if (auto intValue = dyn_cast<mlir::IntegerAttr>(value)) {
-      constValue = rewriter.create<Torch::ConstantIntOp>(loc, intValue);
+      constValue = Torch::ConstantIntOp::create(rewriter, loc, intValue);
     } else {
       return failure();
     }
@@ -3479,8 +3480,8 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
 void AtenMeshgridOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                                  MLIRContext *context) {
   patterns.add(+[](AtenMeshgridOp op, PatternRewriter &rewriter) {
-    Value constIndexing = rewriter.create<Torch::ConstantStrOp>(
-        op->getLoc(), rewriter.getStringAttr("ij"));
+    Value constIndexing = Torch::ConstantStrOp::create(
+        rewriter, op->getLoc(), rewriter.getStringAttr("ij"));
     rewriter.replaceOpWithNewOp<AtenMeshgridIndexingOp>(
         op, op->getResultTypes(), op.getTensors(), constIndexing);
     return success();
@@ -3666,8 +3667,8 @@ void PrimTupleIndexOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     Value replacement = tupleConstruct.getElements()[i];
     if (replacement.getType() != op.getType()) {
       if (isa<BaseTensorType>(op.getType())) {
-        replacement = rewriter.create<Torch::TensorStaticInfoCastOp>(
-            op.getLoc(), op.getType(), replacement);
+        replacement = Torch::TensorStaticInfoCastOp::create(
+            rewriter, op.getLoc(), op.getType(), replacement);
       } else {
         return failure();
       }
@@ -3740,8 +3741,8 @@ void PrimListUnpackOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     for (int i = 0, s = op->getNumResults(); i < s; ++i) {
       auto element = listConstruct.getElements()[i];
       if (element.getType() != op->getResult(i).getType()) {
-        element = rewriter.create<TensorStaticInfoCastOp>(
-            op.getLoc(), op->getResult(i).getType(), element);
+        element = TensorStaticInfoCastOp::create(
+            rewriter, op.getLoc(), op->getResult(i).getType(), element);
       }
 
       unpacked.push_back(element);
@@ -3871,9 +3872,10 @@ atenBinaryFloatOperatorFoldHelper(ArrayRef<Attribute> operands,
 void AtenStftOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
                                              MLIRContext *context) {
   patterns.add(+[](AtenStftOp op, PatternRewriter &rewriter) {
-    Value falseVal = rewriter.create<Torch::ConstantBoolOp>(op.getLoc(), false);
+    Value falseVal =
+        Torch::ConstantBoolOp::create(rewriter, op.getLoc(), false);
     Value padMode =
-        rewriter.create<Torch::ConstantStrOp>(op.getLoc(), "reflect");
+        Torch::ConstantStrOp::create(rewriter, op.getLoc(), "reflect");
     rewriter.replaceOpWithNewOp<AtenStftCenterOp>(
         op, op.getType(), op.getSelf(), op.getNFft(), op.getHopLength(),
         op.getWinLength(), op.getWindow(), falseVal, padMode,
@@ -4154,8 +4156,8 @@ void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     if (filtered.size() == list.getNumOperands())
       return failure();
 
-    auto newlist = rewriter.create<PrimListConstructOp>(
-        op.getLoc(), list.getType(), filtered);
+    auto newlist = PrimListConstructOp::create(rewriter, op.getLoc(),
+                                               list.getType(), filtered);
     rewriter.replaceOpWithNewOp<AtenCatOp>(op, op.getType(), newlist,
                                            op.getDim());
     return success();
@@ -4353,9 +4355,10 @@ void AtenMulIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
           return failure();
         if ((prevLConstant || prevRConstant) &&
             prevMulIntOp->hasOneUse() == 1) {
-          auto newConstant = rewriter.create<Torch::ConstantIntOp>(
-              op.getLoc(), rewriter.getI64IntegerAttr(
-                               prevLConstant ? prevLhs * firstConstant
+          auto newConstant = Torch::ConstantIntOp::create(
+              rewriter, op.getLoc(),
+              rewriter.getI64IntegerAttr(prevLConstant
+                                             ? prevLhs * firstConstant
                                              : prevRhs * firstConstant));
           rewriter.replaceOpWithNewOp<AtenMulIntOp>(
               op, op.getType(), prevMulIntOp.getOperand(prevLConstant ? 1 : 0),
@@ -5169,16 +5172,16 @@ void AtenWhereScalarOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
     SmallVector<Value> dims;
     auto torchIntTy = rewriter.getType<Torch::IntType>();
     for (int i = 0, s = condTy.getSizes().size(); i < s; ++i) {
-      Value iv = rewriter.create<Torch::ConstantIntOp>(
-          op.getLoc(), torchIntTy, rewriter.getI64IntegerAttr(i));
-      dims.push_back(rewriter.create<Torch::AtenSizeIntOp>(
-          op.getLoc(), torchIntTy, cond, iv));
+      Value iv = Torch::ConstantIntOp::create(rewriter, op.getLoc(), torchIntTy,
+                                              rewriter.getI64IntegerAttr(i));
+      dims.push_back(Torch::AtenSizeIntOp::create(rewriter, op.getLoc(),
+                                                  torchIntTy, cond, iv));
     }
 
-    Value dimsList = rewriter.create<Torch::PrimListConstructOp>(
-        op.getLoc(), Torch::ListType::get(torchIntTy), dims);
+    Value dimsList = Torch::PrimListConstructOp::create(
+        rewriter, op.getLoc(), Torch::ListType::get(torchIntTy), dims);
 
-    Value none = rewriter.create<Torch::ConstantNoneOp>(op.getLoc());
+    Value none = Torch::ConstantNoneOp::create(rewriter, op.getLoc());
     rewriter.replaceOpWithNewOp<Torch::AtenFullOp>(
         op, op.getType(), dimsList, self, none, none, none, none);
     return success();
@@ -5321,17 +5324,18 @@ template <typename CalculateOp>
 static void
 getSuccessorRegionsForCalculateOp(CalculateOp op, RegionBranchPoint point,
                                   SmallVectorImpl<RegionSuccessor> &regions) {
-  if (!point.getRegionOrNull()) {
+  if (!point.getTerminatorPredecessorOrNull()) {
     // First thing the op does is branch into the calculation.
     regions.emplace_back(&op.getCalculation());
     return;
   }
-  if (point == op.getBody()) {
+  Region *region = point.getTerminatorPredecessorOrNull()->getParentRegion();
+  if (region == &op.getBody()) {
     // Body returns control to the outer op, passing through results.
-    regions.emplace_back(op.getResults());
+    regions.emplace_back(op.getOperation(), op.getResults());
     return;
   }
-  assert(point == op.getCalculation());
+  assert(region == &op.getCalculation());
   // Calculation branches to the body.
   regions.emplace_back(&op.getBody());
 }
@@ -5355,7 +5359,7 @@ void DtypeCalculateOp::getSuccessorRegions(
 //===----------------------------------------------------------------------===//
 
 MutableOperandRange ShapeCalculateYieldShapesOp::getMutableSuccessorOperands(
-    RegionBranchPoint point) {
+    RegionSuccessor successor) {
   // The shape operands don't get forwarded to the body.
   // MutableOperandRange always has an owning operation, even if empty, so
   // create a 0-length range.
@@ -5680,8 +5684,9 @@ struct SimplifyMaxPoolWithIndices : public mlir::OpRewritePattern<OpTy> {
           op, "result1 of MaxPoolWithIndices should be unused");
     }
 
-    Value result = rewriter.create<typename MaxPoolWithoutIndices<OpTy>::type>(
-        op->getLoc(), op.getResult0().getType(), op.getSelf(),
+    using ResultOpType = typename MaxPoolWithoutIndices<OpTy>::type;
+    Value result = ResultOpType::create(
+        rewriter, op->getLoc(), op.getResult0().getType(), op.getSelf(),
         op.getKernelSize(), op.getStride(), op.getPadding(), op.getDilation(),
         op.getCeilMode());
 
@@ -5713,6 +5718,184 @@ void Aten_AdaptiveAvgPool2dOp::getCanonicalizationPatterns(
 
     return success();
   });
+}
+
+namespace {
+
+void expand(SmallVectorImpl<int64_t> &params, int numSpatialDims) {
+  if (params.size() == 1) {
+    for ([[maybe_unused]] int dim : llvm::seq<int>(0, numSpatialDims - 1)) {
+      params.push_back(params[0]);
+    }
+  }
+}
+
+template <typename AtenPoolOpT>
+LogicalResult expandPoolParams(AtenPoolOpT op, int numSpatialDims,
+                               mlir::PatternRewriter &rewriter,
+                               Value &kernelSizeList, Value &stridesList,
+                               Value &paddingList, Value &dilationsList) {
+
+  SmallVector<int64_t, 3> kernelSizeInts, strideInts, paddingInts, dilationInts;
+  if (!matchPattern(op.getKernelSize(),
+                    m_TorchListOfConstantInts(kernelSizeInts)))
+    return rewriter.notifyMatchFailure(
+        op, "Non-const kernel_size for pooling op unsupported");
+
+  if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(paddingInts)))
+    return rewriter.notifyMatchFailure(
+        op, "Non-const padding factor for pooling op unsupported");
+
+  if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
+    return rewriter.notifyMatchFailure(
+        op, "Non-const stride for pooling op unsupported");
+
+  if constexpr (std::is_same<AtenPoolOpT, AtenMaxPool2dOp>() ||
+                std::is_same<AtenPoolOpT, AtenMaxPool3dOp>()) {
+    if (!matchPattern(op.getDilation(),
+                      m_TorchListOfConstantInts(dilationInts)))
+      return rewriter.notifyMatchFailure(
+          op, "Non-const dilation for pooling op unsupported");
+
+    if (kernelSizeInts.size() != 1 && paddingInts.size() != 1 &&
+        strideInts.size() != 1 && dilationInts.size() != 1) {
+      return rewriter.notifyMatchFailure(
+          op,
+          "Expected one of kernel/stride/padding/dilation to be singleton.");
+    }
+
+    expand(dilationInts, numSpatialDims);
+
+  } else if (kernelSizeInts.size() != 1 && paddingInts.size() != 1 &&
+             strideInts.size() != 1) {
+    return rewriter.notifyMatchFailure(
+        op, "Expected one of kernel/stride/padding to be singleton.");
+  }
+
+  // expand singleton elements
+  expand(kernelSizeInts, numSpatialDims);
+  expand(paddingInts, numSpatialDims);
+  expand(strideInts, numSpatialDims);
+
+  Location loc = op.getLoc();
+
+  SmallVector<Value> cstKernel, cstPadding, cstStrides, cstDilations;
+  for (auto dim : llvm::seq<int>(0, kernelSizeInts.size())) {
+    cstKernel.push_back(Torch::ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(kernelSizeInts[dim])));
+    cstPadding.push_back(Torch::ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(paddingInts[dim])));
+    cstStrides.push_back(Torch::ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(strideInts[dim])));
+  }
+
+  // set dilations separately as for AvgPool op it won't be set
+  for (auto dim : llvm::seq<int>(0, dilationInts.size())) {
+    cstDilations.push_back(Torch::ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(dilationInts[dim])));
+  }
+
+  auto targetListType =
+      Torch::ListType::get(Torch::IntType::get(op->getContext()));
+  kernelSizeList = Torch::PrimListConstructOp::create(
+      rewriter, loc, targetListType, cstKernel);
+  paddingList = Torch::PrimListConstructOp::create(rewriter, loc,
+                                                   targetListType, cstPadding);
+  stridesList = Torch::PrimListConstructOp::create(rewriter, loc,
+                                                   targetListType, cstStrides);
+  dilationsList = Torch::PrimListConstructOp::create(
+      rewriter, loc, targetListType, cstDilations);
+
+  return success();
+}
+
+template <typename AvgPoolOpT>
+struct CanonicalizeAvgPoolWithSingleIntTuple
+    : public mlir::OpRewritePattern<AvgPoolOpT> {
+  CanonicalizeAvgPoolWithSingleIntTuple(mlir::MLIRContext *context)
+      : OpRewritePattern<AvgPoolOpT>(context, /*benefit=*/1) {}
+
+  LogicalResult
+  matchAndRewrite(AvgPoolOpT op,
+                  mlir::PatternRewriter &rewriter) const override {
+    Value kernel, stride, pad, dilations;
+
+    auto numSpatialDims = 2;
+    if constexpr (std::is_same<AvgPoolOpT, AtenAvgPool3dOp>())
+      numSpatialDims = 3;
+
+    // Attempt to expand params if necessary.
+    if (failed(expandPoolParams(op, numSpatialDims, rewriter, kernel, stride,
+                                pad, dilations)))
+      return rewriter.notifyMatchFailure(
+          op, "Failed to expand params for AvgPooling");
+
+    rewriter.replaceOpWithNewOp<AvgPoolOpT>(
+        op, op.getResult().getType(), op.getSelf(), kernel, stride, pad,
+        op.getCeilMode(), op.getCountIncludePad(), op.getDivisorOverride());
+    return success();
+  }
+};
+
+template <typename MaxPoolOpT>
+struct CanonicalizeMaxPoolWithSingleIntTuple
+    : public mlir::OpRewritePattern<MaxPoolOpT> {
+  CanonicalizeMaxPoolWithSingleIntTuple(mlir::MLIRContext *context)
+      : OpRewritePattern<MaxPoolOpT>(context, /*benefit=*/1) {}
+
+  LogicalResult
+  matchAndRewrite(MaxPoolOpT op,
+                  mlir::PatternRewriter &rewriter) const override {
+    Value kernel, stride, pad, dilations;
+
+    auto numSpatialDims = 2;
+    if constexpr (std::is_same<MaxPoolOpT, AtenMaxPool3dOp>())
+      numSpatialDims = 3;
+
+    // Attempt to expand params if necessary.
+    if (failed(expandPoolParams(op, numSpatialDims, rewriter, kernel, stride,
+                                pad, dilations)))
+      return rewriter.notifyMatchFailure(
+          op, "Failed to expand params for MaxPooling");
+
+    rewriter.replaceOpWithNewOp<MaxPoolOpT>(op, op.getResult().getType(),
+                                            op.getSelf(), kernel, stride, pad,
+                                            dilations, op.getCeilMode());
+    return success();
+  }
+};
+} // namespace
+
+//===----------------------------------------------------------------------===//
+// AtenAvgPool2dOp
+//===----------------------------------------------------------------------===//
+void AtenAvgPool2dOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add<CanonicalizeAvgPoolWithSingleIntTuple<AtenAvgPool2dOp>>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenAvgPool3dOp
+//===----------------------------------------------------------------------===//
+void AtenAvgPool3dOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add<CanonicalizeAvgPoolWithSingleIntTuple<AtenAvgPool3dOp>>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenMaxPool2dOp
+//===----------------------------------------------------------------------===//
+void AtenMaxPool2dOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add<CanonicalizeMaxPoolWithSingleIntTuple<AtenMaxPool2dOp>>(context);
+}
+
+//===----------------------------------------------------------------------===//
+// AtenMaxPool3dOp
+//===----------------------------------------------------------------------===//
+void AtenMaxPool3dOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                  MLIRContext *context) {
+  patterns.add<CanonicalizeMaxPoolWithSingleIntTuple<AtenMaxPool3dOp>>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -5846,7 +6029,7 @@ LogicalResult AtenKthvalueOp::verify() {
 //===----------------------------------------------------------------------===//
 
 MutableOperandRange DtypeCalculateYieldDtypesOp::getMutableSuccessorOperands(
-    RegionBranchPoint point) {
+    RegionSuccessor successor) {
   // The dtype operands don't get forwarded to the body.
   // MutableOperandRange always has an owning operation, even if empty, so
   // create a 0-length range.

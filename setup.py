@@ -116,6 +116,7 @@ class CMakeBuild(build_py):
             f"-DPython_EXECUTABLE={sys.executable}",
             f"-DPython_FIND_VIRTUALENV=ONLY",
             f"-DMLIR_ENABLE_BINDINGS_PYTHON=ON",
+            "-DMLIR_BINDINGS_PYTHON_NB_DOMAIN=torch_mlir",
             f"-DLLVM_TARGETS_TO_BUILD=host",
             f"-DLLVM_ENABLE_ZSTD=OFF",
             # Optimization options for building wheels.

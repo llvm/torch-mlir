@@ -54,13 +54,13 @@ Value toPositiveDimDynamic(OpBuilder &b, Location loc, Value dim,
                            Value inputRank) {
   assert(isa<IntegerType>(dim.getType()) &&
          "dim arg of toPositiveDim must be integer type");
-  Value dimAddInputRank = b.create<arith::AddIOp>(loc, dim, inputRank);
+  Value dimAddInputRank = arith::AddIOp::create(b, loc, dim, inputRank);
   Value cst0 =
-      b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
+      arith::ConstantOp::create(b, loc, b.getZeroAttr(inputRank.getType()));
   Value predDimGEZero =
-      b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, dim, cst0);
+      arith::CmpIOp::create(b, loc, arith::CmpIPredicate::sge, dim, cst0);
   Value dimInt =
-      b.create<arith::SelectOp>(loc, predDimGEZero, dim, dimAddInputRank);
+      arith::SelectOp::create(b, loc, predDimGEZero, dim, dimAddInputRank);
   return dimInt;
 }
 
@@ -69,15 +69,15 @@ void assertIsValidDim(OpBuilder &b, Location loc, Value dim, Value inputRank) {
   assert(isa<IntegerType>(dim.getType()) &&
          "dim arg of assertIsValidDim must be integer type");
   Value cst0 =
-      b.create<arith::ConstantOp>(loc, b.getZeroAttr(inputRank.getType()));
+      arith::ConstantOp::create(b, loc, b.getZeroAttr(inputRank.getType()));
   Value predGEZero =
-      b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge, dim, cst0);
-  b.create<cf::AssertOp>(
-      loc, predGEZero, b.getStringAttr("dim must be greater or equal to zero"));
+      arith::CmpIOp::create(b, loc, arith::CmpIPredicate::sge, dim, cst0);
+  cf::AssertOp::create(b, loc, predGEZero,
+                       b.getStringAttr("dim must be greater or equal to zero"));
   Value predLTInputRank =
-      b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, dim, inputRank);
-  b.create<cf::AssertOp>(loc, predLTInputRank,
-                         b.getStringAttr("dim must be smaller than inputRank"));
+      arith::CmpIOp::create(b, loc, arith::CmpIPredicate::slt, dim, inputRank);
+  cf::AssertOp::create(b, loc, predLTInputRank,
+                       b.getStringAttr("dim must be smaller than inputRank"));
 }
 
 // Hack to deal with the Torch list type arguments which is not supported end
@@ -113,10 +113,10 @@ void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
       lhsType.isIndex() ? castIndexToInt64(b, loc, lhsDim) : lhsDim;
   Value rhsDimInt =
       rhsType.isIndex() ? castIndexToInt64(b, loc, rhsDim) : rhsDim;
-  Value contractingDimEqual = b.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::eq, lhsDimInt, rhsDimInt);
-  b.create<cf::AssertOp>(loc, contractingDimEqual,
-                         b.getStringAttr("mismatching contracting dimension"));
+  Value contractingDimEqual = arith::CmpIOp::create(
+      b, loc, arith::CmpIPredicate::eq, lhsDimInt, rhsDimInt);
+  cf::AssertOp::create(b, loc, contractingDimEqual,
+                       b.getStringAttr("mismatching contracting dimension"));
 }
 
 // Creates a tensor with required `sizes` and `elemTy` and fills it with
@@ -124,34 +124,34 @@ void checkDimEqualHelper(OpBuilder &b, Location loc, Value lhsDim,
 Value createInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
                        Type elemTy, Value initElem) {
   Value initTensor =
-      b.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
-  return b.create<linalg::FillOp>(loc, initElem, initTensor).getResult(0);
+      tensor::EmptyOp::create(b, loc, getAsOpFoldResult(sizes), elemTy);
+  return linalg::FillOp::create(b, loc, initElem, initTensor).getResult(0);
 }
 
 Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
                            Type elemTy) {
   Value initTensor =
-      b.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
+      tensor::EmptyOp::create(b, loc, getAsOpFoldResult(sizes), elemTy);
 
   Type fillValElemTy = elemTy;
   if (auto dtypeComplex = dyn_cast<mlir::ComplexType>(elemTy))
     fillValElemTy = cast<mlir::FloatType>(dtypeComplex.getElementType());
 
-  Value c0 = b.create<arith::ConstantOp>(loc, b.getZeroAttr(fillValElemTy));
-  return b.create<linalg::FillOp>(loc, c0, initTensor).getResult(0);
+  Value c0 = arith::ConstantOp::create(b, loc, b.getZeroAttr(fillValElemTy));
+  return linalg::FillOp::create(b, loc, c0, initTensor).getResult(0);
 }
 
 Value createOneInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
                           Type elemTy) {
   Value initTensor =
-      b.create<tensor::EmptyOp>(loc, getAsOpFoldResult(sizes), elemTy);
+      tensor::EmptyOp::create(b, loc, getAsOpFoldResult(sizes), elemTy);
 
   Type fillValElemTy = elemTy;
   if (auto dtypeComplex = dyn_cast<mlir::ComplexType>(elemTy))
     fillValElemTy = cast<mlir::FloatType>(dtypeComplex.getElementType());
 
-  Value c1 = b.create<arith::ConstantOp>(loc, b.getOneAttr(fillValElemTy));
-  return b.create<linalg::FillOp>(loc, c1, initTensor).getResult(0);
+  Value c1 = arith::ConstantOp::create(b, loc, b.getOneAttr(fillValElemTy));
+  return linalg::FillOp::create(b, loc, c1, initTensor).getResult(0);
 }
 
 Value castIntToIndex(OpBuilder &b, Location loc, Value v) {
@@ -205,9 +205,9 @@ SmallVector<Value> getTensorSizes(OpBuilder &b, Location loc, Value tensor) {
 
 Value getTensorSize(OpBuilder &b, Location loc, Value tensor) {
   SmallVector<Value> sizes(getTensorSizes(b, loc, tensor));
-  Value productResult = b.create<arith::ConstantOp>(loc, b.getIndexAttr(1));
+  Value productResult = arith::ConstantOp::create(b, loc, b.getIndexAttr(1));
   for (Value size : sizes)
-    productResult = b.create<arith::MulIOp>(loc, productResult, size);
+    productResult = arith::MulIOp::create(b, loc, productResult, size);
   return castIndexToInt64(b, loc, productResult);
 }
 
@@ -223,21 +223,21 @@ Value getConstant(OpBuilder &b, Location loc, int64_t val, Type elemType) {
                             APInt(cast<IntegerType>(elemType).getWidth(), val));
   if (!attr)
     return nullptr;
-  return b.create<arith::ConstantOp>(loc, elemType, attr);
+  return arith::ConstantOp::create(b, loc, elemType, attr);
 }
 
 SmallVector<Value> getAsConstantIntValues(OpBuilder &b, Location loc,
                                           SmallVectorImpl<int64_t> &ints) {
   return llvm::to_vector<4>(llvm::map_range(ints, [&](int64_t val) -> Value {
-    return b.create<arith::ConstantOp>(loc,
-                                       b.getIntegerAttr(b.getI64Type(), val));
+    return arith::ConstantOp::create(b, loc,
+                                     b.getIntegerAttr(b.getI64Type(), val));
   }));
 }
 
 SmallVector<Value> getAsConstantIndexValues(OpBuilder &b, Location loc,
                                             SmallVectorImpl<int64_t> &ints) {
   return llvm::to_vector<4>(llvm::map_range(ints, [&](int64_t val) -> Value {
-    return b.create<arith::ConstantOp>(loc, b.getIndexAttr(val));
+    return arith::ConstantOp::create(b, loc, b.getIndexAttr(val));
   }));
 }
 
@@ -318,13 +318,14 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
   // If the dtype is i1, i.e., a boolean type.
   if (dtype.isSignlessInteger(1)) {
     Type scalarType = scalar.getType();
-    Value cstZero = b.create<arith::ConstantOp>(loc, b.getZeroAttr(scalarType));
+    Value cstZero =
+        arith::ConstantOp::create(b, loc, b.getZeroAttr(scalarType));
     if (isa<mlir::FloatType>(scalarType)) {
-      return b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::UNE, scalar,
-                                     cstZero);
+      return arith::CmpFOp::create(b, loc, arith::CmpFPredicate::UNE, scalar,
+                                   cstZero);
     } else if (isa<mlir::IntegerType>(scalarType)) {
-      return b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, scalar,
-                                     cstZero);
+      return arith::CmpIOp::create(b, loc, arith::CmpIPredicate::ne, scalar,
+                                   cstZero);
     } else {
       mlir::emitError(loc)
           << "unsupported scalar type for convertScalarToDtype " << scalarType
@@ -336,37 +337,37 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
   if (auto dtypeFloat = dyn_cast<mlir::FloatType>(dtype)) {
     if (auto scalarFloat = dyn_cast<mlir::FloatType>(scalarType)) {
       if (scalarFloat.getWidth() == 16 && dtypeFloat.getWidth() == 16) {
-        auto scalarF32 = b.create<arith::ExtFOp>(loc, b.getF32Type(), scalar);
-        return b.create<arith::TruncFOp>(loc, dtype, scalarF32);
+        auto scalarF32 = arith::ExtFOp::create(b, loc, b.getF32Type(), scalar);
+        return arith::TruncFOp::create(b, loc, dtype, scalarF32);
       }
       if (scalarFloat.getWidth() > dtypeFloat.getWidth())
-        return b.create<arith::TruncFOp>(loc, dtype, scalar);
+        return arith::TruncFOp::create(b, loc, dtype, scalar);
       // Only scalarFloat width < dtypeFloat width can reach here.
-      return b.create<arith::ExtFOp>(loc, dtype, scalar);
+      return arith::ExtFOp::create(b, loc, dtype, scalar);
     }
     assert(isa<mlir::IntegerType>(scalarType));
     if (scalarType.isSignlessInteger(1) ||
         (srcOriginalDtype.has_value() && srcOriginalDtype->isUnsignedInteger()))
-      return b.create<arith::UIToFPOp>(loc, dtype, scalar);
+      return arith::UIToFPOp::create(b, loc, dtype, scalar);
     // It's safe to use SIToFPOp because ui8/si8 are the only ones where
     // unsigned handling is needed, and we checked for that case above.
-    return b.create<arith::SIToFPOp>(loc, dtype, scalar);
+    return arith::SIToFPOp::create(b, loc, dtype, scalar);
   }
 
   if (auto dtypeInteger = dyn_cast<mlir::IntegerType>(dtype)) {
     if (auto scalarFloat = dyn_cast<mlir::FloatType>(scalarType))
-      return b.create<arith::FPToSIOp>(loc, dtype, scalar);
+      return arith::FPToSIOp::create(b, loc, dtype, scalar);
     assert(isa<mlir::IntegerType>(scalarType));
     auto scalarInteger = cast<mlir::IntegerType>(scalarType);
     if (scalarInteger.getWidth() > dtypeInteger.getWidth())
-      return b.create<arith::TruncIOp>(loc, dtype, scalar);
+      return arith::TruncIOp::create(b, loc, dtype, scalar);
     if (scalarType.isSignlessInteger(1) ||
         (srcOriginalDtype.has_value() && srcOriginalDtype->isUnsignedInteger()))
-      return b.create<arith::ExtUIOp>(loc, dtype, scalar);
+      return arith::ExtUIOp::create(b, loc, dtype, scalar);
     // Only scalarInteger width < dtypeInteger width can reach here.
     // It's safe to use ExtSIOp here because ui8/si8 are the only ones where
     // unsigned handling is needed, and we checked for that case above.
-    return b.create<arith::ExtSIOp>(loc, dtype, scalar);
+    return arith::ExtSIOp::create(b, loc, dtype, scalar);
   }
 
   if (auto dtypeComplex = dyn_cast<mlir::ComplexType>(dtype)) {
@@ -378,13 +379,13 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
       // Extract the real and imaginary parts of the scalar.
       // Cast them to the target element type, and create a new complex
       // value with the target complex type.
-      Value realVal = b.create<complex::ReOp>(loc, scalar);
-      Value imgVal = b.create<complex::ImOp>(loc, scalar);
+      Value realVal = complex::ReOp::create(b, loc, scalar);
+      Value imgVal = complex::ImOp::create(b, loc, scalar);
 
       realVal = convertScalarToDtype(b, loc, realVal, dtypeElemType);
       imgVal = convertScalarToDtype(b, loc, imgVal, dtypeElemType);
 
-      return b.create<complex::CreateOp>(loc, dtypeComplex, realVal, imgVal);
+      return complex::CreateOp::create(b, loc, dtypeComplex, realVal, imgVal);
     }
 
     // Float to complex type.
@@ -393,17 +394,17 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
           cast<mlir::FloatType>(dtypeComplex.getElementType());
       Value realVal;
       Value imgVal =
-          b.create<arith::ConstantOp>(loc, b.getZeroAttr(complexElementType));
+          arith::ConstantOp::create(b, loc, b.getZeroAttr(complexElementType));
 
       if (complexElementType.getWidth() > dtypeFloat.getWidth()) {
-        realVal = b.create<arith::ExtFOp>(loc, complexElementType, scalar);
+        realVal = arith::ExtFOp::create(b, loc, complexElementType, scalar);
       } else if (complexElementType.getWidth() < dtypeFloat.getWidth()) {
-        realVal = b.create<arith::TruncFOp>(loc, complexElementType, scalar);
+        realVal = arith::TruncFOp::create(b, loc, complexElementType, scalar);
       } else {
         realVal = scalar;
       }
 
-      return b.create<complex::CreateOp>(loc, dtypeComplex, realVal, imgVal);
+      return complex::CreateOp::create(b, loc, dtypeComplex, realVal, imgVal);
     }
 
     // Int to complex type.
@@ -412,11 +413,11 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
           cast<mlir::FloatType>(dtypeComplex.getElementType());
 
       Value realVal =
-          b.create<arith::SIToFPOp>(loc, complexElementType, scalar);
+          arith::SIToFPOp::create(b, loc, complexElementType, scalar);
       Value imgVal =
-          b.create<arith::ConstantOp>(loc, b.getZeroAttr(complexElementType));
+          arith::ConstantOp::create(b, loc, b.getZeroAttr(complexElementType));
 
-      return b.create<complex::CreateOp>(loc, dtypeComplex, realVal, imgVal);
+      return complex::CreateOp::create(b, loc, dtypeComplex, realVal, imgVal);
     }
 
     mlir::emitError(loc) << "unsupported scalar type for convertScalarToDtype "
@@ -436,17 +437,17 @@ Value toPositiveValidDim(ConversionPatternRewriter &rewriter, Location loc,
   Value positiveDim =
       toPositiveDimDynamic(rewriter, loc, builtinInt, dimSizeAsInt);
   // positiveDim < 0 ? 0 : positiveDim
-  Value cst0 = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getZeroAttr(dimSizeAsInt.getType()));
-  Value predDimSltZero = rewriter.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::slt, positiveDim, cst0);
+  Value cst0 = arith::ConstantOp::create(
+      rewriter, loc, rewriter.getZeroAttr(dimSizeAsInt.getType()));
+  Value predDimSltZero = arith::CmpIOp::create(
+      rewriter, loc, arith::CmpIPredicate::slt, positiveDim, cst0);
   Value atLeastZero =
-      rewriter.create<arith::SelectOp>(loc, predDimSltZero, cst0, positiveDim);
+      arith::SelectOp::create(rewriter, loc, predDimSltZero, cst0, positiveDim);
   // atLeastZero > dimSizeAsInt ? dimSizeAsInt : atLeastZero
-  Value sgtDimSize = rewriter.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::sgt, atLeastZero, dimSizeAsInt);
-  Value boundedByDimSize = rewriter.create<arith::SelectOp>(
-      loc, sgtDimSize, dimSizeAsInt, atLeastZero);
+  Value sgtDimSize = arith::CmpIOp::create(
+      rewriter, loc, arith::CmpIPredicate::sgt, atLeastZero, dimSizeAsInt);
+  Value boundedByDimSize = arith::SelectOp::create(rewriter, loc, sgtDimSize,
+                                                   dimSizeAsInt, atLeastZero);
 
   return castIntToIndex(rewriter, loc, boundedByDimSize);
 }
@@ -491,8 +492,8 @@ FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
       }
     }
   }
-  Value unsqueezed = rewriter.create<tensor::ExpandShapeOp>(
-      op->getLoc(), unsqueezedType, input, reassociationMap);
+  Value unsqueezed = tensor::ExpandShapeOp::create(
+      rewriter, op->getLoc(), unsqueezedType, input, reassociationMap);
   return unsqueezed;
 }
 
@@ -514,13 +515,13 @@ FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
 
   // assert dynamic squeeze dim size == 1
   if (inputType.isDynamicDim(dim)) {
-    Value cstDim = rewriter.create<arith::ConstantIndexOp>(loc, dim);
-    Value dimVal = rewriter.create<tensor::DimOp>(loc, input, cstDim);
-    Value cstOne = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value cmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-                                               dimVal, cstOne);
-    rewriter.create<cf::AssertOp>(
-        loc, cmp,
+    Value cstDim = arith::ConstantIndexOp::create(rewriter, loc, dim);
+    Value dimVal = tensor::DimOp::create(rewriter, loc, input, cstDim);
+    Value cstOne = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    Value cmp = arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::eq,
+                                      dimVal, cstOne);
+    cf::AssertOp::create(
+        rewriter, loc, cmp,
         rewriter.getStringAttr(
             "Expected dynamic squeeze dim size to be statically 1"));
   }
@@ -559,9 +560,15 @@ FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
   // Note: In case the operand tensor type is of unit rank and is statically
   // shaped with unit dimension, the `reassociationMap` will be empty and the
   // input will be collapsed to a 0-D tensor.
-  Value squeezed = rewriter.create<tensor::CollapseShapeOp>(
-      op->getLoc(), squeezedType, input, reassociationMap);
+  Value squeezed = tensor::CollapseShapeOp::create(
+      rewriter, op->getLoc(), squeezedType, input, reassociationMap);
   return squeezed;
+}
+
+void getZeroPoint(Value value, Value &zeropoint) {
+  if (auto make = value.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
+    zeropoint = make.getZeroPoint();
+  }
 }
 
 } // namespace Torch

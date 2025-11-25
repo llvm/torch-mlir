@@ -9,10 +9,12 @@
 
 #include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
 
-#include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MLProgram/IR/MLProgram.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Pass/Pass.h"
+#include "torch-mlir/Conversion/Passes.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
@@ -20,6 +22,10 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 using namespace mlir::torch::TorchConversion;
+namespace mlir::torch {
+
+#define GEN_PASS_DEF_CONVERTTORCHCONVERSIONTOMLPROGRAM
+#include "torch-mlir/Conversion/Passes.h.inc"
 
 static constexpr StringRef getSeedGobalVarName() { return "global_seed"; }
 
@@ -40,8 +46,8 @@ static LogicalResult getOrCreateGlobalVariableForSeed(OpBuilder &b,
   }
 
   b.setInsertionPointToStart(module.getBody());
-  b.create<ml_program::GlobalOp>(
-      UnknownLoc::get(b.getContext()),
+  ml_program::GlobalOp::create(
+      b, UnknownLoc::get(b.getContext()),
       /*sym_name=*/getSeedGobalVarName(),
       /*type=*/tensorType,
       /*is_mutable=*/true,
@@ -71,25 +77,25 @@ public:
     // Refer to https://en.wikipedia.org/wiki/Linear_congruential_generator.
     // Get the current seed value.
     auto tensorType = RankedTensorType::get({}, rewriter.getI64Type());
-    Value globalVar = rewriter.create<ml_program::GlobalLoadOp>(
-        loc, tensorType,
+    Value globalVar = ml_program::GlobalLoadOp::create(
+        rewriter, loc, tensorType,
         SymbolRefAttr::get(op->getContext(), getSeedGobalVarName()));
-    Value currentSeed = rewriter.create<tensor::ExtractOp>(loc, globalVar);
+    Value currentSeed = tensor::ExtractOp::create(rewriter, loc, globalVar);
 
     // The value of multiplier and incrementStep are referenced from
     // https://en.wikipedia.org/wiki/Linear_congruential_generator for 2^64.
-    Value multiplier = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI64IntegerAttr(6364136223846793005));
-    Value incrementStep = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI64IntegerAttr(1442695040888963407));
+    Value multiplier = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(6364136223846793005));
+    Value incrementStep = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(1442695040888963407));
     // temp = multiplier * currentSeed + incrementStep
-    Value mul = rewriter.create<arith::MulIOp>(loc, currentSeed, multiplier);
-    Value seed = rewriter.create<arith::AddIOp>(loc, mul, incrementStep);
+    Value mul = arith::MulIOp::create(rewriter, loc, currentSeed, multiplier);
+    Value seed = arith::AddIOp::create(rewriter, loc, mul, incrementStep);
     globalVar =
-        rewriter.create<tensor::InsertOp>(loc, seed, globalVar, ValueRange());
-    rewriter.create<ml_program::GlobalStoreOp>(
-        loc, SymbolRefAttr::get(op->getContext(), getSeedGobalVarName()),
-        globalVar);
+        tensor::InsertOp::create(rewriter, loc, seed, globalVar, ValueRange());
+    ml_program::GlobalStoreOp::create(
+        rewriter, loc,
+        SymbolRefAttr::get(op->getContext(), getSeedGobalVarName()), globalVar);
     rewriter.replaceOp(op, seed);
     return success();
   }
@@ -102,7 +108,7 @@ public:
 
 namespace {
 class ConvertTorchConversionToMLProgram
-    : public ConvertTorchConversionToMLProgramBase<
+    : public impl::ConvertTorchConversionToMLProgramBase<
           ConvertTorchConversionToMLProgram> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
@@ -138,6 +144,8 @@ public:
 } // namespace
 
 std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::createConvertTorchConversionToMLProgramPass() {
+createConvertTorchConversionToMLProgramPass() {
   return std::make_unique<ConvertTorchConversionToMLProgram>();
 }
+
+} // namespace mlir::torch

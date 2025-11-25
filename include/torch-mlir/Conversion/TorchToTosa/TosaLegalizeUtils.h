@@ -11,6 +11,7 @@
 #define TORCHMLIR_CONVERSION_TORCHTOTOSA_TOSALEGALIZEUTILS_H
 
 #include "mlir/Dialect/Quant/IR/QuantTypes.h"        // from @llvm-project
+#include "mlir/Dialect/Tosa/IR/TosaOps.h"            // from @llvm-project
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h" // from @llvm-project
 #include "mlir/Dialect/Tosa/Utils/ShapeUtils.h"      // from @llvm-project
 #include "mlir/IR/BuiltinAttributes.h"               // from @llvm-project
@@ -26,8 +27,8 @@ namespace tosa {
 // rounding mode
 Value buildRescale(PatternRewriter &rewriter, Operation *op,
                    ShapedType output_type, Value input_val, double scale,
-                   int64_t input_zp, int64_t output_zp, StringRef rounding_mode,
-                   bool scale32);
+                   int64_t input_zp, int64_t output_zp,
+                   tosa::RoundingMode rounding_mode, bool scale32);
 
 // Creates TOSA rescale op with int32 output
 Value buildRescaleToInt32(PatternRewriter &rewriter, Operation *op,
@@ -105,6 +106,13 @@ FailureOr<Value> getConvBiasForNoneType(Operation *op,
                                         PatternRewriter &rewriter,
                                         Type inputElemTy, Type outputElemTy,
                                         ArrayRef<int64_t> weightShape);
+
+// Emit an explicit zero-valued `tosa.pad` around an NHWC tensor so that later
+// avg_pool lowering can run with `pad = 0`. `padExtents` is ordered as
+// {top, bottom, left, right}. Returns the padded tensor value.
+Value emitExplicitZeroPadNHWC(Location loc, PatternRewriter &rewriter,
+                              Operation *op, Value inputNHWC,
+                              ArrayRef<int64_t> padExtents);
 
 } // namespace tosa
 } // namespace mlir

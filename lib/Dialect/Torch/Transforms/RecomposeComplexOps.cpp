@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -18,6 +18,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DEF_RECOMPOSECOMPLEXOPS
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 namespace {
 
@@ -25,10 +29,10 @@ namespace {
 // a/b's type should be !torch.int
 Value getIntCeilDiv(PatternRewriter &rewriter, Location loc, Value a, Value b) {
   Value cstOne =
-      rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-  Value dividend = rewriter.create<AtenAddIntOp>(loc, a, b);
-  dividend = rewriter.create<AtenSubIntOp>(loc, dividend, cstOne);
-  Value result = rewriter.create<AtenFloordivIntOp>(loc, dividend, b);
+      ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+  Value dividend = AtenAddIntOp::create(rewriter, loc, a, b);
+  dividend = AtenSubIntOp::create(rewriter, loc, dividend, cstOne);
+  Value result = AtenFloordivIntOp::create(rewriter, loc, dividend, b);
   return result;
 }
 
@@ -65,25 +69,25 @@ public:
 
     Value newStart = sliceOp.getStart();
     Value newEnd = sliceOp.getEnd();
-    Value dimSize = rewriter.create<AtenSizeIntOp>(
-        op.getLoc(), sliceOp.getSelf(), sliceOp.getDim());
+    Value dimSize = AtenSizeIntOp::create(rewriter, op.getLoc(),
+                                          sliceOp.getSelf(), sliceOp.getDim());
     if (end < 0) {
-      newEnd =
-          rewriter.create<AtenAddIntOp>(op.getLoc(), dimSize, sliceOp.getEnd());
+      newEnd = AtenAddIntOp::create(rewriter, op.getLoc(), dimSize,
+                                    sliceOp.getEnd());
     }
 
-    newStart = rewriter.create<PrimMinIntOp>(op.getLoc(), newStart, dimSize);
-    newEnd = rewriter.create<PrimMinIntOp>(op.getLoc(), newEnd, dimSize);
+    newStart = PrimMinIntOp::create(rewriter, op.getLoc(), newStart, dimSize);
+    newEnd = PrimMinIntOp::create(rewriter, op.getLoc(), newEnd, dimSize);
 
-    Value noneVal = rewriter.create<ConstantNoneOp>(op.getLoc());
-    Value falseVal = rewriter.create<ConstantBoolOp>(op.getLoc(), false);
+    Value noneVal = ConstantNoneOp::create(rewriter, op.getLoc());
+    Value falseVal = ConstantBoolOp::create(rewriter, op.getLoc(), false);
 
     // Create IndexPut_Op
     BaseTensorType tensorType = cast<BaseTensorType>(op.getType());
     Type rangeType = tensorType.getWithSizesAndDtype(
         {kUnknownSize}, tensorType.getOptionalDtype());
-    Value range = rewriter.create<AtenArangeStartStepOp>(
-        op.getLoc(), rangeType, newStart, newEnd, sliceOp.getStep(),
+    Value range = AtenArangeStartStepOp::create(
+        rewriter, op.getLoc(), rangeType, newStart, newEnd, sliceOp.getStep(),
         /*dtype=*/noneVal, /*layout=*/noneVal, /*device=*/noneVal,
         /*pin_memory=*/noneVal);
 
@@ -93,8 +97,8 @@ public:
     indicesVector.push_back(range);
     Type indicesType = tensorType.getWithSizesAndDtype(
         /*optionalSizes=*/std::nullopt, /*optionalDtype=*/nullptr);
-    Value indices = rewriter.create<PrimListConstructOp>(
-        op.getLoc(),
+    Value indices = PrimListConstructOp::create(
+        rewriter, op.getLoc(),
         Torch::ListType::get(op->getContext(),
                              Torch::OptionalType::get(indicesType)),
         indicesVector);
@@ -126,8 +130,8 @@ public:
     if (!matchPattern(selectOp.getDim(), m_TorchConstantInt(&dim)))
       return failure();
 
-    Value noneVal = rewriter.create<ConstantNoneOp>(op.getLoc());
-    Value falseVal = rewriter.create<ConstantBoolOp>(op.getLoc(), false);
+    Value noneVal = ConstantNoneOp::create(rewriter, op.getLoc());
+    Value falseVal = ConstantBoolOp::create(rewriter, op.getLoc(), false);
 
     // Create IndexPut_Op
     // Convert indexNum to indexTensor for the selectOp
@@ -137,16 +141,16 @@ public:
                                      selectOp.getIndex().getType());
     Type emptyTensorType =
         selectOutTy.getWithSizesAndDtype(llvm::ArrayRef(empty), dtype);
-    Value indexTensor = rewriter.create<PrimNumToTensorScalarOp>(
-        selectOp.getLoc(), emptyTensorType, selectOp.getIndex());
+    Value indexTensor = PrimNumToTensorScalarOp::create(
+        rewriter, selectOp.getLoc(), emptyTensorType, selectOp.getIndex());
 
     // Create indicesVector for IndexPut_Op by TorchNone and indexTensor
     BaseTensorType tensorType = cast<BaseTensorType>(op->getResultTypes()[0]);
     SmallVector<Value> indicesVector(dim, noneVal);
     indicesVector.push_back(indexTensor);
 
-    Value indices = rewriter.create<PrimListConstructOp>(
-        op.getLoc(),
+    Value indices = PrimListConstructOp::create(
+        rewriter, op.getLoc(),
         Torch::ListType::get(op->getContext(),
                              Torch::OptionalType::get(tensorType)),
         indicesVector);
@@ -176,12 +180,13 @@ public:
     Value input = unbindOp.getSelf();
 
     // add runtime.assert to check unbind's dim size == numResults
-    Value totalSize = rewriter.create<AtenSizeIntOp>(loc, input, dim);
-    Value cstNumResults = rewriter.create<ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(op.getNumResults()));
-    Value eqOrNot = rewriter.create<AtenEqIntOp>(loc, totalSize, cstNumResults);
-    rewriter.create<RuntimeAssertOp>(
-        loc, eqOrNot,
+    Value totalSize = AtenSizeIntOp::create(rewriter, loc, input, dim);
+    Value cstNumResults = ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(op.getNumResults()));
+    Value eqOrNot =
+        AtenEqIntOp::create(rewriter, loc, totalSize, cstNumResults);
+    RuntimeAssertOp::create(
+        rewriter, loc, eqOrNot,
         rewriter.getStringAttr("unbind's dim size should equal to "
                                "prim.list_unpack's num results"));
 
@@ -189,10 +194,10 @@ public:
     for (size_t i = 0; i < op.getNumResults(); i++) {
       // rewrite to select.int op
       auto resultTy = op.getResult(i).getType();
-      auto index = rewriter.create<Torch::ConstantIntOp>(
-          op->getLoc(), rewriter.getI64IntegerAttr(i));
-      auto newSelect = rewriter.create<AtenSelectIntOp>(op->getLoc(), resultTy,
-                                                        input, dim, index);
+      auto index = Torch::ConstantIntOp::create(rewriter, op->getLoc(),
+                                                rewriter.getI64IntegerAttr(i));
+      auto newSelect = AtenSelectIntOp::create(rewriter, op->getLoc(), resultTy,
+                                               input, dim, index);
       slices.push_back(newSelect);
     }
     rewriter.replaceOp(op, slices);
@@ -227,16 +232,16 @@ public:
     Value input = unbind.getSelf();
 
     // add runtime.assert to check: index
-    Value totalSize = rewriter.create<AtenSizeIntOp>(loc, input, dim);
-    Value ltOrNot = rewriter.create<AtenLtIntOp>(loc, op.getIdx(), totalSize);
-    rewriter.create<RuntimeAssertOp>(
-        loc, ltOrNot,
+    Value totalSize = AtenSizeIntOp::create(rewriter, loc, input, dim);
+    Value ltOrNot = AtenLtIntOp::create(rewriter, loc, op.getIdx(), totalSize);
+    RuntimeAssertOp::create(
+        rewriter, loc, ltOrNot,
         rewriter.getStringAttr("index should less than unbind's dim size"));
 
     // rewrite to slice op
     auto resultTy = op.getResult().getType();
-    Value newSelect = rewriter.create<AtenSelectIntOp>(loc, resultTy, input,
-                                                       dim, op.getIdx());
+    Value newSelect = AtenSelectIntOp::create(rewriter, loc, resultTy, input,
+                                              dim, op.getIdx());
     rewriter.replaceOp(op, newSelect);
     if (unbind.getResult().use_empty())
       rewriter.eraseOp(unbind);
@@ -277,23 +282,24 @@ public:
     Value dim = splitTensorOp.getDim();
 
     // add runtime.assert to check rank constraint: index < split_result_size
-    Value totalSize = rewriter.create<AtenSizeIntOp>(loc, input, dim);
+    Value totalSize = AtenSizeIntOp::create(rewriter, loc, input, dim);
     Value splitResultSize =
         getIntCeilDiv(rewriter, loc, totalSize, splitTensorOp.getSplitSize());
     Value ltOrNot =
-        rewriter.create<AtenLtIntOp>(loc, op.getIdx(), splitResultSize);
-    rewriter.create<RuntimeAssertOp>(
-        loc, ltOrNot,
+        AtenLtIntOp::create(rewriter, loc, op.getIdx(), splitResultSize);
+    RuntimeAssertOp::create(
+        rewriter, loc, ltOrNot,
         rewriter.getStringAttr("index should less than split_result_size"));
 
     Value step =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-    Value start = rewriter.create<ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(index * splitSize));
-    Value end = rewriter.create<ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(index * splitSize + splitSize));
-    Value sliceTensorOp = rewriter.create<AtenSliceTensorOp>(
-        loc, op.getResult().getType(), input, dim, start, end, step);
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value start = ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(index * splitSize));
+    Value end = ConstantIntOp::create(
+        rewriter, loc,
+        rewriter.getI64IntegerAttr(index * splitSize + splitSize));
+    Value sliceTensorOp = AtenSliceTensorOp::create(
+        rewriter, loc, op.getResult().getType(), input, dim, start, end, step);
     rewriter.replaceOp(op, sliceTensorOp);
     if (splitTensorOp.getResult().use_empty())
       rewriter.eraseOp(splitTensorOp);
@@ -327,30 +333,30 @@ public:
     Value dim = splitTensorOp.getDim();
 
     // add runtime.assert to check rank constraint
-    Value totalSize = rewriter.create<AtenSizeIntOp>(loc, input, dim);
-    Value cstNumResults = rewriter.create<ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(op.getNumResults()));
+    Value totalSize = AtenSizeIntOp::create(rewriter, loc, input, dim);
+    Value cstNumResults = ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(op.getNumResults()));
     Value cstOne =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
     // assert: numResults == floordiv(totalSize + splitSize - 1, splitSize)
     Value splitResultSize =
         getIntCeilDiv(rewriter, loc, totalSize, splitTensorOp.getSplitSize());
     Value eqOrNot =
-        rewriter.create<AtenEqIntOp>(loc, splitResultSize, cstNumResults);
-    rewriter.create<RuntimeAssertOp>(
-        loc, eqOrNot,
+        AtenEqIntOp::create(rewriter, loc, splitResultSize, cstNumResults);
+    RuntimeAssertOp::create(
+        rewriter, loc, eqOrNot,
         rewriter.getStringAttr("numResults should equal to floordiv(totalSize "
                                "+ splitSize - 1, splitSize)"));
 
     SmallVector<Value> slices;
     for (size_t i = 0; i < op.getNumResults(); i++) {
       auto resultTy = op.getResult(i).getType();
-      auto start = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(i * splitSize));
-      auto end = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr((i + 1) * splitSize));
-      Value sliceTensorOp = rewriter.create<AtenSliceTensorOp>(
-          loc, resultTy, input, dim, start, end, /*step=*/cstOne);
+      auto start = Torch::ConstantIntOp::create(
+          rewriter, loc, rewriter.getI64IntegerAttr(i * splitSize));
+      auto end = Torch::ConstantIntOp::create(
+          rewriter, loc, rewriter.getI64IntegerAttr((i + 1) * splitSize));
+      Value sliceTensorOp = AtenSliceTensorOp::create(
+          rewriter, loc, resultTy, input, dim, start, end, /*step=*/cstOne);
       slices.push_back(sliceTensorOp);
     }
     rewriter.replaceOp(op, slices);
@@ -401,15 +407,15 @@ public:
     Value dim = splitWithSizesOp.getDim();
 
     // add runtime.assert to check dimension constraint
-    Value totalSize = rewriter.create<AtenSizeIntOp>(loc, input, dim);
+    Value totalSize = AtenSizeIntOp::create(rewriter, loc, input, dim);
     int64_t sumSplitSize =
         std::accumulate(splitSizes.begin(), splitSizes.end(), 0);
-    Value cstSumSplitSize = rewriter.create<ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(sumSplitSize));
+    Value cstSumSplitSize = ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(sumSplitSize));
     Value eqOrNot =
-        rewriter.create<AtenEqIntOp>(loc, totalSize, cstSumSplitSize);
-    rewriter.create<RuntimeAssertOp>(
-        loc, eqOrNot,
+        AtenEqIntOp::create(rewriter, loc, totalSize, cstSumSplitSize);
+    RuntimeAssertOp::create(
+        rewriter, loc, eqOrNot,
         rewriter.getStringAttr("split dim must be sum of split_sizes"));
 
     // replace with AtenSliceTensorOp
@@ -418,13 +424,14 @@ public:
       boundaryOfSliceOp[i] = boundaryOfSliceOp[i - 1] + splitSizes[i - 1];
     }
     Value cstOne =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
-    auto start = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(boundaryOfSliceOp[index]));
-    auto end = rewriter.create<Torch::ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(boundaryOfSliceOp[index + 1]));
-    Value slice = rewriter.create<AtenSliceTensorOp>(
-        loc, op.getType(), input, dim, start, end, /*step=*/cstOne);
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    auto start = Torch::ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(boundaryOfSliceOp[index]));
+    auto end = Torch::ConstantIntOp::create(
+        rewriter, loc,
+        rewriter.getI64IntegerAttr(boundaryOfSliceOp[index + 1]));
+    Value slice = AtenSliceTensorOp::create(rewriter, loc, op.getType(), input,
+                                            dim, start, end, /*step=*/cstOne);
     rewriter.replaceOp(op, slice);
     // erase splitOp if no user left
     if (splitWithSizesOp.getResult().use_empty())
@@ -476,15 +483,15 @@ public:
     Value dim = splitOp.getDim();
 
     // add runtime.assert to check rank constraint
-    Value totalSize = rewriter.create<AtenSizeIntOp>(loc, input, dim);
+    Value totalSize = AtenSizeIntOp::create(rewriter, loc, input, dim);
     int64_t sumSplitSize =
         std::accumulate(splitSizes.begin(), splitSizes.end(), 0);
-    Value cstSumSplitSize = rewriter.create<ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(sumSplitSize));
+    Value cstSumSplitSize = ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(sumSplitSize));
     Value eqOrNot =
-        rewriter.create<AtenEqIntOp>(loc, totalSize, cstSumSplitSize);
-    rewriter.create<RuntimeAssertOp>(
-        loc, eqOrNot,
+        AtenEqIntOp::create(rewriter, loc, totalSize, cstSumSplitSize);
+    RuntimeAssertOp::create(
+        rewriter, loc, eqOrNot,
         rewriter.getStringAttr("split dim must be sum of split_sizes"));
 
     // calculate slice op's lower bound and up bound
@@ -494,15 +501,16 @@ public:
     }
     SmallVector<Value> slices;
     Value cstOne =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
     for (size_t i = 0; i < op.getNumResults(); i++) {
       auto resultTy = op.getResult(i).getType();
-      auto start = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(boundaryOfSliceOp[i]));
-      auto end = rewriter.create<Torch::ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr((boundaryOfSliceOp[i + 1])));
-      Value sliceTensorOp = rewriter.create<AtenSliceTensorOp>(
-          loc, resultTy, input, dim, start, end, /*step=*/cstOne);
+      auto start = Torch::ConstantIntOp::create(
+          rewriter, loc, rewriter.getI64IntegerAttr(boundaryOfSliceOp[i]));
+      auto end = Torch::ConstantIntOp::create(
+          rewriter, loc,
+          rewriter.getI64IntegerAttr((boundaryOfSliceOp[i + 1])));
+      Value sliceTensorOp = AtenSliceTensorOp::create(
+          rewriter, loc, resultTy, input, dim, start, end, /*step=*/cstOne);
       slices.push_back(sliceTensorOp);
     }
     rewriter.replaceOp(op, slices);
@@ -558,24 +566,27 @@ public:
     int64_t chunkSize = splitDimSize / sections;
     int64_t remain = splitDimSize % sections;
     Value cstOne =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
     Value result;
     if (index < remain) {
-      Value start = rewriter.create<ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(index * (chunkSize + 1)));
-      Value end = rewriter.create<ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr((index + 1) * (chunkSize + 1)));
-      result = rewriter.create<AtenSliceTensorOp>(loc, op.getType(), input, dim,
-                                                  start, end,
-                                                  /*step=*/cstOne);
+      Value start = ConstantIntOp::create(
+          rewriter, loc, rewriter.getI64IntegerAttr(index * (chunkSize + 1)));
+      Value end = ConstantIntOp::create(
+          rewriter, loc,
+          rewriter.getI64IntegerAttr((index + 1) * (chunkSize + 1)));
+      result = AtenSliceTensorOp::create(rewriter, loc, op.getType(), input,
+                                         dim, start, end,
+                                         /*step=*/cstOne);
     } else {
-      Value start = rewriter.create<ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr(index * chunkSize + remain));
-      Value end = rewriter.create<ConstantIntOp>(
-          loc, rewriter.getI64IntegerAttr((index + 1) * chunkSize + remain));
-      result = rewriter.create<AtenSliceTensorOp>(loc, op.getType(), input, dim,
-                                                  start, end,
-                                                  /*step=*/cstOne);
+      Value start = ConstantIntOp::create(
+          rewriter, loc,
+          rewriter.getI64IntegerAttr(index * chunkSize + remain));
+      Value end = ConstantIntOp::create(
+          rewriter, loc,
+          rewriter.getI64IntegerAttr((index + 1) * chunkSize + remain));
+      result = AtenSliceTensorOp::create(rewriter, loc, op.getType(), input,
+                                         dim, start, end,
+                                         /*step=*/cstOne);
     }
     rewriter.replaceOp(op, result);
     // erase AtenTensorSplitSectionsOp if no user left
@@ -625,25 +636,27 @@ public:
     int64_t chunkSize = splitDimSize / sections;
     int64_t remain = splitDimSize % sections;
     Value cstOne =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
     SmallVector<Value> results;
     for (int64_t i = 0; i < sections; i++) {
       if (i < remain) {
-        Value start = rewriter.create<ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(i * (chunkSize + 1)));
-        Value end = rewriter.create<ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr((i + 1) * (chunkSize + 1)));
-        Value slice = rewriter.create<AtenSliceTensorOp>(
-            loc, op.getResult(i).getType(), input, dim, start, end,
+        Value start = ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(i * (chunkSize + 1)));
+        Value end = ConstantIntOp::create(
+            rewriter, loc,
+            rewriter.getI64IntegerAttr((i + 1) * (chunkSize + 1)));
+        Value slice = AtenSliceTensorOp::create(
+            rewriter, loc, op.getResult(i).getType(), input, dim, start, end,
             /*step=*/cstOne);
         results.push_back(slice);
       } else {
-        Value start = rewriter.create<ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr(i * chunkSize + remain));
-        Value end = rewriter.create<ConstantIntOp>(
-            loc, rewriter.getI64IntegerAttr((i + 1) * chunkSize + remain));
-        Value slice = rewriter.create<AtenSliceTensorOp>(
-            loc, op.getResult(i).getType(), input, dim, start, end,
+        Value start = ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(i * chunkSize + remain));
+        Value end = ConstantIntOp::create(
+            rewriter, loc,
+            rewriter.getI64IntegerAttr((i + 1) * chunkSize + remain));
+        Value slice = AtenSliceTensorOp::create(
+            rewriter, loc, op.getResult(i).getType(), input, dim, start, end,
             /*step=*/cstOne);
         results.push_back(slice);
       }
@@ -672,42 +685,42 @@ public:
     Value input = chunkOp.getSelf();
     Value chunks = chunkOp.getChunks();
     Location loc = chunkOp.getLoc();
-    Value totalSize = rewriter.create<Torch::AtenSizeIntOp>(loc, input, dim);
+    Value totalSize = Torch::AtenSizeIntOp::create(rewriter, loc, input, dim);
     // chunkSize = floordiv(totalSize + chunks - 1, chunks)
     Value chunkSize = getIntCeilDiv(rewriter, loc, totalSize, chunks);
 
     // add runtime.assert to check floordiv(totalSize + chunkSize - 1,
     // chunkSize) == NumResults
-    Value cstNumResults = rewriter.create<ConstantIntOp>(
-        loc, rewriter.getI64IntegerAttr(op.getNumResults()));
+    Value cstNumResults = ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(op.getNumResults()));
     Value realChunks = getIntCeilDiv(rewriter, loc, totalSize, chunkSize);
     Value eqOrNot =
-        rewriter.create<AtenEqIntOp>(loc, realChunks, cstNumResults);
-    rewriter.create<RuntimeAssertOp>(
-        loc, eqOrNot,
+        AtenEqIntOp::create(rewriter, loc, realChunks, cstNumResults);
+    RuntimeAssertOp::create(
+        rewriter, loc, eqOrNot,
         rewriter.getStringAttr(
             "chunks should equal to prim.list_unpack's num results"));
 
     Value cstOne =
-        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
     SmallVector<Value> slices;
     for (size_t i = 0; i < op.getNumResults(); i++) {
       // rewrite to slice op with
       // start = chunkSize * i,
       // end = lastIndex ? totalSize : chunkSize * (i+1)
       auto resultTy = op.getResult(i).getType();
-      auto index = rewriter.create<Torch::ConstantIntOp>(
-          op->getLoc(), rewriter.getI64IntegerAttr(i));
-      auto start = rewriter.create<AtenMulIntOp>(loc, index, chunkSize);
+      auto index = Torch::ConstantIntOp::create(rewriter, op->getLoc(),
+                                                rewriter.getI64IntegerAttr(i));
+      auto start = AtenMulIntOp::create(rewriter, loc, index, chunkSize);
       Value end;
       if (i == op.getNumResults() - 1) {
         end = totalSize;
       } else {
-        auto nextIdx = rewriter.create<AtenAddIntOp>(loc, index, cstOne);
-        end = rewriter.create<AtenMulIntOp>(loc, nextIdx, chunkSize);
+        auto nextIdx = AtenAddIntOp::create(rewriter, loc, index, cstOne);
+        end = AtenMulIntOp::create(rewriter, loc, nextIdx, chunkSize);
       }
-      Value sliceTensorOp = rewriter.create<AtenSliceTensorOp>(
-          loc, resultTy, input, dim, start, end, /*step=*/cstOne);
+      Value sliceTensorOp = AtenSliceTensorOp::create(
+          rewriter, loc, resultTy, input, dim, start, end, /*step=*/cstOne);
       slices.push_back(sliceTensorOp);
     }
     rewriter.replaceOp(op, slices);
@@ -757,28 +770,29 @@ public:
     SmallVector<Value> expandShapeValues;
     for (int64_t i = 0; i < numTensors; i++) {
       expandShapeValues.push_back(
-          rewriter.create<AtenNumelOp>(loc, tensors[i]));
+          AtenNumelOp::create(rewriter, loc, tensors[i]));
     }
-    Value expandShapeList = rewriter.create<PrimListConstructOp>(
-        loc, ListType::get(IntType::get(context)), expandShapeValues);
+    Value expandShapeList = PrimListConstructOp::create(
+        rewriter, loc, ListType::get(IntType::get(context)), expandShapeValues);
 
     SmallVector<Value> meshgrids;
     Value constFalse =
-        rewriter.create<ConstantBoolOp>(loc, rewriter.getBoolAttr(false));
+        ConstantBoolOp::create(rewriter, loc, rewriter.getBoolAttr(false));
 
     for (auto [idx, tensor] : llvm::enumerate(tensors)) {
       Value constantOne =
-          rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+          ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
       SmallVector<Value> tensorViewShapeValues(numTensors, constantOne);
       tensorViewShapeValues[idx] = expandShapeValues[idx];
 
-      Value viewShapeList = rewriter.create<PrimListConstructOp>(
-          loc, ListType::get(IntType::get(context)), tensorViewShapeValues);
+      Value viewShapeList = PrimListConstructOp::create(
+          rewriter, loc, ListType::get(IntType::get(context)),
+          tensorViewShapeValues);
       Value view =
-          rewriter.create<AtenViewOp>(loc, baseType, tensor, viewShapeList);
+          AtenViewOp::create(rewriter, loc, baseType, tensor, viewShapeList);
 
-      Value expandView = rewriter.create<AtenExpandOp>(
-          loc, baseType, view, expandShapeList, constFalse);
+      Value expandView = AtenExpandOp::create(rewriter, loc, baseType, view,
+                                              expandShapeList, constFalse);
       meshgrids.push_back(expandView);
     }
 
@@ -796,7 +810,7 @@ public:
 
 namespace {
 class RecomposeComplexOpsPass
-    : public RecomposeComplexOpsBase<RecomposeComplexOpsPass> {
+    : public impl::RecomposeComplexOpsBase<RecomposeComplexOpsPass> {
 public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
@@ -831,7 +845,8 @@ public:
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createRecomposeComplexOpsPass() {
+std::unique_ptr<OperationPass<func::FuncOp>> createRecomposeComplexOpsPass() {
   return std::make_unique<RecomposeComplexOpsPass>();
 }
+
+} // namespace mlir::torch::Torch

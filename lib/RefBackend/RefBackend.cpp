@@ -14,7 +14,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -41,6 +40,26 @@ using namespace mlir::torch::RefBackend;
 //===----------------------------------------------------------------------===//
 // Pass registration
 //===----------------------------------------------------------------------===//
+
+namespace mlir::torch::RefBackend {
+
+#define GEN_PASS_DEF_MUNGECALLINGCONVENTIONS
+#define GEN_PASS_DEF_MLPROGRAMBUFFERIZE
+#define GEN_PASS_DEF_EXPANDOPSFORLLVM
+#define GEN_PASS_DEF_MUNGEMEMREFCOPY
+#define GEN_PASS_DEF_GENERALIZETENSORCONCAT
+#define GEN_PASS_DEF_GENERALIZETENSORPAD
+#include "torch-mlir/RefBackend/Passes.h.inc"
+
+} // namespace mlir::torch::RefBackend
+
+// Bring Base classes into scope for anonymous namespace passes.
+using mlir::torch::RefBackend::impl::ExpandOpsForLLVMBase;
+using mlir::torch::RefBackend::impl::GeneralizeTensorConcatBase;
+using mlir::torch::RefBackend::impl::GeneralizeTensorPadBase;
+using mlir::torch::RefBackend::impl::MLProgramBufferizeBase;
+using mlir::torch::RefBackend::impl::MungeCallingConventionsBase;
+using mlir::torch::RefBackend::impl::MungeMemrefCopyBase;
 
 namespace {
 #define GEN_PASS_REGISTRATION
@@ -109,7 +128,7 @@ static std::string getConsumeReturnFunctionNameForReturnTypes(TypeRange types) {
     tokens.push_back(getTypeToken(type));
 
   return std::accumulate(tokens.begin(), tokens.end(), std::string(),
-                         [](std::string &a, std::string &b) {
+                         [](std::string a, std::string b) {
                            return a.empty() ? b : (a + "_" + b);
                          });
 }
@@ -120,8 +139,8 @@ static void replaceReturnWithCall(OpBuilder b, func::ReturnOp op,
                                   StringRef funcName, TypeRange retTypes,
                                   SmallVectorImpl<Value> &vals,
                                   SmallVectorImpl<Operation *> &toErase) {
-  b.create<mlir::func::CallOp>(op.getLoc(), funcName, TypeRange({}), vals);
-  b.create<mlir::func::ReturnOp>(op.getLoc());
+  mlir::func::CallOp::create(b, op.getLoc(), funcName, TypeRange({}), vals);
+  mlir::func::ReturnOp::create(b, op.getLoc());
   toErase.push_back(op);
 }
 
@@ -155,7 +174,7 @@ static LogicalResult mungeFunction(
                   "got ",
                   type);
     }
-    auto cast = b.create<memref::CastOp>(arg.getLoc(), type, arg);
+    auto cast = memref::CastOp::create(b, arg.getLoc(), type, arg);
     arg.replaceAllUsesExcept(cast, cast);
     arg.setType(getAbiTypeForMemRef(type));
     newArgTypes.push_back(arg.getType());
@@ -176,8 +195,8 @@ static LogicalResult mungeFunction(
         retType = UnrankedMemRefType::get(elemType, 0);
         // Cast to unranked memref type before sending it as a function
         // argument.
-        retVal = b.create<memref::CastOp>(
-            op.getLoc(), getAbiTypeForMemRef(types[en.index()]), retVal);
+        retVal = memref::CastOp::create(
+            b, op.getLoc(), getAbiTypeForMemRef(types[en.index()]), retVal);
       }
       retTypes.push_back(retType);
       retVals.push_back(retVal);
@@ -210,8 +229,8 @@ class MungeCallingConventions
 
     // Create FuncOp for consumeFuncReturnFuncs that are used.
     for (auto &p : invokedConsumeFuncReturnFuncs) {
-      auto consumeFuncReturnFunc = b.create<func::FuncOp>(
-          module.getLoc(), p.first,
+      auto consumeFuncReturnFunc = func::FuncOp::create(
+          b, module.getLoc(), p.first,
           FunctionType::get(module.getContext(), p.second, {}));
       consumeFuncReturnFunc.setPrivate();
       addEmitCInterfaceAttr(consumeFuncReturnFunc);
@@ -219,11 +238,6 @@ class MungeCallingConventions
   }
 };
 } // namespace
-
-std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::RefBackend::createMungeCallingConventionsPass() {
-  return std::make_unique<MungeCallingConventions>();
-}
 
 //===----------------------------------------------------------------------===//
 // MLProgramBufferize
@@ -239,13 +253,13 @@ static LogicalResult bufferizeMLProgramGlobalOp(ml_program::GlobalOp globalOp,
       MemRefType::get(tensorType.getShape(), tensorType.getElementType());
 
   b.setInsertionPointToStart(globalOp->getParentOfType<ModuleOp>().getBody());
-  b.create<memref::GlobalOp>(
-      UnknownLoc::get(b.getContext()), globalOp.getSymName(),
-      /*sym_visibility=*/globalOp.getSymVisibilityAttr(),
-      /*type=*/memrefType,
-      /*initial_value=*/globalOp.getValue().value(),
-      /*constant=*/globalOp.getIsMutable() ? false : true,
-      /*alignment=*/nullptr);
+  memref::GlobalOp::create(b, UnknownLoc::get(b.getContext()),
+                           globalOp.getSymName(),
+                           /*sym_visibility=*/globalOp.getSymVisibilityAttr(),
+                           /*type=*/memrefType,
+                           /*initial_value=*/globalOp.getValue().value(),
+                           /*constant=*/globalOp.getIsMutable() ? false : true,
+                           /*alignment=*/nullptr);
   return success();
 }
 
@@ -257,11 +271,11 @@ bufferizeMLProgramGlobaLoadOp(ml_program::GlobalLoadOp globalLoadOp,
       MemRefType::get(tensorType.getShape(), tensorType.getElementType());
 
   b.setInsertionPoint(globalLoadOp);
-  Value globalVal = b.create<memref::GetGlobalOp>(
-      globalLoadOp.getLoc(), memrefType,
+  Value globalVal = memref::GetGlobalOp::create(
+      b, globalLoadOp.getLoc(), memrefType,
       globalLoadOp.getGlobalAttr().getLeafReference());
-  globalVal = b.create<bufferization::ToTensorOp>(globalLoadOp->getLoc(),
-                                                  tensorType, globalVal);
+  globalVal = bufferization::ToTensorOp::create(b, globalLoadOp->getLoc(),
+                                                tensorType, globalVal);
   globalLoadOp->getResult(0).replaceAllUsesWith(globalVal);
   return success();
 }
@@ -276,12 +290,12 @@ bufferizeMLProgramGlobaStoreOp(ml_program::GlobalStoreOp globalStoreOp,
       MemRefType::get(tensorType.getShape(), tensorType.getElementType());
 
   b.setInsertionPoint(globalStoreOp);
-  Value memref = b.create<memref::GetGlobalOp>(
-      globalStoreOp.getLoc(), memrefType,
+  Value memref = memref::GetGlobalOp::create(
+      b, globalStoreOp.getLoc(), memrefType,
       globalStoreOp.getGlobalAttr().getLeafReference());
-  Value copyValue = b.create<bufferization::ToBufferOp>(
-      globalStoreOp->getLoc(), memrefType, globalStoreOp.getValue());
-  b.create<memref::CopyOp>(globalStoreOp->getLoc(), copyValue, memref);
+  Value copyValue = bufferization::ToBufferOp::create(
+      b, globalStoreOp->getLoc(), memrefType, globalStoreOp.getValue());
+  memref::CopyOp::create(b, globalStoreOp->getLoc(), copyValue, memref);
   return success();
 }
 
@@ -346,11 +360,6 @@ class MLProgramBufferize : public MLProgramBufferizeBase<MLProgramBufferize> {
 };
 } // namespace
 
-std::unique_ptr<OperationPass<ModuleOp>>
-mlir::torch::RefBackend::createMLProgramBufferizePass() {
-  return std::make_unique<MLProgramBufferize>();
-}
-
 //===----------------------------------------------------------------------===//
 // ExpandOpsForLLVM
 //===----------------------------------------------------------------------===//
@@ -361,7 +370,7 @@ class ExpandOpsForLLVM : public ExpandOpsForLLVMBase<ExpandOpsForLLVM> {
     auto func = getOperation();
     auto *context = &getContext();
     RewritePatternSet patterns(context);
-    populateExpandTanhPattern(patterns);
+    math::populateExpansionPatterns(patterns, {"tanh"});
     patterns.add<math::ErfPolynomialApproximation>(patterns.getContext());
     ConversionTarget target(*context);
     target.addLegalDialect<func::FuncDialect>();
@@ -375,11 +384,6 @@ class ExpandOpsForLLVM : public ExpandOpsForLLVMBase<ExpandOpsForLLVM> {
   }
 };
 } // namespace
-
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::RefBackend::createExpandOpsForLLVMPass() {
-  return std::make_unique<ExpandOpsForLLVM>();
-}
 
 //===----------------------------------------------------------------------===//
 // MungeMemrefCopy
@@ -396,14 +400,14 @@ Operation *createLinalgCopyOp(OpBuilder &b, Location loc, Value from,
       AffineMap::getMultiDimIdentityMap(memrefTypeTo.getRank(), b.getContext());
   SmallVector<utils::IteratorType> iteratorTypes(memrefTypeTo.getRank(),
                                                  utils::IteratorType::parallel);
-  return b.create<linalg::GenericOp>(
-      loc,
+  return linalg::GenericOp::create(
+      b, loc,
       /*inputs=*/from,
       /*outputs=*/to,
       /*indexingMaps=*/llvm::ArrayRef({id, id}),
       /*iteratorTypes=*/iteratorTypes,
       [](OpBuilder &b, Location loc, ValueRange args) {
-        b.create<linalg::YieldOp>(loc, args.front());
+        linalg::YieldOp::create(b, loc, args.front());
       });
 }
 
@@ -432,11 +436,6 @@ class MungeMemrefCopy : public MungeMemrefCopyBase<MungeMemrefCopy> {
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::RefBackend::createMungeMemrefCopyPass() {
-  return std::make_unique<MungeMemrefCopy>();
-}
-
 namespace {
 class GeneralizeTensorConcat
     : public GeneralizeTensorConcatBase<GeneralizeTensorConcat> {
@@ -453,11 +452,6 @@ class GeneralizeTensorConcat
   }
 };
 } // namespace
-
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::RefBackend::createGeneralizeTensorConcatPass() {
-  return std::make_unique<GeneralizeTensorConcat>();
-}
 
 namespace {
 class GeneralizeTensorPad
@@ -476,8 +470,3 @@ class GeneralizeTensorPad
   }
 };
 } // namespace
-
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::RefBackend::createGeneralizeTensorPadPass() {
-  return std::make_unique<GeneralizeTensorPad>();
-}

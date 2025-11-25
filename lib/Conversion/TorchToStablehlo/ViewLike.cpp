@@ -9,7 +9,6 @@
 
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
-#include "../PassDetail.h"
 #include "PopulatePatterns.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -34,21 +33,21 @@ namespace {
 Value getNormalizedDimSizeInternal(PatternRewriter &rewriter, Operation *op,
                                    Value index, Value dimSize) {
   auto loc = op->getLoc();
-  Value zero = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIntegerAttr(rewriter.getI64Type(), 0));
+  Value zero = arith::ConstantOp::create(
+      rewriter, loc, rewriter.getIntegerAttr(rewriter.getI64Type(), 0));
 
   // To normalize index into range [-dimSize, dimSize]
   // index = min(max(-dimSize, index), dimSize)
-  auto negDimSize = rewriter.create<arith::SubIOp>(loc, zero, dimSize);
-  index = rewriter.create<arith::MaxSIOp>(loc, negDimSize, index);
-  index = rewriter.create<arith::MinSIOp>(loc, dimSize, index);
+  auto negDimSize = arith::SubIOp::create(rewriter, loc, zero, dimSize);
+  index = arith::MaxSIOp::create(rewriter, loc, negDimSize, index);
+  index = arith::MinSIOp::create(rewriter, loc, dimSize, index);
 
-  auto dimSizePlusIndex = rewriter.create<arith::AddIOp>(loc, dimSize, index);
-  auto indexPositive = rewriter.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::sge, index, zero);
+  auto dimSizePlusIndex = arith::AddIOp::create(rewriter, loc, dimSize, index);
+  auto indexPositive = arith::CmpIOp::create(
+      rewriter, loc, arith::CmpIPredicate::sge, index, zero);
   // get positive index: (index >=0) ? index: index + dimSize
-  return rewriter.create<arith::SelectOp>(loc, indexPositive, index,
-                                          dimSizePlusIndex);
+  return arith::SelectOp::create(rewriter, loc, indexPositive, index,
+                                 dimSizePlusIndex);
 }
 
 Value getDynamicSliceInternal(PatternRewriter &rewriter, Operation *op,
@@ -59,10 +58,10 @@ Value getDynamicSliceInternal(PatternRewriter &rewriter, Operation *op,
   auto loc = op->getLoc();
   // startIndex & endIndex has been normailized into range [0, dSize]
   Type intType = rewriter.getIntegerType(dimSizeIndexBits);
-  Value zero = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIntegerAttr(intType, 0));
-  Value one = rewriter.create<arith::ConstantOp>(
-      loc, rewriter.getIntegerAttr(intType, 1));
+  Value zero = arith::ConstantOp::create(rewriter, loc,
+                                         rewriter.getIntegerAttr(intType, 0));
+  Value one = arith::ConstantOp::create(rewriter, loc,
+                                        rewriter.getIntegerAttr(intType, 1));
 
   SmallVector<Value, 4> startIndices;
   SmallVector<Value, 4> endIndices;
@@ -74,10 +73,10 @@ Value getDynamicSliceInternal(PatternRewriter &rewriter, Operation *op,
   endIndices.reserve(rank);
   strides.reserve(rank);
 
-  auto endIndexIsZero = rewriter.create<arith::CmpIOp>(
-      loc, arith::CmpIPredicate::eq, endIndex, zero);
-  endIndex = rewriter.create<arith::SelectOp>(loc, endIndexIsZero,
-                                              dimSizes[dimIndex], endIndex);
+  auto endIndexIsZero = arith::CmpIOp::create(
+      rewriter, loc, arith::CmpIPredicate::eq, endIndex, zero);
+  endIndex = arith::SelectOp::create(rewriter, loc, endIndexIsZero,
+                                     dimSizes[dimIndex], endIndex);
 
   for (size_t r = 0; r < rank; ++r) {
     if (r == dimIndex) {
@@ -92,14 +91,14 @@ Value getDynamicSliceInternal(PatternRewriter &rewriter, Operation *op,
   }
 
   auto startTensor =
-      rewriter.create<tensor::FromElementsOp>(loc, startIndices).getResult();
+      tensor::FromElementsOp::create(rewriter, loc, startIndices).getResult();
   auto endTensor =
-      rewriter.create<tensor::FromElementsOp>(loc, endIndices).getResult();
+      tensor::FromElementsOp::create(rewriter, loc, endIndices).getResult();
   auto stridesTensor =
-      rewriter.create<tensor::FromElementsOp>(loc, strides).getResult();
+      tensor::FromElementsOp::create(rewriter, loc, strides).getResult();
 
-  return rewriter.create<stablehlo::RealDynamicSliceOp>(
-      loc, outTy, input, startTensor, endTensor, stridesTensor);
+  return stablehlo::RealDynamicSliceOp::create(
+      rewriter, loc, outTy, input, startTensor, endTensor, stridesTensor);
 }
 
 // Get a dynamic slice of the tensor from startIndex to endIndex with stride
@@ -116,30 +115,32 @@ FailureOr<Value> getDynamicSlice(PatternRewriter &rewriter, Operation *op,
   auto rank = inputTy.getRank();
 
   dim = (dim + rank) % rank;
-  Value dimSize = rewriter.create<arith::IndexCastOp>(
-      loc, rewriter.getI64Type(),
-      rewriter.create<tensor::DimOp>(loc, input, dim));
+  Value dimSize = arith::IndexCastOp::create(
+      rewriter, loc, rewriter.getI64Type(),
+      tensor::DimOp::create(rewriter, loc, input, dim));
 
   Value normStartIndex =
       startIndexOpt
           ? getNormalizedDimSizeInternal(rewriter, op, *startIndexOpt, dimSize)
-          : rewriter.create<arith::ConstantOp>(
-                loc, rewriter.getIntegerAttr(rewriter.getI64Type(), 0));
+          : arith::ConstantOp::create(
+                rewriter, loc,
+                rewriter.getIntegerAttr(rewriter.getI64Type(), 0));
   Value normEndIndex =
       endIndexOpt
           ? getNormalizedDimSizeInternal(rewriter, op, *endIndexOpt, dimSize)
           : dimSize;
-  Value step =
-      stepOpt ? *stepOpt
-              : rewriter.create<arith::ConstantOp>(
-                    loc, rewriter.getIntegerAttr(rewriter.getI64Type(), 1));
+  Value step = stepOpt ? *stepOpt
+                       : arith::ConstantOp::create(
+                             rewriter, loc,
+                             rewriter.getIntegerAttr(rewriter.getI64Type(), 1));
 
   if (dimSizeIndexBits == 32) {
     Type intType = rewriter.getIntegerType(dimSizeIndexBits);
     normStartIndex =
-        rewriter.create<arith::TruncIOp>(loc, intType, normStartIndex);
-    normEndIndex = rewriter.create<arith::TruncIOp>(loc, intType, normEndIndex);
-    step = rewriter.create<arith::TruncIOp>(loc, intType, step);
+        arith::TruncIOp::create(rewriter, loc, intType, normStartIndex);
+    normEndIndex =
+        arith::TruncIOp::create(rewriter, loc, intType, normEndIndex);
+    step = arith::TruncIOp::create(rewriter, loc, intType, step);
   }
   FailureOr<SmallVector<Value, 4>> dimSizesInfo =
       hlo::getDimSizesOfTensor(rewriter, op, input, dimSizeIndexBits);
@@ -212,14 +213,14 @@ public:
 
       auto castType =
           baseResultTy.getWithSizesAndDtype(castShape, baseResultTy.getDtype());
-      auto cast = rewriter.create<stablehlo::BitcastConvertOp>(
-          loc,
+      auto cast = stablehlo::BitcastConvertOp::create(
+          rewriter, loc,
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
               castType),
           self);
 
       auto reshape =
-          rewriter.create<stablehlo::ReshapeOp>(loc, resultType, cast);
+          stablehlo::ReshapeOp::create(rewriter, loc, resultType, cast);
 
       rewriter.replaceOp(op, reshape);
 
@@ -256,14 +257,15 @@ public:
     }
 
     std::for_each(dimSizes.begin(), dimSizes.end(), [&](Value &dSize) {
-      dSize = rewriter.create<ToI64Op>(loc, dSize).getResult();
+      dSize = ToI64Op::create(rewriter, loc, dSize).getResult();
       return dSize;
     });
 
-    Value numel = rewriter.create<shape::NumElementsOp>(
-        loc, rewriter.create<shape::ShapeOfOp>(loc, adaptor.getSelf()));
+    Value numel = shape::NumElementsOp::create(
+        rewriter, loc,
+        shape::ShapeOfOp::create(rewriter, loc, adaptor.getSelf()));
     numel =
-        rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), numel);
+        arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(), numel);
 
     // note: assuming that -1 doesn't arise from dynamic value
     if (negOneIndex.size() == 1) {
@@ -271,7 +273,7 @@ public:
       Value realDim = numel;
       for (size_t i = 0; i < dimSizes.size(); i++) {
         if (i != index) {
-          realDim = rewriter.create<arith::DivUIOp>(loc, realDim, dimSizes[i]);
+          realDim = arith::DivUIOp::create(rewriter, loc, realDim, dimSizes[i]);
         }
       }
       // update -1 to realDim
@@ -279,7 +281,7 @@ public:
     }
 
     Value stablehloShape =
-        rewriter.create<tensor::FromElementsOp>(loc, dimSizes);
+        tensor::FromElementsOp::create(rewriter, loc, dimSizes);
     rewriter.replaceOpWithNewOp<stablehlo::DynamicReshapeOp>(
         op,
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -393,7 +395,7 @@ LogicalResult ConvertAtenOp<AtenSqueezeOp>::matchAndRewrite(
         op, "failed to get dimension sizes of the input");
   auto newDimSizes = *newDimSizesInfo;
   auto stablehloShape =
-      rewriter.create<tensor::FromElementsOp>(op.getLoc(), newDimSizes);
+      tensor::FromElementsOp::create(rewriter, op.getLoc(), newDimSizes);
   rewriter.replaceOpWithNewOp<stablehlo::DynamicReshapeOp>(
       op, getTypeConverter()->convertType(op.getType()), self, stablehloShape);
   return success();
@@ -444,7 +446,7 @@ LogicalResult ConvertAtenOp<AtenSqueezeDimOp>::matchAndRewrite(
         op, "failed to get dimension sizes of the input");
   auto newDimSizes = *newDimSizesInfo;
   auto stablehloShape =
-      rewriter.create<tensor::FromElementsOp>(op.getLoc(), newDimSizes);
+      tensor::FromElementsOp::create(rewriter, op.getLoc(), newDimSizes);
   rewriter.replaceOpWithNewOp<stablehlo::DynamicReshapeOp>(
       op, getTypeConverter()->convertType(op.getType()), self, stablehloShape);
   return success();

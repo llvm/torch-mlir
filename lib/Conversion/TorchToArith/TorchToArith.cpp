@@ -9,13 +9,15 @@
 
 #include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
 
-#include "../PassDetail.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/DialectResourceBlobManager.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Conversion/Passes.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -25,6 +27,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch {
+
+#define GEN_PASS_DEF_CONVERTTORCHTOARITH
+#include "torch-mlir/Conversion/Passes.h.inc"
 
 // -----------------------------------------------------------------------------
 // Patterns (as this grows, it should be organized into multiple files)
@@ -41,7 +47,7 @@ public:
   matchAndRewrite(AtenDimOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto rank =
-        rewriter.create<tensor::RankOp>(op->getLoc(), adaptor.getSelf());
+        tensor::RankOp::create(rewriter, op->getLoc(), adaptor.getSelf());
     rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
         op, getTypeConverter()->convertType(op.getType()), rank);
     return success();
@@ -96,8 +102,8 @@ public:
     Value a = adaptor.getA();
     rewriter.replaceOpWithNewOp<arith::SubIOp>(
         op,
-        rewriter.create<arith::ConstantIntOp>(op.getLoc(), /*value=*/0,
-                                              /*bitwidth=*/64),
+        arith::ConstantIntOp::create(rewriter, op.getLoc(), /*value=*/0,
+                                     /*bitwidth=*/64),
         a);
     return success();
   }
@@ -119,7 +125,7 @@ public:
         this->getTypeConverter()->convertType(op->getResult(0).getType());
     if (!isa<mlir::FloatType>(input.getType()))
       input = convertScalarToDtype(rewriter, loc, input, rewriter.getF64Type());
-    Value result = rewriter.create<UnaryOp>(loc, input);
+    Value result = UnaryOp::create(rewriter, loc, input);
     rewriter.replaceOp(op,
                        convertScalarToDtype(rewriter, loc, result, resultType));
     return success();
@@ -347,7 +353,7 @@ public:
         rewriter, loc, this->getTypeConverter(), inputListTorchBool);
     result = inputList[0];
     for (unsigned i = 1; i < inputList.size(); i++)
-      result = rewriter.create<BinOp>(loc, result, inputList[i]);
+      result = BinOp::create(rewriter, loc, result, inputList[i]);
     rewriter.replaceOp(op, result);
     return success();
   }
@@ -385,15 +391,15 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Type inputType = adaptor.getA().getType();
-    Value cstZero = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getZeroAttr(inputType));
+    Value cstZero = arith::ConstantOp::create(rewriter, loc,
+                                              rewriter.getZeroAttr(inputType));
     Value cstTrue =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getBoolAttr(true));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getBoolAttr(true));
     Value cstFalse =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getBoolAttr(false));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getBoolAttr(false));
 
     Value cmpPred;
-    cmpPred = rewriter.create<CmpOpTy>(loc, Pred, adaptor.getA(), cstZero);
+    cmpPred = CmpOpTy::create(rewriter, loc, Pred, adaptor.getA(), cstZero);
     rewriter.replaceOpWithNewOp<arith::SelectOp>(op, cmpPred, cstTrue,
                                                  cstFalse);
     return success();
@@ -407,7 +413,7 @@ public:
 
 namespace {
 class ConvertTorchToArith
-    : public ConvertTorchToArithBase<ConvertTorchToArith> {
+    : public impl::ConvertTorchToArithBase<ConvertTorchToArith> {
 public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<func::FuncDialect>();
@@ -565,7 +571,8 @@ public:
 };
 } // namespace
 
-std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::createConvertTorchToArithPass() {
+std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToArithPass() {
   return std::make_unique<ConvertTorchToArith>();
 }
+
+} // namespace mlir::torch

@@ -9,7 +9,6 @@
 
 #include "torch-mlir/Conversion/TorchToStablehlo/TorchToStablehlo.h"
 
-#include "../PassDetail.h"
 #include "./PopulatePatterns.h"
 
 #include "stablehlo/dialect/StablehloOps.h"
@@ -39,8 +38,8 @@ LogicalResult ConvertAtenOp<AtenUniformOp>::matchAndRewrite(
   if (llvm::any_of(elements,
                    [](int64_t dim) { return dim == ShapedType::kDynamic; }))
     return rewriter.notifyMatchFailure(op, "Dynamic shape support TBD");
-  auto shape_tensor = rewriter.create<stablehlo::ConstantOp>(
-      loc, rewriter.getI64TensorAttr(elements));
+  auto shape_tensor = stablehlo::ConstantOp::create(
+      rewriter, loc, rewriter.getI64TensorAttr(elements));
   auto outTy = getTypeConverter()->convertType(op.getType());
   auto outElemTy = cast<RankedTensorType>(outTy).getElementType();
   Value from =
@@ -77,13 +76,13 @@ LogicalResult ConvertAtenOp<AtenRandnGeneratorOp>::matchAndRewrite(
   }
   auto scalarTy = RankedTensorType::get({}, outElemTy);
 
-  Value shapeTensor = rewriter.create<stablehlo::ConstantOp>(
-      loc, rewriter.getI64TensorAttr(shape));
-  Value mean = rewriter.create<stablehlo::ConstantOp>(
-      loc,
+  Value shapeTensor = stablehlo::ConstantOp::create(
+      rewriter, loc, rewriter.getI64TensorAttr(shape));
+  Value mean = stablehlo::ConstantOp::create(
+      rewriter, loc,
       DenseElementsAttr::get(scalarTy, rewriter.getFloatAttr(outElemTy, 0.0)));
-  Value var = rewriter.create<stablehlo::ConstantOp>(
-      loc,
+  Value var = stablehlo::ConstantOp::create(
+      rewriter, loc,
       DenseElementsAttr::get(scalarTy, rewriter.getFloatAttr(outElemTy, 1.0)));
 
   rewriter.replaceOpWithNewOp<stablehlo::RngOp>(
@@ -108,8 +107,8 @@ LogicalResult ConvertAtenOp<AtenNormalFunctionalOp>::matchAndRewrite(
   if (llvm::any_of(elements,
                    [](int64_t dim) { return dim == ShapedType::kDynamic; }))
     return rewriter.notifyMatchFailure(op, "Dynamic shape support TBD");
-  auto shapeTensor = rewriter.create<stablehlo::ConstantOp>(
-      loc, rewriter.getI64TensorAttr(elements));
+  auto shapeTensor = stablehlo::ConstantOp::create(
+      rewriter, loc, rewriter.getI64TensorAttr(elements));
   auto outTy = getTypeConverter()->convertType(op.getType());
   auto outElemTy = cast<RankedTensorType>(outTy).getElementType();
   Value mean =

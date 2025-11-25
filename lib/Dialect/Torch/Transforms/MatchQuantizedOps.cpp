@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetail.h"
-
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -17,6 +17,10 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
+namespace mlir::torch::Torch {
+
+#define GEN_PASS_DEF_MATCHQUANTIZEDCUSTOMOPS
+#include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
 namespace {
 
@@ -45,13 +49,13 @@ public:
 
       auto qTy =
           rewriter.getType<ValueTensorType>(resultTy.getOptionalSizes(), qeTy);
-      Value quant = rewriter.create<AtenQuantizePerTensorOp>(
-          op.getLoc(), qTy,
+      Value quant = AtenQuantizePerTensorOp::create(
+          rewriter, op.getLoc(), qTy,
           /*self=*/op.getOperand(0), /*scale=*/op.getOperand(1),
           /*zero_point=*/op.getOperand(2), /*dtype=*/op.getOperand(5));
 
       if (qTy != resultTy) {
-        quant = rewriter.create<AtenIntReprOp>(op.getLoc(), resultTy, quant);
+        quant = AtenIntReprOp::create(rewriter, op.getLoc(), resultTy, quant);
       }
 
       rewriter.replaceOpWithNewOp<AtenClampOp>(
@@ -62,8 +66,8 @@ public:
     auto prepareDequantize = [&](Value quantMin, Value quantMax, Value &clamp,
                                  Type &qTy) {
       clamp =
-          rewriter.create<AtenClampOp>(op.getLoc(), op.getOperand(0).getType(),
-                                       op.getOperand(0), quantMin, quantMax);
+          AtenClampOp::create(rewriter, op.getLoc(), op.getOperand(0).getType(),
+                              op.getOperand(0), quantMin, quantMax);
 
       auto clampTy = cast<Torch::ValueTensorType>(clamp.getType());
       if (!clampTy.hasDtype())
@@ -88,8 +92,9 @@ public:
                                    qTy)))
         return failure();
 
-      auto quant = rewriter.create<Aten_MakePerTensorQuantizedTensorOp>(
-          op.getLoc(), qTy, clamp, op.getOperand(1), op.getOperand(2));
+      auto quant = Aten_MakePerTensorQuantizedTensorOp::create(
+          rewriter, op.getLoc(), qTy, clamp, op.getOperand(1),
+          op.getOperand(2));
       rewriter.replaceOpWithNewOp<AtenDequantizeTensorOp>(
           op, op.getResultTypes(), quant);
       return success();
@@ -101,8 +106,8 @@ public:
       if (failed(prepareDequantize(op.getOperand(4), op.getOperand(5), clamp,
                                    qTy)))
         return failure();
-      auto quant = rewriter.create<Aten_MakePerChannelQuantizedTensorOp>(
-          op.getLoc(), qTy, clamp, op.getOperand(1), op.getOperand(2),
+      auto quant = Aten_MakePerChannelQuantizedTensorOp::create(
+          rewriter, op.getLoc(), qTy, clamp, op.getOperand(1), op.getOperand(2),
           op.getOperand(3));
       rewriter.replaceOpWithNewOp<AtenDequantizeSelfOp>(op, op.getResultTypes(),
                                                         quant);
@@ -114,7 +119,7 @@ public:
 };
 
 class MatchQuantizedCustomOpsPass
-    : public MatchQuantizedCustomOpsBase<MatchQuantizedCustomOpsPass> {
+    : public impl::MatchQuantizedCustomOpsBase<MatchQuantizedCustomOpsPass> {
 public:
   void runOnOperation() override {
     MLIRContext *context = &getContext();
@@ -131,6 +136,8 @@ public:
 } // namespace
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::torch::Torch::createMatchQuantizedCustomOpsPass() {
+createMatchQuantizedCustomOpsPass() {
   return std::make_unique<MatchQuantizedCustomOpsPass>();
 }
+
+} // namespace mlir::torch::Torch
