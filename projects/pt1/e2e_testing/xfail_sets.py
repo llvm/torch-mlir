@@ -3824,7 +3824,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "MaxPool3dWithIndicesNonDefaultStrideModule_basic",
     "MaxPool3dWithIndicesStaticModule_basic",
     "MaxPool3dSingleIntTupleDilationModule_basic",
-    "MeanDimEmptyDimModule_basic",
     "MlGroupNormManualModule_basic",
     "MlGroupNormModule_basic",
     "MlLayerNormManualModule_basic",
