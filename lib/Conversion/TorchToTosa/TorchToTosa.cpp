@@ -3007,15 +3007,13 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
     // keep TOSA constants signless and avoid downstream type mismatches.
     auto shapedAttrTy = cast<ShapedType>(res.getType());
     if (auto intTy = dyn_cast<IntegerType>(shapedAttrTy.getElementType())) {
-      auto signlessTy =
-          IntegerType::get(rewriter.getContext(), intTy.getWidth());
-      if (intTy != signlessTy) {
+      if (!intTy.isSignless()) {
+        auto signlessTy =
+            IntegerType::get(rewriter.getContext(), intTy.getWidth());
         auto newTy = RankedTensorType::get(shapedAttrTy.getShape(), signlessTy);
         attr = DenseResourceElementsAttr::get(newTy, res.getRawHandle());
       }
     }
-    rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputTy, attr);
-    return success();
   }
   rewriter.replaceOpWithNewOp<tosa::ConstOp>(op, outputTy, attr);
   return success();
