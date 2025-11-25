@@ -58,6 +58,52 @@ def ReduceSumDtypeFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ReduceSumEmptyDimListInt8ToInt32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.int8, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.sum(a, dim=[], dtype=torch.int32)
+
+
+@register_test_case(module_factory=lambda: ReduceSumEmptyDimListInt8ToInt32Module())
+def ReduceSumEmptyDimListInt8ToInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, low=-16, high=16).to(torch.int8))
+
+
+# ==============================================================================
+
+
+class ReduceSumEmptyDimListInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.int8, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.sum(a, dim=[])
+
+
+@register_test_case(module_factory=lambda: ReduceSumEmptyDimListInt8Module())
+def ReduceSumEmptyDimListInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, low=-16, high=16).to(torch.int8))
+
+
+# ==============================================================================
+
+
 class ReduceSumElementTypeBoolModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

@@ -325,6 +325,53 @@ func.func @test_reduce_sum_dims$basic(%arg0: !torch.vtensor<[3,4,5,6],f32>) -> !
 
 // -----
 
+// CHECK-LABEL:   func.func @test_reduce_sum_empty_dims$basic(
+// CHECK-SAME:                                               %[[INPUT_F32:.*]]: !torch.vtensor<[2,3,4],f32>) -> !torch.vtensor<[],f32> {
+// CHECK:           %[[INPUT_F32_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INPUT_F32]] : !torch.vtensor<[2,3,4],f32> -> tensor<2x3x4xf32>
+// CHECK:           %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[EMPTY_DIMS:.*]] = torch.prim.ListConstruct  : () -> !torch.list<int>
+// CHECK:           %[[SUM_DIM0:.*]] = tosa.reduce_sum %[[INPUT_F32_TENSOR]] {axis = 0 : i32} : (tensor<2x3x4xf32>) -> tensor<1x3x4xf32>
+// CHECK:           %[[SUM_DIM1:.*]] = tosa.reduce_sum %[[SUM_DIM0]] {axis = 1 : i32} : (tensor<1x3x4xf32>) -> tensor<1x1x4xf32>
+// CHECK:           %[[SUM_DIM2:.*]] = tosa.reduce_sum %[[SUM_DIM1]] {axis = 2 : i32} : (tensor<1x1x4xf32>) -> tensor<1x1x1xf32>
+// CHECK:           %[[SCALAR_SHAPE:.*]] = tosa.const_shape
+// CHECK:           %[[RESHAPED_SCALAR:.*]] = tosa.reshape %[[SUM_DIM2]], %[[SCALAR_SHAPE]] : (tensor<1x1x1xf32>, !tosa.shape<0>) -> tensor<f32>
+// CHECK:           %[[RESULT_F32:.*]] = torch_c.from_builtin_tensor %[[RESHAPED_SCALAR]] : tensor<f32> -> !torch.vtensor<[],f32>
+// CHECK:           return %[[RESULT_F32]] : !torch.vtensor<[],f32>
+// CHECK:         }
+func.func @test_reduce_sum_empty_dims$basic(%arg0: !torch.vtensor<[2,3,4],f32>) -> !torch.vtensor<[],f32> {
+  %dtype_none = torch.constant.none
+  %keep_dims_false = torch.constant.bool false
+  %all_dims_list = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %sum_all_dims = torch.aten.sum.dim_IntList %arg0, %all_dims_list, %keep_dims_false, %dtype_none : !torch.vtensor<[2,3,4],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %sum_all_dims : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @test_reduce_sum_empty_dims_i8_to_i32$basic(
+// CHECK-SAME:                                                         %[[INPUT_I8:.*]]: !torch.vtensor<[2,3,4],si8>) -> !torch.vtensor<[],si32> {
+// CHECK:           %[[INPUT_I8_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INPUT_I8]] : !torch.vtensor<[2,3,4],si8> -> tensor<2x3x4xi8>
+// CHECK:           %[[DTYPE_I32:.*]] = torch.constant.int 3
+// CHECK:           %[[EMPTY_DIMS:.*]] = torch.prim.ListConstruct  : () -> !torch.list<int>
+// CHECK:           %[[CAST_INPUT_TO_I32:.*]] = tosa.cast %[[INPUT_I8_TENSOR]] : (tensor<2x3x4xi8>) -> tensor<2x3x4xi32>
+// CHECK:           %[[SUM_DIM0:.*]] = tosa.reduce_sum %[[CAST_INPUT_TO_I32]] {axis = 0 : i32} : (tensor<2x3x4xi32>) -> tensor<1x3x4xi32>
+// CHECK:           %[[SUM_DIM1:.*]] = tosa.reduce_sum %[[SUM_DIM0]] {axis = 1 : i32} : (tensor<1x3x4xi32>) -> tensor<1x1x4xi32>
+// CHECK:           %[[SUM_DIM2:.*]] = tosa.reduce_sum %[[SUM_DIM1]] {axis = 2 : i32} : (tensor<1x1x4xi32>) -> tensor<1x1x1xi32>
+// CHECK:           %[[SCALAR_SHAPE:.*]] = tosa.const_shape
+// CHECK:           %[[RESHAPED_SCALAR:.*]] = tosa.reshape %[[SUM_DIM2]], %[[SCALAR_SHAPE]] : (tensor<1x1x1xi32>, !tosa.shape<0>) -> tensor<i32>
+// CHECK:           %[[RESULT_I32:.*]] = torch_c.from_builtin_tensor %[[RESHAPED_SCALAR]] : tensor<i32> -> !torch.vtensor<[],si32>
+// CHECK:           return %[[RESULT_I32]] : !torch.vtensor<[],si32>
+// CHECK:         }
+func.func @test_reduce_sum_empty_dims_i8_to_i32$basic(%arg0: !torch.vtensor<[2,3,4],si8>) -> !torch.vtensor<[],si32> {
+  %dtype_i32 = torch.constant.int 3
+  %keep_dims_false = torch.constant.bool false
+  %all_dims_list = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %sum_all_dims_to_i32 = torch.aten.sum.dim_IntList %arg0, %all_dims_list, %keep_dims_false, %dtype_i32 : !torch.vtensor<[2,3,4],si8>, !torch.list<int>, !torch.bool, !torch.int -> !torch.vtensor<[],si32>
+  return %sum_all_dims_to_i32 : !torch.vtensor<[],si32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @test_linalg_vector_norm$basic(
 // CHECK-SAME:                                             %[[VAL_0:.*]]: !torch.vtensor<[3,151,64],f32>) -> !torch.vtensor<[3,151,1],f32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,151,64],f32> -> tensor<3x151x64xf32>
