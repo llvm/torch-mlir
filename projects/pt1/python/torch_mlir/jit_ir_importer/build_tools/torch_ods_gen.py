@@ -29,7 +29,7 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "int[]": "AnyTorchListOfTorchIntType",
     "int?": "AnyTorchOptionalIntType",
     "int[]?": "AnyTorchOptionalListOfTorchIntType",
-    "SymInt": "Torch_IntType",
+    "SymInt": "AnyTorchScalarType",
     "bool": "Torch_BoolType",
     "bool[]": "AnyTorchListOfTorchBoolType",
     "bool?": "AnyTorchOptionalBoolType",

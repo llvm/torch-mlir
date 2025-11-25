@@ -15213,8 +15213,8 @@ def Torch_AtenScaledDotProductFlashAttentionOp : Torch_Op<"aten._scaled_dot_prod
     AnyTorchOptionalTensorType:$logsumexp,
     AnyTorchOptionalTensorType:$cum_seq_q,
     AnyTorchOptionalTensorType:$cum_seq_k,
-    Torch_IntType:$max_q,
-    Torch_IntType:$max_k,
+    Torch_SymIntType:$max_q,
+    Torch_SymIntType:$max_k,
     AnyTorchOptionalTensorType:$rng_state,
     AnyTorchOptionalTensorType:$unused,
     AnyTorchOptionalTensorType:$debug_attn_mask
