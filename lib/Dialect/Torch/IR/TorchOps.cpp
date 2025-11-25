@@ -5943,17 +5943,25 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "non-const int padding unsupported!");
     }
-    SmallVector<int64_t, 3> outputPaddingInts;
-    if (!matchPattern(op.getOutputPadding(),
-                      m_TorchListOfConstantInts(outputPaddingInts))) {
-      return rewriter.notifyMatchFailure(
-          op, "non-const int output_padding unsupported!");
-    }
+
     SmallVector<int64_t, 3> dilationInts;
     if (!matchPattern(op.getDilation(),
                       m_TorchListOfConstantInts(dilationInts))) {
       return rewriter.notifyMatchFailure(op,
                                          "non-const int dilation unsupported!");
+    }
+
+    bool transposed;
+    if (!matchPattern(op.getTransposed(), m_TorchConstantBool(&transposed))) {
+      return rewriter.notifyMatchFailure(
+          op, "non-const int tranposed unsupported!");
+    }
+
+    SmallVector<int64_t, 3> outputPaddingInts;
+    if (!matchPattern(op.getOutputPadding(),
+                      m_TorchListOfConstantInts(outputPaddingInts))) {
+      return rewriter.notifyMatchFailure(
+          op, "non-const int output_padding unsupported!");
     }
 
     // Canonicalization Logic: Only rewrite if padding provided is 1 element
@@ -5963,16 +5971,23 @@ public:
     };
 
     if (isCanonical(strideInts) && isCanonical(paddingInts) &&
-        isCanonical(dilationInts) && isCanonical(outputPaddingInts)) {
+        isCanonical(dilationInts)) {
       return rewriter.notifyMatchFailure(
           op, "stride, padding, dialtion and outputPadding is already fully "
               "specified");
     }
 
+    if (transposed && isCanonical(outputPaddingInts)) {
+      return rewriter.notifyMatchFailure(
+          op, "output_padding is already fully specified");
+    }
+
     expand(strideInts, requiredSpatialDims);
     expand(paddingInts, requiredSpatialDims);
     expand(dilationInts, requiredSpatialDims);
-    expand(outputPaddingInts, requiredSpatialDims);
+
+    if (transposed)
+      expand(outputPaddingInts, requiredSpatialDims);
 
     // Construct the new List
     // For example: If user provided padding=[1], and we need 2 or 3 dims, we
@@ -5991,8 +6006,9 @@ public:
       cstDilation.push_back(Torch::ConstantIntOp::create(
           rewriter, loc, rewriter.getI64IntegerAttr(dilationInts[dim])));
 
-      cstOutputPadding.push_back(Torch::ConstantIntOp::create(
-          rewriter, loc, rewriter.getI64IntegerAttr(outputPaddingInts[dim])));
+      if (transposed)
+        cstOutputPadding.push_back(Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(outputPaddingInts[dim])));
     }
 
     auto targetListType =
@@ -6005,8 +6021,14 @@ public:
         rewriter, loc, targetListType, cstPadding);
     auto dilationsList = Torch::PrimListConstructOp::create(
         rewriter, loc, targetListType, cstDilation);
-    auto outputPaddingList = Torch::PrimListConstructOp::create(
-        rewriter, loc, targetListType, cstOutputPadding);
+
+    Value outputPaddingList;
+    if (transposed) {
+      outputPaddingList = Torch::PrimListConstructOp::create(
+          rewriter, loc, targetListType, cstOutputPadding);
+    } else {
+      outputPaddingList = op.getOutputPadding();
+    }
 
     // Replace the Op
     // We create a new convolution op, keeping all operands the same except
@@ -6015,8 +6037,8 @@ public:
     rewriter.replaceOpWithNewOp<AtenConvolutionOp>(
         op, op.getType(), op.getInput(), op.getWeight(), op.getBias(),
         stridesList.getResult(), paddingList.getResult(),
-        dilationsList.getResult(), op.getTransposed(),
-        outputPaddingList.getResult(), op.getGroups());
+        dilationsList.getResult(), op.getTransposed(), outputPaddingList,
+        op.getGroups());
 
     return success();
   }
