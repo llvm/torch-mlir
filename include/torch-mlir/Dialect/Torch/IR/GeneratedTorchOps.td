@@ -15198,7 +15198,7 @@ def Torch_AtenScaledDotProductFlashAttentionOp : Torch_Op<"aten._scaled_dot_prod
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::_scaled_dot_product_flash_attention(Tensor, Tensor, Tensor, float, bool, bool, float?) -> (Tensor, Tensor, Tensor, Tensor, SymInt, SymInt, Tensor, Tensor, Tensor)`";
+  let summary = "Generated op for `aten::_scaled_dot_product_flash_attention(Tensor, Tensor, Tensor, float, bool, bool, float?) -> (Tensor, Tensor, Tensor, Tensor, int, int, Tensor, Tensor, Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$query,
     AnyTorchTensorType:$key,
@@ -15213,8 +15213,8 @@ def Torch_AtenScaledDotProductFlashAttentionOp : Torch_Op<"aten._scaled_dot_prod
     AnyTorchOptionalTensorType:$logsumexp,
     AnyTorchOptionalTensorType:$cum_seq_q,
     AnyTorchOptionalTensorType:$cum_seq_k,
-    AnyTorchScalarType:$max_q,
-    AnyTorchScalarType:$max_k,
+    Torch_IntType:$max_q,
+    Torch_IntType:$max_k,
     AnyTorchOptionalTensorType:$rng_state,
     AnyTorchOptionalTensorType:$unused,
     AnyTorchOptionalTensorType:$debug_attn_mask

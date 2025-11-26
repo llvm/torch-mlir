@@ -29,7 +29,6 @@ TORCH_TYPE_TO_ODS_TYPE = {
     "int[]": "AnyTorchListOfTorchIntType",
     "int?": "AnyTorchOptionalIntType",
     "int[]?": "AnyTorchOptionalListOfTorchIntType",
-    "SymInt": "AnyTorchScalarType",
     "bool": "Torch_BoolType",
     "bool[]": "AnyTorchListOfTorchBoolType",
     "bool?": "AnyTorchOptionalBoolType",
@@ -1094,7 +1093,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?, bool) -> (Tensor)"
     )
     emit(
-        "aten::_scaled_dot_product_flash_attention(Tensor, Tensor, Tensor, float, bool, bool, float?) -> (Tensor, Tensor, Tensor, Tensor, SymInt, SymInt, Tensor, Tensor, Tensor)"
+        "aten::_scaled_dot_product_flash_attention(Tensor, Tensor, Tensor, float, bool, bool, float?) -> (Tensor, Tensor, Tensor, Tensor, int, int, Tensor, Tensor, Tensor)"
     )
     emit("aten::grid_sampler : (Tensor, Tensor, int, int, bool) -> (Tensor)")
     emit(
