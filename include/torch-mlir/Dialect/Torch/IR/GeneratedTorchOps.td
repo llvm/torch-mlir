@@ -15193,12 +15193,12 @@ def Torch_AtenScaledDotProductAttentionOp : Torch_Op<"aten.scaled_dot_product_at
   }];
 }
 
-def Torch_AtenScaledDotProductFlashAttentionOp : Torch_Op<"aten._scaled_dot_product_flash_attention", [
+def Torch_Aten_ScaledDotProductFlashAttentionOp : Torch_Op<"aten._scaled_dot_product_flash_attention", [
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::_scaled_dot_product_flash_attention(Tensor, Tensor, Tensor, float, bool, bool, float?) -> (Tensor, Tensor, Tensor, Tensor, int, int, Tensor, Tensor, Tensor)`";
+  let summary = "Generated op for `aten::_scaled_dot_product_flash_attention : (Tensor, Tensor, Tensor, float, bool, bool, float?) -> (Tensor, Tensor, Tensor, Tensor, int, int, Tensor, Tensor, Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$query,
     AnyTorchTensorType:$key,
@@ -15221,10 +15221,10 @@ def Torch_AtenScaledDotProductFlashAttentionOp : Torch_Op<"aten._scaled_dot_prod
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
-    ParseResult AtenScaledDotProductFlashAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
+    ParseResult Aten_ScaledDotProductFlashAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
       return parseDefaultTorchOp(parser, result, 7, 9);
     }
-    void AtenScaledDotProductFlashAttentionOp::print(OpAsmPrinter &printer) {
+    void Aten_ScaledDotProductFlashAttentionOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 7, 9);
     }
   }];
