@@ -1905,6 +1905,150 @@ class GraphNodeImporter:
         for i, value in enumerate(operation.results):
             self.bind_node_value(node, value, i + bind_none)
 
+    def _import_hop_flex_attention(
+        self, loc: Location, node: torch_fx.Node, hop: HigherOrderOperator
+    ):
+        """Imports the torch._higher_order_ops.flex_attention HOP.
+
+        Args format: (query, key, value, score_mod, block_mask, scale, kernel_options, ...)
+        - query, key, value: Attention input tensors
+        - score_mod: Optional submodule/callable for score modification (imported as function)
+        - block_mask: Optional BlockMask tuple containing mask_mod function and runtime tensors
+        - scale: Optional float for attention score scaling
+        - kernel_options: Optional Dict of performance tuning options:
+            - return_lse: Boolean for whether to return the log-sum-exp tensor
+
+        This creates a call to hop_flex_attention with function symbol references for
+        score_mod and mask_mod.
+        """
+        # flex_attention HOP args from PyTorch:
+        # (query, key, value, score_mod, block_mask, scale, kernel_options, ...)
+        (
+            query_arg,
+            key_arg,
+            value_arg,
+            score_mod_arg,
+            block_mask_arg,
+            scale_arg,
+            kernel_options,
+        ) = node.args[:7]
+
+        # Import Q, K, V tensors
+        query = self._import_argument(loc, query_arg, None)
+        key = self._import_argument(loc, key_arg, None)
+        value = self._import_argument(loc, value_arg, None)
+
+        score_mod_ref = None
+        if score_mod_arg is not None and isinstance(score_mod_arg, torch_fx.Node):
+            assert (
+                score_mod_arg.op == "get_attr"
+            ), f"Expected get_attr for score_mod, got {score_mod_arg.op}"
+            root_module = node.graph.owning_module
+            score_mod_module = getattr(root_module, score_mod_arg.target, None)
+            if score_mod_module is not None:
+                score_mod_func_name = self.fx_importer._graph_module_to_func_name[
+                    id(score_mod_module)
+                ]
+                score_mod_ref = FlatSymbolRefAttr.get(score_mod_func_name)
+
+        # Handle block_mask: extract only mask_mod function reference
+        # Note: BlockMask contains runtime tensors (kv_num_blocks, kv_indices, etc.)
+        # that are materialized by evaluating mask_mod(b, h, q_idx, kv_idx).
+        mask_mod_ref = None
+        if block_mask_arg is not None and isinstance(block_mask_arg, tuple):
+            root_module = node.graph.owning_module
+            # The mask_mod function is the last element in the BlockMask tuple
+            mask_mod_arg = block_mask_arg[-1]
+            if mask_mod_arg is not None and isinstance(mask_mod_arg, torch_fx.Node):
+                assert (
+                    mask_mod_arg.op == "get_attr"
+                ), f"Expected get_attr for mask_mod, got {mask_mod_arg.op}"
+                mask_mod_module = getattr(root_module, mask_mod_arg.target, None)
+                if mask_mod_module is not None:
+                    mask_mod_func_name = self.fx_importer._graph_module_to_func_name[
+                        id(mask_mod_module)
+                    ]
+                    mask_mod_ref = FlatSymbolRefAttr.get(mask_mod_func_name)
+
+        # Import scale (float or None)
+        if scale_arg is None:
+            scale = Operation.create(
+                "torch.constant.none",
+                results=[self._cc.torch_none_type],
+                loc=loc,
+            ).result
+        elif isinstance(scale_arg, (int, float)):
+            with loc:
+                scale = _make_constant_op(
+                    "torch.constant.float",
+                    FloatAttr.get_f64(float(scale_arg)),
+                    self._cc.torch_float_type,
+                ).result
+        else:
+            scale = self._import_argument(loc, scale_arg, None)
+
+        # Determine result types from node metadata
+        node_val = node.meta.get("val")
+        if isinstance(node_val, (list, tuple)) and len(node_val) >= 2:
+            # flex_attention returns (output, logsumexp)
+            result_types = [self._cc.value_info_to_type(v) for v in node_val]
+            self._multi_result_nodes.add(node)
+        else:
+            # Single output
+            result_types = [self._cc.node_val_to_type(node)]
+
+        # Extract OUTPUT_LOGSUMEXP and OUTPUT_MAX from kernel_options
+        with loc:
+            return_lse = _make_constant_op(
+                "torch.constant.bool",
+                self._cc.integer_attr(
+                    bool(kernel_options.get("OUTPUT_LOGSUMEXP", 0)), 1
+                ),
+                self._cc.torch_bool_type,
+            ).result
+            return_max_scores = _make_constant_op(
+                "torch.constant.bool",
+                self._cc.integer_attr(bool(kernel_options.get("OUTPUT_MAX", 0)), 1),
+                self._cc.torch_bool_type,
+            ).result
+
+        # Build operands for aten.flex_attention.
+        # Op expects exactly 6 operands: query, key, value, scale, return_lse, return_max_scores.
+        # Note: score_mod_fn and mask_mod_fn go as ATTRIBUTES, not operands.
+        # Note: block_mask tensors are handled by mask_mod_fn, not passed as operands.
+
+        flat_operands = [
+            query,
+            key,
+            value,
+            scale,
+            return_lse,
+            return_max_scores,
+        ]
+
+        # Build attributes with function references
+        # Only include attributes if they're not None (OptionalAttr in TableGen)
+        attributes = {}
+        if score_mod_ref is not None:
+            attributes["score_mod_fn"] = score_mod_ref
+        if mask_mod_ref is not None:
+            attributes["mask_mod_fn"] = mask_mod_ref
+
+        operation = Operation.create(
+            "torch.hop_flex_attention",
+            results=result_types,
+            operands=flat_operands,
+            attributes=attributes if attributes else None,
+            loc=loc,
+        )
+        # Bind results
+        if len(result_types) > 1:
+            self._multi_result_nodes.add(node)
+            for i, value in enumerate(operation.results):
+                self.bind_node_value(node, value, i)
+        else:
+            self.bind_node_value(node, operation.results[0])
+
     def _import_torch_op_overload(
         self,
         loc: Location,
@@ -1932,7 +2076,7 @@ class GraphNodeImporter:
             # torch dynamo where it emits the Tensor variant of ops even when processing
             # scalar arguments, therefore we retrieve the schema as well so that we
             # consume the correct typing information when subsequently importing the
-            # function arguments and result types
+            # function arguments and result types.
             # i.e. the code below is basically doing `schema = torch.ops.aten.my_op.Scalar._schema`
             op_attrs = mlir_op_name.split(".")
             op_overload = getattr(torch, "ops")
