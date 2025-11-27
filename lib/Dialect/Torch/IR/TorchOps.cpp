@@ -266,11 +266,6 @@ LogicalResult HigherOrderFlexAttentionOp::verify() {
   if (queryShape.size() != kAttentionRank) {
     return emitError() << "expected 4D query tensor";
   }
-  // Dynamic head dim is not supported.
-  if (queryShape[3] == kUnknownSize) {
-    return emitError() << "NYI: dynamic head dimension";
-  }
-
   // Check if the element type is a float.
   if (!isa<mlir::FloatType>(queryType.getDtype())) {
     return emitError() << "expected float element type";
