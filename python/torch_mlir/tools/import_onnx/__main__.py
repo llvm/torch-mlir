@@ -146,7 +146,7 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
 
     # Load the temp file and the external data.
     inferred_model = onnx.load(temp_inferred_file, load_external_data=False)
-    data_dir = Path(input_dir if args.temp_dir is None else args.data_dir)
+    data_dir = Path(input_dir if args.data_dir is None else args.data_dir)
     onnx.load_external_data_for_model(inferred_model, str(data_dir))
 
     # Remove the inferred shape file unless asked to keep it
