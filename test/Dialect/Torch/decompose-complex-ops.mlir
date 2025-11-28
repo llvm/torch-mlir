@@ -934,3 +934,19 @@ func.func @channel_shuffle(%arg0: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtens
   %0 = torch.aten.channel_shuffle %arg0, %int4 : !torch.vtensor<[1,8,4,4],f32>, !torch.int -> !torch.vtensor<[1,8,4,4],f32>
   return %0 : !torch.vtensor<[1,8,4,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.as_strided$static_shapes
+func.func @torch.aten.as_strided$static_shapes(%arg0: !torch.vtensor<[4,8],f32>) -> !torch.vtensor<[2,3],f32> {
+  %int0 = torch.constant.int 0
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %size = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: torch.aten.view {{.*}} -> !torch.vtensor<[2,1],si64>
+  // CHECK: torch.aten.view {{.*}} -> !torch.vtensor<[1,3],si64>
+  %0 = torch.aten.as_strided %arg0, %size, %stride, %int0 : !torch.vtensor<[4,8],f32>, !torch.list<int>, !torch.list<int>, !torch.int -> !torch.vtensor<[2,3],f32>
+  return %0 : !torch.vtensor<[2,3],f32>
+}
