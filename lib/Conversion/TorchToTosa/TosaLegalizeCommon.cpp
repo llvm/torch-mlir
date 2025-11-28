@@ -1122,5 +1122,158 @@ convertLinalgVectorNormOp(PatternRewriter &rewriter, Operation *op,
       .getResult();
 }
 
+LogicalResult getIntegerClampAttrs(ConversionPatternRewriter &rewriter,
+                                   Operation *op, Type elemTy,
+                                   std::optional<int64_t> minInt,
+                                   std::optional<int64_t> maxInt,
+                                   IntegerAttr &minAttr, IntegerAttr &maxAttr) {
+
+  if (!elemTy.isInteger()) {
+    return rewriter.notifyMatchFailure(
+        op, "getIntegerClampAttrs expects integer type");
+  }
+
+  int64_t finalMin, finalMax;
+  unsigned bitwidth = elemTy.getIntOrFloatBitWidth();
+
+  switch (bitwidth) {
+  case 8:
+    finalMin = minInt.value_or(std::numeric_limits<int8_t>::min());
+    finalMax = maxInt.value_or(std::numeric_limits<int8_t>::max());
+    break;
+  case 16:
+    finalMin = minInt.value_or(std::numeric_limits<int16_t>::min());
+    finalMax = maxInt.value_or(std::numeric_limits<int16_t>::max());
+    break;
+  case 32:
+    finalMin = minInt.value_or(std::numeric_limits<int32_t>::min());
+    finalMax = maxInt.value_or(std::numeric_limits<int32_t>::max());
+    break;
+  case 64:
+    finalMin = minInt.value_or(std::numeric_limits<int64_t>::min());
+    finalMax = maxInt.value_or(std::numeric_limits<int64_t>::max());
+    break;
+  default:
+    return rewriter.notifyMatchFailure(
+        op, "Unsupported integer bitwidth for clamp");
+  }
+
+  minAttr = rewriter.getIntegerAttr(elemTy, finalMin);
+  maxAttr = rewriter.getIntegerAttr(elemTy, finalMax);
+
+  return success();
+}
+
+LogicalResult getFloatClampAttrs(ConversionPatternRewriter &rewriter,
+                                 Operation *op, Type elemTy,
+                                 std::optional<double> minFloat,
+                                 std::optional<double> maxFloat,
+                                 FloatAttr &minAttr, FloatAttr &maxAttr) {
+
+  if (elemTy.isF16()) {
+    minAttr = rewriter.getF16FloatAttr(
+        minFloat.value_or(torch::Torch::Float16Lowest));
+    maxAttr =
+        rewriter.getF16FloatAttr(maxFloat.value_or(torch::Torch::Float16Max));
+  } else if (elemTy.isBF16()) {
+    minAttr = rewriter.getFloatAttr(
+        elemTy, minFloat.value_or(torch::Torch::BFloat16Lowest));
+    maxAttr = rewriter.getFloatAttr(
+        elemTy, maxFloat.value_or(torch::Torch::BFloat16Max));
+  } else if (elemTy.isF32()) {
+    minAttr = rewriter.getF32FloatAttr(
+        minFloat.value_or(std::numeric_limits<float>::lowest()));
+    maxAttr = rewriter.getF32FloatAttr(
+        maxFloat.value_or(std::numeric_limits<float>::max()));
+  } else if (elemTy.isF64()) {
+    minAttr = rewriter.getF64FloatAttr(
+        minFloat.value_or(std::numeric_limits<double>::lowest()));
+    maxAttr = rewriter.getF64FloatAttr(
+        maxFloat.value_or(std::numeric_limits<double>::max()));
+  } else {
+    return rewriter.notifyMatchFailure(
+        op, "Unsupported floating-point type for clamp");
+  }
+
+  return success();
+}
+
+std::optional<Value> createRoundHalfToEven(ConversionPatternRewriter &rewriter,
+                                           Operation *op, Value input,
+                                           RankedTensorType resultTy) {
+  // To round to the nearest integer, we will consider the fractional part of
+  // the input element (= input element - integer part of element). If the
+  // fractional part is smaller than 0.5, round the number down. If the
+  // fractional part is 0.5, apply "round half to even" rule. If the fractional
+  // part is greater than 0.5, round up.
+  //
+  // if (frac < 0.5 || (frac == 0.5 && floor(input) % 2 == 0)):
+  //   res = floor(input)
+  // else:
+  //   res = ceil(input)
+  auto boolTy =
+      RankedTensorType::get(resultTy.getShape(), rewriter.getIntegerType(1));
+  auto resultElemTy = resultTy.getElementType();
+
+  auto oneHalf =
+      tosa::getConstTensor<float>(rewriter, op, 0.5, {}, resultElemTy).value();
+  auto two =
+      tosa::getConstTensor<float>(rewriter, op, 2, {}, resultElemTy).value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), input, oneHalf)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), input, two).failed()) {
+    op->emitError("Failed to equalize ranks among operands and result");
+    return std::nullopt;
+  }
+
+  auto floorInput =
+      tosa::FloorOp::create(rewriter, op->getLoc(), resultTy, input);
+
+  // input - floor(input)
+  auto fractionalPart = tosa::SubOp::create(rewriter, op->getLoc(), resultTy,
+                                            input, floorInput.getResult());
+
+  auto ceilInput =
+      tosa::CeilOp::create(rewriter, op->getLoc(), resultTy, input);
+
+  auto floorInputDivByTwo = tosa::createMulOpAndCast(
+      rewriter, op, resultTy, floorInput.getResult(), oneHalf, /*shift=*/0);
+
+  auto floorDivResult = tosa::FloorOp::create(rewriter, op->getLoc(), resultTy,
+                                              floorInputDivByTwo.getResult());
+
+  // (floor(input) // 2) * 2
+  auto evenComparison = tosa::createMulOpAndCast(
+      rewriter, op, resultTy, floorDivResult.getResult(), two, /*shift=*/0);
+
+  // floor(input) // 2) * 2 == input <=> floor(input) % 2 == 0
+  auto floorInputEven =
+      tosa::EqualOp::create(rewriter, op->getLoc(), boolTy,
+                            floorInput.getResult(), evenComparison.getResult());
+
+  auto fracEqualOneHalf = tosa::EqualOp::create(
+      rewriter, op->getLoc(), boolTy, fractionalPart.getResult(), oneHalf);
+
+  auto fracLtOneHalf = tosa::GreaterOp::create(
+      rewriter, op->getLoc(), boolTy, oneHalf, fractionalPart.getResult());
+
+  // (frac == 0.5) && (floor(input) % 2 == 0)
+  auto fracEqualOneHalfCond = tosa::LogicalAndOp::create(
+      rewriter, op->getLoc(), boolTy, fracEqualOneHalf.getResult(),
+      floorInputEven.getResult());
+
+  // (frac < 0.5) || ((frac == 0.5) && (floor(input) % 2 == 0))
+  auto floorResultCond = tosa::LogicalOrOp::create(
+      rewriter, op->getLoc(), boolTy, fracLtOneHalf.getResult(),
+      fracEqualOneHalfCond.getResult());
+
+  auto selectOp = tosa::SelectOp::create(
+      rewriter, op->getLoc(), resultTy, floorResultCond.getResult(),
+      floorInput.getResult(), ceilInput.getResult());
+
+  return selectOp.getResult();
+}
+
 } // namespace tosa
 } // namespace mlir
