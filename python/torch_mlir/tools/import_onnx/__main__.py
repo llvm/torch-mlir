@@ -50,9 +50,9 @@ def main(args: argparse.Namespace):
     # some copies.
     if args.output_file and args.output_file != "-":
         with open(args.output_file, "wt") as f:
-            print(m.get_asm(assume_verified=not args.no_verify), file=f)
+            print(m.get_asm(assume_verified=not args.no_verify, enable_debug_info=args.enable_debug_info), file=f)
     else:
-        print(m.get_asm(assume_verified=not args.no_verify))
+        print(m.get_asm(assume_verified=not args.no_verify, enable_debug_info=args.enable_debug_info))
 
 
 def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
@@ -214,6 +214,13 @@ def parse_arguments(argv=None) -> argparse.Namespace:
         action="store_true",
         help="Disable the allowlist for ONNX function expansion,"
         " allowing non-allowlisted functions to be expanded.",
+    )
+    parser.add_argument(
+        "--enable-debug-info",
+        action="store_true",
+        default=False,
+        help="Whether to print debug/location information."
+        " Defaults to False.",
     )
     args = parser.parse_args(argv)
     return args
