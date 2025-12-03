@@ -2892,19 +2892,24 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     auto transConvOpTy = RankedTensorType::get(
         makeShapeLLVMCompatible(outTosaShape), biasElemTy);
 
-    // Zero-points (same helpers as conv path).
-    auto [inputZp, weightZp] = getOrCreateConvZeroPoints(
-        rewriter, op->getLoc(), input, inputElemTy, weight, weightElemTy);
+    // Zero-points.
+    auto inputZp =
+        tosa::getZeroPointValue(rewriter, op, op.getInput(), inputElemTy);
+    auto weightZp =
+        tosa::getZeroPointValue(rewriter, op, op.getWeight(), weightElemTy);
 
-    // Build tosa.transpose_conv2d.
+    if (failed(inputZp) || failed(weightZp)) {
+      return rewriter.notifyMatchFailure(op, "failed to get zero point values");
+    }
+
     Value convTOut = tosa::TransposeConv2DOp::create(
                          rewriter, op->getLoc(),
                          getTypeConverter()->convertType(transConvOpTy),
                          /*input*/ transposedInput,
                          /*weight*/ transformedWeight,
                          /*bias*/ bias,
-                         /*input_zp*/ inputZp,
-                         /*weight_zp*/ weightZp,
+                         /*input_zp*/ *inputZp,
+                         /*weight_zp*/ *weightZp,
                          /*out_pad*/ rewriter.getDenseI64ArrayAttr(outPad),
                          /*stride*/ rewriter.getDenseI64ArrayAttr(stride),
                          /*acc_type*/ accType)
@@ -2922,16 +2927,9 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
             rewriter.getDenseI32ArrayAttr(tosaToTorchDims))
             .getResult();
 
-    // Quantized rescale (reuse existing helper).
-    Value rescaledResult = transposedOutput;
-    if (isa<quant::QuantizedType>(inputElemTy)) {
-      rescaledResult = tosa::buildRescaleOpConvOutput(
-          rewriter, op, transposedOutput, inputTy, weightTy, outputTy);
-    }
-
     // Final cast to requested output type.
     rewriter.replaceOp(
-        op, {tosa::tosaCastTensorToType(rewriter, rescaledResult, outputTy)
+        op, {tosa::tosaCastTensorToType(rewriter, transposedOutput, outputTy)
                  .value()});
     return success();
   }
@@ -3117,8 +3115,17 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     outputShape = {currentShape[0], outputDDim, outputHDim, outputWDim,
                    outputCDim};
   }
-  auto [inputZp, weightZp] = getOrCreateConvZeroPoints(
-      rewriter, op->getLoc(), input, inputElemTy, weight, weightElemTy);
+
+  // create zero-point tensors for input and weight
+  // Zero-points.
+  auto inputZp =
+      tosa::getZeroPointValue(rewriter, op, op.getInput(), inputElemTy);
+  auto weightZp =
+      tosa::getZeroPointValue(rewriter, op, op.getWeight(), weightElemTy);
+
+  if (failed(inputZp) || failed(weightZp)) {
+    return rewriter.notifyMatchFailure(op, "failed to get zero point values");
+  }
 
   Value bias;
   Type biasElemTy;
@@ -3137,7 +3144,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
       convOpResult =
           tosa::Conv3DOp::create(
               rewriter, op->getLoc(), getTypeConverter()->convertType(convOpTy),
-              transposedInput, transformedWeight, bias, inputZp, weightZp,
+              transposedInput, transformedWeight, bias, *inputZp, *weightZp,
               rewriter.getDenseI64ArrayAttr(padding),
               rewriter.getDenseI64ArrayAttr(stride),
               rewriter.getDenseI64ArrayAttr(dilation), accType)
@@ -3146,7 +3153,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
       convOpResult =
           tosa::Conv2DOp::create(
               rewriter, op->getLoc(), getTypeConverter()->convertType(convOpTy),
-              transposedInput, transformedWeight, bias, inputZp, weightZp,
+              transposedInput, transformedWeight, bias, *inputZp, *weightZp,
               rewriter.getDenseI64ArrayAttr(padding),
               rewriter.getDenseI64ArrayAttr(stride),
               rewriter.getDenseI64ArrayAttr(dilation), accType)
@@ -3165,7 +3172,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     convOpResult =
         tosa::DepthwiseConv2DOp::create(
             rewriter, op->getLoc(), getTypeConverter()->convertType(convOpTy),
-            transposedInput, transformedWeight, bias, inputZp, weightZp,
+            transposedInput, transformedWeight, bias, *inputZp, *weightZp,
             rewriter.getDenseI64ArrayAttr(padding),
             rewriter.getDenseI64ArrayAttr(stride),
             rewriter.getDenseI64ArrayAttr(dilation), accType)
@@ -3188,18 +3195,12 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
           rewriter.getDenseI32ArrayAttr(tosaToTorchDims))
           .getResult();
 
-  Value rescaledResult = transposedOutput;
-  if (isa<quant::QuantizedType>(inputElemTy)) {
-    rescaledResult = tosa::buildRescaleOpConvOutput(
-        rewriter, op, transposedOutput, inputTy, weightTy, outputTy);
-  }
-
   // cast to outputTy is required if convOpTy is not same as outputTy
   // the difference is not in the shape information, rather the element-type
   // itself
   rewriter.replaceOp(
-      op,
-      {tosa::tosaCastTensorToType(rewriter, rescaledResult, outputTy).value()});
+      op, {tosa::tosaCastTensorToType(rewriter, transposedOutput, outputTy)
+               .value()});
 
   return success();
 }
@@ -9666,89 +9667,160 @@ class ConvertCastEquivalentOp : public OpConversionPattern<OpTy> {
   }
 };
 
-// Legalization for aten.dequantize.tensor
-template <>
-LogicalResult ConvertAtenOp<AtenDequantizeTensorOp>::matchAndRewrite(
-    AtenDequantizeTensorOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
+// Legalization for aten.dequantize.tensor/aten.dequantize.self
+template <typename AtenOpT>
+class ConvertDequantizeOp : public OpConversionPattern<AtenOpT> {
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
 
-  auto loc = op->getLoc();
-  auto qtensor = adaptor.getQtensor();
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
 
-  // Find the zero_point and scale values from the op itself instead of the
-  // adaptor (that returns converted values in 'tensor' type instead of
-  // 'vtensor') so that the connection with source torch ops carrying the
-  // quantization information is preserved and use-def analysis can be performed
-  // to extract such information.
-  Value zp, scale;
-  auto value = op.getQtensor();
-  if (auto makeQTensor =
-          value.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
-    zp = makeQTensor.getZeroPoint();
-    scale = makeQTensor.getScale();
-  } else if (auto quant = value.getDefiningOp<AtenQuantizePerTensorOp>()) {
-    zp = quant.getZeroPoint();
-    scale = quant.getScale();
+    auto loc = op->getLoc();
+    auto converter = this->getTypeConverter();
+
+    Value qtensor;
+
+    if constexpr (std::is_same<AtenOpT, AtenDequantizeTensorOp>()) {
+      qtensor = adaptor.getQtensor();
+    } else {
+      static_assert(
+          std::is_same<AtenOpT, AtenDequantizeSelfOp>(),
+          "Expected either AtenDequantizeTensorOp or AtenDequantizeSelfOp");
+      qtensor = adaptor.getSelf();
+    }
+    auto qtensorTy = dyn_cast<RankedTensorType>(qtensor.getType());
+    if (!qtensorTy) {
+      return rewriter.notifyMatchFailure(op, "qtensor must be a ranked tensor");
+    }
+
+    if (qtensorTy.getNumDynamicDims() > 1) {
+      return rewriter.notifyMatchFailure(
+          op, "Multiple dynamic dims is not supported.");
+    }
+
+    int rank = qtensorTy.getRank();
+
+    // Get result types
+    auto resultTensorTy = dyn_cast<RankedTensorType>(
+        converter->convertType(op->getResult(0).getType()));
+    // if (!resultTensorTy) {
+    //   return rewriter.notifyMatchFailure(op, "result must be a ranked
+    //   tensor");
+    // }
+
+    auto elemFpTy = resultTensorTy.getElementType();
+    auto shape = resultTensorTy.getShape();
+
+    // Find the quantization params (zero_point, scale, axis) values from
+    // the op itself instead of the adaptor (that returns converted values
+    // in 'tensor' type instead of 'vtensor') so that the connection with
+    // source torch ops carrying the quantization information is preserved
+    // and use-def analysis can be performed to extract such information.
+    auto value = op->getOperand(0);
+    Value zp, scale;
+    int64_t axis;
+    if (failed(getQuantizationParams(value, zp, scale, axis))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "could not find quantization params");
+    }
+
+    // Define intermediate integer calculation type using the same bitwidth
+    // as the output float
+    auto elemIntTy = rewriter.getIntegerType(elemFpTy.getIntOrFloatBitWidth());
+    auto intTensorTy = RankedTensorType::get(shape, elemIntTy);
+
+    // Cast quantized input to intermediate integer type
+    // tosa.cast handles i8 -> i32 extension (as needed)
+    Value intValue = tosa::CastOp::create(rewriter, loc, intTensorTy, qtensor);
+
+    // Helper to align quantization axis for broadcasting
+    auto alignQuantParamRankAndCast = [&](Value quantParam,
+                                          Type targetElemTy) -> Value {
+      // Cast the 1-D tensor to the target element type.
+      auto castedTensor = tosa::CastOp::create(
+          rewriter, loc,
+          cast<RankedTensorType>(quantParam.getType()).clone(targetElemTy),
+          quantParam);
+      auto castedTensorTy = cast<RankedTensorType>(castedTensor.getType());
+
+      // Reshape the 1-D tensor to have the same rank as the input.
+      // This satisfies the TOSA precondition for broadcasting.
+      // e.g., per-channel quantization with axis=1
+      // and input data shape [N, C, H, W]
+      // the quantization param with shape [C] is reshaped to
+      // [1, C, 1, 1] to allow TOSA broadcasting
+      SmallVector<int64_t> reshapeShape(rank, 1);
+      reshapeShape[axis] =
+          castedTensorTy.getShape()[0]; // quantization params is 1D
+      auto reshapeTy = RankedTensorType::get(reshapeShape, targetElemTy);
+      return tosa::ReshapeOp::create(
+          rewriter, loc, reshapeTy, castedTensor,
+          tosa::getTosaConstShape(rewriter, loc, reshapeShape));
+    };
+
+    // Handle Zero Point
+    Value intZp;
+    int64_t zpConst;
+    if (matchPattern(zp, m_TorchConstantInt(&zpConst))) {
+      // Per-tensor case: zero_point is a scalar constant.
+      // Create 0d tensor and equalize rank
+      auto intZpType = RankedTensorType::get({}, elemIntTy);
+      auto intZpAttr = DenseElementsAttr::get(
+          intZpType, rewriter.getIntegerAttr(elemIntTy, zpConst));
+      intZp = tosa::ConstOp::create(rewriter, loc, intZpType, intZpAttr)
+                  .getResult();
+      if (mlir::tosa::EqualizeRanks(rewriter, loc, intValue, intZp).failed())
+        return rewriter.notifyMatchFailure(
+            op, "Failed to equalize ranks among operands for sub op");
+    } else {
+      // Per-channel case: zero_point is a tensor.
+      // Reshape to match rank and cast it to the intermediate integer type.
+      zp = converter->materializeTargetConversion(
+          rewriter, loc, converter->convertType(zp.getType()), zp);
+      intZp = alignQuantParamRankAndCast(zp, elemIntTy);
+    }
+
+    // Subtract: (value - zero_point)
+    Value subResult =
+        tosa::SubOp::create(rewriter, loc, intValue.getType(), intValue, intZp);
+
+    // Multiply: (value - zero_point) * scale
+    // Both operands is cast to result type
+    Value floatResult =
+        tosa::CastOp::create(rewriter, loc, resultTensorTy, subResult);
+
+    // Handle Scale
+    Value floatScale;
+    double scaleConst;
+    if (matchPattern(scale, m_TorchConstantFloat(&scaleConst))) {
+      // Per-tensor case: scale is a scalar constant.
+      // Create 0d tensor and equalize rank
+      auto scaleType = RankedTensorType::get({}, elemFpTy);
+      auto scaleAttr = DenseElementsAttr::get(
+          scaleType, rewriter.getFloatAttr(elemFpTy, scaleConst));
+      floatScale =
+          tosa::ConstOp::create(rewriter, op->getLoc(), scaleType, scaleAttr);
+      if (mlir::tosa::EqualizeRanks(rewriter, loc, floatResult, floatScale)
+              .failed())
+        return rewriter.notifyMatchFailure(
+            op, "Failed to equalize ranks among operands for mul op");
+    } else {
+      // Per-channel case: scale is a tensor.
+      // Reshape to match rank and cast it to the result float type.
+      scale = converter->materializeTargetConversion(
+          rewriter, loc, converter->convertType(scale.getType()), scale);
+      floatScale = alignQuantParamRankAndCast(scale, elemFpTy);
+    }
+
+    auto mulResult = tosa::createMulOpAndCast(
+        rewriter, op, resultTensorTy, floatResult, floatScale, /*shift=*/0);
+
+    rewriter.replaceOp(op, mulResult);
+    return success();
   }
-
-  if (!zp || !scale) {
-    return rewriter.notifyMatchFailure(op,
-                                       "could not find quantization params");
-  }
-
-  int64_t zpConst;
-  double scaleConst;
-  if (!matchPattern(zp, m_TorchConstantInt(&zpConst)))
-    return rewriter.notifyMatchFailure(op,
-                                       "zero point must be a Scalar constant");
-
-  if (!matchPattern(scale, m_TorchConstantFloat(&scaleConst)))
-    return rewriter.notifyMatchFailure(op, "scale must be a Scalar constant");
-
-  // Get result types
-  auto resultTensorTy = cast<RankedTensorType>(
-      getTypeConverter()->convertType(op->getResult(0).getType()));
-  auto elemFpTy = resultTensorTy.getElementType();
-  auto shape = resultTensorTy.getShape();
-
-  // Define intermediate integer calculation type using the same bitwidth as the
-  // output float
-  auto elemIntTy = rewriter.getIntegerType(elemFpTy.getIntOrFloatBitWidth());
-  auto intTensorTy = RankedTensorType::get(shape, elemIntTy);
-
-  // Cast quantized input to intermediate integer type
-  // tosa.cast handles i8 -> i32 extension (as needed)
-  Value intValue = tosa::CastOp::create(rewriter, loc, intTensorTy, qtensor);
-
-  // Subtract: (value - zero_point)
-  Value intZp =
-      tosa::createZeroPointTensor(rewriter, op->getLoc(), elemIntTy, zpConst)
-          .value();
-
-  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), intValue, intZp)
-          .failed())
-    return failure();
-
-  Value subResult =
-      tosa::SubOp::create(rewriter, loc, intTensorTy, intValue, intZp);
-
-  // Multiply: (value - zero_point) * scale
-  // Both operands is cast to result type
-  Value floatResult =
-      tosa::CastOp::create(rewriter, loc, resultTensorTy, subResult);
-
-  auto scaleType = resultTensorTy.clone(elemFpTy);
-  auto scaleAttr = DenseElementsAttr::get(
-      scaleType, rewriter.getFloatAttr(elemFpTy, scaleConst));
-  auto floatScale =
-      tosa::ConstOp::create(rewriter, op->getLoc(), scaleType, scaleAttr);
-
-  auto mulResult = tosa::createMulOpAndCast(
-      rewriter, op, resultTensorTy, floatResult, floatScale, /*shift=*/0);
-
-  rewriter.replaceOp(op, mulResult);
-  return success();
-}
+};
 
 // Legalization for aten.quantize_per_tensor
 // Implements
@@ -10203,7 +10275,6 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ATENOP_PATTERN(AtenExpm1Op);
   INSERT_ATENOP_PATTERN(AtenTanOp);
   INSERT_ATENOP_PATTERN(AtenUnfoldOp);
-  INSERT_ATENOP_PATTERN(AtenDequantizeTensorOp);
   INSERT_ATENOP_PATTERN(AtenQuantizePerTensorOp);
 #undef INSERT_ATENOP_PATTERN
 
@@ -10220,6 +10291,13 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_CAST_ATENOP_PATTERN(Aten_MakePerTensorQuantizedTensorOp);
   INSERT_CAST_ATENOP_PATTERN(AtenIntReprOp);
 #undef INSERT_CAST_ATENOP_PATTERN
+
+#define INSERT_DEQUANTIZE_ATENOP_PATTERN(AtenOp)                               \
+  illegalOps.insert(AtenOp::getOperationName());                               \
+  patterns.add<ConvertDequantizeOp<AtenOp>>(typeConverter, context);
+  INSERT_DEQUANTIZE_ATENOP_PATTERN(AtenDequantizeTensorOp);
+  INSERT_DEQUANTIZE_ATENOP_PATTERN(AtenDequantizeSelfOp);
+#undef INSERT_DEQUANTIZE_ATENOP_PATTERN
 
   return illegalOps;
 }
