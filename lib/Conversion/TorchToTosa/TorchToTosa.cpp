@@ -62,21 +62,6 @@ struct ZeroInsertionResult {
   bool trimmedTail;
 };
 
-static std::pair<Value, Value>
-getOrCreateConvZeroPoints(PatternRewriter &rewriter, Location loc, Value input,
-                          Type inputElemTy, Value weight, Type weightElemTy) {
-  auto zps = tosa::createZPsAsConst(rewriter, input, weight);
-  Value inputZp = zps.first;
-  if (!inputZp)
-    inputZp =
-        tosa::createZeroPointTensor(rewriter, loc, inputElemTy, 0).value();
-  Value weightZp = zps.second;
-  if (!weightZp)
-    weightZp =
-        tosa::createZeroPointTensor(rewriter, loc, weightElemTy, 0).value();
-  return {inputZp, weightZp};
-}
-
 static FailureOr<ZeroInsertionResult>
 insertZerosAlongAxis(Value input, int axis, int64_t stride,
                      ConversionPatternRewriter &rewriter, Location loc) {
@@ -2650,6 +2635,18 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "failed to get accumulator type for convolution ops");
 
+  // Get zero-points for input and weight
+  // We need to get input/weights from the op instead of adaptor so that the
+  // connection to quantization detail carrying ops are preserved
+  auto inputZp =
+      tosa::getZeroPointValue(rewriter, op, op.getInput(), inputElemTy);
+  auto weightZp =
+      tosa::getZeroPointValue(rewriter, op, op.getWeight(), weightElemTy);
+
+  if (failed(inputZp) || failed(weightZp)) {
+    return rewriter.notifyMatchFailure(op, "failed to get zero point values");
+  }
+
   // TOSA works in NHWC (2D) / NDHWC (3D) and takes OHWI / ODHWI weights for
   // convolution. Perform the necessary transformations.
   SmallVector<int32_t, 5> torchToTosaDims;
@@ -2814,13 +2811,10 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
       auto convOpTy = RankedTensorType::get(
           makeShapeLLVMCompatible(outTosaShape), biasElemTy);
 
-      auto [inputZp, weightZp] = getOrCreateConvZeroPoints(
-          rewriter, loc, input, inputElemTy, weight, weightElemTy);
-
       auto convResult =
           tosa::Conv3DOp::create(
               rewriter, loc, getTypeConverter()->convertType(convOpTy),
-              paddedInput, flippedWeight, bias, inputZp, weightZp,
+              paddedInput, flippedWeight, bias, *inputZp, *weightZp,
               rewriter.getDenseI64ArrayAttr({0, 0, 0, 0, 0, 0}),
               rewriter.getDenseI64ArrayAttr({1, 1, 1}),
               rewriter.getDenseI64ArrayAttr(dilation), accType)
@@ -2837,14 +2831,8 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
               rewriter.getDenseI32ArrayAttr(tosaToTorchDims))
               .getResult();
 
-      Value rescaledResult = transposedOutput;
-      if (isa<quant::QuantizedType>(inputElemTy)) {
-        rescaledResult = tosa::buildRescaleOpConvOutput(
-            rewriter, op, transposedOutput, inputTy, weightTy, outputTy);
-      }
-
       rewriter.replaceOp(
-          op, {tosa::tosaCastTensorToType(rewriter, rescaledResult, outputTy)
+          op, {tosa::tosaCastTensorToType(rewriter, transposedOutput, outputTy)
                    .value()});
       return success();
     }
@@ -2891,16 +2879,6 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
         permuteShape(outTorchShape, torchToTosaDims);
     auto transConvOpTy = RankedTensorType::get(
         makeShapeLLVMCompatible(outTosaShape), biasElemTy);
-
-    // Zero-points.
-    auto inputZp =
-        tosa::getZeroPointValue(rewriter, op, op.getInput(), inputElemTy);
-    auto weightZp =
-        tosa::getZeroPointValue(rewriter, op, op.getWeight(), weightElemTy);
-
-    if (failed(inputZp) || failed(weightZp)) {
-      return rewriter.notifyMatchFailure(op, "failed to get zero point values");
-    }
 
     Value convTOut = tosa::TransposeConv2DOp::create(
                          rewriter, op->getLoc(),
@@ -3114,17 +3092,6 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
 
     outputShape = {currentShape[0], outputDDim, outputHDim, outputWDim,
                    outputCDim};
-  }
-
-  // create zero-point tensors for input and weight
-  // Zero-points.
-  auto inputZp =
-      tosa::getZeroPointValue(rewriter, op, op.getInput(), inputElemTy);
-  auto weightZp =
-      tosa::getZeroPointValue(rewriter, op, op.getWeight(), weightElemTy);
-
-  if (failed(inputZp) || failed(weightZp)) {
-    return rewriter.notifyMatchFailure(op, "failed to get zero point values");
   }
 
   Value bias;
