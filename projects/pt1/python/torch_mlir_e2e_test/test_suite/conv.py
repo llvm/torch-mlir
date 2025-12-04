@@ -304,6 +304,37 @@ def Convolution2DStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 
+class Convolution2DSingleIntTuplePaddingModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 3, 10, 10], torch.float32, True),
+            ([3, 3, 2, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.convolution(
+            inputVec,
+            weight,
+            bias=None,
+            stride=(4,),
+            padding=(0,),
+            dilation=(1,),
+            transposed=False,
+            output_padding=[0, 0],
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: Convolution2DSingleIntTuplePaddingModule())
+def Convolution2DSingleIntTuplePaddingModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
+
+
 class Convolution2DStridedModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
