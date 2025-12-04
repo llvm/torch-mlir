@@ -35,11 +35,6 @@ Value buildRescaleToInt32(PatternRewriter &rewriter, Operation *op,
                           Value input_val, double input_scale,
                           int64_t input_zp);
 
-// Creates a TOSA rescale op based on conv2d parameters.
-Value buildRescaleOpConvOutput(PatternRewriter &rewriter, Operation *op,
-                               Value conv_val, ShapedType input_type,
-                               ShapedType weight_type, ShapedType output_type);
-
 // Check if scale32 mode is used for given output_element_type
 bool isScale32(mlir::quant::UniformQuantizedType output_element_type);
 
@@ -113,6 +108,13 @@ FailureOr<Value> getConvBiasForNoneType(Operation *op,
 Value emitExplicitZeroPadNHWC(Location loc, PatternRewriter &rewriter,
                               Operation *op, Value inputNHWC,
                               ArrayRef<int64_t> padExtents);
+
+// Get the zero point from a torch.tensor or torch.qtensor value.
+// If the value is a quantized tensor, it extracts the zero point as a
+// scalar integer value. If the value is a float tensor, it returns a
+// constant 0.
+FailureOr<Value> getZeroPointValue(PatternRewriter &rewriter, Operation *op,
+                                   Value tensor, Type elemType);
 
 } // namespace tosa
 } // namespace mlir

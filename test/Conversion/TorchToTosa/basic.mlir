@@ -3711,10 +3711,10 @@ func.func @torch.aten.constant_pad_nd$basic(%arg0: !torch.vtensor<[1,1,20,20,4,4
 // CHECK:           %[[PAD_LIST:.*]] = torch.prim.ListConstruct %[[KERNEL]], %[[KERNEL]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[DILATION_LIST:.*]] = torch.prim.ListConstruct %[[ONE]], %[[ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[OUTPUT_PAD:.*]] = torch.prim.ListConstruct  : () -> !torch.list<int>
-// CHECK:           %[[NHWC_INPUT:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<5x2x10x20xf32>) -> tensor<5x10x20x2xf32>
-// CHECK:           %[[NHWC_WEIGHT:.*]] = tosa.transpose %[[WEIGHT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<10x2x3x3xf32>) -> tensor<10x3x3x2xf32>
 // CHECK:           %[[INPUT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[WEIGHT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[NHWC_INPUT:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<5x2x10x20xf32>) -> tensor<5x10x20x2xf32>
+// CHECK:           %[[NHWC_WEIGHT:.*]] = tosa.transpose %[[WEIGHT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<10x2x3x3xf32>) -> tensor<10x3x3x2xf32>
 // CHECK:           %[[BIAS:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<10xf32>}> : () -> tensor<10xf32>
 // CHECK:           %[[CONV:.*]] = tosa.conv2d %[[NHWC_INPUT]], %[[NHWC_WEIGHT]], %[[BIAS]], %[[INPUT_ZP]], %[[WEIGHT_ZP]] {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 3, 3, 3, 3>, stride = array<i64: 1, 1>} : (tensor<5x10x20x2xf32>, tensor<10x3x3x2xf32>, tensor<10xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<5x14x24x10xf32>
 // CHECK:           %[[RESULT_NCHW:.*]] = tosa.transpose %[[CONV]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<5x14x24x10xf32>) -> tensor<5x10x14x24xf32>
@@ -3750,12 +3750,12 @@ func.func @torch.aten.convolution$basic(%arg0: !torch.vtensor<[5,2,10,20],f32>) 
 // CHECK:           %[[PAD_LIST:.*]] = torch.prim.ListConstruct %[[KERNEL]], %[[KERNEL]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[DILATION_LIST:.*]] = torch.prim.ListConstruct %[[KERNEL]], %[[KERNEL]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[OUTPUT_PAD:.*]] = torch.prim.ListConstruct  : () -> !torch.list<int>
+// CHECK:           %[[INPUT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[WEIGHT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[NHWC_INPUT:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<5x4x10x20xf32>) -> tensor<5x10x20x4xf32>
 // CHECK:           %[[HW_WEIGHT:.*]] = tosa.transpose %[[WEIGHT]] {perms = array<i32: 2, 3, 0, 1>} : (tensor<4x1x3x3xf32>) -> tensor<3x3x4x1xf32>
 // CHECK:           %[[RESHAPE_SHAPE:.*]] = tosa.const_shape  {values = dense<[3, 3, 4, 1]> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK:           %[[FILTER:.*]] = tosa.reshape %[[HW_WEIGHT]], %[[RESHAPE_SHAPE]] : (tensor<3x3x4x1xf32>, !tosa.shape<4>) -> tensor<3x3x4x1xf32>
-// CHECK:           %[[INPUT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK:           %[[WEIGHT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[BIAS:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<4xf32>}> : () -> tensor<4xf32>
 // CHECK:           %[[DEPTHWISE:.*]] = tosa.depthwise_conv2d %[[NHWC_INPUT]], %[[FILTER]], %[[BIAS]], %[[INPUT_ZP]], %[[WEIGHT_ZP]] {acc_type = f32, dilation = array<i64: 3, 3>, pad = array<i64: 3, 2, 3, 2>, stride = array<i64: 2, 2>} : (tensor<5x10x20x4xf32>, tensor<3x3x4x1xf32>, tensor<4xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<5x5x10x4xf32>
 // CHECK:           %[[RESULT_NCHW:.*]] = tosa.transpose %[[DEPTHWISE]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<5x5x10x4xf32>) -> tensor<5x4x5x10xf32>
@@ -3790,6 +3790,8 @@ func.func @torch.aten.convolution$depthwise(%arg0: !torch.vtensor<[5,4,10,20],f3
 // CHECK:           %[[PAD_LIST:.*]] = torch.prim.ListConstruct %[[ZERO]], %[[ZERO]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[DILATION_LIST:.*]] = torch.prim.ListConstruct %[[ONE]], %[[ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[OUTPUT_PAD:.*]] = torch.prim.ListConstruct  : () -> !torch.list<int>
+// CHECK:           %[[INPUT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[WEIGHT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[NHWC_INPUT:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x64x56x56xf32>) -> tensor<1x56x56x64xf32>
 // CHECK:           %[[NHWC_WEIGHT:.*]] = tosa.transpose %[[WEIGHT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<128x64x1x1xf32>) -> tensor<128x1x1x64xf32>
 // CHECK-DAG:           %[[SLICE0_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
@@ -3798,8 +3800,6 @@ func.func @torch.aten.convolution$depthwise(%arg0: !torch.vtensor<[5,4,10,20],f3
 // CHECK-DAG:           %[[SLICE1_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK-DAG:           %[[SLICE1_SIZE:.*]] = tosa.const_shape  {values = dense<[1, 55, 55, 64]> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK:           %[[TRIMMED_HW:.*]] = tosa.slice %[[TRIMMED_H]], %[[SLICE1_START]], %[[SLICE1_SIZE]] : (tensor<1x55x56x64xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x55x55x64xf32>
-// CHECK:           %[[INPUT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK:           %[[WEIGHT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[BIAS:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<128xf32>}> : () -> tensor<128xf32>
 // CHECK:           %[[CONV:.*]] = tosa.conv2d %[[TRIMMED_HW]], %[[NHWC_WEIGHT]], %[[BIAS]], %[[INPUT_ZP]], %[[WEIGHT_ZP]] {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>} : (tensor<1x55x55x64xf32>, tensor<128x1x1x64xf32>, tensor<128xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x28x28x128xf32>
 // CHECK:           %[[RESULT_NCHW:.*]] = tosa.transpose %[[CONV]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x28x28x128xf32>) -> tensor<1x128x28x28xf32>
@@ -3835,10 +3835,10 @@ func.func @torch.aten.convolution$zero_pad_with_sliced_input(%arg0: !torch.vtens
 // CHECK:           %[[PAD_LIST:.*]] = torch.prim.ListConstruct %[[ONE]], %[[ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[DILATION_LIST:.*]] = torch.prim.ListConstruct %[[ONE]], %[[ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[OUTPUT_PAD:.*]] = torch.prim.ListConstruct  : () -> !torch.list<int>
-// CHECK:           %[[NHWC_INPUT:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x3x224x224xf32>) -> tensor<1x224x224x3xf32>
-// CHECK:           %[[NHWC_WEIGHT:.*]] = tosa.transpose %[[WEIGHT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<32x3x3x3xf32>) -> tensor<32x3x3x3xf32>
 // CHECK:           %[[INPUT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[WEIGHT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[NHWC_INPUT:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x3x224x224xf32>) -> tensor<1x224x224x3xf32>
+// CHECK:           %[[NHWC_WEIGHT:.*]] = tosa.transpose %[[WEIGHT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<32x3x3x3xf32>) -> tensor<32x3x3x3xf32>
 // CHECK:           %[[BIAS:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<32xf32>}> : () -> tensor<32xf32>
 // CHECK:           %[[CONV:.*]] = tosa.conv2d %[[NHWC_INPUT]], %[[NHWC_WEIGHT]], %[[BIAS]], %[[INPUT_ZP]], %[[WEIGHT_ZP]] {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 1, 0, 1, 0>, stride = array<i64: 2, 2>} : (tensor<1x224x224x3xf32>, tensor<32x3x3x3xf32>, tensor<32xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x112x112x32xf32>
 // CHECK:           %[[RESULT_NCHW:.*]] = tosa.transpose %[[CONV]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x112x112x32xf32>) -> tensor<1x32x112x112xf32>
@@ -3873,6 +3873,8 @@ func.func @torch.aten.convolution$full_dim_indivisible_by_stride_without_sliced_
 // CHECK:           %[[PAD_LIST:.*]] = torch.prim.ListConstruct %[[ONE]], %[[ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[DILATION_LIST:.*]] = torch.prim.ListConstruct %[[ONE]], %[[ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[OUTPUT_PAD:.*]] = torch.prim.ListConstruct  : () -> !torch.list<int>
+// CHECK:           %[[INPUT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[WEIGHT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[NHWC_INPUT:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x3x225x225xf32>) -> tensor<1x225x225x3xf32>
 // CHECK:           %[[NHWC_WEIGHT:.*]] = tosa.transpose %[[WEIGHT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<32x3x3x3xf32>) -> tensor<32x3x3x3xf32>
 // CHECK-DAG:           %[[SLICE0_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
@@ -3881,8 +3883,6 @@ func.func @torch.aten.convolution$full_dim_indivisible_by_stride_without_sliced_
 // CHECK-DAG:           %[[SLICE1_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK-DAG:           %[[SLICE1_SIZE:.*]] = tosa.const_shape  {values = dense<[1, 224, 224, 3]> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK:           %[[TRIMMED_HW:.*]] = tosa.slice %[[TRIMMED_H]], %[[SLICE1_START]], %[[SLICE1_SIZE]] : (tensor<1x224x225x3xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x224x224x3xf32>
-// CHECK:           %[[INPUT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK:           %[[WEIGHT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[BIAS:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<32xf32>}> : () -> tensor<32xf32>
 // CHECK:           %[[CONV:.*]] = tosa.conv2d %[[TRIMMED_HW]], %[[NHWC_WEIGHT]], %[[BIAS]], %[[INPUT_ZP]], %[[WEIGHT_ZP]] {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 1, 0, 1, 0>, stride = array<i64: 3, 3>} : (tensor<1x224x224x3xf32>, tensor<32x3x3x3xf32>, tensor<32xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x75x75x32xf32>
 // CHECK:           %[[RESULT_NCHW:.*]] = tosa.transpose %[[CONV]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x75x75x32xf32>) -> tensor<1x32x75x75xf32>
@@ -3918,10 +3918,10 @@ func.func @torch.aten.convolution$full_dim_indivisible_by_stride_with_sliced_inp
 // CHECK:           %[[PAD_LIST:.*]] = torch.prim.ListConstruct %[[ONE]], %[[ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[DILATION_LIST:.*]] = torch.prim.ListConstruct %[[ONE]], %[[ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[OUTPUT_PAD:.*]] = torch.prim.ListConstruct  : () -> !torch.list<int>
-// CHECK:           %[[NHWC_INPUT:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<?x3x224x224xf32>) -> tensor<?x224x224x3xf32>
-// CHECK:           %[[NHWC_WEIGHT:.*]] = tosa.transpose %[[WEIGHT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<32x3x3x3xf32>) -> tensor<32x3x3x3xf32>
 // CHECK:           %[[INPUT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[WEIGHT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[NHWC_INPUT:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<?x3x224x224xf32>) -> tensor<?x224x224x3xf32>
+// CHECK:           %[[NHWC_WEIGHT:.*]] = tosa.transpose %[[WEIGHT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<32x3x3x3xf32>) -> tensor<32x3x3x3xf32>
 // CHECK:           %[[BIAS:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<32xf32>}> : () -> tensor<32xf32>
 // CHECK:           %[[CONV:.*]] = tosa.conv2d %[[NHWC_INPUT]], %[[NHWC_WEIGHT]], %[[BIAS]], %[[INPUT_ZP]], %[[WEIGHT_ZP]] {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 1, 0, 1, 0>, stride = array<i64: 2, 2>} : (tensor<?x224x224x3xf32>, tensor<32x3x3x3xf32>, tensor<32xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<?x112x112x32xf32>
 // CHECK:           %[[RESULT_NCHW:.*]] = tosa.transpose %[[CONV]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<?x112x112x32xf32>) -> tensor<?x32x112x112xf32>
@@ -3958,6 +3958,8 @@ func.func @torch.aten.convolution$full_dim_indivisible_by_stride_without_sliced_
 // CHECK:           %[[PAD_LIST:.*]] = torch.prim.ListConstruct %[[ONE]], %[[ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[DILATION_LIST:.*]] = torch.prim.ListConstruct %[[ONE]], %[[ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[OUTPUT_PAD:.*]] = torch.prim.ListConstruct  : () -> !torch.list<int>
+// CHECK:           %[[INPUT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[WEIGHT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[NHWC_INPUT:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<?x3x225x225xf32>) -> tensor<?x225x225x3xf32>
 // CHECK:           %[[NHWC_WEIGHT:.*]] = tosa.transpose %[[WEIGHT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<32x3x3x3xf32>) -> tensor<32x3x3x3xf32>
 // CHECK-DAG:           %[[SLICE0_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
@@ -3966,8 +3968,6 @@ func.func @torch.aten.convolution$full_dim_indivisible_by_stride_without_sliced_
 // CHECK-DAG:           %[[SLICE1_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK-DAG:           %[[SLICE1_SIZE:.*]] = tosa.const_shape  {values = dense<[-1, 224, 224, 3]> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK:           %[[TRIMMED_HW:.*]] = tosa.slice %[[TRIMMED_H]], %[[SLICE1_START]], %[[SLICE1_SIZE]] : (tensor<?x224x225x3xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<?x224x224x3xf32>
-// CHECK:           %[[INPUT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK:           %[[WEIGHT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[BIAS:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<32xf32>}> : () -> tensor<32xf32>
 // CHECK:           %[[CONV:.*]] = tosa.conv2d %[[TRIMMED_HW]], %[[NHWC_WEIGHT]], %[[BIAS]], %[[INPUT_ZP]], %[[WEIGHT_ZP]] {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 1, 0, 1, 0>, stride = array<i64: 3, 3>} : (tensor<?x224x224x3xf32>, tensor<32x3x3x3xf32>, tensor<32xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<?x75x75x32xf32>
 // CHECK:           %[[RESULT_NCHW:.*]] = tosa.transpose %[[CONV]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<?x75x75x32xf32>) -> tensor<?x32x75x75xf32>

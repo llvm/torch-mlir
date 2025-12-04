@@ -16,6 +16,7 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 namespace mlir {
 namespace torch {
@@ -566,9 +567,45 @@ FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
 }
 
 void getZeroPoint(Value value, Value &zeropoint) {
-  if (auto make = value.getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
-    zeropoint = make.getZeroPoint();
-  }
+  Operation *definingOp = value.getDefiningOp();
+  if (!definingOp)
+    return;
+
+  // Extract and set the zero point from a given op.
+  auto getZp = [&](auto op) { zeropoint = op.getZeroPoint(); };
+
+  llvm::TypeSwitch<Operation *>(definingOp)
+      .Case<Aten_MakePerTensorQuantizedTensorOp>(getZp)
+      .Case<AtenQuantizePerTensorOp>(getZp)
+      .Case<Aten_MakePerChannelQuantizedTensorOp>(getZp);
+}
+
+LogicalResult getQuantizationParams(Value value, Value &zeropoint, Value &scale,
+                                    int64_t &axis) {
+  Operation *definingOp = value.getDefiningOp();
+  if (!definingOp)
+    return failure();
+
+  // Extract and set the common parameters from a given op.
+  auto setParams = [&](auto op) -> LogicalResult {
+    zeropoint = op.getZeroPoint();
+    scale = op.getScale();
+    // Axis must be constant scalar int for Aten_MakePerChannelQuantizedTensorOp
+    if constexpr (std::is_same_v<decltype(op),
+                                 Aten_MakePerChannelQuantizedTensorOp>) {
+      return success(matchPattern(op.getAxis(), m_TorchConstantInt(&axis)));
+    } else {
+      // Other ops don't have axis parameter
+      axis = -1;
+      return success();
+    }
+  };
+
+  return llvm::TypeSwitch<Operation *, LogicalResult>(definingOp)
+      .Case<Aten_MakePerTensorQuantizedTensorOp>(setParams)
+      .Case<AtenQuantizePerTensorOp>(setParams)
+      .Case<Aten_MakePerChannelQuantizedTensorOp>(setParams)
+      .Default([](auto) { return failure(); });
 }
 
 } // namespace Torch

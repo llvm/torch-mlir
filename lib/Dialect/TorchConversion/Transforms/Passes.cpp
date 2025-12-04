@@ -115,6 +115,10 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
 void TorchConversion::createTorchBackendToTosaBackendPipeline(
     OpPassManager &pm,
     const TorchConversion::TosaBackendPipelineOptions &options) {
+
+  // We want to fuse quantized operations together before lowering to tosa.
+  pm.addNestedPass<func::FuncOp>(Torch::createFuseQuantizedOpsPass());
+
   pm.addNestedPass<func::FuncOp>(
       createConvertTorchToTosaPass(options.requireFullTosaConversion));
   // Fold full-layer operations on TOSA constants
