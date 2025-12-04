@@ -5964,8 +5964,8 @@ public:
           op, "non-const int output_padding unsupported!");
     }
 
-    // Canonicalization Logic: Only rewrite if padding provided is 1 element
-    // but the convolution requires 2 or 3 elements.
+    // Canonicalization Logic: Only rewrite if convolution attribute provided is
+    // 1 element but the convolution requires 2 or 3 elements.
     auto isCanonical = [requiredSpatialDims](ArrayRef<int64_t> param) {
       return param.size() == static_cast<size_t>(requiredSpatialDims);
     };
