@@ -304,7 +304,7 @@ def Convolution2DStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 
-class Convolution2DSingleIntTuplePaddingModule(torch.nn.Module):
+class Convolution2DSingleIntTupleModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -321,7 +321,7 @@ class Convolution2DSingleIntTuplePaddingModule(torch.nn.Module):
             inputVec,
             weight,
             bias=None,
-            stride=(4,),
+            stride=(1,),
             padding=(0,),
             dilation=(1,),
             transposed=False,
@@ -330,8 +330,8 @@ class Convolution2DSingleIntTuplePaddingModule(torch.nn.Module):
         )
 
 
-@register_test_case(module_factory=lambda: Convolution2DSingleIntTuplePaddingModule())
-def Convolution2DSingleIntTuplePaddingModule_basic(module, tu: TestUtils):
+@register_test_case(module_factory=lambda: Convolution2DSingleIntTupleModule())
+def Convolution2DSingleIntTupleModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 
@@ -930,6 +930,39 @@ class ConvolutionModule2DTransposeNonUnitOutputPadding(torch.nn.Module):
 )
 def ConvolutionModule2DTransposeNonUnitOutputPadding_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 2, 4, 4), tu.rand(2, 2, 3, 3))
+
+
+class ConvolutionModule2DTransposeScalarTupleParams(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 2, 5, 6], torch.float32, True),
+            ([2, 5, 2, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.convolution(
+            inputVec,
+            weight,
+            bias=None,
+            stride=(1,),
+            padding=(1,),
+            dilation=(1,),
+            transposed=True,
+            output_padding=(0,),
+            groups=1,
+        )
+
+
+@register_test_case(
+    module_factory=lambda: ConvolutionModule2DTransposeScalarTupleParams()
+)
+def ConvolutionModule2DTransposeScalarTupleParams_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 2, 5, 6), tu.rand(2, 5, 2, 2))
 
 
 class Conv_Transpose1dModule(torch.nn.Module):
@@ -1594,6 +1627,39 @@ class Conv3dWithValidPaddingModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: Conv3dWithValidPaddingModule())
 def Conv3dWithValidPaddingModule_basic(module, tu: TestUtils):
+    inputVec = tu.rand(2, 2, 6, 6, 6)
+    weight = torch.randn(8, 2, 3, 3, 3)
+    bias = torch.randn(8)
+    module.forward(inputVec, weight, bias)
+
+
+class Conv3dModuleScalarTupleParams(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1, -1, -1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight, bias):
+        return torch.ops.aten.conv3d(
+            inputVec,
+            weight,
+            bias=bias,
+            stride=(1,),
+            padding=(0,),
+            dilation=(1,),
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: Conv3dModuleScalarTupleParams())
+def Conv3dModuleScalarTupleParams_basic(module, tu: TestUtils):
     inputVec = tu.rand(2, 2, 6, 6, 6)
     weight = torch.randn(8, 2, 3, 3, 3)
     bias = torch.randn(8)
