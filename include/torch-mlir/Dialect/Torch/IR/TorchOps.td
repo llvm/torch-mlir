@@ -1442,4 +1442,71 @@ def Torch_OnnxVariantRotaryEmbeddingOp: Torch_Op<"onnx.rotary_embedding", [
   let hasCustomAssemblyFormat = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// FlexAttention operation
+
+// NOTE: This op is manually defined because flex_attention exists in
+// PyTorch's Python API (torch.nn.attention.flex_attention) but is not yet
+// registered in PyTorch's JIT operator registry. The update_torch_ods.sh script
+// validates against the JIT registry, so it cannot auto-generate this op.
+// Once PyTorch adds flex_attention to the JIT registry, this can be moved to
+// the auto-generated section.
+//===----------------------------------------------------------------------===//
+def Torch_HigherOrderFlexAttentionOp : Torch_Op<"hop_flex_attention", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Computes the flex_attention operation (1-1 with torch._higher_order_ops.flex_attention)";
+  let description = [{
+    FlexAttention operation with flexible block-sparse attention patterns.
+
+    Args:
+      query: Query tensor [B, H, M, K]
+      key: Key tensor [B, H, N, K]
+      value: Value tensor [B, H, N, Ev]
+      scale: Optional float for scaling attention scores (None means 1/sqrt(head_dim))
+      return_lse: Bool to return log-sum-exp values
+
+    Attributes:
+      score_mod_fn: Optional function symbol reference for score modification
+      mask_mod_fn: Optional function symbol reference for mask modification
+
+    # TODO: kernel_options: Dict attributes for performance tuning (block_size, num_warps, etc.)
+
+    Returns:
+      output: Result tensor [B, H, M, Ev]
+      logsumexp: Optional log-sum-exp tensor [B, H, M] (if return_lse=True)
+      max_scores: Optional max-scores tensor [B, H, M] (if return_max_scores=True)
+  }];
+
+  let arguments = (ins
+    AnyTorchTensorType:$query,
+    AnyTorchTensorType:$key,
+    AnyTorchTensorType:$value,
+    AnyTorchOptionalFloatType:$scale,
+    Torch_BoolType:$return_lse,
+    Torch_BoolType:$return_max_scores,
+    OptionalAttr<FlatSymbolRefAttr>:$score_mod_fn,
+    OptionalAttr<FlatSymbolRefAttr>:$mask_mod_fn
+  );
+
+  let results = (outs
+    AnyTorchTensorType:$output,
+    AnyTorchOptionalTensorType:$logsumexp,
+    AnyTorchOptionalTensorType:$max_scores
+  );
+
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult HigherOrderFlexAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 6, 3);
+    }
+    void HigherOrderFlexAttentionOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 6, 3);
+    }
+  }];
+  let hasVerifier = 1;
+}
+
 #endif // TORCH_OPS

@@ -236,6 +236,46 @@ static Value getScalarFloatValue(Value input, Location loc,
 }
 
 //===----------------------------------------------------------------------===//
+// HigherOrderFlexAttentionOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult HigherOrderFlexAttentionOp::verify() {
+  static constexpr int kAttentionRank = 4;
+  Value query = getQuery();
+  Value key = getKey();
+  Value value = getValue();
+
+  if (!isa<Torch::BoolType>(getReturnLse().getType())) {
+    return emitError() << "expected return_lse to be a bool type";
+  }
+  if (!isa<Torch::BoolType>(getReturnMaxScores().getType())) {
+    return emitError() << "expected return_max_scores to be a bool type";
+  }
+
+  auto queryType = dyn_cast<ValueTensorType>(query.getType());
+  auto keyType = dyn_cast<ValueTensorType>(key.getType());
+  auto valueType = dyn_cast<ValueTensorType>(value.getType());
+
+  if (!queryType || !keyType || !valueType || !queryType.hasSizes() ||
+      !keyType.hasSizes() || !valueType.hasSizes()) {
+    return emitError() << "expected input(s) types having sizes";
+  }
+
+  ArrayRef<int64_t> queryShape = queryType.getSizes();
+
+  // Query shape: [B, H, M, E].
+  if (queryShape.size() != kAttentionRank) {
+    return emitError() << "expected 4D query tensor";
+  }
+  // Check if the element type is a float.
+  if (!isa<mlir::FloatType>(queryType.getDtype())) {
+    return emitError() << "expected float element type";
+  }
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // MethodOp
 //===----------------------------------------------------------------------===//
 
