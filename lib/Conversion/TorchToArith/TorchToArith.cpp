@@ -92,19 +92,32 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenNegIntOp : public OpConversionPattern<AtenNegIntOp> {
+template <typename AtenOp>
+class ConvertAtenNegOp : public OpConversionPattern<AtenOp> {
 public:
-  using OpConversionPattern<AtenNegIntOp>::OpConversionPattern;
+  using OpConversionPattern<AtenOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenNegIntOp op,
-                  typename OpConversionPattern<AtenNegIntOp>::OpAdaptor adaptor,
+  matchAndRewrite(AtenOp op,
+                  typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value a = adaptor.getA();
-    rewriter.replaceOpWithNewOp<arith::SubIOp>(
-        op,
-        arith::ConstantIntOp::create(rewriter, op.getLoc(), /*value=*/0,
-                                     /*bitwidth=*/64),
-        a);
+    if (isa<mlir::IntegerType>(a.getType())) {
+      rewriter.replaceOpWithNewOp<arith::SubIOp>(
+          op,
+          arith::ConstantIntOp::create(rewriter, op.getLoc(), /*value=*/0,
+                                       /*bitwidth=*/64),
+          a);
+    } else if (isa<mlir::FloatType>(a.getType())) {
+      rewriter.replaceOpWithNewOp<arith::SubFOp>(
+          op,
+          arith::ConstantOp::create(
+              rewriter, op.getLoc(),
+              rewriter.getFloatAttr(rewriter.getF64Type(), 0.0)),
+          a);
+    } else {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only support integer or float type");
+    }
     return success();
   }
 };
@@ -134,12 +147,13 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenDivIntOp : public OpConversionPattern<AtenDivIntOp> {
+template <typename AtenOp>
+class ConvertAtenDivOp : public OpConversionPattern<AtenOp> {
 public:
-  using OpConversionPattern<AtenDivIntOp>::OpConversionPattern;
+  using OpConversionPattern<AtenOp>::OpConversionPattern;
+  using OpAdaptor = typename AtenOp::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenDivIntOp op,
-                  typename OpConversionPattern<AtenDivIntOp>::OpAdaptor adaptor,
+  matchAndRewrite(AtenOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value a = convertScalarToDtype(rewriter, loc, adaptor.getA(),
@@ -306,11 +320,13 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenAddOp : public OpConversionPattern<AtenAddOp> {
+template <typename AtenOp, typename ArithFOp, typename ArithIOp>
+class ConvertAtenBinaryScalarOp : public OpConversionPattern<AtenOp> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<AtenOp>::OpConversionPattern;
+  using OpAdaptor = typename AtenOp::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenAddOp op, OpAdaptor adaptor,
+  matchAndRewrite(AtenOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Type resultType =
@@ -320,9 +336,9 @@ public:
     Value operandB =
         convertScalarToDtype(rewriter, loc, adaptor.getB(), resultType);
     if (isa<mlir::FloatType>(resultType)) {
-      rewriter.replaceOpWithNewOp<arith::AddFOp>(op, operandA, operandB);
+      rewriter.replaceOpWithNewOp<ArithFOp>(op, operandA, operandB);
     } else if (isa<mlir::IntegerType>(resultType)) {
-      rewriter.replaceOpWithNewOp<arith::AddIOp>(op, operandA, operandB);
+      rewriter.replaceOpWithNewOp<ArithIOp>(op, operandA, operandB);
     } else {
       return rewriter.notifyMatchFailure(
           op, "unimplemented: only support integer or float result type");
@@ -497,10 +513,21 @@ public:
     patterns.add<ConvertAtenCastOp<AtenFloatScalarOp>>(typeConverter, context);
     patterns.add<ConvertAtenCastOp<AtenIntScalarOp>>(typeConverter, context);
 
-    target.addIllegalOp<AtenAddOp>();
-    patterns.add<ConvertAtenAddOp>(typeConverter, context);
-    target.addIllegalOp<AtenNegIntOp>();
-    patterns.add<ConvertAtenNegIntOp>(typeConverter, context);
+    target.addIllegalOp<AtenAddOp, AtenSubOp, AtenMulOp>();
+    patterns.add<
+        ConvertAtenBinaryScalarOp<AtenAddOp, airth::AddFOp, airth::AddIOp>>(
+        typeConverter, context);
+    patterns.add<
+        ConvertAtenBinaryScalarOp<AtenSubOp, airth::SubFOp, airth::SubIOp>>(
+        typeConverter, context);
+    patterns.add<
+        ConvertAtenBinaryScalarOp<AtenMulOp, airth::MulFOp, airth::MulIOp>>(
+        typeConverter, context);
+
+    target.addIllegalOp<AtenNegIntOp, AtenNegFloatOp>();
+    patterns.add<ConvertAtenNegOp<AtenNegIntOp>>(typeConverter, context);
+    patterns.add<ConvertAtenNegOp<AtenNegFloatOp>>(typeConverter, context);
+
     target.addIllegalOp<AtenAddIntOp, AtenAddFloatIntOp, AtenSubIntOp,
                         AtenMulIntOp, AtenRemainderIntOp, AtenMulIntFloatOp,
                         AtenMulFloatIntOp>();
@@ -523,8 +550,10 @@ public:
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenMulFloatOp, arith::MulFOp>>(
         typeConverter, context);
-    target.addIllegalOp<AtenDivIntOp>();
-    patterns.add<ConvertAtenDivIntOp>(typeConverter, context);
+
+    target.addIllegalOp<AtenDivOp, AtenDivIntOp>();
+    patterns.add<ConvertAtenDivOp<AtenDivOp>>(typeConverter, context);
+    patterns.add<ConvertAtenDivOp<AtenDivIntOp>>(typeConverter, context);
     target.addIllegalOp<AtenDivFloatOp>();
     patterns.add<ConvertAtenBinaryOp<AtenDivFloatOp, arith::DivFOp>>(
         typeConverter, context);
