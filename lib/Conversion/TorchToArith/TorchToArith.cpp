@@ -92,19 +92,35 @@ public:
 } // namespace
 
 namespace {
-class ConvertAtenNegIntOp : public OpConversionPattern<AtenNegIntOp> {
+template <typename AtenOp>
+class ConvertAtenNegOp : public OpConversionPattern<AtenOp> {
 public:
-  using OpConversionPattern<AtenNegIntOp>::OpConversionPattern;
+  using OpConversionPattern<AtenOp>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenNegIntOp op,
-                  typename OpConversionPattern<AtenNegIntOp>::OpAdaptor adaptor,
+  matchAndRewrite(AtenOp op,
+                  typename OpConversionPattern<AtenOp>::OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value a = adaptor.getA();
-    rewriter.replaceOpWithNewOp<arith::SubIOp>(
-        op,
-        arith::ConstantIntOp::create(rewriter, op.getLoc(), /*value=*/0,
-                                     /*bitwidth=*/64),
-        a);
+    Type inputType = a.getType();
+    if (isa<mlir::IntegerType>(inputType)) {
+      rewriter.replaceOpWithNewOp<arith::SubIOp>(
+          op,
+          arith::ConstantIntOp::create(rewriter, op.getLoc(), /*value=*/0,
+                                       /*bitwidth=*/64),
+          a);
+    } else if (isa<mlir::FloatType>(inputType)) {
+      MLIRContext *context = op->getContext();
+      Type floatDtype = mlir::Float64Type::get(context);
+      rewriter.replaceOpWithNewOp<arith::SubFOp>(
+          op,
+          arith::ConstantOp::create(
+              rewriter, op.getLoc(),
+              rewriter.getFloatAttr(floatDtype, /*value=*/0)),
+          a);
+    } else {
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only support integer or float type");
+    }
     return success();
   }
 };
@@ -499,8 +515,10 @@ public:
 
     target.addIllegalOp<AtenAddOp>();
     patterns.add<ConvertAtenAddOp>(typeConverter, context);
-    target.addIllegalOp<AtenNegIntOp>();
-    patterns.add<ConvertAtenNegIntOp>(typeConverter, context);
+    target.addIllegalOp<AtenNegIntOp, AtenNegFloatOp>();
+    patterns.add<ConvertAtenNegOp<AtenNegIntOp>>(typeConverter, context);
+    patterns.add<ConvertAtenNegOp<AtenNegFloatOp>>(typeConverter, context);
+
     target.addIllegalOp<AtenAddIntOp, AtenAddFloatIntOp, AtenSubIntOp,
                         AtenMulIntOp, AtenRemainderIntOp, AtenMulIntFloatOp,
                         AtenMulFloatIntOp>();
