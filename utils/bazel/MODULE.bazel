@@ -1,0 +1,114 @@
+# This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+"""
+Torch-MLIR Overlay
+"""
+
+module(
+    name = "torch-mlir-overlay",
+)
+
+bazel_dep(
+    name = "bazel_skylib",
+    version = "1.8.2",
+)
+
+bazel_dep(
+    name = "platforms",
+    version = "0.0.11",
+)
+
+bazel_dep(
+    name = "rules_cc",
+    version = "0.2.14",
+)
+
+bazel_dep(
+    name = "rules_python",
+    version = "1.7.0"
+)
+
+bazel_dep(
+    name = "rules_shell",
+    version = "0.6.1"
+)
+
+bazel_dep(
+    name = "buildifier_prebuilt",
+    version = "8.2.1",
+    dev_dependency = True,
+)
+
+bazel_dep(
+    name = "apple_support",
+    version = "1.24.1",
+    repo_name = "build_bazel_apple_support"
+)
+
+# LLVM
+new_local_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:local.bzl", "new_local_repository")
+
+new_local_repository(
+    name = "llvm-raw",
+    build_file_content = "# empty",
+    path = "../../externals/llvm-project",
+)
+
+llvm_configure = use_repo_rule("@llvm-raw//utils/bazel:configure.bzl", "llvm_configure")
+
+llvm_configure(
+    name = "llvm-project",
+    targets = [
+        "X86",
+        "AArch64",
+        # The bazel dependency graph for mlir-opt fails to load (at the analysis step) without the NVPTX
+        # target in this list, because mlir/test:TestGPU depends on the //llvm:NVPTXCodeGen target,
+        # which is not defined unless this is included.
+        "NVPTX",
+    ],
+)
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "llvm_zstd",
+    build_file = "@llvm-raw//utils/bazel/third_party_build:zstd.BUILD",
+    sha256 = "7c42d56fac126929a6a85dbc73ff1db2411d04f104fae9bdea51305663a83fd0",
+    strip_prefix = "zstd-1.5.2",
+    urls = [
+        "https://github.com/facebook/zstd/releases/download/v1.5.2/zstd-1.5.2.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "llvm_zlib",
+    build_file = "@llvm-raw//utils/bazel/third_party_build:zlib-ng.BUILD",
+    sha256 = "e36bb346c00472a1f9ff2a0a4643e590a254be6379da7cddd9daeb9a7f296731",
+    strip_prefix = "zlib-ng-2.0.7",
+    urls = [
+        "https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.0.7.zip",
+    ],
+)
+
+# StableHLO
+local_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
+
+local_repository(
+    name = "stablehlo",
+    path = "../../externals/stablehlo/",
+)
+
+# Torch-MLIR
+new_local_repository(
+    name = "torch-mlir-raw",
+    build_file_content = "# empty",
+    path = "../..",
+)
+
+torch_mlir_configure = use_repo_rule("@torch-mlir-raw//utils/bazel:configure.bzl", "torch_mlir_configure")
+
+torch_mlir_configure(
+    name = "torch-mlir",
+)
