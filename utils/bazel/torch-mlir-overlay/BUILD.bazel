@@ -2,10 +2,10 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-load("@llvm-project//mlir:tblgen.bzl", "gentbl_cc_library", "td_library")
 load("@buildifier_prebuilt//:rules.bzl", "buildifier")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@llvm-project//mlir:tblgen.bzl", "gentbl_cc_library", "td_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(
     default_visibility = [
@@ -15,6 +15,18 @@ package(
 
 # Format bazel BUILD and .bzl files with a standard convention
 # Invoke as `bazel run @torch-mlir//:buildifier`
+# For checks alone, invoke as `bazel run @torch-mlir//:buildifier.check`
+buildifier(
+    name = "buildifier",
+    exclude_patterns = [
+        "./.git/*",
+        "./externals/**/*",
+        "./mlir_venv/**/*",
+    ],
+    lint_mode = "warn",
+    mode = "fix",
+)
+
 buildifier(
     name = "buildifier.check",
     exclude_patterns = [
@@ -23,7 +35,7 @@ buildifier(
         "./mlir_venv/**/*",
     ],
     lint_mode = "warn",
-    mode = "diff",
+    mode = "check",
 )
 
 # Torch Dialect/IR
@@ -384,7 +396,7 @@ cc_library(
     ]),
     hdrs = glob([
         "include/torch-mlir/Conversion/*.h",
-        "include/torch-mlir/Conversion/TorchToLinalg/*.h"
+        "include/torch-mlir/Conversion/TorchToLinalg/*.h",
     ]),
     strip_include_prefix = "include",
     deps = [
@@ -410,7 +422,7 @@ cc_library(
     ]),
     hdrs = glob([
         "include/torch-mlir/Conversion/*.h",
-        "include/torch-mlir/Conversion/TorchToSCF/*.h"
+        "include/torch-mlir/Conversion/TorchToSCF/*.h",
     ]),
     strip_include_prefix = "include",
     deps = [
@@ -497,7 +509,7 @@ cc_library(
     ]),
     hdrs = glob([
         "include/torch-mlir/Conversion/*.h",
-        "include/torch-mlir/Conversion/TorchToTMTensor/*.h"
+        "include/torch-mlir/Conversion/TorchToTMTensor/*.h",
     ]),
     strip_include_prefix = "include",
     deps = [
@@ -518,7 +530,7 @@ cc_library(
     ]),
     hdrs = glob([
         "include/torch-mlir/Conversion/*.h",
-        "include/torch-mlir/Conversion/TorchToStablehlo/*.h"
+        "include/torch-mlir/Conversion/TorchToStablehlo/*.h",
     ]),
     defines = [
         "TORCH_MLIR_ENABLE_STABLEHLO",
@@ -619,7 +631,7 @@ cc_library(
     ]),
     hdrs = glob([
         "include/torch-mlir/Conversion/*.h",
-        "include/torch-mlir/Conversion/TorchToTosa/*.h"
+        "include/torch-mlir/Conversion/TorchToTosa/*.h",
     ]),
     defines = [
         "TORCH_MLIR_ENABLE_TOSA",
