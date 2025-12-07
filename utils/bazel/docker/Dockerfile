@@ -21,9 +21,11 @@ RUN echo $REPO_NAME >> /etc/apt/sources.list.d/llvm.list && \
     clang-16
 
 # Install bazel
-ARG ARCH="x86_64"
+ARG TARGETARCH
 ARG BAZEL_VERSION=8.4.0
-RUN wget -q https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -O /usr/bin/bazel \
+RUN ARCH=${TARGETARCH} \
+    && if [ ${TARGETARCH} = "amd64" ]; then ARCH="x86_64"; fi \
+    && wget -q https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -O /usr/bin/bazel \
     && chmod a+x /usr/bin/bazel
 
 # Install torch-mlir requirements
@@ -36,6 +38,10 @@ COPY externals/llvm-project/mlir/python/requirements.txt /opt/app/externals/llvm
 WORKDIR /opt/app
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install --upgrade --ignore-installed -r requirements.txt
+
+# Make a symlink to clang for uniformity
+RUN ln -s /usr/bin/clang-16 /usr/bin/clang
+RUN ln -s /usr/bin/clang++-16 /usr/bin/clang++
 
 # Clean up
 RUN apt-get clean \
