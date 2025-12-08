@@ -1,3 +1,5 @@
+# TODO: remove nanobind pin when https://github.com/wjakob/nanobind/issues/1237 is resolved
+nanobind~=2.9.2
 -r ./externals/llvm-project/mlir/python/requirements.txt
 wheel
 setuptools
