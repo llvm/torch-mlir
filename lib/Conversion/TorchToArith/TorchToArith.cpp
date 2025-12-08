@@ -112,7 +112,7 @@ public:
 
 namespace {
 template <typename AtenOp, typename UnaryOp>
-class ConvertAtenUnaryOpToFloatMathOp : public OpConversionPattern<AtenOp> {
+class ConvertAtenUnaryOp : public OpConversionPattern<AtenOp> {
 public:
   using OpConversionPattern<AtenOp>::OpConversionPattern;
   LogicalResult
@@ -513,6 +513,10 @@ public:
 
     target.addIllegalOp<AtenNegIntOp>();
     patterns.add<ConvertAtenNegIntOp>(typeConverter, context);
+    target.addIllegalOp<AtenNegFloatOp>();
+    patterns.add<ConvertAtenUnaryOp<AtenNegFloatOp, arith::NegFOp>>(
+        typeConverter, context);
+
     target.addIllegalOp<AtenAddIntOp, AtenAddFloatIntOp, AtenSubIntOp,
                         AtenMulIntOp, AtenRemainderIntOp, AtenMulIntFloatOp,
                         AtenMulFloatIntOp>();
@@ -558,12 +562,11 @@ public:
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenNeBoolOp, arith::XOrIOp>>(
         typeConverter, context);
-    patterns
-        .add<ConvertAtenUnaryOpToFloatMathOp<AtenCeilFloatOp, math::CeilOp>>(
-            typeConverter, context);
-    target.addIllegalOp<AtenSqrtIntOp>();
-    patterns.add<ConvertAtenUnaryOpToFloatMathOp<AtenSqrtIntOp, math::SqrtOp>>(
+    patterns.add<ConvertAtenUnaryOp<AtenCeilFloatOp, math::CeilOp>>(
         typeConverter, context);
+    target.addIllegalOp<AtenSqrtIntOp>();
+    patterns.add<ConvertAtenUnaryOp<AtenSqrtIntOp, math::SqrtOp>>(typeConverter,
+                                                                  context);
     target.addIllegalOp<AtenAnyBoolOp, AtenAllBoolOp>();
     patterns.add<ConvertAtenAnyOp>(typeConverter, context);
     patterns.add<ConvertAtenAllOp>(typeConverter, context);
