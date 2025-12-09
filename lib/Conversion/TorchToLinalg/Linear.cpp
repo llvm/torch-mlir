@@ -1843,19 +1843,18 @@ public:
       // If convolution bwd is grouped, `weight` should be expanded
       auto weightExpanded = isGroupedConvBwd ? expandGroups(weight, 0) : weight;
 
-      // Flip weight along spatial dims only if
-      // - kernel size is greater than 1,
-      // - the kernel is not a 1x1 or 1x1x1 kernel.
+      // Flip weight along non-unit spatial dims.
       SmallVector<int64_t> weightDimsInt = makeShapeTorchCompatible(
           cast<RankedTensorType>(weightExpanded.getType()).getShape());
-      bool is1x1Kernel = std::all_of(weightDimsInt.rbegin(),
-                                     weightDimsInt.rbegin() + numSpatialDims,
-                                     [](int64_t dim) { return dim == 1; });
-      if (numSpatialDims > 1 && !is1x1Kernel) {
-        SmallVector<int64_t> weightFlipDims;
-        weightFlipDims.reserve(numSpatialDims);
-        for (int64_t i = 0; i < static_cast<int64_t>(numSpatialDims); ++i)
-          weightFlipDims.push_back(spatialStartDimIdx + i);
+      // Collect any non-unit spatial dim indices.
+      SmallVector<int64_t> weightFlipDims;
+      for (auto [idx, dim] : llvm::enumerate(weightDimsInt)) {
+        if (idx >= spatialStartDimIdx && dim != 1) {
+          weightFlipDims.push_back(static_cast<int64_t>(idx));
+        }
+      }
+      // Perform a flip if we have more than one non-trivial spatial dim.
+      if (weightFlipDims.size() > 1) {
         weightExpanded = torch_to_linalg::flipTensor(
             rewriter, loc, weightExpanded, weightFlipDims);
       }
