@@ -138,8 +138,10 @@ Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
   if (auto dtypeComplex = dyn_cast<mlir::ComplexType>(elemTy)) {
     // For complex types, create a complex zero (0.0 + 0.0j)
     Type floatType = cast<mlir::FloatType>(dtypeComplex.getElementType());
-    Value realZero = arith::ConstantOp::create(b, loc, b.getZeroAttr(floatType));
-    Value imagZero = arith::ConstantOp::create(b, loc, b.getZeroAttr(floatType));
+    Value realZero =
+        arith::ConstantOp::create(b, loc, b.getZeroAttr(floatType));
+    Value imagZero =
+        arith::ConstantOp::create(b, loc, b.getZeroAttr(floatType));
     c0 = complex::CreateOp::create(b, loc, elemTy, realZero, imagZero);
   } else {
     c0 = arith::ConstantOp::create(b, loc, b.getZeroAttr(elemTy));
@@ -157,7 +159,8 @@ Value createOneInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
     // For complex types, create a complex one (1.0 + 0.0j)
     Type floatType = cast<mlir::FloatType>(dtypeComplex.getElementType());
     Value realOne = arith::ConstantOp::create(b, loc, b.getOneAttr(floatType));
-    Value imagZero = arith::ConstantOp::create(b, loc, b.getZeroAttr(floatType));
+    Value imagZero =
+        arith::ConstantOp::create(b, loc, b.getZeroAttr(floatType));
     c1 = complex::CreateOp::create(b, loc, elemTy, realOne, imagZero);
   } else {
     c1 = arith::ConstantOp::create(b, loc, b.getOneAttr(elemTy));
