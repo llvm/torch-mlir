@@ -2101,11 +2101,7 @@ private:
     bindDimsList(context, MutableArrayRef{dims});
 
     auto n = [&]() { return dims[0]; };
-    auto g = [&]() {
-      if (!isGrouped)
-        llvm_unreachable("g() called for non-grouped convolution.");
-      return dims[1];
-    };
+    auto g = [&]() { return dims[1]; };
     auto c = [&]() { return dims[1 + static_cast<int64_t>(isGrouped)]; };
     auto o = [&](size_t i) {
       return dims[1 + static_cast<int64_t>(isGrouped) + 1 + i];
@@ -2180,11 +2176,7 @@ private:
     SmallVector<AffineExpr> dims(numIterators);
     bindDimsList(context, MutableArrayRef{dims});
 
-    auto g = [&]() {
-      if (!isGrouped)
-        llvm_unreachable("g() called for non-grouped convolution.");
-      return dims[0];
-    };
+    auto g = [&]() { return dims[0]; };
     auto f = [&]() { return dims[static_cast<int64_t>(isGrouped)]; };
     auto c = [&]() { return dims[static_cast<int64_t>(isGrouped) + 1]; };
     auto k = [&](size_t i) {
