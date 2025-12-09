@@ -34,7 +34,6 @@ BACKEND_LEGAL_OPS = {
         "aten.flatten.using_ints",
         "aten.adaptive_avg_pool1d",
         "aten.adaptive_avg_pool2d",
-        "aten.convolution_backward",
         "aten.unflatten.int",
     ],
     OutputType.STABLEHLO: [
