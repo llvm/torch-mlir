@@ -2138,9 +2138,11 @@ private:
         AffineMap::get(numIterators, 0, lhsExprs, context),
         AffineMap::get(numIterators, 0, rhsExprs, context),
         AffineMap::get(numIterators, 0, outExprs, context)};
-    SmallVector<IT> iteratorTypes = SmallVector<IT>(numIterators, IT::parallel);
-    std::fill(iteratorTypes.rbegin(),
-              iteratorTypes.rbegin() + (numSpatialDims + 1), IT::reduction);
+
+    int64_t numReductionDims = numSpatialDims + 1;
+    SmallVector<IT> iteratorTypes =
+        SmallVector<IT>(numIterators - numReductionDims, IT::parallel);
+    iteratorTypes.append(numReductionDims, IT::reduction);
 
     return createConvAsGenericOp(rewriter, loc, gradOutput, weight,
                                  gradInputInit, indexingMaps, iteratorTypes);
@@ -2216,9 +2218,11 @@ private:
         AffineMap::get(numIterators, 0, lhsExprs, context),
         AffineMap::get(numIterators, 0, rhsExprs, context),
         AffineMap::get(numIterators, 0, outExprs, context)};
-    SmallVector<IT> iteratorTypes = SmallVector<IT>(numIterators, IT::parallel);
-    std::fill(iteratorTypes.rbegin(),
-              iteratorTypes.rbegin() + (numSpatialDims + 1), IT::reduction);
+
+    int64_t numReductionDims = numSpatialDims + 1;
+    SmallVector<IT> iteratorTypes =
+        SmallVector<IT>(numIterators - numReductionDims, IT::parallel);
+    iteratorTypes.append(numReductionDims, IT::reduction);
 
     return createConvAsGenericOp(rewriter, loc, input, gradOutput,
                                  gradWeightInit, indexingMaps, iteratorTypes);
