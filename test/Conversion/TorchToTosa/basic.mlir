@@ -4439,6 +4439,51 @@ func.func @torch.aten.linear$f16(%arg0: !torch.vtensor<[2,4],f16>, %arg1: !torch
   return %0 : !torch.vtensor<[2,3],f16>
 }
 
+// CHECK-LABEL:   func.func @torch.aten.cumsum.basic(
+// CHECK-SAME:                                       %[[ARG:.*]]: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,3],f32> {
+// CHECK:           %[[IN:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[2,3],f32> -> tensor<2x3xf32>
+// CHECK:           %[[RESHAPE_SHAPE:.*]] = tosa.const_shape  {values = dense<[2, 3, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[RESHAPED:.*]] = tosa.reshape %[[IN]], %[[RESHAPE_SHAPE]] : (tensor<2x3xf32>, !tosa.shape<3>) -> tensor<2x3x1xf32>
+// CHECK:           %[[ZERO:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[PAD_SPEC:.*]] = tosa.const_shape  {values = dense<[0, 0, 1, 0, 0, 0]> : tensor<6xindex>} : () -> !tosa.shape<6>
+// CHECK:           %[[PADDED:.*]] = tosa.pad %[[RESHAPED]], %[[PAD_SPEC]], %[[ZERO]] : (tensor<2x3x1xf32>, !tosa.shape<6>, tensor<1xf32>) -> tensor<2x4x1xf32>
+// CHECK:           %[[SLICE_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[SLICE_SIZE:.*]] = tosa.const_shape  {values = dense<[2, 3, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[SLICE:.*]] = tosa.slice %[[PADDED]], %[[SLICE_START]], %[[SLICE_SIZE]] : (tensor<2x4x1xf32>, !tosa.shape<3>, !tosa.shape<3>) -> tensor<2x3x1xf32>
+// CHECK:           %[[ACC1:.*]] = tosa.add %[[RESHAPED]], %[[SLICE]] : (tensor<2x3x1xf32>, tensor<2x3x1xf32>) -> tensor<2x3x1xf32>
+// CHECK:           %[[ACC2:.*]] = tosa.add %[[ACC1]], %{{.*}} : (tensor<2x3x1xf32>, tensor<2x3x1xf32>) -> tensor<2x3x1xf32>
+// CHECK:           %[[FINAL:.*]] = tosa.const_shape  {values = dense<[2, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK:           %[[OUT:.*]] = tosa.reshape %[[ACC2]], %[[FINAL]] : (tensor<2x3x1xf32>, !tosa.shape<2>) -> tensor<2x3xf32>
+// CHECK:           %[[TORCH:.*]] = torch_c.from_builtin_tensor %[[OUT]] : tensor<2x3xf32> -> !torch.vtensor<[2,3],f32>
+// CHECK:           return %[[TORCH]] : !torch.vtensor<[2,3],f32>
+// CHECK:         }
+func.func @torch.aten.cumsum.basic(%arg0: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,3],f32> {
+  %dim = torch.constant.int 1
+  %none = torch.constant.none
+  %0 = torch.aten.cumsum %arg0, %dim, %none : !torch.vtensor<[2,3],f32>, !torch.int, !torch.none -> !torch.vtensor<[2,3],f32>
+  return %0 : !torch.vtensor<[2,3],f32>
+}
+
+// CHECK-LABEL:   func.func @torch.aten.cumsum.si32(
+// CHECK-SAME:                                        %[[ARG:.*]]: !torch.vtensor<[3,2],si32>) -> !torch.vtensor<[3,2],si32> {
+// CHECK:           %[[IN:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[3,2],si32> -> tensor<3x2xi32>
+// CHECK:           %[[RESHAPE:.*]] = tosa.reshape %[[IN]], %{{.*}} : (tensor<3x2xi32>, !tosa.shape<3>) -> tensor<{{.*}}xi32>
+// CHECK:           %[[ZERO:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi32>}> : () -> tensor<1xi32>
+// CHECK:           %[[PAD:.*]] = tosa.pad %[[RESHAPE]], %{{.*}}, %[[ZERO]] : (tensor<{{.*}}xi32>, !tosa.shape<6>, tensor<1xi32>) -> tensor<{{.*}}xi32>
+// CHECK:           %[[SLICE:.*]] = tosa.slice %[[PAD]], %{{.*}}, %{{.*}} : (tensor<{{.*}}xi32>, !tosa.shape<3>, !tosa.shape<3>) -> tensor<{{.*}}xi32>
+// CHECK:           %[[ACC1:.*]] = tosa.add %[[RESHAPE]], %[[SLICE]] : (tensor<{{.*}}xi32>, tensor<{{.*}}xi32>) -> tensor<{{.*}}xi32>
+// CHECK:           %[[ACC2:.*]] = tosa.add %[[ACC1]], %{{.*}} : (tensor<{{.*}}xi32>, tensor<{{.*}}xi32>) -> tensor<{{.*}}xi32>
+// CHECK:           %[[FINAL:.*]] = tosa.reshape %[[ACC2]], %{{.*}} : (tensor<{{.*}}xi32>, !tosa.shape<2>) -> tensor<3x2xi32>
+// CHECK:           %[[TORCH:.*]] = torch_c.from_builtin_tensor %[[FINAL]] : tensor<3x2xi32> -> !torch.vtensor<[3,2],si32>
+// CHECK:           return %[[TORCH]] : !torch.vtensor<[3,2],si32>
+// CHECK:         }
+func.func @torch.aten.cumsum.si32(%arg0: !torch.vtensor<[3,2],si32>) -> !torch.vtensor<[3,2],si32> {
+  %dim = torch.constant.int 0
+  %none = torch.constant.none
+  %0 = torch.aten.cumsum %arg0, %dim, %none : !torch.vtensor<[3,2],si32>, !torch.int, !torch.none -> !torch.vtensor<[3,2],si32>
+  return %0 : !torch.vtensor<[3,2],si32>
+}
+
 // -----
 func.func @torch.aten.empty.memory_format() -> !torch.vtensor<[1,0,256],f32>{
     %c1 = torch.constant.int 1
