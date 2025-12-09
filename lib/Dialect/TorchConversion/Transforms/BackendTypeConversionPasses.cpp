@@ -8,9 +8,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/ControlFlow/Transforms/StructuralTypeConversions.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
-#include "mlir/Dialect/ControlFlow/Transforms/StructuralTypeConversions.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -67,7 +67,8 @@ void populateFuncBackendTypeConversionPatterns(TypeConverter &typeConverter,
   target.addDynamicallyLegalOp<func::CallOp>(
       [&](func::CallOp op) { return typeConverter.isLegal(op); });
 
-  cf::populateCFStructuralTypeConversionsAndLegality(typeConverter, patterns, target);
+  cf::populateCFStructuralTypeConversionsAndLegality(typeConverter, patterns,
+                                                     target);
   populateReturnOpTypeConversionPattern(patterns, typeConverter);
   target.addLegalOp<ModuleOp>();
 

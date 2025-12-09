@@ -10,7 +10,8 @@
 // CHECK-DAG:         %[[CST_0:.*]] = arith.constant dense<{{.*}}> : tensor<9x5xcomplex<f32>>
 // CHECK:             %[[VAR0:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[16,9],f32> -> tensor<16x9xf32>
 // CHECK-DAG:         %[[VAR1:.*]] = tensor.empty() : tensor<16x5xcomplex<f32>>
-// CHECK:             %[[VAR2:.*]] = linalg.fill ins(%[[CST]] : f32) outs(%[[VAR1]] : tensor<16x5xcomplex<f32>>) -> tensor<16x5xcomplex<f32>>
+// CHECK-DAG:         %[[CPLX:.*]] = complex.create %[[CST]], %[[CST]] : complex<f32>
+// CHECK:             %[[VAR2:.*]] = linalg.fill ins(%[[CPLX]] : complex<f32>) outs(%[[VAR1]] : tensor<16x5xcomplex<f32>>) -> tensor<16x5xcomplex<f32>>
 // CHECK:             %[[VAR3:.*]] = linalg.generic {indexing_maps = [#map, #map1, #map2], iterator_types = ["parallel", "reduction", "parallel"]} ins(%[[VAR0]], %[[CST_0]] : tensor<16x9xf32>, tensor<9x5xcomplex<f32>>) outs(%[[VAR2]] : tensor<16x5xcomplex<f32>>) {
 // CHECK:             ^bb0(%in: f32, %in_1: complex<f32>, %out: complex<f32>):
 // CHECK:               %[[VAR5:.*]] = complex.re %in_1 : complex<f32>
@@ -41,7 +42,8 @@ func.func @torch.aten.fft_rfft$2d_last_dim(%arg0: !torch.vtensor<[16,9],f32>) ->
 // CHECK-DAG:         %[[VAR1:.*]] = tensor.empty() : tensor<23x36xf32>
 // CHECK:             %[[TRANSPOSED:.*]] = linalg.transpose ins(%[[VAR0]] : tensor<36x23xf32>) outs(%[[VAR1]] : tensor<23x36xf32>) permutation = [1, 0]
 // CHECK-DAG:         %[[VAR2:.*]] = tensor.empty() : tensor<23x19xcomplex<f32>>
-// CHECK:             %[[VAR3:.*]] = linalg.fill ins(%[[CST]] : f32) outs(%[[VAR2]] : tensor<23x19xcomplex<f32>>) -> tensor<23x19xcomplex<f32>>
+// CHECK-DAG:         %[[CPLX:.*]] = complex.create %[[CST]], %[[CST]] : complex<f32>
+// CHECK:             %[[VAR3:.*]] = linalg.fill ins(%[[CPLX]] : complex<f32>) outs(%[[VAR2]] : tensor<23x19xcomplex<f32>>) -> tensor<23x19xcomplex<f32>>
 // CHECK:             %[[VAR4:.*]] = linalg.generic {indexing_maps = [#map, #map1, #map2], iterator_types = ["parallel", "reduction", "parallel"]} ins(%[[TRANSPOSED]], %[[CST_0]] : tensor<23x36xf32>, tensor<36x19xcomplex<f32>>) outs(%[[VAR3]] : tensor<23x19xcomplex<f32>>) {
 // CHECK:             ^bb0(%in: f32, %in_2: complex<f32>, %out: complex<f32>):
 // CHECK:               %[[VAR7:.*]] = complex.re %in_2 : complex<f32>

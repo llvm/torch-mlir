@@ -134,11 +134,16 @@ Value createZeroInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
   Value initTensor =
       tensor::EmptyOp::create(b, loc, getAsOpFoldResult(sizes), elemTy);
 
-  Type fillValElemTy = elemTy;
-  if (auto dtypeComplex = dyn_cast<mlir::ComplexType>(elemTy))
-    fillValElemTy = cast<mlir::FloatType>(dtypeComplex.getElementType());
-
-  Value c0 = arith::ConstantOp::create(b, loc, b.getZeroAttr(fillValElemTy));
+  Value c0;
+  if (auto dtypeComplex = dyn_cast<mlir::ComplexType>(elemTy)) {
+    // For complex types, create a complex zero (0.0 + 0.0j)
+    Type floatType = cast<mlir::FloatType>(dtypeComplex.getElementType());
+    Value realZero = arith::ConstantOp::create(b, loc, b.getZeroAttr(floatType));
+    Value imagZero = arith::ConstantOp::create(b, loc, b.getZeroAttr(floatType));
+    c0 = complex::CreateOp::create(b, loc, elemTy, realZero, imagZero);
+  } else {
+    c0 = arith::ConstantOp::create(b, loc, b.getZeroAttr(elemTy));
+  }
   return linalg::FillOp::create(b, loc, c0, initTensor).getResult(0);
 }
 
@@ -147,11 +152,16 @@ Value createOneInitTensor(OpBuilder &b, Location loc, ValueRange sizes,
   Value initTensor =
       tensor::EmptyOp::create(b, loc, getAsOpFoldResult(sizes), elemTy);
 
-  Type fillValElemTy = elemTy;
-  if (auto dtypeComplex = dyn_cast<mlir::ComplexType>(elemTy))
-    fillValElemTy = cast<mlir::FloatType>(dtypeComplex.getElementType());
-
-  Value c1 = arith::ConstantOp::create(b, loc, b.getOneAttr(fillValElemTy));
+  Value c1;
+  if (auto dtypeComplex = dyn_cast<mlir::ComplexType>(elemTy)) {
+    // For complex types, create a complex one (1.0 + 0.0j)
+    Type floatType = cast<mlir::FloatType>(dtypeComplex.getElementType());
+    Value realOne = arith::ConstantOp::create(b, loc, b.getOneAttr(floatType));
+    Value imagZero = arith::ConstantOp::create(b, loc, b.getZeroAttr(floatType));
+    c1 = complex::CreateOp::create(b, loc, elemTy, realOne, imagZero);
+  } else {
+    c1 = arith::ConstantOp::create(b, loc, b.getOneAttr(elemTy));
+  }
   return linalg::FillOp::create(b, loc, c1, initTensor).getResult(0);
 }
 
