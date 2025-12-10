@@ -90,9 +90,10 @@ def linear_model() -> onnx.ModelProto:
 def path_based_shape_inference_model() -> onnx.ModelProto:
     # Create a model with a serialized form that's large enough to require
     # path-based shape inference.
-    large_tensor = numpy.random.rand(onnx.checker.MAXIMUM_PROTOBUF).astype(
-        numpy.float32
-    )
+    dtype = numpy.float32
+    byte_size = numpy.dtype(dtype).itemsize
+    tensor_size = onnx.checker.MAXIMUM_PROTOBUF // byte_size + 1
+    large_tensor = numpy.random.rand(tensor_size).astype(dtype)
     assert large_tensor.nbytes > onnx.checker.MAXIMUM_PROTOBUF
     node1 = make_node(
         "Constant",
@@ -100,13 +101,9 @@ def path_based_shape_inference_model() -> onnx.ModelProto:
         ["large_const"],
         value=numpy_helper.from_array(large_tensor, name="large_const"),
     )
-    X = make_tensor_value_info(
-        "large_const", TensorProto.FLOAT, [onnx.checker.MAXIMUM_PROTOBUF]
-    )
+    X = make_tensor_value_info("large_const", TensorProto.FLOAT, [tensor_size])
     graph = make_graph([node1], "large_const_graph", [], [X])
-    onnx_model = make_model(graph)
-    check_model(onnx_model)
-    return onnx_model
+    return make_model(graph)
 
 
 ALL_MODELS = [const_model, linear_model, path_based_shape_inference_model]
