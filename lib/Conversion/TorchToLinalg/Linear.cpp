@@ -1797,8 +1797,8 @@ public:
       }
 
       auto retType = inType.clone(makeShapeLLVMCompatible(outShape));
-      return rewriter.create<tensor::ExpandShapeOp>(loc, retType, tensor,
-                                                    indices);
+      return tensor::ExpandShapeOp::create(rewriter, loc, retType, tensor,
+                                           indices);
     };
     // The createZeroInitExpandedGroupsTensor lambda function below is used to
     // create empty tensor with already expanded group dimension.
@@ -1807,7 +1807,7 @@ public:
             Type type, int64_t dim,
             SmallVector<ReassociationIndices> &indices) {
           Value groups =
-              rewriter.create<mlir::arith::ConstantIndexOp>(loc, numGroups);
+              mlir::arith::ConstantIndexOp::create(rewriter, loc, numGroups);
 
           SmallVector<Value> expandedSizes;
           for (auto i = 0; i < static_cast<int64_t>(sizes.size()); i++) {
@@ -1861,8 +1861,8 @@ public:
 
       // For backward-input, padding must be adjusted to:
       //   p'[i] = d[i] * (K[i] - 1) - p[i]
-      Value c1 = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getI64IntegerAttr(1));
+      Value c1 = arith::ConstantOp::create(rewriter, loc,
+                                           rewriter.getI64IntegerAttr(1));
       SmallVector<Value> dilationIntValues =
           getAsConstantIntValues(rewriter, loc, dilationInts);
       SmallVector<Value> weiSizes =
@@ -1875,7 +1875,7 @@ public:
         Value mul = rewriter.createOrFold<arith::MulIOp>(loc, kMinusOne,
                                                          dilationIntValues[i]);
         paddingValues[i] =
-            rewriter.createOrFold<arith::SubIOp>(loc, mul, paddingIntValues[i]);
+            arith::SubIOp::create(rewriter, loc, mul, paddingIntValues[i]);
 
         if (isValueNegative(paddingValues[i]))
           return rewriter.notifyMatchFailure(
@@ -1892,9 +1892,9 @@ public:
         // Offsets on spatial dims are paddings
         // Strides on spatial dims are the original stride[i].
         Value zero =
-            rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+            arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(0));
         Value one =
-            rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+            arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(1));
 
         // Initialize slice strides, sizes and offsets
         SmallVector<Value> goSizes =
@@ -1917,15 +1917,15 @@ public:
           sizes.push_back(rewriter.createOrFold<arith::AddIOp>(loc, sum, one));
           offsets.push_back(castIntToIndex(rewriter, loc, paddingValues[i]));
 
-          Value strideIntValue = rewriter.create<arith::ConstantOp>(
-              loc, rewriter.getI64IntegerAttr(strideInts[i]));
+          Value strideIntValue = arith::ConstantOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(strideInts[i]));
           strides.push_back(castIntToIndex(rewriter, loc, strideIntValue));
         }
 
         Value zeroInit =
             createZeroInitTensor(rewriter, loc, sizes, gradOutputDTy);
-        gradOutputModified = rewriter.create<tensor::InsertSliceOp>(
-            loc,
+        gradOutputModified = tensor::InsertSliceOp::create(
+            rewriter, loc,
             torch_to_linalg::removeSizeInformation(rewriter, loc,
                                                    gradOutputExpanded),
             zeroInit, offsets, goSizes, strides);
@@ -1933,8 +1933,8 @@ public:
         // If there unit strides, pad `grad_output` spatial dims with zeros.
         // If conv is grouped, output has shape:
         //  N x G x F/G x <spatial>. Otherwise: N x F x <spatial>.
-        Value padVal = rewriter.create<arith::ConstantOp>(
-            loc, rewriter.getFloatAttr(gradOutputDTy, 0.0));
+        Value padVal = arith::ConstantOp::create(
+            rewriter, loc, rewriter.getFloatAttr(gradOutputDTy, 0.0));
         gradOutputModified = torch_to_linalg::getDynamicZeroPaddedTensor(
             op, rewriter, gradOutputExpanded, paddingValues, spatialStartDimIdx,
             padVal);
@@ -1960,18 +1960,16 @@ public:
       // Collapse [N, G, C/G, D] to [N, C, D] the result of the conv
       // if it is grouped.
       if (isGroupedConvBwd) {
-        convRes = rewriter.create<tensor::CollapseShapeOp>(
-            loc, input.getType(), convRes, gradInputCollapseIndices);
+        convRes = tensor::CollapseShapeOp::create(
+            rewriter, loc, input.getType(), convRes, gradInputCollapseIndices);
       }
 
       // Cast to the final result type expected by the type converter.
-      newResults[0] =
-          rewriter
-              .create<tensor::CastOp>(
-                  loc,
-                  getTypeConverter()->convertType(op->getResult(0).getType()),
-                  convRes)
-              .getResult();
+      newResults[0] = tensor::CastOp::create(rewriter, loc,
+                                             getTypeConverter()->convertType(
+                                                 op->getResult(0).getType()),
+                                             convRes)
+                          .getResult();
     }
 
     // Computing Backward-Weight Convolution.
@@ -1985,8 +1983,8 @@ public:
       // Pad input spatial dims with zeros. If grouped, input has shape:
       // N x G x C/G x <spatial>. Otherwise: N x C x <spatial>.
       // We should only pad the spatial dims, so set unpaddedDims accordingly.
-      Value padVal = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getFloatAttr(inputDTy, 0.0));
+      Value padVal = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getFloatAttr(inputDTy, 0.0));
       Value paddedInput = torch_to_linalg::getDynamicZeroPaddedTensor(
           op, rewriter, inputExpanded, paddingIntValues, spatialStartDimIdx,
           padVal);
@@ -2014,18 +2012,17 @@ public:
       // Collapse [G, F/G, C/G, D] to [F, C/G, D] the result of the conv
       // if it is grouped.
       if (isGroupedConvBwd) {
-        convResult = rewriter.create<tensor::CollapseShapeOp>(
-            loc, weight.getType(), convResult, gradWeightCollapseIndices);
+        convResult = tensor::CollapseShapeOp::create(
+            rewriter, loc, weight.getType(), convResult,
+            gradWeightCollapseIndices);
       }
 
       // Cast to the final result type expected by the type converter.
-      newResults[1] =
-          rewriter
-              .create<tensor::CastOp>(
-                  loc,
-                  getTypeConverter()->convertType(op->getResult(1).getType()),
-                  convResult)
-              .getResult();
+      newResults[1] = tensor::CastOp::create(rewriter, loc,
+                                             getTypeConverter()->convertType(
+                                                 op->getResult(1).getType()),
+                                             convResult)
+                          .getResult();
     }
 
     // Computing Backward-Bias Convolution.
@@ -2038,27 +2035,25 @@ public:
 
       torch_to_linalg::ReductionOpInfo opInfo{false, gradOutput, reduceDims};
 
-      // Zero init for the element type.
-      Value initSum = rewriter.create<arith::ConstantOp>(
-          loc, rewriter.getZeroAttr(gradOutputDTy));
+      // Zero init for the element type (arith.constant expects a scalar attr).
+      Value initSum = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getZeroAttr(gradOutputDTy));
 
       auto reductionBody = [&](OpBuilder &b, Location loc, ValueRange args) {
         Value x = args[0];
         Value acc = args[1];
-        Value sum = b.create<arith::AddFOp>(loc, x, acc);
-        b.create<linalg::YieldOp>(loc, sum);
+        Value sum = arith::AddFOp::create(b, loc, x, acc);
+        linalg::YieldOp::create(b, loc, sum);
       };
 
       Value gradBias = torch_to_linalg::createReductionLinalgGeneric(
           rewriter, loc, opInfo, initSum, reductionBody);
 
-      newResults[2] =
-          rewriter
-              .create<tensor::CastOp>(
-                  loc,
-                  getTypeConverter()->convertType(op->getResult(2).getType()),
-                  gradBias)
-              .getResult();
+      newResults[2] = tensor::CastOp::create(rewriter, loc,
+                                             getTypeConverter()->convertType(
+                                                 op->getResult(2).getType()),
+                                             gradBias)
+                          .getResult();
     }
 
     rewriter.replaceOp(op, newResults);
@@ -2224,8 +2219,8 @@ private:
   createConvAsGenericOp(OpBuilder &b, Location loc, Value in0, Value in1,
                         Value out, const SmallVector<AffineMap> &indexingMaps,
                         const SmallVector<IT> &iteratorTypes) {
-    return b.create<linalg::GenericOp>(
-        loc, out.getType(), ValueRange{in0, in1}, out, indexingMaps,
+    return linalg::GenericOp::create(
+        b, loc, out.getType(), ValueRange{in0, in1}, out, indexingMaps,
         iteratorTypes, [&](OpBuilder &b, Location loc, ValueRange args) {
           Value input = args[0];
           Value grad = args[1];
@@ -2234,15 +2229,15 @@ private:
           // Convert input and grad to accumulator type if needed
           Type accType = output.getType();
           if (input.getType() != accType) {
-            input = b.create<arith::ExtFOp>(loc, accType, input);
+            input = arith::ExtFOp::create(b, loc, accType, input);
           }
           if (grad.getType() != accType) {
-            grad = b.create<arith::ExtFOp>(loc, accType, grad);
+            grad = arith::ExtFOp::create(b, loc, accType, grad);
           }
 
-          Value mul = b.create<arith::MulFOp>(loc, input, grad);
-          Value sum = b.create<arith::AddFOp>(loc, mul, output);
-          b.create<linalg::YieldOp>(loc, sum);
+          Value mul = arith::MulFOp::create(b, loc, input, grad);
+          Value sum = arith::AddFOp::create(b, loc, mul, output);
+          linalg::YieldOp::create(b, loc, sum);
         });
   }
 };
