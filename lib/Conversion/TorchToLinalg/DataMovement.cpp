@@ -1744,7 +1744,7 @@ public:
     // performed by `getAsOpFoldResult` of `tensor::DimOp`.
     // Cast to `outType` if needed to ensure type consistency.
     if (outVector.getType() != outType)
-      outVector = rewriter.create<tensor::CastOp>(loc, outType, outVector);
+      outVector = tensor::CastOp::create(rewriter, loc, outType, outVector);
 
     SmallVector<int64_t> permutation(inputRank);
     std::iota(permutation.begin(), permutation.end(), 0);
