@@ -1740,6 +1740,12 @@ public:
     Value outVector = tensor::EmptyOp::create(
         rewriter, loc, getAsOpFoldResult(outputDims), elementType);
 
+    // Note: The empty tensor type may not match `outType` due to folding
+    // performed by `getAsOpFoldResult` of `tensor::DimOp`.
+    // Cast to `outType` if needed to ensure type consistency.
+    if (outVector.getType() != outType)
+      outVector = rewriter.create<tensor::CastOp>(loc, outType, outVector);
+
     SmallVector<int64_t> permutation(inputRank);
     std::iota(permutation.begin(), permutation.end(), 0);
     permutation[dim0] = dim1;
