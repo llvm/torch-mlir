@@ -1849,8 +1849,9 @@ public:
       // Collect any non-unit spatial dim indices.
       SmallVector<int64_t> weightFlipDims;
       for (auto [idx, dim] : llvm::enumerate(weightDimsInt)) {
-        if (idx >= spatialStartDimIdx && dim != 1) {
-          weightFlipDims.push_back(static_cast<int64_t>(idx));
+        int64_t castedIdx = static_cast<int64_t>(idx);
+        if (castedIdx >= spatialStartDimIdx && dim != 1) {
+          weightFlipDims.push_back(castedIdx);
         }
       }
       // Perform a flip if we have more than one non-trivial spatial dim.
