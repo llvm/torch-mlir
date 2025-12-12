@@ -167,8 +167,8 @@ class ConvolutionBackwardModule3DStatic(torch.nn.Module):
         [
             None,
             ([1, 4, 64, 64, 64], torch.float32, True),
-            ([1, 320, 64, 64, 64], torch.float32, True),
-            ([4, 320, 3, 1, 3], torch.float32, True),
+            ([1, 32, 64, 64, 64], torch.float32, True),
+            ([4, 32, 3, 1, 3], torch.float32, True),
         ]
     )
     def forward(self, grad_out, input_vec, weight):
@@ -192,8 +192,8 @@ def ConvolutionBackwardModule3DStatic_basic(module, tu: TestUtils):
     with torch.backends.mkldnn.flags(enabled=False):
         module.forward(
             tu.rand(1, 4, 64, 64, 64),
-            tu.rand(1, 320, 64, 64, 64),
-            tu.rand(4, 320, 3, 1, 3),
+            tu.rand(1, 32, 64, 64, 64),
+            tu.rand(4, 32, 3, 1, 3),
         )
 
 
