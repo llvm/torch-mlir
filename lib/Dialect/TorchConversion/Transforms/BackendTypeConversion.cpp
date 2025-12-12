@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 
 using namespace mlir;
@@ -39,6 +40,25 @@ static void setupValueTensorToBuiltinTensorConversion(
     if (!isa<Torch::BaseTensorType>(inputs[0].getType()))
       return {};
     return ToBuiltinTensorOp::create(builder, loc, type, inputs[0]);
+  });
+  typeConverter.addTargetMaterialization([](OpBuilder &builder, Type type,
+                                            ValueRange inputs,
+                                            Location loc) -> Value {
+    if (inputs.size() != 1)
+      return Value();
+    auto fromType = dyn_cast<RankedTensorType>(inputs[0].getType());
+    auto toType = dyn_cast<RankedTensorType>(type);
+    if (!fromType || !toType)
+      return Value();
+    if (fromType == toType)
+      return inputs[0];
+    if (fromType.getElementType() != toType.getElementType())
+      return Value();
+    if (!toType.hasStaticShape())
+      return Value();
+    if (!tensor::CastOp::areCastCompatible(inputs[0].getType(), toType))
+      return Value();
+    return tensor::CastOp::create(builder, loc, toType, inputs[0]);
   });
   auto sourceMaterialization = [](OpBuilder &builder,
                                   Torch::ValueTensorType type,
