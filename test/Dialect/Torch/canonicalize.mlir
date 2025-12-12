@@ -3242,6 +3242,16 @@ func.func @aten_cat_zero(%arg0 : !torch.vtensor<[4,5,6],f32>, %arg1 : !torch.vte
 
 // -----
 
+// CHECK-LABEL: @aten_cat_empty
+func.func @aten_cat_empty(%arg0 : !torch.vtensor<[4,5,6],f32>, %arg1 : !torch.vtensor<[0],f32>) -> !torch.vtensor<[4,5,6],f32> {
+  // CHECK: return %arg0 : !torch.vtensor<[4,5,6],f32>
+  %list = torch.prim.ListConstruct %arg0, %arg1 : (!torch.vtensor<[4,5,6],f32>, !torch.vtensor<[0],f32>) -> !torch.list<vtensor>
+  %dim = torch.constant.int -2
+  %0 = torch.aten.cat %list, %dim : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[4,5,6],f32>
+  return %0 : !torch.vtensor<[4,5,6],f32>
+}
+// -----
+
 // CHECK-LABEL: @aten_tensor_scalar_lt
 func.func @aten_tensor_scalar_lt() -> (!torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>) {
   // CHECK: %[[CST:.+]] = torch.vtensor.literal(dense<true> : tensor<4xi1>) : !torch.vtensor<[4],i1>
