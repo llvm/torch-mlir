@@ -18,10 +18,26 @@ func.func @matmul_decompose_2d(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.v
 }
 
 // -----
-// CHECK-LABEL:   func.func @matmul_decompose_3d(
-// CHECK:           torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[?,?,?],f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor
-func.func @matmul_decompose_3d(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch.vtensor<[?,?,?],f32>) -> !torch.tensor {
+// CHECK-LABEL:   func.func @matmul_no_decompose_3d_dynamic(
+// CHECK:           torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,?],f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor
+func.func @matmul_no_decompose_3d_dynamic(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch.vtensor<[?,?,?],f32>) -> !torch.tensor {
   %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,?],f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+// -----
+// CHECK-LABEL:   func.func @matmul_decompose_3d_static(
+// CHECK:           torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[4,?,?],f32>, !torch.vtensor<[4,?,?],f32> -> !torch.tensor
+func.func @matmul_decompose_3d_static(%arg0: !torch.vtensor<[4,?,?],f32>, %arg1: !torch.vtensor<[4,?,?],f32>) -> !torch.tensor {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[4,?,?],f32>, !torch.vtensor<[4,?,?],f32> -> !torch.tensor
+  return %0 : !torch.tensor
+}
+
+// -----
+// CHECK-LABEL:   func.func @matmul_no_decompose_3d_broadcast(
+// CHECK:           torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[4,?,?],f32>, !torch.vtensor<[1,?,?],f32> -> !torch.tensor
+func.func @matmul_no_decompose_3d_broadcast(%arg0: !torch.vtensor<[4,?,?],f32>, %arg1: !torch.vtensor<[1,?,?],f32>) -> !torch.tensor {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[4,?,?],f32>, !torch.vtensor<[1,?,?],f32> -> !torch.tensor
   return %0 : !torch.tensor
 }
 
