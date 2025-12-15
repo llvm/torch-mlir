@@ -68,6 +68,9 @@ static Value emitInclusiveScanByPowersOfTwo(Value running,
 
   SmallVector<int64_t, 3> sliceStart(3, 0);
   SmallVector<int64_t, 3> sliceSize = {outer, dimSize, inner};
+  Value sliceStartConstShape =
+      tosa::getTosaConstShape(rewriter, loc, sliceStart);
+  Value sliceSizeConstShape = tosa::getTosaConstShape(rewriter, loc, sliceSize);
 
   for (int64_t offset = 1; offset < dimSize; offset <<= 1) {
     SmallVector<int64_t, 6> padSpec = {0, 0, offset, 0, 0, 0};
@@ -79,11 +82,10 @@ static Value emitInclusiveScanByPowersOfTwo(Value running,
                                        padShape, zeroConst)
                        .getResult();
 
-    Value shifted = tosa::SliceOp::create(
-                        rewriter, loc, nkcTy, padded,
-                        tosa::getTosaConstShape(rewriter, loc, sliceStart),
-                        tosa::getTosaConstShape(rewriter, loc, sliceSize))
-                        .getResult();
+    Value shifted =
+        tosa::SliceOp::create(rewriter, loc, nkcTy, padded,
+                              sliceStartConstShape, sliceSizeConstShape)
+            .getResult();
 
     running =
         tosa::AddOp::create(rewriter, loc, nkcTy, running, shifted).getResult();
