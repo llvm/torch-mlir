@@ -415,3 +415,71 @@ func.func @convolution_backward_input_1x1x1s_1x0x1p_1x1x1d_1g(%arg0: !torch.vten
 }
 
 // -----
+
+// CHECK-LABEL:   func.func @convolution_backward_weights_2x2s_2x2p_2x2d_4g_bf16(
+// CHECK-SAME:                                                %[[VAL_0:.*]]: !torch.vtensor<[2,16,33,33],bf16>, %[[VAL_1:.*]]: !torch.vtensor<[2,128,64,64],bf16>,
+// CHECK-SAME:                                                %[[VAL_2:.*]]: !torch.vtensor<[16,32,2,2],bf16>) -> (!torch.vtensor<[16,32,2,2],bf16>, !torch.vtensor<[16],bf16>) {
+func.func @convolution_backward_weights_2x2s_2x2p_2x2d_4g_bf16(%arg0: !torch.vtensor<[2,16,33,33],bf16>, %arg1: !torch.vtensor<[2,128,64,64],bf16>, %arg2: !torch.vtensor<[16,32,2,2],bf16>) -> (!torch.vtensor<[16,32,2,2],bf16>, !torch.vtensor<[16],bf16>) {
+  // CHECK-DAG:           %[[CST_F32:.*]] = arith.constant 0.000000e+00 : f32
+  // CHECK-DAG:           %[[CST_BF16:.*]] = arith.constant 0.000000e+00 : bf16
+  // CHECK-DAG:           %[[T1:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[2,128,64,64],bf16> -> tensor<2x128x64x64xbf16>
+  // CHECK-DAG:           %[[T0:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[2,16,33,33],bf16> -> tensor<2x16x33x33xbf16>
+  // CHECK:           %[[T0_EXP:.*]] = tensor.expand_shape %[[T0]] {{\[\[0\], \[1, 2\], \[3\], \[4\]\]}} output_shape [2, 4, 4, 33, 33] : tensor<2x16x33x33xbf16> into tensor<2x4x4x33x33xbf16>
+  // CHECK:           %[[T1_EXP:.*]] = tensor.expand_shape %[[T1]] {{\[\[0\], \[1, 2\], \[3\], \[4\]\]}} output_shape [2, 4, 32, 64, 64] : tensor<2x128x64x64xbf16> into tensor<2x4x32x64x64xbf16>
+  // CHECK:           %[[PAD:.*]] = tensor.pad %[[T1_EXP]] low[0, 0, 0, 2, 2] high[0, 0, 0, 2, 2]
+  // CHECK-NEXT:      ^bb0(%{{.*}}: index, %{{.*}}: index, %{{.*}}: index, %{{.*}}: index, %{{.*}}: index):
+  // CHECK-NEXT:        tensor.yield %[[CST_BF16]] : bf16
+  // CHECK-NEXT:      } : tensor<2x4x32x64x64xbf16> to tensor<2x4x32x68x68xbf16>
+  // CHECK:           %[[OUT0_EMPTY:.*]] = tensor.empty() : tensor<4x4x32x2x2xf32>
+  // CHECK:           %[[OUT0_FILLED:.*]] = linalg.fill ins(%[[CST_F32]] : f32) outs(%[[OUT0_EMPTY]] : tensor<4x4x32x2x2xf32>) -> tensor<4x4x32x2x2xf32>
+  // CHECK:           %[[CONV:.*]] = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2, d3, d4, d5, d6, d7) -> (d5, d0, d2, d3 * 2 + d6 * 2, d4 * 2 + d7 * 2)>, affine_map<(d0, d1, d2, d3, d4, d5, d6, d7) -> (d5, d0, d1, d6, d7)>, affine_map<(d0, d1, d2, d3, d4, d5, d6, d7) -> (d0, d1, d2, d3, d4)>], iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel", "reduction", "reduction", "reduction"]} ins(%[[PAD]], %[[T0_EXP]] : tensor<2x4x32x68x68xbf16>, tensor<2x4x4x33x33xbf16>) outs(%[[OUT0_FILLED]] : tensor<4x4x32x2x2xf32>) {
+  // CHECK-NEXT:      ^bb0(%[[IN:.*]]: bf16, %[[IN1:.*]]: bf16, %[[OUT:.*]]: f32):
+  // CHECK-NEXT:        %[[EXT0:.*]] = arith.extf %[[IN]] : bf16 to f32
+  // CHECK-NEXT:        %[[EXT1:.*]] = arith.extf %[[IN1]] : bf16 to f32
+  // CHECK-NEXT:        %[[MUL:.*]] = arith.mulf %[[EXT0]], %[[EXT1]] : f32
+  // CHECK-NEXT:        %[[CONV_RES:.*]] = arith.addf %[[MUL]], %[[OUT]] : f32
+  // CHECK-NEXT:        linalg.yield %[[CONV_RES]] : f32
+  // CHECK-NEXT:      } -> tensor<4x4x32x2x2xf32>
+  // CHECK:           %[[DOWNCAST0:.*]] = linalg.generic
+  // CHECK-SAME:      {indexing_maps = [
+  // CHECK-SAME:      affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>,
+  // CHECK-SAME:      affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2, d3, d4)>],
+  // CHECK-SAME:      iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel"]}
+  // CHECK-SAME:      ins(%[[CONV]] : tensor<4x4x32x2x2xf32>) outs(%[[ZERO_BF16_INIT:.*]] : tensor<4x4x32x2x2xbf16>) {
+  // CHECK-NEXT:      ^bb0(%[[IN_BBARG:.*]]: f32, %[[OUT_BBARG:.*]]: bf16):
+  // CHECK-NEXT:        %[[TRUNC:.*]] = arith.truncf %[[IN_BBARG]] : f32 to bf16
+  // CHECK-NEXT:        linalg.yield %[[TRUNC]] : bf16
+  // CHECK-NEXT:      } -> tensor<4x4x32x2x2xbf16>
+  // CHECK:           %[[COLLAPSED:.*]] = tensor.collapse_shape %[[DOWNCAST0]] {{\[\[0, 1\], \[2\], \[3\], \[4\]\]}} : tensor<4x4x32x2x2xbf16> into tensor<16x32x2x2xbf16>
+  // CHECK:           %[[WGRAD:.*]] = torch_c.from_builtin_tensor %[[COLLAPSED]] : tensor<16x32x2x2xbf16> -> !torch.vtensor<[16,32,2,2],bf16>
+  // CHECK:           %[[SUM_EMPTY:.*]] = tensor.empty() : tensor<16xf32>
+  // CHECK:           %[[SUM_FILLED:.*]] = linalg.fill ins(%[[CST_F32]] : f32) outs(%[[SUM_EMPTY]] : tensor<16xf32>) -> tensor<16xf32>
+  // CHECK:           %[[SUM_GEN:.*]] = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>, affine_map<(d0, d1, d2, d3) -> (d1)>], iterator_types = ["reduction", "parallel", "reduction", "reduction"]} ins(%[[T0]] : tensor<2x16x33x33xbf16>) outs(%[[SUM_FILLED]] : tensor<16xf32>) {
+  // CHECK-NEXT:      ^bb0(%[[IN_B:.*]]: bf16, %[[ACC_B:.*]]: f32):
+  // CHECK-NEXT:        %[[B_EXT:.*]] = arith.extf %[[IN_B]] : bf16 to f32
+  // CHECK-NEXT:        %[[B_RES:.*]] = arith.addf %[[B_EXT]], %[[ACC_B]] : f32
+  // CHECK-NEXT:        linalg.yield %[[B_RES]] : f32
+  // CHECK-NEXT:      } -> tensor<16xf32>
+  // CHECK:           %[[DOWNCAST1:.*]] = linalg.generic {indexing_maps = [affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>],
+  // CHECK-SAME:      iterator_types = ["parallel"]} ins(%[[SUM_GEN]] : tensor<16xf32>) outs(%[[ZERO_BF16_INIT_1:.*]] : tensor<16xbf16>) {
+  // CHECK-NEXT:      ^bb0(%[[IN_BBARG:.*]]: f32, %[[OUT_BBARG:.*]]: bf16):
+  // CHECK-NEXT:        %[[TRUNC:.*]] = arith.truncf %[[IN_BBARG]] : f32 to bf16
+  // CHECK-NEXT:        linalg.yield %[[TRUNC]] : bf16
+  // CHECK-NEXT:      } -> tensor<16xbf16>
+  // CHECK:           %[[BIAS:.*]] = torch_c.from_builtin_tensor %[[DOWNCAST1]] : tensor<16xbf16> -> !torch.vtensor<[16],bf16>
+  // CHECK:           return %[[WGRAD]], %[[BIAS]] : !torch.vtensor<[16,32,2,2],bf16>, !torch.vtensor<[16],bf16>
+  %true = torch.constant.bool true
+  %int0 = torch.constant.int 0
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int4 = torch.constant.int 4
+  %0 = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %false, %true, %true : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
+  %result0, %result1, %result2 = torch.aten.convolution_backward %arg0, %arg1, %arg2, %0, %1, %1, %1, %false, %2, %int4, %3 : !torch.vtensor<[2,16,33,33],bf16>, !torch.vtensor<[2,128,64,64],bf16>, !torch.vtensor<[16,32,2,2],bf16>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.none, !torch.vtensor<[16,32,2,2],bf16>, !torch.vtensor<[16],bf16>
+  return %result1, %result2 : !torch.vtensor<[16,32,2,2],bf16>, !torch.vtensor<[16],bf16>
+}
+
+// -----
