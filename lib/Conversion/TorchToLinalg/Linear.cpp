@@ -1853,16 +1853,8 @@ public:
       if (floatAccDTy == floatTargetDTy)
         return accumulator;
 
-      Value generic = torch_to_linalg::createElementwiseLinalgGeneric(
-          rewriter, loc, {accumulator}, targetDTy,
-          [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
-            // We don't need to pass src/dst dtypes for floats.
-            // Update this when supporting integer types.
-            auto result =
-                convertScalarToDtype(b, loc, payloadArgs[0], targetDTy);
-            linalg::YieldOp::create(b, loc, result);
-          });
-      return generic;
+      return torch_to_linalg::convertTensorToElementType(
+          rewriter, loc, accumulator, targetDTy);
     };
 
     SmallVector<Value> newResults(op->getNumResults());
