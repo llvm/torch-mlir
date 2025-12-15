@@ -51,22 +51,28 @@ namespace {
 // Runs an in-place inclusive prefix sum along the middle dimension (K) of
 // `running` using a binary lifting scheme. The input must have shape [N, K, C].
 // After the loop, `running` holds the cumsum result with respect to axis=1.
-static Value emitInclusiveScanByPowersOfTwo(Value running, Value zeroConst,
+static Value emitInclusiveScanByPowersOfTwo(Value running,
                                             ConversionPatternRewriter &rewriter,
                                             Location loc) {
   auto nkcTy = cast<RankedTensorType>(running.getType());
   SmallVector<int64_t> nkcShape(makeShapeTorchCompatible(nkcTy.getShape()));
   int64_t outer = nkcShape[0];
-  int64_t axisSize = nkcShape[1];
+  int64_t dimSize = nkcShape[1];
   int64_t inner = nkcShape[2];
 
-  SmallVector<int64_t, 3> sliceStart(3, 0);
-  SmallVector<int64_t, 3> sliceSize = {outer, axisSize, inner};
+  auto zeroConstOr =
+      tosa::createZeroPointTensor(rewriter, loc, nkcTy.getElementType(), 0);
+  if (!zeroConstOr)
+    return nullptr;
+  Value zeroConst = *zeroConstOr;
 
-  for (int64_t offset = 1; offset < axisSize; offset <<= 1) {
+  SmallVector<int64_t, 3> sliceStart(3, 0);
+  SmallVector<int64_t, 3> sliceSize = {outer, dimSize, inner};
+
+  for (int64_t offset = 1; offset < dimSize; offset <<= 1) {
     SmallVector<int64_t, 6> padSpec = {0, 0, offset, 0, 0, 0};
     auto padShape = tosa::getTosaConstShape(rewriter, loc, padSpec);
-    SmallVector<int64_t> paddedShape = {outer, axisSize + offset, inner};
+    SmallVector<int64_t> paddedShape = {outer, dimSize + offset, inner};
     auto paddedTy = RankedTensorType::get(makeShapeLLVMCompatible(paddedShape),
                                           nkcTy.getElementType());
     Value padded = tosa::PadOp::create(rewriter, loc, paddedTy, running,
@@ -4612,7 +4618,7 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "dim out of range");
 
   SmallVector<int64_t> inputShape =
-      llvm::to_vector(makeShapeTorchCompatible(selfType.getShape()));
+      makeShapeTorchCompatible(selfType.getShape());
   const int64_t K = inputShape[dim];
 
   int64_t start;
@@ -9691,10 +9697,8 @@ LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
   }
 
   SmallVector<int64_t> inputShape =
-      llvm::to_vector(makeShapeTorchCompatible(selfType.getShape()));
-  int64_t axisSize = inputShape[dim];
-  if (ShapedType::isDynamic(axisSize))
-    return rewriter.notifyMatchFailure(op, "cumsum dimension must be static");
+      makeShapeTorchCompatible(selfType.getShape());
+  int64_t dimSize = inputShape[dim];
 
   int64_t outer = 1;
   for (int64_t i = 0; i < dim; ++i)
@@ -9703,11 +9707,11 @@ LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
   for (int64_t i = dim + 1, e = inputShape.size(); i < e; ++i)
     inner *= inputShape[i];
 
-  // Collapse the tensor to [outer, axisSize, inner] so the scanned dimension
+  // Collapse the tensor to [outer, dimSize, inner] so the scanned dimension
   // is isolated. `outer` is the product of all dims before `dim`, and `inner`
   // is the product after `dim`. This lets us run a simple binary lifting
   // prefix-sum in 3D regardless of the original rank.
-  SmallVector<int64_t> nkcShape = {outer, axisSize, inner};
+  SmallVector<int64_t> nkcShape = {outer, dimSize, inner};
   auto nkcTy =
       RankedTensorType::get(makeShapeLLVMCompatible(nkcShape), outElemTy);
 
@@ -9716,16 +9720,10 @@ LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
                               tosa::getTosaConstShape(rewriter, loc, nkcShape))
           .getResult();
 
-  // Accumulate in-place: `running` always has shape [outer, axisSize, inner].
-  // We construct a scalar zero tensor once and reuse it for every pad.
-  Value zeroConst =
-      isa<FloatType>(outElemTy)
-          ? *tosa::getConstTensor<float>(rewriter, op, {0.0f}, {1}, outElemTy)
-          : *tosa::getConstTensor<int32_t>(rewriter, op, {0}, {1}, outElemTy);
+  // Accumulate in-place: `running` always has shape [outer, dimSize, inner].
+  running = emitInclusiveScanByPowersOfTwo(running, rewriter, loc);
 
-  running = emitInclusiveScanByPowersOfTwo(running, zeroConst, rewriter, loc);
-
-  SmallVector<int64_t> finalShape = llvm::to_vector(outType.getShape());
+  auto finalShape = outType.getShape();
   auto result = tosa::ReshapeOp::create(
       rewriter, loc, outType, running,
       tosa::getTosaConstShape(rewriter, loc, finalShape));
