@@ -4445,10 +4445,10 @@ func.func @torch.aten.linear$f16(%arg0: !torch.vtensor<[2,4],f16>, %arg1: !torch
 // CHECK:           %[[RESHAPE_SHAPE:.*]] = tosa.const_shape  {values = dense<[2, 3, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
 // CHECK:           %[[RESHAPED:.*]] = tosa.reshape %[[IN]], %[[RESHAPE_SHAPE]] : (tensor<2x3xf32>, !tosa.shape<3>) -> tensor<2x3x1xf32>
 // CHECK:           %[[ZERO:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK-DAG:       %[[SLICE_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK-DAG:       %[[SLICE_SIZE:.*]] = tosa.const_shape  {values = dense<[2, 3, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
 // CHECK:           %[[PAD_SPEC:.*]] = tosa.const_shape  {values = dense<[0, 0, 1, 0, 0, 0]> : tensor<6xindex>} : () -> !tosa.shape<6>
 // CHECK:           %[[PADDED:.*]] = tosa.pad %[[RESHAPED]], %[[PAD_SPEC]], %[[ZERO]] : (tensor<2x3x1xf32>, !tosa.shape<6>, tensor<1xf32>) -> tensor<2x4x1xf32>
-// CHECK:           %[[SLICE_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[SLICE_SIZE:.*]] = tosa.const_shape  {values = dense<[2, 3, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
 // CHECK:           %[[SLICE:.*]] = tosa.slice %[[PADDED]], %[[SLICE_START]], %[[SLICE_SIZE]] : (tensor<2x4x1xf32>, !tosa.shape<3>, !tosa.shape<3>) -> tensor<2x3x1xf32>
 // CHECK:           %[[ACC1:.*]] = tosa.add %[[RESHAPED]], %[[SLICE]] : (tensor<2x3x1xf32>, tensor<2x3x1xf32>) -> tensor<2x3x1xf32>
 // CHECK:           %[[ACC2:.*]] = tosa.add %[[ACC1]], %{{.*}} : (tensor<2x3x1xf32>, tensor<2x3x1xf32>) -> tensor<2x3x1xf32>
