@@ -48,6 +48,50 @@ namespace mlir::torch {
 
 namespace {
 
+// Runs an in-place inclusive prefix sum along the middle dimension (K) of
+// `running` using a binary lifting scheme. The input must have shape [N, K, C].
+// After the loop, `running` holds the cumsum result with respect to axis=1.
+static Value emitInclusiveScanByPowersOfTwo(Value running,
+                                            ConversionPatternRewriter &rewriter,
+                                            Location loc) {
+  auto nkcTy = cast<RankedTensorType>(running.getType());
+  SmallVector<int64_t> nkcShape(makeShapeTorchCompatible(nkcTy.getShape()));
+  int64_t outer = nkcShape[0];
+  int64_t dimSize = nkcShape[1];
+  int64_t inner = nkcShape[2];
+
+  auto zeroConstOr =
+      tosa::createZeroPointTensor(rewriter, loc, nkcTy.getElementType(), 0);
+  if (!zeroConstOr)
+    return nullptr;
+  Value zeroConst = *zeroConstOr;
+
+  SmallVector<int64_t, 3> sliceStart(3, 0);
+  SmallVector<int64_t, 3> sliceSize = {outer, dimSize, inner};
+
+  for (int64_t offset = 1; offset < dimSize; offset <<= 1) {
+    SmallVector<int64_t, 6> padSpec = {0, 0, offset, 0, 0, 0};
+    auto padShape = tosa::getTosaConstShape(rewriter, loc, padSpec);
+    SmallVector<int64_t> paddedShape = {outer, dimSize + offset, inner};
+    auto paddedTy = RankedTensorType::get(makeShapeLLVMCompatible(paddedShape),
+                                          nkcTy.getElementType());
+    Value padded = tosa::PadOp::create(rewriter, loc, paddedTy, running,
+                                       padShape, zeroConst)
+                       .getResult();
+
+    Value shifted = tosa::SliceOp::create(
+                        rewriter, loc, nkcTy, padded,
+                        tosa::getTosaConstShape(rewriter, loc, sliceStart),
+                        tosa::getTosaConstShape(rewriter, loc, sliceSize))
+                        .getResult();
+
+    running =
+        tosa::AddOp::create(rewriter, loc, nkcTy, running, shifted).getResult();
+  }
+
+  return running;
+}
+
 static SmallVector<int64_t> permuteShape(ArrayRef<int64_t> originalShape,
                                          ArrayRef<int32_t> permutation) {
   SmallVector<int64_t> result;
@@ -4574,7 +4618,7 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(op, "dim out of range");
 
   SmallVector<int64_t> inputShape =
-      llvm::to_vector(makeShapeTorchCompatible(selfType.getShape()));
+      makeShapeTorchCompatible(selfType.getShape());
   const int64_t K = inputShape[dim];
 
   int64_t start;
@@ -9617,6 +9661,77 @@ LogicalResult ConvertAtenOp<AtenUnfoldOp>::matchAndRewrite(
   return success();
 }
 
+// Legalization for aten.cumsum
+template <>
+LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
+    AtenCumsumOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto self = adaptor.getSelf();
+  auto selfType = dyn_cast<RankedTensorType>(self.getType());
+  if (!selfType || !selfType.hasStaticShape())
+    return rewriter.notifyMatchFailure(op,
+                                       "Only static tensor shapes supported");
+
+  auto loc = op->getLoc();
+
+  int64_t dim;
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(op, "dim must be constant");
+  dim = toPositiveDim(dim, selfType.getRank());
+  if (!isValidDim(dim, selfType.getRank()))
+    return rewriter.notifyMatchFailure(op, "dim out of range");
+
+  auto outTypeAny = getTypeConverter()->convertType(op.getType());
+  auto outType = dyn_cast<RankedTensorType>(outTypeAny);
+  if (!outType)
+    return rewriter.notifyMatchFailure(op, "expected ranked result type");
+
+  auto outElemTy = outType.getElementType();
+  auto castTy = RankedTensorType::get(selfType.getShape(), outElemTy);
+  Value selfCast = self;
+  if (selfType.getElementType() != outElemTy) {
+    auto maybeCast = tosa::tosaCastTensorToType(rewriter, self, castTy);
+    if (!maybeCast)
+      return rewriter.notifyMatchFailure(op, "failed to cast tensor to dtype");
+    selfCast = *maybeCast;
+  }
+
+  SmallVector<int64_t> inputShape =
+      makeShapeTorchCompatible(selfType.getShape());
+  int64_t dimSize = inputShape[dim];
+
+  int64_t outer = 1;
+  for (int64_t i = 0; i < dim; ++i)
+    outer *= inputShape[i];
+  int64_t inner = 1;
+  for (int64_t i = dim + 1, e = inputShape.size(); i < e; ++i)
+    inner *= inputShape[i];
+
+  // Collapse the tensor to [outer, dimSize, inner] so the scanned dimension
+  // is isolated. `outer` is the product of all dims before `dim`, and `inner`
+  // is the product after `dim`. This lets us run a simple binary lifting
+  // prefix-sum in 3D regardless of the original rank.
+  SmallVector<int64_t> nkcShape = {outer, dimSize, inner};
+  auto nkcTy =
+      RankedTensorType::get(makeShapeLLVMCompatible(nkcShape), outElemTy);
+
+  Value running =
+      tosa::ReshapeOp::create(rewriter, loc, nkcTy, selfCast,
+                              tosa::getTosaConstShape(rewriter, loc, nkcShape))
+          .getResult();
+
+  // Accumulate in-place: `running` always has shape [outer, dimSize, inner].
+  running = emitInclusiveScanByPowersOfTwo(running, rewriter, loc);
+
+  auto finalShape = outType.getShape();
+  auto result = tosa::ReshapeOp::create(
+      rewriter, loc, outType, running,
+      tosa::getTosaConstShape(rewriter, loc, finalShape));
+
+  rewriter.replaceOp(op, result.getResult());
+  return success();
+}
+
 template <typename OpTy>
 class ConvertCastEquivalentOp : public OpConversionPattern<OpTy> {
   using OpConversionPattern<OpTy>::OpConversionPattern;
@@ -10242,6 +10357,7 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ATENOP_PATTERN(AtenExpm1Op);
   INSERT_ATENOP_PATTERN(AtenTanOp);
   INSERT_ATENOP_PATTERN(AtenUnfoldOp);
+  INSERT_ATENOP_PATTERN(AtenCumsumOp);
   INSERT_ATENOP_PATTERN(AtenQuantizePerTensorOp);
 #undef INSERT_ATENOP_PATTERN
 
