@@ -1695,7 +1695,15 @@ public:
     auto weightDTy = cast<RankedTensorType>(weight.getType()).getElementType();
     if (!isa<mlir::FloatType>(gradOutputDTy) ||
         !isa<mlir::FloatType>(inputDTy) || !isa<mlir::FloatType>(weightDTy))
-      return op.emitError("unimplemented: only fp convolution bwd supported");
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only fp convolution bwd supported");
+
+    // TODO: support this.
+    if (!llvm::all_equal({inputDTy, weightDTy, gradOutputDTy}))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: mixed-precision fp types.");
+
+    auto accumulatorDTy = getDefaultAccType(rewriter, inputDTy);
 
     size_t gradRank = cast<RankedTensorType>(gradOutput.getType()).getRank();
     size_t numSpatialDims = gradRank - 2;
@@ -1833,6 +1841,22 @@ public:
           return createZeroInitTensor(rewriter, loc, expandedSizes, type);
         };
 
+    auto convertFloatAccDtype = [&](Value accumulator, Type targetDTy) {
+      auto accDTy =
+          cast<RankedTensorType>(accumulator.getType()).getElementType();
+      auto floatAccDTy = dyn_cast<mlir::FloatType>(accDTy);
+      auto floatTargetDTy = dyn_cast<mlir::FloatType>(targetDTy);
+
+      assert(floatAccDTy && "Dtype conversion expects float dtypes only.");
+      assert(floatTargetDTy && "Dtype conversion expects float dtypes only.");
+
+      if (floatAccDTy == floatTargetDTy)
+        return accumulator;
+
+      return torch_to_linalg::convertTensorToElementType(
+          rewriter, loc, accumulator, targetDTy);
+    };
+
     SmallVector<Value> newResults(op->getNumResults());
 
     // Computing Backward-Input Convolution.
@@ -1945,11 +1969,11 @@ public:
       // [N, G, C/G, D*] tensor and collapse back to the original input shape.
       SmallVector<ReassociationIndices> gradInputCollapseIndices;
       Value gradInputInit =
-          isGroupedConvBwd
-              ? createZeroInitExpandedGroupsTensor(rewriter, loc,
-                                                   gradInputSizes, inputDTy, 1,
-                                                   gradInputCollapseIndices)
-              : createZeroInitTensor(rewriter, loc, gradInputSizes, inputDTy);
+          isGroupedConvBwd ? createZeroInitExpandedGroupsTensor(
+                                 rewriter, loc, gradInputSizes, accumulatorDTy,
+                                 1, gradInputCollapseIndices)
+                           : createZeroInitTensor(rewriter, loc, gradInputSizes,
+                                                  accumulatorDTy);
 
       // Create convolution for data gradient
       auto convRes = createConvInputGradient(rewriter, loc, context,
@@ -1958,11 +1982,16 @@ public:
                                              weightExpanded, gradInputInit)
                          .getResult(0);
 
+      auto returnTensorTy = cast<RankedTensorType>(
+          getTypeConverter()->convertType(op->getResult(0).getType()));
+      auto returnDTy = returnTensorTy.getElementType();
+      convRes = convertFloatAccDtype(convRes, returnDTy);
+
       // Collapse [N, G, C/G, D] to [N, C, D] the result of the conv
       // if it is grouped.
       if (isGroupedConvBwd) {
         convRes = tensor::CollapseShapeOp::create(
-            rewriter, loc, input.getType(), convRes, gradInputCollapseIndices);
+            rewriter, loc, returnTensorTy, convRes, gradInputCollapseIndices);
       }
 
       // Cast to the final result type expected by the type converter.
@@ -1998,10 +2027,11 @@ public:
       SmallVector<ReassociationIndices> gradWeightCollapseIndices;
       Value gradWeightInit =
           isGroupedConvBwd
-              ? createZeroInitExpandedGroupsTensor(rewriter, loc,
-                                                   gradWeightSizes, weightDTy,
-                                                   0, gradWeightCollapseIndices)
-              : createZeroInitTensor(rewriter, loc, gradWeightSizes, weightDTy);
+              ? createZeroInitExpandedGroupsTensor(
+                    rewriter, loc, gradWeightSizes, accumulatorDTy, 0,
+                    gradWeightCollapseIndices)
+              : createZeroInitTensor(rewriter, loc, gradWeightSizes,
+                                     accumulatorDTy);
 
       // Create convolution for weight gradient
       auto convResult = createConvWeightGradient(
@@ -2010,12 +2040,17 @@ public:
                             paddedInput, gradOutputExpanded, gradWeightInit)
                             .getResult(0);
 
+      auto returnTensorTy = cast<RankedTensorType>(
+          getTypeConverter()->convertType(op->getResult(1).getType()));
+      auto returnDTy = returnTensorTy.getElementType();
+      convResult = convertFloatAccDtype(convResult, returnDTy);
+
       // Collapse [G, F/G, C/G, D] to [F, C/G, D] the result of the conv
       // if it is grouped.
       if (isGroupedConvBwd) {
-        convResult = tensor::CollapseShapeOp::create(
-            rewriter, loc, weight.getType(), convResult,
-            gradWeightCollapseIndices);
+        convResult = tensor::CollapseShapeOp::create(rewriter, loc,
+                                                     returnTensorTy, convResult,
+                                                     gradWeightCollapseIndices);
       }
 
       // Cast to the final result type expected by the type converter.
@@ -2038,10 +2073,12 @@ public:
 
       // Zero init for the element type (arith.constant expects a scalar attr).
       Value initSum = arith::ConstantOp::create(
-          rewriter, loc, rewriter.getZeroAttr(gradOutputDTy));
+          rewriter, loc, rewriter.getZeroAttr(accumulatorDTy));
 
       auto reductionBody = [&](OpBuilder &b, Location loc, ValueRange args) {
         Value x = args[0];
+        if (gradOutputDTy != accumulatorDTy)
+          x = arith::ExtFOp::create(b, loc, accumulatorDTy, x);
         Value acc = args[1];
         Value sum = arith::AddFOp::create(b, loc, x, acc);
         linalg::YieldOp::create(b, loc, sum);
@@ -2049,6 +2086,11 @@ public:
 
       Value gradBias = torch_to_linalg::createReductionLinalgGeneric(
           rewriter, loc, opInfo, initSum, reductionBody);
+
+      auto resultType = cast<RankedTensorType>(
+          getTypeConverter()->convertType(op->getResult(2).getType()));
+      auto resultDTy = resultType.getElementType();
+      gradBias = convertFloatAccDtype(gradBias, resultDTy);
 
       newResults[2] = tensor::CastOp::create(rewriter, loc,
                                              getTypeConverter()->convertType(
