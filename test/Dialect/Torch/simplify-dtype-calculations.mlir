@@ -215,6 +215,37 @@ func.func @promote_dtypes$scalar_scalar_same_category(%arg0: !torch.int, %arg1: 
 
 // -----
 
+// CHECK-LABEL:   func.func @promote_dtypes$list_tensors
+// CHECK:             {{.*}} = torch.aten.cat {{.*}} : !torch.list<vtensor>, !torch.int -> !torch.vtensor<*,f32>
+func.func @promote_dtypes$list_tensors(%arg0: !torch.vtensor<[1,8,320,384],f32>) -> !torch.vtensor {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %true = torch.constant.bool true
+  %int-3 = torch.constant.int -3
+  %0 = torch.prim.ListConstruct %arg0 : (!torch.vtensor<[1,8,320,384],f32>) -> !torch.list<vtensor>
+  %1 = torch.dtype.calculate {
+    %2 = torch.aten.cat %0, %int-3 : !torch.list<vtensor>, !torch.int -> !torch.vtensor
+    torch.dtype.calculate.yield %2 : !torch.vtensor
+  } dtypes {
+    %2 = torch.prim.ListConstruct  : () -> !torch.list<tuple<int, int>>
+    torch.prim.Loop %int1, %true, init() {
+    ^bb0(%arg1: !torch.int):
+      %5 = torch.aten.__getitem__.t %0, %arg1 : !torch.list<vtensor>, !torch.int -> !torch.vtensor
+      %6 = torch.aten.dim %5 : !torch.vtensor -> !torch.int
+      %7 = torch.prim.dtype %5 : !torch.vtensor -> !torch.int
+      %8 = torch.prim.TupleConstruct %6, %7 : !torch.int, !torch.int -> !torch.tuple<int, int>
+      %9 = torch.aten.append.t %2, %8 : !torch.list<tuple<int, int>>, !torch.tuple<int, int> -> !torch.list<tuple<int, int>>
+      torch.prim.Loop.condition %true, iter()
+    } : (!torch.int, !torch.bool) -> ()
+    %3 = torch.aten.__getitem__.t %2, %int0 : !torch.list<tuple<int, int>>, !torch.int -> !torch.tuple<int, int>
+    %4:2 = torch.prim.TupleUnpack %3 : !torch.tuple<int, int> -> !torch.int, !torch.int
+    torch.dtype.calculate.yield.dtypes %4#1 : !torch.int
+  } : !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @refine_dtype$invalid_dtype_for_scalar(
 // CHECK:             {{.*}} = torch.aten.add {{.*}} -> !torch.number
 func.func @refine_dtype$invalid_dtype_for_scalar(%arg0: !torch.int, %arg1: !torch.int) -> !torch.number {

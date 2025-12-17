@@ -39,12 +39,14 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
     MLIRContext *context = op->getContext();
-    // Only unroll loops if they are contained in a shape calculate region.
+    // Only unroll loops if they are contained in a shape or dtype calculate
+    // regions.
     Region *region = op->getParentRegion();
     Operation *parentOp = region->getParentOp();
-    if (!parentOp || !isa<Torch::ShapeCalculateOp>(parentOp))
+    if (!parentOp ||
+        !isa<Torch::ShapeCalculateOp, Torch::DtypeCalculateOp>(parentOp))
       return rewriter.notifyMatchFailure(
-          op, "Loop is not contained in a shape calculation region.");
+          op, "Loop is not contained in a shape or dtype calculation regions.");
     if (!op.isForLike())
       return rewriter.notifyMatchFailure(op, "Loop is not for-like");
     int64_t maxTripCount;
