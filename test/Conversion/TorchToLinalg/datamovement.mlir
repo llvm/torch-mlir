@@ -96,3 +96,40 @@ func.func @torch.aten.transpose.int$dynamic_dims(%arg0: !torch.vtensor<[1,56,56,
   %2 = torch.aten.transpose.int %1, %int2, %int3 : !torch.vtensor<[?,?,?,?,?,?],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,?,?,?,?,?],f32>
   return %2 : !torch.vtensor<[?,?,?,?,?,?],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @aten.unflatten.int$dynamic_input_dim(
+// CHECK-SAME:                                        %[[VAL_0:.*]]: !torch.vtensor<[1,?,96],f32>) -> !torch.vtensor<[1,56,56,96],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,?,96],f32> -> tensor<1x?x96xf32>
+// CHECK:           %[[VAL_2:.*]] = tensor.cast %[[VAL_1]] : tensor<1x?x96xf32> to tensor<1x3136x96xf32>
+// CHECK:           %[[VAL_3:.*]] = tensor.expand_shape %[[VAL_2]] {{\[\[}}0], [1, 2], [3]] output_shape [1, 56, 56, 96] : tensor<1x3136x96xf32> into tensor<1x56x56x96xf32>
+// CHECK:           %[[VAL_4:.*]] = torch_c.from_builtin_tensor %[[VAL_3]] : tensor<1x56x56x96xf32> -> !torch.vtensor<[1,56,56,96],f32>
+// CHECK:           return %[[VAL_4]] : !torch.vtensor<[1,56,56,96],f32>
+// CHECK:         }
+func.func @aten.unflatten.int$dynamic_input_dim(%arg0: !torch.vtensor<[1,?,96],f32>) -> !torch.vtensor<[1,56,56,96],f32> {
+  %int1 = torch.constant.int 1
+  %int56 = torch.constant.int 56
+  %129 = torch.prim.ListConstruct %int56, %int56 : (!torch.int, !torch.int) -> !torch.list<int>
+  %130 = torch.aten.unflatten.int %arg0, %int1, %129 : !torch.vtensor<[1,?,96],f32>, !torch.int, !torch.list<int> -> !torch.vtensor<[1,56,56,96],f32>
+  return %130 : !torch.vtensor<[1,56,56,96],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @aten.permute$identity_permutation(
+// CHECK-SAME:                                        %[[VAL_0:.*]]: !torch.vtensor<[64,32,16,8,4],f32>) -> !torch.vtensor<[64,32,16,8,4],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[64,32,16,8,4],f32> -> tensor<64x32x16x8x4xf32>
+// CHECK:           %[[VAL_2:.*]] = torch_c.from_builtin_tensor %[[VAL_1]] : tensor<64x32x16x8x4xf32> -> !torch.vtensor<[64,32,16,8,4],f32>
+// CHECK:           return %[[VAL_2]] : !torch.vtensor<[64,32,16,8,4],f32>
+// CHECK:         }
+func.func @aten.permute$identity_permutation(%arg0: !torch.vtensor<[64,32,16,8,4],f32>) -> !torch.vtensor<[64,32,16,8,4],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %int4 = torch.constant.int 4
+  %0 = torch.prim.ListConstruct %int0, %int1, %int2, %int3, %int4 : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.permute %arg0, %0 : !torch.vtensor<[64,32,16,8,4],f32>, !torch.list<int> -> !torch.vtensor<[64,32,16,8,4],f32>
+  return %1 : !torch.vtensor<[64,32,16,8,4],f32>
+}
