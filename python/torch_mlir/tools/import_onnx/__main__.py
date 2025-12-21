@@ -71,10 +71,7 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
     # temp directory instead of a hard-coded path in order to avoid data races
     # by default.
     input_dir = os.path.dirname(os.path.abspath(args.input_file))
-    temp_dir = (
-        Path(input_dir if args.temp_dir is None else args.temp_dir)
-        / "onnx-importer-temp"
-    )
+    temp_dir = Path(args.temp_dir or input_dir) / "onnx-importer-temp"
     shutil.rmtree(temp_dir, ignore_errors=True)
     temp_dir.mkdir(exist_ok=True)
 
@@ -121,10 +118,13 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
     # onnx.shape_inference.infer_shapes_path(temp_raw_file, temp_inferred_file)
     # inferred_model = onnx.load(temp_inferred_file)
 
+    data_dir = Path(args.data_dir or input_dir)
+
     # Model is too big for in-memory inference: do file-based shape inference
     # to a temp file.
     # First need to save as model when it has been changed (e.g. version conversion).
     if raw_model_modified:
+        data_dir = temp_dir
         temp_raw_file = temp_dir / "raw.onnx"
         onnx.save(raw_model, temp_raw_file, save_as_external_data=True)
     temp_inferred_file = temp_dir / "inferred.onnx"
@@ -146,7 +146,6 @@ def load_onnx_model(args: argparse.Namespace) -> onnx.ModelProto:
 
     # Load the temp file and the external data.
     inferred_model = onnx.load(temp_inferred_file, load_external_data=False)
-    data_dir = Path(input_dir if args.temp_dir is None else args.data_dir)
     onnx.load_external_data_for_model(inferred_model, str(data_dir))
 
     # Remove the inferred shape file unless asked to keep it
