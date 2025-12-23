@@ -11025,7 +11025,7 @@ public:
     auto unequalCond =
         AtenNeScalarOp::create(rewriter, loc, condType, target, ignoreIndex);
     auto zeroTensorType =
-        ValueTensorType::get(ctx, {}, rewriter.getIntegerType(64, true));
+        ValueTensorType::get(ctx, SmallVector<int64_t>({1}), rewriter.getIntegerType(64, true));
     Value zeroTensor =
         PrimNumToTensorScalarOp::create(rewriter, loc, zeroTensorType, zero);
     auto safeTarget = AtenWhereSelfOp::create(rewriter, loc, target.getType(),
