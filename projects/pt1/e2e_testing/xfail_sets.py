@@ -3509,6 +3509,12 @@ if torch_version_for_comparison() > version.parse("2.5.1"):
         "MaxPool2dStaticCeilModeTrueReduceOutputModule_basic",
     }
 
+if torch_version_for_comparison() > version.parse("2.10.0.dev"):
+    ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
+        "Aten_CastLongModule_basic",
+        "Aten_CastFloatModule_basic",
+    }
+
 if torch_version_for_comparison() < version.parse("2.4.0.dev"):
     STABLEHLO_PASS_SET = STABLEHLO_PASS_SET - {
         "AtenIntMM_basic",
