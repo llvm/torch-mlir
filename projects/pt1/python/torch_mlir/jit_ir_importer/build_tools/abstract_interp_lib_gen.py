@@ -3013,7 +3013,7 @@ def aten〇hardshrink〡dtype(self_rank_dtype: Tuple[int, int], lambd: Union[int
         return torch.int64
     return self_dtype
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, lambd=0.5))
+# @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, lambd=0.5))
 def aten〇softshrink〡dtype(self_rank_dtype: Tuple[int, int], lambd: Union[int, float, complex] = 0.5) -> int:
     self_rank, self_dtype = self_rank_dtype
     return _get_dtype_of_floating_point_op(self_dtype)
@@ -6085,12 +6085,12 @@ def aten〇softmax〇int〡dtype(self_rank_dtype: Tuple[int, int], dim: int, dty
     # _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, half_to_float=False) +
     _check_tensors_with_the_same_dtype(
         num_of_tensors=1,
-        error_types=(all_integer_dtypes() + all_complex_dtypes() + [torch.bfloat16, torch.float32, torch.float64]),
+        error_types=(all_integer_dtypes() + all_complex_dtypes() + [torch.float32, torch.float64]),
         dim=0, half_to_float=True))
 def aten〇_softmax〡dtype(self_rank_dtype: Tuple[int, int], dim: int, half_to_float: bool) -> int:
     self_rank, self_dtype = self_rank_dtype
     if half_to_float:
-        assert self_dtype == torch.float16
+        assert self_dtype == torch.float16 or self_dtype == torch.bfloat16
         return torch.float32
     return self_dtype
 

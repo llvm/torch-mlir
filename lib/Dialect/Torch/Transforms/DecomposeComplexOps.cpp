@@ -5238,7 +5238,6 @@ public:
   using OpRewritePattern<UpsampleVecOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(UpsampleVecOp op,
                                 PatternRewriter &rewriter) const override {
-    Value scales = op.getScaleFactors();
     static_assert(std::is_same_v<UpsampleVecOp, AtenUpsampleNearest1dVecOp> ||
                   std::is_same_v<UpsampleVecOp, AtenUpsampleNearest2dVecOp>);
     Value cstMode = Torch::ConstantStrOp::create(

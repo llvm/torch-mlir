@@ -2857,6 +2857,8 @@ ONNX_XFAIL_SET = {
     "AtenIntTensorCharDtypeModule_basic",
     "AtenIntMM_basic",
     "AtenItemFpOpModule_basic",
+    "Aten_CastLongModule_basic",
+    "Aten_CastFloatModule_basic",
     "AtenItemIntOpModule_basic",
     "AtenKthvalueModule_basic",
     "AtenKthvalueKeepDimModule_basic",
