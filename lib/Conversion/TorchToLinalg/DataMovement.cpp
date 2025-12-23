@@ -708,11 +708,8 @@ public:
     // - Input dim [dimInt] is the flattened dimension
     // - Output dims [dimInt:dimInt+numSizes) are the unflattened dimensions
     // - Input dims [dimInt+1:] map to output dims [dimInt+numSizes:]
-    auto inputSizes = inputTensorType.getSizes();
-    bool inputAllStatic = llvm::none_of(
-        inputSizes, [](int64_t size) { return size == Torch::kUnknownSize; });
-    bool outputAllStatic = llvm::none_of(
-        outputSizes, [](int64_t size) { return size == Torch::kUnknownSize; });
+    bool inputAllStatic = inputTensorType.areAllSizesKnown();
+    bool outputAllStatic = outputTensorType.areAllSizesKnown();
 
     auto expandTy = cast<RankedTensorType>(
         getTypeConverter()->convertType(outputTensorType));
@@ -720,7 +717,6 @@ public:
         getTypeConverter()->convertType(inputTensorType));
     self = adaptor.getSelf();
 
-    inputSizes = inputTy.getShape();
     outputSizes = expandTy.getShape();
 
     if (!inputAllStatic && outputAllStatic) {
