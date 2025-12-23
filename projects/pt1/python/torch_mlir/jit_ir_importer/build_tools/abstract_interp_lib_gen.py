@@ -3013,9 +3013,10 @@ def aten〇hardshrink〡dtype(self_rank_dtype: Tuple[int, int], lambd: Union[int
         return torch.int64
     return self_dtype
 
-# @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, lambd=0.5))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, lambd=0.5, error_types={*all_integer_dtypes()}))
 def aten〇softshrink〡dtype(self_rank_dtype: Tuple[int, int], lambd: Union[int, float, complex] = 0.5) -> int:
     self_rank, self_dtype = self_rank_dtype
+    assert not is_integer_dtype(self_dtype)
     return _get_dtype_of_floating_point_op(self_dtype)
 
 
