@@ -2857,8 +2857,6 @@ ONNX_XFAIL_SET = {
     "AtenIntTensorCharDtypeModule_basic",
     "AtenIntMM_basic",
     "AtenItemFpOpModule_basic",
-    "Aten_CastLongModule_basic",
-    "Aten_CastFloatModule_basic",
     "AtenItemIntOpModule_basic",
     "AtenKthvalueModule_basic",
     "AtenKthvalueKeepDimModule_basic",
@@ -3509,6 +3507,12 @@ if torch_version_for_comparison() > version.parse("2.5.1"):
         # error: 'memref.cast' op operand type 'memref<2x6x4x3xf32>' and result type 'memref<2x6x5x3xf32>' are cast incompatible
         # torch.onnx.export produces onnx.MaxPool op with incorrect output shape of 2x6x5x3 instead of 2x6x4x3
         "MaxPool2dStaticCeilModeTrueReduceOutputModule_basic",
+    }
+
+if torch_version_for_comparison() > version.parse("2.10.0.dev"):
+    ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
+        "Aten_CastLongModule_basic",
+        "Aten_CastFloatModule_basic",
     }
 
 if torch_version_for_comparison() < version.parse("2.4.0.dev"):
