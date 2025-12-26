@@ -119,6 +119,9 @@ FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
 
 void getZeroPoint(Value value, Value &zeropoint);
 
+LogicalResult getQuantizationParams(Value value, Value &zeropoint, Value &scale,
+                                    int64_t &axis);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

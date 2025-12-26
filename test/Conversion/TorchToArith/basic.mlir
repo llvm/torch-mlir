@@ -269,8 +269,8 @@ func.func @torch.aten.mul.float_int(%arg0: !torch.float, %arg1: !torch.int) -> !
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.float) -> !torch.float {
 // CHECK-DAG:      %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
 // CHECK-DAG:      %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
-// CHECK:          %[[SUB:.*]] = arith.divf %[[LHS_F64:.*]], [[RHS_F64:.*]] : f64
-// CHECK:          %[[OUT:.*]] = torch_c.from_f64 %[[SUB:.*]]
+// CHECK:          %[[DIV:.*]] = arith.divf %[[LHS_F64:.*]], [[RHS_F64:.*]] : f64
+// CHECK:          %[[OUT:.*]] = torch_c.from_f64 %[[DIV:.*]]
 // CHECK:          return %[[OUT:.*]] : !torch.float
 func.func @torch.aten.div.float(%arg0: !torch.float, %arg1: !torch.float) -> !torch.float {
   %0 = torch.aten.div.float %arg0, %arg1 : !torch.float, !torch.float -> !torch.float
@@ -406,4 +406,82 @@ func.func @torch.aten.Int.bool(%arg0: !torch.bool) -> !torch.int {
 func.func @torch.aten.Int.Scalar(%arg0: !torch.float) -> !torch.int {
   %0 = torch.aten.Int.Scalar %arg0 : !torch.float -> !torch.int
   return %0 : !torch.int
+}
+
+// CHECK-LABEL:  func.func @torch.aten.add(
+// CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
+// CHECK-SAME:                            %[[RHS:.*]]: !torch.float) -> !torch.int {
+// CHECK-DAG:      %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
+// CHECK-DAG:      %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
+// CHECK:          %[[LHS_FPTOSI:.*]] = arith.fptosi %[[LHS_F64]] : f64 to i64
+// CHECK:          %[[RHS_FPTOSI:.*]] = arith.fptosi %[[RHS_F64]] : f64 to i64
+// CHECK:          %[[ADD:.*]] = arith.addi %[[LHS_FPTOSI]], %[[RHS_FPTOSI]] : i64
+// CHECK:          %[[OUT:.*]] = torch_c.from_i64 %[[ADD]]
+// CHECK:          return %[[OUT]] : !torch.int
+func.func @torch.aten.add(%arg0: !torch.float, %arg1: !torch.float) -> !torch.int {
+  %0 = torch.aten.add %arg0, %arg1 : !torch.float, !torch.float -> !torch.int
+  return %0 : !torch.int
+}
+
+// CHECK-LABEL:  func.func @torch.aten.sub(
+// CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
+// CHECK-SAME:                            %[[RHS:.*]]: !torch.float) -> !torch.float {
+// CHECK-DAG:      %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
+// CHECK-DAG:      %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
+// CHECK:          %[[SUB:.*]] = arith.subf %[[LHS_F64]], %[[RHS_F64]] : f64
+// CHECK:          %[[OUT:.*]] = torch_c.from_f64 %[[SUB]]
+// CHECK:          return %[[OUT]] : !torch.float
+func.func @torch.aten.sub(%arg0: !torch.float, %arg1: !torch.float) -> !torch.float {
+  %0 = torch.aten.sub %arg0, %arg1 : !torch.float, !torch.float -> !torch.float
+  return %0 : !torch.float
+}
+
+// CHECK-LABEL:  func.func @torch.aten.mul(
+// CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
+// CHECK-SAME:                            %[[RHS:.*]]: !torch.float) -> !torch.float {
+// CHECK-DAG:      %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK-DAG:      %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
+// CHECK:          %[[LHS_F64:.*]] = arith.sitofp %[[LHS_I64]] : i64 to f64
+// CHECK:          %[[MUL:.*]] = arith.mulf %[[LHS_F64]], %[[RHS_F64]] : f64
+// CHECK:          %[[OUT:.*]] = torch_c.from_f64 %[[MUL]]
+// CHECK:          return %[[OUT]] : !torch.float
+func.func @torch.aten.mul(%arg0: !torch.int, %arg1: !torch.float) -> !torch.float {
+  %0 = torch.aten.mul %arg0, %arg1 : !torch.int, !torch.float -> !torch.float
+  return %0 : !torch.float
+}
+
+// CHECK-LABEL:  func.func @torch.aten.div(
+// CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
+// CHECK-SAME:                            %[[RHS:.*]]: !torch.float) -> !torch.float {
+// CHECK-DAG:      %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
+// CHECK-DAG:      %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
+// CHECK:          %[[DIV:.*]] = arith.divf %[[LHS_F64]], %[[RHS_F64]] : f64
+// CHECK:          %[[OUT:.*]] = torch_c.from_f64 %[[DIV]]
+// CHECK:          return %[[OUT]] : !torch.float
+func.func @torch.aten.div(%arg0: !torch.float, %arg1: !torch.float) -> !torch.float {
+  %0 = torch.aten.div %arg0, %arg1 : !torch.float, !torch.float -> !torch.float
+  return %0 : !torch.float
+}
+
+// CHECK-LABEL:   func.func @torch.aten.neg.int(
+// CHECK-SAME:                            %[[ARG:.*]]: !torch.int) -> !torch.int {
+// CHECK:         %[[ARG_I64:.*]] = torch_c.to_i64 %[[ARG]]
+// CHECK:         %[[CST:.*]] = arith.constant 0 : i64
+// CHECK:         %[[SUB:.*]] = arith.subi %[[CST:.*]], [[ARG_I64:.*]] : i64
+// CHECK:         %[[OUT:.*]] = torch_c.from_i64 %[[SUB:.*]]
+// CHECK:         return %[[OUT:.*]] : !torch.int
+func.func @torch.aten.neg.int(%arg0: !torch.int) -> !torch.int {
+  %0 = torch.aten.neg.int %arg0 : !torch.int -> !torch.int
+  return %0 : !torch.int
+}
+
+// CHECK-LABEL:  func.func @torch.aten.neg.float(
+// CHECK-SAME:                            %[[ARG:.*]]: !torch.float) -> !torch.float {
+// CHECK:          %[[ARG_F64:.*]] = torch_c.to_f64 %[[ARG]]
+// CHECK:          %[[NEG:.*]] = arith.negf %[[ARG_F64]] : f64
+// CHECK:          %[[OUT:.*]] = torch_c.from_f64 %[[NEG]]
+// CHECK:          return %[[OUT]] : !torch.float
+func.func @torch.aten.neg.float(%arg0: !torch.float) -> !torch.float {
+  %0 = torch.aten.neg.float %arg0 : !torch.float -> !torch.float
+  return %0 : !torch.float
 }

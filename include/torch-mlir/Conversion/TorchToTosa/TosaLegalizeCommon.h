@@ -111,6 +111,31 @@ convertLinalgVectorNormOp(PatternRewriter &rewriter, Operation *op,
                           RankedTensorType output_type, Value input_value,
                           ElementsAttr axes_elems, bool keep_dims);
 
+// Creates IntegerAttrs for clamping, using provided min/max values or the
+// numeric limits of the element type if the values are not provided.
+LogicalResult getIntegerClampAttrs(ConversionPatternRewriter &rewriter,
+                                   Operation *op, Type elemTy,
+                                   std::optional<int64_t> minInt,
+                                   std::optional<int64_t> maxInt,
+                                   IntegerAttr &minAttr, IntegerAttr &maxAttr);
+
+// Creates FloatAttrs for clamping, using provided min/max values or the numeric
+// limits of the element type if the values are not provided.
+LogicalResult getFloatClampAttrs(ConversionPatternRewriter &rewriter,
+                                 Operation *op, Type elemTy,
+                                 std::optional<double> minFloat,
+                                 std::optional<double> maxFloat,
+                                 FloatAttr &minAttr, FloatAttr &maxAttr);
+
+// Implements "round half to even" logic for aten.round using TOSA ops.
+// if (frac < 0.5 || (frac == 0.5 && floor(input) % 2 == 0)):
+//   res = floor(input)
+// else:
+//   res = ceil(input)
+std::optional<Value> createRoundHalfToEven(ConversionPatternRewriter &rewriter,
+                                           Operation *op, Value input,
+                                           RankedTensorType resultTy);
+
 } // namespace tosa
 } // namespace mlir
 

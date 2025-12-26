@@ -13,6 +13,7 @@ import logging
 import shutil
 import sys
 import subprocess
+import tempfile
 import unittest
 import unittest.mock
 
@@ -38,6 +39,8 @@ else:
     OUTPUT_PATH = Path(__file__).resolve().parent / "output"
 
 OUTPUT_PATH.mkdir(parents=True, exist_ok=True)
+
+MOCK_MAXIMUM_PROTOBUF = 1 << 20
 
 
 def const_model() -> onnx.ModelProto:
@@ -87,7 +90,26 @@ def linear_model() -> onnx.ModelProto:
     return onnx_model
 
 
-ALL_MODELS = [const_model, linear_model]
+def path_based_shape_inference_model() -> onnx.ModelProto:
+    # Create a model with a serialized form that's large enough to require
+    # path-based shape inference.
+    dtype = numpy.float32
+    byte_size = numpy.dtype(dtype).itemsize
+    tensor_size = MOCK_MAXIMUM_PROTOBUF // byte_size + 1
+    large_tensor = numpy.random.rand(tensor_size).astype(dtype)
+    assert large_tensor.nbytes > MOCK_MAXIMUM_PROTOBUF
+    node1 = make_node(
+        "Constant",
+        [],
+        ["large_const"],
+        value=numpy_helper.from_array(large_tensor, name="large_const"),
+    )
+    X = make_tensor_value_info("large_const", TensorProto.FLOAT, [tensor_size])
+    graph = make_graph([node1], "large_const_graph", [], [X])
+    return make_model(graph)
+
+
+ALL_MODELS = [const_model, linear_model, path_based_shape_inference_model]
 
 
 class CommandLineTest(unittest.TestCase):
@@ -110,7 +132,12 @@ class CommandLineTest(unittest.TestCase):
         args = __main__.parse_arguments([str(model_file), "-o", str(mlir_file)])
         __main__.main(args)
 
-    def run_model_extern(self, onnx_model: onnx.ModelProto, model_name: str):
+    def run_model_extern(
+        self,
+        onnx_model: onnx.ModelProto,
+        model_name: str,
+        extra_args: list[str] | None = None,
+    ):
         run_path = self.get_run_path(model_name)
         model_file = run_path / f"{model_name}-e.onnx"
         mlir_file = run_path / f"{model_name}-e.torch.mlir"
@@ -127,19 +154,40 @@ class CommandLineTest(unittest.TestCase):
         onnx.save(onnx_model, model_file)
         temp_dir = run_path / "temp"
         temp_dir.mkdir(exist_ok=True)
-        args = __main__.parse_arguments(
-            [
-                str(model_file),
-                "-o",
-                str(mlir_file),
-                "--keep-temps",
-                "--temp-dir",
-                str(temp_dir),
-                "--data-dir",
-                str(run_path),
-            ]
-        )
+        raw_args = [
+            str(model_file),
+            "-o",
+            str(mlir_file),
+            "--keep-temps",
+            "--temp-dir",
+            str(temp_dir),
+            "--data-dir",
+            str(run_path),
+        ]
+        if extra_args:
+            raw_args.extend(extra_args)
+        args = __main__.parse_arguments(raw_args)
         __main__.main(args)
+
+    @unittest.mock.patch("onnx.checker.MAXIMUM_PROTOBUF", MOCK_MAXIMUM_PROTOBUF)
+    def run_model_explicit_temp_implicit_data(
+        self, onnx_model: onnx.ModelProto, model_name: str
+    ):
+        run_path = self.get_run_path(model_name)
+        model_file = run_path / f"{model_name}-explicit_temp_implicit_data.onnx"
+        mlir_file = run_path / f"{model_name}-explicit_temp_implicit_data.torch.mlir"
+        onnx.save(onnx_model, model_file)
+        with tempfile.TemporaryDirectory(dir=run_path) as temp_dir:
+            args = __main__.parse_arguments(
+                [
+                    str(model_file),
+                    "-o",
+                    str(mlir_file),
+                    "--temp-dir",
+                    str(temp_dir),
+                ]
+            )
+            __main__.main(args)
 
     def test_all(self):
         for model_func in ALL_MODELS:
@@ -150,6 +198,12 @@ class CommandLineTest(unittest.TestCase):
                     self.run_model_intern(model, model_name)
                 with self.subTest("External data"):
                     self.run_model_extern(model, model_name)
+                with self.subTest("External data, raw model modified"):
+                    self.run_model_extern(
+                        model, model_name, extra_args=["--clear-domain"]
+                    )
+                with self.subTest("Explicit temp dir, implicit data dir"):
+                    self.run_model_explicit_temp_implicit_data(model, model_name)
 
 
 if __name__ == "__main__":

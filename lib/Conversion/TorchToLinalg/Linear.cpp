@@ -1674,6 +1674,627 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
 }
 
 namespace {
+class ConvertAtenConvolutionBackwardOp
+    : public OpConversionPattern<AtenConvolutionBackwardOp> {
+  using IT = utils::IteratorType;
+
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenConvolutionBackwardOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    MLIRContext *context = op->getContext();
+    Value gradOutput = adaptor.getGradOutput();
+    Value input = adaptor.getInput();
+    Value weight = adaptor.getWeight();
+
+    auto gradOutputDTy =
+        cast<RankedTensorType>(gradOutput.getType()).getElementType();
+    auto inputDTy = cast<RankedTensorType>(input.getType()).getElementType();
+    auto weightDTy = cast<RankedTensorType>(weight.getType()).getElementType();
+    if (!isa<mlir::FloatType>(gradOutputDTy) ||
+        !isa<mlir::FloatType>(inputDTy) || !isa<mlir::FloatType>(weightDTy))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only fp convolution bwd supported");
+
+    // TODO: support this.
+    if (!llvm::all_equal({inputDTy, weightDTy, gradOutputDTy}))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: mixed-precision fp types.");
+
+    auto accumulatorDTy = getDefaultAccType(rewriter, inputDTy);
+
+    size_t gradRank = cast<RankedTensorType>(gradOutput.getType()).getRank();
+    size_t numSpatialDims = gradRank - 2;
+    if (numSpatialDims < 1 || numSpatialDims > 3)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only 1d-3d convolution bwd currently supported");
+
+    // Transposed convolution backward is not handled here yet.
+    bool transposed = false;
+    if (!matchPattern(op.getTransposed(), m_TorchConstantBool(&transposed)))
+      return rewriter.notifyMatchFailure(
+          op, "only support constant bool for transposed");
+    if (transposed)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: transposed convolution backward");
+
+    // The `outMask` contains 3 boolean values for the results `grad_input`,
+    // `grad_weight`, and `grad_bias` respectively. The value being `false`
+    // means that the corresponding result will be none.
+    SmallVector<bool> outMask;
+    if (!matchPattern(op.getOutputMask(),
+                      m_TorchListOfConstantBools(outMask)) ||
+        outMask.size() != 3)
+      return rewriter.notifyMatchFailure(
+          op, "only constant bool output_mask list of size 3 is supported.");
+    for (unsigned i = 0; i < outMask.size(); i++) {
+      if (outMask[i] == false) {
+        Value result = op->getResults()[i];
+        if (!result.getUsers().empty())
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: false value supported for output_mask only "
+                  "when the result tensor corresponding to that has no users.");
+      }
+    }
+
+    // Checks for valid group size
+    int64_t numGroups;
+    if (!matchPattern(op.getGroups(), m_TorchConstantInt(&numGroups)))
+      return rewriter.notifyMatchFailure(op,
+                                         "only constant group size supported.");
+    bool isGroupedConvBwd = numGroups > 1;
+    int64_t spatialStartDimIdx = isGroupedConvBwd ? 3 : 2;
+
+    // Stride, padding, dilation for the backward conv. We only support constant
+    // lists here, consistent with forward convolution lowering.
+    SmallVector<Value> paddingIntValues;
+    SmallVector<int64_t> strideInts, dilationInts, outputPaddingInts;
+
+    if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
+      return rewriter.notifyMatchFailure(op,
+                                         "only support constant int strides");
+    if (!matchPattern(op.getDilation(),
+                      m_TorchListOfConstantInts(dilationInts)))
+      return rewriter.notifyMatchFailure(op,
+                                         "only support constant int dilations");
+    if (!matchPattern(op.getOutputPadding(),
+                      m_TorchListOfConstantInts(outputPaddingInts)))
+      return rewriter.notifyMatchFailure(
+          op, "only support constant int output paddings");
+    if (!llvm::all_of(outputPaddingInts,
+                      [](int64_t outPad) { return outPad == 0; }))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only output padding of 0 supported.");
+
+    if (!getListConstructElements(op.getPadding(), paddingIntValues))
+      return rewriter.notifyMatchFailure(
+          op, "only support padding from a list construct");
+    paddingIntValues = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
+                                              paddingIntValues);
+
+    // The expandGroups lambda function below is used to expand the group
+    // dimension for weights and input, output tensors.
+    // For input tensor (dim = 1)      : N,C,H,W -> N,G,C/G,H,W
+    // For grad_output tensor (dim = 1): N,F,H,W -> N,G,F/G,H,W
+    // For weight tensor (dim = 0)     : F,C,H,W -> G,F/G,C,H,W
+    auto expandGroups = [&](Value tensor, int64_t dim) {
+      auto inType = cast<RankedTensorType>(tensor.getType());
+      auto inShape = makeShapeTorchCompatible(inType.getShape());
+
+      SmallVector<int64_t> outShape;
+      for (auto i = 0; i < static_cast<int64_t>(inShape.size()); i++) {
+        if (i == dim) {
+          outShape.push_back(numGroups);
+          outShape.push_back(inShape[i] == kUnknownSize
+                                 ? kUnknownSize
+                                 : inShape[i] / numGroups);
+        } else {
+          outShape.push_back(inShape[i]);
+        }
+      }
+
+      SmallVector<ReassociationIndices> indices;
+      for (auto i = 0; i <= static_cast<int64_t>(inShape.size()); i++) {
+        if (i == dim) {
+          indices.push_back({i, ++i});
+          continue;
+        }
+        indices.push_back({i});
+      }
+
+      auto retType = inType.clone(makeShapeLLVMCompatible(outShape));
+      return tensor::ExpandShapeOp::create(rewriter, loc, retType, tensor,
+                                           indices);
+    };
+    // The createZeroInitExpandedGroupsTensor lambda function below is used to
+    // create empty tensor with already expanded group dimension.
+    auto createZeroInitExpandedGroupsTensor =
+        [&](OpBuilder &rewriter, Location loc, const SmallVector<Value> &sizes,
+            Type type, int64_t dim,
+            SmallVector<ReassociationIndices> &indices) {
+          Value groups =
+              mlir::arith::ConstantIndexOp::create(rewriter, loc, numGroups);
+
+          SmallVector<Value> expandedSizes;
+          for (auto i = 0; i < static_cast<int64_t>(sizes.size()); i++) {
+            if (i == dim) {
+              expandedSizes.push_back(groups);
+              expandedSizes.push_back(
+                  rewriter.createOrFold<arith::FloorDivSIOp>(loc, sizes[i],
+                                                             groups));
+            } else {
+              expandedSizes.push_back(sizes[i]);
+            }
+          }
+
+          indices.clear();
+          for (auto i = 0; i <= static_cast<int64_t>(sizes.size()); i++) {
+            if (i == dim) {
+              indices.push_back({i, ++i});
+              continue;
+            }
+            indices.push_back({i});
+          }
+
+          return createZeroInitTensor(rewriter, loc, expandedSizes, type);
+        };
+
+    auto convertFloatAccDtype = [&](Value accumulator, Type targetDTy) {
+      auto accDTy =
+          cast<RankedTensorType>(accumulator.getType()).getElementType();
+      auto floatAccDTy = dyn_cast<mlir::FloatType>(accDTy);
+      auto floatTargetDTy = dyn_cast<mlir::FloatType>(targetDTy);
+
+      assert(floatAccDTy && "Dtype conversion expects float dtypes only.");
+      assert(floatTargetDTy && "Dtype conversion expects float dtypes only.");
+
+      if (floatAccDTy == floatTargetDTy)
+        return accumulator;
+
+      return torch_to_linalg::convertTensorToElementType(
+          rewriter, loc, accumulator, targetDTy);
+    };
+
+    SmallVector<Value> newResults(op->getNumResults());
+
+    // Computing Backward-Input Convolution.
+    if (outMask[0]) {
+      // If convolution bwd is grouped, `grad_output` should be expanded.
+      auto gradOutputExpanded =
+          isGroupedConvBwd ? expandGroups(gradOutput, 1) : gradOutput;
+      // If convolution bwd is grouped, `weight` should be expanded
+      auto weightExpanded = isGroupedConvBwd ? expandGroups(weight, 0) : weight;
+
+      // Flip weight along non-unit spatial dims.
+      SmallVector<int64_t> weightDimsInt = makeShapeTorchCompatible(
+          cast<RankedTensorType>(weightExpanded.getType()).getShape());
+      // Collect any non-unit spatial dim indices.
+      SmallVector<int64_t> weightFlipDims;
+      for (auto [idx, dim] : llvm::enumerate(weightDimsInt)) {
+        int64_t castedIdx = static_cast<int64_t>(idx);
+        if (castedIdx >= spatialStartDimIdx && dim != 1) {
+          weightFlipDims.push_back(castedIdx);
+        }
+      }
+      // Perform a flip if we have more than one non-trivial spatial dim.
+      if (weightFlipDims.size() > 1) {
+        weightExpanded = torch_to_linalg::flipTensor(
+            rewriter, loc, weightExpanded, weightFlipDims);
+      }
+
+      // For backward-input, padding must be adjusted to:
+      //   p'[i] = d[i] * (K[i] - 1) - p[i]
+      Value c1 = arith::ConstantOp::create(rewriter, loc,
+                                           rewriter.getI64IntegerAttr(1));
+      SmallVector<Value> dilationIntValues =
+          getAsConstantIntValues(rewriter, loc, dilationInts);
+      SmallVector<Value> weiSizes =
+          getTensorSizes(rewriter, loc, weightExpanded);
+      SmallVector<Value> paddingValues(numSpatialDims);
+      for (size_t i = 0; i < numSpatialDims; ++i) {
+        Value kSize =
+            castIndexToInt64(rewriter, loc, weiSizes[spatialStartDimIdx + i]);
+        Value kMinusOne = rewriter.createOrFold<arith::SubIOp>(loc, kSize, c1);
+        Value mul = rewriter.createOrFold<arith::MulIOp>(loc, kMinusOne,
+                                                         dilationIntValues[i]);
+        paddingValues[i] =
+            arith::SubIOp::create(rewriter, loc, mul, paddingIntValues[i]);
+
+        if (isValueNegative(paddingValues[i]))
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: negative padding values are not supported.");
+      }
+
+      // If there are not unit strides, we have to scatter `grad_output` into a
+      // zero-initialized tensor.
+      SmallVector<Value> gradInputSizes = getTensorSizes(rewriter, loc, input);
+      Value gradOutputModified;
+      if (llvm::any_of(strideInts, [](int64_t stride) { return stride > 1; })) {
+        // Destination spatial sizes are computed as:
+        //   size[i] = (D[i] - 1) + d[i] * (K[i] - 1) + 1
+        // Offsets on spatial dims are paddings
+        // Strides on spatial dims are the original stride[i].
+        Value zero =
+            arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(0));
+        Value one =
+            arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(1));
+
+        // Initialize slice strides, sizes and offsets
+        SmallVector<Value> goSizes =
+            getTensorSizes(rewriter, loc, gradOutputExpanded);
+        SmallVector<Value> sizes(goSizes.begin(),
+                                 goSizes.begin() + spatialStartDimIdx);
+        SmallVector<Value> offsets(spatialStartDimIdx, zero);
+        SmallVector<Value> strides(spatialStartDimIdx, one);
+        for (size_t i = 0; i < numSpatialDims; ++i) {
+          // Shapes of `grad_input` has not been expanded yet
+          // if it's needed for group conv even
+          Value h = gradInputSizes[2 + i];
+          Value k = weiSizes[spatialStartDimIdx + i];
+          Value hMinusOne = rewriter.createOrFold<arith::SubIOp>(loc, h, one);
+          Value kMinusOne = rewriter.createOrFold<arith::SubIOp>(loc, k, one);
+          Value mul = rewriter.createOrFold<arith::MulIOp>(
+              loc, castIntToIndex(rewriter, loc, dilationIntValues[i]),
+              kMinusOne);
+          Value sum = rewriter.createOrFold<arith::AddIOp>(loc, hMinusOne, mul);
+          sizes.push_back(rewriter.createOrFold<arith::AddIOp>(loc, sum, one));
+          offsets.push_back(castIntToIndex(rewriter, loc, paddingValues[i]));
+
+          Value strideIntValue = arith::ConstantOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(strideInts[i]));
+          strides.push_back(castIntToIndex(rewriter, loc, strideIntValue));
+        }
+
+        Value zeroInit =
+            createZeroInitTensor(rewriter, loc, sizes, gradOutputDTy);
+        gradOutputModified = tensor::InsertSliceOp::create(
+            rewriter, loc,
+            torch_to_linalg::removeSizeInformation(rewriter, loc,
+                                                   gradOutputExpanded),
+            zeroInit, offsets, goSizes, strides);
+      } else {
+        // If there unit strides, pad `grad_output` spatial dims with zeros.
+        // If conv is grouped, output has shape:
+        //  N x G x F/G x <spatial>. Otherwise: N x F x <spatial>.
+        Value padVal = arith::ConstantOp::create(
+            rewriter, loc, rewriter.getFloatAttr(gradOutputDTy, 0.0));
+        gradOutputModified = torch_to_linalg::getDynamicZeroPaddedTensor(
+            op, rewriter, gradOutputExpanded, paddingValues, spatialStartDimIdx,
+            padVal);
+      }
+
+      // Initialize output buffer. For grouped, compute into an expanded
+      // [N, G, C/G, D*] tensor and collapse back to the original input shape.
+      SmallVector<ReassociationIndices> gradInputCollapseIndices;
+      Value gradInputInit =
+          isGroupedConvBwd ? createZeroInitExpandedGroupsTensor(
+                                 rewriter, loc, gradInputSizes, accumulatorDTy,
+                                 1, gradInputCollapseIndices)
+                           : createZeroInitTensor(rewriter, loc, gradInputSizes,
+                                                  accumulatorDTy);
+
+      // Create convolution for data gradient
+      auto convRes = createConvInputGradient(rewriter, loc, context,
+                                             isGroupedConvBwd, numSpatialDims,
+                                             dilationInts, gradOutputModified,
+                                             weightExpanded, gradInputInit)
+                         .getResult(0);
+
+      auto returnTensorTy = cast<RankedTensorType>(
+          getTypeConverter()->convertType(op->getResult(0).getType()));
+      auto returnDTy = returnTensorTy.getElementType();
+      convRes = convertFloatAccDtype(convRes, returnDTy);
+
+      // Collapse [N, G, C/G, D] to [N, C, D] the result of the conv
+      // if it is grouped.
+      if (isGroupedConvBwd) {
+        convRes = tensor::CollapseShapeOp::create(
+            rewriter, loc, returnTensorTy, convRes, gradInputCollapseIndices);
+      }
+
+      // Cast to the final result type expected by the type converter.
+      newResults[0] = tensor::CastOp::create(rewriter, loc,
+                                             getTypeConverter()->convertType(
+                                                 op->getResult(0).getType()),
+                                             convRes)
+                          .getResult();
+    }
+
+    // Computing Backward-Weight Convolution.
+    if (outMask[1]) {
+      // If convolution bwd is grouped, `grad_output` should be expanded.
+      auto gradOutputExpanded =
+          isGroupedConvBwd ? expandGroups(gradOutput, 1) : gradOutput;
+      // If convolution bwd is grouped, `input` should be expanded
+      auto inputExpanded = isGroupedConvBwd ? expandGroups(input, 1) : input;
+
+      // Pad input spatial dims with zeros. If grouped, input has shape:
+      // N x G x C/G x <spatial>. Otherwise: N x C x <spatial>.
+      // We should only pad the spatial dims, so set unpaddedDims accordingly.
+      Value padVal = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getFloatAttr(inputDTy, 0.0));
+      Value paddedInput = torch_to_linalg::getDynamicZeroPaddedTensor(
+          op, rewriter, inputExpanded, paddingIntValues, spatialStartDimIdx,
+          padVal);
+
+      // Initialize output buffer. For grouped, compute into an expanded
+      // [G, F/G, C/G, K*] tensor and collapse back to the original weight
+      // shape.
+      SmallVector<Value> gradWeightSizes =
+          getTensorSizes(rewriter, loc, weight);
+      SmallVector<ReassociationIndices> gradWeightCollapseIndices;
+      Value gradWeightInit =
+          isGroupedConvBwd
+              ? createZeroInitExpandedGroupsTensor(
+                    rewriter, loc, gradWeightSizes, accumulatorDTy, 0,
+                    gradWeightCollapseIndices)
+              : createZeroInitTensor(rewriter, loc, gradWeightSizes,
+                                     accumulatorDTy);
+
+      // Create convolution for weight gradient
+      auto convResult = createConvWeightGradient(
+                            rewriter, loc, context, isGroupedConvBwd,
+                            numSpatialDims, strideInts, dilationInts,
+                            paddedInput, gradOutputExpanded, gradWeightInit)
+                            .getResult(0);
+
+      auto returnTensorTy = cast<RankedTensorType>(
+          getTypeConverter()->convertType(op->getResult(1).getType()));
+      auto returnDTy = returnTensorTy.getElementType();
+      convResult = convertFloatAccDtype(convResult, returnDTy);
+
+      // Collapse [G, F/G, C/G, D] to [F, C/G, D] the result of the conv
+      // if it is grouped.
+      if (isGroupedConvBwd) {
+        convResult = tensor::CollapseShapeOp::create(rewriter, loc,
+                                                     returnTensorTy, convResult,
+                                                     gradWeightCollapseIndices);
+      }
+
+      // Cast to the final result type expected by the type converter.
+      newResults[1] = tensor::CastOp::create(rewriter, loc,
+                                             getTypeConverter()->convertType(
+                                                 op->getResult(1).getType()),
+                                             convResult)
+                          .getResult();
+    }
+
+    // Computing Backward-Bias Convolution.
+    if (outMask[2]) {
+      // Sum grad_output along all dims except F using linalg.
+      DenseSet<int64_t> reduceDims;
+      reduceDims.insert(0);
+      for (int64_t i = 2; i < static_cast<int64_t>(gradRank); ++i)
+        reduceDims.insert(i);
+
+      torch_to_linalg::ReductionOpInfo opInfo{false, gradOutput, reduceDims};
+
+      // Zero init for the element type (arith.constant expects a scalar attr).
+      Value initSum = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getZeroAttr(accumulatorDTy));
+
+      auto reductionBody = [&](OpBuilder &b, Location loc, ValueRange args) {
+        Value x = args[0];
+        if (gradOutputDTy != accumulatorDTy)
+          x = arith::ExtFOp::create(b, loc, accumulatorDTy, x);
+        Value acc = args[1];
+        Value sum = arith::AddFOp::create(b, loc, x, acc);
+        linalg::YieldOp::create(b, loc, sum);
+      };
+
+      Value gradBias = torch_to_linalg::createReductionLinalgGeneric(
+          rewriter, loc, opInfo, initSum, reductionBody);
+
+      auto resultType = cast<RankedTensorType>(
+          getTypeConverter()->convertType(op->getResult(2).getType()));
+      auto resultDTy = resultType.getElementType();
+      gradBias = convertFloatAccDtype(gradBias, resultDTy);
+
+      newResults[2] = tensor::CastOp::create(rewriter, loc,
+                                             getTypeConverter()->convertType(
+                                                 op->getResult(2).getType()),
+                                             gradBias)
+                          .getResult();
+    }
+
+    rewriter.replaceOp(op, newResults);
+
+    return success();
+  }
+
+private:
+  static linalg::GenericOp createConvInputGradient(
+      OpBuilder &rewriter, Location loc, MLIRContext *context, bool isGrouped,
+      size_t numSpatialDims, const SmallVector<int64_t> &dilationInts,
+      Value gradOutput, Value weight, Value gradInputInit) {
+    // To calculate convolution backward-data, we use generic operation.
+    // The generic operation is a generalization of the convolution operation
+    // that can handle any number of spatial dimensions.
+    // The generic operation is defined as follows:
+    // ```
+    //   dLdx[n, g, c, o] = sum(dLdy[n, g, f, d * k + o] * w[g, f, c, k]
+    //    for n in range(batch_size) for o in range(in_spatial_dims))
+    // ```
+    // where:
+    // - `dLdx` is the data-gradient tensor.
+    // - `dLdy` is the output-gradient tensor which is padded if
+    //    there are unit strides, or scattered otherwise.
+    // - `w` is the weight tensor flipped along spatial dims.
+    // - `n` is the batch dimension.
+    // - `g` is the group dimension.
+    // - `c` is the input channel dimension.
+    // - `f` is the output channel dimension.
+    // - `o` is the input spatial dimension.
+    // - `k` is the kernel dimension.
+    // - `d` is dilations.
+
+    // Iterators: n, c, f, g, o, k
+    int64_t numIterators =
+        3 + static_cast<int64_t>(isGrouped) + numSpatialDims * 2;
+
+    // Bind dimensions in the following order: n, g, c, o, f, k
+    SmallVector<AffineExpr> dims(numIterators);
+    bindDimsList(context, MutableArrayRef{dims});
+
+    auto n = [&]() { return dims[0]; };
+    auto g = [&]() {
+      if (!isGrouped)
+        llvm_unreachable("g() called for non-grouped convolution.");
+      return dims[1];
+    };
+    auto c = [&]() { return dims[1 + static_cast<int64_t>(isGrouped)]; };
+    auto o = [&](size_t i) {
+      return dims[1 + static_cast<int64_t>(isGrouped) + 1 + i];
+    };
+    auto f = [&]() {
+      return dims[1 + static_cast<int64_t>(isGrouped) + 1 + numSpatialDims];
+    };
+    auto k = [&](size_t i) {
+      return dims[1 + static_cast<int64_t>(isGrouped) + 1 + numSpatialDims + 1 +
+                  i];
+    };
+
+    SmallVector<AffineExpr> lhsExprs =
+        isGrouped ? SmallVector<AffineExpr>{n(), g(), f()}
+                  : SmallVector<AffineExpr>{n(), f()};
+    SmallVector<AffineExpr> rhsExprs =
+        isGrouped ? SmallVector<AffineExpr>{g(), f(), c()}
+                  : SmallVector<AffineExpr>{f(), c()};
+    SmallVector<AffineExpr> outExprs =
+        isGrouped ? SmallVector<AffineExpr>{n(), g(), c()}
+                  : SmallVector<AffineExpr>{n(), c()};
+    for (size_t i = 0; i < numSpatialDims; i++) {
+      AffineExpr d = rewriter.getAffineConstantExpr(dilationInts[i]);
+      lhsExprs.push_back(d * k(i) + o(i));
+      rhsExprs.push_back(k(i));
+      outExprs.push_back(o(i));
+    }
+
+    SmallVector<AffineMap> indexingMaps = {
+        AffineMap::get(numIterators, 0, lhsExprs, context),
+        AffineMap::get(numIterators, 0, rhsExprs, context),
+        AffineMap::get(numIterators, 0, outExprs, context)};
+
+    int64_t numReductionDims = numSpatialDims + 1;
+    SmallVector<IT> iteratorTypes =
+        SmallVector<IT>(numIterators - numReductionDims, IT::parallel);
+    iteratorTypes.append(numReductionDims, IT::reduction);
+
+    return createConvAsGenericOp(rewriter, loc, gradOutput, weight,
+                                 gradInputInit, indexingMaps, iteratorTypes);
+  }
+
+  static linalg::GenericOp createConvWeightGradient(
+      OpBuilder &rewriter, Location loc, MLIRContext *context, bool isGrouped,
+      size_t numSpatialDims, const SmallVector<int64_t> &strideInts,
+      const SmallVector<int64_t> &dilationInts, Value input, Value gradOutput,
+      Value gradWeightInit) {
+    // To calculate convolution backward-weight, we use generic operation.
+    // The generic operation is a generalization of the convolution operation
+    // that can handle any number of spatial dimensions.
+    // The generic operation is defined as follows:
+    // ```
+    //   dLdw[f, g, c, k] = sum(x[n, g, c, d0 * k + s0 * o] * dLdy[n, g, f, o]
+    //   for n in range(batch_size) for o in range(output_spatial_dims))
+    // ```
+    // - `dLdw` is the weight-gradient tensor.
+    // - `x` is the padded input tensor.
+    // - `dLdy` is the output-gradient tensor.
+    // - `n` is the batch dimension.
+    // - `g` is the group dimension.
+    // - `c` is the input channel dimension.
+    // - `f` is the output channel dimension.
+    // - `o` is the input spatial dimension.
+    // - `k` is the kernel dimension.
+    // - `d` and `s` are dilations and strides accordingly.
+
+    // Iterators: n, c, f, g, o, k
+    int64_t numIterators =
+        3 + static_cast<int64_t>(isGrouped) + numSpatialDims * 2;
+
+    // Bind dimensions in the following order: g, f, c, k, n, o
+    SmallVector<AffineExpr> dims(numIterators);
+    bindDimsList(context, MutableArrayRef{dims});
+
+    auto g = [&]() {
+      if (!isGrouped)
+        llvm_unreachable("g() called for non-grouped convolution.");
+      return dims[0];
+    };
+    auto f = [&]() { return dims[static_cast<int64_t>(isGrouped)]; };
+    auto c = [&]() { return dims[static_cast<int64_t>(isGrouped) + 1]; };
+    auto k = [&](size_t i) {
+      return dims[static_cast<int64_t>(isGrouped) + 2 + i];
+    };
+    auto n = [&]() {
+      return dims[static_cast<int64_t>(isGrouped) + 2 + numSpatialDims];
+    };
+    auto o = [&](size_t i) {
+      return dims[static_cast<int64_t>(isGrouped) + 2 + numSpatialDims + 1 + i];
+    };
+
+    SmallVector<AffineExpr> lhsExprs =
+        isGrouped ? SmallVector<AffineExpr>{n(), g(), c()}
+                  : SmallVector<AffineExpr>{n(), c()};
+    SmallVector<AffineExpr> rhsExprs =
+        isGrouped ? SmallVector<AffineExpr>{n(), g(), f()}
+                  : SmallVector<AffineExpr>{n(), f()};
+    SmallVector<AffineExpr> outExprs =
+        isGrouped ? SmallVector<AffineExpr>{g(), f(), c()}
+                  : SmallVector<AffineExpr>{f(), c()};
+    for (size_t i = 0; i < numSpatialDims; i++) {
+      AffineExpr d = rewriter.getAffineConstantExpr(dilationInts[i]);
+      AffineExpr s = rewriter.getAffineConstantExpr(strideInts[i]);
+      lhsExprs.push_back(d * k(i) + s * o(i));
+      rhsExprs.push_back(o(i));
+      outExprs.push_back(k(i));
+    }
+
+    SmallVector<AffineMap> indexingMaps = {
+        AffineMap::get(numIterators, 0, lhsExprs, context),
+        AffineMap::get(numIterators, 0, rhsExprs, context),
+        AffineMap::get(numIterators, 0, outExprs, context)};
+
+    int64_t numReductionDims = numSpatialDims + 1;
+    SmallVector<IT> iteratorTypes =
+        SmallVector<IT>(numIterators - numReductionDims, IT::parallel);
+    iteratorTypes.append(numReductionDims, IT::reduction);
+
+    return createConvAsGenericOp(rewriter, loc, input, gradOutput,
+                                 gradWeightInit, indexingMaps, iteratorTypes);
+  }
+
+  static linalg::GenericOp
+  createConvAsGenericOp(OpBuilder &b, Location loc, Value in0, Value in1,
+                        Value out, const SmallVector<AffineMap> &indexingMaps,
+                        const SmallVector<IT> &iteratorTypes) {
+    return linalg::GenericOp::create(
+        b, loc, out.getType(), ValueRange{in0, in1}, out, indexingMaps,
+        iteratorTypes, [&](OpBuilder &b, Location loc, ValueRange args) {
+          Value input = args[0];
+          Value grad = args[1];
+          Value output = args[2];
+
+          // Convert input and grad to accumulator type if needed
+          Type accType = output.getType();
+          if (input.getType() != accType) {
+            input = arith::ExtFOp::create(b, loc, accType, input);
+          }
+          if (grad.getType() != accType) {
+            grad = arith::ExtFOp::create(b, loc, accType, grad);
+          }
+
+          Value mul = arith::MulFOp::create(b, loc, input, grad);
+          Value sum = arith::AddFOp::create(b, loc, mul, output);
+          linalg::YieldOp::create(b, loc, sum);
+        });
+  }
+};
+} // namespace
+
+namespace {
 
 /// Creates coefficients based on DFT definition, see
 /// https://en.wikipedia.org/wiki/Discrete_Fourier_transform.
@@ -1874,6 +2495,8 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   patterns.add<ConvertAtenBmmOp>(typeConverter, context);
   target.addIllegalOp<AtenConvolutionOp>();
   patterns.add<ConvertAtenConvolutionOp>(typeConverter, context);
+  target.addIllegalOp<AtenConvolutionBackwardOp>();
+  patterns.add<ConvertAtenConvolutionBackwardOp>(typeConverter, context);
   target.addIllegalOp<AtenFftRfftOp>();
   patterns.add<ConvertAtenFftRfftOp>(typeConverter, context);
 }

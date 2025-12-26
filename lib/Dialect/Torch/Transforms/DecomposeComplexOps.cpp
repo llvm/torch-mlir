@@ -3222,7 +3222,27 @@ public:
       // If both lhs and rhs ranks are 2 then map it to `aten.mm` op.
       rewriter.replaceOpWithNewOp<AtenMmOp>(op, op.getType(), lhs, rhs);
     } else if (lhsRank == 3 && rhsRank == 3) {
-      // If both lhs and rhs ranks are 3 then map it to `aten.bmm` op.
+      // If both lhs and rhs ranks are 3, we can only map it to `aten.bmm` op
+      // if the batch dimensions are equal (since bmm doesn't support
+      // broadcasting).
+      auto lhsType = cast<BaseTensorType>(lhs.getType());
+      auto rhsType = cast<BaseTensorType>(rhs.getType());
+
+      if (!lhsType.hasSizes() || !rhsType.hasSizes())
+        return failure();
+
+      ArrayRef<int64_t> lhsShape = lhsType.getSizes();
+      ArrayRef<int64_t> rhsShape = rhsType.getSizes();
+      int64_t lhsBatchDim = lhsShape[0];
+      int64_t rhsBatchDim = rhsShape[0];
+
+      // Batch dimensions must be statically known and equal for bmm.
+      // Dynamic dimensions (kUnknownSize) or unequal dimensions require the
+      // general matmul lowering which handles broadcasting.
+      if (lhsBatchDim == kUnknownSize || rhsBatchDim == kUnknownSize ||
+          lhsBatchDim != rhsBatchDim)
+        return failure();
+
       rewriter.replaceOpWithNewOp<AtenBmmOp>(op, op.getType(), lhs, rhs);
     } else {
       return failure();
@@ -5243,7 +5263,6 @@ public:
   using OpRewritePattern<UpsampleVecOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(UpsampleVecOp op,
                                 PatternRewriter &rewriter) const override {
-    Value scales = op.getScaleFactors();
     static_assert(std::is_same_v<UpsampleVecOp, AtenUpsampleNearest1dVecOp> ||
                   std::is_same_v<UpsampleVecOp, AtenUpsampleNearest2dVecOp>);
     Value cstMode = Torch::ConstantStrOp::create(

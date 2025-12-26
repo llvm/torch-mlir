@@ -156,6 +156,30 @@ def Matmul_3d(module, tu: TestUtils):
 # ==============================================================================
 
 
+class Matmul3DStaticBroadcast(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8, 5], torch.float32, True),
+            ([1, 5, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.matmul(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: Matmul3DStaticBroadcast())
+def Matmul3DStaticBroadcast_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 8, 5), tu.rand(1, 5, 6))
+
+
+# ==============================================================================
+
+
 class Matmul4d(torch.nn.Module):
     def __init__(self):
         super().__init__()
