@@ -13331,9 +13331,9 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeScaledDotProductFlashAttentionOp<
-        AtenScaledDotProductFlashAttentionOp>>(patterns);
+        Aten_ScaledDotProductFlashAttentionOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeScaledDotProductFlashAttentionOp<
-        AtenScaledDotProductFlashAttentionForCpuOp>>(patterns);
+        Aten_ScaledDotProductFlashAttentionForCpuOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFakeQuantizePerTensorAffineOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSeluOp>(patterns);

@@ -15193,7 +15193,7 @@ def Torch_AtenScaledDotProductAttentionOp : Torch_Op<"aten.scaled_dot_product_at
   }];
 }
 
-def Torch_AtenScaledDotProductFlashAttentionOp : Torch_Op<"aten._scaled_dot_product_flash_attention", [
+def Torch_Aten_ScaledDotProductFlashAttentionOp : Torch_Op<"aten._scaled_dot_product_flash_attention", [
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly
@@ -15213,16 +15213,16 @@ def Torch_AtenScaledDotProductFlashAttentionOp : Torch_Op<"aten._scaled_dot_prod
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
-    ParseResult AtenScaledDotProductFlashAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
+    ParseResult Aten_ScaledDotProductFlashAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
       return parseDefaultTorchOp(parser, result, 7, 1);
     }
-    void AtenScaledDotProductFlashAttentionOp::print(OpAsmPrinter &printer) {
+    void Aten_ScaledDotProductFlashAttentionOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 7, 1);
     }
   }];
 }
 
-def Torch_AtenScaledDotProductFlashAttentionForCpuOp : Torch_Op<"aten._scaled_dot_product_flash_attention_for_cpu", [
+def Torch_Aten_ScaledDotProductFlashAttentionForCpuOp : Torch_Op<"aten._scaled_dot_product_flash_attention_for_cpu", [
     AllowsTypeRefinement,
     HasValueSemantics,
     ReadOnly
@@ -15242,10 +15242,10 @@ def Torch_AtenScaledDotProductFlashAttentionForCpuOp : Torch_Op<"aten._scaled_do
   );
   let hasCustomAssemblyFormat = 1;
     let extraClassDefinition = [{
-    ParseResult AtenScaledDotProductFlashAttentionForCpuOp::parse(OpAsmParser &parser, OperationState &result) {
+    ParseResult Aten_ScaledDotProductFlashAttentionForCpuOp::parse(OpAsmParser &parser, OperationState &result) {
       return parseDefaultTorchOp(parser, result, 7, 1);
     }
-    void AtenScaledDotProductFlashAttentionForCpuOp::print(OpAsmPrinter &printer) {
+    void Aten_ScaledDotProductFlashAttentionForCpuOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 7, 1);
     }
   }];
