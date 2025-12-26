@@ -1095,6 +1095,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::_scaled_dot_product_flash_attention : (Tensor, Tensor, Tensor, float, bool, bool, float?) -> (Tensor, Tensor, Tensor, Tensor, int, int, Tensor, Tensor, Tensor)"
     )
+    emit(
+        "aten::_scaled_dot_product_flash_attention_for_cpu : (Tensor, Tensor, Tensor, float, bool, bool, float?) -> (Tensor, Tensor, Tensor, Tensor, int, int, Tensor, Tensor, Tensor)"
+    )
     emit("aten::grid_sampler : (Tensor, Tensor, int, int, bool) -> (Tensor)")
     emit(
         "aten::_trilinear : (Tensor, Tensor, Tensor, int[], int[], int[], int[], int) -> (Tensor)"

@@ -934,3 +934,41 @@ func.func @channel_shuffle(%arg0: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtens
   %0 = torch.aten.channel_shuffle %arg0, %int4 : !torch.vtensor<[1,8,4,4],f32>, !torch.int -> !torch.vtensor<[1,8,4,4],f32>
   return %0 : !torch.vtensor<[1,8,4,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten._scaled_dot_product_flash_attention
+func.func @torch.aten._scaled_dot_product_flash_attention(%arg0: !torch.vtensor<[32,8,128,64],f32>, %arg1: !torch.vtensor<[32,8,128,64],f32>, %arg2: !torch.vtensor<[32,8,128,64],f32>) -> !torch.vtensor<[32,8,128,64],f32> {
+  %float0 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %scale = torch.constant.float 1.000000e+00
+  %output = torch.aten._scaled_dot_product_flash_attention %arg0, %arg1, %arg2, %float0, %false, %false, %scale: !torch.vtensor<[32,8,128,64],f32>, !torch.vtensor<[32,8,128,64],f32>, !torch.vtensor<[32,8,128,64],f32>, !torch.float, !torch.bool, !torch.bool, !torch.float -> !torch.vtensor<[32,8,128,64],f32>
+  return %output : !torch.vtensor<[32,8,128,64],f32>
+  // CHECK-SAME: %[[QUERY:.*]]: !torch.vtensor<[32,8,128,64],f32>, %[[KEY:.*]]: !torch.vtensor<[32,8,128,64],f32>, %[[VALUE:.*]]: !torch.vtensor<[32,8,128,64],f32>) -> !torch.vtensor<[32,8,128,64],f32> {
+  // CHECK-DAG:     %[[NONE:.*]] = torch.constant.none
+  // CHECK-DAG:     %[[FLOAT0:.*]] = torch.constant.float 0.000000e+00
+  // CHECK-DAG:     %[[FALSE:.*]] = torch.constant.bool false
+  // CHECK-DAG:     %[[SCALE:.*]] = torch.constant.float 1.000000e+00
+  // CHECK-DAG:     %[[TRUE:.*]] = torch.constant.bool true
+  // CHECK:         %[[RESULT:.*]] = torch.aten.scaled_dot_product_attention %[[QUERY]], %[[KEY]], %[[VALUE]], %[[NONE]], %[[FLOAT0]], %[[FALSE]], %[[SCALE]], %[[TRUE]]
+  // CHECK:         return %[[RESULT]] : !torch.vtensor<[32,8,128,64],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten._scaled_dot_product_flash_attention_for_cpu
+func.func @torch.aten._scaled_dot_product_flash_attention_for_cpu(%arg0: !torch.vtensor<[4,16,64,32],f16>, %arg1: !torch.vtensor<[4,16,64,32],f16>, %arg2: !torch.vtensor<[4,16,64,32],f16>) -> !torch.vtensor<[4,16,64,32],f16> {
+  %float0 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %scale = torch.constant.float 1.000000e+00
+  %output = torch.aten._scaled_dot_product_flash_attention_for_cpu %arg0, %arg1, %arg2, %float0, %false, %false, %scale : !torch.vtensor<[4,16,64,32],f16>, !torch.vtensor<[4,16,64,32],f16>, !torch.vtensor<[4,16,64,32],f16>, !torch.float, !torch.bool, !torch.bool, !torch.float -> !torch.vtensor<[4,16,64,32],f16>
+  return %output : !torch.vtensor<[4,16,64,32],f16>
+  // CHECK-SAME: %[[QUERY:.*]]: !torch.vtensor<[4,16,64,32],f16>, %[[KEY:.*]]: !torch.vtensor<[4,16,64,32],f16>, %[[VALUE:.*]]: !torch.vtensor<[4,16,64,32],f16>) -> !torch.vtensor<[4,16,64,32],f16> {
+  // CHECK-DAG:     %[[NONE:.*]] = torch.constant.none
+  // CHECK-DAG:     %[[FLOAT0:.*]] = torch.constant.float 0.000000e+00
+  // CHECK-DAG:     %[[FALSE:.*]] = torch.constant.bool false
+  // CHECK-DAG:     %[[SCALE:.*]] = torch.constant.float 1.000000e+00
+  // CHECK-DAG:     %[[TRUE:.*]] = torch.constant.bool true
+  // CHECK:         %[[RESULT:.*]] = torch.aten.scaled_dot_product_attention %[[QUERY]], %[[KEY]], %[[VALUE]], %[[NONE]], %[[FLOAT0]], %[[FALSE]], %[[SCALE]], %[[TRUE]]
+  // CHECK:         return %[[RESULT]] : !torch.vtensor<[4,16,64,32],f16>
+}

@@ -4513,6 +4513,31 @@ public:
 };
 } // namespace
 
+// Decompose aten._scaled_dot_product_flash_attention/_for_cpu to
+// aten.scaled_dot_product_attention
+namespace {
+template <typename OpTy>
+class DecomposeScaledDotProductFlashAttentionOp
+    : public OpRewritePattern<OpTy> {
+public:
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value constNone = ConstantNoneOp::create(rewriter, loc);
+    Value constTrue =
+        ConstantBoolOp::create(rewriter, loc, rewriter.getBoolAttr(true));
+
+    rewriter.replaceOpWithNewOp<AtenScaledDotProductAttentionOp>(
+        op, op.getType(), op.getQuery(), op.getKey(), op.getValue(),
+        /*attn_mask=*/constNone, op.getDropoutP(), op.getIsCausal(),
+        op.getScale(),
+        /*enable_gqa=*/constTrue);
+    return success();
+  }
+};
+} // namespace
+
 // Selu = scale * (max(0,x) + min(0,alpha * (exp(x) − 1)))
 namespace {
 class DecomposeAtenSeluOp : public OpRewritePattern<AtenSeluOp> {
@@ -13305,6 +13330,10 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenNormalFunctionalOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEluOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeScaledDotProductFlashAttentionOp<
+        AtenScaledDotProductFlashAttentionOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeScaledDotProductFlashAttentionOp<
+        AtenScaledDotProductFlashAttentionForCpuOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFakeQuantizePerTensorAffineOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSeluOp>(patterns);
