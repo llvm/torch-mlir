@@ -4555,7 +4555,7 @@ public:
         /*enable_gqa=*/constTrue);
 
     // Replace only the first result with the new op's result
-    rewriter.replaceAllUsesWith(op.getResult(), newOp.getResult());
+    rewriter.replaceAllUsesWith(op.getOutput(), newOp.getResult());
 
     // Erase the old op
     rewriter.eraseOp(op);
