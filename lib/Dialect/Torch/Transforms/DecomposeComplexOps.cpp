@@ -4547,7 +4547,7 @@ public:
     Value constTrue =
         ConstantBoolOp::create(rewriter, loc, rewriter.getBoolAttr(true));
     // Create the new scaled_dot_product_attention op
-    BaseTensorType resType = cast<BaseTensorType>(op.getResult().getType());
+    BaseTensorType resType = cast<BaseTensorType>(op.getOutput().getType());
     auto newOp = AtenScaledDotProductAttentionOp::create(
         rewriter, loc, resType, op.getQuery(), op.getKey(), op.getValue(),
         /*attn_mask=*/constNone, op.getDropoutP(), op.getIsCausal(),

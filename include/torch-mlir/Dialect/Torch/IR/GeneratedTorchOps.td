@@ -15210,7 +15210,7 @@ def Torch_Aten_ScaledDotProductFlashAttentionOp : Torch_Op<"aten._scaled_dot_pro
     AnyTorchOptionalFloatType:$scale
   );
   let results = (outs
-    AnyTorchOptionalTensorType:$result,
+    AnyTorchOptionalTensorType:$output,
     AnyTorchOptionalTensorType:$logsumexp,
     AnyTorchOptionalTensorType:$cum_seq_q,
     AnyTorchOptionalTensorType:$cum_seq_k,
@@ -15243,15 +15243,15 @@ def Torch_Aten_ScaledDotProductFlashAttentionForCpuOp : Torch_Op<"aten._scaled_d
     AnyTorchTensorType:$value,
     Torch_FloatType:$dropout_p,
     Torch_BoolType:$is_causal,
-    Torch_BoolType:$return_debug_mask,
+    AnyTorchOptionalTensorType:$attn_mask,
     AnyTorchOptionalFloatType:$scale
   );
   let results = (outs
-    AnyTorchOptionalTensorType:$result,
+    AnyTorchOptionalTensorType:$output,
     AnyTorchOptionalTensorType:$logsumexp
   );
   let hasCustomAssemblyFormat = 1;
-    let extraClassDefinition = [{
+  let extraClassDefinition = [{
     ParseResult Aten_ScaledDotProductFlashAttentionForCpuOp::parse(OpAsmParser &parser, OperationState &result) {
       return parseDefaultTorchOp(parser, result, 7, 2);
     }
