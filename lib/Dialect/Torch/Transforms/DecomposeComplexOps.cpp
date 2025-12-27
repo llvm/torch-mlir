@@ -4548,8 +4548,10 @@ public:
     Value constTrue =
         ConstantBoolOp::create(rewriter, loc, rewriter.getBoolAttr(true));
 
+    BaseTensorType resType = cast<BaseTensorType>(op.getResult().getType());
+
     rewriter.replaceOpWithNewOp<AtenScaledDotProductAttentionOp>(
-        op, op.getType(), op.getQuery(), op.getKey(), op.getValue(),
+        op, resType, op.getQuery(), op.getKey(), op.getValue(),
         /*attn_mask=*/constNone, op.getDropoutP(), op.getIsCausal(),
         op.getScale(),
         /*enable_gqa=*/constTrue);

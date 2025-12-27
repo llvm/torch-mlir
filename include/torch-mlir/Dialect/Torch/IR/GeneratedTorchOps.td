@@ -15210,15 +15210,23 @@ def Torch_Aten_ScaledDotProductFlashAttentionOp : Torch_Op<"aten._scaled_dot_pro
     AnyTorchOptionalFloatType:$scale
   );
   let results = (outs
-    AnyTorchOptionalTensorType:$result
+    AnyTorchOptionalTensorType:$result,
+    AnyTorchOptionalTensorType:$logsumexp,
+    AnyTorchOptionalTensorType:$cum_seq_q,
+    AnyTorchOptionalTensorType:$cum_seq_k,
+    Torch_IntType:$max_q,
+    Torch_IntType:$max_k,
+    AnyTorchOptionalTensorType:$rng_state,
+    AnyTorchOptionalTensorType:$unused,
+    AnyTorchOptionalTensorType:$debug_attn_mask
   );
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
     ParseResult Aten_ScaledDotProductFlashAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 7, 1);
+      return parseDefaultTorchOp(parser, result, 7, 9);
     }
     void Aten_ScaledDotProductFlashAttentionOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 7, 1);
+      printDefaultTorchOp(printer, *this, 7, 9);
     }
   }];
 }
@@ -15228,7 +15236,7 @@ def Torch_Aten_ScaledDotProductFlashAttentionForCpuOp : Torch_Op<"aten._scaled_d
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Generated op for `aten::_scaled_dot_product_flash_attention_for_cpu : (Tensor, Tensor, Tensor, float, bool, bool, float?) -> (Tensor, Tensor, Tensor, Tensor, int, int, Tensor, Tensor, Tensor)`";
+  let summary = "Generated op for `aten::_scaled_dot_product_flash_attention_for_cpu : (Tensor, Tensor, Tensor, float, bool, Tensor?, float?) -> (Tensor, Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$query,
     AnyTorchTensorType:$key,
@@ -15239,15 +15247,16 @@ def Torch_Aten_ScaledDotProductFlashAttentionForCpuOp : Torch_Op<"aten._scaled_d
     AnyTorchOptionalFloatType:$scale
   );
   let results = (outs
-    AnyTorchOptionalTensorType:$result
+    AnyTorchOptionalTensorType:$result,
+    AnyTorchOptionalTensorType:$logsumexp
   );
   let hasCustomAssemblyFormat = 1;
     let extraClassDefinition = [{
     ParseResult Aten_ScaledDotProductFlashAttentionForCpuOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 7, 1);
+      return parseDefaultTorchOp(parser, result, 7, 2);
     }
     void Aten_ScaledDotProductFlashAttentionForCpuOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 7, 1);
+      printDefaultTorchOp(printer, *this, 7, 2);
     }
   }];
 }
