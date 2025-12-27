@@ -3242,7 +3242,6 @@ public:
       if (lhsBatchDim == kUnknownSize || rhsBatchDim == kUnknownSize ||
           lhsBatchDim != rhsBatchDim)
         return failure();
-
       rewriter.replaceOpWithNewOp<AtenBmmOp>(op, op.getType(), lhs, rhs);
     } else {
       return failure();
@@ -4547,14 +4546,19 @@ public:
     Value constNone = ConstantNoneOp::create(rewriter, loc);
     Value constTrue =
         ConstantBoolOp::create(rewriter, loc, rewriter.getBoolAttr(true));
-
+    // Create the new scaled_dot_product_attention op
     BaseTensorType resType = cast<BaseTensorType>(op.getResult().getType());
-
-    rewriter.replaceOpWithNewOp<AtenScaledDotProductAttentionOp>(
-        op, resType, op.getQuery(), op.getKey(), op.getValue(),
+    auto newOp = AtenScaledDotProductAttentionOp::create(
+        rewriter, loc, resType, op.getQuery(), op.getKey(), op.getValue(),
         /*attn_mask=*/constNone, op.getDropoutP(), op.getIsCausal(),
         op.getScale(),
         /*enable_gqa=*/constTrue);
+
+    // Replace only the first result with the new op's result
+    rewriter.replaceAllUsesWith(op.getResult(), newOp.getResult());
+
+    // Erase the old op
+    rewriter.eraseOp(op);
     return success();
   }
 };
