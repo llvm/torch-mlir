@@ -986,6 +986,6 @@ func.func @torch.aten._scaled_dot_product_flash_attention_for_cpu(%arg0: !torch.
   %false = torch.constant.bool false
   %none = torch.constant.none
   %scale = torch.constant.float 1.000000e+00
-  %output, %logsumexp = torch.aten._scaled_dot_product_flash_attention_for_cpu %arg0, %arg1, %arg2, %float0, %false, %false, %scale : !torch.vtensor<[4,16,64,32],f16>, !torch.vtensor<[4,16,64,32],f16>, !torch.vtensor<[4,16,64,32],f16>, !torch.float, !torch.bool, !torch.bool, !torch.float -> !torch.vtensor<[4,16,64,32],f16>, !torch.vtensor<[4,16,64],f32>
+  %output, %logsumexp = torch.aten._scaled_dot_product_flash_attention_for_cpu %arg0, %arg1, %arg2, %float0, %false, %none, %scale : !torch.vtensor<[4,16,64,32],f16>, !torch.vtensor<[4,16,64,32],f16>, !torch.vtensor<[4,16,64,32],f16>, !torch.float, !torch.bool, !torch.none, !torch.float -> !torch.vtensor<[4,16,64,32],f16>, !torch.vtensor<[4,16,64],f32>
   return %output : !torch.vtensor<[4,16,64,32],f16>
 }
