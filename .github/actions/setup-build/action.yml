@@ -21,6 +21,11 @@ inputs:
     required: false
     default: 'nightly'
 
+  python-version:
+    description: 'Python version to use'
+    required: false
+    default: '3.11'
+
 runs:
   using: "composite"
 
@@ -28,7 +33,7 @@ runs:
     - name: Set up Python
       uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
       with:
-        python-version: '3.11'
+        python-version: ${{ inputs.python-version }}
 
     - name: Install PyTorch nightly depends
       if: ${{ runner.os != 'Linux' }}
