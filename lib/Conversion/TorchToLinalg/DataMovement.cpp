@@ -701,7 +701,51 @@ public:
           op, "Must be able to either infer expansion dims, or retrieve them "
               "from list construct");
 
-    auto expandTy = getTypeConverter()->convertType(outputTensorType);
+    // Check if the output tensor type has all static shapes while the input
+    // tensor type doesn't Note: unflatten changes the shape, so we need to
+    // account for dimension mapping:
+    // - Input dims [0:dimInt) map to output dims [0:dimInt)
+    // - Input dim [dimInt] is the flattened dimension
+    // - Output dims [dimInt:dimInt+numSizes) are the unflattened dimensions
+    // - Input dims [dimInt+1:] map to output dims [dimInt+numSizes:]
+    bool inputAllStatic = inputTensorType.areAllSizesKnown();
+    bool outputAllStatic = outputTensorType.areAllSizesKnown();
+
+    auto expandTy = cast<RankedTensorType>(
+        getTypeConverter()->convertType(outputTensorType));
+    auto inputTy = cast<RankedTensorType>(
+        getTypeConverter()->convertType(inputTensorType));
+    self = adaptor.getSelf();
+
+    outputSizes = expandTy.getShape();
+
+    if (!inputAllStatic && outputAllStatic) {
+      // The output tensor type is all static, but the input tensor type is not.
+      // Construct input with static shapes.
+      SmallVector<int64_t> refinedInputSizes;
+      // Copy dims before the flatten dimension from output
+      for (int64_t i = 0; i < dimInt; ++i) {
+        refinedInputSizes.push_back(outputSizes[i]);
+      }
+
+      int64_t unflattenedDimSize = 1;
+      for (int64_t i = dimInt; i < dimInt + numSizes; ++i) {
+        unflattenedDimSize *= outputSizes[i];
+      }
+
+      // Keep the flattened dimension from input (may be dynamic)
+      refinedInputSizes.push_back(unflattenedDimSize);
+      // Copy dims after the flatten dimension from output
+      for (int64_t i = dimInt + numSizes; i < outputRank; ++i) {
+        refinedInputSizes.push_back(outputSizes[i]);
+      }
+
+      auto staticInputType =
+          RankedTensorType::get(refinedInputSizes, inputTy.getElementType());
+      self = tensor::CastOp::create(rewriter, loc, staticInputType,
+                                    adaptor.getSelf());
+    }
+
     Value expand;
     // When there are less than two dynamic reassociation dims, this will lower
     // to tensor.expand_shape. Otherwise, this lowers to tensor.reshape.
@@ -718,14 +762,13 @@ public:
         for (int i = dimInt + numSizes; i < outputRank; ++i)
           reassociations[i - numSizes + 1].push_back(i);
       }
-      expand = tensor::ExpandShapeOp::create(rewriter, loc, expandTy,
-                                             adaptor.getSelf(), reassociations)
+      expand = tensor::ExpandShapeOp::create(rewriter, loc, expandTy, self,
+                                             reassociations)
                    .getResult();
     } else {
       reassocSizes = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
                                             reassocSizes);
-      SmallVector<Value> inputShape =
-          getTensorSizes(rewriter, loc, adaptor.getSelf());
+      SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, self);
       inputShape = castIndexVectorToInt64Vector(rewriter, loc, inputShape);
       SmallVector<Value> outputShape(inputShape.begin(),
                                      inputShape.begin() + dimInt);
@@ -740,9 +783,9 @@ public:
           ArrayRef<int64_t>{outputRank}, rewriter.getIntegerType(64));
       Value shapeValue =
           tensor::FromElementsOp::create(rewriter, loc, shapeType, outputShape);
-      expand = tensor::ReshapeOp::create(rewriter, loc, expandTy,
-                                         adaptor.getSelf(), shapeValue)
-                   .getResult();
+      expand =
+          tensor::ReshapeOp::create(rewriter, loc, expandTy, self, shapeValue)
+              .getResult();
     }
     rewriter.replaceOp(op, expand);
     return success();
@@ -1739,6 +1782,12 @@ public:
 
     Value outVector = tensor::EmptyOp::create(
         rewriter, loc, getAsOpFoldResult(outputDims), elementType);
+
+    // Note: The empty tensor type may not match `outType` due to folding
+    // performed by `getAsOpFoldResult` of `tensor::DimOp`.
+    // Cast to `outType` if needed to ensure type consistency.
+    if (outVector.getType() != outType)
+      outVector = tensor::CastOp::create(rewriter, loc, outType, outVector);
 
     SmallVector<int64_t> permutation(inputRank);
     std::iota(permutation.begin(), permutation.end(), 0);
