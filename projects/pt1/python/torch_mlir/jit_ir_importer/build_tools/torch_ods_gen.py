@@ -1047,6 +1047,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::stft.center : (Tensor, int, int?, int?, Tensor?, bool, str, bool, bool?, bool?, bool?) -> (Tensor)"
     )
+    emit("aten::take : (Tensor, Tensor) -> (Tensor)")
 
     # Functionalization ops
     emit("aten::alias_copy : (Tensor) -> (Tensor)")
