@@ -30,7 +30,7 @@ jobs:
       CACHE_DIR: ${{ github.workspace }}\.container-cache
     steps:
       - name: "Checking out repository"
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           submodules: true
 
@@ -38,7 +38,7 @@ jobs:
         uses: ./.github/actions/setup-build
 
       - name: Enable cache
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
         with:
           path: ${{ env.CACHE_DIR }}
           # Use as cache key a PR number if a pull request and otherwise the commit hash. This reuses the cache for a PR irrespective of the commit hash. Otherwise, it uses commit hash for merges into the main branch
@@ -65,7 +65,7 @@ jobs:
           ./build_tools/python_deploy/build_windows_ci.sh
 
       - name: Save cache
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
         if: ${{ !cancelled() }}
         with:
           path: ${{ env.CACHE_DIR }}
