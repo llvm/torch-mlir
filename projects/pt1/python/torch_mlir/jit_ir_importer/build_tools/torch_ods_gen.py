@@ -575,7 +575,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::mm : (Tensor, Tensor) -> (Tensor)")
     emit("aten::_int_mm : (Tensor, Tensor) -> (Tensor)")
     emit("aten::addmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
-    emit("aten::matmul : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::matmul : (Tensor, Tensor) -> (Tensor)", has_verifier=True)
     emit("aten::mv : (Tensor, Tensor) -> (Tensor)")
     emit("aten::dot : (Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
     emit("aten::outer : (Tensor, Tensor) -> (Tensor)")
