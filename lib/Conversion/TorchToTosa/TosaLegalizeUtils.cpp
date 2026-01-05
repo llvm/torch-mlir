@@ -580,5 +580,10 @@ FailureOr<Value> getZeroPointValue(PatternRewriter &rewriter, Operation *op,
   return zp;
 }
 
+bool typeHasZeroDim(ShapedType type) {
+  auto outShape = type.getShape();
+  return llvm::any_of(outShape, [](int64_t dim) { return dim == 0; });
+}
+
 } // namespace tosa
 } // namespace mlir

@@ -4576,3 +4576,46 @@ func.func @torch.aten.avg_pool1d.count_include_pad(%arg0: !torch.vtensor<[1,512,
   %3 = torch.aten.avg_pool1d %arg0, %0, %1, %2, %false, %count_include_pad : !torch.vtensor<[1,512,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[1,512,10],f32>
   return %3 : !torch.vtensor<[1,512,10],f32>
 }
+
+// -----
+func.func @torch.prim.NumToTensor.Scalar.unranked() -> !torch.vtensor<*,si64> {
+    %int0 = torch.constant.int 0
+    // expected-error @below {{failed to legalize operation 'torch.prim.NumToTensor.Scalar' that was explicitly marked illegal}}
+    %0 = torch.prim.NumToTensor.Scalar %int0 : !torch.int -> !torch.vtensor<*,si64>
+    return %0 : !torch.vtensor<*,si64>
+}
+
+// -----
+func.func @torch.aten.arange.start_step.zero_output() -> !torch.vtensor<[0],si64> {
+  %int1 = torch.constant.int 1
+  %false = torch.constant.bool false
+  %int0 = torch.constant.int 0
+  %none = torch.constant.none
+  %cpu = torch.constant.device "cpu"
+  // expected-error @below {{failed to legalize operation 'torch.aten.arange.start_step' that was explicitly marked illegal}}
+  %0 = torch.aten.arange.start_step %int0, %int0, %int1, %none, %none, %cpu, %false : !torch.int, !torch.int, !torch.int, !torch.none, !torch.none, !torch.Device, !torch.bool -> !torch.vtensor<[0],si64>
+  return %0 : !torch.vtensor<[0],si64>
+}
+
+// -----
+func.func @torch.vtensor.literal.zero_output() -> !torch.vtensor<[2,0],si64> {
+  // expected-error @below {{failed to legalize operation 'torch.vtensor.literal' that was explicitly marked illegal}}
+  %0 = torch.vtensor.literal(dense<> : tensor<2x0xsi64>) : !torch.vtensor<[2,0],si64>
+  return %0 : !torch.vtensor<[2,0],si64>
+}
+
+// -----
+func.func @torch.aten.fill.Scalar.zero_output(%arg0: !torch.vtensor<[0],f32>) -> !torch.vtensor<[0],f32> {
+  %int0 = torch.constant.int 0
+  // expected-error @below {{failed to legalize operation 'torch.aten.fill.Scalar' that was explicitly marked illegal}}
+  %0 = torch.aten.fill.Scalar %arg0, %int0 : !torch.vtensor<[0],f32>, !torch.int -> !torch.vtensor<[0],f32>
+  return %0 : !torch.vtensor<[0],f32>
+}
+
+// -----
+func.func @torch.aten.remainder.Scalar.zero_output(%arg0: !torch.vtensor<[0],si32>) -> !torch.vtensor<[0],si32> {
+  %int16 = torch.constant.int 16
+  // expected-error @below {{failed to legalize operation 'torch.aten.remainder.Scalar' that was explicitly marked illegal}}
+  %0 = torch.aten.remainder.Scalar %arg0, %int16 : !torch.vtensor<[0],si32>, !torch.int -> !torch.vtensor<[0],si32>
+  return %0 : !torch.vtensor<[0],si32>
+}
