@@ -116,6 +116,9 @@ Value emitExplicitZeroPadNHWC(Location loc, PatternRewriter &rewriter,
 FailureOr<Value> getZeroPointValue(PatternRewriter &rewriter, Operation *op,
                                    Value tensor, Type elemType);
 
+// Check if a shaped type has any dimension with size 0.
+bool typeHasZeroDim(ShapedType type);
+
 } // namespace tosa
 } // namespace mlir
 

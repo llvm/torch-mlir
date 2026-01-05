@@ -3587,7 +3587,15 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   auto outputTy =
-      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+      dyn_cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  if (!outputTy) {
+    return rewriter.notifyMatchFailure(
+        op, "Expected ranked tensor as output type.");
+  }
+  if (tosa::typeHasZeroDim(outputTy)) {
+    return rewriter.notifyMatchFailure(
+        op, "Expected output shape to not have any 0 dimension.");
+  }
 
   // Tensors with integer types need to be converted to signless integer
   // element type. All tensors with element types other than integer can reuse
@@ -6031,8 +6039,17 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   const TypeConverter *typeConverter = this->getTypeConverter();
-  RankedTensorType resultType = cast<RankedTensorType>(
+  RankedTensorType resultType = dyn_cast<RankedTensorType>(
       typeConverter->convertType(op->getResult(0).getType()));
+  if (!resultType) {
+    return rewriter.notifyMatchFailure(
+        op, "Expected ranked tensor as output type.");
+  }
+
+  if (tosa::typeHasZeroDim(resultType)) {
+    return rewriter.notifyMatchFailure(
+        op, "Expected output shape to not have any 0 dimension.");
+  }
 
   // At this point all tensors should have value semantics, and hence the
   // `layout` check can be ignored.
@@ -6192,8 +6209,12 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
     ConversionPatternRewriter &rewriter) const {
 
   const TypeConverter *typeConverter = this->getTypeConverter();
-  RankedTensorType resultType = cast<RankedTensorType>(
+  auto resultType = dyn_cast<RankedTensorType>(
       typeConverter->convertType(op->getResult(0).getType()));
+  if (!resultType) {
+    return rewriter.notifyMatchFailure(
+        op, "Expected result type to be a ranked tensor.");
+  }
 
   // Only supports integer operand type, because for the floating point operand
   // type result tensor has to be of type `f64` which is not supported in the
@@ -6329,11 +6350,16 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
 
     Value self = adaptor.getSelf();
-    auto selfTy = cast<RankedTensorType>(self.getType());
+    auto selfTy = dyn_cast<RankedTensorType>(self.getType());
 
     if (!selfTy)
       return rewriter.notifyMatchFailure(
           op, "Only ranked tensor types supported in TOSA Remainder/Fmod");
+
+    if (tosa::typeHasZeroDim(selfTy)) {
+      return rewriter.notifyMatchFailure(
+          op, "Expected input shape to not have any 0 dimension.");
+    }
 
     auto outType =
         cast<TensorType>(this->getTypeConverter()->convertType(op.getType()));
@@ -7176,6 +7202,11 @@ public:
     if (!outType || !outType.hasStaticShape())
       return rewriter.notifyMatchFailure(
           op, "Only Tensor types with static shapes are currently supported");
+
+    if (tosa::typeHasZeroDim(outType)) {
+      return rewriter.notifyMatchFailure(
+          op, "Expected output shape to not have any 0 dimension.");
+    }
 
     Type outElemTy = outType.getElementType();
     if (!outElemTy.isIntOrFloat())
