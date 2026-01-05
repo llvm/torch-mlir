@@ -1755,8 +1755,6 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
     "Aten_TrilinearModuleSumAllDims_basic",
     "Aten_TrilinearModuleSumdims_basic",
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
-    "CrossEntropyLossModule_basic",
-    "CrossEntropyLossNoReductionModule_basic",
     "ScatterSrcModule_basic",
     "ScatterSrcStaticModule_basic",
     "HBC_basic",
@@ -3563,6 +3561,8 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
+    "CrossEntropyLossModule_basic",
+    "CrossEntropyLossNoReductionModule_basic",
     "NumpyTRank0Module_basic",
     "Permute0RankModule_basic",
     "ArgsortTensor_basic",
