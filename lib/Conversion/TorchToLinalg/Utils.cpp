@@ -702,6 +702,21 @@ LogicalResult torch_to_linalg::permuteTensor(Operation *op,
       return rewriter.notifyMatchFailure(op, "dimension out of range");
   }
 
+  // Check if dimensions are in the original order (no permutation needed).
+  bool isIdentityPermutation = true;
+  for (uint32_t i = 0; i < numDimensions; i++) {
+    if (dimensions[i] != static_cast<int64_t>(i)) {
+      isIdentityPermutation = false;
+      break;
+    }
+  }
+
+  // If no permutation is needed, return the input as result.
+  if (isIdentityPermutation) {
+    result = input;
+    return success();
+  }
+
   SmallVector<Value> outputDims;
   for (uint32_t i = 0; i < inputRank; i++)
     outputDims.push_back(getDimOp(rewriter, loc, input, dimensions[i]));
