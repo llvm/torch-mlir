@@ -591,9 +591,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "SliceScatterStaticModule_basic",
     "SliceScatterStepVariationModule_basic",
     "SliceScatterZeroDimModule_basic",
-    # FX importer -> StableHLO path never runs DecomposeComplexOps, so the
-    # torch.operator "aten._transformer_encoder_layer_fwd" crashes the pipeline.
-    "TransformerEncoderModule_basic",
     "TimeOutModule_basic",
     "WeightNormInterfaceModule_basic",
     "AdaptiveAvgPool3dDynamicNoBatch_basic",
@@ -3643,9 +3640,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "TrilIndicesNegativeOffsetModule_basic",
     "TriuIndicesAllZerosModule_basic",
     "TriuIndicesModule_basic",
-    # FX importer -> TOSA path also requires the transformer encoder decomposition
-    # to eliminate the torch.operator "aten._transformer_encoder_layer_fwd".
-    "TransformerEncoderModule_basic",
     "TypeConversionUint8ToF32Module_basic",
     "WeightNormInterfaceModule_basic",
     "AdaptiveAvgPool3dDynamicNoBatch_basic",
