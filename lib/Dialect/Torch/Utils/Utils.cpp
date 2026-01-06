@@ -744,3 +744,29 @@ Type Torch::getDefaultAccType(PatternRewriter &rewriter, Type inputType) {
     return rewriter.getI64Type();
   return inputType;
 }
+
+// Check whether the shapes of the tensors are broadcastable or not.
+// Two tensors are “broadcastable” if the following rules hold:
+// 1.) Each tensor has at least one dimension.
+// 2.) When iterating over the dimension sizes, starting at the trailing
+// dimension, the dimension sizes must either be equal, one of them is 1, or
+// one of them does not exist.
+LogicalResult
+Torch::areStaticallyBroadcastCompatible(ArrayRef<int64_t> shapeA,
+                                        ArrayRef<int64_t> shapeB) {
+  unsigned rankA = shapeA.size();
+  unsigned rankB = shapeB.size();
+  unsigned minRank = std::min(rankA, rankB);
+
+  for (unsigned i = 0; i < minRank; i++) {
+    int64_t dimA = shapeA[rankA - i - 1];
+    int64_t dimB = shapeB[rankB - i - 1];
+    // Here, we only check the static dimensions for compatibility.
+    if (dimA == Torch::kUnknownSize || dimB == Torch::kUnknownSize)
+      continue;
+    if (!(dimA == dimB || dimA == 1 || dimB == 1))
+      return failure();
+  }
+
+  return success();
+}
