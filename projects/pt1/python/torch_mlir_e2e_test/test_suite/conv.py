@@ -899,6 +899,7 @@ def ConvolutionModule2DTransposeStridedStatic_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 2, 5, 6), tu.rand(2, 5, 2, 2))
 
 
+# The following test has negative effective padding: out_pad_total(H/W) = output_padding(H/W) - 2*padding(H/W)
 class ConvolutionModule2DTransposeNonUnitOutputPadding(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -929,6 +930,39 @@ class ConvolutionModule2DTransposeNonUnitOutputPadding(torch.nn.Module):
     module_factory=lambda: ConvolutionModule2DTransposeNonUnitOutputPadding()
 )
 def ConvolutionModule2DTransposeNonUnitOutputPadding_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 4, 4), tu.rand(2, 2, 3, 3))
+
+
+class ConvolutionModule2DTransposePositiveEffectivePadding(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        return torch.ops.aten.convolution(
+            inputVec,
+            weight,
+            bias=None,
+            stride=[2, 2],
+            padding=[0, 0],
+            dilation=[1, 1],
+            transposed=True,
+            output_padding=[1, 1],
+            groups=1,
+        )
+
+
+@register_test_case(
+    module_factory=lambda: ConvolutionModule2DTransposePositiveEffectivePadding()
+)
+def ConvolutionModule2DTransposePositiveEffectivePadding_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 2, 4, 4), tu.rand(2, 2, 3, 3))
 
 

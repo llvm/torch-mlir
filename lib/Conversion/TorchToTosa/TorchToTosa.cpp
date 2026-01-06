@@ -2908,14 +2908,38 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     // TOSA 'out_pad' is a 4D array {top,bottom,left,right}.
     // Map from PyTorch's (padding, output_padding):
     //   out_pad_total(H/W) = output_padding(H/W) - 2*padding(H/W)
-    // Negative values are allowed and will be handled by the TOSA
-    // decomposition.
+    // Negative values need to be handled by cropping the output.
     int64_t outPadH = outPaddingList[0] - 2 * paddingList[0];
     int64_t outPadW = outPaddingList[1] - 2 * paddingList[1];
-    int64_t outPadTop = outPadH / 2;
-    int64_t outPadBottom = outPadH - outPadTop;
-    int64_t outPadLeft = outPadW / 2;
-    int64_t outPadRight = outPadW - outPadLeft;
+
+    // Track if we need to slice to crop the output
+    bool needSlicing = (outPadH < 0 || outPadW < 0);
+
+    auto calculatePaddingOrCropping =
+        [](int64_t outPad) -> std::tuple<int64_t, int64_t, int64_t, int64_t> {
+      /// Calculates padding or cropping for a single dimension
+      /// in transposed convolution
+      /// Returns {padBegin, padEnd, cropBegin, cropEnd}
+      if (outPad >= 0) {
+        int64_t padBegin = outPad / 2;
+        int64_t padEnd = outPad - padBegin;
+        return {padBegin, padEnd, 0, 0};
+      } else {
+        // Negative padding means we need to crop
+        int64_t totalCrop = -outPad;
+        int64_t cropBegin = (totalCrop + 1) / 2; // Crop more from begin if odd
+        int64_t cropEnd = totalCrop / 2;
+        return {0, 0, cropBegin, cropEnd};
+      }
+    };
+
+    /// Determine cropping and actual padding
+    auto [outPadTop, outPadBottom, cropTopH, cropBottomH] =
+        calculatePaddingOrCropping(outPadH);
+
+    auto [outPadLeft, outPadRight, cropTopW, cropBottomW] =
+        calculatePaddingOrCropping(outPadW);
+
     SmallVector<int64_t, 4> outPad(
         {outPadTop, outPadBottom, outPadLeft, outPadRight});
 
@@ -2923,8 +2947,24 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
     auto outTorchShape = makeShapeTorchCompatible(outputTy.getShape());
     SmallVector<int64_t> outTosaShape =
         permuteShape(outTorchShape, torchToTosaDims);
+
+    // Calculate intermediate shape only if slicing is needed
+    SmallVector<int64_t> convOutputShape = outTosaShape;
+    if (needSlicing) {
+      if (cropTopH > 0 || cropBottomH > 0) {
+        if (!ShapedType::isDynamic(convOutputShape[1])) {
+          convOutputShape[1] += cropTopH + cropBottomH;
+        }
+      }
+      if (cropTopW > 0 || cropBottomW > 0) {
+        if (!ShapedType::isDynamic(convOutputShape[2])) {
+          convOutputShape[2] += cropTopW + cropBottomW;
+        }
+      }
+    }
+
     auto transConvOpTy = RankedTensorType::get(
-        makeShapeLLVMCompatible(outTosaShape), biasElemTy);
+        makeShapeLLVMCompatible(convOutputShape), biasElemTy);
 
     Value convTOut = tosa::TransposeConv2DOp::create(
                          rewriter, op->getLoc(),
@@ -2938,6 +2978,25 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
                          /*stride*/ rewriter.getDenseI64ArrayAttr(stride),
                          /*acc_type*/ accType)
                          .getResult();
+
+    // Apply slicing if the original pad values were negative
+    if (needSlicing) {
+      // Create slice operation to crop the output to the desired size
+      SmallVector<int64_t> startSlice = {
+          0,        // Batch dimension - no crop
+          cropTopH, // Height dimension - crop from top
+          cropTopW, // Width dimension - crop from left
+          0         // Channel dimension - no crop
+      };
+
+      auto slicedType = RankedTensorType::get(
+          makeShapeLLVMCompatible(outTosaShape), biasElemTy);
+
+      convTOut = tosa::CreateOpAndInfer<tosa::SliceOp>(
+          rewriter, op->getLoc(), slicedType, convTOut,
+          tosa::getTosaConstShape(rewriter, op->getLoc(), startSlice),
+          tosa::getTosaConstShape(rewriter, op->getLoc(), outTosaShape));
+    }
 
     // NHWC -> NCHW
     SmallVector<int64_t> transposedOutputShape =
