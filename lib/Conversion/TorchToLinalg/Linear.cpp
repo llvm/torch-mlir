@@ -116,20 +116,20 @@ public:
     }
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
-    Type resultElementType =
-        cast<RankedTensorType>(newResultType).getElementType();
     Type lhsElementType = lhsType.getElementType();
     Type rhsElementType = rhsType.getElementType();
 
-    // Convert the inputs element type equivalent to the result's element type.
-    if (!lhsZeroPoint && lhsElementType != rhsElementType) {
-      if (lhsElementType != resultElementType) {
+    // Convert the inputs element type to accumulator type (not result type)
+    auto accumulatorDType = getDefaultAccType(rewriter, lhsElementType);
+    if (!lhsZeroPoint) {
+      if (lhsElementType != accumulatorDType) {
         lhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
-                                                          resultElementType);
+                                                          accumulatorDType);
         lhsType = cast<RankedTensorType>(lhs.getType());
-      } else {
+      }
+      if (rhsElementType != accumulatorDType) {
         rhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
-                                                          resultElementType);
+                                                          accumulatorDType);
         rhsType = cast<RankedTensorType>(rhs.getType());
       }
     }
@@ -153,8 +153,6 @@ public:
 
     TensorType resultType = cast<TensorType>(newResultType);
     Type elementType = resultType.getElementType();
-    auto accumulatorDType =
-        getDefaultAccType(rewriter, lhsType.getElementType());
     if (accumulatorDType != resultType.getElementType()) {
       elementType = accumulatorDType;
     }

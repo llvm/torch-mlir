@@ -592,3 +592,16 @@ func.func @torch.aten.matmul$mixed_dtype(%arg0: !torch.vtensor<[3,4],f16>, %arg1
   %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[3,4],f16>, !torch.vtensor<[4,5],f32> -> !torch.vtensor<[3,5],f32>
   return %0 : !torch.vtensor<[3,5],f32>
 }
+
+// -----
+
+// Test that when we have mixed precision types that accumulate to a higher type
+// CHECK-LABEL: func.func @torch.aten.mm$mixed_dtype_accumulator(
+// CHECK:         arith.extf %{{.*}} : f8E4M3FNUZ to f32
+// CHECK:         arith.extf %{{.*}} : f16 to f32
+// CHECK:         linalg.matmul ins(%{{.*}}, %{{.*}} : tensor<3x4xf32>, tensor<4x5xf32>)
+// CHECK:         arith.truncf %{{.*}} : f32 to f16
+func.func @torch.aten.mm$mixed_dtype_accumulator(%arg0: !torch.vtensor<[3,4],f8E4M3FNUZ>, %arg1: !torch.vtensor<[4,5],f16>) -> !torch.vtensor<[3,5],f16> {
+  %0 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[3,4],f8E4M3FNUZ>, !torch.vtensor<[4,5],f16> -> !torch.vtensor<[3,5],f16>
+  return %0 : !torch.vtensor<[3,5],f16>
+}
