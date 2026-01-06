@@ -2653,6 +2653,12 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
                     m_TorchListOfConstantInts(paddingList)))
     return rewriter.notifyMatchFailure(op,
                                        "non-const padding list unsupported");
+
+  if (paddingList.size() == 1 &&
+      static_cast<int64_t>(paddingList.size()) != spatialRank) {
+    paddingList.resize(spatialRank, paddingList[0]);
+  }
+
   if (static_cast<int64_t>(paddingList.size()) != spatialRank)
     return rewriter.notifyMatchFailure(op, "padding rank mismatch");
 
