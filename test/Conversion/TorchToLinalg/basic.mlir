@@ -536,3 +536,59 @@ func.func @torch.ops.aten.replication_pad1d$basic(%arg0: !torch.vtensor<[3,5],f3
   %0 = torch.aten.replication_pad1d %arg0, %padding : !torch.vtensor<[3,5],f32>, !torch.list<int> -> !torch.vtensor<[3,8],f32>
   return %0 : !torch.vtensor<[3,8],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.mm$mixed_dtype(
+// CHECK-SAME:                        %[[LHS_VTENSOR:.*]]: !torch.vtensor<[3,4],f32>,
+// CHECK-SAME:                        %[[RHS_VTENSOR:.*]]: !torch.vtensor<[4,5],f16>) -> !torch.vtensor<[3,5],f32> {
+// CHECK-DAG:       %[[LHS:.*]] = torch_c.to_builtin_tensor %[[LHS_VTENSOR]] : !torch.vtensor<[3,4],f32> -> tensor<3x4xf32>
+// CHECK-DAG:       %[[RHS:.*]] = torch_c.to_builtin_tensor %[[RHS_VTENSOR]] : !torch.vtensor<[4,5],f16> -> tensor<4x5xf16>
+// CHECK:           %[[RHS_PROMOTED_INIT:.*]] = tensor.empty() : tensor<4x5xf32>
+// CHECK:           %[[RHS_PROMOTED:.*]] = linalg.generic
+// CHECK-SAME:        ins(%[[RHS]] : tensor<4x5xf16>)
+// CHECK-SAME:        outs(%[[RHS_PROMOTED_INIT]] : tensor<4x5xf32>)
+// CHECK:           ^bb0(%[[IN:.*]]: f16, %{{.*}}: f32):
+// CHECK:             %[[EXTENDED:.*]] = arith.extf %[[IN]] : f16 to f32
+// CHECK:             linalg.yield %[[EXTENDED]] : f32
+// CHECK:           %[[C0:.*]] = arith.constant 0 : index
+// CHECK:           %[[LHS_DIM_0:.*]] = tensor.dim %[[LHS]], %[[C0]] : tensor<3x4xf32>
+// CHECK:           %[[C1:.*]] = arith.constant 1 : index
+// CHECK:           %[[RHS_DIM_1:.*]] = tensor.dim %[[RHS_PROMOTED]], %[[C1]] : tensor<4x5xf32>
+// CHECK:           %[[INIT_TENSOR:.*]] = tensor.empty(%[[LHS_DIM_0]], %[[RHS_DIM_1]]) : tensor<?x?xf32>
+// CHECK:           %[[CF0:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:           %[[ZEROFILL:.*]] = linalg.fill ins(%[[CF0]] : f32) outs(%[[INIT_TENSOR]] : tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:           %[[MATMUL:.*]] = linalg.matmul ins(%[[LHS]], %[[RHS_PROMOTED]] : tensor<3x4xf32>, tensor<4x5xf32>) outs(%[[ZEROFILL]] : tensor<?x?xf32>) -> tensor<?x?xf32>
+// CHECK:           %[[CASTED:.*]] = tensor.cast %[[MATMUL]] : tensor<?x?xf32> to tensor<3x5xf32>
+// CHECK:           %[[RESULT_VTENSOR:.*]] = torch_c.from_builtin_tensor %[[CASTED]] : tensor<3x5xf32> -> !torch.vtensor<[3,5],f32>
+// CHECK:           return %[[RESULT_VTENSOR]] : !torch.vtensor<[3,5],f32>
+func.func @torch.aten.mm$mixed_dtype(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[4,5],f16>) -> !torch.vtensor<[3,5],f32> {
+  %0 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[4,5],f16> -> !torch.vtensor<[3,5],f32>
+  return %0 : !torch.vtensor<[3,5],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.matmul$mixed_dtype(
+// CHECK-SAME:                        %[[LHS_VTENSOR:.*]]: !torch.vtensor<[3,4],f16>,
+// CHECK-SAME:                        %[[RHS_VTENSOR:.*]]: !torch.vtensor<[4,5],f32>) -> !torch.vtensor<[3,5],f32> {
+// CHECK-DAG:       %[[LHS:.*]] = torch_c.to_builtin_tensor %[[LHS_VTENSOR]] : !torch.vtensor<[3,4],f16> -> tensor<3x4xf16>
+// CHECK-DAG:       %[[RHS:.*]] = torch_c.to_builtin_tensor %[[RHS_VTENSOR]] : !torch.vtensor<[4,5],f32> -> tensor<4x5xf32>
+// CHECK:           %[[LHS_PROMOTED_INIT:.*]] = tensor.empty() : tensor<3x4xf32>
+// CHECK:           %[[LHS_PROMOTED:.*]] = linalg.generic
+// CHECK-SAME:        ins(%[[LHS]] : tensor<3x4xf16>)
+// CHECK-SAME:        outs(%[[LHS_PROMOTED_INIT]] : tensor<3x4xf32>)
+// CHECK:           ^bb0(%[[IN:.*]]: f16, %{{.*}}: f32):
+// CHECK:             %[[EXTENDED:.*]] = arith.extf %[[IN]] : f16 to f32
+// CHECK:             linalg.yield %[[EXTENDED]] : f32
+// CHECK:           %[[EMPTY:.*]] = tensor.empty() : tensor<3x5xf32>
+// CHECK:           %[[ZERO:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:           %[[FILL:.*]] = linalg.fill ins(%[[ZERO]] : f32) outs(%[[EMPTY]] : tensor<3x5xf32>) -> tensor<3x5xf32>
+// CHECK:           %[[MATMUL:.*]] = linalg.matmul ins(%[[LHS_PROMOTED]], %[[RHS]] : tensor<3x4xf32>, tensor<4x5xf32>) outs(%[[FILL]] : tensor<3x5xf32>) -> tensor<3x5xf32>
+// CHECK:           %[[CASTED:.*]] = tensor.cast %[[MATMUL]] : tensor<3x5xf32> to tensor<3x5xf32>
+// CHECK:           %[[RESULT_VTENSOR:.*]] = torch_c.from_builtin_tensor %[[CASTED]] : tensor<3x5xf32> -> !torch.vtensor<[3,5],f32>
+// CHECK:           return %[[RESULT_VTENSOR]] : !torch.vtensor<[3,5],f32>
+func.func @torch.aten.matmul$mixed_dtype(%arg0: !torch.vtensor<[3,4],f16>, %arg1: !torch.vtensor<[4,5],f32>) -> !torch.vtensor<[3,5],f32> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[3,4],f16>, !torch.vtensor<[4,5],f32> -> !torch.vtensor<[3,5],f32>
+  return %0 : !torch.vtensor<[3,5],f32>
+}

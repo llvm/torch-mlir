@@ -115,13 +115,23 @@ public:
           op, "unsupported: aten.mm with mixed quantization");
     }
 
-    if (lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
-      if (!lhsZeroPoint) {
-        return rewriter.notifyMatchFailure(
-            op, "unsupported: aten.mm with different input element types");
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+    Type resultElementType =
+        cast<RankedTensorType>(newResultType).getElementType();
+    Type lhsElementType = lhsType.getElementType();
+    Type rhsElementType = rhsType.getElementType();
+
+    // Convert the inputs element type equivalent to the result's element type.
+    if (!lhsZeroPoint && lhsElementType != rhsElementType) {
+      if (lhsElementType != resultElementType) {
+        lhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
+                                                          resultElementType);
+        lhsType = cast<RankedTensorType>(lhs.getType());
+      } else {
+        rhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
+                                                          resultElementType);
+        rhsType = cast<RankedTensorType>(rhs.getType());
       }
-      // Allows quantized types to mismatch since they will be cast to the same
-      // type.
     }
 
     bool isUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
@@ -141,8 +151,7 @@ public:
               "mismatching contracting dimension for torch.aten.mm"));
     }
 
-    TensorType resultType =
-        cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+    TensorType resultType = cast<TensorType>(newResultType);
     Type elementType = resultType.getElementType();
     auto accumulatorDType =
         getDefaultAccType(rewriter, lhsType.getElementType());
@@ -272,15 +281,25 @@ public:
     bool isUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
     bool isUnsignedR = torch_to_linalg::isUnsignedTorchType(rhsTorchType);
 
-    if (!lhsZeroPoint && lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
-      // Allows quantized types to mismatch
-      return rewriter.notifyMatchFailure(
-          op, "unsupported: aten.matmul with different input element types");
-    }
-
     Type newResultType = getTypeConverter()->convertType(op.getType());
     auto resultType = cast<RankedTensorType>(newResultType);
     Type elementType = resultType.getElementType();
+    Type resultElementType = resultType.getElementType();
+    Type lhsElementType = lhsType.getElementType();
+    Type rhsElementType = rhsType.getElementType();
+
+    // Convert the inputs element type equivalent to the result's element type.
+    if (!lhsZeroPoint && lhsElementType != rhsElementType) {
+      if (lhsElementType != resultElementType) {
+        lhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
+                                                          resultElementType);
+        lhsType = cast<RankedTensorType>(lhs.getType());
+      } else {
+        rhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
+                                                          resultElementType);
+        rhsType = cast<RankedTensorType>(rhs.getType());
+      }
+    }
 
     if (lhsZeroPoint) {
       // get each zero point ready to pass to a quantized_matmul
