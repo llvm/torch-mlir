@@ -6416,6 +6416,85 @@ public:
   }
 };
 
+// Handle input slicing when needed for pooling operations
+Value applyPoolingInputSlice(PatternRewriter &rewriter, Location loc,
+                             Value input, DenseI64ArrayAttr kernelSize,
+                             DenseI64ArrayAttr strideArray,
+                             DenseI64ArrayAttr &padArray,
+                             ArrayRef<int64_t> dilationValues, bool ceilMode) {
+
+  auto inputTy = cast<RankedTensorType>(input.getType());
+
+  auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
+  auto inputRank = inputTy.getRank();
+  auto inputElemTy = inputTy.getElementType();
+
+  // Extract values from attributes
+  SmallVector<int64_t> padValues(padArray.asArrayRef());
+  auto kernelValues = kernelSize.asArrayRef();
+  auto strideValues = strideArray.asArrayRef();
+
+  bool needSlice = false;
+  SmallVector<int64_t> startSlice(inputRank, 0);
+  SmallVector<int64_t> sizeSlice(inputShape);
+
+  // This function should be applied after transposing input from xCHW (PyTorch
+  // format) to xHWC (TOSA format)
+
+  auto heightDim = inputRank - 3;
+  auto widthDim = inputRank - 2;
+
+  auto handleAxis = [&](int64_t axis, int64_t k, int64_t s, int64_t dil,
+                        int padBeforeIdx, int padAfterIdx) {
+    int64_t dim = inputShape[axis];
+    if (dim == kUnknownSize)
+      return;
+
+    int64_t dimSize = dim + padValues[padBeforeIdx] + padValues[padAfterIdx] -
+                      dil * (k - 1) - 1;
+    int64_t remainder = dimSize % s;
+    if (remainder == 0)
+      return;
+
+    if (ceilMode) {
+      // Adjust pad_after to satisfy divisibility (no slicing)
+      if (remainder < padValues[padAfterIdx]) {
+        padValues[padAfterIdx] -= remainder;
+      } else {
+        padValues[padAfterIdx] += (s - remainder);
+      }
+      return;
+    }
+
+    // floor-mode (default): reduce pad_after or slice tail if needed
+    if (remainder > padValues[padAfterIdx]) {
+      // Need to slice the trailing region
+      sizeSlice[axis] = dim - (remainder - padValues[padAfterIdx]);
+      padValues[padAfterIdx] = 0;
+      needSlice = true;
+    } else {
+      padValues[padAfterIdx] -= remainder;
+    }
+  };
+
+  // Height
+  handleAxis(heightDim, kernelValues[0], strideValues[0], dilationValues[0],
+             /*padBeforeIdx=*/0, /*padAfterIdx=*/1);
+  // Width
+  handleAxis(widthDim, kernelValues[1], strideValues[1], dilationValues[1],
+             /*padBeforeIdx=*/2, /*padAfterIdx=*/3);
+
+  if (needSlice) {
+    input = tosa::SliceOp::create(
+        rewriter, loc, RankedTensorType::get(sizeSlice, inputElemTy), input,
+        tosa::getTosaConstShape(rewriter, loc, startSlice),
+        tosa::getTosaConstShape(rewriter, loc, sizeSlice));
+  }
+
+  padArray = rewriter.getDenseI64ArrayAttr(padValues);
+  return input;
+}
+
 template <typename AtenOpT, typename TosaOpT>
 class ConvertAtenPoolingBaseOp : public OpConversionPattern<AtenOpT> {
 public:
@@ -6435,71 +6514,87 @@ public:
         op, "Unimplemented pooling input parsing function");
   }
 
-  static int64_t getOutputDim(PatternRewriter &rewriter, Value &input,
-                              Location loc, int64_t inputRank,
-                              ArrayRef<int64_t> inputShape, Type inputElemTy,
-                              int64_t dimIndex, int64_t kernelDim,
-                              int64_t stride, int64_t &padBefore,
-                              int64_t &padAfter, int64_t dilation,
-                              bool ceilMode = false) {
-    int64_t inputDim = inputShape[dimIndex];
-    if (inputDim == kUnknownSize) {
-      return kUnknownSize;
-    } else {
-      // TOSA requires dimSize = inputDim + padBefore + padAfter - kernelDim to
-      // be fully divisible by stride. We would have to modify the after pad
-      // and/ input in order to achieve that.
-      // Note: The dimSize calculation below is the same as TOSA's dimSize
-      // calculation when dilation = 1, which is the only dilation value that
-      // TOSA supports for MaxPool2d (AvgPool2d doesn't have dilation so the
-      // value will be defaulted to 1)
-      int64_t dimSize =
-          inputDim + padBefore + padAfter - dilation * (kernelDim - 1) - 1;
-      int64_t remainderDim = dimSize % stride;
+  // Computes the pooled output size on a single axis and updates
+  // padBefore/padAfter to mirror the logic used later when emitting the TOSA
+  // op.
+  //
+  // Logic:
+  // TOSA requires dimSize = inputDim + padBefore + padAfter - kernelDim to
+  // be fully divisible by stride. We would have to modify the input after pad
+  // in order to achieve that.
+  // Note: The dimSize calculation below is the same as TOSA's dimSize
+  // calculation when dilation = 1, which is the only dilation value that
+  // TOSA supports for MaxPool2d (AvgPool2d doesn't have dilation so the
+  // value will be defaulted to 1)
+  // - effWindow = dilation*(kernelDim - 1) + 1
+  // - dimSize = inputDim + padBefore + padAfter - effWindow
+  // - If rem = dimSize % stride == 0 => out = dimSize/stride + 1
+  // - Else if ceilMode:
+  //     * Grow padAfter by (stride - rem) if it doesn't exceed
+  //       the per-side cap (kernelDim - 1).
+  //     * If growth is not possible, reduce by 'rem' if either padAfter
+  //       or padBefore has enough room (prefer padAfter).
+  // - Else (floor mode):
+  //     * If rem <= padAfter: reduce padAfter by rem (no slicing).
+  //     * Else: model tail slicing by (rem - padAfter) and set padAfter = 0.
+  static std::tuple<int64_t, int64_t, int64_t>
+  getOutputDimAndPad(int64_t inputDim, int64_t kernelDim, int64_t stride,
+                     int64_t padBefore, int64_t padAfter, int64_t dilation,
+                     bool ceilMode) {
 
-      // When PyTorch uses floor mode for output dim calculation, to achieve the
-      // TOSA's divisibility requirement, we will remove the unused after pad
-      // and slice the unused input rows/columns.
-      if (!ceilMode && (remainderDim != 0)) {
-        if (remainderDim > padAfter) {
-          SmallVector<int64_t> startSlice(inputRank, 0);
-          // In cases where we have to do 2 slice operations (one for height and
-          // one for width), we need to use the new sliced shape before doing
-          // the second slice, not the original inputShape. Therefore, the shape
-          // needs to be retrieved again here.
-          SmallVector<int64_t> sizeSlice(
-              dyn_cast<TensorType>(input.getType()).getShape());
-          sizeSlice[dimIndex] = inputDim - (remainderDim - padAfter);
-          input = tosa::SliceOp::create(
-              rewriter, loc, RankedTensorType::get(sizeSlice, inputElemTy),
-              input, tosa::getTosaConstShape(rewriter, loc, startSlice),
-              tosa::getTosaConstShape(rewriter, loc, sizeSlice));
-          dimSize = dimSize - padAfter;
+    if (ShapedType::isDynamic(inputDim))
+      return {kUnknownSize, padBefore, padAfter};
+
+    const int64_t effWindow = dilation * (kernelDim - 1) + 1;
+    int64_t dimSize = inputDim + padBefore + padAfter - effWindow;
+    if (dimSize < 0)
+      dimSize = 0;
+
+    int64_t rem = dimSize % stride;
+    if (rem != 0) {
+      if (ceilMode) {
+        const int64_t grow = stride - rem;
+        const int64_t capAfter = (kernelDim - 1) - padAfter;
+        if (capAfter >= grow) {
+          padAfter += grow;
+          dimSize += grow;
+        } else {
+          if (rem <= padAfter) {
+            padAfter -= rem;
+            dimSize -= rem;
+          } else if (rem <= padBefore) {
+            padBefore -= rem;
+            dimSize -= rem;
+          } else {
+            if (capAfter > 0) {
+              padAfter += capAfter;
+              dimSize += capAfter;
+              rem = dimSize % stride;
+            }
+            if (rem != 0) {
+              if (rem <= padAfter) {
+                padAfter -= rem;
+                dimSize -= rem;
+              } else if (rem <= padBefore) {
+                padBefore -= rem;
+                dimSize -= rem;
+              }
+            }
+          }
+        }
+      } else {
+        if (rem <= padAfter) {
+          padAfter -= rem;
+          dimSize -= rem;
+        } else {
+          dimSize -= (rem - padAfter);
           padAfter = 0;
-        } else {
-          dimSize = dimSize - padAfter;
-          padAfter = padAfter - remainderDim;
-          dimSize = dimSize + padAfter;
         }
       }
-
-      int64_t outputDim = dimSize / stride + 1;
-
-      // When PyTorch uses ceil mode for output dim calculation, to achieve the
-      // TOSA's divisibility requirement, we will remove the unused after pad
-      // or add more after pad in case the remainder is more than the after pad
-      if (ceilMode && (remainderDim != 0)) {
-        if (remainderDim < padAfter) {
-          padAfter = padAfter - remainderDim;
-        } else {
-          padAfter = padAfter + (stride - remainderDim);
-        }
-
-        if (outputDim * stride < inputDim + padBefore)
-          outputDim++;
-      }
-      return outputDim;
     }
+
+    int64_t out = (dimSize / stride) + 1;
+    return {out, padBefore, padAfter};
   }
 
   // Apply the transposedDims vector on input to generate a transposed form.
@@ -6734,33 +6829,45 @@ public:
 };
 
 template <typename AtenOpT, typename tosaOp>
-static Type getOutputTypeForNonAdaptivePoolingOp(
-    PatternRewriter &rewriter, Operation *op, Value &input,
-    RankedTensorType inputTy, SmallVectorImpl<int64_t> &kernelSize,
-    SmallVectorImpl<int64_t> &strideArray, SmallVectorImpl<int64_t> &padArray,
-    SmallVectorImpl<int64_t> &dilationArray, bool ceilMode = false) {
+static std::pair<Type, DenseI64ArrayAttr>
+getOutputTypeAndPadForNonAdaptivePoolingOp(
+    PatternRewriter &rewriter, Operation *op, RankedTensorType inputTy,
+    ArrayRef<int64_t> kernelSize, ArrayRef<int64_t> strideArray,
+    ArrayRef<int64_t> padArray, ArrayRef<int64_t> dilationArray,
+    bool ceilMode) {
   auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
   auto inputRank = inputTy.getRank();
   auto inputElemTy = inputTy.getElementType();
 
   // PyTorch uses xCHW, so Height dim index is rank-2 and Width dim index is
   // rank-1
-  int64_t outputHDim = ConvertAtenPoolingBaseOp<AtenOpT, tosaOp>::getOutputDim(
-      rewriter, input, op->getLoc(), inputRank, inputShape, inputElemTy,
-      /*dimIndex=*/inputRank - 2, kernelSize[0], strideArray[0], padArray[0],
-      padArray[1], dilationArray[0], ceilMode);
-  int64_t outputWDim = ConvertAtenPoolingBaseOp<AtenOpT, tosaOp>::getOutputDim(
-      rewriter, input, op->getLoc(), inputRank, inputShape, inputElemTy,
-      /*dimIndex=*/inputRank - 1, kernelSize[1], strideArray[1], padArray[2],
-      padArray[3], dilationArray[1], ceilMode);
+  auto [outputHDim, padHBefore, padHAfter] =
+      ConvertAtenPoolingBaseOp<AtenOpT, tosaOp>::getOutputDimAndPad(
+          /*inputDim=*/inputTy.getShape()[inputRank - 2], kernelSize[0],
+          strideArray[0],
+          /*padBefore=*/padArray[0],
+          /*padAfter=*/padArray[1],
+          /*dilation=*/dilationArray[0], ceilMode);
+  auto [outputWDim, padWBefore, padWAfter] =
+      ConvertAtenPoolingBaseOp<AtenOpT, tosaOp>::getOutputDimAndPad(
+          /*inputDim=*/inputTy.getShape()[inputRank - 1], kernelSize[1],
+          strideArray[1],
+          /*padBefore=*/padArray[2],
+          /*padAfter=*/padArray[3],
+          /*dilation=*/dilationArray[1], ceilMode);
   SmallVector<int64_t> outputShape;
   if (inputRank > 3)
     outputShape.push_back(inputShape[0]);
   outputShape.push_back(outputHDim);
   outputShape.push_back(outputWDim);
   outputShape.push_back(inputShape[inputRank - 3]);
-  return RankedTensorType::get(makeShapeLLVMCompatible(outputShape),
-                               inputElemTy);
+
+  auto pad = rewriter.getDenseI64ArrayAttr(
+      {padHBefore, padHAfter, padWBefore, padWAfter});
+
+  return {
+      RankedTensorType::get(makeShapeLLVMCompatible(outputShape), inputElemTy),
+      pad};
 }
 
 template <typename AtenOpT>
@@ -6777,19 +6884,20 @@ void expandPoolParams(AtenOpT op, SmallVectorImpl<int64_t> &params,
 // vector. Also, gets the output type for the pooling op.
 template <typename AtenOpT, typename tosaOp>
 static LogicalResult getOutputTypeAndPoolingParameters(
-    AtenOpT op, ConversionPatternRewriter &rewriter, Value &inputXchw,
+    AtenOpT op, ConversionPatternRewriter &rewriter, Value inputXchw,
     SmallVectorImpl<int64_t> &dilationArray, Type &outputTy,
     DenseI64ArrayAttr &kernel, DenseI64ArrayAttr &stride,
-    DenseI64ArrayAttr &pad, SmallVectorImpl<int64_t> &explicitNHWCPad) {
+    DenseI64ArrayAttr &pad, SmallVectorImpl<int64_t> &explicitNHWCPad,
+    bool &ceilMode) {
 
-  RankedTensorType inputTy = cast<RankedTensorType>(inputXchw.getType());
+  auto inputTy = dyn_cast<RankedTensorType>(inputXchw.getType());
   if (!inputTy)
     return rewriter.notifyMatchFailure(
         op, "Pooling op requires ranked tensor input");
 
   auto inputRank = inputTy.getRank();
   // Rank sanity check.
-  if (inputTy.getRank() != 4 && inputRank != 3)
+  if (inputRank != 4 && inputRank != 3)
     return rewriter.notifyMatchFailure(
         op, "NCHW->NHWC transpose requires 3D or 4D tensor");
 
@@ -6798,6 +6906,7 @@ static LogicalResult getOutputTypeAndPoolingParameters(
                     m_TorchListOfConstantInts(kernelSizeInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const kernel_size for pooling op unsupported");
+  // For 1D ops, expand to 2D vector shape
   expandPoolParams(op, kernelSizeInts, 1);
 
   if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
@@ -6852,39 +6961,45 @@ static LogicalResult getOutputTypeAndPoolingParameters(
           addPad(paddedShape[inputRank - 1], paddingInts[1], paddingInts[1]);
       inputTy = RankedTensorType::get(paddedShape, inputTy.getElementType());
 
+      // The TOSA op pad will be zero when we emit explicit NHWC pad.
       paddingInts.assign(/*Count=*/2, /*Value=*/0);
     }
   }
 
+  // Build the base TOSA pad vector (TOSA expects {top,bottom,left,right}).
   SmallVector<int64_t, 4> padArr = {paddingInts[0], paddingInts[0],
                                     paddingInts[1], paddingInts[1]};
   kernel = rewriter.getDenseI64ArrayAttr(kernelSizeInts);
   stride = rewriter.getDenseI64ArrayAttr(strideInts);
 
-  bool ceilMode;
+  ceilMode = false;
   if (!matchPattern(op.getCeilMode(), m_TorchConstantBool(&ceilMode)))
     return rewriter.notifyMatchFailure(
         op, "only support constant bool ceil_mode for pooling op");
 
+  // Expand dilation (1D -> 2D) to match TOSA’s 2D pooling.
   expandPoolParams(op, dilationArray, 1);
-  outputTy = getOutputTypeForNonAdaptivePoolingOp<AtenOpT, tosaOp>(
-      rewriter, op, inputXchw, inputTy, kernelSizeInts, strideInts, padArr,
-      dilationArray, ceilMode);
-  pad = rewriter.getDenseI64ArrayAttr(
-      {padArr[0], padArr[1], padArr[2], padArr[3]});
+
+  std::tie(outputTy, pad) =
+      getOutputTypeAndPadForNonAdaptivePoolingOp<AtenOpT, tosaOp>(
+          rewriter, op, inputTy, kernelSizeInts, strideInts, padArr,
+          dilationArray, ceilMode);
+
   return success();
 }
 
+// Checks the validity of pooling parameters and stores them in the respective
+// vector. Also, gets the output type for the pooling op.
 template <typename AtenOpT, typename tosaOp>
 static LogicalResult getOutputTypeAndPoolingParameters(
     AtenOpT op, ConversionPatternRewriter &rewriter, Value &inputXchw,
     SmallVectorImpl<int64_t> &dilationArray, Type &outputTy,
     DenseI64ArrayAttr &kernel, DenseI64ArrayAttr &stride,
-    DenseI64ArrayAttr &pad) {
+    DenseI64ArrayAttr &pad, bool &ceilMode) {
   SmallVector<int64_t, 4> ignoredExplicitPad;
   return getOutputTypeAndPoolingParameters<AtenOpT, tosaOp>(
       op, rewriter, inputXchw, dilationArray, outputTy, kernel, stride, pad,
-      ignoredExplicitPad);
+      ignoredExplicitPad, ceilMode);
 }
 
 class ConvertAtenMaxPool2dOp
@@ -6908,15 +7023,20 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Cannot process non-unit pooling dilation.");
 
+    bool ceilMode;
     if (failed(getOutputTypeAndPoolingParameters<AtenMaxPool2dOp,
                                                  tosa::MaxPool2dOp>(
-            op, rewriter, self, dilationArray, outputTy, kernel, stride, pad)))
+            op, rewriter, self, dilationArray, outputTy, kernel, stride, pad,
+            ceilMode)))
       return rewriter.notifyMatchFailure(
           op, "invalid pooling parameters or input type");
 
     // Transpose to xHWC
     input = ConvertAtenPoolingBaseOp<AtenMaxPool2dOp, tosa::MaxPool2dOp>::
         transposePoolingInputToHwc(op, rewriter, self);
+
+    input = applyPoolingInputSlice(rewriter, op->getLoc(), input, kernel,
+                                   stride, pad, dilationArray, ceilMode);
 
     return success();
   }
@@ -6971,16 +7091,20 @@ public:
     // Expand dilation to size 2 to be compatible with tosa::MaxPool2dOp
     dilationArray.push_back(1);
 
+    bool ceilMode;
     if (failed(getOutputTypeAndPoolingParameters<AtenMaxPool1dOp,
                                                  tosa::MaxPool2dOp>(
             op, rewriter, reshapedSelf, dilationArray, outputTy, kernel, stride,
-            pad)))
+            pad, ceilMode)))
       return rewriter.notifyMatchFailure(
           op, "invalid pooling parameters or input type");
 
     // Transpose to xHWC
     input = ConvertAtenPoolingBaseOp<AtenMaxPool1dOp, tosa::MaxPool2dOp>::
         transposePoolingInputToHwc(op, rewriter, reshapedSelf);
+
+    input = applyPoolingInputSlice(rewriter, op->getLoc(), input, kernel,
+                                   stride, pad, dilationArray, ceilMode);
 
     return success();
   }
@@ -7009,10 +7133,11 @@ public:
 
     SmallVector<int64_t, 2> dilationArray{1, 1};
     SmallVector<int64_t, 4> explicitNHWCPad;
+    bool ceilMode;
     if (failed(getOutputTypeAndPoolingParameters<AtenAvgPool2dOp,
                                                  tosa::AvgPool2dOp>(
             op, rewriter, self, dilationArray, outputTy, kernel, stride, pad,
-            explicitNHWCPad)))
+            explicitNHWCPad, ceilMode)))
       return rewriter.notifyMatchFailure(
           op, "invalid pooling parameters or input type");
 
@@ -7024,7 +7149,8 @@ public:
       transposed = tosa::emitExplicitZeroPadNHWC(op->getLoc(), rewriter, op,
                                                  transposed, explicitNHWCPad);
 
-    input = transposed;
+    input = applyPoolingInputSlice(rewriter, op->getLoc(), transposed, kernel,
+                                   stride, pad, dilationArray, ceilMode);
 
     return success();
   }
@@ -7068,10 +7194,11 @@ public:
 
     SmallVector<int64_t, 2> dilationArray{1, 1};
     SmallVector<int64_t, 4> explicitNHWCPad;
+    bool ceilMode;
     if (failed(getOutputTypeAndPoolingParameters<AtenAvgPool1dOp,
                                                  tosa::AvgPool2dOp>(
             op, rewriter, reshapedSelf, dilationArray, outputTy, kernel, stride,
-            pad, explicitNHWCPad)))
+            pad, explicitNHWCPad, ceilMode)))
       return rewriter.notifyMatchFailure(
           op, "invalid pooling parameters or input type");
 
@@ -7083,7 +7210,8 @@ public:
       transposed = tosa::emitExplicitZeroPadNHWC(op->getLoc(), rewriter, op,
                                                  transposed, explicitNHWCPad);
 
-    input = transposed;
+    input = applyPoolingInputSlice(rewriter, op->getLoc(), transposed, kernel,
+                                   stride, pad, dilationArray, ceilMode);
 
     return success();
   }

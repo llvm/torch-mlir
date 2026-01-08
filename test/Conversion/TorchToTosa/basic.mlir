@@ -3991,34 +3991,30 @@ func.func @torch.aten.convolution$full_dim_indivisible_by_stride_with_sliced_inp
 // -----
 
 // CHECK-LABEL:   func.func @torch.aten.max_pool2d$zero_pad_with_sliced_input(
-// CHECK-SAME:                                                                %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[1,1,56,56],f32>) -> !torch.vtensor<[1,1,27,27],f32> {
-// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,56,56],f32> -> tensor<1x1x56x56xf32>
-// CHECK:           %[[VAL_2:.*]] = torch.constant.int 3
-// CHECK:           %[[VAL_3:.*]] = torch.constant.int 3
-// CHECK:           %[[VAL_4:.*]] = torch.prim.ListConstruct %[[VAL_2]], %[[VAL_3]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_5:.*]] = torch.constant.int 2
-// CHECK:           %[[VAL_6:.*]] = torch.constant.int 2
-// CHECK:           %[[VAL_7:.*]] = torch.prim.ListConstruct %[[VAL_5]], %[[VAL_6]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_8:.*]] = torch.constant.int 0
-// CHECK:           %[[VAL_9:.*]] = torch.constant.int 0
-// CHECK:           %[[VAL_10:.*]] = torch.prim.ListConstruct %[[VAL_8]], %[[VAL_9]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_11:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_12:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_13:.*]] = torch.prim.ListConstruct %[[VAL_11]], %[[VAL_12]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_14:.*]] = torch.constant.bool false
-// CHECK-DAG:           %[[VAL_15:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK-DAG:           %[[VAL_16:.*]] = tosa.const_shape  {values = dense<[1, 1, 55, 56]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_17:.*]] = tosa.slice %[[VAL_1]], %[[VAL_15]], %[[VAL_16]] : (tensor<1x1x56x56xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x1x55x56xf32>
-// CHECK-DAG:           %[[VAL_18:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK-DAG:           %[[VAL_19:.*]] = tosa.const_shape  {values = dense<[1, 1, 55, 55]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_20:.*]] = tosa.slice %[[VAL_17]], %[[VAL_18]], %[[VAL_19]] : (tensor<1x1x55x56xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x1x55x55xf32>
-// CHECK:           %[[VAL_21:.*]] = tosa.transpose %[[VAL_20]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x55x55xf32>) -> tensor<1x55x55x1xf32>
-// CHECK:           %[[VAL_22:.*]] = tosa.max_pool2d %[[VAL_21]] {kernel = array<i64: 3, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>} : (tensor<1x55x55x1xf32>) -> tensor<1x27x27x1xf32>
-// CHECK:           %[[VAL_23:.*]] = tosa.transpose %[[VAL_22]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x27x27x1xf32>) -> tensor<1x1x27x27xf32>
-// CHECK:           %[[VAL_24:.*]] = tensor.cast %[[VAL_23]] : tensor<1x1x27x27xf32> to tensor<1x1x27x27xf32>
-// CHECK:           %[[VAL_25:.*]] = torch_c.from_builtin_tensor %[[VAL_24]] : tensor<1x1x27x27xf32> -> !torch.vtensor<[1,1,27,27],f32>
-// CHECK:           return %[[VAL_25]] : !torch.vtensor<[1,1,27,27],f32>
-// CHECK:         }
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[1,1,56,56],f32>) -> !torch.vtensor<[1,1,27,27],f32> {
+// CHECK:           %[[TO_BUILTIN_TENSOR_0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1,1,56,56],f32> -> tensor<1x1x56x56xf32>
+// CHECK:           %[[CONSTANT_0:.*]] = torch.constant.int 3
+// CHECK:           %[[CONSTANT_1:.*]] = torch.constant.int 3
+// CHECK:           %[[PRIM_0:.*]] = torch.prim.ListConstruct %[[CONSTANT_0]], %[[CONSTANT_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_2:.*]] = torch.constant.int 2
+// CHECK:           %[[CONSTANT_3:.*]] = torch.constant.int 2
+// CHECK:           %[[PRIM_1:.*]] = torch.prim.ListConstruct %[[CONSTANT_2]], %[[CONSTANT_3]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_4:.*]] = torch.constant.int 0
+// CHECK:           %[[CONSTANT_5:.*]] = torch.constant.int 0
+// CHECK:           %[[PRIM_2:.*]] = torch.prim.ListConstruct %[[CONSTANT_4]], %[[CONSTANT_5]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_6:.*]] = torch.constant.int 1
+// CHECK:           %[[CONSTANT_7:.*]] = torch.constant.int 1
+// CHECK:           %[[PRIM_3:.*]] = torch.prim.ListConstruct %[[CONSTANT_6]], %[[CONSTANT_7]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_8:.*]] = torch.constant.bool false
+// CHECK:           %[[TRANSPOSE_0:.*]] = tosa.transpose %[[TO_BUILTIN_TENSOR_0]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x56x56xf32>) -> tensor<1x56x56x1xf32>
+// CHECK-DAG:           %[[SLICE_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:           %[[SLICE_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 55, 55, 1]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[SLICE_0:.*]] = tosa.slice %[[TRANSPOSE_0]], %[[SLICE_START]], %[[SLICE_SHAPE]] : (tensor<1x56x56x1xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x55x55x1xf32>
+// CHECK:           %[[POOL:.*]] = tosa.max_pool2d %[[SLICE_0]] {kernel = array<i64: 3, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>} : (tensor<1x55x55x1xf32>) -> tensor<1x27x27x1xf32>
+// CHECK:           %[[TRANSPOSE_1:.*]] = tosa.transpose %[[POOL]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x27x27x1xf32>) -> tensor<1x1x27x27xf32>
+// CHECK:           %[[CAST_0:.*]] = tensor.cast %[[TRANSPOSE_1]] : tensor<1x1x27x27xf32> to tensor<1x1x27x27xf32>
+// CHECK:           %[[FROM_BUILTIN_TENSOR_0:.*]] = torch_c.from_builtin_tensor %[[CAST_0]] : tensor<1x1x27x27xf32> -> !torch.vtensor<[1,1,27,27],f32>
+// CHECK:           return %[[FROM_BUILTIN_TENSOR_0]]
 func.func @torch.aten.max_pool2d$zero_pad_with_sliced_input(%arg0: !torch.vtensor<[1,1,56,56],f32>) -> !torch.vtensor<[1,1,27,27],f32> {
   %int3 = torch.constant.int 3
   %int3_0 = torch.constant.int 3
@@ -4083,34 +4079,30 @@ func.func @torch.aten.max_pool2d$full_dim_indivisible_by_stride_without_sliced_i
 // -----
 
 // CHECK-LABEL:   func.func @torch.aten.max_pool2d$full_dim_indivisible_by_stride_with_sliced_input(
-// CHECK-SAME:                                                                                      %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[1,1,75,75],f32>) -> !torch.vtensor<[1,1,25,25],f32> {
-// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,75,75],f32> -> tensor<1x1x75x75xf32>
-// CHECK:           %[[VAL_2:.*]] = torch.constant.int 3
-// CHECK:           %[[VAL_3:.*]] = torch.constant.int 3
-// CHECK:           %[[VAL_4:.*]] = torch.prim.ListConstruct %[[VAL_2]], %[[VAL_3]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_5:.*]] = torch.constant.int 3
-// CHECK:           %[[VAL_6:.*]] = torch.constant.int 3
-// CHECK:           %[[VAL_7:.*]] = torch.prim.ListConstruct %[[VAL_5]], %[[VAL_6]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_8:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_9:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_10:.*]] = torch.prim.ListConstruct %[[VAL_8]], %[[VAL_9]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_11:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_12:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_13:.*]] = torch.prim.ListConstruct %[[VAL_11]], %[[VAL_12]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_14:.*]] = torch.constant.bool false
-// CHECK-DAG:           %[[VAL_15:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK-DAG:           %[[VAL_16:.*]] = tosa.const_shape  {values = dense<[1, 1, 74, 75]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_17:.*]] = tosa.slice %[[VAL_1]], %[[VAL_15]], %[[VAL_16]] : (tensor<1x1x75x75xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x1x74x75xf32>
-// CHECK-DAG:           %[[VAL_18:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK-DAG:           %[[VAL_19:.*]] = tosa.const_shape  {values = dense<[1, 1, 74, 74]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_20:.*]] = tosa.slice %[[VAL_17]], %[[VAL_18]], %[[VAL_19]] : (tensor<1x1x74x75xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x1x74x74xf32>
-// CHECK:           %[[VAL_21:.*]] = tosa.transpose %[[VAL_20]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x74x74xf32>) -> tensor<1x74x74x1xf32>
-// CHECK:           %[[VAL_22:.*]] = tosa.max_pool2d %[[VAL_21]] {kernel = array<i64: 3, 3>, pad = array<i64: 1, 0, 1, 0>, stride = array<i64: 3, 3>} : (tensor<1x74x74x1xf32>) -> tensor<1x25x25x1xf32>
-// CHECK:           %[[VAL_23:.*]] = tosa.transpose %[[VAL_22]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x25x25x1xf32>) -> tensor<1x1x25x25xf32>
-// CHECK:           %[[VAL_24:.*]] = tensor.cast %[[VAL_23]] : tensor<1x1x25x25xf32> to tensor<1x1x25x25xf32>
-// CHECK:           %[[VAL_25:.*]] = torch_c.from_builtin_tensor %[[VAL_24]] : tensor<1x1x25x25xf32> -> !torch.vtensor<[1,1,25,25],f32>
-// CHECK:           return %[[VAL_25]] : !torch.vtensor<[1,1,25,25],f32>
-// CHECK:         }
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[1,1,75,75],f32>) -> !torch.vtensor<[1,1,25,25],f32> {
+// CHECK:           %[[TO_BUILTIN_TENSOR_0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1,1,75,75],f32> -> tensor<1x1x75x75xf32>
+// CHECK:           %[[CONSTANT_0:.*]] = torch.constant.int 3
+// CHECK:           %[[CONSTANT_1:.*]] = torch.constant.int 3
+// CHECK:           %[[PRIM_0:.*]] = torch.prim.ListConstruct %[[CONSTANT_0]], %[[CONSTANT_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_2:.*]] = torch.constant.int 3
+// CHECK:           %[[CONSTANT_3:.*]] = torch.constant.int 3
+// CHECK:           %[[PRIM_1:.*]] = torch.prim.ListConstruct %[[CONSTANT_2]], %[[CONSTANT_3]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_4:.*]] = torch.constant.int 1
+// CHECK:           %[[CONSTANT_5:.*]] = torch.constant.int 1
+// CHECK:           %[[PRIM_2:.*]] = torch.prim.ListConstruct %[[CONSTANT_4]], %[[CONSTANT_5]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_6:.*]] = torch.constant.int 1
+// CHECK:           %[[CONSTANT_7:.*]] = torch.constant.int 1
+// CHECK:           %[[PRIM_3:.*]] = torch.prim.ListConstruct %[[CONSTANT_6]], %[[CONSTANT_7]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_8:.*]] = torch.constant.bool false
+// CHECK:           %[[TRANSPOSE_0:.*]] = tosa.transpose %[[TO_BUILTIN_TENSOR_0]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x75x75xf32>) -> tensor<1x75x75x1xf32>
+// CHECK-DAG:           %[[SLICE_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:           %[[SLICE_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 74, 74, 1]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[SLICE_0:.*]] = tosa.slice %[[TRANSPOSE_0]], %[[SLICE_START]], %[[SLICE_SHAPE]] : (tensor<1x75x75x1xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x74x74x1xf32>
+// CHECK:           %[[POOL:.*]] = tosa.max_pool2d %[[SLICE_0]] {kernel = array<i64: 3, 3>, pad = array<i64: 1, 0, 1, 0>, stride = array<i64: 3, 3>} : (tensor<1x74x74x1xf32>) -> tensor<1x25x25x1xf32>
+// CHECK:           %[[TRANSPOSE_1:.*]] = tosa.transpose %[[POOL]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x25x25x1xf32>) -> tensor<1x1x25x25xf32>
+// CHECK:           %[[CAST_0:.*]] = tensor.cast %[[TRANSPOSE_1]] : tensor<1x1x25x25xf32> to tensor<1x1x25x25xf32>
+// CHECK:           %[[FROM_BUILTIN_TENSOR_0:.*]] = torch_c.from_builtin_tensor %[[CAST_0]] : tensor<1x1x25x25xf32> -> !torch.vtensor<[1,1,25,25],f32>
+// CHECK:           return %[[FROM_BUILTIN_TENSOR_0]]
 func.func @torch.aten.max_pool2d$full_dim_indivisible_by_stride_with_sliced_input(%arg0: !torch.vtensor<[1,1,75,75],f32>) -> !torch.vtensor<[1,1,25,25],f32> {
   %int3 = torch.constant.int 3
   %int3_0 = torch.constant.int 3
@@ -4132,35 +4124,31 @@ func.func @torch.aten.max_pool2d$full_dim_indivisible_by_stride_with_sliced_inpu
 // -----
 
 // CHECK-LABEL:   func.func @torch.aten.avg_pool2d$zero_pad_with_sliced_input(
-// CHECK-SAME:                                                                %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[1,1,56,56],f32>) -> !torch.vtensor<[1,1,27,27],f32> {
-// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,56,56],f32> -> tensor<1x1x56x56xf32>
-// CHECK:           %[[VAL_2:.*]] = torch.constant.int 3
-// CHECK:           %[[VAL_3:.*]] = torch.constant.int 3
-// CHECK:           %[[VAL_4:.*]] = torch.prim.ListConstruct %[[VAL_2]], %[[VAL_3]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_5:.*]] = torch.constant.int 2
-// CHECK:           %[[VAL_6:.*]] = torch.constant.int 2
-// CHECK:           %[[VAL_7:.*]] = torch.prim.ListConstruct %[[VAL_5]], %[[VAL_6]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_8:.*]] = torch.constant.int 0
-// CHECK:           %[[VAL_9:.*]] = torch.constant.int 0
-// CHECK:           %[[VAL_10:.*]] = torch.prim.ListConstruct %[[VAL_8]], %[[VAL_9]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_11:.*]] = torch.constant.bool false
-// CHECK:           %[[VAL_12:.*]] = torch.constant.bool true
-// CHECK:           %[[VAL_13:.*]] = torch.constant.none
-// CHECK-DAG:           %[[VAL_14:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK-DAG:           %[[VAL_15:.*]] = tosa.const_shape  {values = dense<[1, 1, 55, 56]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_16:.*]] = tosa.slice %[[VAL_1]], %[[VAL_14]], %[[VAL_15]] : (tensor<1x1x56x56xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x1x55x56xf32>
-// CHECK-DAG:           %[[VAL_17:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK-DAG:           %[[VAL_18:.*]] = tosa.const_shape  {values = dense<[1, 1, 55, 55]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_19:.*]] = tosa.slice %[[VAL_16]], %[[VAL_17]], %[[VAL_18]] : (tensor<1x1x55x56xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x1x55x55xf32>
-// CHECK:           %[[VAL_20:.*]] = tosa.transpose %[[VAL_19]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x55x55xf32>) -> tensor<1x55x55x1xf32>
-// CHECK:           %[[VAL_21:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK:           %[[VAL_22:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK:           %[[VAL_23:.*]] = tosa.avg_pool2d %[[VAL_20]], %[[VAL_21]], %[[VAL_22]] {acc_type = f32, kernel = array<i64: 3, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>} : (tensor<1x55x55x1xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x27x27x1xf32>
-// CHECK:           %[[VAL_24:.*]] = tosa.transpose %[[VAL_23]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x27x27x1xf32>) -> tensor<1x1x27x27xf32>
-// CHECK:           %[[VAL_25:.*]] = tensor.cast %[[VAL_24]] : tensor<1x1x27x27xf32> to tensor<1x1x27x27xf32>
-// CHECK:           %[[VAL_26:.*]] = torch_c.from_builtin_tensor %[[VAL_25]] : tensor<1x1x27x27xf32> -> !torch.vtensor<[1,1,27,27],f32>
-// CHECK:           return %[[VAL_26]] : !torch.vtensor<[1,1,27,27],f32>
-// CHECK:         }
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[1,1,56,56],f32>) -> !torch.vtensor<[1,1,27,27],f32> {
+// CHECK:           %[[TO_BUILTIN_TENSOR_0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1,1,56,56],f32> -> tensor<1x1x56x56xf32>
+// CHECK:           %[[CONSTANT_0:.*]] = torch.constant.int 3
+// CHECK:           %[[CONSTANT_1:.*]] = torch.constant.int 3
+// CHECK:           %[[PRIM_0:.*]] = torch.prim.ListConstruct %[[CONSTANT_0]], %[[CONSTANT_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_2:.*]] = torch.constant.int 2
+// CHECK:           %[[CONSTANT_3:.*]] = torch.constant.int 2
+// CHECK:           %[[PRIM_1:.*]] = torch.prim.ListConstruct %[[CONSTANT_2]], %[[CONSTANT_3]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_4:.*]] = torch.constant.int 0
+// CHECK:           %[[CONSTANT_5:.*]] = torch.constant.int 0
+// CHECK:           %[[PRIM_2:.*]] = torch.prim.ListConstruct %[[CONSTANT_4]], %[[CONSTANT_5]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_6:.*]] = torch.constant.bool false
+// CHECK:           %[[CONSTANT_7:.*]] = torch.constant.bool true
+// CHECK:           %[[CONSTANT_8:.*]] = torch.constant.none
+// CHECK:           %[[TRANSPOSE_0:.*]] = tosa.transpose %[[TO_BUILTIN_TENSOR_0]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x56x56xf32>) -> tensor<1x56x56x1xf32>
+// CHECK-DAG:           %[[SLICE_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:           %[[SLICE_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 55, 55, 1]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[SLICE_0:.*]] = tosa.slice %[[TRANSPOSE_0]], %[[SLICE_START]], %[[SLICE_SHAPE]] : (tensor<1x56x56x1xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x55x55x1xf32>
+// CHECK:           %[[VAL_0:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[VAL_1:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[POOL:.*]] = tosa.avg_pool2d %[[SLICE_0]], %[[VAL_0]], %[[VAL_1]] {acc_type = f32, kernel = array<i64: 3, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>} : (tensor<1x55x55x1xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x27x27x1xf32>
+// CHECK:           %[[TRANSPOSE_1:.*]] = tosa.transpose %[[POOL]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x27x27x1xf32>) -> tensor<1x1x27x27xf32>
+// CHECK:           %[[CAST_0:.*]] = tensor.cast %[[TRANSPOSE_1]] : tensor<1x1x27x27xf32> to tensor<1x1x27x27xf32>
+// CHECK:           %[[FROM_BUILTIN_TENSOR_0:.*]] = torch_c.from_builtin_tensor %[[CAST_0]] : tensor<1x1x27x27xf32> -> !torch.vtensor<[1,1,27,27],f32>
+// CHECK:           return %[[FROM_BUILTIN_TENSOR_0]]
 func.func @torch.aten.avg_pool2d$zero_pad_with_sliced_input(%arg0: !torch.vtensor<[1,1,56,56],f32>) -> !torch.vtensor<[1,1,27,27],f32> {
   %int3 = torch.constant.int 3
   %int3_0 = torch.constant.int 3
@@ -4224,35 +4212,31 @@ func.func @torch.aten.avg_pool2d$full_dim_indivisible_by_stride_without_sliced_i
 // -----
 
 // CHECK-LABEL:   func.func @torch.aten.avg_pool2d$full_dim_indivisible_by_stride_with_sliced_input(
-// CHECK-SAME:                                                                                      %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[1,1,75,75],f32>) -> !torch.vtensor<[1,1,25,25],f32> {
-// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,75,75],f32> -> tensor<1x1x75x75xf32>
-// CHECK:           %[[VAL_2:.*]] = torch.constant.int 3
-// CHECK:           %[[VAL_3:.*]] = torch.constant.int 3
-// CHECK:           %[[VAL_4:.*]] = torch.prim.ListConstruct %[[VAL_2]], %[[VAL_3]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_5:.*]] = torch.constant.int 3
-// CHECK:           %[[VAL_6:.*]] = torch.constant.int 3
-// CHECK:           %[[VAL_7:.*]] = torch.prim.ListConstruct %[[VAL_5]], %[[VAL_6]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_8:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_9:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_10:.*]] = torch.prim.ListConstruct %[[VAL_8]], %[[VAL_9]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_11:.*]] = torch.constant.bool false
-// CHECK:           %[[VAL_12:.*]] = torch.constant.bool false
-// CHECK:           %[[VAL_13:.*]] = torch.constant.none
-// CHECK-DAG:           %[[VAL_14:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK-DAG:           %[[VAL_15:.*]] = tosa.const_shape  {values = dense<[1, 1, 74, 75]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_16:.*]] = tosa.slice %[[VAL_1]], %[[VAL_14]], %[[VAL_15]] : (tensor<1x1x75x75xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x1x74x75xf32>
-// CHECK-DAG:           %[[VAL_17:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK-DAG:           %[[VAL_18:.*]] = tosa.const_shape  {values = dense<[1, 1, 74, 74]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_19:.*]] = tosa.slice %[[VAL_16]], %[[VAL_17]], %[[VAL_18]] : (tensor<1x1x74x75xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x1x74x74xf32>
-// CHECK:           %[[VAL_20:.*]] = tosa.transpose %[[VAL_19]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x74x74xf32>) -> tensor<1x74x74x1xf32>
-// CHECK:           %[[VAL_21:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK:           %[[VAL_22:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK:           %[[VAL_23:.*]] = tosa.avg_pool2d %[[VAL_20]], %[[VAL_21]], %[[VAL_22]] {acc_type = f32, kernel = array<i64: 3, 3>, pad = array<i64: 1, 0, 1, 0>, stride = array<i64: 3, 3>} : (tensor<1x74x74x1xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x25x25x1xf32>
-// CHECK:           %[[VAL_24:.*]] = tosa.transpose %[[VAL_23]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x25x25x1xf32>) -> tensor<1x1x25x25xf32>
-// CHECK:           %[[VAL_25:.*]] = tensor.cast %[[VAL_24]] : tensor<1x1x25x25xf32> to tensor<1x1x25x25xf32>
-// CHECK:           %[[VAL_26:.*]] = torch_c.from_builtin_tensor %[[VAL_25]] : tensor<1x1x25x25xf32> -> !torch.vtensor<[1,1,25,25],f32>
-// CHECK:           return %[[VAL_26]] : !torch.vtensor<[1,1,25,25],f32>
-// CHECK:         }
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[1,1,75,75],f32>) -> !torch.vtensor<[1,1,25,25],f32> {
+// CHECK:           %[[TO_BUILTIN_TENSOR_0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1,1,75,75],f32> -> tensor<1x1x75x75xf32>
+// CHECK:           %[[CONSTANT_0:.*]] = torch.constant.int 3
+// CHECK:           %[[CONSTANT_1:.*]] = torch.constant.int 3
+// CHECK:           %[[PRIM_0:.*]] = torch.prim.ListConstruct %[[CONSTANT_0]], %[[CONSTANT_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_2:.*]] = torch.constant.int 3
+// CHECK:           %[[CONSTANT_3:.*]] = torch.constant.int 3
+// CHECK:           %[[PRIM_1:.*]] = torch.prim.ListConstruct %[[CONSTANT_2]], %[[CONSTANT_3]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_4:.*]] = torch.constant.int 1
+// CHECK:           %[[CONSTANT_5:.*]] = torch.constant.int 1
+// CHECK:           %[[PRIM_2:.*]] = torch.prim.ListConstruct %[[CONSTANT_4]], %[[CONSTANT_5]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[CONSTANT_6:.*]] = torch.constant.bool false
+// CHECK:           %[[CONSTANT_7:.*]] = torch.constant.bool false
+// CHECK:           %[[CONSTANT_8:.*]] = torch.constant.none
+// CHECK:           %[[TRANSPOSE_0:.*]] = tosa.transpose %[[TO_BUILTIN_TENSOR_0]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x75x75xf32>) -> tensor<1x75x75x1xf32>
+// CHECK-DAG:           %[[SLICE_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:           %[[SLICE_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 74, 74, 1]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[SLICE_0:.*]] = tosa.slice %[[TRANSPOSE_0]], %[[SLICE_START]], %[[SLICE_SHAPE]] : (tensor<1x75x75x1xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x74x74x1xf32>
+// CHECK:           %[[VAL_0:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[VAL_1:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[POOL:.*]] = tosa.avg_pool2d %[[SLICE_0]], %[[VAL_0]], %[[VAL_1]] {acc_type = f32, kernel = array<i64: 3, 3>, pad = array<i64: 1, 0, 1, 0>, stride = array<i64: 3, 3>} : (tensor<1x74x74x1xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x25x25x1xf32>
+// CHECK:           %[[TRANSPOSE_1:.*]] = tosa.transpose %[[POOL]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x25x25x1xf32>) -> tensor<1x1x25x25xf32>
+// CHECK:           %[[CAST_0:.*]] = tensor.cast %[[TRANSPOSE_1]] : tensor<1x1x25x25xf32> to tensor<1x1x25x25xf32>
+// CHECK:           %[[FROM_BUILTIN_TENSOR_0:.*]] = torch_c.from_builtin_tensor %[[CAST_0]] : tensor<1x1x25x25xf32> -> !torch.vtensor<[1,1,25,25],f32>
+// CHECK:           return %[[FROM_BUILTIN_TENSOR_0]]
 func.func @torch.aten.avg_pool2d$full_dim_indivisible_by_stride_with_sliced_input(%arg0: !torch.vtensor<[1,1,75,75],f32>) -> !torch.vtensor<[1,1,25,25],f32> {
   %int3 = torch.constant.int 3
   %int3_0 = torch.constant.int 3
@@ -4576,3 +4560,44 @@ func.func @torch.aten.avg_pool1d.count_include_pad(%arg0: !torch.vtensor<[1,512,
   %3 = torch.aten.avg_pool1d %arg0, %0, %1, %2, %false, %count_include_pad : !torch.vtensor<[1,512,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[1,512,10],f32>
   return %3 : !torch.vtensor<[1,512,10],f32>
 }
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.avg_pool1d.count_include_pad_needs_slice(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[1,3,12],f32>) -> !torch.vtensor<[1,3,5],f32> {
+// CHECK:           %[[TO_BUILTIN_TENSOR_0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1,3,12],f32> -> tensor<1x3x12xf32>
+// CHECK:           %[[CONSTANT_0:.*]] = torch.constant.bool true
+// CHECK:           %[[CONSTANT_1:.*]] = torch.constant.bool false
+// CHECK:           %[[CONSTANT_2:.*]] = torch.constant.int 2
+// CHECK:           %[[CONSTANT_3:.*]] = torch.constant.int 7
+// CHECK:           %[[PRIM_0:.*]] = torch.prim.ListConstruct %[[CONSTANT_3]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[PRIM_1:.*]] = torch.prim.ListConstruct %[[CONSTANT_2]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[PRIM_2:.*]] = torch.prim.ListConstruct %[[CONSTANT_2]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[CONST_SHAPE_0:.*]] = tosa.const_shape  {values = dense<[1, 3, 12, 1]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[RESHAPE_0:.*]] = tosa.reshape %[[TO_BUILTIN_TENSOR_0]], %[[CONST_SHAPE_0]] : (tensor<1x3x12xf32>, !tosa.shape<4>) -> tensor<1x3x12x1xf32>
+// CHECK:           %[[TRANSPOSE_0:.*]] = tosa.transpose %[[RESHAPE_0]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x3x12x1xf32>) -> tensor<1x12x1x3xf32>
+// CHECK:           %[[CONST_SHAPE_1:.*]] = tosa.const_shape  {values = dense<[0, 0, 2, 2, 0, 0, 0, 0]> : tensor<8xindex>} : () -> !tosa.shape<8>
+// CHECK:           %[[PAD_CONST:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[PAD_0:.*]] = tosa.pad %[[TRANSPOSE_0]], %[[CONST_SHAPE_1]], %[[PAD_CONST]] : (tensor<1x12x1x3xf32>, !tosa.shape<8>, tensor<1xf32>) -> tensor<1x16x1x3xf32>
+// CHECK-DAG:           %[[SLICE_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:           %[[SLICE_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 15, 1, 3]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[SLICE_0:.*]] = tosa.slice %[[PAD_0]], %[[SLICE_START]], %[[SLICE_SHAPE]] : (tensor<1x16x1x3xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x15x1x3xf32>
+// CHECK:           %[[LHS_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[RHS_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[POOL:.*]] = tosa.avg_pool2d %[[SLICE_0]], %[[LHS_ZP]], %[[RHS_ZP]] {acc_type = f32, kernel = array<i64: 7, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 1>} : (tensor<1x15x1x3xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x5x1x3xf32>
+// CHECK:           %[[TRANSPOSE_1:.*]] = tosa.transpose %[[POOL]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x5x1x3xf32>) -> tensor<1x3x5x1xf32>
+// CHECK:           %[[CONST_SHAPE_4:.*]] = tosa.const_shape  {values = dense<[1, 3, 5]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[RESHAPE_1:.*]] = tosa.reshape %[[TRANSPOSE_1]], %[[CONST_SHAPE_4]] : (tensor<1x3x5x1xf32>, !tosa.shape<3>) -> tensor<1x3x5xf32>
+// CHECK:           %[[CAST_0:.*]] = tensor.cast %[[RESHAPE_1]] : tensor<1x3x5xf32> to tensor<1x3x5xf32>
+// CHECK:           %[[FROM_BUILTIN_TENSOR_0:.*]] = torch_c.from_builtin_tensor %[[CAST_0]] : tensor<1x3x5xf32> -> !torch.vtensor<[1,3,5],f32>
+// CHECK:           return %[[FROM_BUILTIN_TENSOR_0]]
+func.func @torch.aten.avg_pool1d.count_include_pad_needs_slice(%arg0: !torch.vtensor<[1,3,12],f32>) -> !torch.vtensor<[1,3,5],f32> {
+    %true = torch.constant.bool true
+    %false = torch.constant.bool false
+    %int2 = torch.constant.int 2
+    %int7 = torch.constant.int 7
+    %0 = torch.prim.ListConstruct %int7 : (!torch.int) -> !torch.list<int>
+    %1 = torch.prim.ListConstruct %int2 : (!torch.int) -> !torch.list<int>
+    %2 = torch.prim.ListConstruct %int2 : (!torch.int) -> !torch.list<int>
+    %3 = torch.aten.avg_pool1d %arg0, %0, %1, %2, %false, %true : !torch.vtensor<[1,3,12],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[1,3,5],f32>
+    return %3 : !torch.vtensor<[1,3,5],f32>
+  }
