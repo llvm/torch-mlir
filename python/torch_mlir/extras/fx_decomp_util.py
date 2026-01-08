@@ -52,6 +52,8 @@ if hasattr(torch.ops.aten, "_scaled_dot_product_flash_attention_for_cpu"):
     DEFAULT_DECOMPOSITIONS.append(
         torch.ops.aten._scaled_dot_product_flash_attention_for_cpu
     )
+if hasattr(torch.ops.aten, "scaled_dot_product_attention"):
+    DEFAULT_DECOMPOSITIONS.append(torch.ops.aten.scaled_dot_product_attention)
 
 
 def get_decomposition_table():
