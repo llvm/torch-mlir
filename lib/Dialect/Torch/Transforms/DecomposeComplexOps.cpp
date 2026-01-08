@@ -2336,20 +2336,15 @@ public:
     Value key = op.getKey();
     Value value = op.getValue();
 
-    auto queryTensorType = dyn_cast<BaseTensorType>(query.getType());
-    auto keyTensorType = dyn_cast<BaseTensorType>(key.getType());
-    auto valueTensorType = dyn_cast<BaseTensorType>(value.getType());
-    if (!queryTensorType || !keyTensorType || !valueTensorType)
-      return rewriter.notifyMatchFailure(op, "expected tensor inputs");
-    if (!queryTensorType.hasSizes() || !keyTensorType.hasSizes() ||
-        !valueTensorType.hasSizes())
-      return rewriter.notifyMatchFailure(
-          op, "expected tensor inputs to have known shapes");
-    auto queryValueTensorType = dyn_cast<ValueTensorType>(queryTensorType);
-    auto keyValueTensorType = dyn_cast<ValueTensorType>(keyTensorType);
-    auto valueValueTensorType = dyn_cast<ValueTensorType>(valueTensorType);
+    auto queryValueTensorType = dyn_cast<ValueTensorType>(query.getType());
+    auto keyValueTensorType = dyn_cast<ValueTensorType>(key.getType());
+    auto valueValueTensorType = dyn_cast<ValueTensorType>(value.getType());
     if (!queryValueTensorType || !keyValueTensorType || !valueValueTensorType)
       return rewriter.notifyMatchFailure(op, "expected value tensor semantics");
+    if (!queryValueTensorType.hasSizes() || !keyValueTensorType.hasSizes() ||
+        !valueValueTensorType.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "expected tensor inputs to have known shapes");
     if (!queryValueTensorType.hasDtype() || !keyValueTensorType.hasDtype() ||
         !valueValueTensorType.hasDtype())
       return rewriter.notifyMatchFailure(
@@ -2361,16 +2356,6 @@ public:
       return rewriter.notifyMatchFailure(
           op, "expected query, key, and value to share dtype");
 
-    Value oneInt =
-        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
-    Value zeroInt =
-        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
-    Value rank = AtenDimOp::create(rewriter, loc, query);
-    Value lastDim = AtenSubIntOp::create(rewriter, loc, rank, oneInt);
-    Value headDim = AtenSizeIntOp::create(rewriter, loc, query, lastDim);
-    Value seqDimIndex = AtenSubIntOp::create(rewriter, loc, lastDim, oneInt);
-    Value seqLen = AtenSizeIntOp::create(rewriter, loc, query, seqDimIndex);
-    Value keySeqLen = AtenSizeIntOp::create(rewriter, loc, key, seqDimIndex);
     ArrayRef<int64_t> querySizes = queryValueTensorType.getSizes();
     int64_t queryRank = querySizes.size();
     if (queryRank < 3 || queryRank > 4)
@@ -2383,6 +2368,16 @@ public:
       return rewriter.notifyMatchFailure(
           op, "expected query, key, and value to share rank");
     bool hasExplicitHeadDim = queryRank == 4;
+    Value oneInt =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value zeroInt =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+    Value rank = AtenDimOp::create(rewriter, loc, query);
+    Value lastDim = AtenSubIntOp::create(rewriter, loc, rank, oneInt);
+    Value headDim = AtenSizeIntOp::create(rewriter, loc, query, lastDim);
+    Value seqDimIndex = AtenSubIntOp::create(rewriter, loc, lastDim, oneInt);
+    Value seqLen = AtenSizeIntOp::create(rewriter, loc, query, seqDimIndex);
+    Value keySeqLen = AtenSizeIntOp::create(rewriter, loc, key, seqDimIndex);
     Value numHeadsSize =
         hasExplicitHeadDim
             ? (Value)AtenSizeIntOp::create(rewriter, loc, query, oneInt)
