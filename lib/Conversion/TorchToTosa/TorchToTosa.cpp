@@ -34,6 +34,7 @@
 #include <numeric>
 #include <optional>
 #include <random>
+#include <tuple>
 #include <type_traits>
 
 #include "mlir/Dialect/Tosa/Utils/QuantUtils.h"
@@ -2917,9 +2918,9 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
 
     auto calculatePaddingOrCropping =
         [](int64_t outPad) -> std::tuple<int64_t, int64_t, int64_t, int64_t> {
-      /// Calculates padding or cropping for a single dimension
-      /// in transposed convolution
-      /// Returns {padBegin, padEnd, cropBegin, cropEnd}
+      // Calculates padding or cropping for a single dimension
+      // in transposed convolution
+      // Returns {padBegin, padEnd, cropBegin, cropEnd}
       if (outPad >= 0) {
         int64_t padBegin = outPad / 2;
         int64_t padEnd = outPad - padBegin;
@@ -2933,7 +2934,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
       }
     };
 
-    /// Determine cropping and actual padding
+    // Determine cropping and actual padding
     auto [outPadTop, outPadBottom, cropTopH, cropBottomH] =
         calculatePaddingOrCropping(outPadH);
 
