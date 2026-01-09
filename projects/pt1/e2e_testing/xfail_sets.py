@@ -3570,10 +3570,6 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
-    # MLIR TOSA->Linalg bug: tosa.negate on i64 with constant zero-points can select i16 intermediate and emit invalid arith.extsi i64 -> i16.
-    "ArgminIntModule_basic",
-    # MLIR TOSA->Linalg bug: tosa.negate on i64 with constant zero-points can select i16 intermediate and emit invalid arith.extsi i64 -> i16.
-    "ArgminIntModule_multiple_mins",
     "NumpyTRank0Module_basic",
     "Permute0RankModule_basic",
     "ArgsortTensor_basic",
@@ -3581,8 +3577,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenSymConstrainRangeForSize_basic",
     "AtenSymConstrainRange_basic",
     "Aten_AssertScalar_basic",
-    # MLIR TOSA->Linalg bug: tosa.negate on i64 with constant zero-points can select i16 intermediate and emit invalid arith.extsi i64 -> i16.
-    "ReduceMinAlongDimSignedInt_basic",
     "ScatterAddDynamicModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
