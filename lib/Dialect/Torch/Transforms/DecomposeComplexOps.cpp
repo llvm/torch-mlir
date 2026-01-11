@@ -5931,16 +5931,6 @@ public:
       return rewriter.notifyMatchFailure(
           op, "unimplemented: only 2D convolutions supported.");
 
-    Value cstZero = Torch::ConstantIntOp::create(rewriter, loc,
-                                                 rewriter.getI64IntegerAttr(0));
-    Value cstOne = Torch::ConstantIntOp::create(rewriter, loc,
-                                                rewriter.getI64IntegerAttr(1));
-    Value cstTwo = Torch::ConstantIntOp::create(rewriter, loc,
-                                                rewriter.getI64IntegerAttr(2));
-    Value cstNone = Torch::ConstantNoneOp::create(rewriter, loc);
-    Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc,
-                                                   rewriter.getBoolAttr(false));
-
     SmallVector<Value> padding, dilation, stride;
     SmallVector<int64_t, 2> paddingInt, dilationInt, strideInt,
         outputPaddingInt;
@@ -5996,6 +5986,16 @@ public:
     if (transposed)
       return rewriter.notifyMatchFailure(
           op, "unimplemented: transposed convolutions are not supported.");
+
+    Value cstZero = Torch::ConstantIntOp::create(rewriter, loc,
+                                                 rewriter.getI64IntegerAttr(0));
+    Value cstOne = Torch::ConstantIntOp::create(rewriter, loc,
+                                                rewriter.getI64IntegerAttr(1));
+    Value cstTwo = Torch::ConstantIntOp::create(rewriter, loc,
+                                                rewriter.getI64IntegerAttr(2));
+    Value cstNone = Torch::ConstantNoneOp::create(rewriter, loc);
+    Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc,
+                                                   rewriter.getBoolAttr(false));
 
     Value gradInput = cstNone;
     if (outMask[0]) {
