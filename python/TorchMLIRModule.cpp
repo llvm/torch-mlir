@@ -7,13 +7,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Bindings/Python/PybindAdaptors.h"
+#include <cstdint>
+
+#include "mlir/Bindings/Python/NanobindAdaptors.h"
 #include "torch-mlir-c/Dialects.h"
 #include "torch-mlir-c/Registration.h"
 
-namespace py = pybind11;
+namespace nb = nanobind;
 
-PYBIND11_MODULE(_torchMlir, m) {
+NB_MODULE(_torchMlir, m) {
   torchMlirRegisterAllPasses();
 
   m.doc() = "torch-mlir main python extension";
@@ -27,7 +29,7 @@ PYBIND11_MODULE(_torchMlir, m) {
           mlirDialectHandleLoadDialect(handle, context);
         }
       },
-      py::arg("context"), py::arg("load") = true);
+      nb::arg("context"), nb::arg("load") = true);
 
   m.def("get_int64_max", []() { return INT64_MAX; });
 

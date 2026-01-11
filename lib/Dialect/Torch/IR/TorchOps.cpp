@@ -2475,12 +2475,15 @@ void AtenUnflattenIntOp::getCanonicalizationPatterns(
                                          "sizes must come from list construct");
     if (sizeValues.size() != 2)
       return failure();
-    int64_t dim0, dim1;
+    int64_t dim0 = Torch::kUnknownSize;
+    int64_t dim1 = Torch::kUnknownSize;
     bool dim0Constant = matchPattern(sizeValues[0], m_TorchConstantInt(&dim0));
     bool dim1Constant = matchPattern(sizeValues[1], m_TorchConstantInt(&dim1));
     if (!dim0Constant && !dim1Constant)
       return failure();
-    if (dim0 != 1 && dim1 != 1)
+    bool dim0IsOne = dim0Constant && dim0 == 1;
+    bool dim1IsOne = dim1Constant && dim1 == 1;
+    if (!dim0IsOne && !dim1IsOne)
       return failure();
     Value unflattenDim = op.getDim();
     int64_t dimAsInt;
@@ -2491,7 +2494,7 @@ void AtenUnflattenIntOp::getCanonicalizationPatterns(
     // the runtime asserts below are introduced to catch malformed unflatten ops
     // possibly generated from onnx IR.
     Value unsqueeze;
-    if (dim0 == 1) {
+    if (dim0IsOne) {
       // unsqueeze at dim
       FailureOr<Value> maybeUnsqueeze =
           Torch::unsqueezeTensor(rewriter, op, self, unflattenDim);
@@ -2512,7 +2515,7 @@ void AtenUnflattenIntOp::getCanonicalizationPatterns(
           rewriter, op.getLoc(), isMOneOrSameSize,
           rewriter.getStringAttr("unflatten sizes must be compatible"));
     }
-    if (dim1 == 1) {
+    if (dim1IsOne) {
       // unsqueeze at dim + 1
       Value dimPlusOne;
       if (!dimWasConstant) {
