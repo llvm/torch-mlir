@@ -3161,3 +3161,51 @@ class AvgPool1dPadCeilPadNotIncluded(torch.nn.Module):
 @register_test_case(module_factory=lambda: AvgPool1dPadCeilPadNotIncluded())
 def AvgPool1dPadCeilPadNotIncluded_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 3, low=-1))
+
+
+class AvgPool1dCountIncludePad(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap1d = torch.nn.AvgPool1d(
+            kernel_size=7, stride=2, padding=2, ceil_mode=False, count_include_pad=True
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 3, 12], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap1d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool1dCountIncludePad())
+def AvgPool1dCountIncludePad_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3, 12, low=-1))
+
+
+class AvgPool1dCountIncludePadWithCeil(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.ap1d = torch.nn.AvgPool1d(
+            kernel_size=4, stride=2, padding=1, ceil_mode=True, count_include_pad=True
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 12], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap1d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool1dCountIncludePadWithCeil())
+def AvgPool1dCountIncludePadWithCeil_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 12, low=-1))

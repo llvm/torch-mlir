@@ -3691,8 +3691,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "Aten_EmbeddingBagExample_basic",
     "AvgPool1dIntModule_basic",
     "AvgPool1dStaticModule_basic",
-    "AvgPool1dNoPadCeilPadNotIncluded_basic",
-    "AvgPool1dPadCeilPadNotIncluded_basic",
     "AvgPool3dDiffKernelsStridesNoPadCeilPadNotIncluded_basic",
     "AvgPool3dDiffKernelsStridesPadCeilPadNotIncluded_basic",
     "AvgPool2dDivisorOverrideModule_basic",
