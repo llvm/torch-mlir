@@ -4534,9 +4534,27 @@ LogicalResult ConvertAtenOp<AtenTransposeIntOp>::matchAndRewrite(
   transposedDims[dim0] = dim1;
   transposedDims[dim1] = dim0;
 
-  rewriter.replaceOpWithNewOp<tosa::TransposeOp>(
-      op, getTypeConverter()->convertType(op.getType()), adaptor.getSelf(),
+  Type expectedResultType = getTypeConverter()->convertType(op.getType());
+  if (!expectedResultType)
+    return rewriter.notifyMatchFailure(
+        op, "failed to convert transpose result type");
+
+  auto elementType = cast<TensorType>(selfType).getElementType();
+  auto unrankedResultType = UnrankedTensorType::get(elementType);
+  auto transpose = tosa::CreateOpAndInfer<tosa::TransposeOp>(
+      rewriter, op->getLoc(), unrankedResultType, adaptor.getSelf(),
       rewriter.getDenseI32ArrayAttr(transposedDims));
+  Value resultValue = transpose.getResult();
+  if (resultValue.getType() != expectedResultType) {
+    if (!tensor::CastOp::areCastCompatible(resultValue.getType(),
+                                           expectedResultType))
+      return rewriter.notifyMatchFailure(
+          op, "transpose result incompatible with expected type");
+    auto castOp = tensor::CastOp::create(rewriter, op->getLoc(),
+                                         expectedResultType, resultValue);
+    resultValue = castOp.getResult();
+  }
+  rewriter.replaceOp(op, resultValue);
 
   return success();
 }
@@ -8172,7 +8190,7 @@ LogicalResult ConvertAtenOp<AtenDiagonalOp>::matchAndRewrite(
         makeShapeLLVMCompatible(transposedInputShape), selfElemTy);
     SmallVector<int64_t> startSlice(selfRank, 0);
     SmallVector<int64_t> sizeSlice =
-        llvm::to_vector(makeShapeTorchCompatible(transposedInputShape));
+        makeShapeTorchCompatible(transposedInputShape);
     if (offset < 0)
       startSlice[targetDim1] = std::abs(offset);
     diagonalTensor = tosa::SliceOp::create(
@@ -10243,6 +10261,21 @@ void populateTorchToTosaConversionLegalOps(ConversionTarget &target) {
   target.addLegalOp<ConstantDeviceOp>();
   target.addLegalOp<PrimListConstructOp>();
   target.addLegalOp<PrimTupleConstructOp>();
+  target.addDynamicallyLegalOp<tensor::CastOp>([](tensor::CastOp op) -> bool {
+    auto sourceType = dyn_cast<RankedTensorType>(op.getSource().getType());
+    auto resultType = dyn_cast<RankedTensorType>(op.getType());
+    if (!sourceType || !resultType)
+      return true;
+    if (sourceType.getElementType() != resultType.getElementType())
+      return true;
+    if (!sourceType.hasStaticShape())
+      return true;
+    if (!resultType.hasStaticShape())
+      return true;
+    if (sourceType == resultType)
+      return true;
+    return false;
+  });
 }
 
 std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
