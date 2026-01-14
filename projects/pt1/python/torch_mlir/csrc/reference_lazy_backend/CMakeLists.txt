@@ -20,7 +20,7 @@ if(TORCH_MLIR_ENABLE_LTC)
   link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
   add_link_options(-Wl,-rpath,$ORIGIN/lib)
 
-  add_library(reference_lazy_backend MODULE
+  Python3_add_library(reference_lazy_backend MODULE WITH_SOABI
           backend_impl.cpp
           reference_lazy_backend_pybind.cpp
           )
@@ -28,17 +28,16 @@ if(TORCH_MLIR_ENABLE_LTC)
           torch_mlir_ltc_backend
           )
   target_link_libraries(reference_lazy_backend
-          ${TORCH_LIBRARIES}
-          torch_python
-          torch_mlir_ltc_backend
+          PRIVATE
+            ${TORCH_LIBRARIES}
+            torch_python
+            torch_mlir_ltc_backend
           )
 
   message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS} -Wno-pedantic")
   set_target_properties(reference_lazy_backend PROPERTIES
           LIBRARY_OUTPUT_DIRECTORY ${LIBRARY_OUTPUT_PATH}
           OUTPUT_NAME ${OUTPUT_NAME}
-          PREFIX "${PYTHON_MODULE_PREFIX}"
-          SUFFIX "${PYTHON_MODULE_EXTENSION}"
           CXX_VISIBILITY_PRESET "hidden"
           COMPILE_FLAGS "${TORCH_CXXFLAGS} -Wno-pedantic"
           )

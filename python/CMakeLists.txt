@@ -126,3 +126,10 @@ add_mlir_python_modules(TorchMLIRPythonModules
 )
 
 add_dependencies(TorchMLIRPythonModules torch-mlir-opt)
+
+# Some optional PyTorch-extension backed modules are built outside of the
+# AddMLIRPython `declare_mlir_python_extension()` flow, but are still expected to
+# be present in the python package when enabled.
+if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
+  add_dependencies(TorchMLIRPythonModules TorchMLIRJITIRImporterPybind)
+endif()
