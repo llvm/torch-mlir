@@ -3,18 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 load("@llvm-project//mlir:tblgen.bzl", "gentbl_cc_library", "td_library")
-load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
 
 package(
     default_visibility = [
         "//visibility:public",
     ],
-)
-
-# Format bazel BUILD and .bzl files with a standard convention
-# Invoke as `bazel run @torch-mlir//:buildifier`
-buildifier(
-    name = "buildifier",
 )
 
 # Torch Dialect/IR
