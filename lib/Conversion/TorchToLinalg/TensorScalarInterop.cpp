@@ -208,10 +208,14 @@ public:
       return rewriter.notifyMatchFailure(
           op, "rank of shape and result shape do not match");
 
+    SmallVector<Value> inShapeConverted = getTypeConvertedValues(
+        rewriter, loc, this->getTypeConverter(), inShape);
+
     SmallVector<OpFoldResult> filteredShape;
     for (int i = 0, s = resultTy.getRank(); i < s; ++i) {
       if (resultTy.isDynamicDim(i)) {
-        filteredShape.push_back( inShape[i]);
+        filteredShape.push_back(
+            castIntToIndex(rewriter, loc, inShapeConverted[i]));
         continue;
       }
 
