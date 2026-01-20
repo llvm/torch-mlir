@@ -2,4 +2,18 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# Required to reference .bzl files in this package
+load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
+
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+# Format bazel BUILD and .bzl files with a standard convention.
+# Invoke as `bazel run //utils/bazel:buildifier`
+#
+# This target is only available when torch-mlir is the root workspace (for
+# development). Downstream consumers using torch-mlir as a dependency don't
+# have the buildtools deps and use @torch-mlir which doesn't include this file.
+buildifier(
+    name = "buildifier",
+)
