@@ -36,7 +36,7 @@ static Value createBoolConstant(PatternRewriter &rewriter, Location loc,
 }
 
 static Value createFloatConstant(PatternRewriter &rewriter, Location loc,
-                                 double value, Type /*dtype*/) {
+                                 double value) {
   auto attr = rewriter.getF64FloatAttr(value);
   return Torch::ConstantFloatOp::create(rewriter, loc, attr);
 }
@@ -68,9 +68,10 @@ static int64_t adaptSizeForView(int64_t size) {
   return size == Torch::kUnknownSize ? -1 : size;
 }
 
-static FailureOr<ValueTensorType>
-checkTensorShape(Value value, ArrayRef<int64_t> expected, StringRef name,
-                 PatternRewriter &rewriter, Operation *op) {
+static LogicalResult checkTensorShape(Value value, ArrayRef<int64_t> expected,
+                                      StringRef name, PatternRewriter &rewriter,
+                                      Operation *op,
+                                      ValueTensorType *resolvedType = nullptr) {
   auto type = dyn_cast<ValueTensorType>(value.getType());
   if (!type || !type.hasSizes())
     return rewriter.notifyMatchFailure(
@@ -90,7 +91,9 @@ checkTensorShape(Value value, ArrayRef<int64_t> expected, StringRef name,
                   Twine(i) + ": expected " + Twine(exp) + " but got " +
                   Twine(actual[i]));
   }
-  return type;
+  if (resolvedType)
+    *resolvedType = type;
+  return success();
 }
 
 struct QkvProjections {
@@ -109,7 +112,7 @@ buildQkvProjections(PatternRewriter &rewriter, Location loc, Value input,
   int64_t seqLen = sizes[1];
   int64_t headDim = embedDim / numHeads;
 
-  SmallVector<int64_t, 4> linearSizes = {batch, seqLen, 3 * embedDim};
+  SmallVector<int64_t, 3> linearSizes = {batch, seqLen, 3 * embedDim};
   ValueTensorType linearType =
       cast<ValueTensorType>(inputType.getWithSizesAndDtype(linearSizes, dtype));
   Value qkvLinear = AtenLinearOp::create(rewriter, loc, linearType, input,
@@ -142,6 +145,9 @@ buildQkvProjections(PatternRewriter &rewriter, Location loc, Value input,
   SmallVector<int64_t, 4> permSizes = {batch, numHeads, seqLen, headDim};
   ValueTensorType permType =
       cast<ValueTensorType>(inputType.getWithSizesAndDtype(permSizes, dtype));
+  // Bring the head axis in front of sequence so self-attention matmul treats
+  // each head as an independent batch: [batch, seqLen, numHeads, headDim] ->
+  // [batch, numHeads, seqLen, headDim].
   Value permList = createIntList(rewriter, loc, {0, 2, 1, 3});
   q = AtenPermuteOp::create(rewriter, loc, permType, q, permList);
   k = AtenPermuteOp::create(rewriter, loc, permType, k, permList);
@@ -160,8 +166,7 @@ public:
     if (!isTransformerEncoderOperator(op))
       return failure();
 
-    SmallVector<Value> operands(op.getOperands().begin(),
-                                op.getOperands().end());
+    auto operands = op.getOperands();
     if (operands.size() != 20)
       return rewriter.notifyMatchFailure(op, "expected 20 operands");
 
@@ -195,7 +200,8 @@ public:
     }
     if (numHeads == 0 || embedDim % numHeads != 0) {
       return rewriter.notifyMatchFailure(
-          op, "embedding dimension must be divisible by number of heads");
+          op, "number of heads must be non-zero and embedding dimension must "
+              "be divisible by number of heads");
     }
 
     if (!isa<Torch::NoneType>(mask.getType())) {
@@ -256,21 +262,21 @@ public:
       return failure();
     }
 
-    auto ffn1WeightType =
-        checkTensorShape(ffn1Weight, {Torch::kUnknownSize, embedDim},
-                         "ffn1_weight", rewriter, op);
-    if (failed(ffn1WeightType)) {
+    ValueTensorType ffn1WeightType;
+    if (failed(checkTensorShape(ffn1Weight, {Torch::kUnknownSize, embedDim},
+                                "ffn1_weight", rewriter, op,
+                                &ffn1WeightType))) {
       return failure();
     }
-    auto ffn1BiasType = checkTensorShape(ffn1Bias, {Torch::kUnknownSize},
-                                         "ffn1_bias", rewriter, op);
-    if (failed(ffn1BiasType)) {
+    ValueTensorType ffn1BiasType;
+    if (failed(checkTensorShape(ffn1Bias, {Torch::kUnknownSize}, "ffn1_bias",
+                                rewriter, op, &ffn1BiasType))) {
       return failure();
     }
-    auto ffn2WeightType =
-        checkTensorShape(ffn2Weight, {embedDim, Torch::kUnknownSize},
-                         "ffn2_weight", rewriter, op);
-    if (failed(ffn2WeightType)) {
+    ValueTensorType ffn2WeightType;
+    if (failed(checkTensorShape(ffn2Weight, {embedDim, Torch::kUnknownSize},
+                                "ffn2_weight", rewriter, op,
+                                &ffn2WeightType))) {
       return failure();
     }
     if (failed(checkTensorShape(ffn2Bias, {embedDim}, "ffn2_bias", rewriter,
@@ -278,7 +284,13 @@ public:
       return failure();
     }
 
-    int64_t hiddenDim = (*ffn1WeightType).getSizes()[0];
+    int64_t hiddenDim = ffn1WeightType.getSizes()[0];
+    bool hiddenDimUnknown = hiddenDim == Torch::kUnknownSize;
+    if (hiddenDimUnknown && ffn1BiasType.getSizes()[0] == Torch::kUnknownSize &&
+        ffn2WeightType.getSizes()[1] == Torch::kUnknownSize) {
+      return rewriter.notifyMatchFailure(
+          op, "unable to infer feed-forward hidden dimension");
+    }
     auto enforceHidden = [&](int64_t candidate,
                              StringRef what) -> LogicalResult {
       if (candidate == Torch::kUnknownSize)
@@ -293,19 +305,18 @@ public:
       }
       return success();
     };
-    if (failed(enforceHidden((*ffn1BiasType).getSizes()[0], "ffn1_bias")) ||
-        failed(enforceHidden((*ffn2WeightType).getSizes()[1], "ffn2_weight"))) {
+    if (failed(enforceHidden(ffn1BiasType.getSizes()[0], "ffn1_bias")) ||
+        failed(enforceHidden(ffn2WeightType.getSizes()[1], "ffn2_weight"))) {
       return failure();
     }
-    if (hiddenDim == Torch::kUnknownSize) {
+    if (hiddenDimUnknown && hiddenDim == Torch::kUnknownSize) {
       return rewriter.notifyMatchFailure(
           op, "unable to infer feed-forward hidden dimension");
     }
 
     Location loc = op.getLoc();
 
-    auto buildLayerNorm = [&](Value input, Value weight,
-                              Value bias) -> FailureOr<Value> {
+    auto buildLayerNorm = [&](Value input, Value weight, Value bias) -> Value {
       auto inputTensorType = cast<ValueTensorType>(input.getType());
       Value normalizedShape = createIntList(rewriter, loc, {embedDim});
       // Upstream aten._transformer_encoder_layer_fwd always sets
@@ -321,10 +332,7 @@ public:
 
     Value attentionInput = src;
     if (normFirstBool) {
-      auto normed = buildLayerNorm(src, norm1Weight, norm1Bias);
-      if (failed(normed))
-        return failure();
-      attentionInput = *normed;
+      attentionInput = buildLayerNorm(src, norm1Weight, norm1Bias);
     }
 
     auto attentionInputType =
@@ -338,9 +346,6 @@ public:
     if (failed(projections))
       return failure();
 
-    Type elementType = srcType->getOptionalDtype();
-    if (!elementType)
-      elementType = rewriter.getF32Type();
     int64_t headDim = embedDim / numHeads;
 
     Value permIdx = createIntList(rewriter, loc, {0, 1, 3, 2});
@@ -360,7 +365,7 @@ public:
                                         projections->query, keyT);
 
     double scale = 1.0 / std::sqrt(static_cast<double>(headDim));
-    Value scaleConst = createFloatConstant(rewriter, loc, scale, elementType);
+    Value scaleConst = createFloatConstant(rewriter, loc, scale);
     scores =
         AtenMulScalarOp::create(rewriter, loc, scoreType, scores, scaleConst);
 
@@ -405,18 +410,12 @@ public:
     if (normFirstBool) {
       postAttn = attnResidual;
     } else {
-      auto normed = buildLayerNorm(attnResidual, norm1Weight, norm1Bias);
-      if (failed(normed))
-        return failure();
-      postAttn = *normed;
+      postAttn = buildLayerNorm(attnResidual, norm1Weight, norm1Bias);
     }
 
     Value feedForwardInput = postAttn;
     if (normFirstBool) {
-      auto normed = buildLayerNorm(attnResidual, norm2Weight, norm2Bias);
-      if (failed(normed))
-        return failure();
-      feedForwardInput = *normed;
+      feedForwardInput = buildLayerNorm(attnResidual, norm2Weight, norm2Bias);
     }
 
     auto buildFeedForward = [&](Value input) -> FailureOr<Value> {
@@ -452,10 +451,7 @@ public:
     } else {
       Value secondResidual = AtenAddTensorOp::create(
           rewriter, loc, *srcType, postAttn, *feedForwardOut, oneScalar);
-      auto normed = buildLayerNorm(secondResidual, norm2Weight, norm2Bias);
-      if (failed(normed))
-        return failure();
-      result = *normed;
+      result = buildLayerNorm(secondResidual, norm2Weight, norm2Bias);
     }
 
     rewriter.replaceOp(op, result);

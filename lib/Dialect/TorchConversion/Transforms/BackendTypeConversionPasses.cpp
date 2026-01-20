@@ -8,18 +8,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/ControlFlow/Transforms/StructuralTypeConversions.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/FuncConversions.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
-#include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -37,166 +35,6 @@ namespace mlir::torch::TorchConversion {
 //===----------------------------------------------------------------------===//
 
 namespace {
-
-static FailureOr<Block *>
-convertBlockSignatureIfNeeded(Block *block, const TypeConverter *typeConverter,
-                              ConversionPatternRewriter &rewriter) {
-  std::optional<TypeConverter::SignatureConversion> conversion =
-      typeConverter->convertBlockSignature(block);
-  if (!conversion)
-    return failure();
-  Block *newBlock =
-      rewriter.applySignatureConversion(block, *conversion, typeConverter);
-  return newBlock;
-}
-
-static FailureOr<SmallVector<Value>>
-convertSuccessorOperands(Location loc, ValueRange operands, Block *dest,
-                         const TypeConverter *typeConverter,
-                         ConversionPatternRewriter &rewriter) {
-  if (operands.size() != dest->getNumArguments())
-    return failure();
-  SmallVector<Value> converted;
-  converted.reserve(operands.size());
-  for (auto it : llvm::zip_equal(operands, dest->getArguments())) {
-    Value operand = std::get<0>(it);
-    Value arg = std::get<1>(it);
-    if (operand.getType() == arg.getType()) {
-      converted.push_back(operand);
-      continue;
-    }
-    SmallVector<Value, 1> inputs{operand};
-    Value newOperand = typeConverter->materializeTargetConversion(
-        rewriter, loc, arg.getType(), inputs, operand.getType());
-    if (!newOperand)
-      return failure();
-    converted.push_back(newOperand);
-  }
-  return converted;
-}
-
-static bool hasTorchTensor(Value value) {
-  return isa<Torch::BaseTensorType>(value.getType());
-}
-
-static bool hasTorchTensor(ValueRange values) {
-  return llvm::any_of(values, [](Value v) { return hasTorchTensor(v); });
-}
-
-static bool blockHasTorchTensor(Block *block) {
-  return llvm::any_of(block->getArgumentTypes(), [](Type type) {
-    return isa<Torch::BaseTensorType>(type);
-  });
-}
-
-class ConvertCFBrOp : public OpConversionPattern<cf::BranchOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  ConvertCFBrOp(TypeConverter &typeConverter, MLIRContext *context)
-      : OpConversionPattern(typeConverter, context) {}
-  LogicalResult
-  matchAndRewrite(cf::BranchOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    FailureOr<Block *> dest = convertBlockSignatureIfNeeded(
-        op.getDest(), this->getTypeConverter(), rewriter);
-    if (failed(dest))
-      return failure();
-    FailureOr<SmallVector<Value>> newOperands =
-        convertSuccessorOperands(op.getLoc(), adaptor.getDestOperands(), *dest,
-                                 this->getTypeConverter(), rewriter);
-    if (failed(newOperands))
-      return failure();
-    rewriter.replaceOpWithNewOp<cf::BranchOp>(op, *dest, *newOperands);
-    return success();
-  }
-};
-
-class ConvertCFCondBranchOp : public OpConversionPattern<cf::CondBranchOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  ConvertCFCondBranchOp(TypeConverter &typeConverter, MLIRContext *context)
-      : OpConversionPattern(typeConverter, context) {}
-  LogicalResult
-  matchAndRewrite(cf::CondBranchOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    FailureOr<Block *> trueDest = convertBlockSignatureIfNeeded(
-        op.getTrueDest(), this->getTypeConverter(), rewriter);
-    if (failed(trueDest))
-      return failure();
-    FailureOr<Block *> falseDest = convertBlockSignatureIfNeeded(
-        op.getFalseDest(), this->getTypeConverter(), rewriter);
-    if (failed(falseDest))
-      return failure();
-    FailureOr<SmallVector<Value>> trueOperands =
-        convertSuccessorOperands(op.getLoc(), adaptor.getTrueDestOperands(),
-                                 *trueDest, this->getTypeConverter(), rewriter);
-    if (failed(trueOperands))
-      return failure();
-    FailureOr<SmallVector<Value>> falseOperands = convertSuccessorOperands(
-        op.getLoc(), adaptor.getFalseDestOperands(), *falseDest,
-        this->getTypeConverter(), rewriter);
-    if (failed(falseOperands))
-      return failure();
-    rewriter.replaceOpWithNewOp<cf::CondBranchOp>(op, adaptor.getCondition(),
-                                                  *trueDest, *trueOperands,
-                                                  *falseDest, *falseOperands);
-    return success();
-  }
-};
-
-class ConvertCFSwitchOp : public OpConversionPattern<cf::SwitchOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  ConvertCFSwitchOp(TypeConverter &typeConverter, MLIRContext *context)
-      : OpConversionPattern(typeConverter, context) {}
-  LogicalResult
-  matchAndRewrite(cf::SwitchOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    FailureOr<Block *> defaultDest = convertBlockSignatureIfNeeded(
-        op.getDefaultDestination(), this->getTypeConverter(), rewriter);
-    if (failed(defaultDest))
-      return failure();
-    FailureOr<SmallVector<Value>> defaultOperands = convertSuccessorOperands(
-        op.getLoc(), adaptor.getDefaultOperands(), *defaultDest,
-        this->getTypeConverter(), rewriter);
-    if (failed(defaultOperands))
-      return failure();
-
-    SmallVector<Block *> caseDests;
-    SmallVector<SmallVector<Value>> caseOperandsStorage;
-    SmallVector<ValueRange> caseOperandRanges;
-    auto adaptorCaseOperands = adaptor.getCaseOperands();
-    for (auto it : llvm::enumerate(op.getCaseDestinations())) {
-      FailureOr<Block *> newDest = convertBlockSignatureIfNeeded(
-          it.value(), this->getTypeConverter(), rewriter);
-      if (failed(newDest))
-        return failure();
-      FailureOr<SmallVector<Value>> convertedOperands =
-          convertSuccessorOperands(op.getLoc(), adaptorCaseOperands[it.index()],
-                                   *newDest, this->getTypeConverter(),
-                                   rewriter);
-      if (failed(convertedOperands))
-        return failure();
-      caseDests.push_back(*newDest);
-      caseOperandsStorage.push_back(std::move(*convertedOperands));
-    }
-    caseOperandRanges.reserve(caseOperandsStorage.size());
-    for (auto &storage : caseOperandsStorage)
-      caseOperandRanges.push_back(storage);
-
-    rewriter.replaceOpWithNewOp<cf::SwitchOp>(
-        op, adaptor.getFlag(), *defaultDest, *defaultOperands,
-        adaptor.getCaseValuesAttr(), caseDests, caseOperandRanges);
-    return success();
-  }
-};
-
-static void
-populateCFStructuralTypeConversionPatterns(TypeConverter &typeConverter,
-                                           RewritePatternSet &patterns) {
-  patterns.add<ConvertCFBrOp, ConvertCFCondBranchOp, ConvertCFSwitchOp>(
-      typeConverter, patterns.getContext());
-}
 
 // TODO: Consider upstreaming this to an `arith::ExtFOp` folder:
 struct ExtFTruncFPattern : public OpRewritePattern<arith::TruncFOp> {
@@ -229,29 +67,8 @@ void populateFuncBackendTypeConversionPatterns(TypeConverter &typeConverter,
   target.addDynamicallyLegalOp<func::CallOp>(
       [&](func::CallOp op) { return typeConverter.isLegal(op); });
 
-  target.addDynamicallyLegalOp<cf::BranchOp>([&](cf::BranchOp op) {
-    return !hasTorchTensor(op.getDestOperands()) &&
-           !blockHasTorchTensor(op.getDest());
-  });
-  target.addDynamicallyLegalOp<cf::CondBranchOp>([&](cf::CondBranchOp op) {
-    return !hasTorchTensor(op.getTrueDestOperands()) &&
-           !hasTorchTensor(op.getFalseDestOperands()) &&
-           !blockHasTorchTensor(op.getTrueDest()) &&
-           !blockHasTorchTensor(op.getFalseDest());
-  });
-  target.addDynamicallyLegalOp<cf::SwitchOp>([&](cf::SwitchOp op) {
-    if (hasTorchTensor(op.getDefaultOperands()) ||
-        blockHasTorchTensor(op.getDefaultDestination()))
-      return false;
-    auto caseOperands = op.getCaseOperands();
-    for (auto [index, dest] : llvm::enumerate(op.getCaseDestinations()))
-      if (hasTorchTensor(caseOperands[index]) || blockHasTorchTensor(dest))
-        return false;
-    return true;
-  });
-
-  populateBranchOpInterfaceTypeConversionPattern(patterns, typeConverter);
-  populateCFStructuralTypeConversionPatterns(typeConverter, patterns);
+  cf::populateCFStructuralTypeConversionsAndLegality(typeConverter, patterns,
+                                                     target);
   populateReturnOpTypeConversionPattern(patterns, typeConverter);
   target.addLegalOp<ModuleOp>();
 

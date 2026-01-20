@@ -276,7 +276,6 @@ bool isSpecializedOperation(Torch::OperatorOp op) {
     return false;
 
   // Default to treating torch.operator calls as specialized (i.e., illegal)
-  (void)opName; // suppress unused warning when asserts are off.
   return true;
 }
 } // namespace

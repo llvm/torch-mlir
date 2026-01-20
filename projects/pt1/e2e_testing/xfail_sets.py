@@ -2773,8 +2773,8 @@ ONNX_XFAIL_SET = {
     "StdCorrectionLargeInputModule_basic",
     "TupleModule_basic",
     "ThresholdStaticModule_basic",
-    # torch.onnx.export cannot lower torch.aten._transformer_encoder_layer_fwd;
-    # once the op is decomposed this test should move out of the ONNX XFAIL list.
+    # torch.onnx.export cannot lower torch.aten._transformer_encoder_layer_fwd
+    # even though the op is decomposed downstream, so keep this in ONNX XFAIL.
     "TransformerEncoderModule_basic",
     "VarCorrectionLargeInputModule_basic",
     "Conv3dModule_basic",
