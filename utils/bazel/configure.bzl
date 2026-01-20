@@ -8,8 +8,20 @@
 
 DEFAULT_OVERLAY_PATH = "torch-mlir-overlay"
 
+def _get_src_path(repository_ctx):
+    """Returns the torch-mlir source directory path.
+
+    If src_workspace attr is set, uses that label to find the source directory.
+    Otherwise, falls back to finding WORKSPACE in the repository root.
+    """
+    if repository_ctx.attr.src_workspace:
+        return repository_ctx.path(repository_ctx.attr.src_workspace).dirname
+
+    # Fallback for standalone torch-mlir builds
+    return repository_ctx.path(Label("//:WORKSPACE")).dirname
+
 def _overlay_directories(repository_ctx):
-    src_path = repository_ctx.path(Label("//:WORKSPACE")).dirname
+    src_path = _get_src_path(repository_ctx)
     bazel_path = src_path.get_child("utils").get_child("bazel")
     overlay_path = bazel_path.get_child("torch-mlir-overlay")
     script_path = bazel_path.get_child("overlay_directories.py")
@@ -53,4 +65,12 @@ torch_mlir_configure = repository_rule(
     implementation = _torch_mlir_configure_impl,
     local = True,
     configure = True,
+    attrs = {
+        # Label pointing to a file in the torch-mlir source root (e.g., CMakeLists.txt).
+        # Used by downstream projects that include torch-mlir as a subdirectory.
+        # If not set, defaults to looking for //:WORKSPACE in the current repository.
+        "src_workspace": attr.label(
+            doc = "Label to a file in torch-mlir source root for path resolution",
+        ),
+    },
 )
