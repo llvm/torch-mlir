@@ -3737,6 +3737,28 @@ func.func @torch.aten.convolution$basic(%arg0: !torch.vtensor<[5,2,10,20],f32>) 
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.convolution$single_padding(
+// CHECK:           %[[PADVAL:.*]] = torch.constant.int 3
+// CHECK:           %[[PADLIST:.*]] = torch.prim.ListConstruct %[[PADVAL]] : (!torch.int) -> !torch.list<int>
+// CHECK:           %[[CONV:.*]] = tosa.conv2d
+// CHECK-SAME:        {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 3, 3, 3, 3>, stride = array<i64: 1, 1>}
+// CHECK:           return
+func.func @torch.aten.convolution$single_padding(%arg0: !torch.vtensor<[5,2,10,20],f32>) -> !torch.vtensor<[5,10,14,24],f32> {
+  %false = torch.constant.bool false
+  %int3 = torch.constant.int 3
+  %0 = torch.vtensor.literal(dense_resource<torch_tensor_10_2_3_3_torch.float32> : tensor<10x2x3x3xf32>) : !torch.vtensor<[10,2,3,3],f32>
+  %none = torch.constant.none
+  %int1 = torch.constant.int 1
+  %1 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %5 = torch.aten.convolution %arg0, %0, %none, %1, %2, %3, %false, %4, %int1 : !torch.vtensor<[5,2,10,20],f32>, !torch.vtensor<[10,2,3,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[5,10,14,24],f32>
+  return %5 : !torch.vtensor<[5,10,14,24],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.convolution$depthwise(
 // CHECK-SAME:                                                %[[ARG:.*]]: !torch.vtensor<[5,4,10,20],f32>) -> !torch.vtensor<[5,4,5,10],f32> {
 // CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[5,4,10,20],f32> -> tensor<5x4x10x20xf32>

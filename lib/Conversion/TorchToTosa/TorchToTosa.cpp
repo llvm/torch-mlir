@@ -2654,8 +2654,17 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
                     m_TorchListOfConstantInts(paddingList)))
     return rewriter.notifyMatchFailure(op,
                                        "non-const padding list unsupported");
-  if (static_cast<int64_t>(paddingList.size()) != spatialRank)
-    return rewriter.notifyMatchFailure(op, "padding rank mismatch");
+  if (static_cast<int64_t>(paddingList.size()) != spatialRank) {
+    if (paddingList.size() == 1) {
+      // Torch `aten.convolution` accepts a single padding value and applies it
+      // uniformly across spatial dims. Expand it so TOSA receives per-dimension
+      // padding.
+      int64_t padVal = paddingList.front();
+      paddingList.assign(spatialRank, padVal);
+    } else {
+      return rewriter.notifyMatchFailure(op, "padding rank mismatch");
+    }
+  }
 
   // TOSA uses 4D padding {top, bottom, left, right} while PyTorch defines 2D
   // padding {height, width}. The PyTorch OFM computation uses 2*pad in each
