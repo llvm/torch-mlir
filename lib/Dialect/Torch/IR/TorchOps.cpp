@@ -423,12 +423,17 @@ void PrimLoopOp::getSuccessorRegions(
     RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &regions) {
   Region &region = getRegion();
   if (!point.getTerminatorPredecessorOrNull()) {
-    regions.emplace_back(&region, region.getArguments().slice(1));
+    regions.emplace_back(&region);
     return;
   }
   assert(point.getTerminatorPredecessorOrNull()->getParentRegion() == &region);
-  regions.emplace_back(&region, region.getArguments().slice(1));
-  regions.emplace_back(getOperation(), getResults());
+  regions.emplace_back(&region);
+  regions.emplace_back(RegionSuccessor::parent());
+}
+
+ValueRange PrimLoopOp::getSuccessorInputs(RegionSuccessor successor) {
+  return successor.isParent() ? ValueRange(getResults())
+                              : ValueRange(getRegion().getArguments().slice(1));
 }
 
 bool PrimLoopOp::isForLike() {
@@ -494,7 +499,7 @@ void PrimIfOp::getSuccessorRegions(RegionBranchPoint point,
                                    SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
   if (point.getTerminatorPredecessorOrNull()) {
-    regions.push_back(RegionSuccessor(getOperation(), getResults()));
+    regions.push_back(RegionSuccessor::parent());
     return;
   }
 
@@ -510,6 +515,10 @@ void PrimIfOp::getSuccessorRegions(RegionBranchPoint point,
   regions.push_back(RegionSuccessor(&getThenRegion()));
   regions.push_back(RegionSuccessor(&getElseRegion()));
   return;
+}
+
+ValueRange PrimIfOp::getSuccessorInputs(RegionSuccessor successor) {
+  return successor.isParent() ? ValueRange(getResults()) : ValueRange();
 }
 
 /// Replaces the given op with the contents of the given single-block region,
@@ -5376,7 +5385,7 @@ getSuccessorRegionsForCalculateOp(CalculateOp op, RegionBranchPoint point,
   Region *region = point.getTerminatorPredecessorOrNull()->getParentRegion();
   if (region == &op.getBody()) {
     // Body returns control to the outer op, passing through results.
-    regions.emplace_back(op.getOperation(), op.getResults());
+    regions.emplace_back(RegionSuccessor::parent());
     return;
   }
   assert(region == &op.getCalculation());
@@ -5389,6 +5398,10 @@ void ShapeCalculateOp::getSuccessorRegions(
   getSuccessorRegionsForCalculateOp(*this, point, regions);
 }
 
+ValueRange ShapeCalculateOp::getSuccessorInputs(RegionSuccessor successor) {
+  return successor.isParent() ? ValueRange(getResults()) : ValueRange();
+}
+
 //===----------------------------------------------------------------------===//
 // DtypeCalculateOp
 //===----------------------------------------------------------------------===//
@@ -5396,6 +5409,10 @@ void ShapeCalculateOp::getSuccessorRegions(
 void DtypeCalculateOp::getSuccessorRegions(
     RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &regions) {
   getSuccessorRegionsForCalculateOp(*this, point, regions);
+}
+
+ValueRange DtypeCalculateOp::getSuccessorInputs(RegionSuccessor successor) {
+  return successor.isParent() ? ValueRange(getResults()) : ValueRange();
 }
 
 //===----------------------------------------------------------------------===//
