@@ -59,6 +59,68 @@ func.func @convolution_backward_input_1x1s_0x0p_1x1d_1g(%arg0: !torch.vtensor<[2
 
 // -----
 
+// CHECK-LABEL:   func.func @convolution_backward_input_1x1s_0x0p_1x1d_1g_single_flip_dim(
+// CHECK-SAME:                                                %[[VAL_0:.*]]: !torch.vtensor<[2,16,64,63],f32>, %[[VAL_1:.*]]: !torch.vtensor<[2,128,64,64],f32>,
+// CHECK-SAME:                                                %[[VAL_2:.*]]: !torch.vtensor<[16,128,1,2],f32>,
+// CHECK-SAME:                                                %[[VAL_3:.*]]: !torch.vtensor<[],f32>) -> (!torch.vtensor<[2,128,64,64],f32>, !torch.vtensor<[16],f32>) {
+func.func @convolution_backward_input_1x1s_0x0p_1x1d_1g_single_flip_dim(%arg0: !torch.vtensor<[2,16,64,63],f32>, %arg1: !torch.vtensor<[2,128,64,64],f32>, %arg2: !torch.vtensor<[16,128,1,2],f32>, %arg3: !torch.vtensor<[],f32>) -> (!torch.vtensor<[2,128,64,64],f32>, !torch.vtensor<[16],f32>) {
+  // CHECK:           %[[CST0_INDEX:.*]] = arith.constant 0 : index
+  // CHECK:           %[[CST1:.*]] = arith.constant 1 : index
+  // CHECK:           %[[CST0:.*]] = arith.constant 0.000000e+00 : f32
+  // CHECK:           %[[T1:.*]] = torch_c.to_builtin_tensor %[[VAL_2]] : !torch.vtensor<[16,128,1,2],f32> -> tensor<16x128x1x2xf32>
+  // CHECK:           %[[T0:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[2,16,64,63],f32> -> tensor<2x16x64x63xf32>
+  // CHECK:           %[[W_EMPTY:.*]] = tensor.empty() : tensor<16x128x1x2xf32>
+  // CHECK:           %[[W_FILLED:.*]] = linalg.fill ins(%[[CST0]] : f32) outs(%[[W_EMPTY]] : tensor<16x128x1x2xf32>) -> tensor<16x128x1x2xf32>
+  // CHECK:           %[[W_REV:.*]] = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>, affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[T1]] : tensor<16x128x1x2xf32>) outs(%[[W_FILLED]] : tensor<16x128x1x2xf32>) {
+  // CHECK-NEXT:      ^bb0(%[[IN_W:.*]]: f32, %[[OUT_W:.*]]: f32):
+  // CHECK-NEXT:        %[[I0:.*]] = linalg.index 0 : index
+  // CHECK-NEXT:        %[[I1:.*]] = linalg.index 1 : index
+  // CHECK-NEXT:        %[[I3:.*]] = linalg.index 3 : index
+  // CHECK-NEXT:        %[[R3:.*]] = arith.subi %[[CST1]], %[[I3]] : index
+  // CHECK-NEXT:        %[[EX:.*]] = tensor.extract %[[T1]][%[[I0]], %[[I1]], %[[CST0_INDEX]], %[[R3]]] : tensor<16x128x1x2xf32>
+  // CHECK-NEXT:        linalg.yield %[[EX]] : f32
+  // CHECK-NEXT:      } -> tensor<16x128x1x2xf32>
+  // CHECK:           %[[PAD:.*]] = tensor.pad %[[T0]] low[0, 0, 0, 1] high[0, 0, 0, 1]
+  // CHECK:           ^bb0(%{{.*}}: index, %{{.*}}: index, %{{.*}}: index, %{{.*}}: index):
+  // CHECK:             tensor.yield %[[CST0]] : f32
+  // CHECK:           } : tensor<2x16x64x63xf32> to tensor<2x16x64x65xf32>
+  // CHECK:           %[[OUT_EMPTY:.*]] = tensor.empty() : tensor<2x128x64x64xf32>
+  // CHECK:           %[[OUT_FILLED:.*]] = linalg.fill ins(%[[CST0]] : f32) outs(%[[OUT_EMPTY]] : tensor<2x128x64x64xf32>) -> tensor<2x128x64x64xf32>
+  // CHECK:           %[[CONV:.*]] = linalg.generic {
+  // CHECK-SAME:          indexing_maps = [affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d4, d2 + d5, d3 + d6)>, affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d4, d1, d5, d6)>, affine_map<(d0, d1, d2, d3, d4, d5, d6) -> (d0, d1, d2, d3)>],
+  // CHECK-SAME:          iterator_types = ["parallel", "parallel", "parallel", "parallel", "reduction", "reduction", "reduction"]}
+  // CHECK-SAME:          ins(%[[PAD]], %[[W_REV]] : tensor<2x16x64x65xf32>, tensor<16x128x1x2xf32>)
+  // CHECK-SAME:          outs(%[[OUT_FILLED]] : tensor<2x128x64x64xf32>) {
+  // CHECK-NEXT:      ^bb0(%[[IN:.*]]: f32, %[[IN1:.*]]: f32, %[[OUT:.*]]: f32):
+  // CHECK-NEXT:        %[[MUL:.*]] = arith.mulf %[[IN]], %[[IN1]] : f32
+  // CHECK-NEXT:        %[[ACC:.*]] = arith.addf %[[MUL]], %[[OUT]] : f32
+  // CHECK-NEXT:        linalg.yield %[[ACC]] : f32
+  // CHECK-NEXT:      } -> tensor<2x128x64x64xf32>
+  // CHECK:           %[[IGRAD:.*]] = torch_c.from_builtin_tensor %[[CONV]] : tensor<2x128x64x64xf32> -> !torch.vtensor<[2,128,64,64],f32>
+  // CHECK:           %[[SUM_EMPTY:.*]] = tensor.empty() : tensor<16xf32>
+  // CHECK:           %[[SUM_FILLED:.*]] = linalg.fill ins(%[[CST0]] : f32) outs(%[[SUM_EMPTY]] : tensor<16xf32>) -> tensor<16xf32>
+  // CHECK:           %[[SUM_GEN:.*]] = linalg.generic {indexing_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>, affine_map<(d0, d1, d2, d3) -> (d1)>], iterator_types = ["reduction", "parallel", "reduction", "reduction"]} ins(%[[T0]] : tensor<2x16x64x63xf32>) outs(%[[SUM_FILLED]] : tensor<16xf32>) {
+  // CHECK-NEXT:      ^bb0(%[[IN_B:.*]]: f32, %[[ACC_B:.*]]: f32):
+  // CHECK-NEXT:        %[[B_RES:.*]] = arith.addf %[[IN_B]], %[[ACC_B]] : f32
+  // CHECK-NEXT:        linalg.yield %[[B_RES]] : f32
+  // CHECK-NEXT:      } -> tensor<16xf32>
+  // CHECK:           %[[BIAS:.*]] = torch_c.from_builtin_tensor %[[SUM_GEN]] : tensor<16xf32> -> !torch.vtensor<[16],f32>
+  // CHECK:           return %[[IGRAD]], %[[BIAS]] : !torch.vtensor<[2,128,64,64],f32>, !torch.vtensor<[16],f32>
+  %true = torch.constant.bool true
+  %int0 = torch.constant.int 0
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %0 = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %true, %false, %true : (!torch.bool, !torch.bool, !torch.bool) -> !torch.list<bool>
+  %result0, %result1, %result2 = torch.aten.convolution_backward %arg0, %arg1, %arg2, %0, %1, %2, %1, %false, %2, %int1, %3 : !torch.vtensor<[2,16,64,63],f32>, !torch.vtensor<[2,128,64,64],f32>, !torch.vtensor<[16,128,1,2],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int, !torch.list<bool> -> !torch.vtensor<[2,128,64,64],f32>, !torch.none, !torch.vtensor<[16],f32>
+  return %result0, %result2 : !torch.vtensor<[2,128,64,64],f32>, !torch.vtensor<[16],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @convolution_backward_input_1x1ker_1x1s_0x0p_1x1d_1g(
 // CHECK-SAME:                                                %[[VAL_0:.*]]: !torch.vtensor<[2,16,64,64],f32>, %[[VAL_1:.*]]: !torch.vtensor<[2,128,64,64],f32>,
 // CHECK-SAME:                                                %[[VAL_2:.*]]: !torch.vtensor<[16,128,1,1],f32>,
