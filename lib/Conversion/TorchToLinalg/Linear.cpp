@@ -1878,8 +1878,8 @@ public:
           weightFlipDims.push_back(castedIdx);
         }
       }
-      // Perform a flip if we have more than one non-trivial spatial dim.
-      if (weightFlipDims.size() > 1) {
+      // Perform a flip if we have at least one non-trivial spatial dim.
+      if (weightFlipDims.size() > 0) {
         weightExpanded = torch_to_linalg::flipTensor(
             rewriter, loc, weightExpanded, weightFlipDims);
       }
