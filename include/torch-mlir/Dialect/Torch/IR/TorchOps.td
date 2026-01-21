@@ -507,7 +507,7 @@ def Torch_PrimCallMethodOp : Torch_Op<"prim.CallMethod", []> {
 }
 
 def Torch_PrimLoopOp : Torch_Op<"prim.Loop", [
-  DeclareOpInterfaceMethods<RegionBranchOpInterface, ["getEntrySuccessorOperands"]>]> {
+  DeclareOpInterfaceMethods<RegionBranchOpInterface, ["getEntrySuccessorOperands", "getSuccessorInputs"]>]> {
   let summary = "TorchScript prim::Loop op";
   let description = [{
     This op (together with prim.Loop.condition) define a looping construct
@@ -559,7 +559,7 @@ def Torch_PrimLoopConditionOp : Torch_Op<"prim.Loop.condition", [
 }
 
 def Torch_PrimIfOp : Torch_Op<"prim.If", [
-  DeclareOpInterfaceMethods<RegionBranchOpInterface>]> {
+  DeclareOpInterfaceMethods<RegionBranchOpInterface, ["getSuccessorInputs"]>]> {
   let summary = "TorchScript prim::If op";
   let description = [{
     This op (together with prim.If.yield) define a conditional control flow
@@ -1183,7 +1183,7 @@ def Torch_RuntimeAssertOp: Torch_Op<"runtime.assert", [
 //===----------------------------------------------------------------------===//
 
 def Torch_ShapeCalculateOp : Torch_Op<"shape.calculate", [
-  DeclareOpInterfaceMethods<RegionBranchOpInterface>]> {
+  DeclareOpInterfaceMethods<RegionBranchOpInterface, ["getSuccessorInputs"]>]> {
   let summary = "Shape calculation encapsulation op";
   let description = [{
     The `torch.shape.calculate` op captures a shape calculation
@@ -1263,7 +1263,7 @@ def Torch_ShapeCalculateYieldShapesOp : Torch_Op<"shape.calculate.yield.shapes",
 //===----------------------------------------------------------------------===//
 
 def Torch_DtypeCalculateOp : Torch_Op<"dtype.calculate", [
-  DeclareOpInterfaceMethods<RegionBranchOpInterface>]> {
+  DeclareOpInterfaceMethods<RegionBranchOpInterface, ["getSuccessorInputs"]>]> {
   let summary = "Dtype calculation encapsulation op";
   let description = [{
     The `torch.dtype.calculate` op captures a dtype calculation
