@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include "mlir/IR/Operation.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "llvm/ADT/StringRef.h"
@@ -30,6 +31,14 @@ inline bool isTransformerEncoderOperator(Torch::OperatorOp op) {
   if (!nameAttr)
     return false;
   return isTransformerEncoderOperatorName(nameAttr.getValue());
+}
+
+inline bool isTransformerEncoderOp(Operation *op) {
+  if (!op)
+    return false;
+  if (auto operatorOp = dyn_cast<Torch::OperatorOp>(op))
+    return isTransformerEncoderOperator(operatorOp);
+  return isa<Torch::AtenTransformerEncoderLayerFwdDefaultOp>(op);
 }
 
 } // namespace Torch

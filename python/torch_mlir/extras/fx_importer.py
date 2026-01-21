@@ -141,6 +141,13 @@ __all__ = [
     "FxImporter",
 ]
 
+_SPECIAL_CASE_OVERLOADS = {
+    # Upstream Torch schema omits the ".default" overload label for this op even
+    # though the registered MLIR op name includes it. Force the expected suffix
+    # so we can round-trip the first-class op.
+    "aten::_transformer_encoder_layer_fwd": "default",
+}
+
 REQUIRED_DIALCTS = [
     "builtin",
     "func",
@@ -2603,8 +2610,11 @@ def _get_mlir_op_name_for_schema(schema: FunctionSchema) -> str:
     namespace, sep, unqualified_name = schema.name.partition("::")
     assert sep, f"Malformed Torch op name {schema.name}"
     mlir_op_name = f"torch.{namespace}.{unqualified_name}"
-    if schema.overload_name != "":
-        mlir_op_name += f".{schema.overload_name}"
+    overload_name = schema.overload_name
+    if overload_name == "":
+        overload_name = _SPECIAL_CASE_OVERLOADS.get(schema.name, "")
+    if overload_name:
+        mlir_op_name += f".{overload_name}"
     return mlir_op_name
 
 

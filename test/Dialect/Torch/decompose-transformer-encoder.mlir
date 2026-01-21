@@ -12,7 +12,7 @@ module {
   // DECOMPOSE: torch.aten.matmul %{{.*}}, %{{.*}} : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[1,2,4,4],f32> -> !torch.vtensor<[1,2,4,4],f32>
   // DECOMPOSE: torch.aten.gelu %{{.*}} : !torch.vtensor<[1,4,16],f32>, !torch.str -> !torch.vtensor<[1,4,16],f32>
   // DECOMPOSE: return %{{.*}} : !torch.vtensor<[1,4,8],f32>
-  // DECOMPOSE-NOT: torch.operator "torch.aten._transformer_encoder_layer_fwd"
+  // DECOMPOSE-NOT: torch.aten._transformer_encoder_layer_fwd.default
   func.func @transformer(
       %arg0: !torch.vtensor<[1,4,8],f32>,
       %qkv_weight: !torch.vtensor<[24,8],f32>,
@@ -33,20 +33,19 @@ module {
     %norm_first = torch.constant.bool false
     %eps = torch.constant.float 1.000000e-05
     %none = torch.constant.none
-    %result = torch.operator "torch.aten._transformer_encoder_layer_fwd.default"(
+    %result = torch.aten._transformer_encoder_layer_fwd.default
         %arg0, %embed_dim, %num_heads, %qkv_weight, %qkv_bias, %proj_weight,
         %proj_bias, %use_gelu, %norm_first, %eps, %norm1_weight, %norm1_bias,
         %norm2_weight, %norm2_bias, %ffn1_weight, %ffn1_bias, %ffn2_weight,
         %ffn2_bias, %none, %none
-      ) : (!torch.vtensor<[1,4,8],f32>, !torch.int, !torch.int,
-           !torch.vtensor<[24,8],f32>, !torch.vtensor<[24],f32>,
-           !torch.vtensor<[8,8],f32>, !torch.vtensor<[8],f32>, !torch.bool,
-           !torch.bool, !torch.float, !torch.vtensor<[8],f32>,
-           !torch.vtensor<[8],f32>, !torch.vtensor<[8],f32>,
-           !torch.vtensor<[8],f32>, !torch.vtensor<[16,8],f32>,
-           !torch.vtensor<[16],f32>, !torch.vtensor<[8,16],f32>,
-           !torch.vtensor<[8],f32>, !torch.none, !torch.none)
-        -> !torch.vtensor<[1,4,8],f32>
+        : !torch.vtensor<[1,4,8],f32>, !torch.int, !torch.int,
+          !torch.vtensor<[24,8],f32>, !torch.vtensor<[24],f32>,
+          !torch.vtensor<[8,8],f32>, !torch.vtensor<[8],f32>, !torch.bool,
+          !torch.bool, !torch.float, !torch.vtensor<[8],f32>,
+          !torch.vtensor<[8],f32>, !torch.vtensor<[8],f32>,
+          !torch.vtensor<[8],f32>, !torch.vtensor<[16,8],f32>,
+          !torch.vtensor<[16],f32>, !torch.vtensor<[8,16],f32>,
+          !torch.vtensor<[8],f32>, !torch.none, !torch.none -> !torch.vtensor<[1,4,8],f32>
     return %result : !torch.vtensor<[1,4,8],f32>
   }
 }
@@ -86,20 +85,19 @@ module {
     %norm_first = torch.constant.bool false
     %eps = torch.constant.float 1.000000e-05
     %none = torch.constant.none
-    %result = torch.operator "torch.aten._transformer_encoder_layer_fwd.default"(
+    %result = torch.aten._transformer_encoder_layer_fwd.default
         %arg0, %embed_dim, %num_heads, %qkv_weight, %qkv_bias, %proj_weight,
         %proj_bias, %use_gelu, %norm_first, %eps, %norm1_weight, %norm1_bias,
         %norm2_weight, %norm2_bias, %ffn1_weight, %ffn1_bias, %ffn2_weight,
         %ffn2_bias, %none, %none
-      ) : (!torch.vtensor<[1,4,8],f32>, !torch.int, !torch.int,
-           !torch.vtensor<[24,8],f32>, !torch.vtensor<[24],f32>,
-           !torch.vtensor<[8,8],f32>, !torch.vtensor<[8],f32>, !torch.bool,
-           !torch.bool, !torch.float, !torch.vtensor<[8],f32>,
-           !torch.vtensor<[8],f32>, !torch.vtensor<[8],f32>,
-           !torch.vtensor<[8],f32>, !torch.vtensor<[16,8],f32>,
-           !torch.vtensor<[16],f32>, !torch.vtensor<[8,16],f32>,
-           !torch.vtensor<[8],f32>, !torch.none, !torch.none)
-        -> !torch.vtensor<[1,4,8],f32>
+        : !torch.vtensor<[1,4,8],f32>, !torch.int, !torch.int,
+          !torch.vtensor<[24,8],f32>, !torch.vtensor<[24],f32>,
+          !torch.vtensor<[8,8],f32>, !torch.vtensor<[8],f32>, !torch.bool,
+          !torch.bool, !torch.float, !torch.vtensor<[8],f32>,
+          !torch.vtensor<[8],f32>, !torch.vtensor<[8],f32>,
+          !torch.vtensor<[8],f32>, !torch.vtensor<[16,8],f32>,
+          !torch.vtensor<[16],f32>, !torch.vtensor<[8,16],f32>,
+          !torch.vtensor<[8],f32>, !torch.none, !torch.none -> !torch.vtensor<[1,4,8],f32>
     return %result : !torch.vtensor<[1,4,8],f32>
   }
 }

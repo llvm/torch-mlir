@@ -861,6 +861,55 @@ def Torch_OperatorTerminatorOp : Torch_Op<"operator_terminator", [Terminator,
   let assemblyFormat = "$operands attr-dict `:` type($operands)";
 }
 
+def Torch_AtenTransformerEncoderLayerFwdDefaultOp
+    : Torch_Op<"aten._transformer_encoder_layer_fwd.default", [
+        AllowsTypeRefinement,
+        HasValueSemantics,
+        ReadOnly
+      ]> {
+  let summary = "First-class op for `aten::_transformer_encoder_layer_fwd.default`";
+  let description = [{
+    This op models `aten::_transformer_encoder_layer_fwd.default`.
+    It accepts the raw weights/biases used to implement a single transformer
+    encoder layer and produces the encoded tensor.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    Torch_IntType:$embed_dim,
+    Torch_IntType:$num_heads,
+    AnyTorchTensorType:$qkv_weight,
+    AnyTorchTensorType:$qkv_bias,
+    AnyTorchTensorType:$proj_weight,
+    AnyTorchTensorType:$proj_bias,
+    Torch_BoolType:$use_gelu,
+    Torch_BoolType:$norm_first,
+    Torch_FloatType:$eps,
+    AnyTorchTensorType:$norm1_weight,
+    AnyTorchTensorType:$norm1_bias,
+    AnyTorchTensorType:$norm2_weight,
+    AnyTorchTensorType:$norm2_bias,
+    AnyTorchTensorType:$ffn1_weight,
+    AnyTorchTensorType:$ffn1_bias,
+    AnyTorchTensorType:$ffn2_weight,
+    AnyTorchTensorType:$ffn2_bias,
+    AnyTorchOptionalTensorType:$mask,
+    AnyTorchOptionalIntType:$mask_type
+  );
+  let results = (outs
+    AnyTorchTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenTransformerEncoderLayerFwdDefaultOp::parse(
+        OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 20, 1);
+    }
+    void AtenTransformerEncoderLayerFwdDefaultOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 20, 1);
+    }
+  }];
+}
+
 def Torch_LinearParamsCreateOp : Torch_Op<"linear_params.create", [
     AllowsTypeRefinement,
     AllowedInModuleInitializer,

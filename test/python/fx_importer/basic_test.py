@@ -207,6 +207,61 @@ def test_full():
 
 
 @run
+# CHECK-LABEL: test_transformer_encoder_layer_roundtrip
+# CHECK: torch.aten._transformer_encoder_layer_fwd.default
+def test_transformer_encoder_layer_roundtrip():
+    class EncoderLayerModule(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embed_dim = 8
+            self.num_heads = 2
+            hidden_dim = 16
+            self.qkv_weight = nn.Parameter(
+                torch.randn(3 * self.embed_dim, self.embed_dim)
+            )
+            self.qkv_bias = nn.Parameter(torch.randn(3 * self.embed_dim))
+            self.proj_weight = nn.Parameter(torch.randn(self.embed_dim, self.embed_dim))
+            self.proj_bias = nn.Parameter(torch.randn(self.embed_dim))
+            self.norm1_weight = nn.Parameter(torch.randn(self.embed_dim))
+            self.norm1_bias = nn.Parameter(torch.randn(self.embed_dim))
+            self.norm2_weight = nn.Parameter(torch.randn(self.embed_dim))
+            self.norm2_bias = nn.Parameter(torch.randn(self.embed_dim))
+            self.ffn1_weight = nn.Parameter(torch.randn(hidden_dim, self.embed_dim))
+            self.ffn1_bias = nn.Parameter(torch.randn(hidden_dim))
+            self.ffn2_weight = nn.Parameter(torch.randn(self.embed_dim, hidden_dim))
+            self.ffn2_bias = nn.Parameter(torch.randn(self.embed_dim))
+
+        def forward(self, x):
+            return torch.ops.aten._transformer_encoder_layer_fwd.default(
+                x,
+                self.embed_dim,
+                self.num_heads,
+                self.qkv_weight,
+                self.qkv_bias,
+                self.proj_weight,
+                self.proj_bias,
+                True,
+                False,
+                1.0e-5,
+                self.norm1_weight,
+                self.norm1_bias,
+                self.norm2_weight,
+                self.norm2_bias,
+                self.ffn1_weight,
+                self.ffn1_bias,
+                self.ffn2_weight,
+                self.ffn2_bias,
+                None,
+                None,
+            )
+
+    module = EncoderLayerModule()
+    input_tensor = torch.randn(1, 4, module.embed_dim)
+    m = fx.export_and_import(module, input_tensor, func_name="encoder_layer")
+    print(m)
+
+
+@run
 # CHECK-LABEL: test_while_loop_two_returns
 # Check that helper functions are emitted first
 # CHECK: func.func private @while_loop_cond_graph_{{[0-9]+}}(%arg0: !torch.vtensor<[],si64>, %arg1: !torch.vtensor<[4,4],f32>) -> !torch.vtensor<[],i1>
