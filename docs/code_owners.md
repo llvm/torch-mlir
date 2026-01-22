@@ -59,10 +59,14 @@ and Clang's
 
 ### LLVM Integrate
 
-- Zach Garvey (@zjgarvey)
-- Vivek Handelwahl (@vivekkhandelwal1)
-- Ashay Rane (@ashay)
+- Zach Garvey (@zjgarvey) **
+- Ashay Rane (@ashay) **
 - Maybe you!*
+
+### Roll Pytorch
+
+- Zach Garvey (@zjgarvey) **
 
 
 *Please submit a pull request to add/remove your name as a code owner.
+**This job is not the sole-responsibility of these people. If you are an active contributor, please help with updating core dependencies.
