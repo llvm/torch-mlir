@@ -1,5 +1,21 @@
 # Development Guide
 
+## Requesting Repository Permissions
+
+To request repository permissions, please file an issue with the template: [🔑 Request Github Access 🔑](https://github.com/llvm/torch-mlir/issues)
+
+There are essentially three levels of access:
+
+1. Anyone (including you!): Can access the codebase, create or comment on issues and pull requests.
+
+2. Triage: Can also manage issues and pull requests, request reviewers. If you have contributed to either this repo or other MLIR-based open source projects, please link two recent PR's to your access request issue. Please also indicate why you are requesting access.
+
+3. Write: Can push to the repo (Note: all commits should be reviewed and approved through a pull request). In addition to the requirements for Triage access, you should have a reputation for quality work and general engineering discipline within at least one part of this project.
+
+4. Admin: This project is relatively stable, and some admins have moved on to other projects. Request this access if your team, company, or research project has need to maintain a part of the project that isn't being actively engaged with by existing admins **and** you feel like the existing admins are not responsive enough to the repository access requests submitted by members of your team.
+
+Note: to add yourself as a code owner for an area of the codebase, simply submit a pull request to change `docs/code_owners.md`. You do not explicitly need any repository role in order to be a code owner.
+
 ## Setting Up Environment
 
 ### Clone the Repository

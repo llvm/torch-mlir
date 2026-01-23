@@ -1,0 +1,56 @@
+name: 🔑 Request Github Access 🔑
+
+description: Request elevated repository permissions for torch-mlir.
+labels: ["Access Request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We are glad you want to join our community!
+
+        Please view the [developer documentation](https://github.com/llvm/torch-mlir/blob/main/docs/development.md#requesting-repository-permissions) for requirements to request access.
+
+  - type: dropdown
+    id: desired-role
+    attributes:
+      label: Which role are you requesting?
+      description: |
+        Triage: manage issues and pull requests
+        Write: Triage + can push code
+        Admin: Write + access to repository settings, including the ability to grant roles to new members.
+      multiple: false
+      options:
+        - Triage
+        - Write
+        - Admin
+    validations:
+      required: true
+  - type: textarea
+    id: reason-for-access
+    attributes:
+      label: Reason for Access
+      description: |
+        Tell us why you want to get elevated permissions for the repository.
+
+        If you have a downstream use for torch-mlir, or a desire to help maintain part of the codebase, please indicate that here.
+
+        Working for a company or having a specific use-case is not required, but can be helpful context (e.g. for higher-level permissions).
+      placeholder: My downstream project has a use for ... and I want to help maintain ...
+    validations:
+      required: true
+  - type: textarea
+    id: recent-prs
+    attributes:
+      label: Recent Pull Requests
+      description: Please link two of your recent pull requests in this repository (or a similar open-source repository).
+      placeholder: |
+        Example PR 1:
+        Example PR 2:
+    validations:
+      required: true
+  - type: textarea
+    id: optional-additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context you think is relevant.
+      placeholder:
