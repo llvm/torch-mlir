@@ -26,7 +26,8 @@ createConvertTorchToStablehloPass();
 // Convenience wrapper for users who want to pass options as individual
 // parameters
 std::unique_ptr<OperationPass<func::FuncOp>>
-createConvertTorchToStablehloPass(bool enableStaticShape, bool enableI32Index);
+createConvertTorchToStablehloPass(bool enableStaticShape, bool enableI32Index,
+                                  bool allowNonFinites);
 
 } // namespace torch
 } // namespace mlir

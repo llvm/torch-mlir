@@ -21,10 +21,22 @@ class ModuleOp;
 
 namespace torch {
 namespace TorchConversion {
+struct LinalgOnTensorsBackendPipelineOptions
+    : public PassPipelineOptions<LinalgOnTensorsBackendPipelineOptions> {
+  Option<bool> allowNonFinites{
+      *this, "allow-non-finites",
+      llvm::cl::desc(
+          "When enabled (default), some ops may emit non-finites, for example, "
+          "max pooling may compare values to an initial value of `-inf`. When "
+          "disabled, non-finites will be replaced with the closest finite "
+          "value for a given dtype."),
+      llvm::cl::init(true)};
+};
 
 /// Creates a pipeline that lowers from the torch backend contract to the
 /// linalg-on-tensors backend contract.
-void createTorchBackendToLinalgOnTensorsBackendPipeline(OpPassManager &pm);
+void createTorchBackendToLinalgOnTensorsBackendPipeline(
+    OpPassManager &pm, const LinalgOnTensorsBackendPipelineOptions &options);
 
 // Do not register the TOSA options if the TOSA target is disabled
 #ifdef TORCH_MLIR_ENABLE_TOSA
@@ -59,6 +71,14 @@ struct StablehloBackendPipelineOptions
       *this, "enable-i32-index",
       llvm::cl::desc("Enable truncate index from i64 to i32(unsafely)"),
       llvm::cl::init(false)};
+  Option<bool> allowNonFinites{
+      *this, "allow-non-finites",
+      llvm::cl::desc(
+          "When enabled (default), some ops may emit non-finites, for example, "
+          "max pooling may compare values to an initial value of `-inf`. When "
+          "disabled, non-finites will be replaced with the closest finite "
+          "value for a given dtype."),
+      llvm::cl::init(true)};
 };
 
 void createTorchBackendToStablehloBackendPipeline(

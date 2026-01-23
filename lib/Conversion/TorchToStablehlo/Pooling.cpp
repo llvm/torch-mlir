@@ -28,7 +28,8 @@ using namespace mlir::torch::Torch;
 using namespace mlir::torch::torch_to_stablehlo;
 
 static Value createInitialValueForAtenPoolingOp(Operation *op, Type elementTy,
-                                                PatternRewriter &rewriter) {
+                                                PatternRewriter &rewriter,
+                                                bool allowNonFinites) {
   auto constType = RankedTensorType::get({}, elementTy);
   // Avg pooling
   if (isa<AtenAvgPool1dOp, AtenAdaptiveAvgPool2dOp, AtenAvgPool2dOp,
@@ -54,9 +55,8 @@ static Value createInitialValueForAtenPoolingOp(Operation *op, Type elementTy,
           AtenMaxPool1dWithIndicesOp, AtenMaxPool2dWithIndicesOp>(op)) {
     if (isa<mlir::FloatType>(elementTy)) {
       auto constAttr = DenseElementsAttr::get(
-          constType,
-          {APFloat::getInf(cast<mlir::FloatType>(elementTy).getFloatSemantics(),
-                           /*negative=*/true)});
+          constType, {getFloatInf(cast<mlir::FloatType>(elementTy),
+                                  /*negative=*/true, allowNonFinites)});
       return stablehlo::ConstantOp::create(rewriter, op->getLoc(), constType,
                                            constAttr);
     } else if (isa<mlir::IntegerType>(elementTy) &&
@@ -154,7 +154,8 @@ LogicalResult ConvertAtenOp<AtenMaxPool1dWithIndicesOp>::matchAndRewrite(
     }
   }
 
-  Value initVal = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
+  Value initVal = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter,
+                                                     options.allowNonFinites);
 
   auto windowDimensions = rewriter.getDenseI64ArrayAttr(stablehloKernelSize);
   auto windowStrides = rewriter.getDenseI64ArrayAttr(stablehloStride);
@@ -305,7 +306,8 @@ LogicalResult ConvertAtenOp<AtenMaxPool2dWithIndicesOp>::matchAndRewrite(
   std::copy(kernelSize.begin(), kernelSize.end(),
             stablehloKernelSize.begin() + inputRank - 2);
 
-  Value initVal = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
+  Value initVal = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter,
+                                                     options.allowNonFinites);
 
   stablehloPadding[stablehloPadding.size() - 4] = padding[0];
   stablehloPadding[stablehloPadding.size() - 3] = padding[0];
@@ -493,8 +495,9 @@ public:
     std::copy(kernelSize.begin(), kernelSize.end(),
               stablehloKernelSize.begin() + inputRank - Dim);
 
-    Value initVal =
-        createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
+    const auto &options = ConvertAtenOp<AtenOpT>::getOptions();
+    Value initVal = createInitialValueForAtenPoolingOp(
+        op, inputElemTy, rewriter, options.allowNonFinites);
 
     if (Dim < 1 || Dim > 3) {
       assert(false && "Unsupported pooling dimension");
@@ -669,8 +672,9 @@ public:
       assert(false && "Unsupported pooling dimension");
     }
 
-    Value initVal =
-        createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
+    const auto &options = ConvertAtenOp<AtenOpT>::getOptions();
+    Value initVal = createInitialValueForAtenPoolingOp(
+        op, inputElemTy, rewriter, options.allowNonFinites);
 
     auto windowDimensions = rewriter.getDenseI64ArrayAttr(stablehloKernelSize);
     auto windowStrides = rewriter.getDenseI64ArrayAttr(stablehloStride);
@@ -745,7 +749,8 @@ public:
         RankedTensorType::get(inputTy.getShape(), outTy.getElementType()),
         windowSizeConst, inputShapeTensor, rewriter.getDenseI64ArrayAttr({}));
 
-    Value zero = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
+    Value zero = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter,
+                                                    options.allowNonFinites);
     auto reduceWindowSize = stablehlo::ReduceWindowOp::create(
         rewriter, op->getLoc(), RankedTensorType::get(outShape, inputElemTy),
         windowSizeConst, zero, windowDimensions, windowStrides, baseDilations,
@@ -806,7 +811,8 @@ LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
         op, "unimplemented: cumsum dim must be static");
   }
 
-  Value initVal = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter);
+  Value initVal = createInitialValueForAtenPoolingOp(op, inputElemTy, rewriter,
+                                                     options.allowNonFinites);
 
   SmallVector<int64_t> stablehloKernelSize(inputRank, 1);
   stablehloKernelSize[dim] = inputShape[dim];

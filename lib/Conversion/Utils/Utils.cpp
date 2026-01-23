@@ -621,6 +621,13 @@ LogicalResult getQuantizationParams(Value value, Value &zeropoint, Value &scale,
       .Default([](auto) { return failure(); });
 }
 
+APFloat getFloatInf(mlir::FloatType fpType, bool negative,
+                    bool allowNonFinites) {
+  return allowNonFinites
+             ? APFloat::getInf(fpType.getFloatSemantics(), negative)
+             : APFloat::getLargest(fpType.getFloatSemantics(), negative);
+}
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

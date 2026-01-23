@@ -72,13 +72,13 @@ bool skipMultiplyAlpha(Value alphaValue) {
 }
 
 static FailureOr<Value> getMaxValueOfDtype(Operation *op, Type elementType,
-                                           PatternRewriter &rewriter) {
+                                           PatternRewriter &rewriter,
+                                           bool allowNonFinites) {
   auto constType = RankedTensorType::get({}, elementType);
   if (isa<mlir::FloatType>(elementType)) {
     auto constAttr = SplatElementsAttr::get(
-        constType,
-        APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
-                        /*negative=*/false));
+        constType, getFloatInf(cast<mlir::FloatType>(elementType),
+                               /*negative=*/false, allowNonFinites));
     return stablehlo::ConstantOp::create(rewriter, op->getLoc(), constType,
                                          constAttr)
         .getResult();
@@ -101,13 +101,13 @@ static FailureOr<Value> getMaxValueOfDtype(Operation *op, Type elementType,
 }
 
 static FailureOr<Value> getMinValueOfDtype(Operation *op, Type elementType,
-                                           PatternRewriter &rewriter) {
+                                           PatternRewriter &rewriter,
+                                           bool allowNonFinites) {
   auto constType = RankedTensorType::get({}, elementType);
   if (isa<mlir::FloatType>(elementType)) {
     auto constAttr = SplatElementsAttr::get(
-        constType,
-        APFloat::getInf(cast<mlir::FloatType>(elementType).getFloatSemantics(),
-                        /*negative=*/true));
+        constType, getFloatInf(cast<mlir::FloatType>(elementType),
+                               /*negative=*/true, allowNonFinites));
     return stablehlo::ConstantOp::create(rewriter, op->getLoc(), constType,
                                          constAttr)
         .getResult();
@@ -1607,7 +1607,8 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
   } else if (failed(checkNotNone(rewriter, op, minValue))) {
     maxValue =
         hlo::scalarToStablehloTensor(rewriter, op, maxValue, inputElemType);
-    auto minInfo = getMinValueOfDtype(op, inputElemType, rewriter);
+    auto minInfo = getMinValueOfDtype(op, inputElemType, rewriter,
+                                      options.allowNonFinites);
     if (failed(minInfo)) {
       return rewriter.notifyMatchFailure(
           op, "failed to generate min value of dtype");
@@ -1616,7 +1617,8 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
   } else if (failed(checkNotNone(rewriter, op, maxValue))) {
     minValue =
         hlo::scalarToStablehloTensor(rewriter, op, minValue, inputElemType);
-    auto maxInfo = getMaxValueOfDtype(op, inputElemType, rewriter);
+    auto maxInfo = getMaxValueOfDtype(op, inputElemType, rewriter,
+                                      options.allowNonFinites);
     if (failed(maxInfo)) {
       return rewriter.notifyMatchFailure(
           op, "failed to generate max value of dtype");
@@ -1649,14 +1651,16 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "this op should be folded as its `min` and `max` both are none");
   } else if (failed(minIsNotNone)) {
-    auto minInfo = getMinValueOfDtype(op, inputElemType, rewriter);
+    auto minInfo = getMinValueOfDtype(op, inputElemType, rewriter,
+                                      options.allowNonFinites);
     if (failed(minInfo)) {
       return rewriter.notifyMatchFailure(
           op, "failed to generate min value of dtype");
     }
     minValue = *minInfo;
   } else if (failed(maxIsNotNone)) {
-    auto maxInfo = getMaxValueOfDtype(op, inputElemType, rewriter);
+    auto maxInfo = getMaxValueOfDtype(op, inputElemType, rewriter,
+                                      options.allowNonFinites);
     if (failed(maxInfo)) {
       return rewriter.notifyMatchFailure(
           op, "failed to generate max value of dtype");

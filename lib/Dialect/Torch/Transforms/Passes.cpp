@@ -97,7 +97,8 @@ void mlir::torch::Torch::createTorchFunctionToTorchBackendPipeline(
 
 void mlir::torch::Torch::createTorchOnnxToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
-  pm.addNestedPass<func::FuncOp>(onnx_c::createTorchOnnxToTorchPass());
+  pm.addNestedPass<func::FuncOp>(
+      onnx_c::createTorchOnnxToTorchPass(options.allowNonFinites));
   // The above pass just converts the torch onnx IR to torch, hence the given
   // pipeline will make sure that the IR is transformed such that it satisfies
   // the backend contract.

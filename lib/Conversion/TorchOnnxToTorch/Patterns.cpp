@@ -55,3 +55,15 @@ void OnnxCustomOpConversionPattern::onOp(StringRef name, int64_t sinceVersion,
   StringAttr nameAttr = StringAttr::get(getContext(), fullName);
   namedHandlers[nameAttr].push_back(HandlerReg(callback, sinceVersion));
 }
+
+void OnnxCustomOpConversionPattern::onOp(StringRef name, int64_t sinceVersion,
+                                         HandlerFnWithOptions callback) {
+  // Wrap the callback with options to match HandlerFn signature
+  auto wrapper = [callback,
+                  this](OpBinder binder,
+                        ConversionPatternRewriter &rewriter) -> LogicalResult {
+    return callback(binder, rewriter, this->options);
+  };
+
+  onOp(name, sinceVersion, std::move(wrapper));
+}

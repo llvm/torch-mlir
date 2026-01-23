@@ -42,6 +42,9 @@ namespace {
 class ConvertTorchToLinalg
     : public impl::ConvertTorchToLinalgBase<ConvertTorchToLinalg> {
 public:
+  using impl::ConvertTorchToLinalgBase<
+      ConvertTorchToLinalg>::ConvertTorchToLinalgBase;
+
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<linalg::LinalgDialect>();
     registry.insert<math::MathDialect>();
@@ -73,14 +76,14 @@ public:
         typeConverter, patterns, target);
     torch_to_linalg::populateLinearPatternsAndLegality(typeConverter, patterns,
                                                        target);
-    torch_to_linalg::populatePoolingPatternsAndLegality(typeConverter, patterns,
-                                                        target);
+    torch_to_linalg::populatePoolingPatternsAndLegality(
+        typeConverter, patterns, target, this->allowNonFinites);
     torch_to_linalg::populateRandomPatternsAndLegality(typeConverter, patterns,
                                                        target);
     torch_to_linalg::populateUncategorizedPatternsAndLegality(typeConverter,
                                                               patterns, target);
-    torch_to_linalg::populateReductionPatternsAndLegality(typeConverter,
-                                                          patterns, target);
+    torch_to_linalg::populateReductionPatternsAndLegality(
+        typeConverter, patterns, target, this->allowNonFinites);
     torch_to_linalg::populateDataMovementPatternsAndLegality(typeConverter,
                                                              patterns, target);
     torch_to_linalg::populateIndirectDataMovementPatternsAndLegality(
@@ -97,6 +100,13 @@ public:
 
 std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToLinalgPass() {
   return std::make_unique<ConvertTorchToLinalg>();
+}
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createConvertTorchToLinalgPass(bool allowNonFinites) {
+  ConvertTorchToLinalgOptions options;
+  options.allowNonFinites = allowNonFinites;
+  return std::make_unique<ConvertTorchToLinalg>(options);
 }
 
 } // namespace mlir::torch

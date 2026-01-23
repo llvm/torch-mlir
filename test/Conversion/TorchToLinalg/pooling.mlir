@@ -8,6 +8,7 @@ func.func @forward_max_pool1d(%arg0: !torch.vtensor<[?,?,?],f32>) -> !torch.vten
   %int4 = torch.constant.int 4
   %false = torch.constant.bool false
   // CHECK: %[[NEUTRAL:.*]] = arith.constant 0xFF800000 : f32
+  // CHECK-NOT: arith.constant -3.40282347E+38 : f32
   // CHECK: %[[PADDED:.*]] = tensor.pad %{{.*}} low[0, 0, 3] high[0, 0, 3]
   // CHECK: %[[OUT:.*]] = linalg.fill ins(%[[NEUTRAL]] : f32) outs(%{{.*}} : tensor<?x?x?xf32>) -> tensor<?x?x?xf32>
   // CHECK: %[[INIT:.*]] = tensor.empty() : tensor<1xf32>
@@ -106,7 +107,7 @@ func.func @forward_max_pool3d(%arg0: !torch.vtensor<[?,?,?,?,?],f32>) -> !torch.
 
   %4 = torch.aten.max_pool3d %arg0, %kernel_size, %stride, %padding, %dilation, %false : !torch.vtensor<[?,?,?,?,?],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[?,?,?,?,?],f32>
 
-  // CHECK: %[[MIN_VALUE:.*]] = arith.constant 0xFF800000 : f32
+  // CHECK: %[[NEUTRAL:.*]] = arith.constant 0xFF800000 : f32
   // CHECK: %[[PADDED_INPUT_TENSOR:.*]] = tensor.pad %{{.*}} low[0, 0, 4, 4, 4] high[0, 0, 4, 4, 4] {
   // CHECK-NEXT: ^bb0(%{{.*}}: index, %{{.*}}: index, %{{.*}}: index, %{{.*}}: index, %{{.*}}: index):
   // CHECK-NEXT:  tensor.yield %[[MIN_VALUE:.*]] : f32

@@ -17,7 +17,12 @@
 
 namespace mlir::torch::onnx_c {
 
+#define GEN_PASS_DECL_CONVERTTORCHONNXTOTORCH
+#include "torch-mlir/Conversion/TorchOnnxToTorch/Passes.h.inc"
+
 std::unique_ptr<OperationPass<func::FuncOp>> createTorchOnnxToTorchPass();
+std::unique_ptr<OperationPass<func::FuncOp>>
+createTorchOnnxToTorchPass(bool allowNonFinites);
 
 /// Registers all torch-mlir conversion passes.
 void registerTorchOnnxToTorchPasses();

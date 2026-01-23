@@ -44,6 +44,9 @@ int64_t getDefaultOpsetVersion(Operation *containerOp) {
 class ConvertTorchOnnxToTorch
     : public impl::ConvertTorchOnnxToTorchBase<ConvertTorchOnnxToTorch> {
 public:
+  using impl::ConvertTorchOnnxToTorchBase<
+      ConvertTorchOnnxToTorch>::ConvertTorchOnnxToTorchBase;
+
   ConvertTorchOnnxToTorch() = default;
   void runOnOperation() override {
     MLIRContext *context = &getContext();
@@ -57,14 +60,16 @@ public:
       return signalPassFailure();
     }
 
+    OnnxTorchToTorchOptions options{allowNonFinites};
+
     auto defaultDomainPatterns =
         std::make_unique<OnnxCustomOpConversionPattern>(
             context, "onnx.",
-            /*domainVersion=*/defaultOpsetVersion);
+            /*domainVersion=*/defaultOpsetVersion, options);
     populateComMicrosoftDomain(*defaultDomainPatterns);
     populateDefaultDomainAtoF(*defaultDomainPatterns);
     populateDefaultDomainGtoP(*defaultDomainPatterns);
-    populateDefaultDomainQtoZ(*defaultDomainPatterns);
+    populateDefaultDomainQtoZ(*defaultDomainPatterns, options);
 
     // Ask each domain for its handled names and configure the
     // conversion target.
@@ -89,6 +94,13 @@ public:
 
 std::unique_ptr<OperationPass<func::FuncOp>> createTorchOnnxToTorchPass() {
   return std::make_unique<ConvertTorchOnnxToTorch>();
+}
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createTorchOnnxToTorchPass(bool allowNonFinites) {
+  ConvertTorchOnnxToTorchOptions options;
+  options.allowNonFinites = allowNonFinites;
+  return std::make_unique<ConvertTorchOnnxToTorch>(options);
 }
 
 } // namespace mlir::torch::onnx_c
