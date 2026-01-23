@@ -104,9 +104,9 @@ def ConvertTorchToLinalg : Pass<"convert-torch-to-linalg", "func::FuncOp"> {
   }];
   let constructor = "mlir::torch::createConvertTorchToLinalgPass()";
   let options = [
-    Option<"supportsNonFinites", "supports-non-finites",
+    Option<"allowNonFinites", "allow-non-finites",
             "bool", /*default=*/"true",
-            "When enabled emits non-finites, such as, inf. Otherwise emits representative float value, for example, realmax instead of inf.">,
+            "When enabled (default), some ops may emit non-finites, for example, max pooling may compare values to an initial value of `-inf`. When disabled, non-finites will be replaced with the closest finite value for a given dtype.">,
   ];
 }
 
@@ -147,9 +147,9 @@ def ConvertTorchToTMTensor : Pass<"convert-torch-to-tmtensor", "func::FuncOp"> {
   }];
   let constructor = "mlir::torch::createConvertTorchToTMTensorPass()";
   let options = [
-    Option<"supportsNonFinites", "supports-non-finites",
+    Option<"allowNonFinites", "allow-non-finites",
             "bool", /*default=*/"true",
-            "When enabled emits non-finites, such as, inf. Otherwise emits representative float value, for example, realmax instead of inf.">,
+            "When enabled (default), some ops may emit non-finites, for example, max pooling may compare values to an initial value of `-inf`. When disabled, non-finites will be replaced with the closest finite value for a given dtype.">,
   ];
 }
 
@@ -178,9 +178,9 @@ def ConvertTorchToStablehlo : Pass<"convert-torch-to-stablehlo", "func::FuncOp">
     // are unlikely to exceed the range of i32(4GiB)
     Option<"enableI32Index", "enable-i32-index", "bool", /*default=*/"false",
            "Enable truncate index from i64 to i32(unsafely)">,
-    Option<"supportsNonFinites", "supports-non-finites",
+    Option<"allowNonFinites", "allow-non-finites",
             "bool", /*default=*/"true",
-            "When enabled emits non-finites, such as, inf. Otherwise emits representative float value, for example, realmax instead of inf.">,
+            "When enabled (default), some ops may emit non-finites, for example, max pooling may compare values to an initial value of `-inf`. When disabled, non-finites will be replaced with the closest finite value for a given dtype.">,
   ];
 }
 #endif

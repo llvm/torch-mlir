@@ -24,7 +24,7 @@ namespace torch {
 std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToLinalgPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-createConvertTorchToLinalgPass(bool supportsNonFinites);
+createConvertTorchToLinalgPass(bool allowNonFinites);
 
 } // namespace torch
 } // namespace mlir

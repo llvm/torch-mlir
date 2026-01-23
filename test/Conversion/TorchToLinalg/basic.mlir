@@ -1,5 +1,5 @@
 // RUN: torch-mlir-opt <%s -convert-torch-to-linalg -split-input-file -verify-diagnostics | FileCheck %s
-// RUN: torch-mlir-opt <%s -convert-torch-to-linalg=supports-non-finites=false -split-input-file -verify-diagnostics | FileCheck %s -check-prefix=UNSUPPORTED-NON-FINITES
+// RUN: torch-mlir-opt <%s -convert-torch-to-linalg=allow-non-finites=false -split-input-file -verify-diagnostics | FileCheck %s -check-prefix=UNSUPPORTED-NON-FINITES
 
 
 // CHECK-LABEL:   func.func @torch.aten.mm$basic(
@@ -540,7 +540,7 @@ func.func @torch.ops.aten.replication_pad1d$basic(%arg0: !torch.vtensor<[3,5],f3
 }
 
 // -----
-// COM: this test only locks down that supports-non-finites config produces inf/realmax correctly
+// COM: this test only locks down that allow-non-finites config produces inf/realmax correctly
 // CHECK-LABEL: func.func @torch.aten.min.dim$basic
 // CHECK: arith.constant 0x7F800000 : f32
 // CHECK-NOT: arith.constant 3.40282347E+38 : f32
@@ -556,7 +556,7 @@ func.func @torch.aten.min.dim$basic(%arg0: tensor<3x2x3xf32>) -> tensor<3x2x1xf3
 }
 
 // -----
-// COM: this test only locks down that supports-non-finites config produces inf/realmax correctly
+// COM: this test only locks down that allow-non-finites config produces inf/realmax correctly
 // CHECK-LABEL: func.func @torch.aten.max.dim$basic
 // CHECK: arith.constant 0xFF800000 : f32
 // CHECK-NOT: arith.constant -3.40282347E+38 : f32

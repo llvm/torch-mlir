@@ -67,10 +67,13 @@ struct TorchLoweringPipelineOptions
       llvm::cl::desc("Filename of MLIR module for splicing into the abstract "
                      "interpretation library.")};
 
-  Option<bool> supportsNonFinites{
-      *this, "supports-non-finites",
-      llvm::cl::desc("When enabled the lowering will produce non-finites, such "
-                     "as, inf/nan"),
+  Option<bool> allowNonFinites{
+      *this, "allow-non-finites",
+      llvm::cl::desc(
+          "When enabled (default), some ops may emit non-finites, for example, "
+          "max pooling may compare values to an initial value of `-inf`. When "
+          "disabled, non-finites will be replaced with the closest finite "
+          "value for a given dtype."),
       llvm::cl::init(true)};
 };
 

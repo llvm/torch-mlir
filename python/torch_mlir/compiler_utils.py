@@ -82,7 +82,7 @@ class BackendLoweringOptions:
     """Options for lowering Torch IR to TOSA/Linalg/StableHLO Backend IR."""
 
     """Whether to support non-finite floating point values (inf, nan)."""
-    supports_non_finites: bool = True
+    allow_non_finites: bool = True
 
 
 def run_pipeline_with_repro_report(
@@ -214,7 +214,7 @@ def lower_mlir_module(verbose, output_type, module, backend_options=None):
         return module
 
     if output_type == OutputType.LINALG_ON_TENSORS:
-        pipeline = f"builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline{{supports-non-finites={backend_options.supports_non_finites}}})"
+        pipeline = f"builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline{{allow-non-finites={backend_options.allow_non_finites}}})"
         run_pipeline_with_repro_report(
             module,
             pipeline,
@@ -227,7 +227,7 @@ def lower_mlir_module(verbose, output_type, module, backend_options=None):
         return module
 
     elif output_type == OutputType.STABLEHLO:
-        pipeline = f"builtin.module(torch-backend-to-stablehlo-backend-pipeline{{supports-non-finites={backend_options.supports_non_finites}}})"
+        pipeline = f"builtin.module(torch-backend-to-stablehlo-backend-pipeline{{allow-non-finites={backend_options.allow_non_finites}}})"
         run_pipeline_with_repro_report(
             module,
             pipeline,

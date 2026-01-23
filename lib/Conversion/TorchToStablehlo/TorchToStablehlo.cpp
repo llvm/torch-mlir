@@ -61,7 +61,7 @@ public:
     RewritePatternSet patterns(context);
 
     torch_to_stablehlo::TorchToStablehloOptions options{
-        enableStaticShape, enableI32Index ? 32u : 64u, supportsNonFinites};
+        enableStaticShape, enableI32Index ? 32u : 64u, allowNonFinites};
     torch_to_stablehlo::populateBasicOpPatternsAndLegality(
         typeConverter, patterns, target, options);
     torch_to_stablehlo::populateViewLikeOpPatternsAndLegality(
@@ -98,11 +98,11 @@ createConvertTorchToStablehloPass() {
 // parameters
 std::unique_ptr<OperationPass<func::FuncOp>>
 createConvertTorchToStablehloPass(bool enableStaticShape, bool enableI32Index,
-                                  bool supportsNonFinites) {
+                                  bool allowNonFinites) {
   ConvertTorchToStablehloOptions options;
   options.enableStaticShape = enableStaticShape;
   options.enableI32Index = enableI32Index;
-  options.supportsNonFinites = supportsNonFinites;
+  options.allowNonFinites = allowNonFinites;
   return std::make_unique<ConvertTorchToStablehlo>(options);
 }
 

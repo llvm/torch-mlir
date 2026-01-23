@@ -22,7 +22,7 @@ namespace torch {
 std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToTMTensorPass();
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-createConvertTorchToTMTensorPass(bool supportsNonFinites);
+createConvertTorchToTMTensorPass(bool allowNonFinites);
 
 } // namespace torch
 } // namespace mlir

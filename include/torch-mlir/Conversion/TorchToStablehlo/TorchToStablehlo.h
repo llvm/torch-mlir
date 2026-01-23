@@ -27,7 +27,7 @@ createConvertTorchToStablehloPass();
 // parameters
 std::unique_ptr<OperationPass<func::FuncOp>>
 createConvertTorchToStablehloPass(bool enableStaticShape, bool enableI32Index,
-                                  bool supportsNonFinites);
+                                  bool allowNonFinites);
 
 } // namespace torch
 } // namespace mlir

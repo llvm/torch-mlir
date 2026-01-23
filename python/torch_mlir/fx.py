@@ -102,7 +102,7 @@ def export_and_import(
     verbose: bool = False,
     enable_ir_printing: bool = False,
     backend_legal_ops: Optional[list[str]] = None,
-    supports_non_finites: bool = True,
+    allow_non_finites: bool = True,
     **kwargs,
 ):
     context = ir.Context()
@@ -129,12 +129,14 @@ def export_and_import(
     if experimental_support_mutation:
         if torch.__version__ < "2.3.0.dev20240207":
             warnings.warn("Mutable program import only supported on PyTorch 2.3+")
+        print("Importing program")
         fx_importer.import_program(
             prog,
             func_name=func_name,
             import_symbolic_shape_expressions=import_symbolic_shape_expressions,
         )
     else:
+        print("Importing frozen program")
         fx_importer.import_frozen_program(
             prog,
             func_name=func_name,
@@ -142,7 +144,7 @@ def export_and_import(
         )
 
     fx_import_options = FxImportOptions(backend_legal_ops=backend_legal_ops)
-    backend_options = BackendLoweringOptions(supports_non_finites=supports_non_finites)
+    backend_options = BackendLoweringOptions(allow_non_finites=allow_non_finites)
 
     return _module_lowering(
         verbose,
@@ -164,7 +166,7 @@ def stateless_fx_import(
     verbose: bool = False,
     enable_ir_printing: bool = False,
     backend_legal_ops: Optional[list[str]] = None,
-    supports_non_finites: bool = True,
+    allow_non_finites: bool = True,
 ):
     if enable_graph_printing:
         gm.print_readable()
@@ -175,7 +177,7 @@ def stateless_fx_import(
     fx_importer.import_stateless_graph(gm.graph, func_name=model_name)
 
     fx_import_options = FxImportOptions(backend_legal_ops=backend_legal_ops)
-    backend_options = BackendLoweringOptions(supports_non_finites=supports_non_finites)
+    backend_options = BackendLoweringOptions(allow_non_finites=allow_non_finites)
 
     return _module_lowering(
         verbose,

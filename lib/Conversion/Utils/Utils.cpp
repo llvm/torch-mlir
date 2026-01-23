@@ -622,8 +622,8 @@ LogicalResult getQuantizationParams(Value value, Value &zeropoint, Value &scale,
 }
 
 APFloat getFloatInf(mlir::FloatType fpType, bool negative,
-                    bool supportsNonFinites) {
-  return supportsNonFinites
+                    bool allowNonFinites) {
+  return allowNonFinites
              ? APFloat::getInf(fpType.getFloatSemantics(), negative)
              : APFloat::getLargest(fpType.getFloatSemantics(), negative);
 }

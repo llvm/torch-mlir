@@ -60,7 +60,7 @@ namespace mlir::torch {
 // "aten.foo -> linalg.foo".
 
 static TypedAttr getNumericLimit(PatternRewriter &rewriter, Type elementType,
-                                 bool supportsNonFinites, bool getMin = true) {
+                                 bool allowNonFinites, bool getMin = true) {
   auto bitWidth = elementType.getIntOrFloatBitWidth();
   if (llvm::isa<mlir::IntegerType>(elementType)) {
     if (getMin) {
@@ -73,7 +73,7 @@ static TypedAttr getNumericLimit(PatternRewriter &rewriter, Type elementType,
   } else if (mlir::FloatType floatType =
                  llvm::dyn_cast<mlir::FloatType>(elementType)) {
     return rewriter.getFloatAttr(
-        elementType, getFloatInf(floatType, getMin, supportsNonFinites));
+        elementType, getFloatInf(floatType, getMin, allowNonFinites));
   } else {
     llvm_unreachable("Only float/integer types are supported!");
   }
@@ -1231,15 +1231,15 @@ class ConvertAtenScatterReduceTwoOp
     : public OpConversionPattern<AtenScatterReduceTwoOp> {
 
 private:
-  bool supportsNonFinites;
+  bool allowNonFinites;
 
 public:
   using OpConversionPattern::OpConversionPattern;
 
   ConvertAtenScatterReduceTwoOp(TypeConverter &typeConverter,
-                                MLIRContext *context, bool supportsNonFinites)
+                                MLIRContext *context, bool allowNonFinites)
       : OpConversionPattern<AtenScatterReduceTwoOp>(typeConverter, context),
-        supportsNonFinites(supportsNonFinites) {}
+        allowNonFinites(allowNonFinites) {}
 
   LogicalResult
   matchAndRewrite(AtenScatterReduceTwoOp op, OpAdaptor adaptor,
@@ -1331,14 +1331,14 @@ public:
         // Set the values in the input tensor to the smallest element of that
         // type
         TypedAttr minAttr = getNumericLimit(rewriter, srcType.getElementType(),
-                                            this->supportsNonFinites,
+                                            this->allowNonFinites,
                                             /*getMin=*/true);
         normalizationValue = arith::ConstantOp::create(rewriter, loc, minAttr);
       } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
         // Set the values in the input tensor to the largest element of that
         // type
         TypedAttr maxAttr = getNumericLimit(rewriter, srcType.getElementType(),
-                                            this->supportsNonFinites,
+                                            this->allowNonFinites,
                                             /*getMin=*/false);
         normalizationValue = arith::ConstantOp::create(rewriter, loc, maxAttr);
       }
@@ -2044,16 +2044,16 @@ namespace {
 class ConvertAtenKthvalueOp : public OpConversionPattern<AtenKthvalueOp> {
 
 private:
-  bool supportsNonFinites;
+  bool allowNonFinites;
 
 public:
   using OpConversionPattern::OpConversionPattern;
 
 public:
   ConvertAtenKthvalueOp(TypeConverter &typeConverter, MLIRContext *context,
-                        bool supportsNonFinites)
+                        bool allowNonFinites)
       : OpConversionPattern<AtenKthvalueOp>(typeConverter, context),
-        supportsNonFinites(supportsNonFinites) {}
+        allowNonFinites(allowNonFinites) {}
 
   LogicalResult
   matchAndRewrite(AtenKthvalueOp op, OpAdaptor adaptor,
@@ -2127,14 +2127,14 @@ public:
           rewriter.getFloatAttr(
               inputElementType,
               getFloatInf(cast<mlir::FloatType>(inputElementType),
-                          /*Negative=*/false, this->supportsNonFinites)));
+                          /*Negative=*/false, this->allowNonFinites)));
       // min float for linalg generic op tensor
       fillValLinalgFindMax = arith::ConstantOp::create(
           rewriter, loc,
           rewriter.getFloatAttr(
               inputElementType,
               getFloatInf(cast<mlir::FloatType>(inputElementType),
-                          /*Negative=*/true, this->supportsNonFinites)));
+                          /*Negative=*/true, this->allowNonFinites)));
     } else if (!isUnsigned) {
       auto width = cast<mlir::IntegerType>(inputElementType).getWidth();
       // max signed int for topk op tensor
@@ -2184,7 +2184,7 @@ public:
     auto signlessType = mlir::IntegerType::get(op.getContext(), 32,
                                                mlir::IntegerType::Signless);
     auto initIdx = getNumericLimit(rewriter, signlessType,
-                                   this->supportsNonFinites, /*getMin=*/false);
+                                   this->allowNonFinites, /*getMin=*/false);
     auto fillValTopkIdx = arith::ConstantOp::create(rewriter, loc, initIdx);
     // Fill the initial topk op output indices tensor.
     Value topkOutputIdx =
@@ -2548,7 +2548,7 @@ public:
                                                             context);
     target.addIllegalOp<AtenScatterReduceTwoOp>();
     patterns.add<ConvertAtenScatterReduceTwoOp>(typeConverter, context,
-                                                this->supportsNonFinites);
+                                                this->allowNonFinites);
     target.addIllegalOp<AtenSortOp>();
     patterns.add<ConvertAtenSortOp>(typeConverter, context);
     target.addIllegalOp<AtenCumsumOp>();
@@ -2567,7 +2567,7 @@ public:
                                                          context);
     target.addIllegalOp<AtenKthvalueOp>();
     patterns.add<ConvertAtenKthvalueOp>(typeConverter, context,
-                                        this->supportsNonFinites);
+                                        this->allowNonFinites);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
@@ -2582,9 +2582,9 @@ createConvertTorchToTMTensorPass() {
 }
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-createConvertTorchToTMTensorPass(bool supportsNonFinites) {
+createConvertTorchToTMTensorPass(bool allowNonFinites) {
   ConvertTorchToTMTensorOptions options;
-  options.supportsNonFinites = supportsNonFinites;
+  options.allowNonFinites = allowNonFinites;
   return std::make_unique<ConvertTorchToTMTensor>(options);
 }
 

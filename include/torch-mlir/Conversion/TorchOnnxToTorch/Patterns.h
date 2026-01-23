@@ -423,7 +423,7 @@ struct OpBinder {
 };
 
 struct OnnxTorchToTorchOptions {
-  bool supportsNonFinites = true;
+  bool allowNonFinites = true;
 };
 
 /// We use a single pattern per ONNX domain to handle all named custom

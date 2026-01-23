@@ -22,7 +22,7 @@ namespace mlir::torch::onnx_c {
 
 std::unique_ptr<OperationPass<func::FuncOp>> createTorchOnnxToTorchPass();
 std::unique_ptr<OperationPass<func::FuncOp>>
-createTorchOnnxToTorchPass(bool supportsNonFinites);
+createTorchOnnxToTorchPass(bool allowNonFinites);
 
 /// Registers all torch-mlir conversion passes.
 void registerTorchOnnxToTorchPasses();

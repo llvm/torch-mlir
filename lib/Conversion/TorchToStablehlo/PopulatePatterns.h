@@ -19,7 +19,7 @@ namespace torch_to_stablehlo {
 struct TorchToStablehloOptions {
   bool enableStaticShape = false;
   size_t dimSizeIndexBits = 64;
-  bool supportsNonFinites = true;
+  bool allowNonFinites = true;
 };
 
 template <typename AtenOpT>

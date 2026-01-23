@@ -22,9 +22,9 @@ def ConvertTorchOnnxToTorch : Pass<"convert-torch-onnx-to-torch", "func::FuncOp"
 
     let constructor = "mlir::torch::onnx_c::createTorchOnnxToTorchPass()";
     let options = [
-    Option<"supportsNonFinites", "supports-non-finites",
+    Option<"allowNonFinites", "allow-non-finites",
             "bool", /*default=*/"true",
-            "When enabled emits non-finites, such as, inf. Otherwise emits representative float value, for example, realmax instead of inf.">,
+            "When enabled (default), some ops may emit non-finites, for example, max pooling may compare values to an initial value of `-inf`. When disabled, non-finites will be replaced with the closest finite value for a given dtype.">,
   ];
 }
 

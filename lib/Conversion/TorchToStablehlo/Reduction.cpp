@@ -43,7 +43,7 @@ static SmallVector<int64_t> getReduceOutputShape(ArrayRef<int64_t> inputShape,
 
 static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
                                            PatternRewriter &rewriter,
-                                           bool supportsNonFinites) {
+                                           bool allowNonFinites) {
   auto constType = RankedTensorType::get({}, elementTy);
   DenseElementsAttr constAttr = nullptr;
   if (isa<AtenSumOp, AtenSumDimIntListOp, AtenFrobeniusNormDimOp,
@@ -63,7 +63,7 @@ static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
     if (isa<mlir::FloatType>(elementTy)) {
       constAttr = DenseElementsAttr::get(
           constType, {getFloatInf(cast<mlir::FloatType>(elementTy),
-                                  /*negative=*/true, supportsNonFinites)});
+                                  /*negative=*/true, allowNonFinites)});
     } else if (isa<mlir::IntegerType>(elementTy)) {
       constAttr = DenseElementsAttr::get(
           constType,
@@ -75,7 +75,7 @@ static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
     if (isa<mlir::FloatType>(elementTy)) {
       constAttr = DenseElementsAttr::get(
           constType, {getFloatInf(cast<mlir::FloatType>(elementTy),
-                                  /*negative=*/false, supportsNonFinites)});
+                                  /*negative=*/false, allowNonFinites)});
     } else if (isa<mlir::IntegerType>(elementTy)) {
       constAttr = DenseElementsAttr::get(
           constType,
@@ -114,12 +114,12 @@ static Value createReduceOpWithSingleRegionOp(Operation *op, Value input,
                                               Type outTy,
                                               ArrayRef<int64_t> dims,
                                               PatternRewriter &rewriter,
-                                              bool supportsNonFinites) {
+                                              bool allowNonFinites) {
   auto inputTy = dyn_cast<RankedTensorType>(input.getType());
   if (!inputTy)
     return nullptr;
   Value initValue = createInitialValueForReduceOp(op, inputTy.getElementType(),
-                                                  rewriter, supportsNonFinites);
+                                                  rewriter, allowNonFinites);
   if (!initValue)
     return nullptr;
 
@@ -172,7 +172,7 @@ static std::optional<ValueRange>
 createReduceOpReturnIndices(ConversionPatternRewriter &rewriter, Operation *op,
                             Value &input, ArrayRef<Value> inputShapeVec,
                             int64_t dim, size_t dimSizeIndexBits,
-                            bool supportsNonFinites) {
+                            bool allowNonFinites) {
   auto inputTy = cast<RankedTensorType>(input.getType());
   if (!inputTy) {
     return std::nullopt;
@@ -183,8 +183,8 @@ createReduceOpReturnIndices(ConversionPatternRewriter &rewriter, Operation *op,
   auto inputShape = inputTy.getShape();
   auto inputElemTy = inputTy.getElementType();
 
-  Value initValue = createInitialValueForReduceOp(op, inputElemTy, rewriter,
-                                                  supportsNonFinites);
+  Value initValue =
+      createInitialValueForReduceOp(op, inputElemTy, rewriter, allowNonFinites);
   if (!initValue)
     return std::nullopt;
   Value initIndex;
@@ -357,7 +357,7 @@ public:
     const auto &options = ConvertAtenReductionOp<AtenOpT>::getOptions();
 
     Value result = createReduceOpWithSingleRegionOp(
-        op, input, outTy, dims, rewriter, options.supportsNonFinites);
+        op, input, outTy, dims, rewriter, options.allowNonFinites);
     if (!result) {
       return op->emitError("createReduceOpWithSingleRegionOp return nullptr");
     }
@@ -413,7 +413,7 @@ public:
     Value reduceResult = createReduceOpWithSingleRegionOp(
         op, input,
         RankedTensorType::get(reduceResultShape, outTy.getElementType()), {dim},
-        rewriter, options.supportsNonFinites);
+        rewriter, options.allowNonFinites);
     if (!reduceResult) {
       return op->emitError("createReduceOpWithSingleRegionOp return nullptr");
     }
@@ -491,7 +491,7 @@ public:
     Value reduceResult = createReduceOpWithSingleRegionOp(
         op, input,
         RankedTensorType::get(reduceResultShape, outTy.getElementType()), dims,
-        rewriter, options.supportsNonFinites);
+        rewriter, options.allowNonFinites);
     if (!reduceResult) {
       return op->emitError("createReduceOpWithSingleRegionOp return nullptr");
     }
@@ -567,7 +567,7 @@ public:
       outputShape.erase(outputShape.begin() + dim);
       Value reduceResult = createReduceOpWithSingleRegionOp(
           op, input, RankedTensorType::get(outputShape, inputElemTy),
-          ArrayRef<int64_t>{dim}, rewriter, options.supportsNonFinites);
+          ArrayRef<int64_t>{dim}, rewriter, options.allowNonFinites);
       if (!reduceResult) {
         return op->emitError("createReduceOpWithSingleRegionOp return nullptr");
       }
@@ -583,7 +583,7 @@ public:
       ValueRange stablehloReduceResults =
           createReduceOpReturnIndices(rewriter, op, input, inputShapeVec, dim,
                                       options.dimSizeIndexBits,
-                                      options.supportsNonFinites)
+                                      options.allowNonFinites)
               .value();
       SmallVector<Value> reduceResults(stablehloReduceResults);
       if (keepDim) {
@@ -658,7 +658,7 @@ LogicalResult ConvertAtenReductionOp<AtenAnyDimsOp>::matchAndRewrite(
   Value reduceResult = createReduceOpWithSingleRegionOp(
       op, input,
       RankedTensorType::get(reduceResultShape, outTy.getElementType()), dims,
-      rewriter, getOptions().supportsNonFinites);
+      rewriter, getOptions().allowNonFinites);
   if (!reduceResult) {
     return op->emitError("createReduceOpWithSingleRegionOp return nullptr");
   }
@@ -737,7 +737,7 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
   Value reduceResult = createReduceOpWithSingleRegionOp(
       op, input,
       RankedTensorType::get(reduceResultShape, outTy.getElementType()), dims,
-      rewriter, getOptions().supportsNonFinites);
+      rewriter, getOptions().allowNonFinites);
   if (!reduceResult) {
     return op->emitError("createReduceOpWithSingleRegionOp return nullptr");
   }
@@ -800,7 +800,7 @@ LogicalResult ConvertAtenReductionOp<AtenProdDimIntOp>::matchAndRewrite(
   Value reduceResult = createReduceOpWithSingleRegionOp(
       op, input,
       RankedTensorType::get(reduceResultShape, outTy.getElementType()), dim,
-      rewriter, getOptions().supportsNonFinites);
+      rewriter, getOptions().allowNonFinites);
   if (!reduceResult) {
     return op->emitError("createReduceOpWithSingleRegionOp return nullptr");
   }
@@ -872,7 +872,7 @@ LogicalResult ConvertAtenReductionOp<AtenFrobeniusNormDimOp>::matchAndRewrite(
   Value reduceResult = createReduceOpWithSingleRegionOp(
       op, squareOp.getResult(),
       RankedTensorType::get(reduceResultShape, inputElemType), dims, rewriter,
-      getOptions().supportsNonFinites);
+      getOptions().allowNonFinites);
   if (!reduceResult) {
     return op->emitError("createReduceOpWithSingleRegionOp return nullptr");
   }
@@ -961,7 +961,7 @@ LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
 
   Value reduceResult = createReduceOpWithSingleRegionOp(
       op, powValue, RankedTensorType::get(reduceResultShape, outElemType), dims,
-      rewriter, getOptions().supportsNonFinites);
+      rewriter, getOptions().allowNonFinites);
   if (!reduceResult) {
     return op->emitError("createReduceOpWithSingleRegionOp return nullptr");
   }

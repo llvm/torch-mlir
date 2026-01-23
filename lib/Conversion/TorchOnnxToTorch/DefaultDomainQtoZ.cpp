@@ -1565,9 +1565,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           auto dty = dataTy.getDtype();
           Value scalar;
           if (FloatType fpTy = dyn_cast<FloatType>(dty)) {
-            auto inf = Torch::getFloatInf(fpTy,
-                                          /*Negative=*/true,
-                                          options.supportsNonFinites);
+            auto inf =
+                Torch::getFloatInf(fpTy,
+                                   /*Negative=*/true, options.allowNonFinites);
             scalar = Torch::ConstantFloatOp::create(
                 rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
                 rewriter.getFloatAttr(rewriter.getF64Type(),
@@ -1645,7 +1645,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           Value scalar;
           if (FloatType fpTy = dyn_cast<FloatType>(dty)) {
             auto inf = Torch::getFloatInf(fpTy, /*negative = */ false,
-                                          options.supportsNonFinites);
+                                          options.allowNonFinites);
             scalar = Torch::ConstantFloatOp::create(
                 rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
                 rewriter.getFloatAttr(rewriter.getF64Type(),

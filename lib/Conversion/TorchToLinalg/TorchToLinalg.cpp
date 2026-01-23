@@ -77,13 +77,13 @@ public:
     torch_to_linalg::populateLinearPatternsAndLegality(typeConverter, patterns,
                                                        target);
     torch_to_linalg::populatePoolingPatternsAndLegality(
-        typeConverter, patterns, target, this->supportsNonFinites);
+        typeConverter, patterns, target, this->allowNonFinites);
     torch_to_linalg::populateRandomPatternsAndLegality(typeConverter, patterns,
                                                        target);
     torch_to_linalg::populateUncategorizedPatternsAndLegality(typeConverter,
                                                               patterns, target);
     torch_to_linalg::populateReductionPatternsAndLegality(
-        typeConverter, patterns, target, this->supportsNonFinites);
+        typeConverter, patterns, target, this->allowNonFinites);
     torch_to_linalg::populateDataMovementPatternsAndLegality(typeConverter,
                                                              patterns, target);
     torch_to_linalg::populateIndirectDataMovementPatternsAndLegality(
@@ -103,9 +103,9 @@ std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToLinalgPass() {
 }
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-createConvertTorchToLinalgPass(bool supportsNonFinites) {
+createConvertTorchToLinalgPass(bool allowNonFinites) {
   ConvertTorchToLinalgOptions options;
-  options.supportsNonFinites = supportsNonFinites;
+  options.allowNonFinites = allowNonFinites;
   return std::make_unique<ConvertTorchToLinalg>(options);
 }
 

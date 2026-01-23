@@ -45,7 +45,7 @@ void populateLinearPatternsAndLegality(TypeConverter &typeConverter,
 void populatePoolingPatternsAndLegality(TypeConverter &typeConverter,
                                         RewritePatternSet &patterns,
                                         ConversionTarget &target,
-                                        bool supportsNonFinites);
+                                        bool allowNonFinites);
 void populateRandomPatternsAndLegality(TypeConverter &typeConverter,
                                        RewritePatternSet &patterns,
                                        ConversionTarget &target);
@@ -55,7 +55,7 @@ void populateUncategorizedPatternsAndLegality(TypeConverter &typeConverter,
 void populateReductionPatternsAndLegality(TypeConverter &typeConverter,
                                           RewritePatternSet &patterns,
                                           ConversionTarget &target,
-                                          bool supportsNonFinites);
+                                          bool allowNonFinites);
 void populateDataMovementPatternsAndLegality(TypeConverter &typeConverter,
                                              RewritePatternSet &patterns,
                                              ConversionTarget &target);

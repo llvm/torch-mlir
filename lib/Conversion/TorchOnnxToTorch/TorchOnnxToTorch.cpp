@@ -60,7 +60,7 @@ public:
       return signalPassFailure();
     }
 
-    OnnxTorchToTorchOptions options{supportsNonFinites};
+    OnnxTorchToTorchOptions options{allowNonFinites};
 
     auto defaultDomainPatterns =
         std::make_unique<OnnxCustomOpConversionPattern>(
@@ -97,9 +97,9 @@ std::unique_ptr<OperationPass<func::FuncOp>> createTorchOnnxToTorchPass() {
 }
 
 std::unique_ptr<OperationPass<func::FuncOp>>
-createTorchOnnxToTorchPass(bool supportsNonFinites) {
+createTorchOnnxToTorchPass(bool allowNonFinites) {
   ConvertTorchOnnxToTorchOptions options;
-  options.supportsNonFinites = supportsNonFinites;
+  options.allowNonFinites = allowNonFinites;
   return std::make_unique<ConvertTorchOnnxToTorch>(options);
 }
 

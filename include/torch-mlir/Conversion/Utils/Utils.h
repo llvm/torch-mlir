@@ -123,7 +123,7 @@ LogicalResult getQuantizationParams(Value value, Value &zeropoint, Value &scale,
                                     int64_t &axis);
 
 APFloat getFloatInf(mlir::FloatType fpType, bool negative,
-                    bool supportsNonFinites);
+                    bool allowNonFinites);
 
 } // namespace Torch
 } // namespace torch
