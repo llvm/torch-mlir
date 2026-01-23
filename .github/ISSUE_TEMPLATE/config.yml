@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Join the LLVM discord!
+    url: https://discord.gg/xS7Z362
+    about: The torch-mlir channel can be used for discussions about this project.

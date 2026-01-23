@@ -11,7 +11,7 @@ body:
         Please view the [developer documentation](https://github.com/llvm/torch-mlir/blob/main/docs/development.md#requesting-repository-permissions) for requirements to request access.
 
   - type: dropdown
-    id: Desired Role
+    id: desired-role
     attributes:
       label: Which role are you requesting?
       description: |
@@ -23,11 +23,12 @@ body:
         - Triage
         - Write
         - Admin
+    validations:
       required: true
   - type: textarea
-    id: Why do you want access?
+    id: reason-for-access
     attributes:
-      label:
+      label: Reason for Access
       description: |
         Tell us why you want to get elevated permissions for the repository.
 
@@ -38,13 +39,14 @@ body:
     validations:
       required: true
   - type: textarea
-    id: Recent Pull Requests
+    id: recent-prs
     attributes:
-      label:
+      label: Recent Pull Requests
       description: Please link two of your recent pull requests in this repository (or a similar open-source repository).
       placeholder: |
         Example PR 1:
         Example PR 2:
+    validations:
       required: true
   - type: textarea
     id: optional-additional-context
