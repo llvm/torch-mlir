@@ -28,7 +28,7 @@ and Clang's
 - Ramiro Leal-Cavazos (@ramiro050) - emeritus
 - Zach Garvey (@zjgarvey)
 
-### CI / Build system / Packaging
+### CI / Build system / Packaging / [Release](https://github.com/llvm/torch-mlir-release)
 
 - Anush Elangovan (@powderluv)
 - Maybe you!*
@@ -68,5 +68,5 @@ and Clang's
 - Zach Garvey (@zjgarvey) **
 
 
-*Please submit a pull request to add/remove your name as a code owner.
+*Please submit a pull request to add/remove your name as a code owner. Code owners should have a well-documented history and interest in maintaing the project.
 **This job is not the sole-responsibility of these people. If you are an active contributor, please help with updating core dependencies.
