@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("@llvm-project//llvm:lit_test.bzl", "lit_test", "package_path")
+load("@llvm-project//llvm:lit_test.bzl", "package_path")
 
 package(
     default_visibility = [
