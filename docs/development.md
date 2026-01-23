@@ -322,7 +322,7 @@ please complete your PR with an invocation of buildifier to ensure
 the BUILD files are formatted consistently:
 
 ```shell
-bazel run //utils/bazel:buildifier
+bazel run //:buildifier
 ```
 
 ### Docker Builds
