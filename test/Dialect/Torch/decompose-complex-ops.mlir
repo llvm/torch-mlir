@@ -197,6 +197,34 @@ func.func @torch.aten.fmod_float(%arg0: !torch.vtensor<[?],f16>, %arg1: !torch.v
 
 // -----
 
+// CHECK:   func.func @torch.aten.remainder_tensor(%[[ARG0:.+]]: !torch.vtensor<[?],f32>, %[[ARG1:.+]]: !torch.vtensor<[1],f32>) -> !torch.vtensor<[?],f32> {
+// CHECK:     %[[FLOAT1:.+]] = torch.constant.float 1.000000e+00
+// CHECK:     %[[V0:.+]] = torch.aten.div.Tensor %[[ARG0]], %[[ARG1]] : !torch.vtensor<[?],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[?],f32>
+// CHECK:     %[[V1:.+]] = torch.aten.floor %[[V0]] : !torch.vtensor<[?],f32> -> !torch.vtensor<[?],f32>
+// CHECK:     %[[V2:.+]] = torch.aten.mul.Tensor %[[V1]], %[[ARG1]] : !torch.vtensor<[?],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[?],f32>
+// CHECK:     %[[V3:.+]] = torch.aten.sub.Tensor %[[ARG0]], %[[V2]], %[[FLOAT1]] : !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>, !torch.float -> !torch.vtensor<[?],f32>
+// CHECK:     return %[[V3]] : !torch.vtensor<[?],f32>
+func.func @torch.aten.remainder_tensor(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.vtensor<[1],f32>) -> !torch.vtensor<[?],f32> {
+    %0 = torch.aten.remainder.Tensor %arg0, %arg1 : !torch.vtensor<[?],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[?],f32>
+    return %0 : !torch.vtensor<[?],f32>
+}
+
+// -----
+
+// CHECK:   func.func @torch.aten.remainder_scalar(%[[ARG0:.+]]: !torch.vtensor<[?],f32>, %[[ARG1:.+]]: !torch.float) -> !torch.vtensor<[?],f32> {
+// CHECK:     %[[FLOAT1:.+]] = torch.constant.float 1.000000e+00
+// CHECK:     %[[V0:.+]] = torch.aten.div.Scalar %[[ARG0]], %[[ARG1]] : !torch.vtensor<[?],f32>, !torch.float -> !torch.vtensor<[?],f32>
+// CHECK:     %[[V1:.+]] = torch.aten.floor %[[V0]] : !torch.vtensor<[?],f32> -> !torch.vtensor<[?],f32>
+// CHECK:     %[[V2:.+]] = torch.aten.mul.Scalar %[[V1]], %[[ARG1]] : !torch.vtensor<[?],f32>, !torch.float -> !torch.vtensor<[?],f32>
+// CHECK:     %[[V3:.+]] = torch.aten.sub.Tensor %[[ARG0]], %[[V2]], %[[FLOAT1]] : !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>, !torch.float -> !torch.vtensor<[?],f32>
+// CHECK:     return %[[V3]] : !torch.vtensor<[?],f32>
+func.func @torch.aten.remainder_scalar(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.float) -> !torch.vtensor<[?],f32> {
+    %0 = torch.aten.remainder.Scalar %arg0, %arg1 : !torch.vtensor<[?],f32>, !torch.float -> !torch.vtensor<[?],f32>
+    return %0 : !torch.vtensor<[?],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.fft_rfft$2d_last_dim(
 // CHECK-SAME:           %arg0: !torch.vtensor<[16,9],f32>) -> !torch.vtensor<[16,5],complex<f32>> {
 // CHECK-DAG:         %[[INT2:.*]] = torch.constant.int 2
