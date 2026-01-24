@@ -2912,13 +2912,13 @@ public:
     TensorType outputType =
         cast<Torch::ValueTensorType>(col2imOp.getType()).toBuiltinTensor();
     Type elementType = outputType.getElementType();
-    Value outputBuffer = rewriter.create<tensor::EmptyOp>(
-        col2imOp->getLoc(),
+    Value outputBuffer = tensor::EmptyOp::create(
+        rewriter, col2imOp->getLoc(),
         ArrayRef<int64_t>{outputType.getDimSize(0), outputType.getDimSize(1),
                           height, width},
         elementType);
-    Value paddedOutput = rewriter.create<tensor::EmptyOp>(
-        col2imOp->getLoc(),
+    Value paddedOutput = tensor::EmptyOp::create(
+        rewriter, col2imOp->getLoc(),
         ArrayRef<int64_t>{outputType.getDimSize(0), outputType.getDimSize(1),
                           paddedHeight, paddedWidth},
         elementType);
@@ -2965,24 +2965,24 @@ public:
     auto body = [&](OpBuilder &b, Location loc, ValueRange args) {
       Value acc =
           (elementType.isInteger())
-              ? b.create<arith::AddIOp>(loc, args[0], args[3]).getResult()
+              ? arith::AddIOp::create(b, loc, args[0], args[3]).getResult()
               : (isa<mlir::FloatType>(elementType)
-                     ? b.create<arith::AddFOp>(loc, args[0], args[3])
+                     ? arith::AddFOp::create(b, loc, args[0], args[3])
                            .getResult()
-                     : b.create<complex::AddOp>(loc, args[0], args[3])
+                     : complex::AddOp::create(b, loc, args[0], args[3])
                            .getResult());
-      b.create<linalg::YieldOp>(loc, acc);
+      linalg::YieldOp::create(b, loc, acc);
     };
-    input = rewriter.create<TorchConversion::ToBuiltinTensorOp>(
-        col2imOp->getLoc(),
+    input = TorchConversion::ToBuiltinTensorOp::create(
+        rewriter, col2imOp->getLoc(),
         cast<Torch::ValueTensorType>(input.getType()).toBuiltinTensor(), input);
 
     // Create the "irrelevent" inputs
-    Value kernel = rewriter.create<tensor::EmptyOp>(
-        col2imOp->getLoc(), ArrayRef<int64_t>{kernelWidth, kernelHeight},
-        elementType);
-    Value upperBounds = rewriter.create<tensor::EmptyOp>(
-        col2imOp->getLoc(),
+    Value kernel = tensor::EmptyOp::create(
+        rewriter, col2imOp->getLoc(),
+        ArrayRef<int64_t>{kernelWidth, kernelHeight}, elementType);
+    Value upperBounds = tensor::EmptyOp::create(
+        rewriter, col2imOp->getLoc(),
         ArrayRef<int64_t>{
             1 + (paddedHeight - 1 - (kernelHeight - 1) * verticalDilation) /
                     verticalStride,
@@ -3019,16 +3019,14 @@ public:
                                                        elementType, init0);
 
     paddedOutput =
-        rewriter
-            .create<linalg::FillOp>(col2imOp->getLoc(), ValueRange(fill0),
-                                    ValueRange(paddedOutput))
+        linalg::FillOp::create(rewriter, col2imOp->getLoc(), ValueRange(fill0),
+                               ValueRange(paddedOutput))
             ->getResult(0);
     paddedOutput =
-        rewriter
-            .create<linalg::GenericOp>(
-                col2imOp->getLoc(), paddedOutput.getType(),
-                ValueRange{input, kernel, upperBounds},
-                ValueRange(paddedOutput), indexingMaps, iteratorTypes, body)
+        linalg::GenericOp::create(
+            rewriter, col2imOp->getLoc(), paddedOutput.getType(),
+            ValueRange{input, kernel, upperBounds}, ValueRange(paddedOutput),
+            indexingMaps, iteratorTypes, body)
             ->getResult(0);
 
     // Remove the padding
@@ -3042,15 +3040,15 @@ public:
         rewriter.getI32IntegerAttr(outputType.getDimSize(0));
     OpFoldResult nChannels =
         rewriter.getI32IntegerAttr(outputType.getDimSize(1));
-    outputBuffer = rewriter.create<tensor::ExtractSliceOp>(
-        col2imOp->getLoc(), paddedOutput,
+    outputBuffer = tensor::ExtractSliceOp::create(
+        rewriter, col2imOp->getLoc(), paddedOutput,
         ArrayRef<Range>{Range{zero, batchSize, one},
                         Range{zero, nChannels, one}, Range{vpad, vdim, one},
                         Range{hpad, hdim, one}});
     rewriter.setInsertionPoint(col2imOp);
     TorchConversion::FromBuiltinTensorOp newOp =
-        rewriter.create<TorchConversion::FromBuiltinTensorOp>(
-            col2imOp->getLoc(), col2imOp.getType(), outputBuffer);
+        TorchConversion::FromBuiltinTensorOp::create(
+            rewriter, col2imOp->getLoc(), col2imOp.getType(), outputBuffer);
     rewriter.replaceOp(col2imOp, newOp);
     return success();
   }
