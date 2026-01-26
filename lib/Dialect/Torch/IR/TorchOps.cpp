@@ -4202,6 +4202,8 @@ void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       if (!operandTy || !operandTy.hasSizes())
         return failure();
       int64_t adim = dim < 0 ? dim + operandTy.getSizes().size() : dim;
+      if ((int64_t) operandTy.getSizes().size() == 1 && operandTy.getSizes()[0] == 0)
+        continue;
       if (operandTy.getSizes()[adim] != 0)
         filtered.push_back(operand);
     }
