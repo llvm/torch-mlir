@@ -2067,6 +2067,40 @@ LogicalResult ConvertAtenOp<AtenFmodTensorOp>::matchAndRewrite(
   return success();
 }
 
+// AtenFmodScalarOp
+template <>
+LogicalResult ConvertAtenOp<AtenFmodScalarOp>::matchAndRewrite(
+    AtenFmodScalarOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto loc = op->getLoc();
+  Value lhs = adaptor.getSelf();
+  Value rhs = adaptor.getOther();
+
+  auto resultType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  lhs = hlo::promoteType(rewriter, op->getLoc(), lhs,
+                         resultType.getElementType());
+
+  rhs = hlo::scalarToStablehloTensor(rewriter, op, rhs,
+                                     resultType.getElementType());
+  rhs = hlo::promoteAndBroadcast(rewriter, rhs, resultType, std::nullopt);
+
+  stablehlo::MulOp mul;
+  auto div = stablehlo::DivOp::create(rewriter, loc, lhs, rhs);
+  if (isa<mlir::FloatType>(resultType.getElementType())) {
+
+    auto sign = stablehlo::SignOp::create(rewriter, loc, div);
+    auto abs = stablehlo::AbsOp::create(rewriter, loc, div);
+    auto floor = stablehlo::FloorOp::create(rewriter, loc, abs);
+    auto trunc = stablehlo::MulOp::create(rewriter, loc, sign, floor);
+    mul = stablehlo::MulOp::create(rewriter, loc, trunc, rhs);
+  } else {
+    mul = stablehlo::MulOp::create(rewriter, loc, div, rhs);
+  }
+  rewriter.replaceOpWithNewOp<stablehlo::SubtractOp>(op, lhs, mul);
+  return success();
+}
+
 // AtenBitwiseLeftShiftTensorOp
 template <>
 LogicalResult ConvertAtenOp<AtenBitwiseLeftShiftTensorOp>::matchAndRewrite(
@@ -2311,7 +2345,9 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalOrOp, chlo::BroadcastOrOp);
   INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalAndOp, chlo::BroadcastAndOp);
   INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalXorOp, chlo::BroadcastXorOp);
+  INSERT_BINARY_LOGICAL_PATTERN(AtenBitwiseOrScalarOp, chlo::BroadcastOrOp);
   INSERT_BINARY_LOGICAL_PATTERN(AtenBitwiseAndScalarOp, chlo::BroadcastAndOp);
+  INSERT_BINARY_LOGICAL_PATTERN(AtenBitwiseXorScalarOp, chlo::BroadcastXorOp);
 
 #undef INSERT_BINARY_LOGICAL_PATTERN
 
@@ -2363,6 +2399,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenFillScalarOp);
   INSERT_ATENOP_PATTERN(AtenFlipOp);
   INSERT_ATENOP_PATTERN(AtenFmodTensorOp);
+  INSERT_ATENOP_PATTERN(AtenFmodScalarOp);
   INSERT_ATENOP_PATTERN(AtenBitwiseLeftShiftTensorOp);
   INSERT_ATENOP_PATTERN(AtenBitwiseRightShiftTensorOp);
 
