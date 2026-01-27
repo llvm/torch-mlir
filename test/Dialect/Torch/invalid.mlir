@@ -403,3 +403,13 @@ func.func @torch.symbolic_int$no_shape_symbols(%arg0: !torch.vtensor<[?],f32>) -
   torch.bind_symbolic_shape %arg0, [%int0], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
   return %arg0 : !torch.vtensor<[?],f32>
 }
+
+// -----
+
+func.func @index_put_values_shape_broadcast_incompatible(%arg0: !torch.vtensor<[?,32,16,192],f16>, %arg1: !torch.vtensor<[?],si64>, %arg2: !torch.vtensor<[?,32,128,192],f16>) -> !torch.vtensor<[?,32,16,192],f16> attributes {torch.onnx_meta.opset_version = 10 : si64} {
+  %0 = torch.prim.ListConstruct %arg1 : (!torch.vtensor<[?],si64>) -> !torch.list<optional<vtensor>>
+  %false = torch.constant.bool false
+  // expected-error @+1 {{'torch.aten.index_put' op values tensor shape [-1, 32, 128, 192] cannot be broadcasted to indexing result shape [-1, 32, 16, 192]}}
+  %1 = torch.aten.index_put %arg0, %0, %arg2, %false : !torch.vtensor<[?,32,16,192],f16>, !torch.list<optional<vtensor>>, !torch.vtensor<[?,32,128,192],f16>, !torch.bool -> !torch.vtensor<[?,32,16,192],f16>
+  return %1 : !torch.vtensor<[?,32,16,192],f16>
+}
