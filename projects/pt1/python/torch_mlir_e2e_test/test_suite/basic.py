@@ -7147,3 +7147,72 @@ class AtenAsStridedUnknownSizeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenAsStridedUnknownSizeModule())
 def AtenAsStridedUnknownSizeModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(12, 13))
+
+
+# ==============================================================================
+
+
+class AtenBitwiseOrScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.int64, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.bitwise_or(x, 7)
+
+
+@register_test_case(module_factory=lambda: AtenBitwiseOrScalarModule())
+def AtenBitwiseOrScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-10, high=10))
+
+
+# ==============================================================================
+
+
+class AtenBitwiseXorScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.int64, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.bitwise_xor(x, 11)
+
+
+@register_test_case(module_factory=lambda: AtenBitwiseXorScalarModule())
+def AtenBitwiseXorScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-10, high=10))
+
+
+# ==============================================================================
+
+
+class AtenFmodScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.fmod(x, 7.5)
+
+
+@register_test_case(module_factory=lambda: AtenFmodScalarModule())
+def AtenFmodScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
