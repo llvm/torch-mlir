@@ -270,6 +270,64 @@ func.func @torch.prim.NumToTensor.Scalar$basic(%arg0: !torch.int) -> !torch.vten
 
 // -----
 
+// CHECK-LABEL: func.func @torch.aten.full$bf16$f_to_f
+// CHECK:       %[[F64:.*]] = torch_c.to_f64 %{{.*}}
+// CHECK:       %[[TRUNC:.*]] = arith.truncf %[[F64]] : f64 to bf16
+// CHECK:       %[[EMPTY:.*]] = tensor.empty(%{{.*}}, %{{.*}}) : tensor<?x?xbf16>
+// CHECK:       %[[FILLED:.*]] = linalg.fill ins(%[[TRUNC]] : bf16) outs(%[[EMPTY]] : tensor<?x?xbf16>) -> tensor<?x?xbf16>
+func.func @torch.aten.full$bf16$f_to_f(%dim0: !torch.int, %dim1: !torch.int, %fill: !torch.float) -> !torch.vtensor<[?,?],bf16> {
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %dim0, %dim1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.full %0, %fill, %none, %none, %none, %none : !torch.list<int>, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?,?],bf16>
+  return %1 : !torch.vtensor<[?,?],bf16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.full$bf16$si_to_f
+// CHECK:       %[[SITOFP:.*]] = arith.sitofp %{{.*}} : i64 to bf16
+// CHECK:       %[[EMPTY:.*]] = tensor.empty(%{{.*}}, %{{.*}}) : tensor<?x?xbf16>
+// CHECK:       %[[FILLED:.*]] = linalg.fill ins(%[[SITOFP]] : bf16) outs(%[[EMPTY]] : tensor<?x?xbf16>) -> tensor<?x?xbf16>
+func.func @torch.aten.full$bf16$si_to_f(%dim0: !torch.int, %dim1: !torch.int, %fill: !torch.int) -> !torch.vtensor<[?,?],bf16> {
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %dim0, %dim1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.full %0, %fill, %none, %none, %none, %none : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?,?],bf16>
+  return %1 : !torch.vtensor<[?,?],bf16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.full$si32$f_to_si
+// CHECK:       %[[F64:.*]] = torch_c.to_f64 %{{.*}}
+// CHECK:       %[[FPTOSI:.*]] = arith.fptosi %[[F64]] : f64 to i32
+// CHECK:       %[[EMPTY:.*]] = tensor.empty(%{{.*}}, %{{.*}}) : tensor<?x?xi32>
+// CHECK:       %[[FILLED:.*]] = linalg.fill ins(%[[FPTOSI]] : i32) outs(%[[EMPTY]] : tensor<?x?xi32>) -> tensor<?x?xi32>
+func.func @torch.aten.full$si32$f_to_si(%dim0: !torch.int, %dim1: !torch.int, %fill: !torch.float) -> !torch.vtensor<[?,?],si32> {
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %dim0, %dim1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.full %0, %fill, %none, %none, %none, %none : !torch.list<int>, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?,?],si32>
+  return %1 : !torch.vtensor<[?,?],si32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.full$f32$truncf
+// CHECK:       %[[F64:.*]] = torch_c.to_f64 %{{.*}}
+// CHECK:       %[[TRUNC:.*]] = arith.truncf %[[F64]] : f64 to f32
+// CHECK:       %[[EMPTY:.*]] = tensor.empty() : tensor<2048x7168xf32>
+// CHECK:       %[[FILLED:.*]] = linalg.fill ins(%[[TRUNC]] : f32) outs(%[[EMPTY]] : tensor<2048x7168xf32>) -> tensor<2048x7168xf32>
+func.func @torch.aten.full$f32$truncf() -> !torch.vtensor<[2048,7168],f32> {
+  %float0.000000e00 = torch.constant.float 0.000000e+00
+  %none = torch.constant.none
+  %int2048 = torch.constant.int 2048
+  %int7168 = torch.constant.int 7168
+  %0 = torch.prim.ListConstruct %int2048, %int7168 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.full %0, %float0.000000e00, %none, %none, %none, %none : !torch.list<int>, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2048,7168],f32>
+  return %1 : !torch.vtensor<[2048,7168],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.tensor_static_info_cast$basic(
 // CHECK-SAME:                                              %[[VALUE_T:.*]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[4],f32> {
 // CHECK:           %[[T:.*]] = torch_c.to_builtin_tensor %[[VALUE_T]] : !torch.vtensor<[?],f32> -> tensor<?xf32>

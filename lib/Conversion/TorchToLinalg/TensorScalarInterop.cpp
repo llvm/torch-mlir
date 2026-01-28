@@ -208,10 +208,14 @@ public:
       return rewriter.notifyMatchFailure(
           op, "rank of shape and result shape do not match");
 
+    SmallVector<Value> inShapeConverted = getTypeConvertedValues(
+        rewriter, loc, this->getTypeConverter(), inShape);
+
     SmallVector<OpFoldResult> filteredShape;
     for (int i = 0, s = resultTy.getRank(); i < s; ++i) {
       if (resultTy.isDynamicDim(i)) {
-        filteredShape.push_back(inShape[i]);
+        filteredShape.push_back(
+            castIntToIndex(rewriter, loc, inShapeConverted[i]));
         continue;
       }
 
@@ -219,22 +223,23 @@ public:
     }
 
     Value full = adaptor.getFillValue();
+    Type targetElementType = resultTy.getElementType();
+    Type srcOriginalDtype = op.getFillValue().getType();
+    Type dstOriginalDtype;
 
-    if (full.getType() != resultTy.getElementType()) {
-      if (isa<mlir::FloatType>(full.getType())) {
-        full = arith::TruncFOp::create(rewriter, loc, resultTy.getElementType(),
-                                       full);
-      } else if (isa<mlir::IntegerType>(full.getType())) {
-        full = arith::TruncIOp::create(rewriter, loc, resultTy.getElementType(),
-                                       full);
-      }
+    if (auto originalTensorTy =
+            dyn_cast<ValueTensorType>(op.getResult().getType())) {
+      dstOriginalDtype = originalTensorTy.getDtype();
     }
+
+    Value castedFull = convertScalarToDtype(
+        rewriter, loc, full, targetElementType, srcOriginalDtype,
+        dstOriginalDtype, op.getFillValue());
 
     Value outTensor = tensor::EmptyOp::create(rewriter, loc, filteredShape,
                                               resultTy.getElementType());
 
-    rewriter.replaceOpWithNewOp<linalg::FillOp>(op, full, outTensor);
-
+    rewriter.replaceOpWithNewOp<linalg::FillOp>(op, castedFull, outTensor);
     return success();
   }
 };
