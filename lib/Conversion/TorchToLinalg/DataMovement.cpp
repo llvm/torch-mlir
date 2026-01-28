@@ -2801,117 +2801,126 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     // Retrieve the hyperparameters
     Value input = col2imOp.getSelf();
-    if (!(col2imOp.getOutputSize().getDefiningOp() &&
-          isa<Torch::PrimListConstructOp>(
-              col2imOp.getOutputSize().getDefiningOp())))
+    auto outputSizesOp =
+        col2imOp.getOutputSize().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!outputSizesOp)
       return failure();
 
-    Torch::PrimListConstructOp outputSizes = cast<Torch::PrimListConstructOp>(
-        col2imOp.getOutputSize().getDefiningOp());
-    if (!(outputSizes.getNumOperands() == 2 &&
-          outputSizes->getOperand(0).getDefiningOp() &&
-          outputSizes->getOperand(1).getDefiningOp() &&
-          isa<Torch::ConstantIntOp>(
-              outputSizes->getOperand(0).getDefiningOp())))
-      return failure();
-    if (!isa<Torch::ConstantIntOp>(outputSizes->getOperand(1).getDefiningOp()))
-      return failure();
-    int height =
-        cast<Torch::ConstantIntOp>(outputSizes->getOperand(0).getDefiningOp())
-            .getValue();
-    int width =
-        cast<Torch::ConstantIntOp>(outputSizes->getOperand(1).getDefiningOp())
-            .getValue();
-    if (!(col2imOp.getPadding().getDefiningOp() &&
-          isa<Torch::PrimListConstructOp>(
-              col2imOp.getPadding().getDefiningOp())))
+    if (outputSizesOp.getNumOperands() != 2 ||
+        !outputSizesOp->getOperand(0).getDefiningOp() ||
+        !outputSizesOp->getOperand(1).getDefiningOp())
       return failure();
 
-    Torch::PrimListConstructOp paddings =
-        cast<Torch::PrimListConstructOp>(col2imOp.getPadding().getDefiningOp());
+    auto outputHeightOp =
+        outputSizesOp->getOperand(0).getDefiningOp<Torch::ConstantIntOp>();
+    auto outputWidthOp =
+        outputSizesOp->getOperand(1).getDefiningOp<Torch::ConstantIntOp>();
 
-    if (!(paddings.getNumOperands() == 2 &&
-          paddings->getOperand(0).getDefiningOp() &&
-          paddings->getOperand(1).getDefiningOp() &&
-          isa<Torch::ConstantIntOp>(paddings->getOperand(0).getDefiningOp())))
+    if (!outputHeightOp || !outputWidthOp)
+      return failure();
+    int height = outputHeightOp.getValue();
+    int width = outputWidthOp.getValue();
+
+    auto paddingsOp =
+        col2imOp.getPadding().getDefiningOp<Torch::PrimListConstructOp>();
+
+    if (!paddingsOp)
       return failure();
 
-    if (!isa<Torch::ConstantIntOp>(paddings->getOperand(1).getDefiningOp()))
+    if (paddingsOp.getNumOperands() != 2 ||
+        !paddingsOp->getOperand(0).getDefiningOp() ||
+        !paddingsOp->getOperand(1).getDefiningOp())
       return failure();
-    int horizontalPadding =
-        cast<Torch::ConstantIntOp>(paddings->getOperand(1).getDefiningOp())
-            .getValue();
-    int verticalPadding =
-        cast<Torch::ConstantIntOp>(paddings->getOperand(0).getDefiningOp())
-            .getValue();
+
+    auto verticalPaddingOp =
+        paddingsOp->getOperand(0).getDefiningOp<Torch::ConstantIntOp>();
+    auto horizontalPaddingOp =
+        paddingsOp->getOperand(1).getDefiningOp<Torch::ConstantIntOp>();
+
+    if (!verticalPaddingOp || !horizontalPaddingOp)
+      return failure();
+
+    int horizontalPadding = horizontalPaddingOp.getValue();
+    int verticalPadding = verticalPaddingOp.getValue();
     int paddedWidth = width + 2 * horizontalPadding;
     int paddedHeight = height + 2 * verticalPadding;
-    if (!(col2imOp.getKernelSize().getDefiningOp() &&
-          isa<Torch::PrimListConstructOp>(
-              col2imOp.getKernelSize().getDefiningOp())))
-      return failure();
-    Torch::PrimListConstructOp kerSizes = cast<Torch::PrimListConstructOp>(
-        col2imOp.getKernelSize().getDefiningOp());
-    if (!(kerSizes.getNumOperands() == 2 &&
-          kerSizes->getOperand(0).getDefiningOp() &&
-          kerSizes->getOperand(1).getDefiningOp() &&
-          isa<Torch::ConstantIntOp>(kerSizes->getOperand(0).getDefiningOp())))
-      return failure();
-    if (!isa<Torch::ConstantIntOp>(kerSizes->getOperand(1).getDefiningOp()))
-      return failure();
-    int kernelWidth =
-        cast<Torch::ConstantIntOp>(kerSizes->getOperand(0).getDefiningOp())
-            .getValue();
-    int kernelHeight =
-        cast<Torch::ConstantIntOp>(kerSizes->getOperand(1).getDefiningOp())
-            .getValue();
-    if (!(col2imOp.getDilation().getDefiningOp() &&
-          isa<Torch::PrimListConstructOp>(
-              col2imOp.getDilation().getDefiningOp())))
-      return failure();
-    Torch::PrimListConstructOp dilations = cast<Torch::PrimListConstructOp>(
-        col2imOp.getDilation().getDefiningOp());
 
-    if (!(dilations.getNumOperands() == 2 &&
-          dilations->getOperand(0).getDefiningOp() &&
-          dilations->getOperand(1).getDefiningOp() &&
-          isa<Torch::ConstantIntOp>(dilations->getOperand(0).getDefiningOp())))
-      return failure();
-    if (!isa<Torch::ConstantIntOp>(dilations->getOperand(1).getDefiningOp()))
-      return failure();
-    int verticalDilation =
-        cast<Torch::ConstantIntOp>(dilations->getOperand(0).getDefiningOp())
-            .getValue();
-    int horizontalDilation =
-        cast<Torch::ConstantIntOp>(dilations->getOperand(1).getDefiningOp())
-            .getValue();
-    if (!(col2imOp.getStride().getDefiningOp() &&
-          isa<Torch::PrimListConstructOp>(
-              col2imOp.getStride().getDefiningOp())))
-      return failure();
-    Torch::PrimListConstructOp strides =
-        cast<Torch::PrimListConstructOp>(col2imOp.getStride().getDefiningOp());
-
-    if (!(strides.getNumOperands() == 2 &&
-          strides->getOperand(0).getDefiningOp() &&
-          strides->getOperand(1).getDefiningOp() &&
-          isa<Torch::ConstantIntOp>(strides->getOperand(0).getDefiningOp())))
+    auto kernelSizesOp =
+        col2imOp.getKernelSize().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!kernelSizesOp)
       return failure();
 
-    if (!isa<Torch::ConstantIntOp>(strides->getOperand(1).getDefiningOp()))
+    if (kernelSizesOp.getNumOperands() != 2 ||
+        !kernelSizesOp->getOperand(0).getDefiningOp() ||
+        !kernelSizesOp->getOperand(1).getDefiningOp())
       return failure();
 
-    int verticalStride =
-        cast<Torch::ConstantIntOp>(strides->getOperand(0).getDefiningOp())
-            .getValue();
-    int horizontalStride =
-        cast<Torch::ConstantIntOp>(strides->getOperand(1).getDefiningOp())
-            .getValue();
+    auto kernelWidthOp =
+        kernelSizesOp->getOperand(0).getDefiningOp<Torch::ConstantIntOp>();
+    auto kernelHeightOp =
+        kernelSizesOp->getOperand(1).getDefiningOp<Torch::ConstantIntOp>();
+    if (!kernelHeightOp || !kernelWidthOp)
+      return failure();
+
+    int kernelWidth = kernelWidthOp.getValue();
+    int kernelHeight = kernelHeightOp.getValue();
+
+    auto dilationsOp =
+        col2imOp.getDilation().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!dilationsOp)
+      return failure();
+
+    if (dilationsOp.getNumOperands() != 2 ||
+        !dilationsOp->getOperand(0).getDefiningOp() ||
+        !dilationsOp->getOperand(1).getDefiningOp())
+      return failure();
+
+    auto verticaldilationsOp =
+        dilationsOp->getOperand(0).getDefiningOp<Torch::ConstantIntOp>();
+    auto horizontaldilationsOp =
+        dilationsOp->getOperand(1).getDefiningOp<Torch::ConstantIntOp>();
+    if (!verticaldilationsOp || !horizontaldilationsOp)
+      return failure();
+    int verticalDilation = verticaldilationsOp.getValue();
+    int horizontalDilation = horizontaldilationsOp.getValue();
+
+    auto stridesOp =
+        col2imOp.getStride().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!stridesOp)
+      return failure();
+
+    if (stridesOp.getNumOperands() != 2 ||
+        !stridesOp->getOperand(0).getDefiningOp() ||
+        !stridesOp->getOperand(1).getDefiningOp())
+      return failure();
+
+    auto verticalStrideOp =
+        stridesOp->getOperand(0).getDefiningOp<Torch::ConstantIntOp>();
+    auto horizontalStrideOp =
+        stridesOp->getOperand(1).getDefiningOp<Torch::ConstantIntOp>();
+
+    if (!verticalStrideOp || !horizontalStrideOp)
+      return failure();
+
+    int verticalStride = verticalStrideOp.getValue();
+    int horizontalStride = horizontalStrideOp.getValue();
 
     // Create intermediate buffers
     TensorType outputType =
         cast<Torch::ValueTensorType>(col2imOp.getType()).toBuiltinTensor();
+
+    if (outputType.getRank() < 2)
+      return failure();
+
     Type elementType = outputType.getElementType();
+
+    assert(((isa<ComplexType>(elementType) &&
+             (cast<ComplexType>(elementType).getElementType().isInteger() ||
+              isa<mlir::FloatType>(
+                  cast<ComplexType>(elementType).getElementType()))) ||
+            isa<mlir::FloatType>(elementType) || elementType.isInteger()) &&
+           "Not implemented yet\n");
+
     Value outputBuffer = tensor::EmptyOp::create(
         rewriter, col2imOp->getLoc(),
         ArrayRef<int64_t>{outputType.getDimSize(0), outputType.getDimSize(1),
@@ -2963,15 +2972,19 @@ public:
         rewriter.getContext()));
     // The body of the linalg.generic op
     auto body = [&](OpBuilder &b, Location loc, ValueRange args) {
-      Value acc =
-          (elementType.isInteger())
-              ? arith::AddIOp::create(b, loc, args[0], args[3]).getResult()
-              : (isa<mlir::FloatType>(elementType)
-                     ? arith::AddFOp::create(b, loc, args[0], args[3])
-                           .getResult()
-                     : complex::AddOp::create(b, loc, args[0], args[3])
-                           .getResult());
-      linalg::YieldOp::create(b, loc, acc);
+      if (elementType.isInteger()) {
+        linalg::YieldOp::create(
+            b, loc,
+            arith::AddIOp::create(b, loc, args[0], args[3]).getResult());
+      } else if (isa<mlir::FloatType>(elementType)) {
+        linalg::YieldOp::create(
+            b, loc,
+            arith::AddFOp::create(b, loc, args[0], args[3]).getResult());
+      } else {
+        linalg::YieldOp::create(
+            b, loc,
+            complex::AddOp::create(b, loc, args[0], args[3]).getResult());
+      }
     };
     input = TorchConversion::ToBuiltinTensorOp::create(
         rewriter, col2imOp->getLoc(),
@@ -2989,27 +3002,22 @@ public:
             1 + ((paddedWidth - 1 - (kernelWidth - 1) * horizontalDilation)) /
                     horizontalStride},
         elementType);
-    assert(((isa<ComplexType>(elementType) &&
-             (cast<ComplexType>(elementType).getElementType().isInteger() ||
-              isa<mlir::FloatType>(
-                  cast<ComplexType>(elementType).getElementType()))) ||
-            isa<mlir::FloatType>(elementType) || elementType.isInteger()) &&
-           "Not implemented yet\n");
 
-    TypedAttr init0 =
-        elementType.isInteger()
-            ? rewriter.getIntegerAttr(elementType, 0)
-            : (isa<mlir::FloatType>(elementType)
-                   ? rewriter.getFloatAttr(elementType, 0.0)
-                   : (cast<ComplexType>(elementType)
-                              .getElementType()
-                              .isInteger()
-                          ? TypedAttr(rewriter.getIntegerAttr(
-                                cast<ComplexType>(elementType).getElementType(),
-                                0))
-                          : rewriter.getFloatAttr(
-                                cast<ComplexType>(elementType).getElementType(),
-                                0)));
+    TypedAttr init0;
+    if (elementType.isInteger())
+      init0 = rewriter.getIntegerAttr(elementType, 0);
+    else if (isa<mlir::FloatType>(elementType))
+      init0 = rewriter.getFloatAttr(elementType, 0);
+    else {
+      auto complexElementType = dyn_cast<ComplexType>(elementType);
+      assert(complexElementType && "The element type of a tensor is expected "
+                                   "to be int, float or complex");
+      if (complexElementType.getElementType().isInteger())
+        init0 = rewriter.getIntegerAttr(complexElementType.getElementType(), 0);
+      else
+        init0 = rewriter.getFloatAttr(complexElementType.getElementType(), 0);
+    }
+
     Value fill0 =
         isa<ComplexType>(elementType)
             ? rewriter.createOrFold<complex::ConstantOp>(
