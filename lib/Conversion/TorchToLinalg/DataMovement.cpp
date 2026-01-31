@@ -2907,7 +2907,7 @@ public:
 
     // Create intermediate buffers
     TensorType outputType =
-        cast<Torch::ValueTensorType>(col2imOp.getType()).toBuiltinTensor();
+        cast<TensorType>(getTypeConverter()->convertType(col2imOp.getType()));
 
     if (outputType.getRank() < 2)
       return failure();
@@ -2926,11 +2926,19 @@ public:
         ArrayRef<int64_t>{outputType.getDimSize(0), outputType.getDimSize(1),
                           height, width},
         elementType);
-    Value paddedOutput = tensor::EmptyOp::create(
+
+    auto materializeIndex = [&rewriter, &col2imOp](int64_t value) -> Value {
+      return arith::ConstantIndexOp::create(rewriter, col2imOp->getLoc(),
+                                            value);
+    };
+    Value paddedOutput = createZeroInitTensor(
         rewriter, col2imOp->getLoc(),
-        ArrayRef<int64_t>{outputType.getDimSize(0), outputType.getDimSize(1),
-                          paddedHeight, paddedWidth},
-        elementType);
+        ValueRange{materializeIndex(outputType.getDimSize(0)),
+                   materializeIndex(outputType.getDimSize(1)),
+                   materializeIndex(paddedHeight),
+                   materializeIndex(paddedWidth)},
+        outputType.getElementType());
+
     // Create the linalg loop interators
     SmallVector<utils::IteratorType, 6> iteratorTypes(
         6, utils::IteratorType::reduction);
@@ -2988,7 +2996,7 @@ public:
     };
     input = TorchConversion::ToBuiltinTensorOp::create(
         rewriter, col2imOp->getLoc(),
-        cast<Torch::ValueTensorType>(input.getType()).toBuiltinTensor(), input);
+        getTypeConverter()->convertType(input.getType()), input);
 
     // Create the "irrelevent" inputs
     Value kernel = tensor::EmptyOp::create(
@@ -3003,33 +3011,6 @@ public:
                     horizontalStride},
         elementType);
 
-    TypedAttr init0;
-    if (elementType.isInteger())
-      init0 = rewriter.getIntegerAttr(elementType, 0);
-    else if (isa<mlir::FloatType>(elementType))
-      init0 = rewriter.getFloatAttr(elementType, 0);
-    else {
-      auto complexElementType = dyn_cast<ComplexType>(elementType);
-      assert(complexElementType && "The element type of a tensor is expected "
-                                   "to be int, float or complex");
-      if (complexElementType.getElementType().isInteger())
-        init0 = rewriter.getIntegerAttr(complexElementType.getElementType(), 0);
-      else
-        init0 = rewriter.getFloatAttr(complexElementType.getElementType(), 0);
-    }
-
-    Value fill0 =
-        isa<ComplexType>(elementType)
-            ? rewriter.createOrFold<complex::ConstantOp>(
-                  col2imOp->getLoc(), elementType,
-                  rewriter.getArrayAttr(ArrayRef<Attribute>{init0, init0}))
-            : rewriter.createOrFold<arith::ConstantOp>(col2imOp->getLoc(),
-                                                       elementType, init0);
-
-    paddedOutput =
-        linalg::FillOp::create(rewriter, col2imOp->getLoc(), ValueRange(fill0),
-                               ValueRange(paddedOutput))
-            ->getResult(0);
     paddedOutput =
         linalg::GenericOp::create(
             rewriter, col2imOp->getLoc(), paddedOutput.getType(),
