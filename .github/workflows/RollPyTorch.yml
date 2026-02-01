@@ -22,7 +22,7 @@ jobs:
           sudo rm -rf $GITHUB_WORKSPACE/*
 
       - name: Get torch-mlir
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: 'false'
           token: ${{ secrets.WORKFLOW_INVOCATION_TOKEN }}
@@ -111,7 +111,7 @@ jobs:
       - name: Update PyTorch Build Cache (if running on main branch)
         if: github.ref_name == 'main'
         id: cache-pytorch
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ github.workspace }}/build_tools/python_deploy/wheelhouse
           key: ${{ runner.os }}-pytorch-${{ env.PT_HASH }}
@@ -127,7 +127,7 @@ jobs:
           git pull origin main
 
       - name: Create pull request
-        uses: peter-evans/create-pull-request@84ae59a2cdc2258d6fa0732dd66352dddae2a412 # v7.0.9
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
           author: Roll PyTorch Action <torch-mlir@users.noreply.github.com>
           branch: rollpytorch
