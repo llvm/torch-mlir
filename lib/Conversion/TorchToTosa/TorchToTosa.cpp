@@ -6503,7 +6503,7 @@ Value applyPoolingInputSlice(PatternRewriter &rewriter, Location loc,
 
   auto inputTy = cast<RankedTensorType>(input.getType());
 
-  auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
+  auto inputShape = inputTy.getShape();
   auto inputRank = inputTy.getRank();
   auto inputElemTy = inputTy.getElementType();
 
@@ -6809,9 +6809,7 @@ public:
 
       result = tosa::ReshapeOp::create(
           rewriter, op->getLoc(),
-          RankedTensorType::get(makeShapeTorchCompatible(resultShape),
-                                resultElemTy),
-          transposedOutput,
+          RankedTensorType::get(resultShape, resultElemTy), transposedOutput,
           tosa::getTosaConstShape(rewriter, op->getLoc(),
                                   makeShapeTorchCompatible(resultShape)));
     }
@@ -7265,9 +7263,8 @@ public:
     auto reshapedSelf =
         tosa::ReshapeOp::create(
             rewriter, op->getLoc(),
-            RankedTensorType::get(makeShapeTorchCompatible(rank4Shape),
-                                  selfTy.getElementType()),
-            self, tosa::getTosaConstShape(rewriter, op->getLoc(), rank4Shape))
+            RankedTensorType::get(rank4Shape, selfTy.getElementType()), self,
+            tosa::getTosaConstShape(rewriter, op->getLoc(), rank4Shape))
             .getResult();
 
     SmallVector<int64_t, 2> dilationArray{1, 1};
