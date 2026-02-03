@@ -129,14 +129,12 @@ def export_and_import(
     if experimental_support_mutation:
         if torch.__version__ < "2.3.0.dev20240207":
             warnings.warn("Mutable program import only supported on PyTorch 2.3+")
-        print("Importing program")
         fx_importer.import_program(
             prog,
             func_name=func_name,
             import_symbolic_shape_expressions=import_symbolic_shape_expressions,
         )
     else:
-        print("Importing frozen program")
         fx_importer.import_frozen_program(
             prog,
             func_name=func_name,
