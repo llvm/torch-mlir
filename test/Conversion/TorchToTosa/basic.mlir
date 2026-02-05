@@ -4578,8 +4578,8 @@ func.func @torch.aten.avg_pool1d.count_include_pad(%arg0: !torch.vtensor<[1,512,
 // CHECK:           %[[CONST_SHAPE_1:.*]] = tosa.const_shape  {values = dense<[0, 0, 2, 2, 0, 0, 0, 0]> : tensor<8xindex>} : () -> !tosa.shape<8>
 // CHECK:           %[[VAL_0:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[PAD_0:.*]] = tosa.pad %[[TRANSPOSE_0]], %[[CONST_SHAPE_1]], %[[VAL_0]] : (tensor<?x12x1x3xf32>, !tosa.shape<8>, tensor<1xf32>) -> tensor<?x16x1x3xf32>
-// CHECK:           %[[CONST_SHAPE_2:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[CONST_SHAPE_3:.*]] = tosa.const_shape  {values = dense<[-1, 15, 1, 3]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:           %[[CONST_SHAPE_2:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:           %[[CONST_SHAPE_3:.*]] = tosa.const_shape  {values = dense<[-1, 15, 1, 3]> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK:           %[[SLICE_0:.*]] = tosa.slice %[[PAD_0]], %[[CONST_SHAPE_2]], %[[CONST_SHAPE_3]] : (tensor<?x16x1x3xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<?x15x1x3xf32>
 // CHECK:           %[[VAL_1:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
 // CHECK:           %[[VAL_2:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
