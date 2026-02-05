@@ -451,24 +451,168 @@ func.func @test_rotary_embedding(%arg0: !torch.vtensor<[1,3,2,6],f32>, %arg1: !t
   // CHECK:           %[[VAL_11:.*]] = torch.constant.int 0
   // CHECK:           %[[VAL_12:.*]] = torch.constant.int 0
   // CHECK:           %[[VAL_13:.*]] = torch.constant.float 1.000000e+00
-  // CHECK:           %[[VAL_14:.*]] = arith.constant 0 : index
-  // CHECK:           %[[VAL_15:.*]] = tensor.dim %[[VAL_7]], %[[VAL_14]] : tensor<1x3x2x6xf32>
+  // CHECK:           %[[VAL_14:.*]] = tensor.empty() : tensor<1x3x2x6xf32>
+  // CHECK:           %[[VAL_15:.*]] = arith.constant 0.000000e+00 : f32
+  // CHECK:           %[[VAL_16:.*]] = linalg.fill ins(%[[VAL_15]] : f32) outs(%[[VAL_14]] : tensor<1x3x2x6xf32>) -> tensor<1x3x2x6xf32>
+  // CHECK:           %[[VAL_17:.*]] = arith.constant 1.000000e+00 : f32
+  // CHECK:           %[[VAL_18:.*]] = arith.constant -1.000000e+00 : f32
+  // CHECK:           %[[VAL_19:.*]] = arith.constant 2 : index
+  // CHECK:           %[[VAL_20:.*]] = arith.constant 1 : index
+  // CHECK:           %[[VAL_21:.*]] = arith.constant 6 : index
+  // CHECK:           %[[VAL_22:.*]] = arith.constant 3 : index
+  // CHECK:           %[[VAL_23:.*]] = linalg.generic {indexing_maps = [#[[$ATTR_0]], #[[$ATTR_1]], #[[$ATTR_0]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[VAL_7]], %[[VAL_6]] : tensor<1x3x2x6xf32>, tensor<1x2xi64>) outs(%[[VAL_16]] : tensor<1x3x2x6xf32>) {
+  // CHECK:           ^bb0(%[[VAL_24:.*]]: f32, %[[VAL_25:.*]]: i64, %[[VAL_26:.*]]: f32):
+  // CHECK:             %[[VAL_27:.*]] = linalg.index 0 : index
+  // CHECK:             %[[VAL_28:.*]] = linalg.index 1 : index
+  // CHECK:             %[[VAL_29:.*]] = linalg.index 2 : index
+  // CHECK:             %[[VAL_30:.*]] = linalg.index 3 : index
+  // CHECK:             %[[VAL_31:.*]] = arith.remsi %[[VAL_30]], %[[VAL_22]] : index
+  // CHECK:             %[[VAL_32:.*]] = arith.cmpi sge, %[[VAL_30]], %[[VAL_22]] : index
+  // CHECK:             %[[VAL_33:.*]] = arith.addi %[[VAL_30]], %[[VAL_22]] : index
+  // CHECK:             %[[VAL_34:.*]] = arith.remsi %[[VAL_33]], %[[VAL_21]] : index
+  // CHECK:             %[[VAL_35:.*]] = arith.index_cast %[[VAL_25]] : i64 to index
+  // CHECK:             %[[VAL_36:.*]] = tensor.extract %[[VAL_5]]{{\[}}%[[VAL_35]], %[[VAL_31]]] : tensor<4x3xf32>
+  // CHECK:             %[[VAL_37:.*]] = tensor.extract %[[VAL_4]]{{\[}}%[[VAL_35]], %[[VAL_31]]] : tensor<4x3xf32>
+  // CHECK:             %[[VAL_38:.*]] = tensor.extract %[[VAL_7]]{{\[}}%[[VAL_27]], %[[VAL_28]], %[[VAL_29]], %[[VAL_34]]] : tensor<1x3x2x6xf32>
+  // CHECK:             %[[VAL_39:.*]] = arith.select %[[VAL_32]], %[[VAL_17]], %[[VAL_18]] : f32
+  // CHECK:             %[[VAL_40:.*]] = arith.mulf %[[VAL_24]], %[[VAL_36]] : f32
+  // CHECK:             %[[VAL_41:.*]] = arith.mulf %[[VAL_38]], %[[VAL_37]] : f32
+  // CHECK:             %[[VAL_42:.*]] = arith.mulf %[[VAL_41]], %[[VAL_39]] : f32
+  // CHECK:             %[[VAL_43:.*]] = arith.addf %[[VAL_40]], %[[VAL_42]] : f32
+  // CHECK:             linalg.yield %[[VAL_43]] : f32
+  // CHECK:           } -> tensor<1x3x2x6xf32>
+  // CHECK:           %[[VAL_44:.*]] = tensor.cast %[[VAL_23]] : tensor<1x3x2x6xf32> to tensor<1x3x2x6xf32>
+  // CHECK:           %[[VAL_45:.*]] = torch_c.from_builtin_tensor %[[VAL_44]] : tensor<1x3x2x6xf32> -> !torch.vtensor<[1,3,2,6],f32>
+  // CHECK:           return %[[VAL_45]] : !torch.vtensor<[1,3,2,6],f32>
+  %none = torch.constant.none
+  %int0 = torch.constant.int 0
+  %int0_0 = torch.constant.int 0
+  %int0_1 = torch.constant.int 0
+  %int0_2 = torch.constant.int 0
+  %float1.000000e00 = torch.constant.float 1.000000e+00
+  %4 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0_0, %int0_1, %int0_2, %float1.000000e00 : !torch.vtensor<[1,3,2,6],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,3,2,6],f32>
+  return %4 : !torch.vtensor<[1,3,2,6],f32>
+}
+
+// -----
+
+// Test rotary embedding with rank 3 input (batch, seq, hidden)
+// CHECK-LABEL:   func.func @test_rotary_embedding_rank3(
+// CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[1,2,6],f32>,
+// CHECK-SAME:                                     %[[VAL_1:.*]]: !torch.vtensor<[1,2],si64>,
+// CHECK-SAME:                                     %[[VAL_2:.*]]: !torch.vtensor<[4,3],f32>,
+// CHECK-SAME:                                     %[[VAL_3:.*]]: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[1,2,6],f32>
+func.func @test_rotary_embedding_rank3(%arg0: !torch.vtensor<[1,2,6],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[4,3],f32>, %arg3: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[1,2,6],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[VAL_4:.*]] = torch_c.to_builtin_tensor %[[VAL_3]] : !torch.vtensor<[4,3],f32> -> tensor<4x3xf32>
+  // CHECK:           %[[VAL_5:.*]] = torch_c.to_builtin_tensor %[[VAL_2]] : !torch.vtensor<[4,3],f32> -> tensor<4x3xf32>
+  // CHECK:           %[[VAL_6:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[1,2],si64> -> tensor<1x2xi64>
+  // CHECK:           %[[VAL_7:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,2,6],f32> -> tensor<1x2x6xf32>
+  // CHECK:           %[[VAL_8:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_9:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_10:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_12:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_13:.*]] = torch.constant.float 1.000000e+00
+  // CHECK:           %[[VAL_14:.*]] = arith.constant 1 : index
+  // CHECK:           %[[VAL_15:.*]] = arith.index_cast %[[VAL_14]] : index to i64
   // CHECK:           %[[VAL_16:.*]] = arith.constant 1 : index
-  // CHECK:           %[[VAL_17:.*]] = tensor.dim %[[VAL_7]], %[[VAL_16]] : tensor<1x3x2x6xf32>
+  // CHECK:           %[[VAL_17:.*]] = arith.index_cast %[[VAL_16]] : index to i64
   // CHECK:           %[[VAL_18:.*]] = arith.constant 2 : index
-  // CHECK:           %[[VAL_19:.*]] = tensor.dim %[[VAL_7]], %[[VAL_18]] : tensor<1x3x2x6xf32>
-  // CHECK:           %[[VAL_20:.*]] = arith.constant 3 : index
-  // CHECK:           %[[VAL_21:.*]] = tensor.dim %[[VAL_7]], %[[VAL_20]] : tensor<1x3x2x6xf32>
-  // CHECK:           %[[VAL_22:.*]] = tensor.empty(%[[VAL_15]], %[[VAL_17]], %[[VAL_19]], %[[VAL_21]]) : tensor<?x?x?x?xf32>
+  // CHECK:           %[[VAL_19:.*]] = arith.index_cast %[[VAL_18]] : index to i64
+  // CHECK:           %[[VAL_20:.*]] = arith.constant 6 : index
+  // CHECK:           %[[VAL_21:.*]] = arith.index_cast %[[VAL_20]] : index to i64
+  // CHECK:           %[[VAL_22:.*]] = tensor.from_elements %[[VAL_15]], %[[VAL_17]], %[[VAL_19]], %[[VAL_21]] : tensor<4xi64>
+  // CHECK:           %[[VAL_23:.*]] = tensor.reshape %[[VAL_7]](%[[VAL_22]]) : (tensor<1x2x6xf32>, tensor<4xi64>) -> tensor<1x1x2x6xf32>
+  // CHECK:           %[[VAL_24:.*]] = tensor.empty() : tensor<1x1x2x6xf32>
+  // CHECK:           %[[VAL_25:.*]] = arith.constant 0.000000e+00 : f32
+  // CHECK:           %[[VAL_26:.*]] = linalg.fill ins(%[[VAL_25]] : f32) outs(%[[VAL_24]] : tensor<1x1x2x6xf32>) -> tensor<1x1x2x6xf32>
+  // CHECK:           %[[VAL_27:.*]] = arith.constant 1.000000e+00 : f32
+  // CHECK:           %[[VAL_28:.*]] = arith.constant -1.000000e+00 : f32
+  // CHECK:           %[[VAL_29:.*]] = arith.constant 2 : index
+  // CHECK:           %[[VAL_30:.*]] = arith.constant 1 : index
+  // CHECK:           %[[VAL_31:.*]] = arith.constant 6 : index
+  // CHECK:           %[[VAL_32:.*]] = arith.constant 3 : index
+  // CHECK:           %[[VAL_33:.*]] = linalg.generic {indexing_maps = [#[[$ATTR_0]], #[[$ATTR_1]], #[[$ATTR_0]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[VAL_23]], %[[VAL_6]] : tensor<1x1x2x6xf32>, tensor<1x2xi64>) outs(%[[VAL_26]] : tensor<1x1x2x6xf32>) {
+  // CHECK:           ^bb0(%[[VAL_34:.*]]: f32, %[[VAL_35:.*]]: i64, %[[VAL_36:.*]]: f32):
+  // CHECK:             %[[VAL_37:.*]] = linalg.index 0 : index
+  // CHECK:             %[[VAL_38:.*]] = linalg.index 1 : index
+  // CHECK:             %[[VAL_39:.*]] = linalg.index 2 : index
+  // CHECK:             %[[VAL_40:.*]] = linalg.index 3 : index
+  // CHECK:             %[[VAL_41:.*]] = arith.remsi %[[VAL_40]], %[[VAL_32]] : index
+  // CHECK:             %[[VAL_42:.*]] = arith.cmpi sge, %[[VAL_40]], %[[VAL_32]] : index
+  // CHECK:             %[[VAL_43:.*]] = arith.addi %[[VAL_40]], %[[VAL_32]] : index
+  // CHECK:             %[[VAL_44:.*]] = arith.remsi %[[VAL_43]], %[[VAL_31]] : index
+  // CHECK:             %[[VAL_45:.*]] = arith.index_cast %[[VAL_35]] : i64 to index
+  // CHECK:             %[[VAL_46:.*]] = tensor.extract %[[VAL_5]]{{\[}}%[[VAL_45]], %[[VAL_41]]] : tensor<4x3xf32>
+  // CHECK:             %[[VAL_47:.*]] = tensor.extract %[[VAL_4]]{{\[}}%[[VAL_45]], %[[VAL_41]]] : tensor<4x3xf32>
+  // CHECK:             %[[VAL_48:.*]] = tensor.extract %[[VAL_23]]{{\[}}%[[VAL_37]], %[[VAL_38]], %[[VAL_39]], %[[VAL_44]]] : tensor<1x1x2x6xf32>
+  // CHECK:             %[[VAL_49:.*]] = arith.select %[[VAL_42]], %[[VAL_27]], %[[VAL_28]] : f32
+  // CHECK:             %[[VAL_50:.*]] = arith.mulf %[[VAL_34]], %[[VAL_46]] : f32
+  // CHECK:             %[[VAL_51:.*]] = arith.mulf %[[VAL_48]], %[[VAL_47]] : f32
+  // CHECK:             %[[VAL_52:.*]] = arith.mulf %[[VAL_51]], %[[VAL_49]] : f32
+  // CHECK:             %[[VAL_53:.*]] = arith.addf %[[VAL_50]], %[[VAL_52]] : f32
+  // CHECK:             linalg.yield %[[VAL_53]] : f32
+  // CHECK:           } -> tensor<1x1x2x6xf32>
+  // CHECK:           %[[VAL_54:.*]] = arith.constant 1 : index
+  // CHECK:           %[[VAL_55:.*]] = arith.index_cast %[[VAL_54]] : index to i64
+  // CHECK:           %[[VAL_56:.*]] = arith.constant 2 : index
+  // CHECK:           %[[VAL_57:.*]] = arith.index_cast %[[VAL_56]] : index to i64
+  // CHECK:           %[[VAL_58:.*]] = arith.constant 6 : index
+  // CHECK:           %[[VAL_59:.*]] = arith.index_cast %[[VAL_58]] : index to i64
+  // CHECK:           %[[VAL_60:.*]] = tensor.from_elements %[[VAL_55]], %[[VAL_57]], %[[VAL_59]] : tensor<3xi64>
+  // CHECK:           %[[VAL_61:.*]] = tensor.reshape %[[VAL_33]](%[[VAL_60]]) : (tensor<1x1x2x6xf32>, tensor<3xi64>) -> tensor<1x2x6xf32>
+  // CHECK:           %[[VAL_62:.*]] = tensor.cast %[[VAL_61]] : tensor<1x2x6xf32> to tensor<1x2x6xf32>
+  // CHECK:           %[[VAL_63:.*]] = torch_c.from_builtin_tensor %[[VAL_62]] : tensor<1x2x6xf32> -> !torch.vtensor<[1,2,6],f32>
+  // CHECK:           return %[[VAL_63]] : !torch.vtensor<[1,2,6],f32>
+  %none = torch.constant.none
+  %int0 = torch.constant.int 0
+  %int0_0 = torch.constant.int 0
+  %int0_1 = torch.constant.int 0
+  %int0_2 = torch.constant.int 0
+  %float1.000000e00 = torch.constant.float 1.000000e+00
+  %4 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0_0, %int0_1, %int0_2, %float1.000000e00 : !torch.vtensor<[1,2,6],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,6],f32>
+  return %4 : !torch.vtensor<[1,2,6],f32>
+}
+
+// -----
+
+// Test rotary embedding with dynamic batch and sequence dimensions (rank 4)
+// Input shape: [batch, num_heads, seq, head_size] = [?, 1, ?, 6]
+// batch (dim 0) and seq (dim 2) are dynamic; num_heads (dim 1) and head_size (dim 3) must be static
+// CHECK-LABEL:   func.func @test_rotary_embedding_dynamic(
+// CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[?,1,?,6],f32>,
+// CHECK-SAME:                                     %[[VAL_1:.*]]: !torch.vtensor<[?,?],si64>,
+// CHECK-SAME:                                     %[[VAL_2:.*]]: !torch.vtensor<[4,3],f32>,
+// CHECK-SAME:                                     %[[VAL_3:.*]]: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[?,1,?,6],f32>
+func.func @test_rotary_embedding_dynamic(%arg0: !torch.vtensor<[?,1,?,6],f32>, %arg1: !torch.vtensor<[?,?],si64>, %arg2: !torch.vtensor<[4,3],f32>, %arg3: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[?,1,?,6],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[VAL_4:.*]] = torch_c.to_builtin_tensor %[[VAL_3]] : !torch.vtensor<[4,3],f32> -> tensor<4x3xf32>
+  // CHECK:           %[[VAL_5:.*]] = torch_c.to_builtin_tensor %[[VAL_2]] : !torch.vtensor<[4,3],f32> -> tensor<4x3xf32>
+  // CHECK:           %[[VAL_6:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[?,?],si64> -> tensor<?x?xi64>
+  // CHECK:           %[[VAL_7:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[?,1,?,6],f32> -> tensor<?x1x?x6xf32>
+  // CHECK:           %[[VAL_8:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_9:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_10:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_12:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_13:.*]] = torch.constant.float 1.000000e+00
+  // CHECK:           %[[VAL_14:.*]] = arith.constant 0 : index
+  // CHECK:           %[[VAL_15:.*]] = tensor.dim %[[VAL_7]], %[[VAL_14]] : tensor<?x1x?x6xf32>
+  // CHECK:           %[[VAL_16:.*]] = arith.constant 2 : index
+  // CHECK:           %[[VAL_17:.*]] = tensor.dim %[[VAL_7]], %[[VAL_16]] : tensor<?x1x?x6xf32>
+  // CHECK:           %[[VAL_18:.*]] = arith.constant 0 : index
+  // CHECK:           %[[VAL_19:.*]] = tensor.dim %[[VAL_7]], %[[VAL_18]] : tensor<?x1x?x6xf32>
+  // CHECK:           %[[VAL_20:.*]] = arith.constant 2 : index
+  // CHECK:           %[[VAL_21:.*]] = tensor.dim %[[VAL_7]], %[[VAL_20]] : tensor<?x1x?x6xf32>
+  // CHECK:           %[[VAL_22:.*]] = tensor.empty(%[[VAL_19]], %[[VAL_21]]) : tensor<?x1x?x6xf32>
   // CHECK:           %[[VAL_23:.*]] = arith.constant 0.000000e+00 : f32
-  // CHECK:           %[[VAL_24:.*]] = linalg.fill ins(%[[VAL_23]] : f32) outs(%[[VAL_22]] : tensor<?x?x?x?xf32>) -> tensor<?x?x?x?xf32>
+  // CHECK:           %[[VAL_24:.*]] = linalg.fill ins(%[[VAL_23]] : f32) outs(%[[VAL_22]] : tensor<?x1x?x6xf32>) -> tensor<?x1x?x6xf32>
   // CHECK:           %[[VAL_25:.*]] = arith.constant 1.000000e+00 : f32
   // CHECK:           %[[VAL_26:.*]] = arith.constant -1.000000e+00 : f32
   // CHECK:           %[[VAL_27:.*]] = arith.constant 2 : index
   // CHECK:           %[[VAL_28:.*]] = arith.constant 1 : index
   // CHECK:           %[[VAL_29:.*]] = arith.constant 6 : index
   // CHECK:           %[[VAL_30:.*]] = arith.constant 3 : index
-  // CHECK:           %[[VAL_31:.*]] = linalg.generic {indexing_maps = [#[[$ATTR_0]], #[[$ATTR_1]], #[[$ATTR_0]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[VAL_7]], %[[VAL_6]] : tensor<1x3x2x6xf32>, tensor<1x2xi64>) outs(%[[VAL_24]] : tensor<?x?x?x?xf32>) {
+  // CHECK:           %[[VAL_31:.*]] = linalg.generic {indexing_maps = [#[[$ATTR_0]], #[[$ATTR_1]], #[[$ATTR_0]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[VAL_7]], %[[VAL_6]] : tensor<?x1x?x6xf32>, tensor<?x?xi64>) outs(%[[VAL_24]] : tensor<?x1x?x6xf32>) {
   // CHECK:           ^bb0(%[[VAL_32:.*]]: f32, %[[VAL_33:.*]]: i64, %[[VAL_34:.*]]: f32):
   // CHECK:             %[[VAL_35:.*]] = linalg.index 0 : index
   // CHECK:             %[[VAL_36:.*]] = linalg.index 1 : index
@@ -481,24 +625,177 @@ func.func @test_rotary_embedding(%arg0: !torch.vtensor<[1,3,2,6],f32>, %arg1: !t
   // CHECK:             %[[VAL_43:.*]] = arith.index_cast %[[VAL_33]] : i64 to index
   // CHECK:             %[[VAL_44:.*]] = tensor.extract %[[VAL_5]]{{\[}}%[[VAL_43]], %[[VAL_39]]] : tensor<4x3xf32>
   // CHECK:             %[[VAL_45:.*]] = tensor.extract %[[VAL_4]]{{\[}}%[[VAL_43]], %[[VAL_39]]] : tensor<4x3xf32>
-  // CHECK:             %[[VAL_46:.*]] = tensor.extract %[[VAL_7]]{{\[}}%[[VAL_35]], %[[VAL_36]], %[[VAL_37]], %[[VAL_42]]] : tensor<1x3x2x6xf32>
+  // CHECK:             %[[VAL_46:.*]] = tensor.extract %[[VAL_7]]{{\[}}%[[VAL_35]], %[[VAL_36]], %[[VAL_37]], %[[VAL_42]]] : tensor<?x1x?x6xf32>
   // CHECK:             %[[VAL_47:.*]] = arith.select %[[VAL_40]], %[[VAL_25]], %[[VAL_26]] : f32
   // CHECK:             %[[VAL_48:.*]] = arith.mulf %[[VAL_32]], %[[VAL_44]] : f32
   // CHECK:             %[[VAL_49:.*]] = arith.mulf %[[VAL_46]], %[[VAL_45]] : f32
   // CHECK:             %[[VAL_50:.*]] = arith.mulf %[[VAL_49]], %[[VAL_47]] : f32
   // CHECK:             %[[VAL_51:.*]] = arith.addf %[[VAL_48]], %[[VAL_50]] : f32
   // CHECK:             linalg.yield %[[VAL_51]] : f32
-  // CHECK:           } -> tensor<?x?x?x?xf32>
-  // CHECK:           %[[VAL_52:.*]] = tensor.cast %[[VAL_31]] : tensor<?x?x?x?xf32> to tensor<1x3x2x6xf32>
-  // CHECK:           %[[VAL_53:.*]] = torch_c.from_builtin_tensor %[[VAL_52]] : tensor<1x3x2x6xf32> -> !torch.vtensor<[1,3,2,6],f32>
-  // CHECK:           return %[[VAL_53]] : !torch.vtensor<[1,3,2,6],f32>
+  // CHECK:           } -> tensor<?x1x?x6xf32>
+  // CHECK:           %[[VAL_52:.*]] = tensor.cast %[[VAL_31]] : tensor<?x1x?x6xf32> to tensor<?x1x?x6xf32>
+  // CHECK:           %[[VAL_53:.*]] = torch_c.from_builtin_tensor %[[VAL_52]] : tensor<?x1x?x6xf32> -> !torch.vtensor<[?,1,?,6],f32>
+  // CHECK:           return %[[VAL_53]] : !torch.vtensor<[?,1,?,6],f32>
   %none = torch.constant.none
   %int0 = torch.constant.int 0
   %int0_0 = torch.constant.int 0
   %int0_1 = torch.constant.int 0
   %int0_2 = torch.constant.int 0
   %float1.000000e00 = torch.constant.float 1.000000e+00
-  %4 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0_0, %int0_1, %int0_2, %float1.000000e00 : !torch.vtensor<[1,3,2,6],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,3,2,6],f32>
+  %4 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0_0, %int0_1, %int0_2, %float1.000000e00 : !torch.vtensor<[?,1,?,6],f32>, !torch.vtensor<[?,?],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[?,1,?,6],f32>
+  return %4 : !torch.vtensor<[?,1,?,6],f32>
+}
+
+// -----
+
+// Test rotary embedding with rank 3 input and dynamic batch/sequence dimensions
+// CHECK-LABEL:   func.func @test_rotary_embedding_rank3_dynamic(
+// CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[?,?,6],f32>,
+// CHECK-SAME:                                     %[[VAL_1:.*]]: !torch.vtensor<[?,?],si64>,
+// CHECK-SAME:                                     %[[VAL_2:.*]]: !torch.vtensor<[4,3],f32>,
+// CHECK-SAME:                                     %[[VAL_3:.*]]: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[?,?,6],f32>
+func.func @test_rotary_embedding_rank3_dynamic(%arg0: !torch.vtensor<[?,?,6],f32>, %arg1: !torch.vtensor<[?,?],si64>, %arg2: !torch.vtensor<[4,3],f32>, %arg3: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[?,?,6],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[VAL_4:.*]] = torch_c.to_builtin_tensor %[[VAL_3]] : !torch.vtensor<[4,3],f32> -> tensor<4x3xf32>
+  // CHECK:           %[[VAL_5:.*]] = torch_c.to_builtin_tensor %[[VAL_2]] : !torch.vtensor<[4,3],f32> -> tensor<4x3xf32>
+  // CHECK:           %[[VAL_6:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[?,?],si64> -> tensor<?x?xi64>
+  // CHECK:           %[[VAL_7:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[?,?,6],f32> -> tensor<?x?x6xf32>
+  // CHECK:           %[[VAL_8:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_9:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_10:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_12:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_13:.*]] = torch.constant.float 1.000000e+00
+  // CHECK:           %[[VAL_14:.*]] = arith.constant 0 : index
+  // CHECK:           %[[VAL_15:.*]] = tensor.dim %[[VAL_7]], %[[VAL_14]] : tensor<?x?x6xf32>
+  // CHECK:           %[[VAL_16:.*]] = arith.constant 1 : index
+  // CHECK:           %[[VAL_17:.*]] = tensor.dim %[[VAL_7]], %[[VAL_16]] : tensor<?x?x6xf32>
+  // CHECK:           %[[VAL_18:.*]] = arith.index_cast %[[VAL_15]] : index to i64
+  // CHECK:           %[[VAL_19:.*]] = arith.constant 1 : index
+  // CHECK:           %[[VAL_20:.*]] = arith.index_cast %[[VAL_19]] : index to i64
+  // CHECK:           %[[VAL_21:.*]] = arith.index_cast %[[VAL_17]] : index to i64
+  // CHECK:           %[[VAL_22:.*]] = arith.constant 6 : index
+  // CHECK:           %[[VAL_23:.*]] = arith.index_cast %[[VAL_22]] : index to i64
+  // CHECK:           %[[VAL_24:.*]] = tensor.from_elements %[[VAL_18]], %[[VAL_20]], %[[VAL_21]], %[[VAL_23]] : tensor<4xi64>
+  // CHECK:           %[[VAL_25:.*]] = tensor.reshape %[[VAL_7]](%[[VAL_24]]) : (tensor<?x?x6xf32>, tensor<4xi64>) -> tensor<?x1x?x6xf32>
+  // CHECK:           %[[VAL_26:.*]] = arith.constant 0 : index
+  // CHECK:           %[[VAL_27:.*]] = tensor.dim %[[VAL_25]], %[[VAL_26]] : tensor<?x1x?x6xf32>
+  // CHECK:           %[[VAL_28:.*]] = arith.constant 2 : index
+  // CHECK:           %[[VAL_29:.*]] = tensor.dim %[[VAL_25]], %[[VAL_28]] : tensor<?x1x?x6xf32>
+  // CHECK:           %[[VAL_30:.*]] = tensor.empty(%[[VAL_27]], %[[VAL_29]]) : tensor<?x1x?x6xf32>
+  // CHECK:           %[[VAL_31:.*]] = arith.constant 0.000000e+00 : f32
+  // CHECK:           %[[VAL_32:.*]] = linalg.fill ins(%[[VAL_31]] : f32) outs(%[[VAL_30]] : tensor<?x1x?x6xf32>) -> tensor<?x1x?x6xf32>
+  // CHECK:           %[[VAL_33:.*]] = arith.constant 1.000000e+00 : f32
+  // CHECK:           %[[VAL_34:.*]] = arith.constant -1.000000e+00 : f32
+  // CHECK:           %[[VAL_35:.*]] = arith.constant 2 : index
+  // CHECK:           %[[VAL_36:.*]] = arith.constant 1 : index
+  // CHECK:           %[[VAL_37:.*]] = arith.constant 6 : index
+  // CHECK:           %[[VAL_38:.*]] = arith.constant 3 : index
+  // CHECK:           %[[VAL_39:.*]] = linalg.generic {indexing_maps = [#[[$ATTR_0]], #[[$ATTR_1]], #[[$ATTR_0]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[VAL_25]], %[[VAL_6]] : tensor<?x1x?x6xf32>, tensor<?x?xi64>) outs(%[[VAL_32]] : tensor<?x1x?x6xf32>) {
+  // CHECK:           ^bb0(%[[VAL_40:.*]]: f32, %[[VAL_41:.*]]: i64, %[[VAL_42:.*]]: f32):
+  // CHECK:             %[[VAL_43:.*]] = linalg.index 0 : index
+  // CHECK:             %[[VAL_44:.*]] = linalg.index 1 : index
+  // CHECK:             %[[VAL_45:.*]] = linalg.index 2 : index
+  // CHECK:             %[[VAL_46:.*]] = linalg.index 3 : index
+  // CHECK:             %[[VAL_47:.*]] = arith.remsi %[[VAL_46]], %[[VAL_38]] : index
+  // CHECK:             %[[VAL_48:.*]] = arith.cmpi sge, %[[VAL_46]], %[[VAL_38]] : index
+  // CHECK:             %[[VAL_49:.*]] = arith.addi %[[VAL_46]], %[[VAL_38]] : index
+  // CHECK:             %[[VAL_50:.*]] = arith.remsi %[[VAL_49]], %[[VAL_37]] : index
+  // CHECK:             %[[VAL_51:.*]] = arith.index_cast %[[VAL_41]] : i64 to index
+  // CHECK:             %[[VAL_52:.*]] = tensor.extract %[[VAL_5]]{{\[}}%[[VAL_51]], %[[VAL_47]]] : tensor<4x3xf32>
+  // CHECK:             %[[VAL_53:.*]] = tensor.extract %[[VAL_4]]{{\[}}%[[VAL_51]], %[[VAL_47]]] : tensor<4x3xf32>
+  // CHECK:             %[[VAL_54:.*]] = tensor.extract %[[VAL_25]]{{\[}}%[[VAL_43]], %[[VAL_44]], %[[VAL_45]], %[[VAL_50]]] : tensor<?x1x?x6xf32>
+  // CHECK:             %[[VAL_55:.*]] = arith.select %[[VAL_48]], %[[VAL_33]], %[[VAL_34]] : f32
+  // CHECK:             %[[VAL_56:.*]] = arith.mulf %[[VAL_40]], %[[VAL_52]] : f32
+  // CHECK:             %[[VAL_57:.*]] = arith.mulf %[[VAL_54]], %[[VAL_53]] : f32
+  // CHECK:             %[[VAL_58:.*]] = arith.mulf %[[VAL_57]], %[[VAL_55]] : f32
+  // CHECK:             %[[VAL_59:.*]] = arith.addf %[[VAL_56]], %[[VAL_58]] : f32
+  // CHECK:             linalg.yield %[[VAL_59]] : f32
+  // CHECK:           } -> tensor<?x1x?x6xf32>
+  // CHECK:           %[[VAL_60:.*]] = arith.index_cast %[[VAL_15]] : index to i64
+  // CHECK:           %[[VAL_61:.*]] = arith.index_cast %[[VAL_17]] : index to i64
+  // CHECK:           %[[VAL_62:.*]] = arith.constant 6 : index
+  // CHECK:           %[[VAL_63:.*]] = arith.index_cast %[[VAL_62]] : index to i64
+  // CHECK:           %[[VAL_64:.*]] = tensor.from_elements %[[VAL_60]], %[[VAL_61]], %[[VAL_63]] : tensor<3xi64>
+  // CHECK:           %[[VAL_65:.*]] = tensor.reshape %[[VAL_39]](%[[VAL_64]]) : (tensor<?x1x?x6xf32>, tensor<3xi64>) -> tensor<?x?x6xf32>
+  // CHECK:           %[[VAL_66:.*]] = tensor.cast %[[VAL_65]] : tensor<?x?x6xf32> to tensor<?x?x6xf32>
+  // CHECK:           %[[VAL_67:.*]] = torch_c.from_builtin_tensor %[[VAL_66]] : tensor<?x?x6xf32> -> !torch.vtensor<[?,?,6],f32>
+  // CHECK:           return %[[VAL_67]] : !torch.vtensor<[?,?,6],f32>
+  %none = torch.constant.none
+  %int0 = torch.constant.int 0
+  %int0_0 = torch.constant.int 0
+  %int0_1 = torch.constant.int 0
+  %int0_2 = torch.constant.int 0
+  %float1.000000e00 = torch.constant.float 1.000000e+00
+  %4 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0_0, %int0_1, %int0_2, %float1.000000e00 : !torch.vtensor<[?,?,6],f32>, !torch.vtensor<[?,?],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[?,?,6],f32>
+  return %4 : !torch.vtensor<[?,?,6],f32>
+}
+
+// -----
+
+// Test rotary embedding with scale != 1.0
+// CHECK-LABEL:   func.func @test_rotary_embedding_with_scale(
+// CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[1,3,2,6],f32>,
+// CHECK-SAME:                                     %[[VAL_1:.*]]: !torch.vtensor<[1,2],si64>,
+// CHECK-SAME:                                     %[[VAL_2:.*]]: !torch.vtensor<[4,3],f32>,
+// CHECK-SAME:                                     %[[VAL_3:.*]]: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[1,3,2,6],f32>
+func.func @test_rotary_embedding_with_scale(%arg0: !torch.vtensor<[1,3,2,6],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[4,3],f32>, %arg3: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[1,3,2,6],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[VAL_4:.*]] = torch_c.to_builtin_tensor %[[VAL_3]] : !torch.vtensor<[4,3],f32> -> tensor<4x3xf32>
+  // CHECK:           %[[VAL_5:.*]] = torch_c.to_builtin_tensor %[[VAL_2]] : !torch.vtensor<[4,3],f32> -> tensor<4x3xf32>
+  // CHECK:           %[[VAL_6:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[1,2],si64> -> tensor<1x2xi64>
+  // CHECK:           %[[VAL_7:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,3,2,6],f32> -> tensor<1x3x2x6xf32>
+  // CHECK:           %[[VAL_8:.*]] = torch.constant.none
+  // CHECK:           %[[VAL_9:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_10:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_11:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_12:.*]] = torch.constant.int 0
+  // CHECK:           %[[VAL_13:.*]] = torch.constant.float 2.000000e+00
+  // CHECK:           %[[VAL_14:.*]] = tensor.empty() : tensor<1x3x2x6xf32>
+  // CHECK:           %[[VAL_15:.*]] = arith.constant 0.000000e+00 : f32
+  // CHECK:           %[[VAL_16:.*]] = linalg.fill ins(%[[VAL_15]] : f32) outs(%[[VAL_14]] : tensor<1x3x2x6xf32>) -> tensor<1x3x2x6xf32>
+  // CHECK:           %[[VAL_17:.*]] = arith.constant 1.000000e+00 : f32
+  // CHECK:           %[[VAL_18:.*]] = arith.constant -1.000000e+00 : f32
+  // CHECK:           %[[VAL_19:.*]] = arith.constant 2 : index
+  // CHECK:           %[[VAL_20:.*]] = arith.constant 1 : index
+  // CHECK:           %[[VAL_21:.*]] = arith.constant 6 : index
+  // CHECK:           %[[VAL_22:.*]] = arith.constant 3 : index
+  // CHECK:           %[[VAL_23:.*]] = linalg.generic {indexing_maps = [#[[$ATTR_0]], #[[$ATTR_1]], #[[$ATTR_0]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[VAL_7]], %[[VAL_6]] : tensor<1x3x2x6xf32>, tensor<1x2xi64>) outs(%[[VAL_16]] : tensor<1x3x2x6xf32>) {
+  // CHECK:           ^bb0(%[[VAL_24:.*]]: f32, %[[VAL_25:.*]]: i64, %[[VAL_26:.*]]: f32):
+  // CHECK:             %[[VAL_27:.*]] = linalg.index 0 : index
+  // CHECK:             %[[VAL_28:.*]] = linalg.index 1 : index
+  // CHECK:             %[[VAL_29:.*]] = linalg.index 2 : index
+  // CHECK:             %[[VAL_30:.*]] = linalg.index 3 : index
+  // CHECK:             %[[VAL_31:.*]] = arith.remsi %[[VAL_30]], %[[VAL_22]] : index
+  // CHECK:             %[[VAL_32:.*]] = arith.cmpi sge, %[[VAL_30]], %[[VAL_22]] : index
+  // CHECK:             %[[VAL_33:.*]] = arith.addi %[[VAL_30]], %[[VAL_22]] : index
+  // CHECK:             %[[VAL_34:.*]] = arith.remsi %[[VAL_33]], %[[VAL_21]] : index
+  // CHECK:             %[[VAL_35:.*]] = arith.index_cast %[[VAL_25]] : i64 to index
+  // CHECK:             %[[VAL_36:.*]] = tensor.extract %[[VAL_5]]{{\[}}%[[VAL_35]], %[[VAL_31]]] : tensor<4x3xf32>
+  // CHECK:             %[[VAL_37:.*]] = tensor.extract %[[VAL_4]]{{\[}}%[[VAL_35]], %[[VAL_31]]] : tensor<4x3xf32>
+  // CHECK:             %[[VAL_38:.*]] = tensor.extract %[[VAL_7]]{{\[}}%[[VAL_27]], %[[VAL_28]], %[[VAL_29]], %[[VAL_34]]] : tensor<1x3x2x6xf32>
+  // CHECK:             %[[VAL_39:.*]] = arith.select %[[VAL_32]], %[[VAL_17]], %[[VAL_18]] : f32
+  // CHECK:             %[[VAL_40:.*]] = arith.mulf %[[VAL_24]], %[[VAL_36]] : f32
+  // CHECK:             %[[VAL_41:.*]] = arith.mulf %[[VAL_38]], %[[VAL_37]] : f32
+  // CHECK:             %[[VAL_42:.*]] = arith.mulf %[[VAL_41]], %[[VAL_39]] : f32
+  // CHECK:             %[[VAL_43:.*]] = arith.addf %[[VAL_40]], %[[VAL_42]] : f32
+  // CHECK:             linalg.yield %[[VAL_43]] : f32
+  // CHECK:           } -> tensor<1x3x2x6xf32>
+  // CHECK:           %[[VAL_44:.*]] = arith.constant 2.000000e+00 : f32
+  // CHECK:           %[[VAL_45:.*]] = tensor.empty() : tensor<1x3x2x6xf32>
+  // CHECK:           %[[VAL_46:.*]] = linalg.generic {indexing_maps = [#[[$ATTR_0]], #[[$ATTR_0]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[VAL_23]] : tensor<1x3x2x6xf32>) outs(%[[VAL_45]] : tensor<1x3x2x6xf32>) {
+  // CHECK:           ^bb0(%[[VAL_47:.*]]: f32, %[[VAL_48:.*]]: f32):
+  // CHECK:             %[[VAL_49:.*]] = arith.mulf %[[VAL_47]], %[[VAL_44]] : f32
+  // CHECK:             linalg.yield %[[VAL_49]] : f32
+  // CHECK:           } -> tensor<1x3x2x6xf32>
+  // CHECK:           %[[VAL_50:.*]] = tensor.cast %[[VAL_46]] : tensor<1x3x2x6xf32> to tensor<1x3x2x6xf32>
+  // CHECK:           %[[VAL_51:.*]] = torch_c.from_builtin_tensor %[[VAL_50]] : tensor<1x3x2x6xf32> -> !torch.vtensor<[1,3,2,6],f32>
+  // CHECK:           return %[[VAL_51]] : !torch.vtensor<[1,3,2,6],f32>
+  %none = torch.constant.none
+  %int0 = torch.constant.int 0
+  %int0_0 = torch.constant.int 0
+  %int0_1 = torch.constant.int 0
+  %int0_2 = torch.constant.int 0
+  %float2.000000e00 = torch.constant.float 2.000000e+00
+  %4 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0_0, %int0_1, %int0_2, %float2.000000e00 : !torch.vtensor<[1,3,2,6],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,3,2,6],f32>
   return %4 : !torch.vtensor<[1,3,2,6],f32>
 }
 
