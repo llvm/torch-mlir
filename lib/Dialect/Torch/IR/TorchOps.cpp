@@ -910,6 +910,34 @@ OpFoldResult AtenSqueezeOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenSqueezeDimsOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenSqueezeDimsOp::fold(FoldAdaptor adaptor) {
+  auto inType = dyn_cast<ValueTensorType>(getOperand(0).getType());
+  auto outType = dyn_cast<ValueTensorType>(getResult().getType());
+  if (inType && inType.hasSizes() && inType.getSizes().size() == 0)
+    return getOperand(0);
+
+  if (!inType || !outType || !inType.areAllSizesKnown() ||
+      !outType.areAllSizesKnown() || !inType.hasDtype() ||
+      !outType.hasDtype()) {
+    return nullptr;
+  }
+
+  if (inType == outType) {
+    return getOperand(0);
+  }
+
+  DenseElementsAttr input =
+      dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
+  if (input) {
+    return reshapeDenseElementsAttr(input, outType.toBuiltinTensor());
+  }
+  return nullptr;
+}
+
+//===----------------------------------------------------------------------===//
 // AtenSqueezeDimOp
 //===----------------------------------------------------------------------===//
 

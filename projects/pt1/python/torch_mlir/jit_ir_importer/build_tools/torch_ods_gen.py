@@ -828,6 +828,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::reflection_pad3d : (Tensor, int[]) -> (Tensor)")
     emit("aten::pad : (Tensor, int[], str, float?) -> (Tensor)")
     emit("aten::squeeze.dim : (Tensor, int) -> (Tensor)", has_folder=True)
+    emit("aten::squeeze.dims : (Tensor, int[]) -> (Tensor)", has_folder=True)
     emit("aten::squeeze : (Tensor) -> (Tensor)", has_folder=True)
     emit("aten::flatten.using_ints : (Tensor, int, int) -> (Tensor)", has_folder=True)
     emit(

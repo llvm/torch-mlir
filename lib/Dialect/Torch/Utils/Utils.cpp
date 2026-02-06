@@ -322,7 +322,7 @@ bool Torch::isViewLikeOp(Operation *op) {
       AtenAsStridedOp, AtenBroadcastToOp, AtenContiguousOp, AtenDetachOp,
       AtenExpandAsOp, AtenExpandOp, AtenFlattenUsingIntsOp, AtenUnflattenIntOp,
       AtenPermuteOp, AtenReshapeOp, Aten_ReshapeAliasOp, AtenSelectIntOp,
-      AtenSliceTensorOp, AtenSqueezeDimOp, AtenSqueezeOp, AtenTOp,
+      AtenSliceTensorOp, AtenSqueezeDimOp, AtenSqueezeDimsOp, AtenSqueezeOp, AtenTOp,
       AtenToDtypeOp, AtenTransposeIntOp, AtenUnsqueezeOp, AtenViewOp,
       TensorStaticInfoCastOp, AtenToDtypeLayoutOp, AtenNumpyTOp, AtenNarrowOp,
       AtenNarrowTensorOp, AtenToDeviceOp, PrimsSqueezeOp, AtenMovedimIntOp,

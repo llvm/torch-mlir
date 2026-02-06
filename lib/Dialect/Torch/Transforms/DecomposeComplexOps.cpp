@@ -5454,6 +5454,32 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenSqueezeDimsOp : public OpRewritePattern<AtenSqueezeDimsOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSqueezeDimsOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    SmallVector<int64_t> dimListInts;
+    if (!matchPattern(op.getDim(), m_TorchListOfConstantInts(dimListInts)))
+      return rewriter.notifyMatchFailure(
+          op, "Dim list elements must be constant integers");
+    for (unsigned i = dimListInts.size(); i > 0; i--) {
+      Value cstDim = rewriter.create<Torch::ConstantIntOp>(
+          loc, rewriter.getI64IntegerAttr(dimListInts[i - 1]));
+      BaseTensorType selfType = cast<BaseTensorType>(self.getType());
+      Type squeezedType = computeReductionType(rewriter, op, selfType, cstDim,
+                                               /*keepDim=*/false);
+      self = rewriter.create<AtenSqueezeDimOp>(loc, squeezedType, self, cstDim);
+    }
+    rewriter.replaceOp(op, self);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.expand into aten.broadcast_to op.
 namespace {
 class DecomposeAtenExpandOp : public OpRewritePattern<AtenExpandOp> {
@@ -13332,6 +13358,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatInterleaveSelfIntOp>(
         patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSqueezeDimsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFlattenUsingIntsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenUnflattenIntOp>(patterns);
