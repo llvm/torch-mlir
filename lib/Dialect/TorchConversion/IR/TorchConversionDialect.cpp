@@ -67,9 +67,33 @@ Operation *TorchConversionDialect::materializeConstant(OpBuilder &builder,
   if (auto floatType = dyn_cast<Torch::FloatType>(type))
     return Torch::ConstantFloatOp::create(builder, loc, cast<FloatAttr>(value));
 
+  if (auto numberType = dyn_cast<Torch::NumberType>(type)) {
+    if (auto floatValue = dyn_cast<mlir::FloatAttr>(value)) {
+      return Torch::ConstantNumberOp::create(builder, loc, floatValue);
+    } else if (auto intValue = dyn_cast<mlir::IntegerAttr>(value)) {
+      return Torch::ConstantNumberOp::create(builder, loc, intValue);
+    }
+  }
+
   if (isa<Torch::BoolType>(type)) {
     return Torch::ConstantBoolOp::create(builder, loc,
                                          cast<IntegerAttr>(value));
+  }
+
+  if (isa<Torch::NoneType>(type))
+    return Torch::ConstantNoneOp::create(builder, loc);
+
+  if (auto stringAttr = dyn_cast<StringAttr>(value))
+    return Torch::ConstantStrOp::create(builder, loc, stringAttr);
+
+  if (auto elementsAttr = dyn_cast<ElementsAttr>(value)) {
+    // Only !torch.vtensor can be constant folded. !torch.tensor has
+    // non-trivial aliasing semantics which prevent deduplicating it.
+    if (isa<Torch::ValueTensorType>(type))
+      return Torch::ValueTensorLiteralOp::create(builder, loc, elementsAttr);
+    else if (isa<mlir::TensorType>(type))
+      return arith::ConstantOp::materialize(builder, value, type, loc);
+    llvm_unreachable("not a value tensor or builtin tensor");
   }
 
   return arith::ConstantOp::materialize(builder, value, type, loc);

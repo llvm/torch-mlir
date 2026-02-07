@@ -9,7 +9,9 @@
 
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "llvm/ADT/StringMap.h"
@@ -53,6 +55,32 @@ LogicalResult ToBuiltinTensorOp::verify() {
   return success();
 }
 
+OpFoldResult ToBuiltinTensorOp::fold(FoldAdaptor adaptor) {
+  // Check if the operand is already a constant attribute
+  if (auto attr = dyn_cast_or_null<ElementsAttr>(adaptor.getOperand())) {
+    return attr;
+  }
+
+  // Check if the producer is a ConstantLike op
+  Operation *producer = getOperand().getDefiningOp();
+  if (!producer) {
+    return nullptr;
+  }
+
+  bool hasConstantLike = producer->hasTrait<OpTrait::ConstantLike>();
+  if (!hasConstantLike) {
+    return nullptr;
+  }
+
+  // Try to get the constant value using matchPattern
+  Attribute constantValue;
+  if (matchPattern(getOperand(), m_Constant(&constantValue))) {
+    return constantValue;
+  }
+
+  return nullptr;
+}
+
 //===----------------------------------------------------------------------===//
 // FromBuiltinTensorOp
 //===----------------------------------------------------------------------===//
@@ -66,6 +94,32 @@ LogicalResult FromBuiltinTensorOp::verify() {
            << "operand and result must have the same size and dtype";
   }
   return success();
+}
+
+OpFoldResult FromBuiltinTensorOp::fold(FoldAdaptor adaptor) {
+  // Check if the operand is already a constant attribute
+  if (auto attr = dyn_cast_or_null<ElementsAttr>(adaptor.getOperand())) {
+    return attr;
+  }
+
+  // Check if the producer is a ConstantLike op
+  Operation *producer = getOperand().getDefiningOp();
+  if (!producer) {
+    return nullptr;
+  }
+
+  bool hasConstantLike = producer->hasTrait<OpTrait::ConstantLike>();
+  if (!hasConstantLike) {
+    return nullptr;
+  }
+
+  // Try to get the constant value using matchPattern
+  Attribute constantValue;
+  if (matchPattern(getOperand(), m_Constant(&constantValue))) {
+    return constantValue;
+  }
+
+  return nullptr;
 }
 
 //===----------------------------------------------------------------------===//
