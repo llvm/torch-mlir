@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 #include "llvm/ADT/SmallVector.h"
 #define DEBUG_TYPE "torch-mlir-torch-dialect"
+#include "mlir/IR/DialectResourceBlobManager.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/Support/Debug.h"
@@ -4961,9 +4962,7 @@ OpFoldResult AtenIndexSelectOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenItemOp::fold(FoldAdaptor adaptor) {
-  // see if we have a constant tensor
-  DenseElementsAttr attr;
-  if (matchPattern(getOperand(), m_Constant(&attr))) {
+  auto foldDenseAttr = [&](DenseElementsAttr attr) -> OpFoldResult {
     auto splat = attr.getSplatValue<Attribute>();
     if (auto intAttr = dyn_cast<IntegerAttr>(splat)) {
       return intAttr.getType().isUnsignedInteger()
@@ -4975,6 +4974,20 @@ OpFoldResult AtenItemOp::fold(FoldAdaptor adaptor) {
       return getF64FloatAttr(getContext(), floatAttr.getValueAsDouble());
     }
     return nullptr;
+  };
+
+  DenseElementsAttr attr;
+  if (matchPattern(getOperand(), m_Constant(&attr)))
+    return foldDenseAttr(attr);
+
+  DenseResourceElementsAttr resourceAttr;
+  if (matchPattern(getOperand(), m_Constant(&resourceAttr))) {
+    auto *blob = resourceAttr.getRawHandle().getBlob();
+    if (!blob)
+      return nullptr;
+    auto denseAttr = DenseElementsAttr::getFromRawBuffer(
+        cast<ShapedType>(resourceAttr.getType()), blob->getData());
+    return foldDenseAttr(denseAttr);
   }
 
   if (auto full = getOperand().getDefiningOp<Torch::AtenFullOp>()) {

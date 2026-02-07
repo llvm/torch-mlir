@@ -80,6 +80,47 @@ func.func @torch.aten.full_item() -> !torch.int {
     return %2 : !torch.int
 }
 
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.item$dense_resource_si32
+// CHECK:           %[[CONST:.*]] = torch.constant.int 42
+// CHECK:           return %[[CONST]] : !torch.int
+func.func @torch.aten.item$dense_resource_si32() -> !torch.int {
+    %0 = torch.vtensor.literal(dense_resource<blob_si32> : tensor<1xsi32>) : !torch.vtensor<[1],si32>
+    %1 = torch.aten.item %0 : !torch.vtensor<[1],si32> -> !torch.int
+    return %1 : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.item$dense_resource_ui8
+// CHECK:           %[[CONST:.*]] = torch.constant.int 200
+// CHECK:           return %[[CONST]] : !torch.int
+func.func @torch.aten.item$dense_resource_ui8() -> !torch.int {
+    %0 = torch.vtensor.literal(dense_resource<blob_ui8> : tensor<1xui8>) : !torch.vtensor<[1],ui8>
+    %1 = torch.aten.item %0 : !torch.vtensor<[1],ui8> -> !torch.int
+    return %1 : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.item$dense_resource_f32
+// CHECK:           %[[CONST:.*]] = torch.constant.float 2.500000e+00
+// CHECK:           return %[[CONST]] : !torch.float
+func.func @torch.aten.item$dense_resource_f32() -> !torch.float {
+    %0 = torch.vtensor.literal(dense_resource<blob_f32> : tensor<1xf32>) : !torch.vtensor<[1],f32>
+    %1 = torch.aten.item %0 : !torch.vtensor<[1],f32> -> !torch.float
+    return %1 : !torch.float
+}
+
+{-#
+  dialect_resources: {
+    builtin: {
+      blob_si32: "0x080000002a000000",
+      blob_f32: "0x0800000000002040",
+      blob_ui8: "0x08000000c8"
+    }
+  }
+#-}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.is_floating_point$fold_true
 // CHECK:           %[[TRUE:.*]] = torch.constant.bool true
 // CHECK:           return %[[TRUE]] : !torch.bool
