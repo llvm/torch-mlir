@@ -1844,63 +1844,64 @@ public:
       mask = genericOp.getResult(0);
     }
 
-    // Broadcast the batch dimensions of the mask:
+    // Broadcast the mask to the expected attention-mask shape:
+    // [..., query_seq_len, key_seq_len].
     if (!isa<Torch::NoneType>(mask.getType())) {
       auto maskTy = cast<RankedTensorType>(mask.getType());
       int64_t rank = maskTy.getRank();
+      // Target mask shape: [..., query_seq_len, key_seq_len].
+      SmallVector<int64_t> targetMaskShape(rank);
+      SmallVector<Value> targetMaskDynDimValues(rank);
+      for (int64_t i = 0; i < rank - 2; ++i) {
+        targetMaskShape[i] = queryTy.getDimSize(i);
+        if (targetMaskShape[i] == ShapedType::kDynamic)
+          targetMaskDynDimValues[i] =
+              tensor::DimOp::create(rewriter, loc, query, i);
+      }
+
+      targetMaskShape[rank - 2] = queryTy.getDimSize(queryTy.getRank() - 2);
+      if (targetMaskShape[rank - 2] == ShapedType::kDynamic)
+        targetMaskDynDimValues[rank - 2] =
+            tensor::DimOp::create(rewriter, loc, query, queryTy.getRank() - 2);
+
+      targetMaskShape[rank - 1] = keyTy.getDimSize(keyTy.getRank() - 2);
+      if (targetMaskShape[rank - 1] == ShapedType::kDynamic)
+        targetMaskDynDimValues[rank - 1] =
+            tensor::DimOp::create(rewriter, loc, key, keyTy.getRank() - 2);
+
       bool needsBroadcast = false;
-      for (int i = 0, s = rank - 2; i < s; ++i) {
-        needsBroadcast |= maskTy.getDimSize(i) != queryTy.getDimSize(i);
+      for (int64_t i = 0; i < rank; ++i) {
+        needsBroadcast |= maskTy.getDimSize(i) != targetMaskShape[i];
       }
 
       if (needsBroadcast) {
-        SmallVector<int64_t> maskShape;
         SmallVector<Value> maskDynDims;
-
         SmallVector<AffineExpr> maskExprs;
-        for (int i = 0, s = rank - 2; i < s; ++i) {
-          maskShape.push_back(queryTy.getDimSize(i));
-
-          if (maskTy.getDimSize(i) != queryTy.getDimSize(i)) {
-            maskExprs.push_back(rewriter.getAffineConstantExpr(0));
-          } else {
-            maskExprs.push_back(rewriter.getAffineDimExpr(i));
-          }
-
-          if (queryTy.isDynamicDim(i)) {
-            maskDynDims.push_back(
-                tensor::DimOp::create(rewriter, loc, query, i));
-          }
+        for (int64_t i = 0; i < rank; ++i) {
+          bool broadcastDim = maskTy.getDimSize(i) != targetMaskShape[i];
+          maskExprs.push_back(broadcastDim ? rewriter.getAffineConstantExpr(0)
+                                           : rewriter.getAffineDimExpr(i));
+          if (targetMaskShape[i] == ShapedType::kDynamic)
+            maskDynDims.push_back(targetMaskDynDimValues[i]);
         }
-
-        maskExprs.push_back(rewriter.getAffineDimExpr(rank - 2));
-        maskExprs.push_back(rewriter.getAffineDimExpr(rank - 1));
-        maskShape.push_back(maskTy.getDimSize(rank - 2));
-        maskShape.push_back(maskTy.getDimSize(rank - 1));
-        if (maskTy.isDynamicDim(rank - 2))
-          maskDynDims.push_back(
-              tensor::DimOp::create(rewriter, loc, mask, rank - 2));
-        if (maskTy.isDynamicDim(rank - 1))
-          maskDynDims.push_back(
-              tensor::DimOp::create(rewriter, loc, mask, rank - 1));
 
         SmallVector<AffineMap> affineMaps = {
             AffineMap::get(/*dimCount=*/rank, /*symbolCount=*/0, maskExprs,
                            op.getContext()),
             rewriter.getMultiDimIdentityMap(rank)};
-        SmallVector<utils::IteratorType> findMaxIteratorTypes(
+        SmallVector<utils::IteratorType> iteratorTypes(
             rank, utils::IteratorType::parallel);
 
-        Value emptyMask = tensor::EmptyOp::create(
-            rewriter, loc, maskShape, maskTy.getElementType(), maskDynDims);
-        Value newMask =
-            linalg::GenericOp::create(
-                rewriter, loc, emptyMask.getType(), mask,
-                ValueRange({emptyMask}), affineMaps, findMaxIteratorTypes,
-                [&](OpBuilder &b, Location loc, ValueRange args) {
-                  linalg::YieldOp::create(b, loc, args[0]);
-                })
-                .getResult(0);
+        Value emptyMask =
+            tensor::EmptyOp::create(rewriter, loc, targetMaskShape,
+                                    maskTy.getElementType(), maskDynDims);
+        Value newMask = linalg::GenericOp::create(
+                            rewriter, loc, emptyMask.getType(), mask,
+                            ValueRange({emptyMask}), affineMaps, iteratorTypes,
+                            [&](OpBuilder &b, Location loc, ValueRange args) {
+                              linalg::YieldOp::create(b, loc, args[0]);
+                            })
+                            .getResult(0);
         mask = newMask;
       }
     }
