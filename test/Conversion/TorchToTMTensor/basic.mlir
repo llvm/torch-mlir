@@ -87,6 +87,8 @@ func.func @sdpa_scale_dynamic_head_dim(%query: !torch.vtensor<[1,4,8,?],f32>, %k
 
 // -----
 
+// CHECK: #map = affine_map<(d0, d1, d2) -> (0, d1, d2)>
+// CHECK: #map1 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
 // CHECK-LABEL: @sdpa_bool_mask_key_seq_dynamic
 // CHECK: %[[MASK_IN:.*]] = torch_c.to_builtin_tensor %arg3 : !torch.vtensor<[1,1,?],i1> -> tensor<1x1x?xi1>
 // CHECK: %[[KEY:.*]] = torch_c.to_builtin_tensor %arg1 : !torch.vtensor<[16,?,128],f16> -> tensor<16x?x128xf16>
@@ -105,6 +107,8 @@ func.func @sdpa_bool_mask_key_seq_dynamic(%query: !torch.vtensor<[16,1,128],f16>
 
 // -----
 
+// CHECK: #map = affine_map<(d0, d1, d2) -> (0, d1, d2)>
+// CHECK: #map1 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
 // CHECK-LABEL: @sdpa_bool_mask_both_seq_dynamic
 // CHECK: %[[MASK_IN:.*]] = torch_c.to_builtin_tensor %arg3 : !torch.vtensor<[1,?,?],i1> -> tensor<1x?x?xi1>
 // CHECK: %[[KEY:.*]] = torch_c.to_builtin_tensor %arg1 : !torch.vtensor<[16,?,128],f16> -> tensor<16x?x128xf16>
