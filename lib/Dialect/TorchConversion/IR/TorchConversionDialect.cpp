@@ -89,7 +89,8 @@ Operation *TorchConversionDialect::materializeConstant(OpBuilder &builder,
 
   if (isa<Torch::ValueTensorType>(type)) {
     if (auto elementsAttr = dyn_cast<ElementsAttr>(value))
-      return Torch::ValueTensorLiteralOp::create(builder, loc, elementsAttr);
+      return Torch::ValueTensorLiteralOp::create(builder, loc, type,
+                                                 elementsAttr);
     return nullptr;
   }
 
