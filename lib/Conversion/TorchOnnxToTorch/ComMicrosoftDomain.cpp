@@ -80,6 +80,10 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(binder.op,
                                              "Failed to bind inputs/attrs");
 
+        if (resultTypes.size() != 1)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "unsupported number of results");
+
         // Get input type to determine shapes and dtype
         Torch::ValueTensorType inputType =
             cast<Torch::ValueTensorType>(input.getType());
@@ -110,10 +114,6 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value cstEpsilon = Torch::ConstantFloatOp::create(
             rewriter, loc, rewriter.getF64FloatAttr(epsilon));
 
-        if (resultTypes.size() != 1)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "unsupported number of results");
-
         // Emit aten.rms_norm
         Value output =
             Torch::AtenRmsNormOp::create(rewriter, loc, resultTypes[0], input,
@@ -136,6 +136,10 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             binder.tensorResultTypes(resultTypes))
           return rewriter.notifyMatchFailure(binder.op,
                                              "Failed to bind inputs/attrs");
+
+        if (resultTypes.size() > 2)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "unsupported number of results");
 
         // Optional bias (index 3)
         Value bias;
@@ -178,10 +182,6 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             rewriter, loc,
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             SmallVector<Value>{cstLastDimSize});
-
-        if (resultTypes.size() > 2)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "unsupported number of results");
 
         // Emit aten.rms_norm
         Value output =
