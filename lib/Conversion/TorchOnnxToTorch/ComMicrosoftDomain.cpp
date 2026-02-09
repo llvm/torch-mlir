@@ -83,27 +83,19 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         // Get input type to determine shapes and dtype
         Torch::ValueTensorType inputType =
             cast<Torch::ValueTensorType>(input.getType());
-        if (!inputType.hasDtype())
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "input should have dtype");
-        if (!inputType.hasSizes())
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "input should have sizes");
+        if (!inputType.hasDtype() || !inputType.hasSizes())
+          return rewriter.notifyMatchFailure(
+              binder.op, "input should have dtype and sizes");
 
         // Get tensor rank to normalize axis
         std::optional<unsigned> maybeRank = Torch::getTensorRank(input);
-        if (!maybeRank)
+        if (!maybeRank || *maybeRank == 0)
           return rewriter.notifyMatchFailure(binder.op,
-                                             "unranked input tensor");
+                                             "unranked or scalar input tensor");
         unsigned inputRank = *maybeRank;
-        if (inputRank == 0)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "scalar input not supported");
-
-        // Normalize negative axis
-        axis = Torch::toPositiveDim(axis, inputRank);
 
         // Build normalized_shape: [inputShape[axis], ..., inputShape[-1]]
+        axis = Torch::toPositiveDim(axis, inputRank);
         ArrayRef<int64_t> inputShape = inputType.getSizes();
         SmallVector<Value> normalizedShapeValues;
         for (int64_t n = axis; n < static_cast<int64_t>(inputRank); n++) {
@@ -118,56 +110,15 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value cstEpsilon = Torch::ConstantFloatOp::create(
             rewriter, loc, rewriter.getF64FloatAttr(epsilon));
 
-        // Emit aten.rms_norm
-        Value output = Torch::AtenRmsNormOp::create(
-            rewriter, loc, resultTypes[0], input, normalizedShape, scale,
-            cstEpsilon);
-
-        // Return outputs (may have optional inv_std_var output)
-        if (resultTypes.size() == 1) {
-          rewriter.replaceOp(binder.op, {output});
-        } else if (resultTypes.size() == 2) {
-          // Second output is inv_std_var = rsqrt(mean(x^2) + eps)
-          // Need to compute this manually since aten.rms_norm only returns
-          // the normalized output.
-          Value cstOne = Torch::ConstantFloatOp::create(
-              rewriter, loc, rewriter.getF64FloatAttr(1.0));
-          Value cstTrue = Torch::ConstantBoolOp::create(rewriter, loc, true);
-          Value cstNone = Torch::ConstantNoneOp::create(rewriter, loc);
-
-          Value inputSquared = Torch::AtenMulTensorOp::create(
-              rewriter, loc, inputType, input, input);
-
-          // Build dim list for mean: [axis, axis+1, ..., rank-1]
-          SmallVector<Value> dimValues;
-          for (int64_t n = axis; n < static_cast<int64_t>(inputRank); n++) {
-            dimValues.push_back(Torch::ConstantIntOp::create(
-                rewriter, loc, rewriter.getI64IntegerAttr(n)));
-          }
-          Value dimList = Torch::PrimListConstructOp::create(
-              rewriter, loc,
-              Torch::ListType::get(
-                  Torch::IntType::get(binder.op->getContext())),
-              dimValues);
-
-          // inv_std_var type: same as resultTypes[1]
-          Torch::ValueTensorType invStdVarType =
-              cast<Torch::ValueTensorType>(resultTypes[1]);
-
-          Value meanSquared = Torch::AtenMeanDimOp::create(
-              rewriter, loc, invStdVarType, inputSquared, dimList, cstTrue,
-              cstNone);
-          Value meanPlusEpsilon = Torch::AtenAddScalarOp::create(
-              rewriter, loc, invStdVarType, meanSquared, cstEpsilon, cstOne);
-          Value invStdVar = Torch::AtenRsqrtOp::create(rewriter, loc,
-                                                        invStdVarType,
-                                                        meanPlusEpsilon);
-          rewriter.replaceOp(binder.op, {output, invStdVar});
-        } else {
+        if (resultTypes.size() != 1)
           return rewriter.notifyMatchFailure(binder.op,
-                                             "expected 1-2 result types");
-        }
+                                             "unsupported number of results");
 
+        // Emit aten.rms_norm
+        Value output =
+            Torch::AtenRmsNormOp::create(rewriter, loc, resultTypes[0], input,
+                                         normalizedShape, scale, cstEpsilon);
+        rewriter.replaceOp(binder.op, {output});
         return success();
       });
   patterns.onOp(
@@ -193,22 +144,16 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         // Get input type to determine shapes and dtype
         Torch::ValueTensorType inputType =
             cast<Torch::ValueTensorType>(input.getType());
-        if (!inputType.hasDtype())
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "input should have dtype");
-        if (!inputType.hasSizes())
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "input should have sizes");
+        if (!inputType.hasDtype() || !inputType.hasSizes())
+          return rewriter.notifyMatchFailure(
+              binder.op, "input should have dtype and sizes");
 
         // Get tensor rank to compute last dimension
         std::optional<unsigned> maybeRank = Torch::getTensorRank(input);
-        if (!maybeRank)
+        if (!maybeRank || *maybeRank == 0)
           return rewriter.notifyMatchFailure(binder.op,
-                                             "unranked input tensor");
+                                             "unranked or scalar input tensor");
         unsigned inputRank = *maybeRank;
-        if (inputRank == 0)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "scalar input not supported");
 
         Value cstOne = Torch::ConstantFloatOp::create(
             rewriter, loc, rewriter.getF64FloatAttr(1.0));
@@ -234,58 +179,21 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             SmallVector<Value>{cstLastDimSize});
 
+        if (resultTypes.size() > 2)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "unsupported number of results");
+
         // Emit aten.rms_norm
-        Value output = Torch::AtenRmsNormOp::create(
-            rewriter, loc, resultTypes[0], s, normalizedShape, gamma,
-            cstEpsilon);
+        Value output =
+            Torch::AtenRmsNormOp::create(rewriter, loc, resultTypes[0], s,
+                                         normalizedShape, gamma, cstEpsilon);
 
-        // Compute mean and inv_std_var when needed for optional outputs
-        Value meanSquared, invStdVar;
-        if (resultTypes.size() >= 3) {
-          Value cstTrue = Torch::ConstantBoolOp::create(rewriter, loc, true);
-          Value cstNone = Torch::ConstantNoneOp::create(rewriter, loc);
-
-          Value sSquared =
-              Torch::AtenMulTensorOp::create(rewriter, loc, inputType, s, s);
-
-          Value cstLastDim = Torch::ConstantIntOp::create(
-              rewriter, loc, rewriter.getI64IntegerAttr(inputRank - 1));
-          Value dimList = Torch::PrimListConstructOp::create(
-              rewriter, loc,
-              Torch::ListType::get(
-                  Torch::IntType::get(binder.op->getContext())),
-              SmallVector<Value>{cstLastDim});
-
-          Torch::ValueTensorType meanType =
-              cast<Torch::ValueTensorType>(resultTypes[1]);
-
-          meanSquared = Torch::AtenMeanDimOp::create(
-              rewriter, loc, meanType, sSquared, dimList, cstTrue, cstNone);
-
-          Torch::ValueTensorType invStdVarType =
-              cast<Torch::ValueTensorType>(resultTypes[2]);
-          Value meanPlusEpsilon = Torch::AtenAddScalarOp::create(
-              rewriter, loc, invStdVarType, meanSquared, cstEpsilon, cstOne);
-          invStdVar = Torch::AtenRsqrtOp::create(rewriter, loc, invStdVarType,
-                                                  meanPlusEpsilon);
-        }
-
-        // Output order per spec: (output, mean, inv_std_var,
-        // input_skip_bias_sum). For 2-output case, return (output,
-        // input_skip_bias_sum) per ORT convention.
         if (resultTypes.size() == 1) {
           rewriter.replaceOp(binder.op, {output});
-        } else if (resultTypes.size() == 2) {
-          rewriter.replaceOp(binder.op, {output, s});
-        } else if (resultTypes.size() == 3) {
-          rewriter.replaceOp(binder.op, {output, meanSquared, invStdVar});
-        } else if (resultTypes.size() == 4) {
-          rewriter.replaceOp(binder.op, {output, meanSquared, invStdVar, s});
         } else {
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "expected 1-4 result types");
+          // 2-output: (output, input_skip_bias_sum)
+          rewriter.replaceOp(binder.op, {output, s});
         }
-
         return success();
       });
   patterns.onOp(
