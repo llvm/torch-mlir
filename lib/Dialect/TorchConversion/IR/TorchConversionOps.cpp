@@ -56,29 +56,7 @@ LogicalResult ToBuiltinTensorOp::verify() {
 }
 
 OpFoldResult ToBuiltinTensorOp::fold(FoldAdaptor adaptor) {
-  // Check if the operand is already a constant attribute
-  if (auto attr = dyn_cast_or_null<ElementsAttr>(adaptor.getOperand())) {
-    return attr;
-  }
-
-  // Check if the producer is a ConstantLike op
-  Operation *producer = getOperand().getDefiningOp();
-  if (!producer) {
-    return nullptr;
-  }
-
-  bool hasConstantLike = producer->hasTrait<OpTrait::ConstantLike>();
-  if (!hasConstantLike) {
-    return nullptr;
-  }
-
-  // Try to get the constant value using matchPattern
-  Attribute constantValue;
-  if (matchPattern(getOperand(), m_Constant(&constantValue))) {
-    return constantValue;
-  }
-
-  return nullptr;
+  return dyn_cast_or_null<ElementsAttr>(adaptor.getOperand());
 }
 
 //===----------------------------------------------------------------------===//
@@ -97,29 +75,7 @@ LogicalResult FromBuiltinTensorOp::verify() {
 }
 
 OpFoldResult FromBuiltinTensorOp::fold(FoldAdaptor adaptor) {
-  // Check if the operand is already a constant attribute
-  if (auto attr = dyn_cast_or_null<ElementsAttr>(adaptor.getOperand())) {
-    return attr;
-  }
-
-  // Check if the producer is a ConstantLike op
-  Operation *producer = getOperand().getDefiningOp();
-  if (!producer) {
-    return nullptr;
-  }
-
-  bool hasConstantLike = producer->hasTrait<OpTrait::ConstantLike>();
-  if (!hasConstantLike) {
-    return nullptr;
-  }
-
-  // Try to get the constant value using matchPattern
-  Attribute constantValue;
-  if (matchPattern(getOperand(), m_Constant(&constantValue))) {
-    return constantValue;
-  }
-
-  return nullptr;
+  return dyn_cast_or_null<ElementsAttr>(adaptor.getOperand());
 }
 
 //===----------------------------------------------------------------------===//
