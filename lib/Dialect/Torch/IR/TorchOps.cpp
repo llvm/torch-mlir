@@ -3227,9 +3227,18 @@ LogicalResult ValueTensorLiteralOp::inferReturnTypes(
   if (!attr)
     return failure();
   RankedTensorType tensorType = cast<RankedTensorType>(attr.getType());
-  ValueTensorType returnType =
-      ValueTensorType::get(tensorType.getContext(), tensorType.getShape(),
-                           tensorType.getElementType());
+
+  // Convert signless integers (except i1) to signed for torch compatibility
+  Type elementType = tensorType.getElementType();
+  if (auto intType = dyn_cast<IntegerType>(elementType)) {
+    if (intType.isSignless() && intType.getWidth() > 1) {
+      elementType =
+          IntegerType::get(context, intType.getWidth(), IntegerType::Signed);
+    }
+  }
+
+  ValueTensorType returnType = ValueTensorType::get(
+      tensorType.getContext(), tensorType.getShape(), elementType);
   inferredReturnTypes.push_back(returnType);
   return success();
 }

@@ -41,6 +41,7 @@ def TorchConversion_ToBuiltinTensorOp : TorchConversion_Op<"to_builtin_tensor"> 
     $operand attr-dict `:` qualified(type($operand)) `->` qualified(type($result))
   }];
   let hasVerifier = 1;
+  let hasFolder = 1;
 }
 
 def TorchConversion_FromBuiltinTensorOp : TorchConversion_Op<"from_builtin_tensor">
@@ -60,6 +61,7 @@ def TorchConversion_FromBuiltinTensorOp : TorchConversion_Op<"from_builtin_tenso
     $operand attr-dict `:` qualified(type($operand)) `->` qualified(type($result))
   }];
   let hasVerifier = 1;
+  let hasFolder = 1;
 }
 
 def TorchConversion_ToI1Op : TorchConversion_Op<"to_i1", [
