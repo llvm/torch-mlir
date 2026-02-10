@@ -3876,40 +3876,17 @@ private:
     SmallVector<int64_t> inputShape{inputType.getShape()};
     bool needsReshape = (parameters.inputRank == 3);
 
-    // Helper to get dimension as OpFoldResult (static Attribute or dynamic
-    // Value)
-    auto getMixedDim = [&](Value tensor, int64_t idx,
-                           int64_t staticSize) -> OpFoldResult {
-      if (staticSize != ShapedType::kDynamic)
-        return rewriter.getIndexAttr(staticSize);
-      return tensor::DimOp::create(rewriter, loc, tensor, idx).getResult();
-    };
-
-    // Capture original input dims for reshaping back later
-    OpFoldResult origBatchDim = getMixedDim(input, 0, inputShape[0]);
-    OpFoldResult origSeqDim =
-        getMixedDim(input, needsReshape ? 1 : 2,
-                    needsReshape ? inputShape[1] : inputShape[2]);
-    OpFoldResult origHiddenDim;
-    if (needsReshape)
-      origHiddenDim = getMixedDim(input, 2, inputShape[2]);
+    // Capture original input dims for reshaping back later (only needed for
+    // rank-3 inputs that require reshape)
+    Value origBatchDim, origSeqDim, origHiddenDim;
 
     // processedInput will always be rank 4 for the linalg.generic
     Value processedInput = input;
     RankedTensorType processedInputType = inputType;
-
     if (needsReshape) {
-      // Reshape (batch, seq, hidden) -> (batch, num_heads, seq, head_size)
-      // Note: This is NOT a simple expand_shape because we need to reorder
-      // dims.
-
-      // Build shape with mixed static/dynamic dims
-      SmallVector<OpFoldResult> reshapedDimsOFR = {
-          origBatchDim,                                // batch (may be
-                                                       // dynamic)
-          rewriter.getIndexAttr(parameters.numHeads),  // num_heads (static)
-          origSeqDim,                                  // seq (may be dynamic)
-          rewriter.getIndexAttr(parameters.headSize)}; // head_size (static)
+      origBatchDim = getDimOp(rewriter, loc, input, 0);
+      origSeqDim = getDimOp(rewriter, loc, input, 1);
+      origHiddenDim = getDimOp(rewriter, loc, input, 2);
 
       // Result type: preserve dynamic markers for batch/seq
       auto reshapedType =
@@ -3917,14 +3894,17 @@ private:
                                  inputShape[1], parameters.headSize},
                                 elementType);
 
-      // Convert OpFoldResult to Values and create shape tensor
-      SmallVector<Value> reshapedDimVals;
-      for (OpFoldResult ofr : reshapedDimsOFR) {
-        Value dimVal = getValueOrCreateConstantIndexOp(rewriter, loc, ofr);
-        // Cast index to i64 for tensor.reshape
-        reshapedDimVals.push_back(arith::IndexCastOp::create(
-            rewriter, loc, rewriter.getI64Type(), dimVal));
-      }
+      // Build i64 shape tensor for tensor.reshape
+      auto i64Type = rewriter.getI64Type();
+      Value numHeadsVal = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getIndexAttr(parameters.numHeads));
+      Value headSizeVal = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getIndexAttr(parameters.headSize));
+      SmallVector<Value> reshapedDimVals = {
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origBatchDim),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, numHeadsVal),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origSeqDim),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, headSizeVal)};
       auto shapeType =
           RankedTensorType::get({static_cast<int64_t>(reshapedDimVals.size())},
                                 rewriter.getI64Type());
@@ -3937,12 +3917,8 @@ private:
 
     // Build result shape for the rank-4 linalg.generic output
     // processedInput is always rank 4 at this point
-    SmallVector<int64_t> processedShape{processedInputType.getShape()};
-    SmallVector<OpFoldResult> resultDimsOFR = {
-        getMixedDim(processedInput, 0, processedShape[0]), // batch
-        rewriter.getIndexAttr(parameters.numHeads),        // num_heads (static)
-        getMixedDim(processedInput, 2, processedShape[2]), // seq
-        rewriter.getIndexAttr(parameters.headSize)};       // head_size (static)
+    SmallVector<OpFoldResult> resultDimsOFR =
+        tensor::getMixedSizes(rewriter, loc, processedInput);
 
     // Create output tensor with mixed static/dynamic dims
     Value outTensor =
@@ -4087,20 +4063,12 @@ private:
     if (needsReshape) {
       // Reshape (batch, num_heads, seq, head_size) -> (batch, seq, hidden)
       // Use original input dims to preserve dynamic info
-      SmallVector<OpFoldResult> finalDimsOFR = {
-          origBatchDim,  // batch (preserved from input)
-          origSeqDim,    // seq (preserved from input)
-          origHiddenDim, // hidden (always static for rank 3)
-      };
-
-      // Convert OpFoldResult to Values and create shape tensor
-      SmallVector<Value> finalDimVals;
-      for (OpFoldResult ofr : finalDimsOFR) {
-        Value dimVal = getValueOrCreateConstantIndexOp(rewriter, loc, ofr);
-        // Cast index to i64 for tensor.reshape
-        finalDimVals.push_back(arith::IndexCastOp::create(
-            rewriter, loc, rewriter.getI64Type(), dimVal));
-      }
+      // Build i64 shape tensor using original input dims
+      auto i64Type = rewriter.getI64Type();
+      SmallVector<Value> finalDimVals = {
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origBatchDim),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origSeqDim),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origHiddenDim)};
       auto shapeType = RankedTensorType::get(
           {static_cast<int64_t>(finalDimVals.size())}, rewriter.getI64Type());
       Value shapeValue = tensor::FromElementsOp::create(
