@@ -785,6 +785,43 @@ func.func @test_rotary_embedding_with_scale(%arg0: !torch.vtensor<[1,3,2,6],f32>
 
 // -----
 
+// Test rotary embedding with rank 3 input AND scale != 1.0
+// This exercises both the input reshape (rank 3 -> rank 4) and the scale path.
+// The output reshape must use the scaled result, not the unscaled rotary embedding.
+// CHECK-LABEL:   func.func @test_rotary_embedding_rank3_with_scale(
+// CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[1,2,6],f32>,
+// CHECK-SAME:                                     %[[VAL_1:.*]]: !torch.vtensor<[1,2],si64>,
+// CHECK-SAME:                                     %[[VAL_2:.*]]: !torch.vtensor<[4,3],f32>,
+// CHECK-SAME:                                     %[[VAL_3:.*]]: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[1,2,6],f32>
+func.func @test_rotary_embedding_rank3_with_scale(%arg0: !torch.vtensor<[1,2,6],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[4,3],f32>, %arg3: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[1,2,6],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  // CHECK:           %[[VAL_7:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,2,6],f32> -> tensor<1x2x6xf32>
+  // CHECK:           %[[VAL_19:.*]] = tensor.reshape %[[VAL_7]](%{{.*}}) : (tensor<1x2x6xf32>, tensor<4xi64>) -> tensor<1x1x2x6xf32>
+  // CHECK:           %[[ROTARY:.*]] = linalg.generic
+  // CHECK:           } -> tensor<1x1x2x6xf32>
+  // The scale must be applied to the rotary embedding result
+  // CHECK:           %[[SCALE_CST:.*]] = arith.constant 2.000000e+00 : f32
+  // CHECK:           %[[SCALE_OUT:.*]] = tensor.empty() : tensor<1x1x2x6xf32>
+  // CHECK:           %[[SCALED:.*]] = linalg.generic
+  // CHECK:             arith.mulf %{{.*}}, %[[SCALE_CST]] : f32
+  // CHECK:           } -> tensor<1x1x2x6xf32>
+  // The output reshape must use the SCALED result, not the unscaled rotary embedding
+  // CHECK:           %[[FINAL_SHAPE:.*]] = tensor.from_elements %{{.*}}, %{{.*}}, %{{.*}} : tensor<3xi64>
+  // CHECK:           %[[RESHAPED:.*]] = tensor.reshape %[[SCALED]](%[[FINAL_SHAPE]]) : (tensor<1x1x2x6xf32>, tensor<3xi64>) -> tensor<1x2x6xf32>
+  // CHECK:           %[[CAST:.*]] = tensor.cast %[[RESHAPED]] : tensor<1x2x6xf32> to tensor<1x2x6xf32>
+  // CHECK:           %[[OUT:.*]] = torch_c.from_builtin_tensor %[[CAST]] : tensor<1x2x6xf32> -> !torch.vtensor<[1,2,6],f32>
+  // CHECK:           return %[[OUT]] : !torch.vtensor<[1,2,6],f32>
+  %none = torch.constant.none
+  %int0 = torch.constant.int 0
+  %int0_0 = torch.constant.int 0
+  %int0_1 = torch.constant.int 0
+  %int0_2 = torch.constant.int 0
+  %float2.000000e00 = torch.constant.float 2.000000e+00
+  %4 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0_0, %int0_1, %int0_2, %float2.000000e00 : !torch.vtensor<[1,2,6],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,6],f32>
+  return %4 : !torch.vtensor<[1,2,6],f32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @torch.ops.aten.replication_pad3d$basic(
 // CHECK-SAME: %[[ARG_0:.*]]: !torch.vtensor<[4,3,5],f32>) -> !torch.vtensor<[7,7,6],f32>
 // CHECK: %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4,3,5],f32> -> tensor<4x3x5xf32>

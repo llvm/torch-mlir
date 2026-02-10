@@ -4073,8 +4073,8 @@ private:
           {static_cast<int64_t>(finalDimVals.size())}, rewriter.getI64Type());
       Value shapeValue = tensor::FromElementsOp::create(
           rewriter, loc, shapeType, finalDimVals);
-      result = tensor::ReshapeOp::create(rewriter, loc, resultType,
-                                         rotaryEmbedding, shapeValue);
+      result = tensor::ReshapeOp::create(rewriter, loc, resultType, result,
+                                         shapeValue);
     }
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
