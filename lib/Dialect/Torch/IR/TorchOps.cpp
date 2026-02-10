@@ -2664,7 +2664,8 @@ OpFoldResult AtenSelectIntOp::fold(FoldAdaptor adaptor) {
     return nullptr;
 
   if (self.isSplat())
-    return DenseElementsAttr::get(bty, self.getSplatValue<Attribute>());
+    return DenseElementsAttr::get(bty.clone(self.getElementType()),
+                                  self.getSplatValue<Attribute>());
 
   auto dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
   auto indexAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getIndex());
@@ -2680,7 +2681,7 @@ OpFoldResult AtenSelectIntOp::fold(FoldAdaptor adaptor) {
   }
 
   auto splattr = self.getValues<Attribute>()[index];
-  return DenseElementsAttr::get(bty, splattr);
+  return DenseElementsAttr::get(bty.clone(self.getElementType()), splattr);
 }
 
 //===----------------------------------------------------------------------===//
