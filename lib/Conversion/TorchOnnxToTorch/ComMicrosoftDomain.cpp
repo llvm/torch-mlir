@@ -64,6 +64,139 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         return success();
       });
   patterns.onOp(
+      "SimplifiedLayerNormalization", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
+
+        Value input, scale;
+        float epsilon;
+        int64_t axis;
+        SmallVector<Type> resultTypes;
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorOperandAtIndex(scale, 1) ||
+            binder.f32FloatAttr(epsilon, "epsilon", 1e-5f) ||
+            binder.s64IntegerAttr(axis, "axis", -1) ||
+            binder.tensorResultTypes(resultTypes))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Failed to bind inputs/attrs");
+
+        if (resultTypes.size() != 1)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "unsupported number of results");
+
+        // Get input type to determine shapes and dtype
+        Torch::ValueTensorType inputType =
+            cast<Torch::ValueTensorType>(input.getType());
+        if (!inputType.hasDtype() || !inputType.hasSizes())
+          return rewriter.notifyMatchFailure(
+              binder.op, "input should have dtype and sizes");
+
+        // Get tensor rank to normalize axis
+        std::optional<unsigned> maybeRank = Torch::getTensorRank(input);
+        if (!maybeRank || *maybeRank == 0)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "unranked or scalar input tensor");
+        unsigned inputRank = *maybeRank;
+
+        // Build normalized_shape: [inputShape[axis], ..., inputShape[-1]]
+        axis = Torch::toPositiveDim(axis, inputRank);
+        ArrayRef<int64_t> inputShape = inputType.getSizes();
+        SmallVector<Value> normalizedShapeValues;
+        for (int64_t n = axis; n < static_cast<int64_t>(inputRank); n++) {
+          normalizedShapeValues.push_back(Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(inputShape[n])));
+        }
+        Value normalizedShape = Torch::PrimListConstructOp::create(
+            rewriter, loc,
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            normalizedShapeValues);
+
+        Value cstEpsilon = Torch::ConstantFloatOp::create(
+            rewriter, loc, rewriter.getF64FloatAttr(epsilon));
+
+        // Emit aten.rms_norm
+        Value output =
+            Torch::AtenRmsNormOp::create(rewriter, loc, resultTypes[0], input,
+                                         normalizedShape, scale, cstEpsilon);
+        rewriter.replaceOp(binder.op, {output});
+        return success();
+      });
+  patterns.onOp(
+      "SkipSimplifiedLayerNormalization", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
+
+        Value input, skip, gamma;
+        float epsilon;
+        SmallVector<Type> resultTypes;
+        if (binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorOperandAtIndex(skip, 1) ||
+            binder.tensorOperandAtIndex(gamma, 2) ||
+            binder.f32FloatAttr(epsilon, "epsilon", 1e-5f) ||
+            binder.tensorResultTypes(resultTypes))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Failed to bind inputs/attrs");
+
+        if (resultTypes.size() > 2)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "unsupported number of results");
+
+        // Optional bias (index 3)
+        Value bias;
+        bool hasBias = !binder.tensorOperandAtIndex(bias, 3);
+
+        // Get input type to determine shapes and dtype
+        Torch::ValueTensorType inputType =
+            cast<Torch::ValueTensorType>(input.getType());
+        if (!inputType.hasDtype() || !inputType.hasSizes())
+          return rewriter.notifyMatchFailure(
+              binder.op, "input should have dtype and sizes");
+
+        // Get tensor rank to compute last dimension
+        std::optional<unsigned> maybeRank = Torch::getTensorRank(input);
+        if (!maybeRank || *maybeRank == 0)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "unranked or scalar input tensor");
+        unsigned inputRank = *maybeRank;
+
+        Value cstOne = Torch::ConstantFloatOp::create(
+            rewriter, loc, rewriter.getF64FloatAttr(1.0));
+        Value cstEpsilon = Torch::ConstantFloatOp::create(
+            rewriter, loc, rewriter.getF64FloatAttr(epsilon));
+
+        // Step 1: Compute s = input + skip + bias (if present)
+        Value s = Torch::AtenAddTensorOp::create(rewriter, loc, inputType,
+                                                 input, skip, cstOne);
+
+        if (hasBias) {
+          s = Torch::AtenAddTensorOp::create(rewriter, loc, inputType, s, bias,
+                                             cstOne);
+        }
+
+        // Build normalized_shape for last dimension: [inputShape[-1]]
+        ArrayRef<int64_t> inputShape = inputType.getSizes();
+        Value cstLastDimSize = Torch::ConstantIntOp::create(
+            rewriter, loc,
+            rewriter.getI64IntegerAttr(inputShape[inputRank - 1]));
+        Value normalizedShape = Torch::PrimListConstructOp::create(
+            rewriter, loc,
+            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
+            SmallVector<Value>{cstLastDimSize});
+
+        // Emit aten.rms_norm
+        Value output =
+            Torch::AtenRmsNormOp::create(rewriter, loc, resultTypes[0], s,
+                                         normalizedShape, gamma, cstEpsilon);
+
+        if (resultTypes.size() == 1) {
+          rewriter.replaceOp(binder.op, {output});
+        } else {
+          // 2-output: (output, input_skip_bias_sum)
+          rewriter.replaceOp(binder.op, {output, s});
+        }
+        return success();
+      });
+  patterns.onOp(
       "GroupQueryAttention", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         SmallVector<Value> operands;
