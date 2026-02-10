@@ -259,6 +259,19 @@ void TorchMatchSpecializedBackendOp::populateSpecializedConversions(
         }
         return failure();
       });
+
+  matcher.populate(
+      "torch.vllm.rocm_unquantized_gemm_impl",
+      [](Torch::OperatorOp op,
+         ConversionPatternRewriter &rewriter) -> LogicalResult {
+        if (op->getNumOperands() != 3 || op->getNumResults() != 1) {
+          return failure();
+        }
+        auto newOp = rewriter.create<Torch::AtenLinearOp>(
+            op.getLoc(), op->getResultTypes(), op->getOperands());
+        rewriter.replaceOp(op, newOp->getResults());
+        return success();
+      });
 }
 
 bool isSpecializedOperation(Torch::OperatorOp op) { return true; }

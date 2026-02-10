@@ -203,3 +203,13 @@ func.func @scaled_dot_product_flash_attention_for_cpu(%arg0: !torch.vtensor<[1,1
   %0:2 = torch.operator "torch.aten._scaled_dot_product_flash_attention_for_cpu"(%arg0, %arg1, %arg2, %float0.000000e00, %false, %none, %none_0) : (!torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,5,5],f32>, !torch.float, !torch.bool, !torch.none, !torch.none) -> (!torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,5],f32>)
   return %0#0 : !torch.vtensor<[1,1,5,5],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @vllm_rocm_unquantized_gemm_impl
+// CHECK: %[[RES:.+]] = torch.aten.linear %arg0, %arg1, %arg2 : !torch.vtensor<[?,768],f16>, !torch.vtensor<[2304,768],f16>, !torch.vtensor<[2304],f16> -> !torch.vtensor<[?,2304],f16>
+// CHECK: return %[[RES]] : !torch.vtensor<[?,2304],f16>
+func.func @vllm_rocm_unquantized_gemm_impl(%arg0: !torch.vtensor<[?,768],f16>, %arg1: !torch.vtensor<[2304,768],f16>, %arg2: !torch.vtensor<[2304],f16>) -> !torch.vtensor<[?,2304],f16> {
+  %0 = torch.operator "torch.vllm.rocm_unquantized_gemm_impl"(%arg0, %arg1, %arg2) : (!torch.vtensor<[?,768],f16>, !torch.vtensor<[2304,768],f16>, !torch.vtensor<[2304],f16>) -> !torch.vtensor<[?,2304],f16>
+  return %0 : !torch.vtensor<[?,2304],f16>
+}
