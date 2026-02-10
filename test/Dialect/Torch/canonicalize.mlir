@@ -3106,6 +3106,16 @@ func.func @aten_select_int_fold_splat(%arg0 : !torch.int, %arg1 : !torch.int) ->
 
 // -----
 
+// CHECK-LABEL: @aten_select_signless_int_fold_splat
+func.func @aten_select_signless_int_fold_splat(%arg0 : !torch.int, %arg1 : !torch.int) -> !torch.vtensor<[1],si64> {
+  %splat = torch.vtensor.literal(dense<4> : tensor<4xi64>) : !torch.vtensor<[4],si64>
+  %select = torch.aten.select.int %splat, %arg0, %arg1 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+  // CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<4> : tensor<1xi64>) : !torch.vtensor<[1],si64>
+  // CHECK: return %[[RET]]
+  return %select : !torch.vtensor<[1],si64>
+}
+// -----
+
 // CHECK-LABEL: @aten_select_int_fold_1D
 func.func @aten_select_int_fold_1D() -> !torch.vtensor<[1],si64> {
   %index = torch.constant.int 1
