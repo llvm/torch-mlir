@@ -286,25 +286,14 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         // For dynamic dimensions, use aten.size.int to get runtime values
         Type intType = rewriter.getType<Torch::IntType>();
 
-        Value cstBatchSize, cstSequenceLength;
-        if (batchSize == Torch::kUnknownSize) {
-          Value cstZeroDim = Torch::ConstantIntOp::create(
-              rewriter, loc, rewriter.getI64IntegerAttr(0));
-          cstBatchSize = Torch::AtenSizeIntOp::create(rewriter, loc, intType,
-                                                      query, cstZeroDim);
-        } else {
-          cstBatchSize = Torch::ConstantIntOp::create(
-              rewriter, loc, rewriter.getI64IntegerAttr(batchSize));
-        }
-        if (sequenceLength == Torch::kUnknownSize) {
-          Value cstOneDim = Torch::ConstantIntOp::create(
-              rewriter, loc, rewriter.getI64IntegerAttr(1));
-          cstSequenceLength = Torch::AtenSizeIntOp::create(
-              rewriter, loc, intType, query, cstOneDim);
-        } else {
-          cstSequenceLength = Torch::ConstantIntOp::create(
-              rewriter, loc, rewriter.getI64IntegerAttr(sequenceLength));
-        }
+        Value cstZeroDim = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(0));
+        Value cstBatchSize = rewriter.createOrFold<Torch::AtenSizeIntOp>(
+            loc, intType, query, cstZeroDim);
+        Value cstOneDim = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(1));
+        Value cstSequenceLength = rewriter.createOrFold<Torch::AtenSizeIntOp>(
+            loc, intType, query, cstOneDim);
 
         Value cstHiddenSize = Torch::ConstantIntOp::create(
             rewriter, loc, rewriter.getI64IntegerAttr(hiddenSize));
