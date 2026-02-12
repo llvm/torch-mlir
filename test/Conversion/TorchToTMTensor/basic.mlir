@@ -87,6 +87,69 @@ func.func @sdpa_scale_dynamic_head_dim(%query: !torch.vtensor<[1,4,8,?],f32>, %k
 
 // -----
 
+// CHECK: #map = affine_map<(d0, d1, d2) -> (0, d1, d2)>
+// CHECK: #map1 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+// CHECK-LABEL: @sdpa_bool_mask_key_seq_dynamic
+// CHECK: %[[MASK_IN:.*]] = torch_c.to_builtin_tensor %arg3 : !torch.vtensor<[1,1,?],i1> -> tensor<1x1x?xi1>
+// CHECK: %[[KEY:.*]] = torch_c.to_builtin_tensor %arg1 : !torch.vtensor<[16,?,128],f16> -> tensor<16x?x128xf16>
+// CHECK: %[[C1:.*]] = arith.constant 1 : index
+// CHECK: %[[KEY_SEQ:.*]] = tensor.dim %[[KEY]], %[[C1]] : tensor<16x?x128xf16>
+// CHECK: %[[EMPTY_MASK:.*]] = tensor.empty(%[[KEY_SEQ]]) : tensor<16x1x?xi1>
+// CHECK: %[[BCAST_MASK:.*]] = linalg.generic {indexing_maps = [#map, #map1], iterator_types = ["parallel", "parallel", "parallel"]} ins(%[[MASK_IN]] : tensor<1x1x?xi1>) outs(%[[EMPTY_MASK]] : tensor<16x1x?xi1>)
+// CHECK: tm_tensor.attention ins(%{{.*}}, %{{.*}}, %{{.*}}, %[[BCAST_MASK]] : tensor<16x1x128xf16>, tensor<16x?x128xf16>, tensor<16x?x128xf16>, tensor<16x1x?xi1>)
+func.func @sdpa_bool_mask_key_seq_dynamic(%query: !torch.vtensor<[16,1,128],f16>, %key: !torch.vtensor<[16,?,128],f16>, %value: !torch.vtensor<[16,?,128],f16>, %mask: !torch.vtensor<[1,1,?],i1>) -> !torch.vtensor<[16,1,128],f16> {
+  %float0 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %0 = torch.aten.scaled_dot_product_attention %query, %key, %value, %mask, %float0, %false, %none, %false : !torch.vtensor<[16,1,128],f16>, !torch.vtensor<[16,?,128],f16>, !torch.vtensor<[16,?,128],f16>, !torch.vtensor<[1,1,?],i1>, !torch.float, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[16,1,128],f16>
+  return %0 : !torch.vtensor<[16,1,128],f16>
+}
+
+// -----
+
+// CHECK: #map = affine_map<(d0, d1, d2) -> (0, d1, d2)>
+// CHECK: #map1 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+// CHECK-LABEL: @sdpa_bool_mask_both_seq_dynamic
+// CHECK: %[[MASK_IN:.*]] = torch_c.to_builtin_tensor %arg3 : !torch.vtensor<[1,?,?],i1> -> tensor<1x?x?xi1>
+// CHECK: %[[KEY:.*]] = torch_c.to_builtin_tensor %arg1 : !torch.vtensor<[16,?,128],f16> -> tensor<16x?x128xf16>
+// CHECK: %[[QUERY:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[16,?,128],f16> -> tensor<16x?x128xf16>
+// CHECK: %[[C1_A:.*]] = arith.constant 1 : index
+// CHECK: %[[QSEQ:.*]] = tensor.dim %[[QUERY]], %[[C1_A]] : tensor<16x?x128xf16>
+// CHECK: %[[C1_B:.*]] = arith.constant 1 : index
+// CHECK: %[[KSEQ:.*]] = tensor.dim %[[KEY]], %[[C1_B]] : tensor<16x?x128xf16>
+// CHECK: %[[EMPTY_MASK:.*]] = tensor.empty(%[[QSEQ]], %[[KSEQ]]) : tensor<16x?x?xi1>
+// CHECK: %[[BCAST_MASK:.*]] = linalg.generic {indexing_maps = [#map, #map1], iterator_types = ["parallel", "parallel", "parallel"]} ins(%[[MASK_IN]] : tensor<1x?x?xi1>) outs(%[[EMPTY_MASK]] : tensor<16x?x?xi1>)
+// CHECK: tm_tensor.attention ins(%{{.*}}, %{{.*}}, %{{.*}}, %[[BCAST_MASK]] : tensor<16x?x128xf16>, tensor<16x?x128xf16>, tensor<16x?x128xf16>, tensor<16x?x?xi1>)
+func.func @sdpa_bool_mask_both_seq_dynamic(%query: !torch.vtensor<[16,?,128],f16>, %key: !torch.vtensor<[16,?,128],f16>, %value: !torch.vtensor<[16,?,128],f16>, %mask: !torch.vtensor<[1,?,?],i1>) -> !torch.vtensor<[16,?,128],f16> {
+  %float0 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %0 = torch.aten.scaled_dot_product_attention %query, %key, %value, %mask, %float0, %false, %none, %false : !torch.vtensor<[16,?,128],f16>, !torch.vtensor<[16,?,128],f16>, !torch.vtensor<[16,?,128],f16>, !torch.vtensor<[1,?,?],i1>, !torch.float, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[16,?,128],f16>
+  return %0 : !torch.vtensor<[16,?,128],f16>
+}
+
+// -----
+
+// CHECK: #map = affine_map<(d0, d1, d2, d3) -> (d0, 0, d2, 0)>
+// CHECK-LABEL: @sdpa_bool_mask_4d_static_ones
+// CHECK: %[[MASK_IN:.*]] = torch_c.to_builtin_tensor %arg3 : !torch.vtensor<[1,1,1,1],i1> -> tensor<1x1x1x1xi1>
+// CHECK: %[[KEY:.*]] = torch_c.to_builtin_tensor %arg1 : !torch.vtensor<[1,16,?,128],f16> -> tensor<1x16x?x128xf16>
+// CHECK: %[[C2:.*]] = arith.constant 2 : index
+// CHECK: %[[KSEQ:.*]] = tensor.dim %[[KEY]], %[[C2]] : tensor<1x16x?x128xf16>
+// CHECK: %[[EMPTY_MASK:.*]] = tensor.empty(%[[KSEQ]]) : tensor<1x16x1x?xi1>
+// CHECK: %[[BCAST_MASK:.*]] = linalg.generic {indexing_maps = [#map, #map1], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[MASK_IN]] : tensor<1x1x1x1xi1>) outs(%[[EMPTY_MASK]] : tensor<1x16x1x?xi1>)
+// CHECK: %[[COLLAPSED_MASK:.*]] = tensor.collapse_shape %[[BCAST_MASK]] {{.*}} : tensor<1x16x1x?xi1> into tensor<16x1x?xi1>
+// CHECK: tm_tensor.attention ins(%{{.*}}, %{{.*}}, %{{.*}}, %[[COLLAPSED_MASK]] : tensor<16x1x128xf16>, tensor<16x?x128xf16>, tensor<16x?x128xf16>, tensor<16x1x?xi1>)
+func.func @sdpa_bool_mask_4d_static_ones(%query: !torch.vtensor<[1,16,1,128],f16>, %key: !torch.vtensor<[1,16,?,128],f16>, %value: !torch.vtensor<[1,16,?,128],f16>, %mask: !torch.vtensor<[1,1,1,1],i1>) -> !torch.vtensor<[1,16,1,128],f16> {
+  %float0 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %0 = torch.aten.scaled_dot_product_attention %query, %key, %value, %mask, %float0, %false, %none, %false : !torch.vtensor<[1,16,1,128],f16>, !torch.vtensor<[1,16,?,128],f16>, !torch.vtensor<[1,16,?,128],f16>, !torch.vtensor<[1,1,1,1],i1>, !torch.float, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,16,1,128],f16>
+  return %0 : !torch.vtensor<[1,16,1,128],f16>
+}
+
+// -----
+
 // CHECK-LABEL: @scatter_src_i64_index
 // CHECK: tm_tensor.scatter {dimension_map = array<i64: 0, 1, 2>} unique_indices(false) ins(%{{.*}}, %{{.*}} : tensor<?xf32>, tensor<?x3xi64>) outs(%{{.*}} : tensor<10x8x6xf32>) {
 // CHECK:      ^bb0(%arg3: f32, %arg4: f32):
