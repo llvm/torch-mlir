@@ -12,6 +12,7 @@
 
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -3649,13 +3650,14 @@ public:
 
 private:
   struct RotaryParameters {
-    int64_t batchSize;
-    int64_t sequenceLength;
+    int64_t batchSize;      // May be kDynamic
+    int64_t sequenceLength; // May be kDynamic
     int64_t hiddenSize;
     int64_t headSize;
     int64_t rotaryEmbeddingDim;
     int64_t numHeads;
     int64_t maxSequenceLength;
+    int64_t inputRank; // 3 or 4
   };
 
   static LogicalResult checkInputs(OnnxVariantRotaryEmbeddingOp op, Value input,
@@ -3671,28 +3673,31 @@ private:
     //    sin_cache    : (max_sequence_length, head_size / 2) or
     //                   (max_sequence_length, rotary_embedding_dim / 2)
 
-    // For the `RotaryEmbedding` lowering to work, shapes of all the inputs are
-    // required to be statically known.
+    // Check input - support both rank 3 and rank 4
+    // Rank 3: (batch_size, sequence_length, hidden_size)
+    // Rank 4: (batch_size, num_heads, sequence_length, head_size)
+    // Dynamic batch/seq dimensions are allowed.
 
-    // Check input
     RankedTensorType inputType = cast<RankedTensorType>(input.getType());
-    if (!inputType.hasStaticShape())
-      return rewriter.notifyMatchFailure(
-          op, "Unimplemented: expected input to have static shape");
-
-    // TODO: Add support for 3d input of shape: (batch_size, sequence_length,
-    // hidden_size)
     SmallVector<int64_t> inputShape{inputType.getShape()};
-    if (inputShape.size() != 4)
-      return rewriter.notifyMatchFailure(op,
-                                         "input is expected to have rank 4");
+    int64_t inputRank = inputShape.size();
 
-    // Check position_ids
+    if (inputRank != 3 && inputRank != 4)
+      return rewriter.notifyMatchFailure(
+          op, "input is expected to have rank 3 or 4");
+
+    // For rank 3: hidden_size (dim 2) must be static for reshape computation
+    // For rank 4: head_size (dim 3) must be static
+    if (inputRank == 3 && inputShape[2] == ShapedType::kDynamic)
+      return rewriter.notifyMatchFailure(
+          op, "hidden_size (dim 2) must be static for rank 3 input");
+    if (inputRank == 4 && inputShape[3] == ShapedType::kDynamic)
+      return rewriter.notifyMatchFailure(
+          op, "head_size (dim 3) must be static for rank 4 input");
+
+    // Check position_ids - allow dynamic dims, just check rank
     RankedTensorType positionIdsType =
         cast<RankedTensorType>(positionIds.getType());
-    if (!positionIdsType.hasStaticShape())
-      return rewriter.notifyMatchFailure(
-          op, "Unimplemented: expected position_ids to have static shape");
 
     SmallVector<int64_t> positionIdsShape{positionIdsType.getShape()};
     if (positionIdsShape.size() != 2)
@@ -3745,27 +3750,46 @@ private:
           op,
           "num_heads must be non-zero if rotary_embedding_dim is specified");
 
-    // Get attributes from inputs
-    int64_t batchSize = inputShape[0];
-    int64_t sequenceLength = inputShape[2];
-    int64_t hiddenSize = inputShape[1] * inputShape[3];
-    int maxSequenceLength = cosCacheShape[0];
-    int headSize = rotaryEmbeddingDim == 0 ? cosCacheShape[1] * 2
-                                           : (int64_t)(hiddenSize / numHeads);
+    // Compute parameters - headSize always comes from cos_cache (static)
+    int64_t maxSequenceLength = cosCacheShape[0];
+    int64_t headSize = cosCacheShape[1] * 2;
+
+    // hiddenSize computation based on rank
+    int64_t hiddenSize;
+    if (inputRank == 3) {
+      hiddenSize = inputShape[2]; // Must be static (checked above)
+    } else {
+      // For rank 4, hidden = num_heads * head_size
+      if (inputShape[1] != ShapedType::kDynamic &&
+          inputShape[3] != ShapedType::kDynamic) {
+        hiddenSize = inputShape[1] * inputShape[3];
+      } else if (numHeads > 0) {
+        hiddenSize = numHeads * headSize;
+      } else {
+        return rewriter.notifyMatchFailure(
+            op, "num_heads attribute required when input dims are dynamic");
+      }
+    }
+
+    // Override headSize if rotaryEmbeddingDim is specified
+    if (rotaryEmbeddingDim > 0 && numHeads > 0) {
+      headSize = hiddenSize / numHeads;
+    }
 
     if (rotaryEmbeddingDim > 0 && rotaryEmbeddingDim > headSize)
       return rewriter.notifyMatchFailure(
           op, "rotary_embedding_dim must be less than or equal to head_size");
 
-    // Check position_ids input shapes
-    if (positionIdsShape[0] != batchSize)
+    // numHeads computation
+    int64_t computedNumHeads;
+    if (numHeads > 0) {
+      computedNumHeads = numHeads;
+    } else if (hiddenSize != ShapedType::kDynamic) {
+      computedNumHeads = hiddenSize / headSize;
+    } else {
       return rewriter.notifyMatchFailure(
-          op, "position_ids shape dimension 0 should be of size batch_size");
-
-    if (positionIdsShape[1] != sequenceLength)
-      return rewriter.notifyMatchFailure(
-          op,
-          "position_ids shape dimension 1 should be of size sequence_length");
+          op, "num_heads attribute required when hidden_size is dynamic");
+    }
 
     // Check cos_cache input shapes
     if (cosCacheShape[1] != (headSize / 2) &&
@@ -3775,16 +3799,19 @@ private:
           op, "cos_cache shape dimension 1 should be equal to head_size / 2 "
               "or rotary_embedding_dim / 2");
 
-    numHeads = numHeads > 0 ? numHeads : (int64_t)(hiddenSize / headSize);
+    // batch/seq may be dynamic - store the static values or kDynamic
+    int64_t batchSize = inputShape[0];
+    int64_t sequenceLength = inputRank == 3 ? inputShape[1] : inputShape[2];
 
     parameters.batchSize = batchSize;
     parameters.sequenceLength = sequenceLength;
     parameters.hiddenSize = hiddenSize;
     parameters.headSize = headSize;
-    parameters.numHeads = numHeads;
+    parameters.numHeads = computedNumHeads;
     parameters.maxSequenceLength = maxSequenceLength;
     parameters.rotaryEmbeddingDim =
         rotaryEmbeddingDim > 0 ? rotaryEmbeddingDim : headSize;
+    parameters.inputRank = inputRank;
 
     return success();
   }
@@ -3846,15 +3873,60 @@ private:
     int64_t halfRotaryEmbDim = rotaryEmbeddingDim / 2;
 
     auto elementType = inputType.getElementType();
-    unsigned inputRank = inputType.getRank();
+    SmallVector<int64_t> inputShape{inputType.getShape()};
+    bool needsReshape = (parameters.inputRank == 3);
 
-    SmallVector<Value> resultShape;
-    for (int64_t i = 0; i < inputRank; i++) {
-      auto currentDimSize = tensor::DimOp::create(rewriter, loc, input, i);
-      resultShape.push_back(currentDimSize);
+    // Capture original input dims for reshaping back later (only needed for
+    // rank-3 inputs that require reshape)
+    Value origBatchDim, origSeqDim, origHiddenDim;
+
+    // processedInput will always be rank 4 for the linalg.generic
+    Value processedInput = input;
+    RankedTensorType processedInputType = inputType;
+    if (needsReshape) {
+      origBatchDim = getDimOp(rewriter, loc, input, 0);
+      origSeqDim = getDimOp(rewriter, loc, input, 1);
+      origHiddenDim = getDimOp(rewriter, loc, input, 2);
+
+      // Result type: preserve dynamic markers for batch/seq
+      auto reshapedType =
+          RankedTensorType::get({inputShape[0], parameters.numHeads,
+                                 inputShape[1], parameters.headSize},
+                                elementType);
+
+      // Build i64 shape tensor for tensor.reshape
+      auto i64Type = rewriter.getI64Type();
+      Value numHeadsVal = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getIndexAttr(parameters.numHeads));
+      Value headSizeVal = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getIndexAttr(parameters.headSize));
+      SmallVector<Value> reshapedDimVals = {
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origBatchDim),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, numHeadsVal),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origSeqDim),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, headSizeVal)};
+      auto shapeType =
+          RankedTensorType::get({static_cast<int64_t>(reshapedDimVals.size())},
+                                rewriter.getI64Type());
+      Value shapeValue = tensor::FromElementsOp::create(
+          rewriter, loc, shapeType, reshapedDimVals);
+      processedInput = tensor::ReshapeOp::create(rewriter, loc, reshapedType,
+                                                 input, shapeValue);
+      processedInputType = reshapedType;
     }
+
+    // Build result shape for the rank-4 linalg.generic output
+    // processedInput is always rank 4 at this point
+    SmallVector<OpFoldResult> resultDimsOFR =
+        tensor::getMixedSizes(rewriter, loc, processedInput);
+
+    // Create output tensor with mixed static/dynamic dims
     Value outTensor =
-        createZeroInitTensor(rewriter, loc, resultShape, elementType);
+        tensor::EmptyOp::create(rewriter, loc, resultDimsOFR, elementType);
+    Value zero = arith::ConstantOp::create(rewriter, loc,
+                                           rewriter.getZeroAttr(elementType));
+    outTensor =
+        linalg::FillOp::create(rewriter, loc, zero, outTensor).getResult(0);
 
     Value cstFloatOne = arith::ConstantOp::create(
         rewriter, loc, rewriter.getFloatAttr(elementType, 1.0));
@@ -3869,19 +3941,23 @@ private:
     Value cstHalfRotaryEmbDim = arith::ConstantOp::create(
         rewriter, loc, rewriter.getIndexAttr(halfRotaryEmbDim));
 
+    // Always rank 4 after reshape
+    unsigned processedRank = 4;
     AffineMap identityMap =
-        AffineMap::getMultiDimIdentityMap(inputRank, context);
-    AffineMap positionIdsMap = identityMap.getSubMap({0, inputRank - 2});
+        AffineMap::getMultiDimIdentityMap(processedRank, context);
+    // position_ids maps to (batch, seq) which is dims (0, 2) for rank 4
+    AffineMap positionIdsMap = identityMap.getSubMap({0, 2});
 
     SmallVector<AffineMap> indexingMaps{identityMap, positionIdsMap,
                                         /*outputMap=*/identityMap};
     SmallVector<utils::IteratorType> iteratorTypes(
-        inputRank, utils::IteratorType::parallel);
+        processedRank, utils::IteratorType::parallel);
 
     auto rotaryEmbedding =
         linalg::GenericOp::create(
-            rewriter, loc, outTensor.getType(), ValueRange{input, positionIds},
-            outTensor, indexingMaps, iteratorTypes,
+            rewriter, loc, outTensor.getType(),
+            ValueRange{processedInput, positionIds}, outTensor, indexingMaps,
+            iteratorTypes,
             [&](OpBuilder &builder, Location loc, ValueRange args) {
               // This linalg.generic will be iterating over the 4 dimensions
               // of the input "b, n, s, h", respectively.
@@ -3942,7 +4018,7 @@ private:
 
               Value origInput = args[0];
               Value rotatedInput = tensor::ExtractOp::create(
-                  builder, loc, input,
+                  builder, loc, processedInput,
                   ValueRange{b, n, s, rotatedInputLastIdx});
 
               Value signMultiplier = arith::SelectOp::create(
@@ -3959,8 +4035,49 @@ private:
             })
             .getResult(0);
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
-                                                rotaryEmbedding);
+    Value result = rotaryEmbedding;
+
+    // Apply scale if not 1.0
+    if (scale != 1.0) {
+      Value scaleVal = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getFloatAttr(elementType, scale));
+      // Create output tensor with same shape as input
+      Value scaledOutTensor =
+          tensor::EmptyOp::create(rewriter, loc, resultDimsOFR, elementType);
+      result = linalg::GenericOp::create(
+                   rewriter, loc, processedInputType, ValueRange{result},
+                   scaledOutTensor,
+                   SmallVector<AffineMap>{
+                       AffineMap::getMultiDimIdentityMap(4, context),
+                       AffineMap::getMultiDimIdentityMap(4, context)},
+                   SmallVector<utils::IteratorType>(
+                       4, utils::IteratorType::parallel),
+                   [&](OpBuilder &builder, Location loc, ValueRange args) {
+                     Value scaled =
+                         arith::MulFOp::create(builder, loc, args[0], scaleVal);
+                     linalg::YieldOp::create(builder, loc, scaled);
+                   })
+                   .getResult(0);
+    }
+
+    if (needsReshape) {
+      // Reshape (batch, num_heads, seq, head_size) -> (batch, seq, hidden)
+      // Use original input dims to preserve dynamic info
+      // Build i64 shape tensor using original input dims
+      auto i64Type = rewriter.getI64Type();
+      SmallVector<Value> finalDimVals = {
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origBatchDim),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origSeqDim),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origHiddenDim)};
+      auto shapeType = RankedTensorType::get(
+          {static_cast<int64_t>(finalDimVals.size())}, rewriter.getI64Type());
+      Value shapeValue = tensor::FromElementsOp::create(
+          rewriter, loc, shapeType, finalDimVals);
+      result = tensor::ReshapeOp::create(rewriter, loc, resultType, result,
+                                         shapeValue);
+    }
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
     return success();
   }
 };
