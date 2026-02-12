@@ -27,7 +27,6 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     # unimplemented lowering torch -> linalg for torchvision.deform_conv2d
     # this is added to check the torch.onnx.export -> import_onnx -> torch path
     "DeformConv2D_basic",
-    "ReduceAnyDimFloatModule_basic",
     "UnfoldModule_basic",
     # _trilinear is an implementation of einsum, but sets dimensions to zero
     # if a dimension is specified in all expand lists, and not in sumdim list.
