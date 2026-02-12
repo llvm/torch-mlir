@@ -628,3 +628,43 @@ func.func @torch.aten.max.dim$basic(%arg0: tensor<3x2x3xf32>) -> tensor<3x2x1xf3
   %1 = torch_c.to_builtin_tensor %values : !torch.vtensor<[3,2,1],f32> -> tensor<3x2x1xf32>
   return %1 : tensor<3x2x1xf32>
 }
+
+
+// -----
+
+
+// CHECK-DAG: #[[$MAP:.*]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+// CHECK-DAG: #[[$MAP1:.*]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, 0)>
+// CHECK-LABEL: func.func @torch.ops.aten.anydim$basic(
+// CHECK-SAME:    %[[ARG0:.*]]: tensor<1x16x26x26xi1>) -> !torch.vtensor<[1,16,26,1],i1>
+// CHECK: %[[INT:.*]] = torch.constant.int -1
+// CHECK: %[[TRUE:.*]] = torch.constant.bool true
+// CHECK: %[[T0:.*]] = torch_c.from_builtin_tensor %[[ARG0]] : tensor<1x16x26x26xi1> -> !torch.vtensor<[1,16,26,26],i1>
+// CHECK: %[[T1:.*]] = torch_c.to_builtin_tensor %[[T0]] : !torch.vtensor<[1,16,26,26],i1> -> tensor<1x16x26x26xi1>
+// CHECK: %[[FALSE:.*]] = arith.constant false
+// CHECK: %[[C1:.*]] = arith.constant 1 : index
+// CHECK: %[[C0:.*]] = arith.constant 0 : index
+// CHECK: %[[DIM0:.*]] = tensor.dim %[[T1]], %[[C0]] : tensor<1x16x26x26xi1>
+// CHECK: %[[C1_0:.*]] = arith.constant 1 : index
+// CHECK: %[[DIM1:.*]] = tensor.dim %[[T1]], %[[C1_0]] : tensor<1x16x26x26xi1>
+// CHECK: %[[C2:.*]] = arith.constant 2 : index
+// CHECK: %[[DIM2:.*]] = tensor.dim %[[T1]], %[[C2]] : tensor<1x16x26x26xi1>
+// CHECK: %[[C3:.*]] = arith.constant 3 : index
+// CHECK: %[[DIM3:.*]] = tensor.dim %[[T1]], %[[C3]] : tensor<1x16x26x26xi1>
+// CHECK: %[[EMPTY:.*]] = tensor.empty(%[[DIM0]], %[[DIM1]], %[[DIM2]]) : tensor<?x?x?x1xi1>
+// CHECK: %[[FILL:.*]] = linalg.fill ins(%[[FALSE]] : i1) outs(%[[EMPTY]] : tensor<?x?x?x1xi1>) -> tensor<?x?x?x1xi1>
+// CHECK: %[[GENERIC:.*]] = linalg.generic {indexing_maps = [#[[$MAP]], #[[$MAP1]]], iterator_types = ["parallel", "parallel", "parallel", "reduction"]} ins(%[[T1]] : tensor<1x16x26x26xi1>) outs(%[[FILL]] : tensor<?x?x?x1xi1>) {
+// CHECK: ^bb0(%[[IN:.*]]: i1, %[[OUT:.*]]: i1):
+// CHECK:   %[[ORI:.*]] = arith.ori %[[IN]], %[[OUT]] : i1
+// CHECK:   linalg.yield %[[ORI]] : i1
+// CHECK: } -> tensor<?x?x?x1xi1>
+// CHECK: %[[CAST:.*]] = tensor.cast %[[GENERIC]] : tensor<?x?x?x1xi1> to tensor<1x16x26x1xi1>
+// CHECK: %[[RET:.*]] = torch_c.from_builtin_tensor %[[CAST]] : tensor<1x16x26x1xi1> -> !torch.vtensor<[1,16,26,1],i1>
+// CHECK: return %[[RET]] : !torch.vtensor<[1,16,26,1],i1>
+func.func @torch.ops.aten.anydim$basic(%arg0: tensor<1x16x26x26xi1>) -> !torch.vtensor<[1,16,26,1],i1> {
+  %int-1 = torch.constant.int -1
+  %true = torch.constant.bool true
+  %0 = torch_c.from_builtin_tensor %arg0 : tensor<1x16x26x26xi1> -> !torch.vtensor<[1,16,26,26],i1>
+  %1 = torch.aten.any.dim %0, %int-1, %true : !torch.vtensor<[1,16,26,26],i1>, !torch.int, !torch.bool -> !torch.vtensor<[1,16,26,1],i1>
+  return %1 : !torch.vtensor<[1,16,26,1],i1>
+}

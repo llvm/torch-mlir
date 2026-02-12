@@ -350,7 +350,7 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
     return arith::ConstantOp::create(b, loc, b.getBoolAttr(true));
   }
 
-  if (isa<AtenAnyOp, AtenAnyDimsOp>(op)) {
+  if (isa<AtenAnyOp, AtenAnyDimsOp, AtenAnyDimOp>(op)) {
     return arith::ConstantOp::create(b, loc, b.getBoolAttr(false));
   }
 
@@ -447,7 +447,7 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     Value result = payloadArgs[1];
     Value self = convertScalarToDtype(b, loc, elem, resultElementType);
     return arith::AndIOp::create(b, loc, self, result);
-  } else if (isa<AtenAnyOp, AtenAnyDimsOp>(op)) {
+  } else if (isa<AtenAnyOp, AtenAnyDimsOp, AtenAnyDimOp>(op)) {
     Value elem = payloadArgs[0];
     Value result = payloadArgs[1];
     Value self = convertScalarToDtype(b, loc, elem, resultElementType);
@@ -549,6 +549,10 @@ private:
 
     if (auto anyOp = dyn_cast<AtenAnyDimsOp>(op))
       return computeReductionOpInfoForDimVariantOp(anyOp, operands, rewriter);
+
+    if (auto anyDimOp = dyn_cast<AtenAnyDimOp>(op))
+      return computeReductionOpInfoForDimVariantOp(anyDimOp, operands,
+                                                   rewriter);
 
     return rewriter.notifyMatchFailure(op, "not a supported reduce op");
   }
@@ -733,6 +737,7 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
                                                      allowNonFinites);
   target.addIllegalOp<AtenSumOp>();
   target.addIllegalOp<AtenAnyOp>();
+  target.addIllegalOp<AtenAnyDimOp>();
   target.addIllegalOp<AtenAnyDimsOp>();
   target.addIllegalOp<AtenAllOp>();
   target.addIllegalOp<AtenSumDimIntListOp>();
