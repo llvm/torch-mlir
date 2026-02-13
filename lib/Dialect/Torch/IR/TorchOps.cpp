@@ -5454,6 +5454,29 @@ LogicalResult ShapeCalculateYieldShapesOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenMatmulOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenMatmulOp::verify() {
+
+  auto lhsType = cast<BaseTensorType>(getSelf().getType());
+  auto rhsType = cast<BaseTensorType>(getOther().getType());
+  auto resultType = cast<BaseTensorType>(getResult().getType());
+
+  if (lhsType.hasSizes() && rhsType.hasSizes() && resultType.hasSizes()) {
+    // Get the rank
+    auto lhsRank = lhsType.getSizes().size();
+    auto rhsRank = rhsType.getSizes().size();
+    auto resultRank = resultType.getSizes().size();
+
+    if (lhsRank == 1 && rhsRank == 1 && resultRank != 0) {
+      return emitOpError("1D x 1D matmul should produce a scalar (rank 0)");
+    }
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // AtenNormScalarOp
 //===----------------------------------------------------------------------===//
 
