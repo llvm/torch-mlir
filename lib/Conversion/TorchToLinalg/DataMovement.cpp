@@ -24,6 +24,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "llvm/ADT/APInt.h"
 
 #include <numeric>
@@ -2789,6 +2790,258 @@ SmallVector<StringRef> ConvertSparseOperatorOp::legalizedNames = {
     "torch.aten.to_dense",  "torch.aten.to_sparse",  "torch.aten.to_csr",
     "torch.aten.to_csc",    "torch.aten.to_bsr",     "torch.aten.to_bsc",
 };
+
+class ConvertAtenCol2ImOp : public OpConversionPattern<AtenCol2imOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+
+  // Rewriting method.
+  LogicalResult
+  matchAndRewrite(AtenCol2imOp col2imOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    // Retrieve the hyperparameters
+    Value input = col2imOp.getSelf();
+    auto outputSizesOp =
+        col2imOp.getOutputSize().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!outputSizesOp)
+      return failure();
+
+    if (outputSizesOp.getNumOperands() != 2 ||
+        !outputSizesOp->getOperand(0).getDefiningOp() ||
+        !outputSizesOp->getOperand(1).getDefiningOp())
+      return failure();
+
+    auto outputHeightOp =
+        outputSizesOp->getOperand(0).getDefiningOp<Torch::ConstantIntOp>();
+    auto outputWidthOp =
+        outputSizesOp->getOperand(1).getDefiningOp<Torch::ConstantIntOp>();
+
+    if (!outputHeightOp || !outputWidthOp)
+      return failure();
+    int height = outputHeightOp.getValue();
+    int width = outputWidthOp.getValue();
+
+    auto paddingsOp =
+        col2imOp.getPadding().getDefiningOp<Torch::PrimListConstructOp>();
+
+    if (!paddingsOp)
+      return failure();
+
+    if (paddingsOp.getNumOperands() != 2 ||
+        !paddingsOp->getOperand(0).getDefiningOp() ||
+        !paddingsOp->getOperand(1).getDefiningOp())
+      return failure();
+
+    auto verticalPaddingOp =
+        paddingsOp->getOperand(0).getDefiningOp<Torch::ConstantIntOp>();
+    auto horizontalPaddingOp =
+        paddingsOp->getOperand(1).getDefiningOp<Torch::ConstantIntOp>();
+
+    if (!verticalPaddingOp || !horizontalPaddingOp)
+      return failure();
+
+    int horizontalPadding = horizontalPaddingOp.getValue();
+    int verticalPadding = verticalPaddingOp.getValue();
+    int paddedWidth = width + 2 * horizontalPadding;
+    int paddedHeight = height + 2 * verticalPadding;
+
+    auto kernelSizesOp =
+        col2imOp.getKernelSize().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!kernelSizesOp)
+      return failure();
+
+    if (kernelSizesOp.getNumOperands() != 2 ||
+        !kernelSizesOp->getOperand(0).getDefiningOp() ||
+        !kernelSizesOp->getOperand(1).getDefiningOp())
+      return failure();
+
+    auto kernelWidthOp =
+        kernelSizesOp->getOperand(0).getDefiningOp<Torch::ConstantIntOp>();
+    auto kernelHeightOp =
+        kernelSizesOp->getOperand(1).getDefiningOp<Torch::ConstantIntOp>();
+    if (!kernelHeightOp || !kernelWidthOp)
+      return failure();
+
+    int kernelWidth = kernelWidthOp.getValue();
+    int kernelHeight = kernelHeightOp.getValue();
+
+    auto dilationsOp =
+        col2imOp.getDilation().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!dilationsOp)
+      return failure();
+
+    if (dilationsOp.getNumOperands() != 2 ||
+        !dilationsOp->getOperand(0).getDefiningOp() ||
+        !dilationsOp->getOperand(1).getDefiningOp())
+      return failure();
+
+    auto verticaldilationsOp =
+        dilationsOp->getOperand(0).getDefiningOp<Torch::ConstantIntOp>();
+    auto horizontaldilationsOp =
+        dilationsOp->getOperand(1).getDefiningOp<Torch::ConstantIntOp>();
+    if (!verticaldilationsOp || !horizontaldilationsOp)
+      return failure();
+    int verticalDilation = verticaldilationsOp.getValue();
+    int horizontalDilation = horizontaldilationsOp.getValue();
+
+    auto stridesOp =
+        col2imOp.getStride().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!stridesOp)
+      return failure();
+
+    if (stridesOp.getNumOperands() != 2 ||
+        !stridesOp->getOperand(0).getDefiningOp() ||
+        !stridesOp->getOperand(1).getDefiningOp())
+      return failure();
+
+    auto verticalStrideOp =
+        stridesOp->getOperand(0).getDefiningOp<Torch::ConstantIntOp>();
+    auto horizontalStrideOp =
+        stridesOp->getOperand(1).getDefiningOp<Torch::ConstantIntOp>();
+
+    if (!verticalStrideOp || !horizontalStrideOp)
+      return failure();
+
+    int verticalStride = verticalStrideOp.getValue();
+    int horizontalStride = horizontalStrideOp.getValue();
+
+    // Create intermediate buffers
+    TensorType outputType =
+        cast<TensorType>(getTypeConverter()->convertType(col2imOp.getType()));
+
+    if (outputType.getRank() < 2)
+      return failure();
+
+    Type elementType = outputType.getElementType();
+
+    assert(((isa<ComplexType>(elementType) &&
+             (cast<ComplexType>(elementType).getElementType().isInteger() ||
+              isa<mlir::FloatType>(
+                  cast<ComplexType>(elementType).getElementType()))) ||
+            isa<mlir::FloatType>(elementType) || elementType.isInteger()) &&
+           "Not implemented yet\n");
+
+    Value outputBuffer = tensor::EmptyOp::create(
+        rewriter, col2imOp->getLoc(),
+        ArrayRef<int64_t>{outputType.getDimSize(0), outputType.getDimSize(1),
+                          height, width},
+        elementType);
+
+    auto materializeIndex = [&rewriter, &col2imOp](int64_t value) -> Value {
+      return arith::ConstantIndexOp::create(rewriter, col2imOp->getLoc(),
+                                            value);
+    };
+    Value paddedOutput = createZeroInitTensor(
+        rewriter, col2imOp->getLoc(),
+        ValueRange{materializeIndex(outputType.getDimSize(0)),
+                   materializeIndex(outputType.getDimSize(1)),
+                   materializeIndex(paddedHeight),
+                   materializeIndex(paddedWidth)},
+        outputType.getElementType());
+
+    // Create the linalg loop interators
+    SmallVector<utils::IteratorType, 6> iteratorTypes(
+        6, utils::IteratorType::reduction);
+    iteratorTypes[0] = utils::IteratorType::parallel;
+    iteratorTypes[1] = utils::IteratorType::parallel;
+
+    SmallVector<AffineMap, 4> indexingMaps;
+    AffineExpr batch = rewriter.getAffineDimExpr(0);
+    AffineExpr chan = rewriter.getAffineDimExpr(1);
+    AffineExpr line = rewriter.getAffineDimExpr(2);
+    AffineExpr col = rewriter.getAffineDimExpr(3);
+    AffineExpr kerLineIndex = rewriter.getAffineDimExpr(4);
+    AffineExpr kerColIndex = rewriter.getAffineDimExpr(5);
+    indexingMaps.push_back(AffineMap::get(
+        6, 0,
+        ArrayRef<AffineExpr>{
+            batch,
+            kerLineIndex * kernelWidth + kerColIndex +
+                chan * kernelWidth * kernelHeight,
+            col + line * (1 + (paddedWidth - 1 -
+                               (kernelWidth - 1) * horizontalDilation) /
+                                  horizontalStride)},
+        rewriter.getContext()));
+    // We create 2 additional irrelevent indexing maps and inputs (kernel,
+    // upperBounds) so that the operation is able to find the upper bounds of
+    // each loop. Otherwise we get the following error: "'linalg.generic' op
+    // expected the shape-to-loops map to be non-null"
+    indexingMaps.push_back(
+        AffineMap::get(6, 0, ArrayRef<AffineExpr>{kerLineIndex, kerColIndex},
+                       rewriter.getContext()));
+    indexingMaps.push_back(AffineMap::get(6, 0, ArrayRef<AffineExpr>{line, col},
+                                          rewriter.getContext()));
+    indexingMaps.push_back(AffineMap::get(
+        6, 0,
+        ArrayRef<AffineExpr>{
+            batch, chan,
+            line * verticalStride + kerLineIndex * verticalDilation,
+            col * horizontalStride + kerColIndex * horizontalDilation},
+        rewriter.getContext()));
+    // The body of the linalg.generic op
+    auto body = [&](OpBuilder &b, Location loc, ValueRange args) {
+      if (elementType.isInteger()) {
+        linalg::YieldOp::create(
+            b, loc,
+            arith::AddIOp::create(b, loc, args[0], args[3]).getResult());
+      } else if (isa<mlir::FloatType>(elementType)) {
+        linalg::YieldOp::create(
+            b, loc,
+            arith::AddFOp::create(b, loc, args[0], args[3]).getResult());
+      } else {
+        linalg::YieldOp::create(
+            b, loc,
+            complex::AddOp::create(b, loc, args[0], args[3]).getResult());
+      }
+    };
+    input = TorchConversion::ToBuiltinTensorOp::create(
+        rewriter, col2imOp->getLoc(),
+        getTypeConverter()->convertType(input.getType()), input);
+
+    // Create the "irrelevent" inputs
+    Value kernel = tensor::EmptyOp::create(
+        rewriter, col2imOp->getLoc(),
+        ArrayRef<int64_t>{kernelWidth, kernelHeight}, elementType);
+    Value upperBounds = tensor::EmptyOp::create(
+        rewriter, col2imOp->getLoc(),
+        ArrayRef<int64_t>{
+            1 + (paddedHeight - 1 - (kernelHeight - 1) * verticalDilation) /
+                    verticalStride,
+            1 + ((paddedWidth - 1 - (kernelWidth - 1) * horizontalDilation)) /
+                    horizontalStride},
+        elementType);
+
+    paddedOutput =
+        linalg::GenericOp::create(
+            rewriter, col2imOp->getLoc(), paddedOutput.getType(),
+            ValueRange{input, kernel, upperBounds}, ValueRange(paddedOutput),
+            indexingMaps, iteratorTypes, body)
+            ->getResult(0);
+
+    // Remove the padding
+    OpFoldResult one = rewriter.getI32IntegerAttr(1);
+    OpFoldResult zero = rewriter.getI32IntegerAttr(0);
+    OpFoldResult vpad = rewriter.getI32IntegerAttr(verticalPadding);
+    OpFoldResult hpad = rewriter.getI32IntegerAttr(horizontalPadding);
+    OpFoldResult vdim = rewriter.getI32IntegerAttr(height);
+    OpFoldResult hdim = rewriter.getI32IntegerAttr(width);
+    OpFoldResult batchSize =
+        rewriter.getI32IntegerAttr(outputType.getDimSize(0));
+    OpFoldResult nChannels =
+        rewriter.getI32IntegerAttr(outputType.getDimSize(1));
+    outputBuffer = tensor::ExtractSliceOp::create(
+        rewriter, col2imOp->getLoc(), paddedOutput,
+        ArrayRef<Range>{Range{zero, batchSize, one},
+                        Range{zero, nChannels, one}, Range{vpad, vdim, one},
+                        Range{hpad, hdim, one}});
+    rewriter.setInsertionPoint(col2imOp);
+    TorchConversion::FromBuiltinTensorOp newOp =
+        TorchConversion::FromBuiltinTensorOp::create(
+            rewriter, col2imOp->getLoc(), col2imOp.getType(), outputBuffer);
+    rewriter.replaceOp(col2imOp, newOp);
+    return success();
+  }
+};
 } // namespace
 
 void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
@@ -2854,6 +3107,8 @@ void mlir::torch::torch_to_linalg::populateDataMovementPatternsAndLegality(
   patterns.add<ConvertAtenDiagonalOp>(typeConverter, context);
   target.addIllegalOp<AtenDiagEmbedOp>();
   patterns.add<ConvertAtenDiagEmbedOp>(typeConverter, context);
+  target.addIllegalOp<AtenCol2imOp>();
+  patterns.add<ConvertAtenCol2ImOp>(typeConverter, context);
   // Rewrite all special sparse conversions hidden as operators.
   target.addDynamicallyLegalOp<OperatorOp>([&](Torch::OperatorOp op) {
     return !ConvertSparseOperatorOp::isSparsePrimitive(op.getNameAttr());
