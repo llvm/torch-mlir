@@ -4221,6 +4221,10 @@ void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       if (!operandTy || !operandTy.hasSizes())
         return failure();
       int64_t adim = dim < 0 ? dim + operandTy.getSizes().size() : dim;
+      bool is1DEmptyTensor =
+          operandTy.getSizes().size() == 1 && operandTy.getSizes()[0] == 0;
+      if (is1DEmptyTensor)
+        continue;
       if (operandTy.getSizes()[adim] != 0)
         filtered.push_back(operand);
     }
