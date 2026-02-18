@@ -94,15 +94,33 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(binder.op,
                                              "op attributes bind failure");
 
-        // This lowering excepts input operands to be either 7 or 9 based on the
-        // `do_rotary` attribute. If it's false, then the input operands can be
-        // 7 but if it's true then the operands has to be 9 including cos_cache
-        // and sin_cache for rotary_embedding.
-        // TODO: Add support for packed_qkv.
-        if (!((operands.size() == 9) || (!doRotary && operands.size() == 7)))
-          return rewriter.notifyMatchFailure(
-              binder.op, "Unimplemented:  excepted input operands to be either "
-                         "7 or 9 based on the `do_rotary` attribute");
+        // This lowering supports two input formats:
+        // 1. Separate Q, K, V inputs (9 operands with rotary, 7 without):
+        //    query, key, value, past_key, past_value, seqlens_k, total_seq_len,
+        //    [cos_cache, sin_cache]
+        // 2. Packed QKV input (7 operands with rotary, 5 without):
+        //    packed_qkv, past_key, past_value, seqlens_k, total_seq_len,
+        //    [cos_cache, sin_cache]
+        bool isPackedQKV = false;
+        if (doRotary) {
+          if (operands.size() == 7) {
+            isPackedQKV = true;
+          } else if (operands.size() != 9) {
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "Expected 7 operands (packed QKV) or 9 operands (separate Q, "
+                "K, V) when do_rotary is enabled");
+          }
+        } else {
+          if (operands.size() == 5) {
+            isPackedQKV = true;
+          } else if (operands.size() != 7) {
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "Expected 5 operands (packed QKV) or 7 operands (separate Q, "
+                "K, V) when do_rotary is disabled");
+          }
+        }
 
         if (kvNumHeads == 0)
           return rewriter.notifyMatchFailure(
@@ -133,16 +151,120 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
 
         Location loc = binder.getLoc();
         MLIRContext *context = binder.op->getContext();
-        Value query = operands[0];
-        Value key = operands[1];
-        Value value = operands[2];
-        Value pastKey = operands[3];
-        Value pastValue = operands[4];
-        Value seqlensK = operands[5];
+        Value query, key, value, pastKey, pastValue, seqlensK;
         Value cosCache, sinCache;
-        if (doRotary) {
-          cosCache = operands[7];
-          sinCache = operands[8];
+
+        if (isPackedQKV) {
+          // Packed QKV mode: first operand contains Q, K, V concatenated
+          Value packedQKV = operands[0];
+          pastKey = operands[1];
+          pastValue = operands[2];
+          seqlensK = operands[3];
+          if (doRotary) {
+            cosCache = operands[5];
+            sinCache = operands[6];
+          }
+
+          // Split packed QKV into separate Q, K, V tensors
+          // packed_qkv shape: [batch, seq, q_hidden + k_hidden + v_hidden]
+          // where q_hidden = num_heads * head_size
+          //       k_hidden = kv_num_heads * head_size
+          //       v_hidden = kv_num_heads * head_size
+          Torch::ValueTensorType packedType =
+              cast<Torch::ValueTensorType>(packedQKV.getType());
+          if (!packedType.hasSizes() || packedType.getSizes().size() != 3)
+            return rewriter.notifyMatchFailure(
+                binder.op, "Expected packed QKV input to have 3 dimensions");
+
+          SmallVector<int64_t> packedDims{packedType.getSizes()};
+          int64_t batchSize = packedDims[0];        // may be dynamic
+          int64_t sequenceLength = packedDims[1];   // may be dynamic
+          int64_t packedHiddenSize = packedDims[2]; // must be static
+
+          if (packedHiddenSize == Torch::kUnknownSize)
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "Expected packed QKV hidden dimension (dim 2) to be static");
+
+          // Calculate head_size from past_key shape: [batch, kv_num_heads,
+          // past_seq, head_size]
+          Torch::ValueTensorType pastKeyType =
+              cast<Torch::ValueTensorType>(pastKey.getType());
+          if (!(pastKeyType.hasSizes() && pastKeyType.getSizes().size() == 4))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Expected past_key to have 4 dimensions");
+
+          int64_t headSize = pastKeyType.getSizes()[3];
+          if (headSize == Torch::kUnknownSize)
+            return rewriter.notifyMatchFailure(
+                binder.op, "Expected past_key head_size (dim 3) to be static");
+
+          int64_t qHiddenSize = numHeads * headSize;
+          int64_t kvHiddenSize = kvNumHeads * headSize;
+
+          // Validate packed hidden size
+          if (packedHiddenSize != qHiddenSize + 2 * kvHiddenSize)
+            return rewriter.notifyMatchFailure(
+                binder.op, "Packed QKV hidden size mismatch: expected " +
+                               std::to_string(qHiddenSize + 2 * kvHiddenSize) +
+                               " but got " + std::to_string(packedHiddenSize));
+
+          Value cstOne = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(1));
+          Value cstTwo = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(2));
+          Value cstZero = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(0));
+          Value cstQHidden = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(qHiddenSize));
+          Value cstQPlusKVHidden = Torch::ConstantIntOp::create(
+              rewriter, loc,
+              rewriter.getI64IntegerAttr(qHiddenSize + kvHiddenSize));
+          Value cstPackedHidden = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(packedHiddenSize));
+
+          // Slice Q: packed_qkv[:, :, 0:q_hidden]
+          // batch and seq dimensions may be dynamic
+          SmallVector<int64_t> querySizes{batchSize, sequenceLength,
+                                          qHiddenSize};
+          Torch::ValueTensorType queryType = Torch::ValueTensorType::get(
+              context, querySizes, packedType.getOptionalDtype());
+          query = Torch::AtenSliceTensorOp::create(
+              rewriter, loc, queryType, packedQKV,
+              /*dim=*/cstTwo, /*start=*/cstZero, /*end=*/cstQHidden,
+              /*step=*/cstOne);
+
+          // Slice K: packed_qkv[:, :, q_hidden:q_hidden+kv_hidden]
+          SmallVector<int64_t> kvSizes{batchSize, sequenceLength, kvHiddenSize};
+          Torch::ValueTensorType keyType = Torch::ValueTensorType::get(
+              context, kvSizes, packedType.getOptionalDtype());
+          key = Torch::AtenSliceTensorOp::create(rewriter, loc, keyType,
+                                                 packedQKV,
+                                                 /*dim=*/cstTwo,
+                                                 /*start=*/cstQHidden,
+                                                 /*end=*/cstQPlusKVHidden,
+                                                 /*step=*/cstOne);
+
+          // Slice V: packed_qkv[:, :, q_hidden+kv_hidden:]
+          Torch::ValueTensorType valueType = Torch::ValueTensorType::get(
+              context, kvSizes, packedType.getOptionalDtype());
+          value = Torch::AtenSliceTensorOp::create(
+              rewriter, loc, valueType, packedQKV,
+              /*dim=*/cstTwo, /*start=*/cstQPlusKVHidden,
+              /*end=*/cstPackedHidden,
+              /*step=*/cstOne);
+        } else {
+          // Separate Q, K, V mode
+          query = operands[0];
+          key = operands[1];
+          value = operands[2];
+          pastKey = operands[3];
+          pastValue = operands[4];
+          seqlensK = operands[5];
+          if (doRotary) {
+            cosCache = operands[7];
+            sinCache = operands[8];
+          }
         }
 
         Torch::ValueTensorType queryType =
