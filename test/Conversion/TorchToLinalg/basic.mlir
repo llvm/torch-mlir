@@ -61,6 +61,102 @@ func.func @torch.aten.matmul.4d(%arg0: !torch.vtensor<[1,2,32,400],f32>, %arg1: 
 
 // -----
 
+// CHECK-LABEL: func.func @torch.aten.matmul$dot_f16
+// CHECK:      %[[ZERO:.+]] = arith.constant 0.000000e+00 : f32
+// CHECK:      linalg.dot ins(%{{.*}}, %{{.*}} : tensor<4xf16>, tensor<4xf16>) outs(%{{.*}} : tensor<f32>) -> tensor<f32>
+// CHECK:      arith.truncf %{{.*}} : f32 to f16
+func.func @torch.aten.matmul$dot_f16(%arg0: !torch.vtensor<[4],f16>, %arg1: !torch.vtensor<[4],f16>) -> !torch.vtensor<[],f16> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[4],f16>, !torch.vtensor<[4],f16> -> !torch.vtensor<[],f16>
+  return %0 : !torch.vtensor<[],f16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.matmul$vecmat_f16
+// CHECK:      %[[ZERO:.+]] = arith.constant 0.000000e+00 : f32
+// CHECK:      linalg.vecmat ins(%{{.*}}, %{{.*}} : tensor<4xf16>, tensor<4x8xf16>) outs(%{{.*}} : tensor<8xf32>) -> tensor<8xf32>
+// CHECK:      arith.truncf %{{.*}} : f32 to f16
+func.func @torch.aten.matmul$vecmat_f16(%arg0: !torch.vtensor<[4],f16>, %arg1: !torch.vtensor<[4,8],f16>) -> !torch.vtensor<[8],f16> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[4],f16>, !torch.vtensor<[4,8],f16> -> !torch.vtensor<[8],f16>
+  return %0 : !torch.vtensor<[8],f16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.matmul$matvec_f16
+// CHECK:      %[[ZERO:.+]] = arith.constant 0.000000e+00 : f32
+// CHECK:      linalg.matvec ins(%{{.*}}, %{{.*}} : tensor<8x4xf16>, tensor<4xf16>) outs(%{{.*}} : tensor<8xf32>) -> tensor<8xf32>
+// CHECK:      arith.truncf %{{.*}} : f32 to f16
+func.func @torch.aten.matmul$matvec_f16(%arg0: !torch.vtensor<[8,4],f16>, %arg1: !torch.vtensor<[4],f16>) -> !torch.vtensor<[8],f16> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[8,4],f16>, !torch.vtensor<[4],f16> -> !torch.vtensor<[8],f16>
+  return %0 : !torch.vtensor<[8],f16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.matmul$2d_f16
+// CHECK:      %[[ZERO:.+]] = arith.constant 0.000000e+00 : f32
+// CHECK:      linalg.matmul ins(%{{.*}}, %{{.*}} : tensor<8x16xf16>, tensor<16x8xf16>) outs(%{{.*}} : tensor<8x8xf32>) -> tensor<8x8xf32>
+// CHECK:      arith.truncf %{{.*}} : f32 to f16
+func.func @torch.aten.matmul$2d_f16(%arg0: !torch.vtensor<[8,16],f16>, %arg1: !torch.vtensor<[16,8],f16>) -> !torch.vtensor<[8,8],f16> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[8,16],f16>, !torch.vtensor<[16,8],f16> -> !torch.vtensor<[8,8],f16>
+  return %0 : !torch.vtensor<[8,8],f16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.matmul$3d_f16
+// CHECK:      %[[BMM:.+]] = linalg.batch_matmul ins(%{{.*}}, %{{.*}} : tensor<2x8x16xf16>, tensor<2x16x8xf16>) outs(%{{.*}} : tensor<2x8x8xf32>) -> tensor<2x8x8xf32>
+// CHECK:      arith.truncf %{{.*}} : f32 to f16
+func.func @torch.aten.matmul$3d_f16(%arg0: !torch.vtensor<[2,8,16],f16>, %arg1: !torch.vtensor<[2,16,8],f16>) -> !torch.vtensor<[2,8,8],f16> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[2,8,16],f16>, !torch.vtensor<[2,16,8],f16> -> !torch.vtensor<[2,8,8],f16>
+  return %0 : !torch.vtensor<[2,8,8],f16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.matmul$4d_f16
+// CHECK:      %[[COLLAPSED_LHS:.+]] = tensor.collapse_shape %{{.*}} {{\[\[}}0, 1], [2], [3]] : tensor<1x2x8x16xf16> into tensor<2x8x16xf16>
+// CHECK:      %[[COLLAPSED_RHS:.+]] = tensor.collapse_shape %{{.*}} {{\[\[}}0, 1], [2], [3]] : tensor<1x2x16x8xf16> into tensor<2x16x8xf16>
+// CHECK:      %[[BMM:.+]] = linalg.batch_matmul ins(%[[COLLAPSED_LHS]], %[[COLLAPSED_RHS]] : tensor<2x8x16xf16>, tensor<2x16x8xf16>) outs(%{{.*}} : tensor<2x8x8xf32>) -> tensor<2x8x8xf32>
+// CHECK:      arith.truncf %{{.*}} : f32 to f16
+// CHECK:      tensor.expand_shape %{{.*}} {{\[\[}}0, 1], [2], [3]] output_shape [1, 2, 8, 8] : tensor<2x8x8xf16> into tensor<1x2x8x8xf16>
+func.func @torch.aten.matmul$4d_f16(%arg0: !torch.vtensor<[1,2,8,16],f16>, %arg1: !torch.vtensor<[1,2,16,8],f16>) -> !torch.vtensor<[1,2,8,8],f16> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[1,2,8,16],f16>, !torch.vtensor<[1,2,16,8],f16> -> !torch.vtensor<[1,2,8,8],f16>
+  return %0 : !torch.vtensor<[1,2,8,8],f16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.matmul$2d_bf16
+// CHECK:      %[[ZERO:.+]] = arith.constant 0.000000e+00 : f32
+// CHECK:      linalg.matmul ins(%{{.*}}, %{{.*}} : tensor<8x16xbf16>, tensor<16x8xbf16>) outs(%{{.*}} : tensor<8x8xf32>) -> tensor<8x8xf32>
+// CHECK:      arith.truncf %{{.*}} : f32 to bf16
+func.func @torch.aten.matmul$2d_bf16(%arg0: !torch.vtensor<[8,16],bf16>, %arg1: !torch.vtensor<[16,8],bf16>) -> !torch.vtensor<[8,8],bf16> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[8,16],bf16>, !torch.vtensor<[16,8],bf16> -> !torch.vtensor<[8,8],bf16>
+  return %0 : !torch.vtensor<[8,8],bf16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.matmul$generic_f16
+// CHECK:      linalg.generic
+// CHECK-SAME: ins(%{{.*}}, %{{.*}} : tensor<?x?x8x16xf16>, tensor<?x?x16x8xf16>)
+// CHECK-SAME: outs(%{{.*}} : tensor<?x?x8x8xf32>)
+// CHECK:      ^bb0(%[[A:.+]]: f16, %[[B:.+]]: f16, %[[C:.+]]: f32):
+// CHECK:        %[[EA:.+]] = arith.extf %[[A]] : f16 to f32
+// CHECK:        %[[EB:.+]] = arith.extf %[[B]] : f16 to f32
+// CHECK:        %[[MUL:.+]] = arith.mulf %[[EA]], %[[EB]] : f32
+// CHECK:        %[[ADD:.+]] = arith.addf %[[MUL]], %[[C]] : f32
+// CHECK:        linalg.yield %[[ADD]] : f32
+// CHECK:      arith.truncf %{{.*}} : f32 to f16
+func.func @torch.aten.matmul$generic_f16(%arg0: !torch.vtensor<[?,?,8,16],f16>, %arg1: !torch.vtensor<[?,?,16,8],f16>) -> !torch.vtensor<[?,?,8,8],f16> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,8,16],f16>, !torch.vtensor<[?,?,16,8],f16> -> !torch.vtensor<[?,?,8,8],f16>
+  return %0 : !torch.vtensor<[?,?,8,8],f16>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @torch.aten.mm$basic_strict(
 // CHECK-NOT: assert
 func.func @torch.aten.mm$basic_strict(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,2],f32>
