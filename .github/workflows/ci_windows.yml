@@ -61,7 +61,7 @@ jobs:
 
       - name: Build project
         run: |
-          cache_dir="${{ env.CACHE_DIR }}" \
+          cache_dir="${CACHE_DIR}" \
           ./build_tools/python_deploy/build_windows_ci.sh
 
       - name: Save cache

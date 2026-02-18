@@ -166,10 +166,12 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE
           python -m pip install wheel
-          TM_PACKAGE_VERSION=${{ github.event.inputs.python_package_version }}
+          TM_PACKAGE_VERSION=${GITHUB_EVENT_INPUTS_PYTHON_PACKAGE_VERSION}
           printf "TORCH_MLIR_PYTHON_PACKAGE_VERSION=%s\n" $TM_PACKAGE_VERSION > ./torch_mlir_package_version
           sudo ./build_tools/python_deploy/install_macos_deps.sh
           packages=${{ matrix.package }} TORCH_MLIR_PYTHON_VERSIONS="3.11" ./build_tools/python_deploy/build_macos_packages.sh
+        env:
+          GITHUB_EVENT_INPUTS_PYTHON_PACKAGE_VERSION: ${{ github.event.inputs.python_package_version }}
 
       # If we were given a release_id, then upload the package we just built
       # to the github releases page.
@@ -231,8 +233,10 @@ jobs:
         run: |
           $env:TORCH_MLIR_ENABLE_JIT_IR_IMPORTER='1'
           $env:TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS='0'
-          $env:TORCH_MLIR_PYTHON_PACKAGE_VERSION = '${{ github.event.inputs.python_package_version }}'
+          $env:TORCH_MLIR_PYTHON_PACKAGE_VERSION = '$env:GITHUB_EVENT_INPUTS_PYTHON_PACKAGE_VERSION'
           ./build_tools/python_deploy/build_windows.ps1
+        env:
+          GITHUB_EVENT_INPUTS_PYTHON_PACKAGE_VERSION: ${{ github.event.inputs.python_package_version }}
 
       # If we were given a release_id, then upload the package we just built
       # to the github releases page.
