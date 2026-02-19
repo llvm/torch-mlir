@@ -5619,9 +5619,9 @@ LogicalResult AtenPermuteOp::verify() {
       continue;
     }
 
-    // if 'from' is the unkwown index, continue.
-    if (from == -1) {
-      continue;
+    // normalize negative index
+    if (from < 0) {
+      from = from + outRank;
     }
 
     if (!isValidDim(from, outRank)) {
