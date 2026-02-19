@@ -44,6 +44,24 @@ func.func @sdpa_scale_rsqrt_head_dim_128(%query: !torch.vtensor<[1,4,8,128],f32>
 
 // -----
 
+// Test GQA with different sequence lengths between query and key/value.
+// Query has 32 heads with seq_len=10, key/value have 8 heads with seq_len=20.
+// The repeated key/value should keep seq_len=20, not inherit seq_len=10 from query.
+// CHECK-LABEL: @sdpa_gqa_different_seq_len
+// CHECK: tm_tensor.attention
+// CHECK-SAME: tensor<32x10x64xf32>, tensor<32x20x64xf32>, tensor<32x20x64xf32>
+// CHECK-SAME: outs({{.*}} : tensor<32x10x64xf32>)
+func.func @sdpa_gqa_different_seq_len(%query: !torch.vtensor<[1,32,10,64],f32>, %key: !torch.vtensor<[1,8,20,64],f32>, %value: !torch.vtensor<[1,8,20,64],f32>) -> !torch.vtensor<[1,32,10,64],f32> {
+  %float0 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %0 = torch.aten.scaled_dot_product_attention %query, %key, %value, %none, %float0, %false, %none, %true : !torch.vtensor<[1,32,10,64],f32>, !torch.vtensor<[1,8,20,64],f32>, !torch.vtensor<[1,8,20,64],f32>, !torch.none, !torch.float, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,32,10,64],f32>
+  return %0 : !torch.vtensor<[1,32,10,64],f32>
+}
+
+// -----
+
 // Test that an invalid scale (not 1/sqrt(headDim)) is rejected
 func.func @sdpa_scale_invalid(%query: !torch.vtensor<[1,4,8,64],f32>, %key: !torch.vtensor<[1,4,8,64],f32>, %value: !torch.vtensor<[1,4,8,64],f32>) -> !torch.vtensor<[1,4,8,64],f32> {
   %float0 = torch.constant.float 0.000000e+00
