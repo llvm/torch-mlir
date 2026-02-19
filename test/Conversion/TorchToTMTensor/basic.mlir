@@ -111,3 +111,16 @@ func.func @scatter_src_i32_index(%arg0: !torch.vtensor<[10,8,6],f32>, %arg1: !to
   %0 = torch.aten.scatter.src %arg0, %int0, %arg1, %arg2 : !torch.vtensor<[10,8,6],f32>, !torch.int, !torch.vtensor<[2,4,3],si32>, !torch.vtensor<[5,8,6],f32> -> !torch.vtensor<[10,8,6],f32>
   return %0 : !torch.vtensor<[10,8,6],f32>
 }
+
+// -----
+
+// CHECK-LABEL: @scatter_src_dim2
+// CHECK: tm_tensor.scatter {dimension_map = array<i64: 0, 1, 2, 3>} unique_indices(false) ins(%{{.*}}, %{{.*}} : tensor<?xf32>, tensor<?x4xi64>) outs(%{{.*}} : tensor<2x2x5x8xf32>) {
+// CHECK:      ^bb0(%arg3: f32, %arg4: f32):
+// CHECK:        tm_tensor.yield %arg3 : f32
+// CHECK:      } -> tensor<2x2x5x8xf32>
+func.func @scatter_src_dim2(%arg0: !torch.vtensor<[2,2,5,8],f32>, %arg1: !torch.vtensor<[2,2,1,8],si64>, %arg2: !torch.vtensor<[2,2,1,8],f32>) -> !torch.vtensor<[2,2,5,8],f32> {
+  %int2 = torch.constant.int 2
+  %0 = torch.aten.scatter.src %arg0, %int2, %arg1, %arg2 : !torch.vtensor<[2,2,5,8],f32>, !torch.int, !torch.vtensor<[2,2,1,8],si64>, !torch.vtensor<[2,2,1,8],f32> -> !torch.vtensor<[2,2,5,8],f32>
+  return %0 : !torch.vtensor<[2,2,5,8],f32>
+}

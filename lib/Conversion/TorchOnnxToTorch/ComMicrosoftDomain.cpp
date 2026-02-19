@@ -231,6 +231,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         // `do_rotary` attribute. If it's false, then the input operands can be
         // 7 but if it's true then the operands has to be 9 including cos_cache
         // and sin_cache for rotary_embedding.
+        // TODO: Add support for packed_qkv.
         if (!((operands.size() == 9) || (!doRotary && operands.size() == 7)))
           return rewriter.notifyMatchFailure(
               binder.op, "Unimplemented:  excepted input operands to be either "
@@ -252,18 +253,16 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
               binder.op,
               "num_heads is a required attribute and should be non-zero");
 
-        if (smoothSoftmax != 0)
+        if (smoothSoftmax > 0)
           return rewriter.notifyMatchFailure(
               binder.op,
               "Unimplemented: smooth_softmax attribute is not supported, hence "
-              "it should have default value equal to 0");
+              "it should have a value <= 0 (disabled)");
 
         if (softcap != 0.0f)
           return rewriter.notifyMatchFailure(
               binder.op, "Unimplemented: softcap attribute is not supported, "
                          "hence it should have default value equal to 0.0");
-
-        // TODO: Add support for packed_qkv.
 
         Location loc = binder.getLoc();
         MLIRContext *context = binder.op->getContext();
@@ -273,7 +272,6 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value pastKey = operands[3];
         Value pastValue = operands[4];
         Value seqlensK = operands[5];
-        Value totalSequenceLength = operands[6];
         Value cosCache, sinCache;
         if (doRotary) {
           cosCache = operands[7];
@@ -282,164 +280,187 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
 
         Torch::ValueTensorType queryType =
             cast<Torch::ValueTensorType>(query.getType());
-        if (!(queryType.hasSizes() && queryType.areAllSizesKnown()))
+        if (!queryType.hasSizes() || queryType.getSizes().size() != 3)
           return rewriter.notifyMatchFailure(
-              binder.op,
-              "Expected `query` input to have statically known sizes");
+              binder.op, "Expected `query` input to have 3 dimensions");
 
         SmallVector<int64_t> queryDims{queryType.getSizes()};
-        int64_t batchSize = queryDims[0];
-        int64_t sequenceLength = queryDims[1];
-        int64_t hiddenSize = queryDims[2];
+        int64_t batchSize = queryDims[0];      // may be dynamic
+        int64_t sequenceLength = queryDims[1]; // may be dynamic
+        int64_t hiddenSize = queryDims[2];     // must be static
+        if (hiddenSize == Torch::kUnknownSize)
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Expected `query` hidden dimension (dim 2) to be static");
         int64_t headSize = hiddenSize / numHeads;
 
-        Value cstBatchSize = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(batchSize));
-        Value cstSequenceLength = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(),
-            rewriter.getI64IntegerAttr(sequenceLength));
+        // For dynamic dimensions, use aten.size.int to get runtime values
+        Type intType = rewriter.getType<Torch::IntType>();
+
+        Value cstZeroDim = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(0));
+        Value cstBatchSize = rewriter.createOrFold<Torch::AtenSizeIntOp>(
+            loc, intType, query, cstZeroDim);
+        Value cstOneDim = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(1));
+        Value cstSequenceLength = rewriter.createOrFold<Torch::AtenSizeIntOp>(
+            loc, intType, query, cstOneDim);
+
         Value cstHiddenSize = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(hiddenSize));
+            rewriter, loc, rewriter.getI64IntegerAttr(hiddenSize));
         Value cstHeadSize = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(headSize));
+            rewriter, loc, rewriter.getI64IntegerAttr(headSize));
         Value cstNumHeads = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(numHeads));
+            rewriter, loc, rewriter.getI64IntegerAttr(numHeads));
         Value cstKVNumHeads = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(kvNumHeads));
-
-        // Reshape Query, Key and Value as follows:
-        // Query: (batch_size, sequence_length, hidden_size)
-        //     -> (batch_size, num_heads, sequence_length, head_size)
-        // Key: (batch_size, kv_sequence_length, kv_hidden_size)
-        //   -> (batch_size, kv_num_heads, sequence_length, head_size)
-        // Value: (batch_size, kv_sequence_length, kv_hidden_size)
-        //     -> (batch_size, kv_num_heads, sequence_length, head_size)
-
-        // Reshaping query.
-        SmallVector<int64_t> queryReshapeSizesInt{batchSize, numHeads,
-                                                  sequenceLength, headSize};
-        Value queryReshapeSizesList = Torch::PrimListConstructOp::create(
-            rewriter, binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(query.getContext())),
-            llvm::SmallVector<Value>{cstBatchSize, cstNumHeads,
-                                     cstSequenceLength, cstHeadSize});
-        Value qInput = Torch::AtenReshapeOp::create(
-            rewriter, loc,
-            queryType.getWithSizesAndDtype(queryReshapeSizesInt,
-                                           queryType.getOptionalDtype()),
-            query, queryReshapeSizesList);
-
-        // Reshaping key.
-        SmallVector<int64_t> kvReshapeSizesInt{batchSize, kvNumHeads,
-                                               sequenceLength, headSize};
-        Value kvReshapeSizesList = Torch::PrimListConstructOp::create(
-            rewriter, binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(query.getContext())),
-            llvm::SmallVector<Value>{cstBatchSize, cstKVNumHeads,
-                                     cstSequenceLength, cstHeadSize});
-        Torch::ValueTensorType keyType =
-            cast<Torch::ValueTensorType>(key.getType());
-        Value kInput = Torch::AtenReshapeOp::create(
-            rewriter, loc,
-            keyType.getWithSizesAndDtype(kvReshapeSizesInt,
-                                         keyType.getOptionalDtype()),
-            key, kvReshapeSizesList);
-
-        // Reshaping value.
-        Torch::ValueTensorType valueType =
-            cast<Torch::ValueTensorType>(value.getType());
-        Value vInput = Torch::AtenReshapeOp::create(
-            rewriter, loc,
-            valueType.getWithSizesAndDtype(kvReshapeSizesInt,
-                                           valueType.getOptionalDtype()),
-            value, kvReshapeSizesList);
+            rewriter, loc, rewriter.getI64IntegerAttr(kvNumHeads));
 
         Value cstNone = Torch::ConstantNoneOp::create(rewriter, loc);
         Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
+        Value cstIntZero = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(0));
+        Value cstIntOne = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(1));
+        Value cstIntMinusOne = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(-1));
+        Value cstDim1 = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(1));
+        Value cstDim2 = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(2));
+        Value cstInt64Dtype = Torch::ConstantIntOp::create(
+            rewriter, loc,
+            rewriter.getI64IntegerAttr((int)torch_upstream::ScalarType::Long));
+
+        Type intListType = Torch::ListType::get(Torch::IntType::get(context));
+
+        // Convert seqlens_k to int64 unconditionally (may be si32 from ONNX).
+        Torch::ValueTensorType seqLensKType =
+            cast<Torch::ValueTensorType>(seqlensK.getType());
+        if (seqLensKType.getOptionalDtype() &&
+            seqLensKType.getOptionalDtype().isInteger(32)) {
+          seqlensK = Torch::AtenToDtypeOp::create(
+              rewriter, loc,
+              seqLensKType.getWithSizesAndDtype(
+                  seqLensKType.getOptionalSizes(),
+                  rewriter.getIntegerType(/*width=*/64, /*isSigned=*/true)),
+              seqlensK, cstInt64Dtype, /*non_blocking=*/cstFalse,
+              /*copy=*/cstFalse, /*memory_format=*/cstNone);
+        }
+
+        // Reshape Q/K/V from [batch, seq, hidden] to [batch, heads, seq,
+        // head_size]. This requires:
+        // 1. Reshape to [batch, seq, heads, head_size]
+        // 2. Transpose dims 1 and 2 to get [batch, heads, seq, head_size]
+        // A direct reshape would incorrectly interleave heads and sequence
+        // positions.
+
+        // Reshaping query: [batch, seq, hidden] -> [batch, seq, num_heads,
+        // head_size]
+        SmallVector<int64_t> queryIntermediateSizesInt{
+            batchSize, sequenceLength, numHeads, headSize};
+        Value queryIntermediateSizesList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListType,
+            llvm::SmallVector<Value>{cstBatchSize, cstSequenceLength,
+                                     cstNumHeads, cstHeadSize});
+        Value qIntermediate = Torch::AtenReshapeOp::create(
+            rewriter, loc,
+            queryType.getWithSizesAndDtype(queryIntermediateSizesInt,
+                                           queryType.getOptionalDtype()),
+            query, queryIntermediateSizesList);
+
+        // Transpose query: [batch, seq, num_heads, head_size] -> [batch,
+        // num_heads, seq, head_size]
+        SmallVector<int64_t> queryFinalSizesInt{batchSize, numHeads,
+                                                sequenceLength, headSize};
+        Value qInput = Torch::AtenTransposeIntOp::create(
+            rewriter, loc,
+            queryType.getWithSizesAndDtype(queryFinalSizesInt,
+                                           queryType.getOptionalDtype()),
+            qIntermediate, cstDim1, cstDim2);
+
+        // Reshaping key: [batch, seq, kv_hidden] -> [batch, seq, kv_num_heads,
+        // head_size]
+        SmallVector<int64_t> kvIntermediateSizesInt{batchSize, sequenceLength,
+                                                    kvNumHeads, headSize};
+        Value kvIntermediateSizesList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListType,
+            llvm::SmallVector<Value>{cstBatchSize, cstSequenceLength,
+                                     cstKVNumHeads, cstHeadSize});
+        Torch::ValueTensorType keyType =
+            cast<Torch::ValueTensorType>(key.getType());
+        Value kIntermediate = Torch::AtenReshapeOp::create(
+            rewriter, loc,
+            keyType.getWithSizesAndDtype(kvIntermediateSizesInt,
+                                         keyType.getOptionalDtype()),
+            key, kvIntermediateSizesList);
+
+        // Transpose key: [batch, seq, kv_num_heads, head_size] -> [batch,
+        // kv_num_heads, seq, head_size]
+        SmallVector<int64_t> kvFinalSizesInt{batchSize, kvNumHeads,
+                                             sequenceLength, headSize};
+        Value kInput = Torch::AtenTransposeIntOp::create(
+            rewriter, loc,
+            keyType.getWithSizesAndDtype(kvFinalSizesInt,
+                                         keyType.getOptionalDtype()),
+            kIntermediate, cstDim1, cstDim2);
+
+        // Reshaping value: [batch, seq, kv_hidden] -> [batch, seq,
+        // kv_num_heads, head_size]
+        Torch::ValueTensorType valueType =
+            cast<Torch::ValueTensorType>(value.getType());
+        Value vIntermediate = Torch::AtenReshapeOp::create(
+            rewriter, loc,
+            valueType.getWithSizesAndDtype(kvIntermediateSizesInt,
+                                           valueType.getOptionalDtype()),
+            value, kvIntermediateSizesList);
+
+        // Transpose value: [batch, seq, kv_num_heads, head_size] -> [batch,
+        // kv_num_heads, seq, head_size]
+        Value vInput = Torch::AtenTransposeIntOp::create(
+            rewriter, loc,
+            valueType.getWithSizesAndDtype(kvFinalSizesInt,
+                                           valueType.getOptionalDtype()),
+            vIntermediate, cstDim1, cstDim2);
 
         Value qRotary = qInput, kRotary = kInput;
         if (doRotary) {
-          // `totalSequenceLength` is a scalar tensor.
-          Value scalarTotalSeqLens = Torch::AtenItemOp::create(
-              rewriter, loc, rewriter.getType<Torch::IntType>(),
-              totalSequenceLength);
-          Value cstIntOne = Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(1));
-          Type boolTy = rewriter.getType<Torch::BoolType>();
-          Value condA = Torch::AtenGtIntOp::create(
-              rewriter, loc, boolTy, cstSequenceLength, cstIntOne);
-          Value condB = Torch::AtenNeIntOp::create(
-              rewriter, loc, boolTy, cstSequenceLength, scalarTotalSeqLens);
-          //   if (sequence_length > 1 && sequence_length !=
-          //   total_sequence_length)
-          //         is_subsequent_prompt = false;  // Subsequent prompt
-          Value isSubsequentPrompt = Torch::Aten__And__BoolOp::create(
-              rewriter, loc, boolTy, condA, condB);
 
-          // Generating position_ids for rotary_embedding as follows:
-          //   pos_ids_a = torch.zeros((batch_size, seq_len), dtype=torch.int64)
-          //
+          // Generating position_ids for rotary_embedding:
           //   total_seqlens = seqlens_k + 1
           //   past_seqlens = total_seqlens - sequence_length
-          //   pos_ids = torch.arange(sequence_length,
-          //             dtype=torch.int64).repeat(batch_size, 1)
+          //   pos_ids = torch.arange(sequence_length).repeat(batch_size, 1)
           //   pos_ids = pos_ids + past_seqlens.view(-1, 1)
-          //   cond = pos_ids < total_seqlens.view(-1, 1)
-          //   one_tensor = torch.tensor(1, dtype=torch.int64)
-          //   pos_ids_b = torch.where(cond, pos_ids, one_tensor)
           //
-          //  if subsequent_prompt:
-          //      pos_ids = pos_ids_b
-          //  else:
-          //      pos_ids = pos_ids_a
+          // This works for all cases:
+          // - Pure prefill: past_seqlens = 0, positions = [0, 1, ..., seq-1]
+          // - Single decode: past_seqlens = past_len, positions = [past_len]
+          // - Multi-token with past: positions = [past_len, ...,
+          // past_len+seq-1]
           SmallVector<int64_t> positionIdsSizeInt{batchSize, sequenceLength};
           Torch::ValueTensorType positionIdsType = Torch::ValueTensorType::get(
               context, positionIdsSizeInt,
               IntegerType::get(context, 64, IntegerType::Signed));
-          Value cstInt64Dtype = Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(),
-              rewriter.getI64IntegerAttr(
-                  (int)torch_upstream::ScalarType::Long));
 
           Value cstInterleaved = Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(),
-              rewriter.getI64IntegerAttr(rotaryInterleaved));
-          Value cstIntZero = Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(0));
+              rewriter, loc, rewriter.getI64IntegerAttr(rotaryInterleaved));
           Value cstFloatOne = Torch::ConstantFloatOp::create(
-              rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+              rewriter, loc, rewriter.getType<Torch::FloatType>(),
               rewriter.getF64FloatAttr(1.0));
 
-          Value positionIdsA, positionIdsB;
-
-          Value posIdsSizeList = Torch::PrimListConstructOp::create(
-              rewriter, loc,
-              rewriter.getType<Torch::ListType>(
-                  rewriter.getType<Torch::IntType>()),
-              SmallVector<Value>{cstBatchSize, cstSequenceLength});
-          positionIdsA = Torch::AtenZerosOp::create(
-              rewriter, loc, positionIdsType, /*size=*/posIdsSizeList,
-              /*dtype=*/cstInt64Dtype,
-              /*layout=*/cstNone, /*device=*/cstNone,
-              /*pin_memory=*/cstNone);
-
-          // Convert seqlens_k which is a tensor of type si32 to si64.
-          Torch::ValueTensorType seqLensKType =
-              cast<Torch::ValueTensorType>(seqlensK.getType());
-          seqlensK = Torch::AtenToDtypeOp::create(
-              rewriter, loc,
-              seqLensKType.getWithSizesAndDtype(
-                  std::nullopt,
-                  rewriter.getIntegerType(/*width=*/64, /*isSigned=*/true)),
-              seqlensK, cstInt64Dtype, /*non_blocking=*/cstFalse,
-              /*copy=*/cstFalse, /*memory_format=*/cstNone);
+          // total_seqlens = seqlens_k + 1 (per ONNX spec, seqlens_k = total -
+          // 1)
           Value totalSeqLens = Torch::AtenAddScalarOp::create(
               rewriter, loc, seqlensK.getType(), /*self=*/seqlensK,
               /*other=*/cstIntOne,
               /*alpha=*/cstIntOne);
+
+          // past_seqlens = total_seqlens - sequence_length
           Value pastSeqLens = Torch::AtenSubScalarOp::create(
               rewriter, loc, totalSeqLens.getType(), /*self=*/totalSeqLens,
               /*other=*/cstSequenceLength, /*alpha=*/cstIntOne);
+
+          // Create position IDs: arange(seq_len).repeat(batch, 1) +
+          // past_seqlens
           Torch::ValueTensorType initPosIdsType = Torch::ValueTensorType::get(
               context, {sequenceLength},
               IntegerType::get(context, 64, IntegerType::Signed));
@@ -448,71 +469,26 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
               /*layout=*/cstNone,
               /*device=*/cstNone, /*pin_memory=*/cstNone);
           Value repeatValuesList = Torch::PrimListConstructOp::create(
-              rewriter, binder.getLoc(),
-              Torch::ListType::get(Torch::IntType::get(context)),
+              rewriter, loc, intListType,
               llvm::SmallVector<Value>{cstBatchSize, cstIntOne});
-          positionIdsB = Torch::AtenRepeatOp::create(
+          Value positionIds = Torch::AtenRepeatOp::create(
               rewriter, loc, positionIdsType, initPosIds,
               /*repeats=*/repeatValuesList);
 
-          Value cstIntMinusOne = Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(1));
+          // Reshape past_seqlens to [batch, 1] for broadcasting
           Value viewSizeList = Torch::PrimListConstructOp::create(
-              rewriter, binder.getLoc(),
-              Torch::ListType::get(Torch::IntType::get(context)),
+              rewriter, loc, intListType,
               llvm::SmallVector<Value>{cstIntMinusOne, cstIntOne});
-
           Torch::ValueTensorType seqLensViewType = Torch::ValueTensorType::get(
               context, llvm::SmallVector<int64_t>{batchSize, 1},
               IntegerType::get(context, 64, IntegerType::Signed));
           pastSeqLens = Torch::AtenViewOp::create(
               rewriter, loc, seqLensViewType, pastSeqLens, viewSizeList);
 
-          positionIdsB = Torch::AtenAddTensorOp::create(
-              rewriter, loc, positionIdsType, positionIdsB, pastSeqLens,
+          // Add past_seqlens to get final position IDs
+          positionIds = Torch::AtenAddTensorOp::create(
+              rewriter, loc, positionIdsType, positionIds, pastSeqLens,
               /*alpha=*/cstIntOne);
-
-          totalSeqLens = Torch::AtenViewOp::create(
-              rewriter, loc, seqLensViewType, totalSeqLens, viewSizeList);
-          Value cond = Torch::AtenLtTensorOp::create(
-              rewriter, loc,
-              positionIdsType.getWithSizesAndDtype(positionIdsType.getSizes(),
-                                                   rewriter.getI1Type()),
-              positionIdsB, totalSeqLens);
-
-          Value cstOneTensorDataList = Torch::PrimListConstructOp::create(
-              rewriter, loc,
-              rewriter.getType<Torch::ListType>(
-                  rewriter.getType<Torch::IntType>()),
-              SmallVector<Value>{cstIntOne});
-          Value cstOneTensor = Torch::AtenTensorOp::create(
-              rewriter, loc,
-              Torch::ValueTensorType::get(
-                  context, {},
-                  IntegerType::get(context, 64, IntegerType::Signed)),
-              cstOneTensorDataList, /*dtype=*/cstInt64Dtype,
-              /*layout=*/cstNone, /*requires_grad=*/cstFalse);
-
-          positionIdsB = Torch::AtenWhereSelfOp::create(
-              rewriter, loc, positionIdsType, cond, positionIdsB, cstOneTensor);
-
-          isSubsequentPrompt = Torch::AtenIntBoolOp::create(
-              rewriter, loc, rewriter.getType<Torch::IntType>(),
-              isSubsequentPrompt);
-          isSubsequentPrompt = Torch::AtenFullOp::create(
-              rewriter, loc,
-              Torch::ValueTensorType::get(context, positionIdsSizeInt,
-                                          rewriter.getI1Type()),
-              /*size=*/posIdsSizeList, /*fill_value=*/isSubsequentPrompt,
-              /*dtype=*/
-              Torch::ConstantIntOp::create(
-                  rewriter, binder.getLoc(),
-                  rewriter.getI64IntegerAttr(
-                      (int)torch_upstream::ScalarType::Bool)),
-              /*layout=*/cstNone, /*device=*/cstNone, /*pin_memory=*/cstNone);
-          Value positionIds = Torch::AtenWhereSelfOp::create(
-              rewriter, loc, positionIdsType, isSubsequentPrompt, positionIdsB,
-              positionIdsA);
 
           // Performing RotaryEmbedding over Query and Key.
           qRotary = Torch::OnnxVariantRotaryEmbeddingOp::create(
@@ -522,71 +498,309 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
               /*scale=*/cstFloatOne);
 
           kRotary = Torch::OnnxVariantRotaryEmbeddingOp::create(
-              rewriter, loc, qInput.getType(), kInput, positionIds, cosCache,
+              rewriter, loc, kInput.getType(), kInput, positionIds, cosCache,
               sinCache, cstInterleaved, /*is_packed_batching=*/cstIntZero,
               /*num_heads=*/cstIntZero, /*rotary_embedding_dim=*/cstIntZero,
               /*scale=*/cstFloatOne);
         }
 
-        // Do attention.
+        // Build present_key/present_value by padding past with zeros, then
+        // scattering current K/V into the correct per-batch position.
+        //
+        // Why pad instead of cat? With cat(past, current), the current token
+        // ends up at position past_seq_len. With variable seqlens_k, ORT places
+        // the current token at seqlens_k[b] and leaves position past_seq_len as
+        // zero/uninitialized. Using cat+scatter leaves a stale copy of the
+        // current token at past_seq_len which doesn't match ORT's output.
+        // Padding with zeros then scattering avoids this.
+        //
+        // constant_pad_nd pads innermost dims first: [0, 0, 0, seq_len]
+        //   dim 3 (head_size): [0, 0]  -- no padding
+        //   dim 2 (seq):       [0, seq_len] -- extend by seq_len on the right
+        Value padList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListType,
+            SmallVector<Value>{cstIntZero, cstIntZero, cstIntZero,
+                               cstSequenceLength});
+        Value cstFloatZeroPad = Torch::ConstantFloatOp::create(
+            rewriter, loc, rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(0.0));
+        Value presentKey = Torch::AtenConstantPadNdOp::create(
+            rewriter, loc, resultTypes[1], pastKey, padList, cstFloatZeroPad);
+        Value presentValue = Torch::AtenConstantPadNdOp::create(
+            rewriter, loc, resultTypes[2], pastValue, padList, cstFloatZeroPad);
+
+        // Scatter current K/V into the padded buffer at position pastLen[b]+q.
+        // pastLen = seqlens_k + 1 - seq_len
+        Value totalSeqForScatter = Torch::AtenAddScalarOp::create(
+            rewriter, loc, seqlensK.getType(), seqlensK, cstIntOne, cstIntOne);
+        Value pastLen = Torch::AtenSubScalarOp::create(
+            rewriter, loc, totalSeqForScatter.getType(), totalSeqForScatter,
+            cstSequenceLength, cstIntOne);
+
+        // pastLen -> [B, 1, 1, 1] for 4D scatter index broadcasting
+        Value scatterViewList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListType,
+            SmallVector<Value>{cstIntMinusOne, cstIntOne, cstIntOne,
+                               cstIntOne});
+        SmallVector<int64_t> pastLenView4dSizes{batchSize, 1, 1, 1};
+        Torch::ValueTensorType pastLenView4dType = Torch::ValueTensorType::get(
+            context, pastLenView4dSizes,
+            rewriter.getIntegerType(64, /*isSigned=*/true));
+        Value pastLenView4d = Torch::AtenViewOp::create(
+            rewriter, loc, pastLenView4dType, pastLen, scatterViewList);
+
+        // qRange for scatter: arange(seq_len) -> reshape to [1, 1, seq, 1]
+        Torch::ValueTensorType scatterQRangeType = Torch::ValueTensorType::get(
+            context, {sequenceLength},
+            rewriter.getIntegerType(64, /*isSigned=*/true));
+        Value scatterQRange = Torch::AtenArangeOp::create(
+            rewriter, loc, scatterQRangeType, cstSequenceLength, cstInt64Dtype,
+            /*layout=*/cstNone, /*device=*/cstNone, /*pin_memory=*/cstNone);
+        Value scatterQViewList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListType,
+            SmallVector<Value>{cstIntOne, cstIntOne, cstIntMinusOne,
+                               cstIntOne});
+        SmallVector<int64_t> scatterQViewSizes{1, 1, sequenceLength, 1};
+        Torch::ValueTensorType scatterQViewType = Torch::ValueTensorType::get(
+            context, scatterQViewSizes,
+            rewriter.getIntegerType(64, /*isSigned=*/true));
+        Value scatterQRangeView = Torch::AtenViewOp::create(
+            rewriter, loc, scatterQViewType, scatterQRange, scatterQViewList);
+
+        // scatterIdxBase = pastLen[B,1,1,1] + qRange[1,1,seq,1]
+        //               -> [B, 1, seq, 1]
+        SmallVector<int64_t> scatterIdxBaseSizes{batchSize, 1, sequenceLength,
+                                                 1};
+        Torch::ValueTensorType scatterIdxBaseType = Torch::ValueTensorType::get(
+            context, scatterIdxBaseSizes,
+            rewriter.getIntegerType(64, /*isSigned=*/true));
+        Value scatterIdxBase = Torch::AtenAddTensorOp::create(
+            rewriter, loc, scatterIdxBaseType, pastLenView4d, scatterQRangeView,
+            cstIntOne);
+
+        // Expand to [B, kv_heads, seq, head_size] to match current K/V shape
+        SmallVector<int64_t> scatterExpandSizes{batchSize, kvNumHeads,
+                                                sequenceLength, headSize};
+        Torch::ValueTensorType scatterIdxType = Torch::ValueTensorType::get(
+            context, scatterExpandSizes,
+            rewriter.getIntegerType(64, /*isSigned=*/true));
+        Value scatterExpandSizeList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListType,
+            SmallVector<Value>{cstBatchSize, cstKVNumHeads, cstSequenceLength,
+                               cstHeadSize});
+        Value scatterIdx = Torch::AtenExpandOp::create(
+            rewriter, loc, scatterIdxType, scatterIdxBase,
+            scatterExpandSizeList, /*implicit=*/cstFalse);
+
+        // Scatter current K/V into buffer at position pastLen[b] + q
+        presentKey = Torch::AtenScatterSrcOp::create(
+            rewriter, loc, resultTypes[1], presentKey, cstDim2, scatterIdx,
+            kRotary);
+        presentValue = Torch::AtenScatterSrcOp::create(
+            rewriter, loc, resultTypes[2], presentValue, cstDim2, scatterIdx,
+            vInput);
+
+        // Generate causal attention mask.
+        // With scatter, KV layout matches ORT: current at pastLen[b].
+        // Simple mask: k <= pastLen[b] + q
+        // Mask shape: [batch, 1, seqLen, kvSeqLen] where masked = -inf.
+        Value attnMask = cstNone;
+
+        // Get the KV sequence length from presentKey shape
+        Torch::ValueTensorType presentKeyType =
+            cast<Torch::ValueTensorType>(presentKey.getType());
+        if (presentKeyType.hasSizes() &&
+            presentKeyType.getSizes().size() == 4) {
+          int64_t kvSeqLen = presentKeyType.getSizes()[2];
+
+          // Only generate mask if KV sequence length is dynamic or > 0
+          // For dynamic shapes or non-trivial sequences, we need to mask
+          if (kvSeqLen == Torch::kUnknownSize || kvSeqLen > 0) {
+            // Get KV sequence dimension size
+            Value kvSeqLenVal = Torch::AtenSizeIntOp::create(
+                rewriter, loc, rewriter.getType<Torch::IntType>(), presentKey,
+                cstDim2);
+
+            // kRange: [0, 1, 2, ..., kvSeqLen-1] shape [kvSeqLen]
+            Torch::ValueTensorType rangeType = Torch::ValueTensorType::get(
+                context, {kvSeqLen},
+                rewriter.getIntegerType(64, /*isSigned=*/true));
+            Value kRange = Torch::AtenArangeOp::create(
+                rewriter, loc, rangeType, kvSeqLenVal, cstInt64Dtype,
+                /*layout=*/cstNone, /*device=*/cstNone, /*pin_memory=*/cstNone);
+
+            // qRange: [0, 1, 2, ..., seqLen-1] shape [seqLen]
+            Torch::ValueTensorType qRangeType = Torch::ValueTensorType::get(
+                context, {sequenceLength},
+                rewriter.getIntegerType(64, /*isSigned=*/true));
+            Value qRange = Torch::AtenArangeOp::create(
+                rewriter, loc, qRangeType, cstSequenceLength, cstInt64Dtype,
+                /*layout=*/cstNone, /*device=*/cstNone, /*pin_memory=*/cstNone);
+
+            // Reshape for broadcasting:
+            // pastLen: [batch] -> [batch, 1, 1]
+            // qRange: [seqLen] -> [1, seqLen, 1]
+            // kRange: [kvSeqLen] -> [1, 1, kvSeqLen]
+
+            // pastLen -> [batch, 1, 1]
+            Value seqlensViewList = Torch::PrimListConstructOp::create(
+                rewriter, loc, intListType,
+                SmallVector<Value>{cstIntMinusOne, cstIntOne, cstIntOne});
+            SmallVector<int64_t> seqlensViewSizes{batchSize, 1, 1};
+            Torch::ValueTensorType seqlensViewType =
+                Torch::ValueTensorType::get(
+                    context, seqlensViewSizes,
+                    rewriter.getIntegerType(64, /*isSigned=*/true));
+            Value pastLenView = Torch::AtenViewOp::create(
+                rewriter, loc, seqlensViewType, pastLen, seqlensViewList);
+
+            // qRange -> [1, seqLen, 1]
+            Value qViewList = Torch::PrimListConstructOp::create(
+                rewriter, loc, intListType,
+                SmallVector<Value>{cstIntOne, cstIntMinusOne, cstIntOne});
+            SmallVector<int64_t> qViewSizes{1, sequenceLength, 1};
+            Torch::ValueTensorType qViewType = Torch::ValueTensorType::get(
+                context, qViewSizes,
+                rewriter.getIntegerType(64, /*isSigned=*/true));
+            Value qRangeView = Torch::AtenViewOp::create(
+                rewriter, loc, qViewType, qRange, qViewList);
+
+            // kRange -> [1, 1, kvSeqLen]
+            Value kViewList = Torch::PrimListConstructOp::create(
+                rewriter, loc, intListType,
+                SmallVector<Value>{cstIntOne, cstIntOne, cstIntMinusOne});
+            SmallVector<int64_t> kViewSizes{1, 1, kvSeqLen};
+            Torch::ValueTensorType kViewType = Torch::ValueTensorType::get(
+                context, kViewSizes,
+                rewriter.getIntegerType(64, /*isSigned=*/true));
+            Value kRangeView = Torch::AtenViewOp::create(
+                rewriter, loc, kViewType, kRange, kViewList);
+
+            // Causal mask: k <= pastLen + q
+            // pastLenView[batch,1,1] + qRangeView[1,seqLen,1]
+            // -> [batch, seqLen, 1]
+            SmallVector<int64_t> pastLenPlusQSizes{batchSize, sequenceLength,
+                                                   1};
+            Torch::ValueTensorType pastLenPlusQType =
+                Torch::ValueTensorType::get(
+                    context, pastLenPlusQSizes,
+                    rewriter.getIntegerType(64, /*isSigned=*/true));
+            Value pastLenPlusQ = Torch::AtenAddTensorOp::create(
+                rewriter, loc, pastLenPlusQType, pastLenView, qRangeView,
+                cstIntOne);
+
+            // kRangeView[1,1,kvSeqLen] <= pastLenPlusQ[batch,seqLen,1]
+            // -> [batch, seqLen, kvSeqLen]
+            SmallVector<int64_t> maskBoolSizes{batchSize, sequenceLength,
+                                               kvSeqLen};
+            Torch::ValueTensorType maskBoolType = Torch::ValueTensorType::get(
+                context, maskBoolSizes, rewriter.getI1Type());
+            Value causalMask = Torch::AtenLeTensorOp::create(
+                rewriter, loc, maskBoolType, kRangeView, pastLenPlusQ);
+
+            // Convert bool mask to float mask: True -> 0, False -> -inf
+            Value cstZeroFloat = Torch::ConstantFloatOp::create(
+                rewriter, loc, rewriter.getType<Torch::FloatType>(),
+                rewriter.getF64FloatAttr(0.0));
+            Value cstNegInf = Torch::ConstantFloatOp::create(
+                rewriter, loc, rewriter.getType<Torch::FloatType>(),
+                rewriter.getF64FloatAttr(
+                    -std::numeric_limits<double>::infinity()));
+
+            // Derive mask dtype from query to avoid type mismatch (e.g. f16
+            // inputs must produce f16 mask, not f32).
+            Type maskElementType = queryType.getOptionalDtype();
+            if (!maskElementType)
+              maskElementType = rewriter.getF32Type(); // fallback
+            int64_t maskScalarType = static_cast<int64_t>(
+                Torch::getScalarTypeForType(maskElementType));
+
+            Value cstFloatDtype = Torch::ConstantIntOp::create(
+                rewriter, loc, rewriter.getI64IntegerAttr(maskScalarType));
+            Torch::ValueTensorType scalarTensorType =
+                Torch::ValueTensorType::get(context, {}, maskElementType);
+            Value emptyShapeList = Torch::PrimListConstructOp::create(
+                rewriter, loc, intListType, SmallVector<Value>{});
+            auto makeScalarTensor = [&](Value fillValue) {
+              return Torch::AtenFullOp::create(
+                  rewriter, loc, scalarTensorType, /*size=*/emptyShapeList,
+                  /*fill_value=*/fillValue, /*dtype=*/cstFloatDtype,
+                  /*layout=*/cstNone, /*device=*/cstNone,
+                  /*pin_memory=*/cstNone);
+            };
+            Value zeroTensor = makeScalarTensor(cstZeroFloat);
+            Value negInfTensor = makeScalarTensor(cstNegInf);
+
+            // mask_float = where(causalMask, 0, -inf)
+            SmallVector<int64_t> maskFloatSizes{batchSize, sequenceLength,
+                                                kvSeqLen};
+            Torch::ValueTensorType maskFloatType = Torch::ValueTensorType::get(
+                context, maskFloatSizes, maskElementType);
+            Value maskFloat = Torch::AtenWhereSelfOp::create(
+                rewriter, loc, maskFloatType, causalMask, zeroTensor,
+                negInfTensor);
+
+            // Reshape to [batch, 1, seqLen, kvSeqLen] for SDPA
+            Value maskReshapeSizeList = Torch::PrimListConstructOp::create(
+                rewriter, loc, intListType,
+                SmallVector<Value>{cstBatchSize, cstIntOne, cstSequenceLength,
+                                   kvSeqLenVal});
+            SmallVector<int64_t> attnMaskSizes{batchSize, 1, sequenceLength,
+                                               kvSeqLen};
+            Torch::ValueTensorType attnMaskType = Torch::ValueTensorType::get(
+                context, attnMaskSizes, maskElementType);
+            attnMask = Torch::AtenReshapeOp::create(
+                rewriter, loc, attnMaskType, maskFloat, maskReshapeSizeList);
+          }
+        }
+
+        // Do attention with full KV cache (past + current) and mask.
         Value cstEnableGQA = Torch::ConstantBoolOp::create(rewriter, loc, true);
         Value cstFloatZero = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter, loc, rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(0.0));
         Value cstScale = cstNone;
         if (scale != 0.0f)
           cstScale = Torch::ConstantFloatOp::create(
-              rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+              rewriter, loc, rewriter.getType<Torch::FloatType>(),
               rewriter.getF64FloatAttr(scale));
+
+        // Use presentKey/presentValue (full KV cache) for attention, not just
+        // the current token's K/V. This is essential for proper KV caching.
         Value attention = Torch::AtenScaledDotProductAttentionOp::create(
-            rewriter, loc, qRotary.getType(), qRotary, kRotary, vInput,
-            /*attn_mask=*/cstNone,
+            rewriter, loc, qRotary.getType(), qRotary, presentKey, presentValue,
+            /*attn_mask=*/attnMask,
             /*dropout_p=*/cstFloatZero, /*is_causal=*/cstFalse, cstScale,
             cstEnableGQA);
+
         // Reshaping the attention result from:
         //    (batch_size, num_heads, sequence_length, head_size)
         // -> (batch_size, sequence_length, hidden_size)
+        // This requires:
+        // 1. Transpose dims 1 and 2: [batch, num_heads, seq, head_size]
+        //                         -> [batch, seq, num_heads, head_size]
+        // 2. Reshape: [batch, seq, num_heads, head_size] -> [batch, seq,
+        // hidden]
+        // Transpose: [batch, num_heads, seq, head_size] -> [batch, seq,
+        // num_heads, head_size]
+        SmallVector<int64_t> attnTransposedSizes{batchSize, sequenceLength,
+                                                 numHeads, headSize};
+        Torch::ValueTensorType attnType =
+            cast<Torch::ValueTensorType>(attention.getType());
+        Value attnTransposed = Torch::AtenTransposeIntOp::create(
+            rewriter, loc,
+            attnType.getWithSizesAndDtype(attnTransposedSizes,
+                                          attnType.getOptionalDtype()),
+            attention, cstDim1, cstDim2);
+
+        // Reshape: [batch, seq, num_heads, head_size] -> [batch, seq, hidden]
         Value attentionResultSizesList = Torch::PrimListConstructOp::create(
-            rewriter, binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(attention.getContext())),
+            rewriter, loc, intListType,
             llvm::SmallVector<Value>{cstBatchSize, cstSequenceLength,
                                      cstHiddenSize});
-        attention = Torch::AtenReshapeOp::create(
-            rewriter, loc, resultTypes[0], attention, attentionResultSizesList);
-
-        // Compute 2nd and 3rd result: present_key, present_value.
-        // present_key = torch.cat([past_key, key], dim=2) or past_key
-        // present_value = torch.cat([past_value, value], dim=2) or past_value
-        Value presentKey = pastKey, presentValue = pastValue;
-        if (!llvm::equal(
-                cast<Torch::ValueTensorType>(pastKey.getType()).getSizes(),
-                cast<Torch::ValueTensorType>(resultTypes[1]).getSizes())) {
-          Value cstConcatDim = Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(2));
-          Type kvListElemType = keyType.getWithSizesAndDtype(
-              /*optionalSizes=*/std::nullopt,
-              /*optionalDtype=*/nullptr);
-          Type kvListType = Torch::ListType::get(kvListElemType);
-          Value keyList = Torch::PrimListConstructOp::create(
-              rewriter, loc, kvListType, SmallVector<Value>{pastKey, kRotary});
-          presentKey = Torch::AtenCatOp::create(rewriter, loc, resultTypes[1],
-                                                keyList, cstConcatDim);
-        }
-
-        if (!llvm::equal(
-                cast<Torch::ValueTensorType>(pastValue.getType()).getSizes(),
-                cast<Torch::ValueTensorType>(resultTypes[2]).getSizes())) {
-          Value cstConcatDim = Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(2));
-          Type kvListElemType = keyType.getWithSizesAndDtype(
-              /*optionalSizes=*/std::nullopt,
-              /*optionalDtype=*/nullptr);
-          Type kvListType = Torch::ListType::get(kvListElemType);
-          Value valueList = Torch::PrimListConstructOp::create(
-              rewriter, loc, kvListType, SmallVector<Value>{pastValue, vInput});
-          presentValue = Torch::AtenCatOp::create(rewriter, loc, resultTypes[2],
-                                                  valueList, cstConcatDim);
-        }
+        attention = Torch::AtenReshapeOp::create(rewriter, loc, resultTypes[0],
+                                                 attnTransposed,
+                                                 attentionResultSizesList);
 
         rewriter.replaceOp(binder.op, {attention, presentKey, presentValue});
         return success();
