@@ -3842,6 +3842,10 @@ def aten〇scatter_reduce〇two〡dtype(self_rank_dtype: Tuple[int, int], dim: i
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
+def aten〇_local_scalar_dense〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, index=0))
 def aten〇select〇int〡dtype(self_rank_dtype: Tuple[int, int], dim: int, index: int) -> int:
     self_rank, self_dtype = self_rank_dtype
