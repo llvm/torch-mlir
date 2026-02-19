@@ -9767,6 +9767,37 @@ class DecomposeAtenFmodTensorOp : public OpRewritePattern<AtenFmodTensorOp> {
 } // namespace
 
 namespace {
+// decompose `remainder(x, y)` to `x - floor(x/y) * y`
+// This uses floor division semantics (Python-style), unlike fmod which uses
+// truncation. Works for both Tensor and Scalar variants.
+template <typename RemainderOp, typename DivOp, typename MulOp>
+class DecomposeAtenRemainderOp : public OpRewritePattern<RemainderOp> {
+public:
+  using OpRewritePattern<RemainderOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(RemainderOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value other = op.getOther();
+
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result must have dtype");
+    }
+
+    Value div = rewriter.create<DivOp>(loc, resultTy, self, other);
+    Value floor = rewriter.create<AtenFloorOp>(loc, resultTy, div);
+    Value mul = rewriter.create<MulOp>(loc, resultTy, floor, other);
+    Value alpha =
+        rewriter.create<ConstantFloatOp>(loc, rewriter.getF64FloatAttr(1));
+    rewriter.replaceOpWithNewOp<AtenSubTensorOp>(op, resultTy, self, mul,
+                                                 alpha);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.baddbmm` op into `aten.bmm`, `aten.mul.Scalar`, and
 // `aten.add.Tensor` op.
 class DecomposeAtenBaddbmmOp : public OpRewritePattern<AtenBaddbmmOp> {
@@ -13493,6 +13524,10 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenCopysignTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLdexpTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFmodTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRemainderOp<
+        AtenRemainderTensorOp, AtenDivTensorOp, AtenMulTensorOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRemainderOp<
+        AtenRemainderScalarOp, AtenDivScalarOp, AtenMulScalarOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideScalarOp>(patterns);
