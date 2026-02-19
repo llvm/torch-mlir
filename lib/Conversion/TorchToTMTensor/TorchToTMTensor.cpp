@@ -2056,6 +2056,116 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenTopkOp : public OpConversionPattern<AtenTopkOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenTopkOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = adaptor.getSelf();
+    auto inputType = cast<RankedTensorType>(input.getType());
+    unsigned inputRank = inputType.getRank();
+    Type inputElementType = inputType.getElementType();
+
+    auto indicesType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getIndices().getType()));
+
+    // get dim, check it is constant int
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only constant dim value is supported");
+
+    // turn dim into positive if negative, and check it is in the valid range
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank)) {
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+    }
+
+    bool largest;
+    if (!matchPattern(op.getLargest(), m_TorchConstantBool(&largest)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only constant largest value is supported");
+
+    bool sorted;
+    if (!matchPattern(op.getSorted(), m_TorchConstantBool(&sorted)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only constant sorted value is supported");
+    if (sorted)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only unsorted topk is supported.");
+
+    SmallVector<Value> tmTensorTopkInputs({input});
+
+    SmallVector<OpFoldResult> outputDimSizes =
+        tensor::getMixedSizes(rewriter, loc, adaptor.getSelf());
+    int64_t k;
+    // TODO: why k does not fold if const? We should not need to deal with this
+    // here.
+    if (matchPattern(op.getK(), m_TorchConstantInt(&k))) {
+      outputDimSizes[dim] = rewriter.getI64IntegerAttr(k);
+    } else {
+      Value kVal = typeConverter->materializeTargetConversion(
+          rewriter, loc, typeConverter->convertType(op.getK().getType()),
+          op.getK());
+      Value kIdx = rewriter.create<arith::IndexCastOp>(
+          loc, rewriter.getIndexType(), kVal);
+      outputDimSizes[dim] = kIdx;
+    }
+
+    Value emptyTensorOutputValues = rewriter.create<mlir::tensor::EmptyOp>(
+        loc, outputDimSizes, inputElementType);
+    // Fill the initial output values tensor based on largest.
+    // Ascending or descending.
+    TypedAttr infAttr;
+    if (auto intType = dyn_cast<IntegerType>(inputElementType)) {
+      APInt fillVal;
+      if (largest) {
+        fillVal = APInt::getSignedMinValue(intType.getWidth());
+      } else {
+        fillVal = APInt::getSignedMaxValue(intType.getWidth());
+      }
+      infAttr = rewriter.getIntegerAttr(intType, fillVal);
+    } else {
+      auto fillVal = APFloat::getInf(
+          cast<mlir::FloatType>(inputElementType).getFloatSemantics(),
+          /*Negative=*/largest);
+      infAttr = rewriter.getFloatAttr(inputElementType, fillVal);
+    }
+    Value inf = rewriter.create<arith::ConstantOp>(loc, infAttr);
+    Value infTensor =
+        rewriter.create<linalg::FillOp>(loc, inf, emptyTensorOutputValues)
+            .result();
+
+    Value emptyTensorOutputIndices = rewriter.create<mlir::tensor::EmptyOp>(
+        loc, outputDimSizes, indicesType.getElementType());
+
+    SmallVector<Value> tmTensorTopkOutputs(
+        {infTensor, emptyTensorOutputIndices});
+
+    SmallVector<Type> tmTensorTopkElementTypes(
+        {inputElementType, inputElementType});
+
+    FailureOr<SmallVector<Value>> tmTensorTopkResults;
+    {
+      OpBuilder::InsertionGuard guard(rewriter);
+      tmTensorTopkResults = createTMTensorTopkOp(
+          rewriter, loc, tmTensorTopkInputs, tmTensorTopkOutputs,
+          tmTensorTopkElementTypes, dim, /*isMinK=*/!largest);
+    }
+    if (failed(tmTensorTopkResults))
+      return tmTensorTopkResults;
+
+    rewriter.replaceOp(op, tmTensorTopkResults.value());
+
+    return success();
+  }
+};
+
+} // namespace
+
+namespace {
 class ConvertAtenKthvalueOp : public OpConversionPattern<AtenKthvalueOp> {
 
 private:
@@ -2580,6 +2690,8 @@ public:
     target.addIllegalOp<AtenScatterAddOp>();
     patterns.add<ConvertAtenScatterOp<AtenScatterAddOp>>(typeConverter,
                                                          context);
+    target.addIllegalOp<AtenTopkOp>();
+    patterns.add<ConvertAtenTopkOp>(typeConverter, context);
     target.addIllegalOp<AtenKthvalueOp>();
     patterns.add<ConvertAtenKthvalueOp>(typeConverter, context,
                                         this->allowNonFinites);
