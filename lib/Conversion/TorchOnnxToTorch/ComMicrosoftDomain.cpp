@@ -70,12 +70,13 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
 
         Value input, scale;
         float epsilon;
-        int64_t axis;
+        int64_t axis, stashType;
         SmallVector<Type> resultTypes;
         if (binder.tensorOperandAtIndex(input, 0) ||
             binder.tensorOperandAtIndex(scale, 1) ||
             binder.f32FloatAttr(epsilon, "epsilon", 1e-5f) ||
             binder.s64IntegerAttr(axis, "axis", -1) ||
+            binder.s64IntegerAttr(stashType, "stash_type", 1) ||
             binder.tensorResultTypes(resultTypes))
           return rewriter.notifyMatchFailure(binder.op,
                                              "Failed to bind inputs/attrs");
@@ -83,6 +84,18 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         if (resultTypes.size() != 1)
           return rewriter.notifyMatchFailure(binder.op,
                                              "unsupported number of results");
+
+        // Convert stash_type to torch dtype
+        std::optional<int64_t> stashTypeIntTorch =
+            onnxDtypeIntToTorchDtypeInt(stashType);
+        if (!stashTypeIntTorch.has_value())
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented support for the given stash_type");
+        FailureOr<Type> stashDtype = Torch::getTypeForScalarType(
+            binder.op->getContext(),
+            (torch_upstream::ScalarType)stashTypeIntTorch.value());
+        if (failed(stashDtype))
+          return failure();
 
         // Get input type to determine shapes and dtype
         Torch::ValueTensorType inputType =
@@ -98,9 +111,16 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                              "unranked or scalar input tensor");
         unsigned inputRank = *maybeRank;
 
+        // Upcast input to stash_type for numerical stability
+        Type origDtype = inputType.getOptionalDtype();
+        if (*stashDtype != origDtype)
+          input =
+              Torch::convertTensorToDtype(rewriter, loc, input, *stashDtype);
+
         // Build normalized_shape: [inputShape[axis], ..., inputShape[-1]]
         axis = Torch::toPositiveDim(axis, inputRank);
-        ArrayRef<int64_t> inputShape = inputType.getSizes();
+        auto castInput = cast<Torch::ValueTensorType>(input.getType());
+        ArrayRef<int64_t> inputShape = castInput.getSizes();
         SmallVector<Value> normalizedShapeValues;
         for (int64_t n = axis; n < static_cast<int64_t>(inputRank); n++) {
           normalizedShapeValues.push_back(Torch::ConstantIntOp::create(
@@ -114,10 +134,16 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value cstEpsilon = Torch::ConstantFloatOp::create(
             rewriter, loc, rewriter.getF64FloatAttr(epsilon));
 
-        // Emit aten.rms_norm
+        // Emit aten.rms_norm (in stash dtype if upcasted)
         Value output =
-            Torch::AtenRmsNormOp::create(rewriter, loc, resultTypes[0], input,
+            Torch::AtenRmsNormOp::create(rewriter, loc, input.getType(), input,
                                          normalizedShape, scale, cstEpsilon);
+
+        // Cast output back to original dtype if upcasted
+        if (*stashDtype != origDtype)
+          output =
+              Torch::convertTensorToDtype(rewriter, loc, output, origDtype);
+
         rewriter.replaceOp(binder.op, {output});
         return success();
       });
@@ -128,11 +154,13 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
 
         Value input, skip, gamma;
         float epsilon;
+        int64_t stashType;
         SmallVector<Type> resultTypes;
         if (binder.tensorOperandAtIndex(input, 0) ||
             binder.tensorOperandAtIndex(skip, 1) ||
             binder.tensorOperandAtIndex(gamma, 2) ||
             binder.f32FloatAttr(epsilon, "epsilon", 1e-5f) ||
+            binder.s64IntegerAttr(stashType, "stash_type", 1) ||
             binder.tensorResultTypes(resultTypes))
           return rewriter.notifyMatchFailure(binder.op,
                                              "Failed to bind inputs/attrs");
@@ -144,6 +172,18 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         // Optional bias (index 3)
         Value bias;
         bool hasBias = !binder.tensorOperandAtIndex(bias, 3);
+
+        // Convert stash_type to torch dtype
+        std::optional<int64_t> stashTypeIntTorch =
+            onnxDtypeIntToTorchDtypeInt(stashType);
+        if (!stashTypeIntTorch.has_value())
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented support for the given stash_type");
+        FailureOr<Type> stashDtype = Torch::getTypeForScalarType(
+            binder.op->getContext(),
+            (torch_upstream::ScalarType)stashTypeIntTorch.value());
+        if (failed(stashDtype))
+          return failure();
 
         // Get input type to determine shapes and dtype
         Torch::ValueTensorType inputType =
@@ -164,17 +204,29 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value cstEpsilon = Torch::ConstantFloatOp::create(
             rewriter, loc, rewriter.getF64FloatAttr(epsilon));
 
+        // Upcast inputs to stash_type for numerical stability
+        Type origDtype = inputType.getOptionalDtype();
+        if (*stashDtype != origDtype) {
+          input =
+              Torch::convertTensorToDtype(rewriter, loc, input, *stashDtype);
+          skip = Torch::convertTensorToDtype(rewriter, loc, skip, *stashDtype);
+          if (hasBias)
+            bias =
+                Torch::convertTensorToDtype(rewriter, loc, bias, *stashDtype);
+        }
+
         // Step 1: Compute s = input + skip + bias (if present)
-        Value s = Torch::AtenAddTensorOp::create(rewriter, loc, inputType,
+        Value s = Torch::AtenAddTensorOp::create(rewriter, loc, input.getType(),
                                                  input, skip, cstOne);
 
         if (hasBias) {
-          s = Torch::AtenAddTensorOp::create(rewriter, loc, inputType, s, bias,
-                                             cstOne);
+          s = Torch::AtenAddTensorOp::create(rewriter, loc, input.getType(), s,
+                                             bias, cstOne);
         }
 
         // Build normalized_shape for last dimension: [inputShape[-1]]
-        ArrayRef<int64_t> inputShape = inputType.getSizes();
+        auto castInput = cast<Torch::ValueTensorType>(input.getType());
+        ArrayRef<int64_t> inputShape = castInput.getSizes();
         Value cstLastDimSize = Torch::ConstantIntOp::create(
             rewriter, loc,
             rewriter.getI64IntegerAttr(inputShape[inputRank - 1]));
@@ -183,10 +235,17 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
             SmallVector<Value>{cstLastDimSize});
 
-        // Emit aten.rms_norm
+        // Emit aten.rms_norm (in stash dtype if upcasted)
         Value output =
-            Torch::AtenRmsNormOp::create(rewriter, loc, resultTypes[0], s,
+            Torch::AtenRmsNormOp::create(rewriter, loc, input.getType(), s,
                                          normalizedShape, gamma, cstEpsilon);
+
+        // Cast results back to original dtype if upcasted
+        if (*stashDtype != origDtype) {
+          output =
+              Torch::convertTensorToDtype(rewriter, loc, output, origDtype);
+          s = Torch::convertTensorToDtype(rewriter, loc, s, origDtype);
+        }
 
         if (resultTypes.size() == 1) {
           rewriter.replaceOp(binder.op, {output});
