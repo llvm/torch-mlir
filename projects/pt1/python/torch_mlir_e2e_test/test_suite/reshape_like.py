@@ -1551,6 +1551,54 @@ def Atleast1dModule1dInput_basic(module, tu: TestUtils):
     module.forward(tu.rand(4))
 
 
+class Atleast2dModule0dInput(torch.nn.Module):
+    @export
+    @annotate_args([None, [(), torch.float32, True]])
+    def forward(self, x):
+        return torch.ops.aten.atleast_2d(x)
+
+
+@register_test_case(module_factory=lambda: Atleast2dModule0dInput())
+def Atleast2dModule0dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand())
+
+
+class Atleast2dModule1dInput(torch.nn.Module):
+    @export
+    @annotate_args([None, [(10,), torch.float32, True]])
+    def forward(self, x):
+        return torch.ops.aten.atleast_2d(x)
+
+
+@register_test_case(module_factory=lambda: Atleast2dModule1dInput())
+def Atleast2dModule1dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10))
+
+
+class Atleast2dModule2dInput(torch.nn.Module):
+    @export
+    @annotate_args([None, [(3, 4), torch.float32, True]])
+    def forward(self, x):
+        return torch.ops.aten.atleast_2d(x)
+
+
+@register_test_case(module_factory=lambda: Atleast2dModule2dInput())
+def Atleast2dModule2dInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+class Atleast2dModule3dInput(torch.nn.Module):
+    @export
+    @annotate_args([None, [(2, 3, 4), torch.float32, True]])
+    def forward(self, x):
+        return torch.ops.aten.atleast_2d(x)
+
+
+@register_test_case(module_factory=lambda: Atleast2dModule3dInput())
+def Atleast2dModule3dInput_basic(module, tu: TestUtils):
+    result = module.forward(tu.rand(2, 3, 4))
+
+
 # ==============================================================================
 
 
