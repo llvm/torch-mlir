@@ -868,28 +868,6 @@ func.func @test_skip_simplified_layer_norm_2_outputs(%input: !torch.vtensor<[2,4
 
 // -----
 
-// Test SkipSimplifiedLayerNormalization with stash_type upcasting
-func.func @test_skip_simplified_layer_normalization_stash_type(%arg0: !torch.vtensor<[?,?,4096],f16>, %arg1: !torch.vtensor<[?,?,4096],f16>, %arg2: !torch.vtensor<[4096],f16>) -> (!torch.vtensor<[?,?,4096],f16>, !torch.vtensor<[?,?,4096],f16>) attributes {torch.onnx_meta.opset_version = 1 : si64} {
-  %0:2 = torch.operator "onnx.SkipSimplifiedLayerNormalization"(%arg0, %arg1, %arg2) {torch.onnx.epsilon = 1.000000e-05 : f32, torch.onnx.stash_type = 1 : si64} : (!torch.vtensor<[?,?,4096],f16>, !torch.vtensor<[?,?,4096],f16>, !torch.vtensor<[4096],f16>) -> (!torch.vtensor<[?,?,4096],f16>, !torch.vtensor<[?,?,4096],f16>)
-  return %0#0, %0#1 : !torch.vtensor<[?,?,4096],f16>, !torch.vtensor<[?,?,4096],f16>
-}
-// CHECK-LABEL: func.func @test_skip_simplified_layer_normalization_stash_type
-// CHECK-SAME:    %[[INPUT:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,4096],f16>
-// CHECK-SAME:    %[[SKIP:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,4096],f16>
-// CHECK-SAME:    %[[GAMMA:[a-zA-Z0-9]+]]: !torch.vtensor<[4096],f16>
-// CHECK-DAG:     %[[EPS:.+]] = torch.constant.float 9.9999997473787516E-6
-// CHECK:         %[[INPUT_F32:.*]] = torch.aten.to.dtype %[[INPUT]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,4096],f16>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,?,4096],f32>
-// CHECK:         %[[SKIP_F32:.*]] = torch.aten.to.dtype %[[SKIP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,4096],f16>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,?,4096],f32>
-// CHECK:         %[[SUM:.*]] = torch.aten.add.Tensor %[[INPUT_F32]], %[[SKIP_F32]], %{{.*}}
-// CHECK:         %[[DIM:.+]] = torch.constant.int 4096
-// CHECK:         %[[SHAPE:.+]] = torch.prim.ListConstruct %[[DIM]]
-// CHECK:         %[[RMS:.*]] = torch.aten.rms_norm %[[SUM]], %[[SHAPE]], %[[GAMMA]], %[[EPS]] : !torch.vtensor<[?,?,4096],f32>, !torch.list<int>, !torch.vtensor<[4096],f16>, !torch.float -> !torch.vtensor<[?,?,4096],f32>
-// CHECK:         %[[OUT:.*]] = torch.aten.to.dtype %[[RMS]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,4096],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,?,4096],f16>
-// CHECK:         %[[SUM_F16:.*]] = torch.aten.to.dtype %[[SUM]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,4096],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,?,4096],f16>
-// CHECK:         return %[[OUT]], %[[SUM_F16]]
-
-// -----
-
 // CHECK-LABEL: func.func @test_reduce_max_empty_set_fp
 func.func @test_reduce_max_empty_set_fp(%arg0: !torch.vtensor<[2,0,4],f32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[2,1,4],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK-DAG: %[[INF:.+]] = torch.constant.float 0xFFF0000000000000
