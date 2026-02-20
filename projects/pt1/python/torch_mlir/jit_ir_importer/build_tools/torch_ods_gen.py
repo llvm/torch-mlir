@@ -887,7 +887,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::_to_copy : (Tensor, int?, int?, Device?, bool?, bool, int?) -> (Tensor)"
     )
-    emit("aten::detach : (Tensor) -> (Tensor)", has_folder=True)
+    emit_with_mutating_variants("aten::detach : (Tensor) -> (Tensor)", has_folder=True)
     emit("aten::device.with_index : (str, int) -> (Device)", has_canonicalizer=True)
     emit("aten::cuda : (Tensor) -> (Tensor)", has_canonicalizer=True)
     emit("aten::embedding : (Tensor, Tensor, int, bool, bool) -> (Tensor)")

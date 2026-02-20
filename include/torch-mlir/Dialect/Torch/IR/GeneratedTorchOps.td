@@ -11694,6 +11694,28 @@ def Torch_AtenDetachOp : Torch_Op<"aten.detach", [
   let hasFolder = 1;
 }
 
+def Torch_AtenDetach_Op : Torch_Op<"aten.detach_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::detach_ : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    Torch_NonValueTensorType:$self
+  );
+  let results = (outs
+    AnyTorchOptionalNonValueTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenDetach_Op::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenDetach_Op::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenDeviceWithIndexOp : Torch_Op<"aten.device.with_index", [
     AllowsTypeRefinement,
     HasValueSemantics,
