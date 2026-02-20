@@ -14,9 +14,10 @@ import difflib
 from .utils import TextEmitter
 
 # Note that this utility exists only in the c-extension.
-from torch_mlir._mlir_libs._jit_ir_importer import (
-    get_registered_ops,
-)  # pytype: disable=import-error
+# from torch_mlir._mlir_libs._jit_ir_importer import (
+#     get_registered_ops,
+# )  # pytype: disable=import-error
+from .get_registered_ops import get_registered_ops
 
 
 def _rename_python_keyword_parameter_name(parameter_name: str) -> str:
@@ -28,7 +29,7 @@ def _rename_python_keyword_parameter_name(parameter_name: str) -> str:
 def _get_default_value(arg: "SIG_ATTR_TYPE") -> str:
     default = ""
     if "default_debug" in arg:
-        if "List" in arg["pytype"]:
+        if "List" in arg["type"]:
             # TorchScript doesn't allow lists as default parameters due
             # to the weird Python semantics of mutable default
             # arguments. So munge them into tuples, which work
@@ -44,7 +45,7 @@ def _get_default_value(arg: "SIG_ATTR_TYPE") -> str:
                 default_debug = "()"
             else:
                 default_debug = default_list.replace("[", "(").replace("]", ",)")
-        elif arg["pytype"] == "str":
+        elif arg["type"] == "str":
             default_debug = repr(arg["default_debug"]).replace("'", '"')
         else:
             default_debug = arg["default_debug"]
@@ -119,9 +120,9 @@ class JitOperator:
         self.namespace = namespace
         self.unqualified_name = unqualified_name
         self.overload_name = op_info["name"][1]
-        self.is_c10_op = op_info["is_c10_op"]
-        self.is_vararg = op_info["is_vararg"]
-        self.is_varret = op_info["is_varret"]
+        # self.is_c10_op = op_info["is_c10_op"]
+        # self.is_vararg = op_info["is_vararg"]
+        # self.is_varret = op_info["is_varret"]
         self.is_mutable = op_info["is_mutable"]
         self.arguments = op_info["arguments"]
         self.returns = op_info["returns"]
@@ -150,11 +151,14 @@ class JitOperator:
         concern for them)
         """
         overload = "" if not self.overload_name else f".{self.overload_name}"
-        if self.is_vararg:
+        # Check if any argument is a variable argument
+        if any(arg["type"] == "..." for arg in self.arguments):
             arg_str = "..."
         else:
             arg_str = ", ".join(arg["type"] for arg in self.arguments)
-        if self.is_varret:
+        
+        # Check if any return type is a variable return type
+        if any(ret["type"] == "..." for ret in self.returns):
             ret_str = "..."
         else:
             ret_str = ", ".join(ret["type"] for ret in self.returns)
@@ -233,13 +237,13 @@ class JitOperator:
         """
 
         def parameter_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
-            pytype = _pytype_to_shape_fn_pytype(arg["pytype"])
+            pytype = _pytype_to_shape_fn_pytype(arg["type"])
             default = _get_default_value(arg)
             parameter_name = _rename_python_keyword_parameter_name(arg["name"])
             return f"{parameter_name}: {pytype}{default}"
 
         def ret_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
-            return _pytype_to_shape_fn_pytype(arg["pytype"])
+            return _pytype_to_shape_fn_pytype(arg["type"])
 
         return self._get_function_signature(
             "shape", parameter_decl_builder, ret_decl_builder
@@ -255,10 +259,10 @@ class JitOperator:
         """
 
         def parameter_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
-            pytype = _pytype_to_dtype_fn_pytype(arg["pytype"])
+            pytype = _pytype_to_dtype_fn_pytype(arg["type"])
             default = _get_default_value(arg)
             parameter_name = _rename_python_keyword_parameter_name(arg["name"])
-            if "Tensor" in arg["pytype"]:
+            if "Tensor" in arg["type"]:
                 return f"{parameter_name}_rank_dtype: {pytype}{default}"
             return f"{parameter_name}: {pytype}{default}"
 
@@ -267,9 +271,9 @@ class JitOperator:
             # results of type `number`. Here we handle this case because
             # `_pytype_to_dtype_fn_pytype` will replace `number` with
             # `Union[int, float]`.
-            if arg["pytype"] in ["number", "Tensor"]:
+            if arg["type"] in ["number", "Tensor"]:
                 return "int"
-            return _pytype_to_dtype_fn_pytype(arg["pytype"])
+            return _pytype_to_dtype_fn_pytype(arg["type"])
 
         return self._get_function_signature(
             "dtype", parameter_decl_builder, ret_decl_builder
@@ -285,13 +289,13 @@ class JitOperator:
         """
 
         def parameter_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
-            pytype = _pytype_to_decomposition_fn_pytype(arg["pytype"])
+            pytype = _pytype_to_decomposition_fn_pytype(arg["type"])
             default = _get_default_value(arg)
             parameter_name = _rename_python_keyword_parameter_name(arg["name"])
             return f"{parameter_name}: {pytype}{default}"
 
         def ret_decl_builder(arg: "SIG_ATTR_TYPE") -> str:
-            return _pytype_to_decomposition_fn_pytype(arg["pytype"])
+            return _pytype_to_decomposition_fn_pytype(arg["type"])
 
         return self._get_function_signature(
             "decomposition", parameter_decl_builder, ret_decl_builder
@@ -332,9 +336,9 @@ class JitOperator:
             p(f"namespace = {self.namespace}")
             p(f"unqualified_name = {self.unqualified_name}")
             p(f"overload_name = {self.overload_name}")
-            p(f"is_c10_op = {self.is_c10_op}")
-            p(f"is_vararg = {self.is_vararg}")
-            p(f"is_varret = {self.is_varret}")
+            # p(f"is_c10_op = {self.is_c10_op}")
+            # p(f"is_vararg = {self.is_vararg}")
+            # p(f"is_varret = {self.is_varret}")
             p(f"is_mutable = {self.is_mutable}")
             if any(ret["type"] == "Tensor" for ret in self.returns):
                 p(f"shape_function_signature = {self.get_shape_function_signature()}")
