@@ -488,6 +488,7 @@ public:
     SmallVector<int64_t> stablehloDilation(inputRank, 1);
     SmallVector<int64_t> stablehloKernelSize(inputRank, 1);
     SmallVector<int64_t> stablehloPadding(inputRank * 2, 0);
+    SmallVector<int64_t> ceilModePadding(inputRank * 2, 0);
     std::copy(dilation.begin(), dilation.end(),
               stablehloDilation.begin() + inputRank - Dim);
     std::copy(stride.begin(), stride.end(),
@@ -541,6 +542,8 @@ public:
           const int64_t extraPadding = sizeDiff * stride[i];
           stablehloPadding[frontPadIdx] += extraPadding / 2;
           stablehloPadding[backPadIdx] += extraPadding - extraPadding / 2;
+          ceilModePadding[frontPadIdx] += extraPadding / 2;
+          ceilModePadding[backPadIdx] += extraPadding - extraPadding / 2;
         }
       }
     }
@@ -560,6 +563,19 @@ public:
         rewriter, op->getLoc(), outTy, input, initVal, windowDimensions,
         windowStrides, baseDilations, windowDilations, pad);
 
+    // *** ADD THE 'ceil_mode' ATTRIBUTE ***
+    // The 'ceilMode' boolean variable was extracted from the PyTorch op
+    // earlier.
+    mlir::BoolAttr ceilModeAttr = rewriter.getBoolAttr(ceilMode);
+    reduceWindowOp->setAttr(llvm::StringRef("ceil_mode"), ceilModeAttr);
+    DenseIntElementsAttr ceilModePad = DenseIntElementsAttr::get(
+        RankedTensorType::get(
+            {static_cast<int64_t>(inputRank), static_cast<int64_t>(2)},
+            rewriter.getI64Type()),
+        stablehloPadding);
+    // Also add the 'ceil_mode_padding' attribute to the op to distinguish
+    // original padding from the extra padding added for ceil_mode.
+    reduceWindowOp->setAttr(llvm::StringRef("ceil_mode_padding"), ceilModePad);
     Block &block = reduceWindowOp.getBody().emplaceBlock();
 
     // Add bb argument
