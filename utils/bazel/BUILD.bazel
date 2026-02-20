@@ -16,4 +16,6 @@ package(
 # have the buildtools deps and use @torch-mlir which doesn't include this file.
 buildifier(
     name = "buildifier",
+    lint_mode = "fix",
+    mode = "fix",
 )
