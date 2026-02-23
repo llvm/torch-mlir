@@ -140,8 +140,6 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value pastKey = operands[3];
         Value pastValue = operands[4];
         Value seqlensK = operands[5];
-        Value totalSequenceLength = operands[6];
-        (void)totalSequenceLength;
         Value cosCache, sinCache;
         if (doRotary) {
           cosCache = operands[7];
@@ -155,9 +153,9 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
               binder.op, "Expected `query` input to have 3 dimensions");
 
         SmallVector<int64_t> queryDims{queryType.getSizes()};
-        int64_t batchSize = queryDims[0];      // may be dynamic
-        int64_t sequenceLength = queryDims[1]; // may be dynamic
-        int64_t hiddenSize = queryDims[2];     // must be static
+        int64_t batchSize = queryDims[0];
+        int64_t sequenceLength = queryDims[1];
+        int64_t hiddenSize = queryDims[2];
         if (hiddenSize == Torch::kUnknownSize)
           return rewriter.notifyMatchFailure(
               binder.op,
@@ -165,16 +163,14 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         int64_t headSize = hiddenSize / numHeads;
 
         // For dynamic dimensions, use aten.size.int to get runtime values
-        Type intType = rewriter.getType<Torch::IntType>();
-
         Value cstZeroDim = Torch::ConstantIntOp::create(
             rewriter, loc, rewriter.getI64IntegerAttr(0));
-        Value cstBatchSize = rewriter.createOrFold<Torch::AtenSizeIntOp>(
-            loc, intType, query, cstZeroDim);
+        Value cstBatchSize =
+            rewriter.createOrFold<Torch::AtenSizeIntOp>(loc, query, cstZeroDim);
         Value cstOneDim = Torch::ConstantIntOp::create(
             rewriter, loc, rewriter.getI64IntegerAttr(1));
-        Value cstSequenceLength = rewriter.createOrFold<Torch::AtenSizeIntOp>(
-            loc, intType, query, cstOneDim);
+        Value cstSequenceLength =
+            rewriter.createOrFold<Torch::AtenSizeIntOp>(loc, query, cstOneDim);
 
         Value cstHiddenSize = Torch::ConstantIntOp::create(
             rewriter, loc, rewriter.getI64IntegerAttr(hiddenSize));
