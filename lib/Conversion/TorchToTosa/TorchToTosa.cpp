@@ -257,6 +257,45 @@ getTorchConvWeightPermutation(Location loc, int64_t rank, bool isTransposed,
   return success();
 }
 
+// Base class for all Torch-to-TOSA conversion patterns.
+//
+// It enforces the common checks that should be performed for legalizing any
+// torch op to tosa. Currently we check for : no input tensor operand may have
+// zero-sized dimension. TOSA does not support zero-dimension tensors, so we
+// must reject such Torch IR before attempting to lower to TOSA.
+//
+// Subclasses should implement `matchAndRewriteImpl` instead of
+// `matchAndRewrite`. The base `matchAndRewrite` is final and performs the
+// common pre-check before delegating.
+template <typename AtenOpT>
+class TorchToTosaOpConversionPattern : public OpConversionPattern<AtenOpT> {
+public:
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const final {
+    // Pre-check: all tensor operands  must have no zero-sized dimensions.
+    for (Value v : adaptor.getOperands()) {
+      auto rt = dyn_cast<RankedTensorType>(v.getType());
+      if (!rt)
+        continue;
+      if (mlir::tosa::typeHasZeroDim(rt)) {
+        return rewriter.notifyMatchFailure(
+            op, "TOSA lowering does not support tensors with a zero-sized "
+                "dimension");
+      }
+    }
+    return matchAndRewriteImpl(op, adaptor, rewriter);
+  }
+
+protected:
+  virtual LogicalResult
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const = 0;
+};
+
 // These legalizations are for unary ops with promoting input to floating-point
 // datatypes only. There is no supported quantized integer mode for these.
 template <typename AtenOpT, typename TosaOpT>
@@ -6419,13 +6458,14 @@ LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewrite(
 }
 
 template <typename AtenOpT>
-class ConvertAtenRemainderFmodOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenRemainderFmodOp
+    : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
 
     Value self = adaptor.getSelf();
     auto selfTy = dyn_cast<RankedTensorType>(self.getType());
@@ -6433,11 +6473,6 @@ public:
     if (!selfTy)
       return rewriter.notifyMatchFailure(
           op, "Only ranked tensor types supported in TOSA Remainder/Fmod");
-
-    if (tosa::typeHasZeroDim(selfTy)) {
-      return rewriter.notifyMatchFailure(
-          op, "Expected input shape to not have any 0 dimension.");
-    }
 
     auto outType =
         cast<TensorType>(this->getTypeConverter()->convertType(op.getType()));
@@ -7391,25 +7426,20 @@ public:
 };
 
 template <typename AtenOpT>
-class ConvertAtenFillOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenFillOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     auto outType = dyn_cast<TensorType>(
-        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-            op.getType()));
+        TorchToTosaOpConversionPattern<AtenOpT>::getTypeConverter()
+            ->convertType(op.getType()));
 
     if (!outType || !outType.hasStaticShape())
       return rewriter.notifyMatchFailure(
           op, "Only Tensor types with static shapes are currently supported");
-
-    if (tosa::typeHasZeroDim(outType)) {
-      return rewriter.notifyMatchFailure(
-          op, "Expected output shape to not have any 0 dimension.");
-    }
 
     Type outElemTy = outType.getElementType();
     if (!outElemTy.isIntOrFloat())
