@@ -6679,6 +6679,91 @@ LogicalResult AtenCountNonzeroDimIntListOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenIndexPutOp
+//===----------------------------------------------------------------------===//
+
+// Determine the common broadcast shape of all the index tensors.
+SmallVector<int64_t>
+getIndexBroadcastShape(SmallVector<Torch::ValueTensorType> indicesTypes) {
+  int64_t indicesBroadcastRank = 0;
+  SmallVector<int64_t> indicesRank;
+  SmallVector<ArrayRef<int64_t>> indicesShape;
+  for (auto indexTy : indicesTypes) {
+    indicesShape.push_back(indexTy.getSizes());
+    int64_t rank = indexTy.getSizes().size();
+    indicesRank.push_back(rank);
+    indicesBroadcastRank = std::max(rank, indicesBroadcastRank);
+  }
+
+  auto maxDim = [](int64_t dim0, int64_t dim1) {
+    if (dim0 == Torch::kUnknownSize || dim1 == Torch::kUnknownSize)
+      return Torch::kUnknownSize;
+    return std::max(dim0, dim1);
+  };
+
+  SmallVector<int64_t> broadcastShape(indicesBroadcastRank, 0);
+  for (unsigned i = 0; i < indicesTypes.size(); i++) {
+    for (int32_t j = 0; j < indicesRank[i]; ++j) {
+      auto size = indicesShape[i][j];
+      int32_t idx = broadcastShape.size() - indicesRank[i] + j;
+      broadcastShape[idx] = maxDim(size, broadcastShape[idx]);
+    }
+  }
+  return broadcastShape;
+}
+
+LogicalResult AtenIndexPutOp::verify() {
+  if (isa<Torch::NoneType>(getIndices().getType()))
+    return success();
+
+  SmallVector<Value> indices;
+  if (!getListConstructElements(getIndices(), indices))
+    return success();
+
+  SmallVector<Torch::ValueTensorType> indicesTypes;
+  for (auto index : indices) {
+    // Skipping the none value in the indices list.
+    if (auto indexTy = dyn_cast<Torch::ValueTensorType>(index.getType())) {
+      if (!indexTy.hasSizes())
+        return success();
+      indicesTypes.push_back(indexTy);
+    }
+  }
+
+  auto inputType = cast<BaseTensorType>(getSelf().getType());
+  if (!inputType.hasSizes())
+    return success();
+  SmallVector<int64_t> inputShape(inputType.getSizes());
+
+  auto valuesType = cast<BaseTensorType>(getValues().getType());
+  if (!valuesType.hasSizes())
+    return success();
+  SmallVector<int64_t> valuesShape(valuesType.getSizes());
+
+  SmallVector<int64_t> indicesBroadcastShape(
+      getIndexBroadcastShape(indicesTypes));
+  // In the case where the input rank is greater than the number of index
+  // tensors, the remaining dimensions of the input are indexed in their
+  // entirety. Thus, we need to append the remaining dimensions to get the shape
+  // of the indexed slice.
+  for (size_t i = indices.size(); i < inputShape.size(); i++) {
+    indicesBroadcastShape.push_back(inputShape[i]);
+  }
+
+  // Check if the values tensor is broadcast compatible with indexing result
+  // shape or not. Here, we only check the static dimensions the dynamic ones
+  // will be caught by the downstream lowering through runtime checks.
+  if (failed(
+          areStaticallyBroadcastCompatible(valuesShape, indicesBroadcastShape)))
+    return emitOpError("values tensor shape [")
+           << valuesShape
+           << "] cannot be broadcasted to indexing result shape ["
+           << indicesBroadcastShape << "]\n";
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // OnnxVariantRotaryEmbeddingOp
 //===----------------------------------------------------------------------===//
 
