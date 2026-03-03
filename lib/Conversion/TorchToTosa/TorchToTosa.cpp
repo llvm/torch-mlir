@@ -15,6 +15,7 @@
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
 #include "mlir/IR/DialectResourceBlobManager.h"
+#include "mlir/IR/Dominance.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -28,6 +29,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include <cmath>
@@ -48,6 +50,11 @@ namespace mlir::torch {
 #include "torch-mlir/Conversion/Passes.h.inc"
 
 namespace {
+struct RankTemplate {
+  int64_t rank;
+  RankedTensorType type;
+  Value shape;
+};
 
 // Runs an in-place inclusive prefix sum along the middle dimension (K) of
 // `running` using a binary lifting scheme. The input must have shape [N, K, C].
@@ -2634,13 +2641,108 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
   auto input = adaptor.getInput();
   auto weight = adaptor.getWeight();
 
-  auto inputTy = cast<RankedTensorType>(input.getType());
-  auto weightTy = cast<RankedTensorType>(weight.getType());
   auto outputTy =
       cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
+  auto weightTy = dyn_cast<RankedTensorType>(weight.getType());
   if (!inputTy || !weightTy || !outputTy)
     return rewriter.notifyMatchFailure(
         op, "Input, weight and output to Convolution must be ranked tensors");
+
+  int64_t outputRank = outputTy.getRank();
+  if (outputRank != 4 && outputRank != 5)
+    return rewriter.notifyMatchFailure(
+        op, "Unimplemented: only 2D or 3D convolutions supported");
+
+  auto funcOp = op->getParentOfType<func::FuncOp>();
+  llvm::DenseMap<unsigned, SmallVector<RankTemplate>> argToTemplates;
+  bool templatesBuilt = false;
+  DominanceInfo domInfo(funcOp);
+
+  auto buildTemplates = [&]() {
+    if (templatesBuilt)
+      return;
+    templatesBuilt = true;
+    funcOp.walk([&](tosa::ReshapeOp reshapeOp) {
+      Value source = reshapeOp.getInput1();
+      auto blockArg = dyn_cast<BlockArgument>(source);
+      if (!blockArg)
+        return;
+
+      auto dstType =
+          dyn_cast<RankedTensorType>(reshapeOp.getResult().getType());
+      if (!dstType || (dstType.getRank() != 4 && dstType.getRank() != 5))
+        return;
+
+      unsigned argNumber = blockArg.getArgNumber();
+      auto &templates = argToTemplates[argNumber];
+      for (const auto &tmpl : templates) {
+        if (tmpl.rank == dstType.getRank() && tmpl.type == dstType)
+          return;
+      }
+      templates.push_back(
+          RankTemplate{dstType.getRank(), dstType, reshapeOp.getShape()});
+    });
+  };
+
+  auto normalizeOperandRank = [&](Value operand,
+                                  int64_t requiredRank) -> FailureOr<Value> {
+    auto rankedType = dyn_cast<RankedTensorType>(operand.getType());
+    if (!rankedType)
+      return failure();
+    if (rankedType.getRank() == requiredRank)
+      return operand;
+
+    auto blockArg = dyn_cast<BlockArgument>(operand);
+    if (!blockArg)
+      return failure();
+
+    buildTemplates();
+    auto tmplIt = argToTemplates.find(blockArg.getArgNumber());
+    if (tmplIt == argToTemplates.end())
+      return failure();
+
+    const RankTemplate *match = nullptr;
+    for (const auto &tmpl : tmplIt->second) {
+      if (tmpl.rank == requiredRank) {
+        match = &tmpl;
+        break;
+      }
+    }
+    if (!match)
+      return failure();
+
+    Value shapeVal = match->shape;
+    if (auto shapeOp = shapeVal.getDefiningOp<tosa::ConstShapeOp>()) {
+      OpBuilder builder(op);
+      shapeVal = tosa::ConstShapeOp::create(
+          builder, op->getLoc(), shapeOp.getType(), shapeOp.getValues());
+    } else if (!domInfo.properlyDominates(shapeVal, op)) {
+      return failure();
+    }
+
+    auto reshape = tosa::ReshapeOp::create(rewriter, op->getLoc(), match->type,
+                                           operand, shapeVal);
+    return reshape.getResult();
+  };
+
+  if (inputTy.getRank() != outputRank) {
+    auto normalized = normalizeOperandRank(input, outputRank);
+    if (failed(normalized))
+      return rewriter.notifyMatchFailure(
+          op, "Input rank mismatch without normalization template");
+    input = *normalized;
+    inputTy = cast<RankedTensorType>(input.getType());
+  }
+
+  if (weightTy.getRank() != outputRank) {
+    auto normalized = normalizeOperandRank(weight, outputRank);
+    if (failed(normalized))
+      return rewriter.notifyMatchFailure(
+          op, "Weight rank mismatch without normalization template");
+    weight = *normalized;
+    weightTy = cast<RankedTensorType>(weight.getType());
+  }
 
   auto inputElemTy = inputTy.getElementType();
   auto weightElemTy = weightTy.getElementType();
@@ -2650,15 +2752,10 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
 
   int64_t inputRank = inputTy.getRank();
   int64_t weightRank = weightTy.getRank();
-  int64_t outputRank = outputTy.getRank();
 
   if (inputRank != weightRank || outputRank != inputRank)
     return rewriter.notifyMatchFailure(
         op, "Input, weight and output ranks must match for convolution");
-
-  if (inputRank != 4 && inputRank != 5)
-    return rewriter.notifyMatchFailure(
-        op, "Unimplemented: only 2D or 3D convolutions supported");
 
   bool is3D = inputRank == 5;
   int64_t spatialRank = inputRank - 2;
