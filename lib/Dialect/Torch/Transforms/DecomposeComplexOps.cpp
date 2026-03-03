@@ -8904,6 +8904,75 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.index_add` op into `aten.index_put`
+class DecomposeAtenIndexAddOp : public OpRewritePattern<AtenIndexAddOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIndexAddOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value src = op.getSource();
+    Value input = op.getSelf();
+    Value index = op.getIndex();
+    Value alpha = op.getAlpha();
+
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "dim of index_add must be a constant");
+    }
+    std::optional<unsigned> maybeInputRank = getTensorRank(input);
+    if (!maybeInputRank) {
+      return rewriter.notifyMatchFailure(op, "expected input to have a rank");
+    }
+    int64_t inputRank = static_cast<int64_t>(*maybeInputRank);
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank)) {
+      return rewriter.notifyMatchFailure(op, "index dim is not a valid dim");
+    }
+
+    auto resType = op.getType().cast<BaseTensorType>();
+    auto srcType = src.getType().cast<BaseTensorType>();
+    auto indexType = index.getType().cast<BaseTensorType>();
+    if (!indexType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "index should have dtype");
+    }
+    auto indexDtype = indexType.getDtype();
+
+    // calculate src * alpha first.
+    Value newSrc =
+        rewriter.create<Torch::AtenMulScalarOp>(loc, srcType, src, alpha);
+
+    // broadcast index to have the same shape as src.
+    Value constMinusOne = rewriter.create<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(-1));
+    for (int64_t i = dim + 1; i < inputRank; ++i) {
+      index = *unsqueezeTensor(rewriter, op, index, /*dim=*/constMinusOne);
+    }
+
+    SmallVector<int64_t> bcastShape;
+    SmallVector<Value> bcastShapeValue;
+    computeBroadcastShape(rewriter, loc, index, src, bcastShape,
+                          bcastShapeValue);
+
+    Type bcastType = ValueTensorType::get(
+        op.getContext(), llvm::ArrayRef(bcastShape), indexDtype);
+
+    Value indexBcastShapeTorchList = rewriter.create<PrimListConstructOp>(
+        loc, Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        bcastShapeValue);
+
+    index = rewriter.create<Torch::AtenBroadcastToOp>(loc, bcastType, index,
+                                                      indexBcastShapeTorchList);
+
+    rewriter.replaceOpWithNewOp<Torch::AtenScatterAddOp>(op, resType, input,
+                                                         op.getDim(), index, newSrc);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenExpandAsOp : public OpRewritePattern<AtenExpandAsOp> {
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenExpandAsOp op,
@@ -13455,6 +13524,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenMishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFullLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewFullOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIndexAddOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_ToCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenCopyOp>(patterns);
