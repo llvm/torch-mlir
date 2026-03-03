@@ -293,26 +293,21 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         // 2. Packed QKV input (7 operands with rotary, 5 without):
         //    packed_qkv, past_key, past_value, seqlens_k, total_seq_len,
         //    [cos_cache, sin_cache]
-        bool isPackedQKV = false;
-        if (doRotary) {
-          if (operands.size() == 7) {
-            isPackedQKV = true;
-          } else if (operands.size() != 9) {
-            return rewriter.notifyMatchFailure(
-                binder.op,
-                "Expected 7 operands (packed QKV) or 9 operands (separate Q, "
-                "K, V) when do_rotary is enabled");
-          }
-        } else {
-          if (operands.size() == 5) {
-            isPackedQKV = true;
-          } else if (operands.size() != 7) {
-            return rewriter.notifyMatchFailure(
-                binder.op,
-                "Expected 5 operands (packed QKV) or 7 operands (separate Q, "
-                "K, V) when do_rotary is disabled");
-          }
+        int numOperands = operands.size();
+        if (doRotary && numOperands != 7 && numOperands != 9) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Expected 7 operands (packed QKV) or 9 operands (separate Q, "
+              "K, V) when do_rotary is enabled");
         }
+        if (!doRotary && numOperands != 5 && numOperands != 7) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Expected 5 operands (packed QKV) or 7 operands (separate Q, "
+              "K, V) when do_rotary is disabled");
+        }
+        bool isPackedQKV =
+            (doRotary && numOperands == 7) || (!doRotary && numOperands == 5);
 
         if (kvNumHeads == 0)
           return rewriter.notifyMatchFailure(
