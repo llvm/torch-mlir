@@ -2318,7 +2318,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // each dimension as compared to the onnx.pad op. So, rearranging pad
         // tensor to satisfy torch.pad op semantics.
         SmallVector<Value> padsRearrange;
-        for (uint32_t i = 0; i < padsSize / 2; i++) {
+        for (int64_t i = padsSize / 2 - 1; i >= 0; i--) {
           padsRearrange.emplace_back(padsTensorValue[i]);
           padsRearrange.emplace_back(padsTensorValue[(padsSize / 2) + i]);
         }
