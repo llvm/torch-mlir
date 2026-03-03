@@ -123,8 +123,10 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
   // We want to fuse quantized operations together before lowering to tosa.
   pm.addNestedPass<func::FuncOp>(Torch::createFuseQuantizedOpsPass());
 
-  pm.addNestedPass<func::FuncOp>(
-      createConvertTorchToTosaPass(options.requireFullTosaConversion));
+  pm.addNestedPass<func::FuncOp>(createConvertTorchToTosaPass(
+      options.requireFullTosaConversion, options.disabledPatterns,
+      options.enabledPatterns));
+
   // Fold full-layer operations on TOSA constants
   pm.addNestedPass<func::FuncOp>(createTosaLayerwiseConstantFoldPass());
 
