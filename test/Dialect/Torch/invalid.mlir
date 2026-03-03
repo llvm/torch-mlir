@@ -403,3 +403,12 @@ func.func @torch.symbolic_int$no_shape_symbols(%arg0: !torch.vtensor<[?],f32>) -
   torch.bind_symbolic_shape %arg0, [%int0], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
   return %arg0 : !torch.vtensor<[?],f32>
 }
+
+// -----
+
+func.func @torch.aten.view$dtype_mismatch(%arg0: !torch.vtensor<[1],f32>) {
+  %shape = torch.prim.ListConstruct : () -> !torch.list<int>
+  // expected-error @below {{'torch.aten.view' op element type of input ('f32') does not match element type of result ('bf16')}}
+  torch.aten.view %arg0, %shape : !torch.vtensor<[1],f32>, !torch.list<int> -> !torch.vtensor<[],bf16>
+  return
+}

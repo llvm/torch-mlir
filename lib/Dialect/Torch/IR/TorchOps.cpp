@@ -1218,6 +1218,21 @@ void Aten_CastLongOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 // AtenViewOp
 //===----------------------------------------------------------------------===//
 
+LogicalResult AtenViewOp::verify() {
+  auto selfType = dyn_cast<BaseTensorType>(getSelf().getType());
+  auto resultType = dyn_cast<BaseTensorType>(getType());
+  if (!selfType || !resultType || !selfType.hasDtype() ||
+      !resultType.hasDtype())
+    return success();
+  if (selfType.getDtype() != resultType.getDtype())
+    return emitOpError("element type of input (")
+           << selfType.getDtype() << ") does not match element type of result ("
+           << resultType.getDtype()
+           << "); `aten.view` cannot change dtype, use `aten.view.dtype` for "
+              "dtype reinterpretation";
+  return success();
+}
+
 OpFoldResult AtenViewOp::fold(FoldAdaptor adaptor) {
   if (auto genericFold = genericViewLikeFold(adaptor.getSelf(), getType()))
     return genericFold;
