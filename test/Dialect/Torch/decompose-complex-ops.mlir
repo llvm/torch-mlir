@@ -1013,3 +1013,27 @@ func.func @channel_shuffle(%arg0: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtens
   %0 = torch.aten.channel_shuffle %arg0, %int4 : !torch.vtensor<[1,8,4,4],f32>, !torch.int -> !torch.vtensor<[1,8,4,4],f32>
   return %0 : !torch.vtensor<[1,8,4,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @native_batch_norm_mixed_precision(
+// CHECK-SAME: %{{.*}}: !torch.vtensor<[1,3,4,4],bf16>, %{{.*}}: !torch.vtensor<[3],f32>, %{{.*}}: !torch.vtensor<[3],f32>, %[[MEAN:.*]]: !torch.vtensor<[3],f32>, %[[VAR:.*]]: !torch.vtensor<[3],f32>)
+// Verify that the running stats reshape uses f32 (matching running stats dtype),
+// not bf16 (the input dtype).
+// CHECK: torch.aten.view %[[MEAN]], %{{.*}} : !torch.vtensor<[3],f32>, !torch.list<int> -> !torch.vtensor<[1,3,1,1],f32>
+// CHECK: torch.aten.view %[[VAR]], %{{.*}} : !torch.vtensor<[3],f32>, !torch.list<int> -> !torch.vtensor<[1,3,1,1],f32>
+func.func @native_batch_norm_mixed_precision(
+    %input: !torch.vtensor<[1,3,4,4],bf16>,
+    %weight: !torch.vtensor<[3],f32>,
+    %bias: !torch.vtensor<[3],f32>,
+    %running_mean: !torch.vtensor<[3],f32>,
+    %running_var: !torch.vtensor<[3],f32>
+) -> (!torch.vtensor<[1,3,4,4],bf16>, !torch.vtensor<[0],f32>, !torch.vtensor<[0],f32>) {
+  %false = torch.constant.bool false
+  %float1e-5 = torch.constant.float 1.000000e-05
+  %float0.1 = torch.constant.float 1.000000e-01
+  %out:3 = torch.aten.native_batch_norm %input, %weight, %bias, %running_mean, %running_var, %false, %float0.1, %float1e-5 :
+      !torch.vtensor<[1,3,4,4],bf16>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.bool, !torch.float, !torch.float
+      -> !torch.vtensor<[1,3,4,4],bf16>, !torch.vtensor<[0],f32>, !torch.vtensor<[0],f32>
+  return %out#0, %out#1, %out#2 : !torch.vtensor<[1,3,4,4],bf16>, !torch.vtensor<[0],f32>, !torch.vtensor<[0],f32>
+}
