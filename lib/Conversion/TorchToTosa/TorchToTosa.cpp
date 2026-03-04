@@ -1501,9 +1501,19 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewriteImpl(
       getTypeConverter()->convertType(op.getResult().getType()));
   auto outputETy = resultTy.getElementType();
 
+  auto ensureF32Input = [&](Value input) -> Value {
+    auto inputTy = cast<RankedTensorType>(input.getType());
+    if (inputTy.getElementType().isF32())
+      return input;
+    auto castTy =
+        RankedTensorType::get(inputTy.getShape(), rewriter.getF32Type());
+    return tosa::CastOp::create(rewriter, op->getLoc(), castTy, input);
+  };
+
   // Create a single instance of tosa.argmax.
   // Multiple dims require chained construct.
   auto buildArgmax = [&](int64_t reduceDim, Value input) -> Value {
+    input = ensureF32Input(input);
     auto inputTy = cast<RankedTensorType>(input.getType());
     auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
     SmallVector<int64_t> outputShapeArr = {};
@@ -1523,7 +1533,7 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewriteImpl(
         makeShapeLLVMCompatible(ArrayRef<int64_t>(outputShapeArr)),
         rewriter.getI32Type());
     auto reduceDimAttr =
-        rewriter.getIntegerAttr(rewriter.getI64Type(), reduceDim);
+        rewriter.getIntegerAttr(rewriter.getI32Type(), reduceDim);
 
     // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
     return tosa::ArgMaxOp::create(
@@ -4692,26 +4702,37 @@ public:
 
     // To handle ReduceMinDim indices, we apply ArgMaxOp on the negate
     // of the input tensor, which will return indices of input's min values
+    auto ensureF32Input = [&](Value input) -> Value {
+      auto inputTy = cast<RankedTensorType>(input.getType());
+      if (inputTy.getElementType().isF32())
+        return input;
+      auto castTy =
+          RankedTensorType::get(inputTy.getShape(), rewriter.getF32Type());
+      return tosa::CastOp::create(rewriter, op->getLoc(), castTy, input);
+    };
+
     Value argMaxOp;
     if constexpr (std::is_same<AtenOpT, AtenMinDimOp>()) {
       Value negateOp =
           tosa::NegateOp::create(rewriter, op->getLoc(), selfType, self);
+      Value argInput = ensureF32Input(negateOp);
 
       // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
       argMaxOp = tosa::ArgMaxOp::create(
           rewriter, op->getLoc(),
           RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
                                 indicesElemType),
-          negateOp, dimAttr, /*nan_mode=*/
+          argInput, dimAttr, /*nan_mode=*/
           tosa::NanPropagationModeAttr::get(
               rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE));
     } else {
+      Value argInput = ensureF32Input(self);
       // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
       argMaxOp = tosa::ArgMaxOp::create(
           rewriter, op->getLoc(),
           RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
                                 indicesElemType),
-          self, dimAttr, /*nan_mode=*/
+          argInput, dimAttr, /*nan_mode=*/
           tosa::NanPropagationModeAttr::get(
               rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE));
     }
