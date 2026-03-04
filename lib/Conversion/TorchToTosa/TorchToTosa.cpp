@@ -10232,23 +10232,24 @@ public:
     auto allConvertibleOps = populateTorchToTosaConversionPatternsAndIllegalOps(
         typeConverter, patterns);
 
-    // Any torch op mentioned in the disabledPatterns will not be converted to
-    // TOSA and is legal at the end of this pass
-    // On the other hand, if enabledPatterns is not empty, then only those torch
+    // If enabledPatterns is not empty, then only those torch
     // ops will be converted to TOSA and are illegal at the end of this pass
+    // (unless such an op is also mentioned in the disabledPatterns list)
     std::set<StringRef> illegalOps;
 
-    if (!this->enabledPatterns.empty()) {
-      for (const auto &enabledPattern : this->enabledPatterns) {
-        illegalOps.insert(enabledPattern);
-      }
-    } else {
+    for (const auto &enabledPattern : this->enabledPatterns) {
+      illegalOps.insert(enabledPattern);
+    }
+
+    // If enabledPatterns is empty, all convertible ops are legal candidates
+    if (illegalOps.empty())
       illegalOps = allConvertibleOps;
 
-      if (!this->disabledPatterns.empty()) {
-        for (const auto &disabledPattern : this->disabledPatterns) {
-          illegalOps.erase(StringRef(disabledPattern));
-        }
+    // Any torch op mentioned in the disabledPatterns will not be converted
+    // to TOSA and is legal at the end of this pass
+    if (!this->disabledPatterns.empty()) {
+      for (const auto &disabledPattern : this->disabledPatterns) {
+        illegalOps.erase(StringRef(disabledPattern));
       }
     }
 
