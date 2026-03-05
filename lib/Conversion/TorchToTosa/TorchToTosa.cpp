@@ -10239,14 +10239,16 @@ LogicalResult ConvertAtenOp<AtenQuantizePerTensorOp>::matchAndRewriteImpl(
 
   // Clamp the result to the valid range of the result/quantized type
   std::optional<int64_t> minInt, maxInt;
-  IntegerAttr minIntAttr, maxIntAttr;
+  IntegerAttr minIntAttr, maxIntAttr; // no initialization needed as we want to
+                                      // clamp to the numeric limits of the type
   if (failed(tosa::getIntegerClampAttrs(rewriter, op, resultElemTy, minInt,
                                         maxInt, minIntAttr, maxIntAttr))) {
     return failure();
   }
 
   // Create float clamp attributes (clamp happens with integer range based on
-  // the result/quantized type)
+  // the result/quantized type but in the domain of the input type to preserve
+  // numeric)
   auto minFloat = static_cast<float>(minIntAttr.getInt());
   auto maxFloat = static_cast<float>(maxIntAttr.getInt());
   auto minFloatAttr = rewriter.getFloatAttr(inputElemTy, minFloat);
