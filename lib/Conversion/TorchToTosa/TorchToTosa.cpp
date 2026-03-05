@@ -10226,36 +10226,42 @@ LogicalResult ConvertAtenOp<AtenQuantizePerTensorOp>::matchAndRewriteImpl(
         op, "failed to implement round-half-to-even with TOSA ops");
   }
 
-  // Cast to the destination integer type.
-  auto intermediateIntTy = resultTy.clone(resultElemTy);
-  Value castToInt =
-      tosa::CastOp::create(rewriter, loc, intermediateIntTy, *rounded);
-
-  // Add the zero point.
-  Value zpTensor =
-      tosa::createZeroPointTensor(rewriter, loc, intermediateIntTy, zpConst)
+  // Add the zero point
+  Value zpTensorFloat =
+      tosa::getConstTensor<float>(rewriter, op, static_cast<float>(zpConst), {},
+                                  inputElemTy)
           .value();
-  if (mlir::tosa::EqualizeRanks(rewriter, loc, castToInt, zpTensor).failed())
+  if (mlir::tosa::EqualizeRanks(rewriter, loc, *rounded, zpTensorFloat)
+          .failed())
     return failure();
-  Value withZp = tosa::AddOp::create(rewriter, loc, intermediateIntTy,
-                                     castToInt, zpTensor);
+  Value withZp =
+      tosa::AddOp::create(rewriter, loc, inputTy, *rounded, zpTensorFloat);
 
-  // Clamp the result to the valid range of the quantized type.
-  std::optional<int64_t> minInt,
-      maxInt; // no initialization needed as we want to clamp to the numeric
-              // limits of the type
+  // Clamp the result to the valid range of the result/quantized type
+  std::optional<int64_t> minInt, maxInt;
   IntegerAttr minIntAttr, maxIntAttr;
   if (failed(tosa::getIntegerClampAttrs(rewriter, op, resultElemTy, minInt,
                                         maxInt, minIntAttr, maxIntAttr))) {
     return failure();
   }
+
+  // Create float clamp attributes (clamp happens with integer range based on
+  // the result/quantized type)
+  auto minFloat = static_cast<float>(minIntAttr.getInt());
+  auto maxFloat = static_cast<float>(maxIntAttr.getInt());
+  auto minFloatAttr = rewriter.getFloatAttr(inputElemTy, minFloat);
+  auto maxFloatAttr = rewriter.getFloatAttr(inputElemTy, maxFloat);
+
   Value clamped = tosa::ClampOp::create(
-      rewriter, loc, resultTy, withZp, minIntAttr, maxIntAttr,
+      rewriter, loc, inputTy, withZp, minFloatAttr, maxFloatAttr,
       /*nan_mode=*/
       tosa::NanPropagationModeAttr::get(rewriter.getContext(),
                                         tosa::NanPropagationMode::PROPAGATE));
 
-  rewriter.replaceOp(op, clamped);
+  // Cast to the destination integer type
+  Value castToInt = tosa::CastOp::create(rewriter, loc, resultTy, clamped);
+
+  rewriter.replaceOp(op, castToInt);
   return success();
 }
 
