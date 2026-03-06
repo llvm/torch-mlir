@@ -119,6 +119,11 @@ FailureOr<Value> getZeroPointValue(PatternRewriter &rewriter, Operation *op,
 // Check if a shaped type has any dimension with size 0.
 bool typeHasZeroDim(ShapedType type);
 
+// Compute scale/offset/border parameters for TOSA resize on one dimension.
+void computeResizeParams(int inputSize, int outputSize, bool alignCorners,
+                         tosa::ResizeMode mode, int &scaleN, int &scaleD,
+                         int &offset, int &border);
+
 } // namespace tosa
 } // namespace mlir
 
