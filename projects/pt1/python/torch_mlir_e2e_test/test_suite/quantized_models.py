@@ -5,6 +5,7 @@
 
 import torch
 from torch import nn
+import torch.ao.quantization.fx._decomposed
 
 from torch_mlir_e2e_test.framework import TestUtils
 from torch_mlir_e2e_test.registry import register_test_case
@@ -206,3 +207,33 @@ class FakeQuantizePerTensorAffineCachemaskModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: FakeQuantizePerTensorAffineCachemaskModule())
 def FakeQuantizePerTensorAffineCachemaskModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(6, 4))
+
+
+# ==============================================================================
+
+
+class QuantizePerTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 64, 112, 112], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        scale = 0.014940238557755947
+        zp = -128
+        quant_min = -128
+        quant_max = 127
+        return torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            x, scale, zp, quant_min, quant_max, torch.int8
+        )
+
+
+@register_test_case(module_factory=lambda: QuantizePerTensorModule())
+def QuantizePerTensorModule_basic(module, tu: TestUtils):
+    # use values within [-5, 5] to ensure we run into overflow/underflow
+    module.forward(10 * torch.rand(1, 64, 112, 112) - 5)
