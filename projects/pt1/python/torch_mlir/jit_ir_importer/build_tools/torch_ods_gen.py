@@ -961,7 +961,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::_cast_Float : (Tensor, bool) -> (Tensor)", has_canonicalizer=True)
     emit("aten::_cast_Long : (Tensor, bool) -> (Tensor)", has_canonicalizer=True)
     emit("aten::type_as : (Tensor, Tensor) -> (Tensor)")
-    emit("aten::view : (Tensor, int[]) -> (Tensor)", has_folder=True)
+    emit("aten::view : (Tensor, int[]) -> (Tensor)", has_folder=True, has_verifier=True)
     emit("aten::view.dtype : (Tensor, int) -> (Tensor)")
     emit("aten::_unsafe_view : (Tensor, int[]) -> (Tensor)")
     emit("aten::where.self : (Tensor, Tensor, Tensor) -> (Tensor)", has_folder=True)

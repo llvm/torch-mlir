@@ -8592,14 +8592,17 @@ class DecomposeAtenNativeBatchNormOp
     SmallVector<int64_t> runningStatsShapeInt(inputRank, 1);
     runningStatsShapeInt[1] =
         cast<BaseTensorType>(runningMean.getType()).getSizes()[0];
-    Type dtype = cast<ValueTensorType>(input.getType()).getOptionalDtype();
-    Type reshapeType = ValueTensorType::get(
-        context, llvm::ArrayRef(runningStatsShapeInt), dtype);
 
-    runningMean = AtenViewOp::create(rewriter, loc, reshapeType, runningMean,
-                                     runningStatsSizeList);
-    runningVar = AtenViewOp::create(rewriter, loc, reshapeType, runningVar,
-                                    runningStatsSizeList);
+    auto reshapeType = [&](Value v) {
+      auto dtype = cast<ValueTensorType>(v.getType()).getOptionalDtype();
+      return ValueTensorType::get(context, llvm::ArrayRef(runningStatsShapeInt),
+                                  dtype);
+    };
+
+    runningMean = AtenViewOp::create(rewriter, loc, reshapeType(runningMean),
+                                     runningMean, runningStatsSizeList);
+    runningVar = AtenViewOp::create(rewriter, loc, reshapeType(runningVar),
+                                    runningVar, runningStatsSizeList);
 
     // normalizedInput = (input - runningMean) / (sqrt(runningVar + eps)).
     Value inputSubMean = AtenSubTensorOp::create(
@@ -8621,7 +8624,7 @@ class DecomposeAtenNativeBatchNormOp
       std::optional<unsigned> weightRank = getTensorRank(weight);
       if (!weightRank || *weightRank != 1)
         return rewriter.notifyMatchFailure(op, "expected weight to be rank 1");
-      weight = AtenViewOp::create(rewriter, loc, reshapeType, weight,
+      weight = AtenViewOp::create(rewriter, loc, reshapeType(weight), weight,
                                   runningStatsSizeList);
       batchNormOutput = AtenMulTensorOp::create(
           rewriter, loc, batchNormOutput.getType(), batchNormOutput, weight);
@@ -8631,7 +8634,7 @@ class DecomposeAtenNativeBatchNormOp
       std::optional<unsigned> biasRank = getTensorRank(bias);
       if (!biasRank || *biasRank != 1)
         return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
-      bias = AtenViewOp::create(rewriter, loc, reshapeType, bias,
+      bias = AtenViewOp::create(rewriter, loc, reshapeType(bias), bias,
                                 runningStatsSizeList);
       batchNormOutput =
           AtenAddTensorOp::create(rewriter, loc, batchNormOutput.getType(),

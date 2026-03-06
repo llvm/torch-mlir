@@ -13128,6 +13128,7 @@ def Torch_AtenViewOp : Torch_Op<"aten.view", [
     }
   }];
   let hasFolder = 1;
+  let hasVerifier = 1;
 }
 
 def Torch_AtenViewDtypeOp : Torch_Op<"aten.view.dtype", [
