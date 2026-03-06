@@ -8526,6 +8526,28 @@ class DecomposeAtenNativeGroupNormOp
 };
 } // namespace
 
+// Decompose aten.miopen_batch_norm to aten.native_batch_norm.
+// PyTorch dispatches to miopen_batch_norm on ROCm in some cases:
+// https://github.com/pytorch/pytorch/blob/2f0a6bd3f5efddf0eadf6252924ac4bd0276ee71/aten/src/ATen/native/Normalization.cpp#L626
+// We copy the inductor decomposition here which just lowers to
+// `aten.native_batch_norm` (inference mode returning empty tensors is an
+// optimization we can skip here):
+// https://github.com/pytorch/pytorch/blob/2f0a6bd3f5efddf0eadf6252924ac4bd0276ee71/torch/_inductor/decomposition.py#L888-L917
+namespace {
+class DecomposeAtenMiopenBatchNormOp
+    : public OpRewritePattern<AtenMiopenBatchNormOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMiopenBatchNormOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AtenNativeBatchNormOp>(
+        op, op->getResultTypes(), op.getInput(), op.getWeight(), op.getBias(),
+        op.getRunningMean(), op.getRunningVar(), op.getTraining(),
+        op.getExponentialAverageFactor(), op.getEpsilon());
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeAtenNativeBatchNormOp
     : public OpRewritePattern<AtenNativeBatchNormOp> {
@@ -13380,6 +13402,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenGroupNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeGroupNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeBatchNormOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMiopenBatchNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAten_ConvolutionLikeOp<Aten_ConvolutionOp>>(patterns);
     addPatternIfTargetOpIsIllegal<
