@@ -948,6 +948,7 @@ OpFoldResult AtenSqueezeDimOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenToDtypeOp::fold(FoldAdaptor adaptor) {
+  constexpr int64_t kMaxFold = 16;
   bool nonBlocking, copyArg;
   // The non_blocking arg must be `False`.
   if (!matchPattern(getNonBlocking(), m_TorchConstantBool(&nonBlocking)) ||
@@ -978,7 +979,7 @@ OpFoldResult AtenToDtypeOp::fold(FoldAdaptor adaptor) {
   } else {
     elems = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
   }
-  if (!elems || (!elems.isSplat() && elems.size() > 10))
+  if (!elems || (!elems.isSplat() && elems.size() > kMaxFold))
     return {};
 
   auto outVTy = dyn_cast<ValueTensorType>(getType());
