@@ -971,14 +971,8 @@ OpFoldResult AtenToDtypeOp::fold(FoldAdaptor adaptor) {
   if (inputType == resType && inputType.hasDtype())
     return getOperand(0);
 
-  DenseElementsAttr elems;
-  if (auto valueTensorLiteralOp =
-          getOperand(0).getDefiningOp<ValueTensorLiteralOp>()) {
-    elems =
-        dyn_cast_or_null<DenseElementsAttr>(valueTensorLiteralOp.getValue());
-  } else {
-    elems = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
-  }
+  // Fold conversion of splat values or tensors with size smaller than kMaxFold.
+  auto elems = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
   if (!elems || (!elems.isSplat() && elems.size() > kMaxFold))
     return {};
 
