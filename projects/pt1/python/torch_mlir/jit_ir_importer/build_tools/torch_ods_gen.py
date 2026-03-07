@@ -1088,8 +1088,16 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::upsample_bilinear2d : (Tensor, int[], bool, float?, float?) -> (Tensor)"
     )
     emit("aten::upsample_bilinear2d.vec : (Tensor, int[]?, bool, float[]?) -> (Tensor)")
+
+    # Attention ops.
     emit(
         "aten::scaled_dot_product_attention : (Tensor, Tensor, Tensor, Tensor?, float, bool, float?, bool) -> (Tensor)"
+    )
+    emit(
+        "aten::_scaled_dot_product_flash_attention : (Tensor, Tensor, Tensor, float, bool, bool, float?) -> (Tensor, Tensor, Tensor, Tensor, int, int, Tensor, Tensor, Tensor)"
+    )
+    emit(
+        "aten::_scaled_dot_product_flash_attention_for_cpu : (Tensor, Tensor, Tensor, float, bool, Tensor?, float?) -> (Tensor, Tensor)"
     )
     emit("aten::grid_sampler : (Tensor, Tensor, int, int, bool) -> (Tensor)")
     emit(

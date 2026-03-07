@@ -3443,7 +3443,6 @@ public:
       if (lhsBatchDim == kUnknownSize || rhsBatchDim == kUnknownSize ||
           lhsBatchDim != rhsBatchDim)
         return failure();
-
       rewriter.replaceOpWithNewOp<AtenBmmOp>(op, op.getType(), lhs, rhs);
     } else {
       return failure();
@@ -4729,6 +4728,38 @@ public:
         rewriter, loc, resType, positiveOutput, negativeOutput, constantOne);
 
     rewriter.replaceOp(op, eluOutput);
+    return success();
+  }
+};
+} // namespace
+
+// Decompose aten._scaled_dot_product_flash_attention/_for_cpu to
+// aten.scaled_dot_product_attention
+namespace {
+template <typename OpTy>
+class DecomposeScaledDotProductFlashAttentionOp
+    : public OpRewritePattern<OpTy> {
+public:
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value constNone = ConstantNoneOp::create(rewriter, loc);
+    Value constTrue =
+        ConstantBoolOp::create(rewriter, loc, rewriter.getBoolAttr(true));
+    // Create the new scaled_dot_product_attention op
+    BaseTensorType resType = cast<BaseTensorType>(op.getOutput().getType());
+    auto newOp = AtenScaledDotProductAttentionOp::create(
+        rewriter, loc, resType, op.getQuery(), op.getKey(), op.getValue(),
+        /*attn_mask=*/constNone, op.getDropoutP(), op.getIsCausal(),
+        op.getScale(),
+        /*enable_gqa=*/constTrue);
+
+    // Replace only the first result with the new op's result
+    rewriter.replaceAllUsesWith(op.getOutput(), newOp.getResult());
+
+    // Erase the old op
+    rewriter.eraseOp(op);
     return success();
   }
 };
@@ -13528,6 +13559,10 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenNormalFunctionalOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEluOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeScaledDotProductFlashAttentionOp<
+        Aten_ScaledDotProductFlashAttentionOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeScaledDotProductFlashAttentionOp<
+        Aten_ScaledDotProductFlashAttentionForCpuOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFakeQuantizePerTensorAffineOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSeluOp>(patterns);
