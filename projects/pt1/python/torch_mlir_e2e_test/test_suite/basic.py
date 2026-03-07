@@ -897,6 +897,42 @@ def Permute0RankModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class PermuteAllNegativeIndicesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1, -1], torch.float32, True)])
+    def forward(self, x):
+        return x.permute(-3, -1, -2)
+
+
+@register_test_case(module_factory=lambda: PermuteAllNegativeIndicesModule())
+def PermuteAllNegativeIndicesModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4))
+
+
+# ==============================================================================
+
+
+class PermuteMixedIndices4DModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1, -1, -1], torch.float32, True)])
+    def forward(self, x):
+        return x.permute(0, 3, -2, 1)
+
+
+@register_test_case(module_factory=lambda: PermuteMixedIndices4DModule())
+def PermuteMixedIndices4DModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4, 5))
+
+
+# ==============================================================================
+
+
 class TransposeIntNegDimsModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
