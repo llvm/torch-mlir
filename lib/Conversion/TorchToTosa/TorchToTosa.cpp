@@ -748,6 +748,31 @@ public:
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()));
     if (isBitwiseOp) {
+      // TOSA bitwise ops do not support i1. Use logical ops for bool tensors.
+      auto resultElemTy = resultTy.getElementType();
+      if (auto intTy = dyn_cast<IntegerType>(resultElemTy);
+          intTy && intTy.getWidth() == 1) {
+        auto lhsBool =
+            tosa::tosaCastTensorToType(rewriter, lhs, resultTy).value();
+        auto rhsBool =
+            tosa::tosaCastTensorToType(rewriter, rhsTensor, resultTy).value();
+        if constexpr (std::is_same<AtenOpT, AtenBitwiseAndTensorOp>() ||
+                      std::is_same<AtenOpT, AtenBitwiseAndScalarOp>()) {
+          rewriter.replaceOpWithNewOp<tosa::LogicalAndOp>(op, resultTy, lhsBool,
+                                                          rhsBool);
+          return success();
+        }
+        if constexpr (std::is_same<AtenOpT, AtenBitwiseOrTensorOp>()) {
+          rewriter.replaceOpWithNewOp<tosa::LogicalOrOp>(op, resultTy, lhsBool,
+                                                         rhsBool);
+          return success();
+        }
+        if constexpr (std::is_same<AtenOpT, AtenBitwiseXorTensorOp>()) {
+          rewriter.replaceOpWithNewOp<tosa::LogicalXorOp>(op, resultTy, lhsBool,
+                                                          rhsBool);
+          return success();
+        }
+      }
       lhs = tosa::tosaCastTensorToType(rewriter, lhs, resultTy).value();
       rhsTensor =
           tosa::tosaCastTensorToType(rewriter, rhsTensor, resultTy).value();
