@@ -1501,19 +1501,10 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewriteImpl(
       getTypeConverter()->convertType(op.getResult().getType()));
   auto outputETy = resultTy.getElementType();
 
-  auto ensureF32Input = [&](Value input) -> Value {
-    auto inputTy = cast<RankedTensorType>(input.getType());
-    if (inputTy.getElementType().isF32())
-      return input;
-    auto castTy =
-        RankedTensorType::get(inputTy.getShape(), rewriter.getF32Type());
-    return tosa::CastOp::create(rewriter, op->getLoc(), castTy, input);
-  };
-
   // Create a single instance of tosa.argmax.
   // Multiple dims require chained construct.
   auto buildArgmax = [&](int64_t reduceDim, Value input) -> Value {
-    input = ensureF32Input(input);
+    input = tosa::ensureF32Input(rewriter, op.getOperation(), input);
     auto inputTy = cast<RankedTensorType>(input.getType());
     auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
     SmallVector<int64_t> outputShapeArr = {};
@@ -4702,20 +4693,12 @@ public:
 
     // To handle ReduceMinDim indices, we apply ArgMaxOp on the negate
     // of the input tensor, which will return indices of input's min values
-    auto ensureF32Input = [&](Value input) -> Value {
-      auto inputTy = cast<RankedTensorType>(input.getType());
-      if (inputTy.getElementType().isF32())
-        return input;
-      auto castTy =
-          RankedTensorType::get(inputTy.getShape(), rewriter.getF32Type());
-      return tosa::CastOp::create(rewriter, op->getLoc(), castTy, input);
-    };
-
     Value argMaxOp;
     if constexpr (std::is_same<AtenOpT, AtenMinDimOp>()) {
       Value negateOp =
           tosa::NegateOp::create(rewriter, op->getLoc(), selfType, self);
-      Value argInput = ensureF32Input(negateOp);
+      Value argInput =
+          tosa::ensureF32Input(rewriter, op.getOperation(), negateOp);
 
       // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
       argMaxOp = tosa::ArgMaxOp::create(
@@ -4726,7 +4709,7 @@ public:
           tosa::NanPropagationModeAttr::get(
               rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE));
     } else {
-      Value argInput = ensureF32Input(self);
+      Value argInput = tosa::ensureF32Input(rewriter, op.getOperation(), self);
       // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
       argMaxOp = tosa::ArgMaxOp::create(
           rewriter, op->getLoc(),

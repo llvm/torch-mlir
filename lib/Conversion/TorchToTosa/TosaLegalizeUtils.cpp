@@ -381,6 +381,15 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
   return tosa::CastOp::create(rewriter, op->getLoc(), castedSrcType, src);
 }
 
+Value ensureF32Input(PatternRewriter &rewriter, Operation *op, Value input) {
+  auto inputTy = cast<RankedTensorType>(input.getType());
+  if (inputTy.getElementType().isF32())
+    return input;
+  auto castTy =
+      RankedTensorType::get(inputTy.getShape(), rewriter.getF32Type());
+  return tosa::CastOp::create(rewriter, op->getLoc(), castTy, input);
+}
+
 // Template instantiation
 template std::optional<Value>
 getConstTensor<bool>(PatternRewriter &, Operation *, ArrayRef<bool> vec,

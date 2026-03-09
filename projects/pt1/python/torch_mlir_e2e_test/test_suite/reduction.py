@@ -1642,6 +1642,29 @@ def ArgmaxModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ArgmaxBFloat16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bfloat16, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.argmax(a)
+
+
+@register_test_case(module_factory=lambda: ArgmaxBFloat16Module())
+def ArgmaxBFloat16Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4).to(torch.bfloat16))
+
+
+# ==============================================================================
+
+
 class ArgmaxKeepdimModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
