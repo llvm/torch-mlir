@@ -7147,3 +7147,49 @@ class AtenAsStridedUnknownSizeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenAsStridedUnknownSizeModule())
 def AtenAsStridedUnknownSizeModule_basic(module, tu: TestUtils):
     module.forward(torch.randn(12, 13))
+
+
+# ==============================================================================
+
+
+class BitwiseOrScalarIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 6], torch.int64, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.bitwise_or(x, 3)
+
+
+@register_test_case(module_factory=lambda: BitwiseOrScalarIntModule())
+def BitwiseOrScalarIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 6, low=-16, high=16))
+
+
+# ==============================================================================
+
+
+class BitwiseXorScalarIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 3], torch.int64, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.bitwise_xor(x, 15)
+
+
+@register_test_case(module_factory=lambda: BitwiseXorScalarIntModule())
+def BitwiseXorScalarIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(5, 3, low=-16, high=16))
