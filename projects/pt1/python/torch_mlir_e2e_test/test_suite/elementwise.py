@@ -4899,6 +4899,33 @@ def ElementwiseBitwiseAndModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseBitwiseAndBoolModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bool, True),
+            ([-1, -1], torch.bool, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.bitwise_and(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseAndBoolModule())
+def ElementwiseBitwiseAndBoolModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=0, high=2).to(torch.bool),
+        tu.randint(3, 4, low=0, high=2).to(torch.bool),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseBitwiseAndStaticShapeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -4947,6 +4974,33 @@ def ElementwiseBitwiseOrModule_basic(module, tu: TestUtils):
     module.forward(
         tu.randint(3, 4, low=-10, high=10).to(torch.int32),
         tu.randint(3, 4, low=-10, high=10),
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseBitwiseOrBoolModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bool, True),
+            ([-1, -1], torch.bool, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.bitwise_or(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseOrBoolModule())
+def ElementwiseBitwiseOrBoolModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=0, high=2).to(torch.bool),
+        tu.randint(3, 4, low=0, high=2).to(torch.bool),
     )
 
 
