@@ -8,14 +8,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
-#include "mlir/Dialect/Tosa/IR/TargetEnv.h" // from @llvm-project
-#include "mlir/Dialect/Tosa/IR/TosaOps.h"   // from @llvm-project
+#include "mlir/Dialect/Tosa/IR/TosaOps.h" // from @llvm-project
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
 #include "mlir/Dialect/Tosa/Utils/QuantUtils.h" // from @llvm-project
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/STLExtras.h"
 
 namespace mlir {
 namespace tosa {
@@ -386,12 +384,6 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
 Value ensureF32Input(PatternRewriter &rewriter, Operation *op, Value input) {
   auto inputTy = cast<RankedTensorType>(input.getType());
   auto elemTy = inputTy.getElementType();
-  if (elemTy.isBF16()) {
-    auto targetEnv = tosa::lookupTargetEnvOrDefault(op);
-    if (llvm::is_contained(targetEnv.getExtensions(), tosa::Extension::bf16)) {
-      return input;
-    }
-  }
   if (!(elemTy.isInteger(32) || elemTy.isInteger(64)))
     return input;
   auto castTy =
