@@ -119,6 +119,9 @@ FailureOr<Value> getZeroPointValue(PatternRewriter &rewriter, Operation *op,
 // Check if a shaped type has any dimension with size 0.
 bool typeHasZeroDim(ShapedType type);
 
+// Check if a type is i1 or a shaped type with i1 element type.
+bool isI1Type(Type type);
+
 } // namespace tosa
 } // namespace mlir
 

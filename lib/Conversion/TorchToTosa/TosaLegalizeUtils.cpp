@@ -585,5 +585,13 @@ bool typeHasZeroDim(ShapedType type) {
   return llvm::any_of(outShape, [](int64_t dim) { return dim == 0; });
 }
 
+bool isI1Type(Type type) {
+  if (auto shapedTy = dyn_cast<ShapedType>(type))
+    type = shapedTy.getElementType();
+  if (auto intTy = dyn_cast<IntegerType>(type))
+    return intTy.getWidth() == 1;
+  return false;
+}
+
 } // namespace tosa
 } // namespace mlir

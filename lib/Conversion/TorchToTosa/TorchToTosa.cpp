@@ -749,9 +749,7 @@ public:
             op.getType()));
     if (isBitwiseOp) {
       // TOSA bitwise ops do not support i1. Use logical ops for bool tensors.
-      auto resultElemTy = resultTy.getElementType();
-      if (auto intTy = dyn_cast<IntegerType>(resultElemTy);
-          intTy && intTy.getWidth() == 1) {
+      if (tosa::isI1Type(resultTy)) {
         auto lhsBool =
             tosa::tosaCastTensorToType(rewriter, lhs, resultTy).value();
         auto rhsBool =
