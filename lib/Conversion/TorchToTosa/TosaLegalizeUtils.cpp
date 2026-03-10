@@ -381,6 +381,25 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
   return tosa::CastOp::create(rewriter, op->getLoc(), castedSrcType, src);
 }
 
+Value createGatherOpAndCastI1(PatternRewriter &rewriter, Location loc,
+                              RankedTensorType resultType, Value input,
+                              Value indices) {
+  if (tosa::isI1Type(resultType)) {
+    auto i8Ty = rewriter.getI8Type();
+    auto inputTy = cast<RankedTensorType>(input.getType());
+    auto inputI8Ty = inputTy.clone(i8Ty);
+    auto inputI8 =
+        tosa::tosaCastTensorToType(rewriter, input, inputI8Ty).value();
+    auto gatherI8Ty = resultType.clone(i8Ty);
+    auto gatheredI8 =
+        tosa::GatherOp::create(rewriter, loc, gatherI8Ty, inputI8, indices);
+    return tosa::tosaCastTensorToType(rewriter, gatheredI8, resultType).value();
+  }
+
+  return tosa::GatherOp::create(rewriter, loc, resultType, input, indices)
+      .getResult();
+}
+
 // Template instantiation
 template std::optional<Value>
 getConstTensor<bool>(PatternRewriter &, Operation *, ArrayRef<bool> vec,
@@ -583,6 +602,14 @@ FailureOr<Value> getZeroPointValue(PatternRewriter &rewriter, Operation *op,
 bool typeHasZeroDim(ShapedType type) {
   auto outShape = type.getShape();
   return llvm::any_of(outShape, [](int64_t dim) { return dim == 0; });
+}
+
+bool isI1Type(Type type) {
+  if (auto shapedTy = dyn_cast<ShapedType>(type))
+    type = shapedTy.getElementType();
+  if (auto intTy = dyn_cast<IntegerType>(type))
+    return intTy.getWidth() == 1;
+  return false;
 }
 
 } // namespace tosa

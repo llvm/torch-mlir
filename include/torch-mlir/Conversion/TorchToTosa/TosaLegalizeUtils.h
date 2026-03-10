@@ -64,6 +64,11 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
 std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
                                           TensorType destType);
 
+// Create a tosa.gather op, casting i1 inputs to i8 if needed.
+Value createGatherOpAndCastI1(PatternRewriter &rewriter, Location loc,
+                              RankedTensorType resultType, Value input,
+                              Value indices);
+
 // Creates a TOSA operation and performs shape inference on the individual
 // op. This allows shape inference during the framework to TOSA lowering.
 template <typename TosaOp, typename... Args>
@@ -118,6 +123,9 @@ FailureOr<Value> getZeroPointValue(PatternRewriter &rewriter, Operation *op,
 
 // Check if a shaped type has any dimension with size 0.
 bool typeHasZeroDim(ShapedType type);
+
+// Check if a type is i1 or a shaped type with i1 element type.
+bool isI1Type(Type type);
 
 } // namespace tosa
 } // namespace mlir

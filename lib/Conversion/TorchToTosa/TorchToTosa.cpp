@@ -4548,27 +4548,8 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewriteImpl(
   auto gatherElemTy = weightType.getElementType();
   auto gatherTy = RankedTensorType::get(
       makeShapeLLVMCompatible(intermediateOutShape), gatherElemTy);
-  Value gatherResult;
-  if (auto intTy = dyn_cast<IntegerType>(gatherElemTy);
-      intTy && intTy.getWidth() == 1) {
-    auto i8Ty = rewriter.getI8Type();
-    auto reshapedWeightI8 =
-        tosa::tosaCastTensorToType(
-            rewriter, reshapedWeight,
-            RankedTensorType::get(makeShapeLLVMCompatible(newWeightShape),
-                                  i8Ty))
-            .value();
-    auto gatherTyI8 = RankedTensorType::get(
-        makeShapeLLVMCompatible(intermediateOutShape), i8Ty);
-    auto gatheredI8 = tosa::GatherOp::create(rewriter, op->getLoc(), gatherTyI8,
-                                             reshapedWeightI8, castIndices);
-    gatherResult =
-        tosa::tosaCastTensorToType(rewriter, gatheredI8, gatherTy).value();
-  } else {
-    gatherResult = tosa::GatherOp::create(rewriter, op->getLoc(), gatherTy,
-                                          reshapedWeight, castIndices)
-                       .getResult();
-  }
+  Value gatherResult = tosa::createGatherOpAndCastI1(
+      rewriter, op->getLoc(), gatherTy, reshapedWeight, castIndices);
 
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
       op, outType, gatherResult,
@@ -4887,24 +4868,8 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewriteImpl(
   // Duplicate the 1-D index vector across the batch dimension so that we can
   // use a single tosa.gather to materialize the strided slice.
   auto gatherTy = RankedTensorType::get({N, W, C}, elemTy);
-  Value gathered;
-  if (auto intTy = dyn_cast<IntegerType>(elemTy);
-      intTy && intTy.getWidth() == 1) {
-    auto i8Ty = rewriter.getI8Type();
-    auto reshapedI8 =
-        tosa::tosaCastTensorToType(
-            rewriter, reshaped,
-            RankedTensorType::get(makeShapeLLVMCompatible(nkcShape), i8Ty))
-            .value();
-    auto gatherTyI8 = RankedTensorType::get({N, W, C}, i8Ty);
-    auto gatheredI8 =
-        tosa::GatherOp::create(rewriter, loc, gatherTyI8, reshapedI8, idxNW);
-    gathered =
-        tosa::tosaCastTensorToType(rewriter, gatheredI8, gatherTy).value();
-  } else {
-    gathered = tosa::GatherOp::create(rewriter, loc, gatherTy, reshaped, idxNW)
-                   .getResult();
-  }
+  Value gathered =
+      tosa::createGatherOpAndCastI1(rewriter, loc, gatherTy, reshaped, idxNW);
 
   SmallVector<int64_t> outShape = inputShape;
   outShape[dim] = W;
