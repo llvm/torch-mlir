@@ -1076,21 +1076,22 @@ func.func @torch.aten.max.dim$basic(%arg0: tensor<3x2x3xf32>) -> tensor<3x2x1xf3
 
 // -----
 
-// CHECK-LABEL:   func.func @torch.aten.argmax$bf16(
-// CHECK-SAME:                                        %[[VAL_0:.*]]: tensor<3x2x3xbf16>) -> tensor<3x2xi64> {
-// CHECK:           %[[VAL_1:.*]] = torch_c.from_builtin_tensor %[[VAL_0]] : tensor<3x2x3xbf16> -> !torch.vtensor<[3,2,3],bf16>
-// CHECK:           %[[VAL_2:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[3,2,3],bf16> -> tensor<3x2x3xbf16>
+// CHECK-LABEL:   func.func @torch.aten.argmax$int32(
+// CHECK-SAME:                                        %[[VAL_0:.*]]: tensor<3x2x3xi32>) -> tensor<3x2xi64> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.from_builtin_tensor %[[VAL_0]] : tensor<3x2x3xi32> -> !torch.vtensor<[3,2,3],si32>
+// CHECK:           %[[VAL_2:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[3,2,3],si32> -> tensor<3x2x3xi32>
 // CHECK:           %[[VAL_3:.*]] = torch.constant.bool false
 // CHECK:           %[[VAL_4:.*]] = torch.constant.int 2
-// CHECK:           %[[VAL_5:.*]] = tosa.argmax %[[VAL_2]] {axis = 2 : i32} : (tensor<3x2x3xbf16>) -> tensor<3x2xi32>
-// CHECK:           %[[VAL_6:.*]] = arith.extsi %[[VAL_5]] : tensor<3x2xi32> to tensor<3x2xi64>
+// CHECK:           %[[VAL_5:.*]] = tosa.cast %[[VAL_2]] : (tensor<3x2x3xi32>) -> tensor<3x2x3xf32>
+// CHECK:           %[[VAL_6:.*]] = tosa.argmax %[[VAL_5]] {axis = 2 : i32} : (tensor<3x2x3xf32>) -> tensor<3x2xi32>
+// CHECK:           %[[VAL_7:.*]] = arith.extsi %[[VAL_6]] : tensor<3x2xi32> to tensor<3x2xi64>
 // CHECK:           return %{{.*}} : tensor<3x2xi64>
 // CHECK:         }
-func.func @torch.aten.argmax$bf16(%arg0: tensor<3x2x3xbf16>) -> tensor<3x2xi64> {
-  %0 = torch_c.from_builtin_tensor %arg0 : tensor<3x2x3xbf16> -> !torch.vtensor<[3,2,3],bf16>
+func.func @torch.aten.argmax$int32(%arg0: tensor<3x2x3xi32>) -> tensor<3x2xi64> {
+  %0 = torch_c.from_builtin_tensor %arg0 : tensor<3x2x3xi32> -> !torch.vtensor<[3,2,3],si32>
   %false = torch.constant.bool false
   %int2 = torch.constant.int 2
-  %1 = torch.aten.argmax %0, %int2, %false : !torch.vtensor<[3,2,3],bf16>, !torch.int, !torch.bool -> !torch.vtensor<[3,2],si64>
+  %1 = torch.aten.argmax %0, %int2, %false : !torch.vtensor<[3,2,3],si32>, !torch.int, !torch.bool -> !torch.vtensor<[3,2],si64>
   %2 = torch_c.to_builtin_tensor %1 : !torch.vtensor<[3,2],si64> -> tensor<3x2xi64>
   return %2 : tensor<3x2xi64>
 }
