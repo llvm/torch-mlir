@@ -3270,6 +3270,20 @@ func.func @aten_cat_zero(%arg0 : !torch.vtensor<[4,5,6],f32>, %arg1 : !torch.vte
 
 // -----
 
+// Per PyTorch docs, torch.cat allows "a 1-D empty tensor with size (0,)"
+// alongside operands of any rank. Filter it out since it contributes nothing.
+// This pattern arises from HuggingFace DynamicCache (torch.tensor([], dtype=f16)).
+// CHECK-LABEL: @aten_cat_rank1_empty
+func.func @aten_cat_rank1_empty(%arg0 : !torch.vtensor<[1,8,?,128],f16>, %arg1 : !torch.vtensor<[0],f16>) -> !torch.vtensor<[1,8,?,128],f16> {
+  // CHECK: return %arg0 : !torch.vtensor<[1,8,?,128],f16>
+  %list = torch.prim.ListConstruct %arg1, %arg0 : (!torch.vtensor<[0],f16>, !torch.vtensor<[1,8,?,128],f16>) -> !torch.list<vtensor>
+  %dim = torch.constant.int -2
+  %0 = torch.aten.cat %list, %dim : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,8,?,128],f16>
+  return %0 : !torch.vtensor<[1,8,?,128],f16>
+}
+
+// -----
+
 // CHECK-LABEL: @aten_tensor_scalar_lt
 func.func @aten_tensor_scalar_lt() -> (!torch.vtensor<[4],i1>, !torch.vtensor<[4],i1>) {
   // CHECK: %[[CST:.+]] = torch.vtensor.literal(dense<true> : tensor<4xi1>) : !torch.vtensor<[4],i1>
