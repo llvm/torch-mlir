@@ -87,6 +87,15 @@ torch_mlir_configure(
 ####### Buildifier Deps
 # https://github.com/bazelbuild/buildtools/blob/master/buildifier/README.md
 
+http_archive(
+    name = "rules_proto",
+    sha256 = "14a225870ab4e91869652cfd69ef2028277fc1dc4910d65d353b62d6e0ae21f4",
+    strip_prefix = "rules_proto-7.1.0",
+    urls = [
+        "https://github.com/bazelbuild/rules_proto/archive/refs/tags/7.1.0.tar.gz",
+    ],
+)
+
 # buildifier is written in Go and hence needs rules_go to be built.
 # See https://github.com/bazelbuild/rules_go for the up to date setup instructions.
 http_archive(
