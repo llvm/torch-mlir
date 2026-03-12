@@ -4258,7 +4258,16 @@ void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       auto operandTy = dyn_cast<BaseTensorType>(operand.getType());
       if (!operandTy || !operandTy.hasSizes())
         return failure();
-      int64_t adim = dim < 0 ? dim + operandTy.getSizes().size() : dim;
+
+      // Per PyTorch docs, torch.cat operands must either have the same
+      // shape (except in the concatenating dimension) "or be a 1-D empty
+      // tensor with size (0,)". Such tensors contribute zero elements
+      // and can be safely removed.
+      auto sizes = operandTy.getSizes();
+      if (sizes.size() == 1 && sizes[0] == 0)
+        continue;
+
+      int64_t adim = dim < 0 ? dim + sizes.size() : dim;
       if (operandTy.getSizes()[adim] != 0)
         filtered.push_back(operand);
     }
