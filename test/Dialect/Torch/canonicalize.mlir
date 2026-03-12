@@ -2412,6 +2412,16 @@ func.func @torch.aten.sub.Scalar$canonicalize_literal_0d() -> !torch.vtensor<[],
     return %2 : !torch.vtensor<[],si64>
 }
 
+// CHECK-LABEL:   func.func @torch.aten.add.float$fold() -> !torch.float {
+// CHECK:             %[[FLOAT_3:.*]] = torch.constant.float 3.000000e+00
+// CHECK:             return %[[FLOAT_3]] : !torch.float
+func.func @torch.aten.add.float$fold() -> !torch.float {
+    %float1 = torch.constant.float 1.0
+    %float2 = torch.constant.float 2.0
+    %0 = torch.aten.add.float %float1, %float2 : !torch.float, !torch.float -> !torch.float
+    return %0 : !torch.float
+}
+
 // CHECK-LABEL:   func.func @torch.aten.sub.float$fold() -> !torch.float {
 // CHECK:             %[[FLOAT_1:.*]] = torch.constant.float -1.000000e+00
 // CHECK:             return %[[FLOAT_1]] : !torch.float
