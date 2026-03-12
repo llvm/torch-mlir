@@ -1319,6 +1319,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("prims::split_dim : (Tensor, int, int) -> (Tensor)")
     emit("prims::squeeze : (Tensor, int[]) -> (Tensor)")
     emit("prims::sum : (Tensor, int[]?, int?) -> (Tensor)")
+    emit("prims::xor_sum : (Tensor, int[]?, int?) -> (Tensor)")
     emit("prims::view_of : (Tensor) -> (Tensor)", has_folder=True)
     emit("prims::iota : (int, int, int, int, Device, bool) -> (Tensor)")
 
