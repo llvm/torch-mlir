@@ -424,12 +424,14 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
   // tensor<1x8x1xf32>
   auto gatherTy = GetTypeFromTensorShape(tosaGatherResultShape,
                                          resultType.getElementType());
-  Value gatherResult = tosa::createGatherOp(rewriter, op->getLoc(), gatherTy,
-                                            tosaValuesReshapeOp.getResult(),
-                                            tosaIndicesReshapeOp.getResult());
+  auto gatherResult = tosa::createGatherOp(rewriter, op->getLoc(), gatherTy,
+                                           tosaValuesReshapeOp.getResult(),
+                                           tosaIndicesReshapeOp.getResult());
+  if (!gatherResult)
+    return std::nullopt;
 
   return tosa::CreateOpAndInfer<tosa::ReshapeOp>(
-             rewriter, op->getLoc(), resultType, gatherResult,
+             rewriter, op->getLoc(), resultType, *gatherResult,
              tosa::getTosaConstShape(rewriter, op->getLoc(),
                                      resultType.getShape()))
       .getResult();

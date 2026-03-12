@@ -383,11 +383,14 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
 }
 
 // Create a tosa.gather op. Casts i1 inputs to i8 internally if needed.
-Value createGatherOp(PatternRewriter &rewriter, Location loc,
-                     RankedTensorType resultType, Value input, Value indices) {
+std::optional<Value> createGatherOp(PatternRewriter &rewriter, Location loc,
+                                    RankedTensorType resultType, Value input,
+                                    Value indices) {
   if (tosa::isI1Type(resultType)) {
     auto i8Ty = rewriter.getI8Type();
-    auto inputTy = cast<RankedTensorType>(input.getType());
+    auto inputTy = dyn_cast<RankedTensorType>(input.getType());
+    if (!inputTy)
+      return std::nullopt;
     auto inputI8Ty = inputTy.clone(i8Ty);
     auto inputI8 =
         tosa::tosaCastTensorToType(rewriter, input, inputI8Ty).value();
