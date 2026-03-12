@@ -64,10 +64,9 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
 std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
                                           TensorType destType);
 
-// Create a tosa.gather op, casting i1 inputs to i8 if needed.
-Value createGatherOpAndCastI1(PatternRewriter &rewriter, Location loc,
-                              RankedTensorType resultType, Value input,
-                              Value indices);
+// Create a tosa.gather op. Casts i1 inputs to i8 internally if needed.
+Value createGatherOp(PatternRewriter &rewriter, Location loc,
+                     RankedTensorType resultType, Value input, Value indices);
 
 // Creates a TOSA operation and performs shape inference on the individual
 // op. This allows shape inference during the framework to TOSA lowering.

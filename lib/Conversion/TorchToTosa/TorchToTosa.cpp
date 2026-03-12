@@ -4548,8 +4548,8 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewriteImpl(
   auto gatherElemTy = weightType.getElementType();
   auto gatherTy = RankedTensorType::get(
       makeShapeLLVMCompatible(intermediateOutShape), gatherElemTy);
-  Value gatherResult = tosa::createGatherOpAndCastI1(
-      rewriter, op->getLoc(), gatherTy, reshapedWeight, castIndices);
+  Value gatherResult = tosa::createGatherOp(rewriter, op->getLoc(), gatherTy,
+                                            reshapedWeight, castIndices);
 
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
       op, outType, gatherResult,
@@ -4869,7 +4869,7 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewriteImpl(
   // use a single tosa.gather to materialize the strided slice.
   auto gatherTy = RankedTensorType::get({N, W, C}, elemTy);
   Value gathered =
-      tosa::createGatherOpAndCastI1(rewriter, loc, gatherTy, reshaped, idxNW);
+      tosa::createGatherOp(rewriter, loc, gatherTy, reshaped, idxNW);
 
   SmallVector<int64_t> outShape = inputShape;
   outShape[dim] = W;

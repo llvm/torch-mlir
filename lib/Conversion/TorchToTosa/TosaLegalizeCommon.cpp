@@ -420,37 +420,11 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
   // Now the gather op itself
   // %9 = "tosa.gather"(%2, %7) : (tensor<1x12x1xf32>, tensor<1x8xi32>) ->
   // tensor<1x8x1xf32>
-  auto resultElemTy = resultType.getElementType();
-  Value valuesForGather = tosaValuesReshapeOp.getResult();
-  Type gatherElemTy = resultElemTy;
-  if (auto intTy = dyn_cast<IntegerType>(resultElemTy);
-      intTy && intTy.getWidth() == 1) {
-    auto i8Ty = rewriter.getI8Type();
-    valuesForGather = tosa::tosaCastTensorToType(
-                          rewriter, valuesForGather,
-                          GetTypeFromTensorShape(tosaValuesShape, i8Ty))
-                          .value();
-    gatherElemTy = i8Ty;
-  }
-
-  auto tosaGatherOp = tosa::CreateOpAndInfer<tosa::GatherOp>(
-      rewriter, op->getLoc(),
-      GetTypeFromTensorShape(tosaGatherResultShape, gatherElemTy),
-      valuesForGather, tosaIndicesReshapeOp.getResult());
-
-  // Finally, reshape back to the original output shape of [Indices,
-  // ParamChannels]. %10 = "tosa.reshape"(%9) {new_shape = [1, 4, 2]} :
-  // (tensor<1x8x1xf32>) -> tensor<1x4x2xf32> %11 = torch_c.from_builtin_tensor
-  // %10 : tensor<1x4x2xf32> -> !torch.vtensor<[1,4,2],f32>
-  Value gatherResult = tosaGatherOp.getResult();
-  if (auto intTy = dyn_cast<IntegerType>(resultElemTy);
-      intTy && intTy.getWidth() == 1) {
-    gatherResult =
-        tosa::tosaCastTensorToType(
-            rewriter, gatherResult,
-            GetTypeFromTensorShape(tosaGatherResultShape, resultElemTy))
-            .value();
-  }
+  auto gatherTy = GetTypeFromTensorShape(tosaGatherResultShape,
+                                         resultType.getElementType());
+  Value gatherResult = tosa::createGatherOp(rewriter, op->getLoc(), gatherTy,
+                                            tosaValuesReshapeOp.getResult(),
+                                            tosaIndicesReshapeOp.getResult());
 
   return tosa::CreateOpAndInfer<tosa::ReshapeOp>(
              rewriter, op->getLoc(), resultType, gatherResult,
