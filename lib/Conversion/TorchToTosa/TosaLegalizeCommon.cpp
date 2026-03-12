@@ -10,8 +10,10 @@
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h" // from @llvm-project
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
+#include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 #include <cstdint>
 #include <iterator>
@@ -1273,6 +1275,65 @@ std::optional<Value> createRoundHalfToEven(ConversionPatternRewriter &rewriter,
       floorInput.getResult(), ceilInput.getResult());
 
   return selectOp.getResult();
+}
+
+Value convertResizeOp(ConversionPatternRewriter &rewriter, Operation *op,
+                      const TypeConverter *typeConverter, Value input,
+                      RankedTensorType inputTy, RankedTensorType resultTy,
+                      int64_t outputHeight, int64_t outputWidth,
+                      bool alignCorners, tosa::ResizeMode mode) {
+  auto inputShape = inputTy.getShape();
+  auto inputElemTy = inputTy.getElementType();
+
+  // TOSA works in NHWC. Perform the necessary transformations.
+  SmallVector<int32_t> nchwToNhwcDims({0, 2, 3, 1});
+  SmallVector<int64_t> transposedInputShape(
+      {inputShape[0], inputShape[2], inputShape[3], inputShape[1]});
+  auto transposedInputTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(transposedInputShape), inputElemTy);
+  auto transposedInput =
+      tosa::TransposeOp::create(
+          rewriter, op->getLoc(), typeConverter->convertType(transposedInputTy),
+          input, rewriter.getDenseI32ArrayAttr(nchwToNhwcDims))
+          .getResult();
+
+  int inputHeight = transposedInputShape[1];
+  int inputWidth = transposedInputShape[2];
+
+  SmallVector<int64_t> transposedResizedOpShape(
+      {inputShape[0], outputHeight, outputWidth, inputShape[1]});
+  auto transposedResizedOpTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(transposedResizedOpShape), inputElemTy);
+
+  // Formatting snake_case to match TOSA spec names for readability
+  int scale_y_n, scale_y_d, offset_y, border_y;
+  int scale_x_n, scale_x_d, offset_x, border_x;
+
+  computeResizeParams(inputHeight, outputHeight, alignCorners, mode, scale_y_n,
+                      scale_y_d, offset_y, border_y);
+  computeResizeParams(inputWidth, outputWidth, alignCorners, mode, scale_x_n,
+                      scale_x_d, offset_x, border_x);
+
+  auto scale = tosa::getTosaConstShape(
+      rewriter, op->getLoc(), {scale_y_n, scale_y_d, scale_x_n, scale_x_d});
+  auto offset =
+      tosa::getTosaConstShape(rewriter, op->getLoc(), {offset_y, offset_x});
+  auto border =
+      tosa::getTosaConstShape(rewriter, op->getLoc(), {border_y, border_x});
+
+  auto modeAttr = tosa::ResizeModeAttr::get(rewriter.getContext(), mode);
+
+  auto resizeOpResult =
+      tosa::ResizeOp::create(rewriter, op->getLoc(), transposedResizedOpTy,
+                             transposedInput, scale, offset, border, modeAttr)
+          .getResult();
+
+  SmallVector<int32_t> nhwcToNchwDims({0, 3, 1, 2});
+  auto transposedResizedOp = tosa::TransposeOp::create(
+      rewriter, op->getLoc(), typeConverter->convertType(resultTy),
+      resizeOpResult, rewriter.getDenseI32ArrayAttr(nhwcToNchwDims));
+
+  return transposedResizedOp.getResult();
 }
 
 } // namespace tosa

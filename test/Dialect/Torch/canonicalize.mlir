@@ -1850,6 +1850,116 @@ func.func @torch.aten.to.dtype$fold_splat() -> (!torch.vtensor<[2,3],f32>, !torc
 		: !torch.vtensor<[2,3],f32>, !torch.vtensor<[4,4],si32>, !torch.vtensor<[10],si32>, !torch.vtensor<[5,5],f64>, !torch.vtensor<[3,3],f16>, !torch.vtensor<[2,2],bf16>, !torch.vtensor<[4],si64>, !torch.vtensor<[3],si16>, !torch.vtensor<[2],i1>, !torch.vtensor<[2],i1>
 }
 
+// CHECK-LABEL:   @torch.aten.to.dtype$fold_small_dense(
+func.func @torch.aten.to.dtype$fold_small_dense() -> (!torch.vtensor<[2,3],f32>, !torch.vtensor<[4,4],si32>, !torch.vtensor<[10],si32>, !torch.vtensor<[2,2],f64>, !torch.vtensor<[3,3],f16>, !torch.vtensor<[2,2],bf16>, !torch.vtensor<[4],si64>, !torch.vtensor<[3],si16>, !torch.vtensor<[2],i1>, !torch.vtensor<[2],i1>) {
+    // CHECK-NOT: torch.aten.to.dtype
+	%false = torch.constant.bool false
+	%none  = torch.constant.none
+
+	// int32 → float32
+	%int_splat = torch.vtensor.literal(dense<[[42, 43, 45], [52, 53, 55]]> : tensor<2x3xsi32>) : !torch.vtensor<[2,3],si32>
+	%int6 = torch.constant.int 6 // torch.float32
+	// CHECK: %[[R1:.*]] = torch.vtensor.literal(dense<[
+    //    [4.200000e+01, 4.300000e+01, 4.500000e+01],
+    //    [5.200000e+01, 5.300000e+01, 5.500000e+01]
+    //  ]> : tensor<2x3xf32>) : !torch.vtensor<[2,3],f32>
+	%result1 = torch.aten.to.dtype %int_splat, %int6, %false, %false, %none
+						: !torch.vtensor<[2,3],si32>, !torch.int, !torch.bool, !torch.bool, !torch.none
+						-> !torch.vtensor<[2,3],f32>
+
+	// float32 → int32 (rmTowardZero)
+	%float_splat = torch.vtensor.literal(dense<[
+    [3.14159, -2.71828, 1.6, -1.6],
+    [-0.99999, 0.00001, 123.456, -123.456],
+    [1.5, -2.5, -3.5, 4.5],
+    [0.0, -0.0, 0.00000001, -0.000000001]
+  ]> : tensor<4x4xf32>) : !torch.vtensor<[4,4],f32>
+	%int3 = torch.constant.int 3 // torch.int32
+	// CHECK: %[[R2:.*]] = torch.vtensor.literal(dense<[
+    //   [3, -2, 1, -1],
+    //   [0, 0, 123, -123],
+    //   [1, -2, -3, 4],
+    //   [0, 0, 0, 0]
+  // ]> : tensor<4x4xsi32>) : !torch.vtensor<[4,4],si32>
+	%result2 = torch.aten.to.dtype %float_splat, %int3, %false, %false, %none
+						: !torch.vtensor<[4,4],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none
+						-> !torch.vtensor<[4,4],si32>
+
+	// int64 (max int32 + 1) → int32 (trunc)
+	%int64_splat = torch.vtensor.literal(dense<[2147483648, 2147483648, 2147483648, 2147483648, 2147483648, 2147483648, 2147483648, 2147483648, 2147483648, 2147483647]> : tensor<10xsi64>) : !torch.vtensor<[10],si64>
+	// CHECK: %[[R3:.*]] = torch.vtensor.literal(dense<[-2147483648, -2147483648, -2147483648, -2147483648, -2147483648, -2147483648, -2147483648, -2147483648, -2147483648, 2147483647]> : tensor<10xsi32>) : !torch.vtensor<[10],si32>
+	%result3 = torch.aten.to.dtype %int64_splat, %int3, %false, %false, %none
+						: !torch.vtensor<[10],si64>, !torch.int, !torch.bool, !torch.bool, !torch.none
+						-> !torch.vtensor<[10],si32>
+
+	// float32 → float64
+	%float32_splat = torch.vtensor.literal(dense<[[2.71828, 1.234567], [-6.2831852, 2.0]]> : tensor<2x2xf32>) : !torch.vtensor<[2,2],f32>
+	%int7 = torch.constant.int 7 // torch.float64
+	// CHECK: %[[R4:.*]] = torch.vtensor.literal(dense<[
+    //   [2.7182800769805908, 1.2345670461654663], [-6.2831852436065674, 2.0000000000000000]
+    // ]> : tensor<2x2xf64>) : !torch.vtensor<[2,2],f64>
+	%result4 = torch.aten.to.dtype %float32_splat, %int7, %false, %false, %none
+						: !torch.vtensor<[2,2],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none
+						-> !torch.vtensor<[2,2],f64>
+
+	// float64 → float16
+	%float64_splat = torch.vtensor.literal(dense<[[1.2, 2.3, 3.4], [4.5, 5.6, 6.7], [7.8, 8.9, 9.0]]> : tensor<3x3xf64>) : !torch.vtensor<[3,3],f64>
+	%int5 = torch.constant.int 5 // torch.float16
+	// CHECK: %[[R5:.*]] = torch.vtensor.literal(dense<[
+    //   [1.200200e+00, 2.300000e+00, 3.400000e+00],
+    //   [4.500000e+00, 5.600000e+00, 6.700000e+00],
+    //   [7.800000e+00, 8.900000e+00, 9.000000e+00]
+    // ]> : tensor<3x3xf16>) : !torch.vtensor<[3,3],f16>
+	%result5 = torch.aten.to.dtype %float64_splat, %int5, %false, %false, %none
+						: !torch.vtensor<[3,3],f64>, !torch.int, !torch.bool, !torch.bool, !torch.none
+						-> !torch.vtensor<[3,3],f16>
+
+	// float32 → bfloat16
+	%float32_bf16 = torch.vtensor.literal(dense<[[-0.51, 0.49], [0.15, -0.85]]> : tensor<2x2xf32>) : !torch.vtensor<[2,2],f32>
+	%int15 = torch.constant.int 15 // torch.bfloat16
+	// CHECK: %[[R6:.*]] = torch.vtensor.literal(dense<[
+    //   [-5.117190e-01, 4.882812e-01],
+    //   [1.500000e-01, -8.500000e-01]
+    // ]> : tensor<2x2xbf16>) : !torch.vtensor<[2,2],bf16>
+	%result6 = torch.aten.to.dtype %float32_bf16, %int15, %false, %false, %none
+						: !torch.vtensor<[2,2],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none
+						-> !torch.vtensor<[2,2],bf16>
+
+	// int32 → int64 (sign-extend)
+	%int32_ext = torch.vtensor.literal(dense<[-1000, -2000, -3000, -5000]> : tensor<4xsi32>) : !torch.vtensor<[4],si32>
+	%int4 = torch.constant.int 4 // torch.int64
+	// CHECK: %[[R7:.*]] = torch.vtensor.literal(dense<[-1000, -2000, -3000, -5000]> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+	%result7 = torch.aten.to.dtype %int32_ext, %int4, %false, %false, %none
+						: !torch.vtensor<[4],si32>, !torch.int, !torch.bool, !torch.bool, !torch.none
+						-> !torch.vtensor<[4],si64>
+
+	// int32 → int16 (trunc)
+	%int32_trunc = torch.vtensor.literal(dense<[32768, 32769, 32770]> : tensor<3xsi32>) : !torch.vtensor<[3],si32>
+	%int2 = torch.constant.int 2 // torch.int16
+	// CHECK: %[[R8:.*]] = torch.vtensor.literal(dense<[-32768, -32767, -32766]> : tensor<3xsi16>) : !torch.vtensor<[3],si16>
+	%result8 = torch.aten.to.dtype %int32_trunc, %int2, %false, %false, %none
+						: !torch.vtensor<[3],si32>, !torch.int, !torch.bool, !torch.bool, !torch.none
+						-> !torch.vtensor<[3],si16>
+
+  // int32 → bool (i1), non-zero
+  %int40_splat = torch.vtensor.literal(dense<[40, 100]> : tensor<2xsi32>) : !torch.vtensor<[2],si32>
+  %int11 = torch.constant.int 11 // torch.bool
+  // CHECK: %[[R9:.*]] = torch.vtensor.literal(dense<true> : tensor<2xi1>) : !torch.vtensor<[2],i1>
+  %result9 = torch.aten.to.dtype %int40_splat, %int11, %false, %false, %none
+                      : !torch.vtensor<[2],si32>, !torch.int, !torch.bool, !torch.bool, !torch.none
+                      -> !torch.vtensor<[2],i1>
+
+  // float32 → bool (i1), zero
+  %float_zero = torch.vtensor.literal(dense<[0.0, 1.0]> : tensor<2xf32>) : !torch.vtensor<[2],f32>
+  // CHECK: %[[R11:.*]] = torch.vtensor.literal(dense<[false, true]> : tensor<2xi1>) : !torch.vtensor<[2],i1>
+  %result10 = torch.aten.to.dtype %float_zero, %int11, %false, %false, %none
+                      : !torch.vtensor<[2],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none
+                      -> !torch.vtensor<[2],i1>
+
+	return %result1, %result2, %result3, %result4, %result5, %result6, %result7, %result8, %result9, %result10
+		: !torch.vtensor<[2,3],f32>, !torch.vtensor<[4,4],si32>, !torch.vtensor<[10],si32>, !torch.vtensor<[2,2],f64>, !torch.vtensor<[3,3],f16>, !torch.vtensor<[2,2],bf16>, !torch.vtensor<[4],si64>, !torch.vtensor<[3],si16>, !torch.vtensor<[2],i1>, !torch.vtensor<[2],i1>
+}
+
 // CHECK-LABEL: func.func @torch.aten.to.other$basic(
 // CHECK-SAME:                                 %[[ARG_0:.*]]: !torch.tensor, %[[ARG_1:.*]]: !torch.tensor) -> !torch.tensor {
 // CHECK:         %[[NONE:.*]] = torch.constant.none
