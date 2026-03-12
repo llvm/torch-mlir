@@ -759,13 +759,11 @@ public:
           rewriter.replaceOpWithNewOp<tosa::LogicalAndOp>(op, resultTy, lhsBool,
                                                           rhsBool);
           return success();
-        }
-        if constexpr (std::is_same<AtenOpT, AtenBitwiseOrTensorOp>()) {
+        } else if constexpr (std::is_same<AtenOpT, AtenBitwiseOrTensorOp>()) {
           rewriter.replaceOpWithNewOp<tosa::LogicalOrOp>(op, resultTy, lhsBool,
                                                          rhsBool);
           return success();
-        }
-        if constexpr (std::is_same<AtenOpT, AtenBitwiseXorTensorOp>()) {
+        } else if constexpr (std::is_same<AtenOpT, AtenBitwiseXorTensorOp>()) {
           rewriter.replaceOpWithNewOp<tosa::LogicalXorOp>(op, resultTy, lhsBool,
                                                           rhsBool);
           return success();
