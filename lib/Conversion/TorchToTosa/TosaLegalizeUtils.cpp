@@ -384,11 +384,14 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
 Value ensureF32Input(PatternRewriter &rewriter, Operation *op, Value input) {
   auto inputTy = cast<RankedTensorType>(input.getType());
   auto elemTy = inputTy.getElementType();
-  if (!(elemTy.isInteger(32) || elemTy.isInteger(64)))
+  // Keep i8 as-is (supported by TOSA pro_int argmax). Cast other integer
+  // types to f32, including i1 (handled via i1->i8->f32).
+  if (!elemTy.isInteger() || elemTy.isInteger(8))
     return input;
   auto castTy =
       RankedTensorType::get(inputTy.getShape(), rewriter.getF32Type());
-  return tosa::CastOp::create(rewriter, op->getLoc(), castTy, input);
+  auto casted = tosa::tosaCastTensorToType(rewriter, input, castTy);
+  return casted ? *casted : input;
 }
 
 // Template instantiation
