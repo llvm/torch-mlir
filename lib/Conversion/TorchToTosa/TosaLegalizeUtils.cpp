@@ -592,6 +592,7 @@ bool isI1Type(Type type) {
   if (auto intTy = dyn_cast<IntegerType>(type))
     return intTy.getWidth() == 1;
   return false;
+}
 
 void computeResizeParams(int inputSize, int outputSize, bool alignCorners,
                          tosa::ResizeMode mode, int &scaleN, int &scaleD,
