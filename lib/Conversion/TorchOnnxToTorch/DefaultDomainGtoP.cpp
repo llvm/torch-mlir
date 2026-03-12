@@ -2720,9 +2720,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // caused a cast of x, use stashDtype for y and cast back after.
         auto actualYType = yType;
         if (*stashDtype != yType.getOptionalDtype()) {
-          actualYType = cast<Torch::ValueTensorType>(
-              yType.getWithSizesAndDtype(yType.getOptionalSizes(),
-                                         *stashDtype));
+          actualYType = cast<Torch::ValueTensorType>(yType.getWithSizesAndDtype(
+              yType.getOptionalSizes(), *stashDtype));
 
           // Also cast scale and bias to stash_type so all tensor args
           // to native_layer_norm share the same dtype.
@@ -2738,10 +2737,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                 /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
                 /*memory_format=*/none);
           }
-          if (auto bTy =
-                  dyn_cast<Torch::ValueTensorType>(b.getType())) {
-            auto newBTy = bTy.getWithSizesAndDtype(
-                bTy.getOptionalSizes(), *stashDtype);
+          if (auto bTy = dyn_cast<Torch::ValueTensorType>(b.getType())) {
+            auto newBTy =
+                bTy.getWithSizesAndDtype(bTy.getOptionalSizes(), *stashDtype);
             b = Torch::AtenToDtypeOp::create(
                 rewriter, binder.getLoc(), newBTy, b,
                 /*dtype=*/stashDtypeConst,
