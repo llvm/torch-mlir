@@ -381,7 +381,8 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
   return tosa::CastOp::create(rewriter, op->getLoc(), castedSrcType, src);
 }
 
-Value ensureF32Input(PatternRewriter &rewriter, Operation *op, Value input) {
+Value legalizeArgMaxInputType(PatternRewriter &rewriter, Operation *op,
+                              Value input) {
   auto inputTy = cast<RankedTensorType>(input.getType());
   auto elemTy = inputTy.getElementType();
   // Keep i8 as-is (supported by TOSA pro_int argmax). Cast other integer

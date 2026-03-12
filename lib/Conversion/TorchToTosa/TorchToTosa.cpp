@@ -1504,7 +1504,7 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewriteImpl(
   // Create a single instance of tosa.argmax.
   // Multiple dims require chained construct.
   auto buildArgmax = [&](int64_t reduceDim, Value input) -> Value {
-    input = tosa::ensureF32Input(rewriter, op.getOperation(), input);
+    input = tosa::legalizeArgMaxInputType(rewriter, op.getOperation(), input);
     auto inputTy = cast<RankedTensorType>(input.getType());
     auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
     SmallVector<int64_t> outputShapeArr = {};
@@ -4698,7 +4698,7 @@ public:
       Value negateOp =
           tosa::NegateOp::create(rewriter, op->getLoc(), selfType, self);
       Value argInput =
-          tosa::ensureF32Input(rewriter, op.getOperation(), negateOp);
+          tosa::legalizeArgMaxInputType(rewriter, op.getOperation(), negateOp);
 
       // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
       argMaxOp = tosa::ArgMaxOp::create(
@@ -4709,7 +4709,8 @@ public:
           tosa::NanPropagationModeAttr::get(
               rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE));
     } else {
-      Value argInput = tosa::ensureF32Input(rewriter, op.getOperation(), self);
+      Value argInput =
+          tosa::legalizeArgMaxInputType(rewriter, op.getOperation(), self);
       // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
       argMaxOp = tosa::ArgMaxOp::create(
           rewriter, op->getLoc(),
