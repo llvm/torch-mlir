@@ -1013,3 +1013,29 @@ func.func @channel_shuffle(%arg0: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtens
   %0 = torch.aten.channel_shuffle %arg0, %int4 : !torch.vtensor<[1,8,4,4],f32>, !torch.int -> !torch.vtensor<[1,8,4,4],f32>
   return %0 : !torch.vtensor<[1,8,4,4],f32>
 }
+
+
+// -----
+
+// CHECK-LABEL: func.func @foreach_lerp_list_decompose
+// CHECK-SAME:  %[[ARG0:.*]]: !torch.vtensor<[3],f32>, %[[ARG1:.*]]: !torch.vtensor<[3],f32>, %[[ARG2:.*]]: !torch.vtensor<[3],f32>, %[[ARG3:.*]]: !torch.vtensor<[3],f32>, %[[ARG4:.*]]: !torch.vtensor<[3],f32>, %[[ARG5:.*]]: !torch.vtensor<[3],f32>
+// CHECK:   %[[INT1:.*]] = torch.constant.int 1
+// CHECK:   %[[SUB0:.*]] = torch.aten.sub.Tensor %[[ARG2]], %[[ARG0]], %[[INT1]] : !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.int -> !torch.vtensor<[3],f32>
+// CHECK:   %[[MUL0:.*]] = torch.aten.mul.Tensor %[[SUB0]], %[[ARG4]] : !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
+// CHECK:   %[[ADD0:.*]] = torch.aten.add.Tensor %[[ARG0]], %[[MUL0]], %[[INT1]] : !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.int -> !torch.vtensor<[3],f32>
+// CHECK:   %[[SUB1:.*]] = torch.aten.sub.Tensor %[[ARG3]], %[[ARG1]], %[[INT1]] : !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.int -> !torch.vtensor<[3],f32>
+// CHECK:   %[[MUL1:.*]] = torch.aten.mul.Tensor %[[SUB1]], %[[ARG5]] : !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
+// CHECK:   %[[ADD1:.*]] = torch.aten.add.Tensor %[[ARG1]], %[[MUL1]], %[[INT1]] : !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.int -> !torch.vtensor<[3],f32>
+// CHECK:   %[[RESULT:.*]] = torch.prim.ListConstruct %[[ADD0]], %[[ADD1]] : (!torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>) -> !torch.list<vtensor<[3],f32>>
+// CHECK:   return %[[RESULT]] : !torch.list<vtensor<[3],f32>>
+func.func @foreach_lerp_list_decompose(
+    %a0: !torch.vtensor<[3],f32>, %a1: !torch.vtensor<[3],f32>,
+    %b0: !torch.vtensor<[3],f32>, %b1: !torch.vtensor<[3],f32>,
+    %w0: !torch.vtensor<[3],f32>, %w1: !torch.vtensor<[3],f32>
+) -> !torch.list<vtensor<[3],f32>> {
+  %self = torch.prim.ListConstruct %a0, %a1 : (!torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>) -> !torch.list<vtensor<[3],f32>>
+  %tensors1 = torch.prim.ListConstruct %b0, %b1 : (!torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>) -> !torch.list<vtensor<[3],f32>>
+  %weights = torch.prim.ListConstruct %w0, %w1 : (!torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>) -> !torch.list<vtensor<[3],f32>>
+  %0 = torch.aten._foreach_lerp.List %self, %tensors1, %weights : !torch.list<vtensor<[3],f32>>, !torch.list<vtensor<[3],f32>>, !torch.list<vtensor<[3],f32>> -> !torch.list<vtensor<[3],f32>>
+  return %0 : !torch.list<vtensor<[3],f32>>
+}

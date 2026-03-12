@@ -18798,6 +18798,31 @@ def Torch_PrimAbsScalarOp : Torch_Op<"prim.abs.Scalar", [
   }];
 }
 
+def Torch_Aten_ForeachLerpListOp : Torch_Op<"aten._foreach_lerp.List", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_foreach_lerp.List : (Tensor[], Tensor[], Tensor[]) -> (Tensor[])`";
+  let arguments = (ins
+    AnyTorchListOfTensorType:$self,
+    AnyTorchListOfTensorType:$tensors1,
+    AnyTorchListOfTensorType:$weights
+  );
+  let results = (outs
+    AnyTorchListOfTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_ForeachLerpListOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void Aten_ForeachLerpListOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_PrimsConvertElementTypeOp : Torch_Op<"prims.convert_element_type", [
     AllowsTypeRefinement,
     HasValueSemantics,
