@@ -2777,6 +2777,8 @@ ONNX_XFAIL_SET = {
     "ConvolutionModule3DGroups_basic",
     "ConvolutionModule3DGroupsStrided_basic",
     "ConvolutionModule3DGroupsDilated_basic",
+    # torch.onnx.export does not support aten::bitwise_xor for bool
+    "ElementwiseBitwiseXorBoolModule_basic",
     # Failure - incorrect shape
     "ArangeStartOutDtypeModule_basic",
     "ArangeStartOutViewModule_basic",
@@ -4063,6 +4065,8 @@ ONNX_TOSA_XFAIL_SET = {
     "KlDivLossModule_mean_reduction_basic",
     "KlDivLossModule_sum_reduction_basic",
     "KlDivLossModule_batchmean_reduction_basic",
+    # torch.onnx.export does not support aten::bitwise_xor for bool
+    "ElementwiseBitwiseXorBoolModule_basic",
     "Exp2StaticModule_basic",
     "ElementwiseRreluWithNoiseEvalModule_basic",
     "ElementwiseRreluWithNoiseEvalStaticModule_basic",

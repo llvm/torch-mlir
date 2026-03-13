@@ -895,6 +895,23 @@ func.func @torch.aten.bitwise_and.Tensor$basic(%arg0: !torch.vtensor<[?,?],si32>
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.bitwise_and.Tensor$bool(
+// CHECK-SAME:                                             %[[VAL_0:.*]]: !torch.vtensor<[?,?],i1>,
+// CHECK-SAME:                                             %[[VAL_1:.*]]: !torch.vtensor<[?,?],i1>) -> !torch.vtensor<[?,?],i1> {
+// CHECK-DAG:       %[[VAL_2:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[?,?],i1> -> tensor<?x?xi1>
+// CHECK-DAG:       %[[VAL_3:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[?,?],i1> -> tensor<?x?xi1>
+// CHECK-NOT:       tosa.bitwise_and
+// CHECK:           %[[VAL_4:.*]] = tosa.logical_and %[[VAL_2]], %[[VAL_3]] : (tensor<?x?xi1>, tensor<?x?xi1>) -> tensor<?x?xi1>
+// CHECK:           %[[VAL_5:.*]] = torch_c.from_builtin_tensor %[[VAL_4]] : tensor<?x?xi1> -> !torch.vtensor<[?,?],i1>
+// CHECK:           return %[[VAL_5]] : !torch.vtensor<[?,?],i1>
+// CHECK:         }
+func.func @torch.aten.bitwise_and.Tensor$bool(%arg0: !torch.vtensor<[?,?],i1>, %arg1: !torch.vtensor<[?,?],i1>) -> !torch.vtensor<[?,?],i1> {
+  %0 = torch.aten.bitwise_and.Tensor %arg0, %arg1 : !torch.vtensor<[?,?],i1>, !torch.vtensor<[?,?],i1> -> !torch.vtensor<[?,?],i1>
+  return %0 : !torch.vtensor<[?,?],i1>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.log2$basic(
 // CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
