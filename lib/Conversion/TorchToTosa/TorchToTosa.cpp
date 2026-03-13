@@ -748,30 +748,26 @@ public:
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()));
     if (isBitwiseOp) {
-      // TOSA bitwise ops do not support i1. Use logical ops for bool tensors.
-      if (tosa::isI1Type(resultTy)) {
-        auto lhsBool =
-            tosa::tosaCastTensorToType(rewriter, lhs, resultTy).value();
-        auto rhsBool =
-            tosa::tosaCastTensorToType(rewriter, rhsTensor, resultTy).value();
-        if constexpr (std::is_same<AtenOpT, AtenBitwiseAndTensorOp>() ||
-                      std::is_same<AtenOpT, AtenBitwiseAndScalarOp>()) {
-          rewriter.replaceOpWithNewOp<tosa::LogicalAndOp>(op, resultTy, lhsBool,
-                                                          rhsBool);
-          return success();
-        } else if constexpr (std::is_same<AtenOpT, AtenBitwiseOrTensorOp>()) {
-          rewriter.replaceOpWithNewOp<tosa::LogicalOrOp>(op, resultTy, lhsBool,
-                                                         rhsBool);
-          return success();
-        } else if constexpr (std::is_same<AtenOpT, AtenBitwiseXorTensorOp>()) {
-          rewriter.replaceOpWithNewOp<tosa::LogicalXorOp>(op, resultTy, lhsBool,
-                                                          rhsBool);
-          return success();
-        }
-      }
       lhs = tosa::tosaCastTensorToType(rewriter, lhs, resultTy).value();
       rhsTensor =
           tosa::tosaCastTensorToType(rewriter, rhsTensor, resultTy).value();
+      // TOSA bitwise ops do not support i1. Use logical ops for bool tensors.
+      if (tosa::isI1Type(resultTy)) {
+        if constexpr (std::is_same<AtenOpT, AtenBitwiseAndTensorOp>() ||
+                      std::is_same<AtenOpT, AtenBitwiseAndScalarOp>()) {
+          rewriter.replaceOpWithNewOp<tosa::LogicalAndOp>(op, resultTy, lhs,
+                                                          rhsTensor);
+          return success();
+        } else if constexpr (std::is_same<AtenOpT, AtenBitwiseOrTensorOp>()) {
+          rewriter.replaceOpWithNewOp<tosa::LogicalOrOp>(op, resultTy, lhs,
+                                                         rhsTensor);
+          return success();
+        } else if constexpr (std::is_same<AtenOpT, AtenBitwiseXorTensorOp>()) {
+          rewriter.replaceOpWithNewOp<tosa::LogicalXorOp>(op, resultTy, lhs,
+                                                          rhsTensor);
+          return success();
+        }
+      }
     }
 
     // Support different types comparisons
