@@ -2312,6 +2312,8 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalAndOp, chlo::BroadcastAndOp);
   INSERT_BINARY_LOGICAL_PATTERN(AtenLogicalXorOp, chlo::BroadcastXorOp);
   INSERT_BINARY_LOGICAL_PATTERN(AtenBitwiseAndScalarOp, chlo::BroadcastAndOp);
+  INSERT_BINARY_LOGICAL_PATTERN(AtenBitwiseXorScalarOp, chlo::BroadcastXorOp);
+  INSERT_BINARY_LOGICAL_PATTERN(AtenBitwiseOrScalarOp, chlo::BroadcastOrOp);
 
 #undef INSERT_BINARY_LOGICAL_PATTERN
 
