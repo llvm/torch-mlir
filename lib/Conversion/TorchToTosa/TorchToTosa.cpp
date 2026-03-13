@@ -257,16 +257,70 @@ getTorchConvWeightPermutation(Location loc, int64_t rank, bool isTransposed,
   return success();
 }
 
-// These legalizations are for unary ops with promoting input to floating-point
-// datatypes only. There is no supported quantized integer mode for these.
-template <typename AtenOpT, typename TosaOpT>
-class ConvertAtenUnaryPromoteToFPOp : public OpConversionPattern<AtenOpT> {
+// Base class for all Torch-to-TOSA conversion patterns.
+//
+// It enforces the common checks that should be performed for legalizing any
+// torch op to tosa. Currently we check for : no input tensor operand may have
+// zero-sized dimension. TOSA does not support zero-dimension tensors, so we
+// must reject such Torch IR before attempting to lower to TOSA.
+//
+// Subclasses should implement `matchAndRewriteImpl` instead of
+// `matchAndRewrite`. The base `matchAndRewrite` is final and performs the
+// common pre-check before delegating.
+template <typename AtenOpT>
+class TorchToTosaOpConversionPattern : public OpConversionPattern<AtenOpT> {
 public:
   using OpConversionPattern<AtenOpT>::OpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
+
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+                  ConversionPatternRewriter &rewriter) const final {
+    // Pre-check: all tensor operands and outputs must have no zero-sized
+    // dimensions.
+    for (auto v : adaptor.getOperands()) {
+      auto rankedInputType = dyn_cast<RankedTensorType>(v.getType());
+      if (rankedInputType && mlir::tosa::typeHasZeroDim(rankedInputType)) {
+        return rewriter.notifyMatchFailure(
+            op,
+            "TOSA lowering does not support input tensors with a zero-sized "
+            "dimension");
+      }
+    }
+
+    // not all adaptors have results, instead get the result from the op
+    // directly
+    const TypeConverter *typeConverter = this->getTypeConverter();
+    for (auto res : op->getResults()) {
+      auto rankedOutputType =
+          dyn_cast<RankedTensorType>(typeConverter->convertType(res.getType()));
+      if (rankedOutputType && mlir::tosa::typeHasZeroDim(rankedOutputType)) {
+        return rewriter.notifyMatchFailure(
+            op,
+            "TOSA lowering does not support output tensors with a zero-sized "
+            "dimension");
+      }
+    }
+    return matchAndRewriteImpl(op, adaptor, rewriter);
+  }
+
+protected:
+  virtual LogicalResult
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const = 0;
+};
+
+// These legalizations are for unary ops with promoting input to floating-point
+// datatypes only. There is no supported quantized integer mode for these.
+template <typename AtenOpT, typename TosaOpT>
+class ConvertAtenUnaryPromoteToFPOp
+    : public TorchToTosaOpConversionPattern<AtenOpT> {
+public:
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     Value self = adaptor.getSelf();
     auto selfTy = cast<TensorType>(self.getType());
 
@@ -296,13 +350,13 @@ public:
 // These unary op legalizations are identical for floating-point
 // or quantized types
 template <typename AtenOpT, typename TosaOpT>
-class ConvertAtenUnaryOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenUnaryOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     auto self = adaptor.getSelf();
 
     auto outType = dyn_cast<TensorType>(
@@ -330,13 +384,13 @@ public:
 // These binary op legalizations are identical for floating-point
 // or quantized types
 template <typename AtenOpT, typename TosaOpT>
-class ConvertAtenBinaryOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenBinaryOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
     auto lhsTy = cast<TensorType>(lhs.getType());
     Value rhs = adaptor.getOther();
@@ -510,13 +564,13 @@ LogicalResult torchAlphaToTosaTensor(ConversionPatternRewriter &rewriter,
 // These binary op legalizations are specific to add/sub which have an
 // alpha multiplier.
 template <typename AtenOpT, typename TosaOpT>
-class ConvertAtenAddSubOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenAddSubOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     // left  : tensor: tensor<i32/i64/f32>
     // right : scalar: i32/i64/f32
     //         tensor: tensor<i32/i64/f32>
@@ -632,13 +686,13 @@ public:
 
 // Binary op legalizations for comparator ops.
 template <typename AtenOpT, typename TosaOpT>
-class ConvertAtenCompareOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenCompareOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
     auto lhsTy = dyn_cast<TensorType>(lhs.getType());
     Value rhs = adaptor.getOther();
@@ -749,13 +803,13 @@ public:
 
 // Binary op legalizations for Mul variants.
 template <typename AtenOpT>
-class ConvertAtenMulOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenMulOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
     auto lhsType = dyn_cast<TensorType>(lhs.getType());
 
@@ -946,13 +1000,13 @@ std::optional<Value> floorIntDiv(PatternRewriter &rewriter, Operation *op,
 }
 
 template <typename AtenOpT>
-class ConvertAtenDivOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenDivOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
     auto lhsTy = dyn_cast<TensorType>(lhs.getType());
     Value rhs = adaptor.getOther();
@@ -1057,23 +1111,25 @@ public:
 // This defines a template to construct ops whose legalizations are
 // specialized.
 template <typename AtenOpT>
-class ConvertAtenOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
+
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override;
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override;
 };
 
 template <typename AtenOpT, typename TosaOpT>
-class ConvertAtenActivationFunctionOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenActivationFunctionOp
+    : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     Value self = adaptor.getSelf();
     auto selfTy = dyn_cast<TensorType>(self.getType());
 
@@ -1099,7 +1155,7 @@ public:
 };
 
 template <>
-LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewriteImpl(
     AtenReluOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value self = adaptor.getSelf();
@@ -1147,7 +1203,7 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenLeakyReluOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenLeakyReluOp>::matchAndRewriteImpl(
     AtenLeakyReluOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -1201,12 +1257,11 @@ using ReductionConvFunc = std::optional<Value> (*)(PatternRewriter &,
 // They all constitute a common form invoking the appropriate
 // converion function in TosaLegalizeCommon.cpp
 template <typename AtenOpT, ReductionConvFunc ConversionFuncT>
-class ConvertAtenReductionOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenReductionOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
 
-  // Each variant must implement corresponding parameter parsing options
   virtual LogicalResult readReduceDimsAndKeepDims(
       AtenOpT op, OpAdaptor adaptor, ConversionPatternRewriter &rewriter,
       ElementsAttr &reduceDimsAttr, bool &keepDims) const {
@@ -1214,11 +1269,9 @@ public:
         op, "Unimplemented reduce_dims and keep_dims parsing function");
   }
 
-  // Common rewriter for all reduction ops, calls the specific implementation of
-  // readReduceDimsAndKeepDims() needed for the op variant.
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     Value self = adaptor.getSelf();
     auto selfTy = cast<TensorType>(self.getType());
 
@@ -1416,7 +1469,7 @@ public:
 };
 
 template <>
-LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewriteImpl(
     AtenArgmaxOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -1516,9 +1569,9 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewrite(
 }
 
 template <typename AtenOpT>
-class ConvertAtenSqueezeOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenSqueezeOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
 
   // Each variant must implement corresponding parameter parsing options
@@ -1533,8 +1586,8 @@ public:
   // Common rewriter for all squeeze ops, calls the specific implementation of
   // generateSqueezedShape() needed for the op variant.
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     Value self = adaptor.getSelf();
     auto selfTy = cast<RankedTensorType>(self.getType());
 
@@ -1626,13 +1679,13 @@ class ConvertAtenSqueezeAllDimsOp : public ConvertAtenSqueezeOp<AtenOpT> {
 };
 
 template <typename AtenOpT>
-class ConvertAtenPowOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenPowOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
 
     auto outType =
         cast<TensorType>(this->getTypeConverter()->convertType(op.getType()));
@@ -1706,9 +1759,9 @@ public:
 // implement their specialized input processing (e.g transpose), and output
 // processing, e.g. GEMM or fully connected bias handling.
 template <typename AtenOpT>
-class ConvertAtenMatmulBaseOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenMatmulBaseOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   // Each variant must implement corresponding parameter parsing options.
   // Maintain separate input read functions for each variant because it is not
@@ -2282,8 +2335,8 @@ public:
   // The default version just reads two inputs, computes output and returns it.
   // Other versions may add a bias, apply GEMM-style alpha/beta scaling etc.
   virtual LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
 
     Value lhs, rhs, lhsZp, rhsZp;
 
@@ -2441,8 +2494,8 @@ public:
   // Override the default rewriter to perform RHS transpose and bias addition as
   // well.
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
 
     Value lhs, rhs, lhsZp, rhsZp;
 
@@ -2520,7 +2573,7 @@ public:
 };
 
 template <>
-LogicalResult ConvertAtenOp<AtenRsubScalarOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenRsubScalarOp>::matchAndRewriteImpl(
     AtenRsubScalarOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -2569,7 +2622,7 @@ LogicalResult ConvertAtenOp<AtenRsubScalarOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
     AtenConvolutionOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -3279,7 +3332,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenReshapeOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenReshapeOp>::matchAndRewriteImpl(
     AtenReshapeOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -3375,7 +3428,7 @@ std::optional<Value> computeBatchNorm(Operation *op,
 
 // This lowering is based on the TensorFlow to TOSA lowering.
 template <>
-LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewriteImpl(
     AtenBatchNormOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -3469,7 +3522,7 @@ LogicalResult ConvertAtenOp<AtenBatchNormOp>::matchAndRewrite(
 
 // This lowering is loosely based on Torch to LinAlg lowering.
 template <>
-LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewriteImpl(
     AtenNativeLayerNormOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -3642,12 +3695,16 @@ LogicalResult ConvertAtenOp<AtenNativeLayerNormOp>::matchAndRewrite(
 
 // Torch constants are converted to tosa.const .
 template <>
-LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewriteImpl(
     ValueTensorLiteralOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
   auto outputTy =
-      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+      dyn_cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  if (!outputTy) {
+    return rewriter.notifyMatchFailure(
+        op, "Expected ranked tensor as output type.");
+  }
 
   // Tensors with integer types need to be converted to signless integer
   // element type. All tensors with element types other than integer can reuse
@@ -3684,7 +3741,7 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewriteImpl(
     AtenFlattenUsingIntsOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -3749,7 +3806,7 @@ LogicalResult ConvertAtenOp<AtenFlattenUsingIntsOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenUnflattenIntOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenUnflattenIntOp>::matchAndRewriteImpl(
     AtenUnflattenIntOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -3803,7 +3860,7 @@ LogicalResult ConvertAtenOp<AtenUnflattenIntOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewriteImpl(
     AtenPermuteOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -3839,7 +3896,7 @@ LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewriteImpl(
     AtenLog2Op op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -3881,7 +3938,7 @@ LogicalResult ConvertAtenOp<AtenLog2Op>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenThresholdOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenThresholdOp>::matchAndRewriteImpl(
     AtenThresholdOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -3930,7 +3987,7 @@ LogicalResult ConvertAtenOp<AtenThresholdOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewriteImpl(
     AtenUnsqueezeOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -3978,7 +4035,7 @@ LogicalResult ConvertAtenOp<AtenUnsqueezeOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenContiguousOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenContiguousOp>::matchAndRewriteImpl(
     AtenContiguousOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -3996,7 +4053,7 @@ LogicalResult ConvertAtenOp<AtenContiguousOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenDropoutOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenDropoutOp>::matchAndRewriteImpl(
     AtenDropoutOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -4026,7 +4083,7 @@ LogicalResult ConvertAtenOp<AtenDropoutOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenViewOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenViewOp>::matchAndRewriteImpl(
     AtenViewOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -4121,7 +4178,7 @@ buildUnitNormalCdf(ConversionPatternRewriter &rewriter, Operation *op, Value x,
 
 // This lowering is based on Torch to LinAlg lowering.
 template <>
-LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewriteImpl(
     AtenGeluOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -4248,7 +4305,7 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
 
 // This lowering is based on Torch to LinAlg lowering.
 template <>
-LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewriteImpl(
     AtenGeluBackwardOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -4315,7 +4372,7 @@ LogicalResult ConvertAtenOp<AtenGeluBackwardOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenHardtanhBackwardOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenHardtanhBackwardOp>::matchAndRewriteImpl(
     AtenHardtanhBackwardOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -4401,7 +4458,7 @@ LogicalResult ConvertAtenOp<AtenHardtanhBackwardOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewriteImpl(
     AtenEmbeddingOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -4503,7 +4560,7 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenTransposeIntOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenTransposeIntOp>::matchAndRewriteImpl(
     AtenTransposeIntOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -4560,13 +4617,13 @@ LogicalResult ConvertAtenOp<AtenTransposeIntOp>::matchAndRewrite(
 }
 
 template <typename AtenOpT, typename TosaOpT>
-class ConvertAtenMinMaxDimOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenMinMaxDimOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
 
     auto self = adaptor.getSelf();
     auto selfType = dyn_cast<TensorType>(self.getType());
@@ -4680,7 +4737,7 @@ public:
 };
 
 template <>
-LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewriteImpl(
     AtenSliceTensorOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -4831,7 +4888,7 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewriteImpl(
     AtenBroadcastToOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -4935,7 +4992,7 @@ LogicalResult ConvertAtenOp<AtenBroadcastToOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewriteImpl(
     AtenGatherOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // For easy understanding of this algorithm, I will comment the code with an
@@ -5022,7 +5079,7 @@ LogicalResult ConvertAtenOp<AtenGatherOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewriteImpl(
     AtenIndexSelectOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // Not a tensor type.
@@ -5151,7 +5208,7 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewriteImpl(
     AtenIndexPutHackedTwinOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // Not a tensor type.
@@ -5290,7 +5347,7 @@ std::optional<Value> wrapNegativeIndices(Value index, int maxIndex,
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewriteImpl(
     AtenIndexTensorHackedTwinOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // t        = tf.constant([[1, 2, 3, 4, 5],[6,7,8,9,10],
@@ -5571,7 +5628,7 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewrite(
 
 // Legalization for aten.scatter.src
 template <>
-LogicalResult ConvertAtenOp<AtenScatterSrcOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenScatterSrcOp>::matchAndRewriteImpl(
     AtenScatterSrcOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -5671,7 +5728,7 @@ LogicalResult ConvertAtenOp<AtenScatterSrcOp>::matchAndRewrite(
 
 // Legalization for aten.slice_scatter
 template <>
-LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewriteImpl(
     AtenSliceScatterOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -5786,7 +5843,7 @@ LogicalResult ConvertAtenOp<AtenSliceScatterOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenAbsOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenAbsOp>::matchAndRewriteImpl(
     AtenAbsOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // Not a tensor type.
@@ -5802,7 +5859,7 @@ LogicalResult ConvertAtenOp<AtenAbsOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewriteImpl(
     AtenWhereSelfOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -5840,7 +5897,7 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenIscloseOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenIscloseOp>::matchAndRewriteImpl(
     AtenIscloseOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // check args
@@ -5906,7 +5963,7 @@ LogicalResult ConvertAtenOp<AtenIscloseOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewriteImpl(
     AtenClampOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -5986,7 +6043,7 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewrite(
 
 // Legalization for aten.clamp.Tensor
 template <>
-LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewriteImpl(
     AtenClampTensorOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // We are not using tosa.clamp to lower aten.clamp.Tensor, as
@@ -6104,13 +6161,17 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewriteImpl(
     AtenArangeStartStepOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
   const TypeConverter *typeConverter = this->getTypeConverter();
-  RankedTensorType resultType = cast<RankedTensorType>(
+  RankedTensorType resultType = dyn_cast<RankedTensorType>(
       typeConverter->convertType(op->getResult(0).getType()));
+  if (!resultType) {
+    return rewriter.notifyMatchFailure(
+        op, "Expected ranked tensor as output type.");
+  }
 
   // At this point all tensors should have value semantics, and hence the
   // `layout` check can be ignored.
@@ -6265,13 +6326,17 @@ LogicalResult ConvertAtenOp<AtenArangeStartStepOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewriteImpl(
     PrimNumToTensorScalarOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
   const TypeConverter *typeConverter = this->getTypeConverter();
-  RankedTensorType resultType = cast<RankedTensorType>(
+  auto resultType = dyn_cast<RankedTensorType>(
       typeConverter->convertType(op->getResult(0).getType()));
+  if (!resultType) {
+    return rewriter.notifyMatchFailure(
+        op, "Expected result type to be a ranked tensor.");
+  }
 
   // Only supports integer operand type, because for the floating point operand
   // type result tensor has to be of type `f64` which is not supported in the
@@ -6297,7 +6362,7 @@ LogicalResult ConvertAtenOp<PrimNumToTensorScalarOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenCopyOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenCopyOp>::matchAndRewriteImpl(
     AtenCopyOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -6343,7 +6408,7 @@ LogicalResult ConvertAtenOp<AtenCopyOp>::matchAndRewrite(
 
 //  Legalizes the torch.aten.to.dtype op
 template <>
-LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewriteImpl(
     AtenToDtypeOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -6398,16 +6463,17 @@ LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewrite(
 }
 
 template <typename AtenOpT>
-class ConvertAtenRemainderFmodOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenRemainderFmodOp
+    : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
 
     Value self = adaptor.getSelf();
-    auto selfTy = cast<RankedTensorType>(self.getType());
+    auto selfTy = dyn_cast<RankedTensorType>(self.getType());
 
     if (!selfTy)
       return rewriter.notifyMatchFailure(
@@ -6574,9 +6640,10 @@ Value applyPoolingInputSlice(PatternRewriter &rewriter, Location loc,
 }
 
 template <typename AtenOpT, typename TosaOpT>
-class ConvertAtenPoolingBaseOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenPoolingBaseOp
+    : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
 
   // Different pooling variants need to process inputs differently, e.g.
@@ -6750,8 +6817,8 @@ public:
   }
 
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     Value input;
     DenseI64ArrayAttr kernel, stride, pad;
     Type outputTy;
@@ -7294,13 +7361,15 @@ public:
 
 // Ref: Error checking based on the Torch to LinAlg lowering
 template <typename AtenOpT, int fillVal>
-class ConvertAtenConstPatternOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenConstPatternOp
+    : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
+
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
 
     auto outType = dyn_cast<TensorType>(
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -7365,16 +7434,16 @@ public:
 };
 
 template <typename AtenOpT>
-class ConvertAtenFillOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenFillOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     auto outType = dyn_cast<TensorType>(
-        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-            op.getType()));
+        TorchToTosaOpConversionPattern<AtenOpT>::getTypeConverter()
+            ->convertType(op.getType()));
 
     if (!outType || !outType.hasStaticShape())
       return rewriter.notifyMatchFailure(
@@ -7435,13 +7504,13 @@ public:
 };
 
 template <typename AtenOpT>
-class ConvertAtenMaskedFillOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenMaskedFillOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     auto outType = dyn_cast<TensorType>(
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()));
@@ -7501,13 +7570,13 @@ public:
 
 // Legalizes the torch.clone op.
 template <typename AtenOpT>
-class ConvertAtenCloneOp : public OpConversionPattern<AtenOpT> {
+class ConvertAtenCloneOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     int64_t memoryFormat;
     if (!isa<Torch::NoneType>(op.getMemoryFormat().getType()) &&
         (!matchPattern(op.getMemoryFormat(),
@@ -7532,7 +7601,7 @@ public:
 };
 
 template <>
-LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewriteImpl(
     AtenConstantPadNdOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Location loc = op.getLoc();
@@ -7600,7 +7669,7 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewriteImpl(
     AtenCatOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   const TypeConverter *typeConverter = this->getTypeConverter();
@@ -7643,7 +7712,7 @@ LogicalResult ConvertAtenOp<AtenCatOp>::matchAndRewrite(
 }
 
 template <>
-LogicalResult ConvertAtenOp<AtenSqrtOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenSqrtOp>::matchAndRewriteImpl(
     AtenSqrtOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -7674,7 +7743,7 @@ LogicalResult ConvertAtenOp<AtenSqrtOp>::matchAndRewrite(
 
 template <>
 LogicalResult
-ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewrite(
+ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewriteImpl(
     Aten__InterpolateSizeListScaleListOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // Converts torch.aten.__interpolate.size_list_scale_list to tosa.resize
@@ -7689,22 +7758,6 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewrite(
                                        "TOSA resize() takes rank==4 tensors.");
 
   auto inputShape = inputTy.getShape();
-  auto inputElemTy = inputTy.getElementType();
-  // TOSA works in NHWC. Perform the necessary transformations.
-  SmallVector<int32_t> nchwToNhwcDims({0, 2, 3, 1});
-  SmallVector<int64_t> transposedInputShape(
-      {inputShape[0], inputShape[2], inputShape[3], inputShape[1]});
-  auto transposedInputTy = RankedTensorType::get(
-      makeShapeLLVMCompatible(transposedInputShape), inputElemTy);
-  auto transposedInput =
-      tosa::TransposeOp::create(
-          rewriter, op->getLoc(),
-          getTypeConverter()->convertType(transposedInputTy), input,
-          rewriter.getDenseI32ArrayAttr(nchwToNhwcDims))
-          .getResult();
-
-  auto inputHeight = transposedInputShape[1];
-  auto inputWidth = transposedInputShape[2];
 
   int outputHeight, outputWidth;
   if (!isa<Torch::NoneType>(op.getScaleFactor().getType())) {
@@ -7714,8 +7767,8 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewrite(
       return rewriter.notifyMatchFailure(
           op, "non-const scale_factor parameter unsupported");
 
-    outputHeight = inputHeight * scaleFactor[0];
-    outputWidth = inputWidth * scaleFactor[1];
+    outputHeight = inputShape[2] * scaleFactor[0];
+    outputWidth = inputShape[3] * scaleFactor[1];
 
   } else {
     if (!isa<Torch::NoneType>(op.getSize().getType()))
@@ -7772,78 +7825,13 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewrite(
     return rewriter.notifyMatchFailure(
         op, "Application of antialias not yet supported");
 
-  SmallVector<int64_t> transposedResizedOpShape(
-      {inputShape[0], outputHeight, outputWidth, inputShape[1]});
-  auto transposedResizedOpTy = RankedTensorType::get(
-      makeShapeLLVMCompatible(transposedResizedOpShape), inputElemTy);
-
-  // Formatting snake_case to match TOSA spec names for readability
-  int scale_y_n, scale_y_d, offset_y, border_y;
-  int scale_x_n, scale_x_d, offset_x, border_x;
-
-  // Align corners sets the scaling ratio to (OH - 1)/(IH - 1)
-  // rather than OH / IH. Similarly for width.
-  auto normalize = [&](int input, int output, int &n, int &d, int &offset,
-                       int &border) {
-    // Dimension is length 1, we are just sampling from one value.
-    if (input == 1) {
-      n = output;
-      d = 1;
-      offset = 0;
-      border = output - 1;
-      return;
-    }
-
-    // Apply if aligned and capable to be aligned.
-    bool apply_aligned = alignCorners && (output > 1);
-    n = apply_aligned ? (output - 1) : output;
-    d = apply_aligned ? (input - 1) : input;
-
-    // Simplify the scalers, make sure they are even values.
-    int gcd = std::gcd(n, d);
-    n = 2 * n / gcd;
-    d = 2 * d / gcd;
-
-    offset = 0;
-
-    // If nearest neighbours we need to guarantee we round up.
-    if (mode == tosa::ResizeMode::NEAREST_NEIGHBOR && alignCorners) {
-      offset += n / 2;
-    }
-
-    // TBD: impact of antialias parameter here ?
-
-    // We can compute this directly based on previous values.
-    border = d * (output - 1) - n * (input - 1) + offset;
-  };
-
-  normalize(inputHeight, outputHeight, scale_y_n, scale_y_d, offset_y,
-            border_y);
-  normalize(inputWidth, outputWidth, scale_x_n, scale_x_d, offset_x, border_x);
-
-  auto scale = tosa::getTosaConstShape(
-      rewriter, op->getLoc(), {scale_y_n, scale_y_d, scale_x_n, scale_x_d});
-  auto offset =
-      tosa::getTosaConstShape(rewriter, op->getLoc(), {offset_y, offset_x});
-  auto border =
-      tosa::getTosaConstShape(rewriter, op->getLoc(), {border_y, border_x});
-
-  auto modeAttr = tosa::ResizeModeAttr::get(rewriter.getContext(), mode);
-
-  auto resizeOpResult =
-      tosa::ResizeOp::create(rewriter, op->getLoc(), transposedResizedOpTy,
-                             transposedInput, scale, offset, border, modeAttr)
-          .getResult();
-
   auto resultType =
       cast<RankedTensorType>(typeConverter->convertType(op.getType()));
 
-  SmallVector<int32_t> nhwcToNchwDims({0, 3, 1, 2});
-  rewriter
-      .replaceOpWithNewOp<tosa::TransposeOp>(
-          op, getTypeConverter()->convertType(resultType), resizeOpResult,
-          rewriter.getDenseI32ArrayAttr(nhwcToNchwDims))
-      .getResult();
+  Value resizeOp = convertResizeOp(rewriter, op, this->getTypeConverter(),
+                                   input, inputTy, resultType, outputHeight,
+                                   outputWidth, alignCorners, mode);
+  rewriter.replaceOp(op, {resizeOp});
 
   return success();
 }
@@ -7873,7 +7861,7 @@ Value createTrilMask(PatternRewriter &rewriter, Operation *op,
 
 // Legalization for aten.tril
 template <>
-LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewriteImpl(
     AtenTrilOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -7959,7 +7947,7 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
 
 // Legalization for aten.flip
 template <>
-LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewriteImpl(
     AtenFlipOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
 
@@ -7998,7 +7986,7 @@ LogicalResult ConvertAtenOp<AtenFlipOp>::matchAndRewrite(
 // Implements "round half to even" to break ties when a number is equidistant
 // from two integers.
 template <>
-LogicalResult ConvertAtenOp<AtenRoundOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenRoundOp>::matchAndRewriteImpl(
     AtenRoundOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -8044,7 +8032,7 @@ Value createDiagonalMask(PatternRewriter &rewriter, Operation *op,
 
 // Legalization for aten.diagonal
 template <>
-LogicalResult ConvertAtenOp<AtenDiagonalOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenDiagonalOp>::matchAndRewriteImpl(
     AtenDiagonalOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -8211,7 +8199,7 @@ LogicalResult ConvertAtenOp<AtenDiagonalOp>::matchAndRewrite(
 
 // Legalization for aten.diag_embed
 template <>
-LogicalResult ConvertAtenOp<AtenDiagEmbedOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenDiagEmbedOp>::matchAndRewriteImpl(
     AtenDiagEmbedOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // To perform diag_embed, we will apply scatter with a newly created diagonal
@@ -8396,7 +8384,7 @@ LogicalResult ConvertAtenOp<AtenDiagEmbedOp>::matchAndRewrite(
 // std::uniform_real_distribution with the std::default_random_engine from C++
 // <random> library
 template <>
-LogicalResult ConvertAtenOp<AtenUniformOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenUniformOp>::matchAndRewriteImpl(
     AtenUniformOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -8458,7 +8446,7 @@ LogicalResult ConvertAtenOp<AtenUniformOp>::matchAndRewrite(
 // Legalization for aten.threshold_backward
 // result = self <= threshold ? 0 : grad
 template <>
-LogicalResult ConvertAtenOp<AtenThresholdBackwardOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenThresholdBackwardOp>::matchAndRewriteImpl(
     AtenThresholdBackwardOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -8532,7 +8520,7 @@ LogicalResult ConvertAtenOp<AtenThresholdBackwardOp>::matchAndRewrite(
 
 // Legalization for aten.as_strided
 template <>
-LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewriteImpl(
     AtenAsStridedOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // To lower aten.as_strided to TOSA, we will first reshape the input tensor to
@@ -8634,7 +8622,7 @@ LogicalResult ConvertAtenOp<AtenAsStridedOp>::matchAndRewrite(
 
 // Legalization for torch.prims.collapse
 template <>
-LogicalResult ConvertAtenOp<PrimsCollapseOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<PrimsCollapseOp>::matchAndRewriteImpl(
     PrimsCollapseOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getA();
@@ -8765,7 +8753,7 @@ Value reflectionPadAlongAxis(Value input, ArrayRef<int64_t> unpaddedShape,
 
 // Legalization for aten.reflection_pad1d
 template <>
-LogicalResult ConvertAtenOp<AtenReflectionPad1dOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenReflectionPad1dOp>::matchAndRewriteImpl(
     AtenReflectionPad1dOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -8809,7 +8797,7 @@ LogicalResult ConvertAtenOp<AtenReflectionPad1dOp>::matchAndRewrite(
 
 // Legalization for aten.reflection_pad2d
 template <>
-LogicalResult ConvertAtenOp<AtenReflectionPad2dOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenReflectionPad2dOp>::matchAndRewriteImpl(
     AtenReflectionPad2dOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -8869,7 +8857,7 @@ LogicalResult ConvertAtenOp<AtenReflectionPad2dOp>::matchAndRewrite(
 
 // Legalization for aten.reflection_pad3d
 template <>
-LogicalResult ConvertAtenOp<AtenReflectionPad3dOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenReflectionPad3dOp>::matchAndRewriteImpl(
     AtenReflectionPad3dOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -8943,7 +8931,7 @@ LogicalResult ConvertAtenOp<AtenReflectionPad3dOp>::matchAndRewrite(
 
 // Legalization for aten.replication_pad2d
 template <>
-LogicalResult ConvertAtenOp<AtenReplicationPad2dOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenReplicationPad2dOp>::matchAndRewriteImpl(
     AtenReplicationPad2dOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -9100,7 +9088,7 @@ LogicalResult ConvertAtenOp<AtenReplicationPad2dOp>::matchAndRewrite(
 
 // Legalization for torch.prims.split_dim
 template <>
-LogicalResult ConvertAtenOp<PrimsSplitDimOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<PrimsSplitDimOp>::matchAndRewriteImpl(
     PrimsSplitDimOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getA();
@@ -9143,7 +9131,7 @@ LogicalResult ConvertAtenOp<PrimsSplitDimOp>::matchAndRewrite(
 
 // Legalization for aten.outer
 template <>
-LogicalResult ConvertAtenOp<AtenOuterOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenOuterOp>::matchAndRewriteImpl(
     AtenOuterOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -9214,15 +9202,111 @@ LogicalResult ConvertAtenOp<AtenOuterOp>::matchAndRewrite(
   return success();
 }
 
-// Legalization for aten.upsample_nearest2d
+// Legalization for aten.upsample_bilinear2d
 template <typename AtenOpT>
-class ConvertUpsampleNearest2dForward : public OpConversionPattern<AtenOpT> {
+class ConvertUpsampleBilinear2dForward : public OpConversionPattern<AtenOpT> {
 public:
   using OpConversionPattern<AtenOpT>::OpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    Value input;
+    if constexpr (std::is_same<AtenOpT, AtenUpsampleBilinear2dOp>()) {
+      input = adaptor.getSelf();
+    } else if constexpr (std::is_same<AtenOpT, AtenUpsampleBilinear2dVecOp>()) {
+      input = adaptor.getInput();
+    } else {
+      return rewriter.notifyMatchFailure(
+          op, "Expected either AtenUpsampleBilinear2dOp or "
+              "AtenUpsampleBilinear2dVecOp");
+    }
+
+    auto inputTy = dyn_cast<RankedTensorType>(input.getType());
+    if (!inputTy) {
+      return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
+    }
+    if (inputTy.getRank() != 4) {
+      return rewriter.notifyMatchFailure(op, "TOSA resize() requires rank 4");
+    }
+
+    auto inputShape = inputTy.getShape();
+
+    int64_t outputHeight;
+    int64_t outputWidth;
+
+    if constexpr (std::is_same<AtenOpT, AtenUpsampleBilinear2dOp>()) {
+      SmallVector<int64_t> outputSize;
+      if (!matchPattern(op.getOutputSize(),
+                        m_TorchListOfConstantInts(outputSize))) {
+        return rewriter.notifyMatchFailure(
+            op, "Non-constant output size not supported");
+      }
+
+      outputHeight = outputSize[0];
+      outputWidth = outputSize[1];
+    } else if constexpr (std::is_same<AtenOpT, AtenUpsampleBilinear2dVecOp>()) {
+      if (!isa<Torch::NoneType>(op.getOutputSize().getType())) {
+        SmallVector<int64_t> outputSize;
+        if (!matchPattern(op.getOutputSize(),
+                          m_TorchListOfConstantInts(outputSize))) {
+          return rewriter.notifyMatchFailure(
+              op, "Non-constant output size not supported");
+        }
+
+        outputHeight = outputSize[0];
+        outputWidth = outputSize[1];
+      } else {
+        if (isa<Torch::NoneType>(op.getScaleFactors().getType())) {
+          return rewriter.notifyMatchFailure(
+              op, "Missing output size and scale factors");
+        }
+
+        SmallVector<double, 2> scaleFactors;
+        if (!matchPattern(op.getScaleFactors(),
+                          m_TorchListOfConstantFloats(scaleFactors))) {
+          return rewriter.notifyMatchFailure(
+              op, "Non-constant scale_factors not supported");
+        }
+
+        // PyTorch uses floor after the scale multiplication
+        // https://docs.pytorch.org/docs/stable/generated/torch.nn.UpsamplingBilinear2d.html
+        outputHeight =
+            static_cast<int64_t>(std::floor(inputShape[2] * scaleFactors[0]));
+        outputWidth =
+            static_cast<int64_t>(std::floor(inputShape[3] * scaleFactors[1]));
+      }
+    }
+
+    bool alignCorners;
+    if (!matchPattern(op.getAlignCorners(),
+                      m_TorchConstantBool(&alignCorners))) {
+      return rewriter.notifyMatchFailure(
+          op, "Non-constant align_corners parameter unsupported");
+    }
+
+    auto resultTy = cast<RankedTensorType>(
+        this->getTypeConverter()->convertType(op.getType()));
+
+    Value resizeOp = convertResizeOp(
+        rewriter, op, this->getTypeConverter(), input, inputTy, resultTy,
+        outputHeight, outputWidth, alignCorners, tosa::ResizeMode::BILINEAR);
+    rewriter.replaceOp(op, {resizeOp});
+
+    return success();
+  }
+};
+
+// Legalization for aten.upsample_nearest2d
+template <typename AtenOpT>
+class ConvertUpsampleNearest2dForward
+    : public TorchToTosaOpConversionPattern<AtenOpT> {
+public:
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     // aten.upsample_nearest2d lowering process:
     // 1. Reshape input: (N, C, H, W) -> (N, C, H x W)
     // 2. Calculate PyTorch-styled gather op indices based on the following
@@ -9402,7 +9486,7 @@ public:
 
 // Legalization for aten.logit
 template <>
-LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewriteImpl(
     AtenLogitOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // Logit formula:
@@ -9495,7 +9579,7 @@ LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewrite(
 
 // Legalization for aten.log1p
 template <>
-LogicalResult ConvertAtenOp<AtenLog1pOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenLog1pOp>::matchAndRewriteImpl(
     AtenLog1pOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // log1p formula:
@@ -9539,7 +9623,7 @@ LogicalResult ConvertAtenOp<AtenLog1pOp>::matchAndRewrite(
 
 // Legalization for aten.log10
 template <>
-LogicalResult ConvertAtenOp<AtenLog10Op>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenLog10Op>::matchAndRewriteImpl(
     AtenLog10Op op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // log10 formula (using log base changing formula since TOSA doesn't have a
@@ -9594,7 +9678,7 @@ LogicalResult ConvertAtenOp<AtenLog10Op>::matchAndRewrite(
 
 // Legalization for aten.expm1
 template <>
-LogicalResult ConvertAtenOp<AtenExpm1Op>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenExpm1Op>::matchAndRewriteImpl(
     AtenExpm1Op op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // expm1 formula:
@@ -9639,7 +9723,7 @@ LogicalResult ConvertAtenOp<AtenExpm1Op>::matchAndRewrite(
 
 // Legalization for aten.tan
 template <>
-LogicalResult ConvertAtenOp<AtenTanOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenTanOp>::matchAndRewriteImpl(
     AtenTanOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // tan = sin / cos
@@ -9679,7 +9763,7 @@ LogicalResult ConvertAtenOp<AtenTanOp>::matchAndRewrite(
 
 // Legalization for aten.unfold
 template <>
-LogicalResult ConvertAtenOp<AtenUnfoldOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenUnfoldOp>::matchAndRewriteImpl(
     AtenUnfoldOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // Approach: Use GatherOp to retrieve target elements from target dim and then
@@ -9868,7 +9952,7 @@ LogicalResult ConvertAtenOp<AtenUnfoldOp>::matchAndRewrite(
 
 // Legalization for aten.cumsum
 template <>
-LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewriteImpl(
     AtenCumsumOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   auto self = adaptor.getSelf();
@@ -9938,13 +10022,13 @@ LogicalResult ConvertAtenOp<AtenCumsumOp>::matchAndRewrite(
 }
 
 template <typename OpTy>
-class ConvertCastEquivalentOp : public OpConversionPattern<OpTy> {
-  using OpConversionPattern<OpTy>::OpConversionPattern;
+class ConvertCastEquivalentOp : public TorchToTosaOpConversionPattern<OpTy> {
+  using TorchToTosaOpConversionPattern<OpTy>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename OpTy::Adaptor;
 
   LogicalResult
-  matchAndRewrite(OpTy op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(OpTy op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
     auto converter = this->getTypeConverter();
     RankedTensorType resultType = cast<RankedTensorType>(
         converter->convertType(op->getResult(0).getType()));
@@ -9956,13 +10040,13 @@ class ConvertCastEquivalentOp : public OpConversionPattern<OpTy> {
 
 // Legalization for aten.dequantize.tensor/aten.dequantize.self
 template <typename AtenOpT>
-class ConvertDequantizeOp : public OpConversionPattern<AtenOpT> {
-  using OpConversionPattern<AtenOpT>::OpConversionPattern;
+class ConvertDequantizeOp : public TorchToTosaOpConversionPattern<AtenOpT> {
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
 
   LogicalResult
-  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
 
     auto loc = op->getLoc();
     auto converter = this->getTypeConverter();
@@ -10113,7 +10197,7 @@ class ConvertDequantizeOp : public OpConversionPattern<AtenOpT> {
 // Implements
 //    Q = clamp(round(X / scale) + zero_point)
 template <>
-LogicalResult ConvertAtenOp<AtenQuantizePerTensorOp>::matchAndRewrite(
+LogicalResult ConvertAtenOp<AtenQuantizePerTensorOp>::matchAndRewriteImpl(
     AtenQuantizePerTensorOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   Value input = adaptor.getSelf();
@@ -10156,36 +10240,44 @@ LogicalResult ConvertAtenOp<AtenQuantizePerTensorOp>::matchAndRewrite(
         op, "failed to implement round-half-to-even with TOSA ops");
   }
 
-  // Cast to the destination integer type.
-  auto intermediateIntTy = resultTy.clone(resultElemTy);
-  Value castToInt =
-      tosa::CastOp::create(rewriter, loc, intermediateIntTy, *rounded);
-
-  // Add the zero point.
-  Value zpTensor =
-      tosa::createZeroPointTensor(rewriter, loc, intermediateIntTy, zpConst)
+  // Add the zero point
+  Value zpTensorFloat =
+      tosa::getConstTensor<float>(rewriter, op, static_cast<float>(zpConst), {},
+                                  inputElemTy)
           .value();
-  if (mlir::tosa::EqualizeRanks(rewriter, loc, castToInt, zpTensor).failed())
+  if (mlir::tosa::EqualizeRanks(rewriter, loc, *rounded, zpTensorFloat)
+          .failed())
     return failure();
-  Value withZp = tosa::AddOp::create(rewriter, loc, intermediateIntTy,
-                                     castToInt, zpTensor);
+  Value withZp =
+      tosa::AddOp::create(rewriter, loc, inputTy, *rounded, zpTensorFloat);
 
-  // Clamp the result to the valid range of the quantized type.
-  std::optional<int64_t> minInt,
-      maxInt; // no initialization needed as we want to clamp to the numeric
-              // limits of the type
-  IntegerAttr minIntAttr, maxIntAttr;
+  // Clamp the result to the valid range of the result/quantized type
+  std::optional<int64_t> minInt, maxInt;
+  IntegerAttr minIntAttr, maxIntAttr; // no initialization needed as we want to
+                                      // clamp to the numeric limits of the type
   if (failed(tosa::getIntegerClampAttrs(rewriter, op, resultElemTy, minInt,
                                         maxInt, minIntAttr, maxIntAttr))) {
     return failure();
   }
+
+  // Create float clamp attributes (clamp happens with integer range based on
+  // the result/quantized type but in the domain of the input type to preserve
+  // numeric)
+  auto minFloat = static_cast<float>(minIntAttr.getInt());
+  auto maxFloat = static_cast<float>(maxIntAttr.getInt());
+  auto minFloatAttr = rewriter.getFloatAttr(inputElemTy, minFloat);
+  auto maxFloatAttr = rewriter.getFloatAttr(inputElemTy, maxFloat);
+
   Value clamped = tosa::ClampOp::create(
-      rewriter, loc, resultTy, withZp, minIntAttr, maxIntAttr,
+      rewriter, loc, inputTy, withZp, minFloatAttr, maxFloatAttr,
       /*nan_mode=*/
       tosa::NanPropagationModeAttr::get(rewriter.getContext(),
                                         tosa::NanPropagationMode::PROPAGATE));
 
-  rewriter.replaceOp(op, clamped);
+  // Cast to the destination integer type
+  Value castToInt = tosa::CastOp::create(rewriter, loc, resultTy, clamped);
+
+  rewriter.replaceOp(op, castToInt);
   return success();
 }
 
@@ -10229,15 +10321,40 @@ public:
 
     RewritePatternSet patterns(context);
 
-    auto illegalOps = populateTorchToTosaConversionPatternsAndIllegalOps(
+    auto allConvertibleOps = populateTorchToTosaConversionPatternsAndIllegalOps(
         typeConverter, patterns);
 
-    for (auto op : illegalOps) {
+    // If enabledPatterns is not empty, then only those torch
+    // ops will be converted to TOSA and are illegal at the end of this pass
+    // (unless such an op is also mentioned in the disabledPatterns list)
+    std::set<StringRef> illegalOps;
+
+    for (const auto &enabledPattern : this->enabledPatterns) {
+      illegalOps.insert(enabledPattern);
+    }
+
+    // If enabledPatterns is empty, all convertible ops are legal candidates
+    if (illegalOps.empty())
+      illegalOps = allConvertibleOps;
+
+    // Any torch op mentioned in the disabledPatterns will not be converted
+    // to TOSA and is legal at the end of this pass
+    if (!this->disabledPatterns.empty()) {
+      for (const auto &disabledPattern : this->disabledPatterns) {
+        illegalOps.erase(StringRef(disabledPattern));
+      }
+    }
+
+    // Mark the determined ops as illegal in the conversion target
+    for (const auto &op : illegalOps) {
       target.addIllegalOp(OperationName(op, context));
     }
 
+    auto frozenPatterns = FrozenRewritePatternSet(
+        std::move(patterns), this->disabledPatterns, this->enabledPatterns);
+
     if (failed(applyPartialConversion(getOperation(), target,
-                                      std::move(patterns))))
+                                      std::move(frozenPatterns))))
       return signalPassFailure();
   }
 };
@@ -10283,15 +10400,16 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenOp, TosaOp)                     \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenUnaryPromoteToFPOp<AtenOp, TosaOp>>(typeConverter,   \
-                                                              context);
+  patterns.addWithLabel<ConvertAtenUnaryPromoteToFPOp<AtenOp, TosaOp>>(        \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenLogOp, tosa::LogOp)
   INSERT_UNARY_PROMOTE_TO_FP_PATTERN(AtenExpOp, tosa::ExpOp)
 #undef INSERT_UNARY_PROMOTE_TO_FP_PATTERN
 
 #define INSERT_UNARY_PATTERN(AtenOp, TosaOp)                                   \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenUnaryOp<AtenOp, TosaOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenUnaryOp<AtenOp, TosaOp>>(                   \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_UNARY_PATTERN(AtenNegOp, tosa::NegateOp)
   INSERT_UNARY_PATTERN(AtenFloorOp, tosa::FloorOp)
   INSERT_UNARY_PATTERN(AtenRsqrtOp, tosa::RsqrtOp)
@@ -10305,7 +10423,8 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_BINARY_PATTERN(AtenOp, TosaOp)                                  \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenBinaryOp<AtenOp, TosaOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenBinaryOp<AtenOp, TosaOp>>(                  \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_BINARY_PATTERN(AtenMaximumOp, tosa::MaximumOp)
   INSERT_BINARY_PATTERN(AtenMinimumOp, tosa::MinimumOp)
   INSERT_BINARY_PATTERN(AtenLogicalOrOp, tosa::LogicalOrOp)
@@ -10318,7 +10437,8 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_BINARY_ADDSUB_PATTERN(AtenOp, TosaOp)                           \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenAddSubOp<AtenOp, TosaOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenAddSubOp<AtenOp, TosaOp>>(                  \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_BINARY_ADDSUB_PATTERN(AtenAddTensorOp, tosa::AddOp)
   INSERT_BINARY_ADDSUB_PATTERN(AtenAddScalarOp, tosa::AddOp)
   INSERT_BINARY_ADDSUB_PATTERN(AtenSubTensorOp, tosa::SubOp)
@@ -10327,7 +10447,8 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_BINARY_COMPARE_PATTERN(AtenOp, TosaOp)                          \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenCompareOp<AtenOp, TosaOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenCompareOp<AtenOp, TosaOp>>(                 \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_BINARY_COMPARE_PATTERN(AtenGtTensorOp, tosa::GreaterOp)
   INSERT_BINARY_COMPARE_PATTERN(AtenGeScalarOp, tosa::GreaterEqualOp)
   INSERT_BINARY_COMPARE_PATTERN(AtenGeTensorOp, tosa::GreaterEqualOp)
@@ -10348,14 +10469,16 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_BINARY_MUL_PATTERN(AtenOp)                                      \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenMulOp<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenMulOp<AtenOp>>(AtenOp::getOperationName(),  \
+                                                  typeConverter, context);
   INSERT_BINARY_MUL_PATTERN(AtenMulTensorOp);
   INSERT_BINARY_MUL_PATTERN(AtenMulScalarOp);
 #undef INSERT_BINARY_MUL_PATTERN
 
 #define INSERT_BINARY_DIV_PATTERN(AtenOp)                                      \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenDivOp<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenDivOp<AtenOp>>(AtenOp::getOperationName(),  \
+                                                  typeConverter, context);
   INSERT_BINARY_DIV_PATTERN(AtenDivTensorOp);
   INSERT_BINARY_DIV_PATTERN(AtenDivScalarOp);
   INSERT_BINARY_DIV_PATTERN(AtenDivTensorModeOp);
@@ -10364,7 +10487,8 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_REMAINDER_FMOD_OP_PATTERN(AtenOp)                               \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenRemainderFmodOp<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenRemainderFmodOp<AtenOp>>(                   \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_REMAINDER_FMOD_OP_PATTERN(AtenRemainderScalarOp);
   INSERT_REMAINDER_FMOD_OP_PATTERN(AtenRemainderTensorOp);
   INSERT_REMAINDER_FMOD_OP_PATTERN(AtenFmodScalarOp);
@@ -10373,8 +10497,9 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)              \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenMultipleDimsReductionOp<AtenOp, ConversionFunc>>(    \
-      typeConverter, context);
+  patterns.addWithLabel<                                                       \
+      ConvertAtenMultipleDimsReductionOp<AtenOp, ConversionFunc>>(             \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenMeanDimOp,
                                     mlir::tosa::convertReduceMeanOp)
   INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenSumDimIntListOp,
@@ -10385,8 +10510,8 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)             \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenOneDimReductionOp<AtenOp, ConversionFunc>>(          \
-      typeConverter, context);
+  patterns.addWithLabel<ConvertAtenOneDimReductionOp<AtenOp, ConversionFunc>>( \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenAnyDimOp,
                                      mlir::tosa::convertReduceAnyOp)
   INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenAllDimOp,
@@ -10397,8 +10522,9 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)            \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenAllDimsReductionOp<AtenOp, ConversionFunc>>(         \
-      typeConverter, context);
+  patterns                                                                     \
+      .addWithLabel<ConvertAtenAllDimsReductionOp<AtenOp, ConversionFunc>>(    \
+          AtenOp::getOperationName(), typeConverter, context);
   INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenAllOp, mlir::tosa::convertReduceAllOp)
   INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenAnyOp, mlir::tosa::convertReduceAnyOp)
   INSERT_ALLDIMS_REDUCTION_OP_PATTERN(AtenSumOp, mlir::tosa::convertReduceSumOp)
@@ -10410,61 +10536,70 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_INDICES_REDUCTION_OP_PATTERN(AtenOp, TosaOp)                    \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenMinMaxDimOp<AtenOp, TosaOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenMinMaxDimOp<AtenOp, TosaOp>>(               \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_INDICES_REDUCTION_OP_PATTERN(AtenMaxDimOp, tosa::ReduceMaxOp);
   INSERT_INDICES_REDUCTION_OP_PATTERN(AtenMinDimOp, tosa::ReduceMinOp);
 #undef INSERT_INDICES_REDUCTION_OP_PATTERN
 
 #define INSERT_SQUEEZE_OP_PATTERN(AtenOp, TemplateForm)                        \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<TemplateForm<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<TemplateForm<AtenOp>>(AtenOp::getOperationName(),      \
+                                              typeConverter, context);
   INSERT_SQUEEZE_OP_PATTERN(AtenSqueezeOp, ConvertAtenSqueezeAllDimsOp)
   INSERT_SQUEEZE_OP_PATTERN(AtenSqueezeDimOp, ConvertAtenSqueezeOneDimOp)
 #undef INSERT_SQUEEZE_OP_PATTERN
 
 #define INSERT_MATMUL_ATENOP_PATTERN(AtenOp)                                   \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenMatMulOp<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenMatMulOp<AtenOp>>(                          \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_MATMUL_ATENOP_PATTERN(AtenMatmulOp);
 #undef INSERT_MATMUL_ATENOP_PATTERN
 
 #define INSERT_MM_ATENOP_PATTERN(AtenOp)                                       \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenMmOp<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenMmOp<AtenOp>>(AtenOp::getOperationName(),   \
+                                                 typeConverter, context);
   INSERT_MM_ATENOP_PATTERN(AtenMmOp);
   INSERT_MM_ATENOP_PATTERN(AtenBmmOp);
 #undef INSERT_MM_ATENOP_PATTERN
 
 #define INSERT_LINEAR_ATENOP_PATTERN(AtenOp)                                   \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenLinearOp<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenLinearOp<AtenOp>>(                          \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_LINEAR_ATENOP_PATTERN(AtenLinearOp);
 #undef INSERT_LINEAR_ATENOP_PATTERN
 
 #define INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN(AtenOp, TosaOpT)                \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenAdaptivePoolingOp<AtenOp, TosaOpT>>(typeConverter,   \
-                                                              context);
+  patterns.addWithLabel<ConvertAtenAdaptivePoolingOp<AtenOp, TosaOpT>>(        \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN(AtenAdaptiveAvgPool2dOp,
                                          tosa::AvgPool2dOp);
 #undef INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN
 
   illegalOps.insert(AtenMaxPool2dOp::getOperationName());
-  patterns.add<ConvertAtenMaxPool2dOp>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenMaxPool2dOp>(
+      AtenMaxPool2dOp::getOperationName(), typeConverter, context);
 
   illegalOps.insert(AtenMaxPool1dOp::getOperationName());
-  patterns.add<ConvertAtenMaxPool1dOp>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenMaxPool1dOp>(
+      AtenMaxPool1dOp::getOperationName(), typeConverter, context);
 
   illegalOps.insert(AtenAvgPool2dOp::getOperationName());
-  patterns.add<ConvertAtenAvgPool2dOp>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenAvgPool2dOp>(
+      AtenAvgPool2dOp::getOperationName(), typeConverter, context);
 
   illegalOps.insert(AtenAvgPool1dOp::getOperationName());
-  patterns.add<ConvertAtenAvgPool1dOp>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenAvgPool1dOp>(
+      AtenAvgPool1dOp::getOperationName(), typeConverter, context);
 
 #define INSERT_CONSTANT_FILL_PATTERN(AtenOp, fillVal)                          \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenConstPatternOp<AtenOp, fillVal>>(typeConverter,      \
-                                                           context);
+  patterns.addWithLabel<ConvertAtenConstPatternOp<AtenOp, fillVal>>(           \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_CONSTANT_FILL_PATTERN(AtenOnesOp, 1);
   INSERT_CONSTANT_FILL_PATTERN(AtenZerosOp, 0);
   INSERT_CONSTANT_FILL_PATTERN(AtenEmptyMemoryFormatOp, 0);
@@ -10472,7 +10607,8 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_FILL_PATTERN(AtenOp)                                            \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenFillOp<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenFillOp<AtenOp>>(AtenOp::getOperationName(), \
+                                                   typeConverter, context);
   INSERT_FILL_PATTERN(AtenFill_ScalarOp);
   INSERT_FILL_PATTERN(AtenFillScalarOp);
   INSERT_FILL_PATTERN(AtenFillTensorOp);
@@ -10480,30 +10616,41 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_MASKED_FILL_PATTERN(AtenOp)                                     \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenMaskedFillOp<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenMaskedFillOp<AtenOp>>(                      \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_MASKED_FILL_PATTERN(AtenMaskedFillScalarOp);
   INSERT_MASKED_FILL_PATTERN(AtenMaskedFillTensorOp);
 #undef INSERT_MASKED_FILL_PATTERN
 
 #define INSERT_POW_OP_PATTERN(AtenOp)                                          \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenPowOp<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenPowOp<AtenOp>>(AtenOp::getOperationName(),  \
+                                                  typeConverter, context);
   INSERT_POW_OP_PATTERN(AtenPowTensorScalarOp);
   INSERT_POW_OP_PATTERN(AtenPowTensorTensorOp);
   INSERT_POW_OP_PATTERN(AtenPowScalarOp);
 #undef INSERT_POW_OP_PATTERN
 
+#define INSERT_UPSAMPLE_BILINEAR_2D_FORWARD_OP_PATTERN(AtenOp)                 \
+  illegalOps.insert(AtenOp::getOperationName());                               \
+  patterns.add<ConvertUpsampleBilinear2dForward<AtenOp>>(typeConverter,        \
+                                                         context);
+  INSERT_UPSAMPLE_BILINEAR_2D_FORWARD_OP_PATTERN(AtenUpsampleBilinear2dOp);
+  INSERT_UPSAMPLE_BILINEAR_2D_FORWARD_OP_PATTERN(AtenUpsampleBilinear2dVecOp);
+#undef INSERT_UPSAMPLE_BILINEAR_2D_FORWARD_OP_PATTERN
+
 #define INSERT_UPSAMPLE_NEAREST_2D_FORWARD_OP_PATTERN(AtenOp)                  \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertUpsampleNearest2dForward<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertUpsampleNearest2dForward<AtenOp>>(              \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_UPSAMPLE_NEAREST_2D_FORWARD_OP_PATTERN(AtenUpsampleNearest2dOp);
   INSERT_UPSAMPLE_NEAREST_2D_FORWARD_OP_PATTERN(AtenUpsampleNearest2dVecOp);
 #undef INSERT_UPSAMPLE_NEAREST_2D_FORWARD_OP_PATTERN
 
 #define INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenOp, TosaOp)                  \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenActivationFunctionOp<AtenOp, TosaOp>>(typeConverter, \
-                                                                context);
+  patterns.addWithLabel<ConvertAtenActivationFunctionOp<AtenOp, TosaOp>>(      \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenTanhOp, tosa::TanhOp);
   INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenSigmoidOp, tosa::SigmoidOp);
   INSERT_ACTIVATION_FUNCTION_OP_PATTERN(AtenErfOp, tosa::ErfOp);
@@ -10511,7 +10658,8 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_ATENOP_PATTERN(AtenOp)                                          \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenOp<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenOp<AtenOp>>(AtenOp::getOperationName(),     \
+                                               typeConverter, context);
   INSERT_ATENOP_PATTERN(AtenHardtanhBackwardOp);
   INSERT_ATENOP_PATTERN(AtenReluOp);
   INSERT_ATENOP_PATTERN(AtenLeakyReluOp);
@@ -10583,13 +10731,15 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_CLONE_ATENOP_PATTERN(AtenOp)                                    \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertAtenCloneOp<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertAtenCloneOp<AtenOp>>(                           \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_CLONE_ATENOP_PATTERN(AtenCloneOp);
 #undef INSERT_CLONE_ATENOP_PATTERN
 
 #define INSERT_CAST_ATENOP_PATTERN(AtenOp)                                     \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertCastEquivalentOp<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertCastEquivalentOp<AtenOp>>(                      \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_CAST_ATENOP_PATTERN(Aten_MakePerChannelQuantizedTensorOp);
   INSERT_CAST_ATENOP_PATTERN(Aten_MakePerTensorQuantizedTensorOp);
   INSERT_CAST_ATENOP_PATTERN(AtenIntReprOp);
@@ -10597,7 +10747,8 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 
 #define INSERT_DEQUANTIZE_ATENOP_PATTERN(AtenOp)                               \
   illegalOps.insert(AtenOp::getOperationName());                               \
-  patterns.add<ConvertDequantizeOp<AtenOp>>(typeConverter, context);
+  patterns.addWithLabel<ConvertDequantizeOp<AtenOp>>(                          \
+      AtenOp::getOperationName(), typeConverter, context);
   INSERT_DEQUANTIZE_ATENOP_PATTERN(AtenDequantizeTensorOp);
   INSERT_DEQUANTIZE_ATENOP_PATTERN(AtenDequantizeSelfOp);
 #undef INSERT_DEQUANTIZE_ATENOP_PATTERN
@@ -10613,9 +10764,15 @@ std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToTosaPass() {
 // Convenience wrapper for users who want to pass options as individual
 // parameters
 std::unique_ptr<OperationPass<func::FuncOp>>
-createConvertTorchToTosaPass(bool requireFullTosaConversion) {
+createConvertTorchToTosaPass(bool requireFullTosaConversion,
+                             ArrayRef<std::string> disabledPatterns,
+                             ArrayRef<std::string> enabledPatterns) {
   ConvertTorchToTosaOptions options;
   options.requireFullTosaConversion = requireFullTosaConversion;
+  options.disabledPatterns.assign(disabledPatterns.begin(),
+                                  disabledPatterns.end());
+  options.enabledPatterns.assign(enabledPatterns.begin(),
+                                 enabledPatterns.end());
   return std::make_unique<ConvertTorchToTosa>(options);
 }
 

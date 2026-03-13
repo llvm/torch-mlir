@@ -829,6 +829,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "QuantizedMLP_basic",
     "QuantizedNoLayer_basic",
     "QuantizedSingleLayer_basic",
+    "QuantizePerTensorModule_basic",
     "RandnDtypeDeviceModule_basic",
     "RandnGeneratorF64Module_basic",
     "RandnGeneratorModule_basic",
@@ -1755,8 +1756,6 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
     "Aten_TrilinearModuleSumAllDims_basic",
     "Aten_TrilinearModuleSumdims_basic",
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
-    "CrossEntropyLossModule_basic",
-    "CrossEntropyLossNoReductionModule_basic",
     "ScatterSrcModule_basic",
     "ScatterSrcStaticModule_basic",
     "HBC_basic",
@@ -3197,6 +3196,7 @@ ONNX_XFAIL_SET = {
     "QuantizedReluInt8_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluUint8_basic",
+    "QuantizePerTensorModule_basic",
     "RandIntDtypeModule_basic",
     "RandIntModule_basic",
     "RandIntPinMemoryModule_basic",
@@ -3563,6 +3563,8 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
+    "CrossEntropyLossModule_basic",
+    "CrossEntropyLossNoReductionModule_basic",
     "NumpyTRank0Module_basic",
     "Permute0RankModule_basic",
     "ArgsortTensor_basic",
@@ -4802,6 +4804,7 @@ ONNX_TOSA_XFAIL_SET = {
     "QuantizedReluInt8_basic",
     "QuantizedReluUint8_basic",
     "QuantizedSingleLayer_basic",
+    "QuantizePerTensorModule_basic",
     "RandIntDtypeModule_basic",
     "RandIntModule_basic",
     "RandIntPinMemoryModule_basic",

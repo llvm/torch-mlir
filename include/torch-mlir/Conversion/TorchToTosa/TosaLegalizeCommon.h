@@ -136,6 +136,12 @@ std::optional<Value> createRoundHalfToEven(ConversionPatternRewriter &rewriter,
                                            Operation *op, Value input,
                                            RankedTensorType resultTy);
 
+Value convertResizeOp(ConversionPatternRewriter &rewriter, Operation *op,
+                      const TypeConverter *typeConverter, Value input,
+                      RankedTensorType inputTy, RankedTensorType resultTy,
+                      int64_t outputHeight, int64_t outputWidth,
+                      bool alignCorners, tosa::ResizeMode mode);
+
 } // namespace tosa
 } // namespace mlir
 

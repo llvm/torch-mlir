@@ -1945,6 +1945,12 @@ public:
     llvm::SmallVector<Value> filteredTensors;
     for (auto tensor : tensors) {
       auto inputType = cast<RankedTensorType>(tensor.getType());
+      // Defensive: per PyTorch docs, aten.cat allows "a 1-D empty
+      // tensor with size (0,)" alongside operands of any rank.
+      // Normally the canonicalizer removes these, but skip here too
+      // since dim would be out of bounds for a rank-mismatched operand.
+      if (inputType.getRank() == 1 && inputType.getDimSize(0) == 0)
+        continue;
       if (inputType.getDimSize(dim) != 0) {
         filteredTensors.push_back(tensor);
       }

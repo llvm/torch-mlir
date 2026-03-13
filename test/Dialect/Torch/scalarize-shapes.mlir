@@ -87,13 +87,7 @@ func.func @cast_int_float(%arg0 : !torch.vtensor<[5,?,?],f32>) -> !torch.vtensor
 
 // CHECK-LABEL: @cast_int_float_static
 func.func @cast_int_float_static(%arg0 : !torch.vtensor<[5,?,?],f32>) -> !torch.vtensor<[3],f32> {
-    // CHECK: %[[FLOAT1:.*]] = torch.constant.float 1.000000e+00
-    // CHECK: %[[FLOAT2:.*]] = torch.constant.float 2.000000e+00
-    // CHECK: %[[FLOAT3:.*]] = torch.constant.float 3.000000e+00
-    // CHECK: %[[LIST:.*]] = torch.prim.ListConstruct %[[FLOAT1:.*]], %[[FLOAT2:.*]], %[[FLOAT3:.*]] : (!torch.float, !torch.float, !torch.float) -> !torch.list<float>
-    // CHECK: %[[NONE:.*]] = torch.constant.none
-    // CHECK: %[[FALSE:.*]] = torch.constant.bool false
-    // CHECK: %[[TENSOR:.*]] = torch.aten.tensor %[[LIST]], %[[NONE]], %[[NONE]], %[[FALSE]] : !torch.list<float>, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[3],f32>
+    // CHECK: %[[TENSOR:.*]] = torch.vtensor.literal(dense<[1.000000e+00, 2.000000e+00, 3.000000e+00]> : tensor<3xf32>) : !torch.vtensor<[3],f32>
     // CHECK: return %[[TENSOR]] : !torch.vtensor<[3],f32>
     %int6 = torch.constant.int 6
     %false = torch.constant.bool false

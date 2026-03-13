@@ -14,6 +14,7 @@
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "llvm/ADT/ArrayRef.h"
+#include <numeric>
 
 namespace mlir {
 namespace tosa {
@@ -578,6 +579,43 @@ FailureOr<Value> getZeroPointValue(PatternRewriter &rewriter, Operation *op,
   }
 
   return zp;
+}
+
+bool typeHasZeroDim(ShapedType type) {
+  auto outShape = type.getShape();
+  return llvm::any_of(outShape, [](int64_t dim) { return dim == 0; });
+}
+
+void computeResizeParams(int inputSize, int outputSize, bool alignCorners,
+                         tosa::ResizeMode mode, int &scaleN, int &scaleD,
+                         int &offset, int &border) {
+  // Dimension is length 1, we are just sampling from one value.
+  if (inputSize == 1) {
+    scaleN = outputSize;
+    scaleD = 1;
+    offset = 0;
+    border = outputSize - 1;
+    return;
+  }
+
+  // Apply if aligned and capable to be aligned.
+  bool applyAligned = alignCorners && (outputSize > 1);
+  scaleN = applyAligned ? (outputSize - 1) : outputSize;
+  scaleD = applyAligned ? (inputSize - 1) : inputSize;
+
+  // Simplify the scalers, make sure they are even values.
+  int gcd = std::gcd(scaleN, scaleD);
+  scaleN = 2 * scaleN / gcd;
+  scaleD = 2 * scaleD / gcd;
+
+  // If nearest neighbors we need to guarantee we round up.
+  offset = 0;
+  if (mode == tosa::ResizeMode::NEAREST_NEIGHBOR && alignCorners) {
+    offset += scaleN / 2;
+  }
+
+  // We can compute this directly based on previous values.
+  border = scaleD * (outputSize - 1) - scaleN * (inputSize - 1) + offset;
 }
 
 } // namespace tosa

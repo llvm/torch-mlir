@@ -37,7 +37,9 @@ std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToTosaPass();
 // Convenience wrapper for users who want to pass options as individual
 // parameters
 std::unique_ptr<OperationPass<func::FuncOp>>
-createConvertTorchToTosaPass(bool requireFullTosaConversion);
+createConvertTorchToTosaPass(bool requireFullTosaConversion,
+                             ArrayRef<std::string> disabled_patterns,
+                             ArrayRef<std::string> enabled_patterns);
 
 } // namespace torch
 } // namespace mlir
