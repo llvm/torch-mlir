@@ -382,6 +382,20 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
   return tosa::CastOp::create(rewriter, op->getLoc(), castedSrcType, src);
 }
 
+Value legalizeArgMaxInputType(PatternRewriter &rewriter, Operation *op,
+                              Value input) {
+  auto inputTy = cast<RankedTensorType>(input.getType());
+  auto elemTy = inputTy.getElementType();
+  // Keep i8 as-is (supported by TOSA pro_int argmax). Cast other integer
+  // types to f32, including i1 (handled via i1->i8->f32).
+  if (!elemTy.isInteger() || elemTy.isInteger(8))
+    return input;
+  auto castTy =
+      RankedTensorType::get(inputTy.getShape(), rewriter.getF32Type());
+  auto casted = tosa::tosaCastTensorToType(rewriter, input, castTy);
+  return casted ? *casted : input;
+}
+
 // Template instantiation
 template std::optional<Value>
 getConstTensor<bool>(PatternRewriter &, Operation *, ArrayRef<bool> vec,

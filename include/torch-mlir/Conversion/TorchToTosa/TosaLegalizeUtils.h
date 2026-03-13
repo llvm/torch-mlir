@@ -64,6 +64,10 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
 std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
                                           TensorType destType);
 
+// Ensure TOSA argmax input is f32 by inserting a tosa.cast when needed.
+Value legalizeArgMaxInputType(PatternRewriter &rewriter, Operation *op,
+                              Value input);
+
 // Creates a TOSA operation and performs shape inference on the individual
 // op. This allows shape inference during the framework to TOSA lowering.
 template <typename TosaOp, typename... Args>
