@@ -4545,14 +4545,17 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewriteImpl(
           .value();
 
   SmallVector<int64_t> intermediateOutShape = {1, numIndices, weightShape[1]};
-  auto gatherOp = tosa::GatherOp::create(
-      rewriter, op->getLoc(),
-      RankedTensorType::get(makeShapeLLVMCompatible(intermediateOutShape),
-                            weightType.getElementType()),
-      reshapedWeight, castIndices);
+  auto gatherElemTy = weightType.getElementType();
+  auto gatherTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(intermediateOutShape), gatherElemTy);
+  auto gatherResult = tosa::createGatherOp(rewriter, op->getLoc(), gatherTy,
+                                           reshapedWeight, castIndices);
+  if (!gatherResult)
+    return rewriter.notifyMatchFailure(
+        op, "expected ranked tensor input for gather");
 
   rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
-      op, outType, gatherOp,
+      op, outType, *gatherResult,
       tosa::getTosaConstShape(rewriter, op->getLoc(),
                               makeShapeTorchCompatible(outType.getShape())));
 
@@ -4868,9 +4871,11 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewriteImpl(
   // Duplicate the 1-D index vector across the batch dimension so that we can
   // use a single tosa.gather to materialize the strided slice.
   auto gatherTy = RankedTensorType::get({N, W, C}, elemTy);
-  Value gathered =
-      tosa::GatherOp::create(rewriter, loc, gatherTy, reshaped, idxNW)
-          .getResult();
+  auto gathered =
+      tosa::createGatherOp(rewriter, loc, gatherTy, reshaped, idxNW);
+  if (!gathered)
+    return rewriter.notifyMatchFailure(
+        op, "expected ranked tensor input for gather");
 
   SmallVector<int64_t> outShape = inputShape;
   outShape[dim] = W;
@@ -4879,7 +4884,7 @@ LogicalResult ConvertAtenOp<AtenSliceTensorOp>::matchAndRewriteImpl(
 
   // Restore the original rank with the newly strided dimension size.
   Value result =
-      tosa::ReshapeOp::create(rewriter, loc, convertedResultTy, gathered,
+      tosa::ReshapeOp::create(rewriter, loc, convertedResultTy, *gathered,
                               tosa::getTosaConstShape(rewriter, loc, outShape))
           .getResult();
 
