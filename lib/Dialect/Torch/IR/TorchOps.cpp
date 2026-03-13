@@ -4510,6 +4510,15 @@ OpFoldResult AtenSubFloatOp::fold(FoldAdaptor adaptor) {
 }
 
 //===----------------------------------------------------------------------===//
+// AtenAddFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAddFloatOp::fold(FoldAdaptor adaptor) {
+  return atenBinaryFloatOperatorFoldHelper(
+      adaptor.getOperands(), [](double a, double b) { return a + b; });
+}
+
+//===----------------------------------------------------------------------===//
 // AtenAddOp
 //===----------------------------------------------------------------------===//
 

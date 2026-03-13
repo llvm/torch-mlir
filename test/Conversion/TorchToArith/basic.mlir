@@ -210,6 +210,19 @@ func.func @torch.aten.sub.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.in
   return %0 : !torch.int
 }
 
+// CHECK-LABEL:  func.func @torch.aten.add.float(
+// CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
+// CHECK-SAME:                            %[[RHS:.*]]: !torch.float) -> !torch.float {
+// CHECK-DAG:      %[[LHS_F64:.*]] = torch_c.to_f64 %[[LHS]]
+// CHECK-DAG:      %[[RHS_F64:.*]] = torch_c.to_f64 %[[RHS]]
+// CHECK:          %[[ADD:.*]] = arith.addf %[[LHS_F64:.*]], %[[RHS_F64:.*]] : f64
+// CHECK:          %[[OUT:.*]] = torch_c.from_f64 %[[ADD:.*]]
+// CHECK:          return %[[OUT:.*]] : !torch.float
+func.func @torch.aten.add.float(%arg0: !torch.float, %arg1: !torch.float) -> !torch.float {
+  %0 = torch.aten.add.float %arg0, %arg1 : !torch.float, !torch.float -> !torch.float
+  return %0 : !torch.float
+}
+
 // CHECK-LABEL:  func.func @torch.aten.sub.float(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.float) -> !torch.float {
