@@ -5156,6 +5156,33 @@ def ElementwiseBitwiseXorModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseBitwiseXorBoolModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bool, True),
+            ([-1, -1], torch.bool, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.bitwise_xor(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseBitwiseXorBoolModule())
+def ElementwiseBitwiseXorBoolModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=0, high=2).to(torch.bool),
+        tu.randint(3, 4, low=0, high=2).to(torch.bool),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseBitwiseXorStaticShapeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
