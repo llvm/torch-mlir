@@ -61,12 +61,37 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
                                   Value input, Value indices, int64_t axis,
                                   size_t dimSizeIndexBits) {
   auto loc = op->getLoc();
+
+  auto indicesRankTy = dyn_cast<RankedTensorType>(indices.getType());
+  auto indicesShape = indicesRankTy.getShape();
+  auto inputRankTy = dyn_cast<RankedTensorType>(input.getType());
+
+  // Check if indices tensor is empty (has any dimension with size 0)
+  bool isEmpty =
+      llvm::any_of(indicesShape, [](int64_t dim) { return dim == 0; });
+
+  if (isEmpty) {
+    // Special case: StableHLO doesn't support gather operations on empty
+    // tensors. Return an empty tensor with the correct output shape.
+    auto inputShape = inputRankTy.getShape();
+    SmallVector<int64_t, 4> outputShape(inputShape.begin(),
+                                        inputShape.begin() + axis);
+    outputShape.insert(outputShape.end(), indicesShape.begin(),
+                       indicesShape.end());
+    outputShape.insert(outputShape.end(), inputShape.begin() + axis + 1,
+                       inputShape.end());
+
+    auto outputTy =
+        RankedTensorType::get(outputShape, inputRankTy.getElementType());
+    auto emptyAttr = cast<DenseElementsAttr>(rewriter.getZeroAttr(outputTy));
+    return stablehlo::ConstantOp::create(rewriter, loc, emptyAttr);
+  }
+
   Type intType = rewriter.getIntegerType(dimSizeIndexBits);
   Value one = arith::ConstantOp::create(rewriter, loc,
                                         rewriter.getIntegerAttr(intType, 1));
 
   // sliceSizes
-  auto inputRankTy = dyn_cast<RankedTensorType>(input.getType());
   auto inputRank = inputRankTy.getRank();
   SmallVector<Value, 4> sliceSizes;
   sliceSizes.reserve(inputRank);
@@ -88,7 +113,6 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
   for (int64_t r = 0; r < axis; ++r) {
     offsetDims.push_back(r);
   }
-  auto indicesRankTy = dyn_cast<RankedTensorType>(indices.getType());
   auto indicesRank = indicesRankTy.getRank();
   for (int64_t r = axis + 1; r < inputRank; ++r) {
     offsetDims.push_back(r + indicesRank - 1);
@@ -112,7 +136,6 @@ Value gatherTensorAlongSingleAxis(PatternRewriter &rewriter, Operation *op,
   // outputShape = input.shape[:axis] + indices.shape +
   //                input.shape[axis + 1:]
   auto inputShape = inputRankTy.getShape();
-  auto indicesShape = indicesRankTy.getShape();
   SmallVector<int64_t, 4> outputShape(inputShape.begin(),
                                       inputShape.begin() + axis);
   outputShape.insert(outputShape.end(), indicesShape.begin(),
