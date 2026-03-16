@@ -1792,6 +1792,33 @@ def GatherModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class GatherBoolModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.bool, True),
+            ([-1, -1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, tensor, indices):
+        return torch.gather(tensor, 2, indices)
+
+
+@register_test_case(module_factory=lambda: GatherBoolModule())
+def GatherBoolModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(2, 3, 4, high=2).to(torch.bool),
+        torch.tensor([[[1, 2, 3], [1, 2, 3]]]),
+    )
+
+
+# ==============================================================================
+
+
 class GatherNegativeDimModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

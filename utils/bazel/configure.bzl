@@ -18,7 +18,7 @@ def _get_src_path(repository_ctx):
         return repository_ctx.path(repository_ctx.attr.src_workspace).dirname
 
     # Fallback for standalone torch-mlir builds
-    return repository_ctx.path(Label("//:WORKSPACE")).dirname
+    return repository_ctx.path(Label("//:WORKSPACE.bazel")).dirname
 
 def _overlay_directories(repository_ctx):
     src_path = _get_src_path(repository_ctx)

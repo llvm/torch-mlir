@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 docker build -f utils/bazel/docker/Dockerfile \
              -t torch-mlir:dev \
              .
