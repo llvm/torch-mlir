@@ -1,3 +1,4 @@
 -f https://download.pytorch.org/whl/nightly/cpu/torchvision/
 --pre
-torchvision==0.26.0.dev20260218+cpu
+torchvision==0.26.0.dev20260218+cpu; sys_platform == "linux" or sys_platform == "win32"
+torchvision==0.26.0.dev20260218; sys_platform == 'darwin'
