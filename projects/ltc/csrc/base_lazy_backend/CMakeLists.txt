@@ -84,15 +84,31 @@ target_link_libraries(torch_mlir_ltc_backend
 )
 
 message(STATUS "TORCH_CXXFLAGS=${TORCH_CXXFLAGS} -Wno-pedantic")
-set_target_properties(torch_mlir_ltc_backend PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/_mlir_libs"
-  OUTPUT_NAME lib_torch_mlir_ltc
-  PREFIX ""
-  SUFFIX ".so"
-  CXX_VISIBILITY_PRESET "hidden"
-  COMPILE_FLAGS "${TORCH_CXXFLAGS} -Wno-pedantic"
-  LINK_FLAGS "-rdynamic"
-)
+if(APPLE)
+  # macOS: use .dylib suffix (CMake default for SHARED on macOS) and
+  # -undefined dynamic_lookup so that PyTorch symbols (e.g.
+  # FLAGS_torch_lazy_*) are resolved at load-time through the Python
+  # process that has already loaded libtorch.
+  # Note: -rdynamic is a Linux-only linker flag and must not be used here.
+  set_target_properties(torch_mlir_ltc_backend PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/_mlir_libs"
+    OUTPUT_NAME lib_torch_mlir_ltc
+    PREFIX ""
+    CXX_VISIBILITY_PRESET "hidden"
+    COMPILE_FLAGS "${TORCH_CXXFLAGS} -Wno-pedantic"
+    LINK_FLAGS "-undefined dynamic_lookup"
+  )
+else()
+  set_target_properties(torch_mlir_ltc_backend PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${TORCH_MLIR_PYTHON_PACKAGES_DIR}/torch_mlir/torch_mlir/_mlir_libs"
+    OUTPUT_NAME lib_torch_mlir_ltc
+    PREFIX ""
+    SUFFIX ".so"
+    CXX_VISIBILITY_PRESET "hidden"
+    COMPILE_FLAGS "${TORCH_CXXFLAGS} -Wno-pedantic"
+    LINK_FLAGS "-rdynamic"
+  )
+endif()
 
 # Copy header files into python package
 
