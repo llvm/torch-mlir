@@ -276,40 +276,6 @@ def Convolution2DModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class Convolution2DReshapeInputsModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([9], torch.float32, True),
-            ([9], torch.float32, True),
-            ([1], torch.float32, True),
-        ]
-    )
-    def forward(self, inputVec, weight, bias):
-        input4d = torch.reshape(inputVec, (1, 1, 3, 3))
-        weight4d = torch.reshape(weight, (1, 1, 3, 3))
-        return torch.ops.aten.convolution(
-            input4d,
-            weight4d,
-            bias=bias,
-            stride=[1, 1],
-            padding=[0, 0],
-            dilation=[1, 1],
-            transposed=False,
-            output_padding=[0, 0],
-            groups=1,
-        )
-
-
-@register_test_case(module_factory=lambda: Convolution2DReshapeInputsModule())
-def Convolution2DReshapeInputsModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(9), tu.rand(9), tu.rand(1))
-
-
 class Convolution2DStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

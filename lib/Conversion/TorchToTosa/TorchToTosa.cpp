@@ -14,8 +14,8 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectResourceBlobManager.h"
-#include "mlir/IR/Dominance.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -27,9 +27,11 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include <cmath>
@@ -54,6 +56,7 @@ struct RankTemplate {
   int64_t rank;
   RankedTensorType type;
   Value shape;
+  std::optional<SmallVector<int64_t>> shapeValues;
 };
 
 // Runs an in-place inclusive prefix sum along the middle dimension (K) of
@@ -2672,71 +2675,145 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
     return rewriter.notifyMatchFailure(
         op, "Unimplemented: only 2D or 3D convolutions supported");
 
-  auto funcOp = op->getParentOfType<func::FuncOp>();
-  llvm::DenseMap<unsigned, SmallVector<RankTemplate>> argToTemplates;
-  bool templatesBuilt = false;
-  DominanceInfo domInfo(funcOp);
+  auto peelTrivialDefs = [](Value source) -> Value {
+    while (true) {
+      if (auto unrealized =
+              source.getDefiningOp<UnrealizedConversionCastOp>()) {
+        if (unrealized->getNumOperands() == 1) {
+          source = unrealized.getOperand(0);
+          continue;
+        }
+      }
+      if (auto castOp = source.getDefiningOp<tensor::CastOp>()) {
+        source = castOp.getSource();
+        continue;
+      }
+      break;
+    }
+    return source;
+  };
 
-  auto buildTemplates = [&]() {
-    if (templatesBuilt)
-      return;
-    templatesBuilt = true;
-    funcOp.walk([&](tosa::ReshapeOp reshapeOp) {
-      Value source = reshapeOp.getInput1();
-      auto blockArg = dyn_cast<BlockArgument>(source);
-      if (!blockArg)
+  auto addTemplate = [&](SmallVectorImpl<RankTemplate> &templates, int64_t rank,
+                         RankedTensorType type, Value shape,
+                         std::optional<SmallVector<int64_t>> shapeValues) {
+    for (const auto &tmpl : templates) {
+      if (tmpl.rank == rank && tmpl.type == type && tmpl.shape == shape &&
+          tmpl.shapeValues == shapeValues)
         return;
+    }
+    templates.push_back(RankTemplate{rank, type, shape, shapeValues});
+  };
 
+  auto collectTemplateFromValue =
+      [&](Value source) -> SmallVector<RankTemplate> {
+    SmallVector<RankTemplate> templates;
+    if (!source)
+      return templates;
+    source = peelTrivialDefs(source);
+    if (auto reshapeOp = source.getDefiningOp<tosa::ReshapeOp>()) {
       auto dstType =
           dyn_cast<RankedTensorType>(reshapeOp.getResult().getType());
       if (!dstType || (dstType.getRank() != 4 && dstType.getRank() != 5))
-        return;
-
-      unsigned argNumber = blockArg.getArgNumber();
-      auto &templates = argToTemplates[argNumber];
-      for (const auto &tmpl : templates) {
-        if (tmpl.rank == dstType.getRank() && tmpl.type == dstType)
-          return;
+        return templates;
+      std::optional<SmallVector<int64_t>> shapeValues;
+      if (auto shapeOp =
+              reshapeOp.getShape().getDefiningOp<tosa::ConstShapeOp>()) {
+        shapeValues =
+            SmallVector<int64_t>(shapeOp.getValues().getValues<int64_t>());
       }
-      templates.push_back(
-          RankTemplate{dstType.getRank(), dstType, reshapeOp.getShape()});
-    });
+      addTemplate(templates, dstType.getRank(), dstType, reshapeOp.getShape(),
+                  shapeValues);
+      return templates;
+    }
+
+    if (auto reshapeOp = source.getDefiningOp<Torch::AtenReshapeOp>()) {
+      auto torchTy =
+          dyn_cast<Torch::ValueTensorType>(reshapeOp.getResult().getType());
+      if (!torchTy || !torchTy.hasSizes() || !torchTy.hasDtype())
+        return templates;
+      auto dstType = dyn_cast<RankedTensorType>(torchTy.toBuiltinTensor());
+      if (!dstType || (dstType.getRank() != 4 && dstType.getRank() != 5))
+        return templates;
+      SmallVector<int64_t> shapeValues;
+      for (int64_t dim : dstType.getShape())
+        shapeValues.push_back(dim);
+      addTemplate(templates, dstType.getRank(), dstType, Value(), shapeValues);
+      return templates;
+    }
+
+    return templates;
   };
 
   auto normalizeOperandRank = [&](Value operand,
                                   int64_t requiredRank) -> FailureOr<Value> {
+    // Normalize rank-mismatched convolution operands only when the operand
+    // carries a direct local reshape template that proves the target 4D/5D
+    // shape.
     auto rankedType = dyn_cast<RankedTensorType>(operand.getType());
     if (!rankedType)
       return failure();
     if (rankedType.getRank() == requiredRank)
       return operand;
 
-    auto blockArg = dyn_cast<BlockArgument>(operand);
-    if (!blockArg)
+    SmallVector<RankTemplate> templates = collectTemplateFromValue(operand);
+    if (templates.empty())
       return failure();
 
-    buildTemplates();
-    auto tmplIt = argToTemplates.find(blockArg.getArgNumber());
-    if (tmplIt == argToTemplates.end())
-      return failure();
-
-    const RankTemplate *match = nullptr;
-    for (const auto &tmpl : tmplIt->second) {
-      if (tmpl.rank == requiredRank) {
-        match = &tmpl;
-        break;
+    auto getStaticNumElementsFromShape =
+        [](ArrayRef<int64_t> shape) -> std::optional<int64_t> {
+      if (llvm::any_of(shape, ShapedType::isDynamic))
+        return std::nullopt;
+      return ShapedType::getNumElements(shape);
+    };
+    auto getStaticNumElementsFromTemplate =
+        [&](const RankTemplate &tmpl) -> std::optional<int64_t> {
+      if (tmpl.shapeValues)
+        return getStaticNumElementsFromShape(*tmpl.shapeValues);
+      if (tmpl.shape) {
+        if (auto shapeOp = tmpl.shape.getDefiningOp<tosa::ConstShapeOp>()) {
+          SmallVector<int64_t> shapeValues(
+              shapeOp.getValues().getValues<int64_t>());
+          return getStaticNumElementsFromShape(shapeValues);
+        }
       }
+      if (tmpl.type.hasStaticShape())
+        return tmpl.type.getNumElements();
+      return std::nullopt;
+    };
+
+    auto operandTy = dyn_cast<RankedTensorType>(operand.getType());
+    auto operandElemTy = operandTy.getElementType();
+    std::optional<int64_t> operandNumElements;
+    if (operandTy.hasStaticShape())
+      operandNumElements = operandTy.getNumElements();
+    SmallVector<const RankTemplate *> candidates;
+    for (const auto &tmpl : templates) {
+      if (tmpl.rank != requiredRank)
+        continue;
+      if (tmpl.type.getElementType() != operandElemTy)
+        continue;
+      std::optional<int64_t> templateNumElements =
+          getStaticNumElementsFromTemplate(tmpl);
+      if (!operandNumElements || !templateNumElements ||
+          *templateNumElements != *operandNumElements)
+        continue;
+      candidates.push_back(&tmpl);
     }
-    if (!match)
+    if (candidates.empty())
       return failure();
+    if (candidates.size() != 1)
+      return failure();
+    const RankTemplate *match = candidates.front();
 
     Value shapeVal = match->shape;
-    if (auto shapeOp = shapeVal.getDefiningOp<tosa::ConstShapeOp>()) {
-      OpBuilder builder(op);
+    if (!shapeVal) {
+      if (!match->shapeValues)
+        return failure();
+      shapeVal =
+          tosa::getTosaConstShape(rewriter, op->getLoc(), *match->shapeValues);
+    } else if (auto shapeOp = shapeVal.getDefiningOp<tosa::ConstShapeOp>()) {
       shapeVal = tosa::ConstShapeOp::create(
-          builder, op->getLoc(), shapeOp.getType(), shapeOp.getValues());
-    } else if (!domInfo.properlyDominates(shapeVal, op)) {
-      return failure();
+          rewriter, op->getLoc(), shapeOp.getType(), shapeOp.getValues());
     }
 
     auto reshape = tosa::ReshapeOp::create(rewriter, op->getLoc(), match->type,
