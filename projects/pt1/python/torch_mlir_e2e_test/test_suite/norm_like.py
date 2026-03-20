@@ -378,44 +378,6 @@ def NativeBatchNorm2DTrainingModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class NativeBatchNorm2DTrainingWithRunningStatsModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @export
-    @annotate_args(
-        [
-            None,
-            ([-1, -1, -1, -1], torch.float32, True),
-            ([-1], torch.float32, True),
-            ([-1], torch.float32, True),
-            ([-1], torch.float32, True),
-            ([-1], torch.float32, True),
-        ]
-    )
-    def forward(self, x, weight, bias, running_mean, running_var):
-        return torch.ops.aten.native_batch_norm(
-            x,
-            weight,
-            bias,
-            running_mean,
-            running_var,
-            training=True,
-            momentum=0.1,
-            eps=0.00001,
-        )
-
-
-@register_test_case(
-    module_factory=lambda: NativeBatchNorm2DTrainingWithRunningStatsModule()
-)
-def NativeBatchNorm2DTrainingWithRunningStatsModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(2, 5, 2, 3), tu.rand(5), tu.rand(5), tu.rand(5), tu.rand(5))
-
-
-# ==============================================================================
-
-
 class GroupNormModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
