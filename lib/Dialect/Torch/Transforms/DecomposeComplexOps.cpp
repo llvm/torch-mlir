@@ -8653,9 +8653,19 @@ class DecomposeAtenNativeBatchNormOp
         auto tensorTy = dyn_cast<BaseTensorType>(resultTy);
         if (tensorTy && tensorTy.hasSizes()) {
           SmallVector<Value> sizeVals;
-          for (int64_t s : tensorTy.getSizes())
-            sizeVals.push_back(ConstantIntOp::create(
-                rewriter, loc, rewriter.getI64IntegerAttr(s)));
+          auto sizes = tensorTy.getSizes();
+          for (size_t i = 0; i < sizes.size(); ++i) {
+            if (sizes[i] == Torch::kUnknownSize) {
+              auto indxOp = Torch::AtenSizeIntOp::create(
+                  rewriter, loc, input,
+                  ConstantIntOp::create(rewriter, loc,
+                                        rewriter.getI64IntegerAttr(i)));
+              sizeVals.push_back(indxOp);
+            } else {
+              sizeVals.push_back(ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(sizes[i])));
+            }
+          }
           return PrimListConstructOp::create(rewriter, loc, listTy, sizeVals);
         }
         return zeroList;
