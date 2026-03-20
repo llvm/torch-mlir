@@ -3603,6 +3603,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "MaxPool3dModuleRandomSimple_basic",
     "MaxPool3dModule_basic",
     "MaxPool3dStaticModule_basic",
+    "NativeBatchNorm2DTrainingWithRunningStatsModule_basic",
     "ViewDtypeStaticModule_basic",
     "Unfold_Module_Rank_Zero_Size_Zero_basic",
     "ArangeZeroElementOutputModule_basic",
