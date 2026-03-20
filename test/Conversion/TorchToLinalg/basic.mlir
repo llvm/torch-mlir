@@ -1082,3 +1082,20 @@ func.func @torch.ops.aten.anydim$basic(%arg0: tensor<1x16x26x26xi1>) -> !torch.v
   %1 = torch.aten.any.dim %0, %int-1, %true : !torch.vtensor<[1,16,26,26],i1>, !torch.int, !torch.bool -> !torch.vtensor<[1,16,26,1],i1>
   return %1 : !torch.vtensor<[1,16,26,1],i1>
 }
+
+// -----
+
+// Per PyTorch docs, torch.cat allows "a 1-D empty tensor with size (0,)"
+// alongside operands of any rank. The linalg lowering must skip these.
+// CHECK-LABEL: func.func @torch.aten.cat$rank1_empty
+//  CHECK-SAME:   %[[ARG0:.*]]: !torch.vtensor<[1,8,?,128],f16>, %[[ARG1:.*]]: !torch.vtensor<[0],f16>
+//       CHECK:   %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1,8,?,128],f16> -> tensor<1x8x?x128xf16>
+//       CHECK:   %[[CONCAT:.*]] = tensor.concat dim(2) %[[T0]] : (tensor<1x8x?x128xf16>) -> tensor<1x8x?x128xf16>
+//       CHECK:   %[[T1:.*]] = torch_c.from_builtin_tensor %[[CONCAT]] : tensor<1x8x?x128xf16> -> !torch.vtensor<[1,8,?,128],f16>
+//       CHECK:   return %[[T1]]
+func.func @torch.aten.cat$rank1_empty(%arg0: !torch.vtensor<[1,8,?,128],f16>, %arg1: !torch.vtensor<[0],f16>) -> !torch.vtensor<[1,8,?,128],f16> {
+  %int-2 = torch.constant.int -2
+  %0 = torch.prim.ListConstruct %arg1, %arg0 : (!torch.vtensor<[0],f16>, !torch.vtensor<[1,8,?,128],f16>) -> !torch.list<vtensor>
+  %1 = torch.aten.cat %0, %int-2 : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,8,?,128],f16>
+  return %1 : !torch.vtensor<[1,8,?,128],f16>
+}
