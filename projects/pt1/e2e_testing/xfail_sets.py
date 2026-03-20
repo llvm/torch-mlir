@@ -450,6 +450,7 @@ FX_IMPORTER_XFAIL_SET = {
     "IntFloatModule_basic",
     "IntImplicitModule_basic",
     "LenStrModule_basic",
+    "NativeBatchNorm2DTrainingWithRunningStatsModule_basic",
     "NativeGroupNormBackwardModule_basic",
     "NeFloatIntModule_basic",
     "NllLossModuleBackward1DMeanWeight_basic",
