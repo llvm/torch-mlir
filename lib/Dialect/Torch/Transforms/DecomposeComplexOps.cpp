@@ -22,6 +22,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/Support/MathExtras.h"
 #include <cstdint>
 #include <set>
 using namespace mlir;
@@ -1366,8 +1367,8 @@ public:
       self = convertTensorToDtype(rewriter, loc, self, outTy.getDtype());
     }
 
-    Value pi =
-        ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(M_PI));
+    Value pi = ConstantFloatOp::create(
+        rewriter, loc, rewriter.getF64FloatAttr(llvm::numbers::pi));
     Value basic =
         ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(180.0));
     Value rad =
@@ -11570,7 +11571,7 @@ namespace {
 Value getDFTMatmulCoeff(PatternRewriter &rewriter, Location loc,
                         ValueTensorType matrixType) {
   // scale = 2 * pi / N
-  double scale = 2 * M_PI / matrixType.getSizes()[0];
+  double scale = 2 * llvm::numbers::pi / matrixType.getSizes()[0];
 
   SmallVector<Attribute> values;
   assert(matrixType.getSizes().size() == 2 && "expected 2D matrix");
