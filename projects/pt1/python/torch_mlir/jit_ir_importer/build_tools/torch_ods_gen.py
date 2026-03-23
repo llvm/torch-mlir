@@ -632,6 +632,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::native_batch_norm : (Tensor, Tensor?, Tensor?, Tensor?, Tensor?, bool, float, float) -> (Tensor, Tensor, Tensor)"
     )
     emit(
+        "aten::miopen_batch_norm : (Tensor, Tensor, Tensor?, Tensor?, Tensor?, bool, float, float) -> (Tensor, Tensor, Tensor)"
+    )
+    emit(
         "aten::batch_norm : (Tensor, Tensor?, Tensor?, Tensor?, Tensor?, bool, float, float, bool) -> (Tensor)"
     )
     emit(

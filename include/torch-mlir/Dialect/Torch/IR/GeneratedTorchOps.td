@@ -7353,6 +7353,38 @@ def Torch_AtenNativeBatchNormOp : Torch_Op<"aten.native_batch_norm", [
   }];
 }
 
+def Torch_AtenMiopenBatchNormOp : Torch_Op<"aten.miopen_batch_norm", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::miopen_batch_norm : (Tensor, Tensor, Tensor?, Tensor?, Tensor?, bool, float, float) -> (Tensor, Tensor, Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$weight,
+    AnyTorchOptionalTensorType:$bias,
+    AnyTorchOptionalTensorType:$running_mean,
+    AnyTorchOptionalTensorType:$running_var,
+    Torch_BoolType:$training,
+    Torch_FloatType:$exponential_average_factor,
+    Torch_FloatType:$epsilon
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result0,
+    AnyTorchOptionalTensorType:$result1,
+    AnyTorchOptionalTensorType:$result2
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenMiopenBatchNormOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 8, 3);
+    }
+    void AtenMiopenBatchNormOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 8, 3);
+    }
+  }];
+}
+
 def Torch_AtenBatchNormOp : Torch_Op<"aten.batch_norm", [
     AllowsTypeRefinement,
     HasValueSemantics,

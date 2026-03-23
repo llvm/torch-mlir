@@ -1013,3 +1013,27 @@ func.func @channel_shuffle(%arg0: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtens
   %0 = torch.aten.channel_shuffle %arg0, %int4 : !torch.vtensor<[1,8,4,4],f32>, !torch.int -> !torch.vtensor<[1,8,4,4],f32>
   return %0 : !torch.vtensor<[1,8,4,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @miopen_batch_norm(
+// CHECK-SAME:      %[[INPUT:.*]]: !torch.vtensor<[1,3,4,4],f32>, %[[WEIGHT:.*]]: !torch.vtensor<[3],f32>, %[[BIAS:.*]]: !torch.vtensor<[3],f32>, %[[MEAN:.*]]: !torch.vtensor<[3],f32>, %[[VAR:.*]]: !torch.vtensor<[3],f32>)
+// CHECK:           %[[SHAPE:.*]] = torch.prim.ListConstruct {{.*}} : ({{.*}}) -> !torch.list<int>
+// CHECK:           %[[MEAN_VIEW:.*]] = torch.aten.view %[[MEAN]], %[[SHAPE]]
+// CHECK:           %[[VAR_VIEW:.*]] = torch.aten.view %[[VAR]], %[[SHAPE]]
+// CHECK:           %[[SUB:.*]] = torch.aten.sub.Tensor %[[INPUT]], %[[MEAN_VIEW]]
+// CHECK:           %[[VAR_EPS:.*]] = torch.aten.add.Scalar %[[VAR_VIEW]], %{{.*}}, %{{.*}}
+// CHECK:           %[[RSQRT:.*]] = torch.aten.rsqrt %[[VAR_EPS]]
+// CHECK:           %[[NORMED:.*]] = torch.aten.mul.Tensor %[[SUB]], %[[RSQRT]]
+// CHECK:           %[[WEIGHT_VIEW:.*]] = torch.aten.view %[[WEIGHT]], %[[SHAPE]]
+// CHECK:           %[[SCALED:.*]] = torch.aten.mul.Tensor %[[NORMED]], %[[WEIGHT_VIEW]]
+// CHECK:           %[[BIAS_VIEW:.*]] = torch.aten.view %[[BIAS]], %[[SHAPE]]
+// CHECK:           %[[RESULT:.*]] = torch.aten.add.Tensor %[[SCALED]], %[[BIAS_VIEW]]
+// CHECK:           return %[[RESULT]]
+func.func @miopen_batch_norm(%input: !torch.vtensor<[1,3,4,4],f32>, %weight: !torch.vtensor<[3],f32>, %bias: !torch.vtensor<[3],f32>, %mean: !torch.vtensor<[3],f32>, %var: !torch.vtensor<[3],f32>) -> (!torch.vtensor<[1,3,4,4],f32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>) {
+  %false = torch.constant.bool false
+  %momentum = torch.constant.float 1.000000e-01
+  %eps = torch.constant.float 1.000000e-05
+  %0:3 = torch.aten.miopen_batch_norm %input, %weight, %bias, %mean, %var, %false, %momentum, %eps : !torch.vtensor<[1,3,4,4],f32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.bool, !torch.float, !torch.float -> !torch.vtensor<[1,3,4,4],f32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[1,3,4,4],f32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>
+}
