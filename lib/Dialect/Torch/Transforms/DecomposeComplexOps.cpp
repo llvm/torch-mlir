@@ -8577,6 +8577,18 @@ class DecomposeAtenNativeBatchNormOp
             op, "expected runningMean and runningVar to be rank 1");
     }
 
+    // Check weight and bias ranks upfront before creating any ops.
+    if (!isa<Torch::NoneType>(weight.getType())) {
+      std::optional<unsigned> weightRank = getTensorRank(weight);
+      if (!weightRank || *weightRank != 1)
+        return rewriter.notifyMatchFailure(op, "expected weight to be rank 1");
+    }
+    if (!isa<Torch::NoneType>(bias.getType())) {
+      std::optional<unsigned> biasRank = getTensorRank(bias);
+      if (!biasRank || *biasRank != 1)
+        return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
+    }
+
     Value zero =
         ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
     Value one =
@@ -8586,18 +8598,29 @@ class DecomposeAtenNativeBatchNormOp
 
     Type dtype = cast<ValueTensorType>(input.getType()).getOptionalDtype();
 
-    // Broadcast shape [1, C, 1, ..., 1] for elementwise ops against input.
-    SmallVector<Value> bcShapeVals(inputRank, one);
-    bcShapeVals[1] = numFeatures;
-    Value bcSizeList = PrimListConstructOp::create(
-        rewriter, loc, ListType::get(IntType::get(context)), bcShapeVals);
-
     // Determine static channel size for type construction.
     int64_t channelSize = cast<BaseTensorType>(input.getType()).getSizes()[1];
     SmallVector<int64_t> bcShapeInts(inputRank, 1);
     bcShapeInts[1] = channelSize;
     Type bcType = ValueTensorType::get(context, bcShapeInts, dtype);
     Type statsType = ValueTensorType::get(context, {channelSize}, dtype);
+
+    // Helper: unsqueeze a rank-1 [C] tensor to [1, C, 1, ..., 1] for
+    // broadcast. This produces tensor.expand_shape-friendly reshape ops.
+    auto unsqueezeForBC = [&](Value tensor) -> Value {
+      Value cur = tensor;
+      SmallVector<int64_t> shape = {1, channelSize};
+      Type ty = ValueTensorType::get(context, shape, dtype);
+      cur = AtenUnsqueezeOp::create(rewriter, loc, ty, cur, zero);
+      for (unsigned i = 2; i < inputRank; ++i) {
+        shape.push_back(1);
+        ty = ValueTensorType::get(context, shape, dtype);
+        Value dimVal =
+            ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(i));
+        cur = AtenUnsqueezeOp::create(rewriter, loc, ty, cur, dimVal);
+      }
+      return cur;
+    };
 
     // meanBC and invstdBC are broadcast-shaped tensors used for normalization.
     // meanOut and invstdOut are the [C]-shaped result1/result2 outputs.
@@ -8627,55 +8650,29 @@ class DecomposeAtenNativeBatchNormOp
       Value batchInvstd =
           AtenRsqrtOp::create(rewriter, loc, statsType, batchVarEps);
 
-      meanBC = AtenViewOp::create(rewriter, loc, bcType, batchMean, bcSizeList);
-      invstdBC =
-          AtenViewOp::create(rewriter, loc, bcType, batchInvstd, bcSizeList);
+      meanBC = unsqueezeForBC(batchMean);
+      invstdBC = unsqueezeForBC(batchInvstd);
       // result1/result2 are the batch mean and invstd.
       meanOut = batchMean;
       invstdOut = batchInvstd;
     } else {
       // Inference: normalize with running stats.
-      meanBC =
-          AtenViewOp::create(rewriter, loc, bcType, runningMean, bcSizeList);
-      Value runningVarBC =
-          AtenViewOp::create(rewriter, loc, bcType, runningVar, bcSizeList);
+      meanBC = unsqueezeForBC(runningMean);
+      Value runningVarBC = unsqueezeForBC(runningVar);
       Value varEps = AtenAddScalarOp::create(rewriter, loc, bcType,
                                              runningVarBC, eps, one);
       invstdBC = AtenRsqrtOp::create(rewriter, loc, bcType, varEps);
 
-      // result1/result2 are empty tensors in inference mode.
-      // Use the static shape from the result type when available, otherwise
-      // [0].
-      Value zeroList = PrimListConstructOp::create(
-          rewriter, loc, Torch::ListType::get(zero.getType()), zero);
+      // result1/result2 are empty [C] tensors in inference mode.
       Type listTy = Torch::ListType::get(IntType::get(context));
-      auto makeSizeList = [&](Type resultTy) -> Value {
-        auto tensorTy = dyn_cast<BaseTensorType>(resultTy);
-        if (tensorTy && tensorTy.hasSizes()) {
-          SmallVector<Value> sizeVals;
-          auto sizes = tensorTy.getSizes();
-          for (size_t i = 0; i < sizes.size(); ++i) {
-            if (sizes[i] == Torch::kUnknownSize) {
-              auto indxOp = Torch::AtenSizeIntOp::create(
-                  rewriter, loc, input,
-                  ConstantIntOp::create(rewriter, loc,
-                                        rewriter.getI64IntegerAttr(i)));
-              sizeVals.push_back(indxOp);
-            } else {
-              sizeVals.push_back(ConstantIntOp::create(
-                  rewriter, loc, rewriter.getI64IntegerAttr(sizes[i])));
-            }
-          }
-          return PrimListConstructOp::create(rewriter, loc, listTy, sizeVals);
-        }
-        return zeroList;
-      };
+      Value numFeaturesList =
+          PrimListConstructOp::create(rewriter, loc, listTy, numFeatures);
       meanOut = AtenEmptyMemoryFormatOp::create(rewriter, loc, op.getType(1),
-                                                makeSizeList(op.getType(1)),
-                                                none, none, none, none, none);
+                                                numFeaturesList, none, none,
+                                                none, none, none);
       invstdOut = AtenEmptyMemoryFormatOp::create(rewriter, loc, op.getType(2),
-                                                  makeSizeList(op.getType(2)),
-                                                  none, none, none, none, none);
+                                                  numFeaturesList, none, none,
+                                                  none, none, none);
     }
 
     // output = (input - mean) * invstd
@@ -8684,23 +8681,15 @@ class DecomposeAtenNativeBatchNormOp
     Value normalizedInput = AtenMulTensorOp::create(
         rewriter, loc, input.getType(), inputSubMean, invstdBC);
 
-    // Optionally apply weight and bias, each reshaped to [1, C, 1, ..., 1].
+    // Optionally apply weight and bias, each unsqueezed to [1, C, 1, ..., 1].
     Value batchNormOutput = normalizedInput;
     if (!isa<Torch::NoneType>(weight.getType())) {
-      std::optional<unsigned> weightRank = getTensorRank(weight);
-      if (!weightRank || *weightRank != 1)
-        return rewriter.notifyMatchFailure(op, "expected weight to be rank 1");
-      Value weightBC =
-          AtenViewOp::create(rewriter, loc, bcType, weight, bcSizeList);
+      Value weightBC = unsqueezeForBC(weight);
       batchNormOutput = AtenMulTensorOp::create(
           rewriter, loc, batchNormOutput.getType(), batchNormOutput, weightBC);
     }
     if (!isa<Torch::NoneType>(bias.getType())) {
-      std::optional<unsigned> biasRank = getTensorRank(bias);
-      if (!biasRank || *biasRank != 1)
-        return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
-      Value biasBC =
-          AtenViewOp::create(rewriter, loc, bcType, bias, bcSizeList);
+      Value biasBC = unsqueezeForBC(bias);
       batchNormOutput =
           AtenAddTensorOp::create(rewriter, loc, batchNormOutput.getType(),
                                   batchNormOutput, biasBC, one);
