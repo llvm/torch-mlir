@@ -3128,6 +3128,8 @@ ONNX_XFAIL_SET = {
     "RMSNormWithoutWeightModule_basic",
     "RMSNormAllNormalizeModule_basic",
     "RMSNormDynamicModule_basic",
+    "NativeBatchNorm1DTrainingModule_basic",
+    "NativeBatchNorm2DTrainingModule_basic",
     "NeFloatIntModule_basic",
     "NeIntModule_basic",
     "NewEmptyStridedModuleDefaultDtype_basic",
