@@ -922,6 +922,68 @@ func.func @native_layer_norm_mixed_dtypes(%input: !torch.vtensor<[1,56,56,96],bf
 
 // -----
 
+// InstanceNorm (fp16): spatial mean and variance use an f32 accumulator.
+// CHECK-LABEL: func.func @instance_norm_fp16(
+// CHECK-SAME:    %[[ARG0:.*]]: !torch.vtensor<[1,2,4,4],f16>, %[[ARG1:.*]]: !torch.vtensor<[2],f16>, %[[ARG2:.*]]: !torch.vtensor<[2],f16>) -> !torch.vtensor<[1,2,4,4],f16> {
+// CHECK-NOT: torch.aten.instance_norm
+// CHECK-DAG: %[[C0:.*]] = torch.constant.int 0
+// CHECK-DAG: %[[C6:.*]] = torch.constant.int 6
+// CHECK-DAG: %[[C4:.*]] = torch.constant.int 4
+// CHECK-DAG: %[[FALSE:.*]] = torch.constant.bool false
+// CHECK-DAG: %[[C5:.*]] = torch.constant.int 5
+// CHECK-DAG: %[[C_HW:.*]] = torch.constant.int 16
+// CHECK-DAG: %[[C1:.*]] = torch.constant.int 1
+// CHECK-DAG: %[[EPS:.*]] = torch.constant.float 1.000000e-05
+// CHECK-DAG: %[[C2:.*]] = torch.constant.int 2
+// CHECK-DAG: %[[C3:.*]] = torch.constant.int 3
+// CHECK-DAG: %[[NONE:.*]] = torch.constant.none
+// CHECK-DAG: %[[TRUE:.*]] = torch.constant.bool true
+// Reduce dims [2, 3]: sum in f32, divide by H*W for mean; cast mean to f16, broadcast, center x.
+// CHECK: %[[DIMS:.*]] = torch.prim.ListConstruct %[[C2]], %[[C3]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[SUM_IN:.*]] = torch.aten.sum.dim_IntList %[[ARG0]], %[[DIMS]], %[[TRUE]], %[[NONE]] : !torch.vtensor<[1,2,4,4],f16>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[1,2,1,1],f32>
+// CHECK: %[[MEAN_F32:.*]] = torch.aten.div.Scalar %[[SUM_IN]], %[[C_HW]] : !torch.vtensor<[1,2,1,1],f32>, !torch.int -> !torch.vtensor<[1,2,1,1],f32>
+// CHECK: %[[MEAN_F16:.*]] = torch.aten.to.dtype %[[MEAN_F32]], %[[C5]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.vtensor<[1,2,1,1],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,2,1,1],f16>
+// CHECK: %[[SHAPE444_0:.*]] = torch.prim.ListConstruct %[[C1]], %[[C2]], %[[C4]], %[[C4]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[MEAN_BC:.*]] = torch.aten.broadcast_to %[[MEAN_F16]], %[[SHAPE444_0]] : !torch.vtensor<[1,2,1,1],f16>, !torch.list<int> -> !torch.vtensor<[1,2,4,4],f16>
+// CHECK: %[[CENTERED:.*]] = torch.aten.sub.Tensor %[[ARG0]], %[[MEAN_BC]], %[[C1]] : !torch.vtensor<[1,2,4,4],f16>, !torch.vtensor<[1,2,4,4],f16>, !torch.int -> !torch.vtensor<[1,2,4,4],f16>
+// (x - mean)^2 in f32, variance = mean of squares, rsqrt(var+eps), scale centered activations in f16.
+// CHECK: %[[CENTER_F32:.*]] = torch.aten.to.dtype %[[CENTERED]], %[[C6]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.vtensor<[1,2,4,4],f16>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,2,4,4],f32>
+// CHECK: %[[SQ:.*]] = torch.aten.mul.Tensor %[[CENTER_F32]], %[[CENTER_F32]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[1,2,4,4],f32> -> !torch.vtensor<[1,2,4,4],f32>
+// CHECK: %[[VAR_SUM:.*]] = torch.aten.sum.dim_IntList %[[SQ]], %[[DIMS]], %[[TRUE]], %[[C6]] : !torch.vtensor<[1,2,4,4],f32>, !torch.list<int>, !torch.bool, !torch.int -> !torch.vtensor<[1,2,1,1],f32>
+// CHECK: %[[VAR:.*]] = torch.aten.div.Scalar %[[VAR_SUM]], %[[C_HW]] : !torch.vtensor<[1,2,1,1],f32>, !torch.int -> !torch.vtensor<[1,2,1,1],f32>
+// CHECK: %[[VAR_EPS:.*]] = torch.aten.add.Scalar %[[VAR]], %[[EPS]], %[[C1]] : !torch.vtensor<[1,2,1,1],f32>, !torch.float, !torch.int -> !torch.vtensor<[1,2,1,1],f32>
+// CHECK: %[[RSQRT:.*]] = torch.aten.rsqrt %[[VAR_EPS]] : !torch.vtensor<[1,2,1,1],f32> -> !torch.vtensor<[1,2,1,1],f32>
+// CHECK: %[[RSQRT_F16:.*]] = torch.aten.to.dtype %[[RSQRT]], %[[C5]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.vtensor<[1,2,1,1],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,2,1,1],f16>
+// CHECK: %[[SHAPE444_1:.*]] = torch.prim.ListConstruct %[[C1]], %[[C2]], %[[C4]], %[[C4]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[RSQRT_BC:.*]] = torch.aten.broadcast_to %[[RSQRT_F16]], %[[SHAPE444_1]] : !torch.vtensor<[1,2,1,1],f16>, !torch.list<int> -> !torch.vtensor<[1,2,4,4],f16>
+// CHECK: %[[NORM:.*]] = torch.aten.mul.Tensor %[[CENTERED]], %[[RSQRT_BC]] : !torch.vtensor<[1,2,4,4],f16>, !torch.vtensor<[1,2,4,4],f16> -> !torch.vtensor<[1,2,4,4],f16>
+// Broadcast weight and bias to NCHW; affine in f32 then cast to f16 (same structure as mixed-dtype layer norm).
+// CHECK: %[[W_U0:.*]] = torch.aten.unsqueeze %[[ARG1]], %[[C0]] : !torch.vtensor<[2],f16>, !torch.int -> !torch.vtensor<[1,2],f16>
+// CHECK: %[[W_U1:.*]] = torch.aten.unsqueeze %[[W_U0]], %[[C2]] : !torch.vtensor<[1,2],f16>, !torch.int -> !torch.vtensor<[1,2,1],f16>
+// CHECK: %[[W_U2:.*]] = torch.aten.unsqueeze %[[W_U1]], %[[C3]] : !torch.vtensor<[1,2,1],f16>, !torch.int -> !torch.vtensor<[1,2,1,1],f16>
+// CHECK: %[[SHAPE444_W:.*]] = torch.prim.ListConstruct %[[C1]], %[[C2]], %[[C4]], %[[C4]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[WEIGHT_BC:.*]] = torch.aten.broadcast_to %[[W_U2]], %[[SHAPE444_W]] : !torch.vtensor<[1,2,1,1],f16>, !torch.list<int> -> !torch.vtensor<[1,2,4,4],f16>
+// CHECK: %[[B_U0:.*]] = torch.aten.unsqueeze %[[ARG2]], %[[C0]] : !torch.vtensor<[2],f16>, !torch.int -> !torch.vtensor<[1,2],f16>
+// CHECK: %[[B_U1:.*]] = torch.aten.unsqueeze %[[B_U0]], %[[C2]] : !torch.vtensor<[1,2],f16>, !torch.int -> !torch.vtensor<[1,2,1],f16>
+// CHECK: %[[B_U2:.*]] = torch.aten.unsqueeze %[[B_U1]], %[[C3]] : !torch.vtensor<[1,2,1],f16>, !torch.int -> !torch.vtensor<[1,2,1,1],f16>
+// CHECK: %[[SHAPE444_B:.*]] = torch.prim.ListConstruct %[[C1]], %[[C2]], %[[C4]], %[[C4]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[BIAS_BC:.*]] = torch.aten.broadcast_to %[[B_U2]], %[[SHAPE444_B]] : !torch.vtensor<[1,2,1,1],f16>, !torch.list<int> -> !torch.vtensor<[1,2,4,4],f16>
+// CHECK: %[[NORM_F32:.*]] = torch.aten.to.dtype %[[NORM]], %[[C6]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.vtensor<[1,2,4,4],f16>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,2,4,4],f32>
+// CHECK: %[[SCALED:.*]] = torch.aten.mul.Tensor %[[NORM_F32]], %[[WEIGHT_BC]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[1,2,4,4],f16> -> !torch.vtensor<[1,2,4,4],f32>
+// CHECK: %[[BIASED:.*]] = torch.aten.add.Tensor %[[SCALED]], %[[BIAS_BC]], %[[C1]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[1,2,4,4],f16>, !torch.int -> !torch.vtensor<[1,2,4,4],f32>
+// CHECK: %[[OUT:.*]] = torch.aten.to.dtype %[[BIASED]], %[[C5]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.vtensor<[1,2,4,4],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,2,4,4],f16>
+// CHECK: return %[[OUT]] : !torch.vtensor<[1,2,4,4],f16>
+func.func @instance_norm_fp16(%arg0: !torch.vtensor<[1,2,4,4],f16>, %arg1: !torch.vtensor<[2],f16>, %arg2: !torch.vtensor<[2],f16>) -> !torch.vtensor<[1,2,4,4],f16> {
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %false = torch.constant.bool false
+  %eps = torch.constant.float 1.000000e-05
+  %mom = torch.constant.float 0.000000e+00
+  %0 = torch.aten.instance_norm %arg0, %arg1, %arg2, %none, %none, %true, %mom, %eps, %false : !torch.vtensor<[1,2,4,4],f16>, !torch.vtensor<[2],f16>, !torch.vtensor<[2],f16>, !torch.none, !torch.none, !torch.bool, !torch.float, !torch.float, !torch.bool -> !torch.vtensor<[1,2,4,4],f16>
+  return %0 : !torch.vtensor<[1,2,4,4],f16>
+}
+
+// -----
 
 // CHECK-LABEL: func @pixel_unshuffle_static
 // CHECK-DAG: %[[C2:.*]] = torch.constant.int 2

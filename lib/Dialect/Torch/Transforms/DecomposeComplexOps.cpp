@@ -33,6 +33,23 @@ namespace mlir::torch::Torch {
 #define GEN_PASS_DEF_DECOMPOSECOMPLEXOPS
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h.inc"
 
+/// Returns the accumulator dtype for norm-like ops when the input dtype has
+/// insufficient precision for stable mean/variance accumulation over large N.
+/// Mapping: fp8 -> fp16, fp16/bf16 -> fp32. fp32/fp64 require no promotion.
+static std::optional<Type> getAccumulatorDtypeForNorm(MLIRContext *context,
+                                                      Type inputDtype) {
+  if (!inputDtype)
+    return std::nullopt;
+  // fp8 variants: promote to fp16
+  if (isa<mlir::Float8E5M2Type, mlir::Float8E4M3FNType,
+          mlir::Float8E5M2FNUZType, mlir::Float8E4M3FNUZType>(inputDtype))
+    return mlir::Float16Type::get(context);
+  // fp16/bf16: promote to fp32
+  if (inputDtype.isF16() || inputDtype.isBF16())
+    return mlir::Float32Type::get(context);
+  return std::nullopt;
+}
+
 // Helper function to check whether the `dtype` is None or Float type.
 static bool isNoneOrFloatDtype(MLIRContext *context, Value dtype) {
   if (isa<Torch::NoneType>(dtype.getType()))
@@ -7847,7 +7864,6 @@ class DecomposeAtenInstanceNormOp
     auto inputTy = cast<BaseTensorType>(op.getInput().getType());
     int64_t inputRank = inputTy.getSizes().size();
     SmallVector<int64_t> reducedShape(inputTy.getSizes());
-    SmallVector<int64_t> reduceDimInts;
     SmallVector<Value> reduceDimVals;
     for (int i = 2; i < inputRank; ++i) {
       reducedShape[i] = 1;
@@ -7855,35 +7871,57 @@ class DecomposeAtenInstanceNormOp
           rewriter, loc, rewriter.getI64IntegerAttr(i)));
     }
 
-    Type dtype = inputTy.getOptionalDtype();
-    Type reducedTy = ValueTensorType::get(op.getContext(),
-                                          llvm::ArrayRef(reducedShape), dtype);
+    Type inputDtype = inputTy.getOptionalDtype();
+    Value none = Torch::ConstantNoneOp::create(rewriter, loc);
+    Value cstTrue = Torch::ConstantBoolOp::create(rewriter, loc, true);
 
+    // Use accumulator dtype for low-precision input (fp8->fp16,
+    // fp16/bf16->fp32).
+    std::optional<Type> accDtype =
+        getAccumulatorDtypeForNorm(context, inputDtype);
+    Type computeDtype = accDtype ? *accDtype : inputDtype;
+    Type reducedTy = ValueTensorType::get(context, reducedShape, computeDtype);
+    auto optSizes = inputTy.hasSizes()
+                        ? std::optional<ArrayRef<int64_t>>(inputTy.getSizes())
+                        : std::nullopt;
+    Type inputComputeTy =
+        accDtype ? inputTy.getWithSizesAndDtype(optSizes, computeDtype)
+                 : inputTy;
+
+    Value input = op.getInput();
     auto sizeListType = ListType::get(IntType::get(context));
     Value reduceDimList =
         PrimListConstructOp::create(rewriter, loc, sizeListType, reduceDimVals);
-    Value cstTrue = Torch::ConstantBoolOp::create(rewriter, loc, true);
-    Value none = Torch::ConstantNoneOp::create(rewriter, loc);
 
     Value one = Torch::ConstantIntOp::create(rewriter, loc,
                                              rewriter.getI64IntegerAttr(1));
 
-    // mean(x)
-    Value inputMean = AtenMeanDimOp::create(
-        rewriter, loc, reducedTy, op.getInput(), reduceDimList, cstTrue, none);
+    // mean(x) — in accumulator dtype when needed
+    Value inputMean = AtenMeanDimOp::create(rewriter, loc, reducedTy, input,
+                                            reduceDimList, cstTrue, none);
+    Value meanForSub = accDtype ? convertTensorToDtype(rewriter, loc, inputMean,
+                                                       inputTy.getDtype())
+                                : inputMean;
+    Value inputMeanExpanded =
+        AtenExpandAsOp::create(rewriter, loc, inputTy, meanForSub, input);
+    Value inputSubMean = AtenSubTensorOp::create(rewriter, loc, inputTy, input,
+                                                 inputMeanExpanded, one);
 
-    // x - mean(x)
-    Value inputMeanExpanded = AtenExpandAsOp::create(rewriter, loc, inputTy,
-                                                     inputMean, op.getInput());
-    Value inputSubMean = AtenSubTensorOp::create(
-        rewriter, loc, inputTy, op.getInput(), inputMeanExpanded, one);
-    // (x - mean(x))^2
+    // (x-mean)² in accumulator dtype — cast before square for variance
+    // stability
+    Value subMeanForSquare =
+        accDtype ? convertTensorToDtype(rewriter, loc, inputSubMean, *accDtype)
+                 : inputSubMean;
+    Type squareTy = accDtype ? inputComputeTy : inputTy;
     Value inputSubMeanSquare = AtenMulTensorOp::create(
-        rewriter, loc, inputTy, inputSubMean, inputSubMean);
+        rewriter, loc, squareTy, subMeanForSquare, subMeanForSquare);
 
+    Value dtypeForSum =
+        accDtype ? Torch::getDtypeIntValueForType(rewriter, loc, *accDtype)
+                 : none;
     Value variancesum = AtenSumDimIntListOp::create(
         rewriter, loc, reducedTy, inputSubMeanSquare, reduceDimList, cstTrue,
-        /*dtype=*/none);
+        dtypeForSum);
 
     int64_t elemCount = 1;
     for (int i = 2; i < inputRank; ++i)
@@ -7900,17 +7938,20 @@ class DecomposeAtenInstanceNormOp
     Value inputRsqrtVar =
         AtenRsqrtOp::create(rewriter, loc, reducedTy, inputVarPlusEps);
 
-    // (x - mean(x)) * rsqrt(var(x) + eps)
-    Value inputRsqrtVarExpanded = AtenExpandAsOp::create(
-        rewriter, loc, inputTy, inputRsqrtVar, op.getInput());
+    Value rsqrtForMul = accDtype
+                            ? convertTensorToDtype(rewriter, loc, inputRsqrtVar,
+                                                   inputTy.getDtype())
+                            : inputRsqrtVar;
+    Value inputRsqrtVarExpanded =
+        AtenExpandAsOp::create(rewriter, loc, inputTy, rsqrtForMul, input);
     Value inputNormalized = AtenMulTensorOp::create(
         rewriter, loc, inputTy, inputSubMean, inputRsqrtVarExpanded);
-    Value out = TensorStaticInfoCastOp::create(
-        rewriter, loc, op.getResult().getType(), inputNormalized);
+
+    Value out = inputNormalized;
 
     Value weight = op.getWeight();
     auto weightTy = cast<BaseTensorType>(weight.getType());
-    dtype = weightTy.getOptionalDtype();
+    Type weightDtype = weightTy.getOptionalDtype();
 
     SmallVector<int64_t> weightShape(weightTy.getSizes());
     SmallVector<int64_t> newWeightShape;
@@ -7920,15 +7961,15 @@ class DecomposeAtenInstanceNormOp
     Value zero = Torch::ConstantIntOp::create(rewriter, loc,
                                               rewriter.getI64IntegerAttr(0));
     Type newWeightTy = ValueTensorType::get(
-        op.getContext(), llvm::ArrayRef(newWeightShape), dtype);
+        op.getContext(), llvm::ArrayRef(newWeightShape), weightDtype);
     weight = AtenUnsqueezeOp::create(rewriter, loc, newWeightTy, weight, zero);
 
     while (static_cast<int64_t>(newWeightShape.size()) < inputRank) {
       Value i = Torch::ConstantIntOp::create(
           rewriter, loc, rewriter.getI64IntegerAttr(newWeightShape.size()));
       newWeightShape.push_back(1);
-      newWeightTy = ValueTensorType::get(op.getContext(),
-                                         llvm::ArrayRef(newWeightShape), dtype);
+      newWeightTy = ValueTensorType::get(
+          op.getContext(), llvm::ArrayRef(newWeightShape), weightDtype);
       weight = AtenUnsqueezeOp::create(rewriter, loc, newWeightTy, weight, i);
     }
 
@@ -7937,15 +7978,15 @@ class DecomposeAtenInstanceNormOp
 
     Value bias = op.getBias();
     auto biasTy = cast<BaseTensorType>(bias.getType());
-    dtype = biasTy.getOptionalDtype();
+    Type biasDtype = biasTy.getOptionalDtype();
 
     SmallVector<int64_t> biasShape(biasTy.getSizes());
     SmallVector<int64_t> newBiasShape;
     newBiasShape.push_back(1);
     newBiasShape.append(biasShape);
 
-    Type newBiasTy = ValueTensorType::get(op.getContext(),
-                                          llvm::ArrayRef(newBiasShape), dtype);
+    Type newBiasTy = ValueTensorType::get(
+        op.getContext(), llvm::ArrayRef(newBiasShape), biasDtype);
     bias = AtenUnsqueezeOp::create(rewriter, loc, newBiasTy, bias, zero);
 
     while (static_cast<int64_t>(newBiasShape.size()) < inputRank) {
@@ -7953,18 +7994,25 @@ class DecomposeAtenInstanceNormOp
           rewriter, loc, rewriter.getI64IntegerAttr(newBiasShape.size()));
       newBiasShape.push_back(1);
       newBiasTy = ValueTensorType::get(op.getContext(),
-                                       llvm::ArrayRef(newBiasShape), dtype);
+                                       llvm::ArrayRef(newBiasShape), biasDtype);
       bias = AtenUnsqueezeOp::create(rewriter, loc, newBiasTy, bias, i);
     }
 
     Value biasExpanded =
         AtenExpandAsOp::create(rewriter, loc, inputTy, bias, op.getInput());
 
-    out = AtenMulTensorOp::create(rewriter, loc, out.getType(), out,
-                                  weightExpanded);
-    out = AtenAddTensorOp::create(rewriter, loc, out.getType(), out,
-                                  biasExpanded, one);
+    Value affIn =
+        accDtype ? convertTensorToDtype(rewriter, loc, out, *accDtype) : out;
+    Type affTy = accDtype ? inputComputeTy : out.getType();
+    Value affOut =
+        AtenMulTensorOp::create(rewriter, loc, affTy, affIn, weightExpanded);
+    affOut = AtenAddTensorOp::create(rewriter, loc, affTy, affOut, biasExpanded,
+                                     one);
+    out = accDtype ? convertTensorToDtype(rewriter, loc, affOut, inputDtype)
+                   : affOut;
 
+    out = TensorStaticInfoCastOp::create(rewriter, loc,
+                                         op.getResult().getType(), out);
     rewriter.replaceOp(op, out);
     return success();
   }
