@@ -91,6 +91,17 @@ func.func @torch.aten.bitwise_and.Tensor$mixed_type(%arg0: !torch.vtensor<[?,?],
 
 // -----
 
+// CHECK-LABEL: torch.aten.bitwise_xor.Tensor$bool
+// CHECK-SAME: %[[VAL_0:.*]]: tensor<?x?xi1>,
+// CHECK-SAME: %[[VAL_1:.*]]: tensor<?x?xi1>
+// CHECK: %[[VAL_2:.*]] = tosa.logical_xor %[[VAL_0]], %[[VAL_1]] : (tensor<?x?xi1>, tensor<?x?xi1>) -> tensor<?x?xi1>
+func.func @torch.aten.bitwise_xor.Tensor$bool(%arg0: !torch.vtensor<[?,?],i1>, %arg1: !torch.vtensor<[?,?],i1>) -> !torch.vtensor<[?,?],i1> {
+  %0 = torch.aten.bitwise_xor.Tensor %arg0, %arg1 : !torch.vtensor<[?,?],i1>, !torch.vtensor<[?,?],i1> -> !torch.vtensor<[?,?],i1>
+  return %0 : !torch.vtensor<[?,?],i1>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.div.Tensor$mixed_type_fp(
 // CHECK-SAME:                                                   %[[VAL_0:.*]]: tensor<?x?xf32>,
 // CHECK-SAME:                                                   %[[VAL_1:.*]]: tensor<?x?xi32>) -> tensor<?x?xf32> {
