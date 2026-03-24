@@ -1135,13 +1135,14 @@ ELEM_TYPE_INLINE_TENSOR_PROTO_CB = {
         np.asarray(tp.float_data, dtype=np.float32).reshape(tp.dims), signless=False
     ),
     onnx.TensorProto.DataType.BOOL: lambda tp: DenseElementsAttr.get(
-        np.packbits(
-            np.asarray(tp.int32_data, dtype=np.bool_).reshape(tp.dims),
-            axis=None,
-            bitorder="little",
+        [
+            IntegerAttr.get(IntegerType.get_signless(1), int(value))
+            for value in np.asarray(tp.int32_data, dtype=np.bool_).reshape(tp.dims).flat
+        ],
+        type=RankedTensorType.get(
+            tp.dims,
+            IntegerType.get_signless(1),
         ),
-        shape=tp.dims,
-        type=IntegerType.get_signless(1),
     ),
     onnx.TensorProto.DataType.UINT8: lambda tp: DenseElementsAttr.get(
         np.asarray(tp.int32_data, dtype=np.uint8).reshape(tp.dims), signless=False
