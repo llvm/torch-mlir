@@ -53,11 +53,328 @@ namespace mlir::torch {
 
 namespace {
 struct RankTemplate {
-  int64_t rank;
   RankedTensorType type;
   Value shape;
   std::optional<SmallVector<int64_t>> shapeValues;
 };
+
+// Conversion can wrap values in UnrealizedConversionCastOp or tensor.cast
+// while changing from Torch types to builtin tensor types. Strip those
+// trivial wrappers so we can inspect the original producer.
+static Value peelTrivialDefs(Value source) {
+  while (true) {
+    if (auto unrealized = source.getDefiningOp<UnrealizedConversionCastOp>()) {
+      if (unrealized->getNumOperands() == 1) {
+        source = unrealized.getOperand(0);
+        continue;
+      }
+    }
+    if (auto toBuiltin =
+            source.getDefiningOp<TorchConversion::ToBuiltinTensorOp>()) {
+      source = toBuiltin.getOperand();
+      continue;
+    }
+    if (auto fromBuiltin =
+            source.getDefiningOp<TorchConversion::FromBuiltinTensorOp>()) {
+      source = fromBuiltin.getOperand();
+      continue;
+    }
+    if (auto castOp = source.getDefiningOp<tensor::CastOp>()) {
+      source = castOp.getSource();
+      continue;
+    }
+    break;
+  }
+  return source;
+}
+
+static void addTemplate(SmallVectorImpl<RankTemplate> &templates,
+                        RankedTensorType type, Value shape,
+                        std::optional<SmallVector<int64_t>> shapeValues) {
+  for (const auto &tmpl : templates) {
+    if (tmpl.type != type)
+      continue;
+    if (tmpl.shapeValues && shapeValues && tmpl.shapeValues == shapeValues)
+      return;
+    if (tmpl.shape == shape && tmpl.shapeValues == shapeValues)
+      return;
+  }
+  templates.push_back(RankTemplate{type, shape, shapeValues});
+}
+
+static void collectTemplateFromValue(Value source,
+                                     SmallVectorImpl<RankTemplate> &templates) {
+  if (!source)
+    return;
+  source = peelTrivialDefs(source);
+  if (auto reshapeOp = source.getDefiningOp<tosa::ReshapeOp>()) {
+    auto dstType = dyn_cast<RankedTensorType>(reshapeOp.getResult().getType());
+    if (!dstType || (dstType.getRank() != 4 && dstType.getRank() != 5))
+      return;
+    std::optional<SmallVector<int64_t>> shapeValues;
+    if (auto shapeOp = reshapeOp.getShape().getDefiningOp<tosa::ConstShapeOp>())
+      shapeValues =
+          SmallVector<int64_t>(shapeOp.getValues().getValues<int64_t>());
+    addTemplate(templates, dstType, reshapeOp.getShape(), shapeValues);
+    return;
+  }
+
+  if (auto reshapeOp = source.getDefiningOp<Torch::AtenReshapeOp>()) {
+    auto torchTy =
+        dyn_cast<Torch::ValueTensorType>(reshapeOp.getResult().getType());
+    if (!torchTy || !torchTy.hasSizes() || !torchTy.hasDtype())
+      return;
+    auto dstType = dyn_cast<RankedTensorType>(torchTy.toBuiltinTensor());
+    if (!dstType || (dstType.getRank() != 4 && dstType.getRank() != 5))
+      return;
+    SmallVector<int64_t> shapeValues;
+    for (int64_t dim : dstType.getShape())
+      shapeValues.push_back(dim);
+    addTemplate(templates, dstType, Value(), shapeValues);
+    return;
+  }
+}
+
+static SmallVector<RankTemplate>
+collectTemplatesForNormalization(Value source) {
+  SmallVector<RankTemplate> templates;
+  collectTemplateFromValue(source, templates);
+  return templates;
+}
+
+static std::optional<int64_t>
+getStaticNumElementsFromShape(ArrayRef<int64_t> shape) {
+  if (llvm::any_of(shape, ShapedType::isDynamic))
+    return std::nullopt;
+  return ShapedType::getNumElements(shape);
+}
+
+static std::optional<int64_t>
+getStaticNumElementsFromTemplate(const RankTemplate &tmpl) {
+  if (tmpl.shapeValues)
+    return getStaticNumElementsFromShape(*tmpl.shapeValues);
+  if (tmpl.type.hasStaticShape())
+    return tmpl.type.getNumElements();
+  return std::nullopt;
+}
+
+static FailureOr<Value>
+normalizeOperandRank(Value operand, int64_t requiredRank,
+                     ConversionPatternRewriter &rewriter, Location loc) {
+  // Normalize rank-mismatched convolution operands only when the operand
+  // carries a direct local reshape template that proves the target 4D/5D
+  // shape.
+  auto rankedType = dyn_cast<RankedTensorType>(operand.getType());
+  if (!rankedType)
+    return failure();
+  if (rankedType.getRank() == requiredRank)
+    return operand;
+
+  SmallVector<RankTemplate> templates =
+      collectTemplatesForNormalization(operand);
+  if (templates.empty())
+    return failure();
+
+  auto operandElemTy = rankedType.getElementType();
+  std::optional<int64_t> operandNumElements;
+  if (rankedType.hasStaticShape())
+    operandNumElements = rankedType.getNumElements();
+  SmallVector<const RankTemplate *> candidates;
+  for (const auto &tmpl : templates) {
+    if (tmpl.type.getRank() != requiredRank)
+      continue;
+    if (tmpl.type.getElementType() != operandElemTy)
+      continue;
+    std::optional<int64_t> templateNumElements =
+        getStaticNumElementsFromTemplate(tmpl);
+    if (!operandNumElements || !templateNumElements ||
+        *templateNumElements != *operandNumElements)
+      continue;
+    candidates.push_back(&tmpl);
+  }
+  if (candidates.empty())
+    return failure();
+  if (candidates.size() != 1)
+    return failure();
+  const RankTemplate *match = candidates.front();
+
+  Value shapeVal = match->shape;
+  if (!shapeVal) {
+    if (!match->shapeValues)
+      return failure();
+    shapeVal = tosa::getTosaConstShape(rewriter, loc, *match->shapeValues);
+  } else if (auto shapeOp = shapeVal.getDefiningOp<tosa::ConstShapeOp>()) {
+    shapeVal = tosa::ConstShapeOp::create(rewriter, loc, shapeOp.getType(),
+                                          shapeOp.getValues());
+  }
+
+  auto reshape =
+      tosa::ReshapeOp::create(rewriter, loc, match->type, operand, shapeVal);
+  return reshape.getResult();
+}
+
+static FailureOr<Value> normalizeBiasRank(Value bias, int64_t outChannels,
+                                          ConversionPatternRewriter &rewriter,
+                                          Location loc) {
+  auto biasTy = dyn_cast<RankedTensorType>(bias.getType());
+  if (!biasTy)
+    return failure();
+  if (biasTy.getRank() == 1) {
+    if (!biasTy.hasStaticShape() || biasTy.getNumElements() == outChannels)
+      return bias;
+    return failure();
+  }
+  if (!biasTy.hasStaticShape() || biasTy.getNumElements() != outChannels)
+    return failure();
+
+  auto normalizedTy =
+      RankedTensorType::get({outChannels}, biasTy.getElementType());
+  Value shapeVal = tosa::getTosaConstShape(rewriter, loc, {outChannels});
+  return tosa::ReshapeOp::create(rewriter, loc, normalizedTy, bias, shapeVal)
+      .getResult();
+}
+
+static std::optional<int64_t> inferConvInputDim(int64_t outputDim,
+                                                int64_t kernelDim,
+                                                int64_t stride, int64_t padding,
+                                                int64_t dilation) {
+  int64_t inputDim =
+      (outputDim - 1) * stride - 2 * padding + dilation * (kernelDim - 1) + 1;
+  if (inputDim < 1)
+    return std::nullopt;
+  return inputDim;
+}
+
+static std::optional<int64_t>
+inferTransposedConvInputDim(int64_t outputDim, int64_t kernelDim,
+                            int64_t stride, int64_t padding, int64_t dilation,
+                            int64_t outputPadding) {
+  int64_t numerator =
+      outputDim + 2 * padding - dilation * (kernelDim - 1) - outputPadding - 1;
+  if (numerator < 0 || numerator % stride != 0)
+    return std::nullopt;
+  int64_t inputDim = numerator / stride + 1;
+  if (inputDim < 1)
+    return std::nullopt;
+  return inputDim;
+}
+
+static std::optional<int64_t>
+inferConvKernelDim(int64_t inputDim, int64_t outputDim, int64_t stride,
+                   int64_t padding, int64_t dilation) {
+  int64_t numerator = inputDim + 2 * padding - ((outputDim - 1) * stride + 1);
+  if (numerator < 0 || numerator % dilation != 0)
+    return std::nullopt;
+  int64_t kernelDim = numerator / dilation + 1;
+  if (kernelDim < 1)
+    return std::nullopt;
+  return kernelDim;
+}
+
+static std::optional<int64_t>
+inferTransposedConvKernelDim(int64_t inputDim, int64_t outputDim,
+                             int64_t stride, int64_t padding, int64_t dilation,
+                             int64_t outputPadding) {
+  int64_t numerator =
+      outputDim - (inputDim - 1) * stride + 2 * padding - outputPadding - 1;
+  if (numerator < 0 || numerator % dilation != 0)
+    return std::nullopt;
+  int64_t kernelDim = numerator / dilation + 1;
+  if (kernelDim < 1)
+    return std::nullopt;
+  return kernelDim;
+}
+
+static FailureOr<Value> inferInputShapeForConvolution(
+    Value input, RankedTensorType weightTy, RankedTensorType outputTy,
+    bool transposed, int64_t groups, ArrayRef<int64_t> stride,
+    ArrayRef<int64_t> paddingList, ArrayRef<int64_t> dilation,
+    ArrayRef<int64_t> outputPaddingList, ConversionPatternRewriter &rewriter,
+    Location loc) {
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
+  if (!inputTy || !inputTy.hasStaticShape() || !weightTy.hasStaticShape() ||
+      !outputTy.hasStaticShape())
+    return failure();
+
+  SmallVector<int64_t> outputShape(
+      makeShapeTorchCompatible(outputTy.getShape()));
+  SmallVector<int64_t> weightShape(
+      makeShapeTorchCompatible(weightTy.getShape()));
+  SmallVector<int64_t> inferredShape = {
+      outputShape[0], transposed ? weightShape[0] : weightShape[1] * groups};
+
+  for (int64_t axis = 0, e = outputTy.getRank() - 2; axis < e; ++axis) {
+    std::optional<int64_t> dim =
+        transposed
+            ? inferTransposedConvInputDim(
+                  outputShape[axis + 2], weightShape[axis + 2], stride[axis],
+                  paddingList[axis], dilation[axis], outputPaddingList[axis])
+            : inferConvInputDim(outputShape[axis + 2], weightShape[axis + 2],
+                                stride[axis], paddingList[axis],
+                                dilation[axis]);
+    if (!dim)
+      return failure();
+    inferredShape.push_back(*dim);
+  }
+
+  if (ShapedType::getNumElements(inferredShape) != inputTy.getNumElements())
+    return failure();
+
+  auto inferredTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(inferredShape), inputTy.getElementType());
+  Value shapeVal = tosa::getTosaConstShape(rewriter, loc, inferredShape);
+  return tosa::ReshapeOp::create(rewriter, loc, inferredTy, input, shapeVal)
+      .getResult();
+}
+
+static FailureOr<Value> inferWeightShapeForConvolution(
+    Value weight, RankedTensorType inputTy, RankedTensorType outputTy,
+    bool transposed, int64_t groups, ArrayRef<int64_t> stride,
+    ArrayRef<int64_t> paddingList, ArrayRef<int64_t> dilation,
+    ArrayRef<int64_t> outputPaddingList, ConversionPatternRewriter &rewriter,
+    Location loc) {
+  auto weightTy = dyn_cast<RankedTensorType>(weight.getType());
+  if (!weightTy || !weightTy.hasStaticShape() || !inputTy.hasStaticShape() ||
+      !outputTy.hasStaticShape())
+    return failure();
+
+  SmallVector<int64_t> inputShape(makeShapeTorchCompatible(inputTy.getShape()));
+  SmallVector<int64_t> outputShape(
+      makeShapeTorchCompatible(outputTy.getShape()));
+  SmallVector<int64_t> inferredShape;
+  if (transposed) {
+    if (outputShape[1] % groups != 0)
+      return failure();
+    inferredShape = {inputShape[1], outputShape[1] / groups};
+  } else {
+    if (inputShape[1] % groups != 0)
+      return failure();
+    inferredShape = {outputShape[1], inputShape[1] / groups};
+  }
+
+  for (int64_t axis = 0, e = outputTy.getRank() - 2; axis < e; ++axis) {
+    std::optional<int64_t> dim =
+        transposed
+            ? inferTransposedConvKernelDim(
+                  inputShape[axis + 2], outputShape[axis + 2], stride[axis],
+                  paddingList[axis], dilation[axis], outputPaddingList[axis])
+            : inferConvKernelDim(inputShape[axis + 2], outputShape[axis + 2],
+                                 stride[axis], paddingList[axis],
+                                 dilation[axis]);
+    if (!dim)
+      return failure();
+    inferredShape.push_back(*dim);
+  }
+
+  if (ShapedType::getNumElements(inferredShape) != weightTy.getNumElements())
+    return failure();
+
+  auto inferredTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(inferredShape), weightTy.getElementType());
+  Value shapeVal = tosa::getTosaConstShape(rewriter, loc, inferredShape);
+  return tosa::ReshapeOp::create(rewriter, loc, inferredTy, weight, shapeVal)
+      .getResult();
+}
 
 // Runs an in-place inclusive prefix sum along the middle dimension (K) of
 // `running` using a binary lifting scheme. The input must have shape [N, K, C].
@@ -2663,7 +2980,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
   auto weight = adaptor.getWeight();
 
   auto outputTy =
-      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+      dyn_cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   auto inputTy = dyn_cast<RankedTensorType>(input.getType());
   auto weightTy = dyn_cast<RankedTensorType>(weight.getType());
   if (!inputTy || !weightTy || !outputTy)
@@ -2675,222 +2992,14 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
     return rewriter.notifyMatchFailure(
         op, "Unimplemented: only 2D or 3D convolutions supported");
 
-  auto peelTrivialDefs = [](Value source) -> Value {
-    while (true) {
-      if (auto unrealized =
-              source.getDefiningOp<UnrealizedConversionCastOp>()) {
-        if (unrealized->getNumOperands() == 1) {
-          source = unrealized.getOperand(0);
-          continue;
-        }
-      }
-      if (auto castOp = source.getDefiningOp<tensor::CastOp>()) {
-        source = castOp.getSource();
-        continue;
-      }
-      break;
-    }
-    return source;
-  };
-
-  auto addTemplate = [&](SmallVectorImpl<RankTemplate> &templates, int64_t rank,
-                         RankedTensorType type, Value shape,
-                         std::optional<SmallVector<int64_t>> shapeValues) {
-    for (const auto &tmpl : templates) {
-      if (tmpl.rank == rank && tmpl.type == type && tmpl.shape == shape &&
-          tmpl.shapeValues == shapeValues)
-        return;
-    }
-    templates.push_back(RankTemplate{rank, type, shape, shapeValues});
-  };
-
-  auto collectTemplateFromValue =
-      [&](Value source) -> SmallVector<RankTemplate> {
-    SmallVector<RankTemplate> templates;
-    if (!source)
-      return templates;
-    source = peelTrivialDefs(source);
-    if (auto reshapeOp = source.getDefiningOp<tosa::ReshapeOp>()) {
-      auto dstType =
-          dyn_cast<RankedTensorType>(reshapeOp.getResult().getType());
-      if (!dstType || (dstType.getRank() != 4 && dstType.getRank() != 5))
-        return templates;
-      std::optional<SmallVector<int64_t>> shapeValues;
-      if (auto shapeOp =
-              reshapeOp.getShape().getDefiningOp<tosa::ConstShapeOp>()) {
-        shapeValues =
-            SmallVector<int64_t>(shapeOp.getValues().getValues<int64_t>());
-      }
-      addTemplate(templates, dstType.getRank(), dstType, reshapeOp.getShape(),
-                  shapeValues);
-      return templates;
-    }
-
-    if (auto reshapeOp = source.getDefiningOp<Torch::AtenReshapeOp>()) {
-      auto torchTy =
-          dyn_cast<Torch::ValueTensorType>(reshapeOp.getResult().getType());
-      if (!torchTy || !torchTy.hasSizes() || !torchTy.hasDtype())
-        return templates;
-      auto dstType = dyn_cast<RankedTensorType>(torchTy.toBuiltinTensor());
-      if (!dstType || (dstType.getRank() != 4 && dstType.getRank() != 5))
-        return templates;
-      SmallVector<int64_t> shapeValues;
-      for (int64_t dim : dstType.getShape())
-        shapeValues.push_back(dim);
-      addTemplate(templates, dstType.getRank(), dstType, Value(), shapeValues);
-      return templates;
-    }
-
-    return templates;
-  };
-
-  auto normalizeOperandRank = [&](Value operand,
-                                  int64_t requiredRank) -> FailureOr<Value> {
-    // Normalize rank-mismatched convolution operands only when the operand
-    // carries a direct local reshape template that proves the target 4D/5D
-    // shape.
-    auto rankedType = dyn_cast<RankedTensorType>(operand.getType());
-    if (!rankedType)
-      return failure();
-    if (rankedType.getRank() == requiredRank)
-      return operand;
-
-    SmallVector<RankTemplate> templates = collectTemplateFromValue(operand);
-    if (templates.empty())
-      return failure();
-
-    auto getStaticNumElementsFromShape =
-        [](ArrayRef<int64_t> shape) -> std::optional<int64_t> {
-      if (llvm::any_of(shape, ShapedType::isDynamic))
-        return std::nullopt;
-      return ShapedType::getNumElements(shape);
-    };
-    auto getStaticNumElementsFromTemplate =
-        [&](const RankTemplate &tmpl) -> std::optional<int64_t> {
-      if (tmpl.shapeValues)
-        return getStaticNumElementsFromShape(*tmpl.shapeValues);
-      if (tmpl.shape) {
-        if (auto shapeOp = tmpl.shape.getDefiningOp<tosa::ConstShapeOp>()) {
-          SmallVector<int64_t> shapeValues(
-              shapeOp.getValues().getValues<int64_t>());
-          return getStaticNumElementsFromShape(shapeValues);
-        }
-      }
-      if (tmpl.type.hasStaticShape())
-        return tmpl.type.getNumElements();
-      return std::nullopt;
-    };
-
-    auto operandTy = dyn_cast<RankedTensorType>(operand.getType());
-    auto operandElemTy = operandTy.getElementType();
-    std::optional<int64_t> operandNumElements;
-    if (operandTy.hasStaticShape())
-      operandNumElements = operandTy.getNumElements();
-    SmallVector<const RankTemplate *> candidates;
-    for (const auto &tmpl : templates) {
-      if (tmpl.rank != requiredRank)
-        continue;
-      if (tmpl.type.getElementType() != operandElemTy)
-        continue;
-      std::optional<int64_t> templateNumElements =
-          getStaticNumElementsFromTemplate(tmpl);
-      if (!operandNumElements || !templateNumElements ||
-          *templateNumElements != *operandNumElements)
-        continue;
-      candidates.push_back(&tmpl);
-    }
-    if (candidates.empty())
-      return failure();
-    if (candidates.size() != 1)
-      return failure();
-    const RankTemplate *match = candidates.front();
-
-    Value shapeVal = match->shape;
-    if (!shapeVal) {
-      if (!match->shapeValues)
-        return failure();
-      shapeVal =
-          tosa::getTosaConstShape(rewriter, op->getLoc(), *match->shapeValues);
-    } else if (auto shapeOp = shapeVal.getDefiningOp<tosa::ConstShapeOp>()) {
-      shapeVal = tosa::ConstShapeOp::create(
-          rewriter, op->getLoc(), shapeOp.getType(), shapeOp.getValues());
-    }
-
-    auto reshape = tosa::ReshapeOp::create(rewriter, op->getLoc(), match->type,
-                                           operand, shapeVal);
-    return reshape.getResult();
-  };
-
-  if (inputTy.getRank() != outputRank) {
-    auto normalized = normalizeOperandRank(input, outputRank);
-    if (failed(normalized))
-      return rewriter.notifyMatchFailure(
-          op, "Input rank mismatch without normalization template");
-    input = *normalized;
-    inputTy = cast<RankedTensorType>(input.getType());
-  }
-
-  if (weightTy.getRank() != outputRank) {
-    auto normalized = normalizeOperandRank(weight, outputRank);
-    if (failed(normalized))
-      return rewriter.notifyMatchFailure(
-          op, "Weight rank mismatch without normalization template");
-    weight = *normalized;
-    weightTy = cast<RankedTensorType>(weight.getType());
-  }
-
-  auto inputElemTy = inputTy.getElementType();
-  auto weightElemTy = weightTy.getElementType();
-  auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
-  auto weightShape = makeShapeTorchCompatible(weightTy.getShape());
-  auto outputElemTy = outputTy.getElementType();
-
-  int64_t inputRank = inputTy.getRank();
-  int64_t weightRank = weightTy.getRank();
-
-  if (inputRank != weightRank || outputRank != inputRank)
-    return rewriter.notifyMatchFailure(
-        op, "Input, weight and output ranks must match for convolution");
-
-  bool is3D = inputRank == 5;
-  int64_t spatialRank = inputRank - 2;
-
-  if (!weightTy.hasStaticShape())
-    return rewriter.notifyMatchFailure(
-        op, "Unimplemented: TOSA only supports static weight");
-
-  Value biasArg = adaptor.getBias();
-  auto getOrCreateBias = [&](int64_t outChannels) -> FailureOr<Value> {
-    if (isa<Torch::NoneType>(biasArg.getType())) {
-      auto biasResult = tosa::getConvBiasForNoneType(op, rewriter, inputElemTy,
-                                                     outputElemTy, outChannels);
-      if (failed(biasResult)) {
-        (void)rewriter.notifyMatchFailure(
-            op, "Failed to create bias tensor for none type.");
-        return failure();
-      }
-      return biasResult.value();
-    }
-    if (!isa<RankedTensorType>(biasArg.getType())) {
-      (void)rewriter.notifyMatchFailure(
-          op, "Bias provided but not a ranked tensor");
-      return failure();
-    }
-    return biasArg;
-  };
-
   int64_t groups;
-  if (!matchPattern(op.getGroups(), m_TorchConstantInt(&groups))) {
+  if (!matchPattern(op.getGroups(), m_TorchConstantInt(&groups)))
     return rewriter.notifyMatchFailure(op, "non-const group size unsupported");
-  } else if (groups != 1 && weightShape[1] != 1) {
-    return rewriter.notifyMatchFailure(
-        op, "group size must be 1 (convolution) or weight.dim(1) must be 1 "
-            "(depthwise convolution)");
-  }
 
   SmallVector<int64_t> stride;
   if (!matchPattern(adaptor.getStride(), m_TorchListOfConstantInts(stride)))
     return rewriter.notifyMatchFailure(op, "non-const stride list unsupported");
+  int64_t spatialRank = outputRank - 2;
   if (static_cast<int64_t>(stride.size()) != spatialRank)
     return rewriter.notifyMatchFailure(op, "stride rank mismatch");
 
@@ -2902,6 +3011,7 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
   if (static_cast<int64_t>(paddingList.size()) != spatialRank)
     return rewriter.notifyMatchFailure(op, "padding rank mismatch");
 
+  bool is3D = outputRank == 5;
   // TOSA uses 4D padding {top, bottom, left, right} while PyTorch defines 2D
   // padding {height, width}. The PyTorch OFM computation uses 2*pad in each
   // spatial direction, implying the same top=bottom=height and left=right=width
@@ -2920,6 +3030,105 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
                                        "non-const dilation list unsupported");
   if (static_cast<int64_t>(dilation.size()) != spatialRank)
     return rewriter.notifyMatchFailure(op, "dilation rank mismatch");
+
+  SmallVector<int64_t> outPaddingList;
+  if (transposed) {
+    if (!matchPattern(adaptor.getOutputPadding(),
+                      m_TorchListOfConstantInts(outPaddingList)))
+      return rewriter.notifyMatchFailure(
+          op, "non-const output_padding list unsupported for transposed conv");
+    if (static_cast<int64_t>(outPaddingList.size()) != spatialRank)
+      return rewriter.notifyMatchFailure(op, "output_padding rank mismatch");
+  } else {
+    outPaddingList.assign(spatialRank, 0);
+  }
+
+  for (int i = 0; i < 2; ++i) {
+    if (inputTy.getRank() != outputRank) {
+      auto normalized =
+          normalizeOperandRank(input, outputRank, rewriter, op.getLoc());
+      if (failed(normalized) && weightTy.getRank() == outputRank)
+        normalized = inferInputShapeForConvolution(
+            input, weightTy, outputTy, transposed, groups, stride, paddingList,
+            dilation, outPaddingList, rewriter, op.getLoc());
+      if (succeeded(normalized)) {
+        input = *normalized;
+        inputTy = cast<RankedTensorType>(input.getType());
+      }
+    }
+
+    if (weightTy.getRank() != outputRank) {
+      auto normalized =
+          normalizeOperandRank(weight, outputRank, rewriter, op.getLoc());
+      if (failed(normalized) && inputTy.getRank() == outputRank)
+        normalized = inferWeightShapeForConvolution(
+            weight, inputTy, outputTy, transposed, groups, stride, paddingList,
+            dilation, outPaddingList, rewriter, op.getLoc());
+      if (succeeded(normalized)) {
+        weight = *normalized;
+        weightTy = cast<RankedTensorType>(weight.getType());
+      }
+    }
+  }
+
+  if (inputTy.getRank() != outputRank)
+    return rewriter.notifyMatchFailure(
+        op,
+        "Input rank mismatch without normalization template or inferred shape");
+  if (weightTy.getRank() != outputRank)
+    return rewriter.notifyMatchFailure(
+        op, "Weight rank mismatch without normalization template or inferred "
+            "shape");
+
+  auto inputElemTy = inputTy.getElementType();
+  auto weightElemTy = weightTy.getElementType();
+  auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
+  auto weightShape = makeShapeTorchCompatible(weightTy.getShape());
+  auto outputElemTy = outputTy.getElementType();
+
+  int64_t inputRank = inputTy.getRank();
+  int64_t weightRank = weightTy.getRank();
+
+  if (inputRank != weightRank || outputRank != inputRank)
+    return rewriter.notifyMatchFailure(
+        op, "Input, weight and output ranks must match for convolution");
+
+  if (!weightTy.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "Unimplemented: TOSA only supports static weight");
+
+  if (groups != 1 && weightShape[1] != 1) {
+    return rewriter.notifyMatchFailure(
+        op, "group size must be 1 (convolution) or weight.dim(1) must be 1 "
+            "(depthwise convolution)");
+  }
+
+  Value biasArg = adaptor.getBias();
+  auto getOrCreateBias = [&](int64_t outChannels) -> FailureOr<Value> {
+    if (isa<Torch::NoneType>(biasArg.getType())) {
+      auto biasResult = tosa::getConvBiasForNoneType(op, rewriter, inputElemTy,
+                                                     outputElemTy, outChannels);
+      if (failed(biasResult)) {
+        (void)rewriter.notifyMatchFailure(
+            op, "Failed to create bias tensor for none type.");
+        return failure();
+      }
+      return biasResult.value();
+    }
+    if (!isa<RankedTensorType>(biasArg.getType())) {
+      (void)rewriter.notifyMatchFailure(
+          op, "Bias provided but not a ranked tensor");
+      return failure();
+    }
+    auto normalizedBias =
+        normalizeBiasRank(biasArg, outChannels, rewriter, op.getLoc());
+    if (failed(normalizedBias)) {
+      (void)rewriter.notifyMatchFailure(
+          op, "Bias rank mismatch without 1D normalization");
+      return failure();
+    }
+    return *normalizedBias;
+  };
 
   TypeAttr accType;
   if (failed(tosa::getConvOpsAccType(rewriter, inputTy, weightTy, outputTy,
@@ -2997,14 +3206,6 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
       return rewriter.notifyMatchFailure(
           op, "Unimplemented: grouped transposed convolution not supported by "
               "TOSA");
-
-    SmallVector<int64_t> outPaddingList;
-    if (!matchPattern(adaptor.getOutputPadding(),
-                      m_TorchListOfConstantInts(outPaddingList)))
-      return rewriter.notifyMatchFailure(
-          op, "non-const output_padding list unsupported for transposed conv");
-    if (static_cast<int64_t>(outPaddingList.size()) != spatialRank)
-      return rewriter.notifyMatchFailure(op, "output_padding rank mismatch");
 
     SmallVector<int32_t, 5> transposedWeightPermutation;
     if (failed(getTorchConvWeightPermutation(op->getLoc(), weightRank,

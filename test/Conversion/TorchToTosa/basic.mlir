@@ -13,8 +13,96 @@ func.func @torch.aten.tanh$basic(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vte
 
 // -----
 
-// Reject non-local normalization from sibling reshape users.
+// Accept direct local normalization when the operand itself comes from a local
+// reshape template hidden behind trivial conversion casts.
+// CHECK-LABEL:   func.func @conv2d_io_insert_reshape_local_template(
+// CHECK:           %[[INPUT_BUILTIN:.*]] = torch_c.to_builtin_tensor %[[ARG0:.*]] : !torch.vtensor<[256],f32> -> tensor<256xf32>
+// CHECK:           %[[WEIGHT_BUILTIN:.*]] = torch_c.to_builtin_tensor %[[ARG1:.*]] : !torch.vtensor<[256],f32> -> tensor<256xf32>
+// CHECK:           %[[SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 1, 16, 16]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[INPUT_TEMPLATE:.*]] = tosa.reshape %[[INPUT_BUILTIN]], %[[SHAPE]] : (tensor<256xf32>, !tosa.shape<4>) -> tensor<1x1x16x16xf32>
+// CHECK:           %[[WEIGHT_TEMPLATE:.*]] = tosa.reshape %[[WEIGHT_BUILTIN]], %[[SHAPE]] : (tensor<256xf32>, !tosa.shape<4>) -> tensor<1x1x16x16xf32>
+// CHECK:           %[[INPUT_UC:.*]] = builtin.unrealized_conversion_cast %[[INPUT_TEMPLATE]] : tensor<1x1x16x16xf32> to !torch.vtensor<[256],f32>
+// CHECK:           %[[INPUT_FLAT:.*]] = torch_c.to_builtin_tensor %[[INPUT_UC]] : !torch.vtensor<[256],f32> -> tensor<256xf32>
+// CHECK:           %[[WEIGHT_UC:.*]] = builtin.unrealized_conversion_cast %[[WEIGHT_TEMPLATE]] : tensor<1x1x16x16xf32> to !torch.vtensor<[256],f32>
+// CHECK:           %[[WEIGHT_FLAT:.*]] = torch_c.to_builtin_tensor %[[WEIGHT_UC]] : !torch.vtensor<[256],f32> -> tensor<256xf32>
+// CHECK:           %[[NORMALIZED_INPUT_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 1, 16, 16]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[NORMALIZED_INPUT:.*]] = tosa.reshape %[[INPUT_FLAT]], %[[NORMALIZED_INPUT_SHAPE]] : (tensor<256xf32>, !tosa.shape<4>) -> tensor<1x1x16x16xf32>
+// CHECK:           %[[NORMALIZED_WEIGHT_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 1, 16, 16]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[NORMALIZED_WEIGHT:.*]] = tosa.reshape %[[WEIGHT_FLAT]], %[[NORMALIZED_WEIGHT_SHAPE]] : (tensor<256xf32>, !tosa.shape<4>) -> tensor<1x1x16x16xf32>
+// CHECK:           %[[INPUT_NHWC:.*]] = tosa.transpose %[[NORMALIZED_INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x16x16xf32>) -> tensor<1x16x16x1xf32>
+// CHECK:           %[[WEIGHT_HWCF:.*]] = tosa.transpose %[[NORMALIZED_WEIGHT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x16x16xf32>) -> tensor<1x16x16x1xf32>
+// CHECK:           %[[CONV:.*]] = tosa.conv2d %[[INPUT_NHWC]], %[[WEIGHT_HWCF]]
+// CHECK-NOT:       torch.aten.convolution
+func.func @conv2d_io_insert_reshape_local_template(%arg0: !torch.vtensor<[256],f32>, %arg1: !torch.vtensor<[256],f32>, %arg2: !torch.vtensor<[1],f32>) -> !torch.vtensor<[1,1,1,1],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %false = torch.constant.bool false
+  %shape = torch.prim.ListConstruct %int1, %int1, %int16, %int16 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %output_padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %input_builtin = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[256],f32> -> tensor<256xf32>
+  %weight_builtin = torch_c.to_builtin_tensor %arg1 : !torch.vtensor<[256],f32> -> tensor<256xf32>
+  %shape_builtin = tosa.const_shape  {values = dense<[1, 1, 16, 16]> : tensor<4xindex>} : () -> !tosa.shape<4>
+  %input_template = tosa.reshape %input_builtin, %shape_builtin : (tensor<256xf32>, !tosa.shape<4>) -> tensor<1x1x16x16xf32>
+  %weight_template = tosa.reshape %weight_builtin, %shape_builtin : (tensor<256xf32>, !tosa.shape<4>) -> tensor<1x1x16x16xf32>
+  %input_flat = builtin.unrealized_conversion_cast %input_template : tensor<1x1x16x16xf32> to !torch.vtensor<[256],f32>
+  %weight_flat = builtin.unrealized_conversion_cast %weight_template : tensor<1x1x16x16xf32> to !torch.vtensor<[256],f32>
+  %conv = torch.aten.convolution %input_flat, %weight_flat, %arg2, %stride, %padding, %dilation, %false, %output_padding, %int1 : !torch.vtensor<[256],f32>, !torch.vtensor<[256],f32>, !torch.vtensor<[1],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,1,1],f32>
+  return %conv : !torch.vtensor<[1,1,1,1],f32>
+}
 
+// -----
+
+// Accept normalization without a pre-existing reshape template when the
+// convolution attributes and the other ranked operands determine a unique 4D
+// input shape.
+// CHECK-LABEL:   func.func @conv2d_io_infer_input_shape(
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG0:.*]] : !torch.vtensor<[256],f32> -> tensor<256xf32>
+// CHECK:           %[[INPUT_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 1, 16, 16]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[RESHAPED_INPUT:.*]] = tosa.reshape %[[INPUT]], %[[INPUT_SHAPE]] : (tensor<256xf32>, !tosa.shape<4>) -> tensor<1x1x16x16xf32>
+// CHECK:           %[[CONV:.*]] = tosa.conv2d
+// CHECK-NOT:       torch.aten.convolution
+func.func @conv2d_io_infer_input_shape(%arg0: !torch.vtensor<[256],f32>, %arg1: !torch.vtensor<[1,1,16,16],f32>, %arg2: !torch.vtensor<[1],f32>) -> !torch.vtensor<[1,1,1,1],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %false = torch.constant.bool false
+  %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %output_padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %conv = torch.aten.convolution %arg0, %arg1, %arg2, %stride, %padding, %dilation, %false, %output_padding, %int1 : !torch.vtensor<[256],f32>, !torch.vtensor<[1,1,16,16],f32>, !torch.vtensor<[1],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,1,1],f32>
+  return %conv : !torch.vtensor<[1,1,1,1],f32>
+}
+
+// -----
+
+// Accept normalization without a pre-existing reshape template when the
+// convolution attributes and the other ranked operands determine a unique 4D
+// weight shape.
+// CHECK-LABEL:   func.func @conv2d_io_infer_weight_shape(
+// CHECK:           %[[WEIGHT:.*]] = torch_c.to_builtin_tensor %[[ARG1:.*]] : !torch.vtensor<[256],f32> -> tensor<256xf32>
+// CHECK:           %[[WEIGHT_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 1, 16, 16]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[RESHAPED_WEIGHT:.*]] = tosa.reshape %[[WEIGHT]], %[[WEIGHT_SHAPE]] : (tensor<256xf32>, !tosa.shape<4>) -> tensor<1x1x16x16xf32>
+// CHECK:           %[[CONV:.*]] = tosa.conv2d
+// CHECK-NOT:       torch.aten.convolution
+func.func @conv2d_io_infer_weight_shape(%arg0: !torch.vtensor<[1,1,16,16],f32>, %arg1: !torch.vtensor<[256],f32>, %arg2: !torch.vtensor<[1],f32>) -> !torch.vtensor<[1,1,1,1],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %false = torch.constant.bool false
+  %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %output_padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %conv = torch.aten.convolution %arg0, %arg1, %arg2, %stride, %padding, %dilation, %false, %output_padding, %int1 : !torch.vtensor<[1,1,16,16],f32>, !torch.vtensor<[256],f32>, !torch.vtensor<[1],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,1,1],f32>
+  return %conv : !torch.vtensor<[1,1,1,1],f32>
+}
+
+// -----
+
+// Reject non-local normalization from sibling reshape users.
 func.func @conv2d_io_insert_reshape(%arg0: !torch.vtensor<[256],f32>, %arg1: !torch.vtensor<[256],f32>, %arg2: !torch.vtensor<[1],f32>) -> !torch.vtensor<[1,1,1,1],f32> {
   %int0 = torch.constant.int 0
   %int1 = torch.constant.int 1
@@ -50,9 +138,29 @@ func.func @conv2d_io_insert_reshape_rejects_dynamic_input(%arg0: !torch.vtensor<
   %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
   %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
   %output_padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
-  // expected-error @+1 {{failed to legalize operation 'torch.aten.convolution' that was explicitly marked illegal}}
+// expected-error @+1 {{failed to legalize operation 'torch.aten.convolution' that was explicitly marked illegal}}
   %conv = torch.aten.convolution %arg0, %arg1, %arg2, %stride, %padding, %dilation, %false, %output_padding, %int1 : !torch.vtensor<[?],f32>, !torch.vtensor<[256],f32>, !torch.vtensor<[1],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,1,1],f32>
   return %conv : !torch.vtensor<[1,1,1,1],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @conv2d_bias_rank_normalization(
+// CHECK:           %[[BIAS:.*]] = torch_c.to_builtin_tensor %[[ARG2:.*]] : !torch.vtensor<[1,1,1,1],f32> -> tensor<1x1x1x1xf32>
+// CHECK:           %[[BIAS_SHAPE:.*]] = tosa.const_shape  {values = dense<1> : tensor<1xindex>} : () -> !tosa.shape<1>
+// CHECK:           %[[BIAS_1D:.*]] = tosa.reshape %[[BIAS]], %[[BIAS_SHAPE]] : (tensor<1x1x1x1xf32>, !tosa.shape<1>) -> tensor<1xf32>
+// CHECK:           %[[CONV:.*]] = tosa.conv2d %{{.*}}, %{{.*}}, %[[BIAS_1D]]
+// CHECK-NOT:       torch.aten.convolution
+func.func @conv2d_bias_rank_normalization(%arg0: !torch.vtensor<[1,1,4,4],f32>, %arg1: !torch.vtensor<[1,1,3,3],f32>, %arg2: !torch.vtensor<[1,1,1,1],f32>) -> !torch.vtensor<[1,1,2,2],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %false = torch.constant.bool false
+  %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %output_padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %conv = torch.aten.convolution %arg0, %arg1, %arg2, %stride, %padding, %dilation, %false, %output_padding, %int1 : !torch.vtensor<[1,1,4,4],f32>, !torch.vtensor<[1,1,3,3],f32>, !torch.vtensor<[1,1,1,1],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,2,2],f32>
+  return %conv : !torch.vtensor<[1,1,2,2],f32>
 }
 
 // -----
