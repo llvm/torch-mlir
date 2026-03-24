@@ -64,6 +64,10 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
 std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
                                           TensorType destType);
 
+// Ensure TOSA argmax input is f32 by inserting a tosa.cast when needed.
+Value legalizeArgMaxInputType(PatternRewriter &rewriter, Operation *op,
+                              Value input);
+
 // Create a tosa.gather op. Casts i1 inputs to i8 internally if needed.
 std::optional<Value> createGatherOp(PatternRewriter &rewriter, Location loc,
                                     RankedTensorType resultType, Value input,
