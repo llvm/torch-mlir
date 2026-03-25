@@ -273,9 +273,6 @@ def Convolution2DModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 3, 10, 10), tu.rand(3, 3, 2, 2))
 
 
-# ==============================================================================
-
-
 class Convolution2DStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
