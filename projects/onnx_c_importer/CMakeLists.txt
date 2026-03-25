@@ -47,5 +47,6 @@ target_link_libraries(
     torch-mlir-import-onnx
     MLIRCAPIIR
     TorchMLIRCAPI
+    LLVMSupport
     onnx
 )
