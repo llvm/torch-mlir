@@ -1478,6 +1478,16 @@ def InterpolateStaticModule_scales_bilinear_align_corners(module, tu: TestUtils)
     input = input.reshape((1, 1, 4, 5))
     module.forward(input)
 
+@register_test_case(
+    module_factory=lambda: InterpolateStaticModule(
+        size=(3, 5), mode="bilinear", align_corners=False
+    )
+)
+def InterpolateStaticModule_sizes_bilinear_no_align_corners(module, tu: TestUtils):
+    input = torch.arange(20).to(dtype=torch.float32)
+    input = input.reshape((1, 1, 4, 5))
+    module.forward(input)
+
 
 @register_test_case(
     module_factory=lambda: InterpolateDynamicModule(size=(2, 7), mode="nearest")
