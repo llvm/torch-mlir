@@ -652,10 +652,13 @@ void computeResizeParams(int inputSize, int outputSize, bool alignCorners,
   scaleN = 2 * scaleN / gcd;
   scaleD = 2 * scaleD / gcd;
 
-  // If nearest neighbors we need to guarantee we round up.
   offset = 0;
-  if (mode == tosa::ResizeMode::NEAREST_NEIGHBOR && alignCorners) {
-    offset += scaleN / 2;
+  if (mode == tosa::ResizeMode::BILINEAR && !applyAligned) {
+    // Set offset to match PyTorch half-pixel centers
+    offset = (scaleD - scaleN) / 2;
+  } else if (mode == tosa::ResizeMode::NEAREST_NEIGHBOR && alignCorners) {
+    // If nearest neighbors we need to guarantee we round up.
+    offset = scaleN / 2;
   }
 
   // We can compute this directly based on previous values.
