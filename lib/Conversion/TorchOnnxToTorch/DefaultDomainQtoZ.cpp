@@ -99,6 +99,19 @@ LogicalResult reduceOpImpl(OpBinder binder, ConversionPatternRewriter &rewriter,
       }
     }
     if (axesList.empty()) {
+      // Try to extract axes as compile-time constants, avoiding
+      // unnecessary runtime AtenItemOp extraction.
+      if (auto literalOp =
+              axesVal.getDefiningOp<Torch::ValueTensorLiteralOp>()) {
+        if (auto attr = dyn_cast<DenseElementsAttr>(literalOp.getValue())) {
+          for (auto val : attr.getValues<llvm::APInt>())
+            axesList.push_back(Torch::ConstantIntOp::create(
+                rewriter, binder.getLoc(),
+                rewriter.getI64IntegerAttr(val.getSExtValue())));
+        }
+      }
+    }
+    if (axesList.empty()) {
       if (axesTy.getSizes()[0] == Torch::kUnknownSize)
         return failure();
 
