@@ -725,7 +725,7 @@ class AtenInstanceNormModuleFp16(torch.nn.Module):
 
 
 @register_test_case(module_factory=lambda: AtenInstanceNormModuleFp16())
-def AtenInstanceNormModuleFp16_large_spatial(module, tu: TestUtils):
+def AtenInstanceNormModuleFp16_basic(module, tu: TestUtils):
     x = tu.rand(1, 32, 8388608).to(torch.float16)
     w = tu.rand(32).to(torch.float16)
     b = tu.rand(32).to(torch.float16)
