@@ -2985,6 +2985,11 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             dimList);
         Value noneVal =
             Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
+        Value dtypeVal = noneVal;
+        if (resultType.hasDtype()) {
+          dtypeVal = Torch::getDtypeIntValueForType(rewriter, binder.getLoc(),
+                                                    resultType.getDtype());
+        }
 
         // Get fill_value if it is present.
         // Assumption : resultDType and value attr type match.
@@ -3048,7 +3053,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               rewriter.getF64FloatAttr(fpattr.getValueAsDouble()));
 
         rewriter.replaceOpWithNewOp<Torch::AtenFullOp>(
-            binder.op, resultType, dimValueList, splatvalue, /*dtype=*/noneVal,
+            binder.op, resultType, dimValueList, splatvalue, /*dtype=*/dtypeVal,
             /*layout=*/noneVal, /*device=*/noneVal, /*pin_memory=*/noneVal);
         return success();
       });
