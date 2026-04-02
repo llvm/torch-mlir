@@ -30,6 +30,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/MathExtras.h"
 #include <cmath>
 #include <numeric>
 #include <optional>
@@ -4266,12 +4267,12 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewriteImpl(
                                     selfShape, selfElemTy)
             .value();
 
-    // From <cmath> header: M_2_PI = 2 / pi
     Value twoOverPi =
         tosa::getConstTensor<float>(
             rewriter, op,
-            SmallVector<float>(numElem, static_cast<float>(M_2_PI)), selfShape,
-            selfElemTy)
+            SmallVector<float>(numElem,
+                               static_cast<float>(2.0 / llvm::numbers::pi)),
+            selfShape, selfElemTy)
             .value();
 
     // 0.5 * x
