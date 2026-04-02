@@ -453,8 +453,9 @@ public:
         cast<RankedTensorType>(typeConverter->convertType(op.getType()));
     Type resultElementType;
     if (isa<Torch::NoneType>(op.getDtype().getType())) {
-      resultElementType = getDefaultDtypeForTorchScalar(
-          Torch::FloatType::get(op->getContext()));
+      RankedTensorType resultType = cast<RankedTensorType>(
+          typeConverter->convertType(op->getResult(0).getType()));
+      resultElementType = resultType.getElementType();
     } else {
       int64_t dtypeInt;
       if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeInt)))
