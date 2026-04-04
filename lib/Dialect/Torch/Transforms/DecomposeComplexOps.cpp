@@ -6018,6 +6018,107 @@ class DecomposeAtenNativeBatchNormOp
 };
 } // namespace
 
+namespace {
+class DecomposeAtenBatchNormOp
+    : public OpRewritePattern<AtenBatchNormOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenBatchNormOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+    Value input = op.getInput();
+    Value weight = op.getWeight();
+    Value bias = op.getBias();
+    Value runningMean = op.getRunningMean();
+    Value runningVar = op.getRunningVar();
+    Value eps = op.getEps();
+
+    // TODO: Add support for `training` mode.
+    bool training = false;
+    if (!matchPattern(op.getTraining(), m_TorchConstantBool(&training)) ||
+        training)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: training mode is not supported");
+
+    // Rank of the input tensor must be greater than or equal to 2.
+    std::optional<unsigned> maybeInputRank = getTensorRank(input);
+    if (!maybeInputRank || *maybeInputRank < 2)
+      return rewriter.notifyMatchFailure(
+          op, "input must have rank greater than or equal to 2");
+    unsigned inputRank = *maybeInputRank;
+
+    // In inference mode, running stats must not be None.
+    if (isa<Torch::NoneType>(runningMean.getType()) ||
+        isa<Torch::NoneType>(runningVar.getType()))
+      return rewriter.notifyMatchFailure(
+          op, "running stats must not be None in inference mode");
+
+    // Rank of running stats must be exactly 1.
+    std::optional<unsigned> runningMeanRank = getTensorRank(runningMean);
+    std::optional<unsigned> runningVarRank = getTensorRank(runningVar);
+    if (!runningMeanRank || !runningVarRank || *runningMeanRank != 1 ||
+        *runningVarRank != 1)
+      return rewriter.notifyMatchFailure(
+          op, "expected runningMean and runningVar to be rank 1");
+
+    Value one =
+        rewriter.create<ConstantIntOp>(loc, rewriter.getI64IntegerAttr(1));
+    Value numFeatures = rewriter.create<AtenSizeIntOp>(loc, input, /*dim=*/one);
+
+    // Reshape running stats to (1, C, 1?, 1?, 1?) for broadcasting.
+    SmallVector<Value> runningStatsShape(inputRank, one);
+    runningStatsShape[1] = numFeatures;
+    Value runningStatsSizeList = rewriter.create<PrimListConstructOp>(
+        loc, ListType::get(IntType::get(context)), runningStatsShape);
+
+    SmallVector<int64_t> runningStatsShapeInt(inputRank, 1);
+    runningStatsShapeInt[1] =
+        cast<BaseTensorType>(runningMean.getType()).getSizes()[0];
+    Type dtype = cast<ValueTensorType>(input.getType()).getOptionalDtype();
+    Type reshapeType = ValueTensorType::get(
+        context, llvm::ArrayRef(runningStatsShapeInt), dtype);
+
+    runningMean = rewriter.create<AtenViewOp>(loc, reshapeType, runningMean,
+                                              runningStatsSizeList);
+    runningVar = rewriter.create<AtenViewOp>(loc, reshapeType, runningVar,
+                                             runningStatsSizeList);
+
+    // normalizedInput = (input - runningMean) * rsqrt(runningVar + eps).
+    Value inputSubMean = rewriter.create<AtenSubTensorOp>(
+        loc, input.getType(), input, runningMean, /*alpha=*/one);
+    Value varEps = rewriter.create<AtenAddScalarOp>(
+        loc, runningVar.getType(), runningVar, eps, /*alpha=*/one);
+    Value invStd = rewriter.create<AtenRsqrtOp>(loc, varEps.getType(), varEps);
+    Value normalizedInput = rewriter.create<AtenMulTensorOp>(
+        loc, inputSubMean.getType(), inputSubMean, invStd);
+
+    // Apply weight and bias if present.
+    Value batchNormOutput = normalizedInput;
+    if (!isa<Torch::NoneType>(weight.getType())) {
+      std::optional<unsigned> weightRank = getTensorRank(weight);
+      if (!weightRank || *weightRank != 1)
+        return rewriter.notifyMatchFailure(op, "expected weight to be rank 1");
+      weight = rewriter.create<AtenViewOp>(loc, reshapeType, weight,
+                                           runningStatsSizeList);
+      batchNormOutput = rewriter.create<AtenMulTensorOp>(
+          loc, batchNormOutput.getType(), batchNormOutput, weight);
+    }
+    if (!isa<Torch::NoneType>(bias.getType())) {
+      std::optional<unsigned> biasRank = getTensorRank(bias);
+      if (!biasRank || *biasRank != 1)
+        return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
+      bias = rewriter.create<AtenViewOp>(loc, reshapeType, bias,
+                                         runningStatsSizeList);
+      batchNormOutput = rewriter.create<AtenAddTensorOp>(
+          loc, batchNormOutput.getType(), batchNormOutput, bias, /*alpha=*/one);
+    }
+
+    rewriter.replaceOp(op, batchNormOutput);
+    return success();
+  }
+};
+} // namespace
+
 // Decompse `Aten_UnsafeViewOp` into `AtenViewOp`. UnsafeView() differs from
 // view() in that the returned tensor isn't treated as a view for the purposes
 // of automatic differentiation.  It's only safe to use if the `self` tensor is
@@ -8656,6 +8757,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenGroupNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeGroupNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeBatchNormOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenBatchNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAten_ConvolutionLikeOp<Aten_ConvolutionOp>>(patterns);
     addPatternIfTargetOpIsIllegal<

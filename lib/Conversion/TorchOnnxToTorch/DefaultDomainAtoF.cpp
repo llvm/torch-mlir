@@ -339,7 +339,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp("BatchNormalization", 15,
+  patterns.onOp("BatchNormalization", 7,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
                   Value input, weight, bias, runningMean, runningVar;

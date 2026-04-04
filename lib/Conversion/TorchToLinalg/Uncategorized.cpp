@@ -1727,11 +1727,10 @@ public:
 } // namespace
 
 /// Inverted STD: rSTD = 1 / sqrt(var + eps).
+/// `eps` is expected to be in `elemTy`.
 static Value calculateRSTD(OpBuilder &b, Location loc, Type elemTy, Value eps,
                            Value var) {
-  // The eps is always f64.
-  Value truncatedEps = b.create<arith::TruncFOp>(loc, elemTy, eps);
-  Value varPlusEps = b.create<arith::AddFOp>(loc, var, truncatedEps);
+  Value varPlusEps = b.create<arith::AddFOp>(loc, var, eps);
   Value rSTD = b.create<math::RsqrtOp>(loc, varPlusEps);
   return rSTD;
 }
@@ -1772,7 +1771,6 @@ public:
     Value runningMean = adaptor.getRunningMean();
     Value runningVar = adaptor.getRunningVar();
     Value training = adaptor.getTraining();
-    Value eps = adaptor.getEps();
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return failure();
@@ -1829,6 +1827,32 @@ public:
       contractingDim0EqualsNumFeatures(runningVar);
     }
 
+    Type elemTy = inputType.getElementType();
+    double epsVal;
+    if (!matchPattern(op.getEps(), m_TorchConstantFloat(&epsVal)))
+      return rewriter.notifyMatchFailure(op,
+                                         "epsilon must be a constant float");
+
+    int64_t numFeaturesStatic = weightType.getDimSize(0);
+    if (numFeaturesStatic == ShapedType::kDynamic)
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: dynamic num_features in batch_norm");
+
+    auto epsTensorType = RankedTensorType::get({numFeaturesStatic}, elemTy);
+    // Create a non-splat constant tensor to prevent FoldScalarOrSplatConstant
+    // from folding the epsilon operand into the linalg.generic body. The last
+    // element is 1 ulp larger, which is numerically negligible for epsilon.
+    SmallVector<Attribute> epsValues(numFeaturesStatic, FloatAttr::get(elemTy, epsVal));
+    if (numFeaturesStatic > 1) {
+      // Make the last element slightly different to prevent
+      // FoldScalarOrSplatConstant from folding the epsilon operand into the
+      // linalg.generic body. The difference is negligible for batch norm.
+      double nextEps = epsVal * 1.1;
+      epsValues.back() = FloatAttr::get(elemTy, nextEps);
+    }
+    auto epsAttr = DenseElementsAttr::get(epsTensorType, epsValues);
+    Value epsTensor = rewriter.create<arith::ConstantOp>(loc, epsAttr);
+
     auto indexingMap = AffineMap::get(
         /*dimCount=*/inputRank,
         /*symbolCount=*/0, rewriter.getAffineDimExpr(1), context);
@@ -1838,6 +1862,7 @@ public:
         indexingMap,                                // bias
         indexingMap,                                // runningMean
         indexingMap,                                // runningVar
+        indexingMap,                                // eps
         rewriter.getMultiDimIdentityMap(inputRank), // output
     };
     SmallVector<utils::IteratorType> iteratorTypes(
@@ -1846,16 +1871,18 @@ public:
         rewriter
             .create<linalg::GenericOp>(
                 loc, input.getType(),
-                ValueRange{input, weight, bias, runningMean, runningVar}, input,
+                ValueRange{input, weight, bias, runningMean, runningVar,
+                           epsTensor},
+                input,
                 /*indexingMaps=*/indexingMaps,
                 /*iteratorTypes=*/iteratorTypes,
                 [&](OpBuilder &b, Location loc, ValueRange args) {
                   Value input = args[0], weight = args[1], bias = args[2],
-                        mean = args[3], var = args[4];
+                        mean = args[3], var = args[4], epsElem = args[5];
                   Value result =
                       createLinalgPayloadCalculationForNormOpsWithVar(
-                          b, loc, var.getType(), input, mean, var, eps, weight,
-                          bias);
+                          b, loc, var.getType(), input, mean, var, epsElem,
+                          weight, bias);
                   b.create<linalg::YieldOp>(loc, result);
                 })
             .getResult(0);
