@@ -1037,8 +1037,9 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
   auto lhsTy = cast<RankedTensorType>(lhs.getType());
   auto lhsElemTy = lhsTy.getElementType();
 
-  if (!isa<mlir::FloatType>(lhsElemTy)) {
-    return op->emitError("only float tensor in relu op is supported");
+  if (!isa<mlir::FloatType>(lhsElemTy) && !isa<mlir::IntegerType>(lhsElemTy)) {
+    return op->emitError(
+        "only float or integer tensor in relu op is supported");
   }
 
   Value zeroTensor =
