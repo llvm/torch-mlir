@@ -2496,6 +2496,36 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                       binder.op, resultType, input, absXPlusOne);
                   return success();
                 });
+  patterns.onOp("Softmax", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value input;
+                  int64_t axis;
+                  if (binder.tensorOperand(input) ||
+                      binder.s64IntegerAttr(axis, "axis", -1) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+
+                  auto inputType = cast<Torch::ValueTensorType>(input.getType());
+                  if (!inputType.hasSizes()) {
+                    return rewriter.notifyMatchFailure(
+                        binder.op, "unimplemented: expected input to have sizes");
+                  }
+
+                  int64_t inputRank = inputType.getSizes().size();
+                  // Handle negative axis
+                  if (axis < 0)
+                    axis = inputRank + axis;
+
+                  Value constAxis = rewriter.create<Torch::ConstantIntOp>(
+                      binder.getLoc(), rewriter.getI64IntegerAttr(axis));
+                  Value dtypeNone = rewriter.create<Torch::ConstantNoneOp>(binder.getLoc());
+
+                  rewriter.replaceOpWithNewOp<Torch::AtenSoftmaxIntOp>(
+                      binder.op, resultType, input, constAxis, dtypeNone);
+                  return success();
+                });
   patterns.onOp(
       "Trilu", 14, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
