@@ -7863,14 +7863,20 @@ class DecomposeAtenInstanceNormOp
         ValueTensorType::get(context, llvm::ArrayRef(reducedShape), accDtype);
 
     // Upcast all operands to the accumulator dtype; downcast once at the end.
-    Value inputAcc = op.getInput();
+    Value input = op.getInput();
     Value weight = op.getWeight();
     Value bias = op.getBias();
-    if (origDtype != accDtype) {
-      inputAcc = convertTensorToDtype(rewriter, loc, inputAcc, accDtype);
-      weight = convertTensorToDtype(rewriter, loc, weight, accDtype);
-      bias = convertTensorToDtype(rewriter, loc, bias, accDtype);
-    }
+    auto convertOperandToAcc = [&](Value v) -> Value {
+      if (isa<Torch::NoneType>(v.getType()))
+        return v;
+      auto tensorTy = cast<BaseTensorType>(v.getType());
+      if (tensorTy.getOptionalDtype() == accDtype)
+        return v;
+      return convertTensorToDtype(rewriter, loc, v, accDtype);
+    };
+    input = convertOperandToAcc(input);
+    weight = convertOperandToAcc(weight);
+    bias = convertOperandToAcc(bias);
 
     auto sizeListType = ListType::get(IntType::get(context));
     Value reduceDimList =
@@ -7882,14 +7888,14 @@ class DecomposeAtenInstanceNormOp
                                              rewriter.getI64IntegerAttr(1));
 
     // mean(x)
-    Value inputMean = AtenMeanDimOp::create(
-        rewriter, loc, reducedAccTy, inputAcc, reduceDimList, cstTrue, none);
+    Value inputMean = AtenMeanDimOp::create(rewriter, loc, reducedAccTy, input,
+                                            reduceDimList, cstTrue, none);
 
     // x - mean(x)
     Value inputMeanExpanded =
-        AtenExpandAsOp::create(rewriter, loc, inputAccTy, inputMean, inputAcc);
-    Value inputSubMean = AtenSubTensorOp::create(
-        rewriter, loc, inputAccTy, inputAcc, inputMeanExpanded, one);
+        AtenExpandAsOp::create(rewriter, loc, inputAccTy, inputMean, input);
+    Value inputSubMean = AtenSubTensorOp::create(rewriter, loc, inputAccTy,
+                                                 input, inputMeanExpanded, one);
     // (x - mean(x))^2
     Value inputSubMeanSquare = AtenMulTensorOp::create(
         rewriter, loc, inputAccTy, inputSubMean, inputSubMean);
@@ -7914,8 +7920,8 @@ class DecomposeAtenInstanceNormOp
         AtenRsqrtOp::create(rewriter, loc, reducedAccTy, inputVarPlusEps);
 
     // (x - mean(x)) * rsqrt(var(x) + eps)
-    Value inputRsqrtVarExpanded = AtenExpandAsOp::create(
-        rewriter, loc, inputAccTy, inputRsqrtVar, inputAcc);
+    Value inputRsqrtVarExpanded =
+        AtenExpandAsOp::create(rewriter, loc, inputAccTy, inputRsqrtVar, input);
     Value inputNormalized = AtenMulTensorOp::create(
         rewriter, loc, inputAccTy, inputSubMean, inputRsqrtVarExpanded);
 
@@ -7941,7 +7947,7 @@ class DecomposeAtenInstanceNormOp
     }
 
     Value weightExpanded =
-        AtenExpandAsOp::create(rewriter, loc, inputAccTy, weight, inputAcc);
+        AtenExpandAsOp::create(rewriter, loc, inputAccTy, weight, input);
 
     auto biasTy = cast<BaseTensorType>(bias.getType());
     SmallVector<int64_t> biasShape(biasTy.getSizes());
@@ -7963,7 +7969,7 @@ class DecomposeAtenInstanceNormOp
     }
 
     Value biasExpanded =
-        AtenExpandAsOp::create(rewriter, loc, inputAccTy, bias, inputAcc);
+        AtenExpandAsOp::create(rewriter, loc, inputAccTy, bias, input);
 
     Value out = AtenMulTensorOp::create(rewriter, loc, inputAccTy,
                                         inputNormalized, weightExpanded);
