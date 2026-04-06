@@ -703,6 +703,35 @@ def AtenInstanceNormModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 2, 1, 3), tu.rand(2), tu.rand(2))
 
 
+# InstanceNorm with fp16 and large spatial dims. Without f32 accumulator for mean/var,
+# this produces NaNs due to fp16 overflow. The following exercises the decomposition fix.
+class AtenInstanceNormModuleFp16(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 32, 8388608], torch.float16, True),
+            ([32], torch.float16, True),
+            ([32], torch.float16, True),
+        ]
+    )
+    def forward(self, x, w, b):
+        return torch.ops.aten.instance_norm(
+            x, w, b, None, None, True, 0.0, 1e-05, False
+        )
+
+
+@register_test_case(module_factory=lambda: AtenInstanceNormModuleFp16())
+def AtenInstanceNormModuleFp16_basic(module, tu: TestUtils):
+    x = tu.rand(1, 32, 8388608).to(torch.float16)
+    w = tu.rand(32).to(torch.float16)
+    b = tu.rand(32).to(torch.float16)
+    module.forward(x, w, b)
+
+
 # ==============================================================================
 class RMSNormModule(torch.nn.Module):
     def __init__(self):
