@@ -262,15 +262,24 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
     Attention is defined as matmul(softmax(matmul(Q, transpose(K))+M), V) and
     has shape BxMxN. Usually, this operator also performs scaling, masking and
     dropout, but we leave that out of the current implementation.
+
+    When `is_causal` is true, the attention mask operand is a materialized
+    causal (lower-triangular) mask. Downstream consumers may use this flag
+    to replace the mask with a fused index computation.
   }];
 
   let arguments = (ins Variadic<AnyShaped>:$inputs,
-                       Variadic<AnyShaped>:$outputs
+                       Variadic<AnyShaped>:$outputs,
+                       OptionalAttr<BoolAttr>:$is_causal
   );
 
   let builders = [
-    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputs), [{
-        build($_builder, $_state, TypeRange(outputs), inputs, outputs);
+    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputs,
+               CArg<"std::optional<bool>", "std::nullopt">:$isCausal), [{
+        build($_builder, $_state, TypeRange(outputs), inputs, outputs,
+              isCausal.has_value()
+                ? $_builder.getBoolAttr(*isCausal)
+                : BoolAttr());
     }]>
   ];
 
