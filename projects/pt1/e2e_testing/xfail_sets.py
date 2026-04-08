@@ -3193,6 +3193,7 @@ ONNX_XFAIL_SET = {
     "PrimsSqueezeEmptyDimensionsModule_basic",
     "PrimsSqueezeModule_basic",
     "PrimsSumFloatModule_basic",
+    "PrimsProdFloatModule_basic",
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
     "QuantizedReluInt8_basic",

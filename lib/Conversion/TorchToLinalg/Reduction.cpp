@@ -301,7 +301,7 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op))
     return arith::ConstantOp::create(b, loc, b.getZeroAttr(elementType));
 
-  if (isa<AtenProdOp, AtenProdDimIntOp>(op)) {
+  if (isa<AtenProdOp, AtenProdDimIntOp, PrimsProdOp>(op)) {
     if (isa<mlir::FloatType>(elementType))
       return arith::ConstantOp::create(b, loc,
                                        b.getFloatAttr(elementType, 1.0));
@@ -371,7 +371,7 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
       return arith::AddFOp::create(b, loc, self, result);
     else if (isa<mlir::IntegerType>(resultElementType))
       return arith::AddIOp::create(b, loc, self, result);
-  } else if (isa<AtenProdOp, AtenProdDimIntOp>(op)) {
+  } else if (isa<AtenProdOp, AtenProdDimIntOp, PrimsProdOp>(op)) {
     Value self =
         convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
     Value result = payloadArgs[1];
@@ -511,6 +511,38 @@ private:
     return opInfo;
   }
 
+  /// Compute reduction info from a tensor operand and an optional Torch list
+  /// of constant ints describing the dims to reduce. `keepdim` is always
+  /// false. Used for ops (e.g. `prims.prod`) that lack a `keepdim` operand
+  /// and use accessor names that differ from the dim-variant template.
+  FailureOr<torch_to_linalg::ReductionOpInfo>
+  computeReductionOpInfoFromDimList(Operation *op, Value tensorOperand,
+                                    Value dimsValue,
+                                    ConversionPatternRewriter &rewriter) const {
+    auto opInfo = torch_to_linalg::ReductionOpInfo{false, tensorOperand, {}};
+    auto inputType = cast<RankedTensorType>(tensorOperand.getType());
+
+    SmallVector<int64_t> dimList;
+    bool isNoneOrEmptyDimList = isa<Torch::NoneType>(dimsValue.getType());
+    if (matchPattern(dimsValue, m_TorchListOfConstantInts(dimList))) {
+      for (int64_t dim : dimList) {
+        dim = toPositiveDim(dim, inputType.getRank());
+        if (isValidDim(dim, inputType.getRank()))
+          opInfo.dimSet.insert(dim);
+      }
+      if (dimList.empty())
+        isNoneOrEmptyDimList = true;
+    } else if (!isNoneOrEmptyDimList) {
+      return rewriter.notifyMatchFailure(
+          op, "`dims` argument must be a constant int list or None");
+    }
+    if (isNoneOrEmptyDimList) {
+      for (int64_t i = 0; i < inputType.getRank(); i++)
+        opInfo.dimSet.insert(i);
+    }
+    return opInfo;
+  }
+
   /// Given a reduction operation, return the source tensor operand and the
   /// literal values of the `keepdim` and `dim` attributes, if any, or failure
   /// otherwise.
@@ -553,6 +585,12 @@ private:
     if (auto anyDimOp = dyn_cast<AtenAnyDimOp>(op))
       return computeReductionOpInfoForDimVariantOp(anyDimOp, operands,
                                                    rewriter);
+
+    if (auto primsProdOp = dyn_cast<PrimsProdOp>(op)) {
+      PrimsProdOp::Adaptor adaptor(operands);
+      return computeReductionOpInfoFromDimList(op, adaptor.getInp(),
+                                               primsProdOp.getDims(), rewriter);
+    }
 
     return rewriter.notifyMatchFailure(op, "not a supported reduce op");
   }
@@ -743,6 +781,7 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenSumDimIntListOp>();
   target.addIllegalOp<AtenProdOp>();
   target.addIllegalOp<AtenProdDimIntOp>();
+  target.addIllegalOp<PrimsProdOp>();
   target.addIllegalOp<AtenMaxOp>();
   target.addIllegalOp<AtenMinOp>();
   target.addIllegalOp<AtenAllDimOp>();
