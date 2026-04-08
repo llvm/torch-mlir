@@ -62,6 +62,27 @@ func.func @sdpa_gqa_different_seq_len(%query: !torch.vtensor<[1,32,10,64],f32>, 
 
 // -----
 
+// Test GQA with independent key/value head counts (H_k != H_v).
+// Q=8 heads, K=4 heads, V=2 heads. Key should be repeated 2x, value 4x.
+// Verifies the repeat factors are applied to the correct operands.
+// CHECK-LABEL: @sdpa_gqa_independent_kv_heads
+// key: 4 heads repeated 2x -> broadcast to [1,4,2,20,64]
+// CHECK: torch.aten.broadcast_to {{.*}} : !torch.vtensor<[1,4,1,20,64],f32>, !torch.list<int> -> !torch.vtensor<[1,4,2,20,64],f32>
+// value: 2 heads repeated 4x -> broadcast to [1,2,4,20,64]
+// CHECK: torch.aten.broadcast_to {{.*}} : !torch.vtensor<[1,2,1,20,64],f32>, !torch.list<int> -> !torch.vtensor<[1,2,4,20,64],f32>
+// CHECK: tm_tensor.attention
+// CHECK-SAME: tensor<8x10x64xf32>, tensor<8x20x64xf32>, tensor<8x20x64xf32>
+func.func @sdpa_gqa_independent_kv_heads(%query: !torch.vtensor<[1,8,10,64],f32>, %key: !torch.vtensor<[1,4,20,64],f32>, %value: !torch.vtensor<[1,2,20,64],f32>) -> !torch.vtensor<[1,8,10,64],f32> {
+  %float0 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %0 = torch.aten.scaled_dot_product_attention %query, %key, %value, %none, %float0, %false, %none, %true : !torch.vtensor<[1,8,10,64],f32>, !torch.vtensor<[1,4,20,64],f32>, !torch.vtensor<[1,2,20,64],f32>, !torch.none, !torch.float, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,8,10,64],f32>
+  return %0 : !torch.vtensor<[1,8,10,64],f32>
+}
+
+// -----
+
 // Test that an invalid scale (not 1/sqrt(headDim)) is rejected
 func.func @sdpa_scale_invalid(%query: !torch.vtensor<[1,4,8,64],f32>, %key: !torch.vtensor<[1,4,8,64],f32>, %value: !torch.vtensor<[1,4,8,64],f32>) -> !torch.vtensor<[1,4,8,64],f32> {
   %float0 = torch.constant.float 0.000000e+00
