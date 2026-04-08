@@ -3870,6 +3870,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "PrimMaxIntModule_basic",
     "PrimMinIntDynamicModule_basic",
     "PrimMinIntModule_basic",
+    "PrimsProdFloatModule_basic",
     "PrimsSqueezeEmptyDimensionsModule_basic",
     "PrimsSqueezeModule_basic",
     "PrimsViewOfModule_basic",
