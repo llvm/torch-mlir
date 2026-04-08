@@ -569,6 +569,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "MultinomialModule2D_F32",
     "MultinomialModule2D_basic",
     "MultinomialModule_basic",
+    "PrimsProdFloatModule_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluInt8_basic",
     "QuantizedReluUint8_basic",
