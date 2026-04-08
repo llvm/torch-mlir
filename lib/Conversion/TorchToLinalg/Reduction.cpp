@@ -512,15 +512,28 @@ private:
   }
 
   /// Compute reduction info from a tensor operand and an optional Torch list
-  /// of constant ints describing the dims to reduce. `keepdim` is always
-  /// false. Used for ops (e.g. `prims.prod`) that lack a `keepdim` operand
-  /// and use accessor names that differ from the dim-variant template.
+  /// of constant ints describing the dims to reduce. `keepdim` is inferred
+  /// by comparing the rank of the op's result type to the rank of the input
+  /// tensor: if they match, the reduced dimensions are kept (size 1). Used
+  /// for ops (e.g. `prims.prod`) that lack a `keepdim` operand and use
+  /// accessor names that differ from the dim-variant template.
   FailureOr<torch_to_linalg::ReductionOpInfo>
   computeReductionOpInfoFromDimList(Operation *op, Value tensorOperand,
                                     Value dimsValue,
                                     ConversionPatternRewriter &rewriter) const {
     auto opInfo = torch_to_linalg::ReductionOpInfo{false, tensorOperand, {}};
     auto inputType = cast<RankedTensorType>(tensorOperand.getType());
+
+    // Infer `keepdim` from the result type's rank when available. prims ops
+    // do not carry a `keepdim` operand, so the only signal is the shape of
+    // the op's declared result.
+    if (auto resultTensorType =
+            dyn_cast<Torch::BaseTensorType>(op->getResult(0).getType())) {
+      if (resultTensorType.hasSizes() &&
+          static_cast<int64_t>(resultTensorType.getSizes().size()) ==
+              inputType.getRank())
+        opInfo.keepDim = true;
+    }
 
     SmallVector<int64_t> dimList;
     bool isNoneOrEmptyDimList = isa<Torch::NoneType>(dimsValue.getType());
