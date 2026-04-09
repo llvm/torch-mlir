@@ -543,34 +543,27 @@ private:
         opInfo.dimSet.insert(i);
     }
 
-    // Infer `keepdim` from the result type's rank when available. prims ops
-    // do not carry a `keepdim` operand, so the only signal is the shape of
-    // the op's declared result. The result rank must either equal the input
-    // rank (keepdim) or equal the input rank minus the number of reduced
-    // dimensions (no keepdim); anything else is malformed.
+    // Infer `keepdim` from the result type's shape when available. prims
+    // ops do not carry a `keepdim` operand, so the only signal is the shape
+    // of the op's declared result. The result must exactly match the
+    // expected reduced shape: reduced dimensions are size 1 (keepdim) or
+    // dropped (no keepdim), and non-reduced dimensions match the input.
     if (auto resultTensorType =
             dyn_cast<Torch::BaseTensorType>(op->getResult(0).getType())) {
       if (resultTensorType.hasSizes()) {
         int64_t inputRank = inputType.getRank();
-        int64_t resultRank =
-            static_cast<int64_t>(resultTensorType.getSizes().size());
-        int64_t numReduced = static_cast<int64_t>(opInfo.dimSet.size());
+        ArrayRef<int64_t> inputSizes = inputType.getShape();
+        ArrayRef<int64_t> resultSizes = resultTensorType.getSizes();
+        int64_t resultRank = static_cast<int64_t>(resultSizes.size());
+
         if (resultRank == inputRank) {
           opInfo.keepDim = true;
-          // Each reduced dimension must have size 1 in the result when
-          // keepdim semantics are in effect.
-          ArrayRef<int64_t> resultSizes = resultTensorType.getSizes();
-          for (int64_t reducedDim : opInfo.dimSet) {
-            int64_t sz = resultSizes[reducedDim];
-            if (sz != 1 && sz != Torch::kUnknownSize)
+          for (int64_t i = 0; i < inputRank; ++i) {
+            int64_t expected = opInfo.dimSet.contains(i) ? 1 : inputSizes[i];
+            if (resultSizes[i] != expected)
               return rewriter.notifyMatchFailure(
-                  op, "result size at a reduced dimension must be 1 when "
-                      "keepdim is inferred");
+                  op, "result shape does not match expected reduced shape");
           }
-        } else if (resultRank != inputRank - numReduced) {
-          return rewriter.notifyMatchFailure(
-              op, "result rank does not match input rank (keepdim) nor "
-                  "input rank minus the number of reduced dims");
         }
       }
     }
