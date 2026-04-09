@@ -537,7 +537,7 @@ def Torch_PrimLoopOp : Torch_Op<"prim.Loop", [
 }
 
 def Torch_PrimLoopConditionOp : Torch_Op<"prim.Loop.condition", [
-    DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface>,
+    DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface, ["getMutableSuccessorOperands"]>,
     Terminator,
     HasParent<"::mlir::torch::Torch::PrimLoopOp">]> {
   let summary = "yield-like terminator for torch.prim.Loop";
@@ -1235,7 +1235,7 @@ def Torch_ShapeCalculateYieldOp : Torch_Op<"shape.calculate.yield", [
 }
 
 def Torch_ShapeCalculateYieldShapesOp : Torch_Op<"shape.calculate.yield.shapes", [
-    DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface>,
+    DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface, ["getMutableSuccessorOperands"]>,
     Terminator,
     HasValueSemantics,
     ReadOnly,
@@ -1315,7 +1315,7 @@ def Torch_DtypeCalculateYieldOp : Torch_Op<"dtype.calculate.yield", [
 }
 
 def Torch_DtypeCalculateYieldDtypesOp : Torch_Op<"dtype.calculate.yield.dtypes", [
-    DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface>,
+    DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface, ["getMutableSuccessorOperands"]>,
     Terminator,
     HasValueSemantics,
     ReadOnly,
