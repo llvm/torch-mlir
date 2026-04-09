@@ -524,17 +524,6 @@ private:
     auto opInfo = torch_to_linalg::ReductionOpInfo{false, tensorOperand, {}};
     auto inputType = cast<RankedTensorType>(tensorOperand.getType());
 
-    // Infer `keepdim` from the result type's rank when available. prims ops
-    // do not carry a `keepdim` operand, so the only signal is the shape of
-    // the op's declared result.
-    if (auto resultTensorType =
-            dyn_cast<Torch::BaseTensorType>(op->getResult(0).getType())) {
-      if (resultTensorType.hasSizes() &&
-          static_cast<int64_t>(resultTensorType.getSizes().size()) ==
-              inputType.getRank())
-        opInfo.keepDim = true;
-    }
-
     SmallVector<int64_t> dimList;
     bool isNoneOrEmptyDimList = isa<Torch::NoneType>(dimsValue.getType());
     if (matchPattern(dimsValue, m_TorchListOfConstantInts(dimList))) {
@@ -553,6 +542,39 @@ private:
       for (int64_t i = 0; i < inputType.getRank(); i++)
         opInfo.dimSet.insert(i);
     }
+
+    // Infer `keepdim` from the result type's rank when available. prims ops
+    // do not carry a `keepdim` operand, so the only signal is the shape of
+    // the op's declared result. The result rank must either equal the input
+    // rank (keepdim) or equal the input rank minus the number of reduced
+    // dimensions (no keepdim); anything else is malformed.
+    if (auto resultTensorType =
+            dyn_cast<Torch::BaseTensorType>(op->getResult(0).getType())) {
+      if (resultTensorType.hasSizes()) {
+        int64_t inputRank = inputType.getRank();
+        int64_t resultRank =
+            static_cast<int64_t>(resultTensorType.getSizes().size());
+        int64_t numReduced = static_cast<int64_t>(opInfo.dimSet.size());
+        if (resultRank == inputRank) {
+          opInfo.keepDim = true;
+          // Each reduced dimension must have size 1 in the result when
+          // keepdim semantics are in effect.
+          ArrayRef<int64_t> resultSizes = resultTensorType.getSizes();
+          for (int64_t reducedDim : opInfo.dimSet) {
+            int64_t sz = resultSizes[reducedDim];
+            if (sz != 1 && sz != Torch::kUnknownSize)
+              return rewriter.notifyMatchFailure(
+                  op, "result size at a reduced dimension must be 1 when "
+                      "keepdim is inferred");
+          }
+        } else if (resultRank != inputRank - numReduced) {
+          return rewriter.notifyMatchFailure(
+              op, "result rank does not match input rank (keepdim) nor "
+                  "input rank minus the number of reduced dims");
+        }
+      }
+    }
+
     return opInfo;
   }
 
