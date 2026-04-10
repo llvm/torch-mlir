@@ -517,6 +517,11 @@ private:
   /// tensor: if they match, the reduced dimensions are kept (size 1). Used
   /// for ops (e.g. `prims.prod`) that lack a `keepdim` operand and use
   /// accessor names that differ from the dim-variant template.
+  ///
+  /// In typical pytorch-imported programs, `keepdim` is always implicitly
+  /// `false` for prims ops; however, we allow intentionally diverging from
+  /// this (e.g. in ONNX or IR-emitting situations) for convenience. In
+  /// this case, we rely on the result rank to determine `keepdim`.
   FailureOr<torch_to_linalg::ReductionOpInfo>
   computeReductionOpInfoFromDimList(Operation *op, Value tensorOperand,
                                     Value dimsValue,
@@ -543,28 +548,29 @@ private:
         opInfo.dimSet.insert(i);
     }
 
-    // Infer `keepdim` from the result type's shape when available. prims
-    // ops do not carry a `keepdim` operand, so the only signal is the shape
-    // of the op's declared result. The result must exactly match the
-    // expected reduced shape: reduced dimensions are size 1 (keepdim) or
-    // dropped (no keepdim), and non-reduced dimensions match the input.
-    if (auto resultTensorType =
-            dyn_cast<Torch::BaseTensorType>(op->getResult(0).getType())) {
-      if (resultTensorType.hasSizes()) {
-        int64_t inputRank = inputType.getRank();
-        ArrayRef<int64_t> inputSizes = inputType.getShape();
-        ArrayRef<int64_t> resultSizes = resultTensorType.getSizes();
-        int64_t resultRank = static_cast<int64_t>(resultSizes.size());
+    // Infer `keepdim` from the result type's rank. prims ops do not carry
+    // a `keepdim` operand, so the only signal is the shape of the op's
+    // declared result. The result must exactly match the expected reduced
+    // shape: reduced dimensions are size 1 (keepdim) or dropped (no
+    // keepdim), and non-reduced dimensions match the input.
+    auto resultTensorType =
+        cast<Torch::BaseTensorType>(op->getResult(0).getType());
+    if (!resultTensorType.hasSizes())
+      return rewriter.notifyMatchFailure(op,
+                                         "result tensor must have known sizes");
 
-        if (resultRank == inputRank) {
-          opInfo.keepDim = true;
-          for (int64_t i = 0; i < inputRank; ++i) {
-            int64_t expected = opInfo.dimSet.contains(i) ? 1 : inputSizes[i];
-            if (resultSizes[i] != expected)
-              return rewriter.notifyMatchFailure(
-                  op, "result shape does not match expected reduced shape");
-          }
-        }
+    int64_t inputRank = inputType.getRank();
+    ArrayRef<int64_t> inputSizes = inputType.getShape();
+    ArrayRef<int64_t> resultSizes = resultTensorType.getSizes();
+    int64_t resultRank = static_cast<int64_t>(resultSizes.size());
+
+    if (resultRank == inputRank) {
+      opInfo.keepDim = true;
+      for (int64_t i = 0; i < inputRank; ++i) {
+        int64_t expected = opInfo.dimSet.contains(i) ? 1 : inputSizes[i];
+        if (resultSizes[i] != expected)
+          return rewriter.notifyMatchFailure(
+              op, "result shape does not match expected reduced shape");
       }
     }
 
