@@ -157,6 +157,19 @@ func.func @torch.aten.matmul$generic_f16(%arg0: !torch.vtensor<[?,?,8,16],f16>, 
 
 // -----
 
+// Verify that aten.bmm(si8, si8) -> si32 uses i32 accumulator (not i64),
+// enabling downstream i8 HW intrinsics.
+// CHECK-LABEL: func.func @torch.aten.bmm$i8
+// CHECK:      linalg.batch_matmul ins(%{{.*}}, %{{.*}} : tensor<2x8x16xi8>, tensor<2x16x8xi8>) outs(%{{.*}} : tensor<2x8x8xi32>) -> tensor<2x8x8xi32>
+// CHECK-NOT:  arith.extsi
+// CHECK-NOT:  arith.trunci
+func.func @torch.aten.bmm$i8(%arg0: !torch.vtensor<[2,8,16],si8>, %arg1: !torch.vtensor<[2,16,8],si8>) -> !torch.vtensor<[2,8,8],si32> {
+  %0 = torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[2,8,16],si8>, !torch.vtensor<[2,16,8],si8> -> !torch.vtensor<[2,8,8],si32>
+  return %0 : !torch.vtensor<[2,8,8],si32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @torch.aten.mm$basic_strict(
 // CHECK-NOT: assert
 func.func @torch.aten.mm$basic_strict(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,2],f32>

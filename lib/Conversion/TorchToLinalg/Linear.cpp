@@ -744,7 +744,7 @@ public:
     // Check the matrixs shapes are valid for mulplication.
     checkDimEqualHelper(rewriter, loc, lhsDim2, rhsDim1);
 
-    Type accumulatorDType = getDefaultAccType(rewriter, resultElementType);
+    Type accumulatorDType = getDefaultAccType(rewriter, lhsElementType);
     Value initTensor0 = createZeroInitTensor(
         rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2}, accumulatorDType);
 
