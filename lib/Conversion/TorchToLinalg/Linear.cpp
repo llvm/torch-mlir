@@ -20,6 +20,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/Support/MathExtras.h"
 #include <algorithm>
 
 using namespace mlir;
@@ -2341,7 +2342,7 @@ Value getDFTMatmulCoeff(OpBuilder b, Location loc,
       llvm::cast<mlir::FloatType>(complexTy.getElementType());
 
   // scale = 2 * pi / N
-  double scale = 2 * M_PI / matrixType.getDimSize(0);
+  double scale = 2 * llvm::numbers::pi / matrixType.getDimSize(0);
 
   SmallVector<std::complex<APFloat>> values;
   for (auto i : llvm::seq<unsigned>(0, matrixType.getDimSize(0))) {
