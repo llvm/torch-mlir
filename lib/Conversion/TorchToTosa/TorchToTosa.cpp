@@ -9764,8 +9764,8 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
   auto resultType =
       dyn_cast<RankedTensorType>(typeConverter->convertType(op.getType()));
   if (!selfType || !resultType)
-    return rewriter.notifyMatchFailure(op,
-                                       "Only ranked tensor types are supported");
+    return rewriter.notifyMatchFailure(
+        op, "Only ranked tensor types are supported");
 
   if (!isa<mlir::FloatType>(resultType.getElementType()))
     return rewriter.notifyMatchFailure(
@@ -9786,9 +9786,8 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
     if (!likeTy || !isa<FloatType>(likeTy.getElementType()))
       return failure();
 
-    auto constantOr =
-        tosa::getConstTensor<float>(rewriter, op, value, {},
-                                    likeTy.getElementType());
+    auto constantOr = tosa::getConstTensor<float>(rewriter, op, value, {},
+                                                  likeTy.getElementType());
     if (!constantOr)
       return failure();
     Value constant = *constantOr;
@@ -9800,9 +9799,9 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
 
   // Evaluate P(x) = x * Q(x^2) by running Horner's method on Q using
   // the precomputed `xSquared`, then multiplying by x.
-  auto emitPolynomialFromSquared = [&](Value x, Value xSquared,
-                                       ArrayRef<float> coefficients)
-      -> FailureOr<Value> {
+  auto emitPolynomialFromSquared =
+      [&](Value x, Value xSquared,
+          ArrayRef<float> coefficients) -> FailureOr<Value> {
     auto xTy = dyn_cast<RankedTensorType>(x.getType());
     auto xSquaredTy = dyn_cast<RankedTensorType>(xSquared.getType());
     if (!xTy || !xSquaredTy || !isa<FloatType>(xTy.getElementType()) ||
@@ -9821,8 +9820,7 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
       FailureOr<Value> coeffOr = createConst(x, coefficients[i]);
       if (failed(coeffOr))
         return failure();
-      acc =
-          tosa::AddOp::create(rewriter, op->getLoc(), xTy, acc, *coeffOr);
+      acc = tosa::AddOp::create(rewriter, op->getLoc(), xTy, acc, *coeffOr);
     }
 
     return tosa::createMulOpAndCast(rewriter, op, xTy, x, acc,
@@ -9845,12 +9843,11 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
   Value split0 = *split0Or;
   Value split1 = *split1Or;
   Value piOverTwo = *piOverTwoOr;
-  auto boolType = RankedTensorType::get(resultType.getShape(),
-                                        rewriter.getIntegerType(1));
+  auto boolType =
+      RankedTensorType::get(resultType.getShape(), rewriter.getIntegerType(1));
 
   // Step 1. Work with the magnitude and remember which values need reflection.
-  Value absSelf =
-      tosa::AbsOp::create(rewriter, op->getLoc(), resultType, self);
+  Value absSelf = tosa::AbsOp::create(rewriter, op->getLoc(), resultType, self);
   Value gtOne =
       tosa::GreaterOp::create(rewriter, op->getLoc(), boolType, absSelf, one);
 
@@ -9870,35 +9867,35 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
 
   // Step 3. Evaluate the three polynomial pieces on the reduced input and
   // select the interval-specific approximation.
-  Value reducedInputSquared =
-      tosa::createMulOpAndCast(rewriter, op, resultType, reducedInput,
-                               reducedInput, /*shift=*/0);
+  Value reducedInputSquared = tosa::createMulOpAndCast(
+      rewriter, op, resultType, reducedInput, reducedInput, /*shift=*/0);
   FailureOr<Value> lowApproxOr = emitPolynomialFromSquared(
       reducedInput, reducedInputSquared, ArrayRef<float>(kAtanLowCoefficients));
   FailureOr<Value> midApproxOr = emitPolynomialFromSquared(
       reducedInput, reducedInputSquared, ArrayRef<float>(kAtanMidCoefficients));
-  FailureOr<Value> highApproxOr = emitPolynomialFromSquared(
-      reducedInput, reducedInputSquared, ArrayRef<float>(kAtanHighCoefficients));
+  FailureOr<Value> highApproxOr =
+      emitPolynomialFromSquared(reducedInput, reducedInputSquared,
+                                ArrayRef<float>(kAtanHighCoefficients));
   if (failed(lowApproxOr) || failed(midApproxOr) || failed(highApproxOr))
     return rewriter.notifyMatchFailure(
         op, "Failed to evaluate atan polynomial approximation");
 
   Value reducedApprox = tosa::SelectOp::create(
       rewriter, op->getLoc(), resultType, gtSplit0, *midApproxOr, *lowApproxOr);
-  reducedApprox = tosa::SelectOp::create(
-      rewriter, op->getLoc(), resultType, gtSplit1, *highApproxOr,
-      reducedApprox);
+  reducedApprox =
+      tosa::SelectOp::create(rewriter, op->getLoc(), resultType, gtSplit1,
+                             *highApproxOr, reducedApprox);
 
   // Step 4. For |x| > 1, map atan(1/|x|) back to atan(|x|) using pi/2 - y.
-  Value reflectedApprox =
-      tosa::SubOp::create(rewriter, op->getLoc(), resultType, piOverTwo,
-                          reducedApprox);
-  Value magnitude = tosa::SelectOp::create(
-      rewriter, op->getLoc(), resultType, gtOne, reflectedApprox, reducedApprox);
+  Value reflectedApprox = tosa::SubOp::create(
+      rewriter, op->getLoc(), resultType, piOverTwo, reducedApprox);
+  Value magnitude =
+      tosa::SelectOp::create(rewriter, op->getLoc(), resultType, gtOne,
+                             reflectedApprox, reducedApprox);
 
   // Step 5. Restore the original sign.
-  Value isNonNegative =
-      tosa::GreaterEqualOp::create(rewriter, op->getLoc(), boolType, self, zero);
+  Value isNonNegative = tosa::GreaterEqualOp::create(rewriter, op->getLoc(),
+                                                     boolType, self, zero);
   Value negMagnitude =
       tosa::SubOp::create(rewriter, op->getLoc(), resultType, zero, magnitude);
 
